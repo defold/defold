@@ -38,17 +38,17 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (testing "Connections."
                   (is (= [(gt/->Arc source-node-id :property-output target-node-id :regular-input)]
-                         (g/outputs basis source-node-id :property-output)))
+                         (g/outputs @basis-ref source-node-id :property-output)))
                   (is (= [(gt/->Arc source-node-id :property-output target-node-id :regular-input)]
-                         (g/inputs basis target-node-id :regular-input))))
+                         (g/inputs @basis-ref target-node-id :regular-input))))
 
                 (testing "Internal arc tables."
                   (is (= [(gt/->Arc source-node-id :property-output target-node-id :regular-input)]
-                         (helpers/source-arc-table-arcs basis source-node-id :property-output)
-                         (helpers/target-arc-table-arcs basis target-node-id :regular-input))))
+                         (helpers/source-arc-table-arcs @basis-ref source-node-id :property-output)
+                         (helpers/target-arc-table-arcs @basis-ref target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= :source-value (g/node-value target-node-id :regular-output evaluation-context)))))))
@@ -56,14 +56,14 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (testing "Connections."
-                  (is (coll/empty? (g/outputs basis source-node-id :property-output)))
-                  (is (coll/empty? (g/inputs basis target-node-id :regular-input))))
+                  (is (coll/empty? (g/outputs @basis-ref source-node-id :property-output)))
+                  (is (coll/empty? (g/inputs @basis-ref target-node-id :regular-input))))
 
                 (testing "Internal arc tables."
-                  (is (coll/empty? (helpers/source-arc-table-arcs basis source-node-id :property-output)))
-                  (is (coll/empty? (helpers/target-arc-table-arcs basis target-node-id :regular-input))))
+                  (is (coll/empty? (helpers/source-arc-table-arcs @basis-ref source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-arcs @basis-ref target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= nil (g/node-value target-node-id :regular-output evaluation-context)))))))]
@@ -96,17 +96,17 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (testing "Connections."
                   (is (= [(gt/->Arc source-node-id :property-output target-node-id :array-input)]
-                         (g/outputs basis source-node-id :property-output)))
+                         (g/outputs @basis-ref source-node-id :property-output)))
                   (is (= [(gt/->Arc source-node-id :property-output target-node-id :array-input)]
-                         (g/inputs basis target-node-id :array-input))))
+                         (g/inputs @basis-ref target-node-id :array-input))))
 
                 (testing "Internal arc tables."
                   (is (= [(gt/->Arc source-node-id :property-output target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis source-node-id :property-output)
-                         (helpers/target-arc-table-arcs basis target-node-id :array-input))))
+                         (helpers/source-arc-table-arcs @basis-ref source-node-id :property-output)
+                         (helpers/target-arc-table-arcs @basis-ref target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:source-value] (g/node-value target-node-id :array-output evaluation-context)))))))
@@ -114,14 +114,14 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (testing "Connections."
-                  (is (coll/empty? (g/outputs basis source-node-id :property-output)))
-                  (is (coll/empty? (g/inputs basis target-node-id :array-input))))
+                  (is (coll/empty? (g/outputs @basis-ref source-node-id :property-output)))
+                  (is (coll/empty? (g/inputs @basis-ref target-node-id :array-input))))
 
                 (testing "Internal arc tables."
-                  (is (coll/empty? (helpers/source-arc-table-arcs basis source-node-id :property-output)))
-                  (is (coll/empty? (helpers/target-arc-table-arcs basis target-node-id :array-input))))
+                  (is (coll/empty? (helpers/source-arc-table-arcs @basis-ref source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-arcs @basis-ref target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [] (g/node-value target-node-id :array-output evaluation-context)))))))]
@@ -228,34 +228,34 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (testing "Connections."
                   (is (= [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)]
-                         (g/outputs basis first-source-node-id :property-output)))
+                         (g/outputs @basis-ref first-source-node-id :property-output)))
                   (is (= [(gt/->Arc duplicated-source-node-id :property-output target-node-id :array-input)
                           (gt/->Arc duplicated-source-node-id :property-output target-node-id :array-input)]
-                         (g/outputs basis duplicated-source-node-id :property-output)))
+                         (g/outputs @basis-ref duplicated-source-node-id :property-output)))
                   (is (= [(gt/->Arc second-source-node-id :property-output target-node-id :array-input)]
-                         (g/outputs basis second-source-node-id :property-output)))
+                         (g/outputs @basis-ref second-source-node-id :property-output)))
                   (is (= [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
                           (gt/->Arc duplicated-source-node-id :property-output target-node-id :array-input)
                           (gt/->Arc second-source-node-id :property-output target-node-id :array-input)
                           (gt/->Arc duplicated-source-node-id :property-output target-node-id :array-input)]
-                         (g/inputs basis target-node-id :array-input))))
+                         (g/inputs @basis-ref target-node-id :array-input))))
 
                 (testing "Internal arc tables."
                   (is (= [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis first-source-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref first-source-node-id :property-output)))
                   (is (= [(gt/->Arc duplicated-source-node-id :property-output target-node-id :array-input)
                           (gt/->Arc duplicated-source-node-id :property-output target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis duplicated-source-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref duplicated-source-node-id :property-output)))
                   (is (= [(gt/->Arc second-source-node-id :property-output target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis second-source-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref second-source-node-id :property-output)))
                   (is (= [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
                           (gt/->Arc duplicated-source-node-id :property-output target-node-id :array-input)
                           (gt/->Arc second-source-node-id :property-output target-node-id :array-input)
                           (gt/->Arc duplicated-source-node-id :property-output target-node-id :array-input)]
-                         (helpers/target-arc-table-arcs basis target-node-id :array-input))))
+                         (helpers/target-arc-table-arcs @basis-ref target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:first-value :duplicated-value :second-value :duplicated-value]
@@ -264,26 +264,26 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (testing "Connections."
                   (is (= [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)]
-                         (g/outputs basis first-source-node-id :property-output)))
-                  (is (coll/empty? (g/outputs basis duplicated-source-node-id :property-output)))
+                         (g/outputs @basis-ref first-source-node-id :property-output)))
+                  (is (coll/empty? (g/outputs @basis-ref duplicated-source-node-id :property-output)))
                   (is (= [(gt/->Arc second-source-node-id :property-output target-node-id :array-input)]
-                         (g/outputs basis second-source-node-id :property-output)))
+                         (g/outputs @basis-ref second-source-node-id :property-output)))
                   (is (= [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
                           (gt/->Arc second-source-node-id :property-output target-node-id :array-input)]
-                         (g/inputs basis target-node-id :array-input))))
+                         (g/inputs @basis-ref target-node-id :array-input))))
 
                 (testing "Internal arc tables."
                   (is (= [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis first-source-node-id :property-output)))
-                  (is (coll/empty? (helpers/source-arc-table-arcs basis duplicated-source-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref first-source-node-id :property-output)))
+                  (is (coll/empty? (helpers/source-arc-table-arcs @basis-ref duplicated-source-node-id :property-output)))
                   (is (= [(gt/->Arc second-source-node-id :property-output target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis second-source-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref second-source-node-id :property-output)))
                   (is (= [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
                           (gt/->Arc second-source-node-id :property-output target-node-id :array-input)]
-                         (helpers/target-arc-table-arcs basis target-node-id :array-input))))
+                         (helpers/target-arc-table-arcs @basis-ref target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:first-value :second-value] (g/node-value target-node-id :array-output evaluation-context)))))))]
@@ -330,34 +330,34 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (testing "Explicit connections."
-                  (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)] (vec (g/explicit-outputs basis initial-source-node-id :property-output))))
-                  (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input)] (vec (g/explicit-outputs basis shadowing-source-node-id :property-output))))
-                  (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)] (vec (g/explicit-inputs basis original-target-node-id :regular-input))))
-                  (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input)] (vec (g/explicit-inputs basis first-order-override-target-node-id :regular-input))))
-                  (is (coll/empty? (g/explicit-inputs basis second-order-override-target-node-id :regular-input))))
+                  (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)] (vec (g/explicit-outputs @basis-ref initial-source-node-id :property-output))))
+                  (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input)] (vec (g/explicit-outputs @basis-ref shadowing-source-node-id :property-output))))
+                  (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)] (vec (g/explicit-inputs @basis-ref original-target-node-id :regular-input))))
+                  (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input)] (vec (g/explicit-inputs @basis-ref first-order-override-target-node-id :regular-input))))
+                  (is (coll/empty? (g/explicit-inputs @basis-ref second-order-override-target-node-id :regular-input))))
 
                 (testing "Implicit connections."
                   (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)]
-                         (g/outputs basis initial-source-node-id :property-output)))
+                         (g/outputs @basis-ref initial-source-node-id :property-output)))
                   (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input)
                           (gt/->Arc shadowing-source-node-id :property-output second-order-override-target-node-id :regular-input)]
-                         (g/outputs basis shadowing-source-node-id :property-output)))
+                         (g/outputs @basis-ref shadowing-source-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)]
-                         (g/inputs basis original-target-node-id :regular-input)))
+                         (g/inputs @basis-ref original-target-node-id :regular-input)))
                   (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input)]
-                         (g/inputs basis first-order-override-target-node-id :regular-input)))
+                         (g/inputs @basis-ref first-order-override-target-node-id :regular-input)))
                   (is (= [(gt/->Arc shadowing-source-node-id :property-output second-order-override-target-node-id :regular-input)]
-                         (g/inputs basis second-order-override-target-node-id :regular-input))))
+                         (g/inputs @basis-ref second-order-override-target-node-id :regular-input))))
 
                 (testing "Internal arc tables."
                   (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)]
-                         (helpers/source-arc-table-arcs basis initial-source-node-id :property-output)
-                         (helpers/target-arc-table-arcs basis original-target-node-id :regular-input)))
+                         (helpers/source-arc-table-arcs @basis-ref initial-source-node-id :property-output)
+                         (helpers/target-arc-table-arcs @basis-ref original-target-node-id :regular-input)))
                   (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input)]
-                         (helpers/source-arc-table-arcs basis shadowing-source-node-id :property-output)
-                         (helpers/target-arc-table-arcs basis first-order-override-target-node-id :regular-input))))
+                         (helpers/source-arc-table-arcs @basis-ref shadowing-source-node-id :property-output)
+                         (helpers/target-arc-table-arcs @basis-ref first-order-override-target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= :initial-source-value (g/node-value original-target-node-id :regular-output evaluation-context)))
@@ -367,33 +367,33 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (testing "Explicit connections."
-                  (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)] (vec (g/explicit-outputs basis initial-source-node-id :property-output))))
-                  (is (coll/empty? (g/explicit-outputs basis shadowing-source-node-id :property-output)))
-                  (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)] (vec (g/explicit-inputs basis original-target-node-id :regular-input))))
-                  (is (coll/empty? (g/explicit-inputs basis first-order-override-target-node-id :regular-input)))
-                  (is (coll/empty? (g/explicit-inputs basis second-order-override-target-node-id :regular-input))))
+                  (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)] (vec (g/explicit-outputs @basis-ref initial-source-node-id :property-output))))
+                  (is (coll/empty? (g/explicit-outputs @basis-ref shadowing-source-node-id :property-output)))
+                  (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)] (vec (g/explicit-inputs @basis-ref original-target-node-id :regular-input))))
+                  (is (coll/empty? (g/explicit-inputs @basis-ref first-order-override-target-node-id :regular-input)))
+                  (is (coll/empty? (g/explicit-inputs @basis-ref second-order-override-target-node-id :regular-input))))
 
                 (testing "Implicit connections."
                   (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)
                           (gt/->Arc initial-source-node-id :property-output first-order-override-target-node-id :regular-input)
                           (gt/->Arc initial-source-node-id :property-output second-order-override-target-node-id :regular-input)]
-                         (g/outputs basis initial-source-node-id :property-output)))
-                  (is (coll/empty? (g/outputs basis shadowing-source-node-id :property-output)))
+                         (g/outputs @basis-ref initial-source-node-id :property-output)))
+                  (is (coll/empty? (g/outputs @basis-ref shadowing-source-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)]
-                         (g/inputs basis original-target-node-id :regular-input)))
+                         (g/inputs @basis-ref original-target-node-id :regular-input)))
                   (is (= [(gt/->Arc initial-source-node-id :property-output first-order-override-target-node-id :regular-input)]
-                         (g/inputs basis first-order-override-target-node-id :regular-input)))
+                         (g/inputs @basis-ref first-order-override-target-node-id :regular-input)))
                   (is (= [(gt/->Arc initial-source-node-id :property-output second-order-override-target-node-id :regular-input)]
-                         (g/inputs basis second-order-override-target-node-id :regular-input))))
+                         (g/inputs @basis-ref second-order-override-target-node-id :regular-input))))
 
                 (testing "Internal arc tables."
                   (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)]
-                         (helpers/source-arc-table-arcs basis initial-source-node-id :property-output)
-                         (helpers/target-arc-table-arcs basis original-target-node-id :regular-input)))
-                  (is (coll/empty? (helpers/source-arc-table-arcs basis shadowing-source-node-id :property-output)))
-                  (is (coll/empty? (helpers/target-arc-table-arcs basis first-order-override-target-node-id :regular-input))))
+                         (helpers/source-arc-table-arcs @basis-ref initial-source-node-id :property-output)
+                         (helpers/target-arc-table-arcs @basis-ref original-target-node-id :regular-input)))
+                  (is (coll/empty? (helpers/source-arc-table-arcs @basis-ref shadowing-source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-arcs @basis-ref first-order-override-target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= :initial-source-value (g/node-value original-target-node-id :regular-output evaluation-context)))
@@ -444,42 +444,42 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (testing "Explicit connections."
-                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-one-node-id :property-output))))
-                  (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-two-node-id :property-output))))
-                  (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-outputs basis shadowing-source-node-id :property-output))))
-                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input) (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-inputs basis original-target-node-id :array-input))))
-                  (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-inputs basis first-order-override-target-node-id :array-input))))
-                  (is (coll/empty? (g/explicit-inputs basis second-order-override-target-node-id :array-input))))
+                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs @basis-ref initial-source-one-node-id :property-output))))
+                  (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs @basis-ref initial-source-two-node-id :property-output))))
+                  (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-outputs @basis-ref shadowing-source-node-id :property-output))))
+                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input) (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-inputs @basis-ref original-target-node-id :array-input))))
+                  (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-inputs @basis-ref first-order-override-target-node-id :array-input))))
+                  (is (coll/empty? (g/explicit-inputs @basis-ref second-order-override-target-node-id :array-input))))
 
                 (testing "Implicit connections."
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)]
-                         (g/outputs basis initial-source-one-node-id :property-output)))
+                         (g/outputs @basis-ref initial-source-one-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (g/outputs basis initial-source-two-node-id :property-output)))
+                         (g/outputs @basis-ref initial-source-two-node-id :property-output)))
                   (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :array-input)
                           (gt/->Arc shadowing-source-node-id :property-output second-order-override-target-node-id :array-input)]
-                         (g/outputs basis shadowing-source-node-id :property-output)))
+                         (g/outputs @basis-ref shadowing-source-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)
                           (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (g/inputs basis original-target-node-id :array-input)))
+                         (g/inputs @basis-ref original-target-node-id :array-input)))
                   (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :array-input)]
-                         (g/inputs basis first-order-override-target-node-id :array-input)))
+                         (g/inputs @basis-ref first-order-override-target-node-id :array-input)))
                   (is (= [(gt/->Arc shadowing-source-node-id :property-output second-order-override-target-node-id :array-input)]
-                         (g/inputs basis second-order-override-target-node-id :array-input))))
+                         (g/inputs @basis-ref second-order-override-target-node-id :array-input))))
 
                 (testing "Internal arc tables."
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref initial-source-one-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref initial-source-two-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)
                           (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (helpers/target-arc-table-arcs basis original-target-node-id :array-input)))
+                         (helpers/target-arc-table-arcs @basis-ref original-target-node-id :array-input)))
                   (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis shadowing-source-node-id :property-output)
-                         (helpers/target-arc-table-arcs basis first-order-override-target-node-id :array-input))))
+                         (helpers/source-arc-table-arcs @basis-ref shadowing-source-node-id :property-output)
+                         (helpers/target-arc-table-arcs @basis-ref first-order-override-target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -489,45 +489,45 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (testing "Explicit connections."
-                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-one-node-id :property-output))))
-                  (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-two-node-id :property-output))))
-                  (is (coll/empty? (g/explicit-outputs basis shadowing-source-node-id :property-output)))
-                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input) (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-inputs basis original-target-node-id :array-input))))
-                  (is (coll/empty? (g/explicit-inputs basis first-order-override-target-node-id :array-input)))
-                  (is (coll/empty? (g/explicit-inputs basis second-order-override-target-node-id :array-input))))
+                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs @basis-ref initial-source-one-node-id :property-output))))
+                  (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs @basis-ref initial-source-two-node-id :property-output))))
+                  (is (coll/empty? (g/explicit-outputs @basis-ref shadowing-source-node-id :property-output)))
+                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input) (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-inputs @basis-ref original-target-node-id :array-input))))
+                  (is (coll/empty? (g/explicit-inputs @basis-ref first-order-override-target-node-id :array-input)))
+                  (is (coll/empty? (g/explicit-inputs @basis-ref second-order-override-target-node-id :array-input))))
 
                 (testing "Implicit connections."
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)
                           (gt/->Arc initial-source-one-node-id :property-output first-order-override-target-node-id :array-input)
                           (gt/->Arc initial-source-one-node-id :property-output second-order-override-target-node-id :array-input)]
-                         (g/outputs basis initial-source-one-node-id :property-output)))
+                         (g/outputs @basis-ref initial-source-one-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)
                           (gt/->Arc initial-source-two-node-id :property-output first-order-override-target-node-id :array-input)
                           (gt/->Arc initial-source-two-node-id :property-output second-order-override-target-node-id :array-input)]
-                         (g/outputs basis initial-source-two-node-id :property-output)))
-                  (is (coll/empty? (g/outputs basis shadowing-source-node-id :property-output)))
+                         (g/outputs @basis-ref initial-source-two-node-id :property-output)))
+                  (is (coll/empty? (g/outputs @basis-ref shadowing-source-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)
                           (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (g/inputs basis original-target-node-id :array-input)))
+                         (g/inputs @basis-ref original-target-node-id :array-input)))
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output first-order-override-target-node-id :array-input)
                           (gt/->Arc initial-source-two-node-id :property-output first-order-override-target-node-id :array-input)]
-                         (g/inputs basis first-order-override-target-node-id :array-input)))
+                         (g/inputs @basis-ref first-order-override-target-node-id :array-input)))
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output second-order-override-target-node-id :array-input)
                           (gt/->Arc initial-source-two-node-id :property-output second-order-override-target-node-id :array-input)]
-                         (g/inputs basis second-order-override-target-node-id :array-input))))
+                         (g/inputs @basis-ref second-order-override-target-node-id :array-input))))
 
                 (testing "Internal arc tables."
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref initial-source-one-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref initial-source-two-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)
                           (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (helpers/target-arc-table-arcs basis original-target-node-id :array-input)))
-                  (is (coll/empty? (helpers/source-arc-table-arcs basis shadowing-source-node-id :property-output)))
-                  (is (coll/empty? (helpers/target-arc-table-arcs basis first-order-override-target-node-id :array-input))))
+                         (helpers/target-arc-table-arcs @basis-ref original-target-node-id :array-input)))
+                  (is (coll/empty? (helpers/source-arc-table-arcs @basis-ref shadowing-source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-arcs @basis-ref first-order-override-target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -577,52 +577,52 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (testing "Explicit connections."
-                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-one-node-id :property-output))))
-                  (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-two-node-id :property-output))))
-                  (is (= [(gt/->Arc shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-outputs basis shadowing-source-one-node-id :property-output))))
-                  (is (= [(gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-outputs basis shadowing-source-two-node-id :property-output))))
-                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input) (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-inputs basis original-target-node-id :array-input))))
-                  (is (= [(gt/->Arc shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input) (gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-inputs basis first-order-override-target-node-id :array-input))))
-                  (is (coll/empty? (g/explicit-inputs basis second-order-override-target-node-id :array-input))))
+                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs @basis-ref initial-source-one-node-id :property-output))))
+                  (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs @basis-ref initial-source-two-node-id :property-output))))
+                  (is (= [(gt/->Arc shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-outputs @basis-ref shadowing-source-one-node-id :property-output))))
+                  (is (= [(gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-outputs @basis-ref shadowing-source-two-node-id :property-output))))
+                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input) (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-inputs @basis-ref original-target-node-id :array-input))))
+                  (is (= [(gt/->Arc shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input) (gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-inputs @basis-ref first-order-override-target-node-id :array-input))))
+                  (is (coll/empty? (g/explicit-inputs @basis-ref second-order-override-target-node-id :array-input))))
 
                 (testing "Implicit connections."
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)]
-                         (g/outputs basis initial-source-one-node-id :property-output)))
+                         (g/outputs @basis-ref initial-source-one-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (g/outputs basis initial-source-two-node-id :property-output)))
+                         (g/outputs @basis-ref initial-source-two-node-id :property-output)))
                   (is (= [(gt/->Arc shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input)
                           (gt/->Arc shadowing-source-one-node-id :property-output second-order-override-target-node-id :array-input)]
-                         (g/outputs basis shadowing-source-one-node-id :property-output)))
+                         (g/outputs @basis-ref shadowing-source-one-node-id :property-output)))
                   (is (= [(gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)
                           (gt/->Arc shadowing-source-two-node-id :property-output second-order-override-target-node-id :array-input)]
-                         (g/outputs basis shadowing-source-two-node-id :property-output)))
+                         (g/outputs @basis-ref shadowing-source-two-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)
                           (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (g/inputs basis original-target-node-id :array-input)))
+                         (g/inputs @basis-ref original-target-node-id :array-input)))
                   (is (= [(gt/->Arc shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input)
                           (gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)]
-                         (g/inputs basis first-order-override-target-node-id :array-input)))
+                         (g/inputs @basis-ref first-order-override-target-node-id :array-input)))
                   (is (= [(gt/->Arc shadowing-source-one-node-id :property-output second-order-override-target-node-id :array-input)
                           (gt/->Arc shadowing-source-two-node-id :property-output second-order-override-target-node-id :array-input)]
-                         (g/inputs basis second-order-override-target-node-id :array-input))))
+                         (g/inputs @basis-ref second-order-override-target-node-id :array-input))))
 
                 (testing "Internal arc tables."
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref initial-source-one-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref initial-source-two-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)
                           (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (helpers/target-arc-table-arcs basis original-target-node-id :array-input)))
+                         (helpers/target-arc-table-arcs @basis-ref original-target-node-id :array-input)))
                   (is (= [(gt/->Arc shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis shadowing-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref shadowing-source-one-node-id :property-output)))
                   (is (= [(gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis shadowing-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref shadowing-source-two-node-id :property-output)))
                   (is (= [(gt/->Arc shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input)
                           (gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)]
-                         (helpers/target-arc-table-arcs basis first-order-override-target-node-id :array-input))))
+                         (helpers/target-arc-table-arcs @basis-ref first-order-override-target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -632,45 +632,45 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (testing "Explicit connections."
-                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-one-node-id :property-output))))
-                  (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-two-node-id :property-output))))
-                  (is (coll/empty? (g/explicit-outputs basis shadowing-source-one-node-id :property-output)))
-                  (is (= [(gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-outputs basis shadowing-source-two-node-id :property-output))))
-                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input) (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-inputs basis original-target-node-id :array-input))))
-                  (is (= [(gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-inputs basis first-order-override-target-node-id :array-input))))
-                  (is (coll/empty? (g/explicit-inputs basis second-order-override-target-node-id :array-input))))
+                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs @basis-ref initial-source-one-node-id :property-output))))
+                  (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs @basis-ref initial-source-two-node-id :property-output))))
+                  (is (coll/empty? (g/explicit-outputs @basis-ref shadowing-source-one-node-id :property-output)))
+                  (is (= [(gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-outputs @basis-ref shadowing-source-two-node-id :property-output))))
+                  (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input) (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-inputs @basis-ref original-target-node-id :array-input))))
+                  (is (= [(gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)] (vec (g/explicit-inputs @basis-ref first-order-override-target-node-id :array-input))))
+                  (is (coll/empty? (g/explicit-inputs @basis-ref second-order-override-target-node-id :array-input))))
 
                 (testing "Implicit connections."
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)]
-                         (g/outputs basis initial-source-one-node-id :property-output)))
+                         (g/outputs @basis-ref initial-source-one-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (g/outputs basis initial-source-two-node-id :property-output)))
-                  (is (coll/empty? (g/outputs basis shadowing-source-one-node-id :property-output)))
+                         (g/outputs @basis-ref initial-source-two-node-id :property-output)))
+                  (is (coll/empty? (g/outputs @basis-ref shadowing-source-one-node-id :property-output)))
                   (is (= [(gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)
                           (gt/->Arc shadowing-source-two-node-id :property-output second-order-override-target-node-id :array-input)]
-                         (g/outputs basis shadowing-source-two-node-id :property-output)))
+                         (g/outputs @basis-ref shadowing-source-two-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)
                           (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (g/inputs basis original-target-node-id :array-input)))
+                         (g/inputs @basis-ref original-target-node-id :array-input)))
                   (is (= [(gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)]
-                         (g/inputs basis first-order-override-target-node-id :array-input)))
+                         (g/inputs @basis-ref first-order-override-target-node-id :array-input)))
                   (is (= [(gt/->Arc shadowing-source-two-node-id :property-output second-order-override-target-node-id :array-input)]
-                         (g/inputs basis second-order-override-target-node-id :array-input))))
+                         (g/inputs @basis-ref second-order-override-target-node-id :array-input))))
 
                 (testing "Internal arc tables."
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref initial-source-one-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-arcs @basis-ref initial-source-two-node-id :property-output)))
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)
                           (gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)]
-                         (helpers/target-arc-table-arcs basis original-target-node-id :array-input)))
+                         (helpers/target-arc-table-arcs @basis-ref original-target-node-id :array-input)))
                   (is (= [(gt/->Arc shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input)]
-                         (helpers/source-arc-table-arcs basis shadowing-source-two-node-id :property-output)
-                         (helpers/target-arc-table-arcs basis first-order-override-target-node-id :array-input)))
-                  (is (coll/empty? (helpers/source-arc-table-arcs basis shadowing-source-one-node-id :property-output))))
+                         (helpers/source-arc-table-arcs @basis-ref shadowing-source-two-node-id :property-output)
+                         (helpers/target-arc-table-arcs @basis-ref first-order-override-target-node-id :array-input)))
+                  (is (coll/empty? (helpers/source-arc-table-arcs @basis-ref shadowing-source-one-node-id :property-output))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))

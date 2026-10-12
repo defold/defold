@@ -846,7 +846,7 @@
                                                          {:node-id          _node-id
                                                           :node-outline-key "Atlas"
                                                           :label            (localization/message "outline.atlas")
-                                                          :children         (vec (sort-by (partial atlas-outline-sort-by-fn (g/ec-basis _evaluation-context))  child-outlines))
+                                                          :children         (vec (sort-by (partial atlas-outline-sort-by-fn @(:basis-ref _evaluation-context)) child-outlines))
                                                           :icon             atlas-icon
                                                           :outline-error?   (g/error-fatal? own-build-errors)
                                                           :child-reqs       [{:node-type    AtlasImage
@@ -1040,18 +1040,17 @@
               [source target] connections]
           (g/connect child source parent target))))))
 
-(defn- move-active? [selection evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)]
-    (some->> (selection->image selection evaluation-context)
-             (core/scope basis)
-             (g/node-instance? basis AtlasAnimation))))
+(defn- move-active? [selection {:keys [basis-ref] :as evaluation-context}]
+  (some->> (selection->image selection evaluation-context)
+           (core/scope @basis-ref)
+           (g/node-instance? @basis-ref AtlasAnimation)))
 
 (handler/defhandler :edit.reorder-up :workbench
   (active? [selection evaluation-context] (move-active? selection evaluation-context))
   (enabled? [selection evaluation-context]
-    (let [basis (g/ec-basis evaluation-context)
+    (let [{:keys [basis-ref]} evaluation-context
           node-id (selection->image selection evaluation-context)
-          parent (core/scope basis node-id)
+          parent (core/scope @basis-ref node-id)
           ^List children (vec (g/node-value parent :nodes evaluation-context))
           node-child-index (.indexOf children node-id)]
       (pos? node-child-index)))
@@ -1064,9 +1063,9 @@
 (handler/defhandler :edit.reorder-down :workbench
   (active? [selection evaluation-context] (move-active? selection evaluation-context))
   (enabled? [selection evaluation-context]
-    (let [basis (g/ec-basis evaluation-context)
+    (let [{:keys [basis-ref]} evaluation-context
           node-id (selection->image selection evaluation-context)
-          parent (core/scope basis node-id)
+          parent (core/scope @basis-ref node-id)
           ^List children (vec (g/node-value parent :nodes evaluation-context))
           node-child-index (.indexOf children node-id)]
       (< node-child-index (dec (.size children)))))
@@ -1170,7 +1169,7 @@
 
 (defn- create-dropped-images
   [parent image-resources evaluation-context]
-  (condp (partial g/node-instance? (g/ec-basis evaluation-context)) parent
+  (condp (partial g/node-instance? @(:basis-ref evaluation-context)) parent
     AtlasNode (let [existing-image-resources (set (g/node-value parent :image-resources evaluation-context))
                     new-image? (complement existing-image-resources)]
                 (->> (filter new-image? image-resources)
@@ -1182,9 +1181,9 @@
 (defn- handle-drop
   [root-id selection _workspace _world-pos resources]
   (g/with-auto-evaluation-context evaluation-context
-    (let [basis (g/ec-basis evaluation-context)
+    (let [{:keys [basis-ref]} evaluation-context
           parent (or (handler/adapt-single selection AtlasAnimation evaluation-context)
-                     (some #(core/scope-of-type basis % AtlasAnimation) selection)
+                     (some #(core/scope-of-type @basis-ref % AtlasAnimation) selection)
                      root-id)
           image-resources (e/filter image/image-resource? resources)]
       (g/eager-tx-data

@@ -130,11 +130,11 @@
         (reify resource/ResourceListener
           (handle-changes [_this changes _render-progress!]
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)
+              (let [{:keys [basis-ref]} evaluation-context
                     old-nodes-by-path (g/valid-node-value project :nodes-by-resource-path evaluation-context)
                     resource-change-plan (resource-update/resource-change-plan
                                            old-nodes-by-path
-                                           #(g/raw-property-value basis % :disk-sha256)
+                                           #(g/raw-property-value @basis-ref % :disk-sha256)
                                            changes)]
                 (swap! resource-change-plans-atom conj resource-change-plan)))))
 

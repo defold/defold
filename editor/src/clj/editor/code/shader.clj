@@ -158,14 +158,14 @@
   (property includes g/Any
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (g/ec-basis evaluation-context)
-                         resource (resource-node/resource basis self)
-                         project (project/get-project basis)
+                   (let [{:keys [basis-ref]} evaluation-context
+                         resource (resource-node/resource @basis-ref self)
+                         project (project/get-project @basis-ref)
                          connections [[:proj-path+full-lines :included-proj-paths+full-lines]]]
                      (concat
-                       (g/disconnect-sources basis self :included-proj-paths+full-lines)
+                       (g/disconnect-sources @basis-ref self :included-proj-paths+full-lines)
                        (map (fn [include]
-                              (let [included-resource (workspace/resolve-resource basis resource include)]
+                              (let [included-resource (workspace/resolve-resource @basis-ref resource include)]
                                 (:tx-data (project/connect-resource-node evaluation-context project included-resource self connections))))
                             new-value))))))
 

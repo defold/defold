@@ -82,16 +82,6 @@
 (defn- type? [x] (and (extends? Type (class x)) x))
 (defn- named? [x] (instance? Named x))
 
-(defn evaluation-context-basis
-  "Returns the current basis, including materializations performed in this
-  evaluation-context. The returned basis is an immutable snapshot. The
-  evaluation-context must still be open."
-  [evaluation-context]
-  (let [state-atom (:state-atom evaluation-context)
-        state (deref state-atom)]
-    (assert (not (:closed state)) "Evaluation context is closed.")
-    (:basis state)))
-
 ;;; ----------------------------------------
 ;;; Node type definition
 (declare node-type-resolve value-type-resolve)
@@ -482,17 +472,18 @@
 
   gt/Evaluation
   (produce-value [this label evaluation-context]
-    (let [node (shell-node-resolve (evaluation-context-basis evaluation-context) this _node-id)]
+    (let [basis-ref (:basis-ref evaluation-context)
+          node (shell-node-resolve @basis-ref this _node-id)]
       (cond
         (not (instance? ShellNode node))
         (gt/produce-value node label evaluation-context)
 
         (and (.-_materialize-fn ^ShellNode node)
              (not (shell-node-safe-output? (gt/node-type node) label)))
-        (let [materialize-node! (:materialize-node! evaluation-context)]
-          (materialize-node! _node-id evaluation-context)
-          (gt/produce-value (ig/node-by-id-at (evaluation-context-basis evaluation-context) _node-id)
-                            label evaluation-context))
+        (let [materialize-node! (:materialize-node! evaluation-context)
+              _ (materialize-node! _node-id evaluation-context)
+              node (ig/node-by-id-at @basis-ref _node-id)]
+          (gt/produce-value node label evaluation-context))
 
         :else
         (let [beh (behavior (gt/node-type node) label)]
@@ -548,10 +539,11 @@
   (assert (map? initial-invalidate-counters))
   {:initial-basis basis
    :initial-materializations materializations
-   :state-atom (atom {:basis basis
-                      :changes []
-                      :materializations materializations
-                      :invalidated-endpoints #{}})
+   :basis-ref (atom basis)
+   :changes-ref (atom [])
+   :materializations-ref (atom materializations)
+   :invalidated-endpoints-ref (atom #{})
+   :closed-ref (atom false)
    :cache cache ; cache from the system
    :initial-invalidate-counters initial-invalidate-counters
    :local (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
@@ -566,10 +558,11 @@
   (cond-> (assoc (dissoc options :basis :materializations)
             :initial-basis basis
             :initial-materializations (:materializations options)
-            :state-atom (atom {:basis basis
-                               :changes []
-                               :materializations (:materializations options)
-                               :invalidated-endpoints #{}})
+            :basis-ref (atom basis)
+            :changes-ref (atom [])
+            :materializations-ref (atom (:materializations options))
+            :invalidated-endpoints-ref (atom #{})
+            :closed-ref (atom false)
             :local (atom {})
             :hits (atom [])
             :in-production #{})
@@ -607,10 +600,11 @@
       :local (atom filtered-local))))
 
 (defn- validate-evaluation-context [evaluation-context]
-  (assert (some? (evaluation-context-basis evaluation-context)))
+  (assert (gt/graph? @(:basis-ref evaluation-context)))
   (assert (some? (:in-production evaluation-context)))
   (assert (some? (:local evaluation-context)))
-  (assert (some? (:hits evaluation-context))))
+  (assert (some? (:hits evaluation-context)))
+  (assert (not @(:closed-ref evaluation-context)) "Evaluation context is closed."))
 
 (defn- apply-dry-run-cache [evaluation-context]
   (cond-> evaluation-context
@@ -638,7 +632,7 @@
                (let [node-id (gt/node-id node)
                      materialize-node! (:materialize-node! evaluation-context)]
                  (materialize-node! node-id evaluation-context)
-                 (ig/node-by-id-at (evaluation-context-basis evaluation-context) node-id))
+                 (ig/node-by-id-at @(:basis-ref evaluation-context) node-id))
                node)]
     (when-let [behavior (property-behavior node-type label)]
       ((:fn behavior) node label evaluation-context))))
@@ -1497,9 +1491,9 @@
 
 (defn pull-first-input-value
   [node input-label evaluation-context]
-  (let [basis (evaluation-context-basis evaluation-context)]
-    (when-let [arc (first (ig/arcs-by-target basis (gt/node-id node) input-label))]
-      (let [upstream-node (ig/node-by-id-at basis (gt/source-id arc))]
+  (let [{:keys [basis-ref]} evaluation-context]
+    (when-let [arc (first (ig/arcs-by-target @basis-ref (gt/node-id node) input-label))]
+      (let [upstream-node (ig/node-by-id-at @basis-ref (gt/source-id arc))]
         (gt/produce-value upstream-node (gt/source-label arc) evaluation-context)))))
 
 (defn pull-first-input-with-substitute
@@ -1513,11 +1507,11 @@
 
 (defn pull-input-values
   [node input-label evaluation-context]
-  (let [basis (evaluation-context-basis evaluation-context)]
+  (let [{:keys [basis-ref]} evaluation-context]
     (mapv (fn [arc]
-            (let [upstream-node (ig/node-by-id-at basis (gt/source-id arc))]
+            (let [upstream-node (ig/node-by-id-at @basis-ref (gt/source-id arc))]
               (gt/produce-value upstream-node (gt/source-label arc) evaluation-context)))
-          (ig/arcs-by-target basis (gt/node-id node) input-label))))
+          (ig/arcs-by-target @basis-ref (gt/node-id node) input-label))))
 
 (defn pull-input-values-with-substitute
   [sub node input-label evaluation-context]
@@ -1592,7 +1586,7 @@
                   (pair
                     argument
                     (condp = argument
-                      label `(gt/get-property ~node-sym (evaluation-context-basis ~evaluation-context-sym) ~label)
+                      label `(gt/get-property ~node-sym @(:basis-ref ~evaluation-context-sym) ~label)
                       (let [argument-annotations (get annotations argument)]
                         (fnk-argument-form description label argument argument-annotations node-sym node-id-sym evaluation-context-sym))))))
               arguments)
@@ -1606,7 +1600,7 @@
 (defn- collect-raw-property-value-form
   [property-label-sym node-sym node-id-sym evaluation-context-sym]
   (with-tracer-calls-form node-id-sym property-label-sym evaluation-context-sym :raw-property
-    (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (evaluation-context-basis ~evaluation-context-sym) ~property-label-sym))))
+    (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym @(:basis-ref ~evaluation-context-sym) ~property-label-sym))))
 
 (defn- collect-property-value-form
   [description property-label node-sym node-id-sym evaluation-context-sym]
@@ -1655,7 +1649,7 @@
     (desc-has-property? description argument)
     (if (= output argument)
       (with-tracer-calls-form node-id-sym argument evaluation-context-sym :raw-property
-        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (evaluation-context-basis ~evaluation-context-sym) ~argument)))
+        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym @(:basis-ref ~evaluation-context-sym) ~argument)))
       (collect-property-value-form description argument node-sym node-id-sym evaluation-context-sym))
 
     (desc-has-multivalued-input? description argument)
@@ -1699,7 +1693,7 @@
 (defn- check-jammed-form [description label node-sym node-id-sym label-sym evaluation-context-sym forms]
   (if (unjammable? (get-in description [:output label]))
     forms
-    `(or (output-jammer ~node-sym ~node-id-sym ~label-sym (evaluation-context-basis ~evaluation-context-sym))
+    `(or (output-jammer ~node-sym ~node-id-sym ~label-sym @(:basis-ref ~evaluation-context-sym))
          ~forms)))
 
 (defn- property-has-default-getter? [description label] (not (get-in description [:property label :value])))
@@ -1715,8 +1709,8 @@
       forms)))
 
 (defn- node-type-name [node-id evaluation-context]
-  (let [basis (evaluation-context-basis evaluation-context)
-        node (ig/node-by-id-at basis node-id)]
+  (let [{:keys [basis-ref]} evaluation-context
+        node (ig/node-by-id-at @basis-ref node-id)]
     (type-name (gt/node-type node))))
 
 (defn- update-in-production [in-production endpoint]
@@ -1745,7 +1739,7 @@
         local-cache @(:local evaluation-context)
         local-cache-value (get local-cache cache-key ::not-found)]
     (if (identical? ::not-found local-cache-value)
-      (let [invalidated-endpoints (:invalidated-endpoints @(:state-atom evaluation-context))
+      (let [invalidated-endpoints @(:invalidated-endpoints-ref evaluation-context)
             global-cache (:cache evaluation-context)
             global-cache-value (if (contains? invalidated-endpoints cache-key)
                                  ::not-found
@@ -1978,7 +1972,7 @@
 
   gt/Evaluation
   (produce-value [this output evaluation-context]
-    (let [basis (evaluation-context-basis evaluation-context)]
+    (let [{:keys [basis-ref]} evaluation-context]
       (cond
         (= :_node-id output)
         (trace-expr-result node-id output evaluation-context :raw-property node-id)
@@ -2005,7 +1999,7 @@
                           (tracer state traced-node-id output-type traced-label)))))
 
                   beh (behavior node-type output)
-                  original (ig/node-by-id-at basis original-id)
+                  original (ig/node-by-id-at @basis-ref original-id)
                   orig-props (:properties (gt/produce-value original output evaluation-context))
                   props ((:fn beh) this output evaluation-context)
                   declared? (partial contains? (all-properties node-type))]
@@ -2080,7 +2074,7 @@
         :else
         (if (contains? (all-properties node-type) output)
           (trace-expr-result node-id output evaluation-context :raw-property (get properties output))
-          (when-some [node (ig/node-by-id-at basis original-id)]
+          (when-some [node (ig/node-by-id-at @basis-ref original-id)]
             (gt/produce-value node output evaluation-context))))))
 
   gt/OverrideNode

@@ -58,7 +58,8 @@
             [util.eduction :as e]
             [util.fn :as fn]
             [util.thread-util :as thread-util])
-  (:import [java.io File FileNotFoundException]
+  (:import [clojure.lang ExceptionInfo]
+           [java.io File FileNotFoundException]
            [java.util.concurrent.atomic AtomicLong]
            [org.apache.commons.io FilenameUtils]))
 
@@ -85,11 +86,11 @@
 (def resource-node-type (comp resource-type->node-type resource/resource-type))
 
 (defn- make-load-opts-in-evaluation-context [project evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)
-        workspace (g/raw-property-value basis project :workspace)
+  (let [{:keys [basis-ref]} evaluation-context
+        workspace (g/raw-property-value @basis-ref project :workspace)
         code-preprocessor (workspace/code-preprocessors workspace evaluation-context)
         script-intelligence (g/node-value project :script-intelligence evaluation-context)
-        project-directory (workspace/project-directory basis workspace)
+        project-directory (workspace/project-directory @basis-ref workspace)
         proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)
 
         resolve-resource-fn
@@ -100,8 +101,8 @@
               (proj-path->resource proj-path))))
 
         editable->type-ext->resource-type
-        {true (resource/resource-types-by-type-ext basis workspace true)
-         false (resource/resource-types-by-type-ext basis workspace false)}]
+        {true (resource/resource-types-by-type-ext @basis-ref workspace true)
+         false (resource/resource-types-by-type-ext @basis-ref workspace false)}]
 
     {:code-preprocessor code-preprocessor
      :editable->type-ext->resource-type editable->type-ext->resource-type
@@ -391,8 +392,8 @@
 
 (defn- get-transpiler-tx-data-fn! [evaluation-context]
   (g/tx-cached-value! evaluation-context [:transpiler-tx-data-fn]
-    (let [basis (g/ec-basis evaluation-context)
-          code-transpilers (code-transpilers basis)]
+    (let [{:keys [basis-ref]} evaluation-context
+          code-transpilers (code-transpilers @basis-ref)]
       (code.transpilers/make-resource-load-tx-data-fn code-transpilers evaluation-context))))
 
 (defn load-nodes-tx-data
@@ -807,7 +808,9 @@
                         :render-progress!
                         :resource-metrics}
                       (coll/keys read-nodes-opts))]}
-  (let [basis (if evaluation-context (g/ec-basis evaluation-context) (g/now))
+  (let [basis (if evaluation-context
+                @(:basis-ref evaluation-context)
+                (g/now))
 
         workspace
         (some-> new-node-id+resource-pairs
@@ -1086,7 +1089,7 @@
      (get-resource-node project path-or-resource evaluation-context)))
   ([project path-or-resource evaluation-context]
    (when-let [resource (cond
-                         (string? path-or-resource) (workspace/find-resource (g/ec-basis evaluation-context) (g/node-value project :workspace evaluation-context) path-or-resource)
+                         (string? path-or-resource) (workspace/find-resource @(:basis-ref evaluation-context) (g/node-value project :workspace evaluation-context) path-or-resource)
                          (resource/resource? path-or-resource) path-or-resource
                          :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
      ;; This is frequently called from property setters, where we don't have a
@@ -1142,20 +1145,20 @@
           resources)))
 
 (defn- materialize-resource-node [node-id evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)
-        resource (resource-node/resource basis node-id)
+  (let [{:keys [basis-ref]} evaluation-context
+        resource (resource-node/resource @basis-ref node-id)
         workspace (resource/workspace resource)
-        project (get-project basis)
+        project (get-project @basis-ref)
         nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context)
         read-opts (g/tx-cached-value! evaluation-context [:read-opts]
-                    (workspace/make-read-opts basis workspace :include-editor-dependencies true))
+                    (workspace/make-read-opts @basis-ref workspace :include-editor-dependencies true))
         load-opts (g/tx-cached-value! evaluation-context [:load-opts]
                     (make-load-opts-in-evaluation-context project evaluation-context))
         node-load-info (g/tx-cached-value! evaluation-context [::node-load-infos node-id]
-                         (check-missing-load-prerequisites (read-node-load-info read-opts node-id resource) basis
+                         (check-missing-load-prerequisites (read-node-load-info read-opts node-id resource) @basis-ref
                                                            (fn [proj-path]
                                                              (some->> (nodes-by-resource-path proj-path)
-                                                                      (resource-node/resource basis)))))
+                                                                      (resource-node/resource @basis-ref)))))
 
         node-load-info
         (if (:read-error node-load-info)
@@ -1164,13 +1167,13 @@
             (let [prerequisite-node-ids (into #{} (keep nodes-by-resource-path) (:prerequisite-proj-paths node-load-info))]
               (g/materialize-prerequisites! node-id prerequisite-node-ids evaluation-context)
               node-load-info)
-            (catch clojure.lang.ExceptionInfo exception
+            (catch ExceptionInfo exception
               (let [{:keys [ex-type cycle-node-ids prerequisite-node-id errors]} (ex-data exception)]
                 (if-not (contains? #{:prerequisite-cycle :prerequisite-failed} ex-type)
                   (throw exception)
-                  (let [basis (g/ec-basis evaluation-context)
+                  (let [{:keys [basis-ref]} evaluation-context
                         node-proj-path (fn node-proj-path [node-id]
-                                         (resource/proj-path (resource-node/resource basis node-id)))
+                                         (resource/proj-path (resource-node/resource @basis-ref node-id)))
                         message (if cycle-node-ids
                                   (str "Circular resource prerequisites: "
                                        (coll/join-to-string " -> " (e/map node-proj-path cycle-node-ids)))
@@ -1397,14 +1400,14 @@
 (defn select
   [project resource-node node-ids open-resource-nodes evaluation-context]
   (assert (every? some? node-ids) "Attempting to select nil values")
-  (let [basis (g/ec-basis evaluation-context)
+  (let [{:keys [basis-ref]} evaluation-context
         node-ids (if (seq node-ids)
                    (-> node-ids distinct vec)
                    [resource-node])
         old-all-selections (g/node-value project :all-selections evaluation-context)
         all-selections (update-selection old-all-selections open-resource-nodes resource-node node-ids)]
     (when (not= old-all-selections all-selections)
-      (perform-selection basis project all-selections))))
+      (perform-selection @basis-ref project all-selections))))
 
 (defn- perform-sub-selection
   ([project all-sub-selections]
@@ -1444,7 +1447,7 @@
                   (:transfer-overrides plan))))
 
         old-evaluation-context (g/make-evaluation-context)
-        old-basis (g/ec-basis old-evaluation-context)
+        old-basis @(:basis-ref old-evaluation-context)
         old-node-ids-by-proj-path (g/valid-node-value project :nodes-by-resource-path old-evaluation-context)
         new-node-id+resource-pairs (make-node-id+resource-pairs (:new plan))
         workspace (workspace project old-evaluation-context)
@@ -1628,7 +1631,7 @@
               restore-properties-tx-data)))))
 
     (du/measuring process-metrics :update-selection
-      (g/let-ec [basis (g/ec-basis evaluation-context)
+      (g/let-ec [{:keys [basis-ref]} evaluation-context
                  old->new (into {}
                                 (map (fn [[p n]]
                                        [(old-node-ids-by-proj-path p) n]))
@@ -1642,7 +1645,7 @@
                                                       (dissoc-deleted)
                                                       (remap-selection old->new (comp vector first)))]
                                (when (not= old-all-selections all-selections)
-                                 (perform-selection basis project all-selections)))
+                                 (perform-selection @basis-ref project all-selections)))
                              (let [all-sub-selections (-> old-all-sub-selections
                                                           (dissoc-deleted)
                                                           (remap-selection old->new (constantly [])))]
@@ -1659,12 +1662,12 @@
                :transaction-metrics @transaction-metrics}))))
 
 (defn reload-plugins! [project touched-resources]
-  (g/let-ec [basis (g/ec-basis evaluation-context)
+  (g/let-ec [{:keys [basis-ref]} evaluation-context
              workspace (workspace project evaluation-context)
              localization (workspace/localization workspace evaluation-context)
              code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
-             code-transpilers (code-transpilers basis)]
-    (workspace/unpack-editor-plugins! basis workspace touched-resources)
+             code-transpilers (code-transpilers @basis-ref)]
+    (workspace/unpack-editor-plugins! @basis-ref workspace touched-resources)
     (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader localization)
     (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader localization)
     (texture.engine/reload-texture-compressors! java/class-loader localization)
@@ -1721,9 +1724,9 @@
 
 (defn- handle-resource-changes [project changes render-progress!]
   (reload-plugins! project (set/union (set (:added changes)) (set (:changed changes))))
-  (g/let-ec [basis (g/ec-basis evaluation-context)
+  (g/let-ec [{:keys [basis-ref]} evaluation-context
              old-nodes-by-path (g/node-value project :nodes-by-resource-path evaluation-context)
-             old-node->old-disk-sha256 #(g/raw-property-value basis % :disk-sha256)
+             old-node->old-disk-sha256 #(g/raw-property-value @basis-ref % :disk-sha256)
 
              resource-change-plan
              (du/metrics-time "Generate resource change plan"
@@ -1894,14 +1897,14 @@
 
 (defn resolve-path-or-resource [project path-or-resource evaluation-context]
   (if (string? path-or-resource)
-    (workspace/resolve-workspace-resource (g/ec-basis evaluation-context) (workspace project evaluation-context) path-or-resource)
+    (workspace/resolve-workspace-resource @(:basis-ref evaluation-context) (workspace project evaluation-context) path-or-resource)
     path-or-resource))
 
 (defn disconnect-resource-node [evaluation-context project path-or-resource consumer-node connections]
-  (let [basis (g/ec-basis evaluation-context)
+  (let [{:keys [basis-ref]} evaluation-context
         resource (resolve-path-or-resource project path-or-resource evaluation-context)
         node (get-resource-node project resource evaluation-context)]
-    (disconnect-from-inputs basis node consumer-node connections)))
+    (disconnect-from-inputs @basis-ref node consumer-node connections)))
 
 (defn- ensure-resource-node-created [tx-data-context-map project resource]
   {:pre [(resource/resource? resource)]}
@@ -1953,7 +1956,7 @@
                       system, such nodes can't be used for `g/node-value` calls"
   [evaluation-context project path-or-resource consumer-node connections]
   (when-some [resource (resolve-path-or-resource project path-or-resource evaluation-context)]
-    (let [basis (g/ec-basis evaluation-context)
+    (let [{:keys [basis-ref]} evaluation-context
           tx-data-context-atom (:tx-data-context evaluation-context)
           existing-resource-node-id (get-resource-node project resource evaluation-context)
           [node-id creation-tx-data] (if existing-resource-node-id
@@ -1977,10 +1980,10 @@
             (and existing-resource-node-id
                  (not (resource/loaded? resource))
                  (not (:allow-unloaded-use resource-type))
-                 (not (resource-node/loaded? basis existing-resource-node-id)))
+                 (not (resource-node/loaded? @basis-ref existing-resource-node-id)))
             (let [load-opts (g/tx-cached-value! evaluation-context [:load-opts]
                               (make-load-opts-in-evaluation-context project evaluation-context))
-                  basis (g/ec-basis evaluation-context)
+                  basis @(:basis-ref evaluation-context)
                   [load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded basis node-id resource load-opts)]
               load-tx-data))]
 
@@ -2070,12 +2073,12 @@
 
 (defn- cached-build-target-output? [node-id label evaluation-context]
   (case label
-    (:build-targets) (project-resource-node? (g/ec-basis evaluation-context) node-id)
+    (:build-targets) (project-resource-node? @(:basis-ref evaluation-context) node-id)
     false))
 
 (defn- cached-save-data-output? [node-id label evaluation-context]
   (case label
-    (:save-data :save-value) (project-file-resource-node? (g/ec-basis evaluation-context) node-id)
+    (:save-data :save-value) (project-file-resource-node? @(:basis-ref evaluation-context) node-id)
     false))
 
 (defn- cacheable-save-data-endpoints
@@ -2133,7 +2136,7 @@
       populated-project)))
 
 (defn resource-setter [evaluation-context self old-value new-value & connections]
-  (let [project (get-project (g/ec-basis evaluation-context))]
+  (let [project (get-project @(:basis-ref evaluation-context))]
     (concat
       (when old-value (disconnect-resource-node evaluation-context project old-value self connections))
       (when new-value (:tx-data (connect-resource-node evaluation-context project new-value self connections))))))

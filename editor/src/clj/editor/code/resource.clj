@@ -113,7 +113,7 @@
   evaluation context. The caller must apply the returned transaction steps."
   [node-id evaluation-context]
   (g/materialize-node! node-id evaluation-context)
-  (when-not (g/raw-property-value (g/ec-basis evaluation-context) node-id :unmodified-lines)
+  (when-not (g/raw-property-value @(:basis-ref evaluation-context) node-id :unmodified-lines)
     (let [resource (g/node-value node-id :resource evaluation-context)
           [lines-or-error-value disk-sha256] (read-lines+disk-sha256 node-id resource)
           resource-type (resource/resource-type resource)
@@ -175,13 +175,13 @@
 
   (property modified-lines types/Lines (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (g/ec-basis evaluation-context)
-                         lsp (lsp/get-lsp basis)]
+                   (let [{:keys [basis-ref]} evaluation-context
+                         lsp (lsp/get-lsp @basis-ref)]
                      (if-let [[resource source-value tx-data] (init-disk-state self evaluation-context)]
                        (do
                          (lsp/notify-lines-modified! lsp resource source-value new-value)
                          tx-data)
-                       (let [resource (resource-node/resource basis self)
+                       (let [resource (resource-node/resource @basis-ref self)
                              source-value (g/node-value self :source-value evaluation-context)]
                          (lsp/notify-lines-modified! lsp resource source-value new-value)
                          nil))))))

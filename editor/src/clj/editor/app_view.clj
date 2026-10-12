@@ -488,7 +488,7 @@
   (ui/set-style! tab-pane "inactive" (not active)))
 
 (defn- on-active-tab-changed! [app-view prefs ^Tab new-active-tab is-in-active-tab-pane]
-  (g/let-ec [basis (g/ec-basis evaluation-context)
+  (g/let-ec [{:keys [basis-ref]} evaluation-context
              ^Tab old-active-tab (g/node-value app-view :active-tab evaluation-context)
              ^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
              ^Scene app-scene (g/node-value app-view :scene evaluation-context)
@@ -501,19 +501,19 @@
                                                (= :scene (some-> new-active-tab editor-tab/view-type-id)))
              path-key (when should-load-scene-visibility
                         (resource/resource->proj-path
-                          (resource-node/resource basis new-resource-node-id)))
+                          (resource-node/resource @basis-ref new-resource-node-id)))
              tx-data
              (when (and is-in-active-tab-pane
                         (not= old-active-tab new-active-tab))
                (g/eager-tx-data
                  (concat
                    (g/set-property app-view :active-tab new-active-tab)
-                   (replace-connection basis new-resource-node-id :node-outline app-view :active-outline)
+                   (replace-connection @basis-ref new-resource-node-id :node-outline app-view :active-outline)
                    (when properties-view
-                     (replace-connection basis new-view-node-id :displayed-node-properties properties-view :displayed-node-properties))
+                     (replace-connection @basis-ref new-view-node-id :displayed-node-properties properties-view :displayed-node-properties))
                    (if (= :scene (some-> new-active-tab editor-tab/view-type-id))
-                     (replace-connection basis new-resource-node-id :scene app-view :active-scene)
-                     (disconnect-sources basis app-view :active-scene)))))]
+                     (replace-connection @basis-ref new-resource-node-id :scene app-view :active-scene)
+                     (disconnect-sources @basis-ref app-view :active-scene)))))]
 
     (when (coll/not-empty tx-data)
       (g/transact
@@ -1153,7 +1153,7 @@
               cause (ex-root-cause error)
               cause-ex-data (ex-data cause)
               ex-type (:ex-type cause-ex-data)
-              basis (g/ec-basis evaluation-context)
+              {:keys [basis-ref]} evaluation-context
               localization (workspace/localization (project/workspace project evaluation-context) evaluation-context)]
           (case ex-type
             :task-cancelled
@@ -1167,7 +1167,7 @@
                  :icon :icon/triangle-error
                  :header (localization/message "dialog.build-error.cycle.header")
                  :content {:wrap-text true
-                           :text (get-cycle-detected-help-message basis (-> cause-ex-data :endpoint gt/endpoint-node-id))}}))
+                           :text (get-cycle-detected-help-message @basis-ref (-> cause-ex-data :endpoint gt/endpoint-node-id))}}))
 
             ;; Default case.
             (error-reporting/report-exception! error))
@@ -1182,7 +1182,7 @@
                                 (localization/message
                                   "dialog.build-error.cycle.message"
                                   {"header" (localization/message "dialog.build-error.cycle.header")
-                                   "detail" (get-cycle-detected-help-message basis (-> cause-ex-data :endpoint gt/endpoint-node-id))}))}
+                                   "detail" (get-cycle-detected-help-message @basis-ref (-> cause-ex-data :endpoint gt/endpoint-node-id))}))}
 
                     (pipeline/decorated-build-exception? error)
                     (let [{:keys [node-id owner-resource-node-id]} (ex-data error)]
@@ -2232,10 +2232,10 @@
   (ui/refresh scene evaluation-context))
 
 (defn- refresh-views! [app-view evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)
+  (let [{:keys [basis-ref]} evaluation-context
         auto-pulls (g/node-value app-view :auto-pulls evaluation-context)]
     (doseq [[node-id label] auto-pulls]
-      (profiler/profile "view" (:name @(g/node-type* basis node-id))
+      (profiler/profile "view" (:name @(g/node-type* @basis-ref node-id))
         (g/node-value node-id label evaluation-context)))))
 
 (defn- refresh-scene-view! [scene-view-id dt]
@@ -2252,7 +2252,7 @@
   (scene-cache/prune-context! nil))
 
 (defn- save-scene-camera-prefs! [prefs view resource]
-  (g/let-ec [camera (some-> (g/ec-basis evaluation-context)
+  (g/let-ec [camera (some-> @(:basis-ref evaluation-context)
                             (scene/view->camera view)
                             (g/node-value :local-camera evaluation-context))
              path-key (resource/resource->proj-path resource)]
@@ -2595,7 +2595,7 @@
                                     (when-let [resource-node (some-> (g/node-value view :view-data evaluation-context)
                                                                      second
                                                                      :resource-node)]
-                                      (let [resource (resource-node/resource (g/ec-basis evaluation-context) resource-node)]
+                                      (let [resource (resource-node/resource @(:basis-ref evaluation-context) resource-node)]
                                         (recent-files/add! prefs resource view-type)
                                         (when (= :scene (:id view-type))
                                           (save-scene-camera-prefs! prefs view resource))))))}]
@@ -2657,7 +2657,7 @@
 
 (defn make-open-resource-plan
   [app-view prefs project resource opts evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)
+  (let [{:keys [basis-ref]} evaluation-context
         workspace (resource/workspace resource)
         resource-type (resource/resource-type resource)
         resource-node (or (project/get-resource-node project resource evaluation-context)
@@ -2675,7 +2675,7 @@
        :error-type :resource-unloaded
        :resource resource}
 
-      (g/defective? basis resource-node)
+      (g/defective? @basis-ref resource-node)
       {:type :resource-error
        :error-type :resource-defective
        :resource resource}
@@ -2697,7 +2697,7 @@
                         cursor-range (assoc :line (CursorRange->line-number cursor-range)))
               args (->> (string/split arg-tmpl #" ")
                         (mapv #(substitute-args % arg-sub)))
-              project-directory (workspace/project-directory basis workspace)]
+              project-directory (workspace/project-directory @basis-ref workspace)]
           {:type :os-execute
            :workspace workspace
            :executable custom-editor
@@ -2900,7 +2900,7 @@
       localization)))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)
+  (let [{:keys [basis-ref]} evaluation-context
         prefs-data-per-tab-per-tab-pane (recent-files/get-open-tabs prefs)
         selected-tab-index-by-tab-pane-index (prefs/get prefs [:workflow :last-selected-tabs :tab-selection-by-pane])]
     (coll/into-> prefs-data-per-tab-per-tab-pane []
@@ -2910,7 +2910,7 @@
             (coll/into-> prefs-data-per-tab :eduction
               (keep-indexed
                 (fn [tab-index [proj-path view-type-id]]
-                  (let [resource (workspace/find-resource basis workspace proj-path)]
+                  (let [resource (workspace/find-resource @basis-ref workspace proj-path)]
                     (when (and (resource/openable-resource? resource)
                                (resource/exists? resource))
                       (let [view-type (workspace/get-view-type workspace view-type-id evaluation-context)
@@ -3300,7 +3300,7 @@
 (handler/defhandler :edit.show-overrides :global
   (enabled? [selection project evaluation-context]
     (let [node-id (select-possibly-overridable-resource-node selection project evaluation-context)]
-      (and node-id (pos? (count (g/overrides (g/ec-basis evaluation-context) node-id))))))
+      (and node-id (pos? (count (g/overrides @(:basis-ref evaluation-context) node-id))))))
   (run [selection search-results-view project app-view localization]
     (show-override-inspector!
       app-view
@@ -3338,8 +3338,8 @@
     (if user-data
       (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
       (if-let [node-id (handler/selection->node-id selection evaluation-context)]
-        (let [basis (g/ec-basis evaluation-context)]
-          (and (not (coll/empty? (g/overrides basis node-id)))
+        (let [{:keys [basis-ref]} evaluation-context]
+          (and (not (coll/empty? (g/overrides @basis-ref node-id)))
                (not (coll/empty? (g/overridden-properties node-id evaluation-context)))))
         false)))
   (options [selection user-data evaluation-context]

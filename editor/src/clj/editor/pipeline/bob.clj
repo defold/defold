@@ -168,7 +168,7 @@
         render-progress! (progress/until-done render-progress!)
         provided-evaluation-context (some? evaluation-context)
         evaluation-context (or evaluation-context (g/make-evaluation-context))
-        basis (g/ec-basis evaluation-context)
+        {:keys [basis-ref]} evaluation-context
         prev-out System/out
         prev-err System/err
         log-output-stream (or log-output-stream
@@ -185,7 +185,7 @@
                         (assoc "root" ".")
                         (not (contains? options "verbose"))
                         (assoc "verbose" true))
-              [cli-options internal-options] (parse-options (.toPath (workspace/project-directory basis workspace)) options)
+              [cli-options internal-options] (parse-options (.toPath (workspace/project-directory @basis-ref workspace)) options)
               cli-args (-> [] (into cli-options) (into commands))]
           (log/info :bob-command (string/join " " (into ["java" "-jar" "bob.jar"] (map quote-arg-if-needed) cli-args)))
           (System/setOut build-out)

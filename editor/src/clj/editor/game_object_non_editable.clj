@@ -100,19 +100,19 @@
                    basis target-id target-label))
 
 (defn data->index-setter [evaluation-context self new-value old-sources-input-label add-resource-node-fn]
-  (let [basis (g/ec-basis evaluation-context)
-        owner-resource (resource-node/owner-resource basis self)
+  (let [{:keys [basis-ref]} evaluation-context
+        owner-resource (resource-node/owner-resource @basis-ref self)
         load-opts (g/tx-cached-value! evaluation-context [:load-opts]
-                    (project/make-load-opts (project/get-project basis)))]
-    (into (delete-connected-nodes-tx-data basis self old-sources-input-label)
+                    (project/make-load-opts (project/get-project @basis-ref)))]
+    (into (delete-connected-nodes-tx-data @basis-ref self old-sources-input-label)
           (mapcat (fn [[data]]
                     (add-resource-node-fn self data load-opts owner-resource)))
           (sort-by val new-value))))
 
 (defn connect-referenced-resources-tx-data [evaluation-context self new-value old-sources-input-label resource-connections]
-  (let [basis (g/ec-basis evaluation-context)
-        project (project/get-project basis)]
-    (into (disconnect-connected-nodes-tx-data basis self old-sources-input-label resource-connections)
+  (let [{:keys [basis-ref]} evaluation-context
+        project (project/get-project @basis-ref)]
+    (into (disconnect-connected-nodes-tx-data @basis-ref self old-sources-input-label resource-connections)
           (mapcat (fn [resource]
                     (:tx-data (project/connect-resource-node evaluation-context project resource self resource-connections))))
           new-value)))
@@ -307,8 +307,8 @@
   (property prototype-desc g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (g/ec-basis evaluation-context)
-                         project (project/get-project basis)
+                   (let [{:keys [basis-ref]} evaluation-context
+                         project (project/get-project @basis-ref)
                          workspace (project/workspace project evaluation-context)
                          proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)]
                      (letfn [(connect-resource [proj-path-or-resource connections]
@@ -316,7 +316,7 @@
                        (-> (g/set-property self :embedded-component-resource-data->index
                              (prototype-desc->embedded-component-resource-data->index new-value))
                            (into (connect-referenced-components-tx-data evaluation-context self (prototype-desc->referenced-component-resources new-value proj-path->resource)))
-                           (into (disconnect-connected-nodes-tx-data basis self :own-resource-property-build-targets resource-property-connections))
+                           (into (disconnect-connected-nodes-tx-data @basis-ref self :own-resource-property-build-targets resource-property-connections))
                            (into (mapcat #(connect-resource % resource-property-connections))
                                  (game-object-common/prototype-desc->referenced-property-resources new-value proj-path->resource))))))))
 

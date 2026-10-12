@@ -727,7 +727,7 @@
                 :localization localization}]}]}))]}]}})
 
 (defn- make-override-tree [node-id property-pred evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)]
+  (let [{:keys [basis-ref]} evaluation-context]
     (letfn [(make-tree
               ([node-id]
                (make-tree node-id false))
@@ -743,15 +743,15 @@
                                                  property-map)
                      children (into []
                                     (keep make-tree)
-                                    (g/overrides basis node-id))]
+                                    (g/overrides @basis-ref node-id))]
                  (when (or root
                            (pos? (count overridden-properties))
                            (pos? (count children)))
-                   (let [owner-node-id (or (resource-node/owner-resource-node-id basis node-id)
+                   (let [owner-node-id (or (resource-node/owner-resource-node-id @basis-ref node-id)
                                            (throw (ex-info "Can't find the owner resource node for an override node"
                                                            {:node-id node-id})))
-                         resource (resource-node/resource basis owner-node-id)
-                         outline-ids (when (g/node-instance? basis outline/OutlineNode owner-node-id)
+                         resource (resource-node/resource @basis-ref owner-node-id)
+                         outline-ids (when (g/node-instance? @basis-ref outline/OutlineNode owner-node-id)
                                        (->> (g/node-value owner-node-id :node-outline evaluation-context)
                                             (tree-seq :children :children)
                                             (into #{} (map :node-id))))
@@ -760,7 +760,7 @@
                                                 (cond
                                                   (nil? node-id) nil
                                                   (outline-ids node-id) node-id
-                                                  :else (recur (core/owner-node-id basis node-id)))))
+                                                  :else (recur (core/owner-node-id @basis-ref node-id)))))
                                             node-id)
                          qualifier (node-util/node-qualifier-label select-node-id evaluation-context)]
                      {:node-id select-node-id

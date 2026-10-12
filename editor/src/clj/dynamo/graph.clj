@@ -45,8 +45,6 @@
 
 (namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order property-statics own-property-values])
 
-(namespaces/import-fn internal.node/evaluation-context-basis ec-basis)
-
 (namespaces/import-vars [internal.graph connected? dependencies node-ids pre-traverse successors])
 
 (namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters full-invalidation-since?])
@@ -91,7 +89,13 @@
   An evaluation-context must only be used by one thread at a time. It may be
   handed off to another thread, but the previous owner must stop using it until
   ownership is returned. This also applies to derived contexts sharing its
-  mutable state."
+  mutable state.
+
+  Destructure :basis-ref to retain a reference to the context's current basis.
+  Dereference it when passing a basis to graph functions, so materializations
+  performed since the reference was obtained are included. Each dereferenced
+  basis is an immutable snapshot. Discard the context after committing it with
+  update-system-from-evaluation-context!."
   ([] (is/default-evaluation-context @*the-system*))
   ([options] (is/custom-evaluation-context @*the-system* options)))
 
@@ -1228,11 +1232,10 @@
   Call only after evaluation has finished, with exclusive ownership of the context.
   Closes the context and all contexts sharing its state. They must be discarded
   after this call, even if their changes were incompatible with the system."
-  [evaluation-context]
-  (let [state (:state-atom evaluation-context)]
-    (assert (not (:closed @state)) "Evaluation context is closed.")
-    (swap! *the-system* is/update-system-from-evaluation-context evaluation-context)
-    (swap! state assoc :closed true))
+  [{:keys [closed-ref] :as evaluation-context}]
+  (assert (not @closed-ref) "Evaluation context is closed.")
+  (swap! *the-system* is/update-system-from-evaluation-context evaluation-context)
+  (reset! closed-ref true)
   nil)
 
 (defmacro with-auto-evaluation-context [ec & body]
@@ -1353,8 +1356,8 @@
      (node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
    (when (some? node-id)
-     (let [basis (ec-basis evaluation-context)
-           node (ig/node-by-id-at basis node-id)]
+     (let [{:keys [basis-ref]} evaluation-context
+           node (ig/node-by-id-at @basis-ref node-id)]
        (in/node-value node label evaluation-context)))))
 
 (defn valid-node-value
@@ -1367,7 +1370,8 @@
    (let [value (node-value node-id label evaluation-context)]
      (if-not (error? value)
        value
-       (let [node-type-kw (node-type-kw (ec-basis evaluation-context) node-id)]
+       (let [{:keys [basis-ref]} evaluation-context
+             node-type-kw (node-type-kw @basis-ref node-id)]
          (throw
            (ex-info
              (format "Evaluation produced an ErrorValue from %s on %s %d."
@@ -1386,8 +1390,8 @@
      (maybe-node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
    (when (some? node-id)
-     (let [basis (ec-basis evaluation-context)
-           node (ig/node-by-id-at basis node-id)]
+     (let [{:keys [basis-ref]} evaluation-context
+           node (ig/node-by-id-at @basis-ref node-id)]
        (when (some-> node gt/node-type (in/behavior label))
          (let [value (in/node-value node label evaluation-context)]
            (when-not (error? value)
@@ -1956,8 +1960,8 @@
   for nodes that return a non-nil node-key. Usually this only happens for
   ResourceNodes, but this also enables us to restore overridden properties on
   nodes produced by the resource :load-fn."
-  (fn [node-id evaluation-context]
-    (if-some [node-type-kw (node-type-kw (ec-basis evaluation-context) node-id)]
+  (fn [node-id {:keys [basis-ref] :as _evaluation-context}]
+    (if-some [node-type-kw (node-type-kw @basis-ref node-id)]
       node-type-kw
       (throw (ex-info (str "Unknown node id: " node-id)
                       {:node-id node-id})))))
@@ -1967,8 +1971,8 @@
 (defn overridden-properties
   "Returns a map of overridden prop-keywords to property values. Values will be
   produced by property value functions if possible."
-  [node-id evaluation-context]
-  (if-let [node (node-by-id (ec-basis evaluation-context) node-id)]
+  [node-id {:keys [basis-ref] :as evaluation-context}]
+  (if-let [node (node-by-id @basis-ref node-id)]
     (let [node-type (gt/node-type node)]
       (into {}
             (map (fn [[prop-kw raw-prop-value]]
@@ -1990,34 +1994,33 @@
   ([source-node-id]
    (with-auto-evaluation-context evaluation-context
      (collect-overridden-properties source-node-id evaluation-context)))
-  ([source-node-id evaluation-context]
-   (let [basis (ec-basis evaluation-context)]
-     (persistent!
-       (reduce
-         (fn [properties-by-override-node-key override-node-id]
-           (or (when-some [override-id (override-id basis override-node-id)]
-                 (when-some [node-key (node-key override-node-id evaluation-context)]
-                   (let [override-node-key [override-id node-key]
-                         overridden-properties (overridden-properties override-node-id evaluation-context)]
-                     (if (contains? properties-by-override-node-key override-node-key)
-                       (let [node-type-kw (node-type-kw basis override-node-id)]
-                         (throw
-                           (ex-info
-                             (format "Duplicate node key `%s` from %s"
-                                     node-key
-                                     node-type-kw)
-                             {:node-key node-key
-                              :node-type node-type-kw
-                              :source-node-id source-node-id
-                              :override-node-id override-node-id
-                              :override-node-key override-node-key
-                              :properties-by-override-node-key (persistent! properties-by-override-node-key)})))
-                       (when (seq overridden-properties)
-                         (assoc! properties-by-override-node-key
-                           override-node-key overridden-properties))))))
-               properties-by-override-node-key))
-         (transient {})
-         (ig/pre-traverse basis [source-node-id] ig/cascade-delete-sources))))))
+  ([source-node-id {:keys [basis-ref] :as evaluation-context}]
+   (persistent!
+     (reduce
+       (fn [properties-by-override-node-key override-node-id]
+         (or (when-some [override-id (override-id @basis-ref override-node-id)]
+               (when-some [node-key (node-key override-node-id evaluation-context)]
+                 (let [override-node-key [override-id node-key]
+                       overridden-properties (overridden-properties override-node-id evaluation-context)]
+                   (if (contains? properties-by-override-node-key override-node-key)
+                     (let [node-type-kw (node-type-kw @basis-ref override-node-id)]
+                       (throw
+                         (ex-info
+                           (format "Duplicate node key `%s` from %s"
+                                   node-key
+                                   node-type-kw)
+                           {:node-key node-key
+                            :node-type node-type-kw
+                            :source-node-id source-node-id
+                            :override-node-id override-node-id
+                            :override-node-key override-node-key
+                            :properties-by-override-node-key (persistent! properties-by-override-node-key)})))
+                     (when (seq overridden-properties)
+                       (assoc! properties-by-override-node-key
+                         override-node-key overridden-properties))))))
+             properties-by-override-node-key))
+       (transient {})
+       (ig/pre-traverse @basis-ref [source-node-id] ig/cascade-delete-sources)))))
 
 (defn restore-overridden-properties
   "Restores collected-properties obtained from the collect-overridden-properties
@@ -2029,15 +2032,14 @@
    (with-auto-evaluation-context evaluation-context
      (eager-tx-data
        (restore-overridden-properties target-node-id collected-properties evaluation-context))))
-  ([target-node-id collected-properties evaluation-context]
-   (let [basis (ec-basis evaluation-context)]
-     (for [node-id (ig/pre-traverse basis [target-node-id] ig/cascade-delete-sources)]
-       (when-some [override-id (override-id basis node-id)]
-         (when-some [node-key (node-key node-id evaluation-context)]
-           (let [override-node-key [override-id node-key]
-                 overridden-properties (collected-properties override-node-key)]
-             (for [[prop-kw prop-value] overridden-properties]
-               (set-property node-id prop-kw prop-value)))))))))
+  ([target-node-id collected-properties {:keys [basis-ref] :as evaluation-context}]
+   (for [node-id (ig/pre-traverse @basis-ref [target-node-id] ig/cascade-delete-sources)]
+     (when-some [override-id (override-id @basis-ref node-id)]
+       (when-some [node-key (node-key node-id evaluation-context)]
+         (let [override-node-key [override-id node-key]
+               overridden-properties (collected-properties override-node-key)]
+           (for [[prop-kw prop-value] overridden-properties]
+             (set-property node-id prop-kw prop-value))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
@@ -2121,7 +2123,7 @@
   "Check if a value is an evaluation context"
   [x]
   (and (map? x)
-       (contains? x :state-atom)
+       (contains? x :basis-ref)
        (contains? x :in-production)
        (contains? x :local)
        (contains? x :hits)))

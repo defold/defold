@@ -1734,7 +1734,7 @@
 
           connection-rule-violations
           (g/with-auto-evaluation-context evaluation-context
-            (let [basis (g/ec-basis evaluation-context)
+            (let [{:keys [basis-ref]} evaluation-context
 
                   label-info
                   (fn label-info [node-id label]
@@ -1746,14 +1746,14 @@
                 (map first)
                 (mapcat
                   (fn [owner-node-id]
-                    (let [owned-node-ids (set (core/recursive-owned-node-ids basis owner-node-id))
+                    (let [owned-node-ids (set (core/recursive-owned-node-ids @basis-ref owner-node-id))
 
                           internal-arc?
                           (fn internal-arc? [arc]
                             (contains? owned-node-ids (gt/target-id arc)))]
 
                       (coll/into-> owned-node-ids :eduction
-                        (mapcat #(ig/explicit-arcs-by-source basis %))
+                        (mapcat #(ig/explicit-arcs-by-source @basis-ref %))
                         (remove internal-arc?)
                         (remove save-data-arc?)
                         (remove explicit-arcs-before)
@@ -1762,8 +1762,8 @@
                                       source-label (gt/source-label arc)
                                       target-id (gt/target-id arc)
                                       target-label (gt/target-label arc)]
-                                  (if-let [source-resource (resource-node/as-resource basis source-id)]
-                                    (if-let [target-owner-resource (resource-node/owner-resource basis target-id)]
+                                  (if-let [source-resource (resource-node/as-resource @basis-ref source-id)]
+                                    (if-let [target-owner-resource (resource-node/owner-resource @basis-ref target-id)]
                                       (let [target-owner-proj-path (resource/proj-path target-owner-resource)
                                             target-owner-dependency-proj-paths (proj-path->dependency-proj-paths target-owner-proj-path)
                                             source-proj-path (resource/proj-path source-resource)]

@@ -114,8 +114,8 @@
           "file"
           (if-let [resource (when project
                               (g/with-auto-evaluation-context evaluation-context
-                                (let [basis (g/ec-basis evaluation-context)
-                                      workspace (g/node-value project :workspace evaluation-context)]
+                                (let [workspace (g/node-value project :workspace evaluation-context)
+                                      basis @(:basis-ref evaluation-context)]
                                   (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
                                     (workspace/find-resource basis workspace proj-path)))))]
             (ui/execute-command (ui/contexts (ui/main-scene) true) :file.open resource)

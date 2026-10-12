@@ -317,47 +317,47 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (is (= :owner-property-value
-                       (g/raw-property-value basis owner-node-id :property)
+                       (g/raw-property-value @basis-ref owner-node-id :property)
                        (g/node-value owner-node-id :property-output evaluation-context)))
                 (is (= :directly-owned-property-value
-                       (g/raw-property-value basis directly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref directly-owned-node-id :property)
                        (g/node-value directly-owned-node-id :property-output evaluation-context)))
                 (is (= :indirectly-owned-property-value
-                       (g/raw-property-value basis indirectly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref indirectly-owned-node-id :property)
                        (g/node-value indirectly-owned-node-id :property-output evaluation-context)))
-                (is (coll/empty? (g/overrides basis owner-node-id)))
-                (is (coll/empty? (g/overrides basis directly-owned-node-id)))
-                (is (coll/empty? (g/overrides basis indirectly-owned-node-id))))))
+                (is (coll/empty? (g/overrides @basis-ref owner-node-id)))
+                (is (coll/empty? (g/overrides @basis-ref directly-owned-node-id)))
+                (is (coll/empty? (g/overrides @basis-ref indirectly-owned-node-id))))))
 
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)
-                    [first-order-override-owner-node-id :as overrides-of-owner-node-id] (g/overrides basis owner-node-id)
-                    [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides basis directly-owned-node-id)
-                    [first-order-override-indirectly-owned-node-id :as overrides-of-indirectly-owned-node-id] (g/overrides basis indirectly-owned-node-id)]
+              (let [{:keys [basis-ref]} evaluation-context
+                    [first-order-override-owner-node-id :as overrides-of-owner-node-id] (g/overrides @basis-ref owner-node-id)
+                    [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides @basis-ref directly-owned-node-id)
+                    [first-order-override-indirectly-owned-node-id :as overrides-of-indirectly-owned-node-id] (g/overrides @basis-ref indirectly-owned-node-id)]
                 (is (= 1 (count overrides-of-owner-node-id)))
                 (is (= 1 (count overrides-of-directly-owned-node-id)))
                 (is (= 1 (count overrides-of-indirectly-owned-node-id)))
                 (is (= :owner-property-value
-                       (g/raw-property-value basis owner-node-id :property)
+                       (g/raw-property-value @basis-ref owner-node-id :property)
                        (g/node-value owner-node-id :property-output evaluation-context)))
                 (is (= :directly-owned-property-value
-                       (g/raw-property-value basis directly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref directly-owned-node-id :property)
                        (g/node-value directly-owned-node-id :property-output evaluation-context)))
                 (is (= :indirectly-owned-property-value
-                       (g/raw-property-value basis indirectly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref indirectly-owned-node-id :property)
                        (g/node-value indirectly-owned-node-id :property-output evaluation-context)))
                 (is (= :first-order-override-owner-property-value
-                       (g/raw-property-value basis first-order-override-owner-node-id :property)
+                       (g/raw-property-value @basis-ref first-order-override-owner-node-id :property)
                        (g/node-value first-order-override-owner-node-id :property-output evaluation-context)))
                 (is (= :first-order-override-directly-owned-property-value
-                       (g/raw-property-value basis first-order-override-directly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref first-order-override-directly-owned-node-id :property)
                        (g/node-value first-order-override-directly-owned-node-id :property-output evaluation-context)))
                 (is (= :first-order-override-indirectly-owned-property-value
-                       (g/raw-property-value basis first-order-override-indirectly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref first-order-override-indirectly-owned-node-id :property)
                        (g/node-value first-order-override-indirectly-owned-node-id :property-output evaluation-context))))))]
 
       (testing "Before transact."
@@ -403,47 +403,47 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (is (= :owner-property-value
-                       (g/raw-property-value basis owner-node-id :property)
+                       (g/raw-property-value @basis-ref owner-node-id :property)
                        (g/node-value owner-node-id :property-output evaluation-context)))
                 (is (= :directly-owned-property-value
-                       (g/raw-property-value basis directly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref directly-owned-node-id :property)
                        (g/node-value directly-owned-node-id :property-output evaluation-context)))
                 (is (= :indirectly-owned-property-value
-                       (g/raw-property-value basis indirectly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref indirectly-owned-node-id :property)
                        (g/node-value indirectly-owned-node-id :property-output evaluation-context)))
-                (is (coll/empty? (g/overrides basis owner-node-id)))
-                (is (coll/empty? (g/overrides basis directly-owned-node-id)))
-                (is (coll/empty? (g/overrides basis indirectly-owned-node-id))))))
+                (is (coll/empty? (g/overrides @basis-ref owner-node-id)))
+                (is (coll/empty? (g/overrides @basis-ref directly-owned-node-id)))
+                (is (coll/empty? (g/overrides @basis-ref indirectly-owned-node-id))))))
 
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)
-                    [first-order-override-owner-node-id :as overrides-of-owner-node-id] (g/overrides basis owner-node-id)
-                    [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides basis directly-owned-node-id)
-                    [first-order-override-indirectly-owned-node-id :as overrides-of-indirectly-owned-node-id] (g/overrides basis indirectly-owned-node-id)]
+              (let [{:keys [basis-ref]} evaluation-context
+                    [first-order-override-owner-node-id :as overrides-of-owner-node-id] (g/overrides @basis-ref owner-node-id)
+                    [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides @basis-ref directly-owned-node-id)
+                    [first-order-override-indirectly-owned-node-id :as overrides-of-indirectly-owned-node-id] (g/overrides @basis-ref indirectly-owned-node-id)]
                 (is (= 1 (count overrides-of-owner-node-id)))
                 (is (= 1 (count overrides-of-directly-owned-node-id)))
                 (is (= 1 (count overrides-of-indirectly-owned-node-id)))
                 (is (= :owner-property-value
-                       (g/raw-property-value basis owner-node-id :property)
+                       (g/raw-property-value @basis-ref owner-node-id :property)
                        (g/node-value owner-node-id :property-output evaluation-context)))
                 (is (= :directly-owned-property-value
-                       (g/raw-property-value basis directly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref directly-owned-node-id :property)
                        (g/node-value directly-owned-node-id :property-output evaluation-context)))
                 (is (= :indirectly-owned-property-value
-                       (g/raw-property-value basis indirectly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref indirectly-owned-node-id :property)
                        (g/node-value indirectly-owned-node-id :property-output evaluation-context)))
                 (is (= :first-order-override-owner-property-value
-                       (g/raw-property-value basis first-order-override-owner-node-id :property)
+                       (g/raw-property-value @basis-ref first-order-override-owner-node-id :property)
                        (g/node-value first-order-override-owner-node-id :property-output evaluation-context)))
                 (is (= :first-order-override-directly-owned-property-value
-                       (g/raw-property-value basis first-order-override-directly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref first-order-override-directly-owned-node-id :property)
                        (g/node-value first-order-override-directly-owned-node-id :property-output evaluation-context)))
                 (is (= :first-order-override-indirectly-owned-property-value
-                       (g/raw-property-value basis first-order-override-indirectly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref first-order-override-indirectly-owned-node-id :property)
                        (g/node-value first-order-override-indirectly-owned-node-id :property-output evaluation-context))))))]
 
       (testing "Before transact."
@@ -497,47 +497,47 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)]
+              (let [{:keys [basis-ref]} evaluation-context]
                 (is (= :owner-property-value
-                       (g/raw-property-value basis owner-node-id :property)
+                       (g/raw-property-value @basis-ref owner-node-id :property)
                        (g/node-value owner-node-id :property-output evaluation-context)))
                 (is (= :directly-owned-property-value
-                       (g/raw-property-value basis directly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref directly-owned-node-id :property)
                        (g/node-value directly-owned-node-id :property-output evaluation-context)))
                 (is (= :indirectly-owned-property-value
-                       (g/raw-property-value basis indirectly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref indirectly-owned-node-id :property)
                        (g/node-value indirectly-owned-node-id :property-output evaluation-context)))
-                (is (coll/empty? (g/overrides basis owner-node-id)))
-                (is (coll/empty? (g/overrides basis directly-owned-node-id)))
-                (is (coll/empty? (g/overrides basis indirectly-owned-node-id))))))
+                (is (coll/empty? (g/overrides @basis-ref owner-node-id)))
+                (is (coll/empty? (g/overrides @basis-ref directly-owned-node-id)))
+                (is (coll/empty? (g/overrides @basis-ref indirectly-owned-node-id))))))
 
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (g/ec-basis evaluation-context)
-                    [first-order-override-owner-node-id :as overrides-of-owner-node-id] (g/overrides basis owner-node-id)
-                    [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides basis directly-owned-node-id)
-                    [first-order-override-indirectly-owned-node-id :as overrides-of-indirectly-owned-node-id] (g/overrides basis indirectly-owned-node-id)]
+              (let [{:keys [basis-ref]} evaluation-context
+                    [first-order-override-owner-node-id :as overrides-of-owner-node-id] (g/overrides @basis-ref owner-node-id)
+                    [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides @basis-ref directly-owned-node-id)
+                    [first-order-override-indirectly-owned-node-id :as overrides-of-indirectly-owned-node-id] (g/overrides @basis-ref indirectly-owned-node-id)]
                 (is (= 1 (count overrides-of-owner-node-id)))
                 (is (= 1 (count overrides-of-directly-owned-node-id)))
                 (is (= 1 (count overrides-of-indirectly-owned-node-id)))
                 (is (= :owner-property-value
-                       (g/raw-property-value basis owner-node-id :property)
+                       (g/raw-property-value @basis-ref owner-node-id :property)
                        (g/node-value owner-node-id :property-output evaluation-context)))
                 (is (= :directly-owned-property-value
-                       (g/raw-property-value basis directly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref directly-owned-node-id :property)
                        (g/node-value directly-owned-node-id :property-output evaluation-context)))
                 (is (= :indirectly-owned-property-value
-                       (g/raw-property-value basis indirectly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref indirectly-owned-node-id :property)
                        (g/node-value indirectly-owned-node-id :property-output evaluation-context)))
                 (is (= :first-order-override-owner-property-value
-                       (g/raw-property-value basis first-order-override-owner-node-id :property)
+                       (g/raw-property-value @basis-ref first-order-override-owner-node-id :property)
                        (g/node-value first-order-override-owner-node-id :property-output evaluation-context)))
                 (is (= :first-order-override-directly-owned-property-value
-                       (g/raw-property-value basis first-order-override-directly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref first-order-override-directly-owned-node-id :property)
                        (g/node-value first-order-override-directly-owned-node-id :property-output evaluation-context)))
                 (is (= :first-order-override-indirectly-owned-property-value
-                       (g/raw-property-value basis first-order-override-indirectly-owned-node-id :property)
+                       (g/raw-property-value @basis-ref first-order-override-indirectly-owned-node-id :property)
                        (g/node-value first-order-override-indirectly-owned-node-id :property-output evaluation-context))))))]
 
       (testing "Before transact."

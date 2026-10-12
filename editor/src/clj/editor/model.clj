@@ -663,24 +663,32 @@
   {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.
   ;; Only sampler names affect this migration. Pulling :materials also evaluates
   ;; GPU texture generators and vertex data, which are not load prerequisites.
-  (let [basis (g/ec-basis evaluation-context)
+  (let [{:keys [basis-ref]} evaluation-context
+
         material-name->sampler-names
-        (coll/into-> (g/inputs basis model-node-id :material-binding-infos) {}
+        (coll/into-> (g/inputs @basis-ref model-node-id :material-binding-infos) {}
           (keep (fn [{material-binding-node-id :source-id}]
                   (let [samplers (g/node-value material-binding-node-id :samplers evaluation-context)]
                     (when-not (g/error? samplers)
                       (let [name (g/node-value material-binding-node-id :name evaluation-context)
+
                             texture-binding-infos
-                            (coll/into-> (g/inputs basis material-binding-node-id :texture-binding-infos) []
+                            (coll/into-> (g/inputs @basis-ref material-binding-node-id :texture-binding-infos) []
                               (map (fn [{texture-binding-node-id :source-id}]
                                      {:sampler (g/node-value texture-binding-node-id :sampler evaluation-context)})))
-                            renamed-bindings (detect-and-apply-renames texture-binding-infos samplers)]
-                        (pair name (into #{} (map :sampler) renamed-bindings))))))))]
-    (coll/any? (fn [model-desc-material]
-                 (when-let [sampler-names (material-name->sampler-names (:name model-desc-material))]
-                   (not= (into #{} (map :sampler) (:textures model-desc-material))
-                         sampler-names)))
-               (:materials model-desc))))
+
+                            renamed-bindings (detect-and-apply-renames texture-binding-infos samplers)
+                            sampler-names (coll/into-> renamed-bindings #{}
+                                            (map :sampler))]
+                        (pair name sampler-names)))))))]
+
+    (coll/any?
+      (fn [model-desc-material]
+        (when-let [sampler-names (material-name->sampler-names (:name model-desc-material))]
+          (not= sampler-names
+                (coll/into-> (:textures model-desc-material) #{}
+                  (map :sampler)))))
+      (:materials model-desc))))
 
 (defn- detect-and-flag-migrated! [evaluation-context model-node-id model-desc]
   {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.
@@ -737,7 +745,8 @@
                 (map #(resolve-proj-path owner-resource %))
                 (distinct))
           (e/concat ["/game.project" (:mesh model-desc)]
-                    (e/map :material (:materials model-desc))))))
+                    (e/map :material
+                           (:materials model-desc))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

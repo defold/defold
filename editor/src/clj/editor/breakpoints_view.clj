@@ -128,10 +128,10 @@
 
 (defn restore-breakpoints! [project prefs]
   (g/with-auto-evaluation-context evaluation-context
-    (let [basis (g/ec-basis evaluation-context)
+    (let [{:keys [basis-ref]} evaluation-context
           workspace (project/workspace project evaluation-context)
           breakpoints (keep (fn [breakpoint]
-                              (when-some [resource (workspace/find-resource basis workspace (:proj-path breakpoint))]
+                              (when-some [resource (workspace/find-resource @basis-ref workspace (:proj-path breakpoint))]
                                 (assoc breakpoint :resource resource)))
                             (prefs/get prefs [:code :breakpoints]))
           script-bps (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)]

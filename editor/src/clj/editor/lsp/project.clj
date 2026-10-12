@@ -34,8 +34,8 @@
 (def ^:private ^:const completion-item-kind-reference 18)
 
 (defn- uri->resource [project uri evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)
-        workspace (g/node-value project :workspace evaluation-context)]
+  (let [workspace (g/node-value project :workspace evaluation-context)
+        basis @(:basis-ref evaluation-context)]
     (when-let [proj-path (workspace/as-proj-path basis workspace (.getPath (URI. uri)))]
       (workspace/find-resource basis workspace proj-path))))
 
@@ -76,11 +76,11 @@
 (defn- complete-urls [project owner-root-ids socket line character url-content evaluation-context]
   (if (coll/empty? owner-root-ids)
     []
-    (let [basis (g/ec-basis evaluation-context)
+    (let [{:keys [basis-ref]} evaluation-context
           replacement-start (- character (count url-content))]
       (->> (g/node-value project :nodes-by-resource-path evaluation-context)
            (e/mapcat (fn [[_ node-id]]
-                       (when (g/node-kw-instance? basis :editor.collection/CollectionNode node-id)
+                       (when (g/node-kw-instance? @basis-ref :editor.collection/CollectionNode node-id)
                          (let [go-inst-ids (g/node-value node-id :go-inst-ids evaluation-context)]
                            (when-not (g/error? go-inst-ids)
                              (let [go-instance-ids (coll/vals go-inst-ids)]
@@ -88,7 +88,7 @@
                                        (fn [go-instance-id]
                                          (owner-root-ids
                                            (g/override-root
-                                             basis
+                                             @basis-ref
                                              (g/node-value go-instance-id :source-id evaluation-context))))
                                        go-instance-ids)
                                  go-instance-ids)))))))
@@ -115,13 +115,13 @@
 
 (defn- completion-owner-root-ids [project resource-node-id resource evaluation-context]
   (resource-node/materialize-resource-types! #{"collection" "go"} evaluation-context)
-  (let [basis (g/ec-basis evaluation-context)]
+  (let [{:keys [basis-ref]} evaluation-context]
     (owning-game-object-node-ids
-      basis
+      @basis-ref
       (if (= "script" (resource/type-ext resource))
         #{resource-node-id}
         (script-node-ids-requiring-module
-          basis
+          @basis-ref
           (g/node-value
             (defold-project/script-intelligence project evaluation-context)
             :requiring-resource-infos-by-module-proj-path

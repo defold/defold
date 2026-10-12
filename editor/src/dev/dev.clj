@@ -149,9 +149,9 @@
   ([node-id evaluation-context]
    {:pre [(some? node-id)
           (g/node-id? node-id)]}
-   (let [basis (g/ec-basis evaluation-context)
-         original-node-id (g/override-original basis node-id)
-         override-node-ids (g/overrides basis node-id)]
+   (let [{:keys [basis-ref]} evaluation-context
+         original-node-id (g/override-original @basis-ref node-id)
+         override-node-ids (g/overrides @basis-ref node-id)]
      (cond-> (into (array-map :node-id node-id)
                    (node-util/node-debug-info node-id evaluation-context))
 

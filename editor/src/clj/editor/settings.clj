@@ -60,11 +60,11 @@
 (g/defnk produce-settings-map [^:unsafe _evaluation-context owner-resource meta-info raw-settings resource-settings]
   ;; we use evaluation context to resolve a resource; we only need the resource
   ;; for its path, so it's safe to use it here
-  (let [basis (g/ec-basis _evaluation-context)
+  (let [{:keys [basis-ref]} _evaluation-context
         meta-settings (:settings meta-info)]
     (settings-core/make-settings-map
       (concat (settings-core/make-default-settings meta-settings)
-              (resolve-resource-settings-from-raw basis raw-settings meta-settings owner-resource)
+              (resolve-resource-settings-from-raw @basis-ref raw-settings meta-settings owner-resource)
               resource-settings))))
 
 (defn- set-raw-setting [settings {:keys [path] :as meta-setting} value]
@@ -203,9 +203,9 @@
 (g/defnk produce-form-data [^:unsafe _evaluation-context _node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
   ;; we use evaluation context to resolve a resource; we only need the resource
   ;; for its path, so it's safe to use it here
-  (let [basis (g/ec-basis _evaluation-context)
+  (let [{:keys [basis-ref]} _evaluation-context
         meta-settings (:settings meta-info)
-        sanitized-settings (resolve-resource-settings-from-raw basis raw-settings meta-settings owner-resource)
+        sanitized-settings (resolve-resource-settings-from-raw @basis-ref raw-settings meta-settings owner-resource)
         non-defaulted-setting-paths (into #{}
                                           (comp
                                             (filter :value)

@@ -211,8 +211,8 @@
                                            {1 proj-path-or-opts-map}
                                            proj-path-or-opts-map))
                                        (rt/->clj rt created-resources-coercer lua-created-resources))
-          basis (g/ec-basis evaluation-context)
           workspace (project/workspace project evaluation-context)
+          basis @(:basis-ref evaluation-context)
           project-dir (workspace/project-directory basis workspace)
           resource-types (resource/resource-types-by-type-ext basis workspace :editable)
           type-ext->template (fn/memoize
@@ -248,13 +248,15 @@
           (future/then (fn [_] (reload-resources!)))
           (future/then
             (fn [_]
-              (g/let-ec [basis (g/ec-basis evaluation-context)
+              (g/let-ec [{:keys [basis-ref]} evaluation-context
+
                          invalid-proj-paths
                          (coll/into-> created-resource-infos []
                            (keep (fn [{proj-path 1}]
                                    (when-let [node-id (project/get-resource-node project proj-path evaluation-context)]
-                                     (when (g/defective? basis node-id)
+                                     (when (g/defective? @basis-ref node-id)
                                        proj-path)))))]
+
                 (rt/and-refresh-context
                   (when-let [invalid-proj-paths (coll/not-empty invalid-proj-paths)]
                     (LuaError. (str "Created resources are invalid: " (coll/join-to-string ", " invalid-proj-paths))))))))))))
@@ -262,9 +264,9 @@
 (defn- make-ext-create-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]
     (let [^String proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
-          basis (g/ec-basis evaluation-context)
+          {:keys [basis-ref]} evaluation-context
           workspace (project/workspace project evaluation-context)
-          root-path (-> (workspace/project-directory basis workspace)
+          root-path (-> (workspace/project-directory @basis-ref workspace)
                         (path/real))
           dir-path (-> (str root-path proj-path)
                        (path/normalized))]
@@ -280,10 +282,10 @@
 
 (defn- make-ext-delete-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-delete-directory [{:keys [rt evaluation-context]} lua-proj-path]
-    (let [basis (g/ec-basis evaluation-context)
+    (let [{:keys [basis-ref]} evaluation-context
           proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
           workspace (project/workspace project evaluation-context)
-          root-path (-> (workspace/project-directory basis workspace)
+          root-path (-> (workspace/project-directory @basis-ref workspace)
                         (path/real))
           dir-path (-> (str root-path proj-path)
                        (path/normalized))
@@ -327,10 +329,10 @@
 
 (defn- make-ext-resource-attributes-fn [project]
   (rt/lua-fn ext-resource-attributes [{:keys [rt evaluation-context]} lua-resource-path]
-    (let [basis (g/ec-basis evaluation-context)
+    (let [{:keys [basis-ref]} evaluation-context
           proj-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)
           workspace (project/workspace project evaluation-context)]
-      (if-let [resource (workspace/find-resource basis workspace proj-path)]
+      (if-let [resource (workspace/find-resource @basis-ref workspace proj-path)]
         (let [source-type (resource/source-type resource)]
           {:exists true
            :is_file (= :file source-type)
@@ -492,7 +494,7 @@
   (rt/suspendable-varargs-lua-fn open-resource [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [resource-path]
            {:keys [view args]} :rest} (rt/->clj rt open-resource-args-coercer varargs)
-          resource (workspace/find-resource (g/ec-basis evaluation-context) workspace resource-path)]
+          resource (workspace/find-resource @(:basis-ref evaluation-context) workspace resource-path)]
       (if-not (and resource (resource/exists? resource) (resource/openable? resource))
         (throw (LuaError. (format "Resource '%s' could not be opened" resource-path)))
         (if-not view
@@ -792,7 +794,7 @@
       (lsp.async/with-auto-evaluation-context evaluation-context
         (let [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)
               workspace (project/workspace project evaluation-context)
-              project-root (g/raw-property-value (g/ec-basis evaluation-context) workspace :root)
+              project-root (g/raw-property-value @(:basis-ref evaluation-context) workspace :root)
               server-definitions {:extension-language-servers ext-language-servers
                                   :lua-language-servers (built-in-lua-language-servers project-root sync-hash)}]
           (ui/run-now
@@ -1075,14 +1077,14 @@
                                                   strings"
   [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!] :as opts}]
   {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!]}
-  (g/let-ec [basis (g/ec-basis evaluation-context)
+  (g/let-ec [{:keys [basis-ref]} evaluation-context
              script-annotations (project/script-annotations project evaluation-context)
              extensions (g/node-value project :editor-extensions evaluation-context)
              old-state (ext-state project evaluation-context)
              reload-project (or (= :all kind) (= :project kind))
              reload-library (or (= :all kind) (= :library kind))
              workspace (project/workspace project evaluation-context)
-             project-path (.toPath (workspace/project-directory basis workspace))
+             project-path (.toPath (workspace/project-directory @basis-ref workspace))
              rt (rt/make
                   :find-resource (partial find-resource project)
                   :resolve-file (partial resolve-file project-path)

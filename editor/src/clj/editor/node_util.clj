@@ -34,8 +34,8 @@
   ([node-id]
    (g/with-auto-evaluation-context evaluation-context
      (node-qualifier-label node-id evaluation-context)))
-  ([node-id evaluation-context]
-   (when-some [node (g/node-by-id (g/ec-basis evaluation-context) node-id)]
+  ([node-id {:keys [basis-ref] :as evaluation-context}]
+   (when-some [node (g/node-by-id @basis-ref node-id)]
      (let [node-type (g/node-type node)]
        (or (when (in/behavior node-type :url)
              (let [value (in/node-value node :url evaluation-context)]
@@ -56,19 +56,18 @@
   ([node-id]
    (g/with-auto-evaluation-context evaluation-context
      (node-debug-label node-id evaluation-context)))
-  ([node-id evaluation-context]
-   (let [basis (g/ec-basis evaluation-context)
-         node (g/node-by-id basis node-id)
+  ([node-id {:keys [basis-ref] :as evaluation-context}]
+   (let [node (g/node-by-id @basis-ref node-id)
          node-type (g/node-type node)]
      (or (when (in/inherits? node-type resource/ResourceNode)
-           (let [resource (resource-node/resource basis node-id)]
+           (let [resource (resource-node/resource @basis-ref node-id)]
              (cond
                (resource/memory-resource? resource)
                (str "embedded." (resource/ext resource))
 
                (some? (gt/original node))
                (let [proj-path (resource/proj-path resource)]
-                 (if-let [owner-resource (resource-node/owner-resource basis node-id)]
+                 (if-let [owner-resource (resource-node/owner-resource @basis-ref node-id)]
                    (str proj-path " override in " (resource/proj-path owner-resource))
                    (str proj-path " override")))
 
@@ -86,11 +85,10 @@
   ([node-id]
    (g/with-auto-evaluation-context evaluation-context
      (node-debug-label-path node-id evaluation-context)))
-  ([node-id evaluation-context]
-   (let [basis (g/ec-basis evaluation-context)
-         project-node-id (g/graph-value basis :project-id)]
+  ([node-id {:keys [basis-ref] :as evaluation-context}]
+   (let [project-node-id (g/graph-value @basis-ref :project-id)]
      (->> node-id
-          (iterate #(core/owner-node-id basis %))
+          (iterate #(core/owner-node-id @basis-ref %))
           (take-while #(some-> % (not= project-node-id)))
           (reverse)
           (mapv #(node-debug-label % evaluation-context))))))
@@ -99,15 +97,14 @@
   ([node-id]
    (g/with-auto-evaluation-context evaluation-context
      (node-debug-info node-id evaluation-context)))
-  ([node-id evaluation-context]
-   (let [basis (g/ec-basis evaluation-context)
-         node-type-kw (g/node-type-kw basis node-id)
+  ([node-id {:keys [basis-ref] :as evaluation-context}]
+   (let [node-type-kw (g/node-type-kw @basis-ref node-id)
          node-debug-label-path (node-debug-label-path node-id evaluation-context)
          owner-resource-node-id (try
-                                  (resource-node/owner-resource-node-id basis node-id)
+                                  (resource-node/owner-resource-node-id @basis-ref node-id)
                                   (catch Exception _
                                     nil))
-         owner-resource-node-type-kw (some->> owner-resource-node-id (g/node-type-kw basis))]
+         owner-resource-node-type-kw (some->> owner-resource-node-id (g/node-type-kw @basis-ref))]
      {:node-type-kw node-type-kw
       :node-debug-label-path node-debug-label-path
       :owner-resource-node-id owner-resource-node-id

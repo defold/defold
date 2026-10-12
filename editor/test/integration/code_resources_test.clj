@@ -85,11 +85,11 @@
 
           editable-code-resource-node-ids
           (g/with-auto-evaluation-context evaluation-context
-            (let [basis (g/ec-basis evaluation-context)]
+            (let [{:keys [basis-ref]} evaluation-context]
               (into []
                     (comp (filter resource/editable?)
                           (map #(project/get-resource-node project % evaluation-context))
-                          (filter #(g/node-instance? basis code.resource/CodeEditorResourceNode %)))
+                          (filter #(g/node-instance? @basis-ref code.resource/CodeEditorResourceNode %)))
                     (all-file-resources workspace evaluation-context))))
 
           original-lines-by-code-resource-node-id

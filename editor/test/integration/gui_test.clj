@@ -1650,8 +1650,8 @@
 (defn- make-displayed-layout->node->prop->value [gui-scene-node-id]
   (make-displayed-layout->node->data
     gui-scene-node-id
-    (fn data-fn [gui-node-id evaluation-context]
-      (let [node-type (g/node-type* (g/ec-basis evaluation-context) gui-node-id)
+    (fn data-fn [gui-node-id {:keys [basis-ref] :as evaluation-context}]
+      (let [node-type (g/node-type* @basis-ref gui-node-id)
             prop-labels (g/declared-property-labels node-type)
             prop->default (in/defaults node-type)]
         (coll/into-> prop-labels (sorted-map)

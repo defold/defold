@@ -1203,33 +1203,32 @@
   ([transfer-overrides-plan]
    (g/with-auto-evaluation-context evaluation-context
      (decorate-transfer-overrides-plan transfer-overrides-plan evaluation-context)))
-  ([transfer-overrides-plan evaluation-context]
+  ([transfer-overrides-plan {:keys [basis-ref] :as evaluation-context}]
    {:pre [(transfer-overrides-plan? transfer-overrides-plan)]
     :post [(transfer-overrides-plan? %)]}
-   (let [basis (g/ec-basis evaluation-context)]
-     (update
-       transfer-overrides-plan :property-transfers
-       (fn [property-transfers]
-         (coll/into-> property-transfers (coll/empty-with-meta property-transfers)
-           (map (fn [{:keys [source-node-id] :as property-transfer}]
-                  {:pre [(g/node-id? source-node-id)]}
-                  (as-> property-transfer property-transfer
-                    (merge (sorted-map
-                             :source-node-type-kw (g/node-type-kw basis source-node-id)
-                             :source-node-path (node-util/node-debug-label-path source-node-id evaluation-context))
-                           property-transfer)
-                    (update property-transfer :targets
-                            (fn [property-transfer-targets]
-                              (coll/into-> property-transfer-targets (coll/empty-with-meta property-transfer-targets)
-                                (map (fn [{:keys [target-node-id target-prop-node-id] :as property-transfer-target}]
-                                       {:pre [(g/node-id? target-node-id)
-                                              (g/node-id? target-prop-node-id)]}
-                                       (merge (sorted-map
-                                                :target-node-type-kw (g/node-type-kw basis target-node-id)
-                                                :target-node-path (node-util/node-debug-label-path target-node-id evaluation-context)
-                                                :target-prop-node-type-kw (g/node-type-kw basis target-prop-node-id)
-                                                :target-prop-node-path (node-util/node-debug-label-path target-prop-node-id evaluation-context))
-                                              property-transfer-target)))))))))))))))
+   (update
+     transfer-overrides-plan :property-transfers
+     (fn [property-transfers]
+       (coll/into-> property-transfers (coll/empty-with-meta property-transfers)
+         (map (fn [{:keys [source-node-id] :as property-transfer}]
+                {:pre [(g/node-id? source-node-id)]}
+                (as-> property-transfer property-transfer
+                  (merge (sorted-map
+                           :source-node-type-kw (g/node-type-kw @basis-ref source-node-id)
+                           :source-node-path (node-util/node-debug-label-path source-node-id evaluation-context))
+                         property-transfer)
+                  (update property-transfer :targets
+                          (fn [property-transfer-targets]
+                            (coll/into-> property-transfer-targets (coll/empty-with-meta property-transfer-targets)
+                              (map (fn [{:keys [target-node-id target-prop-node-id] :as property-transfer-target}]
+                                     {:pre [(g/node-id? target-node-id)
+                                            (g/node-id? target-prop-node-id)]}
+                                     (merge (sorted-map
+                                              :target-node-type-kw (g/node-type-kw @basis-ref target-node-id)
+                                              :target-node-path (node-util/node-debug-label-path target-node-id evaluation-context)
+                                              :target-prop-node-type-kw (g/node-type-kw @basis-ref target-prop-node-id)
+                                              :target-prop-node-path (node-util/node-debug-label-path target-prop-node-id evaluation-context))
+                                            property-transfer-target))))))))))))))
 
 (defn transfer-overrides-status
   "Returns :ok if the supplied transfer-overrides-plan can be executed,
@@ -1356,16 +1355,15 @@
       nil)))
 
 (defn- basic-transfer-overrides-plan
-  [override-transfer-type source-prop-infos-by-prop-kw target-node-ids evaluation-context]
+  [override-transfer-type source-prop-infos-by-prop-kw target-node-ids {:keys [basis-ref] :as evaluation-context}]
   {:pre [(not (coll/empty? target-node-ids))]}
-  (let [basis (g/ec-basis evaluation-context)
-        target-infos
+  (let [target-infos
         (coll/into-> target-node-ids []
           (map (fn [target-node-id]
                  (let [target-prop-infos-by-prop-kw (:properties (g/node-value target-node-id :_properties evaluation-context))]
                    {:target-node-id target-node-id
                     :target-prop-infos-by-prop-kw target-prop-infos-by-prop-kw}))))]
-    (transfer-overrides-plan basis override-transfer-type source-prop-infos-by-prop-kw target-infos)))
+    (transfer-overrides-plan @basis-ref override-transfer-type source-prop-infos-by-prop-kw target-infos)))
 
 (defmulti pull-up-overrides-plan-alternatives
   "Given a source-node-id and a source-prop-infos-by-prop-kw map, should return
@@ -1374,18 +1372,17 @@
   the source-node-id and proceeding towards the override-root."
   {:arglists '([source-node-id source-prop-infos-by-prop-kw evaluation-context])}
   (fn [source-node-id _source-prop-infos-by-prop-kw evaluation-context]
-    (g/node-type-kw (g/ec-basis evaluation-context) source-node-id)))
+    (g/node-type-kw @(:basis-ref evaluation-context) source-node-id)))
 
 (defmethod pull-up-overrides-plan-alternatives :default
-  [source-node-id source-prop-infos-by-prop-kw evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)]
-    (when-let [original-node-id (g/override-original basis source-node-id)]
-      (let [original-node-ids (iterate #(g/override-original basis %) original-node-id)]
-        (coll/into->
-          original-node-ids []
-          (take-while some?)
-          (map (fn [original-node-id]
-                 (basic-transfer-overrides-plan :pull-up-overrides source-prop-infos-by-prop-kw [original-node-id] evaluation-context))))))))
+  [source-node-id source-prop-infos-by-prop-kw {:keys [basis-ref] :as evaluation-context}]
+  (when-let [original-node-id (g/override-original @basis-ref source-node-id)]
+    (let [original-node-ids (iterate #(g/override-original @basis-ref %) original-node-id)]
+      (coll/into->
+        original-node-ids []
+        (take-while some?)
+        (map (fn [original-node-id]
+               (basic-transfer-overrides-plan :pull-up-overrides source-prop-infos-by-prop-kw [original-node-id] evaluation-context)))))))
 
 (defmulti push-down-overrides-plan-alternatives
   "Given a source-node-id and a source-prop-infos-by-prop-kw map, should return
@@ -1394,10 +1391,10 @@
   {:arglists '([source-node-id source-prop-infos-by-prop-kw evaluation-context])}
   (fn [source-node-id _source-prop-infos-by-prop-kw evaluation-context]
     (resource-node/materialize-resource-types! #{"collection" "go" "gui"} evaluation-context)
-    (g/node-type-kw (g/ec-basis evaluation-context) source-node-id)))
+    (g/node-type-kw @(:basis-ref evaluation-context) source-node-id)))
 
 (defmethod push-down-overrides-plan-alternatives :default
-  [source-node-id source-prop-infos-by-prop-kw evaluation-context]
-  (when-let [override-node-ids (coll/not-empty (g/overrides (g/ec-basis evaluation-context) source-node-id))]
+  [source-node-id source-prop-infos-by-prop-kw {:keys [basis-ref] :as evaluation-context}]
+  (when-let [override-node-ids (coll/not-empty (g/overrides @basis-ref source-node-id))]
     (let [transfer-overrides-plan (basic-transfer-overrides-plan :push-down-overrides source-prop-infos-by-prop-kw override-node-ids evaluation-context)]
       [transfer-overrides-plan])))

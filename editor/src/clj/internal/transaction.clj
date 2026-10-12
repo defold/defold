@@ -157,11 +157,11 @@
      :materialize-node! materialize-node!}))
 
 (defn- apply-evaluation-context [ctx evaluation-context]
-  (let [state-atom (:state-atom evaluation-context)
-        {:keys [changes]} @state-atom]
-    (if (coll/empty? changes)
+  (let [changes-ref (:changes-ref evaluation-context)
+        transaction-changes @changes-ref]
+    (if (coll/empty? transaction-changes)
       ctx
-      (let [ctx (coll/reduce-> changes ctx
+      (let [ctx (coll/reduce-> transaction-changes ctx
                   (fn [ctx change]
                     (-> ctx
                         (perform-change change)
@@ -169,7 +169,7 @@
                         (cond->
                           (:realized-changes ctx)
                           (update :realized-changes conj change)))))]
-        (swap! state-atom assoc :changes [])
+        (reset! changes-ref [])
         ctx))))
 
 (defn- mark-input-activated
@@ -819,7 +819,7 @@
       (pair ctx undoable-changes)
       (let [evaluation-context (make-evaluation-context ctx)
             _ (materialize-node! node-id evaluation-context)
-            node (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id)
+            node (ig/node-by-id-at @(:basis-ref evaluation-context) node-id)
             old-value (in/node-property-value node property-label evaluation-context)
             ctx (apply-evaluation-context ctx evaluation-context)
             node (ig/node-by-id-at (:basis ctx) node-id)]
@@ -833,7 +833,7 @@
       (pair ctx undoable-changes)
       (let [evaluation-context (make-evaluation-context ctx)
             _ (materialize-node! node-id evaluation-context)
-            node (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id)
+            node (ig/node-by-id-at @(:basis-ref evaluation-context) node-id)
             old-value (in/node-property-value node property-label evaluation-context)
             new-value (if (:inject-evaluation-context opts)
                         (apply update-fn evaluation-context old-value args)
@@ -1912,27 +1912,26 @@
   (revert [_ _ctx]
     (throw (UnsupportedOperationException. "Materializations are not undoable."))))
 
-(defn- evaluation-transaction-context [evaluation-context]
-  (let [{:keys [basis materializations]} @(:state-atom evaluation-context)]
-    (-> (new-transaction-context basis
-                                 (:node-id-generator evaluation-context)
-                                 (:override-id-generator evaluation-context)
-                                 {} nil false
-                                 (:node-materializations evaluation-context)
-                                 materializations)
-        (assoc :tx-data-context (:tx-data-context evaluation-context)
-               :initial-invalidate-counters (:initial-invalidate-counters evaluation-context)
-               :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters evaluation-context)
-               :realized-changes []))))
+(defn- evaluation-transaction-context [{:keys [basis-ref materializations-ref] :as evaluation-context}]
+  (-> (new-transaction-context
+        @basis-ref
+        (:node-id-generator evaluation-context)
+        (:override-id-generator evaluation-context)
+        {} nil false
+        (:node-materializations evaluation-context)
+        @materializations-ref)
+      (assoc :tx-data-context (:tx-data-context evaluation-context)
+             :initial-invalidate-counters (:initial-invalidate-counters evaluation-context)
+             :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters evaluation-context)
+             :realized-changes [])))
 
 (defn- apply-evaluation-transaction-result! [evaluation-context result]
-  (let [{:keys [basis realized-changes outputs-modified materializations]} result]
-    (swap! (:state-atom evaluation-context)
-           (fn [state]
-             (-> state
-                 (assoc :basis basis :materializations materializations)
-                 (update :changes into realized-changes)
-                 (update :invalidated-endpoints into outputs-modified))))
+  (let [{:keys [basis-ref changes-ref invalidated-endpoints-ref materializations-ref]} evaluation-context
+        {:keys [basis realized-changes outputs-modified materializations]} result]
+    (reset! basis-ref basis)
+    (reset! materializations-ref materializations)
+    (swap! changes-ref into realized-changes)
+    (swap! invalidated-endpoints-ref into outputs-modified)
     (swap! (:local evaluation-context) #(reduce dissoc % outputs-modified))
     (when-let [local-temp (:local-temp evaluation-context)]
       (swap! local-temp #(reduce dissoc % outputs-modified))))
@@ -1974,7 +1973,7 @@
         entry (get @shared node-id)]
     (try
       (when-not (identical? (:shell-node entry)
-                            (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id))
+                            (ig/node-by-id-at @(:basis-ref evaluation-context) node-id))
         (throw (ex-info "The shell was replaced while reading its prerequisites."
                         {:node-id node-id})))
       ;; Check and registration must be one atomic update to detect cross-thread
@@ -1993,9 +1992,9 @@
       (doseq [prerequisite-id prerequisite-node-ids]
         (binding [*materialization* (assoc *materialization* :loading-prerequisites true)]
           (materialize-node! prerequisite-id evaluation-context))
-        (let [basis (in/evaluation-context-basis evaluation-context)
-              node (ig/node-by-id-at basis prerequisite-id)]
-          (when-let [errors (coll/not-empty (gt/get-property node basis :_output-jammers))]
+        (let [{:keys [basis-ref]} evaluation-context
+              node (ig/node-by-id-at @basis-ref prerequisite-id)]
+          (when-let [errors (coll/not-empty (gt/get-property node @basis-ref :_output-jammers))]
             (throw (ex-info "A resource prerequisite could not be loaded."
                             {:ex-type :prerequisite-failed
                              :node-id node-id
@@ -2027,7 +2026,8 @@
     (pair entry (identical? candidate entry))))
 
 (defn- realize-materialization! [node evaluation-context]
-  (let [node-id (gt/node-id node)]
+  (let [node-id (gt/node-id node)
+        {:keys [basis-ref changes-ref materializations-ref]} evaluation-context]
     (binding [*materialization* {:node-id node-id
                                  :prerequisite-node-ids (volatile! #{})}]
       ;; The callback completes declared prerequisites before returning steps.
@@ -2036,25 +2036,32 @@
             ;; Keep our declaration even if another shell replaces the registry
             ;; entry before this load finishes.
             prerequisite-shell-node-ids @(:prerequisite-node-ids *materialization*)
-            context-atoms (into [(:state-atom evaluation-context)]
+            context-atoms (into []
                                 (keep evaluation-context)
-                                [:local :local-temp :hits :tx-data-context])
+                                [:basis-ref
+                                 :changes-ref
+                                 :materializations-ref
+                                 :invalidated-endpoints-ref
+                                 :closed-ref
+                                 :local
+                                 :local-temp
+                                 :hits
+                                 :tx-data-context])
             previous-values (mapv deref context-atoms)
-            previous-state (first previous-values)]
+            previous-basis @basis-ref
+            previous-changes @changes-ref
+            previous-materializations @materializations-ref]
         (try
-          (let [result (binding [*materialization* (assoc *materialization* :basis (:basis previous-state))]
+          (let [result (binding [*materialization* (assoc *materialization* :basis previous-basis)]
                          (transact-in-evaluation-context! evaluation-context
                                                           [(materialize-shell node-id) tx-data]))
                 materialize-info {:node-id node-id
                                   :shell-node node
                                   :changes (:realized-changes result)
                                   :prerequisite-shell-node-ids prerequisite-shell-node-ids
-                                  :dependencies (select-keys (:materializations previous-state) prerequisite-shell-node-ids)}]
-            (swap! (:state-atom evaluation-context)
-                   (fn [state]
-                     (-> state
-                         (assoc :changes (conj (:changes previous-state) (->MaterializationTXC materialize-info)))
-                         (assoc-in [:materializations node-id] materialize-info))))
+                                  :dependencies (select-keys previous-materializations prerequisite-shell-node-ids)}]
+            (reset! changes-ref (conj previous-changes (->MaterializationTXC materialize-info)))
+            (swap! materializations-ref assoc node-id materialize-info)
             materialize-info)
           (catch Throwable error
             (reduce-kv (fn [_ index context-atom]
@@ -2064,6 +2071,7 @@
             (throw error)))))))
 
 (defn materialize-node! [node-id evaluation-context]
+  (assert (not @(:closed-ref evaluation-context)) "Evaluation context is closed.")
   ;; Dependency tracing skips output functions and caches placeholder values.
   ;; Loading needs actual values even when triggered by such a traversal.
   (let [evaluation-context (cond-> evaluation-context
@@ -2074,8 +2082,9 @@
                                     :local (atom {})
                                     :local-temp (atom {})
                                     :hits (atom #{})))
+        basis-ref (:basis-ref evaluation-context)
         shared (:node-materializations evaluation-context)
-        node (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id)]
+        node (ig/node-by-id-at @basis-ref node-id)]
     (when (in/unmaterialized-shell-node? node)
       (when (and (:node-id *materialization*) (not (:loading-prerequisites *materialization*)))
         (throw (ex-info "Undeclared nested materialization. Register the resource as a prerequisite."

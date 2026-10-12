@@ -49,17 +49,17 @@
                (g/add-node (g/construct ShellTestNode :_node-id child-id :value 5))
                (g/connect child-id :result self :dependency)]))))
       (let [evaluation-context (g/make-evaluation-context)
-            shell (g/node-by-id (g/ec-basis evaluation-context) node-id)]
+            shell (g/node-by-id @(:basis-ref evaluation-context) node-id)]
         (is (= "shell" (g/node-value node-id :identity evaluation-context)))
         (is (zero? @calls))
-        (is (thrown? ExceptionInfo (gt/get-property shell (g/ec-basis evaluation-context) :value)))
-        (is (thrown? ExceptionInfo (g/own-property-values (g/ec-basis evaluation-context) shell)))
+        (is (thrown? ExceptionInfo (gt/get-property shell @(:basis-ref evaluation-context) :value)))
+        (is (thrown? ExceptionInfo (g/own-property-values @(:basis-ref evaluation-context) shell)))
         (is (= 12 (g/node-value node-id :result evaluation-context)))
         (is (= 12 (g/node-value node-id :result evaluation-context)))
         (is (= 1 @calls))
         (is (in/unmaterialized-shell-node? (g/node-by-id (g/now) node-id)))
         (is (nil? (g/node-by-id (g/now) child-id)))
-        (is (instance? internal.node.NodeImpl (g/node-by-id (g/ec-basis evaluation-context) node-id)))
+        (is (instance? internal.node.NodeImpl (g/node-by-id @(:basis-ref evaluation-context) node-id)))
         (g/update-system-from-evaluation-context! evaluation-context)
         (is (not (in/unmaterialized-shell-node? (g/node-by-id (g/now) node-id))))
         (is (= 12 (g/node-value node-id :result)))
@@ -80,10 +80,10 @@
               [(g/set-property self :identity "materialized")
                (g/set-property self :value 7)]))))
       (let [evaluation-context (g/make-evaluation-context)
-            initial-basis (g/ec-basis evaluation-context)
+            initial-basis @(:basis-ref evaluation-context)
             shell (g/node-by-id initial-basis node-id)]
         (is (= 7 (g/node-value node-id :result evaluation-context)))
-        (let [materialized-basis (g/ec-basis evaluation-context)
+        (let [materialized-basis @(:basis-ref evaluation-context)
               materialized-node (g/node-by-id materialized-basis node-id)]
           (doseq [node [shell materialized-node]]
             (testing "Property reads use the materialized node in the supplied basis."
@@ -137,9 +137,9 @@
       (is (= [parent child] @loaded))
       (is (in/unmaterialized-shell-node? (g/node-by-id (g/now) unrelated))))))
 
+;; Verifies rollback and retry of materialized properties, including
+;; non-undoable state that must remain isolated until the load succeeds.
 (deftest failed-materialization-can-be-retried-test
-  ;; Verifies rollback and retry of materialized properties, including
-  ;; non-undoable state that must remain isolated until the load succeeds.
   (with-clean-system
     (let [node-id (first (g/take-node-ids 1))
           fail (atom true)]
@@ -151,9 +151,15 @@
               [(g/non-undoable (g/set-property self :identity "loaded"))
                (g/set-property self :value 9)
                (g/callback #(when @fail (throw (ex-info "load failed" {}))))]))))
-      (let [evaluation-context (g/make-evaluation-context)]
+      (let [{:keys [basis-ref changes-ref materializations-ref invalidated-endpoints-ref] :as evaluation-context} (g/make-evaluation-context)
+            initial-basis @basis-ref
+            initial-materializations @materializations-ref]
         (is (thrown-with-msg? ExceptionInfo #"load failed" (g/node-value node-id :result evaluation-context)))
-        (is (in/unmaterialized-shell-node? (g/node-by-id (g/ec-basis evaluation-context) node-id)))
+        (is (identical? initial-basis @basis-ref))
+        (is (identical? initial-materializations @materializations-ref))
+        (is (coll/empty? @changes-ref))
+        (is (coll/empty? @invalidated-endpoints-ref))
+        (is (in/unmaterialized-shell-node? (g/node-by-id @basis-ref node-id)))
         (is (nil? (g/node-value node-id :identity evaluation-context)))
         (is (nil? (g/node-value node-id :identity)))
         (reset! fail false)
@@ -192,6 +198,36 @@
         (g/update-system-from-evaluation-context! evaluation-context)
         (is (nil? (g/node-by-id (g/now) node-id)))))))
 
+;; A retained basis-ref observes successive materializations through derived
+;; contexts, while previously dereferenced bases remain immutable snapshots.
+(deftest retained-evaluation-context-basis-ref-test
+  (doseq [custom-context [false true]]
+    (with-clean-system
+      (let [[a b] (g/take-node-ids 2)
+            materialize-fn (fn [self _evaluation-context] (g/set-property self :value 17))]
+        (g/transact
+          [(g/add-node (g/construct-shell ShellTestNode {:_node-id a} materialize-fn))
+           (g/add-node (g/construct-shell ShellTestNode {:_node-id b} materialize-fn))])
+        (let [{:keys [basis-ref] :as evaluation-context} (if custom-context
+                                                           (g/make-evaluation-context {:no-local-temp true})
+                                                           (g/make-evaluation-context))
+              initial-basis @basis-ref
+              independent-context (g/make-evaluation-context)
+              derived-context (g/pruned-evaluation-context evaluation-context (constantly true))]
+          (is (identical? basis-ref (:basis-ref derived-context)))
+          (is (= 17 (g/node-value a :result derived-context)))
+          (is (= 17 (g/raw-property-value @basis-ref a :value)))
+          (let [first-materialized-basis @basis-ref]
+            (is (= 17 (g/node-value b :result evaluation-context)))
+            (is (= 17 (g/raw-property-value @basis-ref b :value)))
+            (is (in/unmaterialized-shell-node? (g/node-by-id first-materialized-basis b))))
+          (is (in/unmaterialized-shell-node? (g/node-by-id initial-basis a)))
+          (is (identical? initial-basis @(:basis-ref independent-context)))
+          (g/update-system-from-evaluation-context! derived-context)
+          (is (= 17 (g/node-value a :result)))
+          (is (= 17 (g/node-value b :result))))))))
+
+;; Committing a derived context closes every context sharing its mutable state.
 (deftest committed-evaluation-context-is-closed-test
   (with-clean-system
     (let [[a b] (g/take-node-ids 2)
@@ -202,17 +238,19 @@
           (g/add-node (g/construct-shell ShellTestNode {:_node-id b} materialize-fn))))
       (let [evaluation-context (g/make-evaluation-context)
             derived-context (assoc evaluation-context :tracer nil)
-            initial-basis (g/ec-basis evaluation-context)]
+            initial-basis @(:basis-ref evaluation-context)]
         (is (g/evaluation-context? evaluation-context))
         (is (not (contains? evaluation-context :basis)))
         (is (= 17 (g/node-value a :result derived-context)))
         (is (identical? initial-basis (:initial-basis evaluation-context)))
-        (is (not (identical? initial-basis (g/ec-basis evaluation-context))))
-        (is (identical? (g/ec-basis evaluation-context) (g/ec-basis derived-context)))
+        (is (not (identical? initial-basis @(:basis-ref evaluation-context))))
+        (is (identical? @(:basis-ref evaluation-context) @(:basis-ref derived-context)))
         (g/update-system-from-evaluation-context! derived-context)
         (doseq [context [evaluation-context derived-context]]
           (is (thrown-with-msg? AssertionError #"Evaluation context is closed"
                                 (g/node-value b :result context)))
+          (is (thrown-with-msg? AssertionError #"Evaluation context is closed"
+                                (g/materialize-node! b context)))
           (is (thrown-with-msg? AssertionError #"Evaluation context is closed"
                                 (g/update-system-from-evaluation-context! context))))
         (is (in/unmaterialized-shell-node? (g/node-by-id (g/now) b)))
@@ -578,7 +616,7 @@
             (g/node-value child :result second-context))
           (is (thrown-with-msg? ExceptionInfo #"outer load failed"
                                 (g/node-value parent :result first-context)))
-          (is (instance? internal.node.NodeImpl (g/node-by-id (g/ec-basis first-context) child)))
+          (is (instance? internal.node.NodeImpl (g/node-by-id @(:basis-ref first-context) child)))
           (reset! fail false)
           (is (= 23 (g/node-value parent :result second-context)))
           (is (= 23 (g/node-value parent :result first-context)))
@@ -669,8 +707,8 @@
                       (g/materialize-node! parent evaluation-context)
                       (catch Exception exception exception))]
           (is (= :undeclared-materialization (-> error ex-cause ex-data :ex-type))))
-        (is (nil? (g/node-by-id (g/ec-basis evaluation-context) consumer)))
-        (is (in/unmaterialized-shell-node? (g/node-by-id (g/ec-basis evaluation-context) prerequisite)))))))
+        (is (nil? (g/node-by-id @(:basis-ref evaluation-context) consumer)))
+        (is (in/unmaterialized-shell-node? (g/node-by-id @(:basis-ref evaluation-context) prerequisite)))))))
 
 (g/defnode MaterializationCollector
   (input values g/Int :array)
@@ -794,7 +832,7 @@
       (let [evaluation-context (g/make-evaluation-context)]
         (is (= 1 (g/node-value root :result evaluation-context)))
         (doseq [[node-id prerequisite-ids] prerequisites
-                :let [info (get-in @(:state-atom evaluation-context) [:materializations node-id])]]
+                :let [info (get @(:materializations-ref evaluation-context) node-id)]]
           (is (= prerequisite-ids (:prerequisite-shell-node-ids info)))
           (is (= prerequisite-ids (set (coll/keys (:dependencies info)))))
           (is (coll/not-any? #(instance? internal.transaction.MaterializationTXC %) (:changes info))))
@@ -836,7 +874,7 @@
               (deliver release true)
               (is (identical? failure (deref result 10000 ::timeout)))
               (is (identical? failure (:error (deref waiter 10000 ::timeout)))))
-            (is (in/unmaterialized-shell-node? (g/node-by-id (g/ec-basis evaluation-context) shell)))
+            (is (in/unmaterialized-shell-node? (g/node-by-id @(:basis-ref evaluation-context) shell)))
             (reset! fail false)
             (is (= 7 (g/node-value shell :result evaluation-context)))
             (finally

@@ -390,12 +390,12 @@
          (-> (root-iterators outline-view evaluation-context)
              outline/delete?)))
   (run [app-view selection selection-provider outline-view]
-    (g/let-ec [basis (g/ec-basis evaluation-context)
+    (g/let-ec [{:keys [basis-ref]} evaluation-context
                old-selected-node-ids (handler/selection->node-ids selection evaluation-context)
 
                deleted-node-ids
                (coll/into-> old-selected-node-ids []
-                 (map #(g/override-root basis %))
+                 (map #(g/override-root @basis-ref %))
                  (distinct))
 
                new-selected-node-ids

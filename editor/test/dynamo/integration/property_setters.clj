@@ -30,10 +30,10 @@
             (value (g/fnk [_node-id]
                      (some-> (first (g/inputs (g/now) _node-id :source))
                              gt/source-id)))
-            (set (fn [evaluation-context self old-value new-value]
+            (set (fn [{:keys [basis-ref] :as _evaluation-context} self _old-value new-value]
                    (if new-value
                      (g/connect new-value :contents self :source)
-                     (when-let [old-source (some-> (first (g/inputs (g/ec-basis evaluation-context) self :source))
+                     (when-let [old-source (some-> (first (g/inputs @basis-ref self :source))
                                                    gt/source-id)]
                        (g/disconnect old-source :contents self :source))))))
 

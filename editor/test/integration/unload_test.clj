@@ -96,15 +96,15 @@
             (let [project (test-util/setup-project! workspace)]
               (test-util/clear-cached-save-data! project)
               (g/with-auto-evaluation-context evaluation-context
-                (let [basis (g/ec-basis evaluation-context)]
+                (let [{:keys [basis-ref]} evaluation-context]
                   (doseq [proj-path loadable-resource-proj-paths]
-                    (let [resource (workspace/find-resource basis workspace proj-path)
+                    (let [resource (workspace/find-resource @basis-ref workspace proj-path)
                           resource-node (project/get-resource-node project resource evaluation-context)
                           resource-type (resource/resource-type resource)]
                       (testing proj-path
                         (is (not (resource/loaded? resource)))
-                        (is (= resource (resource-node/resource basis resource-node)))
-                        (is (not (g/connected? basis resource-node :save-data project :save-data)))
+                        (is (= resource (resource-node/resource @basis-ref resource-node)))
+                        (is (not (g/connected? @basis-ref resource-node :save-data project :save-data)))
                         (is (not (g/error? (g/node-value resource-node :_properties evaluation-context))))
                         (if (:editor-openable resource-type)
                           (is (not (resource/openable? resource)))

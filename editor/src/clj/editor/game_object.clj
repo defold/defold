@@ -295,10 +295,10 @@
                    (concat
                      (when-some [old-source (g/node-value self :source-id evaluation-context)]
                        (g/delete-node old-source))
-                     (let [basis (g/ec-basis evaluation-context)
+                     (let [{:keys [basis-ref]} evaluation-context
                            new-resource (:resource new-value)
                            resource-type (some-> new-resource resource/resource-type)
-                           project (project/get-project basis)
+                           project (project/get-project @basis-ref)
 
                            [comp-node tx-data]
                            (if (resource/overridable-resource-type? resource-type)
@@ -534,8 +534,8 @@
           (add-referenced-component! go-id resource select-fn))))))
 
 (defn- selection->game-object [selection evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)]
-    (g/override-root basis (handler/adapt-single selection GameObjectNode evaluation-context))))
+  (let [{:keys [basis-ref]} evaluation-context]
+    (g/override-root @basis-ref (handler/adapt-single selection GameObjectNode evaluation-context))))
 
 (handler/defhandler :edit.add-referenced-component :workbench
   :label (localization/message "command.edit.add-referenced-component.variant.game-object")
@@ -645,10 +645,10 @@
   (active? [selection evaluation-context] (selection->game-object selection evaluation-context))
   (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data evaluation-context]
-    (let [basis (g/ec-basis evaluation-context)
+    (let [{:keys [basis-ref]} evaluation-context
           self (selection->game-object selection evaluation-context)
           workspace (:workspace (g/node-value self :resource evaluation-context))]
-      (add-embedded-component-options basis self workspace user-data))))
+      (add-embedded-component-options @basis-ref self workspace user-data))))
 
 (defn load-game-object [{:keys [resolve-resource-fn workspace] :as load-opts} {:keys [owner-resource] self :node-id prototype-desc :source-value}]
   {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
@@ -711,28 +711,28 @@
     (let [type-name (rt/->clj rt coerce/string lua-type)]
       (if (= ext-referenced-component-type type-name)
         [(dissoc attachment "type") ReferencedComponent]
-        (let [basis (g/ec-basis evaluation-context)
-              resource-types (resource/resource-types-by-type-ext basis workspace :editable)
+        (let [{:keys [basis-ref]} evaluation-context
+              resource-types (resource/resource-types-by-type-ext @basis-ref workspace :editable)
               resource-type (resource-types type-name)]
-          (if (and resource-type (embeddable-component-resource-type? basis resource-type workspace))
+          (if (and resource-type (embeddable-component-resource-type? @basis-ref resource-type workspace))
             [attachment EmbeddedComponent]
             (throw (LuaError. (str "type is not "
-                                   (->> (embeddable-component-resource-types basis workspace)
+                                   (->> (embeddable-component-resource-types @basis-ref workspace)
                                         (map :ext)
                                         (cons ext-referenced-component-type)
                                         (eutil/join-words ", " " or ")))))))))
     (throw (LuaError. "type is required"))))
 
 (defmethod ext-graph/create-extra-nodes ::EmbeddedComponent [evaluation-context rt project workspace attachment parent-node-id node-id]
-  (let [basis (g/ec-basis evaluation-context)
-        owner-resource (resource-node/owner-resource basis parent-node-id)
+  (let [{:keys [basis-ref]} evaluation-context
+        owner-resource (resource-node/owner-resource @basis-ref parent-node-id)
         component-ext (rt/->clj rt coerce/string (attachment "type"))
-        resource-types (resource/resource-types-by-type-ext basis workspace :editable)
+        resource-types (resource/resource-types-by-type-ext @basis-ref workspace :editable)
         resource-type (resource-types component-ext)
         load-opts (project/make-load-opts project)]
     (assert resource-type)
-    (assert (embeddable-component-resource-type? basis resource-type workspace))
-    (let [pb-map (game-object-common/template-pb-map basis workspace resource-type)
+    (assert (embeddable-component-resource-type? @basis-ref resource-type workspace))
+    (let [pb-map (game-object-common/template-pb-map @basis-ref workspace resource-type)
           resource (resource/make-memory-resource workspace resource-type pb-map)
           node-type (:node-type resource-type)]
       (g/make-nodes [resource-node [node-type :resource resource]]
@@ -779,7 +779,7 @@
       :add {EmbeddedComponent attach-embedded-component
             ReferencedComponent attach-referenced-component}
       :get attachment/nodes-getter
-      :read-only? #(g/override? (g/ec-basis %2) %1))
+      :read-only? #(g/override? @(:basis-ref %2) %1))
     (attachment/define-alternative workspace EmbeddedComponent embedded-component-attachment-alternative)
     (resource-node/register-ddf-resource-type workspace
       :ext "go"

@@ -286,8 +286,8 @@
   (property collection-desc g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (g/ec-basis evaluation-context)
-                         project (project/get-project basis)
+                   (let [{:keys [basis-ref]} evaluation-context
+                         project (project/get-project @basis-ref)
                          workspace (project/workspace project evaluation-context)
                          proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)]
                      (letfn [(connect-resource [proj-path-or-resource connections]
@@ -297,7 +297,7 @@
                            (into (game-object-non-editable/connect-referenced-components-tx-data evaluation-context self (collection-desc->referenced-component-resources new-value proj-path->resource)))
                            (into (connect-referenced-game-objects-tx-data evaluation-context self (collection-desc->referenced-game-object-resources new-value proj-path->resource)))
                            (into (connect-referenced-collections-tx-data evaluation-context self (collection-desc->referenced-collection-resources new-value proj-path->resource)))
-                           (into (game-object-non-editable/disconnect-connected-nodes-tx-data basis self :own-resource-property-build-targets resource-property-connections))
+                           (into (game-object-non-editable/disconnect-connected-nodes-tx-data @basis-ref self :own-resource-property-build-targets resource-property-connections))
                            (into (mapcat #(connect-resource % resource-property-connections))
                                  (collection-common/collection-desc->referenced-property-resources new-value proj-path->resource))))))))
 

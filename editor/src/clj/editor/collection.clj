@@ -169,7 +169,7 @@
    (concat
      (g/expand-ec
        (fn tx-resolve-id [evaluation-context]
-         (let [coll-id (core/scope-of-type (g/ec-basis evaluation-context) self-id CollectionNode)]
+         (let [coll-id (core/scope-of-type @(:basis-ref evaluation-context) self-id CollectionNode)]
            (concat
              (when resolve-id
                (g/update-property child-id :id id/resolve (g/node-value coll-id :ids evaluation-context)))
@@ -183,7 +183,7 @@
    (concat
      (g/expand-ec
        (fn tx-attach [evaluation-context]
-         (let [coll-id (core/scope-of-type (g/ec-basis evaluation-context) self-id CollectionNode)]
+         (let [coll-id (core/scope-of-type @(:basis-ref evaluation-context) self-id CollectionNode)]
            (concat
              (when resolve-id
                (g/update-property child-id :id id/resolve (g/node-value coll-id :ids evaluation-context)))
@@ -350,7 +350,7 @@
                      {:resource source-resource
                       :overrides ddf-component-properties}))
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (g/ec-basis evaluation-context)
+                   (let [{:keys [basis-ref]} evaluation-context
                          base-source-connections [[:resource                        :source-resource]
                                                   [:node-outline                    :source-outline]
                                                   [:scene                           :scene]
@@ -363,8 +363,8 @@
                      (concat
                        ;; Delete previous source resource node if it was an override node created by us.
                        ;; Else, disconnect all connections from the previous source resource node.
-                       (when-some [old-source (g/node-feeding-into basis self :source-resource)]
-                         (if (g/override? basis old-source)
+                       (when-some [old-source (g/node-feeding-into @basis-ref self :source-resource)]
+                         (if (g/override? @basis-ref old-source)
                            (g/delete-node old-source)
                            (for [[from to] non-editable-source-connections]
                              (g/disconnect old-source from self to))))
@@ -372,7 +372,7 @@
                        ;; Connect the new source resource node to ourselves. If it is editable, create an override node for it and its dependent nodes.
                        ;; If it is non-editable, simply connect the source resource directly.
                        (let [new-resource (:resource new-value)
-                             project (project/get-project basis)]
+                             project (project/get-project @basis-ref)]
                          (if (resource/editable-resource? new-resource)
                            ;; This is an editable source resource. Create an override node and make connections to enable full editing.
                            (let [{connect-tx-data :tx-data
@@ -489,8 +489,8 @@
     (tx-attach-coll-coll self-id child-id)))
 
 (g/defnk produce-coll-outline [^:unsafe _evaluation-context _node-id child-outlines]
-  (let [basis (g/ec-basis _evaluation-context)
-        {go-outlines false coll-outlines true} (group-by #(g/node-instance? basis CollectionInstanceNode (:node-id %)) child-outlines)]
+  (let [{:keys [basis-ref]} _evaluation-context
+        {go-outlines false coll-outlines true} (group-by #(g/node-instance? @basis-ref CollectionInstanceNode (:node-id %)) child-outlines)]
     {:node-id _node-id
      :node-outline-key "Collection"
      :label (localization/message "outline.collection")
@@ -587,7 +587,7 @@
                      {:resource source-resource
                       :overrides ddf-properties}))
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (g/ec-basis evaluation-context)
+                   (let [{:keys [basis-ref]} evaluation-context
                          base-source-connections [[:resource :source-resource]
                                                   [:node-outline :source-outline]
                                                   [:scene :scene]
@@ -601,8 +601,8 @@
                      (concat
                        ;; Delete previous source resource node if it was an override node created by us.
                        ;; Else, disconnect all connections from the previous source resource node.
-                       (when-some [old-source (g/node-feeding-into basis self :source-resource)]
-                         (if (g/override? basis old-source)
+                       (when-some [old-source (g/node-feeding-into @basis-ref self :source-resource)]
+                         (if (g/override? @basis-ref old-source)
                            (g/delete-node old-source)
                            (for [[from to] non-editable-source-connections]
                              (g/disconnect old-source from self to))))
@@ -610,7 +610,7 @@
                        ;; Connect the new source resource node to ourselves. If it is editable, create an override node for it and its dependent nodes.
                        ;; If it is non-editable, simply connect the source resource directly.
                        (let [new-resource (:resource new-value)
-                             project (project/get-project basis)
+                             project (project/get-project @basis-ref)
                              workspace (project/workspace project)]
                          (if (resource/editable-resource? new-resource)
                            ;; This is an editable source resource. Create an override node and make connections to enable full editing.
@@ -702,16 +702,16 @@
         (select-fn [go-node])))))
 
 (defn- selection->collection [selection evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)]
+  (let [{:keys [basis-ref]} evaluation-context]
     (g/override-root
-      basis
+      @basis-ref
       (if-some [collection-instance (handler/adapt-single selection CollectionInstanceNode evaluation-context)]
-        (g/node-feeding-into basis collection-instance :source-resource)
+        (g/node-feeding-into @basis-ref collection-instance :source-resource)
         (handler/adapt-single selection CollectionNode evaluation-context)))))
 
 (defn- selection->game-object-instance [selection evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)]
-    (g/override-root basis (handler/adapt-single selection GameObjectInstanceNode evaluation-context))))
+  (let [{:keys [basis-ref]} evaluation-context]
+    (g/override-root @basis-ref (handler/adapt-single selection GameObjectInstanceNode evaluation-context))))
 
 (defn add-referenced-game-object! [coll-node parent resource select-fn]
   (let [base (resource/base-name resource)
@@ -807,9 +807,9 @@
   :label (localization/message "command.edit.add-secondary-embedded-component.variant.collection-game-object")
   (active? [selection evaluation-context] (selection->game-object-instance selection evaluation-context))
   (run [selection project workspace app-view]
-    (g/let-ec [basis (g/ec-basis evaluation-context)
+    (g/let-ec [{:keys [basis-ref]} evaluation-context
                go-node (selection->game-object-instance selection evaluation-context)
-               collection (core/scope-of-type basis go-node CollectionNode)]
+               collection (core/scope-of-type @basis-ref go-node CollectionNode)]
       (add-embedded-game-object! workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (defn- contains-resource? [project collection resource evaluation-context]
@@ -842,9 +842,9 @@
                 select-fn (fn [node-ids] (app-view/select app-view node-ids))]
             (add-referenced-collection! coll-node resource id nil nil select-fn))))
       (when-let [resource (select-go-file workspace project)]
-        (g/let-ec [basis (g/ec-basis evaluation-context)
+        (g/let-ec [{:keys [basis-ref]} evaluation-context
                    go-node (selection->game-object-instance selection evaluation-context)
-                   coll-node (core/scope-of-type basis go-node CollectionNode)
+                   coll-node (core/scope-of-type @basis-ref go-node CollectionNode)
                    select-fn (fn [node-ids] (app-view/select app-view node-ids))]
           (add-referenced-game-object! coll-node go-node resource select-fn))))))
 
@@ -921,7 +921,7 @@
       (make-ref-go collection resource id transform-props collection nil nil)
 
       "collection"
-      (when-not (contains-resource? (project/get-project (g/ec-basis evaluation-context)) collection resource evaluation-context)
+      (when-not (contains-resource? (project/get-project @(:basis-ref evaluation-context)) collection resource evaluation-context)
         (make-collection-instance collection resource id transform-props nil nil))
 
       nil)))
@@ -938,7 +938,7 @@
            (mapv #(add-dropped-resource root-id transform-props % evaluation-context))))))
 
 (defmethod ext-graph/create-extra-nodes ::EmbeddedGOInstanceNode [evaluation-context _rt project workspace _attachment parent-node-id node-id]
-  (let [basis (g/ec-basis evaluation-context)
+  (let [basis @(:basis-ref evaluation-context)
         owner-resource (resource-node/owner-resource basis parent-node-id)
         resource-type (get (resource/resource-types-by-type-ext basis workspace :editable) "go")
         pb-map (game-object-common/template-pb-map basis workspace resource-type)
@@ -950,7 +950,7 @@
       (connect-embedded-go node-type resource-node node-id))))
 
 (defn- gen-lua-id [base-name parent-node-id evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)
+  (let [basis @(:basis-ref evaluation-context)
         coll-node-id (if (g/node-instance? basis CollectionNode parent-node-id)
                        parent-node-id
                        (core/scope-of-type basis parent-node-id CollectionNode))]
@@ -981,7 +981,7 @@
         (ext-graph/attachment->set-tx-steps child-node-id rt project evaluation-context))))
 
 (defn- override? [node-id evaluation-context]
-  (g/override? (g/ec-basis evaluation-context) node-id))
+  (g/override? @(:basis-ref evaluation-context) node-id))
 
 (defn- source-id [node-id evaluation-context]
   (g/node-value node-id :source-id evaluation-context))

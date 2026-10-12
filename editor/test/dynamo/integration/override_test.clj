@@ -420,10 +420,10 @@
 (g/defnode ResourceNode
   (property reference g/Keyword
             (value (g/fnk [in-reference] in-reference))
-            (set (fn [evaluation-context node-id old-value new-value]
+            (set (fn [{:keys [basis-ref] :as _evaluation-context} node-id _old-value new-value]
                    (concat
-                     (g/disconnect-sources (g/ec-basis evaluation-context) node-id :in-reference)
-                     (let [node-store (g/graph-value :node-store)
+                     (g/disconnect-sources @basis-ref node-id :in-reference)
+                     (let [node-store (g/graph-value @basis-ref :node-store)
                            src-id (get node-store new-value)]
                        (if src-id
                          (g/connect src-id :value node-id :in-reference)
@@ -513,21 +513,21 @@
   (property template g/Any
             (value (g/fnk [template-resource source-overrides]
                      {:resource template-resource :overrides source-overrides}))
-            (set (fn [evaluation-context self old-value new-value]
-                   (let [basis (g/ec-basis evaluation-context)
-                         current-scene (g/node-feeding-into basis self :template-resource)]
+            (set (fn [{:keys [basis-ref] :as evaluation-context} self _old-value new-value]
+                   (let [current-scene (g/node-feeding-into @basis-ref self :template-resource)]
                      (concat
                        (if current-scene
                          (g/delete-node current-scene)
                          [])
                        (let [path (:path new-value)]
-                         (if-let [scene (scene-by-path basis path)]
+                         (if-let [scene (scene-by-path @basis-ref path)]
                            (let [tmpl-path (g/node-value self :template-path evaluation-context)
                                  properties-by-node-id (comp (or (:overrides new-value) {})
-                                                             (into {} (map (fn [[k v]] [v (str tmpl-path k)]))
+                                                             (into {}
+                                                                   (map (fn [[k v]] [v (str tmpl-path k)]))
                                                                    (g/node-value scene :node-ids evaluation-context)))]
                              (g/override scene {:properties-by-node-id properties-by-node-id}
-                               (fn [evaluation-context id-mapping]
+                               (fn [_evaluation-context id-mapping]
                                  (let [or-scene (id-mapping scene)]
                                    (concat
                                      (for [[from to] [[:node-ids :node-ids]
@@ -548,17 +548,16 @@
 (g/defnode Layout
   (property name g/Str)
   (property nodes g/Any
-            (set (fn [evaluation-context self _ new-value]
-                   (let [basis (g/ec-basis evaluation-context)
-                         current-tree (g/node-feeding-into basis self :node-tree)]
+            (set (fn [{:keys [basis-ref] :as evaluation-context} self _old-value _new-value]
+                   (let [current-tree (g/node-feeding-into @basis-ref self :node-tree)]
                      (concat
                        (if current-tree
                          (g/delete-node current-tree)
                          [])
-                       (let [scene (some-> (first (g/outputs basis self :_node-id)) gt/target-id)
+                       (let [scene (some-> (first (g/outputs @basis-ref self :_node-id)) gt/target-id)
                              node-tree (g/node-value scene :node-tree evaluation-context)]
                          (g/override node-tree {}
-                           (fn [evaluation-context id-mapping]
+                           (fn [_evaluation-context id-mapping]
                              (let [node-tree-or (id-mapping node-tree)]
                                (for [[from to] [[:_node-id :node-tree]]]
                                  (g/connect node-tree-or from self to)))))))))))
@@ -740,18 +739,17 @@
 (g/defnode Component
   (property id g/Str)
   (property component g/Any
-            (set (fn [evaluation-context self old-value new-value]
-                   (let [basis (g/ec-basis evaluation-context)]
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [{:keys [basis-ref]} evaluation-context]
                      (concat
                        (if-let [instance (g/node-value self :instance evaluation-context)]
                          (g/delete-node instance)
                          [])
                        (let [path (:path new-value)]
-                         (if-let [script (get (g/graph-value basis :resources) path)]
+                         (if-let [script (get (g/graph-value @basis-ref :resources) path)]
                            (g/override script {}
-                             (fn [evaluation-context id-mapping]
+                             (fn [_evaluation-context id-mapping]
                                (let [or-script (id-mapping script)
-                                     script-props (g/node-value script :_properties evaluation-context)
                                      set-prop-data (for [[key value] (:overrides new-value)]
                                                      (g/set-property or-script key value))
                                      conn-data (for [[src tgt] [[:_node-id :instance]

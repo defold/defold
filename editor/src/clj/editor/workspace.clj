@@ -241,9 +241,9 @@ ordinary paths."
 
 (defn- default-search-value-fn [node-id _resource evaluation-context]
   (let [save-value (g/node-value node-id :save-value evaluation-context)]
-    (if-not (g/error-value? save-value)
-      save-value
-      (g/node-value node-id :source-value evaluation-context))))
+    (if (g/error-value? save-value)
+      (g/node-value node-id :source-value evaluation-context)
+      save-value)))
 
 (defn register-resource-type
   "Register new resource type to be handled by the editor
@@ -488,7 +488,7 @@ ordinary paths."
          (file-resource basis workspace proj-path)))))
 
 (defn make-proj-path->resource-fn [workspace evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)
+  (let [basis @(:basis-ref evaluation-context)
         workspace-node (g/node-by-id basis workspace)
         project-path (g/raw-property-value* basis workspace-node :root)
         editable-proj-path? (g/raw-property-value* basis workspace-node :editable-proj-path?)
@@ -1050,7 +1050,7 @@ ordinary paths."
   (property opened-files g/Any)
   (property resource-snapshot g/Any (default resource-watch/empty-snapshot)
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (g/ec-basis evaluation-context)
+                   (let [basis @(:basis-ref evaluation-context)
                          editable-proj-path? (g/raw-property-value basis self :editable-proj-path?)
                          unloaded-proj-path? (g/raw-property-value basis self :unloaded-proj-path?)
                          project-directory-pathname (g/raw-property-value basis self :root)]

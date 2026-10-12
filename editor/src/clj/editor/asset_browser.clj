@@ -584,7 +584,7 @@
             (select-resource! asset-browser resource))))))
   (options [workspace user-data localization evaluation-context]
     (when (not user-data)
-      (let [basis (g/ec-basis evaluation-context)
+      (let [{:keys [basis-ref]} evaluation-context
 
             base-columns
             (mapv #(mapv localization/message %)
@@ -595,10 +595,10 @@
 
             predefined-categories (into #{} cat base-columns)
             all-items (coll/into->
-                        (resource/resource-types-by-type-ext basis workspace :editable)
+                        (resource/resource-types-by-type-ext @basis-ref workspace :editable)
                         []
                         (keep (fn [[_ext resource-type]]
-                                (when (workspace/has-template? basis workspace resource-type)
+                                (when (workspace/has-template? @basis-ref workspace resource-type)
                                   {:label (or (:label resource-type) (:ext resource-type))
                                    :icon (:icon resource-type)
                                    :category (or (:category resource-type)

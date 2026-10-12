@@ -201,7 +201,7 @@
                (g/->error _node-id :modified-lines :fatal resource go-property-disallowed-message {:cursor-range (:cursor-range (meta script-property))})))))))
 
 (defn build-targets [_node-id resource lines allow-go-properties lua-preprocessors script-properties original-resource-property-build-targets proj-path->resource-node evaluation-context]
-  (let [basis (g/ec-basis evaluation-context)
+  (let [{:keys [basis-ref]} evaluation-context
         workspace (resource/workspace resource)]
     (if-some [errors
               (not-empty
@@ -222,7 +222,7 @@
                 log-error-message (format "Lua preprocessing failed for file '%s'." (resource/proj-path resource))]
             (log/error :message log-error-message :exception exception)
             (if-some [[proj-path line-number] (try-parse-file-line exception-message)]
-              (let [exception-resource (workspace/resolve-resource basis resource proj-path)
+              (let [exception-resource (workspace/resolve-resource @basis-ref resource proj-path)
                     exception-node-id (proj-path->resource-node proj-path)
                     error-node-id (or exception-node-id _node-id)
                     error-resource (if (nil? exception-node-id) resource exception-resource)

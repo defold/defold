@@ -278,10 +278,10 @@
     (advance!)))
 
 (defn- set-visibility-settings! [scene-visibility update-fn]
-  (g/let-ec [basis (g/ec-basis evaluation-context)
+  (g/let-ec [{:keys [basis-ref]} evaluation-context
              prefs (g/node-value scene-visibility :prefs evaluation-context)
              resource-node (g/node-value scene-visibility :active-scene-resource-node evaluation-context)
-             path-key (some->> resource-node (resource-node/resource basis) resource/proj-path)
+             path-key (some->> resource-node (resource-node/resource @basis-ref) resource/proj-path)
              updated-settings (update-fn (settings scene-visibility evaluation-context))]
     (set-settings! scene-visibility updated-settings)
     (when path-key

@@ -400,8 +400,8 @@
 
 (g/defnk produce-script-property-entries [^:unsafe _evaluation-context _this _node-id deleted? name resource-kind type value]
   (when-not deleted?
-    (let [basis (g/ec-basis _evaluation-context)
-          project (project/get-project basis)
+    (let [{:keys [basis-ref]} _evaluation-context
+          project (project/get-project @basis-ref)
           workspace (project/workspace project _evaluation-context)
           prop-kw (properties/user-name->key name)
           prop-type (script-compilation/script-property-type->property-type type)
@@ -468,11 +468,11 @@
             (set (fn [evaluation-context self _old-value new-value]
                    ;; When assigning a resource property, we must make sure the
                    ;; assigned resource is built and included in the game.
-                   (let [basis (g/ec-basis evaluation-context)
-                         project (project/get-project basis)]
+                   (let [{:keys [basis-ref]} evaluation-context
+                         project (project/get-project @basis-ref)]
                      (concat
-                       (g/disconnect-sources basis self :resource)
-                       (g/disconnect-sources basis self :resource-build-targets)
+                       (g/disconnect-sources @basis-ref self :resource)
+                       (g/disconnect-sources @basis-ref self :resource-build-targets)
                        (when (resource/resource? new-value)
                          (:tx-data (project/connect-resource-node
                                      evaluation-context project new-value self
@@ -574,8 +574,8 @@
               (update :display-order into (map prop->key) script-properties))))
 
 (g/defnk produce-script-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets]
-  (let [basis (g/ec-basis _evaluation-context)
-        project (project/get-project basis)]
+  (let [{:keys [basis-ref]} _evaluation-context
+        project (project/get-project @basis-ref)]
     (script-compilation/build-targets
       _node-id
       resource
@@ -588,8 +588,8 @@
       _evaluation-context)))
 
 (g/defnk produce-lua-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors]
-  (let [basis (g/ec-basis _evaluation-context)
-        project (project/get-project basis)]
+  (let [{:keys [basis-ref]} _evaluation-context
+        project (project/get-project @basis-ref)]
     (script-compilation/build-targets
       _node-id
       resource
@@ -660,9 +660,9 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [resource (g/node-value self :resource evaluation-context)
-                         basis (g/ec-basis evaluation-context)
+                         {:keys [basis-ref]} evaluation-context
                          source-value (g/node-value self :source-value evaluation-context)
-                         lsp (lsp/get-lsp basis)
+                         lsp (lsp/get-lsp @basis-ref)
                          workspace (resource/workspace resource)
                          proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)
                          lua-info (with-open [reader (data/lines-reader new-value)]
@@ -675,11 +675,11 @@
             (default [])
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [basis (g/ec-basis evaluation-context)
-                         project (project/get-project basis)]
+                   (let [{:keys [basis-ref]} evaluation-context
+                         project (project/get-project @basis-ref)]
                      (concat
                        (update-script-properties evaluation-context self old-value new-value)
-                       (g/disconnect-sources basis self :original-resource-property-build-targets)
+                       (g/disconnect-sources @basis-ref self :original-resource-property-build-targets)
                        (for [{:keys [type value]} new-value
                              :when (and (= :script-property-type-resource type) (some? value))]
                          (:tx-data (project/connect-resource-node
