@@ -252,7 +252,32 @@
   [frames]
   (if (string? frames)
     frames
-    (coll/join-to-string ", " frames)))
+    (let [frame-count (count frames)]
+      (loop [start-index 0
+             parts []]
+        (if (= start-index frame-count)
+          (coll/join-to-string ", " parts)
+          (let [start (long (nth frames start-index))
+
+                next-index
+                (long
+                  (loop [index (inc start-index)
+                         previous start
+                         direction 0]
+                    (if (= index frame-count)
+                      index
+                      (let [frame (long (nth frames index))
+                            step (- frame previous)]
+                        (if (and (or (= 1 step) (= -1 step))
+                                 (or (zero? direction) (= direction step)))
+                          (recur (inc index) frame step)
+                          index)))))
+
+                end (long (nth frames (dec next-index)))]
+            (recur next-index
+                   (conj parts (if (= start end)
+                                 (str start)
+                                 (str start "-" end))))))))))
 
 (defn- animation->frames
   [{:keys [frames start-tile end-tile] :as animation}]

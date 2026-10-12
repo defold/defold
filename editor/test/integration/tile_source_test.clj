@@ -144,6 +144,26 @@
           (is (= [1] (g/node-value anim :frames)))
           (is (not (g/error? (g/node-value node-id :save-data)))))))))
 
+;; Frame display compacts consecutive runs in either direction without losing duplicates or changing the parsed sequence.
+(deftest animation-frame-formatting
+  (doseq [[frames expected] [[[] ""]
+                            [[1] "1"]
+                            [[1 2] "1-2"]
+                            [[2 1] "2-1"]
+                            [[1 2 3 4 5 6 7 8] "1-8"]
+                            [[8 7 6 3 3 4 5] "8-6, 3, 3-5"]
+                            [[1 1 1 4 4 8] "1, 1, 1, 4, 4, 8"]
+                            [[1 3 6 8 3] "1, 3, 6, 8, 3"]
+                            [[1 2 3 2 1] "1-3, 2-1"]
+                            [[3 2 1 2 3] "3-1, 2-3"]
+                            [[1 2 2 3] "1-2, 2-3"]
+                            [[0 1 2] "0-2"]
+                            [[2147483646 2147483647] "2147483646-2147483647"]]]
+    (testing (str frames)
+      (let [text (#'tile-source/frames->string frames)]
+        (is (= expected text))
+        (is (= frames (#'tile-source/parse-frames text)))))))
+
 ;; Frame input must ignore empty entries, preserve order and duplicates, and reject malformed or unbounded input without changing the model.
 (deftest animation-frame-input
   (test-util/with-loaded-project
@@ -245,6 +265,11 @@
              component (volatile! (fx/create-component (control-description)))
              ^TextField field (fx/instance @component)]
          (try
+           (testing "consecutive model frames display as ranges"
+             (test-util/prop! anim :frames [8 7 6 3 3 4 5])
+             (vswap! component fx/advance-component (control-description))
+             (is (= "8-6, 3, 3-5" (.getText field)))
+             (is (= [8 7 6 3 3 4 5] (g/node-value anim :frames))))
            (testing "out-of-range model values remain visible"
              (test-util/prop! anim :frames [0 9])
              (vswap! component fx/advance-component (control-description))
