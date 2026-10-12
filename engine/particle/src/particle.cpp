@@ -15,7 +15,6 @@
 #include <string.h>
 #include <stdint.h>
 #include <float.h>
-#include <math.h>
 #include <algorithm>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -1332,11 +1331,11 @@ namespace dmParticle
             {
                 // Pack once per particle; all six vertices share this color. RGBA8
                 // clamps to [0, 1] and rounds to the nearest byte, matching the generic
-                // writer. Keep double precision at rounding boundaries.
+                // writer. The nonnegative integer cast makes floor unnecessary.
                 uint8_t packed_color[4];
                 for (uint32_t c = 0; c < 4; ++c)
                 {
-                    packed_color[c] = (uint8_t) floor(dmMath::Clamp((double) color_to_write[c], 0.0, 1.0) * 255.0 + 0.5);
+                    packed_color[c] = (uint8_t) dmMath::Clamp(color_to_write[c] * 255.0f + 0.5f, 0.0f, 255.0f);
                 }
 
                 for (uint32_t v = 0; v < 6; ++v)

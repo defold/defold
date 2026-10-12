@@ -440,7 +440,7 @@ namespace dmGameSystem
         {
             for (uint32_t i = 0; i < attribute->m_ElementCount; ++i)
             {
-                dmGraphics::WriteVertexAttributeFromDouble(value_ptr + bytes_per_element * i, values[i], attribute->m_DataType);
+                dmGraphics::WriteVertexAttributeFromFloat(value_ptr + bytes_per_element * i, values[i], attribute->m_DataType);
             }
         }
     }

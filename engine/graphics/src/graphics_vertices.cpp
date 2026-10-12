@@ -69,52 +69,49 @@ namespace dmGraphics
         *data_size = info.m_ValuePtr ? (info.m_ElementCount * dmGraphics::DataTypeToByteWidth(info.m_DataType)) : 0;
     }
 
-    uint8_t* WriteVertexAttributeFromDouble(uint8_t* value_write_ptr, double value, dmGraphics::VertexAttribute::DataType data_type)
+    uint8_t* WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type)
     {
         switch (data_type)
         {
             case dmGraphics::VertexAttribute::TYPE_BYTE:
             {
-                int8_t typed_value = (int8_t) dmMath::Clamp(value, -128.0, 127.0);
+                int8_t typed_value = (int8_t) dmMath::Clamp(value, -128.0f, 127.0f);
                 memcpy(value_write_ptr, &typed_value, sizeof(typed_value));
                 return value_write_ptr + 1;
             }
             case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:
             {
-                uint8_t typed_value = (uint8_t) dmMath::Clamp(value, 0.0, 255.0);
+                uint8_t typed_value = (uint8_t) dmMath::Clamp(value, 0.0f, 255.0f);
                 memcpy(value_write_ptr, &typed_value, sizeof(typed_value));
                 return value_write_ptr + 1;
             }
             case dmGraphics::VertexAttribute::TYPE_SHORT:
             {
-                int16_t typed_value = (int16_t) dmMath::Clamp(value, -32768.0, 32767.0);
+                int16_t typed_value = (int16_t) dmMath::Clamp(value, -32768.0f, 32767.0f);
                 memcpy(value_write_ptr, &typed_value, sizeof(typed_value));
                 return value_write_ptr + 2;
             }
             case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT:
             {
-                uint16_t typed_value = (uint16_t) dmMath::Clamp(value, 0.0, 65535.0);
+                uint16_t typed_value = (uint16_t) dmMath::Clamp(value, 0.0f, 65535.0f);
                 memcpy(value_write_ptr, &typed_value, sizeof(typed_value));
                 return value_write_ptr + 2;
             }
             case dmGraphics::VertexAttribute::TYPE_INT:
             {
-                int32_t typed_value = (int32_t) dmMath::Clamp(value, -2147483648.0, 2147483647.0);
+                int32_t typed_value = (int32_t) dmMath::Clamp((double) value, -2147483648.0, 2147483647.0);
                 memcpy(value_write_ptr, &typed_value, sizeof(typed_value));
                 return value_write_ptr + 4;
             }
             case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:
             {
-                uint32_t typed_value = (uint32_t) dmMath::Clamp(value, 0.0, 4294967295.0);
+                uint32_t typed_value = (uint32_t) dmMath::Clamp((double) value, 0.0, 4294967295.0);
                 memcpy(value_write_ptr, &typed_value, sizeof(typed_value));
                 return value_write_ptr + 4;
             }
             case dmGraphics::VertexAttribute::TYPE_FLOAT:
-            {
-                float typed_value = (float) value;
-                memcpy(value_write_ptr, &typed_value, sizeof(typed_value));
+                memcpy(value_write_ptr, &value, sizeof(value));
                 return value_write_ptr + 4;
-            }
             default:break;
         }
         return 0;
@@ -128,22 +125,40 @@ namespace dmGraphics
     static uint8_t* WriteVertexAttributeFromFloatToStorage(uint8_t* write_ptr, float value, const UnpackAttributeData& dst_data)
     {
         if (!dst_data.m_Normalize || dst_data.m_DataType == VertexAttribute::TYPE_FLOAT)
-            return WriteVertexAttributeFromDouble(write_ptr, value, dst_data.m_DataType);
+            return WriteVertexAttributeFromFloat(write_ptr, value, dst_data.m_DataType);
 
-        double scale;
+        float scale;
         switch (dst_data.m_DataType)
         {
-            case VertexAttribute::TYPE_BYTE:           scale = value > 0.0f ? 127.0 : 128.0; break;
-            case VertexAttribute::TYPE_UNSIGNED_BYTE:  scale = 255.0; break;
-            case VertexAttribute::TYPE_SHORT:          scale = value > 0.0f ? 32767.0 : 32768.0; break;
-            case VertexAttribute::TYPE_UNSIGNED_SHORT: scale = 65535.0; break;
-            case VertexAttribute::TYPE_INT:            scale = value > 0.0f ? 2147483647.0 : 2147483648.0; break;
-            case VertexAttribute::TYPE_UNSIGNED_INT:   scale = 4294967295.0; break;
+            case VertexAttribute::TYPE_BYTE:           scale = value > 0.0f ? 127.0f : 128.0f; break;
+            case VertexAttribute::TYPE_UNSIGNED_BYTE:  scale = 255.0f; break;
+            case VertexAttribute::TYPE_SHORT:          scale = value > 0.0f ? 32767.0f : 32768.0f; break;
+            case VertexAttribute::TYPE_UNSIGNED_SHORT: scale = 65535.0f; break;
+            // Float cannot represent the positive 32-bit integer endpoints exactly.
+            // Keep scaling and rounding in double only for these storage formats.
+            case VertexAttribute::TYPE_INT:
+            {
+                double scale = value > 0.0f ? 2147483647.0 : 2147483648.0;
+                int32_t packed_value = (int32_t) floor(dmMath::Clamp((double) value, -1.0, 1.0) * scale + 0.5);
+                memcpy(write_ptr, &packed_value, sizeof(packed_value));
+                return write_ptr + sizeof(packed_value);
+            }
+            case VertexAttribute::TYPE_UNSIGNED_INT:
+            {
+                uint32_t packed_value = (uint32_t) (dmMath::Clamp((double) value, 0.0, 1.0) * 4294967295.0 + 0.5);
+                memcpy(write_ptr, &packed_value, sizeof(packed_value));
+                return write_ptr + sizeof(packed_value);
+            }
             default: return 0;
         }
-        // Match Bob's rounding, retaining double precision for 32-bit endpoints.
-        double packed_value = floor(dmMath::Clamp((double) value, -1.0, 1.0) * scale + 0.5);
-        return WriteVertexAttributeFromDouble(write_ptr, packed_value, dst_data.m_DataType);
+        float packed_value = dmMath::Clamp(value, -1.0f, 1.0f) * scale + 0.5f;
+        // Unsigned storage clamps to a nonnegative range before the cast, so
+        // truncation already rounds down. Signed storage still needs floorf.
+        if (dst_data.m_DataType == VertexAttribute::TYPE_BYTE || dst_data.m_DataType == VertexAttribute::TYPE_SHORT)
+        {
+            packed_value = floorf(packed_value);
+        }
+        return WriteVertexAttributeFromFloat(write_ptr, packed_value, dst_data.m_DataType);
     }
 
     float VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr)
