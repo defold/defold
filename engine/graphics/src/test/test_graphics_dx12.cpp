@@ -325,7 +325,7 @@ TEST_F(DX12Test, ArrayUploadsAndPartialRGBUpdates)
         pixels.SetSize(pixels.Capacity());
         memset(pixels.Begin(), 0, pixels.Size());
         for (uint32_t layer = 0; layer < 20; ++layer)
-            memset(pixels.Begin() + layer * width * width * 3, 10 + layer + mip * 30, width * width * 3);
+            memset(pixels.Begin() + layer * width * width * 3, 10 + layer + mip * 30, (size_t)width * width * 3);
         TextureParams params;
         params.m_Format = TEXTURE_FORMAT_RGB;
         params.m_Data = pixels.Begin();
@@ -864,6 +864,44 @@ TEST_F(DX12Test, ShaderReloadLinesBiasAndScissor)
     SubmitAndWait();
     DeleteProgram(GetContext(), program);
     DeleteRenderTarget(GetContext(), target);
+}
+
+static void VerifyReloadedUniformBinding(uint16_t set, uint16_t binding, const ShaderResourceTypeInfo* types,
+    uint32_t num_types, uint32_t root_type_index, UniformBufferLayout* layout, void* user_data)
+{
+    ASSERT_EQ(0u, set);
+    ASSERT_EQ(1u, binding);
+    ASSERT_LT(root_type_index, num_types);
+    ASSERT_STREQ("ReloadUniforms", types[root_type_index].m_Name);
+    ASSERT_EQ(1u, types[root_type_index].m_MemberCount);
+    ASSERT_STREQ("color", types[root_type_index].m_Members[0].m_Name);
+    ASSERT_NE((UniformBufferLayout*)0, layout);
+    ++*(uint32_t*)user_data;
+}
+
+// Verifies repeated uniform-block reloads retain valid reflection pointers instead of the deleted replacement's array object.
+TEST_F(DX12Test, ShaderReloadPreservesUniformReflection)
+{
+    TestProgram shader;
+    shader.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.AddShaderStage("cbuffer ReloadUniforms:register(b1){float4 color;} float4 main():SV_Target{return color;}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT), CBV(b1)");
+    ShaderDesc::ResourceTypeInfo* type = AddShaderType(&shader.m_Desc, "ReloadUniforms");
+    AddShaderTypeMember(&shader.m_Desc, type, "color", ShaderDesc::SHADER_TYPE_VEC4);
+    AddShaderResourceUniformBuffer(&shader.m_Desc, "ReloadUniforms", 0, 1, 0, 16);
+    HProgram program = shader.CreateProgram(GetContext());
+    ASSERT_NE((HProgram)0, program);
+    char error[512] = {};
+    for (uint32_t reload = 0; reload < 2; ++reload)
+    {
+        ASSERT_TRUE(ReloadProgram(GetContext(), program, &shader.m_Desc, error, sizeof(error)));
+        Program& base = ((DX12ShaderProgram*)program)->m_BaseProgram;
+        ASSERT_EQ(&base.m_ShaderMeta.m_TypeInfos, base.m_ResourceBindings[0][1].m_TypeInfos);
+        uint32_t count = 0;
+        IterateProgramResourceBindings(program, BINDING_FAMILY_UNIFORM_BUFFER, VerifyReloadedUniformBinding, &count);
+        ASSERT_EQ(1u, count);
+    }
+    DeleteProgram(GetContext(), program);
 }
 
 // Verifies front/back culling matches the engine convention across render targets.

@@ -796,6 +796,12 @@ public class ShaderCompilePipeline {
     //////////////////////////
     // PUBLIC API
     //////////////////////////
+    // Private shader compiler plugins are built outside this repository and still
+    // use this API. Preserve its signature and defaults when adding DX12 options.
+    public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws IOException, CompileExceptionError {
+        return crossCompile(shaderType, shaderLanguage, null, false);
+    }
+
     public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride, boolean hLSLMoveSVPositionToFront) throws IOException, CompileExceptionError {
         assert(rootSignatureOverride == null || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51);
         assert(!hLSLMoveSVPositionToFront || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50);

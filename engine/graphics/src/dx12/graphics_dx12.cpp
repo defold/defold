@@ -4017,6 +4017,18 @@ namespace dmGraphics
         memcpy(previous, program, sizeof(previous));
         memcpy(program, replacement, sizeof(previous));
         memcpy(replacement, previous, sizeof(previous));
+        // Resource arrays retain their allocations, but this pointer targets the
+        // array object embedded in the program we just moved from.
+        Program& base_program = program->m_BaseProgram;
+        for (uint32_t set = 0; set < base_program.m_MaxSet; ++set)
+        {
+            for (uint32_t binding = 0; binding < base_program.m_MaxBinding; ++binding)
+            {
+                ProgramResourceBinding& resource = base_program.m_ResourceBindings[set][binding];
+                if (resource.m_Res)
+                    resource.m_TypeInfos = &base_program.m_ShaderMeta.m_TypeInfos;
+            }
+        }
         DestroyProgram(&replacement->m_BaseProgram);
         DX12DeleteProgram(context, (HProgram) replacement);
         ((DX12Context*) context)->m_ViewportChanged = 1;
