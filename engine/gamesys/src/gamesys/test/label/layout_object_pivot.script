@@ -1,0 +1,5 @@
+function init(self)
+    go.set("#label", "size", vmath.vector3(layout_object_width, 100, 0))
+    go.set("#label", "text", layout_object_text)
+    layout_objects = label.get_layout_objects("#label")
+end

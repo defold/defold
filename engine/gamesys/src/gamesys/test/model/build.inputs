@@ -1,3 +1,4 @@
+/model/benchmark_animated.go
 /model/default.texture_profiles
 /model/dynamic_vertex_attributes.go
 /model/empty_texture.model
@@ -14,6 +15,8 @@
 /model/script_model_anim_message.go
 /model/script_model_anim_missing.go
 /model/script_model_blend_weights.go
+/model/static_vertex_attributes.go
+/model/static_vertex_attributes_offset.go
 /model/test_comp.go
 /model/texture_transform_model.go
 /model/valid_material.go

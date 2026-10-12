@@ -131,7 +131,7 @@ public class GameProjectBuilder extends Builder {
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        gameProjectDependencies = new String[ROOT_NODES.length + 1];
+        gameProjectDependencies = new String[ROOT_NODES.length];
         int index = 0;
         for (String[] tuples : ROOT_NODES) {
             gameProjectDependencies[index] = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
@@ -140,12 +140,6 @@ public class GameProjectBuilder extends Builder {
         gameProjectDependencies[ROOT_NODE_INPUT_GAMEPADS_INDEX] = getGamepadsOutputPath(
                 project.getProjectProperties().getStringValue("input", "gamepads", DEFAULT_GAMEPADS),
                 project.getProjectProperties().getStringValue("input", "gamepad_database", DEFAULT_GAMEPAD_DATABASE));
-        // Editor debugger scripts
-        if (project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG)) {
-            gameProjectDependencies[index] = "/builtins/scripts/debugger.luac";
-            index++;
-        }
-
         boolean nonStandardGameProjectFile = !project.getGameProjectResource().getAbsPath().equals(input.getAbsPath());
         if (nonStandardGameProjectFile) {
             throw new CompileExceptionError(input, -1, "Found non-standard game.project file: " + input.getPath());

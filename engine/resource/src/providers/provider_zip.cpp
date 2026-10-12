@@ -339,16 +339,35 @@ static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal 
 
 static dmResourceProvider::Result ReadFilePartial(dmResourceProvider::HArchiveInternal _archive, dmhash_t path_hash, const char* path, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread)
 {
+    *nread = 0;
     ZipProviderContext* archive = (ZipProviderContext*)_archive;
     EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
     if (!entry)
         return dmResourceProvider::RESULT_NOT_FOUND;
 
+    uint32_t header_size = 0;
+    if (entry->m_ManifestEntry)
+    {
+        uint32_t flags = entry->m_ManifestEntry->m_Flags;
+        if (flags & (dmLiveUpdateDDF::COMPRESSED | dmLiveUpdateDDF::ENCRYPTED))
+        {
+            dmLogError("Cannot stream compressed or encrypted resource: '%s'", path);
+            return dmResourceProvider::RESULT_NOT_SUPPORTED;
+        }
+        header_size = sizeof(dmResourceArchive::LiveUpdateResourceHeader);
+    }
+
+    if (offset >= entry->m_Size || size == 0)
+        return dmResourceProvider::RESULT_OK;
+
+    size = dmMath::Min(size, entry->m_Size - offset);
+
     dmZip::Result zr = dmZip::OpenEntry(archive->m_Zip, entry->m_EntryIndex);
     if (dmZip::RESULT_OK != zr)
         return dmResourceProvider::RESULT_IO_ERROR;
 
-    zr = dmZip::GetEntryDataOffset(archive->m_Zip, offset, size, (void*)buffer, nread);
+    // Live Update entries prefix the resource bytes with a header that is not part of the resource's offsets or size.
+    zr = dmZip::GetEntryDataOffset(archive->m_Zip, offset + header_size, size, (void*)buffer, nread);
     dmZip::CloseEntry(archive->m_Zip);
 
     if (dmZip::RESULT_OK != zr)

@@ -1,6 +1,6 @@
 # Graphics capture references
 
-These are actual GPU captures, visually reviewed on 2026-09-17. Ordinary
+The original nine references are actual GPU captures, visually reviewed on 2026-09-17. Ordinary
 test runs only read them. There is deliberately no reference-update switch.
 References use Metal except `stencil_faces`, which uses OpenGL: the
 original handwritten Metal shader omitted the production compiler's Y flip
@@ -83,12 +83,23 @@ python3 engine/graphics/src/test/test_graphics_images.py
 
 The manual CMake target renders the local backend matrix, records explicit
 skips for adapters absent from the build, and produces
-`engine/graphics/build/graphics-render-report/index.html` and `results.json`.
+`engine/graphics/build/graphics-render-report/<target-platform>/index.html` and `results.json`.
 Capture processes create hidden windows with focus-on-show disabled, so the
 offscreen tests do not activate a window while running.
 Capture PNGs, logs, reproduction commands and platform/adapter metadata
-are in `engine/graphics/build/graphics-test-images/`. Differences are in the
+are in `engine/graphics/build/graphics-test-images/<target-platform>/`. Differences are in the
 report directory; the HTML embeds all images and logs and can be copied alone.
+Unsupported texture formats remain in the capture manifest but are omitted
+from the report and its totals. The report header identifies the tested target
+platform, independently of the machine running the Python harness. The overview shows platform and backend totals,
+summaries for basic rendering, stencil, cubemaps and texture formats, then
+links to each failed test. Results default to backend sections, each containing
+basic rendering, stencil, cubemaps and texture formats. One report-wide switch
+changes to category sections with tests/formats and their backends underneath.
+Category summary links select the category view; backend links select the backend
+view. Switching groups preserves open comparisons and failure links. Passing
+results and the separate skipped-tests section are collapsed by default. Without
+JavaScript, the backend/category hierarchy is used.
 Keep any diagnostic PNGs alongside the original capture when copying a
 capture directory. Capture attempts and skips remove stale diagnostic images.
 
@@ -105,8 +116,8 @@ python3 engine/graphics/src/test/run_graphics_images.py --executable build/graph
 ```
 
 The ordinary and sequential runners register the likeness tests. Hosted CI
-automatically captures only on native Linux/Vulkan (Mesa software Vulkan
-under Xvfb); macOS and Windows record explicit policy skips. This does not
+automatically captures on native Linux/Vulkan (Mesa software Vulkan
+under Xvfb) and `arm64_sim-ios`; native macOS and Windows record explicit policy skips. This does not
 disable the manual target. The report is collected by the existing
 `upload-build-reports` action alongside the font report, including failed runs.
 The CI run's **Build Reports** job summary links the downloadable artifact and
@@ -118,6 +129,89 @@ An explicitly requested missing backend fails:
 ```sh
 python3 engine/graphics/src/test/run_graphics_images.py --executable <test_app_graphics> --capture-dir captures --backend vulkan --available vulkan --output report
 ```
+
+## Shader regeneration
+
+Edit `graphics_capture.vert` or `graphics_capture*.frag`, then regenerate the
+checked-in GLSL, MSL and WGSL variants. `shaderc_standalone` cross-compiles the
+SPIR-V produced by `glslang` to GLSL 330 and MSL 2.2 using the engine's compiler
+options, including Metal's vertex Y flip and argument buffers. Tint produces
+WGSL, then the generator invokes Bob's shared `WgslShader.java` helper using
+the host Java runtime to add the offscreen entry point. Vulkan continues
+to compile SPIR-V from these sources during the CMake build.
+
+Build the **host** `shaderc_standalone` target first (include `shaderc` in
+`DEFOLD_SELECTED_ENGINE_LIBS` if using a focused build). For example, from the
+repository root in a Defold build shell on Apple Silicon:
+
+```sh
+cmake --build engine/build/arm64-macos --target shaderc_standalone
+python3 engine/graphics/src/test/generate_graphics_shaders.py \
+  --glslang "$DYNAMO_HOME/ext/bin/arm64-macos/glslang" \
+  --shaderc engine/shaderc/build/arm64-macos/src/standalone/shaderc_standalone \
+  --tint "$DYNAMO_HOME/ext/bin/arm64-macos/tint"
+```
+
+Use the corresponding host paths on other platforms or with an isolated
+`DEFOLD_BUILD_HOME`. `--java` selects the host Java runtime when it is not on
+`PATH`. `--output-dir` allows generating into a temporary directory for comparison;
+`--check` instead fails on stale or missing variants without updating them.
+Compiler failures and empty shader output leave the checked-in variants intact.
+Commit regenerated variants with their source edits; ordinary
+builds, including cross builds for the iOS simulator, use the checked-in variants
+without requiring a runnable target-platform shader compiler. Re-run the capture
+matrix after regeneration. The OpenGL vertex variant remaps the test's [0, 1]
+depth to OpenGL's [-1, 1] clip range, and GLSL texture bindings use shaderc's
+combined texture/sampler names.
+
+Native builds that include both `graphics` and `shaderc` register
+`run_test_graphics_shaders` with `run_tests`. This regenerates all twelve variants
+using the freshly built host compiler and compares them with the checked-in files,
+and tests failure handling and the shared WGSL transformation. The
+`run_test_shaderc_standalone` target checks the compiler's exit status on real
+compilation and file errors. Cross builds continue to use the verified fixtures.
+
+## iOS simulator
+
+Configure CMake with `TARGET_PLATFORM=arm64_sim-ios` on an Apple Silicon Mac
+with Xcode and an installed iOS simulator runtime. Metal is selected by default.
+For Vulkan, install an arm64 **simulator** MoltenVK library in
+`$DYNAMO_HOME/ext/lib/arm64_sim-ios/libMoltenVK.a` and configure with
+`WITH_VULKAN=ON`; see [MoltenVK packaging](../../../../../share/ext/moltenvk/README.md#arm64_sim-ios).
+The SDK also needs the simulator builds of GLFW, Basis Universal and LZ4.
+
+Run the same `generate_graphics_test_images` CMake target, or invoke the harness directly:
+
+```sh
+MTL_DEBUG_LAYER=1 python3 engine/graphics/src/test/run_graphics_images.py \
+  --executable <simulator-test_app_graphics> --target-platform arm64_sim-ios \
+  --matrix metal vulkan --available metal vulkan \
+  --capture-dir build/graphics-test-images/arm64_sim-ios \
+  --output build/graphics-render-report/arm64_sim-ios
+```
+
+Use `--available metal` for a build without Vulkan. `--simulator <name-or-UDID>`
+or `IOS_SIMULATOR_ID` selects a device; otherwise the existing iOS test runner
+prefers a booted simulator. The harness installs a temporary app and fixtures,
+launches the real `test_app_graphics` once per backend/case through UIKit,
+collects captures and logs, then uninstalls its own app. It leaves the simulator
+running. A completion marker is required as well as the backend and target
+platform markers, so an app crash cannot pass based on `simctl`'s exit status.
+Reports record the simulator runtime and device rather than the host macOS version.
+
+Metal ASTC cases are required on `arm64_sim-ios`: reporting those formats as
+unsupported fails the test instead of skipping it. The simulator exposes Apple2,
+which supports 2D ASTC. Metal's array/3D ASTC feature retains its Apple3 requirement
+because it also covers compressed volume textures.
+
+Local validation on 2026-09-26: iPhone 17 Pro simulator, iOS 26.5, Apple M5 Max,
+Xcode 27 beta, `MTL_DEBUG_LAYER=1`, MoltenVK 1.4.2: 26 Metal and 28 Vulkan cases
+passed, with no failures. All nine rendering/stencil/cubemap cases pass on each
+backend. All 14 ASTC formats now pass on Metal. The 16 unsupported format/backend
+combinations remain in the capture manifest and are excluded from the report. Native macOS regression coverage
+also passes all 80 supported cases across Metal, OpenGL and Vulkan.
+
+## Saved captures
 
 Keep `captures.json` and backend directories together when moving captures
 between machines. Rebuild comparisons without rerunning any backend:
@@ -163,3 +257,13 @@ The depth case now runs with back-face culling enabled. Each case checks a
 13-pixel-wide readback region and repeated rendering; the triangle also
 checks viewport and depth/stencil preservation across readback. These are
 focused render-target regressions; Parking Jam was not run.
+
+# Compressed texture references
+
+`texture_*.png` are CPU-decoded references for the precompressed payloads in
+[`../texture_formats`](../texture_formats/README.md), plus the RGBA source baseline.
+Each format has its own capture case and reference at the same 99% likeness
+threshold. Unsupported formats are explicitly skipped before upload. These
+references are generated offline from the blocks, independently of the graphics
+backend, and are never updated by ordinary test runs. Add `--show` to a capture
+command to display the selected case in a window until it is closed.

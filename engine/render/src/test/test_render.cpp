@@ -1861,6 +1861,106 @@ TEST_F(dmRenderTest, TestRenderListSortNoneUsesInsertionOrder)
     ASSERT_EQ(ctx.m_Index, ctx.m_Count);
 }
 
+// Verify tag sorting keeps submission order within each tag list for sorted and unsorted input.
+TEST_F(dmRenderTest, TestRenderListTagSortStableOrder)
+{
+    const dmhash_t tags[] = { dmHashString64("sort_tag_a"), dmHashString64("sort_tag_b"), dmHashString64("sort_tag_c") };
+    uint32_t tag_keys[DM_ARRAY_SIZE(tags)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(tags); ++i)
+        tag_keys[i] = dmRender::RegisterMaterialTagList(m_Context, 1, &tags[i]);
+    std::sort(tag_keys, tag_keys + DM_ARRAY_SIZE(tag_keys));
+
+    // Empty, singleton, equal tags, ordered tags, interleaved tags, and a final inversion.
+    const uint32_t counts[] = { 0, 1, 48, 48, 48, 48 };
+    for (uint32_t layout = 0; layout < DM_ARRAY_SIZE(counts); ++layout)
+    {
+        dmRender::RenderListBegin(m_Context);
+        uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, 0, 0);
+        uint32_t count = counts[layout];
+        dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(m_Context, count);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            uint32_t tag_index = layout < 3 ? 0 : i / 16;
+            if (layout == 4)
+                tag_index = (i * 2) % DM_ARRAY_SIZE(tag_keys);
+            else if (layout == 5 && i == count - 1)
+                tag_index = 0;
+
+            entries[i].m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
+            entries[i].m_TagListKey = tag_keys[tag_index];
+            entries[i].m_Dispatch = dispatch;
+        }
+        dmRender::RenderListSubmit(m_Context, entries, entries + count);
+        dmRender::RenderListEnd(m_Context);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+
+        dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+        ASSERT_EQ(count, context->m_RenderListSortIndices.Size());
+        uint32_t index = 0;
+        for (uint32_t tag = 0; tag < DM_ARRAY_SIZE(tag_keys); ++tag)
+        {
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                if (context->m_RenderList[i].m_TagListKey == tag_keys[tag])
+                {
+                    ASSERT_EQ(i, context->m_RenderListSortIndices[index]);
+                    ++index;
+                }
+            }
+        }
+        ASSERT_EQ(count, index);
+    }
+}
+
+// Verify draw sorting preserves equal-key order, including when only the final entry is out of order.
+TEST_F(dmRenderTest, TestRenderListDrawSortStableOrder)
+{
+    const dmhash_t tag = dmHashString64("sort_tag");
+    const uint32_t tag_key = dmRender::RegisterMaterialTagList(m_Context, 1, &tag);
+    const uint32_t count = 48;
+    // Ordered, interleaved, reversed, and ordered except for the final entry.
+    for (uint32_t layout = 0; layout < 4; ++layout)
+    {
+        dmRender::RenderListBegin(m_Context);
+        uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, 0, 0);
+        dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(m_Context, count);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            uint32_t order = i / 2;
+            if (layout == 1)
+                order = i % 6;
+            else if (layout == 2)
+                order = (count - 1 - i) / 2;
+            else if (layout == 3 && i == count - 1)
+                order = 0;
+
+            entries[i].m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
+            entries[i].m_Order = order;
+            entries[i].m_TagListKey = tag_key;
+            entries[i].m_Dispatch = dispatch;
+        }
+        dmRender::RenderListSubmit(m_Context, entries, entries + count);
+        dmRender::RenderListEnd(m_Context);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+
+        dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+        ASSERT_EQ(count, context->m_RenderListSortBuffer.Size());
+        uint32_t index = 0;
+        for (uint32_t order = 0; order < count / 2; ++order)
+        {
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                if (context->m_RenderList[i].m_Order == order)
+                {
+                    ASSERT_EQ(i, context->m_RenderListSortBuffer[index]);
+                    ++index;
+                }
+            }
+        }
+        ASSERT_EQ(count, index);
+    }
+}
+
 TEST(Render, TextAlignmentOffsets)
 {
     const float text_width = 14.0f;
