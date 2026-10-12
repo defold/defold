@@ -36,6 +36,10 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  *     uint32_t m_Type;
  *     uint32_t m_Fit;
  *     uint32_t m_GradientMode;
+ *     float m_Positions[4];
+ *     float m_Parameters[4];
+ *     uint32_t m_ColorType;
+ *     uint32_t m_StopCount;
  * }
  * }
  */
@@ -52,7 +56,11 @@ public class FontcStyleEffect {
         FontRendererFFM.C_FLOAT.withName("m_Wavelength"),
         FontRendererFFM.C_INT.withName("m_Type"),
         FontRendererFFM.C_INT.withName("m_Fit"),
-        FontRendererFFM.C_INT.withName("m_GradientMode")
+        FontRendererFFM.C_INT.withName("m_GradientMode"),
+        MemoryLayout.sequenceLayout(4, FontRendererFFM.C_FLOAT).withName("m_Positions"),
+        MemoryLayout.sequenceLayout(4, FontRendererFFM.C_FLOAT).withName("m_Parameters"),
+        FontRendererFFM.C_INT.withName("m_ColorType"),
+        FontRendererFFM.C_INT.withName("m_StopCount")
     ).withName("FontcStyleEffect");
 
     /**
@@ -401,6 +409,248 @@ public class FontcStyleEffect {
      */
     public static void m_GradientMode(MemorySegment struct, int fieldValue) {
         struct.set(m_GradientMode$LAYOUT, m_GradientMode$OFFSET, fieldValue);
+    }
+
+    private static final SequenceLayout m_Positions$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("m_Positions"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_Positions[4]
+     * }
+     */
+    public static final SequenceLayout m_Positions$layout() {
+        return m_Positions$LAYOUT;
+    }
+
+    private static final long m_Positions$OFFSET = $LAYOUT.byteOffset(groupElement("m_Positions"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_Positions[4]
+     * }
+     */
+    public static final long m_Positions$offset() {
+        return m_Positions$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_Positions[4]
+     * }
+     */
+    public static MemorySegment m_Positions(MemorySegment struct) {
+        return struct.asSlice(m_Positions$OFFSET, m_Positions$LAYOUT.byteSize());
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_Positions[4]
+     * }
+     */
+    public static void m_Positions(MemorySegment struct, MemorySegment fieldValue) {
+        MemorySegment.copy(fieldValue, 0L, struct, m_Positions$OFFSET, m_Positions$LAYOUT.byteSize());
+    }
+
+    private static long[] m_Positions$DIMS = { 4 };
+
+    /**
+     * Dimensions for array field:
+     * {@snippet lang=c :
+     * float m_Positions[4]
+     * }
+     */
+    public static long[] m_Positions$dimensions() {
+        return m_Positions$DIMS;
+    }
+    private static final VarHandle m_Positions$ELEM_HANDLE = m_Positions$LAYOUT.varHandle(sequenceElement());
+
+    /**
+     * Indexed getter for field:
+     * {@snippet lang=c :
+     * float m_Positions[4]
+     * }
+     */
+    public static float m_Positions(MemorySegment struct, long index0) {
+        return (float)m_Positions$ELEM_HANDLE.get(struct, m_Positions$OFFSET, index0);
+    }
+
+    /**
+     * Indexed setter for field:
+     * {@snippet lang=c :
+     * float m_Positions[4]
+     * }
+     */
+    public static void m_Positions(MemorySegment struct, long index0, float fieldValue) {
+        m_Positions$ELEM_HANDLE.set(struct, m_Positions$OFFSET, index0, fieldValue);
+    }
+
+    private static final SequenceLayout m_Parameters$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("m_Parameters"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_Parameters[4]
+     * }
+     */
+    public static final SequenceLayout m_Parameters$layout() {
+        return m_Parameters$LAYOUT;
+    }
+
+    private static final long m_Parameters$OFFSET = $LAYOUT.byteOffset(groupElement("m_Parameters"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_Parameters[4]
+     * }
+     */
+    public static final long m_Parameters$offset() {
+        return m_Parameters$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_Parameters[4]
+     * }
+     */
+    public static MemorySegment m_Parameters(MemorySegment struct) {
+        return struct.asSlice(m_Parameters$OFFSET, m_Parameters$LAYOUT.byteSize());
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_Parameters[4]
+     * }
+     */
+    public static void m_Parameters(MemorySegment struct, MemorySegment fieldValue) {
+        MemorySegment.copy(fieldValue, 0L, struct, m_Parameters$OFFSET, m_Parameters$LAYOUT.byteSize());
+    }
+
+    private static long[] m_Parameters$DIMS = { 4 };
+
+    /**
+     * Dimensions for array field:
+     * {@snippet lang=c :
+     * float m_Parameters[4]
+     * }
+     */
+    public static long[] m_Parameters$dimensions() {
+        return m_Parameters$DIMS;
+    }
+    private static final VarHandle m_Parameters$ELEM_HANDLE = m_Parameters$LAYOUT.varHandle(sequenceElement());
+
+    /**
+     * Indexed getter for field:
+     * {@snippet lang=c :
+     * float m_Parameters[4]
+     * }
+     */
+    public static float m_Parameters(MemorySegment struct, long index0) {
+        return (float)m_Parameters$ELEM_HANDLE.get(struct, m_Parameters$OFFSET, index0);
+    }
+
+    /**
+     * Indexed setter for field:
+     * {@snippet lang=c :
+     * float m_Parameters[4]
+     * }
+     */
+    public static void m_Parameters(MemorySegment struct, long index0, float fieldValue) {
+        m_Parameters$ELEM_HANDLE.set(struct, m_Parameters$OFFSET, index0, fieldValue);
+    }
+
+    private static final OfInt m_ColorType$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_ColorType"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * uint32_t m_ColorType
+     * }
+     */
+    public static final OfInt m_ColorType$layout() {
+        return m_ColorType$LAYOUT;
+    }
+
+    private static final long m_ColorType$OFFSET = $LAYOUT.byteOffset(groupElement("m_ColorType"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * uint32_t m_ColorType
+     * }
+     */
+    public static final long m_ColorType$offset() {
+        return m_ColorType$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * uint32_t m_ColorType
+     * }
+     */
+    public static int m_ColorType(MemorySegment struct) {
+        return struct.get(m_ColorType$LAYOUT, m_ColorType$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * uint32_t m_ColorType
+     * }
+     */
+    public static void m_ColorType(MemorySegment struct, int fieldValue) {
+        struct.set(m_ColorType$LAYOUT, m_ColorType$OFFSET, fieldValue);
+    }
+
+    private static final OfInt m_StopCount$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_StopCount"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * uint32_t m_StopCount
+     * }
+     */
+    public static final OfInt m_StopCount$layout() {
+        return m_StopCount$LAYOUT;
+    }
+
+    private static final long m_StopCount$OFFSET = $LAYOUT.byteOffset(groupElement("m_StopCount"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * uint32_t m_StopCount
+     * }
+     */
+    public static final long m_StopCount$offset() {
+        return m_StopCount$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * uint32_t m_StopCount
+     * }
+     */
+    public static int m_StopCount(MemorySegment struct) {
+        return struct.get(m_StopCount$LAYOUT, m_StopCount$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * uint32_t m_StopCount
+     * }
+     */
+    public static void m_StopCount(MemorySegment struct, int fieldValue) {
+        struct.set(m_StopCount$LAYOUT, m_StopCount$OFFSET, fieldValue);
     }
 
     /**

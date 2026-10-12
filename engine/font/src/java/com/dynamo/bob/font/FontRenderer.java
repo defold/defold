@@ -31,6 +31,7 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateTexture;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetEffectTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetGlyphMetrics;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetMarkupData;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetSupportedGlyphMetrics;
@@ -188,6 +189,7 @@ public final class FontRenderer implements AutoCloseable {
         public float sdfScale;
         public long baseStyle;
         public boolean useBaseStyle;
+        public boolean useGpuEffects;
     }
 
     /** Font-independent compiled resource style; native setters copy these values. */
@@ -233,6 +235,10 @@ public final class FontRenderer implements AutoCloseable {
         public int type;
         public int fit;
         public int gradientMode;
+        public float[] positions = new float[4];
+        public float[] parameters = new float[4];
+        public int colorType;
+        public int stopCount;
     }
 
     /** Compile opening-only markup, including static resource decorations. */
@@ -276,6 +282,10 @@ public final class FontRenderer implements AutoCloseable {
                         effect.type = FontcStyleEffect.m_Type(item);
                         effect.fit = FontcStyleEffect.m_Fit(item);
                         effect.gradientMode = FontcStyleEffect.m_GradientMode(item);
+                        effect.stopCount = FontcStyleEffect.m_StopCount(item);
+                        effect.colorType = FontcStyleEffect.m_ColorType(item);
+                        effect.parameters = FontcStyleEffect.m_Parameters(item).toArray(JAVA_FLOAT);
+                        effect.positions = FontcStyleEffect.m_Positions(item).toArray(JAVA_FLOAT);
                         style.effects[i] = effect;
                     }
                 }
@@ -320,6 +330,10 @@ public final class FontRenderer implements AutoCloseable {
                     FontcStyleEffect.m_Type(item, effect.type);
                     FontcStyleEffect.m_Fit(item, effect.fit);
                     FontcStyleEffect.m_GradientMode(item, effect.gradientMode);
+                    FontcStyleEffect.m_StopCount(item, effect.stopCount);
+                    FontcStyleEffect.m_ColorType(item, effect.colorType);
+                    FontcStyleEffect.m_Parameters(item, arena.allocateFrom(JAVA_FLOAT, effect.parameters));
+                    FontcStyleEffect.m_Positions(item, arena.allocateFrom(JAVA_FLOAT, effect.positions));
                 }
             }
             checkResult(FontRendererFFM.FontcSetStyle(requireHandle(), name, data), "Unable to register font style");
@@ -514,6 +528,12 @@ public final class FontRenderer implements AutoCloseable {
         public final float leftBearing;
         public final float ascent;
         public final float descent;
+        /** Unpadded outline width used for gradient fitting. */
+        public final float inkWidth;
+        /** Unpadded outline ascent used for gradient fitting. */
+        public final float inkAscent;
+        /** Unpadded outline descent used for gradient fitting. */
+        public final float inkDescent;
         /** Width used for text measurement, excluding bitmap sampling bounds. */
         public final float layoutWidth;
         /** Bearing used for text measurement, excluding bitmap sampling bounds. */
@@ -528,6 +548,9 @@ public final class FontRenderer implements AutoCloseable {
             leftBearing = FontcGlyphMetrics.m_LeftBearing(values);
             ascent = FontcGlyphMetrics.m_Ascent(values);
             descent = FontcGlyphMetrics.m_Descent(values);
+            inkWidth = FontcGlyphMetrics.m_InkWidth(values);
+            inkAscent = FontcGlyphMetrics.m_InkAscent(values);
+            inkDescent = FontcGlyphMetrics.m_InkDescent(values);
             layoutWidth = FontcGlyphMetrics.m_LayoutWidth(values);
             layoutLeftBearing = FontcGlyphMetrics.m_LayoutLeftBearing(values);
         }
@@ -910,6 +933,7 @@ public final class FontRenderer implements AutoCloseable {
             FontcProperties.m_VerticalAlign(values, properties.verticalAlign);
             FontcProperties.m_BaseStyle(values, properties.baseStyle);
             FontcProperties.m_UseBaseStyle(values, flag(properties.useBaseStyle));
+            FontcProperties.m_UseGpuEffects(values, flag(properties.useGpuEffects));
             checkResult(FontcSetProperties(requireHandle(), values), "Unable to set native font renderer properties");
         }
     }
@@ -962,7 +986,7 @@ public final class FontRenderer implements AutoCloseable {
     }
 
     /**
-     * Starts a render batch and protects glyphs used in it from atlas eviction.
+     * Starts a render batch, clears its gradient records, and protects glyphs from atlas eviction.
      *
      * <p>Used by the Editor before generating textures for all text entries in a render batch.</p>
      */
@@ -984,6 +1008,22 @@ public final class FontRenderer implements AutoCloseable {
                 Texture result = new Texture(texture);
                 atlasVersion = result.atlasVersion;
                 return result;
+            } finally {
+                FontcFreeTexture(texture);
+            }
+        }
+    }
+
+    /**
+     * Copies the lookup texture for GPU effects emitted since {@link #beginBatch()}.
+     * Keep this snapshot with its vertex buffer when caching editor render batches.
+     */
+    public synchronized Texture getEffectTexture() {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment texture = FontcTexture.allocate(arena);
+            checkResult(FontcGetEffectTexture(requireHandle(), texture), "Unable to get font effect texture");
+            try {
+                return new Texture(texture);
             } finally {
                 FontcFreeTexture(texture);
             }

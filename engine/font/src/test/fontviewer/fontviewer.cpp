@@ -2509,9 +2509,11 @@ static bool CreateGraphicsResources(Viewer* viewer)
     shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "shadow_color", 4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "sdf_params", 5, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "layer_mask", 6, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+    shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "effect", 7, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shaders.AddTypeMember("view_proj", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
     shaders.AddUniform("vs_uniforms", 0, 0);
     shaders.AddTexture("texture_sampler", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shaders.AddTexture("font_effects", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
     char error[1024] = {};
     viewer->m_Program = dmGraphics::NewProgram(viewer->m_Context, shaders.Get(), error, sizeof(error));
     if (!viewer->m_Program)

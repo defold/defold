@@ -29,6 +29,7 @@
 
 #include <dlib/array.h>
 #include <dlib/hash.h>
+#include <dlib/log.h>
 #include <dlib/image.h>
 #include <dlib/math.h>
 #include <dlib/utf8.h>
@@ -39,6 +40,7 @@
 #include <markup.h>
 #include <text_layout.h>
 #include <fontcollection.h>
+#include "render/font_effect_index.h"
 
 using dmVMath::Matrix4;
 using dmVMath::Vector4;
@@ -49,7 +51,7 @@ static_assert(sizeof(FontcGlyphBankGlyph) == 32, "Unexpected FontcGlyphBankGlyph
 static_assert(sizeof(FontcLayout) == 28, "Unexpected FontcLayout ABI layout");
 static_assert(sizeof(FontcGlyph) == 48, "Unexpected FontcGlyph ABI layout");
 static_assert(offsetof(FontcGlyph, m_Pixels) == 32, "Unexpected FontcGlyph ABI layout");
-static_assert(sizeof(FontcGlyphMetrics) == 40, "Unexpected FontcGlyphMetrics ABI layout");
+static_assert(sizeof(FontcGlyphMetrics) == 52, "Unexpected FontcGlyphMetrics ABI layout");
 static_assert(sizeof(FontcProperties) == 104, "Unexpected FontcProperties ABI layout");
 static_assert(sizeof(FontcTexture) == 40, "Unexpected FontcTexture ABI layout");
 static_assert(offsetof(FontcTexture, m_AtlasVersion) == 8, "Unexpected FontcTexture ABI layout");
@@ -189,6 +191,7 @@ struct FontcContext
         , m_Atlas(0)
         , m_AtlasVersion(1)
         , m_Frame(0)
+        , m_EffectCount(1)
         , m_Hash(0)
         , m_TextLayout(0)
         , m_TextLayoutHash(0)
@@ -201,6 +204,10 @@ struct FontcContext
         , m_CellMaxAscent(0)
         , m_IsGlyphBank(false)
     {
+        m_Effects.EnsureSize(FONT_EFFECT_TEXTURE_HEIGHT);
+        FontResizeEffectIndex(&m_EffectIndex, m_Effects.Size());
+        memset(m_Effects.Begin(), 0, m_Effects.Size() * sizeof(FontEffectRecord));
+        FontSetEffectTextureHeight(&m_Effects[0], m_Effects.Size());
     }
 
     HFont                m_Font;
@@ -210,6 +217,9 @@ struct FontcContext
     uint8_t*             m_Atlas;
     uint64_t             m_AtlasVersion;
     uint64_t             m_Frame;
+    dmArray<FontEffectRecord> m_Effects;
+    FontEffectIndex           m_EffectIndex;
+    uint32_t             m_EffectCount;
     uint64_t             m_Hash;
     HTextLayout          m_TextLayout;
     uint64_t             m_TextLayoutHash;
@@ -1123,6 +1133,13 @@ static FontRendererResult GetGlyphMetrics(HFontRenderer renderer, uint32_t codep
     const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
     output->m_LayoutWidth = layout_glyph.m_Width * scale;
     output->m_LayoutLeftBearing = layout_glyph.m_LeftBearing * scale;
+    options.m_Scale = scale;
+    options.m_UseInkBounds = true;
+    if (FontGetGlyphByIndex(renderer->m_Font, glyph_index, &options, &layout_glyph) != FONT_RESULT_OK)
+        return FONT_RENDERER_RESULT_GLYPH_ERROR;
+    output->m_InkWidth = layout_glyph.m_Width;
+    output->m_InkAscent = layout_glyph.m_Ascent;
+    output->m_InkDescent = layout_glyph.m_Descent;
     return FONT_RENDERER_RESULT_OK;
 }
 
@@ -1298,6 +1315,8 @@ FontRendererResult FontcBeginBatch(HFontRenderer renderer)
 {
     if (!renderer)
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    renderer->m_EffectCount = 1;
+    renderer->m_EffectIndex.m_Rows.Clear();
     ++renderer->m_Frame;
     if (renderer->m_Frame == 0)
     {
@@ -1370,6 +1389,22 @@ FontRendererResult FontcGenerateTexture(HFontRenderer renderer,
     return FONT_RENDERER_RESULT_OK;
 }
 
+FontRendererResult FontcGetEffectTexture(HFontRenderer renderer, FontcTexture* texture)
+{
+    if (!renderer || !texture)
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    memset(texture, 0, sizeof(*texture));
+    texture->m_Width = FONT_EFFECT_TEXTURE_WIDTH;
+    texture->m_Height = renderer->m_Effects.Size();
+    texture->m_Channels = 4;
+    texture->m_PixelCount = renderer->m_Effects.Size() * sizeof(FontEffectRecord);
+    texture->m_Pixels = (uint8_t*)malloc(texture->m_PixelCount);
+    if (!texture->m_Pixels)
+        return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
+    memcpy(texture->m_Pixels, renderer->m_Effects.Begin(), texture->m_PixelCount);
+    return FONT_RENDERER_RESULT_OK;
+}
+
 void FontcFreeTexture(FontcTexture* texture)
 {
     if (!texture)
@@ -1394,6 +1429,33 @@ static bool ResolveLayoutGlyph(void* context, const TextGlyph& text_glyph, FontL
     return true;
 }
 
+static uint32_t ResolveLayoutEffect(void* context, const FontEffectRecord& record)
+{
+    HFontRenderer renderer = (HFontRenderer)context;
+    // Each editor batch retains its own texture snapshot with the cached vertices.
+    const uint64_t hash = dmHashBuffer64(&record, sizeof(record));
+    const uint32_t found = FontFindEffect(renderer->m_EffectIndex, hash, record, renderer->m_Effects.Begin());
+    if (found)
+        return found;
+    if (renderer->m_EffectCount == FONT_EFFECT_MAX_TEXTURE_HEIGHT)
+    {
+        dmLogError("Font gradient texture exhausted its %u records; further effects use approximate vertex colors.", FONT_EFFECT_MAX_TEXTURE_HEIGHT - 1);
+        return UINT32_MAX;
+    }
+    if (renderer->m_EffectCount == renderer->m_Effects.Size())
+    {
+        const uint32_t previous = renderer->m_Effects.Size();
+        renderer->m_Effects.EnsureSize(previous * 2);
+        FontResizeEffectIndex(&renderer->m_EffectIndex, renderer->m_Effects.Size());
+        memset(renderer->m_Effects.Begin() + previous, 0, previous * sizeof(FontEffectRecord));
+        FontSetEffectTextureHeight(&renderer->m_Effects[0], renderer->m_Effects.Size());
+    }
+    uint32_t index = renderer->m_EffectCount++;
+    renderer->m_Effects[index] = record;
+    FontInsertEffect(&renderer->m_EffectIndex, hash, index);
+    return index;
+}
+
 static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, const Matrix4& transform, FontLayoutVertexConfig* config)
 {
     const FontcProperties& properties = renderer->m_Properties;
@@ -1401,6 +1463,11 @@ static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, co
     config->m_Layout = layout;
     config->m_ResolveGlyph = ResolveLayoutGlyph;
     config->m_ResolveGlyphContext = renderer;
+    if (properties.m_UseGpuEffects)
+    {
+        config->m_ResolveEffect = ResolveLayoutEffect;
+        config->m_ResolveEffectContext = renderer;
+    }
     config->m_Transform = transform;
     config->m_OutlineColor = Vector4(properties.m_OutlineColor[0], properties.m_OutlineColor[1], properties.m_OutlineColor[2], properties.m_OutlineColor[3]);
     config->m_ShadowColor = Vector4(properties.m_ShadowColor[0], properties.m_ShadowColor[1], properties.m_ShadowColor[2], properties.m_ShadowColor[3]);
@@ -1546,7 +1613,19 @@ FontRendererResult FontcCompileStyle(const char* markup, uint32_t length, FontcS
         target.m_Type = effect.m_Type;
         if (effect.m_Type == TEXT_EFFECT_GRADIENT)
         {
-            memcpy(target.m_Colors, effect.m_Gradient.m_BottomLeft, sizeof(target.m_Colors));
+            if (effect.m_Gradient.m_Mode == TEXT_GRADIENT_MODE_SPATIAL)
+            {
+                const FontColorEffect& color = effect.m_Gradient.m_Color;
+                for (uint32_t stop = 0; stop < 4; ++stop)
+                    for (uint32_t channel = 0; channel < 4; ++channel)
+                        target.m_Colors[stop * 4 + channel] = color.m_Colors[stop][channel] / 255.0f;
+                memcpy(target.m_Positions, color.m_Positions, sizeof(target.m_Positions));
+                memcpy(target.m_Parameters, color.m_Parameters, sizeof(target.m_Parameters));
+                target.m_ColorType = color.m_Type;
+                target.m_StopCount = color.m_StopCount;
+            }
+            else
+                memcpy(target.m_Colors, effect.m_Gradient.m_Corners.m_BottomLeft, sizeof(target.m_Colors));
             target.m_Hz = effect.m_Gradient.m_Hz;
             target.m_Fit = effect.m_Gradient.m_Fit;
             target.m_GradientMode = effect.m_Gradient.m_Mode;
@@ -1611,7 +1690,24 @@ FontRendererResult FontcSetStyle(HFontRenderer renderer, uint64_t name, const Fo
         if (effect.m_Type == TEXT_EFFECT_GRADIENT)
         {
             effect.m_Flags = TEXT_EFFECT_AFFECTS_COLOR;
-            memcpy(effect.m_Gradient.m_BottomLeft, source.m_Colors, sizeof(source.m_Colors));
+            if (source.m_GradientMode == TEXT_GRADIENT_MODE_SPATIAL)
+            {
+                if (source.m_StopCount < 1 || source.m_StopCount > 4 || source.m_ColorType > FONT_COLOR_EFFECT_FOUR_CORNER ||
+                    (source.m_ColorType == FONT_COLOR_EFFECT_COLOR && source.m_StopCount != 1) ||
+                    (source.m_ColorType == FONT_COLOR_EFFECT_FOUR_CORNER && source.m_StopCount != 4))
+                    return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+                FontColorEffect& color = effect.m_Gradient.m_Color;
+                for (uint32_t stop = 0; stop < 4; ++stop)
+                    for (uint32_t channel = 0; channel < 4; ++channel)
+                        color.m_Colors[stop][channel] = (uint8_t)(source.m_Colors[stop * 4 + channel] * 255.0f + 0.5f);
+                memcpy(color.m_Positions, source.m_Positions, sizeof(color.m_Positions));
+                memcpy(color.m_Parameters, source.m_Parameters, sizeof(color.m_Parameters));
+                color.m_Type = source.m_ColorType;
+                color.m_StopCount = source.m_StopCount;
+                color.m_Flags = source.m_Hz != 0.0f ? FONT_COLOR_EFFECT_MIRROR : 0;
+            }
+            else
+                memcpy(effect.m_Gradient.m_Corners.m_BottomLeft, source.m_Colors, sizeof(source.m_Colors));
             effect.m_Gradient.m_Hz = source.m_Hz;
             effect.m_Gradient.m_Fit = source.m_Fit;
             effect.m_Gradient.m_Mode = source.m_GradientMode;

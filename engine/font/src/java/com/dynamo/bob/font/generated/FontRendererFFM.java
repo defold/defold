@@ -1826,6 +1826,67 @@ public class FontRendererFFM extends FontRendererSymbols {
         }
     }
 
+    private static class FontcGetEffectTexture {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            FontRendererFFM.C_INT,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontcGetEffectTexture");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetEffectTexture(HFontRenderer renderer, FontcTexture *texture)
+     * }
+     */
+    public static FunctionDescriptor FontcGetEffectTexture$descriptor() {
+        return FontcGetEffectTexture.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetEffectTexture(HFontRenderer renderer, FontcTexture *texture)
+     * }
+     */
+    public static MethodHandle FontcGetEffectTexture$handle() {
+        return FontcGetEffectTexture.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetEffectTexture(HFontRenderer renderer, FontcTexture *texture)
+     * }
+     */
+    public static MemorySegment FontcGetEffectTexture$address() {
+        return FontcGetEffectTexture.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetEffectTexture(HFontRenderer renderer, FontcTexture *texture)
+     * }
+     */
+    public static int FontcGetEffectTexture(MemorySegment renderer, MemorySegment texture) {
+        var mh$ = FontcGetEffectTexture.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("FontcGetEffectTexture", renderer, texture);
+            }
+            return (int)mh$.invokeExact(renderer, texture);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
     private static class FontcFreeTexture {
         public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
             FontRendererFFM.C_POINTER

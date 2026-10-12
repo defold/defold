@@ -39,6 +39,9 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  *     float m_Descent;
  *     float m_LayoutWidth;
  *     float m_LayoutLeftBearing;
+ *     float m_InkWidth;
+ *     float m_InkAscent;
+ *     float m_InkDescent;
  * }
  * }
  */
@@ -58,7 +61,10 @@ public class FontcGlyphMetrics {
         FontRendererFFM.C_FLOAT.withName("m_Ascent"),
         FontRendererFFM.C_FLOAT.withName("m_Descent"),
         FontRendererFFM.C_FLOAT.withName("m_LayoutWidth"),
-        FontRendererFFM.C_FLOAT.withName("m_LayoutLeftBearing")
+        FontRendererFFM.C_FLOAT.withName("m_LayoutLeftBearing"),
+        FontRendererFFM.C_FLOAT.withName("m_InkWidth"),
+        FontRendererFFM.C_FLOAT.withName("m_InkAscent"),
+        FontRendererFFM.C_FLOAT.withName("m_InkDescent")
     ).withName("FontcGlyphMetrics");
 
     /**
@@ -506,6 +512,138 @@ public class FontcGlyphMetrics {
      */
     public static void m_LayoutLeftBearing(MemorySegment struct, float fieldValue) {
         struct.set(m_LayoutLeftBearing$LAYOUT, m_LayoutLeftBearing$OFFSET, fieldValue);
+    }
+
+    private static final OfFloat m_InkWidth$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_InkWidth"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_InkWidth
+     * }
+     */
+    public static final OfFloat m_InkWidth$layout() {
+        return m_InkWidth$LAYOUT;
+    }
+
+    private static final long m_InkWidth$OFFSET = $LAYOUT.byteOffset(groupElement("m_InkWidth"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_InkWidth
+     * }
+     */
+    public static final long m_InkWidth$offset() {
+        return m_InkWidth$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_InkWidth
+     * }
+     */
+    public static float m_InkWidth(MemorySegment struct) {
+        return struct.get(m_InkWidth$LAYOUT, m_InkWidth$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_InkWidth
+     * }
+     */
+    public static void m_InkWidth(MemorySegment struct, float fieldValue) {
+        struct.set(m_InkWidth$LAYOUT, m_InkWidth$OFFSET, fieldValue);
+    }
+
+    private static final OfFloat m_InkAscent$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_InkAscent"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_InkAscent
+     * }
+     */
+    public static final OfFloat m_InkAscent$layout() {
+        return m_InkAscent$LAYOUT;
+    }
+
+    private static final long m_InkAscent$OFFSET = $LAYOUT.byteOffset(groupElement("m_InkAscent"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_InkAscent
+     * }
+     */
+    public static final long m_InkAscent$offset() {
+        return m_InkAscent$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_InkAscent
+     * }
+     */
+    public static float m_InkAscent(MemorySegment struct) {
+        return struct.get(m_InkAscent$LAYOUT, m_InkAscent$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_InkAscent
+     * }
+     */
+    public static void m_InkAscent(MemorySegment struct, float fieldValue) {
+        struct.set(m_InkAscent$LAYOUT, m_InkAscent$OFFSET, fieldValue);
+    }
+
+    private static final OfFloat m_InkDescent$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_InkDescent"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_InkDescent
+     * }
+     */
+    public static final OfFloat m_InkDescent$layout() {
+        return m_InkDescent$LAYOUT;
+    }
+
+    private static final long m_InkDescent$OFFSET = $LAYOUT.byteOffset(groupElement("m_InkDescent"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_InkDescent
+     * }
+     */
+    public static final long m_InkDescent$offset() {
+        return m_InkDescent$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_InkDescent
+     * }
+     */
+    public static float m_InkDescent(MemorySegment struct) {
+        return struct.get(m_InkDescent$LAYOUT, m_InkDescent$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_InkDescent
+     * }
+     */
+    public static void m_InkDescent(MemorySegment struct, float fieldValue) {
+        struct.set(m_InkDescent$LAYOUT, m_InkDescent$OFFSET, fieldValue);
     }
 
     /**
