@@ -135,7 +135,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         String[][] shaderPairs = {
             {"font.vp", "font.fp"},
             {"font.vp", "font-singlelayer.fp"},
-            {"font.vp", "font-fnt.fp"},
+            {"font-fnt.vp", "font-fnt.fp"},
             {"font-df.vp", "font-df.fp"},
             {"font-df.vp", "font-df-singlelayer.fp"},
             {"font-df.vp", "font-df-ms.fp"},

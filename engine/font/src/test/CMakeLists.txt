@@ -54,6 +54,9 @@ function(font_configure_test target font_target)
   set(run ON)
   if(target MATCHES "^test_font_bitmap_gen")
     set(run OFF)
+  elseif(target STREQUAL "test_font_effects" AND DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$")
+    # Like the font image tests, GPU tests require OpenGL, available only on Linux CI runners.
+    set(run OFF)
   endif()
   defold_register_test_target(${target} ${run} "${FONT_ROOT}"
     RUN_GROUP font
