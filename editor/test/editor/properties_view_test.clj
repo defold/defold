@@ -312,6 +312,7 @@
 
 ;; Tab must continue from the logical field after its row is recycled, even
 ;; within a tuple, instead of starting at the newly visible viewport position.
+;; Assert that scrolling moved the original row offscreen before pressing Tab.
 (deftest virtual-property-navigation-after-scroll-test
   (doseq [[row control-index keys expected-row expected-text]
           [[4 1 [:tab] 4 "3.0"]
@@ -357,12 +358,17 @@
                              control-index)))]
           (dotimes [_ 2]
             (plorer/mouse-click! scene (plorer/point field 0.5 0.5) :primary)))
-        (dotimes [_ (if (= :fling scroll-mode) 1 30)]
-          (plorer/scroll! scene (plorer/point list 0.5 0.5) 0
-                          (* (if (= row 99) 1 -1) (if (= :fling scroll-mode) 1000000 45)))
-          (ui/run-now (layout! list)))
-        (ui/run-now
-          (is (= row (.getSelectedIndex (.getSelectionModel ^ListView list)))))
+        (let [initial-position (ui/run-now
+                                 (.getPosition ^VirtualFlow (.lookup ^ListView list ".virtual-flow")))]
+          (dotimes [_ (if (= :fling scroll-mode) 1 30)]
+            (plorer/scroll! scene (plorer/point list 0.5 0.5) 0
+                            (* (if (= row 99) 1 -1) (if (= :fling scroll-mode) 1000000 45)))
+            (ui/run-now (layout! list)))
+          (ui/run-now
+            (let [^VirtualFlow flow (.lookup ^ListView list ".virtual-flow")]
+              (is (not= initial-position (.getPosition flow)) "Scrolling must move the viewport")
+              (is (nil? (.getVisibleCell flow (int row))) "The original row must be offscreen")
+              (is (= row (.getSelectedIndex (.getSelectionModel ^ListView list)))))))
         (plorer/key-chord! scene keys)
         (ui/run-now
           (let [owner (.getFocusOwner ^Scene scene)]
