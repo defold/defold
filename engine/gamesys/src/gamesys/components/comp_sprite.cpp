@@ -1526,6 +1526,14 @@ namespace dmGameSystem
                uv.m_ElementCount == 2 && !uv.m_Normalize;
     }
 
+    static inline uint8_t* WriteDefaultQuadVertex(uint8_t* vertices, const Matrix4& world_matrix, float x, float y, const float* uv)
+    {
+        const Vector4 position = world_matrix * Vector4(x, y, 0.0f, 1.0f);
+        memcpy(vertices, &position, 4 * sizeof(float));
+        memcpy(vertices + 4 * sizeof(float), uv, 2 * sizeof(float));
+        return vertices + 6 * sizeof(float);
+    }
+
     static void CreateVertexData(SpriteWorld* sprite_world, dmGraphics::VertexAttributeInfos* material_attribute_info,
         uint8_t** vb_where, uint8_t** ib_where, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
@@ -1730,36 +1738,34 @@ namespace dmGameSystem
                     float y0 = -0.5f - component->m_PivotY;
                     float y1 =  0.5f - component->m_PivotY;
 
-                    Vector4 positions_local[4];
-                    Vector4 positions_world[4];
-
-                    if (has_local_position_attribute || has_world_position_attribute)
-                    {
-                        positions_local[0] = Vector4(x0 * sp_width, y0 * sp_height, 0.0f, 1.0f);
-                        positions_local[1] = Vector4(x0 * sp_width, y1 * sp_height, 0.0f, 1.0f);
-                        positions_local[2] = Vector4(x1 * sp_width, y1 * sp_height, 0.0f, 1.0f);
-                        positions_local[3] = Vector4(x1 * sp_width, y0 * sp_height, 0.0f, 1.0f);
-
-                        if (has_world_position_attribute)
-                        {
-                            positions_world[0] = world_matrix * positions_local[0];
-                            positions_world[1] = world_matrix * positions_local[1];
-                            positions_world[2] = world_matrix * positions_local[2];
-                            positions_world[3] = world_matrix * positions_local[3];
-                        }
-                    }
-
                     if (has_default_quad_vertex_format && has_default_attribute_infos)
                     {
-                        for (uint32_t v = 0; v < 4; ++v)
-                        {
-                            memcpy(vertices, &positions_world[v], 4 * sizeof(float));
-                            memcpy(vertices + 4 * sizeof(float), scratch_uv_ptrs[0] + v * 2, 2 * sizeof(float));
-                            vertices += 6 * sizeof(float);
-                        }
+                        vertices = WriteDefaultQuadVertex(vertices, world_matrix, x0 * sp_width, y0 * sp_height, scratch_uv_ptrs[0]);
+                        vertices = WriteDefaultQuadVertex(vertices, world_matrix, x0 * sp_width, y1 * sp_height, scratch_uv_ptrs[0] + 2);
+                        vertices = WriteDefaultQuadVertex(vertices, world_matrix, x1 * sp_width, y1 * sp_height, scratch_uv_ptrs[0] + 4);
+                        vertices = WriteDefaultQuadVertex(vertices, world_matrix, x1 * sp_width, y0 * sp_height, scratch_uv_ptrs[0] + 6);
                     }
                     else
                     {
+                        Vector4 positions_local[4];
+                        Vector4 positions_world[4];
+
+                        if (has_local_position_attribute || has_world_position_attribute)
+                        {
+                            positions_local[0] = Vector4(x0 * sp_width, y0 * sp_height, 0.0f, 1.0f);
+                            positions_local[1] = Vector4(x0 * sp_width, y1 * sp_height, 0.0f, 1.0f);
+                            positions_local[2] = Vector4(x1 * sp_width, y1 * sp_height, 0.0f, 1.0f);
+                            positions_local[3] = Vector4(x1 * sp_width, y0 * sp_height, 0.0f, 1.0f);
+
+                            if (has_world_position_attribute)
+                            {
+                                positions_world[0] = world_matrix * positions_local[0];
+                                positions_world[1] = world_matrix * positions_local[1];
+                                positions_world[2] = world_matrix * positions_local[2];
+                                positions_world[3] = world_matrix * positions_local[3];
+                            }
+                        }
+
                         const float* world_matrix_channel[]    = { (float*) &world_matrix };
                         const float* local_position_channels[] = { (float*) &positions_local };
                         const float* world_position_channels[] = { (float*) &positions_world };
