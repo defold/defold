@@ -1228,7 +1228,8 @@
 
 (defn update-system-from-evaluation-context!
   "Commits materializations and cache entries that remain valid in the system.
-  Replays realized changes without rerunning load functions or property setters.
+  Reuses the evaluated basis when the system basis is unchanged; otherwise
+  replays realized changes. Does not rerun load functions or property setters.
   Call only after evaluation has finished, with exclusive ownership of the context.
   Closes the context and all contexts sharing its state. They must be discarded
   after this call, even if their changes were incompatible with the system."

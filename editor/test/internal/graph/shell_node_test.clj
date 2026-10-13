@@ -35,6 +35,126 @@
             (set (fn [evaluation-context self _old source]
                    (g/set-property self :value (g/node-value source :result evaluation-context))))))
 
+;; Committing against the original basis must reuse evaluated nodes and update
+;; the transaction revision, cached values, and downstream invalidations.
+(deftest evaluation-context-direct-commit-test
+  (doseq [custom-context [false true]]
+    (with-clean-system
+      (let [consumer (g/make-node! ShellTestNode :value 3)
+            [shell child] (g/take-node-ids 2)]
+        (g/transact
+          (g/add-node
+            (g/construct-shell ShellTestNode {:_node-id shell}
+              (fn materialize-fn [self _evaluation-context]
+                [(g/set-property self :value 7)
+                 (g/add-node (g/construct ShellTestNode :_node-id child :value 5))
+                 (g/connect child :result self :dependency)
+                 (g/connect self :result consumer :dependency)]))))
+        (is (= 3 (g/node-value consumer :result)))
+        (let [initial-basis (g/now)
+              evaluation-context (if custom-context
+                                   (g/make-evaluation-context {:basis initial-basis})
+                                   (g/make-evaluation-context))
+              initial-invalidate-counters (g/invalidate-counters)]
+          (is (= 12 (g/node-value shell :result evaluation-context)))
+          (is (identical? initial-basis (g/now)))
+          (g/update-system-from-evaluation-context! evaluation-context)
+          (doseq [node-id [shell child]]
+            (is (identical? (g/node-by-id @(:basis-ref evaluation-context) node-id)
+                            (g/node-by-id (g/now) node-id))))
+          (is (= (inc (long (gt/tx-id initial-basis))) (gt/tx-id (g/now))))
+          (is (= 12 (get (g/cache) (gt/endpoint shell :result))))
+          (is (not (contains? (g/cache) (gt/endpoint consumer :result))))
+          (is (g/endpoint-invalidated-since? (gt/endpoint consumer :result)
+                                             initial-invalidate-counters
+                                             (g/invalidate-counters)))
+          (is (= 15 (g/node-value consumer :result))))))))
+
+;; Deletions from successive evaluation transactions must all clean up caches,
+;; user data, and materialization records when the evaluated basis is committed.
+(deftest evaluation-context-deletions-clean-up-system-test
+  (doseq [custom-context [false true]]
+    (with-clean-system
+      (let [shells (vec (g/take-node-ids 3))]
+        (g/transact
+          (mapv (fn [shell]
+                  (g/add-node
+                    (g/construct-shell ShellTestNode {:_node-id shell}
+                      (fn materialize-fn [self _evaluation-context]
+                        (g/set-property self :value 7)))))
+                shells))
+        (doseq [shell shells]
+          (is (= 7 (g/node-value shell :result)))
+          (g/user-data! shell :marker :retained))
+        (let [[first-shell second-shell retained-shell] shells
+              evaluation-context (if custom-context
+                                   (g/make-evaluation-context {:basis (g/now)})
+                                   (g/make-evaluation-context))]
+          (it/transact-in-evaluation-context! evaluation-context (g/delete-node first-shell))
+          (it/transact-in-evaluation-context! evaluation-context (g/delete-node second-shell))
+          (g/update-system-from-evaluation-context! evaluation-context)
+          (let [committed-context (g/make-evaluation-context)]
+            (doseq [shell [first-shell second-shell]]
+              (is (nil? (g/node-by-id (g/now) shell)))
+              (is (nil? (g/user-data shell :marker)))
+              (is (not (contains? (g/cache) (gt/endpoint shell :result))))
+              (is (not (contains? (:initial-materializations committed-context) shell)))
+              (is (not (contains? (:initial-materialization-invalidate-counters committed-context) shell)))))
+          (is (= :retained (g/user-data retained-shell :marker)))
+          (is (= 7 (g/node-value retained-shell :result))))))))
+
+;; Commits must reject full invalidation and output invalidations, including
+;; output invalidations that leave the system basis unchanged.
+(deftest evaluation-context-commit-rejects-invalidations-test
+  (doseq [invalidation [:output :full]]
+    (with-clean-system
+      (let [shell (first (g/take-node-ids 1))]
+        (g/transact
+          (g/add-node
+            (g/construct-shell ShellTestNode {:_node-id shell}
+              (fn materialize-fn [self _evaluation-context]
+                (g/set-property self :value 7)))))
+        (let [evaluation-context (g/make-evaluation-context)]
+          (is (= 7 (g/node-value shell :result evaluation-context)))
+          (case invalidation
+            :output (do
+                      (g/invalidate-outputs! [(gt/endpoint shell :result)])
+                      (is (identical? (:initial-basis evaluation-context) (g/now))))
+            :full (g/transact {:full-invalidation true} (g/invalidate-output shell :result)))
+          (g/update-system-from-evaluation-context! evaluation-context)
+          (is (in/unmaterialized-shell-node? (g/node-by-id (g/now) shell)))
+          (is (not (contains? (g/cache) (gt/endpoint shell :result)))))))))
+
+;; A failed loader's deletions must not remove user data for a node that is
+;; successfully recreated by a retry in the same evaluation context.
+(deftest failed-materialization-restores-deletion-tracking-test
+  (with-clean-system
+    (let [[shell child] (g/take-node-ids 2)
+          fail (atom true)]
+      (g/transact
+        (g/add-node
+          (g/construct-shell ShellTestNode {:_node-id shell}
+            (fn materialize-fn [self evaluation-context]
+              (if-not @fail
+                [(g/add-node (g/construct ShellTestNode :_node-id child :value 5))
+                 (g/set-property self :value 7)]
+                (g/callback
+                  (fn delete-child-and-fail []
+                    (it/transact-in-evaluation-context!
+                      evaluation-context
+                      (g/add-node (g/construct ShellTestNode :_node-id child)))
+                    (it/transact-in-evaluation-context! evaluation-context (g/delete-node child))
+                    (throw (ex-info "load failed" {})))))))))
+      (let [evaluation-context (g/make-evaluation-context)]
+        (is (thrown-with-msg? ExceptionInfo #"load failed"
+                              (g/materialize-node! shell evaluation-context)))
+        (reset! fail false)
+        (is (= 7 (g/node-value shell :result evaluation-context)))
+        (g/user-data! child :marker :retained)
+        (g/update-system-from-evaluation-context! evaluation-context)
+        (is (= :retained (g/user-data child :marker)))
+        (is (= 5 (g/node-value child :result)))))))
+
 (deftest deferred-materialization-test
   (with-clean-system
     (let [[node-id child-id] (g/take-node-ids 2)

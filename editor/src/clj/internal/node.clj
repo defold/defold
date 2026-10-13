@@ -541,6 +541,7 @@
    :initial-materializations materializations
    :basis-ref (atom basis)
    :changes-atom (atom [])
+   :nodes-deleted-atom (atom {})
    :materializations-atom (atom materializations)
    :invalidated-endpoints-atom (atom #{})
    :closed-atom (atom false)
@@ -560,6 +561,7 @@
             :initial-materializations (:materializations options)
             :basis-ref (atom basis)
             :changes-atom (atom [])
+            :nodes-deleted-atom (atom {})
             :materializations-atom (atom (:materializations options))
             :invalidated-endpoints-atom (atom #{})
             :closed-atom (atom false)

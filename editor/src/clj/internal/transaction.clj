@@ -1927,11 +1927,12 @@
              :realized-changes [])))
 
 (defn- apply-evaluation-transaction-result! [evaluation-context result]
-  (let [{:keys [basis-ref changes-atom invalidated-endpoints-atom materializations-atom]} evaluation-context
-        {:keys [basis realized-changes outputs-modified materializations]} result]
+  (let [{:keys [basis-ref changes-atom invalidated-endpoints-atom materializations-atom nodes-deleted-atom]} evaluation-context
+        {:keys [basis realized-changes outputs-modified materializations nodes-deleted]} result]
     (reset! basis-ref basis)
     (reset! materializations-atom materializations)
     (swap! changes-atom into realized-changes)
+    (swap! nodes-deleted-atom into nodes-deleted)
     (swap! invalidated-endpoints-atom into outputs-modified)
     (when-let [cache-atom (:cache-atom evaluation-context)]
       (swap! cache-atom c/cache-invalidate outputs-modified))
@@ -2043,6 +2044,7 @@
                                 (keep evaluation-context)
                                 [:basis-ref
                                  :changes-atom
+                                 :nodes-deleted-atom
                                  :materializations-atom
                                  :invalidated-endpoints-atom
                                  :closed-atom
