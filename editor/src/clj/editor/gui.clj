@@ -1950,21 +1950,21 @@
 
 (defn- invalid-repeat-zoom-message
   [repeat-zoom]
-  (when (some (fn [value]
-                (let [value (double value)]
-                  (or (not (Double/isFinite value))
-                      (< value 0.01)
-                      (> value 256.0))))
-              (take 2 repeat-zoom))
+  (when (coll/any? (fn [value]
+                     (let [value (double value)]
+                       (or (not (Double/isFinite value))
+                           (< value 0.01)
+                           (> value 256.0))))
+                   [(nth repeat-zoom 0) (nth repeat-zoom 1)])
     "Repeat Zoom X and Y must be between 0.01 and 256."))
 
 (defn- invalid-repeat-offset-message
   [repeat-offset]
-  (when (some (fn [value]
-                (let [value (double value)]
-                  (or (not (Double/isFinite value))
-                      (> (Math/abs value) 1000000.0))))
-              (take 2 repeat-offset))
+  (when (coll/any? (fn [value]
+                     (let [value (double value)]
+                       (or (not (Double/isFinite value))
+                           (> (Math/abs value) 1000000.0))))
+                   [(nth repeat-offset 0) (nth repeat-offset 1)])
     "Repeat Offset X and Y must be finite and within 1,000,000 pixels."))
 
 (g/defnk produce-box-node-msg [shape-base-node-msg ^:raw slice9 ^:raw texture-mode ^:raw repeat-zoom ^:raw repeat-offset]

@@ -2143,6 +2143,26 @@ namespace dmGameSystem
              : (info.m_XCount + 2) * (info.m_YCount + 2) * 6;
     }
 
+    // Bob writes a SpriteGeometry for each frame even when no polygon trim is
+    // active. Only actual trimmed frames or off-center pivots need the legacy
+    // geometry path; the latter cannot use a centered repeating rectangle.
+    static bool CanTileGuiZeroMarginFrame(const dmGameSystemDDF::TextureSet* texture_set_ddf,
+                                          uint32_t animation_frame)
+    {
+        if (!texture_set_ddf || texture_set_ddf->m_Geometries.m_Count == 0)
+            return true;
+
+        if (animation_frame >= texture_set_ddf->m_FrameIndices.m_Count)
+            return false;
+        uint32_t frame_index = texture_set_ddf->m_FrameIndices[animation_frame];
+        if (frame_index >= texture_set_ddf->m_Geometries.m_Count)
+            return false;
+
+        const dmGameSystemDDF::SpriteGeometry& geometry = texture_set_ddf->m_Geometries[frame_index];
+        return geometry.m_TrimMode == dmGameSystemDDF::SPRITE_TRIM_MODE_OFF &&
+               geometry.m_PivotX == 0.0f && geometry.m_PivotY == 0.0f;
+    }
+
     // Positive offset moves the sample phase forward along the given axis.
     // Flipped atlas UVs are right-anchored, matching legacy behavior when
     // the offset is zero. Each repeat row uses this same deterministic count
@@ -2328,8 +2348,9 @@ namespace dmGameSystem
             // material must not collapse into the ordinary six-vertex quad.
             // Ignore irregular atlas polygon geometry for this new path.
             GuiSlice9TileInfo tile_info;
-            bool zero_margin_tiled = !use_slice_nine &&
-                !use_geometries && texture &&
+            bool zero_margin_tiled = !use_slice_nine && texture &&
+                (manually_set_texture || CanTileGuiZeroMarginFrame(
+                    texture_set_ddf, dmGui::GetNodeAnimationFrame(scene, node))) &&
                 GetGuiSlice9TileInfo(scene, node, atlas_width, atlas_height, &tile_info);
 
             if (zero_margin_tiled)
@@ -2446,14 +2467,13 @@ namespace dmGameSystem
             bool use_slice_nine = sum(slice9) != 0;
 
             GuiSlice9TileInfo tile_info;
-            // Zero-margin Repeat is valid only for rectangular atlas frames.
-            // A manually set texture repeats its whole image; irregular atlas
-            // polygons keep their legacy outline rather than a tiled rect.
+            // Ordinary Bob atlases contain untrimmed geometry records too.
+            // Manual textures tile their full image; only truly irregular
+            // frames or off-center pivots retain their legacy outline.
             dmGameSystemDDF::TextureSet* zero_margin_texture_set_ddf = GetNodeTextureSetDDF(scene, node);
-            bool zero_margin_has_geometries = zero_margin_texture_set_ddf &&
-                zero_margin_texture_set_ddf->m_Geometries.m_Count > 0;
-            bool zero_margin_tiled = !use_slice_nine &&
-                !zero_margin_has_geometries && texture &&
+            bool zero_margin_tiled = !use_slice_nine && texture &&
+                (manually_set_texture || CanTileGuiZeroMarginFrame(
+                    zero_margin_texture_set_ddf, dmGui::GetNodeAnimationFrame(scene, node))) &&
                 GetGuiSlice9TileInfo(scene, node, org_width, org_height, &tile_info);
 
             // render simple quad ignoring 9-slicing

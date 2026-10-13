@@ -25,6 +25,14 @@ struct Vector4{float x,y,z,w; float getX()const{return x;}float getY()const{retu
 float sum(const Vector4& v){return v.x+v.y+v.z+v.w;}
 struct Point3{float x,y,z;float getX()const{return x;}float getY()const{return y;}};
 namespace dmMath{template<class T>T Min(T a,T b){return a<b?a:b;}template<class T>T Max(T a,T b){return a>b?a:b;}}
+namespace dmGameSystemDDF{
+enum SpriteTrimmingMode{SPRITE_TRIM_MODE_OFF=0,SPRITE_TRIM_MODE_4=1};
+template<class T>struct Array{T* m_Data;uint32_t m_Count;
+const T& operator[](uint32_t i)const{return m_Data[i];}};
+struct SpriteGeometry{SpriteTrimmingMode m_TrimMode;float m_PivotX,m_PivotY;};
+struct TextureSet{Array<SpriteGeometry> m_Geometries;Array<uint32_t> m_FrameIndices;
+uint32_t m_UseGeometries;};
+}
 uint64_t dmHashString64(const char* s){if(!strcmp(s,"slice9_tiled"))return 44;if(!strcmp(s,"slice9_tiled_paged"))return 45;return 0;}
 struct Fixture{bool material=true;bool uv=true;bool flip_u=false;bool flip_v=false;uint64_t id=44;
 float tc[6]={0.1f,0.2f,0.1f,0.4f,0.3f,0.4f};
@@ -113,6 +121,27 @@ assert(info.m_XCount==2&&info.m_YCount==2);
 assert(GetGuiSlice9TileVertexCount(info)==96);
 GetGuiRepeatTileSegment(0,info.m_RenderCenterX,info.m_TileStepX,info.m_FirstSpanX,false,&p0,&p1,&t0,&t1);
 assert(eq(p0,0)&&eq(p1,48)&&eq(t0,8.0f/56.0f)&&eq(t1,1));
+// Regression: Bob emits an untrimmed SpriteGeometry even when use_geometries
+// is zero. That static frame must tile despite having geometry array entries.
+dmGameSystemDDF::SpriteGeometry frames[]={
+ {dmGameSystemDDF::SPRITE_TRIM_MODE_OFF,0,0},
+ {dmGameSystemDDF::SPRITE_TRIM_MODE_4,0,0},
+ {dmGameSystemDDF::SPRITE_TRIM_MODE_OFF,0.25f,0},
+ {dmGameSystemDDF::SPRITE_TRIM_MODE_OFF,0,-0.5f}};
+uint32_t frame_indices[]={0,1,2,3,0,99};
+dmGameSystemDDF::TextureSet static_set={{frames,4},{frame_indices,6},0};
+assert(static_set.m_Geometries.m_Count>0);
+assert(CanTileGuiZeroMarginFrame(&static_set,0));
+static_set.m_UseGeometries=1;
+assert(CanTileGuiZeroMarginFrame(&static_set,4)); // Modern Bob can set flag 1 too.
+assert(!CanTileGuiZeroMarginFrame(&static_set,1)); // Active polygon trim.
+assert(!CanTileGuiZeroMarginFrame(&static_set,2)); // Horizontal pivot offset.
+assert(!CanTileGuiZeroMarginFrame(&static_set,3)); // Vertical pivot offset.
+assert(!CanTileGuiZeroMarginFrame(&static_set,5)); // Bad source frame index.
+assert(!CanTileGuiZeroMarginFrame(&static_set,6)); // Bad animation frame index.
+static_set.m_Geometries.m_Count=0;
+assert(CanTileGuiZeroMarginFrame(&static_set,0)); // Legacy no-geometry texture set.
+assert(CanTileGuiZeroMarginFrame(nullptr,0)); // Direct manual texture.
 printf("PASS exact production C++ Repeat zoom offset size flip clipping rotation caps manual texture and material fallback\\n");
 return 0;
 }

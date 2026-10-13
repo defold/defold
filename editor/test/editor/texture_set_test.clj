@@ -15,7 +15,8 @@
 (ns editor.texture-set-test
   (:require [clojure.test :refer :all]
             [editor.slice9 :as slice9]
-            [editor.texture-set :as texture-set]))
+            [editor.texture-set :as texture-set]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 
@@ -110,8 +111,8 @@
                                  (<= (- 0.25 1e-9) v (+ 0.75 1e-9))))
                 (:uv-data tiled))
         "Repeated UVs must remain inside the source atlas rectangle.")
-    (is (some (fn [[x _]] (< (Math/abs (+ x 2.0)) 0.0001))
-              (:position-data tiled))
+    (is (coll/any? (fn [[x _]] (< (Math/abs (+ x 2.0)) 0.0001))
+                   (:position-data tiled))
         "The editor must contain actual intermediate tile seams, not stretched UVs.")))
 
 ;; Pathological vertex budgets must fail closed to the pre-existing Stretch
@@ -160,12 +161,12 @@
               bottom-y (if (pos? vertical) -22.0 -18.0)
               first-u (if (pos? horizontal) 0.375 0.1875)
               first-v (if (pos? vertical) 0.40625 0.65625)]
-          (is (some (fn [[[x y] [u v]]]
-                      (and (< (Math/abs (- (double x) left-x)) 1e-6)
-                           (< (Math/abs (- (double y) bottom-y)) 1e-6)
-                           (< (Math/abs (- (double u) first-u)) 1e-6)
-                           (< (Math/abs (- (double v) first-v)) 1e-6)))
-                    (map vector (:position-data tiled) (:uv-data tiled)))
+          (is (coll/any? (fn [[[x y] [u v]]]
+                           (and (< (Math/abs (- (double x) left-x)) 1e-6)
+                                (< (Math/abs (- (double y) bottom-y)) 1e-6)
+                                (< (Math/abs (- (double u) first-u)) 1e-6)
+                                (< (Math/abs (- (double v) first-v)) 1e-6)))
+                         (mapv vector (:position-data tiled) (:uv-data tiled)))
               "First center tile clipped phase must match native flipped-segment oracle."))))))
 
 ;; Actual texture-set frame construction on a 90-degree packed source image,
@@ -193,6 +194,8 @@
                     (:uv-data tiled)))
         (is (= (:line-data original) (:line-data tiled)))))))
 
+;; Zero-margin tiling must retain six vertices per tile across authored flips,
+;; guarding against the regression that silently stretched unsliced boxes.
 (deftest tiled-zero-margin-authored-flip-test
   (let [raw-tex-coords (java.nio.FloatBuffer/wrap
                          (float-array [0.125 0.75 0.125 0.25 0.625 0.25 0.625 0.75]))

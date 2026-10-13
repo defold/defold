@@ -297,7 +297,10 @@
             first-span (if flipped
                          (if (> phase 0.00001) phase step)
                          (if (> phase 0.00001) (- step phase) step))
-            count (+ 1.0 (Math/ceil (/ (max 0.0 (- destination first-span)) step)))]
+            ;; Match GetGuiRepeatAxis: sub-half-ULP remainder cannot form a
+            ;; visible float vertex and must not trip the 2048-quad budget.
+            tolerance (* 0.5 (Math/ulp (float 1.0)) destination)
+            count (+ 1.0 (Math/ceil (/ (max 0.0 (- destination first-span tolerance)) step)))]
         (when (<= 1.0 count 2048.0)
           {:count (long count)
            :step step

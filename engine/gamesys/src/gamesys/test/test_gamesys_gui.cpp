@@ -2849,6 +2849,8 @@ public:
     }
 };
 
+// Verify real GUI materials render tiled and stretched static frames with
+// their expected vertex counts, guarding against Repeat/Slice-9 regressions.
 TEST_P(TiledSlice9GuiTest, StaticFrameTiledVersusStretch)
 {
     const TiledSlice9GuiParams& p = GetParam();
