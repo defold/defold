@@ -64,7 +64,8 @@ class TiledSlice9PagedSourceContract(unittest.TestCase):
         # Both the tiled path and legacy nine-quad fallback reuse these vertices.
         self.assertIn("GetGuiSlice9TileInfo(scene, node, org_width, org_height, &tile_info)", body)
         self.assertIn("rendered_vert_count += verts_per_slice9;", body)
-        self.assertIn("rendered_vert_count += (tile_info.m_XCount + 2) * (tile_info.m_YCount + 2) * 6;", body)
+        self.assertIn("rendered_vert_count += GetGuiSlice9TileVertexCount(tile_info);", body)
+        self.assertIn("num_vertices += GetGuiSlice9TileVertexCount(tile_info);", cpp)
         self.assertIn("if (uv_rotated)", body)
         self.assertIn("v00.SetUV(src_y0, src_x0)", body)
 
@@ -125,6 +126,7 @@ int main() {
     // Nonrotated 4x4 source frame, 5x5 box and 1px margins on all sides.
     if (!GetGuiSlice9TileInfo(0,0,16,16,&info)) return 1;
     if (info.m_XCount!=2 || info.m_YCount!=2 || info.m_SourceCenterX!=2 || info.m_SourceCenterY!=2) return 2;
+    if (GetGuiSlice9TileVertexCount(info) != 96) return 11;
     // Same frame packed rotated 90 degrees. Its atlas U/V axes swap.
     g_uv[2]=0.5f; g_uv[4]=0.5f; g_uv[3]=0.375f; g_uv[5]=0.125f;
     if (!GetGuiSlice9TileInfo(0,0,16,16,&info)) return 3;

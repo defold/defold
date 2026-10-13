@@ -2117,7 +2117,18 @@ namespace dmGameSystem
         float m_SourceCenterY;
         float m_RenderCenterX;
         float m_RenderCenterY;
+        // With zero margins the entire source frame repeats: no border cells.
+        bool m_NoMargins;
     };
+
+    // Shared by allocator and emitter. Omitting zero-width nine-slice borders
+    // avoids 48 degenerate vertices for a genuinely margin-free repeating box.
+    static uint32_t GetGuiSlice9TileVertexCount(const GuiSlice9TileInfo& info)
+    {
+        return info.m_NoMargins
+             ? info.m_XCount * info.m_YCount * 6
+             : (info.m_XCount + 2) * (info.m_YCount + 2) * 6;
+    }
 
     // Use EXACTLY the same capped tile count for allocation and rendering.
     // Repeating the entire texture is unsafe for atlas-packed animations.
@@ -2129,13 +2140,21 @@ namespace dmGameSystem
     {
         if (!IsTiledSlice9Material(scene, node))
             return false;
-        const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
-        if (!tc || atlas_width <= 0.0f || atlas_height <= 0.0f)
-            return false;
-
         Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
-        if (sum(slice9) == 0)
+        const bool no_margins = sum(slice9) == 0;
+        const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
+        if (atlas_width <= 0.0f || atlas_height <= 0.0f)
             return false;
+        if (!tc)
+        {
+            // gui.set_texture() has no atlas UV animation metadata; for a
+            // zero-margin rectangle the complete texture is its source tile.
+            // Preserve the legacy nonzero-margin manual-texture fallback.
+            if (!no_margins)
+                return false;
+            static const float full_texture_uv[6] = {0, 0, 0, 1, 1, 1};
+            tc = full_texture_uv;
+        }
         bool rotated = tc[0] != tc[2] && tc[3] != tc[5];
         // UVs are in atlas space. Rotation swaps source-frame axes.
         float frame_width = (rotated ? fabsf(tc[5] - tc[1]) * atlas_height :
@@ -2156,8 +2175,10 @@ namespace dmGameSystem
         // Cap at 2048 logical quads (12,288 vertices). Using division avoids
         // integer overflow for extremely large user-authored GUI node sizes.
         if (!(x_tiles >= 1.0f && y_tiles >= 1.0f &&
-              x_tiles <= 2046.0f && y_tiles <= 2046.0f &&
-              (x_tiles + 2.0f) * (y_tiles + 2.0f) <= 2048.0f))
+              x_tiles <= (no_margins ? 2048.0f : 2046.0f) &&
+              y_tiles <= (no_margins ? 2048.0f : 2046.0f) &&
+              (x_tiles + (no_margins ? 0.0f : 2.0f)) *
+              (y_tiles + (no_margins ? 0.0f : 2.0f)) <= 2048.0f))
             return false;
 
         info->m_XCount = (uint32_t)x_tiles;
@@ -2166,6 +2187,7 @@ namespace dmGameSystem
         info->m_SourceCenterY = source_center_y;
         info->m_RenderCenterX = render_center_x;
         info->m_RenderCenterY = render_center_y;
+        info->m_NoMargins = no_margins;
         return true;
     }
 
@@ -2216,7 +2238,19 @@ namespace dmGameSystem
             const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
             bool manually_set_texture = tc == 0;
 
-            if ((!use_slice_nine && manually_set_texture) || !texture) // simple quad
+            // A full-frame BOX with an atlas animation and opt-in tiled
+            // material must not collapse into the ordinary six-vertex quad.
+            // Ignore irregular atlas polygon geometry for this new path.
+            GuiSlice9TileInfo tile_info;
+            bool zero_margin_tiled = !use_slice_nine &&
+                !use_geometries && texture &&
+                GetGuiSlice9TileInfo(scene, node, atlas_width, atlas_height, &tile_info);
+
+            if (zero_margin_tiled)
+            {
+                num_vertices += GetGuiSlice9TileVertexCount(tile_info);
+            }
+            else if ((!use_slice_nine && manually_set_texture) || !texture) // simple quad
             {
                 num_vertices += 6;
             }
@@ -2231,9 +2265,8 @@ namespace dmGameSystem
             }
             else // slice 9
             {
-                GuiSlice9TileInfo tile_info;
                 if (GetGuiSlice9TileInfo(scene, node, atlas_width, atlas_height, &tile_info))
-                    num_vertices += (tile_info.m_XCount + 2) * (tile_info.m_YCount + 2) * 6;
+                    num_vertices += GetGuiSlice9TileVertexCount(tile_info);
                 else
                     num_vertices += 9 * 6; // Legacy stretch
             }
@@ -2326,8 +2359,19 @@ namespace dmGameSystem
             Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
             bool use_slice_nine = sum(slice9) != 0;
 
+            GuiSlice9TileInfo tile_info;
+            // Zero-margin Repeat is valid only for rectangular atlas frames.
+            // A manually set texture repeats its whole image; irregular atlas
+            // polygons keep their legacy outline rather than a tiled rect.
+            dmGameSystemDDF::TextureSet* zero_margin_texture_set_ddf = GetNodeTextureSetDDF(scene, node);
+            bool zero_margin_has_geometries = zero_margin_texture_set_ddf &&
+                zero_margin_texture_set_ddf->m_Geometries.m_Count > 0;
+            bool zero_margin_tiled = !use_slice_nine &&
+                !zero_margin_has_geometries && texture &&
+                GetGuiSlice9TileInfo(scene, node, org_width, org_height, &tile_info);
+
             // render simple quad ignoring 9-slicing
-            if ((!use_slice_nine && manually_set_texture) || !texture)
+            if ((!use_slice_nine && manually_set_texture && !zero_margin_tiled) || !texture)
             {
                 BoxVertex v00;
                 v00.SetColor(pm_color);
@@ -2396,7 +2440,7 @@ namespace dmGameSystem
             }
 
             // render using geometries without 9-slicing
-            if (!use_slice_nine && use_geometries)
+            if (!use_slice_nine && use_geometries && !zero_margin_tiled)
             {
                 const Matrix4& w = node_transforms[i];
 
@@ -2523,19 +2567,18 @@ namespace dmGameSystem
             v01.SetPageIndex(page_index);
             v11.SetPageIndex(page_index);
 
-            GuiSlice9TileInfo tile_info;
-            if (GetGuiSlice9TileInfo(scene, node, org_width, org_height, &tile_info))
+            if (zero_margin_tiled || GetGuiSlice9TileInfo(scene, node, org_width, org_height, &tile_info))
             {
                 // Material opt-in: subdivide only the repeating center axes.
                 // All four original BoxVertex streams (including atlas page)
                 // remain unchanged, so gui.fp, gui_paged_atlas.fp and custom
                 // GUI materials still receive ordinary packed frame UVs.
-                for (int y = 0; y < 3; ++y)
+                for (int y = zero_margin_tiled ? 1 : 0; y < (zero_margin_tiled ? 2 : 3); ++y)
                 {
                     const int y0 = y - pivot_y;
                     const int y1 = y + 1 - pivot_y;
                     uint32_t y_count = y == 1 ? tile_info.m_YCount : 1;
-                    for (int x = 0; x < 3; ++x)
+                    for (int x = zero_margin_tiled ? 1 : 0; x < (zero_margin_tiled ? 2 : 3); ++x)
                     {
                         const int x0 = x - pivot_x;
                         const int x1 = x + 1 - pivot_x;
@@ -2612,7 +2655,7 @@ namespace dmGameSystem
                         }
                     }
                 }
-                rendered_vert_count += (tile_info.m_XCount + 2) * (tile_info.m_YCount + 2) * 6;
+                rendered_vert_count += GetGuiSlice9TileVertexCount(tile_info);
                 continue;
             }
 
