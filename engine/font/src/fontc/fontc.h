@@ -156,13 +156,22 @@ extern "C"
         float    m_Leading;
         float    m_Tracking;
         float    m_SdfScale;
-        uint32_t m_LineBreak;
-        uint32_t m_Align;
-        uint32_t m_VerticalAlign;
         uint64_t m_BaseStyle;
-        uint32_t m_UseBaseStyle;
-        // Emit effect UVs and lookup indices for shaders with a font_effects sampler.
-        uint32_t m_UseGPUEffects;
+        // Java accesses m_Bits because jextract does not expose bit fields.
+        // The supported editor hosts use the little-endian layout below.
+        union
+        {
+            struct
+            {
+                uint8_t m_LineBreak : 1;
+                uint8_t m_Align : 2;
+                uint8_t m_VerticalAlign : 2;
+                uint8_t m_UseBaseStyle : 1;
+                // Emit effect UVs and lookup indices for shaders with a font_effects sampler.
+                uint8_t m_UseGPUEffects : 1;
+            };
+            uint8_t m_Bits;
+        };
     } FontcProperties;
 
     /* Compiled style data. Color arrays are RGBA; flags distinguish inherited
@@ -188,18 +197,26 @@ extern "C"
 
     typedef struct FontcStyleEffect
     {
-        float m_Colors[16];
-        float m_Amplitude;
-        float m_Hz;
-        float m_Wavelength;
-        uint32_t m_Type;
-        uint32_t m_Fit;
-        uint32_t m_GradientMode;
+        float    m_Colors[16];
+        float    m_Amplitude;
+        float    m_Hz;
+        float    m_Wavelength;
         float    m_Positions[4];
         // Authored linear angle, or radial pivot x/y, radius x/y, angle, and unused.
         float    m_Parameters[6];
-        uint32_t m_ColorType;
-        uint32_t m_StopCount;
+        // Low-to-high bits of m_Bits on editor hosts; also read/written by Java.
+        union
+        {
+            struct
+            {
+                uint16_t m_Type : 2;
+                uint16_t m_Fit : 2;
+                uint16_t m_GradientMode : 2;
+                uint16_t m_ColorType : 2;
+                uint16_t m_StopCount : 3; // 0 when unused, otherwise 1-4.
+            };
+            uint16_t m_Bits;
+        };
     } FontcStyleEffect;
 
     typedef struct FontcStyleData

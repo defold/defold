@@ -33,13 +33,18 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  *     float m_Amplitude;
  *     float m_Hz;
  *     float m_Wavelength;
- *     uint32_t m_Type;
- *     uint32_t m_Fit;
- *     uint32_t m_GradientMode;
  *     float m_Positions[4];
  *     float m_Parameters[6];
- *     uint32_t m_ColorType;
- *     uint32_t m_StopCount;
+ *     union {
+ *         struct {
+ *             uint16_t m_Type : 2;
+ *             uint16_t m_Fit : 2;
+ *             uint16_t m_GradientMode : 2;
+ *             uint16_t m_ColorType : 2;
+ *             uint16_t m_StopCount : 3;
+ *         };
+ *         uint16_t m_Bits;
+ *     };
  * }
  * }
  */
@@ -54,13 +59,15 @@ public class FontcStyleEffect {
         FontRendererFFM.C_FLOAT.withName("m_Amplitude"),
         FontRendererFFM.C_FLOAT.withName("m_Hz"),
         FontRendererFFM.C_FLOAT.withName("m_Wavelength"),
-        FontRendererFFM.C_INT.withName("m_Type"),
-        FontRendererFFM.C_INT.withName("m_Fit"),
-        FontRendererFFM.C_INT.withName("m_GradientMode"),
         MemoryLayout.sequenceLayout(4, FontRendererFFM.C_FLOAT).withName("m_Positions"),
         MemoryLayout.sequenceLayout(6, FontRendererFFM.C_FLOAT).withName("m_Parameters"),
-        FontRendererFFM.C_INT.withName("m_ColorType"),
-        FontRendererFFM.C_INT.withName("m_StopCount")
+        MemoryLayout.unionLayout(
+            MemoryLayout.structLayout(
+                MemoryLayout.paddingLayout(2)
+            ).withName("$anon$210:13"),
+            FontRendererFFM.C_SHORT.withName("m_Bits")
+        ).withName("$anon$208:9"),
+        MemoryLayout.paddingLayout(2)
     ).withName("FontcStyleEffect");
 
     /**
@@ -279,138 +286,6 @@ public class FontcStyleEffect {
         struct.set(m_Wavelength$LAYOUT, m_Wavelength$OFFSET, fieldValue);
     }
 
-    private static final OfInt m_Type$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_Type"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * uint32_t m_Type
-     * }
-     */
-    public static final OfInt m_Type$layout() {
-        return m_Type$LAYOUT;
-    }
-
-    private static final long m_Type$OFFSET = $LAYOUT.byteOffset(groupElement("m_Type"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * uint32_t m_Type
-     * }
-     */
-    public static final long m_Type$offset() {
-        return m_Type$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * uint32_t m_Type
-     * }
-     */
-    public static int m_Type(MemorySegment struct) {
-        return struct.get(m_Type$LAYOUT, m_Type$OFFSET);
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * uint32_t m_Type
-     * }
-     */
-    public static void m_Type(MemorySegment struct, int fieldValue) {
-        struct.set(m_Type$LAYOUT, m_Type$OFFSET, fieldValue);
-    }
-
-    private static final OfInt m_Fit$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_Fit"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * uint32_t m_Fit
-     * }
-     */
-    public static final OfInt m_Fit$layout() {
-        return m_Fit$LAYOUT;
-    }
-
-    private static final long m_Fit$OFFSET = $LAYOUT.byteOffset(groupElement("m_Fit"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * uint32_t m_Fit
-     * }
-     */
-    public static final long m_Fit$offset() {
-        return m_Fit$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * uint32_t m_Fit
-     * }
-     */
-    public static int m_Fit(MemorySegment struct) {
-        return struct.get(m_Fit$LAYOUT, m_Fit$OFFSET);
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * uint32_t m_Fit
-     * }
-     */
-    public static void m_Fit(MemorySegment struct, int fieldValue) {
-        struct.set(m_Fit$LAYOUT, m_Fit$OFFSET, fieldValue);
-    }
-
-    private static final OfInt m_GradientMode$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_GradientMode"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * uint32_t m_GradientMode
-     * }
-     */
-    public static final OfInt m_GradientMode$layout() {
-        return m_GradientMode$LAYOUT;
-    }
-
-    private static final long m_GradientMode$OFFSET = $LAYOUT.byteOffset(groupElement("m_GradientMode"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * uint32_t m_GradientMode
-     * }
-     */
-    public static final long m_GradientMode$offset() {
-        return m_GradientMode$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * uint32_t m_GradientMode
-     * }
-     */
-    public static int m_GradientMode(MemorySegment struct) {
-        return struct.get(m_GradientMode$LAYOUT, m_GradientMode$OFFSET);
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * uint32_t m_GradientMode
-     * }
-     */
-    public static void m_GradientMode(MemorySegment struct, int fieldValue) {
-        struct.set(m_GradientMode$LAYOUT, m_GradientMode$OFFSET, fieldValue);
-    }
-
     private static final SequenceLayout m_Positions$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("m_Positions"));
 
     /**
@@ -565,92 +440,48 @@ public class FontcStyleEffect {
         m_Parameters$ELEM_HANDLE.set(struct, m_Parameters$OFFSET, index0, fieldValue);
     }
 
-    private static final OfInt m_ColorType$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_ColorType"));
+    private static final OfShort m_Bits$LAYOUT = (OfShort)$LAYOUT.select(groupElement("$anon$208:9"), groupElement("m_Bits"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * uint32_t m_ColorType
+     * uint16_t m_Bits
      * }
      */
-    public static final OfInt m_ColorType$layout() {
-        return m_ColorType$LAYOUT;
+    public static final OfShort m_Bits$layout() {
+        return m_Bits$LAYOUT;
     }
 
-    private static final long m_ColorType$OFFSET = $LAYOUT.byteOffset(groupElement("m_ColorType"));
+    private static final long m_Bits$OFFSET = $LAYOUT.byteOffset(groupElement("$anon$208:9"), groupElement("m_Bits"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * uint32_t m_ColorType
+     * uint16_t m_Bits
      * }
      */
-    public static final long m_ColorType$offset() {
-        return m_ColorType$OFFSET;
+    public static final long m_Bits$offset() {
+        return m_Bits$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * uint32_t m_ColorType
+     * uint16_t m_Bits
      * }
      */
-    public static int m_ColorType(MemorySegment struct) {
-        return struct.get(m_ColorType$LAYOUT, m_ColorType$OFFSET);
+    public static short m_Bits(MemorySegment struct) {
+        return struct.get(m_Bits$LAYOUT, m_Bits$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * uint32_t m_ColorType
+     * uint16_t m_Bits
      * }
      */
-    public static void m_ColorType(MemorySegment struct, int fieldValue) {
-        struct.set(m_ColorType$LAYOUT, m_ColorType$OFFSET, fieldValue);
-    }
-
-    private static final OfInt m_StopCount$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_StopCount"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * uint32_t m_StopCount
-     * }
-     */
-    public static final OfInt m_StopCount$layout() {
-        return m_StopCount$LAYOUT;
-    }
-
-    private static final long m_StopCount$OFFSET = $LAYOUT.byteOffset(groupElement("m_StopCount"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * uint32_t m_StopCount
-     * }
-     */
-    public static final long m_StopCount$offset() {
-        return m_StopCount$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * uint32_t m_StopCount
-     * }
-     */
-    public static int m_StopCount(MemorySegment struct) {
-        return struct.get(m_StopCount$LAYOUT, m_StopCount$OFFSET);
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * uint32_t m_StopCount
-     * }
-     */
-    public static void m_StopCount(MemorySegment struct, int fieldValue) {
-        struct.set(m_StopCount$LAYOUT, m_StopCount$OFFSET, fieldValue);
+    public static void m_Bits(MemorySegment struct, short fieldValue) {
+        struct.set(m_Bits$LAYOUT, m_Bits$OFFSET, fieldValue);
     }
 
     /**

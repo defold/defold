@@ -14,11 +14,11 @@
     "FontcMarkupSpan.java": "89ed6c9c5b994a9fc94a39143426b4debf361ae041f24628b884b704f5871884",
     "FontcMarkupString.java": "47efd198bffaed80df24da818299e00a4b4af7a8a5e40de43e51d2939b1ad7c3",
     "FontcParams.java": "0cd2044c2da0fd2858e36f2e8c1cdaecd9bffe2608934953e858f43abeda36f6",
-    "FontcProperties.java": "f1ca63b1821583a417c2eb1a9d84bd962888e78f0e7f9cbba177ffeff228630b",
+    "FontcProperties.java": "d9a627f120ca1202fd53bc02efa97cb0b919526cee428e627aa97dc084aacceb",
     "FontcStyle.java": "39c849107f31656b91b7579c50b82671ced5f470d369801f77d6f08b4c6f68dc",
     "FontcStyleData.java": "67742c96126eedb03583284f7d929f9d5508661256be591be6b4293b9ccc180b",
-    "FontcStyleEffect.java": "56ed09cc3713feb6244a291686bc7f2acfbe962d67d16de26a9737643e7922b6",
+    "FontcStyleEffect.java": "427817404de3d0d7bea41500153b8fa1d8b6ccfb3c95bd60b411894eef8502cb",
     "FontcTexture.java": "ae6894c024c57c681967b741211f4fd9074e9154fc9c63ab3d9eb4d40d4cbb0a"
   },
-  "header_sha256": "7eff3905207d6646c2065b1e49be6064dd3d432fac8cc195a8f02b9c9e1464fa"
+  "header_sha256": "2f80ff0346c1c7b19a4970446864b006bc8f896a0b5f078c793ee98c4b02c8b8"
 }

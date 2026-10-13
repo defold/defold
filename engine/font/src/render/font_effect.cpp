@@ -32,12 +32,12 @@ struct FontEffectCache
     FontEffectIndex           m_Index;
     dmArray<uint32_t>         m_Frames;
     uint32_t                  m_MaxHeight;
-    bool                      m_OverflowReported;
     uint32_t                  m_Count;
     uint32_t                  m_LastIndex;
     uint32_t                  m_EvictFrame;
     uint32_t                  m_EvictCursor;
-    bool                      m_Dirty;
+    uint8_t                   m_OverflowReported : 1;
+    uint8_t                   m_Dirty : 1;
 };
 
 static void ResizeEffectCache(FontEffectCache* cache, uint32_t height)

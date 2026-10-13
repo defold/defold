@@ -42,9 +42,9 @@ struct FontColorEffect
     // Linear: projection x, y, offset. Radial: pivot x, y, then the inverse
     // ellipse transform's xx, yy, xy, yx coefficients applied to fit UV offsets.
     float   m_Parameters[6];
-    uint8_t m_Type;
-    uint8_t m_StopCount;
-    uint8_t m_Flags;
+    uint8_t m_Type : 2;
+    uint8_t m_StopCount : 3; // Stores 1-4 directly.
+    uint8_t m_Flags : 1;
 };
 
 static const uint32_t FONT_EFFECT_TEXTURE_WIDTH = 16;

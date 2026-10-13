@@ -279,11 +279,12 @@ public final class FontRenderer implements AutoCloseable {
                         effect.amplitude = FontcStyleEffect.m_Amplitude(item);
                         effect.hz = FontcStyleEffect.m_Hz(item);
                         effect.wavelength = FontcStyleEffect.m_Wavelength(item);
-                        effect.type = FontcStyleEffect.m_Type(item);
-                        effect.fit = FontcStyleEffect.m_Fit(item);
-                        effect.gradientMode = FontcStyleEffect.m_GradientMode(item);
-                        effect.stopCount = FontcStyleEffect.m_StopCount(item);
-                        effect.colorType = FontcStyleEffect.m_ColorType(item);
+                        int bits = Short.toUnsignedInt(FontcStyleEffect.m_Bits(item));
+                        effect.type = bits & 3;
+                        effect.fit = (bits >>> 2) & 3;
+                        effect.gradientMode = (bits >>> 4) & 3;
+                        effect.colorType = (bits >>> 6) & 3;
+                        effect.stopCount = (bits >>> 8) & 7;
                         effect.parameters = FontcStyleEffect.m_Parameters(item).toArray(JAVA_FLOAT);
                         effect.positions = FontcStyleEffect.m_Positions(item).toArray(JAVA_FLOAT);
                         style.effects[i] = effect;
@@ -327,11 +328,12 @@ public final class FontRenderer implements AutoCloseable {
                     FontcStyleEffect.m_Amplitude(item, effect.amplitude);
                     FontcStyleEffect.m_Hz(item, effect.hz);
                     FontcStyleEffect.m_Wavelength(item, effect.wavelength);
-                    FontcStyleEffect.m_Type(item, effect.type);
-                    FontcStyleEffect.m_Fit(item, effect.fit);
-                    FontcStyleEffect.m_GradientMode(item, effect.gradientMode);
-                    FontcStyleEffect.m_StopCount(item, effect.stopCount);
-                    FontcStyleEffect.m_ColorType(item, effect.colorType);
+                    // Check representability before packing the native bit fields.
+                    if (((effect.type | effect.fit | effect.gradientMode | effect.colorType) & ~3) != 0 ||
+                            (effect.stopCount & ~7) != 0)
+                        throw new IllegalArgumentException("Invalid font style effect fields");
+                    FontcStyleEffect.m_Bits(item, (short)(effect.type | (effect.fit << 2) |
+                            (effect.gradientMode << 4) | (effect.colorType << 6) | (effect.stopCount << 8)));
                     FontcStyleEffect.m_Parameters(item, arena.allocateFrom(JAVA_FLOAT, effect.parameters));
                     FontcStyleEffect.m_Positions(item, arena.allocateFrom(JAVA_FLOAT, effect.positions));
                 }
@@ -916,6 +918,8 @@ public final class FontRenderer implements AutoCloseable {
             throw new NullPointerException();
         if (properties.faceColor.length != 4 || properties.outlineColor.length != 4 || properties.shadowColor.length != 4)
             throw new IllegalArgumentException("Invalid color array size");
+        if (((properties.align | properties.verticalAlign) & ~3) != 0)
+            throw new IllegalArgumentException("Invalid font alignment");
 
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment values = FontcProperties.allocate(arena);
@@ -928,12 +932,11 @@ public final class FontRenderer implements AutoCloseable {
             FontcProperties.m_Leading(values, properties.leading);
             FontcProperties.m_Tracking(values, properties.tracking);
             FontcProperties.m_SdfScale(values, properties.sdfScale);
-            FontcProperties.m_LineBreak(values, flag(properties.lineBreak));
-            FontcProperties.m_Align(values, properties.align);
-            FontcProperties.m_VerticalAlign(values, properties.verticalAlign);
             FontcProperties.m_BaseStyle(values, properties.baseStyle);
-            FontcProperties.m_UseBaseStyle(values, flag(properties.useBaseStyle));
-            FontcProperties.m_UseGPUEffects(values, flag(properties.useGpuEffects));
+            // Matches the low-to-high bit fields in FontcProperties.
+            FontcProperties.m_Bits(values, (byte)(flag(properties.lineBreak) | (properties.align << 1) |
+                    (properties.verticalAlign << 3) | (flag(properties.useBaseStyle) << 5) |
+                    (flag(properties.useGpuEffects) << 6)));
             checkResult(FontcSetProperties(requireHandle(), values), "Unable to set native font renderer properties");
         }
     }

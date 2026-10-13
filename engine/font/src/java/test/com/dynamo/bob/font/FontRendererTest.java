@@ -339,6 +339,81 @@ public class FontRendererTest {
         }
     }
 
+    // Packed types, fits, and 1-4 stops must survive both directions of the Java/native ABI.
+    @Test
+    public void testPackedGradientStopsRoundTrip() throws Exception {
+        String[] colors = {"#FF0000", "#00FF00", "#0000FF", "#FFFF00"};
+        String[] fits = {"glyph", "span", "block"};
+        int[] fitValues = {0, 1, 3};
+        String[] types = {"linear", "radial"};
+        try (FontRenderer renderer = createRenderer(32)) {
+            for (int type = 0; type < types.length; ++type) {
+                for (int fit = 0; fit < fits.length; ++fit) {
+                    for (int count = 1; count <= 4; ++count) {
+                        StringBuilder markup = new StringBuilder("<gradient type=" + types[type] + " fit=" + fits[fit]);
+                        for (int stop = 0; stop < count; ++stop)
+                            markup.append(" color").append(stop).append('=').append(colors[stop]);
+                        markup.append('>');
+                        FontRenderer.Style style = FontRenderer.compileStyle(markup.toString());
+                        FontRenderer.StyleEffect effect = style.effects[0];
+                        assertEquals(0, effect.type);
+                        assertEquals(fitValues[fit], effect.fit);
+                        assertEquals(3, effect.gradientMode);
+                        assertEquals(type + 1, effect.colorType);
+                        assertEquals(count, effect.stopCount);
+                        renderer.setStyle(1, style);
+
+                        FontRenderer.Properties properties = properties(100, 1, 0);
+                        properties.baseStyle = 1;
+                        properties.useBaseStyle = true;
+                        properties.useGpuEffects = true;
+                        renderer.setProperties(properties);
+                        renderer.setText("AB");
+                        renderer.beginBatch();
+                        renderer.generateTexture(0);
+                        TestVertices named = getVertices(renderer, IDENTITY);
+                        ByteBuffer namedEffects = renderer.getEffectTexture().pixels;
+
+                        properties.useBaseStyle = false;
+                        renderer.setProperties(properties);
+                        renderer.setMarkup(markup + "AB</gradient>");
+                        renderer.beginBatch();
+                        renderer.generateTexture(0);
+                        TestVertices inline = getVertices(renderer, IDENTITY);
+                        assertEquals(inline.vertices, named.vertices);
+                        ByteBuffer inlineEffects = renderer.getEffectTexture().pixels;
+                        int row = (int)inline.vertices.getFloat(64);
+                        assertTrue(row > 0);
+                        assertEquals(count, Byte.toUnsignedInt(inlineEffects.get(row * 64 + 1)));
+                        for (int i = 0; i < 64; ++i)
+                            assertEquals(inlineEffects.get(row * 64 + i), namedEffects.get(row * 64 + i));
+                    }
+                }
+            }
+        }
+    }
+
+    // Values outside the packed fields must fail instead of wrapping into valid effects or alignments.
+    @Test
+    public void testPackedFieldsRejectTruncation() throws Exception {
+        try (FontRenderer renderer = createRenderer(32)) {
+            FontRenderer.Style style = FontRenderer.compileStyle("<gradient type=linear color0=#FF0000>");
+            style.effects[0].stopCount = 8;
+            try {
+                renderer.setStyle(1, style);
+                fail("An overflowing stop count must be rejected");
+            } catch (IllegalArgumentException expected) {
+            }
+            FontRenderer.Properties properties = properties(100, 1, 0);
+            properties.align = 4;
+            try {
+                renderer.setProperties(properties);
+                fail("An overflowing alignment must be rejected");
+            } catch (IllegalArgumentException expected) {
+            }
+        }
+    }
+
     @Test
     public void testLayoutSelection() throws Exception {
         try (FontRenderer legacy = createRenderer(32.0f, 512, 512, false);
