@@ -119,16 +119,22 @@
         reverse (not (zero? (bit-xor flip-horizontal flip-vertical)))
         tex-coord-order-unflipped (flip-strategy->tex-coord-order 0)
         frames (mapv (fn [i]
-                       (let [frame-index (frame-indices i)
+                     (let [frame-index (frame-indices i)
                              page-index (page-indices frame-index)
                              frame-geometry (geometries frame-index)
                              quad-tex-coords (->quad-tex-coords frame-index tex-coords tex-coord-order)
-                             quad-tex-coords-raw (->quad-tex-coords frame-index tex-coords tex-coord-order-unflipped)]
-                         (if (and use-geometries
-                                  (not= :sprite-trim-mode-off
-                                        (:trim-mode frame-geometry)))
-                           (->anim-frame-from-geometry page-index quad-tex-coords quad-tex-coords-raw frame-geometry scale-factors reverse)
-                           (->anim-frame page-index quad-tex-coords quad-tex-coords-raw (->tex-dim frame-index tex-dims) frame-geometry))))
+                             quad-tex-coords-raw (->quad-tex-coords frame-index tex-coords tex-coord-order-unflipped)
+                             frame (if (and use-geometries
+                                            (not= :sprite-trim-mode-off
+                                                  (:trim-mode frame-geometry)))
+                                     (->anim-frame-from-geometry page-index quad-tex-coords quad-tex-coords-raw frame-geometry scale-factors reverse)
+                                     (->anim-frame page-index quad-tex-coords quad-tex-coords-raw (->tex-dim frame-index tex-dims) frame-geometry))]
+                         ;; Keep the authoritative animation flip flags for
+                         ;; the tiled Slice-9 editor preview. Comparing raw
+                         ;; and displayed UV orders cannot identify flips.
+                         (assoc frame
+                           :flip-horizontal (pos? flip-horizontal)
+                           :flip-vertical (pos? flip-vertical))))
                      (range start end))]
     {:width (transduce (map :width) max 0 frames)
      :height (transduce (map :height) max 0 frames)
