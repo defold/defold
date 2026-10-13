@@ -3228,7 +3228,7 @@ namespace dmGui
      * property repeat_zoom can be animated using gui.animate().
      * @name gui.set_repeat_zoom
      * @param node [type:node] target box node
-     * @param zoom [type:vector3|vector4] positive XY magnification
+     * @param zoom [type:vector3|vector4] XY magnification from 0.01 to 256
      */
     static int LuaSetRepeatZoom(lua_State* L)
     {
@@ -3240,9 +3240,9 @@ namespace dmGui
             zoom = Vector4(*v3,0);
         else
             zoom = *dmScript::CheckVector4(L, 2);
-        if (!(zoom.getX() > 0.0f && zoom.getY() > 0.0f &&
+        if (!(zoom.getX() >= 0.01f && zoom.getY() >= 0.01f &&
               zoom.getX() <= 256.0f && zoom.getY() <= 256.0f))
-            return luaL_error(L, "repeat zoom components must be in (0, 256]");
+            return luaL_error(L, "repeat zoom components must be in [0.01, 256]");
         Scene* scene = GuiScriptInstance_Check(L);
         if (dmGui::GetNodeType(scene, node) != dmGui::NODE_TYPE_BOX)
             return luaL_error(L, "repeat zoom is supported only on box nodes");

@@ -4268,11 +4268,15 @@ namespace dmGui
 
     dmhash_t GetPropertyHash(Property property)
     {
-        dmhash_t hash = 0;
-        if (PROPERTY_SHADOW >= property) {
-            hash = g_PropTable[property].m_Hash;
+        // Not every Property enum value has an entry in g_PropTable.
+        // In particular PIE/TEXT/PREV_EULER and REPEAT_MODE are not named
+        // vector properties, so indexing this table by the enum is unsafe.
+        for (uint32_t i = 0; i < sizeof(g_PropTable) / sizeof(g_PropTable[0]); ++i)
+        {
+            if (g_PropTable[i].m_Property == property)
+                return g_PropTable[i].m_Hash;
         }
-        return hash;
+        return 0;
     }
 
     void CancelAnimationHash(HScene scene, HNode node, dmhash_t property_hash)
