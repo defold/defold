@@ -612,12 +612,17 @@ namespace dmGraphics
             context->m_CommandQueue->ExecuteCommandLists(1, lists);
         }
         WaitForDX12Idle(context);
+        // Resource replacement after this flush must not hit descriptors for old native views.
+        for (uint32_t i = 0; i < MAX_FRAMEBUFFERS; ++i)
+            context->m_FrameResources[i].m_ScratchBuffer.Reset(context);
         if (recording)
         {
             DX12FrameResource& frame = context->m_FrameResources[context->m_CurrentFrameIndex];
             HRESULT hr = frame.m_CommandAllocator->Reset();
             CHECK_HR_ERROR(hr);
             hr = context->m_CommandList->Reset(frame.m_CommandAllocator, NULL);
+            memset(&context->m_DrawState, 0, sizeof(context->m_DrawState));
+            frame.m_ScratchBuffer.m_BoundPool = ~0u;
             CHECK_HR_ERROR(hr);
             context->m_ViewportChanged = 1;
             if (bound)
@@ -698,6 +703,8 @@ namespace dmGraphics
             ++frame.m_FenceValue;
             frame.m_CommandAllocator->Reset();
             context->m_CommandList->Reset(frame.m_CommandAllocator, NULL);
+            memset(&context->m_DrawState, 0, sizeof(context->m_DrawState));
+            frame.m_ScratchBuffer.m_BoundPool = ~0u;
             RenderTarget* current = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
             if (current)
                 current->m_IsBound = 0;
@@ -1021,9 +1028,23 @@ namespace dmGraphics
         return true;
     }
 
+    static void SetRootDescriptorTable(DX12Context* context, bool graphics, uint32_t index, D3D12_GPU_DESCRIPTOR_HANDLE handle)
+    {
+        assert(index < 64);
+        D3D12_GPU_DESCRIPTOR_HANDLE* tables = graphics ? context->m_DrawState.m_GraphicsTables : context->m_DrawState.m_ComputeTables;
+        if (tables[index].ptr == handle.ptr)
+            return;
+        if (graphics)
+            context->m_CommandList->SetGraphicsRootDescriptorTable(index, handle);
+        else
+            context->m_CommandList->SetComputeRootDescriptorTable(index, handle);
+        tables[index] = handle;
+    }
+
     void DX12ScratchBuffer::Initialize(DX12Context* context, uint32_t frame_index)
     {
         m_CurrentPool = 0;
+        m_BoundPool = ~0u;
     }
 
     void DX12ScratchBuffer::Destroy()
@@ -1083,7 +1104,13 @@ namespace dmGraphics
         }
         DX12DescriptorPool& pool = m_DescriptorPools[m_CurrentPool];
         ID3D12DescriptorHeap* heaps[] = { pool.m_ResourceHeap, pool.m_SamplerHeap };
-        context->m_CommandList->SetDescriptorHeaps(DM_ARRAY_SIZE(heaps), heaps);
+        if (m_BoundPool != m_CurrentPool)
+        {
+            context->m_CommandList->SetDescriptorHeaps(DM_ARRAY_SIZE(heaps), heaps);
+            memset(context->m_DrawState.m_GraphicsTables, 0, sizeof(context->m_DrawState.m_GraphicsTables));
+            memset(context->m_DrawState.m_ComputeTables, 0, sizeof(context->m_DrawState.m_ComputeTables));
+            m_BoundPool = m_CurrentPool;
+        }
         return true;
     }
 
@@ -1133,18 +1160,35 @@ namespace dmGraphics
     void DX12ScratchBuffer::AllocateSampler(DX12Context* context, DX12PipelineType pipeline_type, const DX12TextureSampler& sampler, uint32_t sampler_index)
     {
         DX12DescriptorPool& pool = m_DescriptorPools[m_CurrentPool];
+        for (uint32_t i = 0; i < pool.m_SamplerCount; ++i)
+        {
+            const DX12SamplerDescriptor& entry = pool.m_Samplers[(pool.m_NextSampler + DX12DescriptorPool::CACHE_SIZE - 1 - i) % DX12DescriptorPool::CACHE_SIZE];
+            if (memcmp(&entry.m_Desc, &sampler.m_Desc, sizeof(sampler.m_Desc)) == 0)
+            {
+                if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+                    SetRootDescriptorTable(context, true, sampler_index, entry.m_Handle);
+                else
+                    SetRootDescriptorTable(context, false, sampler_index, entry.m_Handle);
+                return;
+            }
+        }
         assert(pool.m_SamplerCursor < pool.m_SamplerCapacity);
         const uint32_t size = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
         CD3DX12_CPU_DESCRIPTOR_HANDLE cpu(pool.m_SamplerHeap->GetCPUDescriptorHandleForHeapStart(), pool.m_SamplerCursor, size);
         CD3DX12_GPU_DESCRIPTOR_HANDLE handle_sampler(pool.m_SamplerHeap->GetGPUDescriptorHandleForHeapStart(), pool.m_SamplerCursor++, size);
         context->m_Device->CreateSampler(&sampler.m_Desc, cpu);
+        DX12SamplerDescriptor& entry = pool.m_Samplers[pool.m_NextSampler];
+        entry.m_Desc = sampler.m_Desc;
+        entry.m_Handle = handle_sampler;
+        pool.m_NextSampler = (pool.m_NextSampler + 1) % DX12DescriptorPool::CACHE_SIZE;
+        pool.m_SamplerCount = dmMath::Min(pool.m_SamplerCount + 1, DX12DescriptorPool::CACHE_SIZE);
         if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
         {
-            context->m_CommandList->SetGraphicsRootDescriptorTable(sampler_index, handle_sampler);
+            SetRootDescriptorTable(context, true, sampler_index, handle_sampler);
         }
         else
         {
-            context->m_CommandList->SetComputeRootDescriptorTable(sampler_index, handle_sampler);
+            SetRootDescriptorTable(context, false, sampler_index, handle_sampler);
         }
     }
 
@@ -1183,6 +1227,18 @@ namespace dmGraphics
         }
 
         DX12DescriptorPool& pool = m_DescriptorPools[m_CurrentPool];
+        for (uint32_t i = 0; i < pool.m_TextureCount; ++i)
+        {
+            const DX12TextureDescriptor& entry = pool.m_Textures[(pool.m_NextTexture + DX12DescriptorPool::CACHE_SIZE - 1 - i) % DX12DescriptorPool::CACHE_SIZE];
+            if (entry.m_Resource == texture->m_Resource && memcmp(&entry.m_Desc, &view_desc, sizeof(view_desc)) == 0)
+            {
+                if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+                    SetRootDescriptorTable(context, true, texture_index, entry.m_Handle);
+                else
+                    SetRootDescriptorTable(context, false, texture_index, entry.m_Handle);
+                return;
+            }
+        }
         assert(pool.m_ResourceCursor < pool.m_ResourceCapacity);
         uint32_t desc_size   = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         uint32_t desc_offset = desc_size * pool.m_ResourceCursor;
@@ -1196,14 +1252,20 @@ namespace dmGraphics
         pool.m_ResourceCursor++;
 
         CD3DX12_GPU_DESCRIPTOR_HANDLE handle_texture(pool.m_ResourceHeap->GetGPUDescriptorHandleForHeapStart(), desc_offset);
+        DX12TextureDescriptor& entry = pool.m_Textures[pool.m_NextTexture];
+        entry.m_Resource = texture->m_Resource;
+        entry.m_Desc = view_desc;
+        entry.m_Handle = handle_texture;
+        pool.m_NextTexture = (pool.m_NextTexture + 1) % DX12DescriptorPool::CACHE_SIZE;
+        pool.m_TextureCount = dmMath::Min(pool.m_TextureCount + 1, DX12DescriptorPool::CACHE_SIZE);
 
         if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
         {
-            context->m_CommandList->SetGraphicsRootDescriptorTable(texture_index, handle_texture);
+            SetRootDescriptorTable(context, true, texture_index, handle_texture);
         }
         else
         {
-            context->m_CommandList->SetComputeRootDescriptorTable(texture_index, handle_texture);
+            SetRootDescriptorTable(context, false, texture_index, handle_texture);
         }
     }
 
@@ -1233,9 +1295,9 @@ namespace dmGraphics
         CD3DX12_GPU_DESCRIPTOR_HANDLE gpu(pool.m_ResourceHeap->GetGPUDescriptorHandleForHeapStart(), pool.m_ResourceCursor++, stride);
         context->m_Device->CreateUnorderedAccessView(texture->m_Resource, NULL, &view, cpu);
         if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
-            context->m_CommandList->SetGraphicsRootDescriptorTable(index, gpu);
+            SetRootDescriptorTable(context, true, index, gpu);
         else
-            context->m_CommandList->SetComputeRootDescriptorTable(index, gpu);
+            SetRootDescriptorTable(context, false, index, gpu);
         // Only mip zero is exposed by this UAV; array layers have a mip-count stride.
         const UINT layers = view.ViewDimension == D3D12_UAV_DIMENSION_TEXTURE3D ? 1 : texture->m_ResourceDesc.DepthOrArraySize;
         for (UINT i = 0; i < layers; ++i)
@@ -1287,21 +1349,26 @@ namespace dmGraphics
 
         if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
         {
-            context->m_CommandList->SetGraphicsRootDescriptorTable(buffer_index, gpu_handle);
+            SetRootDescriptorTable(context, true, buffer_index, gpu_handle);
         }
         else
         {
-            context->m_CommandList->SetComputeRootDescriptorTable(buffer_index, gpu_handle);
+            SetRootDescriptorTable(context, false, buffer_index, gpu_handle);
         }
     }
 
     void DX12ScratchBuffer::Reset(DX12Context* context)
     {
         m_CurrentPool = 0;
+        m_BoundPool = ~0u;
         for (uint32_t i = 0; i < m_DescriptorPools.Size(); ++i)
         {
             m_DescriptorPools[i].m_ResourceCursor = 0;
             m_DescriptorPools[i].m_SamplerCursor = 0;
+            m_DescriptorPools[i].m_SamplerCount = 0;
+            m_DescriptorPools[i].m_TextureCount = 0;
+            m_DescriptorPools[i].m_NextSampler = 0;
+            m_DescriptorPools[i].m_NextTexture = 0;
         }
     }
 
@@ -1708,6 +1775,9 @@ namespace dmGraphics
 
     void DX12DestroyContextResources(DX12Context* context)
     {
+        for (uint32_t i = 0; i < context->m_PendingBufferUploads.Size(); ++i)
+            context->m_PendingBufferUploads[i].m_Resource->Release();
+        context->m_PendingBufferUploads.SetSize(0);
         // Finish any recorded frame before releasing resources referenced by its commands.
         if (context->m_FrameBegun)
         {
@@ -1843,6 +1913,7 @@ namespace dmGraphics
 
         // Enter "record" mode
         hr = context->m_CommandList->Reset(current_frame_resource.m_CommandAllocator, NULL); // Second argument is a pipeline object (TODO)
+        memset(&context->m_DrawState, 0, sizeof(context->m_DrawState));
         CHECK_HR_ERROR(hr);
 
         current_frame_resource.m_ScratchBuffer.Reset(context);
@@ -1851,6 +1922,7 @@ namespace dmGraphics
         current_frame_resource.m_UploadRing.Reset();
 
         context->m_FrameBegun = 1;
+        FlushPendingBufferUploads(context);
         context->m_ViewportChanged = 1;
 
         BeginRenderPass(context, context->m_MainRenderTarget);
@@ -2194,7 +2266,7 @@ namespace dmGraphics
 
     static void DeviceBufferUploadRangeHelper(DX12Context* context, DX12DeviceBuffer* device_buffer,
         uint32_t offset, uint32_t data_size, uint32_t buffer_size, const void* data,
-        D3D12_RESOURCE_STATES state_before_copy, D3D12_RESOURCE_STATES state_after_copy)
+        D3D12_RESOURCE_STATES state_before_copy, D3D12_RESOURCE_STATES state_after_copy, bool defer_preframe = false)
     {
         if (data_size == 0)
         {
@@ -2215,6 +2287,32 @@ namespace dmGraphics
         }
 
         ID3D12Resource* upload_heap    = 0;
+        if (defer_preframe && !context->m_FrameBegun)
+        {
+            // GUI preparation runs before BeginFrame. Copy transient caller data now,
+            // then use the next frame's fenced upload ring instead of a synchronous submission.
+            const uint32_t data_offset = context->m_PendingBufferData.Size();
+            if (data_offset + data_size > context->m_PendingBufferData.Capacity())
+                context->m_PendingBufferData.SetCapacity(DM_ALIGN(data_offset + data_size, 8192));
+            context->m_PendingBufferData.SetSize(data_offset + data_size);
+            if (data)
+                memcpy(context->m_PendingBufferData.Begin() + data_offset, data, data_size);
+            else
+                memset(context->m_PendingBufferData.Begin() + data_offset, 0, data_size);
+            DX12PendingBufferUpload upload;
+            upload.m_Resource = device_buffer->m_Resource;
+            upload.m_Offset = offset;
+            upload.m_DataSize = data_size;
+            upload.m_BufferSize = buffer_size;
+            upload.m_DataOffset = data_offset;
+            upload.m_StateBefore = state_before_copy;
+            upload.m_StateAfter = state_after_copy;
+            upload.m_Resource->AddRef();
+            if (context->m_PendingBufferUploads.Full())
+                context->m_PendingBufferUploads.OffsetCapacity(8);
+            context->m_PendingBufferUploads.Push(upload);
+            return;
+        }
         uint32_t        upload_offset  = 0;
         uint8_t*        mapped_data    = 0;
         bool            using_ring     = false;
@@ -2330,7 +2428,7 @@ namespace dmGraphics
             state_before_copy = D3D12_RESOURCE_STATE_COMMON;
         }
 
-        DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, device_buffer->m_Capacity, data, state_before_copy, DM_DX12_RESOURCE_STATE_BUFFER_READ);
+        DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, device_buffer->m_Capacity, data, state_before_copy, DM_DX12_RESOURCE_STATE_BUFFER_READ, true);
         device_buffer->m_DataSize = data_size;
         device_buffer->m_Base.m_Size = data_size;
     }
@@ -2342,7 +2440,27 @@ namespace dmGraphics
             return;
         }
 
-        DeviceBufferUploadRangeHelper(context, device_buffer, offset, data_size, device_buffer->m_Base.m_Size, data, DM_DX12_RESOURCE_STATE_BUFFER_READ, DM_DX12_RESOURCE_STATE_BUFFER_READ);
+        DeviceBufferUploadRangeHelper(context, device_buffer, offset, data_size, device_buffer->m_Base.m_Size, data, DM_DX12_RESOURCE_STATE_BUFFER_READ, DM_DX12_RESOURCE_STATE_BUFFER_READ, true);
+    }
+
+    void FlushPendingBufferUploads(DX12Context* context)
+    {
+        assert(context->m_FrameBegun);
+        DX12FrameResource& frame = context->m_FrameResources[context->m_CurrentFrameIndex];
+        for (uint32_t i = 0; i < context->m_PendingBufferUploads.Size(); ++i)
+        {
+            const DX12PendingBufferUpload& upload = context->m_PendingBufferUploads[i];
+            DX12DeviceBuffer buffer = {};
+            buffer.m_Resource = upload.m_Resource;
+            DeviceBufferUploadRangeHelper(context, &buffer, upload.m_Offset, upload.m_DataSize, upload.m_BufferSize,
+                context->m_PendingBufferData.Begin() + upload.m_DataOffset, upload.m_StateBefore, upload.m_StateAfter);
+            // Keep the destination alive even if its buffer was deleted before BeginFrame.
+            if (frame.m_ResourcesToDestroy.Full())
+                frame.m_ResourcesToDestroy.OffsetCapacity(8);
+            frame.m_ResourcesToDestroy.Push(upload.m_Resource);
+        }
+        context->m_PendingBufferUploads.SetSize(0);
+        context->m_PendingBufferData.SetSize(0);
     }
 
     static void CreateConstantBuffer(DX12Context* context, DX12DeviceBuffer* buffer, uint32_t size)
@@ -3278,46 +3396,42 @@ namespace dmGraphics
 
     static DX12Pipeline* GetOrCreatePipeline(DX12Context* context, DX12RenderTarget* current_rt, const PipelineState& pipeline_state, uint32_t num_vx_decls)
     {
-        HashState64 pipeline_hash_state;
-        dmHashInit64(&pipeline_hash_state, false);
-        dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &pipeline_state, sizeof(pipeline_state));
+        DX12PipelineKey key = {};
+        key.m_State = pipeline_state;
+        // Stencil reference is dynamic command-list state, not part of the PSO.
+        key.m_State.m_StencilReference = 0;
+        key.m_ProgramHash = context->m_CurrentProgram->m_Hash;
+        key.m_Root = context->m_CurrentProgram->m_RootSignature;
+        key.m_RenderTargetId = current_rt->m_Base.m_Id;
+        key.m_DepthFormat = current_rt->m_DsvFormat;
+        key.m_Samples = current_rt->m_SampleDesc;
         if (pipeline_state.m_PolygonOffsetFillEnabled)
         {
-            dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_PolygonOffsetFactor, sizeof(float));
-            dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_PolygonOffsetUnits, sizeof(float));
+            key.m_OffsetFactor = context->m_PolygonOffsetFactor;
+            key.m_OffsetUnits = context->m_PolygonOffsetUnits;
         }
-        dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_Base.m_Id, sizeof(current_rt->m_Base.m_Id));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_DsvFormat, sizeof(current_rt->m_DsvFormat));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_SampleDesc, sizeof(current_rt->m_SampleDesc));
-
-        DXGI_FORMAT rtv_formats[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
         if (current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
-        {
-            rtv_formats[0] = current_rt->m_Format;
-        }
+            key.m_ColorFormats[0] = current_rt->m_Format;
         else
         {
             for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
             {
                 if (current_rt->m_Base.m_TextureColor[i])
                 {
-                    DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_Base.m_TextureColor[i]);
-                    rtv_formats[i] = texture_color ? texture_color->m_ResourceDesc.Format : DXGI_FORMAT_UNKNOWN;
+                    DX12Texture* texture = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_Base.m_TextureColor[i]);
+                    key.m_ColorFormats[i] = texture ? texture->m_ResourceDesc.Format : DXGI_FORMAT_UNKNOWN;
                 }
             }
         }
-        dmHashUpdateBuffer64(&pipeline_hash_state, rtv_formats, sizeof(rtv_formats));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_RootSignature, sizeof(context->m_CurrentProgram->m_RootSignature));
-        // dmHashUpdateBuffer64(&pipeline_hash_state, &vk_sample_count,  sizeof(vk_sample_count));
-
-        for (int i = 0; i < num_vx_decls; ++i)
+        key.m_VertexCount = num_vx_decls;
+        for (uint32_t i = 0; i < num_vx_decls; ++i)
         {
-            dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentVertexDeclaration[i]->m_PipelineHash, sizeof(context->m_CurrentVertexDeclaration[i]->m_PipelineHash));
-            dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentVertexDeclaration[i]->m_StepFunction, sizeof(context->m_CurrentVertexDeclaration[i]->m_StepFunction));
+            key.m_VertexHashes[i] = context->m_CurrentVertexDeclaration[i]->m_PipelineHash;
+            key.m_StepFunctions[i] = context->m_CurrentVertexDeclaration[i]->m_StepFunction;
         }
-
-        dmhash_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
+        if (context->m_LastPipeline && memcmp(&key, &context->m_LastPipelineKey, sizeof(key)) == 0)
+            return &context->m_LastPipeline;
+        dmhash_t pipeline_hash = dmHashBuffer64(&key, sizeof(key));
         DX12Pipeline* cached_pipeline = context->m_PipelineCache.Get(pipeline_hash);
 
         if (!cached_pipeline)
@@ -3334,6 +3448,8 @@ namespace dmGraphics
             dmLogDebug("Created new DX12 Pipeline with hash %llu", (unsigned long long) pipeline_hash);
         }
 
+        context->m_LastPipelineKey = key;
+        context->m_LastPipeline = *cached_pipeline;
         return cached_pipeline;
     }
 
@@ -3589,11 +3705,36 @@ namespace dmGraphics
         DX12Pipeline* pipeline = GetOrCreatePipeline(context, current_rt, pipeline_state_draw, num_vx_buffers);
         assert(pipeline && *pipeline);
 
-        context->m_CommandList->SetGraphicsRootSignature(context->m_CurrentProgram->m_RootSignature);
-        context->m_CommandList->SetPipelineState(*pipeline);
-        context->m_CommandList->OMSetStencilRef(pipeline_state_draw.m_StencilReference);
-        context->m_CommandList->IASetPrimitiveTopology(GetPrimitiveTopology(prim_type));
-        context->m_CommandList->IASetVertexBuffers(0, num_vx_buffers, vx_buffer_views); // set the vertex buffer (using the vertex buffer view)
+        DX12DrawState& state = context->m_DrawState;
+        if (state.m_GraphicsRoot != context->m_CurrentProgram->m_RootSignature)
+        {
+            state.m_GraphicsRoot = context->m_CurrentProgram->m_RootSignature;
+            context->m_CommandList->SetGraphicsRootSignature(state.m_GraphicsRoot);
+            memset(state.m_GraphicsTables, 0, sizeof(state.m_GraphicsTables));
+        }
+        if (state.m_Pipeline != *pipeline)
+        {
+            state.m_Pipeline = *pipeline;
+            context->m_CommandList->SetPipelineState(state.m_Pipeline);
+        }
+        if (!state.m_StencilValid || state.m_StencilReference != pipeline_state_draw.m_StencilReference)
+        {
+            state.m_StencilReference = pipeline_state_draw.m_StencilReference;
+            state.m_StencilValid = true;
+            context->m_CommandList->OMSetStencilRef(state.m_StencilReference);
+        }
+        D3D_PRIMITIVE_TOPOLOGY topology = GetPrimitiveTopology(prim_type);
+        if (state.m_Topology != topology)
+        {
+            state.m_Topology = topology;
+            context->m_CommandList->IASetPrimitiveTopology(topology);
+        }
+        if (state.m_VertexCount != num_vx_buffers || memcmp(state.m_VertexViews, vx_buffer_views, sizeof(vx_buffer_views[0]) * num_vx_buffers))
+        {
+            state.m_VertexCount = num_vx_buffers;
+            memcpy(state.m_VertexViews, vx_buffer_views, sizeof(vx_buffer_views[0]) * num_vx_buffers);
+            context->m_CommandList->IASetVertexBuffers(0, num_vx_buffers, vx_buffer_views);
+        }
 
         return CommitUniforms(context, frame_resources, PIPELINE_TYPE_GRAPHICS);
     }
@@ -3603,8 +3744,18 @@ namespace dmGraphics
         DX12FrameResource& frame_resources = context->m_FrameResources[context->m_CurrentFrameIndex];
 
         DX12Pipeline* pipeline = GetOrCreateComputePipeline(context);
-        context->m_CommandList->SetComputeRootSignature(context->m_CurrentProgram->m_RootSignature);
-        context->m_CommandList->SetPipelineState(*pipeline);
+        DX12DrawState& state = context->m_DrawState;
+        if (state.m_ComputeRoot != context->m_CurrentProgram->m_RootSignature)
+        {
+            state.m_ComputeRoot = context->m_CurrentProgram->m_RootSignature;
+            context->m_CommandList->SetComputeRootSignature(state.m_ComputeRoot);
+            memset(state.m_ComputeTables, 0, sizeof(state.m_ComputeTables));
+        }
+        if (state.m_Pipeline != *pipeline)
+        {
+            state.m_Pipeline = *pipeline;
+            context->m_CommandList->SetPipelineState(state.m_Pipeline);
+        }
 
         // gl_NumWorkGroups is a cbuffer in HLSL, so we need to put the group counts in that special buffer first.
         if (context->m_CurrentProgram->m_NumWorkGroupsResourceIndex != 0xff)
@@ -3647,7 +3798,11 @@ namespace dmGraphics
         view.Format                  = type == dmGraphics::TYPE_UNSIGNED_SHORT ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT;
         uint32_t index_offset        = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
 
-        context->m_CommandList->IASetIndexBuffer(&view);
+        if (memcmp(&context->m_DrawState.m_IndexView, &view, sizeof(view)))
+        {
+            context->m_DrawState.m_IndexView = view;
+            context->m_CommandList->IASetIndexBuffer(&view);
+        }
         context->m_CommandList->DrawIndexedInstanced(count, dmMath::Max((uint32_t) 1, instance_count), index_offset, 0, 0);
         SynchronizeShaderWrites(context);
     }
