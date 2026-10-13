@@ -723,7 +723,8 @@ TEST(TexcPreview, CreatePreviewImage)
 TEST(TexcResize, MatchesBasisLanczos4)
 {
     const uint32_t sizes[][4] = {
-        { 1, 1, 7, 9 }, { 2, 2, 4, 4 }, { 3, 5, 11, 7 }, { 11, 7, 3, 5 }, { 1, 37, 13, 3 }, { 37, 1, 3, 13 }, { 19, 31, 7, 41 }, { 19, 31, 41, 7 }, { 63, 65, 32, 33 }, { 64, 64, 32, 32 }, { 64, 64, 1, 1 }, { 7, 9, 7, 9 }, { 71, 53, 97, 83 }, { 512, 1, 1, 1 }, { 1, 512, 1, 1 }, { 16384, 1, 8, 1 }
+        { 1, 1, 7, 9 }, { 2, 2, 4, 4 }, { 3, 5, 11, 7 }, { 11, 7, 3, 5 }, { 1, 37, 13, 3 }, { 37, 1, 3, 13 }, { 19, 31, 7, 41 }, { 19, 31, 41, 7 }, { 63, 65, 32, 33 }, { 64, 64, 32, 32 }, { 64, 64, 1, 1 }, { 7, 9, 7, 9 }, { 71, 53, 97, 83 }, { 512, 1, 1, 1 }, { 1, 512, 1, 1 }, { 16384, 1, 8, 1 },
+        { 512, 512, 32, 32 }, { 512, 512, 16, 16 }, { 512, 256, 32, 16 }, { 256, 512, 16, 32 }, { 64, 512, 64, 32 }, { 64, 1024, 64, 32 }
     };
     dmTexc::ResizeRGBA8Fn kernels[8];
     uint32_t              kernel_count = GetKernels(kernels);
@@ -800,11 +801,13 @@ namespace ResizePassOrder
         HORIZONTAL,
         VERTICAL
     };
-    static Pass g_FirstPass;
+    static Pass     g_FirstPass;
+    static uint32_t g_ConvertedRows;
 
     // Observe row callback order without performing expensive intermediate filtering.
     static void ConvertRow(const uint8_t*, float*, uint32_t)
     {
+        ++g_ConvertedRows;
     }
     static void FilterHorizontal(const float*, float*, uint32_t, const dmTexc::ResizeAxis*)
     {
@@ -820,6 +823,42 @@ namespace ResizePassOrder
     {
     }
 } // namespace ResizePassOrder
+
+// Retain overlapping rows for 16x/32x reductions and ordinary vertical-first passes, without repeated filtering.
+TEST(TexcResize, ReductionsReuseFilteredRows)
+{
+    const struct
+    {
+        uint32_t              m_SourceWidth, m_SourceHeight, m_Width, m_Height;
+        ResizePassOrder::Pass m_FirstPass;
+    } cases[] = {
+        { 512, 512, 32, 32, ResizePassOrder::HORIZONTAL },
+        { 1024, 1024, 32, 32, ResizePassOrder::HORIZONTAL },
+        { 1024, 512, 64, 32, ResizePassOrder::HORIZONTAL },
+        { 512, 1024, 32, 64, ResizePassOrder::HORIZONTAL },
+        { 512, 512, 512, 256, ResizePassOrder::VERTICAL },
+        { 512, 512, 512, 128, ResizePassOrder::VERTICAL },
+        { 512, 512, 512, 64, ResizePassOrder::VERTICAL }
+    };
+    const dmTexc::ResizeKernels kernels = {
+        ResizePassOrder::ConvertRow, ResizePassOrder::FilterHorizontal, ResizePassOrder::AccumulateRow, ResizePassOrder::StoreRow
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        uint32_t sw = cases[i].m_SourceWidth, sh = cases[i].m_SourceHeight, dw = cases[i].m_Width, dh = cases[i].m_Height;
+        uint8_t* source = (uint8_t*)malloc((size_t)sw * sh * 4);
+        uint8_t* destination = (uint8_t*)malloc((size_t)dw * dh * 4);
+        ASSERT_NE((uint8_t*)0, source);
+        ASSERT_NE((uint8_t*)0, destination);
+        ResizePassOrder::g_FirstPass = ResizePassOrder::NONE;
+        ResizePassOrder::g_ConvertedRows = 0;
+        ASSERT_TRUE(dmTexc::ResizeRGBA8WithKernels(source, sw, sh, destination, dw, dh, &kernels));
+        ASSERT_EQ(cases[i].m_FirstPass, ResizePassOrder::g_FirstPass);
+        ASSERT_EQ(sh, ResizePassOrder::g_ConvertedRows);
+        free(source);
+        free(destination);
+    }
+}
 
 // Extreme aspect ratios exercise large pass costs using small input/output buffers.
 TEST(TexcResize, PassOrderCostsDoNotOverflow)

@@ -144,12 +144,19 @@ namespace dmTexc
         }
         bool     vertical_first = ResizeVerticalFirst(source_width, source_height, width, height, axes[0].m_TapCount, axes[1].m_TapCount);
         uint32_t intermediate_width = vertical_first ? source_width : width;
-        uint32_t cache_rows = axes[1].m_CacheRows;
-        // Evicted rows can be recomputed. Bound memory even for extreme reductions.
-        if (cache_rows > 64)
-            cache_rows = 64;
         size_t   row_elements = (size_t)intermediate_width * 4;
-        float*   cache = (float*)malloc(cache_rows * row_elements * sizeof(float));
+        size_t   row_bytes = row_elements * sizeof(float);
+        // Scale the byte budget from 512 KiB at 4K to 2 MiB at 16K source width.
+        // A fixed row cap repeatedly filters evicted rows during large reductions.
+        size_t cache_budget_bytes = (size_t)source_width * 128;
+        size_t budget_rows = cache_budget_bytes / row_bytes;
+        // Retain the previous allowance for wide intermediate rows.
+        if (budget_rows < 64)
+            budget_rows = 64;
+        uint32_t cache_rows = axes[1].m_CacheRows;
+        if (cache_rows > budget_rows)
+            cache_rows = (uint32_t)budget_rows;
+        float*   cache = (float*)malloc(cache_rows * row_bytes);
         int32_t* tags = (int32_t*)malloc(cache_rows * sizeof(int32_t));
         float*   work = (float*)malloc(row_elements * sizeof(float));
         float*   extra = (float*)malloc((size_t)(vertical_first ? width : source_width) * 4 * sizeof(float));
