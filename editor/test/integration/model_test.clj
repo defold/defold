@@ -158,7 +158,6 @@
               (let [mesh-set-build-target (find-mesh-set-build-target (g/node-value node-id :build-targets))]
                 (is (coll/empty? (get-in mesh-set-build-target [:user-data :mesh-set :raw-models])))))))))))
 
-;; Verifies static meshes reject skinned materials in scenes and raw meshes.
 (deftest skinned-material-validation
   (test-util/with-loaded-project
     (doseq [model-path ["/model/test.model" "/model/mesh_selection.model"]]
@@ -175,7 +174,6 @@
                              (eduction (keep :message) (map test-util/localization)
                                        (tree-seq :causes :causes result)))))))))))
 
-;; Verifies missing and stale bindings cannot bypass skinning validation.
 (deftest skinned-material-fallback
   (let [scene (-> (json/read-str (slurp "test/resources/test_project/mesh/two_meshes.gltf") :key-fn keyword)
                   (assoc :materials [{:name "A"} {:name "B"} {:name "C"}])
@@ -201,7 +199,6 @@
         (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace "/builtins/materials/model.material")]
           (is (not (g/error-value? (g/node-value node-id :build-targets)))))))))
 
-;; Verifies skinned materials work without assigned animation clips.
 (deftest skinned-material-without-animations
   (testing "skin data permits skinned materials without animation clips"
     (test-util/with-loaded-project
