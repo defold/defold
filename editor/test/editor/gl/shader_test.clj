@@ -38,11 +38,11 @@
             true]]]
     (testing description
       (let [test-shader (shader/make-shader-lifecycle
-                         ::configured-sampler
-                         (shader/make-shader-request-data [] [] {} nil)
-                         [] configured-uniforms)]
+                          ::configured-sampler
+                          (shader/make-shader-request-data [] [] {} nil)
+                          [] configured-uniforms)]
         (with-redefs [scene-cache/request-object! (fn [_cache-id _request-id _gl _request-data]
-                                                  {:sampler-name->uniform-names active-samplers})]
+                                                    {:sampler-name->uniform-names active-samplers})]
           (is (= expected (shader/has-configured-sampler? test-shader nil "font_effects"))))))))
 
 ;; Verifies that binding a texture to a shader without samplers does not throw,
