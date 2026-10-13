@@ -719,6 +719,38 @@
       (g/set-property! box :texture "atlas_texture/left_hud")
       (is (= (:left-hud sizes) (g/node-value box :size))))))
 
+;; Explicit Repeat must draw at the effective atlas frame size even when the
+;; user chooses Auto. Non-unit zoom and phase still subdivide that frame.
+;; Legacy material-only tiling remains Manual-only for compatibility.
+(deftest gui-box-auto-size-repeat-preview-test
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/logic/main.gui")
+          box (gui-node scene "left")
+          zoom [0.5 0.5 0.0 0.0]
+          offset [4.0 -3.0 0.0 0.0]]
+      (g/set-property! box :texture "atlas_texture/ball")
+      (g/set-property! box :size-mode :size-mode-auto)
+      (g/set-property! box :repeat-zoom zoom)
+      (g/set-property! box :repeat-offset offset)
+      (let [stretch (g/node-value box :scene-renderable-user-data)
+            atlas-page (:page-index stretch)]
+        (is (= 6 (count (:geom-data stretch))))
+        (g/set-property! box :texture-mode :texture-mode-repeat)
+        (let [repeated (g/node-value box :scene-renderable-user-data)
+              repeated-verts (count (:geom-data repeated))]
+          (is (= 54 repeated-verts)
+              "Auto-size Repeat with zoom 0.5 and phase offset must tile, not Stretch")
+          (is (= repeated-verts (count (:uv-data repeated))))
+          (is (= atlas-page (:page-index repeated)))
+          (is (= (:line-data stretch) (:line-data repeated)))
+          (is (= :texture-mode-repeat (:texture-mode (g/node-value box :node-msg))))
+          (is (= zoom (:repeat-zoom (g/node-value box :node-msg))))
+          (is (= offset (:repeat-offset (g/node-value box :node-msg))))
+          (g/set-property! box :size-mode :size-mode-manual)
+          (is (= repeated-verts
+                 (count (:geom-data (g/node-value box :scene-renderable-user-data))))
+              "Manual and Auto modes with equal effective frame size must match"))))))
+
 (deftest gui-scene-pie
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/logic/main.gui")

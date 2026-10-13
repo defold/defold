@@ -2025,14 +2025,26 @@
             (let [frame (get-in anim-data [:frames 0])
                   tiled-preview (and (or (= :texture-mode-repeat texture-mode)
                                          (contains? #{"slice9_tiled" "slice9_tiled_paged"} material))
-                                     (= size-mode :size-mode-manual)
+                                     ;; Explicit Repeat also applies to Auto-sized boxes:
+                                     ;; their effective size is the atlas frame size, and
+                                     ;; non-unit zoom/offset can still produce many tiles.
+                                     ;; Preserve the old material-only opt-in's Manual gate.
+                                     (or (= size-mode :size-mode-manual)
+                                         (= :texture-mode-repeat texture-mode))
                                      frame
                                      (or (slice9/sliced? slice9)
                                          (not (:use-geometries frame))))
                   preview-margins (if tiled-preview
                                     (slice9/oriented-margins slice9 (:flip-horizontal frame) (:flip-vertical frame))
                                     slice9)
-                  vertex-data (texture-set/vertex-data frame size-mode size preview-margins pivot)
+                  ;; Auto size ordinarily takes the raw frame quad, ignoring
+                  ;; Slice-9. Native Repeat retains nonzero Slice-9 borders in
+                  ;; either size mode, so start from the segmented frame here.
+                  preview-size-mode (if (and tiled-preview
+                                             (= :texture-mode-repeat texture-mode))
+                                      :size-mode-manual
+                                      size-mode)
+                  vertex-data (texture-set/vertex-data frame preview-size-mode size preview-margins pivot)
                   vertex-data (if tiled-preview
                                 (slice9/tiled-vertex-data (assoc frame :repeat-zoom repeat-zoom :repeat-offset repeat-offset)
                                   size preview-margins vertex-data)
