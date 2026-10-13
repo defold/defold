@@ -136,16 +136,20 @@ namespace dmGraphics
             case VertexAttribute::TYPE_UNSIGNED_SHORT: scale = 65535.0f; break;
             // Float cannot represent the positive 32-bit integer endpoints exactly.
             // Keep scaling and rounding in double only for these storage formats.
+            // Legacy wasm conversion lowering rejects the exact positive endpoint.
+            // Store it directly and clamp the lower endpoint before scaling.
             case VertexAttribute::TYPE_INT:
             {
                 double scale = value > 0.0f ? 2147483647.0 : 2147483648.0;
-                int32_t packed_value = (int32_t) floor(dmMath::Clamp((double) value, -1.0, 1.0) * scale + 0.5);
+                int32_t packed_value = value >= 1.0f ? 0x7fffffff :
+                    (int32_t) floor(dmMath::Max(value, -1.0f) * scale + 0.5);
                 memcpy(write_ptr, &packed_value, sizeof(packed_value));
                 return write_ptr + sizeof(packed_value);
             }
             case VertexAttribute::TYPE_UNSIGNED_INT:
             {
-                uint32_t packed_value = (uint32_t) (dmMath::Clamp((double) value, 0.0, 1.0) * 4294967295.0 + 0.5);
+                uint32_t packed_value = value >= 1.0f ? 0xffffffffu :
+                    (uint32_t) (dmMath::Max(value, 0.0f) * 4294967295.0 + 0.5);
                 memcpy(write_ptr, &packed_value, sizeof(packed_value));
                 return write_ptr + sizeof(packed_value);
             }

@@ -1081,7 +1081,7 @@ TEST_F(dmGraphicsTest, VertexAttributeNormalizedColor)
     DestroyVertexAttributeInfos(infos);
 }
 
-// Verifies scalar normalization and exact 32-bit endpoints without overflow or double-packing.
+// Verifies scalar normalization, rounding and clamped 32-bit endpoints without overflow or double-packing.
 TEST_F(dmGraphicsTest, VertexAttributeNormalizedIntegerEndpoints)
 {
     dmGraphics::VertexAttributeInfos infos;
@@ -1098,15 +1098,21 @@ TEST_F(dmGraphicsTest, VertexAttributeNormalizedIntegerEndpoints)
     const float* channels[] = { color };
     dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, channels, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, 1, true);
     uint32_t actual[4] = {};
-    dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
-    for (uint32_t i = 0; i < 4; ++i)
-        ASSERT_EQ(0xffffffffu, actual[i]);
-    info.m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
-    dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
-    ASSERT_EQ(0x7fffffffu, actual[0]);
-    color[0] = -1.0f;
-    dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
-    ASSERT_EQ(0x80000000u, actual[0]);
+    const float values[] = { -2.0f, -1.0f, -0.99999994f, -0.5f, 0.0f, 0.5f, 0.99999994f, 1.0f, 2.0f };
+    const uint32_t expected_unsigned[] = { 0, 0, 0, 0, 0, 0x80000000u, 0xfffffeffu, 0xffffffffu, 0xffffffffu };
+    const uint32_t expected_signed[] = { 0x80000000u, 0x80000000u, 0x80000080u, 0xc0000000u, 0, 0x40000000u, 0x7fffff7fu, 0x7fffffffu, 0x7fffffffu };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(values); ++i)
+    {
+        color[0] = values[i];
+        info.m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(actual); ++j)
+            ASSERT_EQ(expected_unsigned[i], actual[j]);
+        info.m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(actual); ++j)
+            ASSERT_EQ(expected_signed[i], actual[j]);
+    }
     const dmGraphics::VertexAttribute::DataType types[] = {
         dmGraphics::VertexAttribute::TYPE_BYTE, dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE,
         dmGraphics::VertexAttribute::TYPE_SHORT, dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT,
