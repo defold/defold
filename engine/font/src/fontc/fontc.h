@@ -694,6 +694,7 @@ extern "C"
      * Enable FontcProperties.m_UseGPUEffects when the material has a font_effects
      * sampler, then call this after writing all vertices in the batch. Keep the
      * returned snapshot with those vertices; the next batch may reuse lookup indices.
+     * Copies only the used rows. Batches without GPU effects return an empty texture.
      * Release the copied pixel buffer with FontcFreeTexture.
      *
      * @name FontcGetEffectTexture

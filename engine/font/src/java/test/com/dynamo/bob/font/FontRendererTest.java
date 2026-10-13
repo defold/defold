@@ -182,7 +182,9 @@ public class FontRendererTest {
                 }
                 FontRenderer.Texture first = renderer.getEffectTexture();
                 assertEquals(16, first.width);
-                assertEquals(256, first.height);
+                assertEquals(2, first.height);
+                assertEquals(128, first.pixels.remaining());
+                assertEquals(0.5f, first.pixels.duplicate().order(ByteOrder.LITTLE_ENDIAN).getFloat(0), 0.0f);
                 assertEquals(4, first.channels);
                 assertEquals(2, first.pixels.get(row * 64)); // Radial, not four sampled vertex colors.
                 assertEquals(4, first.pixels.get(row * 64 + 1));
@@ -248,7 +250,7 @@ public class FontRendererTest {
         }
     }
 
-    // Editor metadata grows beyond the initial capacity and snapshots keep earlier records intact.
+    // Snapshots contain only used rows, survive later batches, and allocate no pixels for plain text.
     @Test
     public void testGpuGradientTextureGrowth() throws Exception {
         try (FontRenderer renderer = createRenderer(32, 512, 512, false)) {
@@ -265,8 +267,9 @@ public class FontRendererTest {
             assertEquals(1800, vertices.vertexCount);
             assertEquals(300, (int)vertices.vertices.getFloat(299 * 6 * VERTEX_STRIDE + 64));
             FontRenderer.Texture snapshot = renderer.getEffectTexture();
-            assertEquals(512, snapshot.height);
-            assertEquals(1.0f / 512, snapshot.pixels.duplicate().order(ByteOrder.LITTLE_ENDIAN).getFloat(0), 0.0f);
+            assertEquals(301, snapshot.height);
+            assertEquals(301 * 64, snapshot.pixels.remaining());
+            assertEquals(1.0f / 301, snapshot.pixels.duplicate().order(ByteOrder.LITTLE_ENDIAN).getFloat(0), 0.0f);
             assertEquals(2, snapshot.pixels.get(300 * 64));
             StringBuilder reversed = new StringBuilder();
             for (int i = 300; i >= 1; --i)
@@ -278,8 +281,21 @@ public class FontRendererTest {
             renderer.beginBatch();
             renderer.setMarkup("<gradient type=color color0=#ffffff>A</gradient>");
             getVertices(renderer, IDENTITY);
-            assertEquals(0, renderer.getEffectTexture().pixels.get(64));
+            FontRenderer.Texture small = renderer.getEffectTexture();
+            assertEquals(2, small.height);
+            assertEquals(128, small.pixels.remaining());
+            assertEquals(0.5f, small.pixels.duplicate().order(ByteOrder.LITTLE_ENDIAN).getFloat(0), 0.0f);
+            assertEquals(0, small.pixels.get(64));
             assertEquals(2, snapshot.pixels.get(64));
+
+            renderer.beginBatch();
+            renderer.setText("A");
+            TestVertices plain = getVertices(renderer, IDENTITY);
+            assertEquals(0.0f, plain.vertices.getFloat(64), 0.0f);
+            FontRenderer.Texture empty = renderer.getEffectTexture();
+            assertEquals(0, empty.width);
+            assertEquals(0, empty.height);
+            assertNull(empty.pixels);
         }
     }
 

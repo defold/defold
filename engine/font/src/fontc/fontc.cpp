@@ -1401,16 +1401,22 @@ FontRendererResult FontcGetEffectTexture(HFontRenderer renderer, FontcTexture* t
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
     }
     memset(texture, 0, sizeof(*texture));
+    if (renderer->m_EffectCount == 1)
+    {
+        return FONT_RENDERER_RESULT_OK;
+    }
     texture->m_Width = FONT_EFFECT_TEXTURE_WIDTH;
-    texture->m_Height = renderer->m_Effects.Size();
+    texture->m_Height = renderer->m_EffectCount;
     texture->m_Channels = 4;
-    texture->m_PixelCount = renderer->m_Effects.Size() * sizeof(FontEffectRecord);
+    texture->m_PixelCount = texture->m_Height * sizeof(FontEffectRecord);
     texture->m_Pixels = (uint8_t*)malloc(texture->m_PixelCount);
     if (!texture->m_Pixels)
     {
         return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
     }
     memcpy(texture->m_Pixels, renderer->m_Effects.Begin(), texture->m_PixelCount);
+    // Snapshots keep their own height; the renderer retains its larger working cache.
+    FontSetEffectTextureHeight((FontEffectRecord*)texture->m_Pixels, texture->m_Height);
     return FONT_RENDERER_RESULT_OK;
 }
 

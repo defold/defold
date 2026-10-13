@@ -1020,6 +1020,7 @@ public final class FontRenderer implements AutoCloseable {
     /**
      * Copies the lookup texture for GPU effects emitted since {@link #beginBatch()}.
      * Keep this snapshot with its vertex buffer when caching editor render batches.
+     * Batches without GPU effects return an empty texture with null pixels.
      */
     public synchronized Texture getEffectTexture() {
         try (Arena arena = Arena.ofConfined()) {

@@ -1215,13 +1215,15 @@
      (when (.-use-gpu-effects request)
        (let [^FontRenderer$Texture effect-texture (.getEffectTexture ^FontRenderer native-renderer)
              pixels (.-pixels effect-texture)]
-         (texture/make-gpu-texture
-           [::effects (.-request-id request)]
-           [(texture/make-texture-request-data pixels (buffers/data-hash pixels) :rgba
-                                               (.-width effect-texture) (.-height effect-texture) false)]
-           (vector-of :int 1)
-           {:min-filter gl/nearest :mag-filter gl/nearest
-            :wrap-s gl/clamp-to-edge :wrap-t gl/clamp-to-edge})))}))
+         (if-not pixels
+           (assoc @texture/white-pixel :texture-units (vector-of :int 1))
+           (texture/make-gpu-texture
+             [::effects (.-request-id request)]
+             [(texture/make-texture-request-data pixels (buffers/data-hash pixels) :rgba
+                                                 (.-width effect-texture) (.-height effect-texture) false)]
+             (vector-of :int 1)
+             {:min-filter gl/nearest :mag-filter gl/nearest
+              :wrap-s gl/clamp-to-edge :wrap-t gl/clamp-to-edge}))))}))
 
 (defn- make-native-vb
   [_gl request]
