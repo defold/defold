@@ -276,6 +276,17 @@
 
 (defn- validate-skinned-materials [_node-id mesh-content mesh mesh-name mesh-index material-skinning-infos]
   (let [mesh-set (:mesh-set mesh-content)
+        slots (mapv :name (:materials mesh-set))
+        slot-index (fn slot-index [material-info] (.indexOf ^java.util.List slots (:name material-info)))
+        ;; Match the runtime's padding and sorting, including stale names (-1).
+        runtime-slots (vec (sort (coll/resize (mapv slot-index material-skinning-infos)
+                                              (max (count slots) (count material-skinning-infos))
+                                              (slot-index (first material-skinning-infos)))))
+        ;; qsort may reorder ties; check every skinned binding in each group.
+        skinned-material-by-slot (into {}
+                                       (comp (filter #(coll/not-empty (:skin-attributes %)))
+                                             (map (fn [info] [(slot-index info) info])))
+                                       material-skinning-infos)
         geometry (if (str/blank? mesh-name)
                    (:models mesh-set)
                    (into []
@@ -289,9 +300,7 @@
               (keep (fn [{:keys [weights bone-indices material-index mesh-index]}]
                       (when (or (coll/empty? weights) (coll/empty? bone-indices))
                         (let [slot (get-in mesh-set [:materials material-index :name])
-                              material-info (if (= 1 (count material-skinning-infos))
-                                              (first material-skinning-infos)
-                                              (coll/first-where #(= slot (:name %)) material-skinning-infos))]
+                              material-info (get skinned-material-by-slot (nth runtime-slots material-index))]
                           (when-let [attributes (coll/not-empty (:skin-attributes material-info))]
                             (g/->error _node-id :materials :fatal nil
                                        (localization/message "error.model-skinned-material"

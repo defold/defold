@@ -90,6 +90,21 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         if (materials.isEmpty() && !model.getMaterial().isEmpty()) {
             materials = List.of(Material.newBuilder().setName("default").setMaterial(model.getMaterial()).build());
         }
+        List<String> slots = new ArrayList<>();
+        for (Rig.Material material : meshSet.getMaterialsList()) {
+            slots.add(material.getName());
+        }
+        List<Integer> runtimeSlots = new ArrayList<>();
+        for (Material material : materials) {
+            runtimeSlots.add(slots.indexOf(material.getName()));
+        }
+        // Match res_model.cpp: pad with binding zero, then sort by the resolved slot (-1 for stale names).
+        if (!runtimeSlots.isEmpty()) {
+            while (runtimeSlots.size() < slots.size()) {
+                runtimeSlots.add(runtimeSlots.get(0));
+            }
+            runtimeSlots.sort(Integer::compare);
+        }
         // Selected raw meshes can reuse geometry from a scene model. Whole scenes omit unused raw meshes.
         List<Rig.Model> geometry = new ArrayList<>(meshSet.getModelsList());
         if (selectedMeshIndex >= 0) {
@@ -114,8 +129,8 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
                 }
                 for (Rig.Mesh mesh : geometryModel.getMeshesList()) {
                     String slot = meshSet.getMaterials(mesh.getMaterialIndex()).getName();
-                    // A single material also covers the legacy default-material binding.
-                    if (!slot.equals(material.getName()) && materials.size() != 1) {
+                    // qsort can reorder equal keys: validate every binding that can occupy this position.
+                    if (runtimeSlots.get(mesh.getMaterialIndex()) != slots.indexOf(material.getName())) {
                         continue;
                     }
                     if (mesh.getWeightsCount() == 0 || mesh.getBoneIndicesCount() == 0) {

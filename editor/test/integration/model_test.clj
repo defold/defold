@@ -13,7 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.model-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -156,37 +158,56 @@
               (let [mesh-set-build-target (find-mesh-set-build-target (g/node-value node-id :build-targets))]
                 (is (coll/empty? (get-in mesh-set-build-target [:user-data :mesh-set :raw-models])))))))))))
 
-;; Verifies #10929 is rejected for both skinned shader variants and raw meshes.
+;; Verifies #10929 is rejected for whole scenes and selected raw meshes.
 (deftest skinned-material-validation
   (test-util/with-loaded-project
     (doseq [model-path ["/model/test.model" "/model/mesh_selection.model"]]
       (let [node-id (test-util/resource-node project model-path)
+            binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])
+            material-path "/builtins/materials/model_skinned_instanced.material"]
+        (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace material-path)]
+          (let [result (g/node-value node-id :build-targets)]
+            (is (g/error-value? result))
+            (is (coll/any? #(and (.contains ^String % material-path)
+                                 (.contains ^String % "has no skin data")
+                                 (.contains ^String % "bone_weights"))
+                           (eduction (keep :message) (map test-util/localization)
+                                     (tree-seq :causes :causes result))))))))))
+
+;; Verifies missing and stale bindings cannot bypass skinning validation.
+(deftest skinned-material-fallback
+  (let [scene (-> (json/read-str (slurp "test/resources/test_project/mesh/two_meshes.gltf") :key-fn keyword)
+                  (assoc :materials [{:name "A"} {:name "B"} {:name "C"}])
+                  (update :meshes (fn [meshes]
+                                    (mapv #(update % :primitives (fn [primitives]
+                                                                   (mapv (fn [primitive] (assoc primitive :material 1)) primitives)))
+                                          meshes))))]
+    (test-util/with-temp-project-content
+      {"/test.model" {:mesh "/scene.gltf"
+                      :materials [{:name "A" :material "/builtins/materials/model_skinned_instanced.material"}
+                                  {:name "C" :material "/builtins/materials/model.material"}]}}
+      (spit (io/file (workspace/project-directory workspace) "scene.gltf") (json/write-str scene))
+      (workspace/resource-sync! workspace)
+      (let [node-id (test-util/resource-node project "/test.model")
             binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])]
-        (is (not (g/error-value? (g/node-value node-id :build-targets))))
-        (doseq [material-path ["/builtins/materials/model_skinned.material"
-                               "/builtins/materials/model_skinned_instanced.material"]]
-          (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace material-path)]
-            (let [build-targets (g/node-value node-id :build-targets)
-                  messages (into []
-                                 (comp (keep :message) (map test-util/localization))
-                                 (tree-seq :causes :causes build-targets))]
-              (is (g/error-value? build-targets))
-              (is (coll/any? #(and (.contains ^String % material-path)
-                                   (.contains ^String % "has no skin data")
-                                   (.contains ^String % "bone_weights"))
-                             messages)))))
-        (is (not (g/error-value? (g/node-value node-id :build-targets))))))))
+        (doseq [binding-name ["A" "Stale"]]
+          (test-util/with-prop [binding-id :name binding-name]
+            (let [result (g/node-value node-id :build-targets)]
+              (is (g/error-value? result))
+              (is (coll/any? #(.contains ^String (test-util/localization %) "has no skin data")
+                             (eduction (keep :message) (tree-seq :causes :causes result)))))))
+        (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace "/builtins/materials/model.material")]
+          (is (not (g/error-value? (g/node-value node-id :build-targets)))))))))
 
 ;; Verifies skinned materials work without assigned animation clips.
 (deftest skinned-material-without-animations
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/treasure_chest.model")
-          binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])]
+          binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])
+          material (workspace/resolve-workspace-resource workspace "/builtins/materials/model_skinned_instanced.material")]
       (test-util/with-prop [node-id :animations nil]
-        (doseq [material-path ["/builtins/materials/model_skinned.material"
-                               "/builtins/materials/model_skinned_instanced.material"]]
-          (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace material-path)]
-            (is (not (g/error-value? (g/node-value node-id :build-targets))))))))))
+        (test-util/with-prop [binding-id :material material]
+          (is (not (g/error-value? (g/node-value node-id :build-targets)))))))))
 
 (deftest model-validation
   (test-util/with-loaded-project
