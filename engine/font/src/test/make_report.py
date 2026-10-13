@@ -72,6 +72,12 @@ def cases(full, rich):
                     inline_shadow=f'<shadow x=6 y=-6 blur=4>{TEXT}</shadow>',
                     mixed=f'ABCD<color=#ff8080>EFGab</color>cdefG 0123456789').items():
                     add(source,multi,name,text=text,markup=True)
+    if rich:
+        add('ttf_sdf', False, 'radial_block_ellipse', markup=True, outline=0, outline_alpha=0,
+            description='Verifies a rotated elliptical four-stop radial gradient across a multiline block.',
+            text='<gradient type=radial fit=block angle=45 radius-x=0.5 radius-y=0.25\n'
+                 '          color0=#FFFF00 color1=#FF8000 color2=#FF0000 color3=#8000FF>\n'
+                 'Lorem ipsum\ndolor sit amet\n</gradient>')
     if full:
         lorem=json.loads((DATA/'lorem.json').read_text(encoding="utf-8"))
         for language in ('english','arabic'):
@@ -101,6 +107,8 @@ def generate_cases(output):
             values += [str(float(c.get('edge_scale', 0)))+'f', str(c.get('pivot', -1))]
             if 'pivot' in c:
                 lines.append('// Verifies compiled-font placement over a white box at this pivot; guards against #13339.')
+            if 'description' in c:
+                lines.append('// ' + c['description'])
             lines.append('TEST(FontImages_'+c['id']+', Render)\n{\n    const FontImageCase c = { '+', '.join(values)+' };\n    TestFontImage(c);\n}\n')
         lines.append('#endif')
     output.parent.mkdir(parents=True,exist_ok=True); output.write_text('\n'.join(lines)+'\n', encoding="utf-8")

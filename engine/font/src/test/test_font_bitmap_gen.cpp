@@ -610,6 +610,10 @@ static void TestFontImage(const FontImageCase& c)
     TextLayoutSettings settings = {};
     settings.m_Size = c.m_Size;
     FontImageCaptureGeometry geometry = arabic ? g_Capture_arabic : paragraph ? g_Capture_english : g_Capture_single_line;
+    if (strstr(c.m_Name, "radial_block_ellipse"))
+    {
+        geometry = g_Capture_radial_block_ellipse;
+    }
     if (c.m_EdgeScale > 0.0f)
     {
         const FontImageCaptureGeometry ttf[] = { g_Capture_ttf_edge_half, g_Capture_ttf_edge_one, g_Capture_ttf_edge_two };
