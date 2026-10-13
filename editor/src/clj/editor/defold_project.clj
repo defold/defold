@@ -1152,25 +1152,29 @@
                     (workspace/make-read-opts @basis-ref workspace :include-editor-dependencies true))
         load-opts (g/tx-cached-value! evaluation-context [:load-opts]
                     (make-load-opts-in-evaluation-context project evaluation-context))
-        node-load-info (g/tx-cached-value! evaluation-context [::node-load-infos node-id]
-                         (check-missing-load-prerequisites (read-node-load-info read-opts node-id resource) @basis-ref
-                                                           (fn [proj-path]
-                                                             (some->> (nodes-by-resource-path proj-path)
-                                                                      (resource-node/resource @basis-ref)))))
+
+        node-load-info
+        (g/tx-cached-value! evaluation-context [::node-load-infos node-id]
+          (check-missing-load-prerequisites
+            (read-node-load-info read-opts node-id resource) @basis-ref
+            (fn [proj-path]
+              (some->> (nodes-by-resource-path proj-path)
+                       (resource-node/resource @basis-ref)))))
 
         node-load-info
         (if (:read-error node-load-info)
           node-load-info
           (try
-            (let [prerequisite-node-ids (into #{} (keep nodes-by-resource-path) (:prerequisite-proj-paths node-load-info))]
+            (let [prerequisite-node-ids
+                  (coll/into-> (:prerequisite-proj-paths node-load-info) #{}
+                    (keep nodes-by-resource-path))]
               (g/materialize-prerequisites! node-id prerequisite-node-ids evaluation-context)
               node-load-info)
             (catch ExceptionInfo exception
               (let [{:keys [ex-type cycle-node-ids prerequisite-node-id errors]} (ex-data exception)]
                 (if-not (contains? #{:prerequisite-cycle :prerequisite-failed} ex-type)
                   (throw exception)
-                  (let [{:keys [basis-ref]} evaluation-context
-                        node-proj-path (fn node-proj-path [node-id]
+                  (let [node-proj-path (fn node-proj-path [node-id]
                                          (resource/proj-path (resource-node/resource @basis-ref node-id)))
                         message (if cycle-node-ids
                                   (str "Circular resource prerequisites: "
