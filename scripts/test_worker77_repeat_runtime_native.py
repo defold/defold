@@ -15,6 +15,7 @@ DDF=ROOT/"engine/gamesys/proto/gamesys/gui_ddf.proto"
 STUB=r"""
 #include <cassert>
 #include <cmath>
+#include <cfloat>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -55,6 +56,16 @@ assert(flipped ? u0>=u1 : u1>=u0);previous=p1;
 int main(){Fixture n;GuiSlice9TileInfo info={};
 float p0,p1,t0,t1;
 GetGuiSlice9TileSegment(0,1,18,20,false,&p0,&p1,&t0,&t1);assert(eq(p0,0)&&eq(p1,18));
+// Source/phase float rounding must never reverse the first mirrored tile.
+float tiny_step,tiny_first;uint32_t tiny_count;
+assert(GetGuiRepeatAxis(1.01f,0.00100001f,1.0f,0.0f,true,&tiny_step,&tiny_first,&tiny_count));
+assert(tiny_count==1010);
+GetGuiSlice9TileSegment(0,tiny_count,1.01f,0.00100001f,true,&p0,&p1,&t0,&t1);
+assert(p0==0.0f&&p1>p0&&t0>=0.0f&&t0<=1.0f&&t1==0.0f);
+assert(GetGuiRepeatAxis(1.01f,0.00100001f,1.0f,0.0f,false,&tiny_step,&tiny_first,&tiny_count));
+assert(tiny_count==1010);
+GetGuiSlice9TileSegment(18,tiny_count,1.01f,0.00100001f,false,&p0,&p1,&t0,&t1);
+assert(p1>p0&&t0>=0.0f&&t1<=1.0f);
 assert(GetGuiSlice9TileInfo(nullptr,&n,100,100,&info));
 assert(info.m_NoMargins&&info.m_XCount==3&&info.m_YCount==2);
 assert(GetGuiSlice9TileVertexCount(info)==36);

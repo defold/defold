@@ -83,6 +83,7 @@ class TiledSlice9PagedSourceContract(unittest.TestCase):
         actual_cpp = cpp[start:end]
         header = r'''
 #include <cmath>
+#include <cfloat>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -192,7 +193,10 @@ int main() {
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
-namespace dmMath { inline float Min(float a, float b) { return a < b ? a : b; } }
+namespace dmMath {
+inline float Min(float a, float b) { return a < b ? a : b; }
+inline float Max(float a, float b) { return a > b ? a : b; }
+}
 ''' + helper + r'''
 static bool segment(uint32_t i, uint32_t count, float destination,
                     float source, bool flip, float a, float b, float u, float v) {

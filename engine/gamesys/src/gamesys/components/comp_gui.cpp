@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <float.h>
 
 #include <dlib/dlib.h>
 #include <dlib/array.h>
@@ -2157,16 +2158,23 @@ namespace dmGameSystem
         float tile_step = source * zoom;
         if (!(tile_step > 0.001f && tile_step <= 100000000.0f))
             return false;
-        float phase = fmodf(flipped ? destination + offset : offset, tile_step);
-        if (phase < 0.0f)
+        // Determine the count before reducing to float. A float remainder
+        // followed by float division can round a whole number of spans up,
+        // which produces a reversed first tile on a flipped Repeat axis.
+        double phase = fmod(flipped ? (double)destination + offset : (double)offset,
+                            (double)tile_step);
+        if (phase < 0.0)
             phase += tile_step;
-        float first = flipped ? (phase > 0.00001f ? phase : tile_step)
-                              : (phase > 0.00001f ? tile_step - phase : tile_step);
-        float segments = 1.0f + ceilf(dmMath::Max(0.0f, destination - first) / tile_step);
-        if (!(segments >= 1.0f && segments <= 2048.0f))
+        double first = flipped ? (phase > 0.00001 ? phase : tile_step)
+                               : (phase > 0.00001 ? tile_step - phase : tile_step);
+        // A remainder smaller than half a representable destination unit
+        // cannot form a visible tile in the float vertex buffer.
+        double tolerance = 0.5 * FLT_EPSILON * destination;
+        double segments = 1.0 + ceil(dmMath::Max(0.0, ((double)destination - first - tolerance) / tile_step));
+        if (!(segments >= 1.0 && segments <= 2048.0))
             return false;
         *step = tile_step;
-        *first_span = first;
+        *first_span = (float)first;
         *count = (uint32_t)segments;
         return true;
     }
@@ -2185,6 +2193,8 @@ namespace dmGameSystem
         *uv0 = flipped ? (index == 0 ? first_span / step : 1.0f)
                        : (index == 0 ? 1.0f - first_span / step : 0.0f);
         *uv1 = flipped ? *uv0 - fraction : *uv0 + fraction;
+        *uv0 = dmMath::Max(0.0f, dmMath::Min(1.0f, *uv0));
+        *uv1 = dmMath::Max(0.0f, dmMath::Min(1.0f, *uv1));
     }
 
     // Use EXACTLY the same capped tile count for allocation and rendering.
@@ -2288,6 +2298,8 @@ namespace dmGameSystem
             *uv0 = index == 0 ? first / source_length : 1.0f;
             *uv1 = 0.0f;
         }
+        *uv0 = dmMath::Max(0.0f, dmMath::Min(1.0f, *uv0));
+        *uv1 = dmMath::Max(0.0f, dmMath::Min(1.0f, *uv1));
     }
 
     static uint32_t CalcVertexCount(dmGui::HScene scene, GuiWorld* gui_world, dmGraphics::HTexture texture, const dmGui::RenderEntry* entries, uint32_t node_count)

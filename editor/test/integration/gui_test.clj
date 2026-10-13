@@ -1156,6 +1156,41 @@
       (let [new-dims (g/valid-node-value node-id :scene-dims)]
         (is (and new-dims (not= dims new-dims)))))))
 
+;; PRIVATE SOURCE QA: check per-layout Repeat overrides instead of the normal
+;; GUI scene save/build path covered by gui-box-repeat-save-and-build-gl3-test.
+(deftest gui-box-repeat-layout-override-roundtrip-test
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/layouts.gui")
+          box (gui-node scene "box")
+          zoom [1.5 0.75 0.0 0.0]
+          offset [12.0 -7.0 0.0 0.0]]
+      (is (= :texture-mode-stretch (g/node-value box :texture-mode)))
+      (set-visible-layout! scene "Landscape")
+      ;; Inspector edit-type setters persist overrides for the current layout.
+      ;; Raw g/set-property! would modify the Default node's stored values.
+      (test-util/prop! box :texture-mode :texture-mode-repeat)
+      (test-util/prop! box :repeat-zoom zoom)
+      (test-util/prop! box :repeat-offset offset)
+      (is (= :texture-mode-repeat (g/node-value box :texture-mode)))
+      (is (= zoom (g/node-value box :repeat-zoom)))
+      (is (= offset (g/node-value box :repeat-offset)))
+      (set-visible-layout! scene "")
+      (is (= :texture-mode-stretch (g/node-value box :texture-mode)))
+      (is (= [1.0 1.0 0.0 0.0] (g/node-value box :repeat-zoom)))
+      (is (= [0.0 0.0 0.0 0.0] (g/node-value box :repeat-offset)))
+      (let [saved (g/valid-node-value scene :save-value)
+            saved-layout (coll/first-where #(= "Landscape" (:name %)) (:layouts saved))
+            saved-node (coll/first-where #(= "box" (:id %)) (:nodes saved-layout))
+            built (-> (g/valid-node-value scene :build-targets) first (get-in [:user-data :pb]))
+            built-layout (coll/first-where #(= "Landscape" (:name %)) (:layouts built))
+            built-node (coll/first-where #(= "box" (:id %)) (:nodes built-layout))]
+        (is (= :texture-mode-repeat (:texture-mode saved-node)))
+        (is (= zoom (:repeat-zoom saved-node)))
+        (is (= offset (:repeat-offset saved-node)))
+        (is (= :texture-mode-repeat (:texture-mode built-node)))
+        (is (= zoom (:repeat-zoom built-node)))
+        (is (= offset (:repeat-offset built-node)))))))
+
 (deftest gui-layout-add
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/gui/layouts.gui")

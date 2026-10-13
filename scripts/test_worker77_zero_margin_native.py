@@ -12,6 +12,7 @@ SOURCE=ROOT/"engine/gamesys/src/gamesys/components/comp_gui.cpp"
 STUB=r"""
 #include <cassert>
 #include <cmath>
+#include <cfloat>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
