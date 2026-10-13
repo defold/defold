@@ -2222,7 +2222,9 @@ namespace dmGraphics
         enc->setCullMode(MTL::CullModeNone);
         enc->drawPrimitives(MTL::PrimitiveTypeTriangle, (uint32_t) 0, (uint32_t) 3);
 
-        // Refresh culling after this call
+        // Clear binds its own pipeline outside DrawSetup's cache. The next
+        // draw must restore its render and depth/stencil pipeline state.
+        context->m_CurrentPipeline = 0;
         context->m_CullFaceChanged = true;
     }
 
@@ -3611,27 +3613,13 @@ namespace dmGraphics
         }
 
         MTL::CullMode cull_mode = MTL::CullModeNone;
-        PipelineState pipeline_state_cull = pipeline_state_draw;
-
-        if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+        if (pipeline_state_draw.m_CullFaceEnabled)
         {
-            if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_BACK)
-            {
-                pipeline_state_cull.m_CullFaceType = FACE_TYPE_FRONT;
-            }
-            else if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_FRONT)
-            {
-                pipeline_state_cull.m_CullFaceType = FACE_TYPE_BACK;
-            }
-        }
-
-        if (pipeline_state_cull.m_CullFaceEnabled)
-        {
-            if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_BACK)
+            if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
             {
                 cull_mode = MTL::CullModeBack;
             }
-            else if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_FRONT)
+            else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_FRONT)
             {
                 cull_mode = MTL::CullModeFront;
             }
@@ -3639,6 +3627,12 @@ namespace dmGraphics
 
         if (context->m_CullFaceChanged)
         {
+            // Match the offscreen viewport's winding for culling, two-sided
+            // stencil and the fragment shader's front_facing input.
+            if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+            {
+                pipeline_state_draw.m_FaceWinding = pipeline_state_draw.m_FaceWinding == FACE_WINDING_CCW ? FACE_WINDING_CW : FACE_WINDING_CCW;
+            }
             const MTL::Winding winding = pipeline_state_draw.m_FaceWinding == FACE_WINDING_CW ?
                 MTL::WindingClockwise : MTL::WindingCounterClockwise;
             encoder->setCullMode(cull_mode);
@@ -5730,6 +5724,7 @@ namespace dmGraphics
         }
 
         const HRenderTarget render_target = context->m_CurrentRenderTarget;
+        FlushPendingRenderTargetClear(context, render_target);
         const bool was_rendering = context->m_RenderTargetBound != 0;
         if (was_rendering)
         {
@@ -5817,6 +5812,13 @@ namespace dmGraphics
             for (uint32_t row = 0; row < height; ++row)
             {
                 memcpy(dst + row * dst_row_size, src + row * src_row_size, dst_row_size);
+            }
+
+            // ReadPixels exposes BGRA even when an offscreen attachment is RGBA.
+            if (source_texture->pixelFormat() == MTL::PixelFormatRGBA8Unorm ||
+                source_texture->pixelFormat() == MTL::PixelFormatRGBA8Unorm_sRGB)
+            {
+                SwizzleRGBAToBGRA(buffer, width * height);
             }
 
             if (used_frame_command_buffer)

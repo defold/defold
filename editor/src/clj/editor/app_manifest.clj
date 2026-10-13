@@ -552,13 +552,11 @@
     :model))
 
 (def generic-vulkan
-  (disj vulkan :armv7-android :arm64-android :x86_64-android :arm64-ios))
+  (disj vulkan :x86_64-win32 :armv7-android :arm64-android :x86_64-android :arm64-ios))
 
 (def generic-vulkan-toggles
   (concat
-    (exclude-libs-toggles [:x86_64-win32] ["platform"])
-    (libs-toggles [:x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
-    (libs-toggles windows ["graphics_vulkan" "vulkan"])
+    (libs-toggles linux ["platform_vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
     (generic-contains-toggles generic-vulkan :symbols ["GraphicsAdapterVulkan"])))
@@ -573,22 +571,64 @@
     :both generic-vulkan-toggles
     :open-gl))
 
+(def windows-graphics-choice-options
+  [[:open-gl "OpenGL"]
+   [:vulkan "Vulkan"]
+   [:dx12 "DX12"]
+   [:open-gl-vulkan "OpenGL & Vulkan"]
+   [:open-gl-dx12 "OpenGL & DX12"]
+   [:vulkan-dx12 "Vulkan & DX12"]
+   [:open-gl-vulkan-dx12 "OpenGL & Vulkan & DX12"]])
+
+(def graphics-setting-windows
+  (let [vulkan (into [] cat
+                     [(exclude-libs-toggles windows ["platform"])
+                      (libs-toggles windows ["platform_vulkan" "graphics_vulkan" "vulkan"])
+                      (generic-contains-toggles windows :symbols ["GraphicsAdapterVulkan"])])
+
+        dx12 (into [] cat
+                   [(libs-toggles windows ["graphics_dx12"])
+                    ;; Extender runs on a case-sensitive host. Preserve the SDK filename case
+                    ;; while accepting names written by earlier editors.
+                    (into []
+                          (mapcat (fn [platform]
+                                    (mapv (fn [[library legacy-library]]
+                                            (contains-toggle platform :libs (str library ".lib")
+                                                             [(str library ".lib") library
+                                                              (str legacy-library ".lib") legacy-library]))
+                                          [["d3d12" "D3D12"] ["dxgi" "DXGI"] ["d3dcompiler" "d3dcompiler"]])))
+                          windows)
+                    (generic-contains-toggles windows :symbols ["GraphicsAdapterDX12"])])
+
+        exclude-open-gl (into [] cat
+                              [(exclude-libs-toggles windows ["graphics"])
+                               (generic-contains-toggles windows :excludeSymbols ["GraphicsAdapterOpenGL"])])]
+    ;; Match supersets before subsets. OpenGL is supplied by engine defaults.
+    (make-choice-setting
+      :vulkan-dx12 (into [] cat [vulkan dx12 exclude-open-gl])
+      :open-gl-vulkan-dx12 (into vulkan dx12)
+      :vulkan (into vulkan exclude-open-gl)
+      :dx12 (into dx12 exclude-open-gl)
+      :open-gl-vulkan vulkan
+      :open-gl-dx12 dx12
+      :open-gl)))
+
 (def open-gl-android-toggles
   (concat
-    (libs-toggles android ["graphics_opengles" "dmglfw"])
-    (exclude-libs-toggles android ["dmglfw_vulkan"])
+    (libs-toggles android ["graphics_opengles" "platform"])
+    (exclude-libs-toggles android ["platform_vulkan"])
     (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES"])
     (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"])))
 
 ;; Vulkan-only Android: graphics_vulkan + Vulkan adapter. libvulkan.so is loaded
 ;; dynamically at runtime, so none of the Android choices should link -lvulkan.
-;; Use dmglfw_vulkan to avoid linking the Android OpenGL ES/EGL system libs.
+;; Use platform_vulkan to avoid linking the Android OpenGL ES/EGL system libs.
 ;; Order: :both (GLES+Vulkan), then :open-gl (GLES-only), then :vulkan (Vulkan-only).
 ;; Final :both is :none — empty / unspecified Android context defaults to GLES+Vulkan.
 (def vulkan-android-toggles
   (concat
-    (libs-toggles android ["graphics_vulkan" "dmglfw_vulkan"])
-    (exclude-libs-toggles android ["graphics_opengles" "dmglfw"])
+    (libs-toggles android ["graphics_vulkan" "platform_vulkan"])
+    (exclude-libs-toggles android ["graphics_opengles" "platform"])
     (generic-contains-toggles android :symbols ["GraphicsAdapterVulkan"])
     (generic-contains-toggles android :excludeSymbols ["GraphicsAdapterOpenGLES"])
     (generic-contains-toggles android :excludeDynamicLibs ["vulkan" "EGL" "GLESv1_CM" "GLESv2"])))
@@ -596,8 +636,8 @@
 (def graphics-setting-android
   (make-choice-setting
     :both (concat
-            (libs-toggles android ["graphics_opengles" "graphics_vulkan" "dmglfw"])
-            (exclude-libs-toggles android ["dmglfw_vulkan"])
+            (libs-toggles android ["graphics_opengles" "graphics_vulkan" "platform"])
+            (exclude-libs-toggles android ["platform_vulkan"])
             (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES" "GraphicsAdapterVulkan"])
             (generic-contains-toggles android :excludeDynamicLibs ["vulkan"])
             (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"]))
@@ -788,6 +828,18 @@
           manifest
           (conj windows :win32)))
 
+(defn- migrate-mobile-library-names [manifest]
+  (reduce (fn [manifest platform]
+            (reduce (fn [manifest key]
+                      (if-let [libs (get-in-guarded manifest :platforms map? platform map? :context map? key vector?)]
+                        (assoc-in manifest [:platforms platform :context key]
+                                  (mapv #(get AppManifestMigration/NATIVE_PLATFORM_LIBRARY_NAMES % %) libs))
+                        manifest))
+                    manifest
+                    [:excludeLibs :libs :engineLibs]))
+          manifest
+          (into #{:android :ios :web} cat [android ios web])))
+
 (defn- migrate-macos-vulkan-platform [manifest]
   ;; platform_vulkan replaces the new default platform library. Keep old
   ;; explicit Vulkan manifests recognizable and link only the selected variant.
@@ -865,6 +917,7 @@
         (when-not (g/error? manifest)
           (let [migrated-manifest (-> manifest
                                       migrate-windows-library-names
+                                      migrate-mobile-library-names
                                       migrate-macos-vulkan-platform
                                       migrate-simulator-graphics
                                       migrate-bullet3d-exclusions)]
@@ -1019,6 +1072,13 @@
                                                         [:both "OpenGL & Vulkan"]]}))
             (value (setting-property-getter graphics-setting))
             (set (setting-property-setter graphics-setting)))
+  (property graphics-windows g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :graphics-windows))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-windows))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options windows-graphics-choice-options}))
+            (value (setting-property-getter graphics-setting-windows))
+            (set (setting-property-setter graphics-setting-windows)))
   (property graphics-osx g/Any
             (dynamic label (properties/label-dynamic :appmanifest :graphics-osx))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-osx))

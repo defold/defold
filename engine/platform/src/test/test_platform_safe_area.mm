@@ -15,10 +15,10 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <testmain/testmain.h>
-#include <glfw/glfw_native.h>
 #include <stdlib.h>
 
 #include "../platform_window_ios.h"
+#include "../platform_app.h"
 
 #import <UIKit/UIKit.h>
 
@@ -83,7 +83,6 @@ static void* RunTests(int argc, char** argv)
 int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);
-    glfwSetViewType(GLFW_NO_API);
-    glfwAppBootstrap(argc, argv, 0, 0, 0, RunTests, 0, 0, 0);
+    dmPlatform::AppBootstrap(argc, argv, 0, 0, 0, RunTests, 0, 0, 0);
     return 0;
 }

@@ -1552,9 +1552,24 @@ class IOSSimulatorTestRunner(object):
 
         self._log('ios-test: %s' % subprocess.list2cmdline(args))
         try:
-            return self._command_runner(args, env=launch_env).returncode
+            result = self._command_runner(args, env=launch_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         except FileNotFoundError as e:
             raise IOSTestError('xcrun not found') from e
+
+        output = _completed_output(result).decode('utf-8', errors='replace')
+        sys.stdout.write(output)
+        sys.stdout.flush()
+        if result.returncode != 0:
+            return result.returncode
+
+        # simctl reports launch success even when the test application fails.
+        # Require a completed jc_test result, including its C-only footer form.
+        output = re.sub(r'\x1b\[[0-9;]*m', '', output)
+        if re.search(r'^\d+ tests passed, \d+ skipped and [1-9]\d* tests FAILED\s*$', output, re.MULTILINE):
+            return 1
+        if not re.search(r'^(?:\d+ tests PASSED and \d+ skipped|\d+ tests passed, \d+ skipped and 0 tests failed)\s*$', output, re.MULTILINE):
+            raise IOSTestError('iOS simulator test exited without a completed jc_test result')
+        return 0
 
     def run_test(self, program, cwd, configfile=None, folders=None, target_name=None):
         cwd = os.path.abspath(cwd)

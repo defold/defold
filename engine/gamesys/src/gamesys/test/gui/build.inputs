@@ -18,6 +18,7 @@
 /gui/gui_text_layout_cache.go
 /gui/invalid_font.go
 /gui/invalid_vertexspace.gui
+/gui/layout_object_pivot.go
 /gui/reload_initial.gui
 /gui/reload_second.gui
 /gui/render_box_test1.go

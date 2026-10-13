@@ -87,6 +87,8 @@ public class Fontc {
         int width;
         float advance;
         float leftBearing;
+        float layoutWidth;
+        float layoutLeftBearing;
         int ascent;
         int descent;
         int sourceX;
@@ -278,12 +280,10 @@ public class Fontc {
             int codePoint = metrics == null ? characters.get(i) : metrics.codepoint;
             GeneratedGlyph generated = generatedGlyphs == null ? null : generatedGlyphs[i];
             try {
-                if (generated == null && metrics == null) {
-                    if (copyPixels)
-                        generated = renderer.generateGlyph(codePoint);
-                    else
-                        metrics = renderer.getGlyphMetrics(codePoint);
-                }
+                if (metrics == null)
+                    metrics = renderer.getGlyphMetrics(codePoint);
+                if (copyPixels && generated == null)
+                    generated = renderer.generateGlyph(codePoint);
             } catch (RuntimeException e) {
                 throw new IOException(String.format("Native glyph generation failed for U+%04X: %s", codePoint, e.getMessage()), e);
             }
@@ -292,6 +292,8 @@ public class Fontc {
             Glyph glyph = new Glyph();
             glyph.character = codePoint;
             glyph.advance = generated == null ? metrics.advance : generated.advance;
+            glyph.layoutWidth = metrics.layoutWidth;
+            glyph.layoutLeftBearing = metrics.layoutLeftBearing;
             glyph.leftBearing = generated == null ? metrics.leftBearing : generated.leftBearing;
             glyph.width = generated == null ? metrics.width : generated.width;
             glyph.ascent = Math.round(generated == null ? metrics.ascent : generated.ascent);
@@ -306,7 +308,8 @@ public class Fontc {
         }
         FontRenderer.Layout metrics = renderer.measure("", false, 0.0f, 1.0f, 0.0f);
         glyphBankBuilder.setMaxAscent(metrics.maxAscent).setMaxDescent(metrics.maxDescent)
-            .setMaxAdvance(maxAdvance).setMaxWidth(maxWidth).setMaxHeight(metrics.maxAscent + metrics.maxDescent);
+            .setMaxAdvance(maxAdvance).setMaxWidth(maxWidth).setMaxHeight(metrics.maxAscent + metrics.maxDescent)
+            .setHasLayoutMetrics(true);
     }
 
     private byte[] makeCellBytes(Glyph glyph, DecodedImage bitmapImage, int channels) {
@@ -467,6 +470,8 @@ public class Fontc {
                 .setWidth(glyph.width).setAdvance(glyph.advance).setLeftBearing(glyph.leftBearing)
                 .setAscent(glyph.ascent).setDescent(glyph.descent)
                 .setGlyphDataOffset(glyph.dataOffset).setGlyphDataSize(glyph.dataSize);
+            if (glyphBankBuilder.getHasLayoutMetrics())
+                output.setLayoutWidth(glyph.layoutWidth).setLayoutLeftBearing(glyph.layoutLeftBearing);
             if (preview)
                 output.setX(i % columns * cellWidth).setY(i / columns * cellHeight);
             glyphBankBuilder.addGlyphs(output);

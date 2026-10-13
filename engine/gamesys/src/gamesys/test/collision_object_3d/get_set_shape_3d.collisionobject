@@ -1,0 +1,38 @@
+type: COLLISION_OBJECT_TYPE_DYNAMIC
+mass: 1.0
+friction: 0.0
+restitution: 0.0
+group: "default"
+mask: "default"
+embedded_collision_shape {
+  shapes {
+    shape_type: TYPE_SPHERE
+    position { x: 0.0 y: 0.0 z: 0.0 }
+    rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }
+    index: 0
+    count: 1
+    id: "sphere"
+  }
+  shapes {
+    shape_type: TYPE_BOX
+    position { x: 20.0 y: 0.0 z: 0.0 }
+    rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }
+    index: 1
+    count: 3
+    id: "box"
+  }
+  shapes {
+    shape_type: TYPE_CAPSULE
+    position { x: 40.0 y: 0.0 z: 0.0 }
+    rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }
+    index: 4
+    count: 2
+    id: "capsule"
+  }
+  data: 8.0
+  data: 10.0
+  data: 20.0
+  data: 30.0
+  data: 4.0
+  data: 12.0
+}

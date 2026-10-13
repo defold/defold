@@ -523,7 +523,9 @@ namespace dmGameObject
         uint16_t  m_AccelerationSet : 1;
         /// If the input action was consumed in an event dispatch
         uint16_t  m_Consumed : 1;
-        uint16_t  : 4;
+        /// Device category (dmHID::InputSource), defaulting to keyboard
+        uint16_t  m_Source : 3;
+        uint16_t  : 1;
     };
 
     /*#

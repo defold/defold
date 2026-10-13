@@ -18,7 +18,7 @@
 #include <platform/window.hpp>
 
 #if defined(DM_PLATFORM_IOS)
-#include  <glfw/glfw_native.h> // for glfwAppBootstrap
+#include <platform/platform_app.h>
 #endif
 #include <string.h>
 #include <assert.h>
@@ -2296,7 +2296,9 @@ namespace dmGraphics
     }
     bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        DestroyProgram((Program*) program);
+        // DX12 constructs a replacement first, preserving the active program on a failed reload.
+        if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_DIRECTX)
+            DestroyProgram((Program*) program);
         return g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
     }
     uint32_t GetAttributeCount(HProgram prog)
@@ -2554,6 +2556,19 @@ namespace dmGraphics
     {
         g_functions.m_ReadPixels(context, x, y, width, height, buffer, buffer_size);
     }
+
+    void SwizzleRGBAToBGRA(void* buffer, uint32_t pixel_count)
+    {
+        uint8_t* pixels = (uint8_t*) buffer;
+        for (uint32_t i = 0; i < pixel_count; ++i)
+        {
+            uint8_t red = pixels[0];
+            pixels[0] = pixels[2];
+            pixels[2] = red;
+            pixels += 4;
+        }
+    }
+
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         g_functions.m_RunApplicationLoop(user_data, step_method, is_running);
@@ -2702,7 +2717,7 @@ namespace dmGraphics
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
 #if !defined(DM_GRAPHICS_NULL)
-        glfwAppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);
+        dmPlatform::AppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);
 #endif
     }
 #endif

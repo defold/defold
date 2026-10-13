@@ -6,11 +6,12 @@ import io
 import codecs
 import html
 import difflib
+import xml.etree.ElementTree as etree
 
 from optparse import OptionParser
 from markdown import Markdown
 from markdown import Extension
-from markdown.util import etree, AtomicString
+from markdown.util import AtomicString
 from markdown.inlinepatterns import Pattern
 from pprint import pprint
 from google.protobuf.descriptor import FieldDescriptor

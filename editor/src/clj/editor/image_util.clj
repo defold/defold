@@ -15,13 +15,9 @@
 (ns editor.image-util
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [schema.core :as s]
-            [editor.geom :refer [clamper]]
             [editor.types :as types]
-            [editor.pipeline.tex-gen :as tex-gen]
-            [service.log :as log])
-  (:import [editor.types Rect Image]
-           [java.awt Color]
+            [schema.core :as s])
+  (:import [editor.types Image Rect]
            [java.awt.image BufferedImage]
            [javax.imageio ImageIO]))
 
@@ -163,13 +159,11 @@ region will be identical to the nearest pixel of the source image."
           new-height     (+ orig-height (* 2 extrusion))
           src-pixels     (image-pixels src-img)
           num-components (image-color-components src-img)
-          clampx         (clamper 0 (dec orig-width))
-          clampy         (clamper 0 (dec orig-height))
           new-pixels     (int-array (* new-width new-height num-components))]
       (doseq [y (range new-height)
               x (range new-width)]
-        (let [sx (clampx (- x extrusion))
-              sy (clampy (- y extrusion))
+        (let [sx (min (max (- x extrusion) 0) (dec orig-width))
+              sy (min (max (- y extrusion) 0) (dec orig-height))
               src-idx (pixel-index sx sy num-components orig-width)
               tgt-idx (pixel-index x   y num-components new-width)]
           (doseq [i (range num-components)]

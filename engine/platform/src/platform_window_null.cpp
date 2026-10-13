@@ -133,6 +133,16 @@ namespace dmPlatform
         return 0;
     }
 
+    bool IsMouseLeftButtonFromTouch(HWindow window)
+    {
+        return false;
+    }
+
+    bool IsMousePositionFromTouch(HWindow window)
+    {
+        return false;
+    }
+
     void GetMousePosition(HWindow window, int32_t* x, int32_t* y)
     {
         if (x) *x = 0;

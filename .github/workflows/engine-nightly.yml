@@ -47,17 +47,18 @@ jobs:
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Build external dependencies', uses: ./.github/actions/build-external, with: { platform: 'x86_64-macos' } },
       {
         name: 'ASAN',
-        run: 'ci/ci.sh --platform=x86_64-macos --with-asan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-macos --with-asan --skip-install-ext --skip-builtins --skip-docs engine'
       },
       {
         name: 'UBSAN',
-        run: 'ci/ci.sh --platform=x86_64-macos --with-ubsan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-macos --with-ubsan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
         name: 'TSAN',
-        run: 'ci/ci.sh --platform=x86_64-macos --with-tsan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-macos --with-tsan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
          name: 'Notify if build status changed',
@@ -82,21 +83,50 @@ jobs:
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Build external dependencies', uses: ./.github/actions/build-external, with: { platform: 'x86_64-linux' } },
       {
         name: 'ASAN',
-        run: 'ci/ci.sh --platform=x86_64-linux --with-asan --skip-builtins --skip-docs engine'
+        id: asan,
+        run: 'ci/ci.sh --platform=x86_64-linux --with-asan --skip-install-ext --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'Upload ASAN build reports',
+        if: "always() && (steps.asan.outcome == 'success' || steps.asan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'x86_64-linux', build-variant: 'asan' }
       },
       {
         name: 'UBSAN',
-        run: 'ci/ci.sh --platform=x86_64-linux --with-ubsan --skip-builtins --skip-docs engine'
+        id: ubsan,
+        run: 'ci/ci.sh --platform=x86_64-linux --with-ubsan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
+      },
+      {
+        name: 'Upload UBSAN build reports',
+        if: "always() && (steps.ubsan.outcome == 'success' || steps.ubsan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'x86_64-linux', build-variant: 'ubsan' }
       },
       {
         name: 'TSAN',
-        run: 'ci/ci.sh --platform=x86_64-linux --with-tsan --skip-builtins --skip-docs engine'
+        id: tsan,
+        run: 'ci/ci.sh --platform=x86_64-linux --with-tsan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
+      },
+      {
+        name: 'Upload TSAN build reports',
+        if: "always() && (steps.tsan.outcome == 'success' || steps.tsan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'x86_64-linux', build-variant: 'tsan' }
       },
       {
         name: 'VALGRIND',
-        run: 'ci/ci.sh --platform=x86_64-linux --with-valgrind --skip-builtins --skip-docs engine'
+        id: valgrind,
+        run: 'ci/ci.sh --platform=x86_64-linux --with-valgrind --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
+      },
+      {
+        name: 'Upload VALGRIND build reports',
+        if: "always() && (steps.valgrind.outcome == 'success' || steps.valgrind.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'x86_64-linux', build-variant: 'valgrind' }
       },
       {
          name: 'Notify if build status changed',
@@ -121,21 +151,50 @@ jobs:
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Build external dependencies', uses: ./.github/actions/build-external, with: { platform: 'arm64-linux' } },
       {
         name: 'ASAN',
-        run: 'ci/ci.sh --platform=arm64-linux --with-asan --skip-builtins --skip-docs engine'
+        id: asan,
+        run: 'ci/ci.sh --platform=arm64-linux --with-asan --skip-install-ext --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'Upload ASAN build reports',
+        if: "always() && (steps.asan.outcome == 'success' || steps.asan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'arm64-linux', build-variant: 'asan' }
       },
       {
         name: 'UBSAN',
-        run: 'ci/ci.sh --platform=arm64-linux --with-ubsan --skip-builtins --skip-docs engine'
+        id: ubsan,
+        run: 'ci/ci.sh --platform=arm64-linux --with-ubsan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
+      },
+      {
+        name: 'Upload UBSAN build reports',
+        if: "always() && (steps.ubsan.outcome == 'success' || steps.ubsan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'arm64-linux', build-variant: 'ubsan' }
       },
       {
         name: 'TSAN',
-        run: 'ci/ci.sh --platform=arm64-linux --with-tsan --skip-builtins --skip-docs engine'
+        id: tsan,
+        run: 'ci/ci.sh --platform=arm64-linux --with-tsan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
+      },
+      {
+        name: 'Upload TSAN build reports',
+        if: "always() && (steps.tsan.outcome == 'success' || steps.tsan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'arm64-linux', build-variant: 'tsan' }
       },
       {
         name: 'VALGRIND',
-        run: 'ci/ci.sh --platform=arm64-linux --with-valgrind --skip-builtins --skip-docs engine'
+        id: valgrind,
+        run: 'ci/ci.sh --platform=arm64-linux --with-valgrind --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
+      },
+      {
+        name: 'Upload VALGRIND build reports',
+        if: "always() && (steps.valgrind.outcome == 'success' || steps.valgrind.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'arm64-linux', build-variant: 'valgrind' }
       },
       {
          name: 'Notify if build status changed',
@@ -170,30 +229,28 @@ jobs:
       - name: 'Install CMake'
         uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.3.2
       - name: 'Set up Android SDK'
-        uses: defold/github-actions-common/.github/actions/android@73819e712828b4b2261594c33e9d2ba9929249c7
+        uses: ./.github/actions/setup-android
         with:
           # NDK 27 fixes ASAN allocator collisions with x86_64 ASLR.
           # https://reviews.llvm.org/D148280
           android-ndk: '27.0.12077973'
           android-api-level: '${{ env.ANDROID_API_LEVEL }}'
           android-build-tools: '36.1.0'
+          emulator: 'true'
       - name: 'Install dependencies'
         run: |-
           # Chrome is unused here; exclude its repository from dependency updates.
           sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources
           ci/ci.sh install --platform=x86_64-android
+      - name: 'Build external dependencies'
+        uses: ./.github/actions/build-external
+        with:
+          platform: x86_64-android
       - name: 'Enable KVM'
         run: |-
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: 'Cache Android AVD'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |-
-            ~/.android/avd/*
-            ~/.android/adb*
-          key: '${{ runner.os }}-avd-${{ env.ANDROID_API_LEVEL }}-google_apis-x86_64'
       - name: 'ASAN on Android emulator'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
@@ -209,7 +266,7 @@ jobs:
             if [ -z "$ANDROID_SERIAL" ]; then echo 'No Android device attached, refusing to skip the tests silently'; exit 1; fi
             export ANDROID_SERIAL
             python build_tools/build_android.py can-run-tests --platform x86_64-android --device "$ANDROID_SERIAL"
-            ci/ci.sh --platform=x86_64-android --with-asan --skip-builtins --skip-docs engine
+            ci/ci.sh --platform=x86_64-android --with-asan --skip-install-ext --skip-builtins --skip-docs engine
       - name: 'Notify if build status changed'
         uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v3.0.5
         if: failure()
@@ -242,10 +299,11 @@ jobs:
         run: 'emcc -v && export | grep EM'
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      { name: 'Build external dependencies', if: matrix.platform == 'wasm-web' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))), uses: ./.github/actions/build-external, with: { platform: '${{ matrix.platform }}' } },
       {
         name: 'ASAN',
         if: matrix.platform == 'wasm-web' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
-        run: 'ci/ci.sh --platform=wasm-web --with-asan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=wasm-web --with-asan --skip-install-ext --skip-builtins --skip-docs engine'
       },
       {
        name: 'Notify if build status changed',
@@ -270,9 +328,10 @@ jobs:
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Build external dependencies', uses: ./.github/actions/build-external, with: { platform: 'x86_64-win32' } },
       {
         name: 'ASAN',
-        run: 'ci/ci.sh --platform=x86_64-win32 --with-asan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-win32 --with-asan --skip-install-ext --skip-builtins --skip-docs engine'
       },
       {
          name: 'Notify if build status changed',
@@ -281,3 +340,28 @@ jobs:
          with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
                  payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
+
+  build-reports:
+    name: Build Reports
+    needs: [bld-eng-linux-x64, bld-eng-linux-arm64]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Summarize build reports
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const buildReportSummary = require('./ci/build_report_summary.cjs');
+            const {owner, repo} = context.repo;
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner, repo, run_id: context.runId, per_page: 100
+            });
+            const summary = buildReportSummary(artifacts, {
+              serverUrl: context.serverUrl, owner, repo, runId: context.runId
+            });
+            await core.summary.addRaw(summary).write();

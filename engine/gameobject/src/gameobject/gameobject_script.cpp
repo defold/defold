@@ -147,20 +147,42 @@ namespace dmGameObject
      *
      * Data supplied to the global `on_input` lifecycle function.
      *
+     * The source identifies the input device category independently of the action
+     * name. Clicks and pointer movement simulated from touch report `hash("touch")`,
+     * as do separate touch actions. Text and marked-text input report
+     * `hash("text")`, including input entered with a physical keyboard.
+     *
+     * If a named action merges contributions from several devices, the last
+     * contributing device processed wins, in keyboard, text, mouse, then touch
+     * order. Keyboard keys and mouse buttons contribute to source selection only
+     * while pressed or held. Their releases keep the previously reported source
+     * unless another input contributes in the same frame. Idle device polling
+     * does not change the source. Gamepad actions remain separate per controller.
+     *
+     * Pointer movement and accelerometer samples are delivered in separate callbacks,
+     * both with `action_id == nil`. Pointer movement reports `hash("mouse")` or
+     * `hash("touch")` and has pointer coordinates but no accelerometer fields.
+     * Accelerometer samples report `hash("accelerometer")` and have `acc_x`, `acc_y`,
+     * and `acc_z` but no pointer coordinates. If both occur in a frame, two callbacks
+     * are delivered and each can be consumed independently. Check `source` to
+     * distinguish these callbacks. Accelerometer samples are delivered even when
+     * their values have not changed.
+     *
      * @struct
      * @name on_input.action
-     * @member value? [type:number] Amount of input, usually 1 for buttons or between 0 and 1 for analogue input; absent for pointer movement and text input.
-     * @member pressed? [type:boolean] Whether the input was pressed this frame; absent for pointer movement and text input.
-     * @member released? [type:boolean] Whether the input was released this frame; absent for pointer movement and text input.
-     * @member repeated? [type:boolean] Whether the input was repeated this frame; absent for pointer movement and text input.
-     * @member x? [type:number] Pointer x-coordinate; absent for gamepad, key, and text input.
-     * @member y? [type:number] Pointer y-coordinate; absent for gamepad, key, and text input.
-     * @member screen_x? [type:number] Pointer x-coordinate in screen space; absent for gamepad, key, and text input.
-     * @member screen_y? [type:number] Pointer y-coordinate in screen space; absent for gamepad, key, and text input.
-     * @member dx? [type:number] Change in the pointer x-coordinate; absent for gamepad, key, and text input.
-     * @member dy? [type:number] Change in the pointer y-coordinate; absent for gamepad, key, and text input.
-     * @member screen_dx? [type:number] Change in the pointer x-coordinate in screen space; absent for gamepad, key, and text input.
-     * @member screen_dy? [type:number] Change in the pointer y-coordinate in screen space; absent for gamepad, key, and text input.
+     * @member source [type:hash] Input device category: `hash("keyboard")`, `hash("text")`, `hash("mouse")`, `hash("touch")`, `hash("gamepad")`, or `hash("accelerometer")`.
+     * @member value? [type:number] Amount of input, usually 1 for buttons or between 0 and 1 for analogue input; absent for pointer movement, accelerometer samples, and text input.
+     * @member pressed? [type:boolean] Whether the input was pressed this frame; absent for pointer movement, accelerometer samples, and text input.
+     * @member released? [type:boolean] Whether the input was released this frame; absent for pointer movement, accelerometer samples, and text input.
+     * @member repeated? [type:boolean] Whether the input was repeated this frame; absent for pointer movement, accelerometer samples, and text input.
+     * @member x? [type:number] Pointer x-coordinate; absent for gamepad, key, text, and accelerometer input.
+     * @member y? [type:number] Pointer y-coordinate; absent for gamepad, key, text, and accelerometer input.
+     * @member screen_x? [type:number] Pointer x-coordinate in screen space; absent for gamepad, key, text, and accelerometer input.
+     * @member screen_y? [type:number] Pointer y-coordinate in screen space; absent for gamepad, key, text, and accelerometer input.
+     * @member dx? [type:number] Change in the pointer x-coordinate; absent for gamepad, key, text, and accelerometer input.
+     * @member dy? [type:number] Change in the pointer y-coordinate; absent for gamepad, key, text, and accelerometer input.
+     * @member screen_dx? [type:number] Change in the pointer x-coordinate in screen space; absent for gamepad, key, text, and accelerometer input.
+     * @member screen_dy? [type:number] Change in the pointer y-coordinate in screen space; absent for gamepad, key, text, and accelerometer input.
      * @member acc_x? [type:number] Accelerometer x value, when present.
      * @member acc_y? [type:number] Accelerometer y value, when present.
      * @member acc_z? [type:number] Accelerometer z value, when present.
@@ -432,7 +454,7 @@ namespace dmGameObject
         Instance* instance = ResolveScriptInstance(i, &collection);
         out_url->m_Socket = dmGameObject::GetMessageSocket(collection->m_HCollection);
         out_url->m_Path = instance->m_Identifier;
-        out_url->m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
+        out_url->m_Fragment = GetPrototype(collection, instance)->m_Components[i->m_ComponentIndex].m_Id;
     }
 
     static dmhash_t ScriptInstanceResolvePathCB(uintptr_t resolve_user_data, const char* path) {
@@ -456,7 +478,7 @@ namespace dmGameObject
         dmMessage::URL url;
         url.m_Socket = dmGameObject::GetMessageSocket(collection->m_HCollection);
         url.m_Path = instance->m_Identifier;
-        url.m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
+        url.m_Fragment = GetPrototype(collection, instance)->m_Components[i->m_ComponentIndex].m_Id;
         dmScript::PushURL(L, url);
         return 1;
     }
@@ -559,14 +581,25 @@ namespace dmGameObject
         if (out_collection)
             *out_collection = collection;
         if (lua_gettop(L) == instance_arg && !lua_isnil(L, instance_arg)) {
-            dmMessage::URL receiver;
-            dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
-            if (receiver.m_Socket != dmGameObject::GetMessageSocket(hcollection))
+            dmhash_t identifier;
+            dmhash_t* hash = dmScript::ToHash(L, instance_arg);
+            if (hash)
             {
-                luaL_error(L, "function called can only access instances within the same collection.");
+                // Hashes already name a path in this collection; no default URL is needed.
+                identifier = *hash;
+            }
+            else
+            {
+                dmMessage::URL receiver;
+                dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
+                if (receiver.m_Socket != dmGameObject::GetMessageSocket(hcollection))
+                {
+                    luaL_error(L, "function called can only access instances within the same collection.");
+                }
+                identifier = receiver.m_Path;
             }
 
-            Instance* instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
+            Instance* instance = GetInstanceFromIdentifier(collection, identifier);
             if (!instance)
             {
                 luaL_error(L, "Instance %s not found", lua_tostring(L, instance_arg));
@@ -575,11 +608,6 @@ namespace dmGameObject
             return instance;
         }
         return GetInstanceFromHandle(collection, i->m_Instance);
-    }
-
-    static Instance* ResolveInstance(lua_State* L, int instance_arg)
-    {
-        return ResolveInstance(L, instance_arg, 0);
     }
 
     void GetComponentFromLua(lua_State* L, int index, HCollection hcollection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
@@ -706,8 +734,7 @@ namespace dmGameObject
     Result PostScriptMessage(const dmDDF::Descriptor* payload_descriptor, const uint8_t* payload, uint32_t payload_size, const dmMessage::URL* sender, const dmMessage::URL* receiver, int function_ref, bool unref_function_after_call)
     {
         dmArray<uint8_t> msg_buffer;
-        msg_buffer.SetCapacity(sizeof(dmGameObjectDDF::ScriptMessage) + payload_size);
-        msg_buffer.SetSize(msg_buffer.Capacity());
+        msg_buffer.EnsureSize(sizeof(dmGameObjectDDF::ScriptMessage) + payload_size);
 
         dmGameObjectDDF::ScriptMessage* script_msg = (dmGameObjectDDF::ScriptMessage*)msg_buffer.Begin();
         script_msg->m_PayloadSize = payload_size;
@@ -1091,8 +1118,9 @@ namespace dmGameObject
      */
     int Script_GetPosition(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushVector3(L, dmVMath::Vector3(dmGameObject::GetPosition(instance)));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        dmScript::PushVector3(L, dmVMath::Vector3(dmGameObject::GetPosition(collection, instance)));
         return 1;
     }
 
@@ -1118,8 +1146,9 @@ namespace dmGameObject
      */
     int Script_GetRotation(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushQuat(L, dmGameObject::GetRotation(instance));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        dmScript::PushQuat(L, dmGameObject::GetRotation(collection, instance));
         return 1;
     }
 
@@ -1145,8 +1174,9 @@ namespace dmGameObject
      */
     static int Script_GetScale(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushVector3(L, dmGameObject::GetScale(instance));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        dmScript::PushVector3(L, dmGameObject::GetScale(collection, instance));
         return 1;
     }
 
@@ -1172,8 +1202,9 @@ namespace dmGameObject
      */
     int Script_GetScaleUniform(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        lua_pushnumber(L, dmGameObject::GetUniformScale(instance));
+        Collection* collection;
+        Instance* instance = ResolveInstance(L, 1, &collection);
+        lua_pushnumber(L, dmGameObject::GetUniformScale(collection, instance));
         return 1;
     }
 
@@ -3093,7 +3124,7 @@ bail:
      *
      * @name on_input
      * @param self [type:script_instance] script instance used for storing state
-     * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for mouse movement
+     * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for pointer movement and accelerometer samples; check `action.source` to distinguish them
      * @param action [type:on_input.action] input data for the action
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples

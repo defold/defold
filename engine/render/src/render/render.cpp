@@ -747,6 +747,20 @@ namespace dmRender
         FindRenderListRanges(first, high - first, size - (high - rangefirst), entries, comp, ctx, callback);
     }
 
+    template <typename Compare>
+    static void StableSortRenderListIndices(uint32_t* indices, uint32_t count, const Compare& compare)
+    {
+        // Already sorted lists need neither stable_sort's scratch allocation nor data movement.
+        for (uint32_t i = 1; i < count; ++i)
+        {
+            if (compare(indices[i], indices[i - 1]))
+            {
+                std::stable_sort(indices, indices + count, compare);
+                return;
+            }
+        }
+    }
+
     static void SortRenderList(HRenderContext context)
     {
         DM_PROFILE("SortRenderList");
@@ -758,7 +772,7 @@ namespace dmRender
         {
             RenderListEntrySorter sort;
             sort.m_Base = context->m_RenderList.Begin();
-            std::stable_sort(context->m_RenderListSortIndices.Begin(), context->m_RenderListSortIndices.End(), sort);
+            StableSortRenderListIndices(context->m_RenderListSortIndices.Begin(), context->m_RenderListSortIndices.Size(), sort);
         }
         // Now find the ranges of tag masks
         {
@@ -1048,7 +1062,7 @@ namespace dmRender
                 DM_PROFILE("DrawRenderList_SORT");
                 RenderListSorter sort;
                 sort.values = context->m_RenderListSortValues.Begin();
-                std::stable_sort(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.End(), sort);
+                StableSortRenderListIndices(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.Size(), sort);
             }
         }
 

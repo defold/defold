@@ -2259,7 +2259,7 @@ namespace dmGui
                 {
                     InputArgs* input_args = (InputArgs*)args;
                     const InputAction* ia = input_args->m_Action;
-                    // 0 is reserved for mouse movement
+                    // 0 is reserved for pointer movement and accelerometer samples
                     if (ia->m_ActionId != 0)
                     {
                         dmScript::PushHash(L, ia->m_ActionId);
@@ -2270,6 +2270,9 @@ namespace dmGui
                     }
 
                     lua_newtable(L);
+
+                    dmScript::PushInputSource(L, ia->m_Source);
+                    lua_setfield(L, -2, "source");
 
                     if (ia->m_IsGamepad) {
                         lua_pushnumber(L, ia->m_GamepadIndex);
@@ -2746,9 +2749,9 @@ namespace dmGui
     Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count, bool* input_consumed)
     {
         InputArgs args;
-        args.m_Consumed = false;
         for (uint32_t i = 0; i < input_action_count; ++i)
         {
+            args.m_Consumed = false;
             args.m_Action = &input_actions[i];
             Result result = RunScript(scene, SCRIPT_FUNCTION_ONINPUT, LUA_NOREF, (void*)&args);
             if (result != RESULT_OK)
