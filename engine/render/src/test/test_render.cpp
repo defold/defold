@@ -3449,7 +3449,7 @@ TEST_F(dmRenderTest, DrawTextPreparedTextLayoutRetainedUntilClear)
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
-// Different gradient records and per-layout phases must share one font render batch.
+// Gradients share one batch, and reusing it without GPU effects clears the metadata binding.
 TEST_F(dmRenderTest, GradientRecordsDoNotSplitFontBatch)
 {
     dmGraphics::ShaderDescBuilder shaders;
@@ -3493,8 +3493,28 @@ TEST_F(dmRenderTest, GradientRecordsDoNotSplitFontBatch)
     ASSERT_NEAR(0.25f, vertices[6].m_Effect[3], 0.00001f);
     ASSERT_EQ(FontGetEffectTexture(m_SystemFontMap->m_EffectCache), m_Context->m_TextContext.m_RenderObjects[0].m_Textures[1]);
     dmRender::ClearRenderObjects(m_Context);
+
+    dmRender::HMaterial      fallback_material = dmRender::NewMaterial(m_Context, program);
+    dmRender::DrawTextParams params;
+    params.m_TextLayout = layouts[0];
+    params.m_FaceColor = Vector4(1.0f);
+    params.m_WorldTransform = Matrix4::identity();
+    dmRender::RenderListBegin(m_Context);
+    dmRender::DrawText(m_Context, m_SystemFontMap, fallback_material, 0, params);
+    dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_RenderObjectIndex);
+    const dmRender::RenderObject& render_object = m_Context->m_TextContext.m_RenderObjects[0];
+    ASSERT_EQ(m_SystemFontMap->m_Texture, render_object.m_Textures[0]);
+    for (uint32_t i = 1; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+    {
+        ASSERT_EQ((dmGraphics::HTexture)0, render_object.m_Textures[i]);
+    }
+    dmRender::ClearRenderObjects(m_Context);
     TextLayoutRelease(layouts[0]);
     TextLayoutRelease(layouts[1]);
+    dmRender::DeleteMaterial(m_Context, fallback_material);
     dmRender::DeleteMaterial(m_Context, material);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }

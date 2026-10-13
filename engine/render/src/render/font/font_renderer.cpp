@@ -586,6 +586,7 @@ namespace dmRender
         ro->m_DestinationBlendFactor = first_te.m_DestinationBlendFactor;
         ro->m_SetBlendFactors = 1;
         ro->m_Material = material;
+        memset(ro->m_Textures, 0, sizeof(ro->m_Textures));
         ro->m_Textures[0] = font_map->m_Texture;
         const uint32_t effect_unit = GetMaterialSamplerUnit(material, dmHashString64("font_effects"));
         if (effect_unit != INVALID_SAMPLER_UNIT)
