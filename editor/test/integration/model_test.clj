@@ -160,9 +160,9 @@
 
 ;; Verifies static meshes reject skinned materials in scenes and raw meshes.
 (deftest skinned-material-validation
-  (testing "static meshes reject skinned materials for whole scenes and selected meshes"
-    (test-util/with-loaded-project
-      (doseq [model-path ["/model/test.model" "/model/mesh_selection.model"]]
+  (test-util/with-loaded-project
+    (doseq [model-path ["/model/test.model" "/model/mesh_selection.model"]]
+      (testing (str "static meshes reject skinned materials: " model-path)
         (let [node-id (test-util/resource-node project model-path)
               binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])
               material-path "/builtins/materials/model_skinned_instanced.material"]
@@ -177,29 +177,29 @@
 
 ;; Verifies missing and stale bindings cannot bypass skinning validation.
 (deftest skinned-material-fallback
-  (testing "missing and stale bindings use the runtime material mapping"
-    (let [scene (-> (json/read-str (slurp "test/resources/test_project/mesh/two_meshes.gltf") :key-fn keyword)
-                    (assoc :materials [{:name "A"} {:name "B"} {:name "C"}])
-                    (update :meshes (fn [meshes]
-                                      (mapv #(update % :primitives (fn [primitives]
-                                                                     (mapv (fn [primitive] (assoc primitive :material 1)) primitives)))
-                                            meshes))))]
-      (test-util/with-temp-project-content
-        {"/test.model" {:mesh "/scene.gltf"
-                        :materials [{:name "A" :material "/builtins/materials/model_skinned_instanced.material"}
-                                    {:name "C" :material "/builtins/materials/model.material"}]}}
-        (spit (io/file (workspace/project-directory workspace) "scene.gltf") (json/write-str scene))
-        (workspace/resource-sync! workspace)
-        (let [node-id (test-util/resource-node project "/test.model")
-              binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])]
-          (doseq [binding-name ["A" "Stale"]]
+  (let [scene (-> (json/read-str (slurp "test/resources/test_project/mesh/two_meshes.gltf") :key-fn keyword)
+                  (assoc :materials [{:name "A"} {:name "B"} {:name "C"}])
+                  (update :meshes (fn [meshes]
+                                    (mapv #(update % :primitives (fn [primitives]
+                                                                   (mapv (fn [primitive] (assoc primitive :material 1)) primitives)))
+                                          meshes))))]
+    (test-util/with-temp-project-content
+      {"/test.model" {:mesh "/scene.gltf"
+                      :materials [{:name "A" :material "/builtins/materials/model_skinned_instanced.material"}
+                                  {:name "C" :material "/builtins/materials/model.material"}]}}
+      (spit (io/file (workspace/project-directory workspace) "scene.gltf") (json/write-str scene))
+      (workspace/resource-sync! workspace)
+      (let [node-id (test-util/resource-node project "/test.model")
+            binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])]
+        (doseq [binding-name ["A" "Stale"]]
+          (testing (str "runtime fallback validates binding: " binding-name)
             (test-util/with-prop [binding-id :name binding-name]
               (let [result (g/node-value node-id :build-targets)]
                 (is (g/error-value? result))
                 (is (coll/any? #(.contains ^String (test-util/localization %) "has no skin data")
-                               (eduction (keep :message) (tree-seq :causes :causes result)))))))
-          (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace "/builtins/materials/model.material")]
-            (is (not (g/error-value? (g/node-value node-id :build-targets))))))))))
+                               (eduction (keep :message) (tree-seq :causes :causes result))))))))
+        (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace "/builtins/materials/model.material")]
+          (is (not (g/error-value? (g/node-value node-id :build-targets)))))))))
 
 ;; Verifies skinned materials work without assigned animation clips.
 (deftest skinned-material-without-animations
