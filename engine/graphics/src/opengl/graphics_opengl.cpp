@@ -4676,7 +4676,6 @@ static void LogFrameBufferError(GLenum status)
             {
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachment_targets[i], GL_RENDERBUFFER, GetGLHandle(context, attachment.m_Buffer));
                 CHECK_GL_ERROR;
-                CHECK_GL_FRAMEBUFFER_ERROR;
             }
         }
         else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
@@ -4687,7 +4686,6 @@ static void LogFrameBufferError(GLenum status)
             {
                 glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_targets[i], texture_target, GetGLHandle(context, attachment_tex->m_TextureIds[0]), 0);
                 CHECK_GL_ERROR;
-                CHECK_GL_FRAMEBUFFER_ERROR;
             }
         }
         else assert(0);
