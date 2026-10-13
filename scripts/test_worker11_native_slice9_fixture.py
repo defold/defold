@@ -22,6 +22,7 @@ class NativeTiledGuiFixtureCheck(unittest.TestCase):
     def setUp(self):
         self.tiled = (GUI / "render_box_tiled_test.gui").read_text()
         self.stretch = (GUI / "render_box_tiled_stretch_test.gui").read_text()
+        self.repeat = (GUI / "render_box_repeat_test.gui").read_text()
 
     def test_static_tilesource_available_and_nonpaged(self):
         source = (GUI / "render_box_test1.tilesource").read_text()
@@ -30,7 +31,7 @@ class NativeTiledGuiFixtureCheck(unittest.TestCase):
         self.assertIn('image: "/gui/tile_tile_anim.png"', source)
         self.assertTrue((GUI / "tile_tile_anim.png").is_file())
         self.assertNotIn("max_page_count", source)
-        for scene in (self.tiled, self.stretch):
+        for scene in (self.tiled, self.stretch, self.repeat):
             self.assertIn('texture: "/gui/render_box_test1.tilesource"', scene)
             self.assertIn('texture: "render_box/anim"', scene)
             meaningful = "\n".join(line for line in scene.splitlines()
@@ -92,7 +93,7 @@ class NativeTiledGuiFixtureCheck(unittest.TestCase):
 
     def test_go_paths_and_explicit_test_content_build_inputs(self):
         build_inputs = (GUI / "build.inputs").read_text().splitlines()
-        for name in ("render_box_tiled_test", "render_box_tiled_stretch_test"):
+        for name in ("render_box_tiled_test", "render_box_tiled_stretch_test", "render_box_repeat_test"):
             go = (GUI / (name + ".go")).read_text()
             self.assertIn(f'component: "/gui/{name}.gui"', go)
             self.assertIn(f"/gui/{name}.go", build_inputs)
@@ -114,11 +115,27 @@ class NativeTiledGuiFixtureCheck(unittest.TestCase):
     def test_native_golden_harness_checks_both_modes_and_clipped_uvs(self):
         cpp = (ROOT / "engine/gamesys/src/gamesys/test/test_gamesys_gui.cpp").read_text()
         self.assertIn("TEST_P(TiledSlice9GuiTest, StaticFrameTiledVersusStretch)", cpp)
-        self.assertIn('{ "/gui/render_box_tiled_test.goc", 120, true }', cpp)
-        self.assertIn('{ "/gui/render_box_tiled_stretch_test.goc", 54, false }', cpp)
+        self.assertIn('{ "/gui/render_box_tiled_test.goc", 120, true, false }', cpp)
+        self.assertIn('{ "/gui/render_box_tiled_stretch_test.goc", 54, false, false }', cpp)
+        self.assertIn('{ "/gui/render_box_repeat_test.goc", 96, true, true }', cpp)
         self.assertIn("0.09375f", cpp)
         self.assertIn("m_ClientVertexBuffer.Size()", cpp)
         self.assertIn("m_PageIndex", cpp)
+
+    def test_new_repeat_inspector_ddf_fixture_uses_ordinary_material(self):
+        self.assertIn('texture_mode: TEXTURE_MODE_REPEAT', self.repeat)
+        self.assertRegex(self.repeat, r'repeat_zoom\s*\{\s*x:\s*2\.0\s*y:\s*1\.5')
+        self.assertRegex(self.repeat, r'repeat_offset\s*\{\s*x:\s*8\.0\s*y:\s*-4\.0')
+        self.assertIn('material: "/gui/gui.material"', self.repeat)
+        self.assertNotIn('material: "slice9_tiled"', self.repeat)
+        self.assertNotIn('materials {', self.repeat)
+        self.assertIn('texture_mode     = 52', (ROOT / 'engine/gamesys/proto/gamesys/gui_ddf.proto').read_text())
+
+    def test_repeat_golden_queries_actual_native_properties(self):
+        cpp = (ROOT / "engine/gamesys/src/gamesys/test/test_gamesys_gui.cpp").read_text()
+        for prop in ('PROPERTY_REPEAT_MODE', 'PROPERTY_REPEAT_ZOOM', 'PROPERTY_REPEAT_OFFSET'):
+            self.assertIn(f'dmGui::{prop}', cpp)
+        self.assertIn('EXPECT_NEAR(18.0f, vertices[7].m_Position[0], EPSILON);', cpp)
 
 
 if __name__ == "__main__":

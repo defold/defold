@@ -2572,6 +2572,7 @@ struct TiledSlice9GuiParams
     const char* m_GOPath;
     uint32_t m_ExpectedVertices;
     bool m_Tiled;
+    bool m_RepeatNodeMode;
 };
 
 class TiledSlice9GuiTest : public GamesysTest<TiledSlice9GuiParams>
@@ -2619,6 +2620,23 @@ TEST_P(TiledSlice9GuiTest, StaticFrameTiledVersusStretch)
     // (3+2)*(2+2)=20 quads * 6 vertices = 120. Stretch stays at 9*6=54.
     ASSERT_EQ(p.m_ExpectedVertices, gui_world->m_ClientVertexBuffer.Size());
 
+    // The new serialized DDF fields must survive real Bob .guic compilation,
+    // GUI component creation and native node property initialization. This
+    // fixture uses an ordinary GUI material, unlike the legacy material opt-in.
+    if (p.m_RepeatNodeMode)
+    {
+        dmGui::HScene scene = gui_world->m_Components[0]->m_Scene;
+        dmGui::HNode node = dmGui::GetNodeById(scene, "tiled_box");
+        ASSERT_NE((dmGui::HNode)0, node);
+        EXPECT_NEAR(1.0f, dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_REPEAT_MODE).getX(), EPSILON);
+        Vector4 zoom = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_REPEAT_ZOOM);
+        Vector4 offset = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_REPEAT_OFFSET);
+        EXPECT_NEAR(2.0f, zoom.getX(), EPSILON);
+        EXPECT_NEAR(1.5f, zoom.getY(), EPSILON);
+        EXPECT_NEAR(8.0f, offset.getX(), EPSILON);
+        EXPECT_NEAR(-4.0f, offset.getY(), EPSILON);
+    }
+
     const dmGameSystem::BoxVertex* vertices = gui_world->m_ClientVertexBuffer.Begin();
     ASSERT_NE((const dmGameSystem::BoxVertex*)0, vertices);
     EXPECT_NEAR(-32.0f, vertices[0].m_Position[0], EPSILON);
@@ -2631,7 +2649,15 @@ TEST_P(TiledSlice9GuiTest, StaticFrameTiledVersusStretch)
     EXPECT_NEAR(-24.0f, vertices[1].m_Position[1], EPSILON);
     EXPECT_NEAR(0.03125f, vertices[1].m_UV[0], EPSILON);
 
-    if (p.m_Tiled)
+    if (p.m_RepeatNodeMode)
+    {
+        // 60x44 center, source center 28x28, zoom (2, 1.5), phase (8,-4):
+        // 2 X repeat segments and 2 Y segments -> 4x4 quads -> 96 vertices.
+        // This is distinct from material-only 120 vertices and Stretch 54.
+        EXPECT_NEAR(-30.0f, vertices[6].m_Position[0], EPSILON);
+        EXPECT_NEAR(18.0f, vertices[7].m_Position[0], EPSILON);
+    }
+    else if (p.m_Tiled)
     {
         // First full center-axis tile, followed by the final 4px clipped
         // center-axis tile. These expected values depend on the packed 64px
@@ -2677,8 +2703,9 @@ TEST_P(TiledSlice9GuiTest, StaticFrameTiledVersusStretch)
 }
 
 const TiledSlice9GuiParams tiled_slice9_gui_params[] = {
-    { "/gui/render_box_tiled_test.goc", 120, true },
-    { "/gui/render_box_tiled_stretch_test.goc", 54, false },
+    { "/gui/render_box_tiled_test.goc", 120, true, false },
+    { "/gui/render_box_tiled_stretch_test.goc", 54, false, false },
+    { "/gui/render_box_repeat_test.goc", 96, true, true },
 };
 INSTANTIATE_TEST_CASE_P(TiledSlice9Static, TiledSlice9GuiTest, jc_test_values_in(tiled_slice9_gui_params));
 

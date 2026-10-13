@@ -91,6 +91,17 @@ n.zoom={1,1,0,0};n.offset={2000000,0,0,0};assert(!GetGuiSlice9TileInfo(nullptr,&
 n.offset={0,0,0,0};n.size={100000,100000,0};assert(!GetGuiSlice9TileInfo(nullptr,&n,100,100,&info));
 n.size={0,34,0};assert(!GetGuiSlice9TileInfo(nullptr,&n,100,100,&info));
 n.size={45,34,0};n.uv=false;assert(GetGuiSlice9TileInfo(nullptr,&n,100,100,&info));
+// Exact serialized GUI scene regression: ordinary material and a 32x32 frame
+// inside a 64x64 atlas, with 2px Slice9 borders, 64x48 box, zoom (2,1.5),
+// and offset (8,-4). New Repeat mode must not require slice9_tiled material.
+n.uv=true;n.material=false;n.mode={1,0,0,0};n.flip_u=false;n.flip_v=false;
+n.tc[0]=0;n.tc[1]=0.5f;n.tc[2]=0;n.tc[3]=1;n.tc[4]=0.5f;n.tc[5]=1;
+n.margins={2,2,2,2};n.size={64,48,0};n.zoom={2,1.5f,0,0};n.offset={8,-4,0,0};
+assert(GetGuiSlice9TileInfo(nullptr,&n,64,64,&info));
+assert(info.m_XCount==2&&info.m_YCount==2);
+assert(GetGuiSlice9TileVertexCount(info)==96);
+GetGuiRepeatTileSegment(0,info.m_RenderCenterX,info.m_TileStepX,info.m_FirstSpanX,false,&p0,&p1,&t0,&t1);
+assert(eq(p0,0)&&eq(p1,48)&&eq(t0,8.0f/56.0f)&&eq(t1,1));
 printf("PASS exact production C++ Repeat zoom offset size flip clipping rotation caps manual texture and material fallback\\n");
 return 0;
 }
