@@ -2095,15 +2095,18 @@ namespace dmGameSystem
         }
     }
 
-    // Provisional renderer-only opt-in. A user-created GUI material named
-    // "slice9_tiled" can use the normal gui/gui_paged_atlas shader while the
-    // renderer repeats slice cells in geometry. No new BoxVertex attributes,
+    // Provisional renderer-only opt-in. Use "slice9_tiled" for 2D textures,
+    // or "slice9_tiled_paged" with the paged-atlas shader for texture arrays.
+    // The renderer repeats cells in geometry. No new BoxVertex attributes,
     // atlas sampler wrap setting, public node property or GUI binary ABI.
     // A reviewed Slice9 mode API can replace this temporary selector later.
     static bool IsTiledSlice9Material(dmGui::HScene scene, dmGui::HNode node)
     {
-        return dmGui::GetNodeMaterial(scene, node) != 0 &&
-               dmGui::GetNodeMaterialId(scene, node) == dmHashString64("slice9_tiled");
+        if (dmGui::GetNodeMaterial(scene, node) == 0)
+            return false;
+        dmhash_t material_id = dmGui::GetNodeMaterialId(scene, node);
+        return material_id == dmHashString64("slice9_tiled") ||
+               material_id == dmHashString64("slice9_tiled_paged");
     }
 
     struct GuiSlice9TileInfo

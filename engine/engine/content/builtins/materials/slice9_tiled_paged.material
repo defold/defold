@@ -1,0 +1,13 @@
+# GUI tiled Slice-9 opt-in for texture-array atlas pages.
+# Register the exact GUI material id "slice9_tiled_paged" for paged atlases.
+# Keep "slice9_tiled" for ordinary 2D/single-page textures.
+name: "slice9_tiled_paged"
+tags: "gui"
+vertex_program: "/builtins/materials/gui_paged_atlas.vp"
+fragment_program: "/builtins/materials/gui_paged_atlas.fp"
+vertex_space: VERTEX_SPACE_WORLD
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+max_page_count: 4

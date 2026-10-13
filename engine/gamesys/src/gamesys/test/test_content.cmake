@@ -122,6 +122,17 @@ set(_GS_SLICE9_TILED_MATERIAL "${GS_ENGINE_CONTENT_DIR}/builtins/materials/slice
 if(NOT EXISTS "${_GS_SLICE9_TILED_MATERIAL}")
   message(FATAL_ERROR "Missing gamesys tiled Slice-9 test material: ${_GS_SLICE9_TILED_MATERIAL}")
 endif()
+set(_GS_SLICE9_TILED_PAGED_MATERIAL "${GS_ENGINE_CONTENT_DIR}/builtins/materials/slice9_tiled_paged.material")
+if(NOT EXISTS "${_GS_SLICE9_TILED_PAGED_MATERIAL}")
+  message(FATAL_ERROR "Missing gamesys tiled Slice-9 paged material: ${_GS_SLICE9_TILED_PAGED_MATERIAL}")
+endif()
+set(_GS_SLICE9_PAGED_VP "${GS_ENGINE_CONTENT_DIR}/builtins/materials/gui_paged_atlas.vp")
+set(_GS_SLICE9_PAGED_FP "${GS_ENGINE_CONTENT_DIR}/builtins/materials/gui_paged_atlas.fp")
+foreach(_shader IN ITEMS "${_GS_SLICE9_PAGED_VP}" "${_GS_SLICE9_PAGED_FP}")
+  if(NOT EXISTS "${_shader}")
+    message(FATAL_ERROR "Missing gamesys tiled Slice-9 paged test shader: ${_shader}")
+  endif()
+endforeach()
 set(_GS_SLICE9_GUI_VP "${GS_ENGINE_CONTENT_DIR}/builtins/materials/gui.vp")
 set(_GS_SLICE9_GUI_FP "${GS_ENGINE_CONTENT_DIR}/builtins/materials/gui.fp")
 foreach(_gui_shader IN ITEMS "${_GS_SLICE9_GUI_VP}" "${_GS_SLICE9_GUI_FP}")
@@ -171,9 +182,12 @@ foreach(_lane RANGE 0 ${_GS_LAST_CONTENT_LANE})
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_GS_SLICE9_TILED_MATERIAL}" "${_stage_root}/builtins/materials/slice9_tiled.material"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_GS_SLICE9_GUI_VP}" "${_stage_root}/builtins/materials/gui.vp"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_GS_SLICE9_GUI_FP}" "${_stage_root}/builtins/materials/gui.fp"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_GS_SLICE9_TILED_PAGED_MATERIAL}" "${_stage_root}/builtins/materials/slice9_tiled_paged.material"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_GS_SLICE9_PAGED_VP}" "${_stage_root}/builtins/materials/gui_paged_atlas.vp"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_GS_SLICE9_PAGED_FP}" "${_stage_root}/builtins/materials/gui_paged_atlas.fp"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_source_stamp}"
-    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES} "${_GS_SLICE9_TILED_MATERIAL}" "${_GS_SLICE9_GUI_VP}" "${_GS_SLICE9_GUI_FP}"
+    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES} "${_GS_SLICE9_TILED_MATERIAL}" "${_GS_SLICE9_GUI_VP}" "${_GS_SLICE9_GUI_FP}" "${_GS_SLICE9_TILED_PAGED_MATERIAL}" "${_GS_SLICE9_PAGED_VP}" "${_GS_SLICE9_PAGED_FP}"
     ${_GS_CONTENT_JOB_POOL}
     COMMENT "Staging gamesys test sources for content chain ${_lane}"
     VERBATIM)
