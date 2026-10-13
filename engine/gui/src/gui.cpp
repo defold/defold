@@ -2146,13 +2146,10 @@ namespace dmGui
             Animation* anim = &(*animations)[i];
             if ((anim->m_Elapsed >= anim->m_Duration && anim->m_Delay == 0) || anim->m_Cancelled)
             {
-                // If we have cancelled an animation, its callback won't be called which means
-                // we potentially get dangling lua refs in the script system
-                if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
-                {
-                    anim->m_AnimationCompleteCalled = 1;
-                    anim->m_AnimationComplete(scene, anim->m_Node, !anim->m_Cancelled, anim->m_Userdata1, anim->m_Userdata2);
-                }
+                // Cancellation must also release custom easing curves
+                // (LuaCurveRelease removes their registry reference).
+                // CompleteAnimation releases before invoking any callback.
+                CompleteAnimation(scene, anim, !anim->m_Cancelled);
 
                 RemoveAnimation(*animations, i);
                 i--;
@@ -4222,14 +4219,11 @@ namespace dmGui
         }
         else
         {
-            // Make sure to invoke the callback when we are re-using the
-            // animation index so that we can clean up dangling ref's in
-            // the gui_script module.
+            // Release the previous custom easing curve as well as invoking
+            // its completion callback before replacing the animation slot.
+            // This matters for looping animations, which may never finish.
             Animation* anim = &scene->m_Animations[animation_index];
-            if (anim->m_AnimationComplete && !anim->m_AnimationCompleteCalled)
-            {
-                anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
-            }
+            CompleteAnimation(scene, anim, false);
         }
 
         animation.m_Node = node;

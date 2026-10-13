@@ -737,7 +737,8 @@
         (is (= 6 (count (:geom-data stretch))))
         (g/set-property! box :texture-mode :texture-mode-repeat)
         (let [repeated (g/node-value box :scene-renderable-user-data)
-              repeated-verts (count (:geom-data repeated))]
+              repeated-verts (count (:geom-data repeated))
+              auto-size (g/node-value box :size)]
           (is (= 54 repeated-verts)
               "Auto-size Repeat with zoom 0.5 and phase offset must tile, not Stretch")
           (is (= repeated-verts (count (:uv-data repeated))))
@@ -747,6 +748,7 @@
           (is (= zoom (:repeat-zoom (g/node-value box :node-msg))))
           (is (= offset (:repeat-offset (g/node-value box :node-msg))))
           (g/set-property! box :size-mode :size-mode-manual)
+          (g/set-property! box :manual-size auto-size)
           (is (= repeated-verts
                  (count (:geom-data (g/node-value box :scene-renderable-user-data))))
               "Manual and Auto modes with equal effective frame size must match"))))))
