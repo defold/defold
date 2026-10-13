@@ -65,6 +65,24 @@ class NativeTiledGuiFixtureCheck(unittest.TestCase):
             r'DEPENDS [^\n]*"\$\{_GS_SLICE9_TILED_MATERIAL\}"',
         )
 
+    # Keep both source shaders available to Bob when compiling the new opt-in material.
+    def test_tiled_material_gui_shaders_are_staged_with_dependencies(self):
+        cmake = (ROOT / "engine/gamesys/src/gamesys/test/test_content.cmake").read_text()
+        material = (ROOT / "engine/engine/content/builtins/materials/slice9_tiled.material").read_text()
+        for suffix, variable in (("gui.vp", "_GS_SLICE9_GUI_VP"),
+                                 ("gui.fp", "_GS_SLICE9_GUI_FP")):
+            shader = ROOT / "engine/engine/content/builtins/materials" / suffix
+            self.assertTrue(shader.is_file())
+            self.assertIn(f'"/builtins/materials/{suffix}"', material)
+            self.assertIn(
+                f'set({variable} "${{GS_ENGINE_CONTENT_DIR}}/builtins/materials/{suffix}")', cmake
+            )
+            self.assertIn(
+                f'COMMAND "${{CMAKE_COMMAND}}" -E copy_if_different "${{{variable}}}" '
+                f'"${{_stage_root}}/builtins/materials/{suffix}"', cmake
+            )
+            self.assertRegex(cmake, rf'DEPENDS [^\n]*"\$\{{{variable}\}}"')
+
     def test_same_size_manual_mode_and_slice_margins(self):
         for scene in (self.tiled, self.stretch):
             self.assertRegex(scene, r'size\s*\{\s*x:\s*64\.0\s*y:\s*48\.0')

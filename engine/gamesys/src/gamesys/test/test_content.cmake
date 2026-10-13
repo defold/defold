@@ -122,6 +122,13 @@ set(_GS_SLICE9_TILED_MATERIAL "${GS_ENGINE_CONTENT_DIR}/builtins/materials/slice
 if(NOT EXISTS "${_GS_SLICE9_TILED_MATERIAL}")
   message(FATAL_ERROR "Missing gamesys tiled Slice-9 test material: ${_GS_SLICE9_TILED_MATERIAL}")
 endif()
+set(_GS_SLICE9_GUI_VP "${GS_ENGINE_CONTENT_DIR}/builtins/materials/gui.vp")
+set(_GS_SLICE9_GUI_FP "${GS_ENGINE_CONTENT_DIR}/builtins/materials/gui.fp")
+foreach(_gui_shader IN ITEMS "${_GS_SLICE9_GUI_VP}" "${_GS_SLICE9_GUI_FP}")
+  if(NOT EXISTS "${_gui_shader}")
+    message(FATAL_ERROR "Missing gamesys tiled Slice-9 test shader: ${_gui_shader}")
+  endif()
+endforeach()
 
 if(DEFINED ENV{DM_BOB_ROOTFOLDER} AND NOT "$ENV{DM_BOB_ROOTFOLDER}" STREQUAL "")
   set(_GS_BOB_ROOT_BASE "$ENV{DM_BOB_ROOTFOLDER}/gamesys")
@@ -162,9 +169,11 @@ foreach(_lane RANGE 0 ${_GS_LAST_CONTENT_LANE})
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BUILTINS_GRAPHICS_DIR}" "${_stage_root}/builtins/graphics"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_stage_root}/builtins/materials"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_GS_SLICE9_TILED_MATERIAL}" "${_stage_root}/builtins/materials/slice9_tiled.material"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_GS_SLICE9_GUI_VP}" "${_stage_root}/builtins/materials/gui.vp"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_GS_SLICE9_GUI_FP}" "${_stage_root}/builtins/materials/gui.fp"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_source_stamp}"
-    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES} "${_GS_SLICE9_TILED_MATERIAL}"
+    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES} "${_GS_SLICE9_TILED_MATERIAL}" "${_GS_SLICE9_GUI_VP}" "${_GS_SLICE9_GUI_FP}"
     ${_GS_CONTENT_JOB_POOL}
     COMMENT "Staging gamesys test sources for content chain ${_lane}"
     VERBATIM)
