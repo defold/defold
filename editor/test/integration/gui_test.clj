@@ -680,6 +680,33 @@
                                              [:children 0 :renderable :user-data :material-shader]
                                              [:children 0 :renderable :user-data :gpu-texture]))))
 
+;; Ensure Repeat properties survive GUI save and build serialization and that
+;; the GL3-based GUI renderer entry points remain available.
+(deftest gui-box-repeat-save-and-build-gl3-test
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/logic/main.gui")
+          box (gui-node scene "left")
+          zoom [1.25 0.75 0.0 0.0]
+          offset [-8.0 6.0 0.0 0.0]]
+      (is (= "com.jogamp.opengl.GL3" (.getName com.jogamp.opengl.GL3)))
+      (is (fn? gui/render-tris))
+      (is (fn? gui/render-lines))
+      (g/set-property! box :texture-mode :texture-mode-repeat)
+      (g/set-property! box :repeat-zoom zoom)
+      (g/set-property! box :repeat-offset offset)
+      (let [saved (g/node-value scene :save-value)
+            saved-box (coll/first-where #(= "left" (:id %)) (:nodes saved))
+            built (-> (g/valid-node-value scene :build-targets)
+                      first
+                      (get-in [:user-data :pb]))
+            built-box (coll/first-where #(= "left" (:id %)) (:nodes built))]
+        (is (= :texture-mode-repeat (:texture-mode saved-box)))
+        (is (= zoom (:repeat-zoom saved-box)))
+        (is (= offset (:repeat-offset saved-box)))
+        (is (= :texture-mode-repeat (:texture-mode built-box)))
+        (is (= zoom (:repeat-zoom built-box)))
+        (is (= offset (:repeat-offset built-box)))))))
+
 (deftest gui-scene-validation
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/logic/main.gui")]
