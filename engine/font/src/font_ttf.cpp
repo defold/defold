@@ -165,7 +165,7 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
         FontImplGetGlyphBox(font->m_Font, glyph_index, &x0, &y0, &x1, &y1);
 
     float scale = options->m_Scale;
-    float padding = options->m_UseInkBounds && !options->m_GenerateImage ? 0.0f : options->m_StbttSDFPadding;
+    float padding = options->m_UseUnpaddedBounds && !options->m_GenerateImage ? 0.0f : options->m_StbttSDFPadding;
     int on_edge_value = options->m_StbttSDFOnEdgeValue;
 
     int ascent = 0;

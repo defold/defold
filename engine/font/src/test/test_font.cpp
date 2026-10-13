@@ -1447,7 +1447,7 @@ TEST_F(FontTest, PackColorEffectStops)
     ASSERT_EQ(0x3f, record.m_Data[31]);
 }
 
-// Metrics-only glyph queries retain vertical ink extents needed by spatial gradient fits.
+// Metrics-only glyph queries retain unpadded vertical extents needed by spatial gradient fits.
 TEST_F(FontTest, GlyphMetricsVerticalBoundsWithoutImage)
 {
     FontGlyphOptions options;
@@ -1889,7 +1889,7 @@ TEST_F(FontTest, RadialGlyphCentersAlignWithinLine)
 {
     const char         codepoints[] = "Lip";
     FontGlyph          glyphs[3];
-    FontGlyph          ink[3];
+    FontGlyph          unpadded[3];
     FontGlyphGenParams params;
     params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
     FontGlyphOptions options;
@@ -1898,7 +1898,7 @@ TEST_F(FontTest, RadialGlyphCentersAlignWithinLine)
     for (uint32_t i = 0; i < 3; ++i)
     {
         ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, codepoints[i]), &params, &glyphs[i]));
-        ASSERT_EQ(FONT_RESULT_OK, FontGetGlyph(m_Font, codepoints[i], &options, &ink[i]));
+        ASSERT_EQ(FONT_RESULT_OK, FontGetGlyph(m_Font, codepoints[i], &options, &unpadded[i]));
     }
     const float pivots[] = { 0.5f, 0.25f };
     for (uint32_t pivot = 0; pivot < DM_ARRAY_SIZE(pivots); ++pivot)
@@ -1931,14 +1931,14 @@ TEST_F(FontTest, RadialGlyphCentersAlignWithinLine)
         ASSERT_EQ(30u, FontCreateLayoutVertices(config, metrics, vertices, 30));
         ASSERT_EQ(5u, records.m_Count);
         const TextLine* lines = TextLayoutGetLines(layout);
-        const float     top = dmMath::Max(ink[0].m_Ascent, ink[1].m_Ascent);
-        const float     bottom = -dmMath::Max(ink[0].m_Descent, ink[1].m_Descent);
+        const float     top = dmMath::Max(unpadded[0].m_Ascent, unpadded[1].m_Ascent);
+        const float     bottom = -dmMath::Max(unpadded[0].m_Descent, unpadded[1].m_Descent);
         for (uint32_t i = 0; i < 5; ++i)
         {
             const uint32_t          line = i < 3 ? 0 : 1;
             const uint32_t          glyph = i < 3 ? i : i - 3;
-            const float             line_top = line ? top : dmMath::Max(top, ink[2].m_Ascent);
-            const float             line_bottom = line ? bottom : dmMath::Min(bottom, -ink[2].m_Descent);
+            const float             line_top = line ? top : dmMath::Max(top, unpadded[2].m_Ascent);
+            const float             line_bottom = line ? bottom : dmMath::Min(bottom, -unpadded[2].m_Descent);
             const FontGlyphVertex*  quad = &vertices[i * 6];
             const FontEffectRecord& record = records.m_Records[i];
             const float             dx = (quad[1].m_Position[0] - quad[0].m_Position[0]) / (quad[1].m_Effect[0] - quad[0].m_Effect[0]);
@@ -1946,10 +1946,10 @@ TEST_F(FontTest, RadialGlyphCentersAlignWithinLine)
             const float             center_y = quad[0].m_Position[1] + (ReadTestEffectParameter(record, 1) - quad[0].m_Effect[1]) * dy;
             const float             center_x = quad[0].m_Position[0] + (ReadTestEffectParameter(record, 0) - quad[0].m_Effect[0]) * dx;
             const TextGlyph&        text_glyph = TextLayoutGetGlyphs(layout)[lines[line].m_Index + glyph];
-            const float             expected_x = text_glyph.m_X - TextLayoutGetGlyphs(layout)[lines[line].m_Index].m_X + ink[glyph].m_LeftBearing + ink[glyph].m_Width * 0.5f;
+            const float             expected_x = text_glyph.m_X - TextLayoutGetGlyphs(layout)[lines[line].m_Index].m_X + unpadded[glyph].m_LeftBearing + unpadded[glyph].m_Width * 0.5f;
             ASSERT_NEAR(lines[line].m_Baseline + line_bottom + pivots[pivot] * (line_top - line_bottom), center_y, 0.0001f);
             ASSERT_NEAR(expected_x, center_x, 0.0001f);
-            ASSERT_NEAR(ink[glyph].m_Width, dx, 0.0001f);
+            ASSERT_NEAR(unpadded[glyph].m_Width, dx, 0.0001f);
             ASSERT_NEAR(ReadTestEffectParameter(record, 2) / dx, ReadTestEffectParameter(record, 3) / dy, 0.0001f);
         }
         TextLayoutRelease(layout);

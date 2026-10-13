@@ -140,9 +140,9 @@ extern "C"
         float    m_LayoutWidth;
         float    m_LayoutLeftBearing;
         // Unpadded bounds used to match runtime gradient fitting to previews.
-        float m_InkWidth;
-        float m_InkAscent;
-        float m_InkDescent;
+        float m_UnpaddedWidth;
+        float m_UnpaddedAscent;
+        float m_UnpaddedDescent;
     } FontcGlyphMetrics;
 
     typedef struct FontcProperties

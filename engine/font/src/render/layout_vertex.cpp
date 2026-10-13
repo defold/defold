@@ -475,12 +475,12 @@ struct SpatialGradientCache
     uint32_t          m_Index;
 };
 
-static SpatialGradientBounds GetGlyphInkBounds(const FontLayoutVertexConfig& config, const TextGlyph& glyph, float x, float y)
+static SpatialGradientBounds GetGlyphUnpaddedBounds(const FontLayoutVertexConfig& config, const TextGlyph& glyph, float x, float y)
 {
     FontGlyphOptions options;
     // Measure at the resolved layout size; a named visual style may not declare a size.
     options.m_Scale = FontGetScaleFromSize(glyph.m_Font, config.m_Layout->m_Styles[glyph.m_BaseStyleIndex].m_FontSize);
-    options.m_UseInkBounds = true;
+    options.m_UseUnpaddedBounds = true;
     FontGlyph metrics = {};
     FontGetGlyphByIndex(glyph.m_Font, glyph.m_GlyphIndex, &options, &metrics);
     // Glyph banks retain baked metrics; dynamic fonts were measured at the styled size.
@@ -489,12 +489,12 @@ static SpatialGradientBounds GetGlyphInkBounds(const FontLayoutVertexConfig& con
     return bounds;
 }
 
-static void ExpandGradientBounds(SpatialGradientBounds* bounds, const SpatialGradientBounds& ink)
+static void ExpandGradientBounds(SpatialGradientBounds* bounds, const SpatialGradientBounds& unpadded)
 {
-    bounds->m_MinX = dmMath::Min(bounds->m_MinX, ink.m_MinX);
-    bounds->m_MinY = dmMath::Min(bounds->m_MinY, ink.m_MinY);
-    bounds->m_MaxX = dmMath::Max(bounds->m_MaxX, ink.m_MaxX);
-    bounds->m_MaxY = dmMath::Max(bounds->m_MaxY, ink.m_MaxY);
+    bounds->m_MinX = dmMath::Min(bounds->m_MinX, unpadded.m_MinX);
+    bounds->m_MinY = dmMath::Min(bounds->m_MinY, unpadded.m_MinY);
+    bounds->m_MaxX = dmMath::Max(bounds->m_MaxX, unpadded.m_MaxX);
+    bounds->m_MaxY = dmMath::Max(bounds->m_MaxY, unpadded.m_MaxY);
 }
 
 static void PrepareSpatialGradientBounds(const FontLayoutVertexConfig& config)
@@ -546,11 +546,11 @@ static void PrepareSpatialGradientBounds(const FontLayoutVertexConfig& config)
             const TextGlyph& glyph = layout->m_Glyphs[i];
             if ((glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT) || dmUtf8::IsWhiteSpace(glyph.m_Codepoint))
                 continue;
-            const SpatialGradientBounds ink = GetGlyphInkBounds(config, glyph, line_x + glyph.m_X - first_x, layout_y + line.m_Baseline + glyph.m_Y - first_y);
-            ExpandGradientBounds(&block, ink);
-            ExpandGradientBounds(&layout->m_GradientBounds[effect_count + l], ink);
+            const SpatialGradientBounds unpadded = GetGlyphUnpaddedBounds(config, glyph, line_x + glyph.m_X - first_x, layout_y + line.m_Baseline + glyph.m_Y - first_y);
+            ExpandGradientBounds(&block, unpadded);
+            ExpandGradientBounds(&layout->m_GradientBounds[effect_count + l], unpadded);
             if (leaves)
-                ExpandGradientBounds(&layout->m_GradientBounds[tree_offset + leaves + glyph.m_Cluster], ink);
+                ExpandGradientBounds(&layout->m_GradientBounds[tree_offset + leaves + glyph.m_Cluster], unpadded);
         }
     }
     if (leaves)
@@ -580,7 +580,7 @@ static void PrepareSpatialGradientBounds(const FontLayoutVertexConfig& config)
             }
         }
     }
-    // Whitespace-only decorations have no ink bounds.
+    // Whitespace-only decorations have no unpadded bounds.
     for (uint32_t i = 0; i < tree_offset; ++i)
         if (layout->m_GradientBounds[i].m_MinX == INFINITY)
             memset(&layout->m_GradientBounds[i], 0, sizeof(SpatialGradientBounds));
@@ -645,13 +645,13 @@ static void ApplySpatialGradientFallback(FontGlyphVertex* vertices, const FontCo
     }
 }
 
-static void ApplySpatialGradient(const FontLayoutVertexConfig& config, const TextLine& line, const TextGlyph& glyph, const SpatialGradientBounds& ink, const SpatialGradientBounds& quad, SpatialGradientCache* cache, const FontVertexLayerParams& layers)
+static void ApplySpatialGradient(const FontLayoutVertexConfig& config, const TextLine& line, const TextGlyph& glyph, const SpatialGradientBounds& unpadded, const SpatialGradientBounds& quad, SpatialGradientCache* cache, const FontVertexLayerParams& layers)
 {
     const TextEffect* effect = FindGlyphGradient(config.m_Layout, glyph);
     if (!effect || effect->m_Gradient.m_Mode != TEXT_GRADIENT_MODE_SPATIAL)
         return;
     const TextGradientEffect& gradient = effect->m_Gradient;
-    SpatialGradientBounds     bounds = ink;
+    SpatialGradientBounds     bounds = unpadded;
     const TextLayout*         layout = config.m_Layout;
     if (gradient.m_Color.m_Type == FONT_COLOR_EFFECT_COLOR)
         bounds = quad;
@@ -1090,8 +1090,8 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
                 const float                 width = config.m_MetricsFromTtf ? glyph.m_Bitmap.m_Width : glyph.m_Width;
                 const float                 left = x + (glyph.m_LeftBearing - (width - glyph.m_Width) * 0.5f) * scale;
                 const SpatialGradientBounds quad = { left, y - glyph.m_Descent * scale, left + width * scale, y + glyph.m_Ascent * scale };
-                const SpatialGradientBounds ink = spatial_effect->m_Gradient.m_Fit == TEXT_EFFECT_FIT_GLYPH && spatial_effect->m_Gradient.m_Color.m_Type != FONT_COLOR_EFFECT_COLOR ? GetGlyphInkBounds(config, text_glyph, x, y) : quad;
-                ApplySpatialGradient(config, line, text_glyph, ink, quad, &spatial_cache, layers);
+                const SpatialGradientBounds unpadded = spatial_effect->m_Gradient.m_Fit == TEXT_EFFECT_FIT_GLYPH && spatial_effect->m_Gradient.m_Color.m_Type != FONT_COLOR_EFFECT_COLOR ? GetGlyphUnpaddedBounds(config, text_glyph, x, y) : quad;
+                ApplySpatialGradient(config, line, text_glyph, unpadded, quad, &spatial_cache, layers);
             }
             if (gpu_gradient)
             {
@@ -1220,8 +1220,8 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             if (spatial_effect && spatial_effect->m_Gradient.m_Mode == TEXT_GRADIENT_MODE_SPATIAL)
             {
                 const SpatialGradientBounds quad = { decoration_params.m_X0, decoration_params.m_Y0 - decoration.m_Thickness * 0.5f, decoration_params.m_X1, decoration_params.m_Y1 + decoration.m_Thickness * 0.5f };
-                const SpatialGradientBounds ink = GetGlyphInkBounds(config, glyph, line_x + glyph.m_X - cached_first_x, line_y + glyph.m_Y - glyphs[line.m_Index].m_Y);
-                ApplySpatialGradient(config, line, glyph, ink, quad, &spatial_cache, layers);
+                const SpatialGradientBounds unpadded = GetGlyphUnpaddedBounds(config, glyph, line_x + glyph.m_X - cached_first_x, line_y + glyph.m_Y - glyphs[line.m_Index].m_Y);
+                ApplySpatialGradient(config, line, glyph, unpadded, quad, &spatial_cache, layers);
             }
             if (gpu_gradient)
             {

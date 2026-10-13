@@ -262,9 +262,9 @@ TEST(FontGlyphBank, SeparateLayoutAndBitmapMetrics)
     source.m_Descent = 3;
     source.m_LayoutWidth = 7.25f;
     source.m_LayoutLeftBearing = 1.5f;
-    source.m_InkWidth = 7.0f;
-    source.m_InkAscent = 8.5f;
-    source.m_InkDescent = 1.5f;
+    source.m_UnpaddedWidth = 7.0f;
+    source.m_UnpaddedAscent = 8.5f;
+    source.m_UnpaddedDescent = 1.5f;
     source.m_Data = pixels;
     source.m_DataSize = sizeof(pixels);
     bank->m_Provider.m_GlyphPadding = 1;
@@ -284,10 +284,10 @@ TEST(FontGlyphBank, SeparateLayoutAndBitmapMetrics)
     ASSERT_EQ(1.5f, glyph.m_LeftBearing);
     ASSERT_EQ(9.0f, glyph.m_Advance);
 
-    options.m_UseInkBounds = true;
+    options.m_UseUnpaddedBounds = true;
     ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
     ASSERT_EQ(7.25f, glyph.m_Width); // Older banks retain their existing metrics.
-    bank->m_Provider.m_HasInkMetrics = true;
+    bank->m_Provider.m_HasUnpaddedMetrics = true;
     ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
     ASSERT_EQ(7.0f, glyph.m_Width);
     ASSERT_EQ(8.5f, glyph.m_Ascent);

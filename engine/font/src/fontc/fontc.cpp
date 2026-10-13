@@ -1134,12 +1134,12 @@ static FontRendererResult GetGlyphMetrics(HFontRenderer renderer, uint32_t codep
     output->m_LayoutWidth = layout_glyph.m_Width * scale;
     output->m_LayoutLeftBearing = layout_glyph.m_LeftBearing * scale;
     options.m_Scale = scale;
-    options.m_UseInkBounds = true;
+    options.m_UseUnpaddedBounds = true;
     if (FontGetGlyphByIndex(renderer->m_Font, glyph_index, &options, &layout_glyph) != FONT_RESULT_OK)
         return FONT_RENDERER_RESULT_GLYPH_ERROR;
-    output->m_InkWidth = layout_glyph.m_Width;
-    output->m_InkAscent = layout_glyph.m_Ascent;
-    output->m_InkDescent = layout_glyph.m_Descent;
+    output->m_UnpaddedWidth = layout_glyph.m_Width;
+    output->m_UnpaddedAscent = layout_glyph.m_Ascent;
+    output->m_UnpaddedDescent = layout_glyph.m_Descent;
     return FONT_RENDERER_RESULT_OK;
 }
 

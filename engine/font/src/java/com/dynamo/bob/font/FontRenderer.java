@@ -529,11 +529,11 @@ public final class FontRenderer implements AutoCloseable {
         public final float ascent;
         public final float descent;
         /** Unpadded outline width used for gradient fitting. */
-        public final float inkWidth;
+        public final float unpaddedWidth;
         /** Unpadded outline ascent used for gradient fitting. */
-        public final float inkAscent;
+        public final float unpaddedAscent;
         /** Unpadded outline descent used for gradient fitting. */
-        public final float inkDescent;
+        public final float unpaddedDescent;
         /** Width used for text measurement, excluding bitmap sampling bounds. */
         public final float layoutWidth;
         /** Bearing used for text measurement, excluding bitmap sampling bounds. */
@@ -548,9 +548,9 @@ public final class FontRenderer implements AutoCloseable {
             leftBearing = FontcGlyphMetrics.m_LeftBearing(values);
             ascent = FontcGlyphMetrics.m_Ascent(values);
             descent = FontcGlyphMetrics.m_Descent(values);
-            inkWidth = FontcGlyphMetrics.m_InkWidth(values);
-            inkAscent = FontcGlyphMetrics.m_InkAscent(values);
-            inkDescent = FontcGlyphMetrics.m_InkDescent(values);
+            unpaddedWidth = FontcGlyphMetrics.m_UnpaddedWidth(values);
+            unpaddedAscent = FontcGlyphMetrics.m_UnpaddedAscent(values);
+            unpaddedDescent = FontcGlyphMetrics.m_UnpaddedDescent(values);
             layoutWidth = FontcGlyphMetrics.m_LayoutWidth(values);
             layoutLeftBearing = FontcGlyphMetrics.m_LayoutLeftBearing(values);
         }

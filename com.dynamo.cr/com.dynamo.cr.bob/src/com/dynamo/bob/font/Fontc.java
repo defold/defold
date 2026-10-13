@@ -87,9 +87,9 @@ public class Fontc {
         int width;
         float advance;
         float leftBearing;
-        float inkWidth;
-        float inkAscent;
-        float inkDescent;
+        float unpaddedWidth;
+        float unpaddedAscent;
+        float unpaddedDescent;
         float layoutWidth;
         float layoutLeftBearing;
         int ascent;
@@ -295,9 +295,9 @@ public class Fontc {
             Glyph glyph = new Glyph();
             glyph.character = codePoint;
             glyph.advance = generated == null ? metrics.advance : generated.advance;
-            glyph.inkWidth = metrics.inkWidth;
-            glyph.inkAscent = metrics.inkAscent;
-            glyph.inkDescent = metrics.inkDescent;
+            glyph.unpaddedWidth = metrics.unpaddedWidth;
+            glyph.unpaddedAscent = metrics.unpaddedAscent;
+            glyph.unpaddedDescent = metrics.unpaddedDescent;
             glyph.layoutWidth = metrics.layoutWidth;
             glyph.layoutLeftBearing = metrics.layoutLeftBearing;
             glyph.leftBearing = generated == null ? metrics.leftBearing : generated.leftBearing;
@@ -315,7 +315,7 @@ public class Fontc {
         FontRenderer.Layout metrics = renderer.measure("", false, 0.0f, 1.0f, 0.0f);
         glyphBankBuilder.setMaxAscent(metrics.maxAscent).setMaxDescent(metrics.maxDescent)
             .setMaxAdvance(maxAdvance).setMaxWidth(maxWidth).setMaxHeight(metrics.maxAscent + metrics.maxDescent)
-            .setHasLayoutMetrics(true).setHasInkMetrics(true);
+            .setHasLayoutMetrics(true).setHasUnpaddedMetrics(true);
     }
 
     private byte[] makeCellBytes(Glyph glyph, DecodedImage bitmapImage, int channels) {
@@ -478,8 +478,8 @@ public class Fontc {
                 .setGlyphDataOffset(glyph.dataOffset).setGlyphDataSize(glyph.dataSize);
             if (glyphBankBuilder.getHasLayoutMetrics())
                 output.setLayoutWidth(glyph.layoutWidth).setLayoutLeftBearing(glyph.layoutLeftBearing);
-            if (glyphBankBuilder.getHasInkMetrics())
-                output.setInkWidth(glyph.inkWidth).setInkAscent(glyph.inkAscent).setInkDescent(glyph.inkDescent);
+            if (glyphBankBuilder.getHasUnpaddedMetrics())
+                output.setUnpaddedWidth(glyph.unpaddedWidth).setUnpaddedAscent(glyph.unpaddedAscent).setUnpaddedDescent(glyph.unpaddedDescent);
             if (preview)
                 output.setX(i % columns * cellWidth).setY(i / columns * cellHeight);
             glyphBankBuilder.addGlyphs(output);

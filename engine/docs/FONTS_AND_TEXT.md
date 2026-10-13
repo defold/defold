@@ -83,8 +83,8 @@ before rasterization. Positive indices select fragment evaluation. Both paths
 use the same metadata texture.
 
 Explicit `type=color|linear|radial|four-corner` selects spatial fitting with
-`fit=glyph|span|block` (default: block). Glyph bounds cover one glyph's ink;
-radial glyph fitting uses the whole line's ink bounds vertically, so glyphs
+`fit=glyph|span|block` (default: block). Glyph fitting uses unpadded glyph bounds;
+radial glyph fitting uses unpadded line bounds vertically, so glyphs
 share a Y center while keeping their individual X centers. Span bounds cover
 the tagged range, including its line breaks and nested color overrides; block
 bounds cover all visible glyphs after line alignment. Four-corner markup without
@@ -141,7 +141,7 @@ line bounds and, when needed, a range tree keyed by source cluster. Span bounds
 query the authored range in that tree, including glyphs with overridden colors
 and reordered glyphs in shaped text.
 Adjacent glyphs sharing an effect and fit dimensions reuse its projection and
-resolved metadata record. Compiled fonts retain unpadded ink metrics so their
+resolved metadata record. Compiled fonts retain unpadded metrics so their
 fits match editor previews; old glyph banks retain their existing bounds.
 
 #### Underline and strikethrough
