@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
             [internal.node :as in]
+            [internal.transaction :as it]
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll])
   (:import [clojure.lang ExceptionInfo]
@@ -168,6 +169,34 @@
         (is (nil? (g/node-value node-id :identity)))
         (g/update-system-from-evaluation-context! evaluation-context)
         (is (= "loaded" (g/node-value node-id :identity)))))))
+
+;; Failed materialization must restore evicted entries along with the basis,
+;; so subsequent reads can reuse the original cached values.
+(deftest failed-materialization-restores-context-cache-test
+  (with-clean-system
+    (let [cached-node (g/make-node! ShellTestNode :value 7)
+          source (g/make-node! ShellTestNode :value 4)
+          shell (first (g/take-node-ids 1))]
+      (g/transact
+        (g/add-node
+          (g/construct-shell ShellTestNode {:_node-id shell}
+            (fn materialize-fn [_self evaluation-context]
+              (g/callback
+                (fn invalidate-cached-output []
+                  (it/transact-in-evaluation-context!
+                    evaluation-context
+                    (g/connect source :result cached-node :dependency))
+                  (is (= 11 (g/node-value cached-node :result evaluation-context)))
+                  (throw (ex-info "load failed" {}))))))))
+      (is (= 7 (g/node-value cached-node :result)))
+      (let [trace (atom nil)
+            evaluation-context (g/make-evaluation-context {:tracer (g/make-tree-tracer trace)})]
+        (is (thrown-with-msg? ExceptionInfo #"load failed"
+                              (g/materialize-node! shell evaluation-context)))
+        (reset! trace nil)
+        (is (= 7 (g/node-value cached-node :result evaluation-context)))
+        (is (= :cache (:output-type @trace)))
+        (is (= 7 (g/node-value cached-node :result)))))))
 
 (deftest materialization-replays-non-undoable-changes-test
   (with-clean-system
@@ -714,36 +743,46 @@
   (input values g/Int :array)
   (output total g/Int :cached (g/fnk [values] (reduce + 0 values))))
 
-;; Appending during replay preserves contributions realized against different bases.
+;; Replay preserves contributions realized against different bases.
+;; Materialization invalidates cache snapshots and local totals, including
+;; through derived contexts, without affecting independent contexts.
 (deftest independent-materializations-preserve-array-connections-test
-  (with-clean-system
-    (let [[a b collector] (g/take-node-ids 3)
-          calls (atom [])]
-      (g/transact
-        [(g/add-node (g/construct MaterializationCollector :_node-id collector))
-         (mapv (fn [node-id value]
-                 (g/add-node
-                   (g/construct-shell ShellTestNode {:_node-id node-id}
-                     (fn [self _evaluation-context]
-                       (swap! calls conj self)
-                       [(g/set-property self :value value)
-                        (g/connect self :result collector :values)]))))
-               [a b] [7 11])])
-      (let [first-context (g/make-evaluation-context)
-            second-context (g/make-evaluation-context)]
-        (is (= 0 (g/node-value collector :total first-context)))
-        (g/materialize-node! a first-context)
-        (is (= 7 (g/node-value collector :total first-context)))
-        (g/materialize-node! b second-context)
-        (g/materialize-node! b first-context)
-        (is (= 18 (g/node-value collector :total first-context)))
-        (g/materialize-node! a second-context)
-        (is (= 18 (g/node-value collector :total second-context)))
-        (g/update-system-from-evaluation-context! first-context)
-        (g/update-system-from-evaluation-context! second-context)
-        (is (= 18 (g/node-value collector :total)))
-        (is (= #{a b} (set @calls)))
-        (is (= 2 (count @calls)))))))
+  (doseq [cache-size [-1 0 10]
+          custom-context [false true]]
+    (with-clean-system {:cache-size cache-size}
+      (let [[a b collector] (g/take-node-ids 3)
+            calls (atom [])]
+        (g/transact
+          [(g/add-node (g/construct MaterializationCollector :_node-id collector))
+           (mapv (fn [node-id value]
+                   (g/add-node
+                     (g/construct-shell ShellTestNode {:_node-id node-id}
+                       (fn materialize-fn [self _evaluation-context]
+                         (swap! calls conj self)
+                         [(g/set-property self :value value)
+                          (g/connect self :result collector :values)]))))
+                 [a b] [7 11])])
+        (is (= 0 (g/node-value collector :total)))
+        (let [first-context (if custom-context
+                              (g/make-evaluation-context {})
+                              (g/make-evaluation-context))
+              second-context (g/make-evaluation-context)
+              derived-context (g/pruned-evaluation-context first-context (constantly true))]
+          (g/materialize-node! a derived-context)
+          (is (= 7 (g/tx-cached-node-value! collector :total first-context)))
+          (is (= 0 (g/node-value collector :total second-context)))
+          (is (= 0 (g/node-value collector :total)))
+          (g/materialize-node! b second-context)
+          (is (= 11 (g/node-value collector :total second-context)))
+          (g/materialize-node! b first-context)
+          (is (= 18 (g/tx-cached-node-value! collector :total first-context)))
+          (g/materialize-node! a second-context)
+          (is (= 18 (g/node-value collector :total second-context)))
+          (g/update-system-from-evaluation-context! first-context)
+          (g/update-system-from-evaluation-context! second-context)
+          (is (= 18 (g/node-value collector :total)))
+          (is (= #{a b} (set @calls)))
+          (is (= 2 (count @calls))))))))
 
 ;; Replaying independent overrides must allocate distinct slots on their shared original.
 (deftest independent-materializations-preserve-overrides-test

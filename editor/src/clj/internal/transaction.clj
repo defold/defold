@@ -14,7 +14,8 @@
 
 (ns internal.transaction
   "Internal functions that implement the transactional behavior."
-  (:require [internal.graph :as ig]
+  (:require [internal.cache :as c]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [util.coll :as coll :refer [pair]]
@@ -1932,6 +1933,8 @@
     (reset! materializations-atom materializations)
     (swap! changes-atom into realized-changes)
     (swap! invalidated-endpoints-atom into outputs-modified)
+    (when-let [cache-atom (:cache-atom evaluation-context)]
+      (swap! cache-atom c/cache-invalidate outputs-modified))
     (swap! (:local-atom evaluation-context) #(reduce dissoc % outputs-modified))
     (when-let [local-temp-atom (:local-temp-atom evaluation-context)]
       (swap! local-temp-atom #(reduce dissoc % outputs-modified))))
@@ -2043,6 +2046,7 @@
                                  :materializations-atom
                                  :invalidated-endpoints-atom
                                  :closed-atom
+                                 :cache-atom
                                  :local-atom
                                  :local-temp-atom
                                  :hits-atom

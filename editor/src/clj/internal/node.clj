@@ -544,7 +544,7 @@
    :materializations-atom (atom materializations)
    :invalidated-endpoints-atom (atom #{})
    :closed-atom (atom false)
-   :cache cache ; cache from the system
+   :cache-atom (atom cache) ; context-local snapshot of the system cache
    :initial-invalidate-counters initial-invalidate-counters
    :local-atom (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
    :local-temp-atom (atom {}) ; local (weak) cache for non-:cached outputs produced during node-value, never used to populate system cache
@@ -553,9 +553,9 @@
    :tx-data-context-atom (atom {})})
 
 (defn custom-evaluation-context
-  [{:keys [basis] :as options}]
+  [{:keys [basis cache] :as options}]
   (validate-evaluation-context-options options)
-  (cond-> (assoc (dissoc options :basis :materializations)
+  (cond-> (assoc (dissoc options :basis :cache :materializations)
             :initial-basis basis
             :initial-materializations (:materializations options)
             :basis-ref (atom basis)
@@ -566,6 +566,9 @@
             :local-atom (atom {})
             :hits-atom (atom [])
             :in-production #{})
+
+    cache
+    (assoc :cache-atom (atom cache))
 
     (not (:no-local-temp options))
     (assoc :local-temp-atom (atom {}))
@@ -1739,11 +1742,8 @@
         local-cache @(:local-atom evaluation-context)
         local-cache-value (get local-cache cache-key ::not-found)]
     (if (identical? ::not-found local-cache-value)
-      (let [invalidated-endpoints @(:invalidated-endpoints-atom evaluation-context)
-            global-cache (:cache evaluation-context)
-            global-cache-value (if (contains? invalidated-endpoints cache-key)
-                                 ::not-found
-                                 (get global-cache cache-key ::not-found))]
+      (let [global-cache (some-> (:cache-atom evaluation-context) deref)
+            global-cache-value (get global-cache cache-key ::not-found)]
         (if (identical? ::not-found global-cache-value)
           ::not-found
           (do

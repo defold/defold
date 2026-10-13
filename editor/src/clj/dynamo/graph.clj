@@ -1431,7 +1431,7 @@
     (nil? node-id)
     nil
 
-    (some? (:cache evaluation-context))
+    (:cache-atom evaluation-context)
     (node-value node-id label evaluation-context)
 
     :else
