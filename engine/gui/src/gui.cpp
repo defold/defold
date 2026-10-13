@@ -2024,6 +2024,37 @@ namespace dmGui
         }
     }
 
+    // Repeat zoom/offset are also animated by directly writing their scalar
+    // slots. Ease-back and elastic curves can overshoot valid endpoints, so
+    // clamp only these XY slots to the same limits as the Lua setters.
+    static float ClampRepeatAnimationValue(HScene scene, HNode node, float* value, float candidate)
+    {
+        InternalNode* n = &scene->m_Nodes[node & 0xffff];
+        float* zoom = (float*)&n->m_Node.m_Properties[PROPERTY_REPEAT_ZOOM];
+        float* offset = (float*)&n->m_Node.m_Properties[PROPERTY_REPEAT_OFFSET];
+        float min_value, max_value;
+        if (value == zoom || value == zoom + 1)
+        {
+            min_value = 0.01f;
+            max_value = 256.0f;
+        }
+        else if (value == offset || value == offset + 1)
+        {
+            min_value = -1000000.0f;
+            max_value = 1000000.0f;
+        }
+        else
+        {
+            return candidate;
+        }
+
+        if (candidate < min_value) return min_value;
+        if (candidate > max_value) return max_value;
+        // Malformed custom easing curves may return NaN. Keep the last
+        // valid animated value rather than passing NaN to tiled geometry.
+        return candidate >= min_value && candidate <= max_value ? candidate : *value;
+    }
+
     void UpdateAnimations(HScene scene, float dt)
     {
         dmArray<Animation>* animations = &scene->m_Animations;
@@ -2085,7 +2116,8 @@ namespace dmGui
 
                 float x = dmEasing::GetValue(anim->m_Easing, t2);
 
-                *anim->m_Value = anim->m_From + (anim->m_To - anim->m_From) * x;
+                *anim->m_Value = ClampRepeatAnimationValue(scene, anim->m_Node, anim->m_Value,
+                                                           anim->m_From + (anim->m_To - anim->m_From) * x);
                 // Flag local transform as dirty for the node
                 scene->m_Nodes[anim->m_Node & 0xffff].m_Node.m_DirtyLocal = 1;
 
