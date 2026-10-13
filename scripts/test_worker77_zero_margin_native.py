@@ -93,9 +93,15 @@ class ZeroMarginNative(unittest.TestCase):
   source=SOURCE.read_text()
   start=source.index("    static bool IsTiledSlice9Material(")
   end=source.index("    static uint32_t CalcVertexCount(",start)
+  # This legacy harness exercises the pure Slice-9 helper functions. The
+  # separate static-frame regression compiles CanTileGuiZeroMarginFrame with
+  # its TextureSet DDF fixture; exclude that unrelated dependency here.
+  frame_gate_start=source.index("    static bool CanTileGuiZeroMarginFrame(",start,end)
+  frame_gate_end=source.index("    static bool GetGuiRepeatAxis(",frame_gate_start,end)
+  helpers=source[start:frame_gate_start]+source[frame_gate_end:end]
   with tempfile.TemporaryDirectory(prefix="worker77_native_") as d:
    p=pathlib.Path(d)/"native.cpp";exe=pathlib.Path(d)/"native"
-   p.write_text(STUB+"\n"+source[start:end]+"\n"+MAIN)
+   p.write_text(STUB+"\n"+helpers+"\n"+MAIN)
    a=subprocess.run([cxx,"-std=c++11","-O1","-Wall","-Wextra","-Werror","-o",str(exe),str(p)],text=True,capture_output=True)
    self.assertEqual(0,a.returncode,a.stderr)
    b=subprocess.run([str(exe)],capture_output=True,text=True)

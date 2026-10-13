@@ -80,7 +80,12 @@ class TiledSlice9PagedSourceContract(unittest.TestCase):
         cpp = CPP.read_text()
         start = cpp.index("static bool IsTiledSlice9Material(")
         end = cpp.index("static void GetGuiSlice9TileSegment(", start)
-        actual_cpp = cpp[start:end]
+        # Compile only the pure tiler helpers in this older source-extraction
+        # test. CanTileGuiZeroMarginFrame has a TextureSet DDF dependency and
+        # is source-compiled by test_worker77_repeat_runtime_native instead.
+        frame_gate_start = cpp.index("static bool CanTileGuiZeroMarginFrame(", start, end)
+        frame_gate_end = cpp.index("static bool GetGuiRepeatAxis(", frame_gate_start, end)
+        actual_cpp = cpp[start:frame_gate_start] + cpp[frame_gate_end:end]
         header = r'''
 #include <cmath>
 #include <cfloat>
