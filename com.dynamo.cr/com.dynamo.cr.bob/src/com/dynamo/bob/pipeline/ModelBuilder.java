@@ -84,6 +84,13 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         }
     }
 
+    // Skinning compatibility rules:
+    // - Only reflected vertex inputs named bone_weights or bone_indices require skin data.
+    // - A mesh using such a material must contain both weights and bone indices; animation clips are not required.
+    // - Validate scene geometry, or only the selected mesh (including raw geometry when selected).
+    // - Resolve legacy materials as a single default binding. Match runtime assignment by padding missing
+    //   bindings with binding zero, then sorting by mesh-set material index (-1 for unmatched names).
+    // - Check every binding with the same sort key, since runtime qsort can reorder ties.
     private void validateSkinnedMaterials(ModelDesc.Builder model, IResource resource, int selectedMeshIndex) throws IOException, CompileExceptionError {
         MeshSet meshSet = MeshSet.parseFrom(project.getResource(model.getMesh()).changeExt(".meshsetc").getContent());
         List<Material> materials = model.getMaterialsList();

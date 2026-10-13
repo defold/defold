@@ -123,7 +123,7 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         assertEquals("/test_animation_generated_0.animationsetc", rigScene.getAnimationSet());
     }
 
-    // Guards against #10929, including legacy, missing, and stale material bindings.
+    // Verifies static meshes reject skinned materials through direct, legacy, and fallback bindings.
     @Test
     public void testStaticMeshRejectsSkinnedMaterial() throws Exception {
         getProject().mount(new ClassLoaderResourceScanner());
