@@ -208,6 +208,18 @@ message NodeDesc
     optional string    custom_type_name  = 49;
     repeated Property  custom_properties = 50;
     optional string    style             = 51 [default = "default"];
+
+    // Optional BOX texture sampling mode. Appended fields retain wire
+    // compatibility with existing GUI scenes; absent means legacy Stretch.
+    enum TextureMode {
+        TEXTURE_MODE_STRETCH = 0;
+        TEXTURE_MODE_REPEAT = 1;
+    }
+    optional TextureMode texture_mode     = 52 [default = TEXTURE_MODE_STRETCH];
+    // Positive XY image magnification and local XY pixel phase. An absent
+    // zoom vector is loaded as (1,1); runtime properties can be animated.
+    optional dmMath.Vector4 repeat_zoom    = 53;
+    optional dmMath.Vector4 repeat_offset  = 54;
 }
 
 message SceneDesc

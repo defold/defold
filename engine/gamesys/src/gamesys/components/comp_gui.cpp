@@ -840,6 +840,13 @@ namespace dmGameSystem
         color.setW(node_desc->m_ShadowAlpha);
         dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SHADOW, color);
         dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SLICE9, node_desc->m_Slice9);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_REPEAT_MODE,
+                               Vector4(node_desc->m_TextureMode == dmGuiDDF::NodeDesc::TEXTURE_MODE_REPEAT ? 1.0f : 0.0f,0,0,0));
+        // A missing Proto3-style Vector4 defaults to zero: that means use
+        // new-node native defaults rather than an invalid zero magnification.
+        if (node_desc->m_RepeatZoom.getX() > 0.0f && node_desc->m_RepeatZoom.getY() > 0.0f)
+            dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_REPEAT_ZOOM, node_desc->m_RepeatZoom);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_REPEAT_OFFSET, node_desc->m_RepeatOffset);
 
         // texture and texture animation setup
         dmGui::SetNodeSizeMode(scene, n, (dmGui::SizeMode) node_desc->m_SizeMode);
@@ -2095,13 +2102,13 @@ namespace dmGameSystem
         }
     }
 
-    // Provisional renderer-only opt-in. Use "slice9_tiled" for 2D textures,
-    // or "slice9_tiled_paged" with the paged-atlas shader for texture arrays.
-    // The renderer repeats cells in geometry. No new BoxVertex attributes,
-    // atlas sampler wrap setting, public node property or GUI binary ABI.
-    // A reviewed Slice9 mode API can replace this temporary selector later.
+    // Explicit GUI Repeat mode or the original material-name opt-in. Both
+    // generate bounded repeat cells with original per-frame atlas UV/page;
+    // neither requires sampler wrapping or a new vertex/shader attribute.
     static bool IsTiledSlice9Material(dmGui::HScene scene, dmGui::HNode node)
     {
+        if (dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_REPEAT_MODE).getX() >= 0.5f)
+            return true;
         if (dmGui::GetNodeMaterial(scene, node) == 0)
             return false;
         dmhash_t material_id = dmGui::GetNodeMaterialId(scene, node);
@@ -2117,6 +2124,11 @@ namespace dmGameSystem
         float m_SourceCenterY;
         float m_RenderCenterX;
         float m_RenderCenterY;
+        float m_TileStepX;
+        float m_TileStepY;
+        float m_FirstSpanX;
+        float m_FirstSpanY;
+        bool m_AnimatedPhase;
         // With zero margins the entire source frame repeats: no border cells.
         bool m_NoMargins;
     };
@@ -2128,6 +2140,51 @@ namespace dmGameSystem
         return info.m_NoMargins
              ? info.m_XCount * info.m_YCount * 6
              : (info.m_XCount + 2) * (info.m_YCount + 2) * 6;
+    }
+
+    // Positive offset moves the sample phase forward along the given axis.
+    // Flipped atlas UVs are right-anchored, matching legacy behavior when
+    // the offset is zero. Each repeat row uses this same deterministic count
+    // for both allocation and vertex emission.
+    static bool GetGuiRepeatAxis(float destination, float source, float zoom,
+                                 float offset, bool flipped, float* step,
+                                 float* first_span, uint32_t* count)
+    {
+        if (!(destination > 0.001f && source > 0.001f &&
+              zoom >= 0.01f && zoom <= 256.0f &&
+              fabsf(offset) <= 1000000.0f))
+            return false;
+        float tile_step = source * zoom;
+        if (!(tile_step > 0.001f && tile_step <= 100000000.0f))
+            return false;
+        float phase = fmodf(flipped ? destination + offset : offset, tile_step);
+        if (phase < 0.0f)
+            phase += tile_step;
+        float first = flipped ? (phase > 0.00001f ? phase : tile_step)
+                              : (phase > 0.00001f ? tile_step - phase : tile_step);
+        float segments = 1.0f + ceilf(dmMath::Max(0.0f, destination - first) / tile_step);
+        if (!(segments >= 1.0f && segments <= 2048.0f))
+            return false;
+        *step = tile_step;
+        *first_span = first;
+        *count = (uint32_t)segments;
+        return true;
+    }
+
+    // The first tile may be partial due to animated phase and/or mirrored
+    // atlas orientation; all later tiles are full except the final clip.
+    // Returned UV fractions always stay inside the original frame subrect.
+    static void GetGuiRepeatTileSegment(uint32_t index, float destination,
+                                        float step, float first_span,
+                                        bool flipped, float* pos0, float* pos1,
+                                        float* uv0, float* uv1)
+    {
+        *pos0 = index == 0 ? 0.0f : first_span + (index - 1) * step;
+        *pos1 = dmMath::Min(destination, index == 0 ? first_span : first_span + index * step);
+        float fraction = (*pos1 - *pos0) / step;
+        *uv0 = flipped ? (index == 0 ? first_span / step : 1.0f)
+                       : (index == 0 ? 1.0f - first_span / step : 0.0f);
+        *uv1 = flipped ? *uv0 - fraction : *uv0 + fraction;
     }
 
     // Use EXACTLY the same capped tile count for allocation and rendering.
@@ -2170,8 +2227,19 @@ namespace dmGameSystem
               render_center_x > 0.001f && render_center_y > 0.001f))
             return false;
 
-        float x_tiles = ceilf(render_center_x / source_center_x);
-        float y_tiles = ceilf(render_center_y / source_center_y);
+        Vector4 zoom = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_REPEAT_ZOOM);
+        Vector4 offset = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_REPEAT_OFFSET);
+        bool flip_u = false, flip_v = false;
+        GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+        float step_x, step_y, first_x, first_y;
+        uint32_t count_x, count_y;
+        if (!GetGuiRepeatAxis(render_center_x, source_center_x, zoom.getX(), offset.getX(),
+                              flip_u, &step_x, &first_x, &count_x) ||
+            !GetGuiRepeatAxis(render_center_y, source_center_y, zoom.getY(), offset.getY(),
+                              flip_v, &step_y, &first_y, &count_y))
+            return false;
+        float x_tiles = (float)count_x;
+        float y_tiles = (float)count_y;
         // Cap at 2048 logical quads (12,288 vertices). Using division avoids
         // integer overflow for extremely large user-authored GUI node sizes.
         if (!(x_tiles >= 1.0f && y_tiles >= 1.0f &&
@@ -2187,6 +2255,12 @@ namespace dmGameSystem
         info->m_SourceCenterY = source_center_y;
         info->m_RenderCenterX = render_center_x;
         info->m_RenderCenterY = render_center_y;
+        info->m_TileStepX = step_x;
+        info->m_TileStepY = step_y;
+        info->m_FirstSpanX = first_x;
+        info->m_FirstSpanY = first_y;
+        info->m_AnimatedPhase = zoom.getX() != 1.0f || zoom.getY() != 1.0f ||
+                                offset.getX() != 0.0f || offset.getY() != 0.0f;
         info->m_NoMargins = no_margins;
         return true;
     }
@@ -2597,9 +2671,16 @@ namespace dmGameSystem
                         {
                             float py0, py1, ty0, ty1;
                             if (y == 1)
-                                GetGuiSlice9TileSegment(yi, y_count, tile_info.m_RenderCenterY,
-                                                       tile_info.m_SourceCenterY, flip_v,
-                                                       &py0, &py1, &ty0, &ty1);
+                            {
+                                if (tile_info.m_AnimatedPhase)
+                                    GetGuiRepeatTileSegment(yi, tile_info.m_RenderCenterY,
+                                                            tile_info.m_TileStepY, tile_info.m_FirstSpanY,
+                                                            flip_v, &py0, &py1, &ty0, &ty1);
+                                else
+                                    GetGuiSlice9TileSegment(yi, y_count, tile_info.m_RenderCenterY,
+                                                            tile_info.m_SourceCenterY, flip_v,
+                                                            &py0, &py1, &ty0, &ty1);
+                            }
                             else
                             {
                                 py0 = 0.0f; py1 = tile_info.m_RenderCenterY;
@@ -2614,9 +2695,16 @@ namespace dmGameSystem
                             {
                                 float px0, px1, tx0, tx1;
                                 if (x == 1)
-                                    GetGuiSlice9TileSegment(xi, x_count, tile_info.m_RenderCenterX,
-                                                           tile_info.m_SourceCenterX, flip_u,
-                                                           &px0, &px1, &tx0, &tx1);
+                                {
+                                    if (tile_info.m_AnimatedPhase)
+                                        GetGuiRepeatTileSegment(xi, tile_info.m_RenderCenterX,
+                                                                tile_info.m_TileStepX, tile_info.m_FirstSpanX,
+                                                                flip_u, &px0, &px1, &tx0, &tx1);
+                                    else
+                                        GetGuiSlice9TileSegment(xi, x_count, tile_info.m_RenderCenterX,
+                                                                tile_info.m_SourceCenterX, flip_u,
+                                                                &px0, &px1, &tx0, &tx1);
+                                }
                                 else
                                 {
                                     px0 = 0.0f; px1 = tile_info.m_RenderCenterX;

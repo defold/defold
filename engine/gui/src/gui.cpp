@@ -222,6 +222,8 @@ namespace dmGui
             PROP(shadow, PROPERTY_SHADOW )
             PROP(slice9, PROPERTY_SLICE9 )
             PROP(euler, PROPERTY_EULER )
+            PROP(repeat_zoom, PROPERTY_REPEAT_ZOOM )
+            PROP(repeat_offset, PROPERTY_REPEAT_OFFSET )
             { dmHashString64("inner_radius"), PROPERTY_PIE_PARAMS, 0 },
             { dmHashString64("fill_angle"), PROPERTY_PIE_PARAMS, 1 },
             { dmHashString64("leading"), PROPERTY_TEXT_PARAMS, 0 },
@@ -239,6 +241,8 @@ namespace dmGui
             { dmHashString64("shadow"), PROPERTY_SHADOW, 0xff },
             { dmHashString64("slice"), PROPERTY_SLICE9, 0xff },
             { dmHashString64("euler"), PROPERTY_EULER, 0xff },
+            { dmHashString64("repeat_zoom"), PROPERTY_REPEAT_ZOOM, 0xff },
+            { dmHashString64("repeat_offset"), PROPERTY_REPEAT_OFFSET, 0xff },
     };
 
     PropDesc* GetPropertyDesc(dmhash_t property_hash)
@@ -2791,6 +2795,9 @@ namespace dmGui
         node->m_Node.m_Properties[PROPERTY_TEXT_PARAMS] = Vector4(1, 0, 0, 0);
         node->m_Node.m_Properties[PROPERTY_EULER] = Vector4(0);
         node->m_Node.m_Properties[PROPERTY_PREV_EULER] = Vector4(0);
+        node->m_Node.m_Properties[PROPERTY_REPEAT_ZOOM] = Vector4(1,1,0,0);
+        node->m_Node.m_Properties[PROPERTY_REPEAT_OFFSET] = Vector4(0,0,0,0);
+        node->m_Node.m_Properties[PROPERTY_REPEAT_MODE] = Vector4(0,0,0,0);
         node->m_Node.m_LocalTransform = Matrix4::identity();
         node->m_Node.m_LocalAdjustScale = Vector4(1.0, 1.0, 1.0, 1.0);
         node->m_Node.m_PerimeterVertices = 32;

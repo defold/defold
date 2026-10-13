@@ -345,8 +345,12 @@ namespace dmGui
         PROPERTY_TEXT_PARAMS= 9,
         PROPERTY_EULER      = 10,
         PROPERTY_PREV_EULER = 11, // Used to automatically detect if the euler property has been animated
+        // Appended to retain existing property IDs and animation references.
+        PROPERTY_REPEAT_ZOOM   = 12, // (x,y) positive image magnification
+        PROPERTY_REPEAT_OFFSET = 13, // (x,y) texture offset in local node pixels
+        PROPERTY_REPEAT_MODE   = 14, // x: 0 = stretch, 1 = repeat
 
-        PROPERTY_COUNT      = 12,
+        PROPERTY_COUNT      = 15,
     };
 
     /*#
