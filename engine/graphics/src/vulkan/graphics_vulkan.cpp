@@ -6006,10 +6006,12 @@ bail:
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
 
         const bool backbuffer = context->m_CurrentRenderTarget == context->m_MainRenderTarget;
+        uint32_t layer = 0;
         HTexture color_handle = context->m_CurrentSwapchainTexture;
         if (!backbuffer)
         {
             VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+            layer = rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? rt->m_Base.m_CubeMapFace : 0;
             color_handle = rt->m_Base.m_TextureColor[0];
             if (rt->m_Base.m_TextureColorResolve[0])
             {
@@ -6071,7 +6073,7 @@ bail:
         // visible to the copy instead of transitioning from UNDEFINED.
         VkImageMemoryBarrier image_barrier = {};
         image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        image_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        image_barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT;
         image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
         image_barrier.oldLayout = backbuffer && !context->m_MainRTBegunThisFrame ? texture->m_ImageLayout[0] : layout;
         image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
@@ -6080,19 +6082,20 @@ bail:
         image_barrier.image = texture->m_Handle.m_Image;
         image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         image_barrier.subresourceRange.levelCount = 1;
+        image_barrier.subresourceRange.baseArrayLayer = layer;
         image_barrier.subresourceRange.layerCount = 1;
         vkCmdPipelineBarrier(vk_command_buffer,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
             0, 0, 0, 0, 0, 1, &image_barrier);
-        texture->m_ImageLayout[0] = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
         VkBufferImageCopy vk_copy_region = {};
         vk_copy_region.imageOffset.x               = x;
-        vk_copy_region.imageOffset.y               = y;
+        vk_copy_region.imageOffset.y               = texture->m_Base.m_Height - y - height;
         vk_copy_region.imageExtent.width           = width;
         vk_copy_region.imageExtent.height          = height;
         vk_copy_region.imageExtent.depth           = 1;
         vk_copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        vk_copy_region.imageSubresource.baseArrayLayer = layer;
         vk_copy_region.imageSubresource.layerCount = 1;
 
         TouchResource(context, texture);
@@ -6112,13 +6115,15 @@ bail:
         vkCmdPipelineBarrier(vk_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
             0, 1, &host_barrier, 0, 0, 0, 0);
 
-        TransitionImageLayoutWithCmdBuffer(
-            vk_command_buffer,
-            texture,
-            VK_IMAGE_ASPECT_COLOR_BIT,
-            layout,
-            0,
-            1);
+        // Restore only the copied face. The generic helper tracks layouts per
+        // mip and would transition layer zero instead of the selected cube face.
+        image_barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        image_barrier.dstAccessMask = backbuffer ? 0 : VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        image_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        image_barrier.newLayout = layout;
+        vkCmdPipelineBarrier(vk_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            0, 0, 0, 0, 0, 1, &image_barrier);
+        texture->m_ImageLayout[0] = layout;
 
         res = vkEndCommandBuffer(vk_command_buffer);
         CHECK_VK_ERROR(res);

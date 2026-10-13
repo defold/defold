@@ -22,6 +22,7 @@
 #include <dlib/time.h>
 #include <platform/window.hpp>
 #include "test_app_graphics.h"
+#include "read_pixels_tests.h"
 #include "graphics_capture.vp.h"
 #include "graphics_capture.fp.h"
 #include "graphics_capture.cube.fp.h"
@@ -1065,11 +1066,13 @@ static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResour
     RenderCapture(context, resources, name);
     ReadCapturePixels(context, pixels);
 
+    bool regions_valid = CheckReadPixelsRegions(context, CAPTURE_SIZE, CAPTURE_SIZE);
+
     // An unaligned row width exercises staging-buffer padding and a nonzero
     // source offset, without changing the image used for likeness scoring.
     uint8_t narrow[13 * CAPTURE_SIZE * 4] = {};
     ReadPixels(context, 67, 0, 13, CAPTURE_SIZE, narrow, sizeof(narrow));
-    bool valid = true;
+    bool valid = regions_valid;
     for (uint32_t row = 0; row < CAPTURE_SIZE; ++row)
     {
         const uint8_t* actual_row = narrow + row * 13 * 4;
@@ -1130,6 +1133,14 @@ static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResour
         valid = false;
     }
 
+    if (strcmp(name, "triangle") == 0)
+    {
+        valid &= CheckReadPixelsTargets(context, resources.m_Target);
+        CaptureResources backbuffer = resources;
+        backbuffer.m_Target = 0;
+        RenderCapture(context, backbuffer, name);
+        valid &= CheckReadPixelsRegions(context, CAPTURE_SIZE, CAPTURE_SIZE);
+    }
     SetRenderTarget(context, 0, RenderTargetBindingParams());
     SetColorMask(context, true, true, true, true);
     DisableState(context, STATE_STENCIL_TEST);

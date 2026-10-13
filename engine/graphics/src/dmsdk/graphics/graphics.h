@@ -1255,7 +1255,15 @@ namespace dmGraphics
     const char* GetSupportedExtension(HContext context, uint32_t index);
 
     /*#
-     * Read frame buffer pixels in BGRA format
+     * Read the current render target's first color attachment (or the backbuffer).
+     * Call between BeginFrame and Flip, after drawing the pixels to read. The call
+     * waits for preceding rendering and returns tightly packed BGRA8 pixels, with
+     * the top row first. Region coordinates have their origin at the bottom left.
+     * Multisampled attachments are resolved; cubemaps use the currently bound face.
+     * RGBA8/BGRA8 attachments are supported. Other formats are adapter-dependent.
+     * The region must fit the attachment and buffer_size must be at least
+     * width * height * 4 bytes. Invalid regions leave the destination unchanged.
+     * Subsequent rendering can continue on the same target.
      * @name ReadPixels
      * @param context [type:dmGraphics::HContext] the context
      * @param x [type:int32_t] x-coordinate of the starting position

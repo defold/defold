@@ -4044,7 +4044,8 @@ static void WebGPUReadPixels(HContext _context, int32_t x, int32_t y, uint32_t w
 
     source.texture  = texture->m_Texture;
     source.origin.x = x;
-    source.origin.y = y;
+    source.origin.y = rt->m_Height - y - height;
+    source.origin.z = rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? rt->m_Base.m_CubeMapFace : 0;
     source.aspect   = WGPUTextureAspect_All;
 
     destination.buffer              = staging;
