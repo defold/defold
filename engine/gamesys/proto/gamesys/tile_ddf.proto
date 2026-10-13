@@ -61,13 +61,14 @@ enum SpriteTrimmingMode
 message Animation
 {
     required string id              = 1;
-    required uint32 start_tile      = 2;
-    required uint32 end_tile        = 3;
+    optional uint32 start_tile      = 2; // Legacy inclusive range, used when frames is empty.
+    optional uint32 end_tile        = 3;
     optional Playback playback      = 4 [default = PLAYBACK_ONCE_FORWARD];
     optional uint32 fps             = 5 [default = 30];
     optional uint32 flip_horizontal = 6 [default = 0];
     optional uint32 flip_vertical   = 7 [default = 0];
     repeated Cue cues               = 8;
+    repeated uint32 frames          = 9; // One-based tile numbers in playback order. Repetitions are allowed.
 }
 
 message TileSet
