@@ -21,19 +21,23 @@ float getX() const{return x;} float getY() const{return y;}
 float getZ() const{return z;} float getW() const{return w;}};
 float sum(const Vector4& v){return v.x+v.y+v.z+v.w;}
 struct Point3 {float x,y,z;float getX()const{return x;}float getY()const{return y;}};
-namespace dmMath {template<class T>T Min(T a,T b){return a<b?a:b;}}
+namespace dmMath {template<class T>T Min(T a,T b){return a<b?a:b;}template<class T>T Max(T a,T b){return a>b?a:b;}}
 uint64_t dmHashString64(const char* x){return strcmp(x,"slice9_tiled")==0?44:0;}
-struct Fixture{bool material=true;bool uv=true;uint64_t id=44;
+struct Fixture{bool material=true;bool uv=true;bool flip_u=false;bool flip_v=false;uint64_t id=44;
 float tc[6]={0.1f,0.2f,0.1f,0.4f,0.3f,0.4f};
-Vector4 margins={0,0,0,0};Point3 size={45,34,0};};
+Vector4 margins={0,0,0,0};Point3 size={45,34,0};
+Vector4 zoom={1,1,0,0},offset={0,0,0,0},mode={0,0,0,0};};
 namespace dmGui {
 using HScene=void*;using HNode=Fixture*;
+enum Property {PROPERTY_REPEAT_ZOOM=12,PROPERTY_REPEAT_OFFSET=13,PROPERTY_REPEAT_MODE=14};
 void* GetNodeMaterial(HScene,HNode n){return n->material?n:nullptr;}
 uint64_t GetNodeMaterialId(HScene,HNode n){return n->id;}
 const float* GetNodeFlipbookAnimUV(HScene,HNode n){return n->uv?n->tc:nullptr;}
 Vector4 GetNodeSlice9(HScene,HNode n){return n->margins;}
 Point3 GetNodeSize(HScene,HNode n){return n->size;}
+Vector4 GetNodeProperty(HScene,HNode n,Property p){return p==PROPERTY_REPEAT_ZOOM?n->zoom:(p==PROPERTY_REPEAT_OFFSET?n->offset:n->mode);}
 }
+void GetNodeFlipbookAnimUVFlip(dmGui::HScene,dmGui::HNode n,bool& u,bool& v){u=n->flip_u;v=n->flip_v;}
 """
 MAIN=r"""
 static bool eq(float a,float b){return fabsf(a-b)<0.0001f;}
@@ -45,6 +49,11 @@ assert(t.m_NoMargins);assert(t.m_XCount==3&&t.m_YCount==2);
 assert(eq(t.m_SourceCenterX,20)&&eq(t.m_SourceCenterY,20));
 assert(eq(t.m_RenderCenterX,45)&&eq(t.m_RenderCenterY,34));
 assert(GetGuiSlice9TileVertexCount(t)==36);
+// The new phase helper is extracted with the original helper under -Werror.
+// At default offset and zoom it must agree with an ordinary full first tile.
+float pp0,pp1,uu0,uu1;
+GetGuiRepeatTileSegment(0,t.m_RenderCenterX,t.m_TileStepX,t.m_FirstSpanX,false,&pp0,&pp1,&uu0,&uu1);
+assert(eq(pp0,0)&&eq(pp1,20)&&eq(uu0,0)&&eq(uu1,1));
 float last=0; for(uint32_t i=0;i<t.m_XCount;i++){
 float p0,p1,u0,u1;GetGuiSlice9TileSegment(i,t.m_XCount,t.m_RenderCenterX,t.m_SourceCenterX,false,&p0,&p1,&u0,&u1);
 assert(eq(p0,last)&&p1>p0&&p1<=45&&u0==0&&u1>0&&u1<=1);last=p1;

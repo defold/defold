@@ -105,19 +105,34 @@ struct Point3 {
     float getX() const { return x; }
     float getY() const { return y; }
 };
+namespace dmMath {
+    template<class T> T Min(T a,T b) { return a<b?a:b; }
+    template<class T> T Max(T a,T b) { return a>b?a:b; }
+}
 static dmhash_t g_material = 1;
 static float g_uv[6] = {0.25f,0.375f,0.25f,0.125f,0.5f,0.125f};
 static const float* g_uvp = g_uv;
 static Vector4 g_slice = {1,1,1,1};
 static Point3 g_size = {5,5};
+static Vector4 g_zoom = {1,1,0,0};
+static Vector4 g_offset = {0,0,0,0};
+static Vector4 g_mode = {0,0,0,0};
 namespace dmGui {
     typedef int HScene;
     typedef int HNode;
+    enum Property {PROPERTY_REPEAT_ZOOM=12,PROPERTY_REPEAT_OFFSET=13,PROPERTY_REPEAT_MODE=14};
     static void* GetNodeMaterial(HScene,HNode) { return (void*)1; }
     static dmhash_t GetNodeMaterialId(HScene,HNode) { return g_material; }
     static const float* GetNodeFlipbookAnimUV(HScene,HNode) { return g_uvp; }
     static Vector4 GetNodeSlice9(HScene,HNode) { return g_slice; }
     static Point3 GetNodeSize(HScene,HNode) { return g_size; }
+    static Vector4 GetNodeProperty(HScene,HNode,Property p) {
+        return p==PROPERTY_REPEAT_ZOOM ? g_zoom :
+               (p==PROPERTY_REPEAT_OFFSET ? g_offset : g_mode);
+    }
+}
+static void GetNodeFlipbookAnimUVFlip(dmGui::HScene,dmGui::HNode,bool& u,bool& v) {
+    u=false;v=false;
 }
 '''
         main = r'''
@@ -127,6 +142,11 @@ int main() {
     if (!GetGuiSlice9TileInfo(0,0,16,16,&info)) return 1;
     if (info.m_XCount!=2 || info.m_YCount!=2 || info.m_SourceCenterX!=2 || info.m_SourceCenterY!=2) return 2;
     if (GetGuiSlice9TileVertexCount(info) != 96) return 11;
+    // Repeat tile phase helper is also present in this exact source extract.
+    // Its default first segment must cover the original 2px center tile.
+    float p0,p1,u0,u1;
+    GetGuiRepeatTileSegment(0,3,info.m_TileStepX,info.m_FirstSpanX,false,&p0,&p1,&u0,&u1);
+    if (p0!=0 || p1!=2 || u0!=0 || u1!=1) return 12;
     // Same frame packed rotated 90 degrees. Its atlas U/V axes swap.
     g_uv[2]=0.5f; g_uv[4]=0.5f; g_uv[3]=0.375f; g_uv[5]=0.125f;
     if (!GetGuiSlice9TileInfo(0,0,16,16,&info)) return 3;
