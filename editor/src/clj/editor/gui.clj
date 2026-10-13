@@ -1948,6 +1948,25 @@
 
 ;; Box nodes
 
+(defn- invalid-repeat-zoom-message
+  [repeat-zoom]
+  (when (some (fn [value]
+                (let [value (double value)]
+                  (or (not (Double/isFinite value))
+                      (< value 0.01)
+                      (> value 256.0))))
+              (take 2 repeat-zoom))
+    "Repeat Zoom X and Y must be between 0.01 and 256."))
+
+(defn- invalid-repeat-offset-message
+  [repeat-offset]
+  (when (some (fn [value]
+                (let [value (double value)]
+                  (or (not (Double/isFinite value))
+                      (> (Math/abs value) 1000000.0))))
+              (take 2 repeat-offset))
+    "Repeat Offset X and Y must be finite and within 1,000,000 pixels."))
+
 (g/defnk produce-box-node-msg [shape-base-node-msg ^:raw slice9 ^:raw texture-mode ^:raw repeat-zoom ^:raw repeat-offset]
   (assoc shape-base-node-msg
     :slice9 slice9
@@ -1967,6 +1986,9 @@
 
   (property repeat-zoom types/Vec4 (default [1.0 1.0 0.0 0.0])
             (dynamic visible (g/fnk [texture-mode] (= :texture-mode-repeat texture-mode)))
+            (dynamic error (g/fnk [_node-id texture-mode repeat-zoom]
+                             (when (= :texture-mode-repeat texture-mode)
+                               (validation/prop-error :fatal _node-id :repeat-zoom invalid-repeat-zoom-message repeat-zoom))))
             (dynamic edit-type (layout-property-edit-type repeat-zoom {:type types/Vec4 :labels ["X" "Y" "Z" "W"]}))
             (dynamic label (g/constantly "Repeat Zoom"))
             (dynamic tooltip (g/constantly "Tile magnification per axis (0.01 to 256)."))
@@ -1975,6 +1997,9 @@
 
   (property repeat-offset types/Vec4 (default [0.0 0.0 0.0 0.0])
             (dynamic visible (g/fnk [texture-mode] (= :texture-mode-repeat texture-mode)))
+            (dynamic error (g/fnk [_node-id texture-mode repeat-offset]
+                             (when (= :texture-mode-repeat texture-mode)
+                               (validation/prop-error :fatal _node-id :repeat-offset invalid-repeat-offset-message repeat-offset))))
             (dynamic edit-type (layout-property-edit-type repeat-offset {:type types/Vec4 :labels ["X" "Y" "Z" "W"]}))
             (dynamic label (g/constantly "Repeat Offset"))
             (dynamic tooltip (g/constantly "Shift repeated image phase in local pixels."))
