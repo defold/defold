@@ -299,7 +299,7 @@ jobs:
             com.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties
       - &step_cmake
         name: "Install CMake"
-        uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.3.4
+        uses: lukka/get-cmake@a89e43e22a96abafcd7a62db652a65ecd33052c9 # v4.3.4
         with:
           # This action stores its CMake and Ninja download in the Actions cache by
           # default, under a key derived from the versions alone. A contrib build must
