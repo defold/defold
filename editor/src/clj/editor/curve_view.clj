@@ -36,7 +36,7 @@
             [util.defonce :as defonce]
             [util.id-vec :as iv])
   (:import [com.defold.control DefoldStringConverter]
-           [com.jogamp.opengl GL GL2 GLAutoDrawable]
+           [com.jogamp.opengl GL GL3 GLAutoDrawable]
            [editor.properties Curve CurveSpread]
            [editor.types AABB Rect Region]
            [java.lang Runnable]
@@ -74,7 +74,7 @@
 
 (def line-shader shaders/basic-color-straight-alpha-world-space)
 
-(defn render-curves [^GL2 gl render-args renderables _rcount]
+(defn render-curves [^GL3 gl render-args renderables _rcount]
   (doseq [renderable renderables
           :let [screen-tris (get-in renderable [:user-data :screen-tris])
                 world-lines (get-in renderable [:user-data :world-lines])]]

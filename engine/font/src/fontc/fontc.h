@@ -136,6 +136,9 @@ extern "C"
         float    m_LeftBearing;
         float    m_Ascent;
         float    m_Descent;
+        // Text measurement at the renderer's size, independent of raster padding.
+        float    m_LayoutWidth;
+        float    m_LayoutLeftBearing;
     } FontcGlyphMetrics;
 
     typedef struct FontcProperties
@@ -465,7 +468,10 @@ extern "C"
      * Parses UTF-8 rich-text markup with the native parser and copies it to the
      * caller-owned output buffer, omitting visible codepoints not present in the
      * allowed set. Markup syntax and entity spellings are preserved byte-for-byte.
-     * The output buffer must be at least `markup_byte_count` bytes.
+     * Literal ampersands are escaped as `&amp;` to preserve visible text after
+     * filtering. The output buffer must be at least `markup_byte_count` bytes,
+     * with additional space for escaped ampersands. A buffer of
+     * `5 * markup_byte_count` bytes is always sufficient.
      *
      * @name FontcFilterMarkup
      * @param markup [type: const char*] UTF-8 rich-text markup.

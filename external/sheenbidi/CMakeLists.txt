@@ -8,7 +8,7 @@ project(sheenbidi_external VERSION 2.9.0 LANGUAGES C)
 set(SHEENBIDI_ROOT "${CMAKE_CURRENT_LIST_DIR}/package/SheenBidi-2.9.0")
 
 add_library(sheenbidi STATIC "${SHEENBIDI_ROOT}/Source/SheenBidi.c")
-target_include_directories(sheenbidi PRIVATE "${SHEENBIDI_ROOT}/Headers")
+target_include_directories(sheenbidi PUBLIC "${SHEENBIDI_ROOT}/Headers")
 target_compile_definitions(sheenbidi PRIVATE NDEBUG SB_CONFIG_UNITY)
 # Source options come after the shared toolchain's optimization flags.
 set_source_files_properties("${SHEENBIDI_ROOT}/Source/SheenBidi.c"

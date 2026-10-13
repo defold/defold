@@ -20,7 +20,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.TextureGenerator;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Interface for compressing a texture using settings
@@ -29,8 +29,8 @@ import java.util.HashMap;
  */
 public class TextureCompression {
 
-    private static HashMap<String, ITextureCompressor> compressors = new HashMap<>();
-    private static HashMap<String, TextureCompressorPreset> presets = new HashMap<>();
+    private static final ConcurrentHashMap<String, ITextureCompressor> compressors = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, TextureCompressorPreset> presets = new ConcurrentHashMap<>();
 
     private static Logger logger = Logger.getLogger(TextureGenerator.class.getName());
 
@@ -42,12 +42,11 @@ public class TextureCompression {
     }
 
     public static ITextureCompressor getCompressor(String name) {
-        ITextureCompressor compressor = compressors.getOrDefault(name, null);
+        ITextureCompressor compressor = compressors.get(name);
         if (compressor == null) {
-            // There should always be a default compressor availale.
+            // There should always be a default compressor available.
             if (name.equals(TextureCompressorUncompressed.TextureCompressorName)) {
-                compressor = new TextureCompressorUncompressed();
-                registerCompressor(compressor);
+                compressor = compressors.computeIfAbsent(name, ignored -> new TextureCompressorUncompressed());
             } else {
                 logger.warning(String.format("No such compressor: '%s'", name));
             }
@@ -76,7 +75,7 @@ public class TextureCompression {
     }
 
     public static TextureCompressorPreset getPreset(String name) {
-        TextureCompressorPreset preset = presets.getOrDefault(name, null);
+        TextureCompressorPreset preset = presets.get(name);
         if (preset == null)
             logger.warning(String.format("No such preset: '%s'", name));
         return preset;

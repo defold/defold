@@ -423,6 +423,11 @@ TEST(Shaderc, Types)
     AssertResourceMember(&data_types->m_Members[10], "type_uvec3", 224, dmShaderc::BASE_TYPE_UINT32, 3);
     AssertResourceMember(&data_types->m_Members[11], "type_uvec4", 240, dmShaderc::BASE_TYPE_UINT32, 4);
 
+    ASSERT_EQ(1, reflection->m_UniformBuffers.Size());
+    ASSERT_EQ(dmShaderc::SHADER_RESOURCE_ACCESS_READ, reflection->m_UniformBuffers[0].m_AccessFlags);
+    ASSERT_EQ(1, reflection->m_Outputs.Size());
+    ASSERT_EQ(dmShaderc::SHADER_RESOURCE_ACCESS_WRITE, reflection->m_Outputs[0].m_AccessFlags);
+
     ASSERT_EQ(12, reflection->m_Textures.Size());
     AssertTexture(reflection, "type_sampler2D", dmShaderc::BASE_TYPE_SAMPLED_IMAGE, dmShaderc::DIMENSION_TYPE_2D, false);
     AssertTexture(reflection, "type_sampler3D", dmShaderc::BASE_TYPE_SAMPLED_IMAGE, dmShaderc::DIMENSION_TYPE_3D, false);
@@ -436,6 +441,11 @@ TEST(Shaderc, Types)
     AssertTexture(reflection, "type_uimage2D", dmShaderc::BASE_TYPE_IMAGE, dmShaderc::DIMENSION_TYPE_2D, false);
     AssertTexture(reflection, "type_image2D", dmShaderc::BASE_TYPE_IMAGE, dmShaderc::DIMENSION_TYPE_2D, false);
     AssertTexture(reflection, "type_sampler", dmShaderc::BASE_TYPE_SAMPLER, (dmShaderc::DimensionType) 0, false);
+
+    ASSERT_EQ(dmShaderc::SHADER_RESOURCE_ACCESS_READ,
+              GetShaderResource(reflection->m_Textures, dmHashString64("type_sampler2D"))->m_AccessFlags);
+    ASSERT_EQ(dmShaderc::SHADER_RESOURCE_ACCESS_READ | dmShaderc::SHADER_RESOURCE_ACCESS_WRITE,
+              GetShaderResource(reflection->m_Textures, dmHashString64("type_image2D"))->m_AccessFlags);
 
     dmShaderc::DeleteShaderContext(shader_ctx);
     free(data);
@@ -455,6 +465,8 @@ TEST(Shaderc, SSBO)
 #endif
 
     ASSERT_EQ(1, reflection->m_StorageBuffers.Size());
+    ASSERT_EQ(dmShaderc::SHADER_RESOURCE_ACCESS_READ | dmShaderc::SHADER_RESOURCE_ACCESS_WRITE,
+              reflection->m_StorageBuffers[0].m_AccessFlags);
 
     const dmShaderc::ResourceTypeInfo* type_ssbo = GetType(reflection, dmHashString64("Test"));
     ASSERT_NE((void*) 0, type_ssbo);
@@ -479,6 +491,22 @@ TEST(Shaderc, SSBO)
     ASSERT_EQ(0, member->m_Type.m_UseTypeIndex);
     ASSERT_EQ(4, member->m_Type.m_VectorSize);
     ASSERT_EQ(dmShaderc::BASE_TYPE_FP32, member->m_Type.m_BaseType);
+
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+
+TEST(Shaderc, SSBOReadOnlyReflection)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/ssbo_readonly.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
+
+    ASSERT_EQ(1, reflection->m_StorageBuffers.Size());
+    ASSERT_EQ(dmShaderc::SHADER_RESOURCE_ACCESS_READ, reflection->m_StorageBuffers[0].m_AccessFlags);
 
     dmShaderc::DeleteShaderContext(shader_ctx);
     free(data);
@@ -612,6 +640,182 @@ TEST(Shaderc, TestHLSLSimple)
     free(data);
 }
 
+// Verifies storage-buffer bytecode and SRV/UAV root parameters preserve register spaces
+// and bindings, guarding against omitted buffers and malformed root signatures.
+TEST(Shaderc, HLSLStorageBufferRootSignature)
+{
+#if defined(_WIN32)
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/storage_buffers.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_COMPUTE, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_GT(result->m_Data.Size(), 4u);
+    ASSERT_EQ(0, memcmp(result->m_Data.Begin(), "DXBC", 4));
+    ASSERT_GT(result->m_HLSLRootSignature.Size(), 0u);
+
+    ID3D12RootSignatureDeserializer* deserializer = 0;
+    ASSERT_EQ(S_OK, D3D12CreateRootSignatureDeserializer(result->m_HLSLRootSignature.Begin(),
+        result->m_HLSLRootSignature.Size(), IID_PPV_ARGS(&deserializer)));
+    const D3D12_ROOT_SIGNATURE_DESC* desc = deserializer->GetRootSignatureDesc();
+    ASSERT_EQ(2u, desc->NumParameters);
+    bool has_srv = false;
+    bool has_uav = false;
+    for (uint32_t i = 0; i < desc->NumParameters; ++i)
+    {
+        const D3D12_ROOT_PARAMETER& parameter = desc->pParameters[i];
+        ASSERT_EQ(D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE, parameter.ParameterType);
+        ASSERT_EQ(D3D12_SHADER_VISIBILITY_ALL, parameter.ShaderVisibility);
+        ASSERT_EQ(1u, parameter.DescriptorTable.NumDescriptorRanges);
+        const D3D12_DESCRIPTOR_RANGE& range = parameter.DescriptorTable.pDescriptorRanges[0];
+        ASSERT_EQ(1u, range.NumDescriptors);
+        ASSERT_EQ(1u, range.RegisterSpace);
+        if (range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SRV)
+        {
+            ASSERT_EQ(2u, range.BaseShaderRegister);
+            has_srv = true;
+        }
+        else if (range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_UAV)
+        {
+            ASSERT_EQ(3u, range.BaseShaderRegister);
+            has_uav = true;
+        }
+    }
+    ASSERT_TRUE(has_srv);
+    ASSERT_TRUE(has_uav);
+
+    deserializer->Release();
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+#endif
+}
+
+
+// Verifies SRV/UAV storage-buffer mappings follow an overridden root-signature order,
+// guarding against missing buffer type matching and reflection-order root indices.
+TEST(Shaderc, HLSLStorageBufferRootParameterIndicesWithOverride)
+{
+#if defined(_WIN32)
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/storage_buffers.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_COMPUTE, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+    options.m_RootSignatureOverride = "[RootSignature(\"DescriptorTable(UAV(u3,space=1)),DescriptorTable(SRV(t2,space=1))\")]";
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_STREQ("", result->m_LastError);
+    ASSERT_EQ(2u, result->m_HLSLResourceMappings.Size());
+    bool has_srv = false;
+    bool has_uav = false;
+    for (uint32_t i = 0; i < result->m_HLSLResourceMappings.Size(); ++i)
+    {
+        const dmShaderc::HLSLResourceMapping& mapping = result->m_HLSLResourceMappings[i];
+        ASSERT_EQ(1u, mapping.m_ShaderResourceSet);
+        if (mapping.m_ShaderResourceBinding == 2)
+        {
+            ASSERT_EQ(1u, mapping.m_RootParameterIndex);
+            has_srv = true;
+        }
+        else if (mapping.m_ShaderResourceBinding == 3)
+        {
+            ASSERT_EQ(0u, mapping.m_RootParameterIndex);
+            has_uav = true;
+        }
+    }
+    ASSERT_TRUE(has_srv);
+    ASSERT_TRUE(has_uav);
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+#endif
+}
+
+static bool BufferContains(const uint8_t* data, uint32_t data_size, const char* text)
+{
+    const uint32_t text_size = (uint32_t) strlen(text);
+    if (text_size > data_size)
+        return false;
+    for (uint32_t i = 0; i <= data_size - text_size; ++i)
+        if (memcmp(data + i, text, text_size) == 0)
+            return true;
+    return false;
+}
+
+static void TestHLSLStorageBufferType(const char* path, const char* expected_type, const char* expected_register)
+{
+    uint32_t data_size;
+    void* data = ReadFile(path, &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::ShaderCompilerSPVC* compiler = dmShaderc::NewShaderCompilerSPVC(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
+
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version    = 51;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::CompileSPVC(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_NE((void*) 0, result->m_Data.Begin());
+    ASSERT_TRUE(BufferContains(result->m_Data.Begin(), result->m_Data.Size(), expected_type));
+    ASSERT_TRUE(BufferContains(result->m_Data.Begin(), result->m_Data.Size(), expected_register));
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompilerSPVC(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+
+TEST(Shaderc, TestHLSLStorageBuffersUseByteAddressResources)
+{
+    TestHLSLStorageBufferType("./build/src/test/data/ssbo.spv", "RWByteAddressBuffer", "register(u0, space0)");
+    TestHLSLStorageBufferType("./build/src/test/data/ssbo_readonly.spv", "ByteAddressBuffer", "register(t3, space2)");
+}
+
+#if defined(_WIN32)
+// Verifies readonly storage buffers retain their set, binding and root parameter index.
+TEST(Shaderc, TestHLSLStorageBufferResourceMapping)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/ssbo_readonly.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
+
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version    = 51;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_STREQ("", result->m_LastError);
+    ASSERT_EQ(1, result->m_HLSLResourceMappings.Size());
+    ASSERT_EQ(2, result->m_HLSLResourceMappings[0].m_ShaderResourceSet);
+    ASSERT_EQ(3, result->m_HLSLResourceMappings[0].m_ShaderResourceBinding);
+    ASSERT_EQ(0u, result->m_HLSLResourceMappings[0].m_RootParameterIndex);
+    ASSERT_GT(result->m_HLSLRootSignature.Size(), 0u);
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+#endif
+
 TEST(Shaderc, TestMetal)
 {
     uint32_t data_size;
@@ -741,6 +945,102 @@ TEST(Shaderc, GlslEsPrecisionOptions)
     free(data);
 }
 
+TEST(Shaderc, HLSLWritableImageRootBindings)
+{
+#if !defined(_WIN32)
+    SKIP();
+    return;
+#else
+    uint32_t size;
+    void* data = ReadFile("./build/src/test/data/compute.spv", &size);
+    ASSERT_NE((void*) 0, data);
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_COMPUTE, data, size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_GT(result->m_Data.Size(), 0u);
+    ID3D12RootSignatureDeserializer* signature = 0;
+    ASSERT_EQ(S_OK, D3D12CreateRootSignatureDeserializer(result->m_HLSLRootSignature.Begin(), result->m_HLSLRootSignature.Size(), IID_PPV_ARGS(&signature)));
+    const D3D12_ROOT_SIGNATURE_DESC* desc = signature->GetRootSignatureDesc();
+    ASSERT_EQ(result->m_HLSLResourceMappings.Size(), desc->NumParameters);
+    bool image_found = false;
+    for (uint32_t i = 0; i < result->m_HLSLResourceMappings.Size(); ++i)
+    {
+        uint32_t index = result->m_HLSLResourceMappings[i].m_RootParameterIndex;
+        ASSERT_LT(index, desc->NumParameters);
+        const D3D12_ROOT_PARAMETER& parameter = desc->pParameters[index];
+        if (parameter.ParameterType == D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE)
+        {
+            ASSERT_EQ(1u, parameter.DescriptorTable.NumDescriptorRanges);
+            image_found |= parameter.DescriptorTable.pDescriptorRanges[0].RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+        }
+    }
+    ASSERT_TRUE(image_found);
+    signature->Release();
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+#endif
+}
+
+TEST(Shaderc, HLSLRootParameterIndicesWithOverride)
+{
+#if !defined(_WIN32)
+    SKIP();
+#else
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/reflection.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* original = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, original);
+    ASSERT_GT(original->m_HLSLResourceMappings.Size(), 1u);
+    ID3D12RootSignatureDeserializer* deserializer = 0;
+    ASSERT_EQ(S_OK, D3D12CreateRootSignatureDeserializer(original->m_HLSLRootSignature.Begin(),
+        original->m_HLSLRootSignature.Size(), IID_PPV_ARGS(&deserializer)));
+    D3D12_ROOT_SIGNATURE_DESC desc = *deserializer->GetRootSignatureDesc();
+    ASSERT_EQ(original->m_HLSLResourceMappings.Size(), desc.NumParameters);
+
+    // Reverse the actual root signature while leaving shader reflection order intact.
+    dmArray<D3D12_ROOT_PARAMETER> parameters;
+    parameters.SetCapacity(desc.NumParameters);
+    parameters.SetSize(desc.NumParameters);
+    for (uint32_t i = 0; i < desc.NumParameters; ++i)
+        parameters[i] = desc.pParameters[desc.NumParameters - i - 1];
+    desc.pParameters = parameters.Begin();
+    ID3DBlob* signature = 0;
+    ASSERT_EQ(S_OK, D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, 0));
+    dmArray<char> override_text;
+    ASSERT_TRUE(dmShaderc::RootSignatureBlobToText(signature->GetBufferPointer(), (uint32_t) signature->GetBufferSize(), override_text));
+    options.m_RootSignatureOverride = override_text.Begin();
+
+    dmShaderc::ShaderCompileResult* reordered = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, reordered);
+    ASSERT_EQ(original->m_HLSLResourceMappings.Size(), reordered->m_HLSLResourceMappings.Size());
+    for (uint32_t i = 0; i < original->m_HLSLResourceMappings.Size(); ++i)
+    {
+        ASSERT_EQ(original->m_HLSLResourceMappings[i].m_NameHash, reordered->m_HLSLResourceMappings[i].m_NameHash);
+        ASSERT_EQ(desc.NumParameters - i - 1, reordered->m_HLSLResourceMappings[i].m_RootParameterIndex);
+    }
+
+    dmShaderc::FreeShaderCompileResult(reordered);
+    dmShaderc::FreeShaderCompileResult(original);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    signature->Release();
+    deserializer->Release();
+    free(data);
+#endif
+}
+
 TEST(Shaderc, HLSLMergeRootSignatures)
 {
 #if !defined(_WIN32)
@@ -763,10 +1063,28 @@ TEST(Shaderc, HLSLMergeRootSignatures)
     arr[1].m_HLSLRootSignature.SetSize(fs_rs_size);
     memcpy(arr[1].m_HLSLRootSignature.Begin(), fs_rs_blob->GetBufferPointer(), fs_rs_size);
 
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        arr[i].m_HLSLResourceMappings.SetCapacity(1);
+        arr[i].m_HLSLResourceMappings.SetSize(1);
+        memset(arr[i].m_HLSLResourceMappings.Begin(), 0, sizeof(dmShaderc::HLSLResourceMapping));
+        arr[i].m_HLSLResourceMappings[0].m_ShaderResourceSet = i;
+    }
+
     dmShaderc::HLSLRootSignature* merged = dmShaderc::HLSLMergeRootSignatures(arr, 2);
     ASSERT_NE((void*)0, merged);
     ASSERT_EQ('\0', merged->m_LastError[0]);
     ASSERT_GT(merged->m_HLSLRootSignature.Size(), 0u);
+    ASSERT_EQ(0u, arr[0].m_HLSLResourceMappings[0].m_RootParameterIndex);
+    ASSERT_EQ(1u, arr[1].m_HLSLResourceMappings[0].m_RootParameterIndex);
+
+    // Both stages now carry the merged signature. A repeated merge must use the
+    // recorded root indices, not the position in each stage's reflection array.
+    dmShaderc::HLSLRootSignature* merged_again = dmShaderc::HLSLMergeRootSignatures(arr, 2);
+    ASSERT_EQ('\0', merged_again->m_LastError[0]);
+    ASSERT_EQ(0u, arr[0].m_HLSLResourceMappings[0].m_RootParameterIndex);
+    ASSERT_EQ(1u, arr[1].m_HLSLResourceMappings[0].m_RootParameterIndex);
+    delete merged_again;
 
     // Validate the merged blob deserializes
     ID3D12RootSignatureDeserializer* deser = 0;
@@ -788,8 +1106,8 @@ TEST(Shaderc, HLSLMergeRootSignatures)
 
 TEST(Shaderc, HLSLMergeRootSignaturesStageVisibleSamplerOverlap)
 {
-#if !defined(DM_BINARY_HLSL_SUPPORTED)
-    ASSERT_TRUE(true);
+#if !defined(_WIN32)
+    SKIP();
     return;
 #else
     D3D12_DESCRIPTOR_RANGE vs_range = {};
@@ -842,6 +1160,14 @@ TEST(Shaderc, HLSLMergeRootSignaturesStageVisibleSamplerOverlap)
     arr[1].m_HLSLRootSignature.SetSize((uint32_t) fs_blob->GetBufferSize());
     memcpy(arr[1].m_HLSLRootSignature.Begin(), fs_blob->GetBufferPointer(), fs_blob->GetBufferSize());
 
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        arr[i].m_HLSLResourceMappings.SetCapacity(1);
+        arr[i].m_HLSLResourceMappings.SetSize(1);
+        memset(arr[i].m_HLSLResourceMappings.Begin(), 0, sizeof(dmShaderc::HLSLResourceMapping));
+        arr[i].m_HLSLResourceMappings[0].m_ShaderResourceBinding = 3;
+    }
+
     dmShaderc::HLSLRootSignature* merged = dmShaderc::HLSLMergeRootSignatures(arr, 2);
     ASSERT_NE((void*)0, merged);
     ASSERT_EQ(0, strcmp("", merged->m_LastError));
@@ -854,13 +1180,27 @@ TEST(Shaderc, HLSLMergeRootSignaturesStageVisibleSamplerOverlap)
         IID_PPV_ARGS(&deser));
     ASSERT_EQ(S_OK, hr);
     const D3D12_ROOT_SIGNATURE_DESC* merged_desc = deser->GetRootSignatureDesc();
-    ASSERT_EQ(2u, merged_desc->NumParameters);
-    ASSERT_EQ(D3D12_SHADER_VISIBILITY_VERTEX, merged_desc->pParameters[0].ShaderVisibility);
-    ASSERT_EQ(D3D12_SHADER_VISIBILITY_PIXEL, merged_desc->pParameters[1].ShaderVisibility);
+    ASSERT_EQ(1u, merged_desc->NumParameters);
+    ASSERT_EQ(D3D12_SHADER_VISIBILITY_ALL, merged_desc->pParameters[0].ShaderVisibility);
+    ASSERT_EQ(0u, arr[0].m_HLSLResourceMappings[0].m_RootParameterIndex);
+    ASSERT_EQ(0u, arr[1].m_HLSLResourceMappings[0].m_RootParameterIndex);
+
+    // Equal HLSL registers must not silently alias different Defold resources.
+    arr[1].m_HLSLResourceMappings[0].m_ShaderResourceBinding = 4;
+    dmShaderc::HLSLRootSignature* conflicting = dmShaderc::HLSLMergeRootSignatures(arr, 2);
+    ASSERT_NE('\0', conflicting->m_LastError[0]);
+    delete conflicting;
+
+    arr[1].m_HLSLResourceMappings[0].m_ShaderResourceBinding = 3;
+    arr[1].m_HLSLResourceMappings[0].m_RootParameterIndex = 1;
+    dmShaderc::HLSLRootSignature* invalid = dmShaderc::HLSLMergeRootSignatures(arr, 2);
+    ASSERT_NE('\0', invalid->m_LastError[0]);
+    delete invalid;
 
     deser->Release();
     vs_blob->Release();
     fs_blob->Release();
+    delete merged;
 #endif
 }
 

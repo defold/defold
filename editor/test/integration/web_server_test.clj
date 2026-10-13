@@ -41,6 +41,7 @@
             [util.eduction :as e]
             [util.http-client :as http]
             [util.http-server :as http-server]
+            [util.http-server.types :as http-server.types]
             [util.path :as path])
   (:import [java.io BufferedReader ByteArrayInputStream ByteArrayOutputStream InputStreamReader OutputStream]
            [java.nio.charset StandardCharsets]
@@ -181,7 +182,7 @@
          (get-written-response
            (http-server/response
              200
-             (reify http-server/ConnectionWrite
+             (reify http-server.types/ConnectionWrite
                (connection-write! [_ output-stream]
                  (.write ^OutputStream output-stream (.getBytes "connection write" StandardCharsets/UTF_8)))))
            :as :string))))

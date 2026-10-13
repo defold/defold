@@ -19,6 +19,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.text.ParseException;
@@ -27,8 +28,10 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import javax.imageio.ImageIO;
@@ -48,6 +51,8 @@ import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.ArchiveEntry;
+import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
@@ -668,6 +673,83 @@ public class ProjectBuildTest {
 
         assertTrue(new File(contentRoot, "build/custom/payload.lua").isFile());
         assertFalse(new File(contentRoot, "build/custom/payload.luac").exists());
+    }
+
+    // Verifies #13324: streamed Ogg stays raw across skipped tasks, and toggling streaming rebuilds only the archive.
+    @Test
+    public void testIncrementalArchiveKeepsStreamedOggUncompressed() throws Exception {
+        createDefaultFiles();
+        createFile(contentRoot, "logic/main.collection",
+                "name: \"main\"\n" +
+                "instances { id: \"sfx\" prototype: \"/logic/sfx.go\" " +
+                "position { x: 0 y: 0 z: 0 } rotation { x: 0 y: 0 z: 0 w: 1 } }\n");
+        createFile(contentRoot, "logic/sfx.go", "components { id: \"sound\" component: \"/assets/short.sound\" }\n");
+        createFile(contentRoot, "assets/short.sound", "sound: \"/assets/short.ogg\"\n");
+        byte[] soundData;
+        try (InputStream input = getClass().getResourceAsStream("/test/streaming-short.ogg")) {
+            assertNotNull(input);
+            soundData = input.readAllBytes();
+        }
+        Files.write(new File(contentRoot, "assets/short.ogg").toPath(), soundData);
+
+        // First rebuild with streaming enabled in game.project; then toggle only the option with the setting disabled.
+        boolean[] streamingOptions = {true, true, true, false, true};
+        for (int buildIndex = 0; buildIndex < streamingOptions.length; ++buildIndex) {
+            boolean streaming = streamingOptions[buildIndex];
+            if (buildIndex < 3) {
+                createFile(contentRoot, "game.project",
+                        "[project]\ntitle = Streaming Archive " + buildIndex + "\n" +
+                        "[sound]\nstream_enabled = " + (buildIndex < 2 ? 1 : 0) + "\n");
+            }
+            try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+                project.setPublisher(new NullPublisher(new PublisherSettings()));
+                ClassLoaderScanner scanner = new ClassLoaderScanner();
+                project.scan(scanner, "com.dynamo.bob");
+                project.scan(scanner, "com.dynamo.bob.pipeline");
+                project.setOption("archive", "true");
+                project.setOption("sound-stream-enabled", Boolean.toString(streaming));
+
+                TaskResult soundResult = null;
+                TaskResult archiveResult = null;
+                for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                    assertTrue(result.toString(), result.isOk());
+                    if (result.getTask().getName().equals("Ogg")) {
+                        soundResult = result;
+                    }
+                    if (result.getTask().getBuilder().isGameProjectBuilder()) {
+                        archiveResult = result;
+                    }
+                }
+                assertNotNull("Expected a sound task", soundResult);
+                assertEquals(buildIndex == 0 ? TaskResult.Result.SUCCESS : TaskResult.Result.SKIPPED, soundResult.getResult());
+                assertNotNull("Expected an archive task", archiveResult);
+                assertEquals(TaskResult.Result.SUCCESS, archiveResult.getResult());
+            }
+
+            Manifest.ResourceEntry soundResource = readManifestData(getBundledManifestFile()).getResourcesList().stream()
+                    .filter(entry -> entry.getUrlHash() == MurmurHash.hash64("/assets/short.oggc"))
+                    .findFirst().orElseThrow();
+            // Release manifests omit URLs, so match the archive entry by its content hash.
+            byte[] soundHash = Arrays.copyOf(soundResource.getHash().getData().toByteArray(), ArchiveReader.HASH_BUFFER_BYTESIZE);
+            ArchiveReader reader = new ArchiveReader(
+                    new File(contentRoot, "build/game.arci").getAbsolutePath(),
+                    new File(contentRoot, "build/game.arcd").getAbsolutePath(),
+                    getBundledManifestFile().getAbsolutePath());
+            try {
+                reader.read();
+                ArchiveEntry soundEntry = reader.getEntries().stream()
+                        .filter(entry -> Arrays.equals(entry.getHash(), soundHash))
+                        .findFirst().orElseThrow();
+                assertEquals("Archive compression must match the streaming option",
+                        streaming ? 0 : ArchiveEntry.FLAG_COMPRESSED, soundEntry.getFlags() & ArchiveEntry.FLAG_COMPRESSED);
+                if (streaming) {
+                    assertEquals(ArchiveEntry.FLAG_UNCOMPRESSED, soundEntry.getCompressedSize());
+                    assertArrayEquals(soundData, reader.getEntryContent(soundEntry));
+                }
+            } finally {
+                reader.close();
+            }
+        }
     }
 
     @Test

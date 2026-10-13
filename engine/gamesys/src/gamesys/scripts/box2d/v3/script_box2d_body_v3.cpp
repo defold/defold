@@ -44,27 +44,14 @@ namespace dmGameSystem
     struct B2DLuaBody
     {
         b2BodyId                  m_Body;
-        dmGameObject::HCollection m_Collection;
-        dmhash_t                  m_InstanceId;
-        uint32_t                  m_InstanceGeneration;
+        dmGameObject::HGameObject m_Instance;
     };
 
-    void PushBody(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id)
+    void PushBody(lua_State* L, void* body, dmGameObject::HGameObject instance)
     {
         B2DLuaBody* luabody   = (B2DLuaBody*) lua_newuserdata(L, sizeof(B2DLuaBody));
         luabody->m_Body       = *(b2BodyId*) body;
-        luabody->m_Collection = collection;
-        luabody->m_InstanceId = instance_id;
-        luabody->m_InstanceGeneration = 0;
-
-        if (instance_id)
-        {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, instance_id);
-            if (instance)
-            {
-                luabody->m_InstanceGeneration = dmGameObject::GetGeneration(instance);
-            }
-        }
+        luabody->m_Instance   = instance;
 
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);
@@ -166,12 +153,11 @@ namespace dmGameSystem
 
     static int VerifyBodyInternal(lua_State* L, B2DLuaBody* luabody)
     {
-        if (luabody->m_InstanceId) // check if the instance is alive
+        if (luabody->m_Instance)
         {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(luabody->m_Collection, luabody->m_InstanceId);
-            if (!instance || dmGameObject::GetGeneration(instance) != luabody->m_InstanceGeneration)
+            if (!dmGameObject::IsValid(luabody->m_Instance))
             {
-                return luaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(luabody->m_InstanceId));
+                return luaL_error(L, "Cannot get b2body. Has the game object been deleted?");
             }
         }
 
@@ -193,7 +179,13 @@ namespace dmGameSystem
     {
         B2DLuaBody* luabody = CheckBodyInternal(L, index);
         VerifyBodyInternal(L, luabody);
-        return luabody->m_Collection;
+        return dmGameObject::GetCollection(luabody->m_Instance);
+    }
+
+    dmGameObject::HGameObject GetBodyInstance(b2BodyId body)
+    {
+        void* user_data = b2Body_GetUserData(body);
+        return user_data ? CompCollisionObjectGetInstance(user_data) : 0;
     }
 
     dmhash_t GetBodyInstanceId(lua_State* L, int index)
@@ -361,10 +353,9 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         B2DLuaBody* luabody = CheckBodyInternal(L, 1);
-        if (luabody->m_InstanceId)
+        if (luabody->m_Instance)
         {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(luabody->m_Collection, luabody->m_InstanceId);
-            if (!instance || dmGameObject::GetGeneration(instance) != luabody->m_InstanceGeneration)
+            if (!dmGameObject::IsValid(luabody->m_Instance))
             {
                 lua_pushboolean(L, false);
                 return 1;
@@ -606,7 +597,6 @@ namespace dmGameSystem
     static int Body_GetJoints(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body = CheckBody(L, 1);
 
         const int joint_count = b2Body_GetJointCount(*body);
@@ -621,7 +611,7 @@ namespace dmGameSystem
         {
             if (IsJointTracked(joints[i]))
             {
-                PushJoint(L, joints[i], collection);
+                PushJoint(L, joints[i]);
                 lua_rawseti(L, -2, joint_index);
                 ++joint_index;
             }

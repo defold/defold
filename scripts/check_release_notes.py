@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-# Copyright 2020-2026 The Defold Foundation
-# Licensed under the Defold License version 1.0
-
 import argparse
 import json
 import os

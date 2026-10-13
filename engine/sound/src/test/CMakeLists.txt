@@ -184,6 +184,13 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
 endif()
 sound_configure_test(test_sound ${SOUND_RUN_TESTS})
 
+if(TARGET_PLATFORM_OS STREQUAL "win32")
+  set(_sound_wasapi_export_file "${SOUND_TEST_GEN_DIR}/test_sound_wasapi_exported_symbols.cpp")
+  defold_create_exported_symbols_file("${_sound_wasapi_export_file}" "TestWasapiSoundDevice;AudioDecoderWav")
+  defold_add_executable(test_sound_wasapi "${SOUND_TEST_ROOT}/test_sound_wasapi.cpp" "${_sound_wasapi_export_file}")
+  sound_configure_test(test_sound_wasapi ON)
+endif()
+
 set(_sound_null_export_file "${SOUND_TEST_GEN_DIR}/test_sound_null_exported_symbols.cpp")
 set(_sound_null_exports NullSoundDevice TestNullDevice)
 defold_create_exported_symbols_file("${_sound_null_export_file}" "${_sound_null_exports}")

@@ -402,6 +402,7 @@ public class ShaderProgramBuilder extends Builder {
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
         resourceBindingBuilder.setStageFlags(res.stageFlags);
+        resourceBindingBuilder.setResourceAccessFlags(Byte.toUnsignedInt(res.accessFlags));
 
         if (res.blockSize != 0) {
             resourceBindingBuilder.setBlockSize(res.blockSize);
@@ -581,6 +582,7 @@ public class ShaderProgramBuilder extends Builder {
             for (Shaderc.HLSLResourceMapping mapping : result.hLSLResourceMappings) {
                 ShaderDesc.HLSLResourceMapping.Builder hlslResourceMappingBuilder = ShaderDesc.HLSLResourceMapping.newBuilder();
                 hlslResourceMappingBuilder.setNameHash(mapping.nameHash);
+                hlslResourceMappingBuilder.setRootParameterIndex(mapping.rootParameterIndex);
                 hlslResourceMappingBuilder.setBinding(mapping.shaderResourceBinding);
                 hlslResourceMappingBuilder.setSet(mapping.shaderResourceSet);
                 builder.addHlslResourceMapping(hlslResourceMappingBuilder);
