@@ -2437,10 +2437,12 @@ static bool PushEditorLayout(Viewer* viewer)
 
 static bool ResolveExportGlyph(void* context, const TextGlyph& text_glyph, FontLayoutCachedGlyph* cached)
 {
-    Viewer* viewer = (Viewer*)context;
+    Viewer*      viewer = (Viewer*)context;
     CachedGlyph* glyph = FindGlyph(viewer, text_glyph.m_Font, text_glyph.m_GlyphIndex, viewer->m_FontSize, true);
     if (!glyph)
+    {
         return false;
+    }
     cached->m_Glyph = &glyph->m_Glyph;
     cached->m_CellX = glyph->m_X;
     cached->m_CellY = glyph->m_Y;
@@ -2458,14 +2460,16 @@ static bool PackExportLayout(Viewer* viewer)
     // Documentation captures use the engine's layout packer, including effect
     // coordinates and metadata for GPU gradients.
     if (!viewer->m_EffectCache)
+    {
         viewer->m_EffectCache = FontCreateEffectCache(viewer->m_Context);
+    }
     ++viewer->m_EffectFrame;
 
-    HTextLayout layout = viewer->m_Layouts[0];
+    HTextLayout                 layout = viewer->m_Layouts[0];
     const FontViewerProperties& properties = viewer->m_Properties;
-    const float outline_width = dmMath::Max(properties.m_OutlineWidth, TextLayoutGetMaxMarkupOutlineWidth(layout));
-    const float spread = 6.0f + outline_width + properties.m_ShadowBlur;
-    FontLayoutVertexConfig config = {};
+    const float                 outline_width = dmMath::Max(properties.m_OutlineWidth, TextLayoutGetMaxMarkupOutlineWidth(layout));
+    const float                 spread = 6.0f + outline_width + properties.m_ShadowBlur;
+    FontLayoutVertexConfig      config = {};
     config.m_Layout = layout;
     config.m_ResolveGlyph = ResolveExportGlyph;
     config.m_ResolveGlyphContext = viewer;
@@ -2499,7 +2503,9 @@ static bool PackExportLayout(Viewer* viewer)
 
     FontLayoutVertexMetrics metrics;
     if (!FontGetLayoutVertexMetrics(config, &metrics))
+    {
         return false;
+    }
     viewer->m_Vertices.EnsureSize(metrics.m_VertexCount);
     viewer->m_VertexCount = FontCreateLayoutVertices(config, metrics, viewer->m_Vertices.Begin(), viewer->m_Vertices.Size());
 
@@ -2517,7 +2523,9 @@ static bool PackExportLayout(Viewer* viewer)
 static bool PackAllLayouts(Viewer* viewer)
 {
     if (viewer->m_ExportMode)
+    {
         return PackExportLayout(viewer);
+    }
     viewer->m_Vertices.EnsureSize(viewer->m_VertexCount);
     const uint32_t main_layer_stride = CountVisibleGlyphs(viewer->m_Layouts[0]) * 6;
     uint32_t       vertex_start = 0;
@@ -3249,7 +3257,9 @@ static bool Initialize(Viewer* viewer)
 static void Finalize(Viewer* viewer)
 {
     if (viewer->m_EffectCache)
+    {
         FontDeleteEffectCache(viewer->m_EffectCache);
+    }
     if (viewer->m_Context)
     {
         DestroyNuklearGraphicsResources(viewer);

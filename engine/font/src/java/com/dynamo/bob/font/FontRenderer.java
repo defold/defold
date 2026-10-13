@@ -933,7 +933,7 @@ public final class FontRenderer implements AutoCloseable {
             FontcProperties.m_VerticalAlign(values, properties.verticalAlign);
             FontcProperties.m_BaseStyle(values, properties.baseStyle);
             FontcProperties.m_UseBaseStyle(values, flag(properties.useBaseStyle));
-            FontcProperties.m_UseGpuEffects(values, flag(properties.useGpuEffects));
+            FontcProperties.m_UseGPUEffects(values, flag(properties.useGpuEffects));
             checkResult(FontcSetProperties(requireHandle(), values), "Unable to set native font renderer properties");
         }
     }

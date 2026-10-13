@@ -65,8 +65,8 @@ static bool        g_AlignmentPreview = false;
 
 extern "C" void                       dmExportedSymbols();
 
-static FontEffectCache*              g_ImageEffects = 0;
-static uint32_t                      g_ImageFrame = 0;
+static FontEffectCache*               g_ImageEffects = 0;
+static uint32_t                       g_ImageFrame = 0;
 static HWindow                        g_ImageWindow = 0;
 static dmGraphics::HContext           g_ImageContext = 0;
 static dmGraphics::HProgram           g_ImagePrograms[3] = {};
@@ -105,16 +105,18 @@ static bool LoadImageShader(const char* path, dmArray<char>& data)
     bool ok = fread(data.Begin(), 1, size, file) == (size_t)size;
     data[size] = 0;
     fclose(file);
-    const char include[] = "#include \"/builtins/fonts/font-effect.glsl\"";
+    const char  include[] = "#include \"/builtins/fonts/font-effect.glsl\"";
     const char* directive = strstr(data.Begin(), include);
     if (ok && directive)
     {
         dmArray<char> effect;
         if (!LoadImageShader("content/builtins/fonts/font-effect.glsl", effect))
+        {
             return false;
+        }
         const uint32_t prefix = (uint32_t)(directive - data.Begin());
         const uint32_t suffix = prefix + sizeof(include) - 1;
-        dmArray<char> expanded;
+        dmArray<char>  expanded;
         expanded.SetCapacity(prefix + effect.Size() - 1 + data.Size() - suffix);
         expanded.SetSize(expanded.Capacity());
         memcpy(expanded.Begin(), data.Begin(), prefix);
@@ -482,7 +484,9 @@ static void CaptureFontImage(dmGraphics::HRenderTarget target, dmGraphics::HText
     dmGraphics::DisableVertexBuffer(g_ImageContext, buffer);
     dmGraphics::DisableTexture(g_ImageContext, 0, texture);
     if (effect_location != dmGraphics::INVALID_UNIFORM_LOCATION)
+    {
         dmGraphics::DisableTexture(g_ImageContext, 1, FontGetEffectTexture(g_ImageEffects));
+    }
     dmGraphics::SetRenderTarget(g_ImageContext, 0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::Flip(g_ImageContext);
 }
@@ -703,7 +707,9 @@ static void TestFontImage(const FontImageCase& c)
     config.m_ResolveGlyph = ResolveImageGlyph;
     config.m_ResolveGlyphContext = &glyphs;
     if (!bitmap)
+    {
         config.m_ResolveEffect = ResolveImageEffect;
+    }
     config.m_Transform = dmVMath::Matrix4::identity();
     config.m_RecipAtlasWidth = 1.0f / atlas_width;
     config.m_RecipAtlasHeight = 1.0f / atlas_height;

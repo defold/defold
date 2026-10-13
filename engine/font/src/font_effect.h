@@ -38,7 +38,7 @@ struct FontColorEffect
 {
     uint8_t m_Colors[4][4];
     // Nondecreasing positions in [0, 1]. Unused stops repeat the last stop.
-    float m_Positions[4];
+    float   m_Positions[4];
     // Linear: projection x, y, offset. Radial: pivot x, y, then the inverse
     // ellipse transform's xx, yy, xy, yx coefficients applied to fit UV offsets.
     float   m_Parameters[6];
@@ -79,7 +79,9 @@ static inline void FontSetEffectTextureHeight(FontEffectRecord* header, uint32_t
     uint32_t    bits;
     memcpy(&bits, &reciprocal, sizeof(bits));
     for (uint32_t i = 0; i < 4; ++i)
+    {
         header->m_Data[i] = (uint8_t)(bits >> (i * 8));
+    }
 }
 
 // Encodes up to four colors and positioned stops without allocating memory.
@@ -104,7 +106,9 @@ static inline void FontPackEffect(const FontColorEffect& effect, FontEffectRecor
         uint32_t parameter;
         memcpy(&parameter, &effect.m_Parameters[i], sizeof(parameter));
         for (uint32_t byte = 0; byte < 4; ++byte)
+        {
             record->m_Data[28 + i * 4 + byte] = (uint8_t)(parameter >> (byte * 8));
+        }
     }
 }
 

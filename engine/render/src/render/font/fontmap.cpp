@@ -887,7 +887,9 @@ namespace dmRender
         // The texture size
         size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_Texture);
         if (font_map->m_EffectCache)
+        {
             size += FontGetEffectCacheResourceSize(font_map->m_EffectCache);
+        }
         return size;
     }
 

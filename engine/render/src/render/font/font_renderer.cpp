@@ -446,7 +446,9 @@ namespace dmRender
         if (te.m_Material && GetMaterialSamplerUnit(te.m_Material, dmHashString64("font_effects")) != INVALID_SAMPLER_UNIT)
         {
             if (!font_map->m_EffectCache)
+            {
                 font_map->m_EffectCache = FontCreateEffectCache(font_map->m_GraphicsContext);
+            }
             config.m_ResolveEffect = ResolveLayoutEffect;
             config.m_ResolveEffectContext = &glyph_context;
         }
@@ -589,7 +591,9 @@ namespace dmRender
         if (effect_unit != INVALID_SAMPLER_UNIT)
         {
             if (!font_map->m_EffectCache)
+            {
                 font_map->m_EffectCache = FontCreateEffectCache(font_map->m_GraphicsContext);
+            }
             ro->m_Textures[effect_unit] = FontGetEffectTexture(font_map->m_EffectCache);
         }
         ro->m_VertexBuffer = text_context.m_VertexBuffer;
@@ -656,7 +660,9 @@ namespace dmRender
         }
 
         if (effect_unit != INVALID_SAMPLER_UNIT)
+        {
             FontUploadEffects(font_map->m_EffectCache);
+        }
         ro->m_VertexCount = batch_vertex_count;
 
         dmRender::AddToRender(render_context, ro);

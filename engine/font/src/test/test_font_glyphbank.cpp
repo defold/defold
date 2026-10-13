@@ -432,8 +432,12 @@ TEST(FontAlignment, CompiledGradientsMatchPreview)
                 CreateAlignmentVertices(fixture, FONT_ALIGNMENT_PIVOTS[0]);
             }
             for (uint32_t vertex = 0; vertex < 42; ++vertex)
+            {
                 for (uint32_t axis = 0; axis < 2; ++axis)
+                {
                     ASSERT_NEAR(preview.m_Vertices[vertex].m_Effect[axis], compiled.m_Vertices[vertex].m_Effect[axis], 0.0001f);
+                }
+            }
         }
     }
 }

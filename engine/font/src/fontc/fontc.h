@@ -140,9 +140,9 @@ extern "C"
         float    m_LayoutWidth;
         float    m_LayoutLeftBearing;
         // Unpadded bounds used to match runtime gradient fitting to previews.
-        float m_UnpaddedWidth;
-        float m_UnpaddedAscent;
-        float m_UnpaddedDescent;
+        float    m_UnpaddedWidth;
+        float    m_UnpaddedAscent;
+        float    m_UnpaddedDescent;
     } FontcGlyphMetrics;
 
     typedef struct FontcProperties
@@ -162,7 +162,7 @@ extern "C"
         uint64_t m_BaseStyle;
         uint32_t m_UseBaseStyle;
         // Emit effect UVs and lookup indices for shaders with a font_effects sampler.
-        uint32_t m_UseGpuEffects;
+        uint32_t m_UseGPUEffects;
     } FontcProperties;
 
     /* Compiled style data. Color arrays are RGBA; flags distinguish inherited
@@ -195,9 +195,9 @@ extern "C"
         uint32_t m_Type;
         uint32_t m_Fit;
         uint32_t m_GradientMode;
-        float m_Positions[4];
+        float    m_Positions[4];
         // Authored linear angle, or radial pivot x/y, radius x/y, angle, and unused.
-        float m_Parameters[6];
+        float    m_Parameters[6];
         uint32_t m_ColorType;
         uint32_t m_StopCount;
     } FontcStyleEffect;
@@ -674,7 +674,7 @@ extern "C"
 
     /*#
      * Copies the gradient lookup texture for vertices generated since FontcBeginBatch.
-     * Enable FontcProperties.m_UseGpuEffects when the material has a font_effects
+     * Enable FontcProperties.m_UseGPUEffects when the material has a font_effects
      * sampler, then call this after writing all vertices in the batch. Keep the
      * returned snapshot with those vertices; the next batch may reuse lookup indices.
      * Release the copied pixel buffer with FontcFreeTexture.

@@ -109,7 +109,9 @@ class FontEffectTest : public jc_test_base_class
         char error[1024] = {};
         m_Program = dmGraphics::NewProgram(m_Context, shaders.Get(), error, sizeof(error));
         if (!m_Program)
+        {
             printf("Font effect shader: %s\n", error);
+        }
         ASSERT_NE((dmGraphics::HProgram)0, m_Program);
         dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(m_Context);
         dmGraphics::AddVertexStream(streams, "position", 2, dmGraphics::TYPE_FLOAT, false);
@@ -198,6 +200,7 @@ class FontEffectTest : public jc_test_base_class
         const uint8_t colors[4][4] = { { 240, 20, 40, 255 }, { 20, 220, 60, 192 }, { 40, 60, 240, 128 }, { 240, 200, 40, 64 } };
         const float   positions[] = { 0.125f, 0.375f, 0.625f, 0.875f };
         for (uint32_t count = 1; count <= 4; ++count)
+        {
             for (uint32_t custom = 0; custom < 2; ++custom)
             {
                 FontColorEffect effect = {};
@@ -231,7 +234,9 @@ class FontEffectTest : public jc_test_base_class
                         const float t = animated ? 1.0f - sample / 8.0f : sample / 8.0f;
                         uint32_t    left = 0;
                         while (left + 1 < count && t > effect.m_Positions[left + 1])
+                        {
                             ++left;
+                        }
                         const uint32_t right = left + 1 < count ? left + 1 : left;
                         float          weight = right == left ? 0.0f : (t - effect.m_Positions[left]) / (effect.m_Positions[right] - effect.m_Positions[left]);
                         weight = weight < 0.0f ? 0.0f : weight > 1.0f ? 1.0f :
@@ -245,10 +250,13 @@ class FontEffectTest : public jc_test_base_class
                     if (!animated)
                     {
                         for (uint32_t channel = 0; channel < 4; ++channel)
+                        {
                             ASSERT_NEAR(colors[count - 1][channel], Pixel(96, 32)[channel], 1.0f);
+                        }
                     }
                 }
             }
+        }
     }
 };
 
@@ -324,6 +332,7 @@ TEST_F(FontEffectTest, RotatedEllipticalRadialGradient)
 {
     const uint8_t colors[4][4] = { { 255, 0, 0, 255 }, { 0, 255, 0, 255 }, { 0, 0, 255, 255 }, { 255, 255, 0, 255 } };
     for (uint32_t count = 1; count <= 4; ++count)
+    {
         for (uint32_t animated = 0; animated < 2; ++animated)
         {
             FontColorEffect effect = {};
@@ -332,7 +341,9 @@ TEST_F(FontEffectTest, RotatedEllipticalRadialGradient)
             effect.m_Flags = animated ? FONT_COLOR_EFFECT_MIRROR : 0;
             memcpy(effect.m_Colors, colors, sizeof(colors));
             for (uint32_t i = 0; i < count; ++i)
+            {
                 effect.m_Positions[i] = count > 1 ? (float)i / (count - 1) : 0.0f;
+            }
             // A 40x20-radius ellipse rotated by atan2(3, 4), centered on a pixel.
             effect.m_Parameters[0] = 64.5f / 128.0f;
             effect.m_Parameters[1] = 32.5f / 64.0f;
@@ -345,17 +356,21 @@ TEST_F(FontEffectTest, RotatedEllipticalRadialGradient)
             {
                 float t = i * 0.25f + (animated ? 0.25f : 0.0f);
                 t = t > 1.0f ? 2.0f - t : t;
-                const float coordinate = t * (count - 1);
+                const float    coordinate = t * (count - 1);
                 const uint32_t left = (uint32_t)coordinate;
                 const uint32_t right = left + 1 < count ? left + 1 : left;
-                const float weight = coordinate - left;
-                const uint8_t* samples[] = { Pixel(64 + 8 * i, 32 + 6 * i), Pixel(64 - 3 * i, 32 + 4 * i),
-                                             Pixel(64 - 8 * i, 32 - 6 * i), Pixel(64 + 3 * i, 32 - 4 * i) };
+                const float    weight = coordinate - left;
+                const uint8_t* samples[] = { Pixel(64 + 8 * i, 32 + 6 * i), Pixel(64 - 3 * i, 32 + 4 * i), Pixel(64 - 8 * i, 32 - 6 * i), Pixel(64 + 3 * i, 32 - 4 * i) };
                 for (uint32_t sample = 0; sample < 4; ++sample)
+                {
                     for (uint32_t channel = 0; channel < 4; ++channel)
+                    {
                         ASSERT_NEAR(colors[left][channel] * (1.0f - weight) + colors[right][channel] * weight, samples[sample][channel], 1.0f);
+                    }
+                }
             }
         }
+    }
 }
 
 // Four-corner evaluation has a bilinear center instead of a triangle-diagonal color seam.
@@ -368,7 +383,9 @@ TEST_F(FontEffectTest, FourCornerGradient)
     memcpy(effect.m_Colors, colors, sizeof(colors));
     Draw(effect);
     for (uint32_t c = 0; c < 3; ++c)
+    {
         EXPECT_NEAR(128, Pixel(64, 32)[c], 3);
+    }
 }
 
 // Animation phase is per draw and must not create or modify the shared color record.
@@ -403,18 +420,22 @@ TEST_F(FontEffectTest, GradientOverridesInheritedColor)
     effect.m_Colors[0][0] = 240;
     effect.m_Colors[0][1] = 120;
     effect.m_Colors[0][2] = 60;
-    const float face_color[] = { 0.0f, 0.0f, 0.0f, 128.0f / 255.0f };
+    const float   face_color[] = { 0.0f, 0.0f, 0.0f, 128.0f / 255.0f };
     const uint8_t alpha[] = { 64, 192 };
     for (uint32_t a = 0; a < DM_ARRAY_SIZE(alpha); ++a)
+    {
         for (uint32_t premultiplied = 0; premultiplied < 2; ++premultiplied)
         {
             effect.m_Colors[0][3] = alpha[a];
             Draw(effect, 0.0f, face_color, premultiplied != 0);
             const float expected_alpha = a == 0 ? 64.0f : 128.0f;
             for (uint32_t channel = 0; channel < 3; ++channel)
+            {
                 EXPECT_NEAR(effect.m_Colors[0][channel] * (premultiplied ? expected_alpha / 255.0f : 1.0f), Pixel(64, 32)[channel], 1);
+            }
             EXPECT_NEAR(expected_alpha, Pixel(64, 32)[3], 1);
         }
+    }
 }
 
 // Growing beyond 255 records preserves old indices and radial interiors on the GPU.
@@ -509,7 +530,7 @@ TEST_F(FontEffectTest, LegacyGradientMatchesCpuInterpolation)
                     const float    x = (px + 0.5f) / 128.0f;
                     const float    y = (py + 0.5f) / 64.0f;
                     // The quad's two triangles interpolate the old CPU corner colors.
-                    float weights[4] = { 1.0f - x - y, x, y, 0.0f };
+                    float          weights[4] = { 1.0f - x - y, x, y, 0.0f };
                     if (x + y > 1.0f)
                     {
                         weights[0] = 0.0f;
@@ -521,7 +542,9 @@ TEST_F(FontEffectTest, LegacyGradientMatchesCpuInterpolation)
                     {
                         float expected = 0.0f;
                         for (uint32_t corner = 0; corner < 4; ++corner)
+                        {
                             expected += weights[corner] * colors[corner][c] * (premultiplied && c < 3 ? colors[corner][3] : 1.0f);
+                        }
                         ASSERT_NEAR(expected * 255.0f, Pixel(px, py)[c], 1.5f);
                     }
                 }

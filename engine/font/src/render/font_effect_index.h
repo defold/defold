@@ -40,8 +40,12 @@ static inline uint32_t FontFindEffect(const FontEffectIndex& index, uint64_t has
 {
     const uint32_t* first = index.m_Rows.Get(hash);
     for (uint32_t row = first ? *first : 0; row; row = index.m_Next[row])
+    {
         if (memcmp(&record, &records[row], sizeof(record)) == 0)
+        {
             return row;
+        }
+    }
     return 0;
 }
 
@@ -62,7 +66,9 @@ static inline void FontEraseEffect(FontEffectIndex* index, uint64_t hash, uint32
         return;
     }
     while (*link != row)
+    {
         link = &index->m_Next[*link];
+    }
     *link = index->m_Next[row];
 }
 

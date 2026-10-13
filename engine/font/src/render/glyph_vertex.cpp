@@ -197,7 +197,7 @@ void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decor
 void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decoration, const float base_color[4], TextGlyphFaceColors* face_colors, bool apply_gradients)
 {
     const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
-    uint32_t left_index, right_index;
+    uint32_t         left_index, right_index;
     FontGetDecorationEndGlyphs(layout, decoration, &left_index, &right_index);
     TextGlyphRenderData left;
     TextGlyphRenderData right;

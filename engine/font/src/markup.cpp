@@ -376,35 +376,65 @@ static MarkupAttributeType GetAttributeType(dmhash_t name)
     }
 
     if (name == ATTRIBUTE_TYPE)
+    {
         return MARKUP_ATTRIBUTE_TYPE;
+    }
     if (name == ATTRIBUTE_ANGLE)
+    {
         return MARKUP_ATTRIBUTE_ANGLE;
+    }
     if (name == ATTRIBUTE_COLOR0)
+    {
         return MARKUP_ATTRIBUTE_COLOR0;
+    }
     if (name == ATTRIBUTE_COLOR1)
+    {
         return MARKUP_ATTRIBUTE_COLOR1;
+    }
     if (name == ATTRIBUTE_COLOR2)
+    {
         return MARKUP_ATTRIBUTE_COLOR2;
+    }
     if (name == ATTRIBUTE_COLOR3)
+    {
         return MARKUP_ATTRIBUTE_COLOR3;
+    }
     if (name == ATTRIBUTE_STOP0)
+    {
         return MARKUP_ATTRIBUTE_STOP0;
+    }
     if (name == ATTRIBUTE_STOP1)
+    {
         return MARKUP_ATTRIBUTE_STOP1;
+    }
     if (name == ATTRIBUTE_STOP2)
+    {
         return MARKUP_ATTRIBUTE_STOP2;
+    }
     if (name == ATTRIBUTE_STOP3)
+    {
         return MARKUP_ATTRIBUTE_STOP3;
+    }
     if (name == ATTRIBUTE_PIVOT_X)
+    {
         return MARKUP_ATTRIBUTE_PIVOT_X;
+    }
     if (name == ATTRIBUTE_PIVOT_Y)
+    {
         return MARKUP_ATTRIBUTE_PIVOT_Y;
+    }
     if (name == ATTRIBUTE_RADIUS)
+    {
         return MARKUP_ATTRIBUTE_RADIUS;
+    }
     if (name == ATTRIBUTE_RADIUS_X)
+    {
         return MARKUP_ATTRIBUTE_RADIUS_X;
+    }
     if (name == ATTRIBUTE_RADIUS_Y)
+    {
         return MARKUP_ATTRIBUTE_RADIUS_Y;
+    }
 
     return MARKUP_ATTRIBUTE_CUSTOM;
 }
@@ -442,10 +472,10 @@ static bool IsSupportedAttribute(MarkupTagType tag, MarkupAttributeType name)
     if (tag == MARKUP_TAG_GRADIENT)
     {
         return name == MARKUP_ATTRIBUTE_BL || name == MARKUP_ATTRIBUTE_BOTTOM || name == MARKUP_ATTRIBUTE_BR ||
-        name == MARKUP_ATTRIBUTE_DIRECTION || name == MARKUP_ATTRIBUTE_FIT || name == MARKUP_ATTRIBUTE_HZ ||
-        name == MARKUP_ATTRIBUTE_LEFT || name == MARKUP_ATTRIBUTE_RIGHT || name == MARKUP_ATTRIBUTE_TL ||
-        name == MARKUP_ATTRIBUTE_TOP || name == MARKUP_ATTRIBUTE_TR ||
-        (name >= MARKUP_ATTRIBUTE_TYPE && name <= MARKUP_ATTRIBUTE_RADIUS_Y);
+               name == MARKUP_ATTRIBUTE_DIRECTION || name == MARKUP_ATTRIBUTE_FIT || name == MARKUP_ATTRIBUTE_HZ ||
+               name == MARKUP_ATTRIBUTE_LEFT || name == MARKUP_ATTRIBUTE_RIGHT || name == MARKUP_ATTRIBUTE_TL ||
+               name == MARKUP_ATTRIBUTE_TOP || name == MARKUP_ATTRIBUTE_TR ||
+               (name >= MARKUP_ATTRIBUTE_TYPE && name <= MARKUP_ATTRIBUTE_RADIUS_Y);
     }
 
     if (tag == MARKUP_TAG_WAVE)
@@ -476,7 +506,9 @@ static bool GetConstantType(MarkupTagType tag, MarkupAttributeType name, dmhash_
         if (value == VALUE_GLYPH) *type = MARKUP_CONSTANT_GLYPH;
         if (value == VALUE_SPAN)  *type = MARKUP_CONSTANT_SPAN;
         if (tag == MARKUP_TAG_GRADIENT && value == VALUE_BLOCK)
+        {
             *type = MARKUP_CONSTANT_BLOCK;
+        }
 
         return *type != MARKUP_CONSTANT_NONE;
     }
@@ -484,13 +516,21 @@ static bool GetConstantType(MarkupTagType tag, MarkupAttributeType name, dmhash_
     if (tag == MARKUP_TAG_GRADIENT && name == MARKUP_ATTRIBUTE_TYPE)
     {
         if (value == VALUE_COLOR)
+        {
             *type = MARKUP_CONSTANT_COLOR;
+        }
         if (value == VALUE_LINEAR)
+        {
             *type = MARKUP_CONSTANT_LINEAR;
+        }
         if (value == VALUE_RADIAL)
+        {
             *type = MARKUP_CONSTANT_RADIAL;
+        }
         if (value == VALUE_FOUR_CORNER)
+        {
             *type = MARKUP_CONSTANT_FOUR_CORNER;
+        }
 
         return *type != MARKUP_CONSTANT_NONE;
     }
@@ -745,9 +785,9 @@ static MarkupResult ParseOpeningTag(ParseContext* context, MarkupString tag, Mar
 
         MarkupConstantType constant_type = MARKUP_CONSTANT_NONE;
         const bool         has_constant = attribute_type == MARKUP_ATTRIBUTE_FIT || attribute_type == MARKUP_ATTRIBUTE_TYPE ||
-        attribute_type == MARKUP_ATTRIBUTE_DIRECTION ||
-        ((tag_type == MARKUP_TAG_UNDERLINE || tag_type == MARKUP_TAG_STRIKE) &&
-         attribute_type == MARKUP_ATTRIBUTE_PATTERN);
+                                  attribute_type == MARKUP_ATTRIBUTE_DIRECTION ||
+                                  ((tag_type == MARKUP_TAG_UNDERLINE || tag_type == MARKUP_TAG_STRIKE) &&
+                                   attribute_type == MARKUP_ATTRIBUTE_PATTERN);
         if (has_constant && !GetConstantType(tag_type, attribute_type, HashString(context->m_Source, value), &constant_type))
         {
             SetError(error, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, value.m_Offset);

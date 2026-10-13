@@ -108,21 +108,29 @@ uint32_t FontCacheEffect(FontEffectCache* cache, const FontEffectRecord& record,
             cache->m_EvictCursor = 1;
         }
         while (cache->m_EvictCursor < cache->m_Count && cache->m_Frames[cache->m_EvictCursor] == frame)
+        {
             ++cache->m_EvictCursor;
+        }
         if (cache->m_EvictCursor < cache->m_Count)
         {
             available = cache->m_EvictCursor++;
             FontEraseEffect(&cache->m_Index, dmHashBuffer64(&cache->m_Records[available], sizeof(record)), available);
         }
         else if (cache->m_Count < cache->m_MaxHeight)
+        {
             ResizeEffectCache(cache, dmMath::Min(cache->m_Count * 2, cache->m_MaxHeight));
+        }
     }
     if (cache->m_Count < cache->m_Records.Size())
+    {
         available = cache->m_Count++;
+    }
     if (available == UINT32_MAX)
     {
         if (!cache->m_OverflowReported)
+        {
             dmLogError("Font gradient texture exhausted its %u records; further effects use approximate vertex colors.", cache->m_MaxHeight - 1);
+        }
         cache->m_OverflowReported = true;
         return UINT32_MAX;
     }
@@ -137,7 +145,9 @@ uint32_t FontCacheEffect(FontEffectCache* cache, const FontEffectRecord& record,
 void FontUploadEffects(FontEffectCache* cache)
 {
     if (!cache->m_Dirty)
+    {
         return;
+    }
     dmGraphics::TextureParams params;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
     params.m_Width = FONT_EFFECT_TEXTURE_WIDTH;
@@ -161,7 +171,7 @@ uint32_t FontGetEffectCacheResourceSize(FontEffectCache* cache)
 {
     const uint32_t index_capacity = cache->m_Index.m_Rows.Capacity();
     return sizeof(*cache) + cache->m_Records.Capacity() * sizeof(FontEffectRecord) +
-    dmHashTable64<uint32_t>::GetMemorySize(index_capacity, index_capacity) +
-    cache->m_Index.m_Next.Capacity() * sizeof(uint32_t) + cache->m_Frames.Capacity() * sizeof(uint32_t) +
-    dmGraphics::GetTextureResourceSize(cache->m_Context, cache->m_Texture);
+           dmHashTable64<uint32_t>::GetMemorySize(index_capacity, index_capacity) +
+           cache->m_Index.m_Next.Capacity() * sizeof(uint32_t) + cache->m_Frames.Capacity() * sizeof(uint32_t) +
+           dmGraphics::GetTextureResourceSize(cache->m_Context, cache->m_Texture);
 }

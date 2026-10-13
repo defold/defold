@@ -379,14 +379,18 @@ struct GlyphColorEffect
 static const TextEffect* FindGlyphGradient(const TextLayout* layout, const TextGlyph& glyph)
 {
     if (glyph.m_MarkupSpanIndex >= layout->m_ResolvedSpans.Size())
+    {
         return 0;
+    }
     const TextResolvedSpan& span = layout->m_ResolvedSpans[glyph.m_MarkupSpanIndex];
     const TextEffect*       effect = 0;
     for (uint32_t i = 0; i < span.m_EffectCount; ++i)
     {
         const TextEffect& candidate = layout->m_Effects[layout->m_SpanEffects[span.m_EffectIndex + i]];
         if (candidate.m_Type == TEXT_EFFECT_GRADIENT && candidate.m_TextLength != 0)
+        {
             effect = &candidate;
+        }
     }
     return effect;
 }
@@ -394,11 +398,15 @@ static const TextEffect* FindGlyphGradient(const TextLayout* layout, const TextG
 static bool ResolveGlyphColorEffect(const FontLayoutVertexConfig& config, const TextGlyph& glyph, GlyphColorEffect* output)
 {
     if (!config.m_ResolveEffect)
+    {
         return false;
+    }
     const TextLayout* layout = config.m_Layout;
     const TextEffect* effect = FindGlyphGradient(layout, glyph);
     if (!effect || effect->m_Gradient.m_Mode == TEXT_GRADIENT_MODE_SPATIAL)
+    {
         return false;
+    }
 
     const TextGradientEffect& gradient = effect->m_Gradient;
     FontColorEffect           color = {};
@@ -407,7 +415,9 @@ static bool ResolveGlyphColorEffect(const FontLayoutVertexConfig& config, const 
     color.m_Flags = FONT_COLOR_EFFECT_MIRROR;
     const float* corners[] = { gradient.m_Corners.m_BottomLeft, gradient.m_Corners.m_BottomRight, gradient.m_Corners.m_TopLeft, gradient.m_Corners.m_TopRight };
     if (gradient.m_Mode == TEXT_GRADIENT_MODE_VERTICAL)
+    {
         corners[1] = gradient.m_Corners.m_TopLeft;
+    }
     for (uint32_t i = 0; i < color.m_StopCount; ++i)
     {
         const float*   rgba = corners[i];
@@ -420,7 +430,9 @@ static bool ResolveGlyphColorEffect(const FontLayoutVertexConfig& config, const 
     FontPackEffect(color, &record);
     output->m_Index = config.m_ResolveEffect(config.m_ResolveEffectContext, record);
     if (output->m_Index == UINT32_MAX)
+    {
         return false;
+    }
 
     const float left = dmMath::Clamp((float)((int64_t)glyph.m_Cluster - effect->m_TextOffset) / effect->m_TextLength, 0.0f, 1.0f);
     const float right = dmMath::Clamp((float)((int64_t)glyph.m_Cluster + 1 - effect->m_TextOffset) / effect->m_TextLength, 0.0f, 1.0f);
@@ -453,7 +465,9 @@ static bool ResolveGlyphColorEffect(const FontLayoutVertexConfig& config, const 
 static void SetGlyphColorEffect(FontGlyphVertex* vertices, const GlyphColorEffect& effect, bool vertex_evaluation)
 {
     if (!vertices)
+    {
         return;
+    }
     static const uint8_t corners[6][2] = { { 0, 1 }, { 2, 1 }, { 0, 3 }, { 0, 3 }, { 2, 1 }, { 2, 3 } };
     for (uint32_t i = 0; i < 6; ++i)
     {
@@ -512,32 +526,40 @@ static void PrepareSpatialGradientBounds(const FontLayoutVertexConfig& config)
                        effect.m_Gradient.m_Color.m_Type != FONT_COLOR_EFFECT_COLOR && effect.m_Gradient.m_Fit == TEXT_EFFECT_FIT_SPAN;
     }
     if (!needed)
+    {
         return;
+    }
 
     const uint32_t effect_count = layout->m_Effects.Size();
     const uint32_t line_count = layout->m_Lines.Size();
     // A range tree over source clusters includes glyphs hidden by nested color
     // overrides and handles visual reordering in shaped text. Each glyph is
     // measured once; each authored span queries its range in logarithmic time.
-    uint32_t leaves = 0;
+    uint32_t       leaves = 0;
     if (span_bounds)
     {
         for (uint32_t i = 0; i < layout->m_Glyphs.Size(); ++i)
+        {
             leaves = dmMath::Max(leaves, layout->m_Glyphs[i].m_Cluster + 1);
+        }
         leaves = dmMath::Max(leaves, 1u);
     }
     const uint32_t tree_offset = effect_count + line_count + 1;
     layout->m_GradientBounds.EnsureSize(tree_offset + 2 * leaves);
     const SpatialGradientBounds empty = { INFINITY, INFINITY, -INFINITY, -INFINITY };
     for (uint32_t i = 0; i < layout->m_GradientBounds.Size(); ++i)
+    {
         layout->m_GradientBounds[i] = empty;
+    }
     SpatialGradientBounds& block = layout->m_GradientBounds[effect_count + line_count];
     const float            layout_y = OffsetLayoutY(config.m_VerticalAlign, config.m_Height, layout->m_Height);
     for (uint32_t l = 0; l < line_count; ++l)
     {
         const TextLine& line = layout->m_Lines[l];
         if (!line.m_Length)
+        {
             continue;
+        }
         const float first_x = TextLayoutGetLineOriginX(layout, l);
         const float first_y = layout->m_Glyphs[line.m_Index].m_Y;
         const float line_x = GetLineStartX(config, line, layout->m_Paragraphs[line.m_ParagraphIndex].m_Direction);
@@ -545,12 +567,16 @@ static void PrepareSpatialGradientBounds(const FontLayoutVertexConfig& config)
         {
             const TextGlyph& glyph = layout->m_Glyphs[i];
             if ((glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT) || dmUtf8::IsWhiteSpace(glyph.m_Codepoint))
+            {
                 continue;
+            }
             const SpatialGradientBounds unpadded = GetGlyphUnpaddedBounds(config, glyph, line_x + glyph.m_X - first_x, layout_y + line.m_Baseline + glyph.m_Y - first_y);
             ExpandGradientBounds(&block, unpadded);
             ExpandGradientBounds(&layout->m_GradientBounds[effect_count + l], unpadded);
             if (leaves)
+            {
                 ExpandGradientBounds(&layout->m_GradientBounds[tree_offset + leaves + glyph.m_Cluster], unpadded);
+            }
         }
     }
     if (leaves)
@@ -566,15 +592,21 @@ static void PrepareSpatialGradientBounds(const FontLayoutVertexConfig& config)
             const TextEffect& effect = layout->m_Effects[i];
             if (effect.m_Type != TEXT_EFFECT_GRADIENT || effect.m_Gradient.m_Mode != TEXT_GRADIENT_MODE_SPATIAL ||
                 effect.m_Gradient.m_Fit != TEXT_EFFECT_FIT_SPAN)
+            {
                 continue;
+            }
             uint32_t start = leaves + dmMath::Min(effect.m_TextOffset, leaves);
             uint32_t end = leaves + dmMath::Min(effect.m_TextOffset + effect.m_TextLength, leaves);
             while (start < end)
             {
                 if (start & 1)
+                {
                     ExpandGradientBounds(&layout->m_GradientBounds[i], tree[start++]);
+                }
                 if (end & 1)
+                {
                     ExpandGradientBounds(&layout->m_GradientBounds[i], tree[--end]);
+                }
                 start /= 2;
                 end /= 2;
             }
@@ -582,14 +614,20 @@ static void PrepareSpatialGradientBounds(const FontLayoutVertexConfig& config)
     }
     // Whitespace-only decorations have no unpadded bounds.
     for (uint32_t i = 0; i < tree_offset; ++i)
+    {
         if (layout->m_GradientBounds[i].m_MinX == INFINITY)
+        {
             memset(&layout->m_GradientBounds[i], 0, sizeof(SpatialGradientBounds));
+        }
+    }
 }
 
 static float SampleGradientCoordinate(float t, float phase, uint8_t flags)
 {
     if (!flags)
+    {
         return dmMath::Clamp(t, 0.0f, 1.0f);
+    }
     t += phase;
     return 1.0f - fabsf(t - floorf(t * 0.5f) * 2.0f - 1.0f);
 }
@@ -598,7 +636,9 @@ static float SampleGradientCoordinate(float t, float phase, uint8_t flags)
 static void ApplySpatialGradientFallback(FontGlyphVertex* vertices, const FontColorEffect& color, const GlyphColorEffect& effect)
 {
     if (!vertices)
+    {
         return;
+    }
     static const uint8_t corners[6][2] = { { 0, 1 }, { 2, 1 }, { 0, 3 }, { 0, 3 }, { 2, 1 }, { 2, 3 } };
     for (uint32_t i = 0; i < 6; ++i)
     {
@@ -621,10 +661,14 @@ static void ApplySpatialGradientFallback(FontGlyphVertex* vertices, const FontCo
                 t = sqrtf(u * u + v * v);
             }
             else
+            {
                 t = x * color.m_Parameters[0] + y * color.m_Parameters[1] + color.m_Parameters[2];
+            }
             t = SampleGradientCoordinate(t, effect.m_Phase, color.m_Flags);
             while (right + 1 < color.m_StopCount && t >= color.m_Positions[right])
+            {
                 ++right;
+            }
             left = right ? right - 1 : 0;
             const float a = color.m_Positions[left], b = color.m_Positions[right];
             t = b > a ? dmMath::Clamp((t - a) / (b - a), 0.0f, 1.0f) : 1.0f;
@@ -639,7 +683,9 @@ static void ApplySpatialGradientFallback(FontGlyphVertex* vertices, const FontCo
                 sample = bottom * (1.0f - y) + top * y;
             }
             else
+            {
                 sample = color.m_Colors[left][channel] * (1.0f - t) + color.m_Colors[right][channel] * t;
+            }
             vertices[i].m_FaceColor[channel] = (uint8_t)((channel == 3 ? dmMath::Min((float)vertices[i].m_FaceColor[channel], sample) : sample) + 0.5f);
         }
     }
@@ -649,16 +695,24 @@ static void ApplySpatialGradient(const FontLayoutVertexConfig& config, const Tex
 {
     const TextEffect* effect = FindGlyphGradient(config.m_Layout, glyph);
     if (!effect || effect->m_Gradient.m_Mode != TEXT_GRADIENT_MODE_SPATIAL)
+    {
         return;
+    }
     const TextGradientEffect& gradient = effect->m_Gradient;
     SpatialGradientBounds     bounds = unpadded;
     const TextLayout*         layout = config.m_Layout;
     if (gradient.m_Color.m_Type == FONT_COLOR_EFFECT_COLOR)
+    {
         bounds = quad;
+    }
     else if (gradient.m_Fit == TEXT_EFFECT_FIT_BLOCK)
+    {
         bounds = layout->m_GradientBounds[layout->m_Effects.Size() + layout->m_Lines.Size()];
+    }
     else if (gradient.m_Fit == TEXT_EFFECT_FIT_SPAN)
+    {
         bounds = layout->m_GradientBounds[effect - layout->m_Effects.Begin()];
+    }
     else if (gradient.m_Color.m_Type == FONT_COLOR_EFFECT_RADIAL)
     {
         const SpatialGradientBounds& line_bounds = layout->m_GradientBounds[layout->m_Effects.Size() + (&line - layout->m_Lines.Begin())];
@@ -666,8 +720,8 @@ static void ApplySpatialGradient(const FontLayoutVertexConfig& config, const Tex
         bounds.m_MinY = line_bounds.m_MinY;
         bounds.m_MaxY = line_bounds.m_MaxY;
     }
-    const float     width = dmMath::Max(bounds.m_MaxX - bounds.m_MinX, 0.0001f);
-    const float     height = dmMath::Max(bounds.m_MaxY - bounds.m_MinY, 0.0001f);
+    const float width = dmMath::Max(bounds.m_MaxX - bounds.m_MinX, 0.0001f);
+    const float height = dmMath::Max(bounds.m_MaxY - bounds.m_MinY, 0.0001f);
     if (cache->m_Effect != effect || cache->m_Width != width || cache->m_Height != height)
     {
         FontColorEffect& color = cache->m_Color;
@@ -715,9 +769,13 @@ static void ApplySpatialGradient(const FontLayoutVertexConfig& config, const Tex
     for (uint32_t i = 0; i < 3; ++i)
     {
         if (resolved.m_Index != UINT32_MAX)
+        {
             SetGlyphColorEffect(vertices[i], resolved, false);
+        }
         else
+        {
             ApplySpatialGradientFallback(vertices[i], cache->m_Color, resolved);
+        }
     }
 }
 
@@ -728,7 +786,7 @@ struct GlyphRenderDataCache
     uint16_t            m_StyleIndex;
     uint16_t            m_SpanIndex;
     bool                m_Valid;
-    bool                m_GpuGradient;
+    bool                m_GPUGradient;
 };
 
 static bool IsSpanConstantEffect(const TextEffect& effect)
@@ -790,7 +848,7 @@ static const TextGlyphRenderData* GetGlyphRenderData(const FontLayoutVertexConfi
                                                      uint32_t                      scratch_face_colors[4],
                                                      const uint32_t**              face_colors)
 {
-    if (cache->m_Valid && cache->m_GpuGradient == gpu_gradient && cache->m_SpanIndex != MARKUP_INVALID_INDEX &&
+    if (cache->m_Valid && cache->m_GPUGradient == gpu_gradient && cache->m_SpanIndex != MARKUP_INVALID_INDEX &&
         cache->m_StyleIndex == glyph.m_StyleIndex && cache->m_SpanIndex == glyph.m_MarkupSpanIndex)
     {
         *face_colors = cache->m_FaceColors;
@@ -801,7 +859,7 @@ static const TextGlyphRenderData* GetGlyphRenderData(const FontLayoutVertexConfi
     uint16_t   cache_span_index;
     const bool cacheable = GetRenderDataCacheKey(config.m_Layout, glyph, &cache_span_index);
 
-    if (cacheable && cache->m_Valid && cache->m_GpuGradient == gpu_gradient && cache->m_StyleIndex == glyph.m_StyleIndex && cache->m_SpanIndex == cache_span_index)
+    if (cacheable && cache->m_Valid && cache->m_GPUGradient == gpu_gradient && cache->m_StyleIndex == glyph.m_StyleIndex && cache->m_SpanIndex == cache_span_index)
     {
         *face_colors = cache->m_FaceColors;
 
@@ -819,7 +877,7 @@ static const TextGlyphRenderData* GetGlyphRenderData(const FontLayoutVertexConfi
         cache->m_StyleIndex = glyph.m_StyleIndex;
         cache->m_SpanIndex = cache_span_index;
         cache->m_Valid = true;
-        cache->m_GpuGradient = gpu_gradient;
+        cache->m_GPUGradient = gpu_gradient;
     }
 
     return data;
@@ -1159,10 +1217,12 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             FontGetDecorationEndGlyphs(config.m_Layout, decoration, &left, &right);
             GlyphColorEffect right_effect;
             gpu_decoration = ResolveGlyphColorEffect(config, glyphs[left], &decoration_effect) &&
-            ResolveGlyphColorEffect(config, glyphs[right], &right_effect) &&
-            decoration_effect.m_Index == right_effect.m_Index;
+                             ResolveGlyphColorEffect(config, glyphs[right], &right_effect) &&
+                             decoration_effect.m_Index == right_effect.m_Index;
             if (gpu_decoration)
+            {
                 decoration_effect.m_UV[2] = right_effect.m_UV[2];
+            }
         }
         if (!glyph_segments)
         {
@@ -1180,7 +1240,9 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             GlyphColorEffect    color_effect;
             const bool          gpu_gradient = glyph_segments ? ResolveGlyphColorEffect(config, glyph, &color_effect) : gpu_decoration;
             if (gpu_decoration)
+            {
                 color_effect = decoration_effect;
+            }
             TextLayoutGetGlyphRenderData(config.m_Layout, glyph, config.m_FaceColor, &render_data, !gpu_gradient);
             uint32_t        segment_colors[4];
             const uint32_t* face_colors = packed_decoration_colors;

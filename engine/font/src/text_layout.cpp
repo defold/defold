@@ -1597,7 +1597,9 @@ static void ApplyGradientEffect(const TextLayout* layout, const TextGlyph& glyph
 {
     const TextGradientEffect& gradient = effect.m_Gradient;
     if (gradient.m_Mode == TEXT_GRADIENT_MODE_SPATIAL)
+    {
         return;
+    }
     const float animation_t = (float)(layout->m_ElapsedTime * gradient.m_Hz * 2.0);
 
     if (gradient.m_Fit == TEXT_EFFECT_FIT_SPAN)

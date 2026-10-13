@@ -43,7 +43,7 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  *     uint32_t m_VerticalAlign;
  *     uint64_t m_BaseStyle;
  *     uint32_t m_UseBaseStyle;
- *     uint32_t m_UseGpuEffects;
+ *     uint32_t m_UseGPUEffects;
  * }
  * }
  */
@@ -69,7 +69,7 @@ public class FontcProperties {
         MemoryLayout.paddingLayout(4),
         FontRendererFFM.C_LONG_LONG.withName("m_BaseStyle"),
         FontRendererFFM.C_INT.withName("m_UseBaseStyle"),
-        FontRendererFFM.C_INT.withName("m_UseGpuEffects")
+        FontRendererFFM.C_INT.withName("m_UseGPUEffects")
     ).withName("FontcProperties");
 
     /**
@@ -794,48 +794,48 @@ public class FontcProperties {
         struct.set(m_UseBaseStyle$LAYOUT, m_UseBaseStyle$OFFSET, fieldValue);
     }
 
-    private static final OfInt m_UseGpuEffects$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_UseGpuEffects"));
+    private static final OfInt m_UseGPUEffects$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_UseGPUEffects"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * uint32_t m_UseGpuEffects
+     * uint32_t m_UseGPUEffects
      * }
      */
-    public static final OfInt m_UseGpuEffects$layout() {
-        return m_UseGpuEffects$LAYOUT;
+    public static final OfInt m_UseGPUEffects$layout() {
+        return m_UseGPUEffects$LAYOUT;
     }
 
-    private static final long m_UseGpuEffects$OFFSET = $LAYOUT.byteOffset(groupElement("m_UseGpuEffects"));
+    private static final long m_UseGPUEffects$OFFSET = $LAYOUT.byteOffset(groupElement("m_UseGPUEffects"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * uint32_t m_UseGpuEffects
+     * uint32_t m_UseGPUEffects
      * }
      */
-    public static final long m_UseGpuEffects$offset() {
-        return m_UseGpuEffects$OFFSET;
+    public static final long m_UseGPUEffects$offset() {
+        return m_UseGPUEffects$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * uint32_t m_UseGpuEffects
+     * uint32_t m_UseGPUEffects
      * }
      */
-    public static int m_UseGpuEffects(MemorySegment struct) {
-        return struct.get(m_UseGpuEffects$LAYOUT, m_UseGpuEffects$OFFSET);
+    public static int m_UseGPUEffects(MemorySegment struct) {
+        return struct.get(m_UseGPUEffects$LAYOUT, m_UseGPUEffects$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * uint32_t m_UseGpuEffects
+     * uint32_t m_UseGPUEffects
      * }
      */
-    public static void m_UseGpuEffects(MemorySegment struct, int fieldValue) {
-        struct.set(m_UseGpuEffects$LAYOUT, m_UseGpuEffects$OFFSET, fieldValue);
+    public static void m_UseGPUEffects(MemorySegment struct, int fieldValue) {
+        struct.set(m_UseGPUEffects$LAYOUT, m_UseGPUEffects$OFFSET, fieldValue);
     }
 
     /**
