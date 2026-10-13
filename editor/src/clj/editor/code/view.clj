@@ -4588,12 +4588,12 @@
                (fn canvas-height [] (if (.isSelected tab) (.getHeight canvas-pane) 0.0))
                (into-array Observable [(.selectedProperty tab)
                                        (.heightProperty canvas-pane)])))
-    (ui/observe (.widthProperty canvas)
+    (ui/observe (.widthProperty canvas-pane)
                 (fn [_ _ width]
                   (g/transact
                     {:undoable false}
                     (g/set-property view-node :canvas-width width))))
-    (ui/observe (.heightProperty canvas)
+    (ui/observe (.heightProperty canvas-pane)
                 (fn [_ _ height]
                   (g/transact
                     {:undoable false}
@@ -4635,6 +4635,7 @@
     (ui/observe (.selectedProperty tab)
                 (fn [_ _ became-selected?]
                   (when became-selected?
+                    (g/user-data! view-node :canvas-repaint-info nil)
                     ;; Must run-later here since we're not part of the Scene when we observe the property change.
                     ;; Also note that we don't want to steal focus from the inactive tab pane, if present.
                     (ui/run-later
