@@ -116,6 +116,13 @@ if(NOT EXISTS "${_GS_BUILTINS_GRAPHICS_DIR}/default.texture_profiles")
 endif()
 file(GLOB_RECURSE _GS_BUILTINS_GRAPHICS_SOURCES CONFIGURE_DEPENDS LIST_DIRECTORIES false "${_GS_BUILTINS_GRAPHICS_DIR}/*")
 
+# New GUI Slice-9 material is not guaranteed to exist in the prebuilt SDK
+# builtins.zip. Stage the exact source material for this native GUI fixture.
+set(_GS_SLICE9_TILED_MATERIAL "${GS_ENGINE_CONTENT_DIR}/builtins/materials/slice9_tiled.material")
+if(NOT EXISTS "${_GS_SLICE9_TILED_MATERIAL}")
+  message(FATAL_ERROR "Missing gamesys tiled Slice-9 test material: ${_GS_SLICE9_TILED_MATERIAL}")
+endif()
+
 if(DEFINED ENV{DM_BOB_ROOTFOLDER} AND NOT "$ENV{DM_BOB_ROOTFOLDER}" STREQUAL "")
   set(_GS_BOB_ROOT_BASE "$ENV{DM_BOB_ROOTFOLDER}/gamesys")
 else()
@@ -153,9 +160,11 @@ foreach(_lane RANGE 0 ${_GS_LAST_CONTENT_LANE})
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${GS_TEST_ROOT}" "${_stage_root}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_stage_root}/builtins"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BUILTINS_GRAPHICS_DIR}" "${_stage_root}/builtins/graphics"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_stage_root}/builtins/materials"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_GS_SLICE9_TILED_MATERIAL}" "${_stage_root}/builtins/materials/slice9_tiled.material"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_source_stamp}"
-    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES}
+    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES} "${_GS_SLICE9_TILED_MATERIAL}"
     ${_GS_CONTENT_JOB_POOL}
     COMMENT "Staging gamesys test sources for content chain ${_lane}"
     VERBATIM)

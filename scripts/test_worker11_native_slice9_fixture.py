@@ -44,6 +44,27 @@ class NativeTiledGuiFixtureCheck(unittest.TestCase):
         self.assertNotIn('materials {', self.stretch)
         self.assertTrue((ROOT / "engine/engine/content/builtins/materials/slice9_tiled.material").is_file())
 
+    def test_new_material_is_staged_into_bob_project(self):
+        """A source-only builtin is not necessarily in the prebuilt SDK zip."""
+        cmake = (ROOT / "engine/gamesys/src/gamesys/test/test_content.cmake").read_text()
+        material = ROOT / "engine/engine/content/builtins/materials/slice9_tiled.material"
+        self.assertTrue(material.is_file())
+        self.assertIn('material: "/builtins/materials/slice9_tiled.material"', self.tiled)
+        self.assertIn(
+            'set(_GS_SLICE9_TILED_MATERIAL "${GS_ENGINE_CONTENT_DIR}/builtins/materials/slice9_tiled.material")',
+            cmake,
+        )
+        self.assertIn('COMMAND "${CMAKE_COMMAND}" -E make_directory "${_stage_root}/builtins/materials"', cmake)
+        self.assertIn(
+            'COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_GS_SLICE9_TILED_MATERIAL}" '
+            '"${_stage_root}/builtins/materials/slice9_tiled.material"',
+            cmake,
+        )
+        self.assertRegex(
+            cmake,
+            r'DEPENDS [^\n]*"\$\{_GS_SLICE9_TILED_MATERIAL\}"',
+        )
+
     def test_same_size_manual_mode_and_slice_margins(self):
         for scene in (self.tiled, self.stretch):
             self.assertRegex(scene, r'size\s*\{\s*x:\s*64\.0\s*y:\s*48\.0')
