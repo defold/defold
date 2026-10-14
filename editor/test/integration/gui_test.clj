@@ -66,7 +66,7 @@
                    (swap! draw-uniforms conj @uniform-values))
                  nil)))]
     (with-redefs [gl/with-gl-bindings-impl (fn [_gl _render-args _bindable-items body-fn!]
-                                            (body-fn!))
+                                             (body-fn!))
                   gl/gl-current-program (fn ^long [_gl] 7)
                   scene-cache/request-object! (fn [_cache-id _request-id _gl _request-data]
                                                 {:program 7

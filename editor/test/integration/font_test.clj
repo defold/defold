@@ -141,7 +141,7 @@
                       (.-texture-data ^TextureRequestData (first (:texture-request-datas (:effect-texture render-data)))))]
     (try
       (with-redefs [scene-cache/request-object! (fn [cache-id request-id _gl data]
-                                                (request-object! cache-id request-id context data))
+                                                  (request-object! cache-id request-id context data))
                     texture/update-sub-image! (fn [& _])
                     shader/has-configured-sampler? (fn [use-gpu-effects _gl _sampler-name]
                                                      use-gpu-effects)]
