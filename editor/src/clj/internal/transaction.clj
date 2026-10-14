@@ -24,6 +24,7 @@
             [util.eduction :as e])
   (:import [clojure.lang ArityException]
            [internal.graph.types Arc]
+           [internal.node ShellNode]
            [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
@@ -154,8 +155,7 @@
      :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters ctx)
      :tx-data-context-atom (:tx-data-context-atom ctx)
      :node-id-generator (:node-id-generator ctx)
-     :override-id-generator (:override-id-generator ctx)
-     :materialize-node! materialize-node!}))
+     :override-id-generator (:override-id-generator ctx)}))
 
 (defn- apply-evaluation-context [ctx evaluation-context]
   (let [changes-atom (:changes-atom evaluation-context)
@@ -2123,3 +2123,10 @@
                       (perform-change change)
                       (assoc :completed-action-count 1 :realized-changes [change])
                       finalize-applied-changes))))))))))
+
+(extend-type ShellNode
+  gt/Materializable
+  (materialize! [this {:keys [basis-ref] :as evaluation-context}]
+    (let [node-id (gt/node-id this)]
+      (materialize-node! node-id evaluation-context)
+      (ig/node-by-id-at @basis-ref node-id))))

@@ -112,6 +112,9 @@
 (defonce/protocol Evaluation
   (produce-value       [this label evaluation-context] "Pull a value using an evaluation context"))
 
+(defonce/protocol Materializable
+  (materialize! [this evaluation-context] "Materialize this node in the evaluation context and return the materialized Node."))
+
 (defonce/protocol Node
   (node-id               [this]                          "Return an ID that can be used to get this node (or a future value of it).")
   (node-type             [this]                          "Return the node type that created this node.")

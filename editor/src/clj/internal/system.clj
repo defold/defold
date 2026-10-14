@@ -329,8 +329,7 @@
       (assoc :initial-materialization-invalidate-counters (:materialization-invalidate-counters system)
              :node-materializations-atom (:node-materializations-atom system)
              :node-id-generator (node-id-generator system)
-             :override-id-generator (override-id-generator system)
-             :materialize-node! it/materialize-node!)))
+             :override-id-generator (override-id-generator system))))
 
 (defn custom-evaluation-context
   ;; Basis & cache options:
@@ -349,8 +348,7 @@
                   :node-materializations-atom (:node-materializations-atom system)
                   :materializations (:materializations system)
                   :node-id-generator (node-id-generator system)
-                  :override-id-generator (override-id-generator system)
-                  :materialize-node! it/materialize-node!)]
+                  :override-id-generator (override-id-generator system))]
     (in/custom-evaluation-context
       (if options-cache
         (do

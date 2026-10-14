@@ -481,10 +481,9 @@
         (gt/produce-value node label evaluation-context)
 
         (not (shell-node-safe-output? (gt/node-type node) label))
-        (let [materialize-node! (:materialize-node! evaluation-context)
-              _ (materialize-node! _node-id evaluation-context)
-              node (ig/node-by-id-at @basis-ref _node-id)]
-          (gt/produce-value node label evaluation-context))
+        (-> node
+            (gt/materialize! evaluation-context)
+            (gt/produce-value label evaluation-context))
 
         :else
         (let [beh (behavior (gt/node-type node) label)]
@@ -529,7 +528,7 @@
 (defn- validate-evaluation-context-options [options]
   ;; :dry-run means no production functions will be called, useful speedup when tracing dependencies
   ;; :no-local-temp disables the non deterministic local caching of non :cached outputs, useful for stable results when debugging dependencies
-  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context-atom :materialize-node! :node-id-generator :override-id-generator :node-materializations-atom :materializations :initial-materialization-invalidate-counters} (coll/keys options)) (str (coll/keys options)))
+  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context-atom :node-id-generator :override-id-generator :node-materializations-atom :materializations :initial-materialization-invalidate-counters} (coll/keys options)) (str (coll/keys options)))
   (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
 
 (defn default-evaluation-context
@@ -634,10 +633,7 @@
   (let [node-type (gt/node-type node)
         node (if (and (shell-node? node)
                       (not (shell-node-safe-output? node-type label)))
-               (let [node-id (gt/node-id node)
-                     materialize-node! (:materialize-node! evaluation-context)]
-                 (materialize-node! node-id evaluation-context)
-                 (ig/node-by-id-at @(:basis-ref evaluation-context) node-id))
+               (gt/materialize! node evaluation-context)
                node)]
     (when-let [behavior (property-behavior node-type label)]
       ((:fn behavior) node label evaluation-context))))
