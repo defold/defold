@@ -335,20 +335,19 @@
   (and (not (g/error-value? outline-pane-desc))
        (coll/any? #(= :outline-pane %) (get open-sidebar-panes active-view))))
 
-(g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc outline-active]
+(g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc]
   {:fx/type fxui/ext-dedupe-identical-desc
    :desc {:fx/type fx/ext-let-refs
-          ;; If outline is active (requested by the view), we want to ensure
-          ;; that it's updated even if it's hidden when the debug view is shown.
+          ;; We want to ensure that the outline stays mounted even if it's
+          ;; hidden, so it keeps its expansion state and stays up to date.
           ;; This is necessary because the outline view defines commands on the
           ;; :workbench context, which is available throughout the editor, and
-          ;; those commands expect the outline view to be up to date. When
-          ;; outline is active, it's guaranteed that it's not an error value,
-          ;; but we need to keep the `^:try` so that the broken outline does not
-          ;; fail this whole output when it's inactive
-          :refs (if outline-active
-                  {:outline-pane outline-pane-desc}
-                  {})
+          ;; those commands expect the outline view to be up to date. We need
+          ;; to keep the `^:try` so that the broken outline does not fail this
+          ;; whole output
+          :refs (if (g/error-value? outline-pane-desc)
+                  {}
+                  {:outline-pane outline-pane-desc})
           :desc {:fx/type ext-with-split-pane-props
                  :desc {:fx/type ui/ext-value :value right-split}
                  :props {:items (or (coll/not-empty
