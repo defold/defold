@@ -192,6 +192,7 @@
   (reify
     Counted
     (count [_] (count map))
+
     IReduceInit
     (reduce [_ f init]
       (reduce-kv (fn [result key _]
@@ -205,6 +206,7 @@
   (reify
     Counted
     (count [_] (count map))
+
     IReduceInit
     (reduce [_ f init]
       (reduce-kv (fn [result _ value]
@@ -1205,6 +1207,7 @@
      (reify
        Counted
        (count [_] (alength items))
+
        IReduceInit
        (reduce [_ f init]
          (loop [index 0

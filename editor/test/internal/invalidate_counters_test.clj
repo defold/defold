@@ -37,7 +37,8 @@
   (gen/one-of [gen/keyword gen/keyword-ns]))
 
 (def ^:private endpoint-gen
-  (gen/fmap (fn make-endpoint [[node-id label]] (gt/endpoint node-id label))
+  (gen/fmap (fn make-endpoint [[node-id label]]
+              (gt/endpoint node-id label))
             (gen/tuple gen/large-integer label-gen)))
 
 (def ^:private history-block-gen
@@ -63,11 +64,13 @@
                                              [1 (gen/return :full)]])
                              (gen/vector (gen/elements ids) 0 8)
                              (gen/vector
-                               (gen/fmap (fn reuse-endpoint [[id label]] (gt/endpoint id label))
+                               (gen/fmap (fn reuse-endpoint [[id label]]
+                                           (gt/endpoint id label))
                                          (gen/tuple (gen/elements ids) (gen/elements labels)))
                                0 16)
                              gen/large-integer
-                             (gen/frequency [[9 (gen/return false)] [1 (gen/return true)]])
+                             (gen/frequency [[9 (gen/return false)]
+                                             [1 (gen/return true)]])
                              endpoint-gen))
                          0 16)]
     {:ids ids
@@ -80,20 +83,32 @@
     (throw (ex-info "Invalidation contract mismatch" data))))
 
 (defn- model-step [model operation stamp]
-  (let [{:keys [kind ids endpoints birth]} operation]
+  (let [{:keys [kind ids endpoints birth]} operation
+        {:keys [lifetimes outputs]} model]
     (case kind
-      :add (update model :lifetimes #(reduce (fn [m id] (assoc m id birth)) % ids))
-      :delete (let [deleted (set ids)]
-                (-> model
-                    (update :lifetimes #(reduce dissoc % ids))
-                    (update :outputs #(into {} (remove (fn [[endpoint _]] (contains? deleted (gt/endpoint-node-id endpoint)))) %))))
-      :full (-> model (update :generation inc) (assoc :outputs {}))
-      :bump (update model :outputs
-                    #(reduce (fn [m endpoint]
-                               (if-not (contains? (:lifetimes model) (gt/endpoint-node-id endpoint))
-                                 m
-                                 (assoc m endpoint stamp)))
-                             % endpoints)))))
+      :add
+      (assoc model :lifetimes
+             (coll/into-> ids lifetimes
+               (coll/pair-map-by identity (constantly birth))))
+
+      :delete
+      (let [deleted (set ids)]
+        (-> model
+            (assoc :lifetimes (coll/reduce-> ids lifetimes dissoc))
+            (update :outputs coll/transform->
+                    (remove (fn [[endpoint _]]
+                              (contains? deleted (gt/endpoint-node-id endpoint)))))))
+
+      :full
+      (-> model
+          (update :generation inc)
+          (assoc :outputs {}))
+
+      :bump
+      (assoc model :outputs
+             (coll/into-> endpoints outputs
+               (filter #(contains? lifetimes (gt/endpoint-node-id %)))
+               (coll/pair-map-by identity (constantly stamp)))))))
 
 (defn- model-changed [endpoint before after]
   (let [node-id (gt/endpoint-node-id endpoint)
@@ -105,13 +120,16 @@
         (not= (get (:outputs before) endpoint) (get (:outputs after) endpoint)))))
 
 (defn- capture [snapshot model endpoints]
-  (into {} (map (fn [endpoint] [endpoint (ic/counter snapshot endpoint)]))
-        (into (set endpoints) (coll/keys (:outputs model)))))
+  (-> (set endpoints)
+      (into (coll/keys (:outputs model)))
+      (coll/into-> {}
+        (coll/pair-map-by identity #(ic/counter snapshot %)))))
 
 (defn- check-snapshot! [{:keys [snapshot model captured]} node-ids endpoints]
   (let [outputs (:outputs model)
         expected-counts {:lifetimes (count (:lifetimes model))
-                         :nodes (count (into #{} (map gt/endpoint-node-id) (coll/keys outputs)))
+                         :nodes (count (coll/into-> (coll/keys outputs) #{}
+                                         (map gt/endpoint-node-id)))
                          :outputs (count outputs)}]
     (ensure! (= expected-counts (stored-counts snapshot))
              {:expected expected-counts
@@ -183,9 +201,14 @@
                          :lifetimes {}
                          :outputs {}}
                  :captured {}}
-        state (reduce
+        state (coll/reduce-> blocks
+                {:history [initial]
+                 :node-ids #{}
+                 :endpoints #{}}
                 (fn run-block [state {:keys [ids labels birth operations]}]
-                  (let [block-endpoints (into [] (mapcat (fn [id] (mapv #(gt/endpoint id %) labels))) ids)
+                  (let [block-endpoints (coll/into-> ids []
+                                          (mapcat (fn [id]
+                                                    (eduction (map #(gt/endpoint id %)) labels))))
                         state (update state :endpoints into block-endpoints)
                         latest (peek (:history state))
                         state (advance-history state latest latest {:kind :add
@@ -195,14 +218,10 @@
                         state (advance-history state created latest {:kind :bump
                                                                      :endpoints block-endpoints})
                         saved (peek (:history state))]
-                    (reduce (fn run-command [state operation]
-                              (let [before (if (:fork operation) saved (peek (:history state)))]
-                                (advance-history state before saved operation)))
-                            state operations)))
-                {:history [initial]
-                 :node-ids #{}
-                 :endpoints #{}}
-                blocks)]
+                    (coll/reduce-> operations state
+                      (fn run-command [state operation]
+                        (let [before (if (:fork operation) saved (peek (:history state)))]
+                          (advance-history state before saved operation)))))))]
     (doseq [entry (:history state)]
       (check-snapshot! entry (:node-ids state) (:endpoints state)))
     true))
@@ -226,23 +245,30 @@
                          :lifetimes {}
                          :outputs {}}
                  :captured {}}
-        state (reduce
+        state (coll/reduce-> blocks
+                {:history [initial]
+                 :node-ids #{}
+                 :endpoints #{}}
                 (fn run-session [{:keys [history node-ids endpoints]} {:keys [ids labels birth operations]}]
-                  (let [block-endpoints (into [] (mapcat (fn [id] (mapv #(gt/endpoint id %) labels))) ids)
+                  (let [block-endpoints (coll/into-> ids []
+                                          (mapcat (fn [id]
+                                                    (eduction (map #(gt/endpoint id %)) labels))))
                         operations (into [{:kind :add
                                            :ids ids
                                            :birth birth}
                                           {:kind :bump
                                            :endpoints block-endpoints}]
                                          operations)
-                        endpoints (into endpoints (mapcat :endpoints) operations)
-                        node-ids (into (into node-ids (mapcat :ids) operations) (map gt/endpoint-node-id) endpoints)
+                        endpoints (coll/into-> operations endpoints (mapcat :endpoints))
+                        node-ids (-> node-ids
+                                     (into (mapcat :ids) operations)
+                                     (into (map gt/endpoint-node-id) endpoints))
                         before (if (:fork (peek operations)) initial (peek history))
                         editor (ic/edit (:snapshot before))
-                        model (reduce (fn apply-command [model operation]
-                                        (apply-edit! editor operation)
-                                        (model-step model operation (count history)))
-                                      (:model before) operations)
+                        model (coll/reduce-> operations (:model before)
+                                (fn apply-command [model operation]
+                                  (apply-edit! editor operation)
+                                  (model-step model operation (count history))))
                         snapshot (ic/commit! editor)
                         after {:snapshot snapshot
                                :model model
@@ -257,11 +283,7 @@
                         (check-pair! endpoint previous after)))
                     {:history (conj history after)
                      :node-ids node-ids
-                     :endpoints endpoints}))
-                {:history [initial]
-                 :node-ids #{}
-                 :endpoints #{}}
-                blocks)]
+                     :endpoints endpoints})))]
     (doseq [entry (:history state)]
       (check-snapshot! entry (:node-ids state) (:endpoints state)))
     true))
@@ -304,7 +326,9 @@
         _ (ic/bump! left [a])
         _ (ic/bump! right [b])
         published-right (ic/commit! right)
-        published-left (-> left (ic/bump! [b]) ic/commit!)]
+        published-left (-> left
+                           (ic/bump! [b])
+                           ic/commit!)]
     (is (nil? (ic/counter initial a)))
     (is (nil? (ic/counter initial b)))
     (is (nil? (ic/counter published-right a)))
@@ -328,12 +352,18 @@
           first (ic/bump initial endpoints)
           second (ic/bump first repeats)
           sibling (ic/bump first endpoints)
-          captured (capture first {:outputs (into {} (map #(vector % 1)) endpoints)} endpoints)]
+          captured (capture first
+                            {:outputs (coll/pair-map-by identity (constantly 1) endpoints)}
+                            endpoints)]
       (doseq [endpoint endpoints]
         (let [a (ic/counter first endpoint)]
-          (ensure! (identical? (captured endpoint) a) {:reason :dense-persistence})
-          (ensure! (= (contains? repeated-set endpoint) (ic/endpoint-invalidated-since? endpoint first second)) {:reason :dense-change})
-          (ensure! (ic/endpoint-invalidated-since? endpoint first sibling) {:reason :sibling-change})))
+          (ensure! (identical? (captured endpoint) a)
+                   {:reason :dense-persistence})
+          (ensure! (= (contains? repeated-set endpoint)
+                      (ic/endpoint-invalidated-since? endpoint first second))
+                   {:reason :dense-change})
+          (ensure! (ic/endpoint-invalidated-since? endpoint first sibling)
+                   {:reason :sibling-change})))
       (ensure! (= {:lifetimes 1
                    :nodes 1
                    :outputs (count (set labels))}
@@ -404,7 +434,9 @@
 ;; sessions unchanged. Even empty batches must reject an already closed editor.
 (deftest empty-batches-test
   (let [endpoint (gt/endpoint 1000 :value)
-        initial (-> (ic/make) (ic/add-nodes [1000] 1) (ic/bump [endpoint]))]
+        initial (-> (ic/make)
+                    (ic/add-nodes [1000] 1)
+                    (ic/bump [endpoint]))]
     (doseq [batch [nil [] () (ArrayList.) (long-array 0) (object-array 0) (coll/keys {})]]
       (is (identical? initial (ic/add-nodes initial batch 2)))
       (is (identical? initial (ic/remove-nodes initial batch)))
@@ -429,8 +461,14 @@
                     (reduce [_ f init]
                       (f init endpoint)))
         initial (ic/make)
-        persistent (-> initial (ic/add-nodes ids 1) (ic/bump endpoints))
-        edited (-> initial ic/edit (ic/add-nodes! ids 1) (ic/bump! endpoints) ic/commit!)]
+        persistent (-> initial
+                       (ic/add-nodes ids 1)
+                       (ic/bump endpoints))
+        edited (-> initial
+                   ic/edit
+                   (ic/add-nodes! ids 1)
+                   (ic/bump! endpoints)
+                   ic/commit!)]
     (doseq [snapshot [persistent edited]]
       (is (= {:lifetimes 1
               :nodes 1
@@ -444,7 +482,10 @@
       (is (= {:lifetimes 0
               :nodes 0
               :outputs 0}
-             (stored-counts (-> snapshot ic/edit (ic/remove-nodes! ids) ic/commit!)))))))
+             (stored-counts (-> snapshot
+                                ic/edit
+                                (ic/remove-nodes! ids)
+                                ic/commit!)))))))
 
 ;; Deleting nodes must remove their counters. Restoring them must mark their
 ;; outputs as invalidated since the old snapshot. Full invalidation must clear
@@ -452,7 +493,9 @@
 (defspec generated-deletion-and-reset-contract 200
   (prop/for-all [node-ids (gen/vector gen/large-integer 1 30)
                  labels (gen/vector label-gen 1 12)]
-    (let [endpoints (into [] (mapcat (fn [id] (mapv #(gt/endpoint id %) labels))) node-ids)
+    (let [endpoints (coll/into-> node-ids []
+                      (mapcat (fn [id]
+                                (eduction (map #(gt/endpoint id %)) labels))))
           initial (ic/add-nodes (ic/make) node-ids 1)
           populated (ic/bump initial endpoints)
           deleted (ic/remove-nodes populated node-ids)
@@ -468,10 +511,13 @@
                    :outputs 0}
                   (stored-counts reset))
                {:reason :reset-storage})
-      (ensure! (ic/full-invalidation-since? populated reset) {:reason :full-reset})
+      (ensure! (ic/full-invalidation-since? populated reset)
+               {:reason :full-reset})
       (doseq [endpoint endpoints]
-        (ensure! (some? (ic/counter populated endpoint)) {:reason :retained-counter})
-        (ensure! (nil? (ic/counter deleted endpoint)) {:reason :deleted-counter})
+        (ensure! (some? (ic/counter populated endpoint))
+                 {:reason :retained-counter})
+        (ensure! (nil? (ic/counter deleted endpoint))
+                 {:reason :deleted-counter})
         (ensure! (ic/endpoint-invalidated-since? endpoint populated restored)
                  {:reason :restored-lifetime
                   :endpoint endpoint}))
@@ -487,14 +533,22 @@
                                   (gen/tuple gen/large-integer (gen/choose 0 257)))])
                  label label-gen]
     (let [endpoints (mapv #(gt/endpoint % label) ids)
-          deleted-ids (into [] (take-nth 2) ids)
-          operations [{:kind :bump :endpoints endpoints}
-                      {:kind :delete :ids deleted-ids}
-                      {:kind :add :ids deleted-ids :birth 2}
-                      {:kind :bump :endpoints endpoints}
-                      {:kind :bump :endpoints endpoints :fork true}
+          deleted-ids (coll/into-> ids [] (take-nth 2))
+          operations [{:kind :bump
+                       :endpoints endpoints}
+                      {:kind :delete
+                       :ids deleted-ids}
+                      {:kind :add
+                       :ids deleted-ids
+                       :birth 2}
+                      {:kind :bump
+                       :endpoints endpoints}
+                      {:kind :bump
+                       :endpoints endpoints
+                       :fork true}
                       {:kind :full}
-                      {:kind :bump :endpoints endpoints}]]
+                      {:kind :bump
+                       :endpoints endpoints}]]
       (run-history! [{:ids ids
                       :labels [label]
                       :birth 1
@@ -506,7 +560,9 @@
   (let [ids (vec (range 12000))
         empty (ic/make)
         created (ic/add-nodes empty ids 1)
-        endpoints (into [] (mapcat (fn [label] (mapv #(gt/endpoint % label) ids))) [:a :b :c])
+        endpoints (coll/into-> [:a :b :c] []
+                    (mapcat (fn [label]
+                              (eduction (map #(gt/endpoint % label)) ids))))
         before (ic/bump created endpoints)
         edited (ic/bump before (mapv #(gt/endpoint % :a) ids))
         deleted (ic/remove-nodes edited [42])
@@ -555,7 +611,7 @@
         created (ic/add-nodes initial node-ids 42)
         endpoints (mapv #(gt/endpoint % :undeclared) node-ids)
         populated (ic/bump created endpoints)
-        deleted-ids (into [] (take-nth 3) node-ids)
+        deleted-ids (coll/into-> node-ids [] (take-nth 3))
         deleted-set (set deleted-ids)
         deleted (ic/remove-nodes populated deleted-ids)
         restored (ic/add-nodes deleted deleted-ids Long/MIN_VALUE)
@@ -578,7 +634,9 @@
 ;; node's lifetime must leave the others and earlier snapshots unchanged.
 (deftest mixed-lifetime-persistence-test
   (let [empty (ic/make)
-        mixed (reduce #(ic/add-nodes %1 [%2] %2) empty (range 64))
+        mixed (coll/reduce-> (range 64) empty
+                (fn [snapshot id]
+                  (ic/add-nodes snapshot [id] id)))
         replaced (ic/add-nodes mixed [32] 999)]
     (is (= 64 (:lifetimes (stored-counts mixed))))
     (dotimes [id 64]
@@ -595,29 +653,39 @@
                  size (gen/choose 0 8000)
                  stride (gen/choose 0 64)
                  birth gen/large-integer]
-    (let [node-ids (mapv #(unchecked-add (long base) (unchecked-multiply (long stride) (long %))) (range size))
+    (let [node-ids (mapv #(unchecked-add (long base)
+                                         (unchecked-multiply (long stride) (long %)))
+                         (range size))
           known-node-ids (set node-ids)
-          deleted-ids (into [] (take-nth 2) node-ids)
+          deleted-ids (coll/into-> node-ids [] (take-nth 2))
           restored-birth (unchecked-inc (long birth))
           empty (ic/make)
           created (ic/add-nodes empty node-ids birth)
           created-from-primitive-array (ic/add-nodes empty (long-array node-ids) birth)
-          created-from-object-array (-> empty ic/edit (ic/add-nodes! (object-array node-ids) birth) ic/commit!)
+          created-from-object-array (-> empty
+                                        ic/edit
+                                        (ic/add-nodes! (object-array node-ids) birth)
+                                        ic/commit!)
           repeated (ic/add-nodes created node-ids birth)
           deleted (ic/remove-nodes repeated deleted-ids)
           restored (ic/add-nodes deleted deleted-ids restored-birth)
-          model (into {} (map #(vector % birth)) node-ids)
-          deleted-model (reduce dissoc model deleted-ids)
-          restored-model (into deleted-model (map #(vector % restored-birth)) deleted-ids)]
-      (doseq [[snapshot lifetimes] [[empty {}] [created model]
-                                    [created-from-primitive-array model] [created-from-object-array model]
+          model (coll/pair-map-by identity (constantly birth) node-ids)
+          deleted-model (coll/reduce-> deleted-ids model dissoc)
+          restored-model (coll/into-> deleted-ids deleted-model
+                           (coll/pair-map-by identity (constantly restored-birth)))]
+      (doseq [[snapshot lifetimes] [[empty {}]
+                                    [created model]
+                                    [created-from-primitive-array model]
+                                    [created-from-object-array model]
                                     [repeated model]
-                                    [deleted deleted-model] [restored restored-model]]]
+                                    [deleted deleted-model]
+                                    [restored restored-model]]]
         (check-snapshot! {:snapshot snapshot
                           :model {:lifetimes lifetimes
                                   :outputs {}}
                           :captured {}}
-                         known-node-ids #{}))
+                         known-node-ids
+                         #{}))
       true)))
 
 ;; Creating 70,000 nodes must track every ID. Replacing, deleting and restoring
@@ -636,7 +704,8 @@
     (is (= Long/MIN_VALUE (.birth ^InvalidationCounters snapshot 0)))
     (is (= Long/MAX_VALUE (.birth ^InvalidationCounters snapshot 64)))
     (doseq [id (subvec ids 2)]
-      (when-not (and (.contains ^InvalidationCounters snapshot id) (= 42 (.birth ^InvalidationCounters snapshot id)))
+      (when-not (and (.contains ^InvalidationCounters snapshot id)
+                     (= 42 (.birth ^InvalidationCounters snapshot id)))
         (throw (ex-info "Flushed page was lost" {:id id}))))))
 
 (g/defnode IndependentOutputs
@@ -660,7 +729,7 @@
     (ts/with-clean-system
       (let [node (g/make-node! IndependentOutputs :left (initial 0) :right (initial 1))
             endpoints [(gt/endpoint node :left-output) (gt/endpoint node :right-output)]]
-        (reduce
+        (coll/reduce-> operations initial
           (fn check-publication [values [kind value :as operation]]
             (g/clear-system-cache!)
             (let [ec (g/make-evaluation-context)
@@ -673,12 +742,14 @@
                   invalidated (if (contains? #{:full :restore :redo} kind)
                                 [true true]
                                 (mapv not= values updated))]
-              (ensure! (= values evaluated) {:reason :evaluated-value
-                                             :operation operation})
+              (ensure! (= values evaluated)
+                       {:reason :evaluated-value
+                        :operation operation})
               (case kind
                 :left (g/transact {:undoable false} (g/set-property node :left value))
                 :right (g/transact {:undoable false} (g/set-property node :right value))
-                :full (g/transact {:undoable false :full-invalidation true}
+                :full (g/transact {:undoable false
+                                   :full-invalidation true}
                         (g/set-property node :left value))
                 (:restore :redo) (do
                                    (g/transact {:undo-key ::generated-delete} (g/delete-node node))
@@ -697,8 +768,7 @@
                          {:reason :cache-publication
                           :operation operation
                           :endpoint (endpoints index)}))
-              updated))
-          initial operations))
+              updated))))
       true)))
 
 ;; Nodes created in the same transaction must share a lifetime value and start
@@ -786,8 +856,12 @@
 ;; and preserve connections that still refer to the original node ID.
 (deftest creation-redo-assigns-new-lifetime
   (ts/with-clean-system
-    (let [target (first (g/tx-nodes-added (g/transact {:undoable false} (g/make-node Passthrough))))
-          source (first (g/tx-nodes-added (g/transact {:undo-key ::create} (g/make-node IndependentOutputs :left "value"))))
+    (let [target (first (g/tx-nodes-added
+                          (g/transact {:undoable false}
+                            (g/make-node Passthrough))))
+          source (first (g/tx-nodes-added
+                          (g/transact {:undo-key ::create}
+                            (g/make-node IndependentOutputs :left "value"))))
           endpoint (gt/endpoint source :left-output)]
       (g/transact {:undoable false} (g/connect source :left-output target :value))
       (let [ec (g/make-evaluation-context)]
@@ -820,7 +894,9 @@
 ;; unchanged. Full invalidation must clear output counters but keep live nodes.
 (deftest batched-version-updates-preserve-snapshots
   (let [labels (mapv #(keyword (str "output-" %)) (range 32))
-        endpoints (into [] (mapcat (fn [node-id] (mapv #(gt/endpoint node-id %) labels))) [1000 1001])
+        endpoints (coll/into-> [1000 1001] []
+                    (mapcat (fn [node-id]
+                              (eduction (map #(gt/endpoint node-id %)) labels))))
         initial (ic/add-nodes (ic/make) [1000 1001] 1000)
         ^InvalidationCounters first-batch (ic/bump initial endpoints)
         ^InvalidationCounters second-batch (ic/bump first-batch [(endpoints 0) (endpoints 1)])
@@ -867,7 +943,9 @@
       (is (zero? (.outputNodeCount ^InvalidationCounters (g/invalidate-counters))))))
   (let [a (gt/endpoint 1000 :a)
         b (gt/endpoint 1001 :b)
-        ^InvalidationCounters initial (ic/bump (ic/add-nodes (ic/make) [1000 1001] 1000) [a b])
+        ^InvalidationCounters initial (-> (ic/make)
+                                          (ic/add-nodes [1000 1001] 1000)
+                                          (ic/bump [a b]))
         ^InvalidationCounters deleted (ic/remove-nodes initial [1000])]
     (is (identical? (ic/counter initial b) (ic/counter deleted b)))
     (is (not (.contains deleted 1000)))
