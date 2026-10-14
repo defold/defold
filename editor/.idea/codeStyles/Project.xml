@@ -36,6 +36,8 @@
           <entry key="dynamo.graph/with-auto-or-fake-evaluation-context" value="-1" />
           <entry key="dynamo.graph/with-system" value="-1" />
           <entry key="editor.analytics-test/with-config!" value="-1" />
+          <entry key="editor.async/let-ec" value="-1" />
+          <entry key="editor.async/with-auto-evaluation-context" value="-1" />
           <entry key="editor.code.resource/register-code-resource-type" value="-1" />
           <entry key="editor.data/register-data-resource-type" value="-1" />
           <entry key="editor.defold-project/read-nodes" value="-1" />
@@ -69,7 +71,6 @@
           <entry key="editor.handler/register!" value="-1" />
           <entry key="editor.handler/register-dynamic!" value="-1" />
           <entry key="editor.handler/register-menu!" value="-1" />
-          <entry key="editor.lsp.async/with-auto-evaluation-context" value="-1" />
           <entry key="editor.prefs-test/with-schemas" value="-1" />
           <entry key="editor.protobuf/assign" value="1" />
           <entry key="editor.protobuf/assign-repeated" value="1" />

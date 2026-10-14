@@ -16,7 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.async :as async]
+            [editor.async :as ea]
             [editor.code.data :refer [line-number->CursorRange]]
             [editor.defold-project :as project]
             [editor.field-expression :as field-expression]
@@ -329,7 +329,7 @@
   being parsed if none was supplied. If no ext.manifest file is supplied and
   none can be found then such entries will not receive a resource attribution."
   [text project ext-manifest-file]
-  (async/with-auto-evaluation-context evaluation-context
+  (ea/with-auto-evaluation-context evaluation-context
     (let [original-ext-manifest-file ext-manifest-file
           nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
       (loop [{:keys [lines current acc included-from? ext-manifest-file] :as state}

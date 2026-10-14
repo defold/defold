@@ -15,7 +15,7 @@
 (ns editor.disk
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [editor.async :as async]
+            [editor.async :as ea]
             [editor.changes-view :as changes-view]
             [editor.defold-project :as project]
             [editor.disk-availability :as disk-availability]
@@ -74,8 +74,8 @@
 (defonce ^:private reload-job-atom (atom nil))
 
 (defn- start-reload-job! [render-progress! workspace moved-files changes-view]
-  (async/let-ec [dependencies (workspace/dependencies workspace evaluation-context)
-                 snapshot-cache (g/node-value workspace :snapshot-cache evaluation-context)]
+  (ea/let-ec [dependencies (workspace/dependencies workspace evaluation-context)
+              snapshot-cache (g/node-value workspace :snapshot-cache evaluation-context)]
     (let [project-directory (workspace/project-directory workspace)
           success-promise (promise)
           complete! (fn [successful?]
@@ -247,8 +247,8 @@
          (ifn? save-data-fn)
          (g/node-id? project)
          (or (nil? changes-view) (g/node-id? changes-view))]}
-  (async/let-ec [workspace (project/workspace project evaluation-context)
-                 localization (workspace/localization workspace evaluation-context)]
+  (ea/let-ec [workspace (project/workspace project evaluation-context)
+              localization (workspace/localization workspace evaluation-context)]
     (let [project-directory (workspace/project-directory workspace)
           old-defignore-patterns (resource/project-defignore-patterns project-directory)
           success-promise (promise)

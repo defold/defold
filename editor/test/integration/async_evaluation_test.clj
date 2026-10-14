@@ -17,7 +17,7 @@
             [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.async :as async]
+            [editor.async :as ea]
             [editor.console :as console]
             [editor.defold-project :as project]
             [editor.disk :as disk]
@@ -136,7 +136,7 @@
       (is (in/shell-node? (g/node-by-id (g/now) settings-node)))
       (let [basis (g/now)
             options (deref (future
-                             (async/with-auto-evaluation-context evaluation-context
+                             (ea/with-auto-evaluation-context evaluation-context
                                (bob/build-html5-bob-options project prefs evaluation-context)))
                            10000 ::timed-out)]
         (is (= "https://build.example.com" (get options "build-server")))

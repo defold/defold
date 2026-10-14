@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.editor-extensions.server
-  (:require [editor.async :as async]
+  (:require [editor.async :as ea]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.runtime :as rt]
             [editor.future :as future]
@@ -34,7 +34,7 @@
                     (catch LuaError e
                       (throw (http-server/error (http-server/response 422 (error-text e))))))
         output (StringWriter.)
-        rt (:rt (async/with-auto-evaluation-context evaluation-context
+        rt (:rt (ea/with-auto-evaluation-context evaluation-context
                   (extensions/ext-state project evaluation-context)))]
     (when-not rt
       (throw (http-server/error (http-server/response 503 "Editor extension runtime is not ready\n"))))

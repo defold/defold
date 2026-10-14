@@ -29,7 +29,7 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.async :as async]
+            [editor.async :as ea]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.util :as util :refer [re-match-result-seq split-lines]]
@@ -885,7 +885,7 @@
     {"/console"
      {"GET" (with-meta
               (bound-fn [_]
-                (async/with-auto-evaluation-context evaluation-context
+                (ea/with-auto-evaluation-context evaluation-context
                   (g/node-value console-node :request-response evaluation-context)))
               {:openapi
                {:summary "Read console output"

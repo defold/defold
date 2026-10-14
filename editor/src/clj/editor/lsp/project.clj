@@ -15,7 +15,7 @@
 (ns editor.lsp.project
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.async :as async]
+            [editor.async :as ea]
             [editor.core :as core]
             [editor.defold-project :as defold-project]
             [editor.lsp.server :as lsp.server]
@@ -166,7 +166,7 @@
 (defn- completion [project {{:keys [uri]} :textDocument
                             {:keys [line character]} :position}]
   (let [items
-        (async/with-auto-evaluation-context evaluation-context
+        (ea/with-auto-evaluation-context evaluation-context
           (or
             (when-let [requested-resource (uri->resource project uri evaluation-context)]
               (when-let [resource-node-id (defold-project/get-resource-node project requested-resource evaluation-context)]

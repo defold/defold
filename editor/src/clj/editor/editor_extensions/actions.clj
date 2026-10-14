@@ -17,7 +17,7 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.async :as async]
+            [editor.async :as ea]
             [editor.defold-project :as project]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.graph :as graph]
@@ -82,7 +82,7 @@
 
 (defn- shell! [commands project state]
   (let [{:keys [reload-resources! rt]} state
-        root (async/with-auto-evaluation-context evaluation-context
+        root (ea/with-auto-evaluation-context evaluation-context
                (let [{:keys [basis-ref]} evaluation-context
                      workspace (project/workspace project evaluation-context)]
                  (workspace/project-directory @basis-ref workspace)))]
@@ -126,11 +126,11 @@
   Returns a future that will complete once all actions are executed"
   [lua-actions project state]
   (let [{:keys [rt]} state]
-    (async/let-ec [actions (rt/->clj rt actions-coercer lua-actions)
-                   batches (coll/into-> actions []
-                             (map #(action->batched-executor+input % rt project evaluation-context))
-                             (partition-by first)
-                             (map (juxt ffirst #(mapv second %))))]
+    (ea/let-ec [actions (rt/->clj rt actions-coercer lua-actions)
+                batches (coll/into-> actions []
+                          (map #(action->batched-executor+input % rt project evaluation-context))
+                          (partition-by first)
+                          (map (juxt ffirst #(mapv second %))))]
       (await-all-sequentially
         (eduction
           (map (fn [[executor inputs]]

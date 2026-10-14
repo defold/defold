@@ -16,7 +16,7 @@
   (:require [cljfx.fx.h-box :as fx.h-box]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.async :as async]
+            [editor.async :as ea]
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
@@ -49,7 +49,7 @@
 
 (defn deps-filter-fn [project filter-value _items]
   ;; Dependencies are files that this file depends on. I.e. the atlas this sprite uses.
-  (async/with-auto-evaluation-context evaluation-context
+  (ea/with-auto-evaluation-context evaluation-context
     (when-some [resource-node-id (project/get-resource-node project filter-value evaluation-context)]
       (let [basis @(:basis-ref evaluation-context)
 
@@ -97,7 +97,7 @@
 
 (defn refs-filter-fn [project filter-value _items]
   ;; Referencing files are files that depend on this file. I.e. the four sprites that refer to this atlas.
-  (async/with-auto-evaluation-context evaluation-context
+  (ea/with-auto-evaluation-context evaluation-context
     (when-some [resource-node-id (project/get-resource-node project filter-value evaluation-context)]
       (let [basis @(:basis-ref evaluation-context)
 

@@ -16,7 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.async :as async]
+            [editor.async :as ea]
             [editor.defold-project :as project]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.engine.native-extensions :as native-extensions]
@@ -250,7 +250,7 @@
               (let [path-str (:path path-params)]
                 (if (= "" path-str)
                   (http-server/redirect "/html5/index.html")
-                  (async/let-ec [project-title (get (project/settings project evaluation-context) ["project" "title"] "Unnamed")]
+                  (ea/let-ec [project-title (get (project/settings project evaluation-context) ["project" "title"] "Unnamed")]
                     (let [resource-path (-> output-path
                                             (.resolve (BundleHelper/projectNameToBinaryName project-title))
                                             (.resolve ^String path-str)

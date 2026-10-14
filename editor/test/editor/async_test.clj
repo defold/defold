@@ -15,7 +15,7 @@
 (ns editor.async-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.async :as async]
+            [editor.async :as ea]
             [editor.ui :as ui]
             [support.test-support :refer [with-clean-system]]))
 
@@ -108,13 +108,13 @@
                   result (deref (future
                                   (case scope
                                     :with-auto-evaluation-context
-                                    (async/with-auto-evaluation-context evaluation-context
+                                    (ea/with-auto-evaluation-context evaluation-context
                                       [(g/node-value shell :value evaluation-context)
                                        (ui/on-ui-thread?)])
 
                                     :let-ec
-                                    (async/let-ec [{:keys [value]} {:value (g/node-value shell :value evaluation-context)}
-                                                   [value on-ui-thread] [value (ui/on-ui-thread?)]]
+                                    (ea/let-ec [{:keys [value]} {:value (g/node-value shell :value evaluation-context)}
+                                                [value on-ui-thread] [value (ui/on-ui-thread?)]]
                                       [value on-ui-thread])))
                                 10000
                                 ::timed-out)]

@@ -15,7 +15,7 @@
 (ns editor.web-server
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.async :as async]
+            [editor.async :as ea]
             [editor.util :as util]
             [reitit.core :as reitit]
             [util.coll :as coll]
@@ -73,7 +73,7 @@
                     \' "&#39;"}))
 
 (defn- index-response [project]
-  (async/with-auto-evaluation-context evaluation-context
+  (ea/with-auto-evaluation-context evaluation-context
     (let [project-path (-> project
                            (g/node-value :workspace evaluation-context)
                            (g/node-value :root evaluation-context))

@@ -20,7 +20,7 @@
             [clojure.stacktrace :as stacktrace]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.async :as async]
+            [editor.async :as ea]
             [editor.code.data :as data]
             [editor.code.script-annotations :as script-annotations]
             [editor.console :as console]
@@ -248,14 +248,14 @@
           (future/then (fn [_] (reload-resources!)))
           (future/then
             (fn [_]
-              (async/let-ec [{:keys [basis-ref]} evaluation-context
+              (ea/let-ec [{:keys [basis-ref]} evaluation-context
 
-                             invalid-proj-paths
-                             (coll/into-> created-resource-infos []
-                               (keep (fn [{proj-path 1}]
-                                       (when-let [node-id (project/get-resource-node project proj-path evaluation-context)]
-                                         (when (g/defective? @basis-ref node-id)
-                                           proj-path)))))]
+                          invalid-proj-paths
+                          (coll/into-> created-resource-infos []
+                            (keep (fn [{proj-path 1}]
+                                    (when-let [node-id (project/get-resource-node project proj-path evaluation-context)]
+                                      (when (g/defective? @basis-ref node-id)
+                                        proj-path)))))]
 
                 (rt/and-refresh-context
                   (when-let [invalid-proj-paths (coll/not-empty invalid-proj-paths)]
@@ -803,11 +803,11 @@
   (future
     ;; Annotation sync can write many Lua files. Evaluate it in the background.
     (error-reporting/catch-all!
-      (async/let-ec [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)
-                     workspace (project/workspace project evaluation-context)
-                     project-root (g/raw-property-value @(:basis-ref evaluation-context) workspace :root)
-                     server-definitions {:extension-language-servers ext-language-servers
-                                         :lua-language-servers (built-in-lua-language-servers project-root sync-hash)}]
+      (ea/let-ec [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)
+                  workspace (project/workspace project evaluation-context)
+                  project-root (g/raw-property-value @(:basis-ref evaluation-context) workspace :root)
+                  server-definitions {:extension-language-servers ext-language-servers
+                                      :lua-language-servers (built-in-lua-language-servers project-root sync-hash)}]
         ;; The merge precedes this update in the UI queue, so completing the
         ;; future also signals that its materializations reached the system.
         (ui/run-now
@@ -1221,7 +1221,7 @@
                            :ignore      return nil
                          When not provided, the exception will be re-thrown"
   [project hook-keyword opts & {:keys [exception-policy]}]
-  (async/let-ec [{:keys [rt hooks] :as state} (ext-state project evaluation-context)]
+  (ea/let-ec [{:keys [rt hooks] :as state} (ext-state project evaluation-context)]
     (if-let [lua-fn (get hooks hook-keyword)]
       (-> (rt/invoke-suspending-1 rt lua-fn (rt/->lua opts))
           (future/then
@@ -1232,7 +1232,7 @@
             (fn [ex]
               (error-handling/display-script-error! rt (str "hook " (name hook-keyword)) ex)
               (case exception-policy
-                :as-error (async/with-auto-evaluation-context evaluation-context
+                :as-error (ea/with-auto-evaluation-context evaluation-context
                             (hook-exception->error ex project hook-keyword evaluation-context))
                 :ignore nil
                 (throw ex)))))

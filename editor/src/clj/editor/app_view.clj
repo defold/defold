@@ -27,7 +27,7 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.async :as async]
+            [editor.async :as ea]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.camera :as camera]
@@ -1665,7 +1665,7 @@
 
 (defn- build-html5! [app-view project prefs web-server build-errors-view changes-view bob-commands]
   (future/io
-    (async/let-ec [bob-options (bob/build-html5-bob-options project prefs evaluation-context)]
+    (ea/let-ec [bob-options (bob/build-html5-bob-options project prefs evaluation-context)]
       (let [{:keys [error] :as build-results}
             (invoke-bob! app-view project changes-view build-errors-view prefs bob-options bob-commands)]
         (when-not error
@@ -3616,7 +3616,7 @@
   (ui/invalidate-menubar-item! ::project/bundle))
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs localization web-server]
-  (async/let-ec [library-uris (project/project-dependencies project evaluation-context)]
+  (ea/let-ec [library-uris (project/project-dependencies project evaluation-context)]
     (future/io
       (try
         (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
