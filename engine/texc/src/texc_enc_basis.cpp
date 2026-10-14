@@ -55,26 +55,6 @@ namespace dmTexc
         }
     }
 
-    Image* ResizeBasis(Image* image, uint32_t width, uint32_t height)
-    {
-        InitBasisU();
-
-        int components = 4;
-        basisu::image orig;
-        orig.init(image->m_Data, image->m_Width, image->m_Height, components);
-
-        basisu::image tmp(width, height);
-        basisu::image_resample(orig, tmp);
-
-        Image* out = new Image;
-        out->m_Width = width;
-        out->m_Height = height;
-        out->m_DataCount = width * height * components;
-        out->m_Data = (uint8_t*)malloc(out->m_DataCount);
-        memcpy(out->m_Data, tmp.get_ptr(), out->m_DataCount);
-        return out;
-    }
-
     static bool BasisUEncodeInternal(int num_threads, basisu::basis_compressor_params& comp_params, PixelFormat pixel_format, dmArray<uint8_t>& out, int debug)
     {
         basisu::enable_debug_printf(debug);
