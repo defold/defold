@@ -96,14 +96,18 @@
   (instance? OutlineEntrySelection selection))
 
 (defn selection-path
-  "Extends an outline selection path within a node; a different node starts a new path."
+  "Extends an outline selection path within a node; a different node starts a
+  new path."
   [parent-path {:keys [node-id node-outline-key]}]
   (if (= node-id (first parent-path))
     (cond-> parent-path node-outline-key (conj node-outline-key))
     [node-id]))
 
 (defn selection-id
-  "Ordinary entries select their node; shared-id entries select a path within it."
+  "Returns the selection identity for an outline path.
+
+  Ordinary entries select their node. Shared-id entries select a path within
+  that node."
   [path]
   (if (= 1 (count path))
     (first path)
@@ -116,8 +120,29 @@
     (:node-id selection)
     selection))
 
+(defn- claim-outline-impl [outline old-node-id new-node-id]
+  (if (not= old-node-id (:node-id outline))
+    outline
+    (cond-> (assoc outline :node-id new-node-id)
+      (:children outline)
+      (update :children
+              (fn claim-outline-children [children]
+                (if (coll/not-any? #(= old-node-id (:node-id %)) children)
+                  children
+                  (localization/annotate-as-sorted
+                    (fn sort-claimed-outline-children [localization-state _items]
+                      (mapv #(claim-outline-impl % old-node-id new-node-id)
+                            (localization/sort-if-annotated localization-state children)))
+                    (mapv #(claim-outline-impl % old-node-id new-node-id) children))))))))
+
+(defn claim-outline
+  "Rebases an outline and its shared-node entries onto a new owner.
+  Ordinary child graph nodes keep their identities and subtrees."
+  [outline new-node-id]
+  (claim-outline-impl outline (:node-id outline) new-node-id))
+
 (defn selection-id->outline
-  "Indexes the currently available outline entries by their selection identities."
+  "Returns a map from selection identities to available outline entries."
   [root]
   (letfn [(collect [result parent-path item]
             (let [path (selection-path parent-path item)]
@@ -254,7 +279,7 @@
   [paste-data]
   (->> (:tx-data paste-data)
        (g/tx-data-added-nodes)
-       (coll/pair-map-by g/node-id)))
+       (coll/pair-map-by g/node-id identity)))
 
 (defn- root-nodes [paste-data]
   (let [id->node (nodes-by-id paste-data)]

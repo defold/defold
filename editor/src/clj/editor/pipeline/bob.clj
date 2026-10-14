@@ -73,7 +73,7 @@
     arg-value))
 
 (def ^:private long-option->option-config
-  (coll/pair-map-by #(.-longOpt ^Bob$CommandLineOption %) (Bob/getCommandLineOptions)))
+  (coll/pair-map-by #(.-longOpt ^Bob$CommandLineOption %) identity (Bob/getCommandLineOptions)))
 
 (defn- long-option? [x]
   (contains? long-option->option-config x))

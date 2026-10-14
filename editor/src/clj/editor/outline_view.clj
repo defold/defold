@@ -109,7 +109,7 @@
                                    {} [] key val
                                    (coll/into-> [outline] :eduction
                                      (coll/tree-xf :children :children)
-                                     (map (coll/pair-fn :selection-id :item-id-path))))
+                                     (coll/pair-map-by :selection-id :item-id-path)))
           default-selection (coll/into-> selection {}
                               (keep #(when-let [node-id-paths (node-id->node-id-paths %)]
                                        (coll/pair % #{(first node-id-paths)}))))
@@ -423,8 +423,8 @@
   (enabled? [selection outline-view evaluation-context]
     (and (outline-active? outline-view evaluation-context)
          (< 0 (count selection))
-         (not (coll/any? outline/entry-selection?
-                         (g/node-value outline-view :selection evaluation-context)))))
+         (coll/not-any? outline/entry-selection?
+                        (g/node-value outline-view :selection evaluation-context))))
   (run [outline-view project]
     (let [root-its (root-iterators outline-view)
           cb (Clipboard/getSystemClipboard)

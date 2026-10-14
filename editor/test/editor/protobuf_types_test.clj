@@ -34,6 +34,8 @@
 
 (def ^:private project-path "test/resources/all_types_project")
 
+;; Keep KTX2 Format leaves Formats editable for other image types.
+;; The flag survives serialization, and clearing it restores clean state.
 (deftest keep-ktx2-format-profile-edit
   (test-util/with-loaded-project project-path
     (let [node (test-util/resource-node project "/test.texture_profiles")
@@ -41,13 +43,14 @@
           profiles-field (coll/first-where #(= [:profiles] (:path %)) (:fields (first sections)))
           platforms-field (first (get-in profiles-field [:panel-form :sections 0 :fields]))
           field (coll/first-where #(= [:keep-ktx2-format] (:path %))
-                                  (get-in ((:panel-form-fn platforms-field) nil) [:sections 0 :fields]))
+                                  (get-in platforms-field [:panel-form :sections 0 :fields]))
           path [:profiles 0 :platforms 0 :keep-ktx2-format]
           original-formats (get-in (g/node-value node :save-value) [:profiles 0 :platforms 0 :formats])
           parent (AnchorPane.)
           view-node (cljfx-form-view/make-form-view-node! parent node nil nil nil test-util/localization)
-          check-formats-disabled!
-          (fn [disabled]
+
+          check-formats-editable!
+          (fn check-formats-editable! []
             (let [rendered (promise)]
               (g/node-value view-node :form-view)
               (ui/run-later (deliver rendered true))
@@ -58,27 +61,34 @@
                                            (.lookupAll content ".list-view"))]
               (is (some? formats-list))
               (when formats-list
-                (is (= disabled (.isDisabled formats-list))))
+                (is (false? (.isDisabled formats-list))))
               (is (coll/any? #(= "Formats" (.getText ^Label %))
                              (.lookupAll content ".label")))
               (doseq [^Node checkbox (.lookupAll content ".check-box")]
                 (is (false? (.isDisabled checkbox)))))
             (is (= original-formats (get-in (g/node-value node :save-value) [:profiles 0 :platforms 0 :formats]))))]
+
       (is (= :boolean (:type field)))
       (is (false? (:default field)))
       (is (= "texture-profiles.profiles.platforms.keep-ktx2-format" (:localization-key field)))
       (is (false? (g/node-value node :dirty)))
-      (check-formats-disabled! false)
+      (check-formats-editable!)
       (g/transact ((:set form-ops) (:user-data form-ops) path true))
-      (check-formats-disabled! true)
+      (check-formats-editable!)
       (is (true? (g/node-value node :dirty)))
       (is (true? (get-in (->> (g/node-value node :save-value)
                               (protobuf/map->pb Graphics$TextureProfiles)
                               .toByteArray
                               (protobuf/bytes->map-with-defaults Graphics$TextureProfiles))
                          path)))
-      (g/transact ((:clear form-ops) (:user-data form-ops) path))
-      (check-formats-disabled! false)
+      (g/transact ((:set form-ops) (:user-data form-ops)
+                                   [:profiles 0 :platforms 0 :formats 0 :format] :texture-format-rgb))
+      (is (= :texture-format-rgb
+             (get-in (g/node-value node :save-value) [:profiles 0 :platforms 0 :formats 0 :format])))
+      (g/transact
+        [((:set form-ops) (:user-data form-ops) [:profiles 0 :platforms 0 :formats] original-formats)
+         ((:clear form-ops) (:user-data form-ops) path)])
+      (check-formats-editable!)
       (is (false? (g/node-value node :dirty))))))
 
 (deftest test-load

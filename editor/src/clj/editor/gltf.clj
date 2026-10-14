@@ -137,7 +137,7 @@
   materials."
   [source-resource material-indices resolve-resource]
   (let [asset-resources (asset-resources source-resource)
-        resource-by-proj-path (coll/pair-map-by resource/proj-path asset-resources)]
+        resource-by-proj-path (coll/pair-map-by resource/proj-path identity asset-resources)]
     (coll/into-> asset-resources []
       (keep
         (fn [material-resource]

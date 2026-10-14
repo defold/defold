@@ -1364,7 +1364,7 @@
                 (->> template-node-pb
                      (.getTemplate)
                      (gui-proj-path->node-pbs)
-                     (coll/pair-map-by gui-node-pb->id))
+                     (coll/pair-map-by gui-node-pb->id identity))
 
                 override-node-pb->override-info
                 (fn override-node-pb->override-info [^Gui$NodeDesc override-node-pb]

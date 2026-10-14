@@ -586,6 +586,7 @@
                     collision-id->node-id
                     (coll/pair-map-by
                       #(g/node-value % :id evaluation-context)
+                      identity
                       (attachment/get workspace node-id :collision-groups evaluation-context))
                     new-tile->collision-group-node
                     (coll/pair-map-by

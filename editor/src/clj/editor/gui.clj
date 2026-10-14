@@ -961,7 +961,7 @@
          (fn [[prop-kw prop-def]]
            (when (layout-property-prop-def? prop-def)
              prop-kw)))
-       (coll/pair-map-by #(str/replace (name %) \- \_))))
+       (coll/pair-map-by #(str/replace (name %) \- \_) identity)))
 
 (def ^:private node-type-deref->layout-property-names (fn/memoize node-type-deref->layout-property-names-raw))
 
@@ -3620,7 +3620,7 @@
                             (clear-node-desc-defaults))))))
 
             id->node-desc-for-default-layout
-            (coll/pair-map-by :id rt-node-descs)
+            (coll/pair-map-by :id identity rt-node-descs)
 
             rt-layout-descs
             (mapv #(make-rt-layout-desc gui-node-type-registry % node-msgs id->node-desc-for-default-layout)
@@ -5316,8 +5316,8 @@
                                            sort
                                            vec
                                            coll/not-empty)
-        custom-prop-kw->info (coll/pair-map-by :prop-kw custom-properties)
-        custom-property-id->info (coll/pair-map-by :id custom-properties)]
+        custom-prop-kw->info (coll/pair-map-by :prop-kw identity custom-properties)
+        custom-property-id->info (coll/pair-map-by :id identity custom-properties)]
     (when duplicate-custom-property-ids
       (throw (IllegalArgumentException.
                (format "Plugin GUI node type %s custom property ids are not unique: %s"

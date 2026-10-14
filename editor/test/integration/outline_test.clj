@@ -16,15 +16,20 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.camera :as camera]
             [editor.collection :as collection]
             [editor.game-object :as game-object]
+            [editor.gl.pass :as pass]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.outline-view :as outline-view]
+            [editor.scene :as scene]
+            [editor.scene-visibility :as scene-visibility]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [with-clean-system]]))
+            [support.test-support :refer [with-clean-system]]
+            [util.coll :as coll]))
 
 (defn- outline
   ([node]
@@ -937,6 +942,82 @@
                            :read-only true
                            :child-reqs requirements
                            :children child-outlines}]}))))
+
+;; Localized sorting must retain rebased owners and nested selection paths,
+;; including after an outline is claimed more than once.
+(deftest claim-outline-with-localized-derived-entries
+  (let [children [{:node-id 1 :node-outline-key "parent" :label "B"
+                   :children [{:node-id 1 :node-outline-key "tip" :label "Tip"}]}
+                  {:node-id 1 :node-outline-key "sibling" :label "A"}]
+        source-outline {:node-id 1 :label "Source"
+                        :children (localization/annotate-as-sorted
+                                    (fn sort-source-children [localization-state _items]
+                                      (localization/natural-sort-by-label localization-state children))
+                                    children)}]
+    (doseq [claimed-outline [(outline/claim-outline source-outline 2)
+                             (outline/claim-outline (outline/claim-outline source-outline 4) 2)]]
+      (let [decorated-outline (:outline (outline-view/decorate-outline
+                                          claimed-outline #{} #{} @test-util/localization []))]
+        (is (= ["sibling" "parent"] (mapv :node-outline-key (:children decorated-outline))))
+        (is (= [2 2] (mapv :node-id (:children decorated-outline))))
+        (is (= (outline/->OutlineEntrySelection 2 ["parent" "tip"])
+               (get-in decorated-outline [:children 1 :children 0 :selection-id])))))))
+
+(g/defnode SharedSceneOutlineNode
+  (inherits SharedOutlineNode)
+  (output scene g/Any
+          (g/fnk [_node-id]
+            {:node-id _node-id
+             :children [{:node-id _node-id
+                         :node-outline-key "group"
+                         :selection-id (outline/->OutlineEntrySelection _node-id ["group"])
+                         :renderable {:passes [pass/transparent pass/selection]}}]})))
+
+;; Referenced components, game objects and collections keep shared-node entries
+;; distinct under their new owner without rebasing ordinary child graph nodes.
+(deftest referenced-shared-node-outline-entries
+  (with-clean-system
+    (let [[source child component game-object-instance collection-instance visibility]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes [source [SharedSceneOutlineNode :name "Source"]
+                             child [SharedOutlineNode :name "Child"]
+                             component [game-object/ComponentNode :id "component"]
+                             game-object-instance [collection/GameObjectInstanceNode :id "game-object"]
+                             collection-instance [collection/CollectionInstanceNode :id "collection"]
+                             visibility scene-visibility/SceneVisibilityNode]
+                (attach-shared-outline-node source child)
+                (g/connect source :node-outline component :source-outline)
+                (g/connect source :node-outline game-object-instance :source-outline)
+                (g/connect source :node-outline collection-instance :source-outline)
+                (g/connect source :scene component :scene)
+                (g/connect source :scene game-object-instance :scene)
+                (g/connect source :scene collection-instance :scene)
+                (g/connect component :scene visibility :active-scene))))]
+      (is (= source (get-in (g/node-value source :node-outline) [:children 0 :node-id])))
+      (doseq [instance [component game-object-instance collection-instance]]
+        (g/transact (g/connect instance :scene visibility :active-scene))
+        (let [instance-outline (g/node-value instance :node-outline)
+              decorated-outline (:outline (outline-view/decorate-outline
+                                            instance-outline #{} #{} @test-util/localization []))
+              group (get-in decorated-outline [:children 0])
+              ordinary-child (get-in group [:children 0])
+              render-data (scene/produce-scene-render-data
+                            {:scene (g/node-value instance :scene)
+                             :selection [(:selection-id group)]
+                             :hidden-renderable-tags #{}
+                             :hidden-node-outline-key-paths #{}
+                             :local-camera (camera/make-camera)})]
+          (is (= instance (:node-id group)))
+          (is (= (outline/->OutlineEntrySelection instance ["group"]) (:selection-id group)))
+          (is (= child (:node-id ordinary-child)))
+          (is (= child (:selection-id ordinary-child)))
+          (is (= #{["group"]} (g/node-value visibility :outline-name-paths)))
+          (is (= [(:selection-id group)] (mapv :selection-id (:selected-renderables render-data))))
+          (is (= #{instance}
+                 (coll/into-> (get-in render-data [:renderables pass/selection]) #{}
+                   (map :picking-node-id))))
+          (is (= (g/node-value child :node-outline) (get-in instance-outline [:children 0 :children 0]))))))))
 
 (g/defnode OutlineCopyState
   (property active g/Bool (default true))

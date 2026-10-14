@@ -154,7 +154,7 @@
 (defn- generate-ktx2-texture
   [content-generator texture-profile compress preview]
   (let [{:keys [resource digest-ignored/error-node-id]} (:args content-generator)]
-    (resource-io/with-error-translation resource error-node-id :build-targets
+    (resource-io/with-error-translation resource error-node-id :gpu-texture
       (let [content (texture-util/call-generator content-generator)]
         (g/precluding-errors [content]
           (tex-gen/make-ktx2-texture-image content texture-profile compress preview))))))
@@ -261,8 +261,6 @@
 (g/defnode Ktx2ImageNode
   (inherits ImageNode)
 
-  (input source-image-resource resource/Resource)
-
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id image-resource mips texture-info]
             {:node-id _node-id
@@ -275,22 +273,22 @@
                          (map-indexed #(mip-outline _node-id image-resource %1 %2)))}))
 
   (output content-generator g/Any :cached
-          (g/fnk [_node-id source-image-resource]
-            (resource-io/with-error-translation source-image-resource _node-id :content-generator
+          (g/fnk [_node-id image-resource]
+            (resource-io/with-error-translation image-resource _node-id :content-generator
               {:f ktx2-content-gen-fn
-               :sha1 (resource/resource->path-inclusive-sha1-hex source-image-resource)
-               :args {:resource source-image-resource
+               :sha1 (resource/resource->path-inclusive-sha1-hex image-resource)
+               :args {:resource image-resource
                       :digest-ignored/error-node-id _node-id}})))
 
   (output texture-info g/Any :cached
-          (g/fnk [_node-id source-image-resource content-generator]
-            (resource-io/with-error-translation source-image-resource _node-id :texture-info
+          (g/fnk [_node-id image-resource content-generator]
+            (resource-io/with-error-translation image-resource _node-id :texture-info
               (read-ktx2-info (texture-util/call-generator content-generator)))))
 
   (output sha256 g/Str :cached
-          (g/fnk [_node-id source-image-resource]
-            (resource-io/with-error-translation source-image-resource _node-id :sha256
-              (resource/resource->sha256-hex source-image-resource))))
+          (g/fnk [_node-id image-resource]
+            (resource-io/with-error-translation image-resource _node-id :sha256
+              (resource/resource->sha256-hex image-resource))))
 
   (output mips g/Any :cached
           (g/fnk [texture-info]
@@ -365,13 +363,6 @@
     (g/connect project :build-settings self :build-settings)
     (g/connect project :texture-profiles self :texture-profiles)))
 
-(defn- load-ktx2-image
-  [load-opts {self :node-id :as node-load-info}]
-  [(load-image load-opts node-load-info)
-   ;; Feed the decoding pipeline through a graph connection so stateless reload
-   ;; invalidates its cached metadata together with previews and builds.
-   (g/connect self :image-resource self :source-image-resource)])
-
 (defn register-resource-types [workspace]
   (concat
     (workspace/register-resource-type workspace
@@ -389,7 +380,7 @@
       :icon "icons/32/Icons_25-AT-Image.png"
       :build-ext "texturec"
       :node-type Ktx2ImageNode
-      :load-fn load-ktx2-image
+      :load-fn load-image
       :stateless? true
       :view-types [:scene :default])
     (workspace/register-resource-type workspace :ext "texture")))

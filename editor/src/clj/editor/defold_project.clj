@@ -1232,8 +1232,8 @@
             :when (not (contains? all-selections (gt/source-id arc)))]
         (g/disconnect (gt/source-id arc) (gt/source-label arc) project :all-selected-node-outlines))
       (for [[resource-node _selection] all-selections
-            :when (not (coll/any? #(= resource-node (gt/source-id %))
-                                  (g/inputs basis project :all-selected-node-outlines)))]
+            :when (coll/not-any? #(= resource-node (gt/source-id %))
+                                 (g/inputs basis project :all-selected-node-outlines))]
         (g/connect resource-node :node-outline project :all-selected-node-outlines))
       (for [node-id all-node-ids]
         (concat
@@ -1436,21 +1436,19 @@
                   flaw (make-file-not-found-error node-id resource)]
               (g/mark-defective node-id flaw))))))
 
-    ;; invalidate outputs.
+    ;; Invalidate all outputs of changed stateless nodes
     (du/measuring process-metrics :invalidate-outputs
       (let [basis (g/now)]
         (du/if-metrics
           (doseq [node-id (:invalidate-outputs plan)]
             (du/measuring resource-metrics (resource/proj-path (resource-node/resource basis node-id)) :invalidate-outputs
-              (g/invalidate-outputs! (mapv (fn [arc]
-                                             (g/endpoint node-id (gt/source-label arc)))
-                                           (g/explicit-outputs basis node-id)))))
-          (g/invalidate-outputs! (into []
-                                       (mapcat (fn [node-id]
-                                                 (map (fn [arc]
-                                                        (g/endpoint node-id (gt/source-label arc)))
-                                                      (g/explicit-outputs basis node-id))))
-                                       (:invalidate-outputs plan))))))
+              (g/invalidate-outputs! (mapv #(g/endpoint node-id %)
+                                           (g/output-labels (g/node-type* basis node-id))))))
+          (g/invalidate-outputs!
+            (coll/into-> (:invalidate-outputs plan) []
+              (mapcat (fn [node-id]
+                        (mapv #(g/endpoint node-id %)
+                              (g/output-labels (g/node-type* basis node-id))))))))))
 
     ;; restore overridden properties.
     (du/measuring process-metrics :restore-overridden-properties
@@ -1672,13 +1670,14 @@
                 all-selections))))
   (output selected-node-ids-by-resource-node g/Any :cached
           (g/fnk [outline-selection-by-resource-node]
-            (coll/map-vals #(coll/into-> % []
-                              (map outline/selection-node-id)
-                              (distinct))
+            (coll/map-vals (fn [outline-selection]
+                             (coll/into-> outline-selection []
+                               (map outline/selection-node-id)
+                               (distinct)))
                            outline-selection-by-resource-node)))
   (output selected-node-properties-by-resource-node g/Any :cached
           (g/fnk [all-selected-node-properties selected-outline-entries outline-selection-by-resource-node]
-            (let [props (coll/pair-map-by :node-id all-selected-node-properties)]
+            (let [props (coll/pair-map-by :node-id identity all-selected-node-properties)]
               (coll/map-vals
                 (fn [selections]
                   (coll/into-> selections []

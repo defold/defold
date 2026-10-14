@@ -26,14 +26,17 @@
             [editor.fs :as fs]
             [editor.gl.pass :as pass]
             [editor.gltf :as gltf]
+            [editor.handler :as handler]
             [editor.model-scene :as model-scene]
             [editor.outline :as outline]
+            [editor.outline-view :as outline-view]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.resource-watch :as resource-watch]
+            [editor.scene-visibility :as scene-visibility]
             [editor.texture-util :as texture-util]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -511,10 +514,14 @@
     (with-gltf-project :file (embedded-ktx2-gltf-content bytes)
       (fn [project-path workspace project]
         (fs/create-file! (io/file project-path "models/albedo.ktx2") bytes)
-        (fs/create-file! (io/file project-path "ktx2.texture_profiles")
-                         (str "path_settings { path: \"/models/**/*.ktx2\" profile: \"KTX2\" }\n"
-                              "profiles { name: \"KTX2\" platforms { os: OS_ID_GENERIC mipmaps: true "
-                              "premultiply_alpha: false formats { format: TEXTURE_FORMAT_RGBA } } }"))
+        (test-util/write-file-resource! workspace "/ktx2.texture_profiles"
+          {:path-settings [{:path "/models/**/*.ktx2"
+                            :profile "KTX2"}]
+           :profiles [{:name "KTX2"
+                       :platforms [{:os :os-id-generic
+                                    :mipmaps true
+                                    :premultiply-alpha false
+                                    :formats [{:format :texture-format-rgba}]}]}]})
         (workspace/resource-sync! workspace)
         (test-util/set-setting! (test-util/resource-node project "/game.project")
                                 ["graphics" "texture_profiles"]
@@ -531,13 +538,17 @@
         (fs/create-file! (io/file project-path "vertices.buffer")
                          "[{\"name\":\"position\",\"type\":\"float32\",\"count\":3,\"data\":[0,0,0,1,0,0,0,1,0]}]")
         (doseq [[name texture-path] bindings]
-          (fs/create-file! (io/file project-path (str name ".model"))
-                           (str "mesh: \"/models/robot.gltf\" materials { name: \"Paint\" "
-                                "material: \"/builtins/materials/model.material\" "
-                                "textures { sampler: \"tex0\" texture: \"" texture-path "\" } }"))
-          (fs/create-file! (io/file project-path (str name ".mesh"))
-                           (str "material: \"/builtins/materials/model.material\" vertices: \"/vertices.buffer\" "
-                                "position_stream: \"position\" textures: \"" texture-path "\""))
+          (test-util/write-file-resource! workspace (str "/" name ".model")
+            {:mesh "/models/robot.gltf"
+             :materials [{:name "Paint"
+                          :material "/builtins/materials/model.material"
+                          :textures [{:sampler "tex0"
+                                      :texture texture-path}]}]})
+          (test-util/write-file-resource! workspace (str "/" name ".mesh")
+            {:material "/builtins/materials/model.material"
+             :vertices "/vertices.buffer"
+             :position-stream "position"
+             :textures [texture-path]})
           (fs/create-file! (io/file project-path (str name ".script"))
                            (str "go.property('texture', resource.texture('" texture-path "'))")))
         (workspace/resource-sync! workspace)
@@ -559,10 +570,12 @@
                     texture-build-path (resource/proj-path (test-util/build-resource project texture-path))]
                 (is (= [texture-build-path] (get built textures-key)))))))
         (is (= #{"/models/robot.gltf/images/Albedo_0.ktx2"}
-               (into #{}
-                     (map (comp resource/proj-path :texture))
-                     (:textures (first (gltf/material-binding-descriptors
-                                         (workspace/find-resource workspace "/models/robot.gltf") nil #(workspace/find-resource workspace %)))))))))))
+               (-> (workspace/find-resource workspace "/models/robot.gltf")
+                   (gltf/material-binding-descriptors nil #(workspace/find-resource workspace %))
+                   first
+                   :textures
+                   (coll/into-> #{}
+                     (map (comp resource/proj-path :texture))))))))))
 
 ;; Authored mips expose read-only metadata and support Outline/scene selection.
 ;; Decorative borders must inherit the selection to highlight the selected mip.
@@ -612,6 +625,49 @@
                                                     (Point3d. 26.0 1.0 0.0))]
               (test-util/mouse-click! view (.x screen-pos) (.y screen-pos))
               (is (= [selected-mip] (g/node-value app-view :outline-selection))))))))))
+
+;; Mips sharing their resource node expose visibility toggles. Hide Unselected
+;; preserves the selected mip, and hiding one mip leaves siblings visible.
+(deftest ktx2-mip-visibility
+  (with-ktx2-project
+    (fn [_project-path _workspace project]
+      (let [app-view (test-util/setup-app-view! project)
+            outline-view (outline-view/make-outline-view project app-view test-util/localization)
+            scene-visibility (scene-visibility/make-scene-visibility-node! nil app-view)
+            command-contexts [(handler/->context :workbench {:scene-visibility scene-visibility})]]
+        (g/transact
+          [(g/connect app-view :active-resource-node+type scene-visibility :active-resource-node+type)
+           (g/connect outline-view :tree-selection scene-visibility :outline-selection)
+           (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)])
+        (doseq [path ["/models/albedo.ktx2" "/models/robot.gltf/images/Albedo_0.ktx2"]]
+          (let [[node view] (test-util/open-scene-view! project app-view path 320 160)
+                _ (g/transact (g/connect node :scene scene-visibility :active-scene))
+                mip-0 (outline/->OutlineEntrySelection node ["mip-0"])
+                mip-1 (outline/->OutlineEntrySelection node ["mip-1"])
+                outline-name-paths (g/node-value scene-visibility :outline-name-paths)
+                decorated-outline (:outline (outline-view/decorate-outline
+                                              (g/node-value node :node-outline)
+                                              #{} outline-name-paths @test-util/localization []))]
+            (is (= #{["mip-0"] ["mip-1"]} outline-name-paths))
+            (is (= [true true] (mapv :hideable (:children decorated-outline))))
+            (g/set-property! outline-view :tree-selection [])
+            (is (= outline-name-paths (g/node-value scene-visibility :unselected-hideable-outline-name-paths)))
+            (app-view/select! app-view [mip-1])
+            (g/set-property! outline-view :tree-selection [(second (:children decorated-outline))])
+            (is (= #{["mip-1"]} (g/node-value scene-visibility :selected-outline-name-paths)))
+            (is (= #{["mip-0"]} (g/node-value scene-visibility :unselected-hideable-outline-name-paths)))
+            (test-util/handler-run :scene.visibility.hide-unselected command-contexts {})
+            (is (= #{[node "mip-0"]} (g/node-value app-view :hidden-node-outline-key-paths)))
+            (is (= [mip-1] (mapv :selection-id (get-in (g/node-value view :scene-render-data) [:renderables pass/transparent]))))
+            (test-util/handler-run :scene.visibility.show-all command-contexts {})
+            (test-util/handler-run :private/hide-toggle command-contexts {:node-outline-key-path [node "mip-0"]})
+            (is (= #{[node "mip-0"]} (g/node-value app-view :hidden-node-outline-key-paths)))
+            (is (= [mip-1] (mapv :selection-id (get-in (g/node-value view :scene-render-data) [:renderables pass/transparent]))))
+            (test-util/handler-run :private/hide-toggle command-contexts {:node-outline-key-path [node "mip-0"]})
+            (is (= #{} (g/node-value app-view :hidden-node-outline-key-paths)))
+            (is (= #{mip-0 mip-1}
+                   (coll/into-> (get-in (g/node-value view :scene-render-data) [:renderables pass/transparent]) #{}
+                     (map :selection-id))))))))))
 
 ;; Profile matching agrees with Bob, and unsaved edits invalidate KTX2 builds
 ;; and previews.

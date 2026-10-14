@@ -541,7 +541,7 @@
       (is (= {'one :one 'two :two} result))))
 
   (testing "Applies key-fn on input sequence"
-    (let [result (coll/pair-map-by keyword ["one" "two"])]
+    (let [result (coll/pair-map-by keyword identity ["one" "two"])]
       (is (map? result))
       (is (= {:one "one" :two "two"} result))))
 

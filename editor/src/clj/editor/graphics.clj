@@ -428,7 +428,7 @@
   ;; attribute-buffers will be assigned to attributes that share the same
   ;; semantic-type.
   (let [shader-attribute-reflection-infos-by-name-key
-        (coll/pair-map-by :name-key shader-attribute-reflection-infos)
+        (coll/pair-map-by :name-key identity shader-attribute-reflection-infos)
 
         decorated-material-attribute-infos
         (e/keep (fn [{:keys [name-key] :as material-attribute-info}]

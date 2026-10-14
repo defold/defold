@@ -990,7 +990,17 @@
 
 (defn claim-child-scene [child-scene old-node-id new-node-id new-node-outline-key]
   (if (= old-node-id (:node-id child-scene))
-    (assoc child-scene :node-id new-node-id :node-outline-key new-node-outline-key)
+    (let [selection-id (:selection-id child-scene)
+          derived-selection (outline/entry-selection? selection-id)]
+      (cond-> (assoc child-scene :node-id new-node-id :picking-node-id new-node-id)
+        derived-selection
+        (assoc :selection-id (assoc selection-id :node-id new-node-id))
+
+        (not derived-selection)
+        (assoc :node-outline-key new-node-outline-key)
+
+        (= old-node-id selection-id)
+        (assoc :selection-id new-node-id)))
     (assoc child-scene :picking-node-id new-node-id)))
 
 (defn claim-scene [scene new-node-id new-node-outline-key]
@@ -1002,7 +1012,8 @@
   (let [old-node-id (:node-id scene)
         children (:children scene)
         finalize-claim-fn (:finalize-claim-fn scene)]
-    (cond-> (assoc scene :node-id new-node-id :node-outline-key new-node-outline-key)
+    (cond-> (assoc (claim-child-scene scene old-node-id new-node-id new-node-outline-key)
+              :node-outline-key new-node-outline-key)
       children (assoc :children (mapv (partial map-scene #(claim-child-scene % old-node-id new-node-id new-node-outline-key))
                                       children))
       finalize-claim-fn (finalize-claim-fn old-node-id new-node-id))))
