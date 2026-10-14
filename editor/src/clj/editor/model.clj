@@ -286,8 +286,7 @@
         ;; qsort may reorder ties; check every skinned binding in each group.
         skinned-material-by-slot (coll/into-> material-skinning-infos {}
                                    (filter #(coll/not-empty (:skin-attributes %)))
-                                   (map (fn [info]
-                                          [(slot-index info) info])))
+                                   (coll/pair-map-by slot-index))
         geometry (if (str/blank? mesh-name)
                    (:models mesh-set)
                    (->> (e/concat (:models mesh-set) (:raw-models mesh-set))
