@@ -14,7 +14,6 @@
 
 (ns editor.editor-extensions.commands
   (:require [dynamo.graph :as g]
-            [editor.async :as async]
             [editor.defold-project :as project]
             [editor.editor-extensions.actions :as actions]
             [editor.editor-extensions.coerce :as coerce]
@@ -236,6 +235,5 @@
                   (future/then
                     (fn [lua-result]
                       (when-not (rt/coerces-to? rt coerce/null lua-result)
-                        (async/with-auto-evaluation-context evaluation-context
-                          (actions/perform! lua-result project state evaluation-context)))))
+                        (actions/perform! lua-result project state))))
                   (future/catch #(error-handling/display-script-error! rt error-label %))))))))))

@@ -53,7 +53,8 @@
             [editor.editor-extensions.vm :as vm]
             [editor.future :as future]
             [editor.resource :as resource]
-            editor.workspace)
+            editor.workspace
+            [util.coll :as coll])
   (:import [com.defold.editor.luart DefoldBaseLib DefoldCoroutine$Create DefoldCoroutine$Yield DefoldIoLib DefoldLuaFn DefoldUserdata DefoldVarargsLuaFn DynamicWriter SearchPath]
            [editor.resource FileResource MemoryResource ZipResource]
            [editor.workspace BuildResource]
@@ -414,7 +415,24 @@
           ^Varargs lua-success+rest-varargs (apply vm/invoke vm (.-resume runtime) co lua-args)]
       (if (->clj runtime coerce/boolean (.arg1 lua-success+rest-varargs))
         (if (= lua-str-dead (vm/invoke-1 vm (.-status runtime) co))
-          (future/completed (.subargs lua-success+rest-varargs 2))
+          (let [result (.subargs lua-success+rest-varargs 2)
+                evaluation-context (:evaluation-context execution-context)
+                has-materializations (coll/not-empty @(:changes-atom evaluation-context))
+                completed (future/make)]
+            ;; Returned values may refer to children created by the final Lua
+            ;; evaluation. Publish them only after those nodes reach the system.
+            (fx/on-fx-thread
+              (try
+                (g/update-system-from-evaluation-context! evaluation-context)
+                (future/complete! completed result)
+                (catch Throwable error
+                  (future/fail! completed error))))
+            ;; We only need to wait for the system to be updated if evaluation
+            ;; caused any node materializations. If not, we can proceed
+            ;; immediately.
+            (when-not has-materializations
+              (future/complete! completed result))
+            completed)
           (let [^Suspend suspend (->clj runtime coerce/userdata (.arg lua-success+rest-varargs 2))
                 materializations-committed (future/make)]
             ;; Suspended functions can transact using node ids discovered by
@@ -485,7 +503,8 @@
   "Invoke a potentially long-running LuaFunction
 
   Returns a CompletableFuture that will be either completed normally with
-  the returned LuaValues as a Varargs object or exceptionally.
+  the returned LuaValues as a Varargs object or exceptionally. Materializations
+  are merged on the UI thread before successful completion.
 
   Runtime will start invoking the LuaFunction on the calling thread, then will
   move the execution to background threads if necessary. This means that
@@ -501,7 +520,8 @@
   "Invoke a potentially long-running LuaFunction
 
   Returns a CompletableFuture that will be either completed normally with
-  the first returned LuaValue or exceptionally.
+  the first returned LuaValue or exceptionally. Materializations are merged on
+  the UI thread before successful completion.
 
   Runtime will start invoking the LuaFunction on the calling thread, then will
   move the execution to background threads if necessary. This means that

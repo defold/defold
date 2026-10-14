@@ -863,6 +863,64 @@
   (input values g/Int :array)
   (output total g/Int :cached (g/fnk [values] (reduce + 0 values))))
 
+;; Sharing one materialization must not make an older evaluation-context's
+;; cached total valid after another evaluation-context has also loaded a second
+;; contributor.
+(deftest shared-materialization-subset-does-not-overwrite-cache-test
+  (with-clean-system
+    (let [[a b collector] (g/take-node-ids 3)]
+      (g/transact
+        [(g/add-node (g/construct MaterializationCollector :_node-id collector))
+         (mapv (fn [node-id value]
+                 (g/add-node
+                   (g/construct-shell ShellTestNode {:_node-id node-id}
+                     (fn materialize-contributor [self _evaluation-context]
+                       [(g/set-property self :value value)
+                        (g/connect self :result collector :values)]))))
+               [a b]
+               [7 11])])
+      (let [older-evaluation-context (g/make-evaluation-context)
+            newer-evaluation-context (g/make-evaluation-context)]
+        (g/materialize-node! a older-evaluation-context)
+        (is (= 7 (g/node-value collector :total older-evaluation-context)))
+        (g/materialize-node! a newer-evaluation-context)
+        (g/materialize-node! b newer-evaluation-context)
+        (is (= 18 (g/node-value collector :total newer-evaluation-context)))
+        (g/update-system-from-evaluation-context! newer-evaluation-context)
+        (is (= 18 (g/node-value collector :total)))
+        (g/update-system-from-evaluation-context! older-evaluation-context)
+        (is (= 18 (g/node-value collector :total)))
+        (g/clear-system-cache!)
+        (is (= 18 (g/node-value collector :total)))))))
+
+;; A shared materialization committed after a user edit must not hide that
+;; edit's invalidations when an older evaluation-context subsequently
+;; contributes cached values.
+(deftest shared-materialization-preserves-cache-after-intervening-edit-test
+  (with-clean-system
+    (let [consumer (g/make-node! ShellTestNode :value 3)
+          [shell] (g/take-node-ids 1)]
+      (g/transact
+        (g/add-node
+          (g/construct-shell ShellTestNode {:_node-id shell}
+            (fn materialize-contributor [self _evaluation-context]
+              [(g/set-property self :value 7)
+               (g/connect self :result consumer :dependency)]))))
+      (let [older-evaluation-context (g/make-evaluation-context)]
+        (g/materialize-node! shell older-evaluation-context)
+        (is (= 10 (g/node-value consumer :result older-evaluation-context)))
+        (g/transact
+          (g/set-property consumer :value 13))
+        (let [newer-evaluation-context (g/make-evaluation-context)]
+          (g/materialize-node! shell newer-evaluation-context)
+          (is (= 20 (g/node-value consumer :result newer-evaluation-context)))
+          (g/update-system-from-evaluation-context! newer-evaluation-context))
+        (is (= 20 (g/node-value consumer :result)))
+        (g/update-system-from-evaluation-context! older-evaluation-context)
+        (is (= 20 (g/node-value consumer :result)))
+        (g/clear-system-cache!)
+        (is (= 20 (g/node-value consumer :result)))))))
+
 ;; Replay preserves contributions realized against different bases.
 ;; Materialization invalidates cache snapshots and local totals, including
 ;; through derived contexts, without affecting independent contexts.

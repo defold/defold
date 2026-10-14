@@ -1227,8 +1227,7 @@
           (future/then
             (fn [lua-result]
               (when-not (rt/coerces-to? rt coerce/null lua-result)
-                (async/with-auto-evaluation-context evaluation-context
-                  (actions/perform! lua-result project state evaluation-context)))))
+                (actions/perform! lua-result project state))))
           (future/catch
             (fn [ex]
               (error-handling/display-script-error! rt (str "hook " (name hook-keyword)) ex)

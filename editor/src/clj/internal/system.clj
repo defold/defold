@@ -484,12 +484,14 @@
                          :else
                          (replay-changes system changes it/perform-change))
                 invalidate-counters (:invalidate-counters system)]
-            ;; Materialization already invalidated the context's caches. Only
-            ;; concurrent changes should reject entries.
+            ;; Our own materializations already invalidated the
+            ;; evaluation-context's cache. Compare against the original counters
+            ;; for cache entries: replay compatibility with a shared
+            ;; materialization does not prove that the evaluation-context saw
+            ;; every other materialization or edit committed alongside it.
             (-> system
                 (assoc :invalidate-counters original-invalidate-counters)
-                (update-cache-from-evaluation-context
-                  (assoc evaluation-context :initial-invalidate-counters expected-invalidate-counters))
+                (update-cache-from-evaluation-context evaluation-context)
                 (assoc :invalidate-counters invalidate-counters))))))))
 
 (defn user-data [system node-id key]

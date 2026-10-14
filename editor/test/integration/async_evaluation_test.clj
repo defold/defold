@@ -21,6 +21,9 @@
             [editor.console :as console]
             [editor.defold-project :as project]
             [editor.disk :as disk]
+            [editor.editor-extensions.actions :as actions]
+            [editor.editor-extensions.graph :as graph]
+            [editor.editor-extensions.runtime :as rt]
             [editor.gui :as gui]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
@@ -157,3 +160,49 @@
     @(future
        (disk/async-reload! progress/null-render-progress! workspace [] nil reload-completed))
     (is (true? (deref reload-completed 10000 ::timed-out)))))
+
+;; Action completion must include prerequisite materializations. Otherwise a
+;; settings update can silently target a child that only exists in its context.
+(deftest background-editor-actions-materialize-before-transacting-test
+  (let [[project settings-node]
+        (ui/run-now
+          (let [workspace (test-util/setup-scratch-workspace! "test/resources/empty_project")
+                project (test-util/setup-project! workspace)]
+            [project (project/get-resource-node project "/game.project")]))
+        rt (rt/make)
+        lua-actions (rt/->lua [{:action "set"
+                                :node_id "/game.project"
+                                :property "project.title"
+                                :value "Action title"}])]
+    (is (in/shell-node? (g/node-by-id (g/now) settings-node)))
+    @(actions/perform! lua-actions project {:rt rt})
+    (ui/run-now
+      (is (= "Action title" (get (g/node-value settings-node :settings-map) ["project" "title"]))))))
+
+;; A completed Lua call must publish the nodes loaded by its final evaluation
+;; segment, including after suspension, before a returned action uses their IDs.
+(deftest suspending-lua-completion-materializes-returned-nodes-test
+  (doseq [suspend-first [false true]]
+    (let [[project gui-node]
+          (ui/run-now
+            (let [workspace (test-util/setup-scratch-workspace! "test/resources/editor_extensions/properties_project")
+                  project (test-util/setup-project! workspace)]
+              [project (project/get-resource-node project "/main/test.gui")]))
+          rt (rt/make :env {"get_nodes" (rt/lua-fn [{:keys [evaluation-context]}]
+                                          ((graph/ext-value-getter gui-node "nodes" project evaluation-context)))
+                            "suspend" (rt/suspendable-lua-fn [_] nil)})
+          lua-fn (->> (rt/read "return function(suspend_first)
+                                  if suspend_first then suspend() end
+                                  return {{action='set', node_id=get_nodes()[1],
+                                           property='position', value={1,2,3}}}
+                                end")
+                      (rt/bind rt)
+                      (rt/invoke-immediate-1 rt))]
+      (is (in/shell-node? (g/node-by-id (g/now) gui-node)))
+      (let [lua-actions @(rt/invoke-suspending-1 rt lua-fn (rt/->lua suspend-first))
+            child-id (-> (rt/->clj rt actions/actions-coercer lua-actions)
+                         first :node_id graph/editor-lookup->node-id)]
+        (is (some? (g/node-by-id (g/now) child-id)))
+        @(actions/perform! lua-actions project {:rt rt})
+        (ui/run-now
+          (is (= [1 2 3] (g/node-value child-id :position))))))))

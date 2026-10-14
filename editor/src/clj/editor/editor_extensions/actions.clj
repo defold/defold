@@ -25,7 +25,8 @@
             [editor.error-reporting :as error-reporting]
             [editor.future :as future]
             [editor.process :as process]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.coll :as coll])
   (:import [java.io PrintStream]
            [org.luaj.vm2 LuaError]))
 
@@ -119,13 +120,20 @@
 (defn perform!
   "Perform a list of editor script actions
 
+  Prepares every batch and queues its materializations for merging on the UI
+  thread before starting any executor.
+
   Returns a future that will complete once all actions are executed"
-  [lua-actions project state evaluation-context]
+  [lua-actions project state]
   (let [{:keys [rt]} state]
-    (await-all-sequentially
-      (eduction (map #(action->batched-executor+input % rt project evaluation-context))
-                (partition-by first)
-                (map (juxt ffirst #(mapv second %)))
-                (map (fn [[executor inputs]]
-                       #(executor inputs project state)))
-                (rt/->clj rt actions-coercer lua-actions)))))
+    (async/let-ec [actions (rt/->clj rt actions-coercer lua-actions)
+                   batches (coll/into-> actions []
+                             (map #(action->batched-executor+input % rt project evaluation-context))
+                             (partition-by first)
+                             (map (juxt ffirst #(mapv second %))))]
+      (await-all-sequentially
+        (eduction
+          (map (fn [[executor inputs]]
+                 (fn execute-actions! []
+                   (executor inputs project state))))
+          batches)))))
