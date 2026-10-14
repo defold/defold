@@ -126,7 +126,7 @@ jobs:
           distribution: temurin
 
       - name: Install CMake and Ninja
-        uses: lukka/get-cmake@a89e43e22a96abafcd7a62db652a65ecd33052c9 # v4.3.4
+        uses: lukka/get-cmake@a89e43e22a96abafcd7a62db652a65ecd33052c9 # v4.4.4
 
       - name: Setup emsdk
         if: "${{ matrix.platforms.target == 'web' }}"
