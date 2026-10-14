@@ -440,17 +440,19 @@
 
   (get-property [this basis property]
     (let [node (shell-node-resolve basis this _node-id)]
-      (if-not (instance? ShellNode node)
+      (cond
+        (not (instance? ShellNode node))
         (gt/get-property node basis property)
-        (do
-          (when (and (.-_materialize-fn ^ShellNode node)
-                     (not (shell-node-safe-output? (gt/node-type node) property)))
-            (throw
-              (ex-info
-                "Cannot read a property of an unmaterialized shell node without an evaluation-context."
-                {:node-id _node-id
-                 :property property})))
-          (get node property (get (defaults (gt/node-type node)) property))))))
+
+        (shell-node-safe-output? (gt/node-type node) property)
+        (get node property (get (defaults (gt/node-type node)) property))
+
+        :else
+        (throw
+          (ex-info
+            "Cannot read a property of an unmaterialized shell node without an evaluation-context."
+            {:node-id _node-id
+             :property property})))))
 
   (set-property [this basis property value]
     (let [node (shell-node-resolve basis this _node-id)]
@@ -478,8 +480,7 @@
         (not (instance? ShellNode node))
         (gt/produce-value node label evaluation-context)
 
-        (and (.-_materialize-fn ^ShellNode node)
-             (not (shell-node-safe-output? (gt/node-type node) label)))
+        (not (shell-node-safe-output? (gt/node-type node) label))
         (let [materialize-node! (:materialize-node! evaluation-context)
               _ (materialize-node! _node-id evaluation-context)
               node (ig/node-by-id-at @basis-ref _node-id)]
@@ -499,9 +500,8 @@
       (ex-info "Originals can't be changed for original nodes." {})))
   (override-id [_] nil))
 
-(defn unmaterialized-shell-node? [node]
-  (and (instance? ShellNode node)
-       (some? (.-_materialize-fn ^ShellNode node))))
+(defn shell-node? [node]
+  (instance? ShellNode node))
 
 ;;; ----------------------------------------
 ;;; Evaluating outputs
@@ -632,7 +632,7 @@
 (defn node-property-value [node label evaluation-context]
   (validate-evaluation-context evaluation-context)
   (let [node-type (gt/node-type node)
-        node (if (and (unmaterialized-shell-node? node)
+        node (if (and (shell-node? node)
                       (not (shell-node-safe-output? node-type label)))
                (let [node-id (gt/node-id node)
                      materialize-node! (:materialize-node! evaluation-context)]
@@ -650,10 +650,10 @@
   (or (if (gt/original node)
         (gt/overridden-properties node)
         (let [node
-              (if-not (instance? ShellNode node)
+              (if-not (shell-node? node)
                 node
                 (let [node (shell-node-resolve basis node (gt/node-id node))]
-                  (when (unmaterialized-shell-node? node)
+                  (when (shell-node? node)
                     (throw
                       (ex-info
                         "Cannot enumerate properties of an unmaterialized shell node."

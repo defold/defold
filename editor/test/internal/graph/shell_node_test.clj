@@ -122,7 +122,7 @@
                       (is (identical? (:initial-basis evaluation-context) (g/now))))
             :full (g/transact {:full-invalidation true} (g/invalidate-output shell :result)))
           (g/update-system-from-evaluation-context! evaluation-context)
-          (is (in/unmaterialized-shell-node? (g/node-by-id (g/now) shell)))
+          (is (in/shell-node? (g/node-by-id (g/now) shell)))
           (is (not (contains? (g/cache) (gt/endpoint shell :result)))))))))
 
 ;; A failed loader's deletions must not remove user data for a node that is
@@ -178,11 +178,11 @@
         (is (= 12 (g/node-value node-id :result evaluation-context)))
         (is (= 12 (g/node-value node-id :result evaluation-context)))
         (is (= 1 @calls))
-        (is (in/unmaterialized-shell-node? (g/node-by-id (g/now) node-id)))
+        (is (in/shell-node? (g/node-by-id (g/now) node-id)))
         (is (nil? (g/node-by-id (g/now) child-id)))
         (is (instance? internal.node.NodeImpl (g/node-by-id @(:basis-ref evaluation-context) node-id)))
         (g/update-system-from-evaluation-context! evaluation-context)
-        (is (not (in/unmaterialized-shell-node? (g/node-by-id (g/now) node-id))))
+        (is (not (in/shell-node? (g/node-by-id (g/now) node-id))))
         (is (= 12 (g/node-value node-id :result)))
         (is (thrown-with-msg? AssertionError #"Evaluation context is closed"
                               (g/update-system-from-evaluation-context! evaluation-context)))
@@ -236,7 +236,7 @@
         (g/set-property consumer-id :source source-id))
       (is (= 42 (g/node-value consumer-id :value)))
       (is (= 42 (g/node-value source-id :result)))
-      (is (not (in/unmaterialized-shell-node? (g/node-by-id (g/now) source-id)))))))
+      (is (not (in/shell-node? (g/node-by-id (g/now) source-id)))))))
 
 (deftest nested-materialization-test
   (with-clean-system
@@ -256,7 +256,7 @@
           (g/connect child :result parent :dependency)))
       (is (= 20 (g/node-value parent :result)))
       (is (= [parent child] @loaded))
-      (is (in/unmaterialized-shell-node? (g/node-by-id (g/now) unrelated))))))
+      (is (in/shell-node? (g/node-by-id (g/now) unrelated))))))
 
 ;; Verifies rollback and retry of materialized properties, including
 ;; non-undoable state that must remain isolated until the load succeeds.
@@ -280,7 +280,7 @@
         (is (identical? initial-materializations @materializations-atom))
         (is (coll/empty? @changes-atom))
         (is (coll/empty? @invalidated-endpoints-atom))
-        (is (in/unmaterialized-shell-node? (g/node-by-id @basis-ref node-id)))
+        (is (in/shell-node? (g/node-by-id @basis-ref node-id)))
         (is (nil? (g/node-value node-id :identity evaluation-context)))
         (is (nil? (g/node-value node-id :identity)))
         (reset! fail false)
@@ -369,8 +369,8 @@
           (let [first-materialized-basis @basis-ref]
             (is (= 17 (g/node-value b :result evaluation-context)))
             (is (= 17 (g/raw-property-value @basis-ref b :value)))
-            (is (in/unmaterialized-shell-node? (g/node-by-id first-materialized-basis b))))
-          (is (in/unmaterialized-shell-node? (g/node-by-id initial-basis a)))
+            (is (in/shell-node? (g/node-by-id first-materialized-basis b))))
+          (is (in/shell-node? (g/node-by-id initial-basis a)))
           (is (identical? initial-basis @(:basis-ref independent-context)))
           (g/update-system-from-evaluation-context! derived-context)
           (is (= 17 (g/node-value a :result)))
@@ -402,7 +402,7 @@
                                 (g/materialize-node! b context)))
           (is (thrown-with-msg? AssertionError #"Evaluation context is closed"
                                 (g/update-system-from-evaluation-context! context))))
-        (is (in/unmaterialized-shell-node? (g/node-by-id (g/now) b)))
+        (is (in/shell-node? (g/node-by-id (g/now) b)))
         (g/with-auto-evaluation-context fresh-context
           (is (= 17 (g/node-value b :result fresh-context))))))))
 
@@ -435,7 +435,7 @@
       (is (thrown-with-msg? ExceptionInfo #"cannot modify an existing external node"
                             (g/node-value shell :result)))
       (is (= {} (g/node-value shared :values)))
-      (is (in/unmaterialized-shell-node? (g/node-by-id (g/now) shell))))))
+      (is (in/shell-node? (g/node-by-id (g/now) shell))))))
 
 (deftest tracing-materializes-with-real-values-test
   (with-clean-system
@@ -857,7 +857,7 @@
                       (catch Exception exception exception))]
           (is (= :undeclared-materialization (-> error ex-cause ex-data :ex-type))))
         (is (nil? (g/node-by-id @(:basis-ref evaluation-context) consumer)))
-        (is (in/unmaterialized-shell-node? (g/node-by-id @(:basis-ref evaluation-context) prerequisite)))))))
+        (is (in/shell-node? (g/node-by-id @(:basis-ref evaluation-context) prerequisite)))))))
 
 (g/defnode MaterializationCollector
   (input values g/Int :array)
@@ -1033,7 +1033,7 @@
               (deliver release true)
               (is (identical? failure (deref result 10000 ::timeout)))
               (is (identical? failure (:error (deref waiter 10000 ::timeout)))))
-            (is (in/unmaterialized-shell-node? (g/node-by-id @(:basis-ref evaluation-context) shell)))
+            (is (in/shell-node? (g/node-by-id @(:basis-ref evaluation-context) shell)))
             (reset! fail false)
             (is (= 7 (g/node-value shell :result evaluation-context)))
             (finally

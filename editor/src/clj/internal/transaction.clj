@@ -1129,7 +1129,7 @@
                                    (->AddNodesTXC added-nodes introduced-node-id->pkid->override-node-id)))
         (coll/reduce=> added-nodes
           (fn [[ctx undoable-changes] added-node]
-            (if (in/unmaterialized-shell-node? added-node)
+            (if (in/shell-node? added-node)
               (pair ctx undoable-changes)
               (realize-defaults ctx undoable-changes added-node)))))
     (pair ctx undoable-changes)))
@@ -1883,7 +1883,7 @@
   (metrics_key [_] node-id)
   (realize [_ ctx undoable-changes]
     (let [node (ig/node-by-id-at (:basis ctx) node-id)]
-      (if-not (in/unmaterialized-shell-node? node)
+      (if-not (in/shell-node? node)
         (pair ctx undoable-changes)
         (let [[ctx] (perform-and-conj-change ctx nil (->MaterializeShellTXC node-id))
               [ctx] (realize-defaults ctx nil (ig/node-by-id-at (:basis ctx) node-id))]
@@ -1894,7 +1894,7 @@
 
 (defn- perform-materialization [ctx {:keys [node-id shell-node changes dependencies] :as materialize-info}]
   (if (and (identical? materialize-info (get (:materializations ctx) node-id))
-           (not (in/unmaterialized-shell-node? (ig/node-by-id-at (:basis ctx) node-id))))
+           (not (in/shell-node? (ig/node-by-id-at (:basis ctx) node-id))))
     ctx
     (do
       (when-not (identical? shell-node (ig/node-by-id-at (:basis ctx) node-id))
@@ -2091,7 +2091,7 @@
         basis-ref (:basis-ref evaluation-context)
         shared (:node-materializations-atom evaluation-context)
         node (ig/node-by-id-at @basis-ref node-id)]
-    (when (in/unmaterialized-shell-node? node)
+    (when (in/shell-node? node)
       (when (and (:node-id *materialization*) (not (:loading-prerequisites *materialization*)))
         (throw (ex-info "Undeclared nested materialization. Register the resource as a prerequisite."
                         {:ex-type :undeclared-materialization
