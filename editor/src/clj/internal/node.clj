@@ -543,7 +543,6 @@
    :nodes-deleted-atom (atom {})
    :materializations-atom (atom materializations)
    :invalidated-endpoints-atom (atom #{})
-   :closed-atom (atom false)
    :cache-atom (atom cache) ; context-local snapshot of the system cache
    :initial-invalidate-counters initial-invalidate-counters
    :local-atom (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
@@ -563,7 +562,6 @@
             :nodes-deleted-atom (atom {})
             :materializations-atom (atom (:materializations options))
             :invalidated-endpoints-atom (atom #{})
-            :closed-atom (atom false)
             :local-atom (atom {})
             :hits-atom (atom [])
             :in-production #{})
@@ -604,11 +602,12 @@
       :local-atom (atom filtered-local))))
 
 (defn- validate-evaluation-context [evaluation-context]
-  (assert (gt/graph? @(:basis-ref evaluation-context)))
-  (assert (some? (:in-production evaluation-context)))
-  (assert (some? (:local-atom evaluation-context)))
-  (assert (some? (:hits-atom evaluation-context)))
-  (assert (not @(:closed-atom evaluation-context)) "Evaluation context is closed."))
+  (let [basis @(:basis-ref evaluation-context)]
+    (assert (some? basis) "Evaluation context is closed.")
+    (assert (gt/graph? basis))
+    (assert (some? (:in-production evaluation-context)))
+    (assert (some? (:local-atom evaluation-context)))
+    (assert (some? (:hits-atom evaluation-context)))))
 
 (defn- apply-dry-run-cache [evaluation-context]
   (cond-> evaluation-context

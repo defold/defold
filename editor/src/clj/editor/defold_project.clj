@@ -1668,8 +1668,8 @@
              workspace (workspace project evaluation-context)
              localization (workspace/localization workspace evaluation-context)
              code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
-             code-transpilers (code-transpilers @basis-ref)]
-    (workspace/unpack-editor-plugins! @basis-ref workspace touched-resources)
+             code-transpilers (code-transpilers @basis-ref)
+             _ (workspace/unpack-editor-plugins! @basis-ref workspace touched-resources)]
     (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader localization)
     (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader localization)
     (texture.engine/reload-texture-compressors! java/class-loader localization)

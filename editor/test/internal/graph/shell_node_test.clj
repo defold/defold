@@ -58,10 +58,11 @@
               initial-invalidate-counters (g/invalidate-counters)]
           (is (= 12 (g/node-value shell :result evaluation-context)))
           (is (identical? initial-basis (g/now)))
-          (g/update-system-from-evaluation-context! evaluation-context)
-          (doseq [node-id [shell child]]
-            (is (identical? (g/node-by-id @(:basis-ref evaluation-context) node-id)
-                            (g/node-by-id (g/now) node-id))))
+          (let [evaluated-basis @(:basis-ref evaluation-context)]
+            (g/update-system-from-evaluation-context! evaluation-context)
+            (doseq [node-id [shell child]]
+              (is (identical? (g/node-by-id evaluated-basis node-id)
+                              (g/node-by-id (g/now) node-id)))))
           (is (= (inc (long (gt/tx-id initial-basis))) (gt/tx-id (g/now))))
           (is (= 12 (get (g/cache) (gt/endpoint shell :result))))
           (is (not (contains? (g/cache) (gt/endpoint consumer :result))))
@@ -122,6 +123,7 @@
                       (is (identical? (:initial-basis evaluation-context) (g/now))))
             :full (g/transact {:full-invalidation true} (g/invalidate-output shell :result)))
           (g/update-system-from-evaluation-context! evaluation-context)
+          (is (nil? @(:basis-ref evaluation-context)))
           (is (in/shell-node? (g/node-by-id (g/now) shell)))
           (is (not (contains? (g/cache) (gt/endpoint shell :result)))))))))
 
@@ -348,7 +350,8 @@
         (is (nil? (g/node-by-id (g/now) node-id)))))))
 
 ;; A retained basis-ref observes successive materializations through derived
-;; contexts, while previously dereferenced bases remain immutable snapshots.
+;; contexts and is cleared on commit. Dereferenced bases remain immutable
+;; snapshots.
 (deftest retained-evaluation-context-basis-ref-test
   (doseq [custom-context [false true]]
     (with-clean-system
@@ -373,6 +376,8 @@
           (is (in/shell-node? (g/node-by-id initial-basis a)))
           (is (identical? initial-basis @(:basis-ref independent-context)))
           (g/update-system-from-evaluation-context! derived-context)
+          (is (nil? @basis-ref))
+          (is (identical? initial-basis @(:basis-ref independent-context)))
           (is (= 17 (g/node-value a :result)))
           (is (= 17 (g/node-value b :result))))))))
 
@@ -396,8 +401,11 @@
         (is (identical? @(:basis-ref evaluation-context) @(:basis-ref derived-context)))
         (g/update-system-from-evaluation-context! derived-context)
         (doseq [context [evaluation-context derived-context]]
+          (is (nil? @(:basis-ref context)))
           (is (thrown-with-msg? AssertionError #"Evaluation context is closed"
                                 (g/node-value b :result context)))
+          (is (thrown-with-msg? AssertionError #"Evaluation context is closed"
+                                (g/maybe-node-value b :result context)))
           (is (thrown-with-msg? AssertionError #"Evaluation context is closed"
                                 (g/materialize-node! b context)))
           (is (thrown-with-msg? AssertionError #"Evaluation context is closed"

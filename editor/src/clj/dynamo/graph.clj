@@ -94,8 +94,9 @@
   Destructure :basis-ref to retain a reference to the context's current basis.
   Dereference it when passing a basis to graph functions, so materializations
   performed since the reference was obtained are included. Each dereferenced
-  basis is an immutable snapshot. Discard the context after committing it with
-  update-system-from-evaluation-context!."
+  basis is an immutable snapshot. Committing with
+  update-system-from-evaluation-context! resets the reference to nil and closes
+  the context. Discard the context after committing it."
   ([] (is/default-evaluation-context @*the-system*))
   ([options] (is/custom-evaluation-context @*the-system* options)))
 
@@ -1235,10 +1236,10 @@
   their context to that thread before calling this function.
   Closes the context and all contexts sharing its state. They must be discarded
   after this call, even if their changes were incompatible with the system."
-  [{:keys [closed-atom] :as evaluation-context}]
-  (assert (not @closed-atom) "Evaluation context is closed.")
+  [{:keys [basis-ref] :as evaluation-context}]
+  (assert @basis-ref "Evaluation context is closed.")
   (swap! *the-system* is/update-system-from-evaluation-context evaluation-context)
-  (reset! closed-atom true)
+  (reset! basis-ref nil)
   nil)
 
 (defmacro with-auto-evaluation-context
@@ -1365,9 +1366,9 @@
      (node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
    (when (some? node-id)
-     (let [{:keys [basis-ref]} evaluation-context
-           node (ig/node-by-id-at @basis-ref node-id)]
-       (in/node-value node label evaluation-context)))))
+     (let [basis @(:basis-ref evaluation-context)]
+       (assert basis "Evaluation context is closed.")
+       (in/node-value (ig/node-by-id-at basis node-id) label evaluation-context)))))
 
 (defn valid-node-value
   "Like the node-value function, but throws an exception if evaluation produced
@@ -1399,12 +1400,13 @@
      (maybe-node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
    (when (some? node-id)
-     (let [{:keys [basis-ref]} evaluation-context
-           node (ig/node-by-id-at @basis-ref node-id)]
-       (when (some-> node gt/node-type (in/behavior label))
-         (let [value (in/node-value node label evaluation-context)]
-           (when-not (error? value)
-             value)))))))
+     (let [basis @(:basis-ref evaluation-context)]
+       (assert basis "Evaluation context is closed.")
+       (let [node (ig/node-by-id-at basis node-id)]
+         (when (some-> node gt/node-type (in/behavior label))
+           (let [value (in/node-value node label evaluation-context)]
+             (when-not (error? value)
+               value))))))))
 
 (defmacro tx-cached-value!
   "Finds and returns a cached value at the specified key path of the

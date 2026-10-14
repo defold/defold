@@ -2047,7 +2047,6 @@
                                  :nodes-deleted-atom
                                  :materializations-atom
                                  :invalidated-endpoints-atom
-                                 :closed-atom
                                  :cache-atom
                                  :local-atom
                                  :local-temp-atom
@@ -2077,7 +2076,7 @@
             (throw error)))))))
 
 (defn materialize-node! [node-id evaluation-context]
-  (assert (not @(:closed-atom evaluation-context)) "Evaluation context is closed.")
+  (assert @(:basis-ref evaluation-context) "Evaluation context is closed.")
   ;; Dependency tracing skips output functions and caches placeholder values.
   ;; Loading needs actual values even when triggered by such a traversal.
   (let [evaluation-context (cond-> evaluation-context
