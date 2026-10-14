@@ -4748,6 +4748,8 @@ static void LogFrameBufferError(GLenum status)
                     CHECK_GL_ERROR;
                 }
 
+                attachment_tex->m_Base.m_Width = rt->m_Base.m_DepthStencilTextureParams.m_Width;
+                attachment_tex->m_Base.m_Height = rt->m_Base.m_DepthStencilTextureParams.m_Height;
                 glBindTexture(texture_target, 0);
             #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
@@ -4950,17 +4952,22 @@ static void LogFrameBufferError(GLenum status)
             BUFFER_TYPE_COLOR3_BIT,
         };
 
-        // NOTE: Regarding this, the OpenGL context we create is to low on all current desktop platforms to use, but it should work for the other adapters.
-        if (stencil_texture)
+        // Packed depth/stencil storage supports depth sampling, but not stencil sampling.
+        if (use_stencil_attachment && params.m_StencilTexture)
         {
-            dmLogWarning("Stencil textures are not supported on the OpenGL adapter, defaulting to render buffer.");
+            dmLogWarning("Stencil texture sampling is not supported on the OpenGL adapter.");
         }
 
         if (use_depth_attachment && use_stencil_attachment && stencil_texture != depth_texture)
         {
-            dmLogWarning("Creating a RenderTarget with different backing storage (depth: %s != stencil: %s), defaulting to the depth buffer type for both.",
-                (depth_texture ? "texture" : "buffer"),
-                (stencil_texture ? "texture" : "buffer"));
+            // Sampling depth without sampling stencil still uses a packed depth/stencil texture.
+            // Only warn when stencil sampling was requested with a depth render buffer.
+            if (stencil_texture)
+            {
+                dmLogWarning("Creating a RenderTarget with different backing storage (depth: %s != stencil: %s), defaulting to the depth buffer type for both.",
+                    (depth_texture ? "texture" : "buffer"),
+                    (stencil_texture ? "texture" : "buffer"));
+            }
             stencil_texture = depth_texture;
         }
 
