@@ -37,16 +37,16 @@
 
 (set! *warn-on-reflection* true)
 
-(declare EmbeddedImageNode load-embedded-image embedded-image-dependencies)
+(declare EmbeddedImageNode EmbeddedKtx2ImageNode load-embedded-image embedded-image-dependencies)
 
 (def ^:private embedded-image-resource-type
   (fn/memoize
     {:limit 8}
     (fn embedded-image-resource-type [resource-type]
-      (cond-> (assoc resource-type :dependencies-fn embedded-image-dependencies)
-        (not= "ktx2" (:ext resource-type))
-        (assoc :node-type EmbeddedImageNode
-               :load-fn load-embedded-image)))))
+      (assoc resource-type
+        :node-type (if (= "ktx2" (:ext resource-type)) EmbeddedKtx2ImageNode EmbeddedImageNode)
+        :load-fn load-embedded-image
+        :dependencies-fn embedded-image-dependencies))))
 
 ;; An image whose encoded bytes occupy a range in a GLB or external glTF buffer.
 ;; All fields are non-nil except backing-resource.
@@ -116,9 +116,6 @@
   (->connection [this] (io/input-stream this)))
 
 (core/register-record-type! EmbeddedImageResource)
-
-(defmethod resource/snapshot-dependencies EmbeddedImageResource [resource]
-  [(:buffer-proj-path resource)])
 
 (defn asset-info
   "Returns glTF metadata attached to an embedded resource, or nil."
@@ -326,16 +323,22 @@
           :source-kind source-kind
           :textures (texture-metadata (.textures image-asset)))))))
 
+(g/defnk produce-embedded-image-resource [resource ^:try backing-resource]
+  (if (resource/resource? backing-resource)
+    (assoc resource :backing-resource backing-resource)
+    resource))
+
+(g/defnode EmbeddedKtx2ImageNode
+  (inherits image/Ktx2ImageNode)
+
+  (input backing-resource resource/Resource)
+  (output image-resource resource/Resource produce-embedded-image-resource))
+
 (g/defnode EmbeddedImageNode
   (inherits image/ImageNode)
 
   (input backing-resource resource/Resource)
-
-  (output image-resource g/Any
-          (g/fnk [resource ^:try backing-resource]
-            (if (resource/resource? backing-resource)
-              (assoc resource :backing-resource backing-resource)
-              resource)))
+  (output image-resource resource/Resource produce-embedded-image-resource)
 
   (output size g/Any :cached
           (g/fnk [_node-id image-resource]

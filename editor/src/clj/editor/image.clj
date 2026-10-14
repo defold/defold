@@ -31,7 +31,8 @@
             [editor.scene-picking :as scene-picking]
             [editor.texture-util :as texture-util]
             [editor.types :as types]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.coll :as coll])
   (:import [com.dynamo.bob.pipeline TexcLibraryJni TextureGenerator TextureGenerator$GenerateResult]
            [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]))
 
@@ -110,6 +111,8 @@
   (input build-settings g/Any)
   (input texture-profiles g/Any)
 
+  (output image-resource resource/Resource (g/fnk [resource] resource))
+
   (output texture-profile g/Any (g/fnk [texture-profiles resource]
                                   (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
@@ -169,8 +172,8 @@
   (texture-util/make-gpu-texture request-id (force texture-request-datas-delay)))
 
 (defn- read-ktx2-info
-  [_read-opts _owner-resource readable]
-  (with-open [image (TexcLibraryJni/LoadKtx2 (resource/resource->bytes readable))]
+  [content]
+  (with-open [image (TexcLibraryJni/LoadKtx2 content)]
     {:dimensions [(.-width image) (.-height image)]
      :format (case (.-vkFormat image)
                0 (if (= 1 (.-supercompression image)) "ETC1S" "UASTC")
@@ -200,107 +203,112 @@
                                     (scene-picking/renderable-picking-id-uniform renderable)
                                     [[0 0] [0 height] [width height] [width 0]])))
 
-(g/defnode Ktx2MipNode
-  (inherits outline/OutlineNode)
+(defn- mip-outline [node-id image-resource level {:keys [dimensions]}]
+  {:node-id node-id
+   :node-outline-key (str "mip-" level)
+   :label (localization/message "outline.ktx2.mip" {"level" level "width" (first dimensions) "height" (second dimensions)})
+   :icon (workspace/resource-icon image-resource)
+   :read-only true
+   :properties {:node-id node-id
+                :display-order [:level :dimensions]
+                :properties {:level {:node-id node-id
+                                     :type g/Int
+                                     :value level
+                                     :label (localization/message "property.ktx2.level")
+                                     :read-only? true}
+                             :dimensions {:node-id node-id
+                                          :type types/Vec2
+                                          :value dimensions
+                                          :label (localization/message "property.ktx2.dimensions")
+                                          :read-only? true}}}})
 
-  (property level g/Int
-            (dynamic label (properties/label-dynamic :ktx2 :level))
-            (dynamic read-only? (g/constantly true)))
-  (property dimensions types/Vec2
-            (dynamic label (properties/label-dynamic :ktx2 :dimensions))
-            (dynamic read-only? (g/constantly true)))
-  (property offset-x g/Num
-            (dynamic visible (g/constantly false)))
+(defn- mip-scene [node-id level {:keys [dimensions offset-x]} gpu-texture]
+  (let [[width height] dimensions
+        scene (render-util/make-outlined-textured-quad-scene #{:image} (pose/translation-pose offset-x 0.0 0.0) width height gpu-texture 0)]
+    (-> scene
+        (assoc :node-id node-id
+               :selection-id (outline/->OutlineEntrySelection node-id [(str "mip-" level)])
+               :node-outline-key (str "mip-" level))
+        (update :children conj
+                {:node-id node-id
+                 :aabb (:aabb scene)
+                 :renderable {:render-fn render-ktx2-mip-selection
+                              :tags #{:image}
+                              :user-data {:dimensions dimensions}
+                              :passes [pass/selection]}}))))
 
-  (display-order [:level :dimensions])
-
-  (input texture-request-datas g/Any)
-
-  (output gpu-texture g/Any :cached
-          (g/fnk [_node-id level texture-request-datas]
-            (-> (texture-util/make-gpu-texture _node-id [(nth texture-request-datas level)])
-                (texture/set-params {:min-filter gl/nearest
-                                     :mag-filter gl/nearest}))))
-
-  (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id level dimensions]
-            {:node-id _node-id
-             :node-outline-key (str "mip-" level)
-             :label (localization/message "outline.ktx2.mip" {"level" level "width" (first dimensions) "height" (second dimensions)})
-             :icon "icons/32/Icons_25-AT-Image.png"
-             :order level
-             :read-only true}))
-
-  (output scene g/Any :cached
-          (g/fnk [_node-id level dimensions offset-x gpu-texture]
-            (let [[width height] dimensions
-                  scene (render-util/make-outlined-textured-quad-scene #{:image} (pose/translation-pose offset-x 0.0 0.0) width height gpu-texture 0)]
-              (-> scene
-                  (assoc :node-id _node-id
-                         :order level
-                         :node-outline-key (str "mip-" level))
-                  (update :children conj
-                          {:node-id _node-id
-                           :aabb (:aabb scene)
-                           :renderable {:render-fn render-ktx2-mip-selection
-                                        :tags #{:image}
-                                        :user-data {:dimensions dimensions}
-                                        :passes [pass/selection]}}))))))
+(defn- ktx2-properties [node-id texture-info]
+  (let [property-types [[:dimensions types/Vec2]
+                        [:format g/Str]
+                        [:supercompression g/Str]
+                        [:mip-count g/Int]
+                        [:channels g/Int]
+                        [:color-space g/Str]
+                        [:premultiplied-alpha g/Bool]
+                        [:orientation g/Str]]]
+    {:node-id node-id
+     :display-order (mapv first property-types)
+     :properties (coll/into-> property-types {}
+                   (map (fn [[property type]]
+                          [property (cond-> {:node-id node-id
+                                             :type type
+                                             :value (get texture-info property)
+                                             :label (properties/label-message :ktx2 property)
+                                             :read-only? true}
+                                      (= :orientation property)
+                                      (assoc :tooltip (localization/message "property.ktx2.orientation.tooltip" {} "none")))])))}))
 
 (g/defnode Ktx2ImageNode
   (inherits ImageNode)
 
-  (property dimensions types/Vec2
-            (dynamic label (properties/label-dynamic :ktx2 :dimensions))
-            (dynamic read-only? (g/constantly true)))
-  (property format g/Str
-            (dynamic label (properties/label-dynamic :ktx2 :format))
-            (dynamic read-only? (g/constantly true)))
-  (property supercompression g/Str
-            (dynamic label (properties/label-dynamic :ktx2 :supercompression))
-            (dynamic read-only? (g/constantly true)))
-  (property mip-count g/Int
-            (dynamic label (properties/label-dynamic :ktx2 :mip-count))
-            (dynamic read-only? (g/constantly true)))
-  (property channels g/Int
-            (dynamic label (properties/label-dynamic :ktx2 :channels))
-            (dynamic read-only? (g/constantly true)))
-  (property color-space g/Str
-            (dynamic label (properties/label-dynamic :ktx2 :color-space))
-            (dynamic read-only? (g/constantly true)))
-  (property premultiplied-alpha g/Bool
-            (dynamic label (properties/label-dynamic :ktx2 :premultiplied-alpha))
-            (dynamic read-only? (g/constantly true)))
-  (property orientation g/Str
-            (dynamic label (properties/label-dynamic :ktx2 :orientation))
-            (dynamic tooltip (properties/tooltip-dynamic :ktx2 :orientation))
-            (dynamic read-only? (g/constantly true)))
-
-  (display-order [:dimensions :format :supercompression :mip-count :channels :color-space :premultiplied-alpha :orientation])
-
-  (input child-scenes g/Any :array)
+  (input source-image-resource resource/Resource)
 
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id child-outlines]
+          (g/fnk [_node-id image-resource mips texture-info]
             {:node-id _node-id
              :node-outline-key "ktx2"
              :label (localization/message "outline.ktx2")
              :icon "icons/32/Icons_13-Atlas.png"
              :read-only true
-             :children (vec (sort-by :order child-outlines))}))
+             :properties (ktx2-properties _node-id texture-info)
+             :children (coll/into-> mips []
+                         (map-indexed #(mip-outline _node-id image-resource %1 %2)))}))
 
   (output content-generator g/Any :cached
-          (g/fnk [_node-id resource]
-            (resource-io/with-error-translation resource _node-id :content-generator
+          (g/fnk [_node-id source-image-resource]
+            (resource-io/with-error-translation source-image-resource _node-id :content-generator
               {:f ktx2-content-gen-fn
-               :sha1 (resource/resource->path-inclusive-sha1-hex resource)
-               :args {:resource resource
+               :sha1 (resource/resource->path-inclusive-sha1-hex source-image-resource)
+               :args {:resource source-image-resource
                       :digest-ignored/error-node-id _node-id}})))
 
+  (output texture-info g/Any :cached
+          (g/fnk [_node-id source-image-resource content-generator]
+            (resource-io/with-error-translation source-image-resource _node-id :texture-info
+              (read-ktx2-info (texture-util/call-generator content-generator)))))
+
+  (output sha256 g/Str :cached
+          (g/fnk [_node-id source-image-resource]
+            (resource-io/with-error-translation source-image-resource _node-id :sha256
+              (resource/resource->sha256-hex source-image-resource))))
+
+  (output mips g/Any :cached
+          (g/fnk [texture-info]
+            (let [{:keys [dimensions mip-count]} texture-info]
+              (loop [level 0
+                     offset-x 0
+                     mips []]
+                (if (= level mip-count)
+                  mips
+                  (let [[width :as mip-dimensions] (mapv #(max 1 (bit-shift-right % level)) dimensions)]
+                    (recur (inc level)
+                           (+ offset-x (long width) 16)
+                           (conj mips {:dimensions mip-dimensions :offset-x offset-x}))))))))
+
   (output size g/Any
-          (g/fnk [dimensions]
-            {:width (first dimensions)
-             :height (second dimensions)}))
+          (g/fnk [texture-info]
+            (let [[width height] (:dimensions texture-info)]
+              {:width width :height height})))
 
   (output mip-texture-request-datas g/Any :cached
           (g/fnk [_node-id resource content-generator]
@@ -314,11 +322,22 @@
                               (hash [(:sha1 content-generator) level])))
                           (range (.-levelCount image)))))))))
 
+  (output mip-gpu-textures g/Any :cached
+          (g/fnk [_node-id mip-texture-request-datas]
+            (coll/into-> mip-texture-request-datas []
+              (map-indexed
+                (fn [level request-data]
+                  (-> (texture-util/make-gpu-texture [_node-id :mip level] [request-data])
+                      (texture/set-params {:min-filter gl/nearest
+                                           :mag-filter gl/nearest})))))))
+
   (output scene g/Any :cached
-          (g/fnk [_node-id dimensions child-scenes texture-profile]
-            {:node-id _node-id
-             :children (vec (sort-by :order child-scenes))
-             :info-text (format "%d x %d (%s profile)" (first dimensions) (second dimensions) (:name texture-profile))}))
+          (g/fnk [_node-id texture-info mips mip-gpu-textures texture-profile]
+            (let [[width height] (:dimensions texture-info)]
+              {:node-id _node-id
+               :children (coll/into-> mips []
+                           (map-indexed #(mip-scene _node-id %1 %2 (mip-gpu-textures %1))))
+               :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))})))
 
   (output gpu-texture-generator g/Any :cached
           (g/fnk [_node-id content-generator texture-profile]
@@ -347,22 +366,11 @@
     (g/connect project :texture-profiles self :texture-profiles)))
 
 (defn- load-ktx2-image
-  [load-opts {self :node-id texture-info :source-value :as node-load-info}]
-  (loop [level 0
-         offset-x 0
-         tx-data [(load-image load-opts node-load-info)
-                  (apply g/set-properties self (into [] cat texture-info))]]
-    (if (= level (:mip-count texture-info))
-      tx-data
-      (let [[width :as dimensions] (mapv #(max 1 (bit-shift-right % level)) (:dimensions texture-info))]
-        (recur (inc level)
-               (+ offset-x (long width) 16)
-               (conj tx-data
-                     (g/make-nodes [mip-node [Ktx2MipNode :level level :dimensions dimensions :offset-x offset-x]]
-                       (g/connect mip-node :_node-id self :nodes)
-                       (g/connect mip-node :node-outline self :child-outlines)
-                       (g/connect mip-node :scene self :child-scenes)
-                       (g/connect self :mip-texture-request-datas mip-node :texture-request-datas))))))))
+  [load-opts {self :node-id :as node-load-info}]
+  [(load-image load-opts node-load-info)
+   ;; Feed the decoding pipeline through a graph connection so stateless reload
+   ;; invalidates its cached metadata together with previews and builds.
+   (g/connect self :image-resource self :source-image-resource)])
 
 (defn register-resource-types [workspace]
   (concat
@@ -382,6 +390,6 @@
       :build-ext "texturec"
       :node-type Ktx2ImageNode
       :load-fn load-ktx2-image
-      :read-fn read-ktx2-info
+      :stateless? true
       :view-types [:scene :default])
     (workspace/register-resource-type workspace :ext "texture")))

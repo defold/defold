@@ -18,8 +18,10 @@
             [editor.app-view :as app-view]
             [editor.collection :as collection]
             [editor.game-object :as game-object]
+            [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.outline :as outline]
+            [editor.outline-view :as outline-view]
             [integration.test-util :as test-util]
             [service.log :as log]
             [support.test-support :refer [with-clean-system]]))
@@ -912,3 +914,87 @@
   (is (= "a2" (outline/next-node-outline-key "a123" #{"a0" "a1" "b0" "b1" "b2" "b3"})))
   (is (= "b4" (outline/next-node-outline-key "b123" #{"a0" "a1" "b0" "b1" "b2" "b3"})))
   (is (= "b4" (outline/next-node-outline-key "b123" #{"a1" "b3"}))))
+
+(defn- attach-shared-outline-node [parent-id child-id]
+  (g/connect child-id :node-outline parent-id :child-outlines))
+
+(g/defnode SharedOutlineNode
+  (inherits outline/OutlineNode)
+  (property name g/Str)
+  (output node-outline outline/OutlineData
+          (g/fnk [_node-id name child-outlines]
+            (let [requirements [{:node-type outline/OutlineNode
+                                 :tx-attach-fn attach-shared-outline-node}]]
+              {:node-id _node-id
+               :node-outline-key name
+               :label name
+               :icon "icons/32/Icons_13-Atlas.png"
+               :child-reqs requirements
+               :children [{:node-id _node-id
+                           :node-outline-key "group"
+                           :label "Group"
+                           :icon "icons/32/Icons_13-Atlas.png"
+                           :read-only true
+                           :child-reqs requirements
+                           :children child-outlines}]}))))
+
+(g/defnode OutlineCopyState
+  (property active g/Bool (default true))
+  (property selection g/Any (default [])))
+
+;; Copy must reject shared-node entries and mixed selections containing them,
+;; while ordinary nodes remain copyable, including those below such entries.
+(deftest copy-disabled-for-shared-node-outline-entries
+  (test-util/with-loaded-project
+    (let [[source _child state outline-view]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes [source [SharedOutlineNode :name "Source"]
+                             child [SharedOutlineNode :name "Child"]
+                             state OutlineCopyState
+                             outline-view outline-view/OutlineView]
+                (attach-shared-outline-node source child)
+                (g/connect state :active outline-view :outline-active)
+                (g/connect state :selection outline-view :selection))))
+          decorated-outline (:outline (outline-view/decorate-outline
+                                        (g/node-value source :node-outline) #{} #{} @test-util/localization []))]
+      (doseq [[paths copyable] [[[] false]
+                                [[[]] true]
+                                [[[0]] false]
+                                [[[0 0]] true]
+                                [[[0 0 0]] false]
+                                [[[] [0]] false]
+                                [[[0 0] [0]] false]
+                                [[[0] [0 0 0]] false]]]
+        (let [selection (mapv #(reduce (fn [entry index] (get-in entry [:children index])) decorated-outline %) paths)]
+          (g/set-property! state :selection (mapv :selection-id selection))
+          (doseq [context-selection [selection (mapv :node-id selection)]]
+            (is (= copyable
+                   (test-util/handler-enabled? :edit.copy
+                                               [(handler/->context :workbench
+                                                                   {:outline-view outline-view
+                                                                    :selection context-selection}
+                                                                   nil {} {Long :node-id})]
+                                               {}))
+                (str "Selected outline paths: " paths))))))))
+
+;; Copy/paste passes through shared-id grouping entries, preserving real child
+;; attachments without recursing back into or attaching the parent to itself.
+(deftest copy-paste-shared-node-outline-entries
+  (test-util/with-loaded-project
+    (let [[source child target]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes [source [SharedOutlineNode :name "Source"]
+                             child [SharedOutlineNode :name "Child"]
+                             _target [SharedOutlineNode :name "Target"]]
+                (attach-shared-outline-node source child))))
+          data (outline/copy project [(->iterator source [])])]
+      (is (= source (:node-id (outline source [0]))))
+      (is (= child (:node-id (outline source [0 0]))))
+      (is (outline/paste? project (->iterator target [0]) data))
+      (outline/paste! project (->iterator target [0]) data nil)
+      (is (= "Source" (:label (outline target [0 0]))))
+      (is (= "Child" (:label (outline target [0 0 0 0]))))
+      (is (not= source (:node-id (outline target [0 0]))))
+      (is (not= child (:node-id (outline target [0 0 0 0])))))))

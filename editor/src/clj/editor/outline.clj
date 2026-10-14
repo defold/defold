@@ -24,7 +24,8 @@
             [internal.graph.types :as gt]
             [schema.core :as s]
             [service.log :as log]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.defonce :as defonce])
   (:import [com.defold.editor.localization MessagePattern]
            [internal.graph.types Arc]))
 
@@ -77,6 +78,7 @@
                         (s/optional-key :link)                (s/maybe (s/pred valid-link?))
                         (s/optional-key :children)            [s/Any]
                         (s/optional-key :child-reqs)          [s/Any]
+                        (s/optional-key :properties)          (g/value-type-schema g/Properties)
                         (s/optional-key :outline-error?)      s/Bool
                         (s/optional-key :outline-overridden?) s/Bool
                         (s/optional-key :outline-reference?)  s/Bool
@@ -88,13 +90,52 @@
   (input child-outlines OutlineData :array)
   (output node-outline OutlineData :abstract))
 
+(defonce/record OutlineEntrySelection [node-id key-path])
+
+(defn entry-selection? [selection]
+  (instance? OutlineEntrySelection selection))
+
+(defn selection-path
+  "Extends an outline selection path within a node; a different node starts a new path."
+  [parent-path {:keys [node-id node-outline-key]}]
+  (if (= node-id (first parent-path))
+    (cond-> parent-path node-outline-key (conj node-outline-key))
+    [node-id]))
+
+(defn selection-id
+  "Ordinary entries select their node; shared-id entries select a path within it."
+  [path]
+  (if (= 1 (count path))
+    (first path)
+    (->OutlineEntrySelection (first path) (subvec path 1))))
+
+(defn selection-node-id
+  "Returns the graph node referenced by a node or outline-entry selection."
+  [selection]
+  (if (entry-selection? selection)
+    (:node-id selection)
+    selection))
+
+(defn selection-id->outline
+  "Indexes the currently available outline entries by their selection identities."
+  [root]
+  (letfn [(collect [result parent-path item]
+            (let [path (selection-path parent-path item)]
+              (reduce #(collect %1 path %2)
+                      (assoc result (selection-id path) item)
+                      (:children item))))]
+    (collect {} [] root)))
+
 (defn- outline-attachments
   [node-id]
-  (let [{:keys [children]} (g/node-value node-id :node-outline)
-        child-ids (map :node-id children)]
-    (into (mapv (fn [child-id]
-                  [node-id child-id]) child-ids)
-          (mapcat outline-attachments child-ids))))
+  (letfn [(collect [attachments parent-id item]
+            (let [child-id (:node-id item)
+                  attachments (cond-> attachments
+                                (not= parent-id child-id) (conj [parent-id child-id]))]
+              (reduce #(collect %1 child-id %2) attachments (:children item))))]
+    ;; Shared-id entries group UI items without introducing graph attachments.
+    ;; Traverse their children directly instead of reading the same node again.
+    (collect [] node-id (g/node-value node-id :node-outline))))
 
 (defn- add-attachments
   [fragment root-ids]
@@ -145,7 +186,9 @@
   ([project src-item-iterators]
    (copy project src-item-iterators default-copy-traverse))
   ([project src-item-iterators traverse?]
-   (let [root-ids (mapv #(:node-id (value %)) src-item-iterators)
+   (let [root-ids (coll/into-> src-item-iterators []
+                    (map #(:node-id (value %)))
+                    (distinct))
          fragment (-> (g/copy root-ids {:traverse? traverse?
                                         :external-refs {project :project}
                                         :external-labels {project #{:collision-groups
@@ -189,7 +232,9 @@
    (cut! project src-item-iterators []))
   ([project src-item-iterators extra-tx-data]
    (let [data (copy project src-item-iterators)
-         root-ids (mapv #(:node-id (value %)) src-item-iterators)]
+         root-ids (coll/into-> src-item-iterators []
+                    (map #(:node-id (value %)))
+                    (distinct))]
      (g/transact
        (concat
          (g/operation-label (localization/message "operation.cut"))

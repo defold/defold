@@ -43,6 +43,7 @@
             [editor.math :as math]
             [editor.mouse-binding :as mouse-binding]
             [editor.os :as os]
+            [editor.outline :as outline]
             [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -643,10 +644,13 @@
         world-translation (math/transform parent-world-transform local-translation)
         world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
         world-scale (math/multiply-vector parent-world-scale local-scale)
-        picking-node-id (or (:picking-node-id scene) node-id)
+        selection-id (:selection-id scene node-id)
+        picking-node-id (or (:picking-node-id scene) selection-id)
         selection-state (cond
-                          (contains? selection-set node-id) :self-selected ; This node is selected.
-                          (some selection-set node-id-path) :parent-selected) ; Child nodes appear dimly selected if their parent is selected.
+                          (contains? selection-set selection-id) :self-selected ; This node is selected.
+                          (or (coll/any? selection-set node-id-path)
+                              (and (outline/entry-selection? selection-id)
+                                   (contains? selection-set (outline/selection-node-id selection-id)))) :parent-selected) ; Child nodes appear dimly selected if their parent is selected.
         has-hidden-outline-key-path (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path)
         has-hidden-tag (coll/any? #(contains? hidden-renderable-tags %) (:tags renderable))
         is-visible (and parent-shows-children
@@ -714,9 +718,18 @@
                     child-node-id-path (if is-child-node-same-as-parent
                                          node-id-path
                                          (conj node-id-path child-node-id))
-                    child-node-outline-key-path (if is-child-node-same-as-parent
+                    child-key (:node-outline-key child-scene)
+                    derived-child (and is-child-node-same-as-parent
+                                       (contains? child-scene :selection-id)
+                                       (not= selection-id (:selection-id child-scene)))
+                    child-node-outline-key-path (if (and is-child-node-same-as-parent (not derived-child))
                                                   node-outline-key-path
-                                                  (conj node-outline-key-path (:node-outline-key child-scene)))]
+                                                  (conj node-outline-key-path child-key))
+                    child-scene (cond-> child-scene
+                                  (and (or is-child-node-same-as-parent (nil? child-node-id))
+                                       (not (contains? child-scene :selection-id))
+                                       (contains? scene :selection-id))
+                                  (assoc :selection-id selection-id))]
                 (flatten-scene-renderables! flattened-scene
                                             (and parent-shows-children (:visible-children? renderable true))
                                             (not is-child-node-same-as-parent)
@@ -798,19 +811,17 @@
                      geom/empty-bounding-box
                      scene-aabb)})))
 
-(defn- get-selection-pass-renderables-by-node-id
-  "Returns a map of renderables that were in a selection pass by their node id.
+(defn- get-selection-pass-renderables-by-selection-id
+  "Returns a map of renderables that were in a selection pass by selection id.
   If a renderable appears in multiple selection passes, the one from the latter
   pass will be picked. This should be fine, since the flat-renderable added
   by update-pass-renderables! will be the same for all passes."
   [renderables-by-pass]
-  (into {}
-        (comp (filter (comp types/selection? key))
-              (mapcat (fn [[_pass renderables]]
-                        (map (fn [renderable]
-                               [(:node-id renderable) renderable])
-                             renderables))))
-        renderables-by-pass))
+  (coll/into-> renderables-by-pass {}
+    (filter (comp types/selection? key))
+    (mapcat val)
+    (map (fn [renderable]
+           [(:selection-id renderable (:node-id renderable)) renderable]))))
 
 (g/defnk produce-scene-render-data [scene preview-overrides selection hidden-renderable-tags hidden-node-outline-key-paths local-camera]
   (if-let [error (:error scene)]
@@ -822,8 +833,9 @@
     (let [selection-set (set selection)
           view-matrix (c/camera-view-matrix local-camera)
           {:keys [renderables] :as flattened-scene} (flatten-scene scene preview-overrides selection-set hidden-renderable-tags hidden-node-outline-key-paths view-matrix)
-          selection-pass-renderables-by-node-id (get-selection-pass-renderables-by-node-id renderables)
-          selected-renderables (into [] (keep selection-pass-renderables-by-node-id) selection)]
+          selection-pass-renderables-by-selection-id (get-selection-pass-renderables-by-selection-id renderables)
+          selected-renderables (coll/into-> selection []
+                                 (keep selection-pass-renderables-by-selection-id))]
       (assoc flattened-scene :selected-renderables selected-renderables))))
 
 (defn- make-aabb-renderables-by-pass [^AABB aabb color renderable-tag]
@@ -2228,7 +2240,7 @@
       (g/connect view-id         :viewport                      camera          :viewport)
 
       (when (:inherit-selection opts true)
-        (g/connect app-view-id   :selected-node-ids             view-id         :selection))
+        (g/connect app-view-id   :outline-selection             view-id         :selection))
       (g/connect app-view-id     :active-view                   view-id         :active-view)
       (g/connect app-view-id     :active-tool                   view-id         :active-tool)
       (g/connect app-view-id     :manip-space                   view-id         :manip-space)

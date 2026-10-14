@@ -841,6 +841,9 @@ public class TextureGenerator {
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
         TimeProfiler.stop();
+        if (origImage == null) {
+            throw new TextureGeneratorException("Unknown texture format.");
+        }
         return generate(origImage, texProfile, compress, flipAxis);
     }
 

@@ -21,11 +21,13 @@
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
             [editor.camera :as camera]
+            [editor.colors :as colors]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.gl.pass :as pass]
             [editor.gltf :as gltf]
             [editor.model-scene :as model-scene]
+            [editor.outline :as outline]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -563,6 +565,7 @@
                                          (workspace/find-resource workspace "/models/robot.gltf") nil #(workspace/find-resource workspace %)))))))))))
 
 ;; Authored mips expose read-only metadata and support Outline/scene selection.
+;; Decorative borders must inherit the selection to highlight the selected mip.
 (deftest ktx2-mip-preview-and-selection
   (with-ktx2-project
     (fn [_project-path _workspace project]
@@ -573,7 +576,7 @@
                 outline (g/node-value node :node-outline)
                 mips (:children outline)
                 preview-scene (g/node-value node :scene)
-                selected-mip (:node-id (second mips))
+                selected-mip (outline/->OutlineEntrySelection node ["mip-1"])
                 render-data (g/node-value view :scene-render-data)]
             (is (= {:width 8 :height 4} (g/node-value node :size)))
             (is (not (g/error-value? (g/node-value node :gpu-texture))))
@@ -586,13 +589,19 @@
             (doseq [[property expected] [[:dimensions [8 4]] [:format "UASTC"] [:supercompression "—"]
                                          [:mip-count 2] [:channels 3] [:color-space "Linear"]
                                          [:premultiplied-alpha false] [:orientation "rd"]]]
-              (let [property-data (get-in (g/node-value node :_properties) [:properties property])]
+              (let [property-data (get-in outline [:properties :properties property])]
                 (is (= expected (:value property-data)))
                 (is (true? (:read-only? property-data)))))
-            (is (= (set (map :node-id mips))
-                   (into #{} (map :picking-node-id) (get-in render-data [:renderables pass/selection]))))
+            (is (= (coll/into-> mips #{}
+                     (map #(outline/->OutlineEntrySelection node [(:node-outline-key %)])))
+                   (coll/into-> (get-in render-data [:renderables pass/selection]) #{}
+                     (map :picking-node-id))))
             (app-view/select! app-view [selected-mip])
-            (is (= [selected-mip] (mapv :node-id (g/node-value view :selected-renderables))))
+            (is (= [selected-mip] (mapv :selection-id (g/node-value view :selected-renderables))))
+            (let [selected-borders (coll/into-> (get-in (g/node-value view :scene-render-data) [:renderables pass/outline]) []
+                                     (filter #(= selected-mip (:selection-id %))))]
+              (is (= 1 (count selected-borders)))
+              (is (= [colors/selected-outline-color] (mapv colors/renderable-outline-color selected-borders))))
             (let [selected-properties (properties/coalesce (g/node-value app-view :selected-node-properties))]
               (is (= [[4 2]] (get-in selected-properties [:properties :dimensions :values])))
               (is (true? (get-in selected-properties [:properties :dimensions :read-only?]))))
@@ -602,7 +611,7 @@
                                                     (g/node-value view :viewport)
                                                     (Point3d. 26.0 1.0 0.0))]
               (test-util/mouse-click! view (.x screen-pos) (.y screen-pos))
-              (is (= [selected-mip] (g/node-value app-view :selected-node-ids))))))))))
+              (is (= [selected-mip] (g/node-value app-view :outline-selection))))))))))
 
 ;; Profile matching agrees with Bob, and unsaved edits invalidate KTX2 builds
 ;; and previews.
@@ -627,7 +636,8 @@
               gpu-before (g/node-value virtual :gpu-texture-generator)
               built-before (with-open [_build (test-util/build! virtual)]
                              (vec (test-util/node-build-output virtual)))]
-          ;; Edit in memory only. Build and preview must track unsaved profile changes.
+          ;; Edit in memory only. Build and preview must track unsaved profile
+          ;; changes.
           (g/transact (g/update-property profiles :pb assoc-in [:profiles 0 :platforms 0 :max-texture-size] 4))
           (is (= 4 (get-in (g/node-value virtual :texture-profile) [:platforms 0 :max-texture-size])))
           (is (not= (:content-hash target-before) (:content-hash (first (g/node-value virtual :build-targets)))))
@@ -679,8 +689,8 @@
             (is (not= before (:content-hash (first (g/node-value (test-util/resource-node project virtual-path) :build-targets)))))
             (doseq [path ["/models/albedo.ktx2" virtual-path]]
               (let [node (test-util/resource-node project path)]
-                (is (= format (g/node-value node :format)))
-                (is (= supercompression (g/node-value node :supercompression)))
+                (is (= format (:format (g/node-value node :texture-info))))
+                (is (= supercompression (:supercompression (g/node-value node :texture-info))))
                 (is (= mip-count (count (:children (g/node-value node :node-outline)))))
                 (is (= mip-count (count (:children (g/node-value node :scene)))))))))
         (fs/delete-file! image-file)
@@ -694,10 +704,70 @@
         (doseq [path ["/models/albedo.ktx2" virtual-path]]
           (let [node (test-util/resource-node project path)]
             (is (= {:width 8 :height 4} (g/node-value node :size)))
-            (is (= "UASTC" (g/node-value node :format)))
+            (is (= "UASTC" (:format (g/node-value node :texture-info))))
             (is (= 2 (count (:children (g/node-value node :node-outline)))))))))))
 
-;; Buffer edits reload KTX2 metadata and mips for file and ZIP resources.
+;; Source edits preserve mip identities and selection, hide absent levels, and
+;; update read-only Properties when a selected level returns after invalid data.
+(deftest ktx2-mip-identities-survive-source-edits
+  (with-ktx2-project
+    (fn [project-path workspace project]
+      (let [image-path "/models/albedo.ktx2"
+            image-file (io/file project-path "models/albedo.ktx2")
+            image-node (test-util/resource-node project image-path)
+            selected-mip (outline/->OutlineEntrySelection image-node ["mip-1"])
+            app-view (test-util/setup-app-view! project)
+            [_ view] (test-util/open-scene-view! project app-view image-path 320 160)]
+        (is (= [] (g/node-value image-node :nodes)))
+        (app-view/select! app-view [selected-mip])
+        (is (= [selected-mip] (mapv :selection-id (g/node-value view :selected-renderables))))
+        (doseq [[name mip-count] [["bc7" 1] ["uastc" 2]]]
+          (test-support/write-until-new-mtime image-file (ktx2-bytes name))
+          (workspace/resource-sync! workspace)
+          (is (= image-node (test-util/resource-node project image-path)))
+          (is (= [] (g/node-value image-node :nodes)))
+          (is (= mip-count (count (:children (g/node-value image-node :node-outline)))))
+          (is (= mip-count (count (:children (g/node-value image-node :scene)))))
+          (let [present (= 2 mip-count)
+                selected-properties (properties/coalesce (g/node-value app-view :selected-node-properties))]
+            (is (= (if present [selected-mip] [])
+                   (mapv :selection-id (g/node-value view :selected-renderables))))
+            (is (= (if present [selected-mip] []) (g/node-value app-view :outline-selection)))
+            (when-not present
+              (is (= {} (:properties selected-properties))))
+            (when present
+              (is (= [[4 2]] (get-in selected-properties [:properties :dimensions :values])))
+              (is (true? (get-in selected-properties [:properties :dimensions :read-only?]))))))
+        (app-view/select! app-view [image-node selected-mip])
+        (test-support/write-until-new-mtime image-file (ktx2-bytes "bc7"))
+        (workspace/resource-sync! workspace)
+        (is (= [image-node] (g/node-value app-view :outline-selection)))
+        (let [selected-properties (properties/coalesce (g/node-value app-view :selected-node-properties))]
+          (is (= ["BC7"] (get-in selected-properties [:properties :format :values])))
+          (is (= [[8 4]] (get-in selected-properties [:properties :dimensions :values]))))
+        (test-support/write-until-new-mtime image-file (ktx2-bytes "uastc"))
+        (workspace/resource-sync! workspace)
+        ;; A disappearing entry must stop affecting coalescing of the survivor.
+        (app-view/select! app-view [(outline/->OutlineEntrySelection image-node ["mip-0"]) selected-mip])
+        (test-support/write-until-new-mtime image-file (ktx2-bytes "bc7"))
+        (workspace/resource-sync! workspace)
+        (is (= [(outline/->OutlineEntrySelection image-node ["mip-0"])] (g/node-value app-view :outline-selection)))
+        (let [selected-properties (properties/coalesce (g/node-value app-view :selected-node-properties))]
+          (is (= [[8 4]] (get-in selected-properties [:properties :dimensions :values])))
+          (is (= [0] (get-in selected-properties [:properties :level :values]))))
+        (app-view/select! app-view [selected-mip])
+        (test-support/write-until-new-mtime image-file "invalid KTX2")
+        (workspace/resource-sync! workspace)
+        (is (g/error-value? (g/node-value image-node :scene)))
+        (test-support/write-until-new-mtime image-file (ktx2-bytes "uastc"))
+        (workspace/resource-sync! workspace)
+        (is (= image-node (test-util/resource-node project image-path)))
+        (is (= [] (g/node-value image-node :nodes)))
+        (is (= [selected-mip] (mapv :selection-id (g/node-value view :selected-renderables))))
+        (is (= [[4 2]] (get-in (properties/coalesce (g/node-value app-view :selected-node-properties)) [:properties :dimensions :values])))))))
+
+;; Buffer edits invalidate derived KTX2 data without child nodes
+;; for file and ZIP resources, without recording an image snapshot change.
 (deftest buffer-backed-ktx2-reloads-metadata-and-mips
   (doseq [origin [:file :zip]]
     (testing origin
@@ -717,17 +787,24 @@
           (fn [project-path workspace project]
             (let [image-path "/models/robot.gltf/images/0.ktx2"
                   buffer-file (io/file project-path "images.bin")
+                  image-node (test-util/resource-node project image-path)
                   build-hashes (atom [])]
+              (is (= [] (g/node-value image-node :nodes)))
               (is (g/error-value? (g/node-value (test-util/resource-node project image-path) :content-generator)))
               (doseq [{:keys [bytes format mip-count]} fixtures]
-                (let [buffer (byte-array (+ 4 length))]
+                (let [old-snapshot (g/node-value workspace :resource-snapshot)
+                      buffer (byte-array (+ 4 length))]
                   (System/arraycopy bytes 0 buffer 4 (alength ^bytes bytes))
-                  (test-support/write-until-new-mtime buffer-file buffer))
-                (workspace/resource-sync! workspace)
+                  (test-support/write-until-new-mtime buffer-file buffer)
+                  (workspace/resource-sync! workspace)
+                  (is (not (contains? (proj-paths (:changed (resource-watch/diff old-snapshot (g/node-value workspace :resource-snapshot)))) image-path))))
                 (let [node (test-util/resource-node project image-path)]
-                  (is (= format (g/node-value node :format)))
+                  (is (= image-node node))
+                  (is (= [] (g/node-value node :nodes)))
+                  (is (= format (:format (g/node-value node :texture-info))))
                   (is (= mip-count (count (:children (g/node-value node :node-outline)))))
                   (is (= mip-count (count (g/node-value node :mip-texture-request-datas))))
+                  (is (= mip-count (count (g/node-value node :mip-gpu-textures))))
                   (with-open [_build (test-util/build! node)]
                     (swap! build-hashes conj (vec (test-util/node-build-output node))))))
               (is (= 3 (count (set @build-hashes))))
@@ -740,7 +817,9 @@
                 (test-support/write-until-new-mtime buffer-file buffer))
               (workspace/resource-sync! workspace)
               (let [node (test-util/resource-node project image-path)]
-                (is (= "UASTC" (g/node-value node :format)))
+                (is (= image-node node))
+                (is (= [] (g/node-value node :nodes)))
+                (is (= "UASTC" (:format (g/node-value node :texture-info))))
                 (is (= 2 (count (:children (g/node-value node :node-outline)))))))))))))
 
 (deftest buffer-backed-images-reload-when-buffers-change
