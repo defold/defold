@@ -395,8 +395,10 @@ struct DepthTextureTest : ClearBackbufferTest
     }
 };
 
-// Run with "vulkan depth-only-render-target" to verify non-square depth-only
-// and depth/stencil targets through creation, clear, framebuffer extent and resize.
+// Run with "vulkan depth-only-render-target". Guards against the Vulkan crash
+// when creating depth-only or depth/stencil render targets without color attachments.
+// Verifies creation, clear, framebuffer extent and resize for non-square targets,
+// both with and without a color attachment.
 struct DepthOnlyRenderTargetTest : ClearBackbufferTest
 {
     void Execute(EngineCtx* engine) override
