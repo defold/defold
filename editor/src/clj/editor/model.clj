@@ -275,7 +275,7 @@
           materials
           material-binding-infos)))
 
-(defn- validate-skinned-materials [_node-id mesh-content mesh mesh-name mesh-index material-skinning-infos]
+(defn- validate-skinned-materials [node-id mesh-content mesh mesh-name mesh-index material-skinning-infos]
   (let [mesh-set (:mesh-set mesh-content)
         slots (mapv :name (:materials mesh-set))
         slot-index (fn slot-index [material-info] (coll/index-of slots (:name material-info)))
@@ -300,7 +300,7 @@
                 (when-let [material-info (get skinned-material-by-slot (nth runtime-slots material-index))]
                   (when (or (coll/empty? weights) (coll/empty? bone-indices))
                     (g/->error
-                      _node-id :materials :fatal nil
+                      node-id :materials :fatal nil
                       (localization/message
                         "error.model-skinned-material"
                         {"material" (resource/proj-path (:material material-info))
@@ -439,7 +439,7 @@
   (output gpu-textures g/Any :cached model-scene/produce-gpu-textures)
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
   (output material-scene-info g/Any (g/fnk [shader vertex-space gpu-textures name material-attribute-infos vertex-attribute-bytes :as info] info))
-  (output material-skinning-info g/Any
+  (output material-skinning-info g/Any :cached
           (g/fnk [name material dep-build-targets]
             {:name name
              :material material
