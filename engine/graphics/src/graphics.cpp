@@ -2417,6 +2417,12 @@ namespace dmGraphics
     }
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
+        if (buffer_type_flags == 0)
+        {
+            dmLogError("Render targets must have at least one attachment.");
+            return 0;
+        }
+
         if (params.m_TextureType != TEXTURE_TYPE_2D && params.m_TextureType != TEXTURE_TYPE_CUBE_MAP)
         {
             dmLogError("Render target texture type %s is not supported.", GetTextureTypeLiteral(params.m_TextureType));

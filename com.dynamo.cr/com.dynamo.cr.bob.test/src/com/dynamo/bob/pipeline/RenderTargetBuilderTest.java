@@ -20,6 +20,26 @@ import com.dynamo.bob.CompileExceptionError;
 
 public class RenderTargetBuilderTest extends AbstractProtoBuilderTest {
 
+    // Reject empty resources before an attachment-free framebuffer reaches a graphics driver.
+    @Test(expected = CompileExceptionError.class)
+    public void testMissingAttachments() throws Exception {
+        build("/empty.render_target", "");
+    }
+
+    // A depth/stencil-only target is valid and must not be rejected as attachment-free.
+    @Test
+    public void testDepthStencilOnly() throws Exception {
+        ParseUtil.addParser("render_targetc", com.dynamo.render.proto.RenderTarget.RenderTargetDesc::parseFrom);
+        build("/depth.render_target", "depth_stencil_attachment { width: 64 height: 32 texture_storage: true }\n");
+    }
+
+    // Color-only targets remain valid when the depth/stencil attachment is disabled.
+    @Test
+    public void testColorOnly() throws Exception {
+        ParseUtil.addParser("render_targetc", com.dynamo.render.proto.RenderTarget.RenderTargetDesc::parseFrom);
+        build("/color.render_target", "color_attachments { width: 64 height: 32 }\n");
+    }
+
     @Test(expected = CompileExceptionError.class)
     public void testUnsupportedTextureType() throws Exception {
         build("/unsupported.render_target",

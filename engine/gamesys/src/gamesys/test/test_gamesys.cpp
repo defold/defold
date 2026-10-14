@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include <render/render_target_ddf.h>
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -203,6 +204,35 @@ TEST_F(TileGrid3DResourceTest, LoadTileGrid)
     void* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.tilemapc", &resource));
     ASSERT_NE((void*) 0, resource);
+    dmResource::Release(m_Factory, resource);
+}
+
+// Reject empty serialized resources without creating an invalid framebuffer.
+TEST_F(RenderTargetResourceTest, EmptyRenderTargetFailsToCreate)
+{
+    dmRenderDDF::RenderTargetDesc desc = {};
+    desc.m_Type = dmGraphics::TextureImage::TYPE_2D;
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmRenderDDF::RenderTargetDesc::m_DDFDescriptor, buffer));
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::CreateResource(m_Factory, "/empty.render_targetc", buffer.Begin(), buffer.Size(), &resource));
+    ASSERT_EQ((void*) 0, resource);
+}
+
+// An empty hot reload must fail without replacing the existing render target.
+TEST_F(RenderTargetResourceTest, EmptyRenderTargetFailsToReload)
+{
+    const char* path = "/render_target/valid.render_targetc";
+    dmGameSystem::RenderTargetResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**) &resource));
+    dmGraphics::HRenderTarget original = resource->m_RenderTarget;
+    dmRenderDDF::RenderTargetDesc desc = {};
+    desc.m_Type = dmGraphics::TextureImage::TYPE_2D;
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmRenderDDF::RenderTargetDesc::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    ASSERT_EQ(original, resource->m_RenderTarget);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, original));
     dmResource::Release(m_Factory, resource);
 }
 

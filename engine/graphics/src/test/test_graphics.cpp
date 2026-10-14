@@ -2314,6 +2314,13 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
+// Reject empty render targets before adapters create invalid framebuffers.
+TEST_F(dmGraphicsTest, TestRenderTargetWithoutAttachments)
+{
+    dmGraphics::RenderTargetCreationParams params = {};
+    ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, 0, params));
+}
+
 TEST_F(dmGraphicsTest, TestCubeMapRenderTarget)
 {
     dmGraphics::RenderTargetCreationParams params = InitializeRenderTargetParams(WIDTH, WIDTH);
