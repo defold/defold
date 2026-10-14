@@ -727,14 +727,15 @@
 
 (defn- connect-fn
   [annotations reference-completions project self resource]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [script-intelligence (project/script-intelligence project evaluation-context)
-          script-annotations (project/script-annotations project evaluation-context)]
-      (e/concat
-        (when reference-completions
-          (g/connect self :required-module-info script-intelligence :required-module-infos))
-        (when (and annotations (resource/zip-resource? resource))
-          (g/connect self :resource-with-lines script-annotations :script-annotations))))))
+  (g/expand-ec
+    (fn connect-script [evaluation-context]
+      (let [script-intelligence (project/script-intelligence project evaluation-context)
+            script-annotations (project/script-annotations project evaluation-context)]
+        (e/concat
+          (when reference-completions
+            (g/connect self :required-module-info script-intelligence :required-module-infos))
+          (when (and annotations (resource/zip-resource? resource))
+            (g/connect self :resource-with-lines script-annotations :script-annotations)))))))
 
 (defn- script-dependencies [_read-opts _owner-resource lines]
   (let [lua-info

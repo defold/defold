@@ -34,9 +34,10 @@
               #(data/lines-reader lines)))))
 
 (defn- connect-fn [project self _resource]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [bundle (project/editor-localization-bundle project evaluation-context)]
-      (g/connect self :resource-path+reader-fn bundle :resource-path+reader-fns))))
+  (g/expand-ec
+    (fn connect-editor-localization [evaluation-context]
+      (let [bundle (project/editor-localization-bundle project evaluation-context)]
+        (g/connect self :resource-path+reader-fn bundle :resource-path+reader-fns)))))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type

@@ -81,7 +81,14 @@
 
 (defn initialize-project! [system-config]
   (when (nil? @the-root)
-    (g/initialize! (assoc system-config :cache-retain? project/cache-retain?))))
+    (let [loading-thread (Thread/currentThread)]
+      (g/initialize! (assoc system-config
+                       :cache-retain? project/cache-retain?
+                       ;; Loading owns the system until it is handed to the UI.
+                       :on-system-thread? (fn on-system-thread? []
+                                            (or (ui/on-ui-thread?)
+                                                (and (nil? @the-root)
+                                                     (identical? loading-thread (Thread/currentThread))))))))))
 
 (defn- setup-workspace! [project-path build-settings workspace-config localization]
   (let [workspace (workspace/make-workspace project-path build-settings workspace-config localization)]

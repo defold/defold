@@ -27,6 +27,7 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.async :as async]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.camera :as camera]
@@ -1664,14 +1665,15 @@
 
 (defn- build-html5! [app-view project prefs web-server build-errors-view changes-view bob-commands]
   (future/io
-    (let [{:keys [error] :as build-results}
-          (invoke-bob! app-view project changes-view build-errors-view prefs (bob/build-html5-bob-options project prefs) bob-commands)]
-      (when-not error
-        (let [url (str (http-server/local-url web-server) "/html5")]
-          (if (prefs/get prefs [:build :open-html5-build])
-            (ui/open-url url)
-            (console/append-console-entry! nil (format "INFO: The game is available at %s" url)))))
-      build-results)))
+    (async/let-ec [bob-options (bob/build-html5-bob-options project prefs evaluation-context)]
+      (let [{:keys [error] :as build-results}
+            (invoke-bob! app-view project changes-view build-errors-view prefs bob-options bob-commands)]
+        (when-not error
+          (let [url (str (http-server/local-url web-server) "/html5")]
+            (if (prefs/get prefs [:build :open-html5-build])
+              (ui/open-url url)
+              (console/append-console-entry! nil (format "INFO: The game is available at %s" url)))))
+        build-results))))
 
 (handler/defhandler :project.clean-build-html5 :global
   (enabled? [] (disk-availability/available?))
@@ -3614,7 +3616,7 @@
   (ui/invalidate-menubar-item! ::project/bundle))
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs localization web-server]
-  (let [library-uris (project/project-dependencies project)]
+  (async/let-ec [library-uris (project/project-dependencies project evaluation-context)]
     (future/io
       (try
         (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]

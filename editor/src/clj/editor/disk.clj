@@ -15,6 +15,7 @@
 (ns editor.disk
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.async :as async]
             [editor.changes-view :as changes-view]
             [editor.defold-project :as project]
             [editor.disk-availability :as disk-availability]
@@ -73,42 +74,39 @@
 (defonce ^:private reload-job-atom (atom nil))
 
 (defn- start-reload-job! [render-progress! workspace moved-files changes-view]
-  (let [project-directory (workspace/project-directory workspace)
-        dependencies (workspace/dependencies workspace)
-        snapshot-cache (workspace/snapshot-cache workspace)
-        success-promise (promise)
-        complete! (fn [successful?]
-                    (render-progress! progress/done)
-                    (reset! reload-job-atom nil)
-                    (deliver success-promise successful?))
-        fail! (fn [error]
-                (error-reporting/report-exception! error)
-                (complete! false))]
-    (future
-      (try
-        (render-progress! (progress/make-indeterminate (localization/message "progress.loading-external-changes")))
-        (let [snapshot-info (workspace/make-snapshot-info workspace project-directory dependencies snapshot-cache)]
-          (render-progress! progress/done)
-          (ui/run-later
-            (try
-              (workspace/update-snapshot-cache! workspace (:snapshot-cache snapshot-info))
-              (let [diff (workspace/resource-sync! workspace moved-files render-progress! (:snapshot snapshot-info) (:map snapshot-info))]
-                (when (some? changes-view)
-                  ;; The call to resource-sync! will refresh the changes view if
-                  ;; it detected changes, but committing a file from the command
-                  ;; line will not actually change the file as far as
-                  ;; resource-sync! is concerned. To ensure the changed files
-                  ;; view reflects the current Git state, we explicitly refresh
-                  ;; the changes view here if the call to resource-sync! would
-                  ;; not have already done so.
-                  (when (resource-watch/empty-diff? diff)
-                    (changes-view/refresh! changes-view))))
-              (complete! true)
-              (catch Throwable error
-                (fail! error)))))
-        (catch Throwable error
-          (fail! error))))
-    success-promise))
+  (async/let-ec [dependencies (workspace/dependencies workspace evaluation-context)
+                 snapshot-cache (g/node-value workspace :snapshot-cache evaluation-context)]
+    (let [project-directory (workspace/project-directory workspace)
+          success-promise (promise)
+          complete! (fn [successful?]
+                      (render-progress! progress/done)
+                      (reset! reload-job-atom nil)
+                      (deliver success-promise successful?))
+          fail! (fn [error]
+                  (error-reporting/report-exception! error)
+                  (complete! false))]
+      (future
+        (try
+          (render-progress! (progress/make-indeterminate (localization/message "progress.loading-external-changes")))
+          (let [snapshot-info (workspace/make-snapshot-info workspace project-directory dependencies snapshot-cache)]
+            (render-progress! progress/done)
+            (ui/run-later
+              (try
+                (workspace/update-snapshot-cache! workspace (:snapshot-cache snapshot-info))
+                (let [diff (workspace/resource-sync! workspace moved-files render-progress! (:snapshot snapshot-info) (:map snapshot-info))]
+                  (when (some? changes-view)
+                    ;; resource-sync! refreshes the changes view when files
+                    ;; change. Committing from the command line leaves files
+                    ;; unchanged, so refresh explicitly in that case to show
+                    ;; the current Git state.
+                    (when (resource-watch/empty-diff? diff)
+                      (changes-view/refresh! changes-view))))
+                (complete! true)
+                (catch Throwable error
+                  (fail! error)))))
+          (catch Throwable error
+            (fail! error))))
+      success-promise)))
 
 (defn async-reload!
   ([render-progress! workspace moved-files changes-view]
@@ -249,8 +247,8 @@
          (ifn? save-data-fn)
          (g/node-id? project)
          (or (nil? changes-view) (g/node-id? changes-view))]}
-  (g/let-ec [workspace (project/workspace project evaluation-context)
-             localization (workspace/localization workspace evaluation-context)]
+  (async/let-ec [workspace (project/workspace project evaluation-context)
+                 localization (workspace/localization workspace evaluation-context)]
     (let [project-directory (workspace/project-directory workspace)
           old-defignore-patterns (resource/project-defignore-patterns project-directory)
           success-promise (promise)
@@ -285,7 +283,8 @@
                 (future
                   (try
                     (render-save-progress! (progress/make-indeterminate (localization/message "progress.reading-timestamps")))
-                    (project/reload-plugins! project written-resources)
+                    (ui/run-now
+                      (project/reload-plugins! project written-resources))
                     (lsp/touch-resources! (lsp/get-lsp) written-resources)
                     (cond
                       reload-required
@@ -293,7 +292,8 @@
 
                       (and changes-view (coll/not-empty written-resources))
                       (do
-                        (changes-view/refresh! changes-view)
+                        (ui/run-now
+                          (changes-view/refresh! changes-view))
                         (complete! true))
 
                       :else

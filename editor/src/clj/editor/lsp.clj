@@ -18,6 +18,7 @@
             [clojure.set :as set]
             [clojure.spec.alpha :as s]
             [dynamo.graph :as g]
+            [editor.async :as async]
             [editor.code.data :as data]
             [editor.error-reporting :as error-reporting]
             [editor.lsp.async :as lsp.async]
@@ -585,7 +586,7 @@
 
 (defn- sync-resource-state!
   ([state resource]
-   (lsp.async/with-auto-evaluation-context evaluation-context
+   (async/with-auto-evaluation-context evaluation-context
      (sync-resource-state! state resource evaluation-context)))
   ([{:keys [project get-resource-node] :as state} resource evaluation-context]
    (let [resource-node (get-resource-node project resource evaluation-context)]
@@ -788,7 +789,7 @@
   [lsp]
   ;; bound-fn only needed for tests to pick up the test system
   (lsp (bound-fn check-if-polled-resources-are-modified [{:keys [polled-resources] :as state}]
-         (lsp.async/with-auto-evaluation-context evaluation-context
+         (async/with-auto-evaluation-context evaluation-context
            (reduce #(sync-resource-state! %1 %2 evaluation-context) state polled-resources)))))
 
 (let [method (-> Globs
@@ -843,7 +844,7 @@
                interesting-removed (filterv #(interesting-resource? state %) removed)
                interesting-changed (filterv #(interesting-resource? state %) changed)
                viewed-moved (filterv #(resource-viewed? state (first %)) moved)]
-           (lsp.async/with-auto-evaluation-context evaluation-context
+           (async/with-auto-evaluation-context evaluation-context
              (as-> state $
                (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-added)
                (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-removed)
@@ -882,7 +883,7 @@
   (lsp (bound-fn [{:keys [project] :as state}]
          (let [responses-ch (a/chan)
                language->resources (delay
-                                     (lsp.async/with-auto-evaluation-context evaluation-context
+                                     (async/with-auto-evaluation-context evaluation-context
                                        (let [workspace (g/node-value project :workspace evaluation-context)]
                                          (->> (g/node-value workspace :resource-list evaluation-context)
                                               (eduction

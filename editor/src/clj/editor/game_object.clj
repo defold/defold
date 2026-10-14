@@ -729,7 +729,7 @@
         component-ext (rt/->clj rt coerce/string (attachment "type"))
         resource-types (resource/resource-types-by-type-ext @basis-ref workspace :editable)
         resource-type (resource-types component-ext)
-        load-opts (project/make-load-opts project)]
+        load-opts (project/make-load-opts-in-evaluation-context project evaluation-context)]
     (assert resource-type)
     (assert (embeddable-component-resource-type? @basis-ref resource-type workspace))
     (let [pb-map (game-object-common/template-pb-map @basis-ref workspace resource-type)

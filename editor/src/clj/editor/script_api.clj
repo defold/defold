@@ -157,15 +157,15 @@
 
 (defn- connect-fn
   [project self resource]
-  (let [si (project/script-intelligence project)]
-    (e/concat
-      (g/connect self :completions si :lua-completions)
-      (when (resource/file-resource? resource)
-        ;; Only connect to the script-intelligence build errors if this is a
-        ;; file resource. The assumption is that if it is a file resource then
-        ;; it is being actively worked on. Otherwise, it belongs to an external
-        ;; dependency and should not stop the build on errors.
-        (g/connect self :build-errors si :build-errors)))))
+  (g/expand-ec
+    (fn connect-script-api [evaluation-context]
+      (let [si (project/script-intelligence project evaluation-context)]
+        (e/concat
+          (g/connect self :completions si :lua-completions)
+          (when (resource/file-resource? resource)
+            ;; File resources are actively worked on and should stop the build
+            ;; on errors. External dependencies should not.
+            (g/connect self :build-errors si :build-errors)))))))
 
 (defn register-resource-types
   [workspace]

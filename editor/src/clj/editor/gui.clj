@@ -1056,31 +1056,35 @@
 
 (defn- layout-property-edit-type-clear-in-specific-layout
   [layout-name changes-fn node-id prop-kw]
-  (let [cleared-prop-kws
-        (if (nil? changes-fn)
-          [prop-kw]
-          (g/with-auto-evaluation-context evaluation-context
-            (keys (changes-fn evaluation-context node-id prop-kw nil nil))))]
-    (layout-property-clears-tx-data layout-name node-id cleared-prop-kws)))
+  (g/expand-ec
+    (fn clear-layout-property [evaluation-context]
+      (let [cleared-prop-kws
+            (if (nil? changes-fn)
+              [prop-kw]
+              (into [] (map key) (changes-fn evaluation-context node-id prop-kw nil nil)))]
+        (layout-property-clears-tx-data layout-name node-id cleared-prop-kws)))))
 
 (defn layout-property-edit-type-clear-in-current-layout
   [changes-fn node-id prop-kw]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
-          current-layout (:current-layout trivial-gui-scene-info)
+  (g/expand-ec
+    (fn clear-layout-property [evaluation-context]
+      (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
+            current-layout (:current-layout trivial-gui-scene-info)
 
-          cleared-prop-kws
-          (if (nil? changes-fn)
-            [prop-kw]
-            (keys (changes-fn evaluation-context node-id prop-kw nil nil)))]
+            cleared-prop-kws
+            (if (nil? changes-fn)
+              [prop-kw]
+              (into [] (map key) (changes-fn evaluation-context node-id prop-kw nil nil)))]
 
-      (layout-property-clears-tx-data current-layout node-id cleared-prop-kws))))
+        (layout-property-clears-tx-data current-layout node-id cleared-prop-kws)))))
 
 (defn basic-layout-property-clear-in-current-layout
   [node-id prop-kw]
-  (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info)
-        current-layout (:current-layout trivial-gui-scene-info)]
-    (layout-property-clears-tx-data current-layout node-id [prop-kw])))
+  (g/expand-ec
+    (fn clear-layout-property [evaluation-context]
+      (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
+            current-layout (:current-layout trivial-gui-scene-info)]
+        (layout-property-clears-tx-data current-layout node-id [prop-kw])))))
 
 (defn- basic-layout-property-update-in-current-layout
   [evaluation-context node-id prop-kw update-fn & args]

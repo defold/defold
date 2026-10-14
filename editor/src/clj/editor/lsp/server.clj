@@ -18,6 +18,7 @@
             [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.async :as async]
             [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.util :as util]
@@ -235,7 +236,7 @@
 
 (defn- diagnostics-handler [project out on-publish-diagnostics]
   (fn [{:keys [uri] :as result}]
-    (lsp.async/with-auto-evaluation-context evaluation-context
+    (async/with-auto-evaluation-context evaluation-context
       (when-let [resource (maybe-resource project uri evaluation-context)]
         (let [result (lsp-diagnostic-result->editor-diagnostic-result result :diagnostics)]
           (a/put! out (on-publish-diagnostics resource result)))))))
@@ -321,7 +322,7 @@
 
 (defn- configuration-handler [project server]
   (fn [{:keys [items]}]
-    (lsp.async/with-auto-evaluation-context evaluation-context
+    (async/with-auto-evaluation-context evaluation-context
       (let [workspace (g/node-value project :workspace evaluation-context)
             resource-types (g/node-value workspace :resource-types evaluation-context)
             {:keys [extensions configuration]} server
@@ -422,7 +423,7 @@
   (lsp.jsonrpc/request!
     jsonrpc
     "initialize"
-    (lsp.async/with-auto-evaluation-context evaluation-context
+    (async/with-auto-evaluation-context evaluation-context
       (let [{:keys [basis-ref]} evaluation-context
             uri (root-uri @basis-ref (g/node-value project :workspace evaluation-context))
             title ((g/node-value project :settings evaluation-context) ["project" "title"])]
@@ -508,7 +509,7 @@
   (a/go
     (try
       (let [launcher (:launcher server)
-            directory (lsp.async/with-auto-evaluation-context evaluation-context
+            directory (async/with-auto-evaluation-context evaluation-context
                         (let [workspace (g/node-value project :workspace evaluation-context)
                               basis @(:basis-ref evaluation-context)]
                           (workspace/project-directory basis workspace)))
@@ -582,7 +583,7 @@
     ;; bound-fn only needed for tests to pick up the test system
     (bound-fn convert-result [{:keys [items]} project]
       (result-converter
-        (lsp.async/with-auto-evaluation-context evaluation-context
+        (async/with-auto-evaluation-context evaluation-context
           (into {}
                 (keep
                   (fn [{:keys [uri] :as item}]
@@ -626,7 +627,7 @@
     (bound-fn [result project]
       (if (nil? result)
         []
-        (lsp.async/with-auto-evaluation-context evaluation-context
+        (async/with-auto-evaluation-context evaluation-context
           (if (map? result)
             (if-let [location (lsp-location-or-location-link->editor-location result project evaluation-context)]
               [location]
@@ -738,7 +739,7 @@
        :position (editor-cursor->lsp-position cursor)
        :context {:includeDeclaration true}})
     (bound-fn [result project]
-      (lsp.async/with-auto-evaluation-context evaluation-context
+      (async/with-auto-evaluation-context evaluation-context
         (into []
               (keep (fn [{:keys [uri range]}]
                       (when-let [resource (maybe-resource project uri evaluation-context)]
@@ -900,7 +901,7 @@
        :position (editor-cursor->lsp-position cursor)
        :newName new-name})
     (bound-fn [result project]
-      (lsp.async/with-auto-evaluation-context evaluation-context
+      (async/with-auto-evaluation-context evaluation-context
         (->> result
              :changes
              (e/keep (fn [[k edits]]

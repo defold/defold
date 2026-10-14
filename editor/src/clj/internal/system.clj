@@ -176,11 +176,18 @@
                  (format "Concurrent modification of graph: transaction revision %s, current revision %s"
                          start-tx current-tx)))))))
 
+(defn- assert-system-thread! [system]
+  (when-let [on-system-thread? (:on-system-thread? system)]
+    (assert (on-system-thread?)
+            "Graph changes must be committed on the system thread.")))
+
 (defn- commit-basis
   [system pre-tx-basis post-tx-basis]
   (if (identical? pre-tx-basis post-tx-basis)
     system
-    (assoc system :graph (update post-tx-basis :tx-id util/safe-inc))))
+    (do
+      (assert-system-thread! system)
+      (assoc system :graph (update post-tx-basis :tx-id util/safe-inc)))))
 
 (defn merge-materializations [system materializations outputs-modified]
   (if (identical? (:materializations system) materializations)
@@ -198,6 +205,7 @@
 
 (defn- replay-changes
   [system transaction-changes change-fn]
+  (assert-system-thread! system)
   (let [ctx (it/new-transaction-context
               (basis system)
               (node-id-generator system)
@@ -279,8 +287,11 @@
     node-ids))
 
 (defn make-system
+  "Creates an isolated graph system. The optional :on-system-thread? predicate
+  asserts thread ownership before graph changes are committed."
   [configuration]
-  {:graph (or (:initial-graph configuration) (ig/empty-graph))
+  {:on-system-thread? (:on-system-thread? configuration)
+   :graph (or (:initial-graph configuration) (ig/empty-graph))
    :undo {global-undo-key (new-undo)}
    :node-id-generator (integer-counter)
    :override-id-generator (integer-counter)
@@ -499,7 +510,8 @@
                        values-by-key-by-node-id))))
 
 (defn clone-system [system]
-  {:graph (:graph system)
+  {:on-system-thread? (:on-system-thread? system)
+   :graph (:graph system)
    :undo (:undo system)
    :node-id-generator (AtomicLong. (.longValue ^AtomicLong (:node-id-generator system)))
    :override-id-generator (AtomicLong. (.longValue ^AtomicLong (:override-id-generator system)))

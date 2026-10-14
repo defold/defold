@@ -34,6 +34,8 @@
                         dynamo.graph/make-nodes hooks.dynamo-graph/make-nodes
                         dynamo.graph/with-auto-or-fake-evaluation-context hooks.dynamo-graph/with-auto-or-fake-evaluation-context
                         dynamo.graph/with-auto-evaluation-context hooks.dynamo-graph/with-auto-evaluation-context
+                        editor.async/let-ec hooks.dynamo-graph/let-ec
+                        editor.async/with-auto-evaluation-context hooks.dynamo-graph/with-auto-evaluation-context
                         editor.debugging.variables-test/with-view hooks.editor-debugging-variables-test/with-view
                         editor.editor-extensions.commands/gen-query hooks.editor-editor-extensions-commands/gen-query
                         editor.editor-extensions.runtime/lua-fn hooks.editor-editor-extensions-runtime/lua-fn
@@ -57,7 +59,6 @@
                         editor.gui/wrap-layout-property-edit-type hooks.editor-gui/wrap-layout-property-edit-type
                         editor.handler/defhandler hooks.editor-handler/defhandler
                         editor.image-util/with-graphics hooks.editor-image-util/with-graphics
-                        editor.lsp.async/with-auto-evaluation-context hooks.editor-lsp-async/with-auto-evaluation-context
                         editor.ui/change-listener hooks.editor-ui/change-listener
                         editor.ui/defc hooks.editor-ui/defc
                         editor.ui/event-dispatcher hooks.editor-ui/event-dispatcher

@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.async :as async]
             [editor.defold-project :as project]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.engine.native-extensions :as native-extensions]
@@ -56,10 +57,6 @@
          (error-reporting/catch-all! (render-progress! (progress/bob message fraction true))))
        (close [_]
          (error-reporting/catch-all! (render-progress! progress/done)))))))
-
-(defn- project-title [project]
-  (let [proj-settings (project/settings project)]
-    (get proj-settings ["project" "title"] "Unnamed")))
 
 (defn- PrintStream-on ^PrintStream [fn]
   (-> fn
@@ -226,9 +223,9 @@
 (def clean-build-html5-bob-commands ["distclean" "resolve" "build" "bundle"])
 (def build-html5-bob-commands ["build" "bundle"])
 
-(defn build-html5-bob-options [project prefs]
+(defn build-html5-bob-options [project prefs evaluation-context]
   (let [output-path (build-html5-output-path project)
-        build-server-url (native-extensions/get-build-server-url prefs project)
+        build-server-url (native-extensions/get-build-server-url prefs project evaluation-context)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")]
     {"platform" "wasm-web"
      "architectures" "wasm-web"
@@ -253,11 +250,12 @@
               (let [path-str (:path path-params)]
                 (if (= "" path-str)
                   (http-server/redirect "/html5/index.html")
-                  (let [resource-path (-> output-path
-                                          (.resolve (BundleHelper/projectNameToBinaryName (project-title project)))
-                                          (.resolve ^String path-str)
-                                          (.normalize))]
-                    (if (and (.startsWith resource-path output-path)
-                             (path/file? resource-path))
-                      (http-server/response 200 resource-path)
-                      http-server/not-found)))))}}))
+                  (async/let-ec [project-title (get (project/settings project evaluation-context) ["project" "title"] "Unnamed")]
+                    (let [resource-path (-> output-path
+                                            (.resolve (BundleHelper/projectNameToBinaryName project-title))
+                                            (.resolve ^String path-str)
+                                            (.normalize))]
+                      (if (and (.startsWith resource-path output-path)
+                               (path/file? resource-path))
+                        (http-server/response 200 resource-path)
+                        http-server/not-found))))))}}))

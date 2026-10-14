@@ -20,6 +20,7 @@
             [clojure.stacktrace :as stacktrace]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.async :as async]
             [editor.code.data :as data]
             [editor.code.script-annotations :as script-annotations]
             [editor.console :as console]
@@ -45,7 +46,6 @@
             [editor.handler :as handler]
             [editor.library :as library]
             [editor.localization :as localization]
-            [editor.lsp.async :as lsp.async]
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -248,14 +248,14 @@
           (future/then (fn [_] (reload-resources!)))
           (future/then
             (fn [_]
-              (g/let-ec [{:keys [basis-ref]} evaluation-context
+              (async/let-ec [{:keys [basis-ref]} evaluation-context
 
-                         invalid-proj-paths
-                         (coll/into-> created-resource-infos []
-                           (keep (fn [{proj-path 1}]
-                                   (when-let [node-id (project/get-resource-node project proj-path evaluation-context)]
-                                     (when (g/defective? @basis-ref node-id)
-                                       proj-path)))))]
+                             invalid-proj-paths
+                             (coll/into-> created-resource-infos []
+                               (keep (fn [{proj-path 1}]
+                                       (when-let [node-id (project/get-resource-node project proj-path evaluation-context)]
+                                         (when (g/defective? @basis-ref node-id)
+                                           proj-path)))))]
 
                 (rt/and-refresh-context
                   (when-let [invalid-proj-paths (coll/not-empty invalid-proj-paths)]
@@ -801,17 +801,17 @@
 
 (defn- reload-language-servers! [project prefs script-annotations ext-language-servers]
   (future
-    ;; perform annotation sync asynchronously since it potentially involves writing a lot
-    ;; of lua annotation files
+    ;; Annotation sync can write many Lua files. Evaluate it in the background.
     (error-reporting/catch-all!
-      (lsp.async/with-auto-evaluation-context evaluation-context
-        (let [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)
-              workspace (project/workspace project evaluation-context)
-              project-root (g/raw-property-value @(:basis-ref evaluation-context) workspace :root)
-              server-definitions {:extension-language-servers ext-language-servers
-                                  :lua-language-servers (built-in-lua-language-servers project-root sync-hash)}]
-          (ui/run-now
-            (project/update-language-servers! project prefs server-definitions)))))))
+      (async/let-ec [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)
+                     workspace (project/workspace project evaluation-context)
+                     project-root (g/raw-property-value @(:basis-ref evaluation-context) workspace :root)
+                     server-definitions {:extension-language-servers ext-language-servers
+                                         :lua-language-servers (built-in-lua-language-servers project-root sync-hash)}]
+        ;; The merge precedes this update in the UI queue, so completing the
+        ;; future also signals that its materializations reached the system.
+        (ui/run-now
+          (project/update-language-servers! project prefs server-definitions))))))
 
 ;; endregion
 
@@ -1052,7 +1052,8 @@
               (g/node-value extensions :library-reload-signature evaluation-context)))))
 
 (defn reload!
-  "Reload the extensions
+  "Reload the extensions. Returns a future that completes after annotation sync,
+  its graph merge, and the language-server update. Do not await it on the UI thread.
 
   Args:
     project    the project node id
@@ -1181,18 +1182,17 @@
              dynamic-routes (dynamic-routes new-state evaluation-context)]
     (g/user-data-swap! extensions :state (constantly new-state))
     (reload-prefs! project-path prefs-schema)
-    (reload-language-servers! project prefs script-annotations ext-language-servers)
     (reload-commands! command-handlers)
     (reload-server-routes! new-state dynamic-routes)
-    nil))
+    (reload-language-servers! project prefs script-annotations ext-language-servers)))
 
-(defn- hook-exception->error [^Throwable ex project hook-keyword]
+(defn- hook-exception->error [^Throwable ex project hook-keyword evaluation-context]
   (let [^Throwable root (stacktrace/root-cause ex)
         message (ex-message root)
         [_ file line :as match] (re-find console/line-sub-regions-pattern message)]
     (g/map->error
-      (cond-> {:_node-id (or (when match (project/get-resource-node project file))
-                             (project/get-resource-node project hooks-file-path))
+      (cond-> {:_node-id (or (when match (project/get-resource-node project file evaluation-context))
+                             (project/get-resource-node project hooks-file-path evaluation-context))
                :message (str (name hook-keyword) " in " hooks-file-path " failed: " message)
                :severity :fatal}
 
@@ -1221,19 +1221,20 @@
                            :ignore      return nil
                          When not provided, the exception will be re-thrown"
   [project hook-keyword opts & {:keys [exception-policy]}]
-  (g/let-ec [{:keys [rt hooks] :as state} (ext-state project evaluation-context)]
+  (async/let-ec [{:keys [rt hooks] :as state} (ext-state project evaluation-context)]
     (if-let [lua-fn (get hooks hook-keyword)]
       (-> (rt/invoke-suspending-1 rt lua-fn (rt/->lua opts))
           (future/then
             (fn [lua-result]
               (when-not (rt/coerces-to? rt coerce/null lua-result)
-                (lsp.async/with-auto-evaluation-context evaluation-context
+                (async/with-auto-evaluation-context evaluation-context
                   (actions/perform! lua-result project state evaluation-context)))))
           (future/catch
             (fn [ex]
               (error-handling/display-script-error! rt (str "hook " (name hook-keyword)) ex)
               (case exception-policy
-                :as-error (hook-exception->error ex project hook-keyword)
+                :as-error (async/with-auto-evaluation-context evaluation-context
+                            (hook-exception->error ex project hook-keyword evaluation-context))
                 :ignore nil
                 (throw ex)))))
       (future/completed nil))))

@@ -85,7 +85,7 @@
 
 (def resource-node-type (comp resource-type->node-type resource/resource-type))
 
-(defn- make-load-opts-in-evaluation-context [project evaluation-context]
+(defn make-load-opts-in-evaluation-context [project evaluation-context]
   (let [{:keys [basis-ref]} evaluation-context
         workspace (g/raw-property-value @basis-ref project :workspace)
         code-preprocessor (workspace/code-preprocessors workspace evaluation-context)

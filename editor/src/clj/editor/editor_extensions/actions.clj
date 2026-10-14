@@ -17,13 +17,13 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.async :as async]
             [editor.defold-project :as project]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.runtime :as rt]
             [editor.error-reporting :as error-reporting]
             [editor.future :as future]
-            [editor.lsp.async :as lsp.async]
             [editor.process :as process]
             [editor.workspace :as workspace])
   (:import [java.io PrintStream]
@@ -81,7 +81,7 @@
 
 (defn- shell! [commands project state]
   (let [{:keys [reload-resources! rt]} state
-        root (lsp.async/with-auto-evaluation-context evaluation-context
+        root (async/with-auto-evaluation-context evaluation-context
                (let [{:keys [basis-ref]} evaluation-context
                      workspace (project/workspace project evaluation-context)]
                  (workspace/project-directory @basis-ref workspace)))]

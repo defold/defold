@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.lsp.async
-  (:require [cljfx.api :as fx]
-            [clojure.core.async :as a :refer [<! >!]])
+  (:require [clojure.core.async :as a :refer [<! >!]])
   (:import [clojure.core.async.impl.channels ManyToManyChannel]))
 
 (set! *warn-on-reflection* true)
@@ -99,11 +98,3 @@
       (when (>! ch v)
         (recur))
       (a/close! ch))))
-
-(defmacro with-auto-evaluation-context
-  "Like g/with-auto-evaluation-context, but for the background threads"
-  [ec & body]
-  `(let [~ec (g/make-evaluation-context)
-         ret# (g/do-strict-evaluation-context-scope-body ~@body)]
-     (fx/on-fx-thread (g/update-system-from-evaluation-context! ~ec))
-     ret#))

@@ -14,6 +14,7 @@
 
 (ns editor.editor-extensions.commands
   (:require [dynamo.graph :as g]
+            [editor.async :as async]
             [editor.defold-project :as project]
             [editor.editor-extensions.actions :as actions]
             [editor.editor-extensions.coerce :as coerce]
@@ -24,7 +25,6 @@
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.future :as future]
             [editor.handler :as handler]
-            [editor.lsp.async :as lsp.async]
             [editor.resource :as resource]
             [editor.scene :as scene]
             [util.coll :as coll]
@@ -236,6 +236,6 @@
                   (future/then
                     (fn [lua-result]
                       (when-not (rt/coerces-to? rt coerce/null lua-result)
-                        (lsp.async/with-auto-evaluation-context evaluation-context
+                        (async/with-auto-evaluation-context evaluation-context
                           (actions/perform! lua-result project state evaluation-context)))))
                   (future/catch #(error-handling/display-script-error! rt error-label %))))))))))

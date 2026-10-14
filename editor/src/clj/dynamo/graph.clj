@@ -1230,7 +1230,9 @@
   "Commits materializations and cache entries that remain valid in the system.
   Reuses the evaluated basis when the system basis is unchanged; otherwise
   replays realized changes. Does not rerun load functions or property setters.
-  Call only after evaluation has finished, with exclusive ownership of the context.
+  Call on the system mutation thread after evaluation has finished, with
+  exclusive ownership of the context. Background evaluations must hand off
+  their context to that thread before calling this function.
   Closes the context and all contexts sharing its state. They must be discarded
   after this call, even if their changes were incompatible with the system."
   [{:keys [closed-atom] :as evaluation-context}]
@@ -1239,7 +1241,11 @@
   (reset! closed-atom true)
   nil)
 
-(defmacro with-auto-evaluation-context [ec & body]
+(defmacro with-auto-evaluation-context
+  "Evaluates the body and commits its materializations and cache entries on the
+  calling thread. Background callers must instead schedule the merge on the
+  system mutation thread."
+  [ec & body]
   `(let [~ec (make-evaluation-context)
          result# (do-strict-evaluation-context-scope-body ~@body)]
      (update-system-from-evaluation-context! ~ec)
@@ -1306,7 +1312,8 @@
   Emit the supplied bindings in a let expression after creating a new
   evaluation-context from the current state of *the-system*. The
   evaluation-context is available for use inside the binding-forms, but is
-  closed and merged back into the system cache before executing the body.
+  closed and merged back into the system before executing the body. Like
+  with-auto-evaluation-context, this commits on the calling thread.
 
   Example:
   (g/let-ec [{:keys [view-id view-type]}
@@ -1346,8 +1353,9 @@
   recently committed transaction.
 
   Materialized nodes and cache entries are committed to the system automatically
-  if the context was left out. If passed explicitly, commit them manually by
-  calling update-system-from-evaluation-context!.
+  on the calling thread if the context was left out. Background callers must
+  pass an explicit context and commit it on the system thread by calling
+  update-system-from-evaluation-context!.
 
   Example:
 
