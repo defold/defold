@@ -4954,10 +4954,10 @@ static void LogFrameBufferError(GLenum status)
             BUFFER_TYPE_COLOR3_BIT,
         };
 
-        // Packed depth/stencil textures are supported, but standalone stencil textures are not.
-        if (stencil_texture && !use_depth_attachment)
+        // Packed depth/stencil storage supports depth sampling, but not stencil sampling.
+        if (use_stencil_attachment && params.m_StencilTexture)
         {
-            dmLogWarning("Stencil textures are not supported on the OpenGL adapter, defaulting to render buffer.");
+            dmLogWarning("Stencil texture sampling is not supported on the OpenGL adapter.");
         }
 
         if (use_depth_attachment && use_stencil_attachment && stencil_texture != depth_texture)
