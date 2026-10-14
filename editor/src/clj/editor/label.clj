@@ -114,7 +114,8 @@
               shader material-shader
               vertex-binding (vtx/use-with ::tris vb shader)]
           (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture effect-texture]
-            (shader/set-samplers-by-name shader gl "font_effects" (vector-of :int 1))
+            (when effect-texture
+              (shader/set-samplers-by-name shader gl "font_effects" (:texture-units effect-texture)))
             (light/bind-preview-lights-for-shader! gl shader render-args)
             (gl/set-blend-mode gl blend-mode)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)

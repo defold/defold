@@ -1058,7 +1058,7 @@
                 (.-m03 matrix) (.-m13 matrix) (.-m23 matrix) (.-m33 matrix)]))
 
 (defn- make-native-entry-state
-  [font-map entry]
+  [font-map entry use-gpu-effects]
   (let [text-layout (:text-layout entry)
         use-rich-text (:use-rich-text text-layout)
         alpha (double (:alpha font-map 1.0))
@@ -1102,7 +1102,7 @@
     (set! (.-baseStyle properties) (let [style (:style text-layout "default")]
                                      (if (= "" style) 0 (MurmurHash/hash64 ^String style))))
     (set! (.-useBaseStyle properties) true)
-    (set! (.-useGpuEffects properties) (boolean (:use-gpu-effects entry)))
+    (set! (.-useGpuEffects properties) (boolean use-gpu-effects))
     (set! (.-baseShadowAlpha properties) (float shadow-alpha))
     (set! (.-sdfScale properties) sdf-scale)
     {:properties properties
@@ -1111,7 +1111,7 @@
      :use-rich-text use-rich-text
      :transform transform
      :atlas-key [(:style text-layout) use-rich-text line-break width tracking text markup]
-     :state-key [(:use-gpu-effects entry) (:style text-layout) use-rich-text line-break width height leading tracking align vertical-align
+     :state-key [use-gpu-effects (:style text-layout) use-rich-text line-break width height leading tracking align vertical-align
                  face-color outline-color shadow-color shadow-alpha sdf-scale text markup]}))
 
 (defn- apply-native-entry-state!
@@ -1134,6 +1134,8 @@
 
 (defn- prepare-native-render-batch!
   [^GL3 gl ^FontRenderer native-renderer texture native-entry-states atlas-state]
+  ;; Reset effect records even when the atlas can be reused.
+  (.beginBatch native-renderer)
   (let [atlas-key (mapv :atlas-key native-entry-states)
         previous-state @atlas-state
         known-atlas-version (:atlas-version previous-state)
@@ -1143,23 +1145,21 @@
         [atlas-version entry-requirements]
         (if atlas-unchanged
           [known-atlas-version (:entry-requirements previous-state)]
-          (do
-            (.beginBatch ^FontRenderer native-renderer)
-            (reduce (fn [[atlas-version entry-requirements] native-entry-state]
-                      (apply-native-entry-state! native-renderer native-entry-state)
-                      (let [atlas-version (generate-native-texture! gl native-renderer texture atlas-version)
-                            requirement (.getVertexBufferRequirements ^FontRenderer native-renderer)]
-                        [atlas-version (conj entry-requirements requirement)]))
-                    [known-atlas-version []]
-                    native-entry-states)))
-        vertex-key (mapv (fn [native-entry-state]
+          (reduce (fn [[atlas-version entry-requirements] native-entry-state]
+                    (apply-native-entry-state! native-renderer native-entry-state)
+                    (let [atlas-version (generate-native-texture! gl native-renderer texture atlas-version)
+                          requirement (.getVertexBufferRequirements ^FontRenderer native-renderer)]
+                      [atlas-version (conj entry-requirements requirement)]))
+                  [known-atlas-version []]
+                  native-entry-states))
+        render-key (mapv (fn [native-entry-state]
                            [(:state-key native-entry-state)
                             (vec (:transform native-entry-state))])
                          native-entry-states)]
     (vreset! atlas-state {:atlas-version atlas-version
                           :atlas-key atlas-key
                           :entry-requirements entry-requirements})
-    [[native-renderer atlas-version vertex-key] entry-requirements]))
+    [[native-renderer atlas-version render-key] entry-requirements]))
 
 (defn- gen-native-vertex-buffer
   [^FontRenderer native-renderer native-entry-states entry-requirements ^VertexBuffer vertex-buffer]
@@ -1176,7 +1176,6 @@
                                   (doto existing-byte-buffer
                                     (.clear))
                                   (vtx/make-buf vertex-buffer-size))]
-    (.beginBatch native-renderer)
     (dotimes [entry-index (count native-entry-states)]
       (let [native-entry-state (native-entry-states entry-index)
             requirements (entry-requirements entry-index)]
@@ -1191,18 +1190,18 @@
         (.flip byte-buffer)
         (vtx/wrap-vertex-buffer NativeFontVertex :static byte-buffer)))))
 
-(defonce/type NativeVertexBufferRequest [request-id native-renderer native-entry-states entry-requirements vertex-key use-gpu-effects]
+(defonce/type NativeRenderDataRequest [request-id native-renderer native-entry-states entry-requirements render-key use-gpu-effects]
   Object
   (equals [this other]
     (or (identical? this other)
-        (let [^NativeVertexBufferRequest other other]
-          (and (instance? NativeVertexBufferRequest other)
-               (= vertex-key (.-vertex-key other))))))
+        (let [^NativeRenderDataRequest other other]
+          (and (instance? NativeRenderDataRequest other)
+               (= render-key (.-render-key other))))))
   (hashCode [_]
-    (hash vertex-key)))
+    (hash render-key)))
 
 (defn- gen-native-render-data
-  [^NativeVertexBufferRequest request vertex-buffer]
+  [^NativeRenderDataRequest request vertex-buffer]
   (let [native-renderer (.-native-renderer request)
         vertex-buffer (gen-native-vertex-buffer native-renderer
                                                 (.-native-entry-states request)
@@ -1216,7 +1215,7 @@
        (let [^FontRenderer$Texture effect-texture (.getEffectTexture ^FontRenderer native-renderer)
              pixels (.-pixels effect-texture)]
          (if-not pixels
-           (assoc @texture/white-pixel :texture-units (vector-of :int 1))
+           (texture/set-base-unit @texture/white-pixel 1)
            (texture/make-gpu-texture
              [::effects (.-request-id request)]
              [(texture/make-texture-request-data pixels (buffers/data-hash pixels) :rgba
@@ -1225,19 +1224,19 @@
              {:min-filter gl/nearest :mag-filter gl/nearest
               :wrap-s gl/clamp-to-edge :wrap-t gl/clamp-to-edge}))))}))
 
-(defn- make-native-vb
+(defn- make-native-render-data
   [_gl request]
   (gen-native-render-data request nil))
 
-(defn- update-native-vb
+(defn- update-native-render-data
   [_gl render-data request]
   (gen-native-render-data request (:vertex-buffer render-data)))
 
-(defn- destroy-native-vbs
+(defn- destroy-native-render-data
   [_gl _render-data _]
   nil)
 
-(scene-cache/register-object-cache! ::native-vb make-native-vb update-native-vb destroy-native-vbs)
+(scene-cache/register-object-cache! ::native-render-data make-native-render-data update-native-render-data destroy-native-render-data)
 
 (defn gen-vertex-buffer
   ([^GL3 gl font-data text-entries]
@@ -1247,7 +1246,7 @@
          native-renderer-spec (:native-renderer-spec font-map)]
      (if native-renderer-spec
        (let [native-renderer (scene-cache/request-object! ::native-renderers (:texture font-data) gl native-renderer-spec)
-             native-entry-states (mapv #(make-native-entry-state font-map %) text-entries)
+             native-entry-states (mapv #(make-native-entry-state font-map % false) text-entries)
              atlas-state (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
              [_ entry-requirements] (prepare-native-render-batch! gl native-renderer (:texture font-data) native-entry-states atlas-state)]
          (gen-native-vertex-buffer native-renderer native-entry-states entry-requirements nil))
@@ -1265,11 +1264,11 @@
       ;; handling spatial effects. Match the runtime's material sampler opt-in.
       (let [use-gpu-effects (shader/has-configured-sampler? material-shader gl "font_effects")
             native-renderer (scene-cache/request-object! ::native-renderers (:texture font-data) gl native-renderer-spec)
-            native-entry-states (mapv #(make-native-entry-state (:font-map font-data) (assoc % :use-gpu-effects use-gpu-effects)) text-entries)
+            native-entry-states (mapv #(make-native-entry-state (:font-map font-data) % use-gpu-effects) text-entries)
             atlas-state (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
-            [vertex-key entry-requirements] (prepare-native-render-batch! gl native-renderer (:texture font-data) native-entry-states atlas-state)]
-        (scene-cache/request-object! ::native-vb [request-id (:type font-data)] gl
-                                     (NativeVertexBufferRequest. request-id native-renderer native-entry-states entry-requirements vertex-key use-gpu-effects)))
+            [render-key entry-requirements] (prepare-native-render-batch! gl native-renderer (:texture font-data) native-entry-states atlas-state)]
+        (scene-cache/request-object! ::native-render-data [request-id (:type font-data)] gl
+                                     (NativeRenderDataRequest. request-id native-renderer native-entry-states entry-requirements render-key use-gpu-effects)))
       (let [glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
                                                      (select-keys font-data [:font-map :texture]))
             layer-count (count-layers-in-mask (:layer-mask (:font-map font-data)))]
@@ -1310,7 +1309,8 @@
       (let [vertex-binding (vtx/use-with ::vb vertex-buffer material-shader)
             texture-recip-uniform (get-texture-recip-uniform font-map)]
         (gl/with-gl-bindings gl render-args [material-shader vertex-binding gpu-texture effect-texture]
-          (shader/set-samplers-by-name material-shader gl "font_effects" (vector-of :int 1))
+          (when effect-texture
+            (shader/set-samplers-by-name material-shader gl "font_effects" (:texture-units effect-texture)))
           (shader/set-uniform material-shader gl "texture_size_recip" texture-recip-uniform)
           ;; Need to set the blend mode to alpha since alpha blending the source with GL_SRC_ALPHA and dest with GL_ONE_MINUS_SRC_ALPHA
           ;; gives us a small black border around the outline that looks different than other views..
