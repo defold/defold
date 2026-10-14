@@ -15,6 +15,7 @@
 (ns integration.model-test
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.properties :as properties]
@@ -158,6 +159,8 @@
               (let [mesh-set-build-target (find-mesh-set-build-target (g/node-value node-id :build-targets))]
                 (is (coll/empty? (get-in mesh-set-build-target [:user-data :mesh-set :raw-models])))))))))))
 
+;; Static scene and selected meshes reject skinned materials instead of building
+;; models whose missing skin data can crash graphics adapters.
 (deftest skinned-material-validation
   (test-util/with-loaded-project
     (doseq [model-path ["/model/test.model" "/model/mesh_selection.model"]]
@@ -168,19 +171,20 @@
           (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace material-path)]
             (let [result (g/node-value node-id :build-targets)]
               (is (g/error-value? result))
-              (is (coll/any? #(and (.contains ^String % material-path)
-                                   (.contains ^String % "has no skin data")
-                                   (.contains ^String % "bone_weights"))
-                             (eduction (keep :message) (map test-util/localization)
-                                       (tree-seq :causes :causes result)))))))))))
+              (is (coll/any? #(and (string/includes? % material-path)
+                                   (string/includes? % "has no skin data")
+                                   (string/includes? % "bone_indices and bone_weights"))
+                             (coll/into-> [result] :eduction
+                               (coll/tree-xf :causes :causes)
+                               (keep :message)
+                               (map test-util/localization)))))))))))
 
+;; Missing and stale material bindings still validate the runtime's fallback
+;; assignment, preventing skinned materials from reaching static geometry.
 (deftest skinned-material-fallback
   (let [scene (-> (json/read-str (slurp "test/resources/test_project/mesh/two_meshes.gltf") :key-fn keyword)
                   (assoc :materials [{:name "A"} {:name "B"} {:name "C"}])
-                  (update :meshes (fn [meshes]
-                                    (mapv #(update % :primitives (fn [primitives]
-                                                                   (mapv (fn [primitive] (assoc primitive :material 1)) primitives)))
-                                          meshes))))]
+                  (update :meshes coll/mapv-> update :primitives coll/mapv-> assoc :material 1))]
     (test-util/with-temp-project-content
       {"/test.model" {:mesh "/scene.gltf"
                       :materials [{:name "A" :material "/builtins/materials/model_skinned_instanced.material"}
@@ -194,11 +198,15 @@
             (test-util/with-prop [binding-id :name binding-name]
               (let [result (g/node-value node-id :build-targets)]
                 (is (g/error-value? result))
-                (is (coll/any? #(.contains ^String (test-util/localization %) "has no skin data")
-                               (eduction (keep :message) (tree-seq :causes :causes result))))))))
+                (is (coll/any? #(string/includes? (test-util/localization %) "has no skin data")
+                               (coll/into-> [result] :eduction
+                                 (coll/tree-xf :causes :causes)
+                                 (keep :message))))))))
         (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace "/builtins/materials/model.material")]
           (is (not (g/error-value? (g/node-value node-id :build-targets)))))))))
 
+;; Skin data permits skinned materials without animation clips, preventing
+;; compatibility validation from incorrectly requiring an animation resource.
 (deftest skinned-material-without-animations
   (testing "skin data permits skinned materials without animation clips"
     (test-util/with-loaded-project

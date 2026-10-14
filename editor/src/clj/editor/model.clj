@@ -39,7 +39,8 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.eduction :as e])
   (:import [com.dynamo.bob.pipeline Shaderc$ShaderStage]
            [com.dynamo.gamesys.proto ModelProto$Material ModelProto$Model ModelProto$ModelDesc ModelProto$Texture]
            [com.dynamo.graphics.proto Graphics$ShaderDesc$ResourceBinding Graphics$ShaderDesc$ShaderReflection]
@@ -277,37 +278,38 @@
 (defn- validate-skinned-materials [_node-id mesh-content mesh mesh-name mesh-index material-skinning-infos]
   (let [mesh-set (:mesh-set mesh-content)
         slots (mapv :name (:materials mesh-set))
-        slot-index (fn slot-index [material-info] (.indexOf ^java.util.List slots (:name material-info)))
+        slot-index (fn slot-index [material-info] (coll/index-of slots (:name material-info)))
         ;; Match the runtime's padding and sorting, including stale names (-1).
-        runtime-slots (vec (sort (coll/resize (mapv slot-index material-skinning-infos)
-                                              (max (count slots) (count material-skinning-infos))
-                                              (slot-index (first material-skinning-infos)))))
+        runtime-slots (vec (coll/sort (coll/resize (mapv slot-index material-skinning-infos)
+                                                   (max (count slots) (count material-skinning-infos))
+                                                   (slot-index (first material-skinning-infos)))))
         ;; qsort may reorder ties; check every skinned binding in each group.
-        skinned-material-by-slot (into {}
-                                       (comp (filter #(coll/not-empty (:skin-attributes %)))
-                                             (map (fn [info] [(slot-index info) info])))
-                                       material-skinning-infos)
+        skinned-material-by-slot (coll/into-> material-skinning-infos {}
+                                   (filter #(coll/not-empty (:skin-attributes %)))
+                                   (map (fn [info]
+                                          [(slot-index info) info])))
         geometry (if (str/blank? mesh-name)
                    (:models mesh-set)
-                   (eduction cat
-                             (filter #(= mesh-index (:mesh-index %)))
-                             [(:models mesh-set) (:raw-models mesh-set)]))]
+                   (->> (e/concat (:models mesh-set) (:raw-models mesh-set))
+                        (e/filter #(= mesh-index (:mesh-index %)))))]
     (some->
-      (reduce (fn [errors {:keys [meshes mesh-index]}]
-                (into errors
-                      (keep (fn [{:keys [weights bone-indices material-index]}]
-                              (when-let [material-info (get skinned-material-by-slot (nth runtime-slots material-index))]
-                                (when (or (coll/empty? weights) (coll/empty? bone-indices))
-                                  (g/->error _node-id :materials :fatal nil
-                                             (localization/message "error.model-skinned-material"
-                                                                   {"material" (resource/proj-path (:material material-info))
-                                                                    "slot" (get slots material-index)
-                                                                    "attributes" (coll/join-to-string ", " (:skin-attributes material-info))
-                                                                    "mesh_index" mesh-index
-                                                                    "scene" (resource/proj-path mesh)}))))))
-                      meshes))
-              []
-              geometry)
+      (coll/into-> geometry []
+        (mapcat
+          (fn [{:keys [meshes mesh-index]}]
+            (e/keep
+              (fn [{:keys [weights bone-indices material-index]}]
+                (when-let [material-info (get skinned-material-by-slot (nth runtime-slots material-index))]
+                  (when (or (coll/empty? weights) (coll/empty? bone-indices))
+                    (g/->error
+                      _node-id :materials :fatal nil
+                      (localization/message
+                        "error.model-skinned-material"
+                        {"material" (resource/proj-path (:material material-info))
+                         "slot" (get slots material-index)
+                         "attributes" (localization/and-list (:skin-attributes material-info))
+                         "mesh_index" mesh-index
+                         "scene" (resource/proj-path mesh)})))))
+              meshes))))
       coll/not-empty
       g/error-aggregate)))
 
@@ -443,19 +445,20 @@
             {:name name
              :material material
              :skin-attributes
-             (into (sorted-set)
-                   (comp
-                     cat
-                     (mapcat :deps)
-                     (keep :shader-reflection)
-                     (mapcat (fn [^Graphics$ShaderDesc$ShaderReflection reflection]
-                               (.getInputsList reflection)))
-                     (keep (fn [^Graphics$ShaderDesc$ResourceBinding input]
-                             (let [name (.getName input)]
-                               (when (and (contains? #{"bone_weights" "bone_indices"} name)
-                                          (not (zero? (bit-and (.getValue Shaderc$ShaderStage/SHADER_STAGE_VERTEX) (.getStageFlags input)))))
-                                 name)))))
-                   dep-build-targets)}))
+             (->> dep-build-targets
+                  e/cat
+                  (e/mapcat :deps)
+                  (e/keep :shader-reflection)
+                  (e/mapcat (fn [^Graphics$ShaderDesc$ShaderReflection reflection]
+                              (.getInputsList reflection)))
+                  (e/keep (fn [^Graphics$ShaderDesc$ResourceBinding input]
+                            (let [name (.getName input)]
+                              (when (and (contains? #{"bone_weights" "bone_indices"} name)
+                                         (not (zero? (bit-and (.getValue Shaderc$ShaderStage/SHADER_STAGE_VERTEX) (.getStageFlags input)))))
+                                name))))
+                  e/distinct
+                  coll/sort
+                  vec)}))
   (output material-binding-info g/Any (g/fnk [_node-id name
                                               material
                                               ^:try material-attribute-infos
