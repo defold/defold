@@ -22,6 +22,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.node.ObjectNode;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -155,6 +157,25 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         }
         var outputs = build("/skinned.model", "mesh: \"/skinned.gltf\" skeleton: \"/skinned.gltf\" materials { name: \"Material\" material: \"/builtins/materials/model_skinned_instanced.material\" }");
         assertEquals("", getMessage(outputs, RigScene.class).getAnimationSet());
+    }
+
+    // Verifies skinned meshes without imported material slots use the model's default binding.
+    @Test
+    public void testSkinnedMeshWithoutMaterialSlots() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        try (var stream = getClass().getResourceAsStream("bend2bones.gltf")) {
+            ObjectNode gltf = (ObjectNode) new ObjectMapper().readTree(stream);
+            gltf.remove("materials");
+            for (var mesh : gltf.get("meshes")) {
+                for (var primitive : mesh.get("primitives")) {
+                    ((ObjectNode) primitive).remove("material");
+                }
+            }
+            addFile("/skinned.gltf", gltf.toString());
+        }
+        var outputs = build("/skinned.model", "mesh: \"/skinned.gltf\" skeleton: \"/skinned.gltf\" materials { name: \"default\" material: \"/builtins/materials/model_skinned_instanced.material\" }");
+        assertEquals(0, getMessage(outputs, MeshSet.class).getMaterialsCount());
+        assertEquals("default", getMessage(outputs, Model.class).getMaterials(0).getName());
     }
 
     // Verifies the standalone built-in glTF material and its include graph compile as a model dependency.

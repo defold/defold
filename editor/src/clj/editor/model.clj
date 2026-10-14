@@ -24,6 +24,7 @@
             [editor.gltf :as gltf]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
+            [editor.graphics.types :as graphics.types]
             [editor.image :as image]
             [editor.localization :as localization]
             [editor.material :as material]
@@ -283,7 +284,9 @@
         runtime-slots (vec (coll/sort (coll/resize (mapv slot-index material-skinning-infos)
                                                    (max (count slots) (count material-skinning-infos))
                                                    (slot-index (first material-skinning-infos)))))
-        ;; qsort may reorder ties; check every skinned binding in each group.
+        ;; The engine's qsort may reorder bindings with equal sort keys.
+        ;; Keep one skinned representative per group so any potentially
+        ;; skinned assignment requires skin data.
         skinned-material-by-slot (coll/into-> material-skinning-infos {}
                                    (filter #(coll/not-empty (:skin-attributes %)))
                                    (coll/pair-map-by slot-index))
@@ -451,8 +454,12 @@
                   (e/mapcat (fn [^Graphics$ShaderDesc$ShaderReflection reflection]
                               (.getInputsList reflection)))
                   (e/keep (fn [^Graphics$ShaderDesc$ResourceBinding input]
-                            (let [name (.getName input)]
-                              (when (and (contains? #{"bone_weights" "bone_indices"} name)
+                            (let [name (.getName input)
+                                  semantic-type (graphics.types/infer-semantic-type
+                                                  (graphics.types/attribute-name-key name))]
+                              (when (and (contains? #{:semantic-type-bone-weights
+                                                      :semantic-type-bone-indices}
+                                                    semantic-type)
                                          (not (zero? (bit-and (.getValue Shaderc$ShaderStage/SHADER_STAGE_VERTEX) (.getStageFlags input)))))
                                 name))))
                   e/distinct

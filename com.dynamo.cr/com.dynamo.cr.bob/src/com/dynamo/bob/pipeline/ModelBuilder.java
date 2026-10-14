@@ -135,12 +135,12 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
                     continue;
                 }
                 for (Rig.Mesh mesh : geometryModel.getMeshesList()) {
-                    String slot = meshSet.getMaterials(mesh.getMaterialIndex()).getName();
                     // qsort can reorder equal keys: validate every binding that can occupy this position.
                     if (runtimeSlots.get(mesh.getMaterialIndex()) != slots.indexOf(material.getName())) {
                         continue;
                     }
                     if (mesh.getWeightsCount() == 0 || mesh.getBoneIndicesCount() == 0) {
+                        String slot = mesh.getMaterialIndex() < slots.size() ? slots.get(mesh.getMaterialIndex()) : material.getName();
                         throw new CompileExceptionError(resource, 0, String.format(
                                 "Material '%s' in slot '%s' requires skinning attributes (%s), but mesh %d in '%s' has no skin data. Use a non-skinned material.",
                                 material.getMaterial(), slot, String.join(", ", skinAttributes), geometryModel.getMeshIndex(), model.getMesh()));
