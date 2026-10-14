@@ -13,9 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.invalidate-counters
-  (:require [internal.graph.types :as gt]
-            [util.coll :as coll])
-  (:import [com.defold.util InvalidationCounters]
+  (:require [internal.graph.types :as gt])
+  (:import [com.defold.util InvalidationCounters InvalidationCounters$Editor]
            [java.util.function Function ToLongFunction]))
 
 (set! *warn-on-reflection* true)
@@ -36,23 +35,41 @@
     (apply [_ endpoint]
       (gt/endpoint-label endpoint))))
 
+(defn edit
+  [^InvalidationCounters counters]
+  (.edit counters))
+
+(defn commit!
+  [^InvalidationCounters$Editor editor]
+  (.commit editor))
+
+(defn add-nodes!
+  [^InvalidationCounters$Editor editor node-ids ^long lifetime]
+  (.addNodes editor node-ids lifetime))
+
+(defn remove-nodes!
+  [^InvalidationCounters$Editor editor node-ids]
+  (.removeNodes editor node-ids))
+
+(defn bump!
+  [^InvalidationCounters$Editor editor endpoints]
+  (.bump editor endpoints endpoint-node-id endpoint-label))
+
+(defn full-invalidate!
+  [^InvalidationCounters$Editor editor]
+  (.fullInvalidate editor))
+
 (defn add-nodes
   [^InvalidationCounters counters node-ids ^long lifetime]
-  (if (coll/empty? node-ids)
-    counters
-    (.addNodes counters node-ids lifetime)))
+  (.addNodes counters node-ids lifetime))
 
 (defn remove-nodes
   [^InvalidationCounters counters node-ids]
-  (if (coll/empty? node-ids)
-    counters
-    (.removeNodes counters node-ids)))
+  (.removeNodes counters node-ids))
 
 (defn bump
   [^InvalidationCounters counters endpoints]
-  (if (coll/empty? endpoints)
-    counters
-    (.bump counters endpoints endpoint-node-id endpoint-label)))
+  (.bump counters endpoints endpoint-node-id endpoint-label))
 
 (defn counter
   [^InvalidationCounters counters endpoint]

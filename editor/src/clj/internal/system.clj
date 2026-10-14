@@ -155,15 +155,22 @@
       (update :user-data remove-deleted-user-data (coll/keys nodes-deleted))
       (update :invalidate-counters
               (fn [counters]
-                (-> counters
-                    (cond-> full-invalidation ic/full-invalidate)
-                    (ic/remove-nodes (coll/keys nodes-deleted))
-                    (cond-> (not full-invalidation) (ic/bump outputs-modified))
-                    ;; Committed transaction revisions increase across
-                    ;; undo/redo.
-                    ;; Reuse the revision as the lifetime stamp, without another
-                    ;; allocator.
-                    (ic/add-nodes nodes-added (gt/tx-id (basis system))))))))
+                (let [editor (ic/edit counters)
+                      deleted-node-ids (coll/keys nodes-deleted)
+                      ;; Transaction revisions increase across undo/redo. Reuse
+                      ;; the revision as the lifetime stamp.
+                      lifetime (gt/tx-id (basis system))]
+                  (if full-invalidation
+                    (-> editor
+                        ic/full-invalidate!
+                        (ic/remove-nodes! deleted-node-ids)
+                        (ic/add-nodes! nodes-added lifetime)
+                        ic/commit!)
+                    (-> editor
+                        (ic/remove-nodes! deleted-node-ids)
+                        (ic/bump! outputs-modified)
+                        (ic/add-nodes! nodes-added lifetime)
+                        ic/commit!)))))))
 
 (defn- ensure-no-concurrent-modifications!
   [system pre-tx-basis post-tx-basis]

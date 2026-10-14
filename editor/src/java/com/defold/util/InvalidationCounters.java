@@ -21,8 +21,10 @@ import clojure.lang.IReduceInit;
 import clojure.lang.Keyword;
 import clojure.lang.RT;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
@@ -39,6 +41,15 @@ public final class InvalidationCounters {
     }
 
     private static final IFn REDUCE = RT.var("clojure.core", "reduce");
+
+    /** Return a known count, or -1, without reducing the input. */
+    private static int knownCount(Object values) {
+        if (values == null) return 0;
+        if (values instanceof Counted) return ((Counted) values).count();
+        if (values instanceof Collection) return ((Collection<?>) values).isEmpty() ? 0 : -1;
+        if (values.getClass().isArray()) return Array.getLength(values);
+        return -1;
+    }
 
     private static void reduce(IFn operation, Object values) {
         if (values instanceof IReduceInit) ((IReduceInit) values).reduce(operation, null);
@@ -78,24 +89,21 @@ public final class InvalidationCounters {
     }
 
     public InvalidationCounters addNodes(Object ids, long birth) {
-        Editor editor = new Editor(this);
-        if (ids instanceof Counted) editor.prepareBatch(birth, ((Counted) ids).count());
-        reduce(new AddReducer(editor, birth), ids);
-        return editor.finish();
+        if (knownCount(ids) == 0) return this;
+        return edit().addNodes(ids, birth).commit();
     }
 
     public InvalidationCounters removeNodes(Object ids) {
-        Editor editor = new Editor(this);
-        reduce(new RemoveReducer(editor), ids);
-        return editor.finish();
+        if (knownCount(ids) == 0) return this;
+        return edit().removeNodes(ids).commit();
     }
 
     /** Accessors read endpoint fields without creating intermediate endpoint pairs. */
     public InvalidationCounters bump(Object endpoints, ToLongFunction<Object> nodeId, Function<Object, Keyword> label) {
-        Editor editor = new Editor(this);
-        reduce(new BumpReducer(editor, nodeId, label), endpoints);
-        return editor.finish();
+        if (knownCount(endpoints) == 0) return this;
+        return edit().bump(endpoints, nodeId, label).commit();
     }
+    public Editor edit() { return new Editor(this); }
     public InvalidationCounters fullInvalidate() { return new InvalidationCounters(generation + 1, lifetimes, Outputs.EMPTY); }
     public boolean fullInvalidatedSince(InvalidationCounters before) { return generation != before.generation; }
     public boolean changedSince(InvalidationCounters before, long id, Keyword label) {
@@ -109,33 +117,75 @@ public final class InvalidationCounters {
     public int outputNodeCount() { return outputs.nodeCount; }
     public int outputCount() { return outputs.outputCount; }
 
-    /** Private scratch state exists only during one persistent operation. */
-    private static final class Editor {
+    /**
+     * Mutable edit session. Confine to one thread and commit once. Published
+     * snapshots remain immutable; no operation is allowed after commit.
+     */
+    public static final class Editor {
         private final InvalidationCounters source;
+        private long generation;
+        private Outputs initialOutputs;
         private LifetimeEditor lifetimes;
         private Outputs.Editor outputs;
-        private Editor(InvalidationCounters source) { this.source = source; }
+        private boolean committed;
+        private Editor(InvalidationCounters source) {
+            this.source = source;
+            this.generation = source.generation;
+            this.initialOutputs = source.outputs;
+        }
+        private void ensureEditable() {
+            if (committed) throw new IllegalStateException("Editor already committed");
+        }
+        public Editor addNodes(Object ids, long birth) {
+            ensureEditable();
+            int count = knownCount(ids);
+            if (count == 0) return this;
+            if (count > 0) lifetimeEditor().prepareBatch(birth, count);
+            reduce(new AddReducer(this, birth), ids);
+            return this;
+        }
+        public Editor removeNodes(Object ids) {
+            ensureEditable();
+            if (knownCount(ids) == 0) return this;
+            reduce(new RemoveReducer(this), ids);
+            return this;
+        }
+        /** Calls share an output stamp until full invalidation clears it. */
+        public Editor bump(Object endpoints, ToLongFunction<Object> nodeId, Function<Object, Keyword> label) {
+            ensureEditable();
+            if (knownCount(endpoints) == 0) return this;
+            reduce(new BumpReducer(this, nodeId, label), endpoints);
+            return this;
+        }
+        public Editor fullInvalidate() {
+            ensureEditable();
+            ++generation;
+            initialOutputs = Outputs.EMPTY;
+            outputs = null;
+            return this;
+        }
         private LifetimeEditor lifetimeEditor() {
             if (lifetimes == null) lifetimes = new LifetimeEditor(source.lifetimes);
             return lifetimes;
         }
         private Outputs.Editor outputEditor() {
-            if (outputs == null) outputs = source.outputs.edit(this);
+            if (outputs == null) outputs = initialOutputs.edit(this);
             return outputs;
         }
         private boolean contains(long id) { return lifetimes == null ? source.contains(id) : lifetimes.contains(id); }
-        /** Optional counted-input hint for bounded 64-ID page aggregation. */
-        void prepareBatch(long birth, int inputCount) { lifetimeEditor().prepareBatch(birth, inputCount); }
-        void add(long id, long birth) { lifetimeEditor().add(id, birth); }
-        void remove(long id) { lifetimeEditor().remove(id); outputEditor().remove(id); }
-        void bump(long id, Keyword label) {
+        private void add(long id, long birth) { lifetimeEditor().add(id, birth); }
+        private void remove(long id) { lifetimeEditor().remove(id); outputEditor().remove(id); }
+        private void bump(long id, Keyword label) {
             if (label == null) throw new IllegalArgumentException("Output label must be a keyword");
             outputEditor().bump(id, label);
         }
-        InvalidationCounters finish() {
+        public InvalidationCounters commit() {
+            ensureEditable();
             Lifetimes live = lifetimes == null ? source.lifetimes : lifetimes.finish();
-            Outputs versions = outputs == null ? source.outputs : outputs.finish();
-            return live == source.lifetimes && versions == source.outputs ? source : new InvalidationCounters(source.generation, live, versions);
+            Outputs versions = outputs == null ? initialOutputs : outputs.finish();
+            committed = true;
+            return generation == source.generation && live == source.lifetimes && versions == source.outputs
+                    ? source : new InvalidationCounters(generation, live, versions);
         }
     }
 
@@ -652,6 +702,7 @@ public final class InvalidationCounters {
         // Each pair is [keyword, stamp] or [null, child]. No map-entry object per output.
         // bitmap == 0 denotes a full-hash collision bucket (only at shift >= 32).
         private static final class Labels {
+            boolean growthTracked;
             final Object owner;
             int bitmap;
             Object[] entries;
@@ -763,6 +814,8 @@ public final class InvalidationCounters {
             private final InvalidationCounters.Editor live;
             private ArrayList<Labels> grownLabels;
             private void trackGrowth(Labels labels) {
+                if (labels.growthTracked) return;
+                labels.growthTracked = true;
                 if (grownLabels == null) grownLabels = new ArrayList<>();
                 grownLabels.add(labels);
             }

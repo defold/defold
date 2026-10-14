@@ -22,7 +22,9 @@
             [internal.invalidate-counters :as ic]
             [support.test-support :as ts]
             [util.coll :as coll])
-  (:import [com.defold.util InvalidationCounters]))
+  (:import [clojure.lang IReduceInit]
+           [com.defold.util InvalidationCounters]
+           [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
 
@@ -211,6 +213,104 @@
   (prop/for-all [blocks (gen/vector history-block-gen 0 6)]
     (run-history! blocks)))
 
+(defn- apply-edit! [editor {:keys [kind ids endpoints birth]}]
+  (case kind
+    :add (ic/add-nodes! editor ids birth)
+    :delete (ic/remove-nodes! editor ids)
+    :bump (ic/bump! editor endpoints)
+    :full (ic/full-invalidate! editor)))
+
+(defn- run-edit-sessions! [blocks]
+  (let [initial {:snapshot (ic/make)
+                 :model {:generation 0
+                         :lifetimes {}
+                         :outputs {}}
+                 :captured {}}
+        state (reduce
+                (fn run-session [{:keys [history node-ids endpoints]} {:keys [ids labels birth operations]}]
+                  (let [block-endpoints (into [] (mapcat (fn [id] (mapv #(gt/endpoint id %) labels))) ids)
+                        operations (into [{:kind :add
+                                           :ids ids
+                                           :birth birth}
+                                          {:kind :bump
+                                           :endpoints block-endpoints}]
+                                         operations)
+                        endpoints (into endpoints (mapcat :endpoints) operations)
+                        node-ids (into (into node-ids (mapcat :ids) operations) (map gt/endpoint-node-id) endpoints)
+                        before (if (:fork (peek operations)) initial (peek history))
+                        editor (ic/edit (:snapshot before))
+                        model (reduce (fn apply-command [model operation]
+                                        (apply-edit! editor operation)
+                                        (model-step model operation (count history)))
+                                      (:model before) operations)
+                        snapshot (ic/commit! editor)
+                        after {:snapshot snapshot
+                               :model model
+                               :captured (capture snapshot model endpoints)}]
+                    (check-snapshot! after node-ids endpoints)
+                    (doseq [previous history]
+                      (check-snapshot! previous node-ids endpoints)
+                      (ensure! (= (not= (:generation (:model previous)) (:generation model))
+                                  (ic/full-invalidation-since? (:snapshot previous) snapshot))
+                               {:reason :edit-session-full-reset})
+                      (doseq [endpoint endpoints]
+                        (check-pair! endpoint previous after)))
+                    {:history (conj history after)
+                     :node-ids node-ids
+                     :endpoints endpoints}))
+                {:history [initial]
+                 :node-ids #{}
+                 :endpoints #{}}
+                blocks)]
+    (doseq [entry (:history state)]
+      (check-snapshot! entry (:node-ids state) (:endpoints state)))
+    true))
+
+;; Several node changes and output invalidations committed together must agree
+;; with the graph model, including restores and full invalidation mid-session.
+(defspec generated-edit-sessions 400
+  (prop/for-all [blocks (gen/vector history-block-gen 0 6)]
+    (run-edit-sessions! blocks)))
+
+;; Committing a session must close it so later edits cannot change counters
+;; already published to the graph or retained by an evaluation context.
+(deftest edit-session-closes-on-commit
+  (let [endpoint (gt/endpoint 1000 :value)
+        initial (ic/add-nodes (ic/make) [1000] 1)
+        editor (ic/edit initial)
+        published (-> editor
+                      (ic/bump! [endpoint])
+                      ic/commit!)]
+    (is (nil? (ic/counter initial endpoint)))
+    (is (some? (ic/counter published endpoint)))
+    (is (thrown? IllegalStateException (ic/add-nodes! editor [] 2)))
+    (is (thrown? IllegalStateException (ic/remove-nodes! editor [])))
+    (is (thrown? IllegalStateException (ic/bump! editor [])))
+    (is (thrown? IllegalStateException (ic/full-invalidate! editor)))
+    (is (thrown? IllegalStateException (ic/commit! editor)))
+    (is (= {:lifetimes 1
+            :nodes 1
+            :outputs 1}
+           (stored-counts published)))))
+
+;; Separate edit sessions from one snapshot must leave each other's outputs
+;; unchanged. Output invalidations within one session must share a stamp.
+(deftest independent-edit-sessions
+  (let [a (gt/endpoint 1000 :a)
+        b (gt/endpoint 1000 :b)
+        initial (ic/add-nodes (ic/make) [1000] 1)
+        left (ic/edit initial)
+        right (ic/edit initial)
+        _ (ic/bump! left [a])
+        _ (ic/bump! right [b])
+        published-right (ic/commit! right)
+        published-left (-> left (ic/bump! [b]) ic/commit!)]
+    (is (nil? (ic/counter initial a)))
+    (is (nil? (ic/counter initial b)))
+    (is (nil? (ic/counter published-right a)))
+    (is (identical? (ic/counter published-left a) (ic/counter published-left b)))
+    (is (not (identical? (ic/counter published-left b) (ic/counter published-right b))))))
+
 ;; Invalidating many outputs on a node, then invalidating some again, must
 ;; preserve old snapshots and leave the other outputs unchanged.
 (defspec generated-dense-label-batches 200
@@ -299,6 +399,52 @@
     (is (.contains ^InvalidationCounters created 1000))
     (is (not (.contains ^InvalidationCounters deleted 1000)))
     (is (not (ic/endpoint-invalidated-since? endpoint populated unchanged)))))
+
+;; Empty node and output batches must leave persistent snapshots and open edit
+;; sessions unchanged. Even empty batches must reject an already closed editor.
+(deftest empty-batches-test
+  (let [endpoint (gt/endpoint 1000 :value)
+        initial (-> (ic/make) (ic/add-nodes [1000] 1) (ic/bump [endpoint]))]
+    (doseq [batch [nil [] () (ArrayList.) (long-array 0) (object-array 0) (coll/keys {})]]
+      (is (identical? initial (ic/add-nodes initial batch 2)))
+      (is (identical? initial (ic/remove-nodes initial batch)))
+      (is (identical? initial (ic/bump initial batch)))
+      (let [editor (ic/edit initial)]
+        (is (identical? editor (ic/add-nodes! editor batch 2)))
+        (is (identical? editor (ic/remove-nodes! editor batch)))
+        (is (identical? editor (ic/bump! editor batch)))
+        (is (identical? initial (ic/commit! editor)))
+        (is (thrown? IllegalStateException (ic/add-nodes! editor batch 2)))
+        (is (thrown? IllegalStateException (ic/remove-nodes! editor batch)))
+        (is (thrown? IllegalStateException (ic/bump! editor batch)))))))
+
+;; Node and output batches that support reduction without count or seq must
+;; still work; checking for empty input must not consume them before reduction.
+(deftest uncounted-reducible-batches-test
+  (let [endpoint (gt/endpoint 1000 :value)
+        ids (reify IReduceInit
+              (reduce [_ f init]
+                (f init 1000)))
+        endpoints (reify IReduceInit
+                    (reduce [_ f init]
+                      (f init endpoint)))
+        initial (ic/make)
+        persistent (-> initial (ic/add-nodes ids 1) (ic/bump endpoints))
+        edited (-> initial ic/edit (ic/add-nodes! ids 1) (ic/bump! endpoints) ic/commit!)]
+    (doseq [snapshot [persistent edited]]
+      (is (= {:lifetimes 1
+              :nodes 1
+              :outputs 1}
+             (stored-counts snapshot)))
+      (is (some? (ic/counter snapshot endpoint)))
+      (is (= {:lifetimes 0
+              :nodes 0
+              :outputs 0}
+             (stored-counts (ic/remove-nodes snapshot ids))))
+      (is (= {:lifetimes 0
+              :nodes 0
+              :outputs 0}
+             (stored-counts (-> snapshot ic/edit (ic/remove-nodes! ids) ic/commit!)))))))
 
 ;; Deleting nodes must remove their counters. Restoring them must mark their
 ;; outputs as invalidated since the old snapshot. Full invalidation must clear
@@ -455,13 +601,17 @@
           restored-birth (unchecked-inc (long birth))
           empty (ic/make)
           created (ic/add-nodes empty node-ids birth)
+          created-from-primitive-array (ic/add-nodes empty (long-array node-ids) birth)
+          created-from-object-array (-> empty ic/edit (ic/add-nodes! (object-array node-ids) birth) ic/commit!)
           repeated (ic/add-nodes created node-ids birth)
           deleted (ic/remove-nodes repeated deleted-ids)
           restored (ic/add-nodes deleted deleted-ids restored-birth)
           model (into {} (map #(vector % birth)) node-ids)
           deleted-model (reduce dissoc model deleted-ids)
           restored-model (into deleted-model (map #(vector % restored-birth)) deleted-ids)]
-      (doseq [[snapshot lifetimes] [[empty {}] [created model] [repeated model]
+      (doseq [[snapshot lifetimes] [[empty {}] [created model]
+                                    [created-from-primitive-array model] [created-from-object-array model]
+                                    [repeated model]
                                     [deleted deleted-model] [restored restored-model]]]
         (check-snapshot! {:snapshot snapshot
                           :model {:lifetimes lifetimes
