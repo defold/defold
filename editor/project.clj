@@ -99,6 +99,8 @@
                                    org.openjfx/javafx-media
                                    org.openjfx/javafx-web]]
 
+                     [io.github.vlaaad/cljfx-flowless "1.0.7" :exclusions [cljfx/cljfx]]
+
                      [org.jogamp.gluegen/gluegen-rt "2.6.0"]
                      [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-linux-amd64"]
                      [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-macosx-universal"]

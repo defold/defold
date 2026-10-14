@@ -14,10 +14,8 @@
 
 (ns editor.properties-view
   (:require [cljfx.api :as fx]
-            [cljfx.ext.list-view :as fx.ext.list-view]
+            [cljfx.flowless :as fx.flowless]
             [cljfx.fx.column-constraints :as fx.column-constraints]
-            [cljfx.fx.list-cell :as fx.list-cell]
-            [cljfx.fx.list-view :as fx.list-view]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -45,17 +43,18 @@
             [util.id-vec :as iv])
   (:import [com.sun.javafx.scene NodeHelper]
            [editor.properties Curve CurveSpread]
+           [java.util ArrayList Collection]
            [java.util.function BiConsumer]
            [javafx.beans.value ChangeListener]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control ListCell ListView MenuButton Slider TextArea]
-           [javafx.scene.control.skin VirtualFlow]
+           [javafx.scene.control MenuButton Slider TextArea]
            [javafx.scene.input DragEvent KeyCode KeyEvent MouseEvent TransferMode]
            [javafx.scene.paint Color]
            [javafx.scene.text Font Text]
-           [javafx.util Subscription]))
+           [javafx.util Subscription]
+           [org.fxmisc.flowless Cell VirtualFlow]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -727,19 +726,24 @@
     (fx.mutator/property-change-listener MenuButton/.fontProperty)
     fx.lifecycle/change-listener))
 
-(defn- property-label-widths [^Font font items]
-  ;; Measure text with one Text, without constructing offscreen controls.
-  ;; The property-label style reserves 24 pixels for padding and the menu arrow.
+(defn- property-list-data [^Font font items]
+  ;; Measure labels without constructing offscreen controls. The label style
+  ;; reserves 24 pixels for padding and the menu arrow.
   (let [text (doto (Text.) (.setFont font))]
-    (reduce (fn [widths {:keys [category label]}]
-              (if-not label
-                widths
-                (do
-                  (.setText text label)
-                  (assoc widths category
-                         (max (double (get widths category 0.0))
-                              (+ 24.0 (.getWidth (.getLayoutBounds text))))))))
-            {}
+    (reduce (fn [data {:keys [category category-title property-keyword label] :as item}]
+              (let [item-key (or property-keyword [::category category-title])
+                    data (-> data
+                             (update :item-keys conj item-key)
+                             (assoc-in [:items-by-key item-key] item))]
+                (if-not label
+                  data
+                  (do
+                    (.setText text label)
+                    (update-in data [:label-widths category]
+                               (fn [width]
+                                 (max (double (or width 0.0))
+                                      (+ 24.0 (.getWidth (.getLayoutBounds text))))))))))
+            {:item-keys [] :items-by-key {} :label-widths {}}
             items)))
 
 (defn- property-row-view
@@ -801,204 +805,222 @@
                         (not (.isDisabled ^Node %)))))
         [node]))
 
-(defn- focus-property-cell!
-  ^Node [^ListView list index control-index forward]
-  (let [^VirtualFlow flow (.lookup list ".virtual-flow")]
-    (loop [index (long index)]
-      (when (< -1 index (count (.getItems list)))
-        (if (:category-title (.get (.getItems list) index))
-          (recur (+ index (if forward 1 -1)))
-          (do
-            ;; ListView.scrollTo puts even an already visible row at the top.
-            (.scrollTo flow (int index))
-            (.applyCss list)
-            (.layout list)
-            (let [^ListCell cell (.getVisibleCell flow (int index))
-                  controls (focusable-controls (.getGraphic cell))
-                  ^Node target (or (get controls control-index)
-                                   ((if forward first peek) controls))]
-              (if-not target
-                (recur (+ index (if forward 1 -1)))
-                (do
-                  (.select (.getSelectionModel list) (int index))
-                  (.requestFocus target)
-                  target)))))))))
+(defn- forget-property-focus! [flow]
+  (when-let [subscription (:subscription (ui/user-data flow ::focused-field))]
+    (.unsubscribe ^Subscription subscription))
+  (ui/user-data! flow ::focused-field nil))
 
-(defn- observe-property-list-focus!
-  ^Subscription [^ListView list]
-  ;; Focus repair also happens during cell reconciliation, when cljfx's wrapped
-  ;; change listeners are suppressed. Keep this native subscription explicit.
-  (-> (.sceneProperty list)
+(defn- focus-property-cell!
+  ^Node [^VirtualFlow flow item-keys index control-index forward]
+  (loop [index (long index)]
+    (when (< -1 index (count item-keys))
+      (if (vector? (item-keys index))
+        (recur (+ index (if forward 1 -1)))
+        (do
+          ;; Flowless brings the row into view with the smallest scroll needed.
+          (.show flow (int index))
+          (.applyCss flow)
+          (.layout flow)
+          (let [row (.getNode ^Cell (.get (.getCellIfVisible flow (int index))))
+                controls (focusable-controls row)
+                ^Node target (or (get controls control-index)
+                                 ((if forward first peek) controls))]
+            (if-not target
+              (recur (+ index (if forward 1 -1)))
+              (do
+                (forget-property-focus! flow)
+                (.requestFocus target)
+                target))))))))
+
+(defn- select-property! [flow swap-state property-keyword]
+  ;; Focus events can arrive before cljfx renders the previous selection.
+  (when-not (= property-keyword (ui/user-data flow ::selected-property))
+    (ui/user-data! flow ::selected-property property-keyword)
+    (swap-state assoc :selected-property property-keyword)))
+
+(defn- observe-property-flow-focus!
+  ^Subscription [^VirtualFlow flow swap-state]
+  ;; Native focus and cell disposal also happen during cljfx reconciliation,
+  ;; when wrapped change listeners are suppressed. Dispose both subscriptions.
+  (-> (.sceneProperty flow)
       (.flatMap Scene/.focusOwnerProperty)
       (.subscribe
         ^BiConsumer
-        (fn on-property-focus-changed [old-owner owner]
-          (let [^ListCell cell (ui/closest-node-of-type ListCell owner)
-                focused-field (ui/user-data list ::focused-field)
-                ^Node focused-node (:node focused-field)]
-            (cond
-              ;; JavaFX repairs focus after hiding or detaching a
-              ;; cell. Wait for its non-nil replacement, then keep
-              ;; input in the list until the user resumes traversal.
-              (and owner
-                   focused-node
-                   (or (nil? old-owner) (identical? old-owner focused-node))
-                   (or (nil? (.getScene focused-node))
-                       (not (.get (NodeHelper/treeVisibleProperty focused-node))))
-                   (.getScene list)
-                   (.get (NodeHelper/treeVisibleProperty list))
-                   (= (:property-keyword focused-field)
-                      (:property-keyword (.getSelectedItem (.getSelectionModel list)))))
-              (.requestFocus list)
-
-              (and cell (identical? list (.getListView cell)))
+        (fn on-property-focus-changed [_ ^Node owner]
+          (when-let [row (ui/closest-node-with-style "property-cell" owner)]
+            (when (identical? flow (ui/closest-node-of-type VirtualFlow row))
               (when-let [control-index (coll/first-index-where #(identical? owner %)
-                                                               (focusable-controls (.getGraphic cell)))]
-                (ui/user-data! list ::focused-field
-                               {:node owner
-                                :property-keyword (:property-keyword (.getItem cell))
-                                :control-index control-index}))))))))
+                                                               (focusable-controls row))]
+                (forget-property-focus! flow)
+                (let [property-keyword (.getUserData row)
+                      ;; Park focus when the editor leaves the scene.
+                      ;; A later focus repair could lose a Tab or click.
+                      subscription
+                      (.subscribe (.sceneProperty owner)
+                                  ^BiConsumer
+                                  (fn on-focused-editor-detached [_ scene]
+                                    (when (and (nil? scene)
+                                               (.getScene flow)
+                                               (.get (NodeHelper/treeVisibleProperty flow))
+                                               (identical? owner (.getFocusOwner (.getScene flow))))
+                                      (.requestFocus flow))))]
+                  (ui/user-data! flow ::focused-field
+                                 {:node owner
+                                  :property-keyword property-keyword
+                                  :control-index control-index
+                                  :subscription subscription})
+                  (select-property! flow swap-state property-keyword)))))))))
 
-(defn- handle-property-list-tab! [^ListView list ^KeyEvent event]
-  (let [owner (.getFocusOwner (.getScene list))
-        ^ListCell cell (ui/closest-node-of-type ListCell owner)
-        focused-field (ui/user-data list ::focused-field)]
+(defn- handle-property-flow-tab! [^VirtualFlow flow item-keys ^KeyEvent event]
+  (let [owner (.getFocusOwner (.getScene flow))
+        row (ui/closest-node-with-style "property-cell" owner)
+        focused-field (ui/user-data flow ::focused-field)]
     (when (and (= KeyCode/TAB (.getCode event))
                (not (.isAltDown event))
                (not (.isMetaDown event))
                (or (not (.isControlDown event))
-                   (instance? TextArea (if cell owner (:node focused-field))))
-               (identical? list (ui/closest-node-of-type ListView owner)))
-      (if-not cell
-        (when (and (= KeyEvent/KEY_PRESSED (.getEventType event))
-                   focused-field
-                   (= (:property-keyword focused-field)
-                      (:property-keyword (.getSelectedItem (.getSelectionModel list)))))
-          (when-let [^Node target (focus-property-cell! list
-                                                        (.getSelectedIndex (.getSelectionModel list))
-                                                        (:control-index focused-field)
-                                                        true)]
-            ;; Resume native traversal (including traversal within a row and
-            ;; out of the list) from the restored field, not the viewport.
-            (Event/fireEvent target (.copyFor event target target))
-            (.consume event)))
-        (do
-          (.select (.getSelectionModel list) (.getIndex cell))
-          (when (and (= KeyEvent/KEY_PRESSED (.getEventType event))
-                     ;; Plain Tab belongs to the multiline editor.
-                     (or (not (instance? TextArea owner))
-                         (.isShiftDown event)
-                         (.isControlDown event)))
-            (let [forward (not (.isShiftDown event))
-                  controls (focusable-controls (.getGraphic cell))]
-              (when (identical? owner ((if forward peek first) controls))
-                ;; Commit the focused editor before its cell can be recycled.
-                (.requestFocus (.getGraphic cell))
-                (when (focus-property-cell! list
-                                            (+ (.getIndex cell) (if forward 1 -1))
-                                            nil
-                                            forward)
-                  (.consume event))))))))))
+                   (instance? TextArea (if row owner (:node focused-field))))
+               (identical? flow (ui/closest-node-of-type VirtualFlow owner)))
+      (if-not row
+        (when (and focused-field
+                   (= (:property-keyword focused-field) (ui/user-data flow ::selected-property)))
+          (when-let [index (coll/first-index-where #(= (:property-keyword focused-field) %) item-keys)]
+            (when-let [target (focus-property-cell! flow item-keys index (:control-index focused-field) true)]
+              (Event/fireEvent target (.copyFor event target target))
+              (.consume event))))
+        ;; Plain Tab belongs to the multiline editor.
+        (when (or (not (instance? TextArea owner))
+                  (.isShiftDown event)
+                  (.isControlDown event))
+          (let [forward (not (.isShiftDown event))
+                controls (focusable-controls row)]
+            (when (identical? owner ((if forward peek first) controls))
+              ;; Commit before scrolling can dispose the focused editor.
+              (.requestFocus row)
+              (when (focus-property-cell! flow item-keys
+                                          (+ (long (coll/first-index-where #(= (.getUserData row) %) item-keys))
+                                             (if forward 1 -1))
+                                          nil forward)
+                (.consume event)))))))))
 
-(defn- handle-property-list-event [^Event event]
-  (let [^ListView list (.getSource event)]
+(defn- handle-property-flow-event [item-keys swap-state ^Event event]
+  (let [^VirtualFlow flow (.getSource event)]
     (cond
       (= MouseEvent/MOUSE_PRESSED (.getEventType event))
-      (when-let [^ListCell cell (ui/closest-node-of-type ListCell (.getTarget event))]
-        ;; Embedded controls consume clicks before ListCell can select its row.
-        (when (and (identical? list (.getListView cell))
-                   (:property-keyword (.getItem cell)))
+      (when-let [row (ui/closest-node-with-style "property-cell" (.getTarget event))]
+        (when-let [property-keyword (.getUserData row)]
           ;; An explicit click supersedes the field remembered before scrolling.
-          (let [owner (.getFocusOwner (.getScene list))]
+          (let [owner (.getFocusOwner (.getScene flow))]
             (when-not (ui/closest-node-where #(identical? owner %) (.getTarget event))
-              (ui/user-data! list ::focused-field nil)))
-          (.select (.getSelectionModel list) (.getIndex cell))))
+              (forget-property-focus! flow)))
+          (select-property! flow swap-state property-keyword)))
 
-      (or (= KeyEvent/KEY_PRESSED (.getEventType event))
-          (= KeyEvent/KEY_RELEASED (.getEventType event)))
-      (handle-property-list-tab! list event))))
+      (= KeyEvent/KEY_PRESSED (.getEventType event))
+      (handle-property-flow-tab! flow item-keys event))))
 
-(def ^:private prop-list-selected-index
+(def ^:private prop-selected-property
   (fx.prop/make
     (fx.mutator/setter
-      (fn select-property-index [^ListView list [index _items]]
-        (let [model (.getSelectionModel list)]
-          (if index
-            (.clearAndSelect model (int index))
-            (do
-              (ui/user-data! list ::focused-field nil)
-              (.clearSelection model))))))
+      (fn set-selected-property [flow property-keyword]
+        (when-not (= property-keyword (ui/user-data flow ::selected-property))
+          (forget-property-focus! flow))
+        (ui/user-data! flow ::selected-property property-keyword)))
     fx.lifecycle/scalar))
 
-(defn- property-cell-description [context localization-state selection-provider label-widths swap-state
-                                  {:keys [category category-title property-keyword] :as item}]
-  ;; JavaFX can clear the item before marking the cell empty.
-  (if-not item
-    {}
-    {:content-display :graphic-only
-     :style-class ["cell" "indexed-cell" "list-cell" "property-cell"]
-     :alignment :top-left
-     :pref-width 0
-     :focus-traversable false
-     :graphic
-     (if category-title
-       {:fx/type fxui/label
-        :text category-title
-        :style-class "property-category"}
-       {:fx/type fx/ext-recreate-on-key-changed
-        :key [(:original-node-ids selection-provider) property-keyword]
-        :desc (assoc item
-                :fx/type property-row-view
-                :context context
-                :localization-state localization-state
-                :selection-provider selection-provider
-                ;; Items and the factory can advance in either order when a
-                ;; new category is introduced.
-                :label-width (get label-widths category 24.0)
-                :on-label-font-changed (fn/partial swap-state assoc :label-font))})}))
+(ui/defc property-cell-view
+  {:compose [{:fx/type fx/ext-get-env :env {::property-list :property-list}}]}
+  [{:keys [item-key property-list]}]
+  (let [{:keys [items-by-key label-widths context localization-state selection-provider swap-state selected-property]} property-list
+        {:keys [category category-title property-keyword] :as item} (items-by-key item-key)]
+    ;; Flowless keeps this root node for the cell's lifetime. Advance the editor
+    ;; through the environment, keeping item identities stable across edits.
+    {:fx/type fxui/vertical
+     :style-class "property-cell"
+     :user-data property-keyword
+     :pseudo-classes (if (and property-keyword (= selected-property property-keyword)) #{:selected} #{})
+     :children
+     (cond
+       (nil? item) []
+       category-title [{:fx/type fxui/label :text category-title :style-class "property-category"}]
+       :else [{:fx/type fx/ext-recreate-on-key-changed
+               :key (:original-node-ids selection-provider)
+               :desc (assoc item
+                       :fx/type property-row-view
+                       :context context
+                       :localization-state localization-state
+                       :selection-provider selection-provider
+                       :label-width (get label-widths category)
+                       :on-label-font-changed (fn/partial swap-state assoc :label-font))}])}))
+
+(defn- property-cell-description [item-key]
+  {:fx/type property-cell-view :item-key item-key})
+
+(def ^:private property-flow-lifecycle
+  ;; cljfx-flowless deletes cell components, but does not dispose the native
+  ;; flow's timed size estimates. Dispose it first: this removes cells from the
+  ;; factory, so the wrapper will not delete their components a second time.
+  (reify fx.lifecycle/Lifecycle
+    (create [_ desc opts]
+      ;; The wrapper's reflective observableArrayList call can treat Clojure
+      ;; vectors as extractor callbacks. A Java list selects the collection
+      ;; overload, including when the panel starts empty.
+      (fx.lifecycle/create fx.flowless/virtual-flow
+                           (update desc :items #(ArrayList. ^Collection %))
+                           opts))
+    (advance [_ component desc opts]
+      (fx.lifecycle/advance fx.flowless/virtual-flow component desc opts))
+    (delete [_ component opts]
+      (.dispose ^VirtualFlow (fx/instance component))
+      (fx.lifecycle/delete fx.flowless/virtual-flow component opts))))
 
 (ui/defc property-list-view
   {:compose [{:fx/type fx/ext-state
               :initial-state {:label-font (Font/getDefault)
                               :selection-key (:original-node-ids (:selection-provider props))
+                              :property-keywords (into #{} (keep :property-keyword) (:items props))
                               :selected-property nil}
               :reset (fn reset-property-list-state [state initial-state]
-                       (assoc initial-state :label-font (:label-font state)))}
-             {:fx/type fx/ext-on-instance-lifecycle
-              :on-created (fn on-property-list-created [list]
-                            (ui/user-data! list ::focus-subscription
-                                           (observe-property-list-focus! list)))
-              :on-deleted (fn on-property-list-deleted [list]
-                            (.unsubscribe ^Subscription (ui/user-data list ::focus-subscription))
-                            (ui/user-data! list ::focus-subscription nil)
-                            (ui/user-data! list ::focused-field nil))}
+                       (cond-> (assoc initial-state :label-font (:label-font state))
+                         (= (:selection-key state) (:selection-key initial-state))
+                         (assoc :selected-property ((:property-keywords initial-state) (:selected-property state)))))}
              {:fx/type ui/ext-memo
-              :fn property-label-widths
+              :fn property-list-data
               :args [(get-in props [:state :label-font]) (:items props)]
-              :key :label-widths}]}
-  [{:keys [items context localization-state selection-provider state swap-state label-widths]}]
-  {:fx/type fx.ext.list-view/with-selection-props
-   ;; Like the form view's list selection, include the items as a refresh key:
-   ;; JavaFX can clear selection when items change without changing its index.
-   ;; The extension reapplies selection after updating the list's items.
-   :props {prop-list-selected-index
-           [(when-let [selected-property (:selected-property state)]
-              (coll/first-index-where #(= selected-property (:property-keyword %)) items))
-            items]
-           :on-selected-item-changed
-           (fn on-selected-item-changed [item]
-             (swap-state assoc :selected-property (:property-keyword item)))}
-   :desc {:fx/type fx.list-view/lifecycle
+              :key :data}]}
+  [{:keys [context localization-state selection-provider state swap-state data]}]
+  {:fx/type fx/ext-set-env
+   :env {::property-list (assoc data
+                           :context context
+                           :localization-state localization-state
+                           :selection-provider selection-provider
+                           :swap-state swap-state
+                           :selected-property (:selected-property state))}
+   :desc {:fx/type fxui/vertical
           :id "properties"
           :min-height 0
           :min-width 0
-          :focus-traversable false
-          :event-filter handle-property-list-event
-          :items items
-          :cell-factory
-          {:fx/cell-type fx.list-cell/lifecycle
-           :describe (fn/partial property-cell-description
-                                 context localization-state selection-provider label-widths swap-state)}}})
+          :children
+          [{:fx/type fx.flowless/virtualized-scroll-pane
+            :v-box/vgrow :always
+            :hbar-policy :never
+            :content
+            {:fx/type fx/ext-on-instance-lifecycle
+             :on-created (fn on-property-flow-created [flow]
+                           (ui/user-data! flow ::focus-subscription
+                                          (observe-property-flow-focus! flow swap-state)))
+             :on-deleted (fn on-property-flow-deleted [flow]
+                           (.unsubscribe ^Subscription (ui/user-data flow ::focus-subscription))
+                           (ui/user-data! flow ::focus-subscription nil)
+                           (forget-property-focus! flow))
+             :desc {:fx/type property-flow-lifecycle
+                    :style-class ["virtual-flow" "property-flow"]
+                    :min-height 0
+                    :min-width 0
+                    :focus-traversable false
+                    prop-selected-property (:selected-property state)
+                    :event-filter (fn/partial handle-property-flow-event (:item-keys data) swap-state)
+                    :items (:item-keys data)
+                    :cell-factory property-cell-description}}}]}})
 
 (defn- property-items [coalesced-properties localization-state]
   (into []
