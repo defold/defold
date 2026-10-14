@@ -5006,14 +5006,14 @@ namespace dmGraphics
     {
         DX12Context* context = (DX12Context*) _context;
         DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
-        if (!rt || !rt->m_Base.m_TextureColor[0] || !buffer || !width || !height || (uint64_t) width * height * 4 > buffer_size)
+        if (!rt || !rt->m_Base.m_TextureColor[0])
             return;
 
         DX12Texture* color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[0]);
         const DXGI_FORMAT format = color->m_ResourceDesc.Format;
         const bool is_rgba = format == DXGI_FORMAT_R8G8B8A8_UNORM || format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         const bool is_bgra = format == DXGI_FORMAT_B8G8R8A8_UNORM || format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
-        if ((!is_rgba && !is_bgra) || x < 0 || y < 0 ||
+        if ((!is_rgba && !is_bgra) ||
             (uint64_t) x + width > color->m_ResourceDesc.Width || (uint64_t) y + height > color->m_ResourceDesc.Height)
             return;
 

@@ -271,10 +271,15 @@ command to display the selected case in a window until it is closed.
 ## ReadPixels regression checks
 
 Every capture compares bottom-left subregions (bottom, middle and top edge)
-against the corresponding rows of a full top-down BGRA readback, including
+against the corresponding rows of the existing full top-down BGRA readback, including
 unaligned widths and destination guard bytes. The `triangle` case additionally
 checks the backbuffer, offscreen 2D targets, multisampled MRT attachment 0,
 all six cubemap render-target faces, invalid regions, and rendering after readback.
+The MRT shader writes different colors to attachments 0 and 1, so reading the
+wrong attachment fails on OpenGL as well as the other adapters. Crop checks use
+rendered images; solid-color cube faces only check face selection and continuation.
+Unsupported backbuffer readback checks that the destination remains unchanged.
+OpenGL also checks backbuffer bounds after enlarging and shrinking the window.
 The existing viewport/depth/stencil continuation checks still run.
 
 After building `test_app_graphics`, run the focused check with:

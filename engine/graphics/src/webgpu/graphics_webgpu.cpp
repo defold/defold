@@ -1241,6 +1241,9 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
         // support COPY_SRC when it is requested during configuration.
         surface_conf.usage |= WGPUTextureUsage_CopySrc;
 #endif
+        context->m_BaseContext.m_ContextFeatureSupport &= ~(1 << CONTEXT_FEATURE_BACKBUFFER_READBACK);
+        if (surface_conf.usage & WGPUTextureUsage_CopySrc)
+            SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BACKBUFFER_READBACK);
         surface_conf.format                   = context->m_Format;
         surface_conf.width                    = width;
         surface_conf.height                   = height;
@@ -3995,13 +3998,6 @@ static void WebGPUReadPixels(HContext _context, int32_t x, int32_t y, uint32_t w
     if (!texture)
     {
         dmLogError("WebGPUReadPixels: no color attachment to read");
-        return;
-    }
-
-    if (!buffer || !width || !height || x < 0 || y < 0 ||
-        uint64_t(width) * height * 4 > buffer_size)
-    {
-        dmLogError("WebGPUReadPixels: invalid destination or region");
         return;
     }
 

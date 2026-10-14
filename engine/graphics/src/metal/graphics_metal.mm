@@ -1431,6 +1431,7 @@ namespace dmGraphics
         context->m_PolygonOffsetUnits  = 0.0f;
         context->m_PolygonOffsetChanged = true;
 
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BACKBUFFER_READBACK);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
@@ -5717,12 +5718,6 @@ namespace dmGraphics
 
         const uint32_t bytes_per_pixel = 4;
         const uint32_t dst_row_size = width * bytes_per_pixel;
-        if (!buffer || buffer_size < dst_row_size * height)
-        {
-            dmLogError("MetalReadPixels: destination buffer is too small.");
-            return;
-        }
-
         const HRenderTarget render_target = context->m_CurrentRenderTarget;
         MTL::Texture* source_texture = 0;
         uint32_t source_height = 0;

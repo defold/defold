@@ -5988,13 +5988,6 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
 
-        if (!buffer || !width || !height || x < 0 || y < 0 ||
-            uint64_t(width) * height * 4 > buffer_size)
-        {
-            dmLogError("VulkanReadPixels: invalid destination or region");
-            return;
-        }
-
         // The swapchain image belongs to the application only between acquire
         // and present. Readback must include the draws recorded in this frame.
         if (!context->m_FrameBegun)

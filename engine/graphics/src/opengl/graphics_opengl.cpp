@@ -2081,6 +2081,7 @@ static void LogFrameBufferError(GLenum status)
         #endif
         }
 
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BACKBUFFER_READBACK);
         if (context->m_MultiTargetRenderingSupport)      SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         if (context->m_TextureArraySupport)              SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         if (context->m_ComputeSupport)                   SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
@@ -6028,8 +6029,8 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLRenderTarget* rt = context->m_CurrentRenderTarget ?
             GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget) : 0;
-        const uint32_t target_width = rt ? rt->m_Base.m_ColorTextureParams[0].m_Width : context->m_BaseContext.m_Width;
-        const uint32_t target_height = rt ? rt->m_Base.m_ColorTextureParams[0].m_Height : context->m_BaseContext.m_Height;
+        const uint32_t target_width = rt ? rt->m_Base.m_ColorTextureParams[0].m_Width : dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
+        const uint32_t target_height = rt ? rt->m_Base.m_ColorTextureParams[0].m_Height : dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
         if ((rt && !(rt->m_BufferTypeFlags & BUFFER_TYPE_COLOR0_BIT)) ||
             uint64_t(x) + width > target_width || uint64_t(y) + height > target_height)
         {

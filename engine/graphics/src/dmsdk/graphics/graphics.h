@@ -1261,6 +1261,9 @@ namespace dmGraphics
      * the top row first. Region coordinates have their origin at the bottom left.
      * Multisampled attachments are resolved; cubemaps use the currently bound face.
      * RGBA8/BGRA8 attachments are supported. Other formats are adapter-dependent.
+     * Backbuffer readback is adapter- and surface-dependent. On WebGPU, the
+     * surface must support copy-source usage. If it does not, an error is logged
+     * and the destination is left unchanged.
      * The region must fit the attachment and buffer_size must be at least
      * width * height * 4 bytes. Invalid regions leave the destination unchanged.
      * Subsequent rendering can continue on the same target.

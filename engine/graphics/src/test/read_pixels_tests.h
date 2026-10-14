@@ -22,12 +22,17 @@
 
 // Compare vertically offset crops, including both edges, with a full read.
 // This catches origin, row order, row pitch and writes beyond the requested size.
-static bool CheckReadPixelsRegions(dmGraphics::HContext context, uint32_t width, uint32_t height)
+static bool CheckReadPixelsRegions(dmGraphics::HContext context, uint32_t width, uint32_t height, const uint8_t* expected_pixels = 0)
 {
     dmArray<uint8_t> full;
-    full.SetCapacity(width * height * 4);
-    full.SetSize(full.Capacity());
-    dmGraphics::ReadPixels(context, 0, 0, width, height, full.Begin(), full.Size());
+    if (!expected_pixels)
+    {
+        full.SetCapacity(width * height * 4);
+        full.SetSize(full.Capacity());
+        memset(full.Begin(), 0, full.Size());
+        dmGraphics::ReadPixels(context, 0, 0, width, height, full.Begin(), full.Size());
+        expected_pixels = full.Begin();
+    }
     const uint32_t crop_width = width > 13 ? 13 : width;
     const uint32_t crop_height = height > 3 ? 3 : 1;
     const uint32_t x = (width - crop_width) / 2;
@@ -41,7 +46,7 @@ static bool CheckReadPixelsRegions(dmGraphics::HContext context, uint32_t width,
         dmGraphics::ReadPixels(context, x, ys[i], crop_width, crop_height, crop.Begin(), crop.Size());
         for (uint32_t row = 0; row < crop_height; ++row)
         {
-            const uint8_t* expected = full.Begin() + ((height - ys[i] - crop_height + row) * width + x) * 4;
+            const uint8_t* expected = expected_pixels + ((height - ys[i] - crop_height + row) * width + x) * 4;
             if (memcmp(expected, crop.Begin() + row * crop_width * 4, crop_width * 4))
             {
                 dmLogError("ReadPixels crop mismatch at y=%u, row=%u", ys[i], row);
@@ -55,9 +60,10 @@ static bool CheckReadPixelsRegions(dmGraphics::HContext context, uint32_t width,
 }
 
 // Verifies target selection, MSAA resolve, cube faces, BGRA packing and invalid
-// regions without shaders, so every real adapter can run the same checks.
+// regions. The capture harness supplies an MRT draw; DX12 uses per-attachment clears.
 // The caller owns an active frame and supplies a target to restore afterwards.
-static bool CheckReadPixelsTargets(dmGraphics::HContext context, dmGraphics::HRenderTarget restore_target)
+static bool CheckReadPixelsTargets(dmGraphics::HContext context, dmGraphics::HRenderTarget restore_target,
+    void (*draw_mrt)(dmGraphics::HContext, uint32_t, void*) = 0, void* user_data = 0)
 {
     using namespace dmGraphics;
     const uint32_t size = 16;
@@ -93,7 +99,12 @@ static bool CheckReadPixelsTargets(dmGraphics::HContext context, dmGraphics::HRe
             SetRenderTarget(context, target, binding);
             Clear(context, BUFFER_TYPE_COLOR0_BIT, 31 + face * 23, 73, 149, 255, 1.0f, 0);
             if (kind == 1)
-                Clear(context, BUFFER_TYPE_COLOR1_BIT, 0, 255, 0, 255, 1.0f, 0);
+            {
+                if (draw_mrt)
+                    draw_mrt(context, size, user_data);
+                else
+                    Clear(context, BUFFER_TYPE_COLOR1_BIT, 0, 255, 0, 255, 1.0f, 0);
+            }
         }
         for (uint32_t face = 0; face < faces; ++face)
         {
@@ -105,23 +116,31 @@ static bool CheckReadPixelsTargets(dmGraphics::HContext context, dmGraphics::HRe
             ReadPixels(context, 0, 0, size, size, pixels, sizeof(pixels));
             for (uint32_t i = 0; i < sizeof(pixels); i += 4)
                 valid &= pixels[i] == 149 && pixels[i + 1] == 73 && pixels[i + 2] == 31 + face * 23 && pixels[i + 3] == 255;
-            valid &= CheckReadPixelsRegions(context, size, size);
             // A second clear and read must include the new work after resuming.
             Clear(context, BUFFER_TYPE_COLOR0_BIT, 197, 59, 11, 255, 1.0f, 0);
             ReadPixels(context, 1, 2, 1, 1, pixels, sizeof(pixels));
             valid &= pixels[0] == 11 && pixels[1] == 59 && pixels[2] == 197 && pixels[3] == 255;
-            memset(pixels, 0xa5, sizeof(pixels));
-            // These are expected CPU validation errors, not GPU failures. The
-            // image runner treats any error log as a failed rendering case.
-            const LogSeverity log_level = dmLogGetLevel();
-            dmLogSetLevel(LOG_SEVERITY_FATAL);
-            ReadPixels(context, -1, 0, 1, 1, pixels, sizeof(pixels));
-            ReadPixels(context, 0, 0, size, size, pixels, 1);
-            ReadPixels(context, size, 0, 1, 1, pixels, sizeof(pixels));
-            ReadPixels(context, 0, size, 1, 1, pixels, sizeof(pixels));
-            dmLogSetLevel(log_level);
-            for (uint32_t i = 0; i < sizeof(pixels); ++i) valid &= pixels[i] == 0xa5;
         }
+        uint8_t pixels[size * size * 4];
+        memset(pixels, 0xa5, sizeof(pixels));
+        // Expected validation errors must not fail the image runner. Common
+        // argument validation only needs one target; bounds vary by adapter.
+        const LogSeverity log_level = dmLogGetLevel();
+        dmLogSetLevel(LOG_SEVERITY_FATAL);
+        if (kind == 0)
+        {
+            ReadPixels(context, -1, 0, 1, 1, pixels, sizeof(pixels));
+            ReadPixels(context, 0, -1, 1, 1, pixels, sizeof(pixels));
+            ReadPixels(context, 0, 0, size, size, pixels, 1);
+            ReadPixels(context, 0, 0, 0, 1, pixels, sizeof(pixels));
+            ReadPixels(context, 0, 0, 1, 0, pixels, sizeof(pixels));
+            ReadPixels(context, 0, 0, 1, 1, 0, sizeof(pixels));
+            ReadPixels(context, 0, 0, 0xffffffffu, 0xffffffffu, pixels, sizeof(pixels));
+        }
+        ReadPixels(context, size, 0, 1, 1, pixels, sizeof(pixels));
+        ReadPixels(context, 0, size, 1, 1, pixels, sizeof(pixels));
+        dmLogSetLevel(log_level);
+        for (uint32_t i = 0; i < sizeof(pixels); ++i) valid &= pixels[i] == 0xa5;
         SetRenderTarget(context, restore_target, RenderTargetBindingParams());
         DeleteRenderTarget(context, target);
         if (!valid)
