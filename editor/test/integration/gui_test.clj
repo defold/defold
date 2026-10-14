@@ -21,7 +21,9 @@
             [editor.defold-project :as project]
             [editor.editor-extensions.graph :as ext-graph]
             [editor.editor-extensions.runtime :as rt]
+            [editor.gl :as gl]
             [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
             [editor.graph-util :as gu]
             [editor.gui :as gui]
             [editor.handler :as handler]
@@ -31,6 +33,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.scene-cache :as scene-cache]
             [editor.types]
             [internal.graph.types :as gt]
             [editor.workspace :as workspace]
@@ -41,7 +44,48 @@
             [util.fn :as fn]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc]
-           [java.io StringReader]))
+           [com.jogamp.opengl GL3]
+           [java.io StringReader]
+           [java.lang.reflect InvocationHandler Method Proxy]))
+
+;; Verifies that non-text GUI geometry keeps its texture binding when a custom
+;; material names its sampler font_effects.
+(deftest render-tris-preserves-custom-texture-sampler-test
+  (let [uniform-values (atom {})
+        draw-uniforms (atom [])
+        test-shader (shader/make-shader-lifecycle
+                      ::custom-texture-sampler
+                      (shader/make-shader-request-data [] [] {} nil)
+                      [] {"font_effects" nil})
+        gl (Proxy/newProxyInstance
+             (.getClassLoader GL3)
+             (into-array Class [GL3])
+             (reify InvocationHandler
+               (invoke [_ _ method _]
+                 (when (= "glDrawArrays" (.getName ^Method method))
+                   (swap! draw-uniforms conj @uniform-values))
+                 nil)))]
+    (with-redefs [gl/with-gl-bindings-impl (fn [_gl _render-args _bindable-items body-fn!]
+                                            (body-fn!))
+                  gl/gl-current-program (fn ^long [_gl] 7)
+                  scene-cache/request-object! (fn [_cache-id _request-id _gl _request-data]
+                                                {:program 7
+                                                 :uniform-infos {"font_effects" {:location 3}}
+                                                 :sampler-index->sampler-name ["font_effects"]
+                                                 :sampler-name->uniform-names {"font_effects" ["font_effects"]}})
+                  shader/set-uniform-at-index (fn [_gl _program location value]
+                                                (swap! uniform-values assoc location value))]
+      (gui/render-tris gl {:pass pass/transparent}
+                       [{:world-transform math/identity-mat4
+                         :user-data {:geom-data [[0.0 0.0 0.0] [1.0 0.0 0.0] [0.0 1.0 0.0]]
+                                     :uv-data [[0.0 0.0] [1.0 0.0] [0.0 1.0]]
+                                     :color [1.0 1.0 1.0 1.0]
+                                     :page-index 0
+                                     :blend-mode :blend-mode-alpha
+                                     :material-shader test-shader
+                                     :gpu-texture {:texture-units (vector-of :int 0)}}}]
+                       1))
+    (is (= [{3 0}] @draw-uniforms))))
 
 (defn- gui-scene-dependencies [workspace read-opts scene-desc]
   (let [resource (workspace/make-memory-resource workspace :editable "gui" scene-desc)]
