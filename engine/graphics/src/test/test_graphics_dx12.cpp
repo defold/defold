@@ -991,7 +991,7 @@ TEST_F(DX12Test, FrontAndBackCulling)
     for (uint32_t i = 0; i < 64; ++i)
         red_pixels += line_pixels[i * 4 + 2] == 255;
     ASSERT_GT(red_pixels, 0u);
-    ASSERT_TRUE(CheckReadPixelsRegions(GetContext(), 8, 8));
+    ASSERT_TRUE(CheckReadPixelsRegions(GetContext(), 8, 8, 0));
     SetCullFace(GetContext(), FACE_TYPE_FRONT_AND_BACK);
     EnableState(GetContext(), STATE_CULL_FACE);
     for (uint32_t indexed = 0; indexed < 2; ++indexed)
@@ -1338,9 +1338,9 @@ TEST_F(DX12Test, SamplerModesAndFormatCapabilities)
 // Verifies the public readback contract on 2D, multisample and cube targets.
 TEST_F(DX12Test, ReadPixelsTargetContract)
 {
-    HRenderTarget target = CreateTestRenderTarget(16, 16);
+    HRenderTarget target = CreateTestRenderTarget(16, 16, BUFFER_TYPE_COLOR0_BIT, 1);
     SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
-    ASSERT_TRUE(CheckReadPixelsTargets(GetContext(), target));
+    ASSERT_TRUE(CheckReadPixelsTargets(GetContext(), target, 0, 0));
     DeleteRenderTarget(GetContext(), target);
 }
 

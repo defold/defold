@@ -22,7 +22,7 @@
 
 // Compare vertically offset crops, including both edges, with a full read.
 // This catches origin, row order, row pitch and writes beyond the requested size.
-static bool CheckReadPixelsRegions(dmGraphics::HContext context, uint32_t width, uint32_t height, const uint8_t* expected_pixels = 0)
+static bool CheckReadPixelsRegions(dmGraphics::HContext context, uint32_t width, uint32_t height, const uint8_t* expected_pixels)
 {
     dmArray<uint8_t> full;
     if (!expected_pixels)
@@ -63,7 +63,7 @@ static bool CheckReadPixelsRegions(dmGraphics::HContext context, uint32_t width,
 // regions. The capture harness supplies an MRT draw; DX12 uses per-attachment clears.
 // The caller owns an active frame and supplies a target to restore afterwards.
 static bool CheckReadPixelsTargets(dmGraphics::HContext context, dmGraphics::HRenderTarget restore_target,
-    void (*draw_mrt)(dmGraphics::HContext, uint32_t, void*) = 0, void* user_data = 0)
+    void (*draw_mrt)(dmGraphics::HContext, uint32_t, void*), void* user_data)
 {
     using namespace dmGraphics;
     const uint32_t size = 16;

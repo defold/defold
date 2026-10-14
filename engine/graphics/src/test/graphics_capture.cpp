@@ -184,7 +184,7 @@ static void CaptureTextureUploadComplete(HTexture, void* user_data)
     *(bool*)user_data = true;
 }
 
-static HTexture CreateCaptureTexture(HContext context, const CaptureTextureFormat& format, HJobContext jobs = 0)
+static HTexture CreateCaptureTexture(HContext context, const CaptureTextureFormat& format, HJobContext jobs)
 {
     char path[1024];
     dmSnPrintf(path, sizeof(path), "%s/testimage.%s", DM_TEST_TEXTURE_FORMATS_DIR, format.m_Suffix);
@@ -452,7 +452,7 @@ static const char* GetCaptureTextureName(AdapterFamily family, bool cubemap)
     return cubemap ? "cubemap" : "test_texture";
 }
 
-static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool cubemap, bool texture, bool mrt = false)
+static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool cubemap, bool texture, bool mrt)
 {
     ShaderDesc desc = {};
     AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_VERTEX, capture_vp, capture_vp_SIZE);
@@ -572,7 +572,7 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
     params.m_StencilBufferParams.m_Format = TEXTURE_FORMAT_STENCIL;
 
     resources->m_Target = NewRenderTarget(context, CAPTURE_BUFFERS, params);
-    resources->m_Program = NewCaptureProgram(context, family, cubemap, texture != 0);
+    resources->m_Program = NewCaptureProgram(context, family, cubemap, texture != 0, false);
     if (!resources->m_Target || !resources->m_Program)
     {
         return false;
@@ -607,7 +607,7 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
     }
     if (cubemap || texture)
     {
-        resources->m_Texture = cubemap ? CreateCaptureCubemap(context) : CreateCaptureTexture(context, *texture);
+        resources->m_Texture = cubemap ? CreateCaptureCubemap(context) : CreateCaptureTexture(context, *texture, 0);
         resources->m_TextureLocation = INVALID_UNIFORM_LOCATION;
         for (uint32_t i = 0; i < GetUniformCount(resources->m_Program); ++i)
         {
@@ -1107,7 +1107,7 @@ static bool CheckCaptureBackbuffer(HContext context, const CaptureResources& res
     backbuffer.m_Target = 0;
     RenderCapture(context, backbuffer, "triangle");
     if (IsContextFeatureSupported(context, CONTEXT_FEATURE_BACKBUFFER_READBACK))
-        return CheckReadPixelsRegions(context, CAPTURE_SIZE, CAPTURE_SIZE);
+        return CheckReadPixelsRegions(context, CAPTURE_SIZE, CAPTURE_SIZE, 0);
 
     uint8_t pixel[4] = { 0xa5, 0xa5, 0xa5, 0xa5 };
     const LogSeverity log_level = dmLogGetLevel();

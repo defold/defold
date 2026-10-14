@@ -514,9 +514,6 @@ static void LogFrameBufferError(GLenum status)
     typedef void (* DM_PFNGLBLITFRAMEBUFFERPROC) (GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
     DM_PFNGLBLITFRAMEBUFFERPROC PFN_glBlitFramebuffer = NULL;
 
-#ifndef GL_READ_BUFFER
-    #define GL_READ_BUFFER 0x0C02
-#endif
     typedef void (* DM_PFNGLREADBUFFERPROC) (GLenum src);
     DM_PFNGLREADBUFFERPROC PFN_glReadBuffer = NULL;
 
