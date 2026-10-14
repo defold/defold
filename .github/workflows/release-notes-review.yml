@@ -20,7 +20,7 @@ jobs:
         run: |
           mkdir approval
           printf '%s\n' "$PR_NUMBER" > approval/pr_number
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-notes-review
           path: approval/pr_number
