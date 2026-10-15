@@ -2072,6 +2072,14 @@
                 :command :window.show-build-errors}
                {:label (localization/message "command.window.show-search-results")
                 :command :window.show-search-results}
+               menu-items/separator
+               {:label (localization/message "menu.view.theme")
+                :children [{:label (localization/message "command.theme.set-system")
+                            :command :theme.set-system}
+                           {:label (localization/message "command.theme.set-dark")
+                            :command :theme.set-dark}
+                           {:label (localization/message "command.theme.set-light")
+                            :command :theme.set-light}]}
                (menu-items/separator-with-id ::view-end)]}
    {:label (localization/message "menu.help")
     :children [{:label (localization/message "command.dev.reload-css")
@@ -3390,6 +3398,27 @@
 
 (handler/defhandler :window.show-search-results :global
   (run [^Stage main-stage tool-tab-pane] (show-search-results! (.getScene main-stage) tool-tab-pane)))
+
+;; The theme preference is watched by ui/start-theme-watcher!, which reloads
+;; the styles when it changes, so the handlers only have to set it.
+(handler/defhandler :theme.set-system :global
+  (run [prefs] (prefs/set! prefs [:window :theme] :system)))
+
+(handler/defhandler :theme.set-dark :global
+  (run [prefs] (prefs/set! prefs [:window :theme] :dark)))
+
+(handler/defhandler :theme.set-light :global
+  (run [prefs] (prefs/set! prefs [:window :theme] :light)))
+
+(handler/defhandler :theme.cycle :global
+  (run [prefs]
+    (let [current (prefs/get prefs [:window :theme])
+
+          next-theme (case current
+                       :system :dark
+                       :dark :light
+                       :light :system)]
+      (prefs/set! prefs [:window :theme] next-theme))))
 
 (defn- put-on-clipboard!
   [s]

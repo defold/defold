@@ -183,6 +183,7 @@
         prefs (if-let [prefs-path (:preferences cli-options)]
                 (prefs/global prefs-path)
                 (prefs/global))
+        _ (ui/set-theme-prefs! prefs)
         localization (localization/make-editor prefs error-reporting/report-exception!)
         analytics-url (:analytics-url connection-properties)
         analytics-send-interval 300

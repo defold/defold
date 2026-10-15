@@ -51,7 +51,7 @@
   -fx-padding: 30 0;
   -fx-background-color: transparent;
   > .line {
-    -fx-background-color: rgba(255, 255, 255, 0.1);
+    -fx-background-color: -df-separator;
     -fx-border-color: transparent;
   }
   &:horizontal .line {

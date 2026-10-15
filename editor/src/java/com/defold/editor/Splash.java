@@ -14,10 +14,13 @@
 
 package com.defold.editor;
 
+import javafx.application.ColorScheme;
+import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -102,7 +105,18 @@ public class Splash {
 
     public void show() throws IOException {
         Object root = FXMLLoader.load(this.getClass().getResource("/splash.fxml"));
-        Scene scene = new Scene((Parent) root);
+        Parent splashRoot = (Parent) root;
+        if (Platform.getPreferences().getColorScheme() != ColorScheme.DARK) {
+            // The splash renders before editor preferences are available, so it
+            // follows the operating system theme rather than the theme setting.
+            ObservableList<String> stylesheets = splashRoot.getStylesheets();
+            for (int i = 0; i < stylesheets.size(); i++) {
+                if (stylesheets.get(i).endsWith("splash.css")) {
+                    stylesheets.set(i, Splash.class.getResource("/splash-light.css").toString());
+                }
+            }
+        }
+        Scene scene = new Scene(splashRoot);
         scene.setFill(Color.TRANSPARENT);
         stage = new Stage();
         stage.initStyle(StageStyle.TRANSPARENT);
