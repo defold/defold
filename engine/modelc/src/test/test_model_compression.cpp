@@ -348,6 +348,14 @@ TEST(ModelCompression, MetadataDoesNotDecodeGeometry)
     ASSERT_FALSE(NeedsResolve(fixture.m_Scene));
     ASSERT_EQ(0U, fixture.m_Scene->m_Models[0].m_Meshes[0].m_Positions.Size());
     DestroyCompressionFixture(&fixture);
+
+    // Only buffer 0 can refer to BIN; buffer 1 still needs a URI or a required extension.
+    scene = LoadModifiedCompressionJson("box/glTF-Meshopt/Box-embedded.gltf",
+                                       "\"extensionsRequired\"", "\"extensionsNotRequired\"", &options);
+    ASSERT_NE((Scene*)0, scene);
+    ASSERT_NE((char*)0, scene->m_LoadError);
+    ASSERT_NE((char*)0, strstr(scene->m_LoadError, "Missing fallback requires extensionsRequired"));
+    DestroyScene(scene);
 }
 
 TEST(ModelCompression, DecodedIndicesAreValidated)

@@ -2660,8 +2660,10 @@ static bool CompressionError(Scene* scene, const char* codec, cgltf_size index, 
 
 // Checks source ranges, decoded layouts, and fallback declarations before buffer
 // resolution/allocation. The compressed bitstream is checked during decoding.
-static bool ValidateMeshoptViews(Scene* scene, cgltf_data* data)
+static bool ValidateMeshoptViews(Scene* scene, const GltfData* scene_data)
 {
+    const cgltf_data* data = scene_data->m_Data;
+    bool inspect_only = scene_data->m_LoadMaterialsOnly && scene_data->m_SkipImageData;
     for (cgltf_size i = 0; i < data->buffer_views_count; ++i)
     {
         const cgltf_buffer_view* view = &data->buffer_views[i];
@@ -2678,7 +2680,8 @@ static bool ValidateMeshoptViews(Scene* scene, cgltf_data* data)
             return CompressionError(scene, "Meshopt buffer view", i, error);
 
         // A placeholder with no bytes is valid only when its extension is required.
-        if (!view->buffer->uri && !(view->buffer == data->buffers && data->bin))
+        // JSON-only discovery cannot check buffer 0's BIN fallback; defer that to full imports.
+        if (!view->buffer->uri && !(view->buffer == data->buffers && (data->bin || inspect_only)))
         {
             const char* extension = compression.is_khr ? "KHR_meshopt_compression" : "EXT_meshopt_compression";
             bool required = false;
@@ -2966,7 +2969,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     // Bound allocations and arithmetic before resolving data URIs. Full glTF
     // validation runs once, after all buffers have been resolved.
-    if (!ValidateGltfResourceLimits(scene, data) || !ValidateMeshoptViews(scene, data))
+    if (!ValidateGltfResourceLimits(scene, data) || !ValidateMeshoptViews(scene, scenedata))
     {
         ClearScene(scene);
         return scene;
