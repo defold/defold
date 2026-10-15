@@ -142,8 +142,7 @@
 (deftest can-download-and-extract-update
   (with-open [_ (start-update-server! "test" "2")]
     (let [updater (make-updater "test" "1" "1" (make-temp-prefs))
-          ^File update-sha1-file (:update-sha1-file updater)
-          ^File update-dir (:update-dir updater)]
+          {:keys [^File update-dir ^File update-sha1-file]} (#'updater/channel-update-paths "test")]
       (fs/delete-directory! update-dir)
       (fs/delete! update-sha1-file)
       (updater/check! updater)
@@ -160,10 +159,8 @@
           alpha-updater (assoc (make-updater "alpha" "A1" nil (make-temp-prefs))
                           :install-dir alpha-install-dir)
           beta-updater (make-updater "beta" "B1" nil (make-temp-prefs))
-          ^File alpha-dir (:update-dir alpha-updater)
-          ^File alpha-sha1-file (:update-sha1-file alpha-updater)
-          ^File beta-dir (:update-dir beta-updater)
-          ^File beta-sha1-file (:update-sha1-file beta-updater)]
+          {^File alpha-dir :update-dir ^File alpha-sha1-file :update-sha1-file} (#'updater/channel-update-paths "alpha")
+          {^File beta-dir :update-dir ^File beta-sha1-file :update-sha1-file} (#'updater/channel-update-paths "beta")]
       (fs/delete-directory! alpha-dir)
       (fs/delete! alpha-sha1-file)
       (fs/delete-directory! beta-dir)
@@ -374,7 +371,7 @@
   (with-redefs [updater/fetch-manifest! (fn [_ _] ["1.13.2" "1.13.1" "1.13.0"])
                 updater/fetch-version-notes! (fn [_ _ v] {:version v :issues []})]
     (is (= ["1.13.2" "1.13.1" "1.13.0"]
-           (mapv :version (#'updater/fetch-release-notes! "d" "test"))))))
+           (mapv :version (#'updater/fetch-release-notes! "d" "test" nil))))))
 
 (deftest fetch-release-notes-keeps-failed-entries
   ;; a version whose file fails stays as an entry with nil notes, in order
@@ -382,14 +379,14 @@
                 updater/fetch-version-notes! (fn [_ _ v]
                                                (when (= v "1.14.0")
                                                  {:version v :issues []}))]
-    (let [entries (#'updater/fetch-release-notes! "d" "test")]
+    (let [entries (#'updater/fetch-release-notes! "d" "test" nil)]
       (is (= ["1.14.0" "1.13.0"] (mapv :version entries)))
       (is (some? (:notes (first entries))))
       (is (nil? (:notes (second entries)))))))
 
 (deftest fetch-release-notes-nil-when-manifest-fails
   (with-redefs [updater/fetch-manifest! (fn [_ _] nil)]
-    (is (nil? (#'updater/fetch-release-notes! "d" "test")))))
+    (is (nil? (#'updater/fetch-release-notes! "d" "test" nil)))))
 
 (deftest check-skips-refetch-when-complete
   ;; a complete fetch arms the sha guard, so the next check does not re-download

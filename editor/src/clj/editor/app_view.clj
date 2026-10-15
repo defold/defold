@@ -2088,6 +2088,7 @@
                 :command :help.open-release-notes}
                {:label (localization/message "command.help.check-for-updates")
                 :command :help.check-for-updates}
+               {:command :help.switch-channel}
                {:label (localization/message "command.help.open-forum")
                 :command :help.open-forum}
                {:label (localization/message "command.help.open-editor-server")
@@ -2898,6 +2899,21 @@
          (not (updater/manual-update-check-in-progress? updater))))
   (run [updater project main-stage localization]
     (ui.updater/check-for-updates!
+      main-stage project updater
+      (ui/user-data main-stage ::ui.updater/install-and-restart!)
+      localization
+      false)))
+
+(handler/defhandler :help.switch-channel :global
+  (label [updater]
+    (if (and updater (= "stable" (updater/alternate-channel updater)))
+      (localization/message "command.help.return-to-stable")
+      (localization/message "command.help.try-beta")))
+  (enabled? [updater]
+    (and updater
+         (not (updater/manual-update-check-in-progress? updater))))
+  (run [updater project main-stage localization]
+    (ui.updater/switch-channel!
       main-stage project updater
       (ui/user-data main-stage ::ui.updater/install-and-restart!)
       localization)))
