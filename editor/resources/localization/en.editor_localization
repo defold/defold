@@ -2822,6 +2822,7 @@ error.material-expects-paged-atlas = The Material expects a paged Atlas, but the
 error.material-does-not-support-paged-atlases = The Material does not support paged Atlases, but the selected {property} is paged.
 error.material-max-page-count-insufficient = The Material's "Max Page Count" is not sufficient for the number of pages in the selected {property}.
 error.model-unsupported-file-format = {property} "{resource}" has unsupported format {format}. Defold supports only {supported_formats} files for {property}.
+error.model-skinned-material = Material "{material}" in slot "{slot}" requires skinning attributes ({attributes}), but mesh {mesh_index} in "{scene}" has no skin data. Use a non-skinned material.
 error.model-load-failed = The file "{file}" failed to load:\n{error}
 error.model-mesh-selection-file-type = Mesh is only available for glTF and GLB scenes.
 error.model-mesh-selection-name-required = The selected mesh index does not have a mesh name.

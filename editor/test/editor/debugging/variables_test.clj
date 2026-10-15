@@ -251,6 +251,10 @@
               (variables/clear! view session)
               (dap-util/await! (variables/show-frame! view session (dap/suspension @session) 2)))
             (.setExpanded item true)))
+        ;; Clear within the same session to retain saved expansion paths, but
+        ;; wait for the rendered tree to discard the directly mutated item.
+        (ui/run-now (variables/clear! view session))
+        (dap-util/await-ui! view #(nil? (.getRoot view)))
         (dap-util/await! (ui/run-now (variables/show-frame! view session (dap/suspension @session) 3)))
         (dap-util/await-ui! view #(= 3 (some-> (item-at view ["self"]) .getValue :variablesReference)))
         (ui/run-now (is (not (.isExpanded (item-at view ["self"])))))
