@@ -90,15 +90,27 @@ public final class WindowsProcess extends Process {
         }
     }
 
-    private static final class NativeMemory extends Memory implements AutoCloseable {
+    private static final class NativeMemory implements AutoCloseable {
+        private static final class Allocation extends Memory {
+            Allocation(long size) {
+                super(size);
+            }
+
+            @SuppressWarnings("deprecation") // Memory.close() was introduced after JNA 4.
+            void release() {
+                dispose();
+            }
+        }
+
+        final Allocation pointer;
+
         NativeMemory(long size) {
-            super(size);
+            pointer = new Allocation(size);
         }
 
         @Override
-        @SuppressWarnings("deprecation") // Memory.close() was introduced after JNA 4.
         public void close() {
-            dispose();
+            pointer.release();
         }
     }
 
@@ -439,19 +451,19 @@ public final class WindowsProcess extends Process {
              Redirection error = builder.redirectErrorStream() ? null : new Redirection(builder.redirectError(), 2);
              NativeMemory environment = new NativeMemory(environmentBytes.length);
              NativeMemory size = new NativeMemory(Native.POINTER_SIZE)) {
-            environment.write(0, environmentBytes, 0, environmentBytes.length);
-            size.clear();
-            Kernel.EXTRA.InitializeProcThreadAttributeList(null, 1, 0, size);
-            long attributeSize = Native.POINTER_SIZE == 8 ? size.getLong(0) : Integer.toUnsignedLong(size.getInt(0));
+            environment.pointer.write(0, environmentBytes, 0, environmentBytes.length);
+            size.pointer.clear();
+            Kernel.EXTRA.InitializeProcThreadAttributeList(null, 1, 0, size.pointer);
+            long attributeSize = Native.POINTER_SIZE == 8 ? size.pointer.getLong(0) : Integer.toUnsignedLong(size.pointer.getInt(0));
             if (attributeSize == 0) throw error("InitializeProcThreadAttributeList size");
             LinkedHashSet<HANDLE> inherited = new LinkedHashSet<>(Arrays.asList(input.child.get(), output.child.get(), error == null ? output.child.get() : error.child.get()));
             try (NativeMemory attributes = new NativeMemory(attributeSize);
                  NativeMemory handles = new NativeMemory((long) inherited.size() * Native.POINTER_SIZE)) {
                 int index = 0;
-                for (HANDLE handle : inherited) handles.setPointer((long) index++ * Native.POINTER_SIZE, handle.getPointer());
-                if (!Kernel.EXTRA.InitializeProcThreadAttributeList(attributes, 1, 0, size)) throw error("InitializeProcThreadAttributeList");
+                for (HANDLE handle : inherited) handles.pointer.setPointer((long) index++ * Native.POINTER_SIZE, handle.getPointer());
+                if (!Kernel.EXTRA.InitializeProcThreadAttributeList(attributes.pointer, 1, 0, size.pointer)) throw error("InitializeProcThreadAttributeList");
                 try {
-                    if (!Kernel.EXTRA.UpdateProcThreadAttribute(attributes, 0, new SIZE_T(0x20002), handles, new SIZE_T(handles.size()), null, null)) {
+                    if (!Kernel.EXTRA.UpdateProcThreadAttribute(attributes.pointer, 0, new SIZE_T(0x20002), handles.pointer, new SIZE_T(handles.pointer.size()), null, null)) {
                         throw error("UpdateProcThreadAttribute HANDLE_LIST");
                     }
                     StartupInfoEx startup = new StartupInfoEx();
@@ -460,7 +472,7 @@ public final class WindowsProcess extends Process {
                     startup.startup.hStdInput = input.child.get();
                     startup.startup.hStdOutput = output.child.get();
                     startup.startup.hStdError = error == null ? output.child.get() : error.child.get();
-                    startup.attributes = attributes;
+                    startup.attributes = attributes.pointer;
                     int flags = WinBase.CREATE_DEFAULT_ERROR_MODE | WinBase.CREATE_UNICODE_ENVIRONMENT | WinBase.CREATE_SUSPENDED | 0x80000;
                     boolean inheritConsole = builder.redirectInput() == Redirect.INHERIT || builder.redirectOutput() == Redirect.INHERIT
                                              || (!builder.redirectErrorStream() && builder.redirectError() == Redirect.INHERIT);
@@ -473,7 +485,7 @@ public final class WindowsProcess extends Process {
                             /* threadAttributes */ null,
                             /* inheritHandles */ true,
                             /* flags */ new DWORD(flags),
-                            /* environment */ environment,
+                            /* environment */ environment.pointer,
                             /* directory */ builder.directory() == null ? null : builder.directory().getAbsolutePath(),
                             /* startup */ startup,
                             /* process */ info)) {
@@ -500,7 +512,7 @@ public final class WindowsProcess extends Process {
                         }
                     }
                 } finally {
-                    Kernel.EXTRA.DeleteProcThreadAttributeList(attributes);
+                    Kernel.EXTRA.DeleteProcThreadAttributeList(attributes.pointer);
                 }
             }
         }
