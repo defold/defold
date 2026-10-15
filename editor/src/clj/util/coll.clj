@@ -495,13 +495,20 @@
 
 (defn pair-map-by
   "Returns a stateless transducer that produces pairs using key-fn and
-  value-fn. With only key-fn, the values are the items themselves. With a
-  collection argument, returns a hash-map using key-fn and value-fn."
+  value-fn. With only key-fn, the values are the items themselves. A seqable
+  or IReduceInit second argument supplies the collection; otherwise it
+  supplies value-fn. With a collection argument, returns a hash-map.
+
+  The two-argument collection form is deprecated. Use the three-argument
+  form with identity as value-fn instead."
   ([key-fn]
    {:pre [(ifn? key-fn)]}
    (map (pair-fn key-fn)))
-  ([key-fn value-fn]
-   (map (pair-fn key-fn value-fn)))
+  ;; TODO: Remove the deprecated collection dispatch after 2027-10-15.
+  ([key-fn value-fn-or-coll]
+   (if (or (seqable? value-fn-or-coll) (instance? IReduceInit value-fn-or-coll))
+     (pair-map-by key-fn identity value-fn-or-coll)
+     (map (pair-fn key-fn value-fn-or-coll))))
   ([key-fn value-fn coll]
    (persistent!
      (reduce (fn [result item]
