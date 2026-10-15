@@ -28,14 +28,13 @@
             [editor.process :as process]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [service.log :as log]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.task :as task])
   (:import [com.dynamo.discovery MDNS MDNS$Logger MDNSServiceInfo]
            [java.io ByteArrayOutputStream]
            [java.lang ProcessHandle]
            [java.net InetAddress NetworkInterface URL URLConnection]
-           [java.util UUID]
-           [java.util.concurrent CompletableFuture]))
+           [java.util UUID]))
 
 (set! *warn-on-reflection* true)
 
@@ -114,47 +113,39 @@
     (invalidate-target-menu!)
     launched-target))
 
-(defn monitor-launched-target! [target localization]
-  (future/io
-    (let [stop-signal (:stop-signal target)]
-      (swap! launch-stop-signals conj stop-signal)
-      (try
-        (let [exit-code (try
-                          ;; A child may keep stdout open, so do not wait for
-                          ;; the log pump before notifying target listeners.
-                          (process/await-exit-code (:process target))
-                          (finally
-                            (swap! launched-targets coll/filterv-> #(not= (:id %) (:id target)))
-                            (clear-selected-target-hint!)
-                            (invalidate-target-menu!)))]
-          (when (and (not (future/done? stop-signal))
-                     (not (zero? exit-code))
-                     (console/current-stream? (:log-stream target)))
-            (console/append-console-line!
-              (localization
-                (localization/message "console.application-exited"
-                                      {"code" (if (os/is-win32?)
-                                                (format "0x%08X" (bit-and exit-code 0xffffffff))
-                                                (str exit-code))})))
-            ;; Retry STATUS_DLL_NOT_FOUND once so Windows can name the missing
-            ;; DLL. Keep the retry local and close it when Stop is requested.
-            (when (and (os/is-win32?) (= 0xc0000135 (bit-and exit-code 0xffffffff)))
-              (when-let [^ProcessHandle diagnostic-process (process/start-with-default-error-mode! (:process-options target) (:command target))]
-                (try
-                  (.get (CompletableFuture/anyOf (into-array CompletableFuture [stop-signal (.onExit diagnostic-process)])))
-                  (finally
-                    (.destroy diagnostic-process)))))))
-        (catch Exception exception
-          (log/warn :exception exception)
-          (when (and (not (future/done? stop-signal))
-                     (console/current-stream? (:log-stream target)))
-            (console/append-console-line!
-              (localization
-                (localization/message "console.application-diagnostic-failed"
-                                      {"error" (ex-message exception)})))))
-        (finally
-          (swap! launch-stop-signals disj stop-signal)
-          (invalidate-target-menu!))))))
+(defn monitor-launched-target! [target]
+  (let [stop-signal (:stop-signal target)]
+    (swap! launch-stop-signals conj stop-signal)
+    (try
+      (let [exit-code (try
+                        ;; A child may keep stdout open, so do not wait for
+                        ;; the log pump before notifying target listeners.
+                        (process/await-exit-code (:process target))
+                        (finally
+                          (swap! launched-targets coll/filterv-> #(not= (:id %) (:id target)))
+                          (clear-selected-target-hint!)
+                          (invalidate-target-menu!)))]
+        (when (and (not (future/done? stop-signal))
+                   (not (zero? exit-code))
+                   (console/current-stream? (:log-stream target)))
+          (console/append-console-line!
+            (format "ERROR:EDITOR: Application exited with code %s."
+                    (if (os/is-win32?)
+                      (format "0x%08X" (bit-and exit-code 0xffffffff))
+                      (str exit-code))))
+          ;; Retry STATUS_DLL_NOT_FOUND once so Windows can name the missing
+          ;; DLL. Keep the retry local and close it when Stop is requested.
+          (when (and (os/is-win32?) (= 0xc0000135 (bit-and exit-code 0xffffffff)))
+            (when-let [^ProcessHandle diagnostic-process (process/start-windows-process-with-default-error-mode! (:process-options target) (:command target))]
+              (try
+                (task/scope :first-completed
+                  (task/fork @stop-signal)
+                  (task/fork @(.onExit diagnostic-process)))
+                (finally
+                  (.destroy diagnostic-process)))))))
+      (finally
+        (swap! launch-stop-signals disj stop-signal)
+        (invalidate-target-menu!)))))
 
 (defn- find-by-id [targets id]
   (coll/first-where #(= (:id %) id) targets))

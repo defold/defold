@@ -15,7 +15,8 @@
 (ns editor.process
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.eduction :as e])
   (:import [com.sun.jna Memory]
            [com.sun.jna.platform.win32 Kernel32 Win32Exception WinBase WinBase$PROCESS_INFORMATION WinBase$STARTUPINFO WinDef$DWORD]
            [java.io InputStream OutputStream StringWriter]
@@ -73,20 +74,10 @@
             (.remove m k)))))
     (.start pb)))
 
-(defn- quote-windows-argument [argument]
-  ;; CreateProcessW receives a command line, not a shell command. Escape quotes
-  ;; and trailing backslashes using the Windows C runtime's argument rules.
-  (str "\""
-       (-> argument
-           (string/replace #"(\\*)\"" (fn [[_ backslashes]]
-                                        (str backslashes backslashes "\\\"")))
-           (string/replace #"(\\+)$" "$1$1"))
-       "\""))
-
-(defn start-with-default-error-mode!
+(defn start-windows-process-with-default-error-mode!
   "Start a Windows diagnostic process with system error dialogs enabled.
 
-  Accepts :dir and :env options, and an executable followed by its arguments.
+  Accepts :dir and :env options, and a vector of the executable and its arguments.
   Returns a ProcessHandle, or nil if the process has already exited. Output is
   not piped. The editor's own error mode is unchanged."
   ^ProcessHandle [{:keys [dir env]} command]
@@ -97,24 +88,41 @@
       (if value
         (.put environment key value)
         (.remove environment key)))
-    (let [command-line (coll/join-to-string " " (eduction (map quote-windows-argument) command))
-          environment-block (.getBytes (str (coll/join-to-string "\u0000"
-                                                                 (eduction
-                                                                   (map (fn [[key value]] (str key "=" value)))
-                                                                   environment))
+    (let [quote-argument (fn quote-argument [argument]
+                           ;; Escape quotes and trailing backslashes using the
+                           ;; Windows C runtime's argument rules.
+                           (str "\""
+                                (-> argument
+                                    (string/replace #"(\\*)\"" (fn [[_ backslashes]]
+                                                                 (str backslashes backslashes "\\\"")))
+                                    (string/replace #"(\\+)\z" "$1$1"))
+                                "\""))
+          environment-block (.getBytes (str (->> environment
+                                                 (e/map (fn [[key value]]
+                                                          (str key "=" value)))
+                                                 (coll/join-to-string "\u0000"))
                                             "\u0000\u0000")
                                        StandardCharsets/UTF_16LE)
-          environment-memory (doto (Memory. (alength environment-block))
-                               (.write 0 environment-block 0 (alength environment-block)))
-          startup-info (WinBase$STARTUPINFO.)
-          process-info (WinBase$PROCESS_INFORMATION.)
-          flags (WinDef$DWORD. (bit-or WinBase/CREATE_DEFAULT_ERROR_MODE
-                                       WinBase/CREATE_UNICODE_ENVIRONMENT
-                                       WinBase/CREATE_NO_WINDOW))]
-      (when-not (.CreateProcessW kernel32 (first command) (.toCharArray (str command-line "\u0000"))
-                                 nil nil false flags environment-memory
-                                 (some-> dir io/file .getAbsolutePath)
-                                 startup-info process-info)
+          process-info (WinBase$PROCESS_INFORMATION.)]
+      (when-not (.CreateProcessW
+                  kernel32
+                  #_lpApplicationName (first command)
+                  #_lpCommandLine (.toCharArray
+                                    (str (->> command
+                                              (e/map quote-argument)
+                                              (coll/join-to-string " "))
+                                         "\u0000"))
+                  #_lpProcessAttributes nil
+                  #_lpThreadAttributes nil
+                  #_bInheritHandles false
+                  #_dwCreationFlags (WinDef$DWORD. (bit-or WinBase/CREATE_DEFAULT_ERROR_MODE
+                                                           WinBase/CREATE_UNICODE_ENVIRONMENT
+                                                           WinBase/CREATE_NO_WINDOW))
+                  #_lpEnvironment (doto (Memory. (alength environment-block))
+                                    (.write 0 environment-block 0 (alength environment-block)))
+                  #_lpCurrentDirectory (some-> dir io/file .getAbsolutePath)
+                  #_lpStartupInfo (WinBase$STARTUPINFO.)
+                  #_lpProcessInformation process-info)
         (throw (Win32Exception. (.GetLastError kernel32))))
       (try
         (.orElse (ProcessHandle/of (.longValue (.-dwProcessId process-info))) nil)

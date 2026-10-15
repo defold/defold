@@ -1053,9 +1053,7 @@
         launch-new-engine! (fn launch-new-engine! []
                              (targets/kill-launched-targets!)
                              (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
-                                   last-launched-target (last launched-targets)
-                                   localization (g/with-auto-evaluation-context evaluation-context
-                                                  (workspace/localization (project/workspace project evaluation-context) evaluation-context))]
+                                   last-launched-target (last launched-targets)]
                                (console/reset-console-stream! (:log-stream last-launched-target))
                                (console/reset-remote-log-pump-thread! nil)
                                (doseq [launched-target launched-targets]
@@ -1065,7 +1063,9 @@
                                  (console/start-log-pump!
                                    (:log-stream launched-target)
                                    (make-launched-log-sink launched-target (partial on-service-url-found prefs)))
-                                 (targets/monitor-launched-target! launched-target localization))
+                                 (future/io
+                                   (error-reporting/catch-all!
+                                     (targets/monitor-launched-target! launched-target))))
                                last-launched-target))]
     (try
       {:target

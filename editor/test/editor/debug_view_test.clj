@@ -23,6 +23,7 @@
             [editor.debugging.variables :as debugger-variables]
             [editor.defold-project :as project]
             [editor.engine :as engine]
+            [editor.future :as future]
             [editor.os :as os]
             [editor.targets :as targets]
             [editor.ui :as ui]
@@ -148,7 +149,7 @@
                                                         :log-stream (.getInputStream process)
                                                         :address "127.0.0.1"})
                 ^Thread log-pump (console/start-log-pump! (:log-stream target) (constantly nil))
-                monitor (targets/monitor-launched-target! target identity)
+                monitor (future/io (targets/monitor-launched-target! target))
                 removed (promise)
                 cancel-watch (targets/when-url-or-removed (:id target) #(deliver removed %))]
             (try
@@ -167,7 +168,7 @@
               (finally
                 (targets/kill-launched-target! target)
                 (try
-                  (dap-util/await! monitor)
+                  @monitor
                   (.join log-pump 10000)
                   (is (not (.isAlive log-pump)))
                   (is (nil? (deref removed 0 ::not-removed)))
