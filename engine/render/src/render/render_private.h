@@ -219,11 +219,18 @@ namespace dmRender
 
     struct RenderListDispatch
     {
-        RenderListDispatchFn   m_DispatchFn;
+        // Receives begin/batch/end operations for the entries selected by a draw.
+        RenderListDispatchFn m_DispatchFn;
+        // Culls legacy entries and retained items without typed bounds. Null means visible.
         RenderListVisibilityFn m_VisibilityFn;
-        void*                  m_UserData;
-        uint8_t                m_SupportsInstancing;
-        uint8_t                m_HasVertexCounts;
+        // Borrowed callback data, normally the component world that owns the registration.
+        void* m_UserData;
+        // Callback capability, independent of the material's instance attributes.
+        // Allows automatic grouping of local-space instanced materials before world items.
+        uint8_t m_SupportsInstancing;
+        // Set after any item reports a nonzero vertex count; enables partitioning work.
+        // Remains set even if those counts later become zero or the items are deleted.
+        uint8_t m_HasVertexCounts;
     };
 
     struct RenderListSortValue
@@ -278,16 +285,45 @@ namespace dmRender
         uint32_t m_TagListKey; // Key in the cached ranges, before the first edit
     };
 
+    // Renderer-owned persistent registration for items sharing callbacks and user data,
+    // normally one component type in a collection/world. Lives from registration until
+    // unregistration. Enabled membership and material-tag groups survive across frames,
+    // avoiding a rebuild of every item's render-list entry on each submission.
+    // m_EnabledItems, m_SortIndices and m_Changes store persistent item slot indices,
+    // not generation-checked handles. The sorted cache is reconciled before drawing.
     struct RenderItemDispatch
     {
-        RenderListDispatch       m_Dispatch;
-        dmArray<uint32_t>        m_EnabledItems;
-        dmArray<uint32_t>        m_SortIndices;
+        // Callback metadata copied into the frame's RenderListDispatch table on submission.
+        // Owns neither the callbacks nor their user data.
+        RenderListDispatch m_Dispatch;
+
+        // Current enabled slots, densely packed and unsorted. Enable appends; disable
+        // swaps out the slot using PersistentRenderItem::m_EnabledIndex for constant-time removal.
+        dmArray<uint32_t> m_EnabledItems;
+
+        // Cached enabled slots sorted by material-tag key, then slot index. Pending edits
+        // are applied before drawing. This groups tags; final depth/batch ordering is separate.
+        dmArray<uint32_t> m_SortIndices;
+
+        // Contiguous material-tag groups in m_SortIndices. Frame spans reference these
+        // ranges directly, so unchanged item indices do not need copying each frame.
         dmArray<RenderItemRange> m_Ranges;
-        RenderItemCacheChange    m_Changes[MAX_RENDER_ITEM_CACHE_CHANGES];
-        uint32_t                 m_NumChanges;
-        HRenderListDispatch      m_FrameDispatch;
-        bool                     m_RebuildCache;
+
+        // Pending enabled-membership/tag edits, deduplicated by slot. Each record keeps
+        // the tag key from before its first edit so an old cached entry can be found,
+        // including after deletion or slot reuse. Small edits patch the caches in place.
+        RenderItemCacheChange m_Changes[MAX_RENDER_ITEM_CACHE_CHANGES];
+        // Number of valid m_Changes records; cleared after patching or a full rebuild.
+        uint32_t m_NumChanges;
+
+        // Index in this frame's RenderListDispatch table, assigned by successful submission.
+        // RENDERLIST_INVALID_DISPATCH before submission; reset by RenderListBegin().
+        HRenderListDispatch m_FrameDispatch;
+
+        // Rebuild m_SortIndices and m_Ranges from m_EnabledItems before the next draw.
+        // Initially true; also set when the pending-edit queue overflows. Transform,
+        // bounds and camera changes do not require rebuilding this membership/tag cache.
+        bool m_RebuildCache;
     };
 
     struct MaterialTagList
