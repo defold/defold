@@ -241,7 +241,7 @@
           (project/make-node-id+resource-pairs (g/node-value project :resources))
 
           node-load-infos
-          (project/read-nodes node-id+resource-pairs)
+          (project/read-nodes (g/now) node-id+resource-pairs)
 
           load-order
           (into {}

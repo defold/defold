@@ -25,7 +25,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support :refer [with-clean-system]]
-            [util.coll :as coll])
+            [util.coll :as coll :refer [pair]])
   (:import [java.io InputStream]
            [java.util.concurrent CountDownLatch TimeUnit]))
 
@@ -34,7 +34,7 @@
 (defn- read-node-load-infos-without-graph-queries [read-opts resources]
   (let [resource-count (count resources)
         node-ids (g/take-node-ids resource-count)
-        node-id+resource-pairs (mapv coll/pair node-ids resources)]
+        node-id+resource-pairs (mapv pair node-ids resources)]
     (test-util/with-graph-queries-blocked :disallow-unsafe-basis
       (project/read-node-load-infos read-opts node-id+resource-pairs resource-count progress/null-render-progress!))))
 
@@ -66,7 +66,7 @@
             (doseq [directory ["editable" "non-editable"]
                     :let [resources (mapv #(proj-path->resource (str "/" directory "/test." (first %))) cases)
                           node-load-infos (read-node-load-infos-without-graph-queries read-opts resources)]
-                    [[ext _ data-path] node-load-info] (mapv coll/pair cases node-load-infos)]
+                    [[ext _ data-path] node-load-info] (mapv pair cases node-load-infos)]
               (testing (str directory "/test." ext)
                 (let [components (get-in (:source-value node-load-info) data-path)
                       dependencies (set (:dependency-proj-paths node-load-info))]
@@ -102,7 +102,7 @@
                 resources (mapv #((:proj-path->resource read-opts) (:proj-path %)) cases)
                 node-load-infos (read-node-load-infos-without-graph-queries read-opts resources)]
             (is (= (count cases) (count node-load-infos)))
-            (doseq [[{:keys [proj-path lazy-loaded]} node-load-info] (mapv coll/pair cases node-load-infos)]
+            (doseq [[{:keys [proj-path lazy-loaded]} node-load-info] (mapv pair cases node-load-infos)]
               (testing proj-path
                 (is (nil? (:read-error node-load-info)))
                 (is (= (not lazy-loaded) (contains? node-load-info :source-value)))
@@ -181,7 +181,8 @@
           (let [project (test-util/setup-project! workspace)]
             (test-fn project workspace load-calls)))))))
 
-;; Prerequisite discovery failures must prevent both the resource and its dependents from loading.
+;; Prerequisite discovery failures must prevent both the resource and its
+;; dependents from loading.
 (deftest prerequisite-read-failure-blocks-dependent-load-test
   (call-with-prerequisite-project
     {"/broken.prereq" {:fail true}
@@ -210,7 +211,8 @@
         (is (= 42 (g/node-value independent :result)))
         (is (= ["/independent.prereq"] @load-calls))))))
 
-;; Successful reads retain their hashes so timestamp-only changes keep blocked nodes.
+;; Successful reads retain their hashes so timestamp-only changes keep blocked
+;; nodes.
 (deftest blocked-resource-unchanged-content-retains-node-test
   (call-with-prerequisite-project
     {"/broken.prereq" {:fail true}
@@ -231,7 +233,8 @@
           (is (g/error-value? (g/node-value node-id :result)))))
       (is (= [] @load-calls)))))
 
-;; Resource cycles become read errors with paths, including when different threads own the promises.
+;; Resource cycles become read errors with paths, including when different
+;; threads own the promises.
 (deftest cyclic-resource-prerequisites-test
   (doseq [concurrent [false true]]
     (let [entered (when concurrent (CountDownLatch. 2))]
@@ -270,7 +273,8 @@
                 (doseq [result results]
                   (future-cancel result))))))))))
 
-;; Embedded prerequisite discovery failures must reach the owner instead of becoming warnings.
+;; Embedded prerequisite discovery failures must reach the owner instead of
+;; becoming warnings.
 (deftest embedded-prerequisite-read-failure-blocks-load-test
   (call-with-prerequisite-project
     {"/embedded.go" {:embedded-components [{:id "broken" :type "prereq" :data {:fail true}}]}}
@@ -286,7 +290,8 @@
         (is (= "broken"
                (:embedded-component-id (ex-data (get-in save-value [:user-data :exception])))))))))
 
-;; Bulk reloads must reject cycles and failed prerequisites before invoking any affected loader.
+;; Bulk reloads must reject cycles and failed prerequisites before invoking any
+;; affected loader.
 (deftest bulk-read-prerequisite-errors-test
   (call-with-prerequisite-project
     {"/a.prereq" {:prerequisites ["/b.prereq"]}
@@ -300,31 +305,40 @@
         (throw (ex-info "Failed to discover prerequisites." {}))
         (:prerequisites source-value)))
     (fn [project _workspace load-calls]
-      (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path)
-            basis (g/now)
-            pairs (coll/into-> nodes-by-resource-path []
-                    (filter (fn [[proj-path _]] (.endsWith ^String proj-path ".prereq")))
-                    (map (fn [[_ node-id]] (coll/pair node-id (resource-node/resource basis node-id)))))
-            infos (project/read-nodes pairs :old-node-ids-by-proj-path nodes-by-resource-path)
-            infos-by-path (coll/pair-map-by (comp resource/proj-path :resource) infos)]
-        (doseq [[proj-path info] infos-by-path]
-          (if (= "/independent.prereq" proj-path)
-            (is (nil? (:read-error info)))
-            (do
-              (is (g/error-value? (:read-error info)))
-              (is (= (edn/read-string (slurp (:resource info))) (:source-value info)))
-              (is (= (resource/resource->sha256-hex (:resource info)) (:disk-sha256 info))))))
-        (project/load-nodes! project nil infos progress/null-render-progress! nil {})
-        (is (= ["/independent.prereq"] @load-calls))
-        (is (= 42 (g/node-value (nodes-by-resource-path "/independent.prereq") :result)))
-        (let [dependent (nodes-by-resource-path "/broken-dependent.prereq")
-              ;; The broken prerequisite is now loaded, so it is outside this batch.
-              infos (project/read-nodes [(coll/pair dependent (resource-node/resource (g/now) dependent))]
-                      :old-node-ids-by-proj-path nodes-by-resource-path)]
-          (is (= 1 (count infos)))
-          (is (g/error-value? (:read-error (first infos)))))))))
+      (g/let-ec [{:keys [basis-ref]} evaluation-context
+                 old-node-ids-by-proj-path (g/node-value project :nodes-by-resource-path evaluation-context)
 
-;; Prerequisites can be editor-only dependencies and must precede consumers in bulk loads.
+                 new-node-id+resource-pairs
+                 (coll/into-> old-node-ids-by-proj-path []
+                   (filter (fn [[proj-path _]]
+                             (.endsWith ^String proj-path ".prereq")))
+                   (map (fn [[_ node-id]]
+                          (let [resource (resource-node/resource @basis-ref node-id)]
+                            (pair node-id resource)))))
+
+                 node-load-infos (project/read-nodes @basis-ref new-node-id+resource-pairs :old-node-ids-by-proj-path old-node-ids-by-proj-path)
+                 node-load-infos-by-proj-path (coll/pair-map-by (comp resource/proj-path :resource) node-load-infos)]
+        (doseq [[proj-path node-load-info] node-load-infos-by-proj-path]
+          (if (= "/independent.prereq" proj-path)
+            (is (nil? (:read-error node-load-info)))
+            (do
+              (is (g/error-value? (:read-error node-load-info)))
+              (is (= (edn/read-string (slurp (:resource node-load-info))) (:source-value node-load-info)))
+              (is (= (resource/resource->sha256-hex (:resource node-load-info)) (:disk-sha256 node-load-info))))))
+        (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {})
+        (is (= ["/independent.prereq"] @load-calls))
+        (is (= 42 (g/node-value (old-node-ids-by-proj-path "/independent.prereq") :result)))
+        (let [basis (g/now)
+              dependent (old-node-ids-by-proj-path "/broken-dependent.prereq")
+              dependent-resource (resource-node/resource basis dependent)
+              new-node-id+resource-pairs [(pair dependent dependent-resource)]
+              ;; The broken prerequisite is now loaded, so it is outside this batch.
+              node-load-infos (project/read-nodes basis new-node-id+resource-pairs :old-node-ids-by-proj-path old-node-ids-by-proj-path)]
+          (is (= 1 (count node-load-infos)))
+          (is (g/error-value? (:read-error (first node-load-infos)))))))))
+
+;; Prerequisites can be editor-only dependencies and must precede consumers in
+;; bulk loads.
 (deftest bulk-read-prerequisite-order-test
   (call-with-prerequisite-project
     {"/a.prereq" {:prerequisites ["/b.prereq" "/c.prereq"] :dependencies []}
@@ -333,23 +347,29 @@
      "/d.prereq" {:value 42}}
     (fn [_read-opts _resource source-value] (:prerequisites source-value))
     (fn [project _workspace load-calls]
-      (let [node-ids (g/node-value project :nodes-by-resource-path)
-            basis (g/now)
-            pairs (mapv (fn [path]
-                          (let [node-id (node-ids path)]
-                            (coll/pair node-id (resource-node/resource basis node-id))))
-                        ["/a.prereq" "/b.prereq" "/c.prereq" "/d.prereq"])
-            infos (project/read-nodes pairs :old-node-ids-by-proj-path node-ids)
-            order (into {} (map-indexed (fn [index info]
-                                          (coll/pair (resource/proj-path (:resource info)) index))) infos)]
-        (is (coll/every? #(nil? (:read-error %)) infos))
-        (is (= 4 (count infos)))
+      (g/let-ec [{:keys [basis-ref]} evaluation-context
+                 old-node-ids-by-proj-path (g/node-value project :nodes-by-resource-path evaluation-context)
+
+                 new-node-id+resource-pairs
+                 (mapv (fn [proj-path]
+                         (let [node-id (old-node-ids-by-proj-path proj-path)
+                               resource (resource-node/resource @basis-ref node-id)]
+                           (pair node-id resource)))
+                       ["/a.prereq" "/b.prereq" "/c.prereq" "/d.prereq"])
+
+                 node-load-infos (project/read-nodes @basis-ref new-node-id+resource-pairs :old-node-ids-by-proj-path old-node-ids-by-proj-path)
+                 order (coll/into-> node-load-infos {}
+                         (map-indexed (fn [index info]
+                                        (pair (resource/proj-path (:resource info)) index))))]
+        (is (coll/every? #(nil? (:read-error %)) node-load-infos))
+        (is (= 4 (count node-load-infos)))
         (is (< (order "/d.prereq") (order "/b.prereq") (order "/a.prereq")))
         (is (< (order "/d.prereq") (order "/c.prereq") (order "/a.prereq")))
-        (project/load-nodes! project nil infos progress/null-render-progress! nil {})
+        (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {})
         (is (= 4 (count @load-calls)))))))
 
-;; Missing paths must block both load paths and recover unchanged transitive dependents when created.
+;; Missing paths must block both load paths and recover unchanged transitive
+;; dependents when created.
 (deftest missing-prerequisite-recovery-test
   (doseq [bulk [false true]]
     (call-with-prerequisite-project
@@ -357,13 +377,15 @@
        "/middle.prereq" {:prerequisites ["/missing.prereq"] :value 2}}
       (fn [_read-opts _resource source-value] (:prerequisites source-value))
       (fn [project workspace load-calls]
-        (let [node-ids (g/node-value project :nodes-by-resource-path)
-              root (node-ids "/root.prereq")
-              middle (node-ids "/middle.prereq")]
+        (let [old-node-ids-by-proj-path (g/node-value project :nodes-by-resource-path)
+              root (old-node-ids-by-proj-path "/root.prereq")
+              middle (old-node-ids-by-proj-path "/middle.prereq")]
           (when bulk
-            (let [infos (project/read-nodes [(coll/pair root (resource-node/resource root))]
-                          :old-node-ids-by-proj-path node-ids)]
-              (project/load-nodes! project nil infos progress/null-render-progress! nil {})))
+            (let [basis (g/now)
+                  root-resource (resource-node/resource basis root)
+                  new-node-id+resource-pairs [(pair root root-resource)]
+                  node-load-infos (project/read-nodes basis new-node-id+resource-pairs :old-node-ids-by-proj-path old-node-ids-by-proj-path)]
+              (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {})))
           (let [error (g/node-value root :result)]
             (is (g/error-value? error))
             (is (coll/any? #(and (= :file-not-found (get-in % [:user-data :type]))
@@ -391,7 +413,8 @@
             (is (= {"/missing.prereq" 1 "/middle.prereq" 1 "/root.prereq" 1}
                    (frequencies @load-calls)))))))))
 
-;; Blocked files retain searchable source even when non-editable, but hashes must not become search data.
+;; Blocked files retain searchable source even when non-editable, but hashes
+;; must not become search data.
 (deftest blocked-search-source-values-test
   (doseq [source-value-fn [nil hash]]
     (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
@@ -428,7 +451,8 @@
                   (is (= ((or source-value-fn identity) "needle") source-value))
                   (is (= (if source-value-fn save-error source-value) search-value)))))))))))
 
-;; Prerequisite checks must honor supplied resources in both load paths, even without files on disk.
+;; Prerequisite checks must honor supplied resources in both load paths, even
+;; without files on disk.
 (deftest supplied-prerequisite-resources-test
   (doseq [bulk [false true]]
     (call-with-prerequisite-project
@@ -443,16 +467,25 @@
                               [["dependent.prereq" {:prerequisites ["/prerequisite.prereq"] :value 5}]
                                ["prerequisite.prereq" {:value 42}]])
               project (test-util/setup-project! workspace resources)
-              node-ids (g/node-value project :nodes-by-resource-path)
-              dependent (node-ids "/dependent.prereq")]
+              old-node-ids-by-proj-path (g/node-value project :nodes-by-resource-path)
+              dependent (old-node-ids-by-proj-path "/dependent.prereq")]
           (when bulk
-            (let [infos (project/read-nodes (mapv #(coll/pair (node-ids (resource/proj-path %)) %) resources)
-                          :old-node-ids-by-proj-path node-ids)]
-              (project/load-nodes! project nil infos progress/null-render-progress! nil {})))
+            (let [basis (g/now)
+
+                  new-node-id+resource-pairs
+                  (mapv (fn [resource]
+                          (let [proj-path (resource/proj-path resource)
+                                node-id (old-node-ids-by-proj-path proj-path)]
+                            (pair node-id resource)))
+                        resources)
+
+                  node-load-infos (project/read-nodes basis new-node-id+resource-pairs :old-node-ids-by-proj-path old-node-ids-by-proj-path)]
+              (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {})))
           (is (= 5 (g/node-value dependent :result)))
           (is (= ["/prerequisite.prereq" "/dependent.prereq"] @load-calls)))))))
 
-;; Failed prerequisite metadata must survive discovery errors and cycles so either can be repaired.
+;; Failed prerequisite metadata must survive discovery errors and cycles so
+;; either can be repaired.
 (deftest failed-prerequisite-recovery-test
   (doseq [failure [:discovery :cycle]
           bulk [false true]]
@@ -468,10 +501,13 @@
           (throw (ex-info "Failed to discover prerequisites." {}))))
       (fn [project workspace load-calls]
         (when bulk
-          (let [root (test-util/resource-node project "/root.prereq")
-                infos (project/read-nodes [(coll/pair root (resource-node/resource root))]
-                        :old-node-ids-by-proj-path (g/node-value project :nodes-by-resource-path))]
-            (project/load-nodes! project nil infos progress/null-render-progress! nil {})))
+          (g/let-ec [{:keys [basis-ref]} evaluation-context
+                     root (project/get-resource-node project "/root.prereq" evaluation-context)
+                     root-resource (resource-node/resource @basis-ref root)
+                     old-node-ids-by-proj-path (g/node-value project :nodes-by-resource-path evaluation-context)
+                     new-node-id+resource-pairs [(pair root root-resource)]
+                     node-load-infos (project/read-nodes @basis-ref new-node-id+resource-pairs :old-node-ids-by-proj-path old-node-ids-by-proj-path)]
+            (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {})))
         (is (g/error-value? (g/node-value (test-util/resource-node project "/root.prereq") :result)))
         (is (= [] @load-calls))
         (test-util/write-file-resource! workspace "/b.prereq" {:value 42})
@@ -479,7 +515,8 @@
         (is (= 1 (g/node-value (test-util/resource-node project "/root.prereq") :result)))
         (is (= {"/b.prereq" 1 "/a.prereq" 1 "/root.prereq" 1} (frequencies @load-calls)))))))
 
-;; Loading a missing game object must not produce a save value that silently drops its overrides.
+;; Loading a missing game object must not produce a save value that silently
+;; drops its overrides.
 (deftest missing-game-object-retains-overrides-on-recovery-test
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
     (with-open [_ (test-util/make-directory-deleter project-path)]

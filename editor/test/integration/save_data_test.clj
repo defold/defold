@@ -1699,7 +1699,7 @@
           project (project/make-project workspace extensions)
           resources (g/node-value project :resources)
           node-id+resource-pairs (project/make-node-id+resource-pairs resources)
-          node-load-infos (project/read-nodes node-id+resource-pairs)
+          node-load-infos (project/read-nodes (g/now) node-id+resource-pairs)
 
           _ (g/transact
               {:undoable false}

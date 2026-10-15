@@ -49,7 +49,7 @@
           old-basis (g/now)
           mem-resource (workspace/make-memory-resource workspace :editable resource-type-name inline-resource)
           node-id+resource-pairs (project/make-node-id+resource-pairs [mem-resource])
-          node-load-infos (project/read-nodes node-id+resource-pairs)
+          node-load-infos (project/read-nodes old-basis node-id+resource-pairs)
           prelude-tx-data (project/make-resource-nodes-tx-data project node-id+resource-pairs)
           migrated-resource-node-ids (project/load-nodes! project prelude-tx-data node-load-infos progress/null-render-progress! nil nil)]
       (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)

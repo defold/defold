@@ -727,15 +727,15 @@
   may not fully participate in all systems that a regularly loaded node would.
 
   Args:
+    basis
+      The basis used to read workspace settings and find prerequisite nodes.
+
     new-node-id+resource-pairs
       A sequence of pairs of [node-id, resource] to return node-load-infos for.
       The node-ids can refer to existing unmaterialized resource nodes or newly
       allocated ids. Recursively includes their unloaded prerequisites.
 
   Kv-args:
-    :evaluation-context
-      Optional. Supplies the basis used to find existing prerequisite nodes.
-
     :read-opts
       Optional. Reuses a read-options snapshot across materializations.
 
@@ -784,9 +784,8 @@
       map to any proj-paths it remains dependent on after the resource-sync. If
       the node-id provided to it is unknown, or was deleted at earlier stage of
       the resource-sync, it should return an empty sequence."
-  [new-node-id+resource-pairs
-   & {:keys [evaluation-context
-             read-opts
+  [basis new-node-id+resource-pairs
+   & {:keys [read-opts
              force-read
              old-node-id->dependency-proj-paths
              old-node-id->old-node-state
@@ -797,8 +796,7 @@
            old-node-ids-by-proj-path {}
            render-progress! progress/null-render-progress!}
       :as read-nodes-opts}]
-  {:pre [(coll/every? #{:evaluation-context
-                        :force-read
+  {:pre [(coll/every? #{:force-read
                         :old-node-id->dependency-proj-paths
                         :old-node-id->old-node-state
                         :old-node-ids-by-proj-path
@@ -806,11 +804,7 @@
                         :render-progress!
                         :resource-metrics}
                       (coll/keys read-nodes-opts))]}
-  (let [basis (if evaluation-context
-                @(:basis-ref evaluation-context)
-                (g/now))
-
-        workspace
+  (let [workspace
         (some-> new-node-id+resource-pairs
                 first
                 second
@@ -1546,7 +1540,7 @@
           node-load-infos
           (let [render-progress! (progress/nest-render-progress render-progress! total-progress read-progress-span)]
             (du/measuring process-metrics :read-new-nodes
-              (read-nodes new-node-id+resource-pairs
+              (read-nodes old-basis new-node-id+resource-pairs
                 :old-node-id->dependency-proj-paths old-node-id->dependency-proj-paths
                 :old-node-id->old-node-state old-node-id->old-node-state
                 :old-node-ids-by-proj-path old-node-ids-by-proj-path

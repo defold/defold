@@ -365,7 +365,7 @@
                                              [(project/get-resource-node project proj-path)
                                               (workspace/find-resource workspace proj-path)])
                                            ["/a1.type_a" "/a2.type_a"])
-              node-load-infos (project/read-nodes node-id+resource-pairs :force-read true)]
+              node-load-infos (project/read-nodes (g/now) node-id+resource-pairs :force-read true)]
           (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {:undoable false})
           (doseq [[node-id _resource] node-id+resource-pairs]
             (is (false? (g/node-value node-id :dirty))))
@@ -399,7 +399,7 @@
                     (g/materialize-node! node-id evaluation-context)
                     (is (g/error-value? (g/node-value node-id :source-value evaluation-context)))
                     (is (nil? (g/node-value node-id :source-value))))
-                  (let [node-load-infos (project/read-nodes [[node-id resource]] :force-read true)]
+                  (let [node-load-infos (project/read-nodes (g/now) [[node-id resource]] :force-read true)]
                     (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {:undoable false}))))
               (is (resource-node/loaded? node-id))
               (is (g/error-value? (g/node-value node-id :source-value)))

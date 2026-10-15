@@ -255,7 +255,7 @@
 (defonce node-load-infos
   (run-and-measure-task!
     :read-resources
-    (project/read-nodes node-id+resource-pairs
+    (project/read-nodes (g/now) node-id+resource-pairs
       :resource-metrics resource-metrics)))
 
 (defonce migrated-resource-node-ids
