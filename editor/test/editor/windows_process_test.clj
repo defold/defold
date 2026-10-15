@@ -41,6 +41,8 @@
                 "-Dfile.encoding=UTF-8"
                 "-Dstdout.encoding=UTF-8"
                 "-Dstderr.encoding=UTF-8"
+                ;; Keep the JVM from changing the error mode under test.
+                "-Dsun.io.allowCriticalErrorMessageBox=true"
                 "-cp" (coll/join-to-string
                         File/pathSeparator
                         (eduction
@@ -66,10 +68,10 @@
      :exit-code (process/await-exit-code process)}))
 
 ;; The native launcher must preserve CRT arguments, including empty strings,
-;; embedded quotes, Unicode, newlines, and backslashes before quotes or the end.
+;; embedded quotes, newlines, and backslashes before quotes or the end.
 (deftest arguments-test
   (let [arguments ["" "plain" "has spaces" "a\tb" "quote\"" "\\" "tail\\\\"
-                   "a\\\"b" "line\nnext" "\r" "你好😀" "C:\\Program Files\\" ""]
+                   "a\\\"b" "line\nnext" "\r" "C:\\Program Files\\" ""]
         expected (mapv (fn [argument]
                          (str "arg:" (coll/join-to-string
                                        (eduction (map #(format "%04x" (int %))) argument))))
@@ -83,6 +85,23 @@
                            (println))
                         arguments)]
     (is (= expected (string/split-lines out)))
+    (is (nil? err))
+    (is (zero? exit-code))))
+
+;; Java's Windows launcher converts argv to ANSI. Inspect the original Unicode
+;; command line to verify CreateProcessW without that lossy conversion.
+(deftest unicode-arguments-test
+  (let [{:keys [out err exit-code]}
+        (capture-child! {:windows-default-error-mode true}
+                        '(let [command-line (.getWideString
+                                              (.invokePointer
+                                                (.getFunction (com.sun.jna.NativeLibrary/getInstance "kernel32")
+                                                              "GetCommandLineW" com.sun.jna.Function/ALT_CONVENTION)
+                                                (object-array 0))
+                                              0)]
+                           (print (.endsWith command-line "\"你好😀\"")))
+                        ["你好😀"])]
+    (is (= "true" out))
     (is (nil? err))
     (is (zero? exit-code))))
 
