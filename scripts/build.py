@@ -2151,13 +2151,12 @@ class Configuration(object):
 
         self._remove_tree(join(build_home, 'share', 'extender', 'build', platform))
 
-    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False, allow_compatible_configure = False, use_existing_bob_light = False):
+    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_build_tests = False, reuse_builddir = False, allow_compatible_configure = False, use_existing_bob_light = False):
         build_home = self._platform_build_home(platform)
         builddir = self._cmake_top_build_dir(platform)
 
         build_type = self._find_cmake_build_type(self.build_options)
-        build_tests = (not skip_tests) and '--skip-build-tests' not in self.build_options and self._can_run_tests()
-        supports_tests = build_tests
+        build_tests = (not skip_build_tests) and '--skip-build-tests' not in self.build_options
 
         # Keep CMake build directories persistent so repeated builds can be
         # handled by Ninja's dependency graph instead of forcing a rebuild.
@@ -2166,7 +2165,7 @@ class Configuration(object):
             os.makedirs(builddir)
 
         is_verbose = self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options)
-        test = '' if (self.skip_tests or not supports_tests) else 'run_tests'
+        test = 'run_tests' if build_tests and not self.skip_tests and self._can_run_tests() else ''
         build_test = 'build_tests' if build_tests else ''
         cmake_build_tests = 'ON' if build_tests else 'OFF'
         self._log(f"CMake lib set for {name}: {lib_set}")
@@ -2377,7 +2376,7 @@ class Configuration(object):
 
         # Make sure we build these for the host platform for the toolchain (bob light)
         self.build_tracker.start_component('cmake_host_libs', host)
-        self._build_engine_libs_cmake('host_libs', 'host', host, skip_tests = True, allow_compatible_configure = host == target_platform)
+        self._build_engine_libs_cmake('host_libs', 'host', host, skip_build_tests = True, allow_compatible_configure = host == target_platform)
         self.build_tracker.end_component('cmake_host_libs', host)
 
         if not self.skip_bob_light:
@@ -2391,7 +2390,6 @@ class Configuration(object):
             'engine_libs',
             target_lib_set,
             target_platform,
-            skip_tests = self.skip_tests,
             reuse_builddir = reuse_builddir,
             use_existing_bob_light = True)
         self.build_tracker.end_component('cmake_engine_libs', target_platform)

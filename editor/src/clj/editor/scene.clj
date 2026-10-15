@@ -52,14 +52,15 @@
             [editor.resource-node :as resource-node]
             [editor.rulers :as rulers]
             [editor.scene-async :as scene-async]
+            [editor.scene-axis-gizmo :as scene-axis-gizmo]
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
             [editor.scene-selection :as selection]
             [editor.scene-shapes :as scene-shapes]
             [editor.scene-tools :as scene-tools]
             [editor.scene-visibility :as scene-visibility]
-            [editor.system :as system]
             [editor.shaders :as shaders]
+            [editor.system :as system]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -252,7 +253,8 @@
       :position (Point3d. (.x world-translation) (.y world-translation) (.z world-translation))
       :rotation (Quat4d. world-rotation)
       :z-near (or near-z 1.0)
-      :z-far (or far-z 1000.0))))
+      :z-far (or far-z 1000.0)
+      :mode-2d false)))
 
 (defn vp-dims [^Region viewport]
   (types/dimensions viewport))
@@ -464,8 +466,9 @@
   (let [{:keys [world view ^Matrix4d projection texture]} render-args
         picking-matrix (c/pick-matrix viewport picking-rect)
         projection' (doto (Matrix4d. picking-matrix) (.mul projection))]
-    (merge render-args
-           (math/derive-render-transforms world view projection' texture))))
+    (-> render-args
+        (merge (math/derive-render-transforms world view projection' texture))
+        (assoc :picking-matrix picking-matrix))))
 
 (def render-mode-transitions {:normal :aabbs
                               :aabbs :picking-color
@@ -924,6 +927,7 @@
   (input rulers-id g/NodeID :cascade-delete)
   (input selection-id g/NodeID :cascade-delete)
   (input tool-controller-id g/NodeID :cascade-delete)
+  (input axis-gizmo-id g/NodeID :cascade-delete)
 
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
@@ -1117,7 +1121,7 @@
                :scale-y -1.0}]
    :mouse-transparent true
    :anchor-pane/bottom camera-inset-margin
-   :anchor-pane/right camera-inset-margin})
+   :anchor-pane/left camera-inset-margin})
 
 (defn- animation-preview-anchor-props [camera viewport anim-data]
   (let [offset texture-set/animation-preview-offset
@@ -1423,35 +1427,52 @@
 (defn- supports-camera-inset-drawable? [node-id]
   (g/node-instance? (g/now) SceneView node-id))
 
+(defn- destroy-drawables! [node-id]
+  (when-let [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
+    (gl/with-drawable-as-current drawable
+      (scene-cache/drop-context! gl)
+      (when-let [async-copy-state-atom (g/node-value node-id :async-copy-state)]
+        (scene-async/dispose! @async-copy-state-atom gl))
+      (.glFinish gl))
+    (.destroy drawable))
+  (when-let [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable)]
+    (gl/with-drawable-as-current picking-drawable
+      (scene-cache/drop-context! gl)
+      (.glFinish gl))
+    (.destroy picking-drawable))
+  (when (supports-camera-inset-drawable? node-id)
+    (when-let [^GLAutoDrawable camera-inset-drawable (g/node-value node-id :camera-inset-drawable)]
+      (gl/with-drawable-as-current camera-inset-drawable
+        (scene-cache/drop-context! gl)
+        (.glFinish gl))
+      (.destroy camera-inset-drawable)))
+  (g/transact
+    {:undoable false}
+    (concat
+      (g/set-property node-id :drawable nil)
+      (g/set-property node-id :picking-drawable nil)
+      (when (supports-camera-inset-drawable? node-id)
+        (g/set-property node-id :camera-inset-drawable nil))
+      (g/set-property node-id :async-copy-state nil))))
+
 (defn dispose-scene-view! [node-id]
   (when (g/node-by-id node-id)
-    (when-let [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
-      (gl/with-drawable-as-current drawable
-        (scene-cache/drop-context! gl)
-        (when-let [async-copy-state-atom (g/node-value node-id :async-copy-state)]
-          (scene-async/dispose! @async-copy-state-atom gl))
-        (.glFinish gl))
-      (.destroy drawable))
-    (when-let [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable)]
-      (gl/with-drawable-as-current picking-drawable
-        (scene-cache/drop-context! gl)
-        (.glFinish gl))
-      (.destroy picking-drawable))
-    (when (supports-camera-inset-drawable? node-id)
-      (when-let [^GLAutoDrawable camera-inset-drawable (g/node-value node-id :camera-inset-drawable)]
-        (gl/with-drawable-as-current camera-inset-drawable
-          (scene-cache/drop-context! gl)
-          (.glFinish gl))
-        (.destroy camera-inset-drawable)))
-    (ui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)
-    (g/transact
-      {:undoable false}
-      (concat
-        (g/set-property node-id :drawable nil)
-        (g/set-property node-id :picking-drawable nil)
-        (when (supports-camera-inset-drawable? node-id)
-          (g/set-property node-id :camera-inset-drawable nil))
-        (g/set-property node-id :async-copy-state nil)))))
+    (destroy-drawables! node-id)
+    (ui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)))
+
+(defn suspend-scene-view! [node-id]
+  (when (g/node-by-id node-id)
+    (let [^ImageView image-view (g/node-value node-id :image-view)]
+      (ui/user-data! image-view ::suspended true)
+      (destroy-drawables! node-id)
+      (.setImage image-view nil)
+      (ui/user-data! image-view ::last-renderables nil))))
+
+(defn resume-scene-view! [node-id]
+  (when (g/node-by-id node-id)
+    (let [^ImageView image-view (g/node-value node-id :image-view)]
+      (ui/user-data! image-view ::suspended false)
+      (.requestLayout (.getParent image-view)))))
 
 (defn active-scene-view
   ([app-view]
@@ -2032,45 +2053,38 @@
                          (g/transact
                            {:undoable false}
                            (g/set-property view-id :viewport viewport))
-                         (if-let [view-id (ui/user-data image-view ::view-id)]
-                           (when-some [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
-                             (doto drawable
-                               (.setSurfaceSize width height))
-                             (let [async-copy-state-atom (g/node-value view-id :async-copy-state)
-                                   async-copy-state @async-copy-state-atom]
-                               (when (or (not= (int width) (int (:width async-copy-state)))
-                                         (not= (int height) (int (:height async-copy-state))))
-                                 ;; Resize invalidates the framebuffer even if
-                                 ;; the renderables themselves did not change.
-                                 (ui/user-data! image-view ::last-renderables nil))
-                               (reset! async-copy-state-atom (scene-async/request-resize async-copy-state width height))))
-                           (let [drawable (gl/offscreen-drawable width height)
-                                 picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)
-                                 camera-inset-drawable (when (supports-camera-inset-drawable? view-id)
-                                                         (gl/offscreen-drawable camera-inset-width camera-inset-height))]
+                         (let [initialized (some? (ui/user-data image-view ::view-id))]
+                           (when-not initialized
                              (ui/user-data! image-view ::view-id view-id)
                              (register-event-handler! this image-view view-id)
                              (ui/on-closed! (:tab opts) (fn [_]
                                                           (ui/kill-event-dispatch! this)
                                                           (dispose-scene-view! view-id)))
                              (when (:camera opts)
-                               (ui/user-data! image-view ::preserve-initial-camera true))
-                             (if camera-inset-drawable
-                               (g/transact
-                                 {:undoable false}
-                                 (g/set-properties view-id
-                                   :drawable drawable
-                                   :picking-drawable picking-drawable
-                                   :camera-inset-drawable camera-inset-drawable
-                                   :async-copy-state (atom (scene-async/make-async-copy-state width height))))
-                               (g/transact
-                                 {:undoable false}
-                                 (g/set-properties view-id
-                                   :drawable drawable
-                                   :picking-drawable picking-drawable
-                                   :async-copy-state (atom (scene-async/make-async-copy-state width height)))))
-                             (when-not (:camera opts)
-                               (frame-selection! view-id false))))))
+                               (ui/user-data! image-view ::preserve-initial-camera true)))
+                           (when-not (ui/user-data image-view ::suspended)
+                             (if-let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
+                               (let [async-copy-state-atom (g/node-value view-id :async-copy-state)
+                                     async-copy-state @async-copy-state-atom]
+                                 (.setSurfaceSize drawable width height)
+                                 (when (or (not= (int width) (int (:width async-copy-state)))
+                                           (not= (int height) (int (:height async-copy-state))))
+                                   ;; Resize invalidates the framebuffer even if
+                                   ;; the renderables themselves did not change.
+                                   (ui/user-data! image-view ::last-renderables nil))
+                                 (reset! async-copy-state-atom (scene-async/request-resize async-copy-state width height)))
+                               (when-let [drawable (gl/offscreen-drawable width height)]
+                                 (g/transact
+                                   {:undoable false}
+                                   (concat
+                                     (g/set-properties view-id
+                                       :drawable drawable
+                                       :picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)
+                                       :async-copy-state (atom (scene-async/make-async-copy-state width height)))
+                                     (when (supports-camera-inset-drawable? view-id)
+                                       (g/set-property view-id :camera-inset-drawable (gl/offscreen-drawable camera-inset-width camera-inset-height))))))))
+                           (when-not (or initialized (:camera opts))
+                             (frame-selection! view-id false)))))
                      (catch Throwable error
                        (error-reporting/report-exception! error)))
                    (proxy-super layoutChildren))))]
@@ -2213,7 +2227,8 @@
                                (true? (:grid opts)) grid/Grid
                                (:grid opts) (:grid opts)
                                :else grid/Grid)
-        tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
+        tool-controller-type (get opts :tool-controller scene-tools/ToolController)
+        has-axis-gizmo       (get opts :axis-gizmo true)]
     (g/make-nodes [background      background/Background
                    selection       [selection/SelectionController
                                     :drop-fn (:drop-fn opts)
@@ -2230,6 +2245,7 @@
                                     :prefs prefs]
                    grid            (grid-type :prefs prefs)
                    tool-controller [tool-controller-type :prefs prefs]
+                   axis-gizmo      [scene-axis-gizmo/AxisGizmoController]
                    rulers          [rulers/Rulers]]
 
       (g/connect resource-node   :scene                         view-id         :scene)
@@ -2261,6 +2277,15 @@
       (g/connect app-view-id     :localization                  view-id         :localization)
       (g/connect app-view-id     :keymap                        camera          :keymap)
 
+      (when has-axis-gizmo
+        (concat
+          (g/connect axis-gizmo  :_node-id                      view-id         :axis-gizmo-id)
+          (g/connect axis-gizmo  :update-tick-handler           view-id         :update-tick-handlers)
+          ;; Consume gizmo clicks before the tool and selection controllers see them.
+          (g/connect axis-gizmo  :input-handler                 view-id         :input-handlers)
+          (g/connect camera      :_node-id                      axis-gizmo      :camera-node-id)
+          (g/connect camera      :camera                        axis-gizmo      :camera)))
+
       (g/connect tool-controller :input-handler                 view-id         :input-handlers)
       (g/connect tool-controller :mouse-binding-context         view-id         :mouse-binding-context)
       (g/connect tool-controller :info-text                     view-id         :tool-info-text)
@@ -2271,6 +2296,10 @@
       (g/connect view-id         :viewport                      tool-controller :viewport)
       (g/connect camera          :camera                        tool-controller :camera)
       (g/connect view-id         :selected-renderables          tool-controller :selected-renderables)
+
+      (if has-axis-gizmo
+        (g/connect axis-gizmo    :renderables                   view-id         :tool-renderables)
+        (g/delete-node axis-gizmo))
 
       (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
 
@@ -2303,7 +2332,8 @@
 (defn make-preview [resource-node opts width height]
   (let [view-id (make-preview-view width height)
         opts (-> opts
-                 (assoc :manual-refresh? true)
+                 (assoc :manual-refresh? true
+                        :axis-gizmo false)
                  (dissoc :grid))]
     (g/transact
       {:undoable false}
