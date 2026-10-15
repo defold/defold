@@ -1328,9 +1328,8 @@ static void PersistentItemVisibility(const dmRender::RenderListVisibilityParams&
     for (uint32_t i = 0; i < params.m_NumEntries; ++i)
     {
         dmRender::RenderListEntry& entry = params.m_Entries[i];
-        Vector4 center(entry.m_WorldPosition.getX(), entry.m_WorldPosition.getY(), entry.m_WorldPosition.getZ(), 1.0f);
-        entry.m_Visibility = dmIntersection::TestFrustumSphereSq(*params.m_Frustum, center, 1.0f)
-            ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+        Vector4                    center(entry.m_WorldPosition.getX(), entry.m_WorldPosition.getY(), entry.m_WorldPosition.getZ(), 1.0f);
+        entry.m_Visibility = dmIntersection::TestFrustumSphereSq(*params.m_Frustum, center, 1.0f) ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
     }
 }
 
@@ -1360,15 +1359,15 @@ static void AssertInvalidRenderItem(dmRender::HRenderContext context, dmRender::
 // recycled slot returns to automatic ordering instead of inheriting its owner.
 TEST_F(dmRenderTest, PersistentRenderItemExplicitOrder)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
     dmGraphics::ShaderDescBuilder shader;
     shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
     shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
-    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+    dmRender::HMaterial  material = dmRender::NewMaterial(m_Context, program);
     dmRender::SetMaterialTags(material, 0, 0);
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
-    dmRender::HRenderItem items[3];
+    dmRender::HRenderItem         items[3];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
     {
         items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
@@ -1409,13 +1408,13 @@ TEST_F(dmRenderTest, PersistentRenderItemExplicitOrder)
 // callback visibility, and recycled handles cannot mutate replacement items.
 TEST_F(dmRenderTest, PersistentRenderItemLifecycle)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
-    uint32_t drawn = 0;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      drawn = 0;
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, PersistentItemDispatch, PersistentItemVisibility, &drawn);
     dmRender::RenderListBegin(m_Context);
     dmRender::SubmitRenderListDispatch(m_Context, dispatch);
     dmRender::HRenderListDispatch transient_dispatch = dmRender::RenderListMakeDispatch(m_Context, PersistentItemDispatch, PersistentItemVisibility, &drawn);
-    dmRender::RenderListEntry* transient = dmRender::RenderListAlloc(m_Context, 1);
+    dmRender::RenderListEntry*    transient = dmRender::RenderListAlloc(m_Context, 1);
     transient->m_Dispatch = transient_dispatch;
     transient->m_UserData = 77;
     transient->m_TagListKey = dmRender::RegisterMaterialTagList(m_Context, 0, 0);
@@ -1423,7 +1422,7 @@ TEST_F(dmRenderTest, PersistentRenderItemLifecycle)
     dmRender::RenderListSubmit(m_Context, transient, transient + 1);
 
     dmRender::HRenderItem item = dmRender::NewRenderItem(m_Context, dispatch, 42);
-    uint32_t slot = (uint32_t)item;
+    uint32_t              slot = (uint32_t)item;
     ASSERT_EQ(dmRender::RENDERLIST_INVALID_DISPATCH, context->m_RenderList[slot].m_Dispatch);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
     ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, item, Matrix4::translation(Vector3(0, 0, 0.5f))));
@@ -1461,12 +1460,12 @@ TEST_F(dmRenderTest, PersistentRenderItemLifecycle)
     ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
     ASSERT_EQ(3u, drawn);
-    dmhash_t tag = dmHashString64("persistent_tag");
+    dmhash_t                      tag = dmHashString64("persistent_tag");
     dmGraphics::ShaderDescBuilder shader;
     shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
     shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
-    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+    dmRender::HMaterial  material = dmRender::NewMaterial(m_Context, program);
     dmRender::SetMaterialTags(material, 1, &tag);
     dmRender::HPredicate predicate = dmRender::NewPredicate();
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddPredicateTag(predicate, tag));
@@ -1518,13 +1517,13 @@ static void CountingPersistentItemVisibility(const dmRender::RenderListVisibilit
 // entries, including partial submissions and visibility cached by earlier draws.
 TEST_F(dmRenderTest, PersistentRenderItemsDuringTransientAllocation)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
-    uint32_t visibility_count = 0;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      visibility_count = 0;
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &visibility_count);
     dmRender::RenderListBegin(m_Context);
     dmRender::SubmitRenderListDispatch(m_Context, dispatch);
     dmRender::HRenderListDispatch transient_dispatch = dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &visibility_count);
-    dmRender::RenderListEntry* transient = dmRender::RenderListAlloc(m_Context, 3);
+    dmRender::RenderListEntry*    transient = dmRender::RenderListAlloc(m_Context, 3);
     for (uint32_t i = 0; i < 3; ++i)
     {
         transient[i].m_Dispatch = transient_dispatch;
@@ -1580,7 +1579,7 @@ TEST_F(dmRenderTest, PersistentRenderItemsDuringTransientAllocation)
 TEST_F(dmRenderTest, TransientRenderListSnapshotReuse)
 {
     dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
-    uint32_t visibility_count = 0;
+    uint32_t                 visibility_count = 0;
     dmRender::RenderListBegin(m_Context);
     dmRender::HRenderListDispatch dispatches[] = {
         dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &visibility_count),
@@ -1629,7 +1628,7 @@ TEST_F(dmRenderTest, PersistentRenderItemDispatchSlotReuse)
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches) - 1; ++i)
         dmRender::UnregisterRenderListDispatch(m_Context, dispatches[i]);
     dmRender::HRenderItemDispatch survivor = dispatches[513];
-    dmRender::HRenderItem item = dmRender::NewRenderItem(m_Context, survivor, 42);
+    dmRender::HRenderItem         item = dmRender::NewRenderItem(m_Context, survivor, 42);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
     ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
     dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
@@ -1676,9 +1675,9 @@ TEST_F(dmRenderTest, PersistentRenderItemDispatchSlotReuse)
 // registration IDs exceed eight bits. Equal-tag worlds follow submission order.
 TEST_F(dmRenderTest, PersistentRenderItemIdleWorlds)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
     dmRender::HRenderItemDispatch dispatches[514];
-    dmRender::HRenderItem items[514];
+    dmRender::HRenderItem         items[514];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches); ++i)
     {
         dispatches[i] = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
@@ -1733,8 +1732,8 @@ TEST_F(dmRenderTest, PersistentRenderItemIdleWorlds)
 // peak. Erase-swap, slot reuse and disabled-item churn preserve that list.
 TEST_F(dmRenderTest, PersistentRenderItemDenseEnabledList)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
-    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::RenderContext*       context = (dmRender::RenderContext*)m_Context;
+    dmRender::HRenderItemDispatch  dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
     dmArray<dmRender::HRenderItem> items;
     items.SetCapacity(100000);
     for (uint32_t i = 0; i < items.Capacity(); ++i)
@@ -1778,10 +1777,10 @@ TEST_F(dmRenderTest, PersistentRenderItemDenseEnabledList)
 // entries. The dense enabled list is shared with tag sorting.
 TEST_F(dmRenderTest, PersistentRenderItemInactiveVisibility)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
     dmRender::HRenderItemDispatch skipped = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
-    dmRender::HRenderItem items[4];
+    dmRender::HRenderItem         items[4];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
     {
         items[i] = dmRender::NewRenderItem(m_Context, i == 3 ? skipped : dispatch, i);
@@ -1825,14 +1824,14 @@ TEST_F(dmRenderTest, PersistentRenderItemInactiveVisibility)
 // depth sorting, and only transform updates invalidate cached visibility.
 TEST_F(dmRenderTest, PersistentRenderItemTransform)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
-    uint32_t visibility_count = 0;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      visibility_count = 0;
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &visibility_count);
-    dmRender::HRenderItem first = dmRender::NewRenderItem(m_Context, dispatch, 1);
-    dmRender::HRenderItem second = dmRender::NewRenderItem(m_Context, dispatch, 2);
+    dmRender::HRenderItem         first = dmRender::NewRenderItem(m_Context, dispatch, 1);
+    dmRender::HRenderItem         second = dmRender::NewRenderItem(m_Context, dispatch, 2);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, first, 0));
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, second, 0));
-    Matrix4 world_transform = Matrix4::translation(Vector3(0, 0, 0.5f)) * Matrix4::rotationZ(0.5f) * Matrix4::scale(Vector3(2, 3, 4));
+    Matrix4       world_transform = Matrix4::translation(Vector3(0, 0, 0.5f)) * Matrix4::rotationZ(0.5f) * Matrix4::scale(Vector3(2, 3, 4));
     const Matrix4 expected = world_transform;
     ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, first, world_transform));
     world_transform = Matrix4::identity();
@@ -1890,10 +1889,10 @@ TEST_F(dmRenderTest, PersistentRenderItemTransform)
 // documented coordinate spaces, and refresh visibility when type or data changes.
 TEST_F(dmRenderTest, PersistentRenderItemBoundingVolumes)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
-    uint32_t callback_entries = 0;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      callback_entries = 0;
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &callback_entries);
-    dmRender::HRenderItem items[3];
+    dmRender::HRenderItem         items[3];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
     {
         items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
@@ -1954,11 +1953,11 @@ TEST_F(dmRenderTest, PersistentRenderItemBoundingVolumes)
 // An idle registration keeps persistent and frame dispatch IDs distinct.
 TEST_F(dmRenderTest, PersistentRenderItemBoundingVolumeFallback)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
-    uint32_t callback_entries = 0;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      callback_entries = 0;
     dmRender::HRenderItemDispatch idle = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &callback_entries);
-    dmRender::HRenderItem item = dmRender::NewRenderItem(m_Context, dispatch, 42);
+    dmRender::HRenderItem         item = dmRender::NewRenderItem(m_Context, dispatch, 42);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
     ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
     ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, item, Point3(100, 0, 0), 1));
@@ -2008,9 +2007,9 @@ TEST_F(dmRenderTest, PersistentRenderItemBoundingVolumeFallback)
 // and near/far rejection depends on the selected frustum planes.
 TEST_F(dmRenderTest, PersistentRenderItemBoundingOBBAffineTransforms)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
-    dmRender::HRenderItem item = dmRender::NewRenderItem(m_Context, dispatch, 0);
+    dmRender::HRenderItem         item = dmRender::NewRenderItem(m_Context, dispatch, 0);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
     ASSERT_TRUE(dmRender::SetBoundingOBB(m_Context, item, Vector3(-1, -2, -0.5f), Vector3(1, 2, 0.5f)));
     ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
@@ -2052,10 +2051,10 @@ static void CountingPersistentItemBatches(const dmRender::RenderListDispatchPara
 // including recalculation when visibility or geometry sizes change.
 TEST_F(dmRenderTest, PersistentRenderItemBatchAndPartitions)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
-    uint32_t batches = 0;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      batches = 0;
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, CountingPersistentItemBatches, 0, &batches);
-    dmRender::HRenderItem items[3];
+    dmRender::HRenderItem         items[3];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
     {
         items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
@@ -2130,9 +2129,9 @@ TEST_F(dmRenderTest, PersistentRenderItemMaterialSorting)
     shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
     shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
     shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "custom_transform", 0, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
-    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
-    dmRender::HMaterial regular = dmRender::NewMaterial(m_Context, program);
-    dmRender::HMaterial instanced = dmRender::NewMaterial(m_Context, program);
+    dmGraphics::HProgram        program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+    dmRender::HMaterial         regular = dmRender::NewMaterial(m_Context, program);
+    dmRender::HMaterial         instanced = dmRender::NewMaterial(m_Context, program);
     dmGraphics::VertexAttribute attribute = {};
     attribute.m_NameHash = dmHashString64("custom_transform");
     attribute.m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
@@ -2149,11 +2148,11 @@ TEST_F(dmRenderTest, PersistentRenderItemMaterialSorting)
     dmRender::SetMaterialTags(instanced, 1, &tag);
     dmRender::SetMaterialTags(regular, 0, 0);
 
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
-    uint32_t model_batches = 0;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      model_batches = 0;
     dmRender::HRenderItemDispatch model_dispatch = dmRender::RegisterRenderListDispatch(m_Context, CountingPersistentItemBatches, 0, &model_batches, true);
     dmRender::HRenderItemDispatch sprite_dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
-    dmRender::HRenderItem items[] = {
+    dmRender::HRenderItem         items[] = {
         dmRender::NewRenderItem(m_Context, model_dispatch, 0),
         dmRender::NewRenderItem(m_Context, model_dispatch, 1),
         dmRender::NewRenderItem(m_Context, sprite_dispatch, 2),
@@ -2253,8 +2252,8 @@ TEST_F(dmRenderTest, PersistentRenderItemMaterialSorting)
 // storage after most registrations are deleted.
 TEST_F(dmRenderTest, PersistentRenderItems100K)
 {
-    uint32_t drawn = 0;
-    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, PersistentItemDispatch, 0, &drawn);
+    uint32_t                       drawn = 0;
+    dmRender::HRenderItemDispatch  dispatch = dmRender::RegisterRenderListDispatch(m_Context, PersistentItemDispatch, 0, &drawn);
     dmArray<dmRender::HRenderItem> items;
     items.SetCapacity(100000);
     for (uint32_t i = 0; i < items.Capacity(); ++i)
@@ -2271,7 +2270,7 @@ TEST_F(dmRenderTest, PersistentRenderItems100K)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
     ASSERT_EQ(100000u, drawn);
     dmRender::RenderItemDispatch* registration = context->m_RenderItemDispatches[dispatch];
-    const uint32_t* cached_indices = registration->m_SortIndices.Begin();
+    const uint32_t*               cached_indices = registration->m_SortIndices.Begin();
     ASSERT_TRUE(dmRender::Enable(m_Context, items[0], false));
     ASSERT_TRUE(dmRender::Enable(m_Context, items[0], true));
     ASSERT_FALSE(registration->m_RebuildCache);
@@ -2282,7 +2281,7 @@ TEST_F(dmRenderTest, PersistentRenderItems100K)
     ASSERT_EQ(cached_indices, registration->m_SortIndices.Begin());
     ASSERT_EQ(0u, registration->m_SortIndices[0]);
     ASSERT_EQ(99999u, registration->m_SortIndices.Back());
-    uint32_t capacity = context->m_RenderList.Capacity();
+    uint32_t                         capacity = context->m_RenderList.Capacity();
     const dmRender::RenderListEntry* storage = context->m_RenderList.Begin();
     for (uint32_t i = 0; i < items.Size() - 1; ++i)
         dmRender::DeleteRenderItem(m_Context, items[i]);
@@ -2302,10 +2301,10 @@ TEST_F(dmRenderTest, PersistentRenderItems100K)
 // visibility callbacks nor draws until their dispatch is submitted again.
 TEST_F(dmRenderTest, PersistentRenderItemDispatchSubmission)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
-    uint32_t visibility_count = 0;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      visibility_count = 0;
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &visibility_count);
-    dmRender::HRenderItem item = dmRender::NewRenderItem(m_Context, dispatch, 42);
+    dmRender::HRenderItem         item = dmRender::NewRenderItem(m_Context, dispatch, 42);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
     ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
     dmRender::FrustumOptions options;
@@ -2921,7 +2920,7 @@ TEST_F(dmRenderTest, TestRenderListTagSortStableOrder)
 
 struct TestRenderItemRangeOrder
 {
-    const uint32_t* m_Indices;
+    const uint32_t*    m_Indices;
     dmArray<uint32_t>* m_DrawOrder;
 };
 
@@ -2933,9 +2932,9 @@ static void AppendRenderItemRangeOrder(void* ctx, uint32_t tag_list_key, size_t 
 
 static void AssertRenderItemTagOrder(dmRender::HRenderContext render_context)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)render_context;
+    dmRender::RenderContext*           context = (dmRender::RenderContext*)render_context;
     dmArray<dmRender::RenderListEntry> entries;
-    uint32_t num_persistent = context->m_PersistentRenderItems.Size();
+    uint32_t                           num_persistent = context->m_PersistentRenderItems.Size();
     entries.SetCapacity(num_persistent + context->m_TransientRenderList.Size());
     entries.PushArray(context->m_RenderList.Begin(), num_persistent);
     entries.PushArray(context->m_TransientRenderList.Begin(), context->m_TransientRenderList.Size());
@@ -2954,7 +2953,7 @@ static void AssertRenderItemTagOrder(dmRender::HRenderContext render_context)
         std::stable_sort(indices.Begin(), indices.End(), sort);
     dmArray<uint32_t> expected;
     expected.SetCapacity(indices.Size());
-    TestRenderItemRangeOrder order = { indices.Begin(), &expected };
+    TestRenderItemRangeOrder      order = { indices.Begin(), &expected };
     dmRender::FindRangeComparator comp;
     comp.m_Entries = entries.Begin();
     dmRender::FindRenderListRanges(indices.Begin(), 0, indices.Size(), entries.Begin(), comp, &order, AppendRenderItemRangeOrder);
@@ -2978,17 +2977,17 @@ TEST_F(dmRenderTest, PersistentRenderItemTagRangeMerge)
     shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
     shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
-    dmhash_t tags[] = { dmHashString64("range_a"), dmHashString64("range_b"), dmHashString64("range_c") };
-    dmRender::HMaterial materials[DM_ARRAY_SIZE(tags)];
+    dmhash_t             tags[] = { dmHashString64("range_a"), dmHashString64("range_b"), dmHashString64("range_c") };
+    dmRender::HMaterial  materials[DM_ARRAY_SIZE(tags)];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
     {
         materials[i] = dmRender::NewMaterial(m_Context, program);
         dmRender::SetMaterialTags(materials[i], 1, &tags[i]);
     }
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
     dmRender::HRenderItemDispatch idle = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
-    dmRender::HRenderItem items[9];
+    dmRender::HRenderItem         items[9];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
     {
         items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
@@ -3069,17 +3068,17 @@ TEST_F(dmRenderTest, PersistentRenderItemIncrementalTagCache)
     shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
     shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
-    dmhash_t tags[] = { dmHashString64("incremental_a"), dmHashString64("incremental_b"), dmHashString64("incremental_c") };
-    dmRender::HMaterial materials[DM_ARRAY_SIZE(tags)];
+    dmhash_t             tags[] = { dmHashString64("incremental_a"), dmHashString64("incremental_b"), dmHashString64("incremental_c") };
+    dmRender::HMaterial  materials[DM_ARRAY_SIZE(tags)];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
     {
         materials[i] = dmRender::NewMaterial(m_Context, program);
         dmRender::SetMaterialTags(materials[i], 1, &tags[i]);
     }
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
     dmRender::RenderItemDispatch* registration = context->m_RenderItemDispatches[dispatch];
-    dmRender::HRenderItem items[9];
+    dmRender::HRenderItem         items[9];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
     {
         items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
@@ -3140,13 +3139,13 @@ TEST_F(dmRenderTest, PersistentRenderItemIncrementalTagCache)
 // item that reuses its slot in another world, in either direction.
 TEST_F(dmRenderTest, PersistentRenderItemIncrementalSlotTransfer)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
     dmRender::HRenderItemDispatch first = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
     dmRender::HRenderItemDispatch second = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
     dmRender::RenderItemDispatch* a = context->m_RenderItemDispatches[first];
     dmRender::RenderItemDispatch* b = context->m_RenderItemDispatches[second];
-    dmRender::HRenderItem moving = dmRender::NewRenderItem(m_Context, first, 0);
-    dmRender::HRenderItem survivor = dmRender::NewRenderItem(m_Context, second, 1);
+    dmRender::HRenderItem         moving = dmRender::NewRenderItem(m_Context, first, 0);
+    dmRender::HRenderItem         survivor = dmRender::NewRenderItem(m_Context, second, 1);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, moving, 0));
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, survivor, 0));
     ASSERT_TRUE(dmRender::Enable(m_Context, moving, true));
@@ -3200,10 +3199,10 @@ TEST_F(dmRenderTest, PersistentRenderItemIncrementalSlotTransfer)
 // the dense enabled list; subsequent small edits return to the incremental path.
 TEST_F(dmRenderTest, PersistentRenderItemIncrementalBulkFallback)
 {
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
     dmRender::RenderItemDispatch* registration = context->m_RenderItemDispatches[dispatch];
-    dmRender::HRenderItem items[dmRender::MAX_RENDER_ITEM_CACHE_CHANGES + 4];
+    dmRender::HRenderItem         items[dmRender::MAX_RENDER_ITEM_CACHE_CHANGES + 4];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
     {
         items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);

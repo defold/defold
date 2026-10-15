@@ -1938,7 +1938,7 @@ TEST_F(ModelTest, RetainedRenderItems)
     ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
     ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
     dmRender::HRenderItem item = ((uint64_t)context->m_PersistentRenderItems[0].m_Generation << 32);
-    uint64_t user_data = context->m_RenderList[0].m_UserData;
+    uint64_t              user_data = context->m_RenderList[0].m_UserData;
     ASSERT_EQ(3.0f, context->m_RenderList[0].m_WorldPosition.getX());
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1985,14 +1985,14 @@ TEST_F(ModelTest, RetainedRenderItems)
 
 static void ReloadMaterialTag(dmResource::HFactory factory, const char* path, const char* tag)
 {
-    void* bytes = 0;
+    void*    bytes = 0;
     uint32_t size = 0;
     ASSERT_EQ(RESOURCE_RESULT_OK, ResourceGetRaw(factory, path, &bytes, &size));
     dmRenderDDF::MaterialDesc* original = 0;
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage<dmRenderDDF::MaterialDesc>(bytes, size, &original));
     free(bytes);
     dmRenderDDF::MaterialDesc replacement = *original;
-    const char* tags[] = { tag };
+    const char*               tags[] = { tag };
     replacement.m_Tags.m_Data = tags;
     replacement.m_Tags.m_Count = 1;
     dmArray<uint8_t> buffer;
@@ -2012,8 +2012,8 @@ TEST_F(ModelTest, RetainedMaterialReload)
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     RenderCollection(m_RenderContext, m_Collection);
     dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
-    uint32_t generation = context->m_PersistentRenderItems[0].m_Generation;
-    uint32_t tag_key = context->m_RenderList[0].m_TagListKey;
+    uint32_t                 generation = context->m_PersistentRenderItems[0].m_Generation;
+    uint32_t                 tag_key = context->m_RenderList[0].m_TagListKey;
     ReloadMaterialTag(m_Factory, "/model/dynamic_vertex_attributes.materialc", "retained_reload");
     ASSERT_NE(tag_key, context->m_RenderList[0].m_TagListKey);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -2023,12 +2023,12 @@ TEST_F(ModelTest, RetainedMaterialReload)
     ASSERT_NE(tag_key, context->m_RenderList[0].m_TagListKey);
     dmhash_t tag = dmHashString64("retained_reload");
     ASSERT_EQ(dmRender::RegisterMaterialTagList(m_RenderContext, 1, &tag), context->m_RenderList[0].m_TagListKey);
-    dmGameObject::HComponent component;
+    dmGameObject::HComponent      component;
     dmGameObject::HComponentWorld world;
-    uint32_t type;
+    uint32_t                      type;
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instance, dmHashString64("model"), &type, &component, &world));
     dmhash_t mesh_id;
-    Vector3 min, max;
+    Vector3  min, max;
     dmGameSystem::CompModelGetMeshAABB((dmGameSystem::ModelComponent*)component, 0, &mesh_id, &min, &max);
     ASSERT_TRUE(dmGameSystem::CompModelSetMeshEnabled((dmGameSystem::ModelWorld*)world, (dmGameSystem::ModelComponent*)component, mesh_id, false));
     RenderCollection(m_RenderContext, m_Collection);
@@ -2058,7 +2058,7 @@ TEST_F(SpriteTest, RetainedMaterialReload)
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     RenderCollection(m_RenderContext, m_Collection);
     dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
-    uint32_t generation = context->m_PersistentRenderItems[0].m_Generation;
+    uint32_t                 generation = context->m_PersistentRenderItems[0].m_Generation;
     ReloadMaterialTag(m_Factory, "/sprite/textureless.materialc", "retained_reload");
     dmhash_t tag = dmHashString64("retained_reload");
     ASSERT_EQ(dmRender::RegisterMaterialTagList(m_RenderContext, 1, &tag), context->m_RenderList[0].m_TagListKey);
@@ -2079,7 +2079,7 @@ TEST_F(ModelTest, RetainedRenderItemVisibility)
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/static_vertex_attributes_offset.goc", dmHashString64("/retained"));
     ASSERT_NE((dmGameObject::HInstance)0, instance);
     dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
-    uint32_t generation = context->m_PersistentRenderItems[0].m_Generation;
+    uint32_t                 generation = context->m_PersistentRenderItems[0].m_Generation;
     dmRender::FrustumOptions options;
     options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
     options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;

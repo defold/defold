@@ -710,7 +710,7 @@ namespace dmRender
 
                 for( uint32_t i = 0; i < count; ++i )
                 {
-                    uint32_t index = text_context.m_TextEntriesFlushed + i;
+                    uint32_t   index = text_context.m_TextEntriesFlushed + i;
                     TextEntry& te = text_context.m_TextEntries[index];
                     if (index == text_context.m_RenderItems.Size())
                     {

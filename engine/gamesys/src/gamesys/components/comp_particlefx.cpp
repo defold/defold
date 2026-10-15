@@ -93,15 +93,15 @@ namespace dmGameSystem
 
     struct ParticleFXRenderItem
     {
-        dmRender::HRenderItem m_Item;
+        dmRender::HRenderItem          m_Item;
         dmParticle::EmitterRenderData* m_RenderData;
     };
 
     struct ParticleFXWorld
     {
-        dmRender::HRenderItemDispatch m_RenderDispatch;
-        dmArray<ParticleFXRenderItem> m_RenderItems;
-        uint32_t m_ActiveRenderItemCount;
+        dmRender::HRenderItemDispatch           m_RenderDispatch;
+        dmArray<ParticleFXRenderItem>           m_RenderItems;
+        uint32_t                                m_ActiveRenderItemCount;
         dmArray<ParticleFXComponent>            m_Components;
         dmArray<dmRender::RenderObject>         m_RenderObjects;
         dmArray<dmRender::HNamedConstantBuffer> m_ConstantBuffers;

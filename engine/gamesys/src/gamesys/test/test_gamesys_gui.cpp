@@ -1593,8 +1593,8 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
         ASSERT_LT(text_orders[i - 1], text_orders[i]);
     }
 
-    const uint32_t item_count = render_context_ptr->m_PersistentRenderItems.Size();
-    const uint32_t drawn_count = render_context_ptr->m_RenderListSortBuffer.Size();
+    const uint32_t              item_count = render_context_ptr->m_PersistentRenderItems.Size();
+    const uint32_t              drawn_count = render_context_ptr->m_RenderListSortBuffer.Size();
     dmGameSystem::GuiComponent* component = GetGuiComponent(m_Collection);
     ASSERT_NE((void*)0, component);
     for (uint32_t frame = 0; frame < 4; ++frame)

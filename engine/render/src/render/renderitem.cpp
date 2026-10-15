@@ -100,7 +100,7 @@ namespace dmRender
         if (registration.m_FrameDispatch != RENDERLIST_INVALID_DISPATCH)
             return;
         const RenderListDispatch& d = registration.m_Dispatch;
-        HRenderListDispatch frame_dispatch = AllocateRenderListDispatch(context, d.m_DispatchFn, d.m_VisibilityFn, d.m_UserData);
+        HRenderListDispatch       frame_dispatch = AllocateRenderListDispatch(context, d.m_DispatchFn, d.m_VisibilityFn, d.m_UserData);
         if (frame_dispatch == RENDERLIST_INVALID_DISPATCH)
             return;
         context->m_RenderListDispatch[frame_dispatch] = d;
@@ -256,11 +256,9 @@ namespace dmRender
             return false;
         item->m_Material = material;
         RenderItemDispatch& dispatch = *context->m_RenderItemDispatches[item->m_Dispatch];
-        bool instanced = dispatch.m_Dispatch.m_SupportsInstancing && material &&
-                         GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL &&
-                         GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
-        uint32_t key = material ? GetMaterialTagListKey(material) : RegisterMaterialTagList(context, 0, 0);
-        RenderListEntry& entry = context->m_RenderList[(uint32_t)handle];
+        bool                instanced = dispatch.m_Dispatch.m_SupportsInstancing && material && GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+        uint32_t            key = material ? GetMaterialTagListKey(material) : RegisterMaterialTagList(context, 0, 0);
+        RenderListEntry&    entry = context->m_RenderList[(uint32_t)handle];
         if (!item->m_ManualOrder)
         {
             entry.m_MajorOrder = instanced ? RENDER_ORDER_BEFORE_WORLD : RENDER_ORDER_WORLD;
@@ -352,4 +350,4 @@ namespace dmRender
         return true;
     }
 
-}
+} // namespace dmRender

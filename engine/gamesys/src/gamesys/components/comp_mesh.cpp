@@ -57,29 +57,29 @@ namespace dmGameSystem
 
     struct MeshComponent
     {
-        dmGameObject::HInstance         m_Instance;
-        dmRender::HRenderItem            m_RenderItem;
-        Matrix4                         m_Local;
-        Matrix4                         m_World;
-        uint32_t                        m_MixedHash;
-        HComponentRenderConstants       m_RenderConstants;
-        MeshResource*                   m_Resource;
-        dmGameSystem::BufferResource*   m_BufferResource;
-        TextureResource*                m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        MaterialResource*               m_Material;
+        dmGameObject::HInstance       m_Instance;
+        dmRender::HRenderItem         m_RenderItem;
+        Matrix4                       m_Local;
+        Matrix4                       m_World;
+        uint32_t                      m_MixedHash;
+        HComponentRenderConstants     m_RenderConstants;
+        MeshResource*                 m_Resource;
+        dmGameSystem::BufferResource* m_BufferResource;
+        TextureResource*              m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        MaterialResource*             m_Material;
 
         // If the buffer resource property has changed (ie not same buffer resource as
         // used by the mesh resource), we need to create a specific vertex declaration
         // and vertbuffer for this buffer resource instead.
-        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-        uint32_t                        m_BufferVersion;
+        dmGraphics::HVertexDeclaration m_VertexDeclaration;
+        uint32_t                       m_BufferVersion;
 
         /// Component enablement
-        uint8_t                         m_Enabled : 1;
+        uint8_t m_Enabled : 1;
         /// Added to update or not
-        uint8_t                         m_AddedToUpdate : 1;
-        uint8_t                         m_ReHash : 1;
-        uint8_t                         :5;
+        uint8_t m_AddedToUpdate : 1;
+        uint8_t m_ReHash : 1;
+        uint8_t : 5;
     };
 
     struct VertexBufferInfo
@@ -91,8 +91,8 @@ namespace dmGameSystem
 
     struct MeshWorld
     {
-        dmRender::HRenderContext m_RenderContext;
-        dmRender::HRenderItemDispatch m_RenderDispatch;
+        dmRender::HRenderContext           m_RenderContext;
+        dmRender::HRenderItemDispatch      m_RenderDispatch;
         dmResource::HFactory               m_ResourceFactory;
         dmObjectPool<MeshComponent*>       m_Components;
         dmArray<dmRender::RenderObject>    m_RenderObjects;
@@ -102,7 +102,6 @@ namespace dmGameSystem
         dmGraphics::HContext               m_GraphicsContext;
         void*                              m_WorldVertexData;
         size_t                             m_WorldVertexDataSize;
-
     };
 
     struct MeshContext
@@ -236,7 +235,7 @@ namespace dmGameSystem
     static const uint64_t AABB_HASH = dmHashString64("AABB");
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
-    static void RenderListDispatch(const dmRender::RenderListDispatchParams& params);
+    static void                RenderListDispatch(const dmRender::RenderListDispatchParams& params);
 
     dmGameObject::CreateResult CompMeshNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -482,7 +481,7 @@ namespace dmGameSystem
                 continue;
 
             const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
-            Matrix4 transform = go_world * c->m_Local;
+            Matrix4        transform = go_world * c->m_Local;
             if (memcmp(&transform, &c->m_World, sizeof(transform)) != 0)
             {
                 c->m_World = transform;
@@ -881,7 +880,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < count; ++i)
         {
             MeshComponent& component = *components[i];
-            bool enabled = component.m_Enabled && component.m_AddedToUpdate;
+            bool           enabled = component.m_Enabled && component.m_AddedToUpdate;
             dmRender::Enable(render_context, component.m_RenderItem, enabled);
             if (!enabled)
                 continue;
@@ -889,11 +888,11 @@ namespace dmGameSystem
             dmRender::SetBatchKey(render_context, component.m_RenderItem, component.m_MixedHash);
             dmRender::SetMaterial(render_context, component.m_RenderItem, GetMaterial(&component, component.m_Resource));
 
-            BufferResource* buffer = GetBufferResource(&component);
-            void* bounds = 0;
-            uint32_t count = 0;
+            BufferResource*     buffer = GetBufferResource(&component);
+            void*               bounds = 0;
+            uint32_t            count = 0;
             dmBuffer::ValueType type;
-            dmBuffer::Result result = dmBuffer::GetMetaData(buffer->m_Buffer, AABB_HASH, &bounds, &count, &type);
+            dmBuffer::Result    result = dmBuffer::GetMetaData(buffer->m_Buffer, AABB_HASH, &bounds, &count, &type);
             if (result == dmBuffer::RESULT_OK && type == dmBuffer::VALUE_TYPE_FLOAT32 && count == 6)
             {
                 float* values = (float*)bounds;

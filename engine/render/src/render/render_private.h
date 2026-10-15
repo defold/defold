@@ -134,21 +134,21 @@ namespace dmRender
 
     struct DebugRenderTypeData
     {
-        dmRender::RenderObject  m_RenderObject;
-        void*                   m_ClientBuffer;
-        HRenderItem             m_RenderItem;
+        dmRender::RenderObject m_RenderObject;
+        void*                  m_ClientBuffer;
+        HRenderItem            m_RenderItem;
     };
 
     struct DebugRenderer
     {
-        DebugRenderTypeData             m_TypeData[MAX_DEBUG_RENDER_TYPE_COUNT];
-        HRenderItemDispatch             m_RenderDispatch;
-        Predicate                       m_3dPredicate;
-        dmRender::HRenderContext        m_RenderContext;
-        dmGraphics::HVertexBuffer       m_VertexBuffer;
-        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-        uint32_t                        m_MaxVertexCount;
-        uint32_t                        m_RenderBatchVersion;
+        DebugRenderTypeData            m_TypeData[MAX_DEBUG_RENDER_TYPE_COUNT];
+        HRenderItemDispatch            m_RenderDispatch;
+        Predicate                      m_3dPredicate;
+        dmRender::HRenderContext       m_RenderContext;
+        dmGraphics::HVertexBuffer      m_VertexBuffer;
+        dmGraphics::HVertexDeclaration m_VertexDeclaration;
+        uint32_t                       m_MaxVertexCount;
+        uint32_t                       m_RenderBatchVersion;
     };
 
     const int MAX_TEXT_RENDER_CONSTANTS = 16;
@@ -189,24 +189,24 @@ namespace dmRender
 
     struct TextContext
     {
-        HRenderItemDispatch m_RenderDispatch;
-        dmArray<HRenderItem> m_RenderItems;
-        uint32_t m_ActiveRenderItemCount;
+        HRenderItemDispatch                     m_RenderDispatch;
+        dmArray<HRenderItem>                    m_RenderItems;
+        uint32_t                                m_ActiveRenderItemCount;
         dmArray<dmRender::RenderObject>         m_RenderObjects;
         dmArray<dmRender::HNamedConstantBuffer> m_ConstantBuffers;
         dmArray<uint8_t>                        m_ClientBuffer;
         dmArray<char>                           m_TextBuffer;
         // Map from batch id (hash of font-map etc) to index into m_TextEntries
-        dmArray<TextEntry>                      m_TextEntries;
-        dmGraphics::HVertexBuffer               m_VertexBuffer;
-        dmGraphics::HVertexDeclaration          m_VertexDecl;
-        uint32_t                                m_RenderObjectIndex;
-        uint32_t                                m_VertexIndex;
-        uint32_t                                m_MaxVertexCount;
-        uint32_t                                m_VerticesFlushed;
-        uint32_t                                m_TextEntriesFlushed;
-        uint32_t                                m_Frame;
-        uint32_t                                m_PreviousFrame;
+        dmArray<TextEntry>             m_TextEntries;
+        dmGraphics::HVertexBuffer      m_VertexBuffer;
+        dmGraphics::HVertexDeclaration m_VertexDecl;
+        uint32_t                       m_RenderObjectIndex;
+        uint32_t                       m_VertexIndex;
+        uint32_t                       m_MaxVertexCount;
+        uint32_t                       m_VerticesFlushed;
+        uint32_t                       m_TextEntriesFlushed;
+        uint32_t                       m_Frame;
+        uint32_t                       m_PreviousFrame;
     };
 
     struct RenderScriptContext
@@ -219,11 +219,11 @@ namespace dmRender
 
     struct RenderListDispatch
     {
-        RenderListDispatchFn        m_DispatchFn;
-        RenderListVisibilityFn      m_VisibilityFn;
-        void*                       m_UserData;
-        uint8_t                     m_SupportsInstancing;
-        uint8_t                     m_HasVertexCounts;
+        RenderListDispatchFn   m_DispatchFn;
+        RenderListVisibilityFn m_VisibilityFn;
+        void*                  m_UserData;
+        uint8_t                m_SupportsInstancing;
+        uint8_t                m_HasVertexCounts;
     };
 
     struct RenderListSortValue
@@ -248,18 +248,18 @@ namespace dmRender
     struct RenderListRange
     {
         uint32_t m_TagListKey;
-        uint32_t m_Start;       // Offset in the logical concatenation of tag spans
-        uint32_t m_Count:31;
-        uint32_t m_Skip:1;      // During the current draw call
+        uint32_t m_Start; // Offset in the logical concatenation of tag spans
+        uint32_t m_Count : 31;
+        uint32_t m_Skip : 1; // During the current draw call
         uint32_t m_SpanStart;
         uint32_t m_SpanCount;
     };
 
     struct RenderListSpan
     {
-        const uint32_t* m_Indices;
-        uint32_t m_Count;
-        uint32_t m_TagListKey;
+        const uint32_t*     m_Indices;
+        uint32_t            m_Count;
+        uint32_t            m_TagListKey;
         HRenderItemDispatch m_Dispatch; // Invalid for frame-local indices
     };
 
@@ -280,14 +280,14 @@ namespace dmRender
 
     struct RenderItemDispatch
     {
-        RenderListDispatch m_Dispatch;
-        dmArray<uint32_t> m_EnabledItems;
-        dmArray<uint32_t> m_SortIndices;
+        RenderListDispatch       m_Dispatch;
+        dmArray<uint32_t>        m_EnabledItems;
+        dmArray<uint32_t>        m_SortIndices;
         dmArray<RenderItemRange> m_Ranges;
-        RenderItemCacheChange m_Changes[MAX_RENDER_ITEM_CACHE_CHANGES];
-        uint32_t m_NumChanges;
-        HRenderListDispatch m_FrameDispatch;
-        bool m_RebuildCache;
+        RenderItemCacheChange    m_Changes[MAX_RENDER_ITEM_CACHE_CHANGES];
+        uint32_t                 m_NumChanges;
+        HRenderListDispatch      m_FrameDispatch;
+        bool                     m_RebuildCache;
     };
 
     struct MaterialTagList
@@ -370,7 +370,7 @@ namespace dmRender
     struct PersistentRenderItem
     {
         dmVMath::Matrix4 m_WorldTransform;
-        HMaterial m_Material;
+        HMaterial        m_Material;
         // Sphere: center xyz and radius squared. Boxes: min xyz and max xyz.
         float    m_Bounds[6];
         uint32_t m_Generation;
@@ -380,82 +380,82 @@ namespace dmRender
             uint32_t m_EnabledIndex; // Index in its world's dense enabled list
         };
         uint32_t m_VertexCount;
-        uint32_t m_Dispatch:24;
-        uint32_t m_Alive:1;
-        uint32_t m_Enabled:1;
-        uint32_t m_BoundingVolumeType:2;
-        uint32_t m_ManualOrder:1;
-        uint32_t :3;
+        uint32_t m_Dispatch : 24;
+        uint32_t m_Alive : 1;
+        uint32_t m_Enabled : 1;
+        uint32_t m_BoundingVolumeType : 2;
+        uint32_t m_ManualOrder : 1;
+        uint32_t : 3;
     };
 
     struct RenderContext
     {
-        DebugRenderer               m_DebugRenderer;
-        TextContext                 m_TextContext;
-        dmScript::HContext          m_ScriptContext;
-        RenderScriptContext         m_RenderScriptContext;
-        dmArray<RenderObject*>      m_RenderObjects;
-        dmScript::ScriptWorld*      m_ScriptWorld;
-        dmScript::LuaCallbackInfo*  m_CallbackInfo;
+        DebugRenderer              m_DebugRenderer;
+        TextContext                m_TextContext;
+        dmScript::HContext         m_ScriptContext;
+        RenderScriptContext        m_RenderScriptContext;
+        dmArray<RenderObject*>     m_RenderObjects;
+        dmScript::ScriptWorld*     m_ScriptWorld;
+        dmScript::LuaCallbackInfo* m_CallbackInfo;
 
-        dmArray<RenderListEntry>    m_RenderList;
+        dmArray<RenderListEntry>   m_RenderList;
         // Retained entries occupy the draw-list prefix. Legacy allocations have
         // independent storage; their draw-list snapshot follows the prefix.
-        dmArray<PersistentRenderItem> m_PersistentRenderItems;
-        dmArray<RenderListEntry>    m_TransientRenderList;
-        dmArray<uint32_t>           m_TransientRenderListIndices;
-        dmArray<RenderItemDispatch*> m_RenderItemDispatches;
-        dmArray<HRenderItemDispatch> m_SubmittedRenderItemDispatches;
-        bool                       m_TransientRenderListDirty;
-        uint32_t                   m_FirstFreeRenderItem;
-        dmArray<RenderListDispatch> m_RenderListDispatch;
-        dmArray<RenderListSortValue>m_RenderListSortValues;
-        dmArray<uint32_t>           m_RenderListSortBuffer;
-        dmArray<RenderListRange>    m_RenderListSortedRanges;
-        dmArray<RenderListSpan>     m_RenderListSpans;
-        dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
-        dmArray<TextureBinding>     m_TextureBindTable;
-        dmArray<HNamedConstantBuffer> m_ConstantBufferClones;
-        uint32_t                      m_ConstantBufferCloneCursor;
+        dmArray<PersistentRenderItem>           m_PersistentRenderItems;
+        dmArray<RenderListEntry>                m_TransientRenderList;
+        dmArray<uint32_t>                       m_TransientRenderListIndices;
+        dmArray<RenderItemDispatch*>            m_RenderItemDispatches;
+        dmArray<HRenderItemDispatch>            m_SubmittedRenderItemDispatches;
+        bool                                    m_TransientRenderListDirty;
+        uint32_t                                m_FirstFreeRenderItem;
+        dmArray<RenderListDispatch>             m_RenderListDispatch;
+        dmArray<RenderListSortValue>            m_RenderListSortValues;
+        dmArray<uint32_t>                       m_RenderListSortBuffer;
+        dmArray<RenderListRange>                m_RenderListSortedRanges;
+        dmArray<RenderListSpan>                 m_RenderListSpans;
+        dmArray<RenderListRange>                m_RenderListRanges; // Maps tagmask to a range in the (sorted) render list
+        dmArray<TextureBinding>                 m_TextureBindTable;
+        dmArray<HNamedConstantBuffer>           m_ConstantBufferClones;
+        uint32_t                                m_ConstantBufferCloneCursor;
 
-        dmHashTable32<MaterialTagList>  m_MaterialTagLists;
+        dmHashTable32<MaterialTagList>          m_MaterialTagLists;
 
-        dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
-        HRenderCamera                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
+        dmOpaqueHandleContainer<RenderCamera>   m_RenderCameras;
+        HRenderCamera                           m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
         dmOpaqueHandleContainer<LightPrototype> m_LightPrototypes;
         dmArray<LightInstance>                  m_RenderLights;
-        dmIndexPool16                          m_RenderLightsIndices;
+        dmIndexPool16                           m_RenderLightsIndices;
 
-        dmArray<LightSTD140>                   m_LightBufferScratch;
-        dmArray<LightSTD140>                   m_LightBufferUploadScratch;
-        dmArray<uint8_t>                       m_LightBufferSubmitted;
+        dmArray<LightSTD140>                    m_LightBufferScratch;
+        dmArray<LightSTD140>                    m_LightBufferUploadScratch;
+        dmArray<uint8_t>                        m_LightBufferSubmitted;
         dmGraphics::HUniformBuffer              m_LightUniformBuffer;
-        dmVMath::Vector3                       m_AmbientLight;
+        dmVMath::Vector3                        m_AmbientLight;
 
-        HFontMap                    m_SystemFontMap;
-        Matrix4                     m_View;
-        Matrix4                     m_Projection;
-        Matrix4                     m_ViewProj;
-        Matrix4                     m_ProjectionAdjustedNDC;
-        Matrix4                     m_ViewProjAdjustedNDC;
-        float                       m_Time;
-        float                       m_Dt;
-        dmGraphics::HContext        m_GraphicsContext;
-        HMaterial                   m_Material;
-        HComputeProgram             m_ComputeProgram;
-        dmMessage::HSocket          m_Socket;
+        HFontMap                                m_SystemFontMap;
+        Matrix4                                 m_View;
+        Matrix4                                 m_Projection;
+        Matrix4                                 m_ViewProj;
+        Matrix4                                 m_ProjectionAdjustedNDC;
+        Matrix4                                 m_ViewProjAdjustedNDC;
+        float                                   m_Time;
+        float                                   m_Dt;
+        dmGraphics::HContext                    m_GraphicsContext;
+        HMaterial                               m_Material;
+        HComputeProgram                         m_ComputeProgram;
+        dmMessage::HSocket                      m_Socket;
 
-        uint32_t                    m_LightBufferInfoWriteStart;
-        uint32_t                    m_LightBufferDataWriteStart;
-        uint16_t                    m_MaxLightCount;
-        uint16_t                    m_LightBufferDirty             : 1;
-        uint16_t                    m_OutOfResources                : 1;
-        uint16_t                    m_StencilBufferCleared          : 1;
-        uint16_t                    m_MultiBufferingRequired        : 1;
-        uint16_t                    m_UseAdjustedNDC               : 1;
-        uint16_t                    m_CurrentRenderCameraUseFrustum : 1;
-        uint16_t                    m_IsRenderPaused                : 1;
+        uint32_t                                m_LightBufferInfoWriteStart;
+        uint32_t                                m_LightBufferDataWriteStart;
+        uint16_t                                m_MaxLightCount;
+        uint16_t                                m_LightBufferDirty : 1;
+        uint16_t                                m_OutOfResources : 1;
+        uint16_t                                m_StencilBufferCleared : 1;
+        uint16_t                                m_MultiBufferingRequired : 1;
+        uint16_t                                m_UseAdjustedNDC : 1;
+        uint16_t                                m_CurrentRenderCameraUseFrustum : 1;
+        uint16_t                                m_IsRenderPaused : 1;
     };
 
     struct BufferedRenderBuffer

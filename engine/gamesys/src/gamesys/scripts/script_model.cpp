@@ -539,7 +539,7 @@ namespace dmGameSystem
 
         ModelComponent* component = 0;
         dmhash_t mesh_id = 0;
-        ModelWorld* world = 0;
+        ModelWorld*     world = 0;
         LuaModelComp_GetSetMeshEnabled_Internal(L, &component, &mesh_id, &world);
         if (!component)
         {

@@ -124,7 +124,7 @@ namespace dmGameSystem
         dmRender::HRenderItemDispatch   m_RenderDispatch;
         dmArray<dmRender::HRenderItem>  m_RenderItems;
         dmArray<uint64_t>               m_RenderItemRegions;
-        uint32_t                       m_ActiveRenderItemCount;
+        uint32_t                        m_ActiveRenderItemCount;
         dmArray<TileGridComponent*>     m_Components;
         dmArray<dmRender::RenderObject> m_RenderObjects;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;

@@ -121,89 +121,89 @@ namespace dmGameSystem
 
     struct SpriteComponent
     {
-        Matrix4                     m_World;
-        Vector3                     m_Position;
-        Quat                        m_Rotation;
-        Vector3                     m_Scale;
-        Vector3                     m_Size;     // The current size of the animation frame (in texels)
-        Vector4                     m_Slice9;
+        Matrix4                   m_World;
+        Vector3                   m_Position;
+        Quat                      m_Rotation;
+        Vector3                   m_Scale;
+        Vector3                   m_Size; // The current size of the animation frame (in texels)
+        Vector4                   m_Slice9;
 
-        dmGameObject::HInstance     m_Instance;
-        SpriteResource*             m_Resource;
-        SpriteResourceOverrides*    m_Overrides;
-        HComponentRenderConstants   m_RenderConstants;
-        dmRender::HRenderItem        m_RenderItem;
+        dmGameObject::HInstance   m_Instance;
+        SpriteResource*           m_Resource;
+        SpriteResourceOverrides*  m_Overrides;
+        HComponentRenderConstants m_RenderConstants;
+        dmRender::HRenderItem     m_RenderItem;
 
-        dmMessage::URL              m_Listener;
-        int32_t                     m_FunctionRef; // Animation callback function
+        dmMessage::URL            m_Listener;
+        int32_t                   m_FunctionRef; // Animation callback function
         // Hash of the m_Resource-pointer etc. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
-        uint32_t                    m_MixedHash;
-        uint32_t                    m_AnimationDataHash;
+        uint32_t m_MixedHash;
+        uint32_t m_AnimationDataHash;
 
-        int32_t                     m_AnimationFrameCount; // cached value when animation is playing
+        int32_t  m_AnimationFrameCount; // cached value when animation is playing
         /// Currently playing animation
-        dmhash_t                    m_CurrentAnimation;
-        uint32_t                    m_CurrentAnimationFrame;
+        dmhash_t m_CurrentAnimation;
+        uint32_t m_CurrentAnimationFrame;
         /// Used to scale the time step when updating the timer
-        float                       m_AnimInvDuration;
+        float m_AnimInvDuration;
         /// Timer in local space: [0,1]
-        float                       m_AnimTimer;
-        float                       m_PlaybackRate;
-        float                       m_PivotX;
-        float                       m_PivotY;
-        uint16_t                    m_AnimationID; // index into array
-        uint16_t                    m_DynamicVertexAttributeIndex;
-        uint16_t                    m_ComponentIndex;
+        float    m_AnimTimer;
+        float    m_PlaybackRate;
+        float    m_PivotX;
+        float    m_PivotY;
+        uint16_t m_AnimationID; // index into array
+        uint16_t m_DynamicVertexAttributeIndex;
+        uint16_t m_ComponentIndex;
         //------------------- cached values related to vertex/index buffer allocation----------
-        uint16_t                    m_VertexCount;
-        uint16_t                    m_IndexCount;
-        uint16_t                    m_VertexStride;
+        uint16_t m_VertexCount;
+        uint16_t m_IndexCount;
+        uint16_t m_VertexStride;
         //-------------------------------------------------------------------------------------
-        uint16_t                    m_Enabled : 1;
-        uint16_t                    m_DoTick : 1;
-        uint16_t                    m_FlipHorizontal : 1;
-        uint16_t                    m_FlipVertical : 1;
-        uint16_t                    m_AddedToUpdate : 1;
-        uint16_t                    m_ReHash : 1;
-        uint16_t                    m_UseSlice9 : 1;
-        uint16_t                    m_AnimationReHash : 1;
-        uint16_t                    m_IsPlaying : 1;
+        uint16_t m_Enabled : 1;
+        uint16_t m_DoTick : 1;
+        uint16_t m_FlipHorizontal : 1;
+        uint16_t m_FlipVertical : 1;
+        uint16_t m_AddedToUpdate : 1;
+        uint16_t m_ReHash : 1;
+        uint16_t m_UseSlice9 : 1;
+        uint16_t m_AnimationReHash : 1;
+        uint16_t m_IsPlaying : 1;
         // currently we don't support multiple animation cursors that's why we can use Playback from the first
         // texture set
-        uint16_t                    m_AnimationPlayback : 7; // narrowed enum dmGameSystemDDF::Playback
-        uint8_t                     m_NumTextures; // cached value from m_Resource->m_NumTextures
-        uint8_t                     m_RenderItemEnabled : 1;
-        uint8_t                     m_BoundsDirty : 1;
-        uint8_t                     m_LocalPoseIsIdentity : 1; // Fixed component position/rotation; scale is checked separately.
+        uint16_t m_AnimationPlayback : 7; // narrowed enum dmGameSystemDDF::Playback
+        uint8_t  m_NumTextures;           // cached value from m_Resource->m_NumTextures
+        uint8_t  m_RenderItemEnabled : 1;
+        uint8_t  m_BoundsDirty : 1;
+        uint8_t  m_LocalPoseIsIdentity : 1; // Fixed component position/rotation; scale is checked separately.
     };
 
     struct SpriteWorld
     {
-        dmRender::HRenderItemDispatch        m_RenderDispatch;
-        dmRender::HRenderContext             m_RenderContext;
-        AnimationDataCache                  m_AnimationDataCache;
-        dmObjectPool<SpriteComponent>       m_Components;
-        DynamicAttributePool                m_DynamicVertexAttributePool;
-        dmArray<dmRender::RenderObject*>    m_RenderObjects;
+        dmRender::HRenderItemDispatch    m_RenderDispatch;
+        dmRender::HRenderContext         m_RenderContext;
+        AnimationDataCache               m_AnimationDataCache;
+        dmObjectPool<SpriteComponent>    m_Components;
+        DynamicAttributePool             m_DynamicVertexAttributePool;
+        dmArray<dmRender::RenderObject*> m_RenderObjects;
         // We currently assume the vertex format uses 2-tuple UVs
-        dmArray<float>                      m_ScratchUVs[MAX_TEXTURE_COUNT];
-        dmArray<Vector4>                    m_ScratchPositionWorld;
-        dmArray<Vector4>                    m_ScratchPositionLocal;
-        uint32_t                            m_RenderObjectsInUse;
-        dmRender::HBufferedRenderBuffer     m_VertexBuffer;
-        uint8_t*                            m_VertexBufferData;
-        uint8_t*                            m_VertexBufferWritePtr;
-        dmRender::HBufferedRenderBuffer     m_IndexBuffer;
-        uint32_t                            m_VerticesWritten;
-        uint32_t                            m_VertexMemorySize;
-        uint32_t                            m_VertexCount;
-        uint32_t                            m_IndexCount;
-        uint32_t                            m_DispatchCount;
-        uint32_t                            m_EnabledRenderItemCount;
-        uint8_t*                            m_IndexBufferData;
-        uint8_t*                            m_IndexBufferWritePtr;
-        uint8_t                             m_Is16BitIndex : 1;
-        uint8_t                             m_ReallocBuffers : 1;
+        dmArray<float>                  m_ScratchUVs[MAX_TEXTURE_COUNT];
+        dmArray<Vector4>                m_ScratchPositionWorld;
+        dmArray<Vector4>                m_ScratchPositionLocal;
+        uint32_t                        m_RenderObjectsInUse;
+        dmRender::HBufferedRenderBuffer m_VertexBuffer;
+        uint8_t*                        m_VertexBufferData;
+        uint8_t*                        m_VertexBufferWritePtr;
+        dmRender::HBufferedRenderBuffer m_IndexBuffer;
+        uint32_t                        m_VerticesWritten;
+        uint32_t                        m_VertexMemorySize;
+        uint32_t                        m_VertexCount;
+        uint32_t                        m_IndexCount;
+        uint32_t                        m_DispatchCount;
+        uint32_t                        m_EnabledRenderItemCount;
+        uint8_t*                        m_IndexBufferData;
+        uint8_t*                        m_IndexBufferWritePtr;
+        uint8_t                         m_Is16BitIndex : 1;
+        uint8_t                         m_ReallocBuffers : 1;
     };
 
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
@@ -229,9 +229,9 @@ namespace dmGameSystem
     static float GetPlaybackRate(SpriteComponent* component);
     static void SetPlaybackRate(SpriteComponent* component, float playback_rate);
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
-    static void RenderListDispatch(const dmRender::RenderListDispatchParams& params);
+    static void          RenderListDispatch(const dmRender::RenderListDispatchParams& params);
 
-    static void UpdateRenderItemEnabled(dmRender::HRenderContext render_context, SpriteWorld* world, SpriteComponent* component)
+    static void          UpdateRenderItemEnabled(dmRender::HRenderContext render_context, SpriteWorld* world, SpriteComponent* component)
     {
         bool enabled = component->m_Enabled && component->m_AddedToUpdate && component->m_VertexCount && component->m_IndexCount;
         if (component->m_RenderItemEnabled == enabled)
@@ -789,8 +789,8 @@ namespace dmGameSystem
         component->m_Position = Vector3(params.m_Position);
         component->m_Rotation = params.m_Rotation;
         component->m_LocalPoseIsIdentity = dmVMath::LengthSqr(component->m_Position) == 0 &&
-            component->m_Rotation.getX() == 0 && component->m_Rotation.getY() == 0 &&
-            component->m_Rotation.getZ() == 0 && component->m_Rotation.getW() == 1;
+        component->m_Rotation.getX() == 0 && component->m_Rotation.getY() == 0 &&
+        component->m_Rotation.getZ() == 0 && component->m_Rotation.getW() == 1;
         component->m_BoundsDirty = 1;
         component->m_Scale = params.m_Scale;
         SpriteResource* resource = (SpriteResource*)params.m_Resource;
@@ -849,7 +849,7 @@ namespace dmGameSystem
         uint32_t index = *params.m_UserData;
         SpriteComponent* component = &sprite_world->m_Components.Get(index);
         dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
-        SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
+        SpriteContext*       sprite_context = (SpriteContext*)params.m_Context;
         dmRender::DeleteRenderItem(sprite_context->m_RenderContext, component->m_RenderItem);
         if (component->m_RenderItemEnabled)
             --sprite_world->m_EnabledRenderItemCount;
@@ -1950,8 +1950,8 @@ namespace dmGameSystem
     static bool UpdateTransform(SpriteComponent* component, bool sub_pixels)
     {
         const Matrix4& world = dmGameObject::GetWorldMatrix(component->m_Instance);
-        bool local_identity = component->m_LocalPoseIsIdentity && component->m_Scale.getX() == 1 &&
-                              component->m_Scale.getY() == 1 && component->m_Scale.getZ() == 1;
+        bool           local_identity = component->m_LocalPoseIsIdentity && component->m_Scale.getX() == 1 &&
+        component->m_Scale.getY() == 1 && component->m_Scale.getZ() == 1;
         if (local_identity && sub_pixels && memcmp(&component->m_World, &world, sizeof(world)) == 0)
             return false;
         Matrix4 w = world;
@@ -2211,9 +2211,9 @@ namespace dmGameSystem
                 // Bounding radius: world matrix already contains component scale; incorporate only sprite size
                 Vector3 size = component->m_Size;
                 Vector3 half_diagonal = (component->m_World.getCol(0).getXYZ() * size.getX() + component->m_World.getCol(1).getXYZ() * size.getY()) * 0.5f;
-                float radius = dmVMath::Length(half_diagonal);
+                float   radius = dmVMath::Length(half_diagonal);
 
-                Point3 pivot_scaled(-component->m_PivotX * size.getX(), -component->m_PivotY * size.getY(), 0.f);
+                Point3  pivot_scaled(-component->m_PivotX * size.getX(), -component->m_PivotY * size.getY(), 0.f);
                 Vector3 world_pos = (component->m_World * pivot_scaled).getXYZ();
 
                 dmRender::SetBoundingSphere(sprite_context->m_RenderContext, component->m_RenderItem, Point3(world_pos), radius);

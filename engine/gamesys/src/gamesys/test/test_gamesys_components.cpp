@@ -523,8 +523,8 @@ TEST_F(SpriteTest, RetainedRenderItems)
     ASSERT_EQ(3u, context->m_PersistentRenderItems.Size());
     ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
     dmRender::HRenderItem first_item = ((uint64_t)context->m_PersistentRenderItems[0].m_Generation << 32);
-    uint32_t third_generation = context->m_PersistentRenderItems[2].m_Generation;
-    uint32_t third_hash = context->m_RenderList[2].m_FrustumHash;
+    uint32_t              third_generation = context->m_PersistentRenderItems[2].m_Generation;
+    uint32_t              third_hash = context->m_RenderList[2].m_FrustumHash;
 
     dmGameObject::Delete(m_Collection, first, false);
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -580,7 +580,7 @@ TEST_F(SpriteTest, RetainedRenderItemVisibility)
     dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
     ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
     ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
-    Matrix4 world_transform = context->m_PersistentRenderItems[0].m_WorldTransform;
+    Matrix4                       world_transform = context->m_PersistentRenderItems[0].m_WorldTransform;
 
     dmGameObject::PropertyOptions property_options;
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instance, dmHashString64("sprite"), dmHashString64("size"), property_options, dmGameObject::PropertyVar(Vector3(200, 200, 0))));

@@ -276,7 +276,7 @@ namespace dmRender
     RenderListEntry* RenderListAlloc(HRenderContext render_context, uint32_t entries)
     {
         dmLogOnceWarning("RenderListAlloc() is deprecated. Use NewRenderItem() and the render item setters.");
-        dmArray<RenderListEntry> & render_list = render_context->m_TransientRenderList;
+        dmArray<RenderListEntry>& render_list = render_context->m_TransientRenderList;
 
         if (render_list.Remaining() < entries)
         {
@@ -314,11 +314,11 @@ namespace dmRender
         }
 
         // Transform pointers back to indices.
-        RenderListEntry *base = render_list.Begin();
+        RenderListEntry*   base = render_list.Begin();
         dmArray<uint32_t>& transient_indices = render_context->m_TransientRenderListIndices;
         if (transient_indices.Remaining() < (uint32_t)(end - begin))
             transient_indices.SetCapacity(render_list.Capacity());
-        uint32_t *insert = transient_indices.End();
+        uint32_t* insert = transient_indices.End();
 
         for (RenderListEntry* i=begin;i!=end;i++)
             *insert++ = i - base;
@@ -614,12 +614,11 @@ namespace dmRender
 
         RenderListRange* ranges = context->m_RenderListRanges.Begin();
         uint32_t num_ranges = context->m_RenderListRanges.Size();
-        uint32_t vertex_counts[RENDERLIST_INVALID_DISPATCH] = {};
-        uint8_t partitions[RENDERLIST_INVALID_DISPATCH] = {};
-        uint32_t max_vertices = dmGraphics::GetMaxElementsVertices(context->m_GraphicsContext);
-        uint32_t num_persistent = context->m_PersistentRenderItems.Size();
-        bool override_instanced = context->m_Material && GetMaterialVertexSpace(context->m_Material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL &&
-                                  GetVertexDeclaration(context->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+        uint32_t             vertex_counts[RENDERLIST_INVALID_DISPATCH] = {};
+        uint8_t              partitions[RENDERLIST_INVALID_DISPATCH] = {};
+        uint32_t             max_vertices = dmGraphics::GetMaxElementsVertices(context->m_GraphicsContext);
+        uint32_t             num_persistent = context->m_PersistentRenderItems.Size();
+        bool                 override_instanced = context->m_Material && GetMaterialVertexSpace(context->m_Material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && GetVertexDeclaration(context->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
         for( uint32_t r = 0; r < num_ranges; ++r)
         {
             RenderListRange& range = ranges[r];
@@ -638,12 +637,12 @@ namespace dmRender
             int num_visibility_skipped = 0;
             for (uint32_t s = range.m_SpanStart; s < range.m_SpanStart + range.m_SpanCount; ++s)
             {
-                const RenderListSpan& span = context->m_RenderListSpans[s];
+                const RenderListSpan&     span = context->m_RenderListSpans[s];
                 const RenderItemDispatch* registration = span.m_Dispatch != INVALID_RENDER_ITEM_DISPATCH ? context->m_RenderItemDispatches[span.m_Dispatch] : 0;
-                uint32_t index_offset = registration ? 0 : num_persistent;
+                uint32_t                  index_offset = registration ? 0 : num_persistent;
                 for (uint32_t i = 0; i < span.m_Count; ++i)
                 {
-                    uint32_t idx = span.m_Indices[i] + index_offset;
+                    uint32_t         idx = span.m_Indices[i] + index_offset;
                     RenderListEntry* entry = &entries[idx];
                     if (registration)
                         entry->m_Dispatch = registration->m_FrameDispatch;
@@ -668,9 +667,9 @@ namespace dmRender
                         // Instanced draws use their own buffers and need no partition.
                         if (major_order == RENDER_ORDER_WORLD && dispatch.m_HasVertexCounts)
                         {
-                            uint32_t item_vertex_count = context->m_PersistentRenderItems[idx].m_VertexCount;
+                            uint32_t  item_vertex_count = context->m_PersistentRenderItems[idx].m_VertexCount;
                             uint32_t& vertex_count = vertex_counts[entry->m_Dispatch];
-                            uint8_t& partition = partitions[entry->m_Dispatch];
+                            uint8_t&  partition = partitions[entry->m_Dispatch];
                             if (item_vertex_count && (uint64_t)vertex_count + item_vertex_count >= max_vertices)
                             {
                                 vertex_count = 0;
@@ -688,10 +687,12 @@ namespace dmRender
                     }
 
                     const Vector4 res = transform * entry->m_WorldPosition;
-                    const float zw = res.getZ() / res.getW();
+                    const float   zw = res.getZ() / res.getW();
                     sort_values[idx].m_ZW = zw;
-                    if (zw < minZW) minZW = zw;
-                    if (zw > maxZW) maxZW = zw;
+                    if (zw < minZW)
+                        minZW = zw;
+                    if (zw > maxZW)
+                        maxZW = zw;
                 }
             }
 
@@ -722,10 +723,10 @@ namespace dmRender
             for (uint32_t s = range.m_SpanStart; s < range.m_SpanStart + range.m_SpanCount; ++s)
             {
                 const RenderListSpan& span = context->m_RenderListSpans[s];
-                uint32_t index_offset = span.m_Dispatch != INVALID_RENDER_ITEM_DISPATCH ? 0 : num_persistent;
+                uint32_t              index_offset = span.m_Dispatch != INVALID_RENDER_ITEM_DISPATCH ? 0 : num_persistent;
                 for (uint32_t i = 0; i < span.m_Count; ++i)
                 {
-                    uint32_t idx = span.m_Indices[i] + index_offset;
+                    uint32_t         idx = span.m_Indices[i] + index_offset;
                     RenderListEntry* entry = &entries[idx];
 
                     if (entry->m_Visibility == dmRender::VISIBILITY_NONE ||
@@ -803,9 +804,9 @@ namespace dmRender
         // Preserve FindRenderListRanges' midpoint-first traversal, including
         // stable draw order when different tag lists produce equal sort keys.
         const RenderListRange& last = ranges[offset + count - 1];
-        uint32_t midpoint = ranges[offset].m_Start + (last.m_Start + last.m_Count - ranges[offset].m_Start) / 2;
-        uint32_t low = offset;
-        uint32_t high = offset + count;
+        uint32_t               midpoint = ranges[offset].m_Start + (last.m_Start + last.m_Count - ranges[offset].m_Start) / 2;
+        uint32_t               low = offset;
+        uint32_t               high = offset + count;
         while (low < high)
         {
             uint32_t middle = low + (high - low) / 2;
@@ -855,23 +856,23 @@ namespace dmRender
 
     static void ApplyRenderItemCacheChanges(HRenderContext context, HRenderItemDispatch handle, RenderItemDispatch& dispatch)
     {
-        dmArray<uint32_t>& indices = dispatch.m_SortIndices;
+        dmArray<uint32_t>&        indices = dispatch.m_SortIndices;
         dmArray<RenderItemRange>& ranges = dispatch.m_Ranges;
-        bool insert[MAX_RENDER_ITEM_CACHE_CHANGES];
+        bool                      insert[MAX_RENDER_ITEM_CACHE_CHANGES];
         // Search by the cached range key and numeric slot: current entry tags
         // may already differ from the keys represented by this cache.
         for (uint32_t i = 0; i < dispatch.m_NumChanges; ++i)
         {
             const RenderItemCacheChange& change = dispatch.m_Changes[i];
-            const PersistentRenderItem& item = context->m_PersistentRenderItems[change.m_Index];
-            bool enabled = item.m_Alive && item.m_Enabled && item.m_Dispatch == handle;
+            const PersistentRenderItem&  item = context->m_PersistentRenderItems[change.m_Index];
+            bool                         enabled = item.m_Alive && item.m_Enabled && item.m_Dispatch == handle;
             insert[i] = enabled;
             uint32_t r = LowerBoundRenderItemRange(ranges, change.m_TagListKey);
             if (r == ranges.Size() || ranges[r].m_TagListKey != change.m_TagListKey)
                 continue;
             RenderItemRange& range = ranges[r];
-            uint32_t end = range.m_Start + range.m_Count;
-            uint32_t position = std::lower_bound(indices.Begin() + range.m_Start, indices.Begin() + end, change.m_Index) - indices.Begin();
+            uint32_t         end = range.m_Start + range.m_Count;
+            uint32_t         position = std::lower_bound(indices.Begin() + range.m_Start, indices.Begin() + end, change.m_Index) - indices.Begin();
             if (position == end || indices[position] != change.m_Index)
                 continue;
             if (enabled && context->m_RenderList[change.m_Index].m_TagListKey == change.m_TagListKey)
@@ -913,7 +914,7 @@ namespace dmRender
                 ranges[r] = range;
             }
             RenderItemRange& range = ranges[r];
-            uint32_t position = range.m_Start;
+            uint32_t         position = range.m_Start;
             if (range.m_Count)
                 position = std::lower_bound(indices.Begin() + range.m_Start, indices.Begin() + range.m_Start + range.m_Count, index) - indices.Begin();
             indices.SetSize(indices.Size() + 1);
@@ -938,7 +939,7 @@ namespace dmRender
         {
             HRenderItemDispatch handle = context->m_SubmittedRenderItemDispatches[d];
             RenderItemDispatch& dispatch = *context->m_RenderItemDispatches[handle];
-            dmArray<uint32_t>& indices = dispatch.m_SortIndices;
+            dmArray<uint32_t>&  indices = dispatch.m_SortIndices;
             if (dispatch.m_RebuildCache)
             {
                 indices.SetSize(0);
@@ -968,7 +969,7 @@ namespace dmRender
             for (uint32_t r = 0; r < dispatch.m_Ranges.Size(); ++r)
             {
                 const RenderItemRange& range = dispatch.m_Ranges[r];
-                RenderListSpan span = { indices.Begin() + range.m_Start, range.m_Count, range.m_TagListKey, handle };
+                RenderListSpan         span = { indices.Begin() + range.m_Start, range.m_Count, range.m_TagListKey, handle };
                 if (spans.Full())
                     spans.OffsetCapacity(16);
                 spans.Push(span);
@@ -977,7 +978,7 @@ namespace dmRender
 
         // Only span metadata is merged each frame. Idle worlds are not visited,
         // and retained index arrays stay in their owning world's cache.
-        dmArray<uint32_t>& transient = context->m_TransientRenderListIndices;
+        dmArray<uint32_t>&    transient = context->m_TransientRenderListIndices;
         RenderListEntrySorter sort;
         sort.m_Base = context->m_TransientRenderList.Begin();
         StableSortRenderListIndices(transient.Begin(), transient.Size(), sort);
@@ -1000,7 +1001,7 @@ namespace dmRender
         uint32_t offset = 0;
         for (uint32_t start = 0; start < spans.Size();)
         {
-            uint32_t end = start;
+            uint32_t        end = start;
             RenderListRange range = {};
             range.m_TagListKey = spans[start].m_TagListKey;
             range.m_Start = offset;
@@ -1057,7 +1058,7 @@ namespace dmRender
         RenderListVisibilityParams params;
         params.m_Frustum = &frustum;
         params.m_UserData = dispatch.m_UserData;
-        bool changed = false;
+        bool     changed = false;
         uint32_t i = 0;
         while (i < count)
         {
@@ -1088,10 +1089,10 @@ namespace dmRender
         for (uint32_t d = 0; d < context->m_SubmittedRenderItemDispatches.Size(); ++d)
         {
             const RenderItemDispatch& dispatch = *context->m_RenderItemDispatches[context->m_SubmittedRenderItemDispatches[d]];
-            const dmArray<uint32_t>& persistent = dispatch.m_SortIndices;
+            const dmArray<uint32_t>&  persistent = dispatch.m_SortIndices;
             for (uint32_t i = 0; i < persistent.Size(); ++i)
             {
-                uint32_t index = persistent[i];
+                uint32_t         index = persistent[i];
                 RenderListEntry& entry = entries[index];
                 entry.m_Dispatch = dispatch.m_FrameDispatch;
                 if (entry.m_FrustumHash == frustum_hash)
@@ -1118,8 +1119,8 @@ namespace dmRender
         }
 
         RenderListEntry* transient = context->m_TransientRenderList.Begin();
-        uint32_t num_transient = context->m_TransientRenderList.Size();
-        uint32_t i = 0;
+        uint32_t         num_transient = context->m_TransientRenderList.Size();
+        uint32_t         i = 0;
         while (i < num_transient)
         {
             uint32_t start = i++;
