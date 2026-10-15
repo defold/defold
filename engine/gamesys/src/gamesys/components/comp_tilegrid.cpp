@@ -788,7 +788,7 @@ namespace dmGameSystem
 
         dmArray<TileGridComponent*>& components = world->m_Components;
         uint32_t n = components.Size();
-        if (n == 0)
+        if( n == 0 )
         {
             for (uint32_t i = 0; i < world->m_ActiveRenderItemCount; ++i)
                 dmRender::Enable(world->m_RenderContext, world->m_RenderItems[i], false);

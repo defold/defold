@@ -96,56 +96,56 @@ namespace dmGameSystem
 
     struct MeshRenderItem
     {
-        dmVMath::Matrix4          m_World;
-        dmVMath::Vector3          m_AabbMin;
-        dmVMath::Vector3          m_AabbMax;
-        struct ModelComponent*    m_Component;
-        ModelResourceBuffers*     m_Buffers;
-        dmRigDDF::Model*          m_Model; // Used for world space materials
-        dmRigDDF::Mesh*           m_Mesh;  // Used for world space materials
-        dmGraphics::HTexture      m_MorphTargetTexture;
-        dmhash_t                  m_MorphModelId;
-        HComponentRenderConstants m_RenderConstants; // Used for PBR properties, will be null if PBR data not needed.
-        dmRender::HRenderItem     m_RenderItem;
-        uint32_t                  m_InstanceRenderHash;
-        uint32_t                  m_BoneIndex;
-        uint32_t                  m_MaterialIndex;
-        uint16_t                  m_AttributeRenderDataIndex;
-        uint16_t                  m_DynamicVertexAttributeIndex;
-        uint8_t                   m_LocalTransformIsIdentity : 1;
-        uint8_t                   m_PerInstanceCustomAttributes : 1;
-        uint8_t                   m_DynamicVertexAttributesDirty : 1;
-        uint8_t                   m_Enabled : 1;
+        dmVMath::Matrix4            m_World;
+        dmVMath::Vector3            m_AabbMin;
+        dmVMath::Vector3            m_AabbMax;
+        struct ModelComponent*      m_Component;
+        ModelResourceBuffers*       m_Buffers;
+        dmRigDDF::Model*            m_Model;    // Used for world space materials
+        dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
+        dmGraphics::HTexture        m_MorphTargetTexture;
+        dmhash_t                    m_MorphModelId;
+        HComponentRenderConstants   m_RenderConstants; // Used for PBR properties, will be null if PBR data not needed.
+        dmRender::HRenderItem       m_RenderItem;
+        uint32_t                    m_InstanceRenderHash;
+        uint32_t                    m_BoneIndex;
+        uint32_t                    m_MaterialIndex;
+        uint16_t                    m_AttributeRenderDataIndex;
+        uint16_t                    m_DynamicVertexAttributeIndex;
+        uint8_t                     m_LocalTransformIsIdentity : 1;
+        uint8_t                     m_PerInstanceCustomAttributes  : 1;
+        uint8_t                     m_DynamicVertexAttributesDirty : 1;
+        uint8_t                     m_Enabled                      : 1;
     };
 
     struct ModelComponent
     {
-        dmGameObject::HInstance   m_Instance;
-        dmTransform::Transform    m_Transform;
-        Matrix4                   m_World;
-        ModelResource*            m_Resource;
-        dmRig::HRigInstance       m_RigInstance;
-        FModelAnimationCallback   m_Callback;
-        void*                     m_CallbackContext;
-        HComponentRenderConstants m_RenderConstants;
-        TextureResource*          m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        MaterialResource*         m_Material; // Override material
+        dmGameObject::HInstance     m_Instance;
+        dmTransform::Transform      m_Transform;
+        Matrix4                     m_World;
+        ModelResource*              m_Resource;
+        dmRig::HRigInstance         m_RigInstance;
+        FModelAnimationCallback     m_Callback;
+        void*                       m_CallbackContext;
+        HComponentRenderConstants   m_RenderConstants;
+        TextureResource*            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        MaterialResource*           m_Material; // Override material
 
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
         dmArray<MeshRenderItem>          m_RenderItems;
         dmArray<MeshAttributeRenderData> m_MeshAttributeRenderDatas;
         /// Script morph weights - applied in ApplyMorphToRenderObject.
-        dmArray<float> m_BlendWeightsOverride;
-        uint16_t       m_ComponentIndex;
-        uint8_t        m_Enabled : 1;
-        uint8_t        m_DoRender : 1;
-        uint8_t        m_AddedToUpdate : 1;
-        uint8_t        m_ReHash : 1;
-        uint8_t        m_RequiresBindPoseCaching : 1;
-        uint8_t        m_BlendWeightsOverrideActive : 1;
-        uint8_t        m_TransformIsIdentity : 1;
-        uint8_t        m_RenderItemsDirty : 1;
+        dmArray<float>                   m_BlendWeightsOverride;
+        uint16_t                         m_ComponentIndex;
+        uint8_t                          m_Enabled : 1;
+        uint8_t                          m_DoRender : 1;
+        uint8_t                          m_AddedToUpdate : 1;
+        uint8_t                          m_ReHash : 1;
+        uint8_t                          m_RequiresBindPoseCaching : 1;
+        uint8_t                          m_BlendWeightsOverrideActive : 1;
+        uint8_t                          m_TransformIsIdentity : 1;
+        uint8_t                          m_RenderItemsDirty : 1;
     };
 
     struct ModelSkinnedAnimationData
@@ -180,31 +180,31 @@ namespace dmGameSystem
         uint32_t*                        m_VertexBufferDispatchCounts;
         uint32_t                         m_InstanceBufferDispatchCount;
         // Temporary scratch array for instances, only used during the creation phase of components
-        dmArray<dmGameObject::HInstance>   m_ScratchInstances;
+        dmArray<dmGameObject::HInstance> m_ScratchInstances;
         dmArray<HComponentRenderConstants> m_ScratchConstantBuffers;
-        dmArray<dmVMath::Vector4>          m_ScratchMorphWeightsConstants;
-        dmRig::HRigContext                 m_RigContext;
-        ModelSkinnedAnimationData          m_SkinnedAnimationData;
+        dmArray<dmVMath::Vector4>        m_ScratchMorphWeightsConstants;
+        dmRig::HRigContext               m_RigContext;
+        ModelSkinnedAnimationData        m_SkinnedAnimationData;
 
-        uint32_t                           m_MaxElementsVertices;
-        uint32_t                           m_MaxBatchIndex;
-        uint32_t                           m_VertexBufferIndex;
-        uint32_t                           m_VertexBufferVertexCount;
-        uint32_t                           m_ScratchConstantBuffersCount;
+        uint32_t                         m_MaxElementsVertices;
+        uint32_t                         m_MaxBatchIndex;
+        uint32_t                         m_VertexBufferIndex;
+        uint32_t                         m_VertexBufferVertexCount;
+        uint32_t                         m_ScratchConstantBuffersCount;
         // For profiling data:
-        uint32_t m_StatisticsVertexCount;
-        uint32_t m_StatisticsVertexDataSize;
-        uint8_t  m_CurrentFrameTick;
+        uint32_t                         m_StatisticsVertexCount;
+        uint32_t                         m_StatisticsVertexDataSize;
+        uint8_t                          m_CurrentFrameTick;
         // Test data:
-        uint8_t m_RenderBatchLocalVSInstancedCount;
-        uint8_t m_RenderBatchLocalVSUninstancedCount;
-        uint8_t m_RenderBatchWorldVSCount;
+        uint8_t                          m_RenderBatchLocalVSInstancedCount;
+        uint8_t                          m_RenderBatchLocalVSUninstancedCount;
+        uint8_t                          m_RenderBatchWorldVSCount;
     };
 
-    static const uint32_t      VERTEX_BUFFER_MAX_BATCHES = 16; // Maximum CPU-generated vertex buffers per draw
-    static const uint8_t       VX_DECL_BASE_BUFFER = 0;
-    static const uint8_t       VX_DECL_INSTANCE_BUFFER = 1;
-    static const uint8_t       VX_DECL_CUSTOM_BUFFER = 2;
+    static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Maximum CPU-generated vertex buffers per draw
+    static const uint8_t VX_DECL_BASE_BUFFER        = 0;
+    static const uint8_t VX_DECL_INSTANCE_BUFFER    = 1;
+    static const uint8_t VX_DECL_CUSTOM_BUFFER      = 2;
 
     static const dmhash_t PROP_SKIN          = dmHashString64("skin");
     static const dmhash_t PROP_CURSOR        = dmHashString64("cursor");
@@ -212,7 +212,7 @@ namespace dmGameSystem
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
     static void DestroyComponent(ModelWorld* world, uint32_t index);
-    static void                RenderListDispatch(const dmRender::RenderListDispatchParams& params);
+    static void RenderListDispatch(const dmRender::RenderListDispatchParams& params);
 
     dmGameObject::CreateResult CompModelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -266,9 +266,9 @@ namespace dmGameSystem
         dmGraphics::AddVertexStream(stream_declaration_instance, "animation_data", 4, dmGraphics::TYPE_FLOAT, false);
         world->m_InstanceVertexDeclarationSkinned = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration_instance);
 
-        world->m_MaxElementsVertices = dmGraphics::GetMaxElementsVertices(graphics_context);
-        world->m_MaxBatchIndex = 0;
-        world->m_InstanceBufferLocalSpace = dmRender::NewBufferedRenderBuffer(context->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
+        world->m_MaxElementsVertices       = dmGraphics::GetMaxElementsVertices(graphics_context);
+        world->m_MaxBatchIndex             = 0;
+        world->m_InstanceBufferLocalSpace  = dmRender::NewBufferedRenderBuffer(context->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         world->m_InstanceBufferDispatchCount = 0;
 
         dmGraphics::TextureCreationParams tp;

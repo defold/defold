@@ -57,29 +57,29 @@ namespace dmGameSystem
 
     struct MeshComponent
     {
-        dmGameObject::HInstance       m_Instance;
-        dmRender::HRenderItem         m_RenderItem;
-        Matrix4                       m_Local;
-        Matrix4                       m_World;
-        uint32_t                      m_MixedHash;
-        HComponentRenderConstants     m_RenderConstants;
-        MeshResource*                 m_Resource;
-        dmGameSystem::BufferResource* m_BufferResource;
-        TextureResource*              m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        MaterialResource*             m_Material;
+        dmGameObject::HInstance         m_Instance;
+        dmRender::HRenderItem           m_RenderItem;
+        Matrix4                         m_Local;
+        Matrix4                         m_World;
+        uint32_t                        m_MixedHash;
+        HComponentRenderConstants       m_RenderConstants;
+        MeshResource*                   m_Resource;
+        dmGameSystem::BufferResource*   m_BufferResource;
+        TextureResource*                m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        MaterialResource*               m_Material;
 
         // If the buffer resource property has changed (ie not same buffer resource as
         // used by the mesh resource), we need to create a specific vertex declaration
         // and vertbuffer for this buffer resource instead.
-        dmGraphics::HVertexDeclaration m_VertexDeclaration;
-        uint32_t                       m_BufferVersion;
+        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+        uint32_t                        m_BufferVersion;
 
         /// Component enablement
-        uint8_t m_Enabled : 1;
+        uint8_t                         m_Enabled : 1;
         /// Added to update or not
-        uint8_t m_AddedToUpdate : 1;
-        uint8_t m_ReHash : 1;
-        uint8_t : 5;
+        uint8_t                         m_AddedToUpdate : 1;
+        uint8_t                         m_ReHash : 1;
+        uint8_t                         :5;
     };
 
     struct VertexBufferInfo
@@ -102,6 +102,7 @@ namespace dmGameSystem
         dmGraphics::HContext               m_GraphicsContext;
         void*                              m_WorldVertexData;
         size_t                             m_WorldVertexDataSize;
+
     };
 
     struct MeshContext
@@ -235,7 +236,7 @@ namespace dmGameSystem
     static const uint64_t AABB_HASH = dmHashString64("AABB");
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
-    static void                RenderListDispatch(const dmRender::RenderListDispatchParams& params);
+    static void RenderListDispatch(const dmRender::RenderListDispatchParams& params);
 
     dmGameObject::CreateResult CompMeshNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {

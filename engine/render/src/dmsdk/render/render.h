@@ -322,8 +322,8 @@ namespace dmRender
     enum RenderOrder
     {
         RENDER_ORDER_BEFORE_WORLD = 0,
-        RENDER_ORDER_WORLD = 1,
-        RENDER_ORDER_AFTER_WORLD = 2,
+        RENDER_ORDER_WORLD        = 1,
+        RENDER_ORDER_AFTER_WORLD  = 2,
     };
 
     /*#
@@ -375,10 +375,10 @@ namespace dmRender
      */
     struct RenderListVisibilityParams
     {
-        const dmIntersection::Frustum* m_Frustum;
-        void*                          m_UserData;
-        RenderListEntry*               m_Entries;
-        uint32_t                       m_NumEntries;
+        const dmIntersection::Frustum*  m_Frustum;
+        void*                           m_UserData;
+        RenderListEntry*                m_Entries;
+        uint32_t                        m_NumEntries;
     };
 
     /*#
@@ -402,12 +402,12 @@ namespace dmRender
      */
     struct RenderListDispatchParams
     {
-        HRenderContext      m_Context;
-        void*               m_UserData;
+        HRenderContext m_Context;
+        void* m_UserData;
         RenderListOperation m_Operation;
-        RenderListEntry*    m_Buf;
-        uint32_t*           m_Begin;
-        uint32_t*           m_End;
+        RenderListEntry* m_Buf;
+        uint32_t* m_Begin;
+        uint32_t* m_End;
     };
 
     /*#

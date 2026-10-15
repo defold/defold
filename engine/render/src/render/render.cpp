@@ -616,7 +616,7 @@ namespace dmRender
 
         RenderListRange* ranges = context->m_RenderListRanges.Begin();
         uint32_t num_ranges = context->m_RenderListRanges.Size();
-        uint32_t             num_persistent = context->m_PersistentRenderItems.Size();
+        uint32_t num_persistent = context->m_PersistentRenderItems.Size();
         for( uint32_t r = 0; r < num_ranges; ++r)
         {
             RenderListRange& range = ranges[r];
@@ -660,7 +660,7 @@ namespace dmRender
                     }
 
                     const Vector4 res = transform * entry->m_WorldPosition;
-                    const float   zw = res.getZ() / res.getW();
+                    const float zw = res.getZ() / res.getW();
                     sort_values[idx].m_ZW = zw;
                     if (zw < minZW)
                         minZW = zw;
