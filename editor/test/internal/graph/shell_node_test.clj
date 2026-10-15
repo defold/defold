@@ -99,7 +99,7 @@
               (is (nil? (g/node-by-id (g/now) shell)))
               (is (nil? (g/user-data shell :marker)))
               (is (not (contains? (g/cache) (gt/endpoint shell :result))))
-              (is (not (contains? (:initial-materializations committed-context) shell)))
+              (is (not (contains? (:initial-materialization-results committed-context) shell)))
               (is (not (contains? (:initial-materialization-invalidate-counters committed-context) shell)))))
           (is (= :retained (g/user-data retained-shell :marker)))
           (is (= 7 (g/node-value retained-shell :result))))))))
@@ -274,12 +274,12 @@
               [(g/non-undoable (g/set-property self :identity "loaded"))
                (g/set-property self :value 9)
                (g/callback #(when @fail (throw (ex-info "load failed" {}))))]))))
-      (let [{:keys [basis-ref changes-atom materializations-atom invalidated-endpoints-atom] :as evaluation-context} (g/make-evaluation-context)
+      (let [{:keys [basis-ref changes-atom materialization-results-atom invalidated-endpoints-atom] :as evaluation-context} (g/make-evaluation-context)
             initial-basis @basis-ref
-            initial-materializations @materializations-atom]
+            initial-materialization-results @materialization-results-atom]
         (is (thrown-with-msg? ExceptionInfo #"load failed" (g/node-value node-id :result evaluation-context)))
         (is (identical? initial-basis @basis-ref))
-        (is (identical? initial-materializations @materializations-atom))
+        (is (identical? initial-materialization-results @materialization-results-atom))
         (is (coll/empty? @changes-atom))
         (is (coll/empty? @invalidated-endpoints-atom))
         (is (in/shell-node? (g/node-by-id @basis-ref node-id)))
@@ -699,9 +699,9 @@
         (try
           (is (= [7 7 7 7] (mapv #(deref % 10000 ::timeout) results)))
           (is (= (into {} (map #(vector % 1)) shells) (frequencies @calls)))
-          (let [node-materializations @(:node-materializations-atom (first contexts))]
-            (is (= (set shells) (set (coll/keys node-materializations))))
-            (is (coll/every? #(realized? (:promise %)) (coll/vals node-materializations))))
+          (let [shared-materialization-registry @(:shared-materialization-registry-atom (first contexts))]
+            (is (= (set shells) (set (coll/keys shared-materialization-registry))))
+            (is (coll/every? #(realized? (:promise %)) (coll/vals shared-materialization-registry))))
           (doseq [context contexts]
             (g/update-system-from-evaluation-context! context))
           (is (= [7 7 7 7] (mapv #(g/node-value % :result) shells)))
@@ -866,6 +866,62 @@
           (is (= :undeclared-materialization (-> error ex-cause ex-data :ex-type))))
         (is (nil? (g/node-by-id @(:basis-ref evaluation-context) consumer)))
         (is (in/shell-node? (g/node-by-id @(:basis-ref evaluation-context) prerequisite)))))))
+
+;; Independent contexts on the same thread must not inherit another load's
+;; owner, while the caller's context remains usable after materialization.
+(deftest materialization-state-is-local-to-evaluation-context-test
+  (with-clean-system
+    (let [[parent independent] (g/take-node-ids 2)
+          independent-context (atom nil)]
+      (g/transact
+        [(g/add-node
+           (g/construct-shell ShellTestNode {:_node-id parent}
+             (fn materialize-parent [self _evaluation-context]
+               (g/set-property self :value (g/node-value independent :result @independent-context)))))
+         (g/add-node
+           (g/construct-shell ShellTestNode {:_node-id independent}
+             (fn materialize-independent [self _evaluation-context]
+               (g/set-property self :value 11))))])
+      (reset! independent-context (g/make-evaluation-context))
+      (let [evaluation-context (g/make-evaluation-context)]
+        (is (= 11 (g/node-value parent :result evaluation-context)))
+        (is (in/shell-node? (g/node-by-id @(:basis-ref evaluation-context) independent)))
+        (is (in/shell-node? (g/node-by-id @(:basis-ref @independent-context) parent)))
+        (is (= 11 (g/node-value independent :result evaluation-context)))))))
+
+;; Expansion callbacks, including deferred step producers, must retain the
+;; materialization owner through transaction and evaluation context conversion.
+(deftest materialization-rejects-undeclared-expansion-load-test
+  (doseq [deferred [false true]]
+    (testing (str "Deferred transaction step production: " deferred)
+      (with-clean-system
+        (let [[parent prerequisite] (g/take-node-ids 2)]
+          (g/transact
+            [(g/add-node
+               (g/construct-shell ShellTestNode {:_node-id parent}
+                 (fn materialize-parent [self _evaluation-context]
+                   (g/expand-ec
+                     (fn expand-parent [evaluation-context]
+                       (let [steps (eduction
+                                     (map (fn load-prerequisite [prerequisite]
+                                            (g/set-property self :value (g/node-value prerequisite :result evaluation-context))))
+                                     [prerequisite])]
+                         (if deferred steps (into [] steps))))))))
+             (g/add-node
+               (g/construct-shell ShellTestNode {:_node-id prerequisite}
+                 (fn materialize-prerequisite [self _evaluation-context]
+                   (g/set-property self :value 11))))])
+          (let [evaluation-context (g/make-evaluation-context)
+                error (try
+                        (g/materialize-node! parent evaluation-context)
+                        (catch ExceptionInfo exception exception))]
+            (is (= {:ex-type :undeclared-materialization
+                    :node-id parent
+                    :prerequisite-node-id prerequisite}
+                   (ex-data error)))
+            (is (in/shell-node? (g/node-by-id @(:basis-ref evaluation-context) parent)))
+            (is (in/shell-node? (g/node-by-id @(:basis-ref evaluation-context) prerequisite)))
+            (is (= 11 (g/node-value prerequisite :result evaluation-context)))))))))
 
 (g/defnode MaterializationCollector
   (input values g/Int :array)
@@ -1032,7 +1088,7 @@
               (is (g/error-value? (if concurrent
                                     (deref (results index) 10000 ::timeout)
                                     (g/node-value node-id :result (contexts index))))))
-            (doseq [[_node-id entry] @(:node-materializations-atom (first contexts))]
+            (doseq [[_node-id entry] @(:shared-materialization-registry-atom (first contexts))]
               (is (realized? (:promise entry)))
               (is (= #{} (:prerequisite-shell-node-ids entry))))
             (doseq [context contexts]
@@ -1057,7 +1113,7 @@
       (let [evaluation-context (g/make-evaluation-context)]
         (is (= 1 (g/node-value root :result evaluation-context)))
         (doseq [[node-id prerequisite-ids] prerequisites
-                :let [info (get @(:materializations-atom evaluation-context) node-id)]]
+                :let [info (get @(:materialization-results-atom evaluation-context) node-id)]]
           (is (= prerequisite-ids (:prerequisite-shell-node-ids info)))
           (is (= prerequisite-ids (set (coll/keys (:dependencies info)))))
           (is (coll/not-any? #(instance? internal.transaction.MaterializationTXC %) (:changes info))))
@@ -1094,7 +1150,7 @@
                             (catch Exception exception exception)))]
           (try
             (is (= true (deref entered 10000 ::timeout)))
-            (let [result-promise (get-in @(:node-materializations-atom evaluation-context) [shell :promise])
+            (let [result-promise (get-in @(:shared-materialization-registry-atom evaluation-context) [shell :promise])
                   waiter (future @result-promise)]
               (deliver release true)
               (is (identical? failure (deref result 10000 ::timeout)))
@@ -1135,7 +1191,7 @@
                   (fn [self _evaluation-context]
                     (g/set-property self :value 2)))))
             (is (= 2 (g/node-value node-id :result)))
-            (let [new-promise (get-in @(:node-materializations-atom old-context) [node-id :promise])]
+            (let [new-promise (get-in @(:shared-materialization-registry-atom old-context) [node-id :promise])]
               (deliver release true)
               (let [result (deref old-result 10000 ::timeout)]
                 (if old-load-fails
@@ -1143,7 +1199,7 @@
                   (is (= 1 result))))
               (g/update-system-from-evaluation-context! old-context)
               (is (= 2 (g/node-value node-id :result)))
-              (is (identical? new-promise (get-in @(:node-materializations-atom old-context) [node-id :promise]))))
+              (is (identical? new-promise (get-in @(:shared-materialization-registry-atom old-context) [node-id :promise]))))
             (finally
               (deliver release true)
               (future-cancel old-result))))))))
