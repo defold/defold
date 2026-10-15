@@ -528,20 +528,20 @@
 (defn- validate-evaluation-context-options [options]
   ;; :dry-run means no production functions will be called, useful speedup when tracing dependencies
   ;; :no-local-temp disables the non deterministic local caching of non :cached outputs, useful for stable results when debugging dependencies
-  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context-atom :node-id-generator :override-id-generator :node-materializations-atom :materializations :initial-materialization-invalidate-counters} (coll/keys options)) (str (coll/keys options)))
+  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context-atom :node-id-generator :override-id-generator :shared-materialization-registry-atom :active-materialization :materialization-results :initial-materialization-invalidate-counters} (coll/keys options)) (str (coll/keys options)))
   (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
 
 (defn default-evaluation-context
-  [basis cache initial-invalidate-counters materializations]
+  [basis cache initial-invalidate-counters materialization-results]
   (assert (ig/graph? basis))
   (assert (c/cache? cache))
   (assert (map? initial-invalidate-counters))
   {:initial-basis basis
-   :initial-materializations materializations
+   :initial-materialization-results materialization-results
    :basis-ref (atom basis)
    :changes-atom (atom [])
    :nodes-deleted-atom (atom {})
-   :materializations-atom (atom materializations)
+   :materialization-results-atom (atom materialization-results)
    :invalidated-endpoints-atom (atom #{})
    :cache-atom (atom cache) ; context-local snapshot of the system cache
    :initial-invalidate-counters initial-invalidate-counters
@@ -554,13 +554,13 @@
 (defn custom-evaluation-context
   [{:keys [basis cache] :as options}]
   (validate-evaluation-context-options options)
-  (cond-> (assoc (dissoc options :basis :cache :materializations)
+  (cond-> (assoc (dissoc options :basis :cache :materialization-results)
             :initial-basis basis
-            :initial-materializations (:materializations options)
+            :initial-materialization-results (:materialization-results options)
             :basis-ref (atom basis)
             :changes-atom (atom [])
             :nodes-deleted-atom (atom {})
-            :materializations-atom (atom (:materializations options))
+            :materialization-results-atom (atom (:materialization-results options))
             :invalidated-endpoints-atom (atom #{})
             :local-atom (atom {})
             :hits-atom (atom [])

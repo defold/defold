@@ -310,8 +310,8 @@
         metrics-collector (:metrics opts)
         full-invalidation (:full-invalidation opts false)]
     (assoc (it/new-transaction-context basis node-id-generator override-id-generator tx-data-context metrics-collector full-invalidation
-                                       (:node-materializations-atom system)
-                                       (:materializations system))
+                                       (:shared-materialization-registry-atom system)
+                                       (:materialization-results system))
       :initial-invalidate-counters (:invalidate-counters system)
       :initial-materialization-invalidate-counters (:materialization-invalidate-counters system))))
 
@@ -328,7 +328,7 @@
                    ;; Ordinary transactions can include edits beyond
                    ;; materialization. Do not exempt their invalidations from
                    ;; conflict checking.
-                   (is/merge-materializations (:materializations tx-result) #{}))))))
+                   (is/merge-materialization-results (:materialization-results tx-result) #{}))))))
   nil)
 
 (defn transact
