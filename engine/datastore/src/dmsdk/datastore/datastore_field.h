@@ -12,10 +12,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_DATA_FIELD_H
-#define DMSDK_DATA_FIELD_H
+#ifndef DMSDK_DATASTORE_FIELD_H
+#define DMSDK_DATASTORE_FIELD_H
 
-#include <dmsdk/datastore/data_types.h>
+#include <dmsdk/datastore/datastore_types.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -364,4 +364,4 @@ extern "C"
  * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
  */
 
-#endif // DMSDK_DATA_FIELD_H
+#endif // DMSDK_DATASTORE_FIELD_H

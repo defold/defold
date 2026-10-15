@@ -12,10 +12,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_DATA_TABLE_H
-#define DMSDK_DATA_TABLE_H
+#ifndef DMSDK_DATASTORE_TABLE_H
+#define DMSDK_DATASTORE_TABLE_H
 
-#include <dmsdk/datastore/data_types.h>
+#include <dmsdk/datastore/datastore_types.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -362,4 +362,4 @@ extern "C"
  * @return component [type:uint64_t] Component name hash, or zero for an invalid/stale row. Zero may also identify an unnamed row.
  */
 
-#endif // DMSDK_DATA_TABLE_H
+#endif // DMSDK_DATASTORE_TABLE_H

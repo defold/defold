@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <dmsdk/datastore/data.h>
+#include <dmsdk/datastore/datastore.h>
 #include <jc_test/jc_test.h>
 
 struct ViewRow

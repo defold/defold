@@ -12,12 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_DATA_ITER_H
-#define DMSDK_DATA_ITER_H
+#ifndef DMSDK_DATASTORE_ITER_H
+#define DMSDK_DATASTORE_ITER_H
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <dmsdk/datastore/data_types.h>
+#include <dmsdk/datastore/datastore_types.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -438,4 +438,4 @@ extern "C"
  * @return value [type:uint32_t*] Borrowed writable value.
  */
 
-#endif // DMSDK_DATA_ITER_H
+#endif // DMSDK_DATASTORE_ITER_H

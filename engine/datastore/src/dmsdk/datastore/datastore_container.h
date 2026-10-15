@@ -12,10 +12,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_DATA_CONTAINER_H
-#define DMSDK_DATA_CONTAINER_H
+#ifndef DMSDK_DATASTORE_CONTAINER_H
+#define DMSDK_DATASTORE_CONTAINER_H
 
-#include <dmsdk/datastore/data_iter.h>
+#include <dmsdk/datastore/datastore_iter.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -206,4 +206,4 @@ extern "C"
  * @return result [type:DataResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
 
-#endif // DMSDK_DATA_CONTAINER_H
+#endif // DMSDK_DATASTORE_CONTAINER_H

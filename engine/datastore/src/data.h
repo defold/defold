@@ -26,7 +26,7 @@
 #include <dlib/atomic.h>
 #include <dlib/mutex.h>
 #include <dlib/object_pool.h>
-#include <dmsdk/datastore/data.h>
+#include <dmsdk/datastore/datastore.h>
 
 // File format, version 1. Integers are little-endian; references are blob offsets.
 // Variable arrays follow these fixed headers. Runtime structures below are separate.

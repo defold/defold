@@ -395,21 +395,21 @@ registration and keep the immutable bytes alive through the last registration.
 
 ## Implementation
 
-The public [datastore.h](../datastore/src/dmsdk/datastore/datastore.h) is the umbrella header; `data.h` forwards to it for compatibility. It includes the responsibility headers
-below and [data_types.h](../datastore/src/dmsdk/datastore/data_types.h) for shared handles,
+The public [datastore.h](../datastore/src/dmsdk/datastore/datastore.h) is the umbrella header. It includes the responsibility headers
+below and [datastore_types.h](../datastore/src/dmsdk/datastore/datastore_types.h) for shared handles,
 IDs, results and value types. Each public header can also be included directly.
 Store, native table/row lifecycle, reset and opaque blob handles are public.
 Serialization and generic construction values remain in the private [data.h](../datastore/src/data.h).
 
 | Implementation | Public header | Responsibility |
 | --- | --- | --- |
-| [data.cpp](../datastore/src/data.cpp) | [datastore.h](../datastore/src/dmsdk/datastore/datastore.h) | Store creation/destruction and locking. Native row lifecycle is declared in [data_table.h](../datastore/src/dmsdk/datastore/data_table.h); resource instances in [data_blob.h](../datastore/src/dmsdk/datastore/data_blob.h). |
-| [data_query.cpp](../datastore/src/data_query.cpp) | [data_query.h](../datastore/src/dmsdk/datastore/data_query.h) | Query matching, field bindings, cached ranges and access reservations. |
-| [data_iter.cpp](../datastore/src/data_iter.cpp) | [data_iter.h](../datastore/src/dmsdk/datastore/data_iter.h) | Batch, row and field traversal, including iterator value access. |
-| [data_field.cpp](../datastore/src/data_field.cpp) | [data_field.h](../datastore/src/dmsdk/datastore/data_field.h) | Value representation, construction validation, field get/set and reset. |
-| [data_container.cpp](../datastore/src/data_container.cpp) | [data_container.h](../datastore/src/dmsdk/datastore/data_container.h) | Borrowed reads of struct members and mixed list elements. |
+| [data.cpp](../datastore/src/data.cpp) | [datastore.h](../datastore/src/dmsdk/datastore/datastore.h) | Store creation/destruction and locking. Native row lifecycle is declared in [datastore_table.h](../datastore/src/dmsdk/datastore/datastore_table.h); resource instances in [datastore_blob.h](../datastore/src/dmsdk/datastore/datastore_blob.h). |
+| [data_query.cpp](../datastore/src/data_query.cpp) | [datastore_query.h](../datastore/src/dmsdk/datastore/datastore_query.h) | Query matching, field bindings, cached ranges and access reservations. |
+| [data_iter.cpp](../datastore/src/data_iter.cpp) | [datastore_iter.h](../datastore/src/dmsdk/datastore/datastore_iter.h) | Batch, row and field traversal, including iterator value access. |
+| [data_field.cpp](../datastore/src/data_field.cpp) | [datastore_field.h](../datastore/src/dmsdk/datastore/datastore_field.h) | Value representation, construction validation, field get/set and reset. |
+| [data_container.cpp](../datastore/src/data_container.cpp) | [datastore_container.h](../datastore/src/dmsdk/datastore/datastore_container.h) | Borrowed reads of struct members and mixed list elements. |
 | [data_payload.cpp](../datastore/src/data_payload.cpp) | Internal | Block allocation, payload recycling and reclamation. |
-| [data_io.cpp](../datastore/src/data_io.cpp) | [data_blob.h](../datastore/src/dmsdk/datastore/data_blob.h) | Public blob loading and release; private serialization. |
+| [data_io.cpp](../datastore/src/data_io.cpp) | [datastore_blob.h](../datastore/src/dmsdk/datastore/datastore_blob.h) | Public blob loading and release; private serialization. |
 
 The [library README](../datastore/README.md) describes building and running the
 unit tests. Threading tests run under TSAN.

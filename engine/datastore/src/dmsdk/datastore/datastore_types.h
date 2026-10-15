@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_DATA_TYPES_H
-#define DMSDK_DATA_TYPES_H
+#ifndef DMSDK_DATASTORE_TYPES_H
+#define DMSDK_DATASTORE_TYPES_H
 
 #include <stdint.h>
 
@@ -173,4 +173,4 @@ extern "C"
  * @member m_Values [type:float[16]] Column-major components; element at row r, column c is m_Values[c * 4 + r].
  */
 
-#endif // DMSDK_DATA_TYPES_H
+#endif // DMSDK_DATASTORE_TYPES_H

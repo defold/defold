@@ -12,10 +12,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_DATA_QUERY_H
-#define DMSDK_DATA_QUERY_H
+#ifndef DMSDK_DATASTORE_QUERY_H
+#define DMSDK_DATASTORE_QUERY_H
 
-#include <dmsdk/datastore/data_types.h>
+#include <dmsdk/datastore/datastore_types.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -178,4 +178,4 @@ extern "C"
  * @return field [type:uint32_t] Field handle, or UINT32_MAX if absent, incompatible or unsupported.
  */
 
-#endif // DMSDK_DATA_QUERY_H
+#endif // DMSDK_DATASTORE_QUERY_H
