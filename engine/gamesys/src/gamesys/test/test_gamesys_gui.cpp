@@ -1513,6 +1513,7 @@ TEST_F(FontTest, OpenTypeResource)
 
 // Test that a GUI with mixed nodes (box + multiple text nodes) produces a single font
 // dispatch for all text (not one per text node), and that text render order is preserved.
+// Empty frames must disable pooled items, and resuming must reuse their handles.
 TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
 {
     const char* go_path = "/gui/gui_text_flush_test.goc";
@@ -1528,6 +1529,8 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
     dmRender::RenderListBegin(m_RenderContext);
     dmGameObject::Render(m_Collection);
     dmRender::RenderListEnd(m_RenderContext);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
 
     dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*)m_RenderContext;
 
@@ -1588,6 +1591,22 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
     for (uint32_t i = 1; i < num_text_orders; ++i)
     {
         ASSERT_LT(text_orders[i - 1], text_orders[i]);
+    }
+
+    const uint32_t              item_count = render_context_ptr->m_PersistentRenderItems.Size();
+    const uint32_t              drawn_count = render_context_ptr->m_RenderListSortBuffer.Size();
+    dmGameSystem::GuiComponent* component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, component);
+    for (uint32_t frame = 0; frame < 4; ++frame)
+    {
+        component->m_Enabled = frame & 1;
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        ASSERT_EQ(component->m_Enabled ? drawn_count : 0u, render_context_ptr->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(item_count, render_context_ptr->m_PersistentRenderItems.Size());
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
