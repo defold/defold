@@ -908,7 +908,7 @@ namespace dmGameSystem
                 {
                     dmLogError("Error getting AABB for mesh buffer");
                 }
-                dmRender::ClearBoundingVolume(render_context, component.m_RenderItem);
+                dmRender::SetBoundingAABB(render_context, component.m_RenderItem, Vector3(1), Vector3(-1));
             }
         }
         DM_PROPERTY_ADD_U32(rmtp_Mesh, num_enabled);

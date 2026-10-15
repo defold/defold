@@ -218,6 +218,11 @@ namespace dmRender
 
     bool SetBoundingAABB(HRenderContext context, HRenderItem handle, const Vector3& world_min, const Vector3& world_max)
     {
+        if (world_min.getX() > world_max.getX() || world_min.getY() > world_max.getY() || world_min.getZ() > world_max.getZ())
+        {
+            float bounds[6] = {};
+            return SetBoundingVolume(context, handle, BOUNDING_VOLUME_NONE, bounds);
+        }
         float bounds[6] = { world_min.getX(), world_min.getY(), world_min.getZ(), world_max.getX(), world_max.getY(), world_max.getZ() };
         return SetBoundingVolume(context, handle, BOUNDING_VOLUME_AABB, bounds);
     }
@@ -226,19 +231,6 @@ namespace dmRender
     {
         float bounds[6] = { local_min.getX(), local_min.getY(), local_min.getZ(), local_max.getX(), local_max.getY(), local_max.getZ() };
         return SetBoundingVolume(context, handle, BOUNDING_VOLUME_OBB, bounds);
-    }
-
-    bool ClearBoundingVolume(HRenderContext context, HRenderItem handle)
-    {
-        PersistentRenderItem* item = GetPersistentRenderItem(context, handle);
-        if (!item)
-            return false;
-        if (item->m_BoundingVolumeType != BOUNDING_VOLUME_NONE)
-        {
-            item->m_BoundingVolumeType = BOUNDING_VOLUME_NONE;
-            context->m_RenderList[(uint32_t)handle].m_FrustumHash = FRUSTUM_HASH_UNINITIALIZED;
-        }
-        return true;
     }
 
     bool SetBatchKey(HRenderContext context, HRenderItem handle, uint32_t key)

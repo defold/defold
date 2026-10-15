@@ -1347,7 +1347,7 @@ static void AssertInvalidRenderItem(dmRender::HRenderContext context, dmRender::
     ASSERT_FALSE(dmRender::SetBoundingSphere(context, item, Point3(0, 0, 0), 1.0f));
     ASSERT_FALSE(dmRender::SetBoundingAABB(context, item, Vector3(-1, -1, -1), Vector3(1, 1, 1)));
     ASSERT_FALSE(dmRender::SetBoundingOBB(context, item, Vector3(-1, -1, -1), Vector3(1, 1, 1)));
-    ASSERT_FALSE(dmRender::ClearBoundingVolume(context, item));
+    ASSERT_FALSE(dmRender::SetBoundingAABB(context, item, Vector3(1), Vector3(-1)));
     ASSERT_FALSE(dmRender::SetBatchKey(context, item, 1));
     ASSERT_FALSE(dmRender::SetMaterial(context, item, 0));
     ASSERT_FALSE(dmRender::SetOrder(context, item, dmRender::RENDER_ORDER_AFTER_WORLD, 1));
@@ -1952,7 +1952,7 @@ TEST_F(dmRenderTest, PersistentRenderItemBoundingVolumes)
 }
 
 // Verifies a retained volume and legacy entries can share a dispatch without
-// callbacks overriding the volume, and clearing bounds restores the callback.
+// callbacks overriding the volume, and an inverted AABB restores the callback.
 // An idle registration keeps persistent and frame dispatch IDs distinct.
 TEST_F(dmRenderTest, PersistentRenderItemBoundingVolumeFallback)
 {
@@ -1981,12 +1981,12 @@ TEST_F(dmRenderTest, PersistentRenderItemBoundingVolumeFallback)
     ASSERT_EQ(1u, callback_entries);
     ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
     ASSERT_EQ(1u, context->m_RenderListSortBuffer[0]);
-    ASSERT_TRUE(dmRender::ClearBoundingVolume(m_Context, item));
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(1), Vector3(-1)));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
     ASSERT_EQ(2u, callback_entries);
     ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
     uint32_t hash = context->m_RenderList[(uint32_t)item].m_FrustumHash;
-    ASSERT_TRUE(dmRender::ClearBoundingVolume(m_Context, item));
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(1), Vector3(-1)));
     ASSERT_EQ(hash, context->m_RenderList[(uint32_t)item].m_FrustumHash);
 
     ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, item, Point3(100, 0, 0), 1));
@@ -2004,6 +2004,47 @@ TEST_F(dmRenderTest, PersistentRenderItemBoundingVolumeFallback)
     ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, replacement));
     dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
     dmRender::UnregisterRenderListDispatch(m_Context, idle);
+}
+
+// Inverted AABBs on any axis remove stale bounds without a visibility callback;
+// repeated resets keep cached visibility, while point boxes still undergo culling.
+TEST_F(dmRenderTest, PersistentRenderItemInvalidAABB)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::HRenderItem         item = dmRender::NewRenderItem(m_Context, dispatch, 0);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
+    ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
+    ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, item, Matrix4::translation(Vector3(100, 0, 0))));
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    for (uint32_t axis = 0; axis < 3; ++axis)
+    {
+        ASSERT_TRUE(dmRender::SetBoundingOBB(m_Context, item, Vector3(-1), Vector3(1)));
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+        ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+        Vector3 min(-1);
+        Vector3 max(1);
+        min.setElem(axis, 2);
+        ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, min, max));
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+        ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+        uint32_t hash = context->m_RenderList[(uint32_t)item].m_FrustumHash;
+        ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(10), Vector3(-10)));
+        ASSERT_EQ(hash, context->m_RenderList[(uint32_t)item].m_FrustumHash);
+    }
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(100, 0, 0), Vector3(100, 0, 0)));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(0), Vector3(0)));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, item));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
 }
 
 // Verifies mirrored non-uniform scale and shear affect an OBB's visible extent,
@@ -2109,7 +2150,7 @@ TEST_F(dmRenderTest, PersistentRenderItemBatchAndPartitions)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_FRONT_TO_BACK));
     ASSERT_EQ(2u, batches);
     ASSERT_EQ(1u, context->m_RenderList[(uint32_t)items[2]].m_MinorOrder);
-    ASSERT_TRUE(dmRender::ClearBoundingVolume(m_Context, items[1]));
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, items[1], Vector3(1), Vector3(-1)));
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
         ASSERT_TRUE(dmRender::SetVertexCount(m_Context, items[i], 0));
     batches = 0;

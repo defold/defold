@@ -544,8 +544,10 @@ namespace dmRender
     bool SetBoundingSphere(HRenderContext context, HRenderItem item, const dmVMath::Point3& world_center, float radius);
 
     /*# set world-space axis-aligned bounds
-     * Replaces the previous volume. Each minimum coordinate must be no greater than
-     * its maximum coordinate. SetWorldTransform() does not transform this box.
+     * Replaces the previous volume. If any minimum coordinate exceeds its maximum,
+     * removes typed bounds and restores the registration's visibility callback, or
+     * always-visible behavior when no callback is registered. Equal corners define
+     * a valid point. SetWorldTransform() does not transform this box.
      * Visibility is invalidated only when the volume type or values change.
      * @name SetBoundingAABB
      * @param context [type:dmRender::HRenderContext] the render context
@@ -569,17 +571,6 @@ namespace dmRender
      * @return result [type:bool] true on success, or false if the item handle is invalid or deleted
      */
     bool SetBoundingOBB(HRenderContext context, HRenderItem item, const dmVMath::Vector3& local_min, const dmVMath::Vector3& local_max);
-
-    /*# clear render item bounds
-     * Removes typed bounds and restores the registration's visibility callback, or
-     * always-visible behavior when no callback is registered. Invalidates cached
-     * visibility only if the item previously had a bounding volume.
-     * @name ClearBoundingVolume
-     * @param context [type:dmRender::HRenderContext] the render context
-     * @param item [type:dmRender::HRenderItem] an item created in this context
-     * @return result [type:bool] true on success, or false if the item handle is invalid or deleted
-     */
-    bool ClearBoundingVolume(HRenderContext context, HRenderItem item);
 
     /*# set the render item batch key
      * Sets the caller's batch compatibility key. Equal keys allow batching only when
