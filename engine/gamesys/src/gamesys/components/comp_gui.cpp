@@ -2888,13 +2888,6 @@ namespace dmGameSystem
         }
 
         dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, false);
-
-        dmGraphics::SetVertexBufferData(gui_world->m_VertexBuffer,
-                                        gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
-                                        gui_world->m_ClientVertexBuffer.Begin(),
-                                        dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-
-        DM_PROPERTY_ADD_U32(rmtp_GuiVertexCount, gui_world->m_ClientVertexBuffer.Size());
     }
 
     static dmGraphics::TextureFormat ToGraphicsFormat(dmImage::Type type)
@@ -3270,6 +3263,18 @@ namespace dmGameSystem
             }
 
             dmRender::RenderListSubmit(gui_context->m_RenderContext, render_list, write_ptr);
+        }
+
+        // All scenes in this world append to the same buffer. Upload it once after
+        // their render objects have been submitted, before the render list is drawn.
+        const uint32_t vertex_count = gui_world->m_ClientVertexBuffer.Size();
+        if (vertex_count > 0)
+        {
+            dmGraphics::SetVertexBufferData(gui_world->m_VertexBuffer,
+                                           vertex_count * sizeof(BoxVertex),
+                                           gui_world->m_ClientVertexBuffer.Begin(),
+                                           dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            DM_PROPERTY_ADD_U32(rmtp_GuiVertexCount, vertex_count);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
