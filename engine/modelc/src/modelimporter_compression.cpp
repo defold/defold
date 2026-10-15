@@ -1,5 +1,14 @@
 // Copyright 2026 The Defold Foundation
-// Licensed under the Defold License version 1.0. See https://www.defold.com/license
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
 #include "modelimporter_compression.h"
 
@@ -20,7 +29,9 @@ namespace dmModelImporter
         static bool Error(char* error, size_t size, const char* message)
         {
             if (size)
+            {
                 snprintf(error, size, "%s", message);
+            }
             return false;
         }
 
@@ -28,22 +39,32 @@ namespace dmModelImporter
         {
             if (buffer.m_Count == 0 || buffer.m_Stride == 0 || output_size > 512U * 1024U * 1024U ||
                 buffer.m_Count > output_size / buffer.m_Stride || buffer.m_Count * buffer.m_Stride != output_size)
+            {
                 return Error(error, error_size, "Invalid decoded size, count, or stride.");
+            }
             if (buffer.m_Extension != EXT_MESHOPT && buffer.m_Extension != KHR_MESHOPT)
+            {
                 return Error(error, error_size, "Unknown Meshopt extension.");
+            }
             if (buffer.m_Mode == MODE_ATTRIBUTES)
             {
                 if (buffer.m_Stride % 4 || buffer.m_Stride > 256)
+                {
                     return Error(error, error_size, "Attribute stride must be a multiple of four, at most 256.");
+                }
             }
             else if (buffer.m_Mode == MODE_TRIANGLES || buffer.m_Mode == MODE_INDICES)
             {
                 if ((buffer.m_Stride != 2 && buffer.m_Stride != 4) || buffer.m_Filter != FILTER_NONE ||
                     (buffer.m_Mode == MODE_TRIANGLES && buffer.m_Count % 3))
+                {
                     return Error(error, error_size, "Invalid index stride, count, or filter.");
+                }
             }
             else
+            {
                 return Error(error, error_size, "Unknown Meshopt mode.");
+            }
 
             switch (buffer.m_Filter)
             {
@@ -54,11 +75,15 @@ namespace dmModelImporter
                 case FILTER_COLOR:
                     if ((buffer.m_Stride != 4 && buffer.m_Stride != 8) ||
                         (buffer.m_Filter == FILTER_COLOR && buffer.m_Extension != KHR_MESHOPT))
+                    {
                         return Error(error, error_size, "Invalid filter stride or extension.");
+                    }
                     break;
                 case FILTER_QUATERNION:
                     if (buffer.m_Stride != 8)
+                    {
                         return Error(error, error_size, "Quaternion filter requires stride eight.");
+                    }
                     break;
                 default:
                     return Error(error, error_size, "Unknown Meshopt filter.");
@@ -69,31 +94,43 @@ namespace dmModelImporter
         bool DecodeMeshoptBuffer(const MeshoptBuffer& buffer, const void* source, size_t source_size, void* output, size_t output_size, char* error, size_t error_size)
         {
             if (!ValidateMeshoptBuffer(buffer, output_size, error, error_size))
+            {
                 return false;
+            }
             if (!source || !source_size || !output)
+            {
                 return Error(error, error_size, "Missing compressed or output buffer.");
+            }
             const unsigned char* bytes = (const unsigned char*)source;
             int                  result;
             if (buffer.m_Mode == MODE_ATTRIBUTES)
             {
                 if (bytes[0] != 0xa0 && !(buffer.m_Extension == KHR_MESHOPT && bytes[0] == 0xa1))
+                {
                     return Error(error, error_size, "Unsupported attribute bitstream version for this extension.");
+                }
                 result = meshopt_decodeVertexBuffer(output, buffer.m_Count, buffer.m_Stride, bytes, source_size);
             }
             else if (buffer.m_Mode == MODE_TRIANGLES)
             {
                 if (bytes[0] != 0xe1)
+                {
                     return Error(error, error_size, "Unsupported triangle bitstream version.");
+                }
                 result = meshopt_decodeIndexBuffer(output, buffer.m_Count, buffer.m_Stride, bytes, source_size);
             }
             else
             {
                 if (bytes[0] != 0xd1)
+                {
                     return Error(error, error_size, "Unsupported index bitstream version.");
+                }
                 result = meshopt_decodeIndexSequence(output, buffer.m_Count, buffer.m_Stride, bytes, source_size);
             }
             if (result != 0)
+            {
                 return Error(error, error_size, "Invalid or truncated compressed buffer.");
+            }
             switch (buffer.m_Filter)
             {
                 case FILTER_OCTAHEDRAL:
@@ -195,7 +232,9 @@ namespace dmModelImporter
         {
             const draco::PointAttribute* attribute = mesh->m_Mesh.GetAttributeByUniqueId(unique_id);
             if (!attribute)
+            {
                 return false;
+            }
             info->m_Type = ToComponentType(attribute->data_type());
             info->m_ComponentCount = attribute->num_components();
             return info->m_Type != TYPE_INVALID;
@@ -205,15 +244,21 @@ namespace dmModelImporter
         {
             const draco::PointAttribute* attribute = mesh->m_Mesh.GetAttributeByUniqueId(unique_id);
             if (!attribute || !output)
+            {
                 return false;
+            }
             size_t element_size = draco::DataTypeLength(attribute->data_type()) * attribute->num_components();
             if (output_size != size_t(mesh->m_Mesh.num_points()) * element_size)
+            {
                 return false;
+            }
             for (uint32_t i = 0; i < mesh->m_Mesh.num_points(); ++i)
             {
                 draco::AttributeValueIndex index = attribute->mapped_index(draco::PointIndex(i));
                 if (index.value() >= attribute->size())
+                {
                     return false;
+                }
                 memcpy((uint8_t*)output + i * element_size, attribute->GetAddress(index), element_size);
             }
             return true;
@@ -238,19 +283,29 @@ namespace dmModelImporter
                     return false;
             }
             if (!output || output_size != count * stride)
+            {
                 return false;
+            }
             for (size_t i = 0; i < count; ++i)
             {
                 uint32_t index = mesh->m_TriangleStrip ? mesh->m_Strip[i] :
                                                          mesh->m_Mesh.face(draco::FaceIndex((uint32_t)(i / 3)))[i % 3].value();
                 if (index >= mesh->m_Mesh.num_points() || (stride == 1 && index > UINT8_MAX) || (stride == 2 && index > UINT16_MAX))
+                {
                     return false;
+                }
                 if (stride == 1)
+                {
                     ((uint8_t*)output)[i] = (uint8_t)index;
+                }
                 else if (stride == 2)
+                {
                     ((uint16_t*)output)[i] = (uint16_t)index;
+                }
                 else
+                {
                     ((uint32_t*)output)[i] = index;
+                }
             }
             return true;
         }

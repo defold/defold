@@ -72,10 +72,10 @@ struct GltfData
 {
     cgltf_data*      m_Data;
     DecodedAccessor* m_DecodedAccessors;
-    bool            m_CompressionDecoded;
-    bool            m_LoadMaterialsOnly;
-    bool            m_LoadMeshMetadata;
-    bool            m_SkipImageData;
+    bool             m_CompressionDecoded;
+    bool             m_LoadMaterialsOnly;
+    bool             m_LoadMeshMetadata;
+    bool             m_SkipImageData;
 };
 
 static dmTransform::Transform& ToTransform(const dmModelImporter::Transform& in, dmTransform::Transform& out)
@@ -2193,7 +2193,42 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
-static bool IsBufferRequired(const GltfData* data, const cgltf_buffer* buffer);
+// Geometry loads omit only buffers used exclusively as Meshopt fallbacks.
+// Material-only loads require just the source buffers of requested images.
+static bool IsBufferRequired(const GltfData* data, const cgltf_buffer* buffer)
+{
+    if (!data->m_LoadMaterialsOnly)
+    {
+        bool replaced = false;
+        for (cgltf_size i = 0; i < data->m_Data->buffer_views_count; ++i)
+        {
+            const cgltf_buffer_view* view = &data->m_Data->buffer_views[i];
+            if (view->has_meshopt_compression && view->meshopt_compression.buffer == buffer)
+                return true;
+            if (view->buffer == buffer)
+            {
+                if (!view->has_meshopt_compression)
+                    return true;
+                replaced = true;
+            }
+        }
+        return !replaced;
+    }
+    if (data->m_SkipImageData)
+        return false;
+
+    for (cgltf_size i = 0; i < data->m_Data->images_count; ++i)
+    {
+        const cgltf_image* image = &data->m_Data->images[i];
+        if (image->buffer_view)
+        {
+            const cgltf_buffer_view* view = image->buffer_view;
+            if ((view->has_meshopt_compression ? view->meshopt_compression.buffer : view->buffer) == buffer)
+                return true;
+        }
+    }
+    return false;
+}
 
 // Based on cgltf.h: cgltf_load_buffers(...)
 // Loads GLB/data-URI bytes and, when a path is supplied, external buffers.
@@ -2289,43 +2324,6 @@ static cgltf_result ResolveBuffers(const cgltf_options* options, GltfData* scene
     }
 
     return cgltf_result_success;
-}
-
-// Geometry loads omit only buffers used exclusively as Meshopt fallbacks.
-// Material-only loads require just the source buffers of requested images.
-static bool IsBufferRequired(const GltfData* data, const cgltf_buffer* buffer)
-{
-    if (!data->m_LoadMaterialsOnly)
-    {
-        bool replaced = false;
-        for (cgltf_size i = 0; i < data->m_Data->buffer_views_count; ++i)
-        {
-            const cgltf_buffer_view* view = &data->m_Data->buffer_views[i];
-            if (view->has_meshopt_compression && view->meshopt_compression.buffer == buffer)
-                return true;
-            if (view->buffer == buffer)
-            {
-                if (!view->has_meshopt_compression)
-                    return true;
-                replaced = true;
-            }
-        }
-        return !replaced;
-    }
-    if (data->m_SkipImageData)
-        return false;
-
-    for (cgltf_size i = 0; i < data->m_Data->images_count; ++i)
-    {
-        const cgltf_image* image = &data->m_Data->images[i];
-        if (image->buffer_view)
-        {
-            const cgltf_buffer_view* view = image->buffer_view;
-            if ((view->has_meshopt_compression ? view->meshopt_compression.buffer : view->buffer) == buffer)
-                return true;
-        }
-    }
-    return false;
 }
 
 static bool HasUnresolvedBuffersInternal(const GltfData* data)
@@ -2628,19 +2626,39 @@ static Compression::MeshoptBuffer GetMeshoptBuffer(const cgltf_meshopt_compressi
     Compression::MeshoptBuffer buffer;
     switch (compression.mode)
     {
-        case cgltf_meshopt_compression_mode_attributes: buffer.m_Mode = Compression::MODE_ATTRIBUTES; break;
-        case cgltf_meshopt_compression_mode_triangles: buffer.m_Mode = Compression::MODE_TRIANGLES; break;
-        case cgltf_meshopt_compression_mode_indices: buffer.m_Mode = Compression::MODE_INDICES; break;
-        default: buffer.m_Mode = Compression::MODE_INVALID; break;
+        case cgltf_meshopt_compression_mode_attributes:
+            buffer.m_Mode = Compression::MODE_ATTRIBUTES;
+            break;
+        case cgltf_meshopt_compression_mode_triangles:
+            buffer.m_Mode = Compression::MODE_TRIANGLES;
+            break;
+        case cgltf_meshopt_compression_mode_indices:
+            buffer.m_Mode = Compression::MODE_INDICES;
+            break;
+        default:
+            buffer.m_Mode = Compression::MODE_INVALID;
+            break;
     }
     switch (compression.filter)
     {
-        case cgltf_meshopt_compression_filter_none: buffer.m_Filter = Compression::FILTER_NONE; break;
-        case cgltf_meshopt_compression_filter_octahedral: buffer.m_Filter = Compression::FILTER_OCTAHEDRAL; break;
-        case cgltf_meshopt_compression_filter_quaternion: buffer.m_Filter = Compression::FILTER_QUATERNION; break;
-        case cgltf_meshopt_compression_filter_exponential: buffer.m_Filter = Compression::FILTER_EXPONENTIAL; break;
-        case cgltf_meshopt_compression_filter_color: buffer.m_Filter = Compression::FILTER_COLOR; break;
-        default: buffer.m_Filter = Compression::FILTER_INVALID; break;
+        case cgltf_meshopt_compression_filter_none:
+            buffer.m_Filter = Compression::FILTER_NONE;
+            break;
+        case cgltf_meshopt_compression_filter_octahedral:
+            buffer.m_Filter = Compression::FILTER_OCTAHEDRAL;
+            break;
+        case cgltf_meshopt_compression_filter_quaternion:
+            buffer.m_Filter = Compression::FILTER_QUATERNION;
+            break;
+        case cgltf_meshopt_compression_filter_exponential:
+            buffer.m_Filter = Compression::FILTER_EXPONENTIAL;
+            break;
+        case cgltf_meshopt_compression_filter_color:
+            buffer.m_Filter = Compression::FILTER_COLOR;
+            break;
+        default:
+            buffer.m_Filter = Compression::FILTER_INVALID;
+            break;
     }
     buffer.m_Extension = compression.is_khr ? Compression::KHR_MESHOPT : Compression::EXT_MESHOPT;
     buffer.m_Count = compression.count;
