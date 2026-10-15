@@ -1700,7 +1700,6 @@ namespace dmGameSystem
         return anim_data;
     }
 
-<<<<<<< HEAD
     static const uint32_t INVALID_FRAME_INDEX = 0xffffffff;
 
     template <typename T> static void FramePush(dmArray<T>& array, const T& value)
@@ -2089,8 +2088,6 @@ namespace dmGameSystem
         }
     }
 
-    static void CreateVertexData(SpriteRendererState* sprite_world, dmGraphics::VertexAttributeInfos* material_attribute_info,
-=======
     static bool HasDefaultQuadVertexFormat(const dmGraphics::VertexAttributeInfos& infos)
     {
         if (infos.m_NumInfos != 2 || infos.m_VertexStride != 6 * sizeof(float))
@@ -2119,8 +2116,7 @@ namespace dmGameSystem
         return vertices + 6 * sizeof(float);
     }
 
-    static void CreateVertexData(SpriteWorld* sprite_world, dmGraphics::VertexAttributeInfos* material_attribute_info,
->>>>>>> dev
+    static void CreateVertexData(SpriteRendererState* sprite_world, dmGraphics::VertexAttributeInfos* material_attribute_info,
         uint8_t** vb_where, uint8_t** ib_where, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("CreateVertexData");
@@ -2933,13 +2929,10 @@ namespace dmGameSystem
 
         PrepareSpriteRenderer(renderer, render_context, vertex_count, index_count, vertex_memory_size);
 
-<<<<<<< HEAD
         dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(render_context, sprite_count);
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, renderer);
         dmRender::RenderListEntry* write_ptr = entries;
-=======
         uint32_t num_enabled = 0;
->>>>>>> dev
         for (uint32_t i = 0; i < sprite_count; ++i)
         {
             if (renderer->m_Frame)
@@ -2963,8 +2956,7 @@ namespace dmGameSystem
             write_ptr->m_MinorOrder = 0;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
-<<<<<<< HEAD
-            DM_PROPERTY_ADD_U32(rmtp_Sprite, 1);
+            ++num_enabled;
         }
         if (global_frame)
         {
@@ -2984,15 +2976,8 @@ namespace dmGameSystem
                 ++write_ptr;
             }
         }
-        dmRender::RenderListSubmit(render_context, entries, write_ptr);
-=======
-
-            ++num_enabled;
-        }
         DM_PROPERTY_ADD_U32(rmtp_Sprite, num_enabled);
-
-        dmRender::RenderListSubmit(render_context, render_list, write_ptr);
->>>>>>> dev
+        dmRender::RenderListSubmit(render_context, entries, write_ptr);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

@@ -550,7 +550,11 @@ namespace dmEngine
         return new Engine(engine_service);
     }
 
-<<<<<<< HEAD
+    static dmGameObject::HCollection GetMainCollection(HEngine engine)
+    {
+        return dmGameObject::ResCollectionGetCollection(engine->m_MainCollectionResource);
+    }
+
     struct MixedInlineState
     {
         dmRender::PreparedRenderList m_Mixed;
@@ -800,7 +804,7 @@ namespace dmEngine
         engine->m_SpriteContext.m_ComponentFrameSlot = slot;
         dmRender::BeginComponentFrameCapture(engine->m_RenderContext, state->m_Frames[slot]);
         dmRender::RenderListBegin(engine->m_RenderContext);
-        bool ok = dmGameObject::Render(engine->m_MainCollection);
+        bool ok = dmGameObject::Render(GetMainCollection(engine));
         ok = dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance) == dmRender::RENDER_SCRIPT_RESULT_OK && ok;
         dmRender::RenderListEnd(engine->m_RenderContext);
         ok = dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt) == dmRender::RENDER_SCRIPT_RESULT_OK && ok;
@@ -860,7 +864,7 @@ namespace dmEngine
         RenderFrameState* state = engine->m_RenderFrame;
         const char* names[] = {"spritec", "guic", "particlefxc"};
         for (uint32_t i = 0; i < 3; ++i)
-            state->m_Worlds[i] = dmGameObject::GetWorld(engine->m_MainCollection, dmGameObject::GetComponentTypeIndex(engine->m_MainCollection, dmHashString64(names[i])));
+            state->m_Worlds[i] = dmGameObject::GetWorld(GetMainCollection(engine), dmGameObject::GetComponentTypeIndex(GetMainCollection(engine), dmHashString64(names[i])));
         if (!dmGameSystem::RegisterSpriteRenderFrame(state->m_Worlds[0], &state->m_Consumers) ||
             !dmGameSystem::RegisterGuiRenderFrame(state->m_Worlds[1], &state->m_Consumers) ||
             !dmGameSystem::RegisterParticleRenderFrame(state->m_Worlds[2], &state->m_Consumers)) return false;
@@ -980,7 +984,7 @@ namespace dmEngine
         }
         SpriteThreadState* state = new SpriteThreadState;
         engine->m_SpriteThread = state;
-        state->m_World = dmGameObject::GetWorld(engine->m_MainCollection, dmGameObject::GetComponentTypeIndex(engine->m_MainCollection, dmHashString64("spritec")));
+        state->m_World = dmGameObject::GetWorld(GetMainCollection(engine), dmGameObject::GetComponentTypeIndex(GetMainCollection(engine), dmHashString64("spritec")));
         state->m_MixedEnabled = dmConfigFile::GetInt(engine->m_Config, "render.mixed_preparation", 0) != 0;
         state->m_DelayUs = dmConfigFile::GetInt(engine->m_Config, "render.sprite_thread_delay_us", 0);
         state->m_ProducerOwnsGraphics = false;
@@ -1086,10 +1090,10 @@ namespace dmEngine
             dmGameObject::ComponentType* type = dmGameObject::GetComponentType(engine->m_Register, i);
             if (strcmp(type->m_Name, "guic") && strcmp(type->m_Name, "particlefxc"))
                 continue;
-            uint32_t index = dmGameObject::GetComponentTypeIndex(engine->m_MainCollection, dmHashString64(type->m_Name));
+            uint32_t index = dmGameObject::GetComponentTypeIndex(GetMainCollection(engine), dmHashString64(type->m_Name));
             dmGameObject::ComponentsRenderParams params;
-            params.m_Collection = engine->m_MainCollection;
-            params.m_World = dmGameObject::GetWorld(engine->m_MainCollection, index);
+            params.m_Collection = GetMainCollection(engine);
+            params.m_World = dmGameObject::GetWorld(GetMainCollection(engine), index);
             params.m_Context = type->m_Context;
             if (type->m_RenderFunction(params) != dmGameObject::UPDATE_RESULT_OK)
             {
@@ -1124,11 +1128,6 @@ namespace dmEngine
         dmGraphics::PrepareRenderThreadSurface(engine->m_GraphicsContext, false);
         delete engine->m_SpriteThread;
         engine->m_SpriteThread = 0;
-=======
-    static dmGameObject::HCollection GetMainCollection(HEngine engine)
-    {
-        return dmGameObject::ResCollectionGetCollection(engine->m_MainCollectionResource);
->>>>>>> dev
     }
 
     void Delete(HEngine engine)
@@ -2575,8 +2574,7 @@ namespace dmEngine
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**)&engine->m_MainCollectionResource);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
-<<<<<<< HEAD
-        dmGameObject::Init(engine->m_MainCollection);
+        dmGameObject::Init(GetMainCollection(engine));
         if (engine->m_SpriteContext.m_SnapshotInline && !engine->m_SpriteContext.m_SnapshotThreaded &&
             dmConfigFile::GetInt(engine->m_Config, "render.mixed_preparation", 0))
         {
@@ -2617,9 +2615,6 @@ namespace dmEngine
             fprintf(stderr, "PoC main QoS: enabled\n");
         }
 #endif
-=======
-        dmGameObject::Init(GetMainCollection(engine));
->>>>>>> dev
 
         engine->m_LastReloadMTime = 0;
 
@@ -2905,7 +2900,7 @@ bail:
     static void WebRenderComponents(void* data)
     {
         Engine* engine = (Engine*)data;
-        dmGameObject::Render(engine->m_MainCollection);
+        dmGameObject::Render(GetMainCollection(engine));
     }
     static void WebBeginGraphicsFrame(void* data)
     {
@@ -3073,15 +3068,11 @@ bail:
                 update_context.m_DT = dt;
                 update_context.m_FixedUpdateFrequency = engine->m_FixedUpdateFrequency;
                 update_context.m_AccumFrameTime = engine->m_AccumFrameTime;
-<<<<<<< HEAD
                 uint64_t component_update_begin = engine->m_ComponentThread ? dmTime::GetMonotonicTime() : 0;
-                dmGameObject::Update(engine->m_MainCollection, &update_context);
+                dmGameObject::Update(GetMainCollection(engine), &update_context);
                 if (engine->m_ComponentThread)
                     dmRender::MarkRenderThreadSimulationComplete(engine->m_ComponentThread->m_Thread, component_update_begin);
                 if (sprite_trace) sprite_trace->m_UpdateEnd = dmTime::GetMonotonicTime();
-=======
-                dmGameObject::Update(GetMainCollection(engine), &update_context);
->>>>>>> dev
 
 #if defined(__EMSCRIPTEN_PTHREADS__)
                 if (!WebComponentActive() || engine->m_PocWebComponents)
@@ -3136,13 +3127,12 @@ bail:
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-<<<<<<< HEAD
                     if (engine->m_MixedInline)
                     {
-                        uint32_t type = dmGameObject::GetComponentTypeIndex(engine->m_MainCollection, dmHashString64("spritec"));
+                        uint32_t type = dmGameObject::GetComponentTypeIndex(GetMainCollection(engine), dmHashString64("spritec"));
                         dmGameObject::ComponentsRenderParams params;
-                        params.m_Collection = engine->m_MainCollection;
-                        params.m_World = dmGameObject::GetWorld(engine->m_MainCollection, type);
+                        params.m_Collection = GetMainCollection(engine);
+                        params.m_World = dmGameObject::GetWorld(GetMainCollection(engine), type);
                         params.m_Context = &engine->m_SpriteContext;
                         dmGameSystem::CompSpriteRender(params);
                     }
@@ -3153,12 +3143,9 @@ bail:
                             dmGraphics::DispatchExternalGraphics(WebRenderComponents, engine);
                         else
 #endif
-                            dmGameObject::Render(engine->m_MainCollection);
+                            dmGameObject::Render(GetMainCollection(engine));
                     }
                     if (sprite_trace) sprite_trace->m_PrepareEnd = dmTime::GetMonotonicTime();
-=======
-                    dmGameObject::Render(GetMainCollection(engine));
->>>>>>> dev
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.

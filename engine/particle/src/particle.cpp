@@ -1136,14 +1136,6 @@ namespace dmParticle
         particle->m_SourceAngularVelocity = emitter_properties[EMITTER_KEY_PARTICLE_ANGULAR_VELOCITY];
     }
 
-<<<<<<< HEAD
-    static float unit_tex_coords[] = {
-        0.0f, 1.0f,
-        0.0f, 0.0f,
-        1.0f, 0.0f,
-        1.0f, 1.0f,
-    };
-
     static void CaptureRenderParticle(const Emitter* emitter, uint32_t index, RenderParticle* output)
     {
         const Particle& particle = emitter->m_Particles[index];
@@ -1153,7 +1145,7 @@ namespace dmParticle
         output->m_Color = particle.GetColor();
         output->m_HalfWidth = state.m_HalfWidth;
         output->m_HalfHeight = state.m_HalfHeight;
-        const float* uv = animation.m_TexCoords ? animation.m_TexCoords + (state.m_Tile << 3) : unit_tex_coords;
+        const float* uv = animation.m_TexCoords ? animation.m_TexCoords + (state.m_Tile << 3) : UNIT_TEX_COORDS;
         memcpy(output->m_TexCoords, uv, sizeof(output->m_TexCoords));
         output->m_PageIndex = animation.m_FrameIndices ? (float)animation.m_PageIndices[animation.m_FrameIndices[state.m_Tile]] : 0.0f;
         output->m_Flip = (animation.m_HFlip ? 1 : 0) | (animation.m_VFlip ? 2 : 0);
@@ -1174,6 +1166,7 @@ namespace dmParticle
         return true;
     }
 
+    template <uint32_t PackedStride>
     static GenerateVertexDataResult WriteParticleValues(Emitter* emitter, const RenderParticle* captured, uint32_t full_count,
                                                     uint32_t particle_start,
                                                     uint32_t particle_count,
@@ -1183,23 +1176,6 @@ namespace dmParticle
                                                     uint8_t* vertex_buffer,
                                                     uint32_t vertex_buffer_size,
                                                     uint32_t* bytes_written)
-=======
-    // Keep the stride compile-time constant so the compiler can eliminate unused
-    // attribute paths and specialize the vertex stores. An ARM64 -O2 benchmark
-    // measured 11-12 ns/particle with templates versus 17-18 ns with a runtime
-    // stride argument for packed layouts. Zero selects the generic writer;
-    // geometry and buffer limits stay shared across all three specializations.
-    template <uint32_t PackedStride>
-    static GenerateVertexDataResult WriteVertexDataImpl(Emitter* emitter,
-                                                        uint32_t particle_start,
-                                                        uint32_t particle_count,
-                                                        const dmGraphics::VertexAttributeInfos& attribute_infos,
-                                                        const Vector4& color,
-                                                        uint32_t vertex_index,
-                                                        uint8_t* vertex_buffer,
-                                                        uint32_t vertex_buffer_size,
-                                                        uint32_t* bytes_written)
->>>>>>> dev
     {
         DM_PROFILE(__FUNCTION__);
         // CCW winding order (OpenGL front-face default)
@@ -1213,19 +1189,7 @@ namespace dmParticle
 
         uint32_t vertex_size = attribute_infos.m_VertexStride;
 
-<<<<<<< HEAD
         const uint32_t first_vertex = vertex_index;
-=======
-        emitter->m_VertexIndex = vertex_index;
-        emitter->m_VertexCount = 0;
-
-        const AnimationData& anim_data = emitter->m_AnimationData;
-        const float* tex_coords = anim_data.m_TexCoords;
-        uint32_t* page_indices = anim_data.m_PageIndices;
-        uint32_t* frame_indices = anim_data.m_FrameIndices;
-        bool hFlip = anim_data.m_HFlip != 0;
-        bool vFlip = anim_data.m_VFlip != 0;
->>>>>>> dev
 
         dmGraphics::VertexAttributeInfoMetadata material_attribute_info_meta = {};
         if (PackedStride)
@@ -1240,14 +1204,6 @@ namespace dmParticle
             material_attribute_info_meta = dmGraphics::GetVertexAttributeInfosMetaData(attribute_infos);
         }
 
-<<<<<<< HEAD
-=======
-        if (tex_coords == 0x0)
-        {
-            tex_coords = UNIT_TEX_COORDS;
-        }
-
->>>>>>> dev
         uint32_t max_vertex_count = vertex_buffer_size / vertex_size;
         uint32_t j;
 
@@ -1293,16 +1249,10 @@ namespace dmParticle
         uint32_t particle_end = particle_start + dmMath::Min(particle_count, full_count - particle_start);
         for (j = particle_start; j < particle_end && vertex_index + 6 <= max_vertex_count; j++)
         {
-<<<<<<< HEAD
             RenderParticle local;
             if (!captured) CaptureRenderParticle(emitter, j, &local);
             const RenderParticle& render_state = captured ? captured[j] : local;
             const float* tex_coord = render_state.m_TexCoords;
-=======
-            Particle* particle = &emitter->m_Particles[j];
-            const ParticleRenderState& render_state = particle->m_RenderState;
-            const float* tex_coord = &tex_coords[render_state.m_Tile << 3];
->>>>>>> dev
 
             float hx = render_state.m_HalfWidth;
             float hy = render_state.m_HalfHeight;
@@ -1421,34 +1371,6 @@ namespace dmParticle
         return res;
     }
 
-<<<<<<< HEAD
-    static GenerateVertexDataResult WriteVertexData(Emitter* emitter, uint32_t start, uint32_t count,
-                                const dmGraphics::VertexAttributeInfos& attributes, const Vector4& color,
-                                uint32_t vertex_index, uint8_t* buffer, uint32_t capacity, uint32_t* written)
-    {
-        emitter->m_VertexIndex = vertex_index;
-        emitter->m_VertexCount = 0;
-        if (start >= emitter->m_Particles.Size()) { *written = 0; return GENERATE_VERTEX_DATA_OK; }
-        GenerateVertexDataResult result = WriteParticleValues(emitter, 0, emitter->m_Particles.Size(), start, count,
-                                            attributes, color, vertex_index, buffer, capacity, written);
-        emitter->m_VertexCount = *written / attributes.m_VertexStride;
-        return result;
-    }
-
-    GenerateVertexDataResult GenerateCapturedParticleVertices(const RenderParticle* particles, uint32_t count,
-                                uint32_t start, uint32_t length, const dmGraphics::VertexAttributeInfos& attributes,
-                                const Vector4& color, void* buffer, uint32_t capacity, uint32_t* size)
-    {
-        assert(attributes.m_VertexStride != 0);
-        if (start >= count || !buffer || !capacity) return GENERATE_VERTEX_DATA_OK;
-        uint32_t vertex_index = *size / attributes.m_VertexStride;
-        if (*size % attributes.m_VertexStride) ++vertex_index;
-        uint32_t written = 0;
-        GenerateVertexDataResult result = WriteParticleValues(0, particles, count, start, length, attributes, color,
-                                            vertex_index, (uint8_t*)buffer, capacity, &written);
-        *size += written;
-        return result;
-=======
     static inline bool MatchesAttribute(const dmGraphics::VertexAttributeInfo& info, const PackedVertexAttribute& expected)
     {
         return info.m_SemanticType == expected.m_SemanticType &&
@@ -1469,7 +1391,7 @@ namespace dmParticle
             return 0;
         }
 
-        // Order must match the fixed offsets used by WriteVertexDataImpl.
+        // Order must match the fixed offsets used by WriteParticleValues.
         // The non-paged layout uses the first three attributes.
         static const PackedVertexAttribute expected[] = {
             { dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4,   dmGraphics::VertexAttribute::TYPE_FLOAT,         false },
@@ -1497,27 +1419,44 @@ namespace dmParticle
         return infos.m_VertexStride;
     }
 
-    static GenerateVertexDataResult WriteVertexData(Emitter* emitter,
-                                                    uint32_t particle_start,
-                                                    uint32_t particle_count,
-                                                    const dmGraphics::VertexAttributeInfos& attribute_infos,
-                                                    const Vector4& color,
-                                                    uint32_t vertex_index,
-                                                    uint8_t* vertex_buffer,
-                                                    uint32_t vertex_buffer_size,
-                                                    uint32_t* bytes_written)
+    static GenerateVertexDataResult WriteParticleValuesForLayout(Emitter* emitter, const RenderParticle* captured, uint32_t full_count,
+                                uint32_t start, uint32_t count, const dmGraphics::VertexAttributeInfos& attributes,
+                                const Vector4& color, uint32_t vertex_index, uint8_t* buffer, uint32_t capacity, uint32_t* written)
     {
-        const uint32_t stride = GetCompatiblePackedVertexStride(attribute_infos);
+        const uint32_t stride = GetCompatiblePackedVertexStride(attributes);
         if (stride == PACKED_PARTICLE_VERTEX_STRIDE)
-        {
-            return WriteVertexDataImpl<PACKED_PARTICLE_VERTEX_STRIDE>(emitter, particle_start, particle_count, attribute_infos, color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
-        }
-        else if (stride == PACKED_PARTICLE_PAGED_VERTEX_STRIDE)
-        {
-            return WriteVertexDataImpl<PACKED_PARTICLE_PAGED_VERTEX_STRIDE>(emitter, particle_start, particle_count, attribute_infos, color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
-        }
-        return WriteVertexDataImpl<0>(emitter, particle_start, particle_count, attribute_infos, color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
->>>>>>> dev
+            return WriteParticleValues<PACKED_PARTICLE_VERTEX_STRIDE>(emitter, captured, full_count, start, count, attributes, color, vertex_index, buffer, capacity, written);
+        if (stride == PACKED_PARTICLE_PAGED_VERTEX_STRIDE)
+            return WriteParticleValues<PACKED_PARTICLE_PAGED_VERTEX_STRIDE>(emitter, captured, full_count, start, count, attributes, color, vertex_index, buffer, capacity, written);
+        return WriteParticleValues<0>(emitter, captured, full_count, start, count, attributes, color, vertex_index, buffer, capacity, written);
+    }
+
+    static GenerateVertexDataResult WriteVertexData(Emitter* emitter, uint32_t start, uint32_t count,
+                                const dmGraphics::VertexAttributeInfos& attributes, const Vector4& color,
+                                uint32_t vertex_index, uint8_t* buffer, uint32_t capacity, uint32_t* written)
+    {
+        emitter->m_VertexIndex = vertex_index;
+        emitter->m_VertexCount = 0;
+        if (start >= emitter->m_Particles.Size()) { *written = 0; return GENERATE_VERTEX_DATA_OK; }
+        GenerateVertexDataResult result = WriteParticleValuesForLayout(emitter, 0, emitter->m_Particles.Size(), start, count,
+                                            attributes, color, vertex_index, buffer, capacity, written);
+        emitter->m_VertexCount = *written / attributes.m_VertexStride;
+        return result;
+    }
+
+    GenerateVertexDataResult GenerateCapturedParticleVertices(const RenderParticle* particles, uint32_t count,
+                                uint32_t start, uint32_t length, const dmGraphics::VertexAttributeInfos& attributes,
+                                const Vector4& color, void* buffer, uint32_t capacity, uint32_t* size)
+    {
+        assert(attributes.m_VertexStride != 0);
+        if (start >= count || !buffer || !capacity) return GENERATE_VERTEX_DATA_OK;
+        uint32_t vertex_index = *size / attributes.m_VertexStride;
+        if (*size % attributes.m_VertexStride) ++vertex_index;
+        uint32_t written = 0;
+        GenerateVertexDataResult result = WriteParticleValuesForLayout(0, particles, count, start, length, attributes, color,
+                                            vertex_index, (uint8_t*)buffer, capacity, &written);
+        *size += written;
+        return result;
     }
 
     struct SortPred

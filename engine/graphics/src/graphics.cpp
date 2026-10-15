@@ -2804,16 +2804,12 @@ namespace dmGraphics
     }
     bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-<<<<<<< HEAD
         InvalidateCapturedGraphicsResources();
         FlushGraphicsPackets();
         RenderMutationBarrier();
-        DestroyProgram((Program*) program);
-=======
         // DX12 constructs a replacement first, preserving the active program on a failed reload.
         if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_DIRECTX)
             DestroyProgram((Program*) program);
->>>>>>> dev
         return g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
     }
     uint32_t GetAttributeCount(HProgram prog)
@@ -2954,15 +2950,9 @@ namespace dmGraphics
     }
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
-<<<<<<< HEAD
         RenderMutationBarrier();
-        if (params.m_TextureType != TEXTURE_TYPE_2D && params.m_TextureType != TEXTURE_TYPE_CUBE_MAP)
-        {
-            dmLogError("Render target texture type %s is not supported.", GetTextureTypeLiteral(params.m_TextureType));
-=======
         RenderTargetCreationParams normalized_params;
         if (!PrepareRenderTargetParams(buffer_type_flags, params, normalized_params))
->>>>>>> dev
             return 0;
 
         return g_functions.m_NewRenderTarget(context, buffer_type_flags, normalized_params);
