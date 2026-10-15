@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MBEDTLS_VERSION="4.1.0"
+MBEDTLS_VERSION="4.1.1"
 MBEDTLS_ARCHIVE_URL="https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-${MBEDTLS_VERSION}/mbedtls-${MBEDTLS_VERSION}.tar.bz2"
 MBEDTLS_ARCHIVE_DIR="mbedtls-${MBEDTLS_VERSION}"
 

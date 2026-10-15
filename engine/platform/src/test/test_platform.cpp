@@ -18,6 +18,7 @@
 
 #include <dlib/log.h>
 #include "../window.h"
+#include "../platform_app.h"
 
 #if defined(ANDROID)
 #include "../platform_window_android.h"
@@ -164,6 +165,18 @@ TEST(AndroidPlatform, LinkPlatformWindowAndroidSymbols)
     ReferenceAndroidSymbol(&dmPlatform::SetAndroidInputMethod);
     ReferenceAndroidSymbol(&dmPlatform::SetAndroidFullscreenParameters);
     SKIP();
+}
+#endif
+
+#if defined(DM_PLATFORM_IOS)
+// Verifies platform_null provides the iOS delegate registration functions used by
+// dmExtension::RegisteriOSUI*Delegate, guarding against headless iOS link failures.
+TEST(iOSPlatform, NullPlatformDelegateRegistration)
+{
+    dmPlatform::RegisteriOSApplicationDelegate(0);
+    dmPlatform::UnregisteriOSApplicationDelegate(0);
+    dmPlatform::RegisteriOSSceneDelegate(0);
+    dmPlatform::UnregisteriOSSceneDelegate(0);
 }
 #endif
 

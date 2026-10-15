@@ -684,7 +684,7 @@ namespace dmGameSystem
 
         // The unused slots should be 0
         // Note: In the future, we want the textures so be set on a per-material basis
-        dmHashUpdateBuffer32(&state, component->m_Textures, DM_ARRAY_SIZE(component->m_Textures));
+        dmHashUpdateBuffer32(&state, component->m_Textures, sizeof(component->m_Textures));
 
         if (component->m_Material)
         {

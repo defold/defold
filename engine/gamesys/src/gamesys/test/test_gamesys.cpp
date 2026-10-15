@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include <render/render_target_ddf.h>
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -203,6 +204,67 @@ TEST_F(TileGrid3DResourceTest, LoadTileGrid)
     void* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.tilemapc", &resource));
     ASSERT_NE((void*) 0, resource);
+    dmResource::Release(m_Factory, resource);
+}
+
+// Reject empty and zero-sized serialized attachments before creating a framebuffer.
+TEST_F(RenderTargetResourceTest, InvalidAttachmentsFailToCreate)
+{
+    dmRenderDDF::RenderTargetDesc desc = {};
+    desc.m_Type = dmGraphics::TextureImage::TYPE_2D;
+    const uint32_t dimensions[][2] = {{0, 0}, {0, 32}, {64, 0}};
+    dmRenderDDF::RenderTargetDesc::ColorAttachment attachments[2] = {};
+    attachments[0].m_Width = 64;
+    attachments[0].m_Height = 32;
+    attachments[0].m_Format = attachments[1].m_Format = dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA;
+    // Cover an empty target, then invalid first and second color attachments.
+    for (uint32_t i = 0; i < 1 + 2 * DM_ARRAY_SIZE(dimensions); ++i)
+    {
+        if (i > 0)
+        {
+            attachments[1].m_Width = dimensions[(i - 1) % DM_ARRAY_SIZE(dimensions)][0];
+            attachments[1].m_Height = dimensions[(i - 1) % DM_ARRAY_SIZE(dimensions)][1];
+            desc.m_ColorAttachments.m_Data = i <= DM_ARRAY_SIZE(dimensions) ? &attachments[1] : attachments;
+            desc.m_ColorAttachments.m_Count = i <= DM_ARRAY_SIZE(dimensions) ? 1 : 2;
+        }
+        dmArray<uint8_t> buffer;
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmRenderDDF::RenderTargetDesc::m_DDFDescriptor, buffer));
+        void* resource = 0;
+        ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::CreateResource(m_Factory, "/invalid.render_targetc", buffer.Begin(), buffer.Size(), &resource));
+        ASSERT_EQ((void*) 0, resource);
+    }
+}
+
+// Invalid attachments on hot reload must preserve the existing render target.
+TEST_F(RenderTargetResourceTest, InvalidAttachmentsFailToReload)
+{
+    const char* path = "/render_target/valid.render_targetc";
+    dmGameSystem::RenderTargetResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**) &resource));
+    dmGraphics::HRenderTarget original = resource->m_RenderTarget;
+    dmRenderDDF::RenderTargetDesc desc = {};
+    desc.m_Type = dmGraphics::TextureImage::TYPE_2D;
+    const uint32_t dimensions[][2] = {{0, 0}, {0, 32}, {64, 0}};
+    dmRenderDDF::RenderTargetDesc::ColorAttachment attachments[2] = {};
+    attachments[0].m_Width = 64;
+    attachments[0].m_Height = 32;
+    attachments[0].m_Format = attachments[1].m_Format = dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA;
+    // Cover an empty target, then invalid first and second color attachments.
+    for (uint32_t i = 0; i < 1 + 2 * DM_ARRAY_SIZE(dimensions); ++i)
+    {
+        if (i > 0)
+        {
+            attachments[1].m_Width = dimensions[(i - 1) % DM_ARRAY_SIZE(dimensions)][0];
+            attachments[1].m_Height = dimensions[(i - 1) % DM_ARRAY_SIZE(dimensions)][1];
+            desc.m_ColorAttachments.m_Data = i <= DM_ARRAY_SIZE(dimensions) ? &attachments[1] : attachments;
+            desc.m_ColorAttachments.m_Count = i <= DM_ARRAY_SIZE(dimensions) ? 1 : 2;
+        }
+        dmArray<uint8_t> buffer;
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmRenderDDF::RenderTargetDesc::m_DDFDescriptor, buffer));
+        ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+        ASSERT_EQ(original, resource->m_RenderTarget);
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, original));
+    }
     dmResource::Release(m_Factory, resource);
 }
 

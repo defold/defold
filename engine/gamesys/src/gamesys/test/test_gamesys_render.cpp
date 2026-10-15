@@ -2296,6 +2296,48 @@ TEST_F(ModelTest, WorldSpaceBatchPartitions)
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
+// Texture overrides in every slot must split model batches, while matching
+// overrides must batch together; guards against hashing a pointer count as bytes.
+TEST_F(ModelTest, TextureOverridesSplitBatchKeys)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    const char* texture_path = "/model/texture_valid_png.texturec";
+    void* texture_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, texture_path, &texture_resource));
+    dmGameObject::HInstance instances[] = {
+        Spawn(m_Factory, m_Collection, "/model/static_vertex_attributes.goc", dmHashString64("/a")),
+        Spawn(m_Factory, m_Collection, "/model/static_vertex_attributes.goc", dmHashString64("/b")),
+    };
+    ASSERT_NE((dmGameObject::HInstance)0, instances[0]);
+    ASSERT_NE((dmGameObject::HInstance)0, instances[1]);
+    dmRender::RenderContext* render_context = (dmRender::RenderContext*)m_RenderContext;
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyVar texture(dmHashString64(texture_path));
+    for (uint32_t slot = 0; slot < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++slot)
+    {
+        char property[32];
+        dmSnPrintf(property, sizeof(property), "texture%u", slot);
+        for (uint32_t instance = 0; instance < 2; ++instance)
+        {
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instances[instance], dmHashString64("model"), dmHashString64(property), options, texture));
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmRender::RenderListBegin(m_RenderContext);
+            dmGameObject::Render(m_Collection);
+            dmRender::RenderListEnd(m_RenderContext);
+            ASSERT_EQ(2u, render_context->m_RenderList.Size());
+            uint32_t first_key = render_context->m_RenderList[0].m_BatchKey;
+            uint32_t second_key = render_context->m_RenderList[1].m_BatchKey;
+            if (instance == 0)
+                ASSERT_NE(first_key, second_key);
+            else
+                ASSERT_EQ(first_key, second_key);
+        }
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmResource::Release(m_Factory, texture_resource);
+}
+
 // Compare native instance packing with the generic writer, including layout
 // changes between draws, changing transforms, and unsupported-layout fallbacks.
 TEST_F(ModelTest, InstanceTransformAttributeLayouts)
