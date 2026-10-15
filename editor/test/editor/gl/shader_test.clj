@@ -16,66 +16,64 @@
   (:require [clojure.test :refer :all]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
-            [editor.scene-cache :as scene-cache]))
+            [support.gl-support :as gl-support])
+  (:import [com.jogamp.opengl GL3]))
 
-;; Verifies material opt-in for reflected samplers. A custom font fragment
-;; shader must keep CPU colors even if its vertex shader uses font_effects.
+;; Verifies material opt-in against compiled shader reflection, including unused
+;; samplers and transpiled array slices, without opening an Editor window.
 (deftest has-configured-sampler-test
-  (doseq [[description configured-uniforms active-samplers expected]
-          [["custom font material with the built-in vertex shader"
-            {"texture_sampler" nil}
-            {"texture_sampler" ["texture_sampler"] "font_effects" ["font_effects"]}
-            false]
-           ["built-in font material"
-            {"texture_sampler" nil "font_effects" nil}
-            {"texture_sampler" ["texture_sampler"] "font_effects" ["font_effects"]}
-            true]
-           ["configured but inactive sampler"
-            {"font_effects" nil} {} false]
-           ["configured array sampler slices"
-            {"font_effects_0" nil "font_effects_1" nil}
-            {"font_effects" ["font_effects_0" "font_effects_1"]}
-            true]]]
-    (testing description
-      (let [test-shader (shader/make-shader-lifecycle
-                          ::configured-sampler
-                          (shader/make-shader-request-data [] [] {} nil)
-                          [] configured-uniforms)]
-        (with-redefs [scene-cache/request-object! (fn [_cache-id _request-id _gl _request-data]
-                                                    {:sampler-name->uniform-names active-samplers})]
-          (is (= expected (shader/has-configured-sampler? test-shader nil "font_effects"))))))))
+  (gl-support/with-offscreen-gl
+    (doseq [[description fragment-path opts expected]
+            [["active sampler omitted from the material"
+              "shaders/font-effects/font-effects.fp"
+              {} false]
+             ["active sampler configured by the material"
+              "shaders/font-effects/font-effects.fp"
+              {:uniforms {"font_effects" nil}} true]
+             ["configured but unused sampler"
+              "shaders/font-effects/unused-font-effects.fp"
+              {:uniforms {"font_effects" nil}} false]
+             ["configured array sampler slices"
+              "shaders/font-effects/font-effects-paged.fp"
+              {:uniforms {"font_effects_0" nil "font_effects_1" nil}
+               :max-page-count 2} true]
+             ["partially configured array sampler slices"
+              "shaders/font-effects/font-effects-paged.fp"
+              {:uniforms {"font_effects_0" nil}
+               :max-page-count 2} false]]]
+      (testing description
+        (let [test-shader (shader/classpath-shader
+                            (assoc opts :coordinate-space :coordinate-space-world)
+                            "shaders/font-effects/position.vp"
+                            fragment-path)]
+          (gl/with-gl-bindings gl {} [test-shader]
+            (is (pos? (gl/gl-current-program gl)))
+            (is (= expected (shader/has-configured-sampler? test-shader gl "font_effects")))))))))
 
-;; Verifies that binding a texture to a shader without samplers does not throw,
-;; which previously aborted GUI rendering and logged an exception on every redraw.
+;; Verifies binding a texture to a real shader without samplers does not throw,
+;; guarding against aborted GUI rendering and repeated redraw exceptions.
 (deftest set-samplers-by-index-without-samplers-test
-  (let [test-shader (shader/make-shader-lifecycle
-                      ::without-samplers
-                      (shader/make-shader-request-data [] [] {} nil)
-                      [] {})]
-    (with-redefs [scene-cache/request-object! (fn [_cache-id _request-id _gl _request-data]
-                                                {:program 7
-                                                 :uniform-infos {}
-                                                 :sampler-index->sampler-name []
-                                                 :sampler-name->uniform-names {}})
-                  gl/gl-current-program (fn ^long [_gl] 7)]
-      (is (nil? (shader/set-samplers-by-index test-shader nil 0 [0]))))))
+  (gl-support/with-offscreen-gl
+    (let [test-shader (shader/classpath-shader
+                        {:coordinate-space :coordinate-space-world}
+                        "shaders/font-effects/position.vp"
+                        "shaders/font-effects/solid.fp")]
+      (gl/with-gl-bindings gl {} [test-shader]
+        (is (pos? (gl/gl-current-program gl)))
+        (is (nil? (shader/set-samplers-by-index test-shader gl 0 [3])))
+        (is (= GL3/GL_NO_ERROR (.glGetError gl)))))))
 
-;; Verifies that an existing sampler still binds each slice to its texture unit
-;; when missing samplers are ignored.
+;; Verifies sampler slice assignments reach the linked GL program, rather than
+;; merely observing calls to the uniform setter.
 (deftest set-samplers-by-index-with-samplers-test
-  (let [uniform-updates (atom [])
-        test-shader (shader/make-shader-lifecycle
-                      ::with-samplers
-                      (shader/make-shader-request-data [] [] {} nil)
-                      [] {})]
-    (with-redefs [scene-cache/request-object! (fn [_cache-id _request-id _gl _request-data]
-                                                {:program 7
-                                                 :uniform-infos {"texture_sampler_0" {:location 3}
-                                                                 "texture_sampler_1" {:location 4}}
-                                                 :sampler-index->sampler-name ["texture_sampler"]
-                                                 :sampler-name->uniform-names {"texture_sampler" ["texture_sampler_0" "texture_sampler_1"]}})
-                  gl/gl-current-program (fn ^long [_gl] 7)
-                  shader/set-uniform-at-index (fn [_gl program location value]
-                                                (swap! uniform-updates conj [program location value]))]
-      (shader/set-samplers-by-index test-shader nil 0 [2 5])
-      (is (= [[7 3 2] [7 4 5]] @uniform-updates)))))
+  (gl-support/with-offscreen-gl
+    (let [test-shader (shader/classpath-shader
+                        {:coordinate-space :coordinate-space-world
+                         :max-page-count 2}
+                        "shaders/font-effects/position.vp"
+                        "shaders/font-effects/font-effects-paged.fp")]
+      (gl/with-gl-bindings gl {} [test-shader]
+        (shader/set-samplers-by-index test-shader gl 0 [2 5])
+        (is (= 2 (gl-support/sampler-unit gl "font_effects_0")))
+        (is (= 5 (gl-support/sampler-unit gl "font_effects_1")))
+        (is (= GL3/GL_NO_ERROR (.glGetError gl)))))))

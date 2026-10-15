@@ -18,12 +18,14 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.buffers :as buffers]
             [editor.defold-project :as project]
             [editor.editor-extensions.graph :as ext-graph]
             [editor.editor-extensions.runtime :as rt]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
             [editor.graph-util :as gu]
             [editor.gui :as gui]
             [editor.handler :as handler]
@@ -33,59 +35,54 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.scene-cache :as scene-cache]
             [editor.types]
             [internal.graph.types :as gt]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.node :as in]
+            [support.gl-support :as gl-support]
             [support.test-support :as test-support]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc]
            [com.jogamp.opengl GL3]
-           [java.io StringReader]
-           [java.lang.reflect InvocationHandler Method Proxy]))
+           [java.io StringReader]))
 
-;; Verifies that non-text GUI geometry keeps its texture binding when a custom
-;; material names its sampler font_effects.
+;; Verifies non-text GUI rendering samples the actual texture even when the
+;; sampler is named font_effects. A nonzero texture unit exposes binding errors
+;; that the default sampler value of zero would otherwise hide.
 (deftest render-tris-preserves-custom-texture-sampler-test
-  (let [uniform-values (atom {})
-        draw-uniforms (atom [])
-        test-shader (shader/make-shader-lifecycle
-                      ::custom-texture-sampler
-                      (shader/make-shader-request-data [] [] {} nil)
-                      [] {"font_effects" nil})
-        gl (Proxy/newProxyInstance
-             (.getClassLoader GL3)
-             (into-array Class [GL3])
-             (reify InvocationHandler
-               (invoke [_ _ method _]
-                 (when (= "glDrawArrays" (.getName ^Method method))
-                   (swap! draw-uniforms conj @uniform-values))
-                 nil)))]
-    (with-redefs [gl/with-gl-bindings-impl (fn [_gl _render-args _bindable-items body-fn!]
-                                             (body-fn!))
-                  gl/gl-current-program (fn ^long [_gl] 7)
-                  scene-cache/request-object! (fn [_cache-id _request-id _gl _request-data]
-                                                {:program 7
-                                                 :uniform-infos {"font_effects" {:location 3}}
-                                                 :sampler-index->sampler-name ["font_effects"]
-                                                 :sampler-name->uniform-names {"font_effects" ["font_effects"]}})
-                  shader/set-uniform-at-index (fn [_gl _program location value]
-                                                (swap! uniform-values assoc location value))]
+  (gl-support/with-offscreen-gl
+    (let [test-shader (shader/classpath-shader
+                        {:coordinate-space :coordinate-space-world
+                         :uniforms {"font_effects" nil}}
+                        "shaders/font-effects/position.vp"
+                        "shaders/font-effects/font-effects.fp")
+          pixel (buffers/wrap-byte-array (byte-array [(unchecked-byte 255) 64 0 (unchecked-byte 255)]) :byte-order/native)
+          gpu-texture (texture/make-gpu-texture
+                        ::custom-texture
+                        [(texture/make-texture-request-data pixel 0 :rgba 1 1 false)]
+                        (vector-of :int 3)
+                        {:min-filter gl/nearest :mag-filter gl/nearest})
+          rendered-pixel (buffers/new-byte-buffer 4 :byte-order/native)]
+      (.glViewport gl 0 0 16 16)
+      (.glDisable gl GL3/GL_DITHER)
+      (gl/gl-clear gl 0.0 0.0 0.0 1.0)
       (gui/render-tris gl {:pass pass/transparent}
                        [{:world-transform math/identity-mat4
-                         :user-data {:geom-data [[0.0 0.0 0.0] [1.0 0.0 0.0] [0.0 1.0 0.0]]
+                         :user-data {:geom-data [[-1.0 -1.0 0.0] [3.0 -1.0 0.0] [-1.0 3.0 0.0]]
                                      :uv-data [[0.0 0.0] [1.0 0.0] [0.0 1.0]]
                                      :color [1.0 1.0 1.0 1.0]
                                      :page-index 0
                                      :blend-mode :blend-mode-alpha
                                      :material-shader test-shader
-                                     :gpu-texture {:texture-units (vector-of :int 0)}}}]
-                       1))
-    (is (= [{3 0}] @draw-uniforms))))
+                                     :gpu-texture gpu-texture}}]
+                       1)
+      (.glReadPixels gl 8 8 1 1 GL3/GL_RGBA GL3/GL_UNSIGNED_BYTE rendered-pixel)
+      (is (= [255 64 0 255]
+             (mapv #(Byte/toUnsignedInt (.get rendered-pixel ^int %)) (range 4))))
+      (is (= GL3/GL_NO_ERROR (.glGetError gl))))))
 
 (defn- gui-scene-dependencies [workspace read-opts scene-desc]
   (let [resource (workspace/make-memory-resource workspace :editable "gui" scene-desc)]
