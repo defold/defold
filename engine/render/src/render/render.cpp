@@ -616,11 +616,7 @@ namespace dmRender
 
         RenderListRange* ranges = context->m_RenderListRanges.Begin();
         uint32_t num_ranges = context->m_RenderListRanges.Size();
-        uint32_t             vertex_counts[RENDERLIST_INVALID_DISPATCH] = {};
-        uint8_t              partitions[RENDERLIST_INVALID_DISPATCH] = {};
-        uint32_t             max_vertices = dmGraphics::GetMaxElementsVertices(context->m_GraphicsContext);
         uint32_t             num_persistent = context->m_PersistentRenderItems.Size();
-        bool                 override_instanced = context->m_Material && GetMaterialVertexSpace(context->m_Material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && GetVertexDeclaration(context->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
         for( uint32_t r = 0; r < num_ranges; ++r)
         {
             RenderListRange& range = ranges[r];
@@ -656,31 +652,6 @@ namespace dmRender
                     }
 
                     RenderOrder major_order = (RenderOrder)entry->m_MajorOrder;
-                    if (registration)
-                    {
-                        const RenderListDispatch& dispatch = context->m_RenderListDispatch[entry->m_Dispatch];
-                        if (context->m_Material && !context->m_PersistentRenderItems[idx].m_ManualOrder)
-                            major_order = dispatch.m_SupportsInstancing && override_instanced ? RENDER_ORDER_BEFORE_WORLD : RENDER_ORDER_WORLD;
-                        entry->m_MinorOrder = 0;
-
-                        // CPU-generated model geometry uses one buffer per partition.
-                        // Partition only the items selected for this draw; callers
-                        // supply geometry size rather than an internal buffer index.
-                        // Instanced draws use their own buffers and need no partition.
-                        if (major_order == RENDER_ORDER_WORLD && dispatch.m_HasVertexCounts)
-                        {
-                            uint32_t  item_vertex_count = context->m_PersistentRenderItems[idx].m_VertexCount;
-                            uint32_t& vertex_count = vertex_counts[entry->m_Dispatch];
-                            uint8_t&  partition = partitions[entry->m_Dispatch];
-                            if (item_vertex_count && (uint64_t)vertex_count + item_vertex_count >= max_vertices)
-                            {
-                                vertex_count = 0;
-                                partition = dmMath::Min((uint32_t)partition + 1, 15u);
-                            }
-                            vertex_count += item_vertex_count;
-                            entry->m_MinorOrder = partition;
-                        }
-                    }
                     sort_values[idx].m_MajorOrder = major_order;
 
                     if (major_order != RENDER_ORDER_WORLD)

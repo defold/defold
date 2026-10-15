@@ -186,7 +186,10 @@ namespace dmGameSystem
         dmRig::HRigContext                 m_RigContext;
         ModelSkinnedAnimationData          m_SkinnedAnimationData;
 
+        uint32_t                           m_MaxElementsVertices;
         uint32_t                           m_MaxBatchIndex;
+        uint32_t                           m_VertexBufferIndex;
+        uint32_t                           m_VertexBufferVertexCount;
         uint32_t                           m_ScratchConstantBuffersCount;
         // For profiling data:
         uint32_t m_StatisticsVertexCount;
@@ -198,10 +201,10 @@ namespace dmGameSystem
         uint8_t m_RenderBatchWorldVSCount;
     };
 
-    static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
-    static const uint8_t VX_DECL_BASE_BUFFER        = 0;
-    static const uint8_t VX_DECL_INSTANCE_BUFFER    = 1;
-    static const uint8_t VX_DECL_CUSTOM_BUFFER      = 2;
+    static const uint32_t      VERTEX_BUFFER_MAX_BATCHES = 16; // Maximum CPU-generated vertex buffers per draw
+    static const uint8_t       VX_DECL_BASE_BUFFER = 0;
+    static const uint8_t       VX_DECL_INSTANCE_BUFFER = 1;
+    static const uint8_t       VX_DECL_CUSTOM_BUFFER = 2;
 
     static const dmhash_t PROP_SKIN          = dmHashString64("skin");
     static const dmhash_t PROP_CURSOR        = dmHashString64("cursor");
@@ -263,8 +266,9 @@ namespace dmGameSystem
         dmGraphics::AddVertexStream(stream_declaration_instance, "animation_data", 4, dmGraphics::TYPE_FLOAT, false);
         world->m_InstanceVertexDeclarationSkinned = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration_instance);
 
-        world->m_MaxBatchIndex             = 0;
-        world->m_InstanceBufferLocalSpace  = dmRender::NewBufferedRenderBuffer(context->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
+        world->m_MaxElementsVertices = dmGraphics::GetMaxElementsVertices(graphics_context);
+        world->m_MaxBatchIndex = 0;
+        world->m_InstanceBufferLocalSpace = dmRender::NewBufferedRenderBuffer(context->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         world->m_InstanceBufferDispatchCount = 0;
 
         dmGraphics::TextureCreationParams tp;
@@ -662,6 +666,15 @@ namespace dmGameSystem
         }
     }
 
+    static void SetRenderItemMaterial(ModelWorld* world, MeshRenderItem* render_item, dmRender::HMaterial material)
+    {
+        dmRender::SetMaterial(world->m_RenderContext, render_item->m_RenderItem, material);
+        // Group instanced models without depth sorting; geometry generation remains
+        // a component decision, including render-script material overrides.
+        bool instanced = dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+        dmRender::SetOrder(world->m_RenderContext, render_item->m_RenderItem, instanced ? dmRender::RENDER_ORDER_BEFORE_WORLD : dmRender::RENDER_ORDER_WORLD, 0);
+    }
+
     static void ReHash(ModelWorld* world, ModelComponent* component)
     {
         // material, textures and render constants
@@ -690,7 +703,7 @@ namespace dmGameSystem
             HashRenderItem(&state_clone, world, component, component->m_RenderItems[i]);
             component->m_RenderItems[i].m_InstanceRenderHash = dmHashFinal32(&state_clone);
             dmRender::SetBatchKey(world->m_RenderContext, component->m_RenderItems[i].m_RenderItem, component->m_RenderItems[i].m_InstanceRenderHash);
-            dmRender::SetMaterial(world->m_RenderContext, component->m_RenderItems[i].m_RenderItem, GetComponentMaterial(component, component->m_Resource, component->m_RenderItems[i].m_MaterialIndex));
+            SetRenderItemMaterial(world, &component->m_RenderItems[i], GetComponentMaterial(component, component->m_Resource, component->m_RenderItems[i].m_MaterialIndex));
         }
 
         component->m_ReHash = 0;
@@ -1204,8 +1217,7 @@ namespace dmGameSystem
             MeshRenderItem& render_item = component->m_RenderItems[i];
             render_item.m_RenderItem = dmRender::NewRenderItem(world->m_RenderContext, world->m_RenderDispatch, (uintptr_t)&render_item);
             dmRender::SetBoundingOBB(world->m_RenderContext, render_item.m_RenderItem, render_item.m_AabbMin, render_item.m_AabbMax);
-            dmRender::SetVertexCount(world->m_RenderContext, render_item.m_RenderItem, render_item.m_Buffers->m_VertexCount);
-            dmRender::SetMaterial(world->m_RenderContext, render_item.m_RenderItem, material);
+            SetRenderItemMaterial(world, &render_item, material);
             dmRender::Enable(world->m_RenderContext, render_item.m_RenderItem, component->m_DoRender && render_item.m_Enabled);
         }
         component->m_RenderItemsDirty = 1;
@@ -1311,7 +1323,7 @@ namespace dmGameSystem
 
         if (world->m_RenderDispatch == 0)
         {
-            world->m_RenderDispatch = dmRender::RegisterRenderListDispatch(world->m_RenderContext, RenderListDispatch, 0, world, true);
+            world->m_RenderDispatch = dmRender::RegisterRenderListDispatch(world->m_RenderContext, RenderListDispatch, 0, world);
             if (world->m_RenderDispatch == 0)
             {
                 DestroyComponent(world, index);
@@ -2182,7 +2194,7 @@ namespace dmGameSystem
         }
     }
 
-    static inline void RenderBatchWorldVS(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::HMaterial render_context_material, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    static void RenderBatchWorldVSRange(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::HMaterial render_context_material, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end, uint32_t batch_index, uint32_t vertex_count, uint32_t index_count)
     {
         DM_PROFILE("RenderBatchWorld");
 
@@ -2193,18 +2205,7 @@ namespace dmGameSystem
         // vx_decl is the _shared_ vertex declaration here since we can't use instancing for WorldVs batches
         dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
 
-        uint32_t vertex_count = 0;
-        uint32_t index_count  = 0;
-        uint32_t batch_index  = buf[*begin].m_MinorOrder;
-
         world->m_MaxBatchIndex = dmMath::Max(batch_index, world->m_MaxBatchIndex);
-
-        for (uint32_t *i=begin;i!=end;i++)
-        {
-            const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
-            vertex_count += render_item->m_Buffers->m_VertexCount;
-            index_count += render_item->m_Buffers->m_IndexCount;
-        }
 
         // Early exit if there is nothing to render
         if (vertex_count == 0 || index_count == 0)
@@ -2289,6 +2290,39 @@ namespace dmGameSystem
 
         // Update test data
         world->m_RenderBatchWorldVSCount++;
+    }
+
+    static void RenderBatchWorldVS(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::HMaterial render_context_material, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
+    {
+        // Split the visible batch here, where the effective material and expanded
+        // geometry size are known. Persistent items need no buffer partition data.
+        while (begin != end)
+        {
+            uint32_t* batch_end = begin;
+            uint32_t  vertex_count = 0;
+            uint32_t  index_count = 0;
+            while (batch_end != end)
+            {
+                const MeshRenderItem* render_item = (MeshRenderItem*)buf[*batch_end].m_UserData;
+                uint32_t              next_vertices = vertex_count + render_item->m_Buffers->m_VertexCount;
+                uint32_t              next_indices = index_count + render_item->m_Buffers->m_IndexCount;
+                uint32_t              required_vertices = dmMath::Max(next_vertices, next_indices);
+                if ((uint64_t)world->m_VertexBufferVertexCount + required_vertices > world->m_MaxElementsVertices &&
+                    (world->m_VertexBufferVertexCount || batch_end != begin))
+                {
+                    if (batch_end != begin)
+                        break;
+                    world->m_VertexBufferIndex = dmMath::Min(world->m_VertexBufferIndex + 1, VERTEX_BUFFER_MAX_BATCHES - 1);
+                    world->m_VertexBufferVertexCount = 0;
+                }
+                vertex_count = next_vertices;
+                index_count = next_indices;
+                ++batch_end;
+            }
+            RenderBatchWorldVSRange(world, render_context, render_context_material, buf, begin, batch_end, world->m_VertexBufferIndex, vertex_count, index_count);
+            world->m_VertexBufferVertexCount += dmMath::Max(vertex_count, index_count);
+            begin = batch_end;
+        }
     }
 
     static inline dmRenderDDF::MaterialDesc::VertexSpace GetRenderMaterialVertexSpace(dmRender::HMaterial material)
@@ -2632,6 +2666,8 @@ namespace dmGameSystem
 
                 world->m_InstanceBufferDataLocalSpace.SetSize(0);
                 world->m_RenderObjects.SetSize(0);
+                world->m_VertexBufferIndex = 0;
+                world->m_VertexBufferVertexCount = 0;
 
                 for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
                 {
@@ -2931,7 +2967,7 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
-                    dmRender::SetMaterial(world->m_RenderContext, component->m_RenderItems[i].m_RenderItem, GetComponentMaterial(component, component->m_Resource, component->m_RenderItems[i].m_MaterialIndex));
+                    SetRenderItemMaterial(world, &component->m_RenderItems[i], GetComponentMaterial(component, component->m_Resource, component->m_RenderItems[i].m_MaterialIndex));
             }
             return res;
         }

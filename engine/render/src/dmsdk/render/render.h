@@ -434,10 +434,9 @@ namespace dmRender
      * @param dispatch_fn [type:dmRender::RenderListDispatchFn] the render batch callback
      * @param visibility_fn [type:dmRender::RenderListVisibilityFn] visibility callback for items without typed bounds, or 0 for always visible
      * @param user_data [type:void*] user data passed to both callbacks
-     * @param supports_instancing [type:bool] true if the batch callback supports instance attributes; defaults to false
      * @return dispatch [type:dmRender::HRenderItemDispatch] the registration, or 0 if the registration limit is reached
      */
-    HRenderItemDispatch RegisterRenderListDispatch(HRenderContext context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data, bool supports_instancing = false);
+    HRenderItemDispatch RegisterRenderListDispatch(HRenderContext context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data);
 
     /*# unregister a persistent render dispatch
      * Delete all items belonging to this registration first. Call only after all
@@ -463,8 +462,8 @@ namespace dmRender
     void SubmitRenderListDispatch(HRenderContext context, HRenderItemDispatch dispatch);
 
     /*# create a persistent render item
-     * The new item is disabled, with an identity transform, no material or bounds,
-     * and automatic world-position ordering. Its dispatch and user data are fixed
+     * The new item is disabled, with an identity transform, no material tags or bounds,
+     * and world-position ordering. Its dispatch and user data are fixed
      * for its lifetime. Any data referenced by user_data must outlive the item.
      * Creating an item does not invalidate outstanding RenderListAlloc() ranges.
      * Delete the item before unregistering its dispatch.
@@ -496,8 +495,8 @@ namespace dmRender
 
     /*# delete a persistent render item
      * Disables the item, invalidates its handle and releases its slot for reuse.
-     * Call before subsequent draws and outside dispatch callbacks. Borrowed material
-     * and user data are not released.
+     * Call before subsequent draws and outside dispatch callbacks. User data is not
+     * released.
      * @name DeleteRenderItem
      * @param context [type:dmRender::HRenderContext] the render context
      * @param item [type:dmRender::HRenderItem] an item created in this context
@@ -575,7 +574,7 @@ namespace dmRender
     /*# set the render item batch key
      * Sets the caller's batch compatibility key. Equal keys allow batching only when
      * the remaining state is compatible. The renderer also separates batches by
-     * dispatch, ordering and vertex-buffer partition.
+     * dispatch and ordering.
      * @name SetBatchKey
      * @param context [type:dmRender::HRenderContext] the render context
      * @param item [type:dmRender::HRenderItem] an item created in this context
@@ -585,10 +584,10 @@ namespace dmRender
     bool SetBatchKey(HRenderContext context, HRenderItem item, uint32_t key);
 
     /*# set explicit render item ordering
-     * Use for GUI, text or debug items that require explicit ordering. World order
-     * sorts by position. Before-world and after-world order use the supplied order
-     * value; only its low 24 bits are retained. Once set, material changes and
-     * render-script material overrides preserve this explicit ordering.
+     * Overrides the default world-position ordering. World order sorts by position.
+     * Before-world and after-world order use the supplied order value; only its low
+     * 24 bits are retained. Material changes and render-script material overrides
+     * preserve this ordering.
      * @name SetOrder
      * @param context [type:dmRender::HRenderContext] the render context
      * @param item [type:dmRender::HRenderItem] an item created in this context
@@ -599,35 +598,16 @@ namespace dmRender
     bool SetOrder(HRenderContext context, HRenderItem item, RenderOrder render_order, uint32_t order);
 
     /*# set the render item material
-     * Borrows the material for predicate tags and automatic ordering. Keep it valid
-     * until the next SetMaterial() or DeleteRenderItem(). Call again after changing
-     * material tags or vertex attributes to refresh cached metadata. A null material
-     * clears the material and tags.
-     *
-     * Automatic ordering groups an instancing-capable dispatch with a local-space
-     * instanced material before world-sorted items; other items sort by position.
-     * Render-script material overrides participate in this decision. Ordering set
-     * explicitly with SetOrder() is preserved.
+     * Copies the material's predicate tags. Call again after changing material tags
+     * to refresh cached metadata. A null material clears the tags. The material is
+     * not retained. Ordering is unchanged; use SetOrder() to configure it.
      * @name SetMaterial
      * @param context [type:dmRender::HRenderContext] the render context
      * @param item [type:dmRender::HRenderItem] an item created in this context
-     * @param material [type:dmRender::HMaterial] the borrowed material, or 0 to clear it
+     * @param material [type:dmRender::HMaterial] the material supplying predicate tags, or 0 to clear them
      * @return result [type:bool] true on success, or false if the item handle is invalid or deleted
      */
     bool SetMaterial(HRenderContext context, HRenderItem item, HMaterial material);
-
-    /*# set the render item source vertex count
-     * Used for automatic partitioning of CPU-generated geometry into vertex buffers.
-     * Zero, the default, consumes no vertex budget. The renderer assigns partitions
-     * 0-15 using the graphics device's vertex limit. Items automatically grouped
-     * for instancing do not consume this partition budget.
-     * @name SetVertexCount
-     * @param context [type:dmRender::HRenderContext] the render context
-     * @param item [type:dmRender::HRenderItem] an item created in this context
-     * @param vertex_count [type:uint32_t] the source geometry vertex count
-     * @return result [type:bool] true on success, or false if the item handle is invalid or deleted
-     */
-    bool SetVertexCount(HRenderContext context, HRenderItem item, uint32_t vertex_count);
 
     /*#
      * Register a frame-local render dispatch function

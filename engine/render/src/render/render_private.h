@@ -225,12 +225,6 @@ namespace dmRender
         RenderListVisibilityFn m_VisibilityFn;
         // Borrowed callback data, normally the component world that owns the registration.
         void* m_UserData;
-        // Callback capability, independent of the material's instance attributes.
-        // Allows automatic grouping of local-space instanced materials before world items.
-        uint8_t m_SupportsInstancing;
-        // Set after any item reports a nonzero vertex count; enables partitioning work.
-        // Remains set even if those counts later become zero or the items are deleted.
-        uint8_t m_HasVertexCounts;
     };
 
     struct RenderListSortValue
@@ -406,7 +400,6 @@ namespace dmRender
     struct PersistentRenderItem
     {
         dmVMath::Matrix4 m_WorldTransform;
-        HMaterial        m_Material;
         // Sphere: center xyz and radius squared. Boxes: min xyz and max xyz.
         float    m_Bounds[6];
         uint32_t m_Generation;
@@ -415,13 +408,11 @@ namespace dmRender
             uint32_t m_NextFree;     // Deleted slot
             uint32_t m_EnabledIndex; // Index in its world's dense enabled list
         };
-        uint32_t m_VertexCount;
         uint32_t m_Dispatch : 24;
         uint32_t m_Alive : 1;
         uint32_t m_Enabled : 1;
         uint32_t m_BoundingVolumeType : 2;
-        uint32_t m_ManualOrder : 1;
-        uint32_t : 3;
+        uint32_t : 4;
     };
 
     struct RenderContext

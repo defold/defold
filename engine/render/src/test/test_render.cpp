@@ -1351,12 +1351,11 @@ static void AssertInvalidRenderItem(dmRender::HRenderContext context, dmRender::
     ASSERT_FALSE(dmRender::SetBatchKey(context, item, 1));
     ASSERT_FALSE(dmRender::SetMaterial(context, item, 0));
     ASSERT_FALSE(dmRender::SetOrder(context, item, dmRender::RENDER_ORDER_AFTER_WORLD, 1));
-    ASSERT_FALSE(dmRender::SetVertexCount(context, item, 1));
     ASSERT_FALSE(dmRender::DeleteRenderItem(context, item));
 }
 
 // Verifies GUI/text ordering survives material changes and overrides, and a
-// recycled slot returns to automatic ordering instead of inheriting its owner.
+// recycled slot returns to world ordering instead of inheriting its owner.
 TEST_F(dmRenderTest, PersistentRenderItemExplicitOrder)
 {
     dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
@@ -1394,7 +1393,6 @@ TEST_F(dmRenderTest, PersistentRenderItemExplicitOrder)
         ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
     dmRender::HRenderItem replacement = dmRender::NewRenderItem(m_Context, dispatch, 99);
     ASSERT_EQ(recycled_slot, (uint32_t)replacement);
-    ASSERT_FALSE(context->m_PersistentRenderItems[recycled_slot].m_ManualOrder);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, replacement, 0));
     ASSERT_EQ(dmRender::RENDER_ORDER_WORLD, context->m_RenderList[recycled_slot].m_MajorOrder);
     ASSERT_EQ(0u, context->m_RenderList[recycled_slot].m_Order);
@@ -1492,8 +1490,6 @@ TEST_F(dmRenderTest, PersistentRenderItemLifecycle)
     ASSERT_EQ(0u, context->m_RenderList[slot].m_Order);
     ASSERT_EQ(0u, context->m_RenderList[slot].m_MinorOrder);
     ASSERT_EQ(dmRender::RENDER_ORDER_WORLD, context->m_RenderList[slot].m_MajorOrder);
-    ASSERT_EQ((dmRender::HMaterial)0, context->m_PersistentRenderItems[slot].m_Material);
-    ASSERT_EQ(0u, context->m_PersistentRenderItems[slot].m_VertexCount);
     ASSERT_EQ(dmRender::RENDERLIST_INVALID_DISPATCH, context->m_RenderList[slot].m_Dispatch);
     ASSERT_EQ(0.0f, context->m_RenderList[slot].m_WorldPosition.getX());
     ASSERT_EQ(dmRender::BOUNDING_VOLUME_NONE, context->m_PersistentRenderItems[slot].m_BoundingVolumeType);
@@ -1655,11 +1651,10 @@ TEST_F(dmRenderTest, PersistentRenderItemDispatchSlotReuse)
         ASSERT_EQ(0u, context->m_RenderItemDispatches[survivor]->m_FrameDispatch);
         ASSERT_EQ(0u, context->m_RenderList[(uint32_t)item].m_Dispatch);
     }
-    dmRender::HRenderItemDispatch replacement = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0, true);
+    dmRender::HRenderItemDispatch replacement = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
     ASSERT_EQ(dispatches[0], replacement);
     ASSERT_EQ((dmRender::RenderItemDispatch*)0, context->m_RenderItemDispatches[0]);
     dmRender::RenderListBegin(m_Context);
-    ASSERT_TRUE(context->m_RenderItemDispatches[replacement]->m_Dispatch.m_SupportsInstancing);
     ASSERT_EQ(dmRender::RENDERLIST_INVALID_DISPATCH, context->m_RenderItemDispatches[replacement]->m_FrameDispatch);
     ASSERT_EQ(dmRender::RENDERLIST_INVALID_DISPATCH, context->m_RenderItemDispatches[survivor]->m_FrameDispatch);
     ASSERT_EQ(0u, dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, 0));
@@ -1668,7 +1663,6 @@ TEST_F(dmRenderTest, PersistentRenderItemDispatchSlotReuse)
     dmRender::RenderListEnd(m_Context);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
     ASSERT_EQ(1u, context->m_RenderList[(uint32_t)item].m_Dispatch);
-    ASSERT_FALSE(context->m_RenderListDispatch[0].m_SupportsInstancing);
     ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, item));
     dmRender::UnregisterRenderListDispatch(m_Context, survivor);
     dmRender::UnregisterRenderListDispatch(m_Context, replacement);
@@ -1858,7 +1852,6 @@ TEST_F(dmRenderTest, PersistentRenderItemTransform)
     ASSERT_EQ((uint32_t)first, context->m_RenderListSortBuffer[1]);
 
     ASSERT_TRUE(dmRender::SetBatchKey(m_Context, first, 0xaabbccddu));
-    ASSERT_TRUE(dmRender::SetVertexCount(m_Context, first, 3));
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, first, 0));
     ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
@@ -2091,9 +2084,9 @@ static void CountingPersistentItemBatches(const dmRender::RenderListDispatchPara
         ++*(uint32_t*)params.m_UserData;
 }
 
-// Verifies full batch-key matching and automatic vertex-buffer partitions,
-// including recalculation when visibility or geometry sizes change.
-TEST_F(dmRenderTest, PersistentRenderItemBatchAndPartitions)
+// Verifies full batch-key matching, depth sorting and visibility updates without
+// rebuilding the registration's cached tag ranges.
+TEST_F(dmRenderTest, PersistentRenderItemBatchKeys)
 {
     dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
     uint32_t                      batches = 0;
@@ -2128,31 +2121,15 @@ TEST_F(dmRenderTest, PersistentRenderItemBatchAndPartitions)
     ASSERT_EQ(3u, batches);
     ASSERT_TRUE(dmRender::SetBatchKey(m_Context, items[1], 7));
 
-    uint32_t half_limit = dmGraphics::GetMaxElementsVertices(m_GraphicsContext) / 2;
-    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
-        ASSERT_TRUE(dmRender::SetVertexCount(m_Context, items[i], half_limit));
-    ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
-    batches = 0;
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
-    ASSERT_EQ(3u, batches);
-    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
-    {
-        ASSERT_EQ(i, context->m_RenderList[(uint32_t)items[i]].m_MinorOrder);
-        ASSERT_EQ((uint32_t)items[i], context->m_RenderListSortBuffer[i]);
-    }
-
-    // A culled item consumes no vertex budget in this draw.
     ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, items[1], Point3(100, 0, 0), 1.0f));
     dmRender::FrustumOptions options;
     options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
     options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
     batches = 0;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_FRONT_TO_BACK));
-    ASSERT_EQ(2u, batches);
-    ASSERT_EQ(1u, context->m_RenderList[(uint32_t)items[2]].m_MinorOrder);
+    ASSERT_EQ(1u, batches);
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
     ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, items[1], Vector3(1), Vector3(-1)));
-    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
-        ASSERT_TRUE(dmRender::SetVertexCount(m_Context, items[i], 0));
     batches = 0;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
     ASSERT_EQ(1u, batches);
@@ -2164,10 +2141,9 @@ TEST_F(dmRenderTest, PersistentRenderItemBatchAndPartitions)
     dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
 }
 
-// Verifies material-driven ordering respects dispatch instancing support,
-// material changes and render-script overrides, while updating predicate tags
-// and avoiding vertex-buffer partitions for instanced draws.
-TEST_F(dmRenderTest, PersistentRenderItemMaterialSorting)
+// Materials supply predicate tags without choosing a geometry path or sort order.
+// Explicit order survives material changes and render-script overrides.
+TEST_F(dmRenderTest, PersistentRenderItemMaterialTagsPreserveOrder)
 {
     dmGraphics::ShaderDescBuilder shader;
     shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
@@ -2193,68 +2169,44 @@ TEST_F(dmRenderTest, PersistentRenderItemMaterialSorting)
     dmRender::SetMaterialTags(regular, 0, 0);
 
     dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
-    uint32_t                      model_batches = 0;
-    dmRender::HRenderItemDispatch model_dispatch = dmRender::RegisterRenderListDispatch(m_Context, CountingPersistentItemBatches, 0, &model_batches, true);
-    dmRender::HRenderItemDispatch sprite_dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
-    dmRender::HRenderItem         items[] = {
-        dmRender::NewRenderItem(m_Context, model_dispatch, 0),
-        dmRender::NewRenderItem(m_Context, model_dispatch, 1),
-        dmRender::NewRenderItem(m_Context, sprite_dispatch, 2),
-    };
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::HRenderItem         items[3];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
     {
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
         ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], instanced));
-        ASSERT_TRUE(dmRender::SetVertexCount(m_Context, items[i], dmGraphics::GetMaxElementsVertices(m_GraphicsContext)));
+        ASSERT_EQ(dmRender::RENDER_ORDER_WORLD, context->m_RenderList[(uint32_t)items[i]].m_MajorOrder);
         ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, items[i], Matrix4::translation(Vector3(0, 0, 3.0f - i))));
         ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
     }
+    ASSERT_TRUE(dmRender::SetOrder(m_Context, items[0], dmRender::RENDER_ORDER_BEFORE_WORLD, 0));
     dmRender::SetViewMatrix(m_Context, identity);
     dmRender::SetProjectionMatrix(m_Context, identity);
     dmRender::RenderListBegin(m_Context);
-    dmRender::SubmitRenderListDispatch(m_Context, model_dispatch);
-    dmRender::SubmitRenderListDispatch(m_Context, sprite_dispatch);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
     dmRender::RenderListEnd(m_Context);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
     ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[0]);
-    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[1]);
-    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[2]);
-    ASSERT_EQ(1u, model_batches);
-    ASSERT_EQ(0u, context->m_RenderList[(uint32_t)items[0]].m_MinorOrder);
-    ASSERT_EQ(0u, context->m_RenderList[(uint32_t)items[1]].m_MinorOrder);
-    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
-        ASSERT_TRUE(dmRender::SetVertexCount(m_Context, items[i], 0));
-    ASSERT_EQ(dmRender::RENDER_ORDER_WORLD, context->m_RenderList[(uint32_t)items[2]].m_MajorOrder);
-    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[0], instanced));
-    ASSERT_FALSE(context->m_RenderItemDispatches[model_dispatch]->m_RebuildCache);
-
-    context->m_Material = regular;
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
-    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
-    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[1]);
-    ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[2]);
-    ASSERT_EQ(dmRender::RENDER_ORDER_BEFORE_WORLD, context->m_RenderList[(uint32_t)items[0]].m_MajorOrder);
-    ASSERT_EQ(dmRender::RENDER_ORDER_WORLD, context->m_RenderListSortValues[(uint32_t)items[0]].m_MajorOrder);
-    context->m_Material = 0;
-    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[0], regular));
-    ASSERT_EQ(1u, context->m_RenderItemDispatches[model_dispatch]->m_NumChanges);
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
-    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[0]);
     ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[1]);
-    ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[2]);
-
+    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[2]);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[0], regular));
+    ASSERT_EQ(1u, context->m_RenderItemDispatches[dispatch]->m_NumChanges);
+    ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
+    for (uint32_t pass = 0; pass < 2; ++pass)
+    {
+        context->m_Material = pass ? regular : instanced;
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+        ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[0]);
+        ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[1]);
+        ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[2]);
+    }
+    context->m_Material = 0;
     dmRender::HPredicate predicate = dmRender::NewPredicate();
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddPredicateTag(predicate, tag));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, predicate, 0, 0, dmRender::SORT_FRONT_TO_BACK));
     ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
-    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[0]);
-    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[1]);
-    // An override changes ordering but retains the item's predicate tags.
-    context->m_Material = instanced;
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, predicate, 0, 0, dmRender::SORT_FRONT_TO_BACK));
-    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
-    context->m_Material = 0;
-    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[0], 0));
-    ASSERT_EQ((dmRender::HMaterial)0, context->m_PersistentRenderItems[(uint32_t)items[0]].m_Material);
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[1]);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[1], 0));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, predicate, 0, 0, dmRender::SORT_FRONT_TO_BACK));
     ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
@@ -2262,30 +2214,14 @@ TEST_F(dmRenderTest, PersistentRenderItemMaterialSorting)
     // Refresh tags even when the material handle itself stays unchanged.
     dmRender::SetMaterialTags(instanced, 0, 0);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[2], instanced));
-    ASSERT_EQ(1u, context->m_RenderItemDispatches[sprite_dispatch]->m_NumChanges);
-    ASSERT_FALSE(context->m_RenderItemDispatches[model_dispatch]->m_RebuildCache);
+    ASSERT_EQ(1u, context->m_RenderItemDispatches[dispatch]->m_NumChanges);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, predicate, 0, 0, dmRender::SORT_FRONT_TO_BACK));
     ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[2], instanced));
-    ASSERT_FALSE(context->m_RenderItemDispatches[sprite_dispatch]->m_RebuildCache);
-    // World-space geometry needs partitions even if its shader declares
-    // instance attributes; the component dispatch cannot instance that path.
-    dmRender::SetMaterialVertexSpace(instanced, dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD);
-    for (uint32_t i = 0; i < 2; ++i)
-    {
-        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], instanced));
-        ASSERT_TRUE(dmRender::SetVertexCount(m_Context, items[i], dmGraphics::GetMaxElementsVertices(m_GraphicsContext) / 2));
-    }
-    model_batches = 0;
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
-    ASSERT_EQ(2u, model_batches);
-    ASSERT_EQ(dmRender::RENDER_ORDER_WORLD, context->m_RenderList[(uint32_t)items[0]].m_MajorOrder);
-    ASSERT_EQ(0u, context->m_RenderList[(uint32_t)items[0]].m_MinorOrder);
-    ASSERT_EQ(1u, context->m_RenderList[(uint32_t)items[1]].m_MinorOrder);
+    ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
         ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
-    dmRender::UnregisterRenderListDispatch(m_Context, sprite_dispatch);
-    dmRender::UnregisterRenderListDispatch(m_Context, model_dispatch);
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
     dmRender::DeletePredicate(predicate);
     dmRender::DeleteMaterial(m_Context, regular);
     dmRender::DeleteMaterial(m_Context, instanced);

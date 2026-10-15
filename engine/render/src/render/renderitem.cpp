@@ -39,8 +39,6 @@ namespace dmRender
         dispatch.m_DispatchFn = dispatch_fn;
         dispatch.m_VisibilityFn = visibility_fn;
         dispatch.m_UserData = user_data;
-        dispatch.m_SupportsInstancing = 0;
-        dispatch.m_HasVertexCounts = 0;
         context->m_RenderListDispatch.Push(dispatch);
         DM_PROPERTY_ADD_U32(rmtp_RenderDispatchCount, 1);
         return context->m_RenderListDispatch.Size() - 1;
@@ -57,7 +55,7 @@ namespace dmRender
         return RenderListMakeDispatch(render_context, dispatch_fn, 0, user_data);
     }
 
-    HRenderItemDispatch RegisterRenderListDispatch(HRenderContext context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data, bool supports_instancing)
+    HRenderItemDispatch RegisterRenderListDispatch(HRenderContext context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data)
     {
         uint32_t index = 1;
         while (index < context->m_RenderItemDispatches.Size() && context->m_RenderItemDispatches[index])
@@ -77,8 +75,6 @@ namespace dmRender
         registration->m_Dispatch.m_DispatchFn = dispatch_fn;
         registration->m_Dispatch.m_VisibilityFn = visibility_fn;
         registration->m_Dispatch.m_UserData = user_data;
-        registration->m_Dispatch.m_SupportsInstancing = supports_instancing;
-        registration->m_Dispatch.m_HasVertexCounts = 0;
         registration->m_NumChanges = 0;
         registration->m_FrameDispatch = RENDERLIST_INVALID_DISPATCH;
         registration->m_RebuildCache = true;
@@ -173,9 +169,6 @@ namespace dmRender
         item.m_Dispatch = dispatch;
         item.m_WorldTransform = Matrix4::identity();
         item.m_BoundingVolumeType = BOUNDING_VOLUME_NONE;
-        item.m_Material = 0;
-        item.m_VertexCount = 0;
-        item.m_ManualOrder = 0;
         RenderListEntry& entry = context->m_RenderList[index];
         memset(&entry, 0, sizeof(entry));
         entry.m_UserData = user_data;
@@ -246,16 +239,9 @@ namespace dmRender
         PersistentRenderItem* item = GetPersistentRenderItem(context, handle);
         if (!item)
             return false;
-        item->m_Material = material;
         RenderItemDispatch& dispatch = *context->m_RenderItemDispatches[item->m_Dispatch];
-        bool                instanced = dispatch.m_Dispatch.m_SupportsInstancing && material && GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
         uint32_t            key = material ? GetMaterialTagListKey(material) : RegisterMaterialTagList(context, 0, 0);
         RenderListEntry&    entry = context->m_RenderList[(uint32_t)handle];
-        if (!item->m_ManualOrder)
-        {
-            entry.m_MajorOrder = instanced ? RENDER_ORDER_BEFORE_WORLD : RENDER_ORDER_WORLD;
-            entry.m_Order = 0;
-        }
         if (entry.m_TagListKey != key)
         {
             if (item->m_Enabled)
@@ -270,26 +256,9 @@ namespace dmRender
         PersistentRenderItem* item = GetPersistentRenderItem(context, handle);
         if (!item)
             return false;
-        item->m_ManualOrder = 1;
         RenderListEntry& entry = context->m_RenderList[(uint32_t)handle];
         entry.m_MajorOrder = render_order;
         entry.m_Order = order & 0x00ffffff;
-        return true;
-    }
-
-    bool SetVertexCount(HRenderContext context, HRenderItem handle, uint32_t vertex_count)
-    {
-        PersistentRenderItem* item = GetPersistentRenderItem(context, handle);
-        if (!item)
-            return false;
-        item->m_VertexCount = vertex_count;
-        if (vertex_count)
-        {
-            RenderItemDispatch& dispatch = *context->m_RenderItemDispatches[item->m_Dispatch];
-            dispatch.m_Dispatch.m_HasVertexCounts = 1;
-            if (dispatch.m_FrameDispatch != RENDERLIST_INVALID_DISPATCH)
-                context->m_RenderListDispatch[dispatch.m_FrameDispatch].m_HasVertexCounts = 1;
-        }
         return true;
     }
 
