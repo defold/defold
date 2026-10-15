@@ -12,7 +12,7 @@ def read_release_notes_file(version, extension):
     release_notes_path = os.path.join(DEFOLD_ROOT, 'releasenotes', '%s.%s' % (version, extension))
     if not os.path.exists(release_notes_path):
         return None
-    with open(release_notes_path) as f:
+    with open(release_notes_path, encoding='utf-8') as f:
         return f.read()
 
 
@@ -79,11 +79,11 @@ def upload(bucket, version, channel, required=False):
 
     markdown_obj = bucket.Object('editor2/channels/%s/release-notes/%s.md' % (channel, version))
     log("Uploading per-version release notes markdown for %s -> %s" % (version, markdown_obj.key))
-    markdown_obj.put(Body=markdown_content, ContentType='text/markdown')
+    markdown_obj.put(Body=markdown_content.encode('utf-8'), ContentType='text/markdown; charset=utf-8')
 
     json_obj = bucket.Object('editor2/channels/%s/release-notes/%s.json' % (channel, version))
     log("Uploading per-version release notes JSON for %s -> %s" % (version, json_obj.key))
-    json_obj.put(Body=json_content, ContentType='application/json')
+    json_obj.put(Body=json_content.encode('utf-8'), ContentType='application/json')
 
     update_manifest(bucket, version, channel)
 

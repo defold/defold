@@ -196,20 +196,15 @@ namespace dmGameSystem
         return 1;
     }
 
-    static btCollisionObject* GetNativeCollisionObject(lua_State* L, dmGameObject::HCollection* out_collection, dmMessage::URL* out_url)
+    static btCollisionObject* GetNativeCollisionObject(lua_State* L)
     {
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
         dmGameObject::HComponent  component = 0;
         void*                     component_world = 0;
-        GetCollisionObject(L, 1, collection, out_url, &component, &component_world);
+        GetCollisionObject(L, 1, collection, 0, &component, &component_world);
         if (!CheckBullet3DWorldBackend(L, component_world))
         {
             return 0;
-        }
-
-        if (out_collection)
-        {
-            *out_collection = collection;
         }
         return (btCollisionObject*)CompCollisionObjectGetBullet3DCollisionObject(component);
     }
@@ -218,12 +213,10 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        dmGameObject::HCollection collection = 0;
-        dmMessage::URL            url;
-        btCollisionObject*        collision_object = GetNativeCollisionObject(L, &collection, &url);
+        btCollisionObject* collision_object = GetNativeCollisionObject(L);
         if (collision_object)
         {
-            PushBullet3DCollisionObject(L, collision_object, collection, url.m_Path);
+            PushBullet3DCollisionObject(L, collision_object, CompCollisionObjectGetInstance(collision_object->getUserPointer()));
         }
         else
         {
@@ -236,12 +229,10 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        dmGameObject::HCollection collection = 0;
-        dmMessage::URL            url;
-        btCollisionObject*        collision_object = GetNativeCollisionObject(L, &collection, &url);
+        btCollisionObject* collision_object = GetNativeCollisionObject(L);
         if (collision_object && btRigidBody::upcast(collision_object))
         {
-            PushBullet3DCollisionObject(L, collision_object, collection, url.m_Path);
+            PushBullet3DCollisionObject(L, collision_object, CompCollisionObjectGetInstance(collision_object->getUserPointer()));
         }
         else
         {

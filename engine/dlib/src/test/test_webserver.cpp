@@ -94,13 +94,22 @@ public:
         handler_params.m_Userdata = this;
 
         handler_params.m_Handler = QuitHandler;
-        dmWebServer::AddHandler(m_Server, "/quit", &handler_params);
+        dmWebServer::AddHandler(m_Server, "/quit", &handler_params,
+            "{\"/quit\":{\"get\":{\"responses\":{\"200\":{\"description\":\"Stop the test server\"}}}}}");
 
         handler_params.m_Handler = MulHandler;
-        dmWebServer::AddHandler(m_Server, "/mul", &handler_params);
+        dmWebServer::AddHandler(m_Server, "/mul", &handler_params,
+            "{\"/mul/{a}/{b}\":{\"get\":{\"parameters\":["
+            "{\"name\":\"a\",\"in\":\"path\",\"required\":true,\"schema\":{\"type\":\"integer\"}},"
+            "{\"name\":\"b\",\"in\":\"path\",\"required\":true,\"schema\":{\"type\":\"integer\"}}],"
+            "\"responses\":{\"200\":{\"description\":\"Sum of a and b\"}}}}}");
 
         handler_params.m_Handler = MulHeaderHandler;
-        dmWebServer::AddHandler(m_Server, "/header_mul", &handler_params);
+        dmWebServer::AddHandler(m_Server, "/header_mul", &handler_params,
+            "{\"/header_mul\":{\"get\":{\"parameters\":["
+            "{\"name\":\"X-a\",\"in\":\"header\",\"required\":true,\"schema\":{\"type\":\"integer\"}},"
+            "{\"name\":\"X-b\",\"in\":\"header\",\"required\":true,\"schema\":{\"type\":\"integer\"}}],"
+            "\"responses\":{\"200\":{\"description\":\"Sum of the header values\"}}}}}");
     }
 
     void TearDown() override

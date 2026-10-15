@@ -106,16 +106,40 @@ namespace dmWebServer
         Handler     m_Handler;
     };
 
-    /*# Add a new handler
+    /*# Add a new handler without OpenAPI metadata
+     * Requests use the handler with the longest matching prefix, regardless of
+     * registration order. A handler registered at "/" serves as a fallback.
+     * Equivalent to calling the four-argument overload with openapi_json set to 0.
      * @name AddHandler
      * @param server [type:HServer] Server handle
      * @param prefix [type:const char*] Location prefix for which locations this handler should handle
      * @param handler_params [type:HandlerParams] Handler parameters
      * @return [type:Result] RESULT_OK on success
      */
+    Result AddHandler(HServer server, const char* prefix, const HandlerParams* handler_params);
+
+    /*# Add a new handler with optional OpenAPI metadata
+     * Requests use the handler with the longest matching prefix, regardless of
+     * registration order. A handler registered at "/" serves as a fallback.
+     * Pass 0 to register without documenting the handler. Otherwise, the OpenAPI
+     * JSON is a non-empty Paths Object describing the paths and methods
+     * served by this handler. Each path must start with the handler's prefix and
+     * must not already be documented by another handler. Schemas should be inline
+     * or use references to paths in the resulting document.
+     * The server retains the JSON pointer without copying it. Keep the string
+     * unchanged and valid until the handler is removed or the server is deleted;
+     * a static const char array is recommended.
+     * @name AddHandler
+     * @param server [type:HServer] Server handle
+     * @param prefix [type:const char*] Location prefix for which locations this handler should handle
+     * @param handler_params [type:HandlerParams] Handler parameters
+     * @param openapi_json [type:const char*] OpenAPI 3.0.3 Paths Object encoded as a JSON string, or 0 to omit metadata
+     * @return [type:Result] RESULT_OK on success, RESULT_ERROR_INVAL for invalid or conflicting metadata
+     */
     Result AddHandler(HServer server,
                       const char* prefix,
-                      const HandlerParams* handler_params);
+                      const HandlerParams* handler_params,
+                      const char* openapi_json);
 
     /*# Remove handle
      * @name RemoveHandler

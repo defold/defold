@@ -1679,8 +1679,21 @@ static void LogFrameBufferError(GLenum status)
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC3; // DXT5
         }
 
+        // Adapter API version
+        {
+            GLint gl_major = 0, gl_minor = 0;
+            glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &gl_major);
+            CLEAR_GL_ERROR;
+            glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &gl_minor);
+            CLEAR_GL_ERROR;
+            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t)gl_major;
+            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t)gl_minor;
+        }
+
+        // RGTC is core in desktop OpenGL 3.0+, even if the extension is not listed.
+        bool rgtc_core = !context->m_IsShaderLanguageGles && context->m_BaseContext.m_AdapterVersionMajor >= 3;
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_rgtc.txt
-        if (OpenGLIsExtensionSupported(_context, "GL_ARB_texture_compression_rgtc") ||
+        if (rgtc_core || OpenGLIsExtensionSupported(_context, "GL_ARB_texture_compression_rgtc") ||
             OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_rgtc") ||
             OpenGLIsExtensionSupported(_context, "EXT_texture_compression_rgtc"))
         {
@@ -2078,15 +2091,6 @@ static void LogFrameBufferError(GLenum status)
         // (Gated further by IsTextureFormatSupported, so this is a no-op where BC isn't supported.)
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BC_ARRAY_TEXTURES);
     #endif
-
-        // Adapter API version
-        {
-            GLint gl_major = 0, gl_minor = 0;
-            glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &gl_major); CLEAR_GL_ERROR;
-            glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &gl_minor); CLEAR_GL_ERROR;
-            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) gl_major;
-            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) gl_minor;
-        }
 
         if (context->m_BaseContext.m_PrintDeviceInfo)
         {
@@ -4392,7 +4396,7 @@ static void LogFrameBufferError(GLenum status)
 
         for (int i = 0; i < program_ptr->m_UniformBuffers.Size(); ++i)
         {
-            delete program_ptr->m_UniformBuffers[i].m_BlockMemory;
+            delete[] program_ptr->m_UniformBuffers[i].m_BlockMemory;
         }
 
         delete program_ptr;
@@ -4672,7 +4676,6 @@ static void LogFrameBufferError(GLenum status)
             {
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachment_targets[i], GL_RENDERBUFFER, GetGLHandle(context, attachment.m_Buffer));
                 CHECK_GL_ERROR;
-                CHECK_GL_FRAMEBUFFER_ERROR;
             }
         }
         else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
@@ -4683,7 +4686,6 @@ static void LogFrameBufferError(GLenum status)
             {
                 glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_targets[i], texture_target, GetGLHandle(context, attachment_tex->m_TextureIds[0]), 0);
                 CHECK_GL_ERROR;
-                CHECK_GL_FRAMEBUFFER_ERROR;
             }
         }
         else assert(0);
@@ -4746,6 +4748,8 @@ static void LogFrameBufferError(GLenum status)
                     CHECK_GL_ERROR;
                 }
 
+                attachment_tex->m_Base.m_Width = rt->m_Base.m_DepthStencilTextureParams.m_Width;
+                attachment_tex->m_Base.m_Height = rt->m_Base.m_DepthStencilTextureParams.m_Height;
                 glBindTexture(texture_target, 0);
             #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
@@ -4948,17 +4952,22 @@ static void LogFrameBufferError(GLenum status)
             BUFFER_TYPE_COLOR3_BIT,
         };
 
-        // NOTE: Regarding this, the OpenGL context we create is to low on all current desktop platforms to use, but it should work for the other adapters.
-        if (stencil_texture)
+        // Packed depth/stencil storage supports depth sampling, but not stencil sampling.
+        if (use_stencil_attachment && params.m_StencilTexture)
         {
-            dmLogWarning("Stencil textures are not supported on the OpenGL adapter, defaulting to render buffer.");
+            dmLogWarning("Stencil texture sampling is not supported on the OpenGL adapter.");
         }
 
         if (use_depth_attachment && use_stencil_attachment && stencil_texture != depth_texture)
         {
-            dmLogWarning("Creating a RenderTarget with different backing storage (depth: %s != stencil: %s), defaulting to the depth buffer type for both.",
-                (depth_texture ? "texture" : "buffer"),
-                (stencil_texture ? "texture" : "buffer"));
+            // Sampling depth without sampling stencil still uses a packed depth/stencil texture.
+            // Only warn when stencil sampling was requested with a depth render buffer.
+            if (stencil_texture)
+            {
+                dmLogWarning("Creating a RenderTarget with different backing storage (depth: %s != stencil: %s), defaulting to the depth buffer type for both.",
+                    (depth_texture ? "texture" : "buffer"),
+                    (stencil_texture ? "texture" : "buffer"));
+            }
             stencil_texture = depth_texture;
         }
 
@@ -5275,7 +5284,12 @@ static void LogFrameBufferError(GLenum status)
 
     #undef DRAW_BUFFERS_FN
 
-        CHECK_GL_FRAMEBUFFER_ERROR;
+        // Framebuffer status queries can stall WebGL. Creation and attachment changes
+        // are checked separately; only verify ordinary binds when requested.
+        if (context->m_BaseContext.m_VerifyGraphicsCalls)
+        {
+            CHECK_GL_FRAMEBUFFER_ERROR;
+        }
     }
 
     static void OpenGLSetRenderTargetSize(HContext _context, HRenderTarget render_target, uint32_t width, uint32_t height)

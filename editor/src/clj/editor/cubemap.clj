@@ -36,7 +36,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap]
-           [com.jogamp.opengl GL2]))
+           [com.jogamp.opengl GL3]))
 
 (set! *warn-on-reflection* true)
 
@@ -59,16 +59,16 @@
 (def cubemap-shader shaders/cubemap-world-space)
 
 (defn render-cubemap
-  [^GL2 gl render-args camera gpu-texture vertex-binding]
+  [^GL3 gl render-args camera gpu-texture vertex-binding]
   (let [render-args (assoc render-args
                       :camera-position (types/position camera)
                       :world geom/Identity4d)]
     (gl/with-gl-bindings gl render-args [cubemap-shader vertex-binding gpu-texture]
       (shader/set-uniform cubemap-shader gl "environment_sampler" 0)
-      (gl/gl-enable gl GL2/GL_CULL_FACE)
-      (gl/gl-cull-face gl GL2/GL_BACK)
-      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (* 6 (* sphere-lats sphere-longs)))
-      (gl/gl-disable gl GL2/GL_CULL_FACE))))
+      (gl/gl-enable gl GL3/GL_CULL_FACE)
+      (gl/gl-cull-face gl GL3/GL_BACK)
+      (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (* 6 (* sphere-lats sphere-longs)))
+      (gl/gl-disable gl GL3/GL_CULL_FACE))))
 
 (g/defnk produce-save-value [right left top bottom front back]
   (protobuf/make-map-without-defaults Graphics$Cubemap

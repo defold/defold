@@ -24,6 +24,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/webserver.h>
 #include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/gameobject/res_collection.h>
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/hid/hid.h>
 #include <dmsdk/render/render.h>
@@ -471,7 +472,7 @@ namespace dmEngine
     : m_Config(0)
     , m_Window(0)
     , m_Alive(true)
-    , m_MainCollection(0)
+    , m_MainCollectionResource(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
     , m_GraphicsContext(0)
@@ -549,6 +550,7 @@ namespace dmEngine
         return new Engine(engine_service);
     }
 
+<<<<<<< HEAD
     struct MixedInlineState
     {
         dmRender::PreparedRenderList m_Mixed;
@@ -1122,6 +1124,11 @@ namespace dmEngine
         dmGraphics::PrepareRenderThreadSurface(engine->m_GraphicsContext, false);
         delete engine->m_SpriteThread;
         engine->m_SpriteThread = 0;
+=======
+    static dmGameObject::HCollection GetMainCollection(HEngine engine)
+    {
+        return dmGameObject::ResCollectionGetCollection(engine->m_MainCollectionResource);
+>>>>>>> dev
     }
 
     void Delete(HEngine engine)
@@ -1186,8 +1193,8 @@ namespace dmEngine
             dmExtension::DispatchEvent( params, &event );
         }
 
-        if (engine->m_MainCollection)
-            dmResource::Release(engine->m_Factory, engine->m_MainCollection);
+        if (engine->m_MainCollectionResource)
+            dmResource::Release(engine->m_Factory, engine->m_MainCollectionResource);
         dmGameObject::PostUpdate(engine->m_Register);
 
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
@@ -1761,7 +1768,7 @@ namespace dmEngine
         if (1 == dmConfigFile::GetInt(engine->m_Config, "html5.show_console_banner", 1))
         {
             EM_ASM({
-                if (navigator.userAgent.toLowerCase().indexOf('chrome') > -1) {
+                if (typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().indexOf('chrome') > -1) {
                     console.log("%c    %c    Made with Defold    %c    %c    https://www.defold.com",
                         "background: #fd6623; padding:5px 0; border: 5px;",
                         "background: #272c31; color: #fafafa; padding:5px 0;",
@@ -1819,7 +1826,7 @@ namespace dmEngine
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
 
         // Accelerometer
-        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
+        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 0);
         new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
 
 #if defined(__EMSCRIPTEN__)
@@ -2565,9 +2572,10 @@ namespace dmEngine
         // setup streaming for resource types, before we load the first collection
         SetupStreamingResourceTypes(engine);
 
-        fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**) &engine->m_MainCollection);
+        fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**)&engine->m_MainCollectionResource);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
+<<<<<<< HEAD
         dmGameObject::Init(engine->m_MainCollection);
         if (engine->m_SpriteContext.m_SnapshotInline && !engine->m_SpriteContext.m_SnapshotThreaded &&
             dmConfigFile::GetInt(engine->m_Config, "render.mixed_preparation", 0))
@@ -2609,6 +2617,9 @@ namespace dmEngine
             fprintf(stderr, "PoC main QoS: enabled\n");
         }
 #endif
+=======
+        dmGameObject::Init(GetMainCollection(engine));
+>>>>>>> dev
 
         engine->m_LastReloadMTime = 0;
 
@@ -2731,6 +2742,7 @@ bail:
         dmArray<dmGameObject::InputAction>* input_buffer = &engine->m_InputBuffer;
         dmGameObject::InputAction input_action;
         input_action.m_ActionId = action_id;
+        input_action.m_Source = action->m_Source;
         input_action.m_Value = action->m_Value;
         input_action.m_Pressed = action->m_Pressed;
         input_action.m_Released = action->m_Released;
@@ -3049,7 +3061,7 @@ bail:
                 uint32_t input_buffer_size = input_buffer.Size();
                 if (input_buffer_size > 0)
                 {
-                    dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
+                    dmGameObject::DispatchInput(GetMainCollection(engine), &input_buffer[0], input_buffer.Size());
                 }
 
 
@@ -3061,11 +3073,15 @@ bail:
                 update_context.m_DT = dt;
                 update_context.m_FixedUpdateFrequency = engine->m_FixedUpdateFrequency;
                 update_context.m_AccumFrameTime = engine->m_AccumFrameTime;
+<<<<<<< HEAD
                 uint64_t component_update_begin = engine->m_ComponentThread ? dmTime::GetMonotonicTime() : 0;
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
                 if (engine->m_ComponentThread)
                     dmRender::MarkRenderThreadSimulationComplete(engine->m_ComponentThread->m_Thread, component_update_begin);
                 if (sprite_trace) sprite_trace->m_UpdateEnd = dmTime::GetMonotonicTime();
+=======
+                dmGameObject::Update(GetMainCollection(engine), &update_context);
+>>>>>>> dev
 
 #if defined(__EMSCRIPTEN_PTHREADS__)
                 if (!WebComponentActive() || engine->m_PocWebComponents)
@@ -3120,6 +3136,7 @@ bail:
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
+<<<<<<< HEAD
                     if (engine->m_MixedInline)
                     {
                         uint32_t type = dmGameObject::GetComponentTypeIndex(engine->m_MainCollection, dmHashString64("spritec"));
@@ -3139,6 +3156,9 @@ bail:
                             dmGameObject::Render(engine->m_MainCollection);
                     }
                     if (sprite_trace) sprite_trace->m_PrepareEnd = dmTime::GetMonotonicTime();
+=======
+                    dmGameObject::Render(GetMainCollection(engine));
+>>>>>>> dev
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -3193,7 +3213,7 @@ bail:
                     }
                 }
 
-                dmGameObject::PostUpdate(engine->m_MainCollection);
+                dmGameObject::PostUpdate(GetMainCollection(engine));
                 dmGameObject::PostUpdate(engine->m_Register);
 
                 if (do_render && !engine->m_RenderFrame && !engine->m_SpriteThread && !engine->m_ComponentThread)
@@ -3603,7 +3623,7 @@ bail:
         engine->m_RunResult.m_Argv[argc++] = strdup("dmengine");
 
         // This value should match the count in dmSystemDDF::Reboot
-        const int ARG_COUNT = 6;
+        const int ARG_COUNT = 8;
         const char* args[ARG_COUNT] =
         {
             reboot->m_Arg1,
@@ -3612,6 +3632,8 @@ bail:
             reboot->m_Arg4,
             reboot->m_Arg5,
             reboot->m_Arg6,
+            reboot->m_Arg7,
+            reboot->m_Arg8,
         };
 
         for (int i = 0; i < ARG_COUNT; ++i)

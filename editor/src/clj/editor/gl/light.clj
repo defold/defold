@@ -19,7 +19,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.types :as types]
             [util.coll :as coll])
-  (:import [com.jogamp.opengl GL2]
+  (:import [com.jogamp.opengl GL3]
            [javax.vecmath Matrix4d Point3d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -219,7 +219,7 @@
 
 (def ^:private light-info-uniform-name "light_info")
 
-(defn bind-preview-lights-for-shader! [^GL2 gl shader-lifecycle render-args]
+(defn bind-preview-lights-for-shader! [^GL3 gl shader-lifecycle render-args]
   (when (shader/uses-preview-light-buffer? shader-lifecycle)
     (let [packed-lights (or (:preview-lights render-args) [])
           ^Vector3d ambient-light (or (:preview-ambient-light render-args) math/zero-v3)

@@ -161,7 +161,6 @@ public class AndroidTools {
                     File f = new File(rootFolder, "lib/classes.dex");
                     Bob.atomicCopy(classesDex, f, false);
                 }
-                extractOptionalResource(rootFolder, "lib/vkquality/vkqualitydata.vkq", false);
                 extractOptionalResource(rootFolder, "libexec/armv7-android/libvkquality.so", false);
                 extractOptionalResource(rootFolder, "libexec/arm64-android/libvkquality.so", false);
                 extractOptionalResource(rootFolder, "libexec/x86_64-android/libvkquality.so", false);

@@ -183,6 +183,7 @@ namespace dmGameSystem
         world->m_Renderer.m_ConstantBuffers.SetSize(max_emitter_count);
         memset(world->m_Renderer.m_ConstantBuffers.Begin(), 0, sizeof(dmRender::HNamedConstantBuffer)*max_emitter_count);
 
+<<<<<<< HEAD
         // position   : 3
         // color      : 4
         // texcoord0  : 2
@@ -194,6 +195,11 @@ namespace dmGameSystem
         world->m_Renderer.m_VertexBufferData.SetSize(buffer_size);
         world->m_Renderer.m_VertexBuffer = dmRender::NewBufferedRenderBuffer(ctx->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         world->m_Renderer.m_VertexBufferSize = 0;
+=======
+        // Allocate the CPU scratch buffer from the actual material stride in RenderBatch.
+        world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(ctx->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
+        world->m_VertexBufferSize = 0;
+>>>>>>> dev
 
         world->m_WarnOutOfROs = 0;
         world->m_EmitterCount = 0;
@@ -411,7 +417,9 @@ namespace dmGameSystem
         const uint32_t max_gpu_size = pfx_world->m_VertexBufferSize;
         const uint32_t max_cpu_size = dmMath::Min(max_cpu_count, max_gpu_count) * VERTEX_COUNT * vx_stride;
 
-        // Each batch uses the scratch data exclusively (i.e. no mixed vertex formats)
+        // Batches reuse this buffer one at a time. Allocate lazily for the material
+        // stride and retain the largest capacity encountered; smaller strides do not
+        // shrink it or repeatedly reallocate when materials alternate.
         dmArray<uint8_t>& vertex_buffer = pfx_world->m_VertexBufferData;
         if (vertex_buffer.Capacity() < max_cpu_size)
         {

@@ -49,6 +49,10 @@
 
 (def vector3-up (Vector3d. 0.0 1.0 0.0))
 
+(declare interpolate-orbit set-camera!)
+
+(def ^:private ^:const align-duration 0.25)
+
 (defn camera-forward-vector
   ^Vector3d [^Camera camera]
   (math/rotate (types/rotation camera)
@@ -62,6 +66,46 @@
   ^Vector3d [^Camera camera]
   (math/rotate (types/rotation camera)
                (Vector3d. 1.0 0.0 0.0)))
+
+(defn- camera-rotation-from-forward+up
+  ^Quat4d [^Vector3d forward ^Vector3d up]
+  (let [backward (doto (Vector3d. forward)
+                   (.negate)
+                   (.normalize))
+        up (doto (Vector3d. up) (.normalize))
+        right (doto (Vector3d.)
+                (.cross up backward)
+                (.normalize))
+        up (doto (Vector3d.)
+             (.cross backward right)
+             (.normalize))]
+    (doto (Quat4d.)
+      (.set (doto (Matrix3d.)
+              (.setColumn 0 right)
+              (.setColumn 1 up)
+              (.setColumn 2 backward))))))
+
+(defn frame-camera-to-axis
+  "Aligns the camera to an axis, preserving its focus point and distance."
+  ^Camera [^Camera camera axis]
+  (let [[^Vector3d forward up] (case axis
+                                 :+x [(Vector3d. -1.0 0.0 0.0) vector3-up]
+                                 :-x [(Vector3d. 1.0 0.0 0.0) vector3-up]
+                                 :+y [(Vector3d. 0.0 -1.0 0.0) (Vector3d. 0.0 0.0 -1.0)]
+                                 :-y [(Vector3d. 0.0 1.0 0.0) (Vector3d. 0.0 0.0 1.0)]
+                                 :+z [(Vector3d. 0.0 0.0 -1.0) vector3-up]
+                                 :-z [(Vector3d. 0.0 0.0 1.0) vector3-up])
+        rotation (camera-rotation-from-forward+up forward up)
+        ^Vector4d fp (:focus-point camera)
+        focus (Point3d. (.x fp) (.y fp) (.z fp))
+        distance (.distance focus (types/position camera))
+        position (doto (Point3d. focus)
+                   (.scaleAdd (- distance) forward focus))]
+    (assoc camera :rotation rotation :position position :mode-2d false)))
+
+(defn frame-camera-to-axis! [camera-node start-camera axis animate]
+  (let [end-camera (frame-camera-to-axis start-camera axis)]
+    (set-camera! camera-node start-camera end-camera animate nil {:interpolate-fn interpolate-orbit :duration align-duration})))
 
 (defn camera-focus-point
   ^Point3d [^Camera camera]
@@ -208,7 +252,8 @@
               (get opts :fov-x fov-x-35mm-full-frame) (get opts :fov-y fov-y-35mm-full-frame)
               (Vector4d. 0.0 0.0 0.0 1.0)
               0.0
-              filter-fn))))
+              filter-fn
+              (= :orthographic t)))))
 
 (defn- set-extents
   ^Camera [^Camera camera fov-x fov-y z-near z-far]
@@ -469,6 +514,21 @@
                       new-target)]
      (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera new-target))))
 
+(defn cancel-dolly! [camera-node]
+  (when (:dolly-target-camera (g/user-data camera-node ::camera-state))
+    (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera nil)))
+
+(defn start-tumble! [camera-node x y]
+  (g/user-data-swap! camera-node ::camera-state assoc
+    :last-x x
+    :last-y y
+    :initial-x x
+    :initial-y y
+    :movement :tumble)
+  (g/transact
+    {:undoable false}
+    (g/set-property camera-node :cursor-type :pan)))
+
 (defn- reset-dolly! [camera-node]
   (when-let [target-camera (:dolly-target-camera (g/user-data camera-node ::camera-state))]
     (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera nil)
@@ -521,7 +581,8 @@
     ;; position is now in delta
     (assoc camera
       :position (Point3d. (.x delta) (.y delta) (.z delta))
-      :rotation r)))
+      :rotation r
+      :mode-2d false)))
 
 (def ^:private default-3d-tumble
   "The tumble realign-camera applies when toggling out of 2D mode."
@@ -538,6 +599,7 @@
 (defn camera->prefs-value [camera]
   (let [^Vector4d focus-point (:focus-point camera)]
     {:projection (:type camera)
+     :mode-2d (true? (:mode-2d camera))
      :position (math/vecmath->clj (:position camera))
      :rotation (math/vecmath->clj (:rotation camera))
      :fov-x (:fov-x camera)
@@ -545,16 +607,21 @@
      :focus-point [(.x focus-point) (.y focus-point) (.z focus-point)]}))
 
 (defn try-load-camera-from-prefs [prefs path-key]
-  (let [{:keys [projection position rotation fov-x fov-y focus-point]}
+  (let [{:keys [projection mode-2d position rotation fov-x fov-y focus-point]}
         (prefs/get-pref-entry-in prefs [:scene :resource-settings] path-key [:camera] nil)]
     (when (and projection position rotation fov-x fov-y focus-point)
       (let [[position-x position-y position-z] position
             [rotation-x rotation-y rotation-z rotation-w] rotation
-            [focus-x focus-y focus-z] focus-point]
-        (assoc (make-camera projection identity {:fov-x fov-x :fov-y fov-y})
-          :position (Point3d. (double position-x) (double position-y) (double position-z))
-          :rotation (Quat4d. (double rotation-x) (double rotation-y) (double rotation-z) (double rotation-w))
-          :focus-point (Vector4d. (double focus-x) (double focus-y) (double focus-z) 1.0))))))
+            [focus-x focus-y focus-z] focus-point
+            camera (assoc (make-camera projection identity {:fov-x fov-x :fov-y fov-y})
+                     :position (Point3d. (double position-x) (double position-y) (double position-z))
+                     :rotation (Quat4d. (double rotation-x) (double rotation-y) (double rotation-z) (double rotation-w))
+                     :focus-point (Vector4d. (double focus-x) (double focus-y) (double focus-z) 1.0))]
+        (assoc camera
+          :mode-2d (if (some? mode-2d)
+                     mode-2d
+                     (and (= :orthographic projection)
+                          (= 1.0 (.getElement (camera-view-matrix camera) 2 2)))))))))
 
 (def ^:private camera-command->movement
   {:scene.camera.free-look :look
@@ -674,6 +741,7 @@
         cam-pos (math/offset-scaled focus-pos cam-forward (- focus-distance))]
     (assoc camera
       :type :perspective
+      :mode-2d false
       :position cam-pos
       :fov-x (max (* fov-y-deg aspect) 1e-6)
       :fov-y (max fov-y-deg 1e-6))))
@@ -787,24 +855,71 @@
              (lerp (:fov-y from) (:fov-y to) t)
              fp
              (.distance p (Point3d. (.x fp) (.y fp) (.z fp)))
-             filter-fn)))
+             filter-fn
+             (and (:mode-2d from) (:mode-2d to)))))
+
+(defn- interpolate-orbit
+  "Interpolates around the focus point to avoid crossing it during axis alignment."
+  ^Camera [^Camera from ^Camera to ^double t]
+  (let [filter-fn (or (:filter-fn from) identity)
+        ^Camera to (filter-fn to)
+        ;; Copies, since Quat4d.interpolate may negate its first argument.
+        rotation (doto (Quat4d.)
+                   (.interpolate (Quat4d. ^Quat4d (:rotation from)) (Quat4d. ^Quat4d (:rotation to)) t))
+        fp (doto (Vector4d.) (.interpolate ^Tuple4d (:focus-point from) ^Tuple4d (:focus-point to) t))
+        focus (Point3d. (.x fp) (.y fp) (.z fp))
+        ;; Dolly can pass the focus, so preserve the offset direction as well as its length.
+        local-offset (fn [^Camera camera]
+                       (math/rotate (doto (Quat4d. ^Quat4d (:rotation camera)) (.conjugate))
+                                    (doto (Vector3d. (types/position camera)) (.sub (camera-focus-point camera)))))
+        ^Vector3d from-offset (local-offset from)
+        ^Vector3d to-offset (local-offset to)
+        unit (fn unit [^Vector3d v]
+               (if (pos? (.length v))
+                 (doto (Vector3d. v) (.normalize))
+                 (Vector3d. 0.0 0.0 1.0)))
+        ^Vector3d from-direction (unit from-offset)
+        ^Vector3d to-direction (unit to-offset)
+        cross (doto (Vector3d.) (.cross from-direction to-direction))
+        angle (Math/atan2 (.length cross) (.dot from-direction to-direction))
+        ;; Parallel directions have no cross-product axis, so use a fixed fallback.
+        turn-axis (if (> (.length cross) 1e-9)
+                    cross
+                    (Vector3d. 0.0 1.0 0.0))
+        turn (doto (Quat4d.) (.set (AxisAngle4d. turn-axis (* angle t))))
+        offset (doto (math/rotate turn from-direction)
+                 (.scale (lerp (.length from-offset) (.length to-offset) t)))
+        position (doto (Point3d. focus) (.add (math/rotate rotation offset)))
+        distance (.distance position focus)]
+    (Camera. (:type to) position rotation
+             (lerp (:z-near from) (:z-near to) t)
+             (lerp (:z-far from) (:z-far to) t)
+             (lerp (:fov-x from) (:fov-x to) t)
+             (lerp (:fov-y from) (:fov-y to) t)
+             fp
+             distance
+             filter-fn
+             (and (:mode-2d from) (:mode-2d to)))))
 
 (defn set-camera!
   ([camera-node start-camera end-camera animate]
    (set-camera! camera-node start-camera end-camera animate nil))
   ([camera-node start-camera end-camera animate on-animation-end]
+   (set-camera! camera-node start-camera end-camera animate on-animation-end nil))
+  ([camera-node start-camera end-camera animate on-animation-end
+    {:keys [interpolate-fn duration]
+     :or {interpolate-fn interpolate duration 0.5}}]
    (if animate
-     (let [duration 0.5]
+     (let [duration (double duration)]
        (g/transact
          {:undoable false}
          (g/set-property camera-node :animating true))
-       ;; NOTE: If the user was dollying during an animation, cancel the dolly
-       (when (:dolly-target-camera (g/user-data camera-node ::camera-state))
-         (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera nil))
+       ;; Cancel eased zoom so it cannot compete with the animation.
+       (cancel-dolly! camera-node)
        (ui/anim! duration
                  (fn [^double t]
                    (let [t (- (* t t 3) (* t t t 2))
-                         cam (interpolate start-camera end-camera t)]
+                         cam (interpolate-fn start-camera end-camera t)]
                      (g/transact
                        {:undoable false}
                        (g/set-property camera-node :local-camera cam))))
@@ -822,7 +937,8 @@
          {:undoable false}
          (g/set-property camera-node :local-camera end-camera))
        (when-let [advance! (g/node-value camera-node :popup-advance-fn)]
-         (advance!))))
+         (advance!))
+       (when on-animation-end (on-animation-end))))
    nil))
 
 (defn- toggle-free-cam-css [image-view active]
@@ -892,8 +1008,7 @@
         (set-camera! camera-node old-camera new-camera false)))))
 
 (defn mode-2d? [camera]
-  (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
-       (= :orthographic (:type camera))))
+  (true? (:mode-2d camera)))
 
 (defn camera-2d?
   [camera-node evaluation-context]
@@ -931,7 +1046,7 @@
              local-cam (cond-> local-cam
                          (= (:type camera-3d) :perspective)
                          (camera-orthographic->perspective (perspective-fov-y camera-node)))]
-         (set-camera! camera-node local-cam camera-3d animate))
+         (set-camera! camera-node local-cam camera-3d animate nil {:duration align-duration}))
        (let [is-perspective (= (:type local-cam) :perspective)]
          (g/transact
            {:undoable false}
@@ -939,8 +1054,9 @@
          (let [end-camera (cond-> local-cam
                             is-perspective camera-perspective->orthographic
                             :always camera-orthographic-realign
-                            is-perspective (camera-orthographic->perspective (perspective-fov-y camera-node)))]
-           (set-camera! camera-node local-cam end-camera animate #(set-camera-type! camera-node :orthographic))))))))
+                            is-perspective (camera-orthographic->perspective (perspective-fov-y camera-node))
+                            :always (assoc :mode-2d true))]
+           (set-camera! camera-node local-cam end-camera animate #(set-camera-type! camera-node :orthographic) {:duration align-duration})))))))
 
 (defn- contains-key-code? [pressed-keys key-codes] (some #(contains? pressed-keys %) key-codes))
 
@@ -1241,7 +1357,8 @@
               (set-dolly-target! self (* ^double dolly-delta-scale (- mouse-y last-y))))
             (g/user-data-swap! self ::camera-state assoc
               :last-x mouse-x
-              :last-y mouse-y)))))))
+              :last-y mouse-y))))))
+  input-state)
 
 (g/defnode CameraController
   (property prefs g/Any)

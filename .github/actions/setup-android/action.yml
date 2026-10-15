@@ -1,0 +1,70 @@
+name: Setup Android SDK
+description: Install Android tools with separate SDK, NDK, and emulator caches.
+
+inputs:
+  android-api-level:
+    description: Android platform API level
+    required: true
+  android-build-tools:
+    description: Android build-tools version
+    required: true
+  android-ndk:
+    description: Android NDK version
+    required: true
+  emulator:
+    description: Cache the Google APIs x86_64 emulator used by the engine tests
+    default: 'false'
+  cache:
+    description: Restore and save caches; disable for contrib builds and repository dispatches
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    # Only cache the requested packages. In particular, never restore an old SDK
+    # root: it can contain other NDK versions and emulator images. These keys have
+    # no fallback to the former android-sdk or avd caches.
+    - name: Cache Android SDK tools
+      if: inputs.cache == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ runner.temp }}/android-sdk/cmdline-tools
+          ${{ runner.temp }}/android-sdk/platform-tools
+          ${{ runner.temp }}/android-sdk/platforms/android-${{ inputs.android-api-level }}
+          ${{ runner.temp }}/android-sdk/build-tools/${{ inputs.android-build-tools }}
+          ${{ runner.temp }}/android-sdk/licenses
+        key: ${{ runner.os }}-${{ runner.arch }}-android-tools-api-${{ inputs.android-api-level }}-buildtools-${{ inputs.android-build-tools }}-v1
+
+    - name: Cache Android NDK
+      if: inputs.cache == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/android-sdk/ndk/${{ inputs.android-ndk }}
+        key: ${{ runner.os }}-${{ runner.arch }}-android-ndk-${{ inputs.android-ndk }}-v1
+
+    # Both main CI and the ASAN nightly use this emulator. Keep its image and AVD
+    # together, independent of the NDK version, and save only after the job stops it.
+    # android-emulator-runner v2.38.0 also installs build-tools 37.0.0, separately
+    # from the engine's requested build-tools version.
+    - name: Cache Android emulator
+      if: inputs.cache == 'true' && inputs.emulator == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ runner.temp }}/android-sdk/emulator
+          ${{ runner.temp }}/android-sdk/system-images/android-${{ inputs.android-api-level }}/google_apis/x86_64
+          ${{ runner.temp }}/android-sdk/build-tools/37.0.0
+          ~/.android/avd/*
+        key: ${{ runner.os }}-${{ runner.arch }}-android-emulator-api-${{ inputs.android-api-level }}-google_apis-x86_64-v1
+
+    - name: Install Android SDK packages
+      uses: defold/github-actions-common/.github/actions/android@73819e712828b4b2261594c33e9d2ba9929249c7
+      with:
+        android-api-level: ${{ inputs.android-api-level }}
+        android-build-tools: ${{ inputs.android-build-tools }}
+        android-ndk: ${{ inputs.android-ndk }}
+        android-sdk-root: ${{ runner.temp }}/android-sdk
+        # This wrapper owns caching; the shared installer otherwise saves the
+        # entire SDK root, including packages added later by the emulator action.
+        cache: 'false'

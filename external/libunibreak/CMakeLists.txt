@@ -10,7 +10,7 @@ file(GLOB UNIBREAK_SOURCES CONFIGURE_DEPENDS "${UNIBREAK_SOURCE_DIR}/*.c")
 list(FILTER UNIBREAK_SOURCES EXCLUDE REGEX "tests\\.c$")
 
 add_library(unibreak STATIC ${UNIBREAK_SOURCES})
-target_include_directories(unibreak PRIVATE "${UNIBREAK_SOURCE_DIR}")
+target_include_directories(unibreak PUBLIC "${UNIBREAK_SOURCE_DIR}")
 target_compile_definitions(unibreak PRIVATE NDEBUG)
 # Source options come after the shared toolchain's optimization flags.
 set_source_files_properties(${UNIBREAK_SOURCES}
