@@ -264,17 +264,13 @@ namespace dmGameSystem
         resource->m_PositionStreamId = dmHashString64(resource->m_MeshDDF->m_PositionStream);
         resource->m_NormalStreamId = dmHashString64(resource->m_MeshDDF->m_NormalStream);
 
-        BufferResource* buffer_resource = resource->m_BufferResource;
-        uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
-        for (uint32_t i = 0; i < stream_count; ++i)
-        {
-        	dmhash_t stream_id = dmHashString64(buffer_resource->m_BufferDDF->m_Streams[i].m_Name);
-        	if (stream_id == resource->m_PositionStreamId) {
-        		resource->m_PositionStreamType = buffer_resource->m_BufferDDF->m_Streams[i].m_ValueType;
-        	} else if (stream_id == resource->m_NormalStreamId) {
-                resource->m_NormalStreamType = buffer_resource->m_BufferDDF->m_Streams[i].m_ValueType;
-            }
-        }
+        dmBuffer::HBuffer buffer = resource->m_BufferResource->m_Buffer;
+        dmBuffer::ValueType stream_type;
+        uint32_t stream_count;
+        if (dmBuffer::GetStreamType(buffer, resource->m_PositionStreamId, &stream_type, &stream_count) == dmBuffer::RESULT_OK)
+            resource->m_PositionStreamType = (dmBufferDDF::ValueType)stream_type;
+        if (dmBuffer::GetStreamType(buffer, resource->m_NormalStreamId, &stream_type, &stream_count) == dmBuffer::RESULT_OK)
+            resource->m_NormalStreamType = (dmBufferDDF::ValueType)stream_type;
 
         return result;
     }

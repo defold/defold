@@ -25,7 +25,7 @@ namespace dmGameSystem
 {
     struct BufferResource
     {
-        dmBufferDDF::BufferDesc* m_BufferDDF;
+        dmBufferDDF::BufferDesc* m_BufferDDF;        // Deprecated. Always null; retained for struct layout compatibility.
         dmBuffer::HBuffer        m_Buffer;
         dmhash_t                 m_NameHash;
         uint32_t                 m_ElementCount;    // The number of vertices

@@ -14,6 +14,8 @@
 
 #include "test_gamesys_private.h"
 #include <render/render_target_ddf.h>
+#include "gamesys/resources/res_buffer.h"
+#include "gamesys/resources/res_mesh.h"
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -1834,6 +1836,199 @@ ResourceFailParams invalid_material_resources[] =
 INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, jc_test_values_in(invalid_material_resources));
 
 /* Buffer */
+
+// A literal BUFC file with uint8[3] and float32 streams, including alignment padding.
+static const uint8_t PACKED_BUFFER[] = {
+    'B', 'U', 'F', 'C', 1, 0, 2, 0, 1, 0, 0, 0, 8, 0, 0, 0,
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0,
+    2, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 8, 1, 0, 0,
+    1, 2, 3, 0, 0, 0, 128, 63,
+};
+
+class PackedBufferTest : public jc_test_base_class
+{
+protected:
+    ResourceDescriptor m_Descriptor;
+
+    void SetUp()
+    {
+        dmBuffer::NewContext();
+        memset(&m_Descriptor, 0, sizeof(m_Descriptor));
+    }
+
+    void TearDown()
+    {
+        if (m_Descriptor.m_Resource)
+        {
+            dmResource::ResourceDestroyParams params = {};
+            params.m_Resource = &m_Descriptor;
+            dmGameSystem::ResBufferDestroy(&params);
+        }
+        dmBuffer::DeleteContext();
+    }
+
+    dmResource::Result Load(const void* bytes, uint32_t size)
+    {
+        void* preload = 0;
+        dmResource::ResourcePreloadParams params = {};
+        params.m_Buffer = bytes;
+        params.m_BufferSize = size;
+        params.m_PreloadData = &preload;
+        dmResource::Result result = dmGameSystem::ResBufferPreload(&params);
+        if (result != dmResource::RESULT_OK)
+            return result;
+        dmResource::ResourceCreateParams create = {};
+        create.m_Buffer = bytes;
+        create.m_BufferSize = size;
+        create.m_Filename = "/packed.bufferc";
+        create.m_PreloadData = preload;
+        create.m_Resource = &m_Descriptor;
+        return dmGameSystem::ResBufferCreate(&create);
+    }
+};
+
+// Verify a literal binary resource is consumed directly with the runtime's stream layout.
+TEST_F(PackedBufferTest, LoadInterleaved)
+{
+    ASSERT_EQ(dmResource::RESULT_OK, Load(PACKED_BUFFER, sizeof(PACKED_BUFFER)));
+    dmGameSystem::BufferResource* resource = (dmGameSystem::BufferResource*)m_Descriptor.m_Resource;
+    ASSERT_EQ((void*)0, resource->m_BufferDDF);
+    ASSERT_EQ(1u, resource->m_ElementCount);
+    ASSERT_EQ(8u, resource->m_Stride);
+    void* data;
+    uint32_t size;
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetBytes(resource->m_Buffer, &data, &size));
+    ASSERT_EQ(8u, size);
+    ASSERT_EQ(0, memcmp(data, PACKED_BUFFER + 48, size));
+    void* stream;
+    uint32_t count, components, stride;
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStream(resource->m_Buffer, 2, &stream, &count, &components, &stride));
+    ASSERT_EQ(1.0f, *(float*)stream);
+    ASSERT_EQ(1u, count);
+    ASSERT_EQ(1u, components);
+    ASSERT_EQ(2u, stride);
+}
+
+// Empty resources still expose their stream declarations to mesh and Lua consumers.
+TEST_F(PackedBufferTest, ZeroElements)
+{
+    uint8_t bytes[sizeof(PACKED_BUFFER)];
+    memcpy(bytes, PACKED_BUFFER, sizeof(bytes));
+    bytes[8] = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, Load(bytes, 48));
+    dmGameSystem::BufferResource* resource = (dmGameSystem::BufferResource*)m_Descriptor.m_Resource;
+    ASSERT_EQ(0u, resource->m_ElementCount);
+    dmBuffer::ValueType type;
+    uint32_t count;
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(resource->m_Buffer, 2, &type, &count));
+    ASSERT_EQ(dmBuffer::VALUE_TYPE_FLOAT32, type);
+    ASSERT_EQ(1u, count);
+}
+
+// Reject corrupt metadata, truncated payloads and legacy DDF before allocating a runtime buffer.
+TEST_F(PackedBufferTest, InvalidData)
+{
+    const uint32_t offsets[] = {0, 4, 6, 7, 8, 12, 24, 28, 29, 40};
+    const uint8_t values[] = {'X', 2, 0, 1, 255, 9, 1, 9, 0, 0};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(offsets); ++i)
+    {
+        uint8_t bytes[sizeof(PACKED_BUFFER) + 1];
+        memcpy(bytes, PACKED_BUFFER, sizeof(PACKED_BUFFER));
+        bytes[offsets[i]] = values[i];
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Load(bytes, sizeof(PACKED_BUFFER)));
+    }
+    for (uint32_t size = 0; size < sizeof(PACKED_BUFFER); ++size)
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Load(PACKED_BUFFER, size));
+    uint8_t extra[sizeof(PACKED_BUFFER) + 1] = {};
+    memcpy(extra, PACKED_BUFFER, sizeof(PACKED_BUFFER));
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Load(extra, sizeof(extra)));
+
+    dmBufferDDF::StreamDesc stream = {};
+    stream.m_Name = "legacy";
+    stream.m_ValueType = dmBufferDDF::VALUE_TYPE_UINT8;
+    stream.m_ValueCount = 1;
+    dmBufferDDF::BufferDesc desc = {};
+    desc.m_Streams.m_Data = &stream;
+    desc.m_Streams.m_Count = 1;
+    dmArray<uint8_t> ddf;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmBufferDDF::BufferDesc::m_DDFDescriptor, ddf));
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Load(ddf.Begin(), ddf.Size()));
+}
+
+// Failed reloads preserve the old buffer; successful reloads replace its data and element count.
+TEST_F(PackedBufferTest, Reload)
+{
+    ASSERT_EQ(dmResource::RESULT_OK, Load(PACKED_BUFFER, sizeof(PACKED_BUFFER)));
+    dmGameSystem::BufferResource* resource = (dmGameSystem::BufferResource*)m_Descriptor.m_Resource;
+    dmBuffer::HBuffer original = resource->m_Buffer;
+    dmResource::ResourceRecreateParams params = {};
+    params.m_Resource = &m_Descriptor;
+    params.m_Buffer = PACKED_BUFFER;
+    params.m_BufferSize = sizeof(PACKED_BUFFER) - 1;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmGameSystem::ResBufferRecreate(&params));
+    ASSERT_EQ(original, resource->m_Buffer);
+    ASSERT_TRUE(dmBuffer::IsBufferValid(original));
+
+    uint8_t replacement[64];
+    memcpy(replacement, PACKED_BUFFER, sizeof(PACKED_BUFFER));
+    memcpy(replacement + 56, PACKED_BUFFER + 48, 8);
+    replacement[8] = 2;
+    replacement[48] = 42;
+    params.m_Buffer = replacement;
+    params.m_BufferSize = sizeof(replacement);
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResBufferRecreate(&params));
+    ASSERT_NE(original, resource->m_Buffer);
+    ASSERT_EQ(2u, resource->m_ElementCount);
+    ASSERT_FALSE(dmBuffer::IsBufferValid(original));
+    void* bytes;
+    uint32_t size;
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetBytes(resource->m_Buffer, &bytes, &size));
+    ASSERT_EQ(16u, size);
+    ASSERT_EQ(0, memcmp(replacement + 48, bytes, size));
+    uint32_t version;
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetContentVersion(resource->m_Buffer, &version));
+    ASSERT_EQ(1u, version);
+}
+
+class PackedMeshTest : public ResourceTest
+{
+public:
+    PackedMeshTest() { SetContentFolder("mesh"); }
+};
+
+// Mesh stream types must come from the packed buffer, including byte-sized normals.
+TEST_F(PackedMeshTest, MixedStreamTypes)
+{
+    uint8_t bytes[64] = {
+        'B', 'U', 'F', 'C', 1, 0, 2, 0, 1, 0, 0, 0, 16, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 3, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 4, 3, 0, 0,
+        0, 0, 128, 63, 0, 0, 0, 64, 0, 0, 64, 64, 128, 127, 255, 0,
+    };
+    dmhash_t names[] = {dmHashString64("position"), dmHashString64("normal")};
+    for (uint32_t s = 0; s < DM_ARRAY_SIZE(names); ++s)
+        for (uint32_t b = 0; b < 8; ++b)
+            bytes[16 + s * 16 + b] = (uint8_t)(names[s] >> (b * 8));
+
+    dmGameSystem::BufferResource* buffer;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/mixed.bufferc", bytes, sizeof(bytes), (void**)&buffer));
+    dmMeshDDF::MeshDesc mesh_desc = {};
+    mesh_desc.m_Material = "/mesh/mesh.materialc";
+    mesh_desc.m_Vertices = "/mixed.bufferc";
+    mesh_desc.m_PositionStream = "position";
+    mesh_desc.m_NormalStream = "normal";
+    mesh_desc.m_PrimitiveType = dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLES;
+    dmArray<uint8_t> mesh_bytes;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&mesh_desc, dmMeshDDF::MeshDesc::m_DDFDescriptor, mesh_bytes));
+    dmGameSystem::MeshResource* mesh;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/mixed.meshc", mesh_bytes.Begin(), mesh_bytes.Size(), (void**)&mesh));
+    ASSERT_EQ(buffer, mesh->m_BufferResource);
+    ASSERT_EQ(16u, buffer->m_Stride);
+    ASSERT_EQ(dmBufferDDF::VALUE_TYPE_FLOAT32, mesh->m_PositionStreamType);
+    ASSERT_EQ(dmBufferDDF::VALUE_TYPE_INT8, mesh->m_NormalStreamType);
+    dmResource::Release(m_Factory, mesh);
+    dmResource::Release(m_Factory, buffer);
+}
 
 const char* valid_buffer_resources[] = {"/mesh/no_data.bufferc", "/mesh/triangle.bufferc"};
 INSTANTIATE_TEST_CASE_P(Buffer, ResourceTest, jc_test_values_in(valid_buffer_resources));
