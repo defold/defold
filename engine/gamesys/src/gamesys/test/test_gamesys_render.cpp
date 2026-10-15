@@ -1924,6 +1924,182 @@ TEST_F(ShaderTest, ComputeLightBufferAbsent)
 
 #endif
 
+// Guards retained model registration across unchanged frames, component
+// disable/enable, resource reload replacement, and component destruction.
+TEST_F(ModelTest, RetainedRenderItems)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/static_vertex_attributes.goc", dmHashString64("/retained"), 0, Point3(3, 4, 5), Quat::identity(), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    dmRender::HRenderItem item = ((uint64_t)context->m_PersistentRenderItems[0].m_Generation << 32);
+    uint64_t user_data = context->m_RenderList[0].m_UserData;
+    ASSERT_EQ(3.0f, context->m_RenderList[0].m_WorldPosition.getX());
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ((uint32_t)(item >> 32), context->m_PersistentRenderItems[0].m_Generation);
+    ASSERT_EQ(user_data, context->m_RenderList[0].m_UserData);
+
+    dmMessage::URL receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path = dmHashString64("/retained");
+    receiver.m_Fragment = dmHashString64("model");
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameObjectDDF::Disable::m_DDFDescriptor, 0, 0, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(context->m_PersistentRenderItems[0].m_Alive);
+    ASSERT_FALSE(context->m_PersistentRenderItems[0].m_Enabled);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameObjectDDF::Enable::m_DDFDescriptor, 0, 0, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ((uint32_t)(item >> 32), context->m_PersistentRenderItems[0].m_Generation);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/model/dynamic_vertex_attributes.modelc", 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_NE((uint32_t)(item >> 32), context->m_PersistentRenderItems[0].m_Generation);
+    ASSERT_FALSE(dmRender::Enable(m_RenderContext, item, true));
+    ASSERT_EQ(3.0f, context->m_RenderList[0].m_WorldPosition.getX());
+
+    dmGameObject::Delete(m_Collection, instance, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_FALSE(context->m_PersistentRenderItems[0].m_Alive);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+static void ReloadMaterialTag(dmResource::HFactory factory, const char* path, const char* tag)
+{
+    void* bytes = 0;
+    uint32_t size = 0;
+    ASSERT_EQ(RESOURCE_RESULT_OK, ResourceGetRaw(factory, path, &bytes, &size));
+    dmRenderDDF::MaterialDesc* original = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage<dmRenderDDF::MaterialDesc>(bytes, size, &original));
+    free(bytes);
+    dmRenderDDF::MaterialDesc replacement = *original;
+    const char* tags[] = { tag };
+    replacement.m_Tags.m_Data = tags;
+    replacement.m_Tags.m_Count = 1;
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmRenderDDF::MaterialDesc::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    dmDDF::FreeMessage(original);
+}
+
+// Material reload and mesh toggles must refresh retained model state without
+// a component render scan, including toggles between update and rendering.
+TEST_F(ModelTest, RetainedMaterialReload)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/static_vertex_attributes.goc", dmHashString64("/retained"), 0, Point3(0, 0, 0), Quat::identity(), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    uint32_t generation = context->m_PersistentRenderItems[0].m_Generation;
+    uint32_t tag_key = context->m_RenderList[0].m_TagListKey;
+    ReloadMaterialTag(m_Factory, "/model/dynamic_vertex_attributes.materialc", "retained_reload");
+    ASSERT_NE(tag_key, context->m_RenderList[0].m_TagListKey);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(generation, context->m_PersistentRenderItems[0].m_Generation);
+    ASSERT_NE(tag_key, context->m_RenderList[0].m_TagListKey);
+    dmhash_t tag = dmHashString64("retained_reload");
+    ASSERT_EQ(dmRender::RegisterMaterialTagList(m_RenderContext, 1, &tag), context->m_RenderList[0].m_TagListKey);
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+    uint32_t type;
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instance, dmHashString64("model"), &type, &component, &world));
+    dmhash_t mesh_id;
+    Vector3 min, max;
+    dmGameSystem::CompModelGetMeshAABB((dmGameSystem::ModelComponent*)component, 0, &mesh_id, &min, &max);
+    ASSERT_TRUE(dmGameSystem::CompModelSetMeshEnabled((dmGameSystem::ModelWorld*)world, (dmGameSystem::ModelComponent*)component, mesh_id, false));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmGameSystem::CompModelSetMeshEnabled((dmGameSystem::ModelWorld*)world, (dmGameSystem::ModelComponent*)component, mesh_id, true));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Material reload must refresh retained sprite tags through the component's
+// change path while preserving its registration and draw eligibility.
+TEST_F(SpriteTest, RetainedMaterialReload)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/sprite/textureless.goc", dmHashString64("/retained"), 0, Point3(0, 0, 0), Quat::identity(), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    uint32_t generation = context->m_PersistentRenderItems[0].m_Generation;
+    ReloadMaterialTag(m_Factory, "/sprite/textureless.materialc", "retained_reload");
+    dmhash_t tag = dmHashString64("retained_reload");
+    ASSERT_EQ(dmRender::RegisterMaterialTagList(m_RenderContext, 1, &tag), context->m_RenderList[0].m_TagListKey);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(generation, context->m_PersistentRenderItems[0].m_Generation);
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(dmRender::RegisterMaterialTagList(m_RenderContext, 1, &tag), context->m_RenderList[0].m_TagListKey);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Guards model OBB visibility against an unchanged frustum as the game object
+// moves, including the component's local offset, without replacing its handle.
+TEST_F(ModelTest, RetainedRenderItemVisibility)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/static_vertex_attributes_offset.goc", dmHashString64("/retained"));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    uint32_t generation = context->m_PersistentRenderItems[0].m_Generation;
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    for (uint32_t frame = 0; frame < 3; ++frame)
+    {
+        dmGameObject::SetPosition(instance, Point3(frame == 1 ? 10000 : 0, 0, 0));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmRender::RenderListBegin(m_RenderContext);
+        ASSERT_TRUE(dmGameObject::Render(m_Collection));
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, &options, dmRender::SORT_NONE));
+        ASSERT_EQ(frame == 1 ? 0u : 1u, context->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
+        ASSERT_EQ(generation, context->m_PersistentRenderItems[0].m_Generation);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ModelTest, GetAABB)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -2167,7 +2343,7 @@ TEST_F(ModelTest, SharedInstanceVertexData)
         dmRender::RenderListEnd(m_RenderContext);
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
         ASSERT_EQ(1u, dmGraphics::GetDrawCount());
-        ASSERT_EQ(2 - frame, render_context->m_RenderList.Size());
+        ASSERT_EQ(2 - frame, render_context->m_RenderListSortBuffer.Size());
         uint8_t world_batches, local_batches, instanced_batches;
         dmGameSystem::GetModelWorldRenderBatchStats(world, &world_batches, &local_batches, &instanced_batches);
         ASSERT_EQ(0u, world_batches);
@@ -2284,13 +2460,18 @@ TEST_F(ModelTest, SharedInstanceVertexDataMaterialSwitch)
             dmGameObject::Render(m_Collection);
             dmRender::RenderListEnd(m_RenderContext);
             ASSERT_EQ(2u, render_context->m_RenderList.Size());
+            dmRender::RenderItemDispatch* dispatch = render_context->m_RenderItemDispatches[render_context->m_SubmittedRenderItemDispatches[0]];
+            // Reverse equal-key traversal to exercise both cache-owner orders
+            // without moving retained registrations or their user data.
             if (pass == 2)
             {
-                dmRender::RenderListEntry entry = render_context->m_RenderList[0];
-                render_context->m_RenderList[0] = render_context->m_RenderList[1];
-                render_context->m_RenderList[1] = entry;
+                ASSERT_FALSE(dispatch->m_RebuildCache);
+                ASSERT_EQ(2u, dispatch->m_SortIndices.Size());
+                uint32_t first = dispatch->m_SortIndices[0];
+                dispatch->m_SortIndices[0] = dispatch->m_SortIndices[1];
+                dispatch->m_SortIndices[1] = first;
             }
-            ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_NONE));
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
             ASSERT_EQ(1u, dmGraphics::GetDrawCount());
             ASSERT_EQ(1u, render_context->m_RenderObjects.Size());
             const dmRender::RenderObject& ro = *render_context->m_RenderObjects[0];
@@ -2320,6 +2501,12 @@ TEST_F(ModelTest, SharedInstanceVertexDataMaterialSwitch)
                 }
             }
             dmGraphics::UnmapVertexBuffer(m_GraphicsContext, buffer);
+            if (pass == 2)
+            {
+                uint32_t first = dispatch->m_SortIndices[0];
+                dispatch->m_SortIndices[0] = dispatch->m_SortIndices[1];
+                dispatch->m_SortIndices[1] = first;
+            }
             if (frame == 0 && pass == 0)
             {
                 uint32_t initialized[2];

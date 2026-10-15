@@ -493,6 +493,118 @@ TEST_F(SpriteTest, GoDeletion)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+static void DrawSpriteCollectionWithFrustum(dmRender::HRenderContext context, dmGameObject::HCollection collection, const dmRender::FrustumOptions& options)
+{
+    dmRender::ClearRenderObjects(context);
+    dmRender::RenderListBegin(context);
+    ASSERT_TRUE(dmGameObject::Render(collection));
+    dmRender::RenderListEnd(context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(context, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
+}
+
+// Guards stable sprite registrations and culling data when deletion compacts
+// the component pool, a freed logical index is reused, or a sprite is disabled.
+TEST_F(SpriteTest, RetainedRenderItems)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance first = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_sprite.goc", dmHashString64("/first"));
+    dmGameObject::HInstance second = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_sprite.goc", dmHashString64("/second"), 0, Point3(10, 0, 0), Quat::identity(), Vector3(1, 1, 1));
+    dmGameObject::HInstance third = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_sprite.goc", dmHashString64("/third"), 0, Point3(1000, 0, 0), Quat::identity(), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, first);
+    ASSERT_NE((dmGameObject::HInstance)0, second);
+    ASSERT_NE((dmGameObject::HInstance)0, third);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-128, 128, -128, 128, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    ASSERT_EQ(3u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    dmRender::HRenderItem first_item = ((uint64_t)context->m_PersistentRenderItems[0].m_Generation << 32);
+    uint32_t third_generation = context->m_PersistentRenderItems[2].m_Generation;
+    uint32_t third_hash = context->m_RenderList[2].m_FrustumHash;
+
+    dmGameObject::Delete(m_Collection, first, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    ASSERT_EQ(3u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer[0]);
+    ASSERT_FALSE(dmRender::Enable(m_RenderContext, first_item, true));
+    ASSERT_EQ(third_generation, context->m_PersistentRenderItems[2].m_Generation);
+    ASSERT_EQ(third_hash, context->m_RenderList[2].m_FrustumHash);
+    ASSERT_EQ(2u, context->m_RenderList[2].m_UserData);
+    ASSERT_EQ(1000.0f, context->m_RenderList[2].m_WorldPosition.getX());
+
+    dmGameObject::HInstance replacement = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_sprite.goc", dmHashString64("/replacement"));
+    ASSERT_NE((dmGameObject::HInstance)0, replacement);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    ASSERT_EQ(3u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_NE((uint32_t)(first_item >> 32), context->m_PersistentRenderItems[0].m_Generation);
+    ASSERT_FALSE(dmRender::Enable(m_RenderContext, first_item, true));
+
+    dmMessage::URL receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path = dmHashString64("/second");
+    receiver.m_Fragment = dmHashString64("sprite");
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameObjectDDF::Disable::m_DDFDescriptor, 0, 0, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer[0]);
+    ASSERT_FALSE(context->m_PersistentRenderItems[1].m_Enabled);
+    ASSERT_TRUE(context->m_PersistentRenderItems[1].m_Alive);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Guards visibility refresh when sprite size changes without a transform
+// change, movement against an unchanged frustum, and skipped collection draws.
+TEST_F(SpriteTest, RetainedRenderItemVisibility)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/sprite/textureless.goc", dmHashString64("/retained"), 0, Point3(100, 0, 0), Quat::identity(), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    Matrix4 world_transform = context->m_PersistentRenderItems[0].m_WorldTransform;
+
+    dmGameObject::PropertyOptions property_options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instance, dmHashString64("sprite"), dmHashString64("size"), property_options, dmGameObject::PropertyVar(Vector3(200, 200, 0))));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(0, memcmp(&world_transform, &context->m_PersistentRenderItems[0].m_WorldTransform, sizeof(world_transform)));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmRender::RenderListEnd(m_RenderContext);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(context->m_PersistentRenderItems[0].m_Alive);
+
+    dmGameObject::SetPosition(instance, Point3(400, 0, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(400.0f, context->m_RenderList[0].m_WorldPosition.getX());
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 // Test that animation done event reaches either callback or onmessage
 TEST_F(SpriteTest, FlipbookAnim)
 {
