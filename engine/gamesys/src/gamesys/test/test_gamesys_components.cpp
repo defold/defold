@@ -1026,6 +1026,38 @@ TEST_F(SpriteTest, ScaleAffectsWorldSize)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// The identity fast path must preserve scale changes on each axis and restore
+// the game-object transform when the sprite returns to unit scale.
+TEST_F(SpriteTest, UnitScaleTransform)
+{
+    m_SpriteContext.m_Subpixels = 1;
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_sprite.goc", dmHashString64("/go"), 0, Point3(3, 4, 5), Quat::rotationZ(0.3f), Vector3(2, 3, 4));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    const Vector3 scales[] = {
+        Vector3(1, 1, 1),
+        Vector3(2, 1, 1),
+        Vector3(1, 2, 1),
+        Vector3(1, 1, 2),
+        Vector3(1, 1, 1),
+    };
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_RenderContext;
+    dmGameObject::PropertyOptions options;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(scales); ++i)
+    {
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instance, dmHashString64("sprite"), dmHashString64("scale"), options, dmGameObject::PropertyVar(scales[i])));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
+        Matrix4        expected = dmGameObject::GetWorldMatrix(instance) * Matrix4::scale(scales[i]);
+        const Matrix4& actual = context->m_PersistentRenderItems[0].m_WorldTransform;
+        for (uint32_t column = 0; column < 4; ++column)
+            for (uint32_t row = 0; row < 4; ++row)
+                ASSERT_NEAR(expected.getElem(column, row), actual.getElem(column, row), EPSILON);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 // Test that animation done event reaches callback
 TEST_F(ParticleFxTest, PlayAnim)
 {

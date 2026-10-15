@@ -1949,9 +1949,10 @@ namespace dmGameSystem
 
     static bool UpdateTransform(SpriteComponent* component, bool sub_pixels)
     {
-        const Matrix4& world = dmGameObject::GetWorldMatrix(component->m_Instance);
-        bool           local_identity = component->m_LocalPoseIsIdentity && component->m_Scale.getX() == 1 &&
-        component->m_Scale.getY() == 1 && component->m_Scale.getZ() == 1;
+        // Compare XYZ only; Vector3's alignment padding is not initialized.
+        static const float unit_scale[3] = { 1.0f, 1.0f, 1.0f };
+        const Matrix4&     world = dmGameObject::GetWorldMatrix(component->m_Instance);
+        bool               local_identity = component->m_LocalPoseIsIdentity && memcmp(&component->m_Scale, unit_scale, sizeof(unit_scale)) == 0;
         if (local_identity && sub_pixels && memcmp(&component->m_World, &world, sizeof(world)) == 0)
             return false;
         Matrix4 w = world;
