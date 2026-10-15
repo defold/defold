@@ -147,30 +147,30 @@ namespace dmGameSystem
 
     struct GuiWorld
     {
-        dmRender::HRenderItemDispatch      m_RenderDispatch;
-        dmArray<dmRender::HRenderItem>     m_RenderItems;
-        uint32_t                           m_ActiveRenderItemCount;
-        dmArray<GuiRenderObject>           m_GuiRenderObjects;
-        dmArray<HComponentRenderConstants> m_RenderConstants;
-        dmArray<GuiComponent*>             m_Components;
-        dmGraphics::HVertexDeclaration     m_VertexDeclaration;
-        dmGraphics::HVertexBuffer          m_VertexBuffer;
-        dmBuffer::StreamDeclaration*       m_BoxVertexStreamDeclaration;
-        uint32_t                           m_BoxVertexStreamDeclarationCount;
-        uint32_t                           m_BoxVertexStructSize;
-        dmArray<BoxVertex>                 m_ClientVertexBuffer;
-        dmGraphics::HTexture               m_WhiteTexture;
-        dmParticle::HParticleContext       m_ParticleContext;
-        dmGraphics::VertexAttributeInfos   m_ParticleAttributeInfos;
-        uint32_t                           m_MaxParticleFXCount;
-        uint32_t                           m_MaxParticleCount;
-        uint32_t                           m_MaxParticleBufferCount;
-        uint32_t                           m_RenderedParticlesSize;
-        uint32_t                           m_MaxAnimationCount;
-        uint32_t                           m_RenderOrder;
-        float                              m_DT;
-        dmScript::ScriptWorld*             m_ScriptWorld;
-        CompGuiContext*                    m_CompGuiContext;
+        dmRender::HRenderItemDispatch            m_RenderDispatch;
+        dmArray<dmRender::HRenderItem>           m_RenderItems;
+        uint32_t                                 m_ActiveRenderItemCount;
+        dmArray<GuiRenderObject>                 m_GuiRenderObjects;
+        dmArray<HComponentRenderConstants>       m_RenderConstants;
+        dmArray<GuiComponent*>                   m_Components;
+        dmGraphics::HVertexDeclaration           m_VertexDeclaration;
+        dmGraphics::HVertexBuffer                m_VertexBuffer;
+        dmBuffer::StreamDeclaration*             m_BoxVertexStreamDeclaration;
+        uint32_t                                 m_BoxVertexStreamDeclarationCount;
+        uint32_t                                 m_BoxVertexStructSize;
+        dmArray<BoxVertex>                       m_ClientVertexBuffer;
+        dmGraphics::HTexture                     m_WhiteTexture;
+        dmParticle::HParticleContext             m_ParticleContext;
+        dmGraphics::VertexAttributeInfos         m_ParticleAttributeInfos;
+        uint32_t                                 m_MaxParticleFXCount;
+        uint32_t                                 m_MaxParticleCount;
+        uint32_t                                 m_MaxParticleBufferCount;
+        uint32_t                                 m_RenderedParticlesSize;
+        uint32_t                                 m_MaxAnimationCount;
+        uint32_t                                 m_RenderOrder;
+        float                                    m_DT;
+        dmScript::ScriptWorld*                   m_ScriptWorld;
+        CompGuiContext*                          m_CompGuiContext;
     };
 
     typedef BoxVertex ParticleGuiVertex;
