@@ -64,6 +64,7 @@
                         editor.ui/invalidation-listener hooks.editor-ui/invalidation-listener
                         editor.ui/with-controls hooks.editor-ui/with-controls
                         editor.ui/with-progress hooks.editor-ui/with-progress
+                        editor.windows-process-test/with-child-process hooks.editor-windows-process-test/with-child-process
                         integration.perf-test/measure hooks.integration-perf-test/measure
                         integration.build-test/with-build-results hooks.integration-build-test/with-build-results
                         integration.lsp-test/with-scratch-project hooks.integration-lsp-test/with-scratch-project
@@ -96,6 +97,6 @@
                              {:arities #{2}
                               :message "The two-argument get-project arity is deprecated."}}
            :line-length {:max-line-length 80
-                         :exclude-pattern "^(?!\\s*;)|^\\s*;+ (?:Licensed under the Defold License version 1\\.0 \\(the \"License\"\\); you may not use|Unless required by applicable law or agreed to in writing, software distributed)\\s*$"}
+                         :exclude-pattern "^(?!\\s*;)|https?://\\S+|^\\s*;+ (?:Licensed under the Defold License version 1\\.0 \\(the \"License\"\\); you may not use|Unless required by applicable law or agreed to in writing, software distributed)\\s*$"}
            :refer-all {:exclude [clojure.test]}}
  :config-in-ns {editor.gl.translate-test {:linters {:inline-def {:level :off}}}}}

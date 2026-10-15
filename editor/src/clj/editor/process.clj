@@ -15,14 +15,12 @@
 (ns editor.process
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [util.coll :as coll]
-            [util.eduction :as e])
-  (:import [com.sun.jna Memory]
-           [com.sun.jna.platform.win32 Kernel32 Win32Exception WinBase WinBase$PROCESS_INFORMATION WinBase$STARTUPINFO WinDef$DWORD]
+            [editor.os :as os]
+            [util.coll :as coll])
+  (:import [com.defold.util WindowsProcess]
            [java.io InputStream OutputStream StringWriter]
-           [java.lang Process ProcessBuilder ProcessBuilder$Redirect ProcessHandle]
-           [java.nio.charset StandardCharsets]
-           [java.util List TreeMap]))
+           [java.lang Process ProcessBuilder ProcessBuilder$Redirect]
+           [java.util List]))
 
 (set! *warn-on-reflection* true)
 
@@ -52,12 +50,14 @@
               :stdout - redirects to spawned process's out
     :dir    the process working directory
     :env    process env map, keys are env var names, vars are either strings
-            (values) or nil (removes the var from the process env)"
+            (values) or nil (removes the var from the process env)
+    :windows-default-error-mode    enable Windows system error dialogs for this
+                                   child; defaults to false, ignored elsewhere"
   ^Process [& opts+args]
   (let [has-opts (map? (first opts+args))
         opts (if has-opts (first opts+args) {})
         command (if has-opts (rest opts+args) opts+args)
-        {:keys [in out err dir env]} opts
+        {:keys [in out err dir env windows-default-error-mode]} opts
         pb (ProcessBuilder. ^List command)]
     (when dir (.directory pb (io/file dir)))
     (when in (.redirectInput pb (->redirect in)))
@@ -72,63 +72,9 @@
           (if v
             (.put m k v)
             (.remove m k)))))
-    (.start pb)))
-
-(defn start-windows-process-with-default-error-mode!
-  "Start a Windows diagnostic process with system error dialogs enabled.
-
-  Accepts :dir and :env options, and a vector of the executable and its arguments.
-  Returns a ProcessHandle, or nil if the process has already exited. Output is
-  not piped. The editor's own error mode is unchanged."
-  ^ProcessHandle [{:keys [dir env]} command]
-  (let [kernel32 Kernel32/INSTANCE
-        environment (doto (TreeMap. String/CASE_INSENSITIVE_ORDER)
-                      (.putAll (System/getenv)))]
-    (doseq [[key value] env]
-      (if value
-        (.put environment key value)
-        (.remove environment key)))
-    (let [quote-argument (fn quote-argument [argument]
-                           ;; Escape quotes and trailing backslashes using the
-                           ;; Windows C runtime's argument rules.
-                           (str "\""
-                                (-> argument
-                                    (string/replace #"(\\*)\"" (fn [[_ backslashes]]
-                                                                 (str backslashes backslashes "\\\"")))
-                                    (string/replace #"(\\+)\z" "$1$1"))
-                                "\""))
-          environment-block (.getBytes (str (->> environment
-                                                 (e/map (fn [[key value]]
-                                                          (str key "=" value)))
-                                                 (coll/join-to-string "\u0000"))
-                                            "\u0000\u0000")
-                                       StandardCharsets/UTF_16LE)
-          process-info (WinBase$PROCESS_INFORMATION.)]
-      (when-not (.CreateProcessW
-                  kernel32
-                  #_lpApplicationName (first command)
-                  #_lpCommandLine (.toCharArray
-                                    (str (->> command
-                                              (e/map quote-argument)
-                                              (coll/join-to-string " "))
-                                         "\u0000"))
-                  #_lpProcessAttributes nil
-                  #_lpThreadAttributes nil
-                  #_bInheritHandles false
-                  #_dwCreationFlags (WinDef$DWORD. (bit-or WinBase/CREATE_DEFAULT_ERROR_MODE
-                                                           WinBase/CREATE_UNICODE_ENVIRONMENT
-                                                           WinBase/CREATE_NO_WINDOW))
-                  #_lpEnvironment (doto (Memory. (alength environment-block))
-                                    (.write 0 environment-block 0 (alength environment-block)))
-                  #_lpCurrentDirectory (some-> dir io/file .getAbsolutePath)
-                  #_lpStartupInfo (WinBase$STARTUPINFO.)
-                  #_lpProcessInformation process-info)
-        (throw (Win32Exception. (.GetLastError kernel32))))
-      (try
-        (.orElse (ProcessHandle/of (.longValue (.-dwProcessId process-info))) nil)
-        (finally
-          (.CloseHandle kernel32 (.-hThread process-info))
-          (.CloseHandle kernel32 (.-hProcess process-info)))))))
+    (if (and windows-default-error-mode (os/is-win32?))
+      (WindowsProcess/start pb)
+      (.start pb))))
 
 (defn out
   "Get the process out, an InputStream that can be read from"
@@ -170,9 +116,9 @@
     (loop []
       (let [size (.read in buf)]
         (when-not (neg? size)
-          (do (.write out buf 0 size)
-              (.flush out)
-              (recur)))))))
+          (.write out buf 0 size)
+          (.flush out)
+          (recur))))))
 
 (defn await-exit-code
   "Blocks until process exits and returns the exit code
@@ -212,7 +158,7 @@
     (if (zero? exit-code)
       @output
       (throw (ex-info (format "Non-zero exit code for command '%s': %s"
-                              (string/join " " command)
+                              (coll/join-to-string " " command)
                               exit-code)
                       {:command command
                        :exit-code exit-code

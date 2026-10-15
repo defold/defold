@@ -23,8 +23,9 @@
             [editor.debugging.variables :as debugger-variables]
             [editor.defold-project :as project]
             [editor.engine :as engine]
-            [editor.future :as future]
+            [editor.fs :as fs]
             [editor.os :as os]
+            [editor.prefs :as prefs]
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
@@ -130,11 +131,11 @@
               (ui/run-now (debugger-variables/clear! variables nil)))))))))
 
 ;; A connecting debugger re-reads launched-target metadata when the listener
-;; port arrives later. The process monitor completes target removal before
-;; teardown checks the removal callback, guarding against a cleanup hang.
+;; port arrives later, rather than retaining the initial portless target.
 (deftest late-debugger-port-test
   (test-support/with-clean-system
     (let [workspace (workspace/make-workspace "test/resources/empty_project" {} {} nil)
+          prefs (prefs/global (fs/create-temp-file! "late-debugger" ".editor_settings"))
           project (g/make-node! project/Project :workspace workspace)
           changes (LinkedBlockingQueue.)
           view (g/make-node! debug-view/DebugView :state-changed-fn (fn [_] (.add changes true)))
@@ -145,14 +146,11 @@
           process (.start (ProcessBuilder. ^java.util.List command))]
       (try
         (binding [ui/*main-stage* (atom stage)]
-          (let [target (targets/add-launched-target! 1 {:process process
-                                                        :log-stream (.getInputStream process)
-                                                        :address "127.0.0.1"})
-                ^Thread log-pump (console/start-log-pump! (:log-stream target) (constantly nil))
-                monitor (future/io (targets/monitor-launched-target! target))
+          (let [target (targets/add-launched-target! prefs 0 {:process process :address "127.0.0.1"})
                 removed (promise)
                 cancel-watch (targets/when-url-or-removed (:id target) #(deliver removed %))]
             (try
+              (is (= target (targets/selected-target prefs)))
               (dap-util/with-server
                 (fn [request _ out _] (dap-util/respond! out request {}))
                 (debug-view/start-debugger! view project target false)
@@ -167,11 +165,10 @@
                     (finally (dap/close! session)))))
               (finally
                 (targets/kill-launched-target! target)
+                (.waitFor process)
                 (try
-                  @monitor
-                  (.join log-pump 10000)
-                  (is (not (.isAlive log-pump)))
-                  (is (nil? (deref removed 0 ::not-removed)))
+                  (is (nil? @removed))
+                  (is (nil? (targets/selected-target prefs)))
                   (finally (cancel-watch)))))))
         (finally
           (.destroyForcibly process)

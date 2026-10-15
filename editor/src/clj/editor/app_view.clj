@@ -977,14 +977,11 @@
                                    instance-debug (and debug last-instance?)
                                    launched-target (->> (engine/launch! engine project-directory prefs instance-debug instance-index focus)
                                                         (decorate-target engine-descriptor)
-                                                        (targets/add-launched-target! instance-index))]
+                                                        (targets/add-launched-target! prefs instance-index))]
                                (when (not last-instance?)
                                  (Thread/sleep pause-ms))        ;pause needed to make sure the launch order of instances is right
                                launched-target))
           last-launched-target (last launched-targets)]
-      (if (= count 1)
-        (targets/select-target! prefs last-launched-target)
-        (targets/select-target! prefs {:id :all-launched-targets}))
       (report-build-launch-progress! (localization/message "progress.launched-engine" {"engine" (targets/target-message last-launched-target)}))
       launched-targets)
     (catch Exception e
@@ -1054,18 +1051,13 @@
                              (targets/kill-launched-targets!)
                              (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
                                    last-launched-target (last launched-targets)]
-                               (console/reset-console-stream! (:log-stream last-launched-target))
-                               (console/reset-remote-log-pump-thread! nil)
                                (doseq [launched-target launched-targets]
                                  (targets/when-url (:id launched-target)
                                                    (fn on-target-url-found [url]
                                                      (on-launched-hook! project (:process launched-target) url)))
                                  (console/start-log-pump!
                                    (:log-stream launched-target)
-                                   (make-launched-log-sink launched-target (partial on-service-url-found prefs)))
-                                 (future/io
-                                   (error-reporting/catch-all!
-                                     (targets/monitor-launched-target! launched-target))))
+                                   (make-launched-log-sink launched-target (partial on-service-url-found prefs))))
                                last-launched-target))]
     (try
       {:target

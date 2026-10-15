@@ -29,6 +29,25 @@
   ^java.io.File [^String relative-jar-path]
   (java.io.File. (local-maven-repository-directory) relative-jar-path))
 
+(defn- with-platform-test-selectors [selectors]
+  (let [platform-selector (if (.startsWith (System/getProperty "os.name") "Windows")
+                            :windows-only
+                            '(complement :windows-only))]
+    (update-vals
+      (merge {:default '(constantly true)} selectors)
+      (fn [selector]
+        (let [[namespace-selector test-selector] (if (vector? selector)
+                                                   selector
+                                                   ['(constantly true) selector])]
+          [`(fn ~'include-test-namespace? [test-ns-symbol# & symbol-args#]
+              ;; Explicit namespace arguments have no source metadata.
+              (and (or (nil? (meta test-ns-symbol#))
+                       (~platform-selector (meta test-ns-symbol#)))
+                   (apply ~namespace-selector test-ns-symbol# symbol-args#)))
+           `(fn ~'include-test? [test-var-metadata# & symbol-args#]
+              (and (~platform-selector test-var-metadata#)
+                   (apply ~test-selector test-var-metadata# symbol-args#)))])))))
+
 (defproject defold-editor "2.0.0-SNAPSHOT"
   :description      "Defold game editor"
   :url              "https://www.defold.com/learn/"
@@ -201,20 +220,22 @@
   ;;
   ;; Skip specific tests or test namespaces:
   ;; lein test :skip integration.lsp-test integration.library-test/fetch-libraries
-  :test-selectors {:no-native-extensions (complement :native-extensions)
-                   :skip [(fn [test-ns-symbol & symbol-args]
-                            ;; Returning false from this first predicate allows
-                            ;; the test runner to completely skip loading a
-                            ;; particular test namespace.
-                            (not-any? #(= test-ns-symbol %) symbol-args))
-                          (fn [test-var-metadata & symbol-args]
-                            ;; We've already skipped over entire namespaces by
-                            ;; this point, so all that remains is to skip any
-                            ;; specific tests that match the listed symbol args.
-                            (let [test-ns-name (-> test-var-metadata :ns ns-name name)
-                                  test-name (-> test-var-metadata :name name)
-                                  test-var-symbol (symbol test-ns-name test-name)]
-                              (not-any? #(= test-var-symbol %) symbol-args)))]}
+  :test-selectors
+  ~(with-platform-test-selectors
+     '{:no-native-extensions (complement :native-extensions)
+       :skip [(fn include-test-namespace? [test-ns-symbol & symbol-args]
+                ;; Returning false from this first predicate allows
+                ;; the test runner to completely skip loading a
+                ;; particular test namespace.
+                (not (contains? (set symbol-args) test-ns-symbol)))
+              (fn include-test? [test-var-metadata & symbol-args]
+                ;; We've already skipped over entire namespaces by
+                ;; this point, so all that remains is to skip any
+                ;; specific tests that match the listed symbol args.
+                (let [test-ns-name (-> test-var-metadata :ns ns-name name)
+                      test-name (-> test-var-metadata :name name)
+                      test-var-symbol (symbol test-ns-name test-name)]
+                  (not (contains? (set symbol-args) test-var-symbol))))]})
 
   :prep-tasks [["with-profile" "antlr" "run" "-m" "org.antlr.v4.Tool"
                 "LSPSnippet.g4"
