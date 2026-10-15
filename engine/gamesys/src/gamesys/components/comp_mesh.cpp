@@ -243,7 +243,7 @@ namespace dmGameSystem
 
         MeshWorld* world = new MeshWorld();
         world->m_RenderContext = context->m_RenderContext;
-        world->m_RenderDispatch = dmRender::INVALID_RENDER_ITEM_DISPATCH;
+        world->m_RenderDispatch = 0;
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxMeshCount);
         world->m_ResourceFactory = context->m_Factory;
         world->m_Components.SetCapacity(comp_count);
@@ -268,7 +268,7 @@ namespace dmGameSystem
     {
         MeshWorld* world = (MeshWorld*)params.m_World;
 
-        if (world->m_RenderDispatch != dmRender::INVALID_RENDER_ITEM_DISPATCH)
+        if (world->m_RenderDispatch != 0)
             dmRender::UnregisterRenderListDispatch(world->m_RenderContext, world->m_RenderDispatch);
 
         if (world->m_VertexBufferPool.Capacity() < world->m_VertexBufferPool.Size()+world->m_VertexBufferWorld.Size())
@@ -413,7 +413,7 @@ namespace dmGameSystem
         }
 
         ReHash(component);
-        if (world->m_RenderDispatch == dmRender::INVALID_RENDER_ITEM_DISPATCH)
+        if (world->m_RenderDispatch == 0)
             world->m_RenderDispatch = dmRender::RegisterRenderListDispatch(world->m_RenderContext, RenderListDispatch, 0, world);
         component->m_RenderItem = dmRender::NewRenderItem(world->m_RenderContext, world->m_RenderDispatch, (uintptr_t)component);
         dmRender::SetWorldTransform(world->m_RenderContext, component->m_RenderItem, component->m_World);

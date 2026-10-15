@@ -189,6 +189,8 @@ namespace dmRender
                                     installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR;
 
         context->m_RenderListDispatch.SetCapacity(255);
+        context->m_RenderItemDispatches.SetCapacity(8);
+        context->m_RenderItemDispatches.Push(0); // Reserve the invalid handle.
         context->m_SubmittedRenderItemDispatches.SetCapacity(255);
         context->m_FirstFreeRenderItem = ~0u;
         context->m_TransientRenderListDirty = false;
@@ -638,7 +640,7 @@ namespace dmRender
             for (uint32_t s = range.m_SpanStart; s < range.m_SpanStart + range.m_SpanCount; ++s)
             {
                 const RenderListSpan&     span = context->m_RenderListSpans[s];
-                const RenderItemDispatch* registration = span.m_Dispatch != INVALID_RENDER_ITEM_DISPATCH ? context->m_RenderItemDispatches[span.m_Dispatch] : 0;
+                const RenderItemDispatch* registration = span.m_Dispatch != 0 ? context->m_RenderItemDispatches[span.m_Dispatch] : 0;
                 uint32_t                  index_offset = registration ? 0 : num_persistent;
                 for (uint32_t i = 0; i < span.m_Count; ++i)
                 {
@@ -723,7 +725,7 @@ namespace dmRender
             for (uint32_t s = range.m_SpanStart; s < range.m_SpanStart + range.m_SpanCount; ++s)
             {
                 const RenderListSpan& span = context->m_RenderListSpans[s];
-                uint32_t              index_offset = span.m_Dispatch != INVALID_RENDER_ITEM_DISPATCH ? 0 : num_persistent;
+                uint32_t              index_offset = span.m_Dispatch != 0 ? 0 : num_persistent;
                 for (uint32_t i = 0; i < span.m_Count; ++i)
                 {
                     uint32_t         idx = span.m_Indices[i] + index_offset;
@@ -988,7 +990,7 @@ namespace dmRender
             uint32_t key = context->m_TransientRenderList[transient[start]].m_TagListKey;
             while (end < transient.Size() && context->m_TransientRenderList[transient[end]].m_TagListKey == key)
                 ++end;
-            RenderListSpan span = { transient.Begin() + start, end - start, key, INVALID_RENDER_ITEM_DISPATCH };
+            RenderListSpan span = { transient.Begin() + start, end - start, key, 0 };
             if (spans.Full())
                 spans.OffsetCapacity(16);
             spans.Push(span);

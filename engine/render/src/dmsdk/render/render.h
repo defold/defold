@@ -66,18 +66,11 @@ namespace dmRender
      * Identifies a registration created by RegisterRenderListDispatch(). Use it
      * only with its creating context, and never after UnregisterRenderListDispatch().
      * This handle is separate from the frame-local HRenderListDispatch used in
-     * RenderListEntry. Zero is a valid registration handle.
+     * RenderListEntry. Zero is invalid.
      * @typedef
      * @name HRenderItemDispatch
      */
     typedef uint32_t HRenderItemDispatch;
-
-    /*# invalid persistent render dispatch handle
-     * Returned when RegisterRenderListDispatch() cannot allocate a registration.
-     * @constant [type:dmRender::HRenderItemDispatch]
-     * @name INVALID_RENDER_ITEM_DISPATCH
-     */
-    const HRenderItemDispatch INVALID_RENDER_ITEM_DISPATCH = ~0u;
 
     /*#
      * Material instance handle
@@ -442,7 +435,7 @@ namespace dmRender
      * @param visibility_fn [type:dmRender::RenderListVisibilityFn] visibility callback for items without typed bounds, or 0 for always visible
      * @param user_data [type:void*] user data passed to both callbacks
      * @param supports_instancing [type:bool] true if the batch callback supports instance attributes; defaults to false
-     * @return dispatch [type:dmRender::HRenderItemDispatch] the registration, or INVALID_RENDER_ITEM_DISPATCH if the registration limit is reached
+     * @return dispatch [type:dmRender::HRenderItemDispatch] the registration, or 0 if the registration limit is reached
      */
     HRenderItemDispatch RegisterRenderListDispatch(HRenderContext context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data, bool supports_instancing = false);
 

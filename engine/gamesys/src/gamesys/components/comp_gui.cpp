@@ -668,7 +668,7 @@ namespace dmGameSystem
     {
         CompGuiContext* gui_context = (CompGuiContext*)params.m_Context;
         GuiWorld* gui_world = new GuiWorld();
-        gui_world->m_RenderDispatch = dmRender::INVALID_RENDER_ITEM_DISPATCH;
+        gui_world->m_RenderDispatch = 0;
         gui_world->m_ActiveRenderItemCount = 0;
         if (!gui_context->m_Worlds.Full())
         {
@@ -775,7 +775,7 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < gui_world->m_RenderItems.Size(); ++i)
             dmRender::DeleteRenderItem(gui_context->m_RenderContext, gui_world->m_RenderItems[i]);
-        if (gui_world->m_RenderDispatch != dmRender::INVALID_RENDER_ITEM_DISPATCH)
+        if (gui_world->m_RenderDispatch != 0)
             dmRender::UnregisterRenderListDispatch(gui_context->m_RenderContext, gui_world->m_RenderDispatch);
 
         if (dLib::IsDebugMode())
@@ -3257,7 +3257,7 @@ namespace dmGameSystem
             dmGui::RenderScene(c->m_Scene, rp, &render_gui_context);
             const uint32_t count = gui_world->m_GuiRenderObjects.Size() - lastEnd;
 
-            if (count && gui_world->m_RenderDispatch == dmRender::INVALID_RENDER_ITEM_DISPATCH)
+            if (count && gui_world->m_RenderDispatch == 0)
                 gui_world->m_RenderDispatch = dmRender::RegisterRenderListDispatch(gui_context->m_RenderContext, RenderListDispatch, 0, gui_world);
 
             uint32_t render_order = dmGui::GetRenderOrder(c->m_Scene);

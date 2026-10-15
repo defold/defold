@@ -217,7 +217,7 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = context->m_RenderContext;
         ModelWorld* world = new ModelWorld();
         world->m_RenderContext = render_context;
-        world->m_RenderDispatch = dmRender::INVALID_RENDER_ITEM_DISPATCH;
+        world->m_RenderDispatch = 0;
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxModelCount);
 
         dmRig::NewContextParams rig_params = {0};
@@ -338,7 +338,7 @@ namespace dmGameSystem
     {
         ModelContext* context = (ModelContext*)params.m_Context;
         ModelWorld* world = (ModelWorld*)params.m_World;
-        if (world->m_RenderDispatch != dmRender::INVALID_RENDER_ITEM_DISPATCH)
+        if (world->m_RenderDispatch != 0)
             dmRender::UnregisterRenderListDispatch(context->m_RenderContext, world->m_RenderDispatch);
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context->m_RenderContext);
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
@@ -1309,10 +1309,10 @@ namespace dmGameSystem
             return res;
         }
 
-        if (world->m_RenderDispatch == dmRender::INVALID_RENDER_ITEM_DISPATCH)
+        if (world->m_RenderDispatch == 0)
         {
             world->m_RenderDispatch = dmRender::RegisterRenderListDispatch(world->m_RenderContext, RenderListDispatch, 0, world, true);
-            if (world->m_RenderDispatch == dmRender::INVALID_RENDER_ITEM_DISPATCH)
+            if (world->m_RenderDispatch == 0)
             {
                 DestroyComponent(world, index);
                 return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
@@ -2685,7 +2685,7 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = context->m_RenderContext;
         ModelWorld* world = (ModelWorld*)params.m_World;
 
-        if (world->m_RenderDispatch != dmRender::INVALID_RENDER_ITEM_DISPATCH)
+        if (world->m_RenderDispatch != 0)
             dmRender::SubmitRenderListDispatch(render_context, world->m_RenderDispatch);
 
         // Update test data

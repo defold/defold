@@ -1615,15 +1615,16 @@ TEST_F(dmRenderTest, TransientRenderListSnapshotReuse)
     ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
 }
 
-// Unloading worlds must leave their registration slots available without
+// Slot zero stays invalid. Unloading worlds must leave their slots available without
 // moving surviving handles or confusing registration IDs with frame IDs.
 TEST_F(dmRenderTest, PersistentRenderItemDispatchSlotReuse)
 {
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
     dmRender::HRenderItemDispatch dispatches[514];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches); ++i)
     {
         dispatches[i] = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
-        ASSERT_NE(dmRender::INVALID_RENDER_ITEM_DISPATCH, dispatches[i]);
+        ASSERT_NE(0u, dispatches[i]);
     }
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches) - 1; ++i)
         dmRender::UnregisterRenderListDispatch(m_Context, dispatches[i]);
@@ -1631,7 +1632,8 @@ TEST_F(dmRenderTest, PersistentRenderItemDispatchSlotReuse)
     dmRender::HRenderItem         item = dmRender::NewRenderItem(m_Context, survivor, 42);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
     ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+    ASSERT_EQ(1u, dispatches[0]);
+    ASSERT_EQ((dmRender::RenderItemDispatch*)0, context->m_RenderItemDispatches[0]);
     for (uint32_t frame = 0; frame < 2; ++frame)
     {
         dmRender::RenderListBegin(m_Context);
@@ -1655,6 +1657,7 @@ TEST_F(dmRenderTest, PersistentRenderItemDispatchSlotReuse)
     }
     dmRender::HRenderItemDispatch replacement = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0, true);
     ASSERT_EQ(dispatches[0], replacement);
+    ASSERT_EQ((dmRender::RenderItemDispatch*)0, context->m_RenderItemDispatches[0]);
     dmRender::RenderListBegin(m_Context);
     ASSERT_TRUE(context->m_RenderItemDispatches[replacement]->m_Dispatch.m_SupportsInstancing);
     ASSERT_EQ(dmRender::RENDERLIST_INVALID_DISPATCH, context->m_RenderItemDispatches[replacement]->m_FrameDispatch);
@@ -1681,7 +1684,7 @@ TEST_F(dmRenderTest, PersistentRenderItemIdleWorlds)
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches); ++i)
     {
         dispatches[i] = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
-        ASSERT_NE(dmRender::INVALID_RENDER_ITEM_DISPATCH, dispatches[i]);
+        ASSERT_NE(0u, dispatches[i]);
         items[i] = dmRender::NewRenderItem(m_Context, dispatches[i], i);
         ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], 0));
         ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
@@ -1702,7 +1705,7 @@ TEST_F(dmRenderTest, PersistentRenderItemIdleWorlds)
     dmRender::RenderListEnd(m_Context);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
     ASSERT_EQ(3u, context->m_RenderListSortBuffer.Size());
-    ASSERT_EQ(513u, context->m_PersistentRenderItems[(uint32_t)items[513]].m_Dispatch);
+    ASSERT_EQ(dispatches[513], context->m_PersistentRenderItems[(uint32_t)items[513]].m_Dispatch);
     ASSERT_EQ(0u, context->m_RenderList[(uint32_t)items[513]].m_Dispatch);
     for (uint32_t i = 0; i < 513; ++i)
     {

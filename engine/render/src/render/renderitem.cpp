@@ -59,13 +59,13 @@ namespace dmRender
 
     HRenderItemDispatch RegisterRenderListDispatch(HRenderContext context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data, bool supports_instancing)
     {
-        uint32_t index = 0;
+        uint32_t index = 1;
         while (index < context->m_RenderItemDispatches.Size() && context->m_RenderItemDispatches[index])
             ++index;
         if (index == (1u << 24))
         {
             dmLogError("Exhausted render item dispatch registrations.");
-            return INVALID_RENDER_ITEM_DISPATCH;
+            return 0;
         }
         if (index == context->m_RenderItemDispatches.Size())
         {

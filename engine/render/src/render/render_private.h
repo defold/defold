@@ -267,7 +267,7 @@ namespace dmRender
         const uint32_t*     m_Indices;
         uint32_t            m_Count;
         uint32_t            m_TagListKey;
-        HRenderItemDispatch m_Dispatch; // Invalid for frame-local indices
+        HRenderItemDispatch m_Dispatch; // 0 for frame-local indices
     };
 
     struct RenderItemRange

@@ -163,7 +163,7 @@ namespace dmGameSystem
         TileGridWorld* world = new TileGridWorld;
         TilemapContext* context = (TilemapContext*)params.m_Context;
         world->m_RenderContext = context->m_RenderContext;
-        world->m_RenderDispatch = dmRender::INVALID_RENDER_ITEM_DISPATCH;
+        world->m_RenderDispatch = 0;
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxTilemapCount);
         world->m_MaxTilemapCount = comp_count;
         world->m_MaxTileCount = context->m_MaxTileCount;
@@ -181,7 +181,7 @@ namespace dmGameSystem
         TileGridWorld* world = (TileGridWorld*) params.m_World;
         for (uint32_t i = 0; i < world->m_RenderItems.Size(); ++i)
             dmRender::DeleteRenderItem(world->m_RenderContext, world->m_RenderItems[i]);
-        if (world->m_RenderDispatch != dmRender::INVALID_RENDER_ITEM_DISPATCH)
+        if (world->m_RenderDispatch != 0)
             dmRender::UnregisterRenderListDispatch(world->m_RenderContext, world->m_RenderDispatch);
         if (world->m_VertexDeclaration)
         {
@@ -806,7 +806,7 @@ namespace dmGameSystem
         }
 
         dmRender::HRenderContext render_context = context->m_RenderContext;
-        if (world->m_RenderDispatch == dmRender::INVALID_RENDER_ITEM_DISPATCH)
+        if (world->m_RenderDispatch == 0)
             world->m_RenderDispatch = dmRender::RegisterRenderListDispatch(render_context, RenderListDispatch, 0, world);
         uint32_t render_item_count = 0;
 

@@ -40,7 +40,7 @@ namespace dmRender
     {
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
         debug_renderer.m_MaxVertexCount = max_vertex_count;
-        debug_renderer.m_RenderDispatch = INVALID_RENDER_ITEM_DISPATCH;
+        debug_renderer.m_RenderDispatch = 0;
 
         debug_renderer.m_RenderContext = render_context;
         const uint32_t buffer_size = max_vertex_count * sizeof(DebugVertex);
@@ -114,7 +114,7 @@ namespace dmRender
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
             if (debug_renderer.m_TypeData[i].m_RenderItem)
                 DeleteRenderItem(context, debug_renderer.m_TypeData[i].m_RenderItem);
-        if (debug_renderer.m_RenderDispatch != INVALID_RENDER_ITEM_DISPATCH)
+        if (debug_renderer.m_RenderDispatch != 0)
             UnregisterRenderListDispatch(context, debug_renderer.m_RenderDispatch);
         DeleteMaterial(context, material);
 
@@ -271,7 +271,7 @@ namespace dmRender
 
         dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, total_vertex_count * sizeof(DebugVertex), 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
-        if (total_render_objects && debug_renderer.m_RenderDispatch == INVALID_RENDER_ITEM_DISPATCH)
+        if (total_render_objects && debug_renderer.m_RenderDispatch == 0)
             debug_renderer.m_RenderDispatch = RegisterRenderListDispatch(render_context, DebugRenderListDispatch, 0, &debug_renderer);
 
         // Upgrade the batch key, since we might submit these render object multiple times

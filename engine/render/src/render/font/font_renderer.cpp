@@ -112,7 +112,7 @@ namespace dmRender
         text_context.m_Frame = 0;
         text_context.m_PreviousFrame = ~0;
         text_context.m_TextEntriesFlushed = 0;
-        text_context.m_RenderDispatch = INVALID_RENDER_ITEM_DISPATCH;
+        text_context.m_RenderDispatch = 0;
         text_context.m_ActiveRenderItemCount = 0;
 
         const uint32_t buffer_size = text_context.m_MaxVertexCount * sizeof(FontGlyphVertex);
@@ -149,7 +149,7 @@ namespace dmRender
         TextContext& text_context = render_context->m_TextContext;
         for (uint32_t i = 0; i < text_context.m_RenderItems.Size(); ++i)
             DeleteRenderItem(render_context, text_context.m_RenderItems[i]);
-        if (text_context.m_RenderDispatch != INVALID_RENDER_ITEM_DISPATCH)
+        if (text_context.m_RenderDispatch != 0)
             UnregisterRenderListDispatch(render_context, text_context.m_RenderDispatch);
         ReleaseTextEntries(text_context);
         for (uint32_t i = 0; i < text_context.m_ConstantBuffers.Size(); ++i)
@@ -705,7 +705,7 @@ namespace dmRender
 
             if (count > 0)
             {
-                if (text_context.m_RenderDispatch == INVALID_RENDER_ITEM_DISPATCH)
+                if (text_context.m_RenderDispatch == 0)
                     text_context.m_RenderDispatch = RegisterRenderListDispatch(render_context, FontRenderListDispatch, 0, render_context);
 
                 for( uint32_t i = 0; i < count; ++i )

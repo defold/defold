@@ -147,7 +147,7 @@ namespace dmGameSystem
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
         ParticleFXWorld* world = new ParticleFXWorld();
         world->m_Context = ctx;
-        world->m_RenderDispatch = dmRender::INVALID_RENDER_ITEM_DISPATCH;
+        world->m_RenderDispatch = 0;
         world->m_ActiveRenderItemCount = 0;
         uint32_t particle_fx_count = dmMath::Min(params.m_MaxComponentInstances, ctx->m_MaxParticleFXCount);
         world->m_ParticleContext = dmParticle::CreateContext(ctx->m_MaxParticleFXCount, ctx->m_MaxParticleCount);
@@ -201,7 +201,7 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < pfx_world->m_RenderItems.Size(); ++i)
             dmRender::DeleteRenderItem(ctx->m_RenderContext, pfx_world->m_RenderItems[i].m_Item);
-        if (pfx_world->m_RenderDispatch != dmRender::INVALID_RENDER_ITEM_DISPATCH)
+        if (pfx_world->m_RenderDispatch != 0)
             dmRender::UnregisterRenderListDispatch(ctx->m_RenderContext, pfx_world->m_RenderDispatch);
         dmParticle::DestroyContext(pfx_world->m_ParticleContext);
         dmRender::DeleteBufferedRenderBuffer(ctx->m_RenderContext, pfx_world->m_VertexBuffer);
@@ -636,7 +636,7 @@ namespace dmGameSystem
             dmParticle::DebugRender(particle_context, ctx->m_RenderContext, RenderLineCallback);
         }
 
-        if (pfx_world->m_RenderDispatch == dmRender::INVALID_RENDER_ITEM_DISPATCH && world_emitter_count)
+        if (pfx_world->m_RenderDispatch == 0 && world_emitter_count)
             pfx_world->m_RenderDispatch = dmRender::RegisterRenderListDispatch(ctx->m_RenderContext, RenderListDispatch, 0, pfx_world);
         uint32_t render_item_count = 0;
 

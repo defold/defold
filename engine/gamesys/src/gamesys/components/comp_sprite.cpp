@@ -275,7 +275,7 @@ namespace dmGameSystem
     {
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         SpriteWorld* sprite_world = new SpriteWorld();
-        sprite_world->m_RenderDispatch = dmRender::INVALID_RENDER_ITEM_DISPATCH;
+        sprite_world->m_RenderDispatch = 0;
         sprite_world->m_RenderContext = sprite_context->m_RenderContext;
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sprite_context->m_MaxSpriteCount);
         sprite_world->m_Components.SetCapacity(comp_count);
@@ -318,7 +318,7 @@ namespace dmGameSystem
         }
 
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
-        if (sprite_world->m_RenderDispatch != dmRender::INVALID_RENDER_ITEM_DISPATCH)
+        if (sprite_world->m_RenderDispatch != 0)
             dmRender::UnregisterRenderListDispatch(sprite_context->m_RenderContext, sprite_world->m_RenderDispatch);
         dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_VertexBuffer);
         free(sprite_world->m_VertexBufferData);
@@ -773,10 +773,10 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
-        if (sprite_world->m_RenderDispatch == dmRender::INVALID_RENDER_ITEM_DISPATCH)
+        if (sprite_world->m_RenderDispatch == 0)
         {
             sprite_world->m_RenderDispatch = dmRender::RegisterRenderListDispatch(sprite_context->m_RenderContext, RenderListDispatch, 0, sprite_world);
-            if (sprite_world->m_RenderDispatch == dmRender::INVALID_RENDER_ITEM_DISPATCH)
+            if (sprite_world->m_RenderDispatch == 0)
                 return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         uint32_t index = sprite_world->m_Components.Alloc();
