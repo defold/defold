@@ -28,7 +28,6 @@
 #include <dlib/dstrings.h>
 #include <dlib/transform.h>
 #include <dmsdk/dlib/vmath.h>
-#include <dmsdk/dlib/intersection.h>
 #include <gameobject/gameobject_ddf.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -59,6 +58,7 @@ namespace dmGameSystem
     struct MeshComponent
     {
         dmGameObject::HInstance         m_Instance;
+        dmRender::HRenderItem            m_RenderItem;
         Matrix4                         m_Local;
         Matrix4                         m_World;
         uint32_t                        m_MixedHash;
@@ -91,6 +91,8 @@ namespace dmGameSystem
 
     struct MeshWorld
     {
+        dmRender::HRenderContext m_RenderContext;
+        dmRender::HRenderItemDispatch m_RenderDispatch;
         dmResource::HFactory               m_ResourceFactory;
         dmObjectPool<MeshComponent*>       m_Components;
         dmArray<dmRender::RenderObject>    m_RenderObjects;
@@ -234,12 +236,15 @@ namespace dmGameSystem
     static const uint64_t AABB_HASH = dmHashString64("AABB");
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
+    static void RenderListDispatch(const dmRender::RenderListDispatchParams& params);
 
     dmGameObject::CreateResult CompMeshNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         MeshContext* context = (MeshContext*)params.m_Context;
 
         MeshWorld* world = new MeshWorld();
+        world->m_RenderContext = context->m_RenderContext;
+        world->m_RenderDispatch = dmRender::INVALID_RENDER_ITEM_DISPATCH;
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxMeshCount);
         world->m_ResourceFactory = context->m_Factory;
         world->m_Components.SetCapacity(comp_count);
@@ -263,6 +268,9 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompMeshDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         MeshWorld* world = (MeshWorld*)params.m_World;
+
+        if (world->m_RenderDispatch != dmRender::INVALID_RENDER_ITEM_DISPATCH)
+            dmRender::UnregisterRenderListDispatch(world->m_RenderContext, world->m_RenderDispatch);
 
         if (world->m_VertexBufferPool.Capacity() < world->m_VertexBufferPool.Size()+world->m_VertexBufferWorld.Size())
             world->m_VertexBufferPool.OffsetCapacity(world->m_VertexBufferWorld.Size());
@@ -406,6 +414,10 @@ namespace dmGameSystem
         }
 
         ReHash(component);
+        if (world->m_RenderDispatch == dmRender::INVALID_RENDER_ITEM_DISPATCH)
+            world->m_RenderDispatch = dmRender::RegisterRenderListDispatch(world->m_RenderContext, RenderListDispatch, 0, world);
+        component->m_RenderItem = dmRender::NewRenderItem(world->m_RenderContext, world->m_RenderDispatch, (uintptr_t)component);
+        dmRender::SetWorldTransform(world->m_RenderContext, component->m_RenderItem, component->m_World);
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -423,6 +435,7 @@ namespace dmGameSystem
 
         uint32_t index = (uint32_t)*params.m_UserData;
         MeshComponent* component = world->m_Components.Get(index);
+        dmRender::DeleteRenderItem(world->m_RenderContext, component->m_RenderItem);
         dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
 
         dmGameSystem::BufferResource* br = GetBufferResource(component);
@@ -469,7 +482,12 @@ namespace dmGameSystem
                 continue;
 
             const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
-            c->m_World = go_world * c->m_Local;
+            Matrix4 transform = go_world * c->m_Local;
+            if (memcmp(&transform, &c->m_World, sizeof(transform)) != 0)
+            {
+                c->m_World = transform;
+                dmRender::SetWorldTransform(world->m_RenderContext, c->m_RenderItem, transform);
+            }
         }
     }
 
@@ -817,50 +835,6 @@ namespace dmGameSystem
         }
     }
 
-    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
-    {
-        DM_PROFILE("Mesh");
-
-        const dmIntersection::Frustum frustum = *params.m_Frustum;
-        uint32_t num_entries = params.m_NumEntries;
-        for (uint32_t i = 0; i < num_entries; ++i)
-        {
-            dmRender::RenderListEntry* entry = &params.m_Entries[i];
-            MeshComponent* component_p = (MeshComponent*)entry->m_UserData;
-
-            dmGameSystem::BufferResource* br = GetBufferResource(component_p);
-
-            void* data;
-            uint32_t count;
-            dmBuffer::ValueType valueType;
-            dmBuffer::Result r = dmBuffer::GetMetaData(br->m_Buffer, AABB_HASH, &data, &count, &valueType );
-
-            if (r == dmBuffer::RESULT_METADATA_MISSING)
-            {
-                // no bounding box available - no culling
-                entry->m_Visibility = dmRender::VISIBILITY_FULL;
-                continue;
-            }
-            else if (valueType != dmBuffer::VALUE_TYPE_FLOAT32 || count != 6)
-            {
-                dmLogError("Invalid AABB metadata. Expected array of 6 floats.");
-                entry->m_Visibility = dmRender::VISIBILITY_FULL;
-                continue;
-            }
-            else if (r != dmBuffer::RESULT_OK)
-            {
-                dmLogError("Error getting AABB for mesh buffer");
-                continue;
-            }
-
-            dmVMath::Vector3 boundsMin(((float*)data)[0], ((float*)data)[1], ((float*)data)[2] );
-            dmVMath::Vector3 boundsMax(((float*)data)[3], ((float*)data)[4], ((float*)data)[5] );
-
-            bool intersect      = dmIntersection::TestFrustumOBB(frustum, component_p->m_World, boundsMin, boundsMax);
-            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
-        }
-    }
-
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
         MeshWorld *world = (MeshWorld *) params.m_UserData;
@@ -903,34 +877,45 @@ namespace dmGameSystem
         const dmArray<MeshComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();
 
-        // Prepare list submit
-        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
-        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, world);
-        dmRender::RenderListEntry* write_ptr = render_list;
-
         uint32_t num_enabled = 0;
         for (uint32_t i = 0; i < count; ++i)
         {
             MeshComponent& component = *components[i];
-            if (!component.m_Enabled || !component.m_AddedToUpdate)
-            {
+            bool enabled = component.m_Enabled && component.m_AddedToUpdate;
+            dmRender::Enable(render_context, component.m_RenderItem, enabled);
+            if (!enabled)
                 continue;
-            }
-
             ++num_enabled;
-            const Vector4 trans = component.m_World.getCol(3);
-            write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
-            write_ptr->m_UserData = (uintptr_t) &component;
-            write_ptr->m_BatchKey = component.m_MixedHash;
-            write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(&component, component.m_Resource));
-            write_ptr->m_Dispatch = dispatch;
-            write_ptr->m_MinorOrder = 0;
-            write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
-            ++write_ptr;
+            dmRender::SetBatchKey(render_context, component.m_RenderItem, component.m_MixedHash);
+            dmRender::SetMaterial(render_context, component.m_RenderItem, GetMaterial(&component, component.m_Resource));
+
+            BufferResource* buffer = GetBufferResource(&component);
+            void* bounds = 0;
+            uint32_t count = 0;
+            dmBuffer::ValueType type;
+            dmBuffer::Result result = dmBuffer::GetMetaData(buffer->m_Buffer, AABB_HASH, &bounds, &count, &type);
+            if (result == dmBuffer::RESULT_OK && type == dmBuffer::VALUE_TYPE_FLOAT32 && count == 6)
+            {
+                float* values = (float*)bounds;
+                dmRender::SetBoundingOBB(render_context, component.m_RenderItem, Vector3(values[0], values[1], values[2]), Vector3(values[3], values[4], values[5]));
+            }
+            else
+            {
+                if (result == dmBuffer::RESULT_OK)
+                {
+                    dmLogError("Invalid AABB metadata. Expected array of 6 floats.");
+                }
+                else if (result != dmBuffer::RESULT_METADATA_MISSING)
+                {
+                    dmLogError("Error getting AABB for mesh buffer");
+                }
+                dmRender::ClearBoundingVolume(render_context, component.m_RenderItem);
+            }
         }
         DM_PROPERTY_ADD_U32(rmtp_Mesh, num_enabled);
 
-        dmRender::RenderListSubmit(render_context, render_list, write_ptr);
+        if (num_enabled)
+            dmRender::SubmitRenderListDispatch(render_context, world->m_RenderDispatch);
 
         return dmGameObject::UPDATE_RESULT_OK;
     }

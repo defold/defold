@@ -1124,6 +1124,7 @@ TEST_F(ParticleFxTest, PlayWithOverridesAfterComponentStorageGrowth)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verifies typed sphere bounds cull emitters independently of their render-item user data.
 TEST_F(ParticleFxTest, FrustumCullsParticleEmitters)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -1182,8 +1183,7 @@ TEST_F(ParticleFxTest, FrustumCullsParticleEmitters)
         if (entry.m_Dispatch != particle_dispatch)
             continue;
 
-        dmParticle::EmitterRenderData* render_data = (dmParticle::EmitterRenderData*)entry.m_UserData;
-        const bool inside_frustum = dmMath::Abs(render_data->m_FrustumCullingCenter.getX()) < 500.0f;
+        const bool inside_frustum = dmMath::Abs(entry.m_WorldPosition.getX()) < 500.0f;
         if (inside_frustum)
         {
             ASSERT_EQ(dmRender::VISIBILITY_FULL, entry.m_Visibility);

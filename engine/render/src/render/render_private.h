@@ -136,11 +136,13 @@ namespace dmRender
     {
         dmRender::RenderObject  m_RenderObject;
         void*                   m_ClientBuffer;
+        HRenderItem             m_RenderItem;
     };
 
     struct DebugRenderer
     {
         DebugRenderTypeData             m_TypeData[MAX_DEBUG_RENDER_TYPE_COUNT];
+        HRenderItemDispatch             m_RenderDispatch;
         Predicate                       m_3dPredicate;
         dmRender::HRenderContext        m_RenderContext;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
@@ -187,6 +189,9 @@ namespace dmRender
 
     struct TextContext
     {
+        HRenderItemDispatch m_RenderDispatch;
+        dmArray<HRenderItem> m_RenderItems;
+        uint32_t m_ActiveRenderItemCount;
         dmArray<dmRender::RenderObject>         m_RenderObjects;
         dmArray<dmRender::HNamedConstantBuffer> m_ConstantBuffers;
         dmArray<uint8_t>                        m_ClientBuffer;
