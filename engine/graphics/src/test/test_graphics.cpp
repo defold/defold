@@ -2320,6 +2320,62 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
+// Reject empty targets and every zero-sized selected attachment before reaching an adapter.
+TEST_F(dmGraphicsTest, TestRenderTargetAttachmentValidation)
+{
+    const dmGraphics::TextureType texture_types[] = {dmGraphics::TEXTURE_TYPE_2D, dmGraphics::TEXTURE_TYPE_CUBE_MAP};
+    for (uint32_t type = 0; type < DM_ARRAY_SIZE(texture_types); ++type)
+    {
+        dmGraphics::RenderTargetCreationParams params = {};
+        params.m_TextureType = texture_types[type];
+        ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, 0, params));
+
+        const uint32_t dimensions[][2] = {{0, 0}, {0, HEIGHT}, {WIDTH, 0}};
+        for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 2; ++i)
+        {
+            dmGraphics::BufferType buffer_type = dmGraphics::GetBufferTypeFromIndex(i);
+            for (uint32_t j = 0; j < DM_ARRAY_SIZE(dimensions); ++j)
+            {
+                params = InitializeRenderTargetParams(WIDTH, texture_types[type] == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? WIDTH : HEIGHT);
+                params.m_TextureType = texture_types[type];
+                dmGraphics::TextureParams* attachment = i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS ? &params.m_ColorBufferParams[i] :
+                    (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT ? &params.m_DepthBufferParams : &params.m_StencilBufferParams);
+                attachment->m_Width = dimensions[j][0];
+                attachment->m_Height = dimensions[j][1];
+                ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, buffer_type, params));
+                // A valid color attachment must not hide an invalid later attachment.
+                ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, buffer_type | dmGraphics::BUFFER_TYPE_COLOR0_BIT, params));
+                if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT || buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+                    ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, params));
+            }
+        }
+
+        // Unselected zero-sized slots are valid, including disabled depth/stencil.
+        const uint32_t valid_dimensions[][2] = {{1, 1}, {WIDTH, HEIGHT}};
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(valid_dimensions); ++i)
+        {
+            params = InitializeRenderTargetParams(valid_dimensions[i][0], texture_types[type] == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? valid_dimensions[i][0] : valid_dimensions[i][1]);
+            params.m_TextureType = texture_types[type];
+            params.m_DepthBufferParams.m_Width = params.m_DepthBufferParams.m_Height = 0;
+            params.m_StencilBufferParams.m_Width = params.m_StencilBufferParams.m_Height = 0;
+            for (uint32_t j = 1; j < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++j)
+                params.m_ColorBufferParams[j].m_Width = params.m_ColorBufferParams[j].m_Height = 0;
+            dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
+            ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+            dmGraphics::DeleteRenderTarget(m_Context, target);
+
+            params = InitializeRenderTargetParams(valid_dimensions[i][0], texture_types[type] == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? valid_dimensions[i][0] : valid_dimensions[i][1]);
+            params.m_TextureType = texture_types[type];
+            for (uint32_t j = 0; j < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++j)
+                params.m_ColorBufferParams[j].m_Width = params.m_ColorBufferParams[j].m_Height = 0;
+            target = dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, params);
+            ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+            dmGraphics::DeleteRenderTarget(m_Context, target);
+        }
+    }
+}
+
+// Verify cubemap face storage, resizing, and square, equally sized selected attachments.
 TEST_F(dmGraphicsTest, TestCubeMapRenderTarget)
 {
     dmGraphics::RenderTargetCreationParams params = InitializeRenderTargetParams(WIDTH, WIDTH);
@@ -2370,6 +2426,26 @@ TEST_F(dmGraphicsTest, TestCubeMapRenderTarget)
     params.m_ColorBufferParams[0].m_Height = WIDTH + 1;
     ASSERT_EQ((dmGraphics::HRenderTarget) 0,
         dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params));
+
+    // Every selected attachment must be square and match the other cubemap attachments.
+    const uint32_t invalid_dimensions[][2] = {{WIDTH, WIDTH + 1}, {WIDTH + 1, WIDTH + 1}};
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 2; ++i)
+    {
+        dmGraphics::BufferType buffer_type = dmGraphics::GetBufferTypeFromIndex(i);
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(invalid_dimensions); ++j)
+        {
+            params = InitializeRenderTargetParams(WIDTH, WIDTH);
+            params.m_TextureType = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+            dmGraphics::TextureParams* attachment = i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS ? &params.m_ColorBufferParams[i] :
+                (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT ? &params.m_DepthBufferParams : &params.m_StencilBufferParams);
+            attachment->m_Width = invalid_dimensions[j][0];
+            attachment->m_Height = invalid_dimensions[j][1];
+            uint32_t flags = buffer_type | dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+            ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, flags, params));
+            if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT || buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+                ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, params));
+        }
+    }
 }
 
 TEST_F(dmGraphicsTest, TestGetRTAttachment)

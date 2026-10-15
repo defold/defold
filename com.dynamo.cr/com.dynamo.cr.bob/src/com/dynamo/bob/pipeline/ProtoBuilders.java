@@ -178,6 +178,18 @@ public class ProtoBuilders {
     public static class RenderTargetDescBuilder extends ProtoBuilder<RenderTargetDesc.Builder> {
         @Override
         protected RenderTargetDesc.Builder transform(Task task, IResource resource, RenderTargetDesc.Builder messageBuilder) throws CompileExceptionError {
+            RenderTargetDesc.DepthStencilAttachment depthStencil = messageBuilder.getDepthStencilAttachment();
+            if (messageBuilder.getColorAttachmentsCount() == 0 && (depthStencil.getWidth() == 0 || depthStencil.getHeight() == 0)) {
+                throw new CompileExceptionError(resource, 0, "Render targets must have at least one attachment.");
+            }
+            for (int i = 0; i < messageBuilder.getColorAttachmentsCount(); ++i) {
+                RenderTargetDesc.ColorAttachment attachment = messageBuilder.getColorAttachments(i);
+                if (attachment.getWidth() == 0 || attachment.getHeight() == 0) {
+                    throw new CompileExceptionError(resource, 0, String.format(
+                            "Render target color attachment %d must have non-zero dimensions (got %dx%d).",
+                            i, attachment.getWidth(), attachment.getHeight()));
+                }
+            }
             switch (messageBuilder.getType()) {
                 case TYPE_2D:
                 case TYPE_CUBEMAP:
