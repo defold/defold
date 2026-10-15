@@ -16,6 +16,7 @@
 
 #include "window.hpp"
 #include "platform_window_constants.h"
+#include "platform_app.h"
 
 #if defined(ANDROID)
 #include "platform_window_android.h"
@@ -388,6 +389,28 @@ namespace dmPlatform
     {
         (void) immersive_mode;
         (void) display_cutout;
+    }
+#endif
+
+#if defined(DM_PLATFORM_IOS)
+    void RegisteriOSApplicationDelegate(void* delegate)
+    {
+        (void) delegate;
+    }
+
+    void UnregisteriOSApplicationDelegate(void* delegate)
+    {
+        (void) delegate;
+    }
+
+    void RegisteriOSSceneDelegate(void* delegate)
+    {
+        (void) delegate;
+    }
+
+    void UnregisteriOSSceneDelegate(void* delegate)
+    {
+        (void) delegate;
     }
 #endif
 
