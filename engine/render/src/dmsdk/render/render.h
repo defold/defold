@@ -407,6 +407,7 @@ namespace dmRender
     /*#
      * Register a render dispatch function
      * @name RenderListMakeDispatch
+     * @deprecated Use RegisterRenderListDispatch and SubmitRenderListDispatch from render/render.h.
      * @param context [type: dmRender::HRenderContext] the context
      * @param dispatch_fn [type: dmRender::RenderListDispatchFn] the render batch callback function
      * @param visibility_fn [type: dmRender::RenderListVisibilityFn] the render list visibility callback function. May be 0
@@ -422,6 +423,7 @@ namespace dmRender
      * Allocates an array of render entries
      * @note Do not store a pointer into this array, as they're reused next frame
      * @name RenderListAlloc
+     * @deprecated Use NewRenderItem and the render item setters from render/render.h.
      * @param context [type: dmRender::HRenderContext] the context
      * @param entries [type: uint32_t] the number of entries to allocate
      * @return array [type: dmRender::RenderListEntry*] the render list entry array
@@ -431,6 +433,7 @@ namespace dmRender
     /*#
      * Adds a render object to the current render frame
      * @name RenderListSubmit
+     * @deprecated Use Enable and SubmitRenderListDispatch from render/render.h.
      * @param context [type: dmRender::HRenderContext] the context
      * @param begin [type: dmRender::RenderListEntry*] the start of the array
      * @param end [type: dmRender::RenderListEntry*] the end of the array (i.e. "while begin!=end: *begin ..."")

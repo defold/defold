@@ -217,6 +217,8 @@ namespace dmRender
         RenderListDispatchFn        m_DispatchFn;
         RenderListVisibilityFn      m_VisibilityFn;
         void*                       m_UserData;
+        uint8_t                     m_SupportsInstancing;
+        uint8_t                     m_HasVertexCounts;
     };
 
     struct RenderListSortValue
@@ -241,9 +243,46 @@ namespace dmRender
     struct RenderListRange
     {
         uint32_t m_TagListKey;
-        uint32_t m_Start;       // Index into the renderlist
+        uint32_t m_Start;       // Offset in the logical concatenation of tag spans
         uint32_t m_Count:31;
         uint32_t m_Skip:1;      // During the current draw call
+        uint32_t m_SpanStart;
+        uint32_t m_SpanCount;
+    };
+
+    struct RenderListSpan
+    {
+        const uint32_t* m_Indices;
+        uint32_t m_Count;
+        uint32_t m_TagListKey;
+        HRenderItemDispatch m_Dispatch; // Invalid for frame-local indices
+    };
+
+    struct RenderItemRange
+    {
+        uint32_t m_TagListKey;
+        uint32_t m_Start;
+        uint32_t m_Count;
+    };
+
+    static const uint32_t MAX_RENDER_ITEM_CACHE_CHANGES = 8;
+
+    struct RenderItemCacheChange
+    {
+        uint32_t m_Index;
+        uint32_t m_TagListKey; // Key in the cached ranges, before the first edit
+    };
+
+    struct RenderItemDispatch
+    {
+        RenderListDispatch m_Dispatch;
+        dmArray<uint32_t> m_EnabledItems;
+        dmArray<uint32_t> m_SortIndices;
+        dmArray<RenderItemRange> m_Ranges;
+        RenderItemCacheChange m_Changes[MAX_RENDER_ITEM_CACHE_CHANGES];
+        uint32_t m_NumChanges;
+        HRenderListDispatch m_FrameDispatch;
+        bool m_RebuildCache;
     };
 
     struct MaterialTagList
@@ -313,6 +352,37 @@ namespace dmRender
         LIGHT_BUFFER_LIGHT_STRIDE = 64,
     };
 
+    static const dmhash_t FRUSTUM_HASH_UNINITIALIZED = 0;
+
+    enum BoundingVolumeType
+    {
+        BOUNDING_VOLUME_NONE,
+        BOUNDING_VOLUME_SPHERE,
+        BOUNDING_VOLUME_AABB,
+        BOUNDING_VOLUME_OBB,
+    };
+
+    struct PersistentRenderItem
+    {
+        dmVMath::Matrix4 m_WorldTransform;
+        HMaterial m_Material;
+        // Sphere: center xyz and radius squared. Boxes: min xyz and max xyz.
+        float    m_Bounds[6];
+        uint32_t m_Generation;
+        union
+        {
+            uint32_t m_NextFree;     // Deleted slot
+            uint32_t m_EnabledIndex; // Index in its world's dense enabled list
+        };
+        uint32_t m_VertexCount;
+        uint32_t m_Dispatch:24;
+        uint32_t m_Alive:1;
+        uint32_t m_Enabled:1;
+        uint32_t m_BoundingVolumeType:2;
+        uint32_t m_ManualOrder:1;
+        uint32_t :3;
+    };
+
     struct RenderContext
     {
         DebugRenderer               m_DebugRenderer;
@@ -324,10 +394,20 @@ namespace dmRender
         dmScript::LuaCallbackInfo*  m_CallbackInfo;
 
         dmArray<RenderListEntry>    m_RenderList;
+        // Retained entries occupy the draw-list prefix. Legacy allocations have
+        // independent storage; their draw-list snapshot follows the prefix.
+        dmArray<PersistentRenderItem> m_PersistentRenderItems;
+        dmArray<RenderListEntry>    m_TransientRenderList;
+        dmArray<uint32_t>           m_TransientRenderListIndices;
+        dmArray<RenderItemDispatch*> m_RenderItemDispatches;
+        dmArray<HRenderItemDispatch> m_SubmittedRenderItemDispatches;
+        bool                       m_TransientRenderListDirty;
+        uint32_t                   m_FirstFreeRenderItem;
         dmArray<RenderListDispatch> m_RenderListDispatch;
         dmArray<RenderListSortValue>m_RenderListSortValues;
         dmArray<uint32_t>           m_RenderListSortBuffer;
-        dmArray<uint32_t>           m_RenderListSortIndices;
+        dmArray<RenderListRange>    m_RenderListSortedRanges;
+        dmArray<RenderListSpan>     m_RenderListSpans;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
         dmArray<TextureBinding>     m_TextureBindTable;
         dmArray<HNamedConstantBuffer> m_ConstantBufferClones;

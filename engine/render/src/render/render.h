@@ -29,6 +29,76 @@
 
 namespace dmRender
 {
+    // Opaque renderer-owned registrations. Zero is invalid. Create/update items
+    // before the draw that consumes them, outside dispatch callbacks. Mutations
+    // return false for invalid/deleted handles.
+    // Handles belong to the context that created them.
+    typedef uint64_t HRenderItem;
+
+    // Persistent world registration, separate from a frame's 8-bit dispatch ID.
+    // The low 24 bits identify a registration; ~0u is invalid.
+    typedef uint32_t HRenderItemDispatch;
+    const HRenderItemDispatch INVALID_RENDER_ITEM_DISPATCH = ~0u;
+
+    // Register before submitting; unregister between render lists. Delete all associated items
+    // before unregistering; callbacks and user data remain caller-owned.
+    // Set supports_instancing when the dispatch can draw instance attributes.
+    HRenderItemDispatch RegisterRenderListDispatch(HRenderContext context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data, bool supports_instancing = false);
+    void UnregisterRenderListDispatch(HRenderContext context, HRenderItemDispatch dispatch);
+    // Submit a registered dispatch between RenderListBegin and RenderListEnd to
+    // make its enabled items eligible for this frame. Submission retains no
+    // caller-owned pointers beyond those supplied at registration.
+    // Only submitted worlds consume frame dispatch IDs (at most 255, shared
+    // with legacy dispatches). Repeated submission in one frame has no effect.
+    void SubmitRenderListDispatch(HRenderContext context, HRenderItemDispatch dispatch);
+
+    // New items are disabled, with an identity world transform, no bounding
+    // volume and world-position sorting. Dispatch and user data are fixed for the
+    // registration's lifetime. Any data referenced by user_data must outlive it.
+    // Creating items does not invalidate outstanding RenderListAlloc ranges.
+    HRenderItem NewRenderItem(HRenderContext context, HRenderItemDispatch dispatch, uint64_t user_data);
+    // Invalidates the handle and releases its slot for reuse.
+    bool DeleteRenderItem(HRenderContext context, HRenderItem item);
+    // Changes draw eligibility without releasing the handle or its data.
+    // Repeated calls with the same enabled state have no effect.
+    bool Enable(HRenderContext context, HRenderItem item, bool enabled);
+    // Copies the local-to-world affine transform. Its translation supplies the
+    // sort position. Visibility is reevaluated after every call; also call when
+    // callback-owned visibility data changes but the transform stays unchanged.
+    bool SetWorldTransform(HRenderContext context, HRenderItem item, const dmVMath::Matrix4& world_transform);
+    // Copies a world-space sphere; radius is a non-negative distance, not a
+    // squared radius. SetWorldTransform does not move or scale this volume.
+    bool SetBoundingSphere(HRenderContext context, HRenderItem item, const dmVMath::Point3& world_center, float radius);
+    // Copies a world-space axis-aligned box with ordered min/max corners.
+    // SetWorldTransform does not move or rotate this volume.
+    bool SetBoundingAABB(HRenderContext context, HRenderItem item, const dmVMath::Vector3& world_min, const dmVMath::Vector3& world_max);
+    // Copies ordered local min/max corners. The item world transform supplies
+    // position, orientation and scale, including reflection and shear.
+    bool SetBoundingOBB(HRenderContext context, HRenderItem item, const dmVMath::Vector3& local_min, const dmVMath::Vector3& local_max);
+    // Bounding setters replace the previous volume and invalidate visibility
+    // only when its type or values change. Clear restores the dispatch's legacy
+    // visibility callback, or always-visible behavior when it has no callback.
+    bool ClearBoundingVolume(HRenderContext context, HRenderItem item);
+    // Sets the caller's batch compatibility key. The renderer also separates
+    // batches by dispatch and vertex-buffer partition.
+    bool SetBatchKey(HRenderContext context, HRenderItem item, uint32_t key);
+    // Explicit ordering for GUI, text and debug items. World order sorts by
+    // position; before/after-world order uses the supplied 24-bit order value.
+    // Material changes and render-script overrides preserve this ordering.
+    bool SetOrder(HRenderContext context, HRenderItem item, RenderOrder render_order, uint32_t order);
+    // Borrows the material until the next SetMaterial or DeleteRenderItem.
+    // Uses its tags for render predicates; call again after material tags or
+    // vertex attributes change to refresh cached sorting metadata.
+    // A null material clears the material and tags.
+    // At draw time, an instancing-capable dispatch with a local-space instanced material
+    // groups by batch key; other items sort by position.
+    // A render-script material override participates in this decision.
+    bool SetMaterial(HRenderContext context, HRenderItem item, HMaterial material);
+    // Sets the source vertex count for automatic vertex-buffer partitioning.
+    // Zero (the default) does not consume this budget. The renderer assigns
+    // partitions 0-15 using the graphics device's vertex limit.
+    bool SetVertexCount(HRenderContext context, HRenderItem item, uint32_t vertex_count);
+
     extern const char* RENDER_SOCKET_NAME;
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
