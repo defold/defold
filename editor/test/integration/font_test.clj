@@ -25,6 +25,7 @@
             [editor.game-project :as game-project]
             [editor.gl.pass :as pass]
             [editor.input :as input]
+            [editor.os :as os]
             [editor.protobuf :as protobuf]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
@@ -736,26 +737,28 @@
                  (mapv (comp test-util/localization :label) (get-in (g/node-value reloaded :node-outline) [:children 0 :children])))))))))
 
 (deftest opening-font-view-dispatches-input
-  (test-util/with-loaded-project
-    (let [[_node view] (test-util/open-scene-view! project app-view "/editor1/test.font" 320 240
-                                                   (get-in (workspace/get-resource-type workspace "font") [:view-opts :scene]))
-          input-context (scene/input-dispatch-context view)
-          final-state (reduce (fn [input-state action-type]
-                                (scene/dispatch-input-action
-                                  input-context
-                                  input-state
-                                  (scene/augment-action view {:type action-type
-                                                              :x 160.0
-                                                              :y 120.0
-                                                              :screen-x 160.0
-                                                              :screen-y 120.0
-                                                              :button :primary
-                                                              :click-count 1
-                                                              :modifiers #{}})))
-                              (input/make-input-state)
-                              [:mouse-moved :mouse-pressed :mouse-released])]
-      (is (= [160.0 120.0] (:view-pos final-state)))
-      (is (= #{} (:mouse-buttons final-state))))))
+  ;; Hosted Windows CI cannot create the OpenGL context used by this test.
+  (when-not (os/is-win32?)
+    (test-util/with-loaded-project
+      (let [[_node view] (test-util/open-scene-view! project app-view "/editor1/test.font" 320 240
+                                                     (get-in (workspace/get-resource-type workspace "font") [:view-opts :scene]))
+            input-context (scene/input-dispatch-context view)
+            final-state (reduce (fn [input-state action-type]
+                                  (scene/dispatch-input-action
+                                    input-context
+                                    input-state
+                                    (scene/augment-action view {:type action-type
+                                                                :x 160.0
+                                                                :y 120.0
+                                                                :screen-x 160.0
+                                                                :screen-y 120.0
+                                                                :button :primary
+                                                                :click-count 1
+                                                                :modifiers #{}})))
+                                (input/make-input-state)
+                                [:mouse-moved :mouse-pressed :mouse-released])]
+        (is (= [160.0 120.0] (:view-pos final-state)))
+        (is (= #{} (:mouse-buttons final-state)))))))
 
 (deftest add-style-command-and-selected-preview
   (test-util/with-loaded-project

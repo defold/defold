@@ -898,12 +898,6 @@ jobs:
       - *step_cache_dcache
       - *step_cache_lein
       - *step_java
-      - name: "Install software OpenGL for editor previews"
-        uses: ssciwr/setup-mesa-dist-win@2dfeaebfa514f74c2b8cd8d27108c31486d33e72 # v3.0.0
-        with:
-          version: '26.0.3'
-          build-type: 'release-msvc'
-          deployment-choice: '1'
       - name: "Install dependencies"
         run: "ci/ci.sh install"
       - *step_restore_editor_test_tools

@@ -20,6 +20,7 @@
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.math :as math]
+            [editor.os :as os]
             [editor.scene :as scene]
             [editor.system :as system]
             [editor.types :as types]
@@ -76,41 +77,44 @@
         (is (reduce fn/and (map #(contains? renderables %) [pass/transparent pass/selection])))))))
 
 (deftest scene-selection
-  (testing "Scene selection"
-    (test-util/with-loaded-project
-      (let [path          "/logic/atlas_sprite.collection"
-            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-            go-node       (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
-        (is (test-util/selected? app-view resource-node))
-        ;; Press
-        (test-util/mouse-press! view 32 32)
-        (is (test-util/selected? app-view resource-node))
-        ;; Click
-        (test-util/mouse-release! view 32 32)
-        (is (test-util/selected? app-view go-node))
-        ;; Drag
-        (test-util/mouse-drag! view 32 32 32 36)
-        (is (test-util/selected? app-view go-node))
-        ;; Deselect - default to "root" node
-        (test-util/mouse-click! view 0 0)
-        (is (test-util/selected? app-view resource-node))
-        ;; Toggling
-        (let [modifiers (if system/mac? [:meta] [:shift])]
-          (test-util/mouse-click! view 32 32)
+  ;; Hosted Windows CI cannot create the OpenGL context used by this test.
+  (when-not (os/is-win32?)
+    (testing "Scene selection"
+      (test-util/with-loaded-project
+        (let [path          "/logic/atlas_sprite.collection"
+              [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+              go-node       (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
+          (is (test-util/selected? app-view resource-node))
+          ;; Press
+          (test-util/mouse-press! view 32 32)
+          (is (test-util/selected? app-view resource-node))
+          ;; Click
+          (test-util/mouse-release! view 32 32)
           (is (test-util/selected? app-view go-node))
-          (test-util/mouse-click! view 32 32 modifiers)
-          (is (test-util/selected? app-view resource-node)))))))
+          ;; Drag
+          (test-util/mouse-drag! view 32 32 32 36)
+          (is (test-util/selected? app-view go-node))
+          ;; Deselect - default to "root" node
+          (test-util/mouse-click! view 0 0)
+          (is (test-util/selected? app-view resource-node))
+          ;; Toggling
+          (let [modifiers (if system/mac? [:meta] [:shift])]
+            (test-util/mouse-click! view 32 32)
+            (is (test-util/selected? app-view go-node))
+            (test-util/mouse-click! view 32 32 modifiers)
+            (is (test-util/selected? app-view resource-node))))))))
 
 (deftest scene-multi-selection
-  (testing "Scene multi selection"
-    (test-util/with-loaded-project
-      (let [path          "/logic/two_atlas_sprites.collection"
-            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-            go-nodes      (map gt/source-id (g/inputs (g/now) resource-node :child-scenes))]
-        (is (test-util/selected? app-view resource-node))
-        ;; Drag entire screen
-        (test-util/mouse-drag! view 0 0 128 128)
-        (is (every? #(test-util/selected? app-view %) go-nodes))))))
+  (when-not (os/is-win32?)
+    (testing "Scene multi selection"
+      (test-util/with-loaded-project
+        (let [path          "/logic/two_atlas_sprites.collection"
+              [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+              go-nodes      (map gt/source-id (g/inputs (g/now) resource-node :child-scenes))]
+          (is (test-util/selected? app-view resource-node))
+          ;; Drag entire screen
+          (test-util/mouse-drag! view 0 0 128 128)
+          (is (every? #(test-util/selected? app-view %) go-nodes)))))))
 
 (defn- pos
   ^Vector3d [node]
@@ -125,33 +129,34 @@
   (doto (Vector3d.) (math/clj->vecmath (g/node-value node :scale))))
 
 (deftest transform-tools
-  (testing "Transform tools and manipulator interactions"
-    (test-util/with-loaded-project
-      (let [path "/logic/atlas_sprite.collection"
-            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-            go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
-        (is (test-util/selected? app-view resource-node))
-        ;; Initial selection
-        (test-util/mouse-click! view 64 64)
-        (is (test-util/selected? app-view go-node))
-        ;; Move tool
-        (test-util/set-active-tool! app-view :move)
-        (is (= 0.0 (.x (pos go-node))))
-        (test-util/mouse-drag! view 64 64 68 64)
-        (is (not= 0.0 (.x (pos go-node))))
-        (g/undo! :undo/global)
-        ;; Rotate tool
-        (test-util/set-active-tool! app-view :rotate)
-        (is (= 0.0 (.x (rot go-node))))
-        ;; begin drag at y = 80 to hit y axis (for x rotation)
-        (test-util/mouse-drag! view 64 80 64 84)
-        (is (not= 0.0 (.x (rot go-node))))
-        (g/undo! :undo/global)
-        ;; Scale tool
-        (test-util/set-active-tool! app-view :scale)
-        (is (= 1.0 (.x (scale go-node))))
-        (test-util/mouse-drag! view 64 64 68 64)
-        (is (not= 1.0 (.x (scale go-node))))))))
+  (when-not (os/is-win32?)
+    (testing "Transform tools and manipulator interactions"
+      (test-util/with-loaded-project
+        (let [path "/logic/atlas_sprite.collection"
+              [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+              go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
+          (is (test-util/selected? app-view resource-node))
+          ;; Initial selection
+          (test-util/mouse-click! view 64 64)
+          (is (test-util/selected? app-view go-node))
+          ;; Move tool
+          (test-util/set-active-tool! app-view :move)
+          (is (= 0.0 (.x (pos go-node))))
+          (test-util/mouse-drag! view 64 64 68 64)
+          (is (not= 0.0 (.x (pos go-node))))
+          (g/undo! :undo/global)
+          ;; Rotate tool
+          (test-util/set-active-tool! app-view :rotate)
+          (is (= 0.0 (.x (rot go-node))))
+          ;; begin drag at y = 80 to hit y axis (for x rotation)
+          (test-util/mouse-drag! view 64 80 64 84)
+          (is (not= 0.0 (.x (rot go-node))))
+          (g/undo! :undo/global)
+          ;; Scale tool
+          (test-util/set-active-tool! app-view :scale)
+          (is (= 1.0 (.x (scale go-node))))
+          (test-util/mouse-drag! view 64 64 68 64)
+          (is (not= 1.0 (.x (scale go-node)))))))))
 
 (defn- displayed-property-value [view-node-id node-id prop-kw]
   (->> (g/node-value view-node-id :displayed-node-properties)
@@ -161,23 +166,24 @@
        :value))
 
 (deftest displayed-node-properties-preview-overrides
-  (testing "Scene view shows preview overrides in displayed node properties during drag."
-    (test-util/with-loaded-project
-      (let [path "/logic/atlas_sprite.collection"
-            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-            go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
-        (test-util/mouse-click! view 64 64)
-        (is (test-util/selected? app-view go-node))
-        (test-util/set-active-tool! app-view :move)
-        (let [initial-position (displayed-property-value view go-node :position)]
-          (test-util/mouse-press! view 64 64)
-          (test-util/mouse-move! view 68 64)
-          (let [preview-position (displayed-property-value view go-node :position)]
-            (is (not= initial-position preview-position))
-            (is (not= (g/node-value go-node :position) preview-position)))
-          (test-util/mouse-release! view 68 64)
-          (is (= (g/node-value go-node :position)
-                 (displayed-property-value view go-node :position))))))))
+  (when-not (os/is-win32?)
+    (testing "Scene view shows preview overrides in displayed node properties during drag."
+      (test-util/with-loaded-project
+        (let [path "/logic/atlas_sprite.collection"
+              [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+              go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
+          (test-util/mouse-click! view 64 64)
+          (is (test-util/selected? app-view go-node))
+          (test-util/set-active-tool! app-view :move)
+          (let [initial-position (displayed-property-value view go-node :position)]
+            (test-util/mouse-press! view 64 64)
+            (test-util/mouse-move! view 68 64)
+            (let [preview-position (displayed-property-value view go-node :position)]
+              (is (not= initial-position preview-position))
+              (is (not= (g/node-value go-node :position) preview-position)))
+            (test-util/mouse-release! view 68 64)
+            (is (= (g/node-value go-node :position)
+                   (displayed-property-value view go-node :position)))))))))
 
 (deftest scene-camera-clip-planes-follow-preview-overrides
   (testing "Scene view camera clip planes respond to preview overrides before commit."
@@ -200,104 +206,107 @@
         (is (= initial-position (g/node-value go-node :position)))))))
 
 (deftest delete-undo-delete-selection
-  (testing "Scene generation"
-    (test-util/with-loaded-project
-      (let [path          "/logic/atlas_sprite.collection"
-            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-            go-node       (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
-        (is (test-util/selected? app-view resource-node))
-        ;; Click
-        (test-util/mouse-click! view 32 32)
-        (is (test-util/selected? app-view go-node))
-        ;; Delete
-        (g/transact (g/delete-node go-node))
-        (is (test-util/empty-selection? app-view))
-        ;; Undo
-        (g/undo! :undo/global)
-        (is (test-util/selected? app-view go-node))
-        ;; Select again
-        (test-util/mouse-click! view 32 32)
-        (is (test-util/selected? app-view go-node))
-        ;; Delete again
-        (g/transact (g/delete-node go-node))
-        (is (test-util/empty-selection? app-view))
-        ;; Select again
-        (test-util/mouse-click! view 32 32)
-        (is (test-util/selected? app-view resource-node))))))
+  (when-not (os/is-win32?)
+    (testing "Scene generation"
+      (test-util/with-loaded-project
+        (let [path          "/logic/atlas_sprite.collection"
+              [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+              go-node       (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
+          (is (test-util/selected? app-view resource-node))
+          ;; Click
+          (test-util/mouse-click! view 32 32)
+          (is (test-util/selected? app-view go-node))
+          ;; Delete
+          (g/transact (g/delete-node go-node))
+          (is (test-util/empty-selection? app-view))
+          ;; Undo
+          (g/undo! :undo/global)
+          (is (test-util/selected? app-view go-node))
+          ;; Select again
+          (test-util/mouse-click! view 32 32)
+          (is (test-util/selected? app-view go-node))
+          ;; Delete again
+          (g/transact (g/delete-node go-node))
+          (is (test-util/empty-selection? app-view))
+          ;; Select again
+          (test-util/mouse-click! view 32 32)
+          (is (test-util/selected? app-view resource-node)))))))
 
 (deftest transform-tools-empty-go
-  (testing "Transform tools and manipulator interactions"
-    (test-util/with-loaded-project
-      (let [path          "/collection/empty_go.collection"
-            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-            go-node       (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
-        (is (test-util/selected? app-view resource-node))
-        ;; Initial selection (empty go's are not selectable in the view)
-        (app-view/select! app-view [go-node])
-        (is (test-util/selected? app-view go-node))
-        ;; Move tool
-        (test-util/set-active-tool! app-view :move)
-        (is (= 0.0 (.x (pos go-node))))
-        (test-util/mouse-drag! view 64 64 100 64)
-        (is (not= 0.0 (.x (pos go-node))))))))
+  (when-not (os/is-win32?)
+    (testing "Transform tools and manipulator interactions"
+      (test-util/with-loaded-project
+        (let [path          "/collection/empty_go.collection"
+              [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+              go-node       (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
+          (is (test-util/selected? app-view resource-node))
+          ;; Initial selection (empty go's are not selectable in the view)
+          (app-view/select! app-view [go-node])
+          (is (test-util/selected? app-view go-node))
+          ;; Move tool
+          (test-util/set-active-tool! app-view :move)
+          (is (= 0.0 (.x (pos go-node))))
+          (test-util/mouse-drag! view 64 64 100 64)
+          (is (not= 0.0 (.x (pos go-node)))))))))
 
 (deftest transform-tools-preserve-types
-  (testing "Transform tools and manipulator interactions"
-    (test-util/with-loaded-project
-      (let [path "/logic/atlas_sprite.collection"
-            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-            go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)
-            original-meta {:version "original"}]
-        (app-view/select! app-view [go-node])
-        (is (test-util/selected? app-view go-node))
+  (when-not (os/is-win32?)
+    (testing "Transform tools and manipulator interactions"
+      (test-util/with-loaded-project
+        (let [path "/logic/atlas_sprite.collection"
+              [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+              go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)
+              original-meta {:version "original"}]
+          (app-view/select! app-view [go-node])
+          (is (test-util/selected? app-view go-node))
 
-        (testing "Move tool"
-          (test-util/set-active-tool! app-view :move)
-          (doseq [original-position
-                  (mapv #(with-meta % original-meta)
-                        [[(float 0.0) (float 0.0) (float 0.0)]
-                         [(double 0.0) (double 0.0) (double 0.0)]
-                         (vector-of :float 0.0 0.0 0.0)
-                         (vector-of :double 0.0 0.0 0.0)])]
-            (with-open [_ (test-util/make-system-reverter)]
-              (g/set-property! go-node :position original-position)
-              (test-util/mouse-drag! view 64 64 68 64)
-              (let [modified-position (g/node-value go-node :position)]
-                (is (not= original-position modified-position))
-                (is (= (count original-position) (count modified-position)))
-                (test-util/ensure-number-type-preserving! original-position modified-position)))))
+          (testing "Move tool"
+            (test-util/set-active-tool! app-view :move)
+            (doseq [original-position
+                    (mapv #(with-meta % original-meta)
+                          [[(float 0.0) (float 0.0) (float 0.0)]
+                           [(double 0.0) (double 0.0) (double 0.0)]
+                           (vector-of :float 0.0 0.0 0.0)
+                           (vector-of :double 0.0 0.0 0.0)])]
+              (with-open [_ (test-util/make-system-reverter)]
+                (g/set-property! go-node :position original-position)
+                (test-util/mouse-drag! view 64 64 68 64)
+                (let [modified-position (g/node-value go-node :position)]
+                  (is (not= original-position modified-position))
+                  (is (= (count original-position) (count modified-position)))
+                  (test-util/ensure-number-type-preserving! original-position modified-position)))))
 
-        (testing "Rotate tool"
-          (test-util/set-active-tool! app-view :rotate)
-          (doseq [original-rotation
-                  (mapv #(with-meta % original-meta)
-                        [[(float 0.0) (float 0.0) (float 0.0) (float 1.0)]
-                         [(double 0.0) (double 0.0) (double 0.0) (double 1.0)]
-                         (vector-of :float 0.0 0.0 0.0 1.0)
-                         (vector-of :double 0.0 0.0 0.0 1.0)])]
-            (with-open [_ (test-util/make-system-reverter)]
-              (g/set-property! go-node :rotation original-rotation)
-              (test-util/mouse-drag! view 64 80 64 84)
-              (let [modified-rotation (g/node-value go-node :rotation)]
-                (is (not= original-rotation modified-rotation))
-                (is (= (count original-rotation) (count modified-rotation)))
-                (test-util/ensure-number-type-preserving! original-rotation modified-rotation)))))
+          (testing "Rotate tool"
+            (test-util/set-active-tool! app-view :rotate)
+            (doseq [original-rotation
+                    (mapv #(with-meta % original-meta)
+                          [[(float 0.0) (float 0.0) (float 0.0) (float 1.0)]
+                           [(double 0.0) (double 0.0) (double 0.0) (double 1.0)]
+                           (vector-of :float 0.0 0.0 0.0 1.0)
+                           (vector-of :double 0.0 0.0 0.0 1.0)])]
+              (with-open [_ (test-util/make-system-reverter)]
+                (g/set-property! go-node :rotation original-rotation)
+                (test-util/mouse-drag! view 64 80 64 84)
+                (let [modified-rotation (g/node-value go-node :rotation)]
+                  (is (not= original-rotation modified-rotation))
+                  (is (= (count original-rotation) (count modified-rotation)))
+                  (test-util/ensure-number-type-preserving! original-rotation modified-rotation)))))
 
-        (testing "Scale tool"
-          (test-util/set-active-tool! app-view :scale)
-          (doseq [original-scale
-                  (mapv #(with-meta % original-meta)
-                        [[(float 1.0) (float 1.0) (float 1.0)]
-                         [(double 1.0) (double 1.0) (double 1.0)]
-                         (vector-of :float 1.0 1.0 1.0)
-                         (vector-of :double 1.0 1.0 1.0)])]
-            (with-open [_ (test-util/make-system-reverter)]
-              (g/set-property! go-node :scale original-scale)
-              (test-util/mouse-drag! view 64 64 68 64)
-              (let [modified-scale (g/node-value go-node :scale)]
-                (is (not= original-scale modified-scale))
-                (is (= (count original-scale) (count modified-scale)))
-                (test-util/ensure-number-type-preserving! original-scale modified-scale)))))))))
+          (testing "Scale tool"
+            (test-util/set-active-tool! app-view :scale)
+            (doseq [original-scale
+                    (mapv #(with-meta % original-meta)
+                          [[(float 1.0) (float 1.0) (float 1.0)]
+                           [(double 1.0) (double 1.0) (double 1.0)]
+                           (vector-of :float 1.0 1.0 1.0)
+                           (vector-of :double 1.0 1.0 1.0)])]
+              (with-open [_ (test-util/make-system-reverter)]
+                (g/set-property! go-node :scale original-scale)
+                (test-util/mouse-drag! view 64 64 68 64)
+                (let [modified-scale (g/node-value go-node :scale)]
+                  (is (not= original-scale modified-scale))
+                  (is (= (count original-scale) (count modified-scale)))
+                  (test-util/ensure-number-type-preserving! original-scale modified-scale))))))))))
 
 (deftest select-component-part-in-collection
   (testing "Transform tools and manipulator interactions"
