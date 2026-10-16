@@ -14,11 +14,13 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <string.h>
 
 #include <testmain/testmain.h>
 #include <dlib/testutil.h>
 
 #include <dlib/array.h>
+#include <dlib/configfile.h>
 #include <dlib/http/http_client.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
@@ -248,6 +250,82 @@ TEST_F(EngineTest, ProjectFail)
     ASSERT_NE(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 
     ProfileFinalize(); // Making sure it is cleaned up
+}
+
+static void VerifyRenderExecutionStartup(const char* setting, bool expected_success)
+{
+    char project_path[256];
+    char setting_arg[128];
+    const char* argv[6] = {
+        "test_engine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=bootstrap.main_collection=/text_input/text_input.collectionc",
+        "--config=input.game_binding=/text_input/text_input.input_bindingc",
+    };
+    uint32_t argc = 4;
+    if (setting)
+    {
+        dmSnPrintf(setting_arg, sizeof(setting_arg), "--config=render.internal_threaded=%s", setting);
+        argv[argc++] = setting_arg;
+    }
+    argv[argc++] = MAKE_PATH(project_path, "/game.projectc");
+
+    dmEngineInitialize();
+
+    // Inspect a rejected partial initialization before Delete can clear its contexts.
+    bool rejected_before_graphics = true;
+    if (!expected_success)
+    {
+        dmEngine::HEngine partial = dmEngine::New(0);
+        bool initialized = dmEngine::Init(partial, argc, (char**)argv);
+        const char* loaded_setting = partial->m_Config ?
+            dmConfigFile::GetString(partial->m_Config, "render.internal_threaded", 0) : 0;
+        // A missing project must not masquerade as execution-policy rejection.
+        rejected_before_graphics = !initialized && loaded_setting && setting &&
+            strcmp(loaded_setting, setting) == 0 && !partial->m_ConnectionAppMode && !partial->m_Window &&
+            !partial->m_GraphicsContext && !partial->m_RenderExecution;
+        dmEngine::Delete(partial);
+    }
+
+    // Exercise the public creation path too: it owns cleanup on initialization failure.
+    dmEngine::HEngine engine = dmEngineCreate(argc, (char**)argv);
+    bool created = engine != 0;
+    bool owns_all_roles = engine && engine->m_RenderExecution &&
+        dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME) &&
+        dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER) &&
+        dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GRAPHICS);
+    if (engine)
+        dmEngineDestroy(engine);
+
+    bool graphics_cleaned = dmGraphics::GetInstalledContext() == 0;
+    dmEngineFinalize();
+
+    ASSERT_EQ(expected_success, created);
+    ASSERT_TRUE(graphics_cleaned);
+    ASSERT_TRUE(rejected_before_graphics);
+    if (expected_success)
+        ASSERT_TRUE(owns_all_roles);
+}
+
+// Default and explicit inline startup must bind all execution roles to the calling engine thread.
+TEST_F(EngineTest, RenderExecutionInlineStartup)
+{
+    VerifyRenderExecutionStartup(0, true);
+    VerifyRenderExecutionStartup("0", true);
+}
+
+// The build gate must prevent activation; enabled builds reject the still-unavailable executor before graphics initialization.
+TEST_F(EngineTest, RenderExecutionThreadedStartupGate)
+{
+    dmRender::ExecutionCapabilities capabilities = dmRender::GetExecutionCapabilities(false);
+    VerifyRenderExecutionStartup("1", !capabilities.m_BuildEnabled);
+}
+
+// Invalid selectors must clean up partial initialization and leave a subsequent inline startup usable.
+TEST_F(EngineTest, RenderExecutionInvalidStartupCleanup)
+{
+    VerifyRenderExecutionStartup("true", false);
+    VerifyRenderExecutionStartup("0", true);
 }
 
 TEST_F(EngineTest, NonProjectLastArgumentDoesNotOverrideProjectFile)
