@@ -429,6 +429,42 @@ function testIframeAutoplayWithoutLocalActivation() {
     }
 }
 
+// Verifies blocked iframe autoplay stays pending until activation instead of retrying on unrelated input.
+function testBlockedIframeAutoplayWaitsForGesture() {
+    resetEnvironment();
+    global.navigator.userActivation.hasBeenActive = false;
+    global.top = new Proxy({}, { get() { assert.fail("Inspected the host window"); } });
+    const blockedResume = deferredResult();
+    const options = { initialState: "suspended", resumeResult: blockedResume.promise };
+    const FakeAudioContext = makeAudioContext(options);
+    global.AudioContext = FakeAudioContext;
+    global.LibrarySoundDevice.dmDeviceJSOpen(4);
+    const context = FakeAudioContext.contexts[0];
+
+    advanceTime(6000);
+    assert.strictEqual(context.resumeCalls, 1);
+    assert.strictEqual(global._dmJSDeviceShared.resumePending, true);
+    for (const event of [
+        { type: "touchstart", isTrusted: true },
+        { type: "touchcancel", isTrusted: true },
+        { type: "keydown", key: "Escape", keyCode: 27, isTrusted: true },
+        { type: "mousedown", isTrusted: false }
+    ]) {
+        global.DefoldSoundDevice.TryResumeAudio(event);
+    }
+    assert.strictEqual(context.resumeCalls, 1);
+    assert.strictEqual(context.state, "suspended");
+
+    global.navigator.userActivation.hasBeenActive = true;
+    delete options.resumeResult;
+    global.DefoldSoundDevice.TryResumeAudio({ type: "touchend", isTrusted: true });
+    blockedResume.resolve();
+    assert.strictEqual(context.resumeCalls, 2);
+    assert.strictEqual(context.state, "running");
+    assert.strictEqual(global._dmJSDeviceShared.resumePending, false);
+    assert.strictEqual(timers.size, 0);
+}
+
 // Verifies an input gesture retries a pending resume and stale callbacks cannot override the newer attempt.
 function testGestureRetriesPendingResume() {
     resetEnvironment();
@@ -712,6 +748,7 @@ testAutoplayWithoutActivationAPI();
 testActivationSurvivesContextFailure();
 testPermittedAutoplayRecoversWithoutActivation();
 testIframeAutoplayWithoutLocalActivation();
+testBlockedIframeAutoplayWaitsForGesture();
 testGestureRetriesPendingResume();
 testQueueFailureFallsBackAndRecovers();
 testSuspendCancelsQueuedSourcesBeforeRecovery();

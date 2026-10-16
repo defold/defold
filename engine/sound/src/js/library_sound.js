@@ -178,12 +178,12 @@ var LibrarySoundDevice =
                 return;
             }
 
-            // A parent may delegate autoplay without activating the iframe itself. Let the browser
-            // decide in frames, where local userActivation cannot describe the parent's permission.
+            // A parent may delegate autoplay without activating the iframe itself. Let background
+            // retries ask the browser, but do not retry blocked audio for non-activating input.
             var root = DefoldSoundDevice.GetGlobal();
             var inIframe = root !== undefined && root.top !== undefined && root.top !== root;
             // A premature resume can warn and remain pending until a later user gesture retries it.
-            if ((shared.resumeAllowed || inIframe) && audioCtx.state != "running" && audioCtx.resume && (!shared.resumePending || forceResume)) {
+            if ((shared.resumeAllowed || (inIframe && !event)) && audioCtx.state != "running" && audioCtx.resume && (!shared.resumePending || forceResume)) {
                 try {
                     var resumeResult = audioCtx.resume();
                     if (resumeResult && resumeResult.then) {
