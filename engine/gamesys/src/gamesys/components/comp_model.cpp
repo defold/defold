@@ -126,7 +126,6 @@ namespace dmGameSystem
         dmRig::HRigInstance         m_RigInstance;
         FModelAnimationCallback     m_Callback;
         void*                       m_CallbackContext;
-        HComponentRenderConstants   m_RenderConstants;
         TextureResource*            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         MaterialResource*           m_Material; // Override material
 
@@ -134,6 +133,7 @@ namespace dmGameSystem
         dmArray<dmGameObject::HInstance> m_NodeInstances;
         dmArray<MeshRenderItem>          m_RenderItems;
         dmArray<MeshAttributeRenderData> m_MeshAttributeRenderDatas;
+        HComponentRenderConstants       m_RenderConstants;
         /// Script morph weights - applied in ApplyMorphToRenderObject.
         dmArray<float>                   m_BlendWeightsOverride;
         uint16_t                         m_ComponentIndex;
