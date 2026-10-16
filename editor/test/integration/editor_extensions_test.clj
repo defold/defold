@@ -270,7 +270,8 @@
 
 (deftest output-overrides-route-to-the-current-suspending-execution
   (test-support/with-clean-system
-    (let [default-out (StringWriter.)
+    (let [line-separator (System/lineSeparator)
+          default-out (StringWriter.)
           default-err (StringWriter.)
           override-out (StringWriter.)
           override-err (StringWriter.)
@@ -297,9 +298,9 @@
            (rt/bind rt)
            (rt/invoke-suspending-1 rt)
            (deref))
-      (is (= "default before\ndefault after\n" (.toString default-out)))
+      (is (= (str "default before" line-separator "default after" line-separator) (.toString default-out)))
       (is (= "default err before\ndefault err after\n" (.toString default-err)))
-      (is (= "override\noverride after\n" (.toString override-out)))
+      (is (= (str "override" line-separator "override after" line-separator) (.toString override-out)))
       (is (= "override err\noverride err after\n" (.toString override-err))))))
 
 (deftest suspending-lua-failure-test
@@ -1543,6 +1544,7 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
 (deftest eval-route-test
   (test-util/with-loaded-project
     (let [token "test-token"
+          line-separator (System/lineSeparator)
           handler (web-server/make-dynamic-handler (ext.server/routes project token))
           displayed-output (atom [])]
       (with-open [server (http-server/start! handler)]
@@ -1574,7 +1576,7 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
             (let [{:keys [status headers body]} (eval-lua! "print('hello')\nio.stderr:write('err\\n')\nreturn 1, 'x', true")]
               (is (= 200 status))
               (is (= "text/plain; charset=utf-8" (get headers "content-type")))
-              (is (= "hello\nerr\n=> 1\n=> x\n=> true\n" body))))
+              (is (= (str "hello" line-separator "err\n=> 1\n=> x\n=> true\n") body))))
           (testing "Return with no values."
             (let [{:keys [status body]} (eval-lua! "return")]
               (is (= 200 status))
@@ -1590,7 +1592,7 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
           (testing "Runtime errors include previous output."
             (let [{:keys [status body]} (eval-lua! "print('before')\nerror('boom')")]
               (is (= 422 status))
-              (is (string/starts-with? body "before\n"))
+              (is (string/starts-with? body (str "before" line-separator)))
               (is (string/includes? body "boom"))))
           (testing "Suspending editor functions retain output capture."
             (let [{:keys [status body]} (eval-lua! "return editor.execute('git', 'status', {out = 'capture'})")]
@@ -1600,7 +1602,7 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
             (reset! displayed-output [])
             (let [{:keys [status body]} (eval-lua! "print('captured')")]
               (is (= 200 status))
-              (is (= "captured\n" body))
+              (is (= (str "captured" line-separator) body))
               (is (= [] @displayed-output)))))))))
 
 (deftest property-availability-test

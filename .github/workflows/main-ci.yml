@@ -881,6 +881,9 @@ jobs:
 
   test-editor-windows:
     env:
+      # Keep relative-path test fixtures on the checkout's drive.
+      TEMP: ${{ runner.temp }}
+      TMP: ${{ runner.temp }}
       EDITOR_TEST_EXT_CACHE_KEY: ext-v3-x86_64-win32-x86_64-win32-e7c688f347cb5bec9d88d63afa1d51cd0f74621ab9608faed9cc7bb2018b4681
     runs-on: windows-2025-vs2026
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
@@ -893,12 +896,20 @@ jobs:
         platform: [x86_64-win32]
     steps:
       - *step_validate_build_commit
+      - name: "Keep fixture checkout line endings"
+        run: git config --global core.autocrlf false
       - *step_checkout
       - *step_python
       - *step_dcache_key
       - *step_cache_dcache
       - *step_cache_lein
       - *step_java
+      - name: "Install software OpenGL for editor previews"
+        uses: ssciwr/setup-mesa-dist-win@2dfeaebfa514f74c2b8cd8d27108c31486d33e72 # v3.0.0
+        with:
+          version: '26.0.3'
+          build-type: 'release-msvc'
+          deployment-choice: '1'
       - name: "Install dependencies"
         run: "ci/ci.sh install"
       - *step_restore_editor_test_tools

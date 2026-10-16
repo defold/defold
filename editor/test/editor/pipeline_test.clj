@@ -38,7 +38,7 @@
 
 (defn- make-mock-build-target
   [workspace id dep-resources & deps]
-  (let [build-resource (workspace/make-build-resource (workspace/file-resource workspace (str "/resource-" id)))
+  (let [build-resource (workspace/make-build-resource (workspace/file-resource workspace (str "/resource-" id ".txt")))
         user-data (str id)]
     (bt/with-content-hash
       {:resource build-resource
