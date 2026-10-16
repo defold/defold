@@ -184,11 +184,12 @@ public final class OggUtil {
     }
 
     private static class Rewriter implements Closeable {
-        private final ByteArrayOutputStream output;
-        private final byte[] outputBuffer = new byte[65307];
-        private final HeaderBuffer headerBuffer = new HeaderBuffer();
+        private final int sourceSize;
         private final ReadPacket readPacket = this::readPacket;
         private final ReadPage readPage = this::readPage;
+        private ByteArrayOutputStream output;
+        private byte[] outputBuffer;
+        private HeaderBuffer headerBuffer;
         private Pointer reader;
         private Pointer writer;
         private IOException failure;
@@ -202,12 +203,10 @@ public final class OggUtil {
         private boolean eos;
 
         Rewriter(int size) throws IOException {
-            output = new ByteArrayOutputStream(size);
+            sourceSize = size;
             reader = Oggz.oggz_new(OGGZ_READ);
-            writer = Oggz.oggz_new(OGGZ_WRITE | OGGZ_PREFIX);
-            if (reader == null || writer == null) {
-                close();
-                throw new IOException("Could not allocate the Ogg reader/writer.");
+            if (reader == null) {
+                throw new IOException("Could not allocate the Ogg reader.");
             }
         }
 
@@ -314,6 +313,14 @@ public final class OggUtil {
                     codec = Codec.VORBIS;
                     checkVorbisHeaderPage(unidentifiedPageHeader);
                     unidentifiedPageHeader = null;
+                    // Defer rewrite allocations so Opus validation does not duplicate the input.
+                    writer = Oggz.oggz_new(OGGZ_WRITE | OGGZ_PREFIX);
+                    if (writer == null) {
+                        throw new IOException("Could not allocate the Ogg writer.");
+                    }
+                    output = new ByteArrayOutputStream(sourceSize);
+                    outputBuffer = new byte[65307];
+                    headerBuffer = new HeaderBuffer();
                 }
                 byte[] signature = { (byte)(1 + 2 * headerPackets), 'v', 'o', 'r', 'b', 'i', 's' };
                 if (!hasSignature(packet, signature) || packet.number != headerPackets) {
@@ -377,7 +384,10 @@ public final class OggUtil {
                 Oggz.oggz_close(writer);
                 writer = null;
             }
-            headerBuffer.release();
+            if (headerBuffer != null) {
+                headerBuffer.release();
+                headerBuffer = null;
+            }
             // Keep callbacks strongly reachable until the native reader is closed.
             Reference.reachabilityFence(this);
         }
