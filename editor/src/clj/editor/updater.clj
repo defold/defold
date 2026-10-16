@@ -511,7 +511,7 @@
 
   Returns future that eventually will contain boolean indicating the success of
   operation"
-  [updater {:keys [channel version sha1]} ^File target-dir]
+  [updater {:keys [channel sha1]} ^File target-dir]
   {:pre [(not (.exists target-dir))]}
   (let [{:keys [state-atom platform]} updater
         url (download-url (system/defold-archive-domain) sha1 channel platform)
@@ -522,20 +522,14 @@
         track-download-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 0))
         track-extract-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 1))]
     (swap! state-atom assoc :channel-download {:channel channel
-                                               :version version
-                                               :progress (progress/make localization/empty-message 2 0)
-                                               :cancelled-derefable cancelled-atom})
+                                               :progress (progress/make localization/empty-message 2 0)})
     (future
       (try
         (download! url zip-file track-download-progress! cancelled-atom)
-        (when-not @cancelled-atom
-          (log/info :message "Extracting channel build" :channel channel :dir (str target-dir))
-          (extract-zip! zip-file target-dir track-extract-progress! cancelled-atom))
-        (if @cancelled-atom
-          (do (FileUtils/deleteQuietly target-dir)
-              false)
-          (do (log/info :message "Channel build extracted" :channel channel :dir (str target-dir))
-              true))
+        (log/info :message "Extracting channel build" :channel channel :dir (str target-dir))
+        (extract-zip! zip-file target-dir track-extract-progress! cancelled-atom)
+        (log/info :message "Channel build extracted" :channel channel :dir (str target-dir))
+        true
         (catch Exception e
           (log/info :message "Channel download failed" :channel channel :exception e)
           (FileUtils/deleteQuietly target-dir)
