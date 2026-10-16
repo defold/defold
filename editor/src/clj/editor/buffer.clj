@@ -93,19 +93,21 @@
                                   v))))
 
 (defn- build-buffer
-  [resource _dep-resources {:keys [pb-map digest-ignored/node-id]}]
+  [resource _dep-resources {:keys [streams digest-ignored/node-id]}]
   (try
     {:resource resource
-     :content (BufferBuilder/buildBuffer (protobuf/map->pb BufferProto$BufferDesc pb-map))}
+     :content (->> {:streams (mapv json-stream->pb-stream streams)}
+                   (protobuf/map->pb BufferProto$BufferDesc)
+                   (BufferBuilder/buildBuffer))}
     (catch IllegalArgumentException error
-      (g/->error node-id :build-targets :fatal pb-map (.getMessage error)))))
+      (g/->error node-id :build-targets :fatal streams (.getMessage error)))))
 
 (g/defnk produce-build-targets [_node-id streams resource]
   [(bt/with-content-hash
      {:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-buffer
-      :user-data {:pb-map {:streams (mapv json-stream->pb-stream streams)}
+      :user-data {:streams streams
                   :format-version BufferBuilder/FORMAT_VERSION
                   :digest-ignored/node-id _node-id}})])
 
@@ -126,7 +128,7 @@
 (g/defnode BufferNode
   (inherits r/CodeEditorResourceNode)
 
-  (output build-targets g/Any produce-build-targets)
+  (output build-targets g/Any :cached produce-build-targets)
   (output streams g/Any :cached produce-streams)
   (output stream-ids g/Any produce-stream-ids))
 
