@@ -125,9 +125,9 @@
       (set-code-resource-node-lines! original-lines-by-code-resource-node-id)
       (is (all-dirty?) "Dirty after edit -> save -> paste-original"))))
 
-(deftest lazy-disk-state-loads-shell-test
-  ;; Verifies that initializing lazy disk state materializes an untouched shell
-  ;; before reading its properties, without creating an undo entry.
+;; Verifies that initializing lazy disk state materializes an untouched shell
+;; before reading its properties, without creating an undo entry.
+(deftest lazy-disk-state-materializes-shell-test
   (with-clean-system
     (test-util/with-ui-run-later-rebound
       (let [workspace (test-util/setup-workspace! "test/resources/reload_unchanged_project")

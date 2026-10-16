@@ -212,7 +212,7 @@
        (resource/node-resource basis node)))))
 
 (defn materialize-resource-types!
-  "Loads containers needed by queries that follow references in reverse."
+  "Materializes containers needed by queries that follow references in reverse."
   [type-exts {:keys [basis-ref] :as evaluation-context}]
   (coll/run!-> (g/node-ids @basis-ref)
     (fn [node-id]

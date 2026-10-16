@@ -873,7 +873,7 @@
       (fx/run-later
         (future/complete!
           f
-          (rt/and-refresh-context
+          (rt/and-refresh-execution-context
             (fxui/show-dialog-and-await-result!
               :event-handler #(assoc %1 ::fxui/result (:result %2))
               :error-handler #(future/fail! f %)

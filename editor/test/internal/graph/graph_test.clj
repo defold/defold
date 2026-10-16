@@ -186,26 +186,26 @@
       (let [[n n2] (tx-nodes (g/make-nodes [n (TestNode :val "initial")
                                             n2 PassthroughNode]
                                (g/connect n :val n2 :str-in)))
-            init-ec (g/make-evaluation-context)]
+            initial-evaluation-context (g/make-evaluation-context)]
         (g/transact (g/set-property n :val "changed"))
         (is (= "changed" (g/node-value n :val)))
         (is (= "changed" (g/node-value n2 :str-out)))
-        (is (= "initial" (g/node-value n :val init-ec)))
-        (is (= "initial" (g/node-value n2 :str-out init-ec)))
+        (is (= "initial" (g/node-value n :val initial-evaluation-context)))
+        (is (= "initial" (g/node-value n2 :str-out initial-evaluation-context)))
         (g/transact (g/delete-node n))
         (is (= nil (g/node-value n2 :str-out)))
-        (is (= "initial" (g/node-value n2 :str-out init-ec))))))
+        (is (= "initial" (g/node-value n2 :str-out initial-evaluation-context))))))
 
   (testing "passing evaluation context does not automatically update cache"
     (with-clean-system
       (let [[_n n2] (tx-nodes (g/make-nodes [n (TestNode :val "initial")
                                              n2 PassthroughNode]
                                 (g/connect n :val n2 :str-in)))
-            init-ec (g/make-evaluation-context)]
+            initial-evaluation-context (g/make-evaluation-context)]
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
-        (g/node-value n2 :str-out init-ec)
+        (g/node-value n2 :str-out initial-evaluation-context)
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
-        (g/update-system-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! initial-evaluation-context)
         (is (= "initial" (cc/lookup (g/cache) (gt/endpoint n2 :str-out)))))))
 
   (testing "Updating cache does not change entries for invalidated outputs"
@@ -213,13 +213,13 @@
       (let [[n n2] (tx-nodes (g/make-nodes [n (TestNode :val "initial")
                                             n2 PassthroughNode]
                                (g/connect n :val n2 :str-in)))
-            init-ec (g/make-evaluation-context)]
-        (g/node-value n2 :str-out init-ec)
+            initial-evaluation-context (g/make-evaluation-context)]
+        (g/node-value n2 :str-out initial-evaluation-context)
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
 
         (g/transact (g/set-property n :val "change that invalidates n2 :str-out"))
 
-        (g/update-system-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! initial-evaluation-context)
 
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss))))))
 
@@ -227,11 +227,11 @@
     (with-clean-system
       (let [[n other] (tx-nodes (g/make-nodes [_n (TestNode :val "initial")
                                                _other (TestNode :val "other")]))
-            init-ec (g/make-evaluation-context)]
-        (g/node-value n :val-val init-ec)
+            initial-evaluation-context (g/make-evaluation-context)]
+        (g/node-value n :val-val initial-evaluation-context)
 
         (g/transact (g/set-property other :val "changed"))
-        (g/update-system-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! initial-evaluation-context)
 
         (is (= "initialinitial" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss))))))
 
@@ -240,13 +240,13 @@
       (let [[_n n2] (tx-nodes (g/make-nodes [n (TestNode :val "initial")
                                              n2 PassthroughNode]
                                 (g/connect n :val n2 :str-in)))
-            init-ec (g/make-evaluation-context)]
-        (g/node-value n2 :str-out init-ec)
+            initial-evaluation-context (g/make-evaluation-context)]
+        (g/node-value n2 :str-out initial-evaluation-context)
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
 
         (g/transact (g/delete-node n2))
 
-        (g/update-system-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! initial-evaluation-context)
 
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss))))))
 
@@ -254,24 +254,24 @@
     (with-clean-system
       (let [n (g/make-node! TestNode :val "initial")
             endpoint (gt/endpoint n :val-val)
-            init-ec (g/make-evaluation-context)]
-        (g/node-value n :val-val init-ec)
+            initial-evaluation-context (g/make-evaluation-context)]
+        (g/node-value n :val-val initial-evaluation-context)
         (is (= ::miss (cc/lookup (g/cache) endpoint ::miss)))
 
         (g/transact {:full-invalidation true}
           (g/delete-node n))
 
-        (g/update-system-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! initial-evaluation-context)
 
         (is (= ::miss (cc/lookup (g/cache) endpoint ::miss))))))
 
   (testing "Update cache ignores evaluation contexts invalidated in full"
     (with-clean-system
       (let [n (g/make-node! TestNode :val "initial")
-            init-ec (g/make-evaluation-context)
+            initial-evaluation-context (g/make-evaluation-context)
             published-systems (atom [])
             watch-key (Object.)]
-        (is (= "initialinitial" (g/node-value n :val-val init-ec)))
+        (is (= "initialinitial" (g/node-value n :val-val initial-evaluation-context)))
 
         (add-watch g/*the-system* watch-key
                    (fn [_ _ _ system]
@@ -285,9 +285,9 @@
         (is (= 1 (count @published-systems)))
         (is (identical? fn/constantly-true
                         (g/endpoint-invalidated-pred
-                          (g/evaluation-context-invalidate-counters init-ec))))
+                          (g/evaluation-context-invalidate-counters initial-evaluation-context))))
 
-        (g/update-system-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! initial-evaluation-context)
 
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
         (is (= "changedchanged" (g/node-value n :val-val))))))
@@ -295,14 +295,14 @@
   (testing "No-op full invalidation does not invalidate evaluation contexts"
     (with-clean-system
       (let [n (g/make-node! TestNode :val "initial")
-            init-ec (g/make-evaluation-context)
+            initial-evaluation-context (g/make-evaluation-context)
             system-before @g/*the-system*]
-        (g/node-value n :val-val init-ec)
+        (g/node-value n :val-val initial-evaluation-context)
 
         (is (= :empty (:status (g/transact {:full-invalidation true} []))))
         (is (identical? system-before @g/*the-system*))
 
-        (g/update-system-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! initial-evaluation-context)
 
         (is (= "initialinitial" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))))))
 
@@ -336,8 +336,8 @@
               :state :end}))
 
       ;; Disable :local-temp-atom to test only :local-atom caching.
-      (let [ec (g/make-evaluation-context {:tracer (g/make-tree-tracer result) :no-local-temp true})]
-        (g/node-value n1 :_properties ec)
+      (let [evaluation-context (g/make-evaluation-context {:tracer (g/make-tree-tracer result) :no-local-temp true})]
+        (g/node-value n1 :_properties evaluation-context)
         (is (= @result
                {:node-id n1,
                 :output-type :output,
@@ -376,9 +376,9 @@
                 :state :end}))
 
         ;; Now :local-atom contains n1 :_declared-properties, so the trace is
-        ;; shorter. The tree tracer in the ec can be reused.
+        ;; shorter. The tree tracer in the evaluation-context can be reused.
 
-        (g/node-value n1 :_properties ec)
+        (g/node-value n1 :_properties evaluation-context)
         (is (= @result
                {:node-id n1,
                 :output-type :output,
@@ -393,8 +393,8 @@
 
       (g/transact (g/set-property tn :val "throw"))
 
-      (let [ec (g/make-evaluation-context {:tracer (g/make-tree-tracer result)})]
-        (is (thrown? Exception (g/node-value n1 :_properties ec)))
+      (let [evaluation-context (g/make-evaluation-context {:tracer (g/make-tree-tracer result)})]
+        (is (thrown? Exception (g/node-value n1 :_properties evaluation-context)))
         (is (= @result
                {:node-id n1,
                 :output-type :output,
@@ -435,12 +435,14 @@
       (g/transact (g/set-property tn :val "no throw"))
       (reset! result nil)
 
-      (let [ec (g/make-evaluation-context {:tracer (juxt (g/make-tree-tracer result)
-                                                         (fn [state node-id _output-type label]
-                                                           (when (= [state node-id label] [:end tn :custom-val])
-                                                             (throw (ex-info "tracer somehow failed" {})))))})]
+      (let [evaluation-context
+            (g/make-evaluation-context
+              {:tracer (juxt (g/make-tree-tracer result)
+                             (fn [state node-id _output-type label]
+                               (when (= [state node-id label] [:end tn :custom-val])
+                                 (throw (ex-info "tracer somehow failed" {})))))})]
 
-        (is (thrown? Exception (g/node-value n1 :_properties ec)))
+        (is (thrown? Exception (g/node-value n1 :_properties evaluation-context)))
         (is (= @result
                {:node-id 1,
                 :output-type :output,

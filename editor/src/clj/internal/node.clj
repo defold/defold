@@ -543,7 +543,7 @@
    :nodes-deleted-atom (atom {})
    :materialization-results-atom (atom materialization-results)
    :invalidated-endpoints-atom (atom #{})
-   :cache-atom (atom cache) ; context-local snapshot of the system cache
+   :cache-atom (atom cache) ; snapshot of the system cache local to this evaluation-context
    :initial-invalidate-counters initial-invalidate-counters
    :local-atom (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
    :local-temp-atom (atom {}) ; local (weak) cache for non-:cached outputs produced during node-value, never used to populate system cache

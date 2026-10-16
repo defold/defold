@@ -88,9 +88,9 @@
   ([] (is/default-evaluation-context (or @g/*the-system* g/fake-system)))
   ([options] (is/custom-evaluation-context (or @g/*the-system* g/fake-system) options)))
 
-(defn- node-value-or-err [ec node-id label]
+(defn- node-value-or-err [evaluation-context node-id label]
   (try
-    [(g/node-value node-id label ec) nil]
+    [(g/node-value node-id label evaluation-context) nil]
     (catch Exception e
       [nil e])))
 
@@ -100,12 +100,12 @@
       (r/as e (r/raw-string (or cause class) {:fill :error})))
     (r/stream v)))
 
-(defn- node-id-sf [{:keys [basis-ref] :as ec} node-id]
+(defn- node-id-sf [{:keys [basis-ref] :as evaluation-context} node-id]
   (let [type-sym (symbol (:k (g/node-type* @basis-ref node-id)))]
     (r/horizontal
       (r/raw-string
         (if (g/node-instance? @basis-ref resource-node/ResourceNode node-id)
-          (or (resource/proj-path (g/node-value node-id :resource ec))
+          (or (resource/proj-path (g/node-value node-id :resource evaluation-context))
               "[in-memory]")
           "")
         {:fill :string})
@@ -114,9 +114,9 @@
 
 (declare label-tree-node)
 
-(defn- node-children-fn [ec node-id]
+(defn- node-children-fn [evaluation-context node-id]
   (fn []
-    (let [{:keys [basis-ref]} ec
+    (let [{:keys [basis-ref]} evaluation-context
           node-type-def @(g/node-type* @basis-ref node-id)
           override-original (g/override-original @basis-ref node-id)
           children (->> [:input :property :output]
@@ -125,31 +125,31 @@
                         sort
                         (map
                           (fn [label]
-                            (label-tree-node ec node-id label))))]
+                            (label-tree-node evaluation-context node-id label))))]
       (cond->> children
         override-original
         (cons {:value override-original
                :render (r/horizontal
                          (r/raw-string "override-original" {:fill :symbol})
                          r/separator
-                         (node-id-sf ec override-original))
-               :children (node-children-fn ec override-original)})))))
+                         (node-id-sf evaluation-context override-original))
+               :children (node-children-fn evaluation-context override-original)})))))
 
-(defn- label-tree-node [{:keys [basis-ref] :as ec} node-id label]
-  (let [[v e :as v-or-e] (node-value-or-err ec node-id label)
+(defn- label-tree-node [{:keys [basis-ref] :as evaluation-context} node-id label]
+  (let [[v e :as v-or-e] (node-value-or-err evaluation-context node-id label)
         inputs (g/inputs @basis-ref node-id label)
         outputs (g/outputs @basis-ref node-id label)
         related-node (fn [relation rel-node-id related-label]
-                       (let [[v e :as v-or-e] (node-value-or-err ec rel-node-id related-label)]
+                       (let [[v e :as v-or-e] (node-value-or-err evaluation-context rel-node-id related-label)]
                          {:value (or e v)
                           :render (r/horizontal
                                     (r/raw-string relation {:fill :util})
                                     (r/stream related-label)
                                     (r/raw-string " of " {:fill :util})
-                                    (node-id-sf ec rel-node-id)
+                                    (node-id-sf evaluation-context rel-node-id)
                                     (r/raw-string ": " {:fill :util})
                                     (node-value-or-err->sf v-or-e))
-                          :children (node-children-fn ec rel-node-id)}))]
+                          :children (node-children-fn evaluation-context rel-node-id)}))]
     (cond->
       {:value (or e v)
        :annotation {::node-id+label [node-id label]}
@@ -166,14 +166,14 @@
                                  (related-node "-> " (gt/target-id arc) (gt/target-label arc)))
                                outputs))))))
 
-(defn root-tree-node [ec node-id]
+(defn root-tree-node [evaluation-context node-id]
   {:value node-id
-   :render (node-id-sf ec node-id)
-   :children (node-children-fn ec node-id)})
+   :render (node-id-sf evaluation-context node-id)
+   :children (node-children-fn evaluation-context node-id)})
 
 (r/defaction ::defold:node-tree [x ann]
   (when-some [node-id (as-node-id x ann)]
-    (let [{:keys [basis-ref] :as ec} (or (::evaluation-context ann) (make-evaluation-context))]
+    (let [{:keys [basis-ref] :as evaluation-context} (or (::evaluation-context ann) (make-evaluation-context))]
       (when (g/node-by-id @basis-ref node-id)
         (fn []
           {:fx/type r/tree-view
@@ -182,9 +182,9 @@
            :valuate :value
            :annotate :annotation
            :children #((:children %))
-           :root (root-tree-node ec node-id)})))))
+           :root (root-tree-node evaluation-context node-id)})))))
 
-(defn- render-endpoint [{:keys [basis-ref] :as ec} root-endpoint endpoint]
+(defn- render-endpoint [{:keys [basis-ref] :as evaluation-context} root-endpoint endpoint]
   (let [node-id (g/endpoint-node-id endpoint)
         label (g/endpoint-label endpoint)
         cached (contains? (g/cached-outputs (g/node-type* @basis-ref node-id)) label)]
@@ -194,7 +194,7 @@
       (if (and (not= endpoint root-endpoint)
                (= node-id (g/endpoint-node-id root-endpoint)))
         (r/raw-string "self" {:fill :string})
-        (node-id-sf ec node-id)))))
+        (node-id-sf evaluation-context node-id)))))
 
 (defn- input-source-endpoints [basis node-id label]
   (when (some-> (g/node-type* basis node-id)
@@ -221,12 +221,12 @@
 
 (r/defaction ::defold:predecessors [x ann]
   (when-some [endpoint (as-endpoint x ann)]
-    (let [{:keys [basis-ref] :as ec} (make-evaluation-context)
+    (let [{:keys [basis-ref] :as evaluation-context} (make-evaluation-context)
           endpoint-predecessors (fn/memoize #(endpoint-predecessors @basis-ref %))]
       (when (endpoint-predecessors endpoint)
         (fn []
           {:fx/type r/tree-view
-           :render #(render-endpoint ec endpoint %)
+           :render #(render-endpoint evaluation-context endpoint %)
            :branch? (comp seq endpoint-predecessors)
            :children (comp sort endpoint-predecessors)
            :root endpoint})))))
@@ -236,11 +236,11 @@
 
 (r/defaction ::defold:successors [x ann]
   (when-some [endpoint (as-endpoint x ann)]
-    (let [{:keys [basis-ref] :as ec} (make-evaluation-context)]
+    (let [{:keys [basis-ref] :as evaluation-context} (make-evaluation-context)]
       (when (endpoint-successors @basis-ref endpoint)
         (fn []
           {:fx/type r/tree-view
-           :render #(render-endpoint ec endpoint %)
+           :render #(render-endpoint evaluation-context endpoint %)
            :branch? (comp seq #(endpoint-successors @basis-ref %))
            :children (comp sort #(endpoint-successors @basis-ref %))
            :root endpoint})))))

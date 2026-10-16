@@ -1965,9 +1965,9 @@
                    (conj visited node-id))))))))
 
 (defn materialize-prerequisites!
-  "Registers all direct prerequisites before loading any of them. Only call
-  from a shell's materialize-fn, before returning its transaction steps."
-  [node-id prerequisite-node-ids {:keys [active-materialization] :as evaluation-context}]
+  "Registers all direct prerequisites before materializing any of them. Only
+  call from a shell's materialize-fn, before returning its transaction steps."
+  [node-id prerequisite-node-ids {:keys [active-materialization basis-ref] :as evaluation-context}]
   {:pre [(= node-id (:node-id active-materialization))
          (nil? (:post-prerequisites-basis active-materialization))]}
   (let [shared-materialization-registry-atom (:shared-materialization-registry-atom evaluation-context)
@@ -1975,11 +1975,12 @@
         entry (get @shared-materialization-registry-atom node-id)]
     (try
       (when-not (identical? (:shell-node entry)
-                            (ig/node-by-id-at @(:basis-ref evaluation-context) node-id))
+                            (ig/node-by-id-at @basis-ref node-id))
         (throw (ex-info "The shell was replaced while reading its prerequisites."
                         {:node-id node-id})))
       ;; Check and registration must be one atomic update to detect cross-thread
-      ;; cycles. Reading resources, loading, and waiting happen outside retries.
+      ;; cycles. Reading resources, materializing nodes, and waiting happen
+      ;; outside retries.
       (swap! shared-materialization-registry-atom
              (fn [shared-materialization-registry]
                (when-not (identical? (:promise entry) (get-in shared-materialization-registry [node-id :promise]))
@@ -1992,11 +1993,10 @@
                  (assoc-in shared-materialization-registry [node-id :prerequisite-shell-node-ids] prerequisite-node-ids))))
       (vreset! (:prerequisite-node-ids active-materialization) prerequisite-node-ids)
       (doseq [prerequisite-id prerequisite-node-ids]
-        (materialize-node! prerequisite-id (assoc-in evaluation-context [:active-materialization :loading-prerequisites] true))
-        (let [{:keys [basis-ref]} evaluation-context
-              node (ig/node-by-id-at @basis-ref prerequisite-id)]
+        (materialize-node! prerequisite-id (assoc-in evaluation-context [:active-materialization :materializing-prerequisites] true))
+        (let [node (ig/node-by-id-at @basis-ref prerequisite-id)]
           (when-let [errors (coll/not-empty (gt/get-property node @basis-ref :_output-jammers))]
-            (throw (ex-info "A resource prerequisite could not be loaded."
+            (throw (ex-info "A resource prerequisite could not be materialized."
                             {:ex-type :prerequisite-failed
                              :node-id node-id
                              :prerequisite-node-id prerequisite-id
@@ -2029,8 +2029,9 @@
 (defn- realize-materialization! [node evaluation-context]
   (let [node-id (gt/node-id node)
         {:keys [basis-ref changes-atom materialization-results-atom]} evaluation-context
-        ;; Each owner gets its own state, scoped to the contexts used for its
-        ;; load. Only explicitly declared prerequisites may start another load.
+        ;; Each owner gets its own state, scoped to the evaluation-contexts and
+        ;; transaction-contexts used for its materialization. Only explicitly
+        ;; declared prerequisites may start another materialization.
         active-materialization {:node-id node-id
                                 :prerequisite-node-ids (volatile! #{})}
         evaluation-context (assoc evaluation-context :active-materialization active-materialization)
@@ -2038,21 +2039,21 @@
         ;; Snapshot only afterwards: failure must not retract their results.
         tx-data ((:_materialize-fn node) node-id evaluation-context)
         ;; Keep our declaration even if another shell replaces the registry
-        ;; entry before this load finishes.
+        ;; entry before this materialization finishes.
         prerequisite-shell-node-ids @(:prerequisite-node-ids active-materialization)
-        context-atoms (into []
-                            (keep evaluation-context)
-                            [:basis-ref
-                             :changes-atom
-                             :nodes-deleted-atom
-                             :materialization-results-atom
-                             :invalidated-endpoints-atom
-                             :cache-atom
-                             :local-atom
-                             :local-temp-atom
-                             :hits-atom
-                             :tx-data-context-atom])
-        previous-values (mapv deref context-atoms)
+        evaluation-context-atoms (into []
+                                       (keep evaluation-context)
+                                       [:basis-ref
+                                        :cache-atom
+                                        :changes-atom
+                                        :hits-atom
+                                        :invalidated-endpoints-atom
+                                        :local-atom
+                                        :local-temp-atom
+                                        :materialization-results-atom
+                                        :nodes-deleted-atom
+                                        :tx-data-context-atom])
+        previous-evaluation-context-atom-values (mapv deref evaluation-context-atoms)
         previous-basis @basis-ref
         previous-changes @changes-atom
         previous-materialization-results @materialization-results-atom]
@@ -2069,16 +2070,16 @@
         (swap! materialization-results-atom assoc node-id materialize-info)
         materialize-info)
       (catch Throwable error
-        (reduce-kv (fn [_ index context-atom]
-                     (reset! context-atom (previous-values index)))
-                   nil
-                   context-atoms)
+        (coll/reduce-kv-> evaluation-context-atoms nil
+          (fn [_ index evaluation-context-atom]
+            (reset! evaluation-context-atom (previous-evaluation-context-atom-values index))))
         (throw error)))))
 
 (defn materialize-node! [node-id {:keys [active-materialization] :as evaluation-context}]
   (assert @(:basis-ref evaluation-context) "Evaluation context is closed.")
   ;; Dependency tracing skips output functions and caches placeholder values.
-  ;; Loading needs actual values even when triggered by such a traversal.
+  ;; Materialization needs actual values even when triggered by such a
+  ;; traversal.
   (let [evaluation-context (cond-> evaluation-context
                              (:dry-run evaluation-context)
                              (assoc :dry-run false
@@ -2091,7 +2092,7 @@
         shared-materialization-registry-atom (:shared-materialization-registry-atom evaluation-context)
         node (ig/node-by-id-at @basis-ref node-id)]
     (when (in/shell-node? node)
-      (when (and (:node-id active-materialization) (not (:loading-prerequisites active-materialization)))
+      (when (and (:node-id active-materialization) (not (:materializing-prerequisites active-materialization)))
         (throw (ex-info "Undeclared nested materialization. Register the resource as a prerequisite."
                         {:ex-type :undeclared-materialization
                          :node-id (:node-id active-materialization)
@@ -2103,8 +2104,8 @@
             (let [materialize-info (realize-materialization! node evaluation-context)]
               (deliver result-promise {:materialize-info materialize-info}))
             (catch Throwable error
-              ;; Settle the original promise even if a newer shell has
-              ;; replaced its registry entry. Future calls may retry.
+              ;; Settle the original promise even if a newer shell has replaced
+              ;; its registry entry. Future calls may retry.
               (deliver result-promise {:error error})
               (swap! shared-materialization-registry-atom
                      (fn [shared-materialization-registry]

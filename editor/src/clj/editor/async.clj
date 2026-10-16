@@ -22,12 +22,13 @@
   "Evaluates the body on the calling thread and queues its materializations and
   cache entries for merging on the UI thread. Returns the body's result without
   waiting for the merge. The evaluation-context must not escape the body.
-  Pass it explicitly to graph reads and helpers; calls without a context create
-  their own context and commit on the calling thread."
-  [ec & body]
-  `(let [~ec (g/make-evaluation-context)
+  Pass it explicitly to graph reads and helpers; calls without an
+  evaluation-context create their own evaluation-context and commit on the
+  calling thread."
+  [evaluation-context & body]
+  `(let [~evaluation-context (g/make-evaluation-context)
          result# (g/do-strict-evaluation-context-scope-body ~@body)]
-     (fx/on-fx-thread (g/update-system-from-evaluation-context! ~ec))
+     (fx/on-fx-thread (g/update-system-from-evaluation-context! ~evaluation-context))
      result#))
 
 (defmacro let-ec

@@ -286,17 +286,22 @@
                         (e/mapcat identity (:moved changes))))
 
         prerequisite->dependents
-        (reduce-kv (fn [result proj-path node-id]
-                     (let [errors (g/raw-property-value basis node-id :_output-jammers)
-                           prerequisites (coll/some #(get-in % [:user-data :prerequisite-proj-paths]) (coll/vals errors))]
-                       (reduce (fn [result prerequisite]
-                                 (update result prerequisite (fnil conj #{}) proj-path))
-                               result prerequisites)))
-                   {} old-nodes-by-path)]
-    ;; Failed loads have no substructure or arcs to transfer. Follow their
-    ;; recorded paths instead, including dependents of other blocked resources.
-    (coll/into-> (g/pre-traverse basis changed-proj-paths
-                                 (fn [_basis proj-path] (prerequisite->dependents proj-path))) []
+        (coll/reduce-kv-> old-nodes-by-path {}
+          (fn [result proj-path node-id]
+            (let [errors (g/raw-property-value basis node-id :_output-jammers)
+                  prerequisites (coll/some #(get-in % [:user-data :prerequisite-proj-paths]) (coll/vals errors))]
+              (coll/reduce-> prerequisites result
+                (fn [result prerequisite]
+                  (update result prerequisite coll/conj-set proj-path))))))]
+
+    ;; Failed resource load operations have no substructure or arcs to transfer.
+    ;; Follow their recorded paths, including dependents of other blocked
+    ;; resources.
+    (coll/into->
+      (g/pre-traverse basis changed-proj-paths
+                      (fn [_basis proj-path]
+                        (prerequisite->dependents proj-path)))
+      []
       (remove changed-proj-paths)
       (map old-nodes-by-path)
       (map #(resource-node/resource basis %)))))

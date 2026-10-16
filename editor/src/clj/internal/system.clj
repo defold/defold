@@ -425,8 +425,9 @@
     system))
 
 (defn- materialization-invalidate-counters [system evaluation-context]
-  ;; Account for canonical loads already installed by a competing context.
-  ;; Later edits still have larger counters and remain conflicts.
+  ;; Account for canonical materializations already installed by a competing
+  ;; evaluation-context. Later edits still have larger counters and remain
+  ;; conflicts.
   (let [{:keys [changes-atom initial-invalidate-counters initial-materialization-results materialization-results-atom]} evaluation-context]
     (cond-> initial-invalidate-counters
       (coll/not-empty @changes-atom)

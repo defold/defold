@@ -141,7 +141,7 @@
                          (write-file! zos source target))))
                    entries))))
            (future/then (fn [_] (reload-resources!)))
-           (future/then rt/and-refresh-context))))))
+           (future/then rt/and-refresh-execution-context))))))
 
 (def ^:private unpack-args-coercer
   (coerce/regex :archive-path coerce/string
@@ -210,7 +210,7 @@
                                       (when-not (zero? unix-mode)
                                         (Files/setPosixFilePermissions target (get-permissions unix-mode)))))))))))))))))
           (future/then (fn [_] (reload-resources!)))
-          (future/then rt/and-refresh-context)))))
+          (future/then rt/and-refresh-execution-context)))))
 
 (defn env [project-path reload-resources!]
   {"pack" (make-ext-pack-fn project-path reload-resources!)

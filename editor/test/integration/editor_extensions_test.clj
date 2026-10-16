@@ -240,7 +240,9 @@
   (property value g/Any)
   (output value g/Any :cached (gu/passthrough value)))
 
-(deftest suspendable-functions-can-refresh-contexts
+;; A suspended function can refresh its execution-context so the resumed
+;; script observes changes committed during suspension.
+(deftest suspendable-functions-can-refresh-execution-contexts
   (test-support/with-clean-system
     (let [node-id (g/make-node! TestNode :value 1)
           rt (rt/make :env {"get_value" (rt/lua-fn [{:keys [evaluation-context]}]
@@ -251,7 +253,7 @@
                                                              (g/set-property! node-id :value (rt/->clj rt n)))]
                                               (ui/run-later
                                                 (set-val!)
-                                                (future/complete! f (rt/and-refresh-context true))))
+                                                (future/complete! f (rt/and-refresh-execution-context true))))
                                             f))})
           lua-fn (->> (rt/read "return function()
                                   local v1 = get_value()
@@ -269,21 +271,23 @@
               2]
              (rt/->clj rt @(rt/invoke-suspending-1 rt lua-fn)))))))
 
-(deftest refreshing-context-commits-materializations
+;; Refreshing the execution-context must commit materializations before the
+;; resumed script reads nodes from its new evaluation-context.
+(deftest refreshing-execution-context-commits-materializations
   (test-support/with-clean-system
     (let [node-id (first (g/take-node-ids 1))
-          loads (atom 0)
+          materialization-count (atom 0)
           _ (g/transact
               (g/add-node
                 (g/construct-shell TestNode
                   {:_node-id node-id}
                   (fn [self _evaluation-context]
-                    (swap! loads inc)
+                    (swap! materialization-count inc)
                     (g/set-property self :value 17)))))
           rt (rt/make :env {"get_value" (rt/lua-fn [{:keys [evaluation-context]}]
                                           (rt/->lua (g/node-value node-id :value evaluation-context)))
                             "refresh" (rt/suspendable-lua-fn [_]
-                                        (rt/and-refresh-context true))})
+                                        (rt/and-refresh-execution-context true))})
           lua-fn (->> (rt/read "return function()
                                   local before = get_value()
                                   refresh()
@@ -292,7 +296,7 @@
                       (rt/bind rt)
                       (rt/invoke-immediate-1 rt))]
       (is (= [17 17] (rt/->clj rt @(rt/invoke-suspending-1 rt lua-fn))))
-      (is (= 1 @loads))
+      (is (= 1 @materialization-count))
       (is (= 17 (g/raw-property-value (g/now) node-id :value))))))
 
 (deftest output-overrides-route-to-the-current-suspending-execution
@@ -535,7 +539,9 @@
               "Command 6"]
              command-labels)))))
 
-(deftest refresh-context-after-write-test
+;; Writing a resource refreshes the execution-context so subsequent reads
+;; observe the updated graph state.
+(deftest refresh-execution-context-after-write-test
   (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
     (let [output (atom [])
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))

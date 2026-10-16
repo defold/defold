@@ -88,15 +88,15 @@
 
   An evaluation-context must only be used by one thread at a time. It may be
   handed off to another thread, but the previous owner must stop using it until
-  ownership is returned. This also applies to derived contexts sharing its
-  mutable state.
+  ownership is returned. This also applies to derived evaluation-contexts
+  sharing its mutable state.
 
-  Destructure :basis-ref to retain a reference to the context's current basis.
-  Dereference it when passing a basis to graph functions, so materializations
-  performed since the reference was obtained are included. Each dereferenced
-  basis is an immutable snapshot. Committing with
+  Destructure :basis-ref to retain a reference to the evaluation-context's
+  current basis. Dereference it when passing a basis to graph functions, so
+  materializations performed since the reference was obtained are included. Each
+  dereferenced basis is an immutable snapshot. Committing with
   update-system-from-evaluation-context! resets the reference to nil and closes
-  the context. Discard the context after committing it."
+  the evaluation-context. Discard the evaluation-context after committing it."
   ([] (is/default-evaluation-context @*the-system*))
   ([options] (is/custom-evaluation-context @*the-system* options)))
 
@@ -392,7 +392,7 @@
                            undo and redo
     :label                 transaction label, if any
     :sequence-label        transaction sequence label, if any
-    :tx-data-context       final transaction context map
+    :tx-data-context       final transaction data context map
     :metrics               transaction metrics, when metrics collection is
                            enabled"
   ([txs]
@@ -436,7 +436,7 @@
 (defn materialize-shell
   "Non-undoable transaction step that replaces a shell with a regular node and
   runs its default setters. Preserves its id, properties and connections. Used
-  before applying load steps that have already been generated."
+  before applying materialization steps that have already been generated."
   [node-id]
   (it/materialize-shell node-id))
 
@@ -1222,20 +1222,23 @@
   cache-entry-pred predicate. The predicate function will be called with
   node-id, output-label, evaluation-context and should return true if the
   cache entry for the output-label should remain in the cache.
-  The returned context shares mutable state with the original, so the two
-  contexts must not be used concurrently by different threads."
+  The returned evaluation-context shares mutable state with the original, so
+  the two evaluation-contexts must not be used concurrently by different
+  threads."
   [evaluation-context cache-entry-pred]
   (in/pruned-evaluation-context evaluation-context cache-entry-pred))
 
 (defn update-system-from-evaluation-context!
   "Commits materializations and cache entries that remain valid in the system.
   Reuses the evaluated basis when the system basis is unchanged; otherwise
-  replays realized changes. Does not rerun load functions or property setters.
-  Call on the system mutation thread after evaluation has finished, with
-  exclusive ownership of the context. Background evaluations must hand off
-  their context to that thread before calling this function.
-  Closes the context and all contexts sharing its state. They must be discarded
-  after this call, even if their changes were incompatible with the system."
+  re-performs the realized TransactionChanges on the system. Does not rerun
+  the materialize-fn or property setters. Call on the system mutation thread
+  after evaluation has finished, with exclusive ownership of the
+  evaluation-context. Background evaluations must hand off their
+  evaluation-context to that thread before calling this function. Closes the
+  evaluation-context and all evaluation-contexts sharing its state. They must be
+  discarded after this call, even if their changes were incompatible with the
+  system."
   [{:keys [basis-ref] :as evaluation-context}]
   (assert @basis-ref "Evaluation context is closed.")
   (swap! *the-system* is/update-system-from-evaluation-context evaluation-context)
@@ -1246,10 +1249,10 @@
   "Evaluates the body and commits its materializations and cache entries on the
   calling thread. Background callers must instead schedule the merge on the
   system mutation thread."
-  [ec & body]
-  `(let [~ec (make-evaluation-context)
+  [evaluation-context & body]
+  `(let [~evaluation-context (make-evaluation-context)
          result# (do-strict-evaluation-context-scope-body ~@body)]
-     (update-system-from-evaluation-context! ~ec)
+     (update-system-from-evaluation-context! ~evaluation-context)
      result#))
 
 (defn- let-ec-strict-form
@@ -1334,12 +1337,12 @@
 
 (def fake-system (is/make-system {:cache-size 0}))
 
-(defmacro with-auto-or-fake-evaluation-context [ec & body]
+(defmacro with-auto-or-fake-evaluation-context [evaluation-context & body]
   `(let [real-system# @*the-system*
-         ~ec (is/default-evaluation-context (or real-system# fake-system))
+         ~evaluation-context (is/default-evaluation-context (or real-system# fake-system))
          result# (do-strict-evaluation-context-scope-body ~@body)]
      (when (some? real-system#)
-       (update-system-from-evaluation-context! ~ec))
+       (update-system-from-evaluation-context! ~evaluation-context))
      result#))
 
 (defn node-value
@@ -1348,15 +1351,15 @@
   transparent to the caller.
 
   This uses the value of the node and its output at the time the
-  evaluation context was created. If the evaluation context is left
-  out, a context will be created from the current state of the system
-  and the caller will receive a value consistent with the most
-  recently committed transaction.
+  evaluation-context was created. If the evaluation-context is left out, an
+  evaluation-context will be created from the current state of the system and
+  the caller will receive a value consistent with the most recently committed
+  transaction.
 
   Materialized nodes and cache entries are committed to the system automatically
-  on the calling thread if the context was left out. Background callers must
-  pass an explicit context and commit it on the system thread by calling
-  update-system-from-evaluation-context!.
+  on the calling thread if the evaluation-context was left out. Background
+  callers must pass an explicit evaluation-context and commit it on the system
+  thread by calling update-system-from-evaluation-context!.
 
   Example:
 

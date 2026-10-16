@@ -73,7 +73,8 @@
                             ["Landscape" :value]))))))))
 
 ;; Console HTTP requests evaluate on the server thread and must defer shell
-;; materializations to the UI thread instead of using an implicit context.
+;; materializations to the UI thread instead of using an implicit
+;; evaluation-context.
 (deftest console-request-materialization-test
   (let [[console-node request-handler]
         (ui/run-now
@@ -118,8 +119,9 @@
     (ui/run-now
       (is (not (in/shell-node? (g/node-by-id (g/now) settings-node)))))))
 
-;; A build's supplied context must include shared build-server settings, without
-;; a nested implicit context committing them on the background build thread.
+;; A build's supplied evaluation-context must include shared build-server
+;; settings, without a nested implicit evaluation-context committing them on the
+;; background build thread.
 (deftest html5-build-options-materialization-test
   (let [[project settings-node prefs]
         (ui/run-now
@@ -161,8 +163,9 @@
        (disk/async-reload! progress/null-render-progress! workspace [] nil reload-completed))
     (is (true? (deref reload-completed 10000 ::timed-out)))))
 
-;; Action completion must include prerequisite materializations. Otherwise a
-;; settings update can silently target a child that only exists in its context.
+;; Action completion must include prerequisite materializations. Otherwise, a
+;; settings update can silently target a child that only exists in its
+;; evaluation-context.
 (deftest background-editor-actions-materialize-before-transacting-test
   (let [[project settings-node]
         (ui/run-now

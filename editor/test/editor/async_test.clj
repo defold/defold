@@ -25,7 +25,8 @@
   (property value g/Int (default 0)))
 
 ;; Implicit graph reads must reject background materialization commits just like
-;; explicit context merges, including the convenience node-value variants.
+;; explicit evaluation-context merges, including the convenience node-value
+;; variants.
 (deftest implicit-background-commit-rejected-test
   (doseq [read-value [g/node-value g/valid-node-value g/maybe-node-value]]
     (with-clean-system {:on-system-thread? ui/on-ui-thread?}
@@ -92,7 +93,7 @@
           replay [false true]]
     (testing (str scope ", replay: " replay)
       (with-clean-system {:on-system-thread? ui/on-ui-thread?}
-        (let [loads (atom 0)
+        (let [materialization-count (atom 0)
               [shell other]
               (ui/run-now
                 (let [[shell] (g/take-node-ids 1)]
@@ -100,7 +101,7 @@
                     (g/add-node
                       (g/construct-shell AsyncTestNode {:_node-id shell}
                         (fn materialize-node [self _evaluation-context]
-                          (swap! loads inc)
+                          (swap! materialization-count inc)
                           (g/set-property self :value 7)))))
                   [shell (g/make-node! AsyncTestNode)]))]
           (ui/run-now
@@ -127,4 +128,4 @@
           (ui/run-now
             (is (= 7 (g/raw-property-value (g/now) shell :value)))
             (is (= (if replay 9 0) (g/raw-property-value (g/now) other :value)))
-            (is (= 1 @loads))))))))
+            (is (= 1 @materialization-count))))))))

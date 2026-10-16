@@ -74,27 +74,27 @@
 
 (defprotocol SuspensionResult
   (^:private deliver-result [suspend-result])
-  (^:private refresh-context? [suspend-result]))
+  (^:private refresh-execution-context? [suspend-result]))
 
 (extend-protocol SuspensionResult
   nil
   (deliver-result [x] (vm/->varargs x))
-  (refresh-context? [_] false)
+  (refresh-execution-context? [_] false)
   Object
   (deliver-result [x] (vm/->varargs x))
-  (refresh-context? [_] false)
+  (refresh-execution-context? [_] false)
   Exception
   (deliver-result [ex] (throw ex))
-  (refresh-context? [_] false))
+  (refresh-execution-context? [_] false))
 
-(defn and-refresh-context
+(defn and-refresh-execution-context
   "Given a value delivered from the suspendable function to the Lua runtime,
   instruct the runtime to refresh the execution context before delivering the
   result to the editor script"
   [result]
   (reify SuspensionResult
     (deliver-result [_] (deliver-result result))
-    (refresh-context? [_] true)))
+    (refresh-execution-context? [_] true)))
 
 (defn ->lua
   "Convert Clojure data structure to Lua data structure"
@@ -186,9 +186,9 @@
   - throw Exception to signal a script error
   - return any value - if Exception, it will be signaled as an error to the
     script, otherwise it will be coerced to LuaValue and delivered as a result
-  - return a value as above, additionally wrapped using and-refresh-context to
-    instruct the runtime to refresh the execution (evaluation) context of the
-    running script
+  - return a value as above, additionally wrapped using
+    and-refresh-execution-context to instruct the runtime to refresh the
+    execution-context and its evaluation-context for the running script
   - any of the above, but delivered asynchronously using a CompletableFuture
 
   Execution context is a map with the following keys:
@@ -215,9 +215,9 @@
   - throw Exception to signal a script error
   - return any value - if Exception, it will be signaled as an error to the
     script, otherwise it will be coerced to LuaValue and delivered as a result
-  - return a value as above, additionally wrapped using and-refresh-context to
-    instruct the runtime to refresh the execution (evaluation) context of the
-    running script
+  - return a value as above, additionally wrapped using
+    and-refresh-execution-context to instruct the runtime to refresh the
+    execution-context and its evaluation-context for the running script
   - any of the above, but delivered asynchronously using a CompletableFuture
 
   Execution context is a map with the following keys:
@@ -457,19 +457,19 @@
                                       e)))
                     (future/then-async
                       (fn [result]
-                        (if-not (refresh-context? result)
+                        (if-not (refresh-execution-context? result)
                           (invoke-suspending-impl execution-context runtime co (vm/wrap-userdata result))
-                          (let [refreshed-context (future/make)]
+                          (let [refreshed-execution-context (future/make)]
                             (fx/on-fx-thread
                               (try
                                 (g/update-system-from-evaluation-context! (:evaluation-context execution-context))
-                                (future/complete! refreshed-context
+                                (future/complete! refreshed-execution-context
                                   (assoc execution-context :evaluation-context (g/make-evaluation-context)))
                                 (catch Throwable error
-                                  (future/fail! refreshed-context error))))
-                            (future/then-async refreshed-context
-                              (fn [new-context]
-                                (invoke-suspending-impl new-context runtime co (vm/wrap-userdata result)))))))))))))
+                                  (future/fail! refreshed-execution-context error))))
+                            (future/then-async refreshed-execution-context
+                              (fn [new-execution-context]
+                                (invoke-suspending-impl new-execution-context runtime co (vm/wrap-userdata result)))))))))))))
         (future/failed (LuaError. ^String (->clj runtime coerce/to-string (.arg lua-success+rest-varargs 2))))))))
 
 (defn stdout

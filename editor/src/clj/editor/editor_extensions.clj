@@ -257,7 +257,7 @@
                                       (when (g/defective? @basis-ref node-id)
                                         proj-path)))))]
 
-                (rt/and-refresh-context
+                (rt/and-refresh-execution-context
                   (when-let [invalid-proj-paths (coll/not-empty invalid-proj-paths)]
                     (LuaError. (str "Created resources are invalid: " (coll/join-to-string ", " invalid-proj-paths))))))))))))
 
@@ -273,7 +273,7 @@
       (if (.startsWith dir-path root-path)
         (try
           (path/create-directories! dir-path)
-          (future/then (reload-resources!) rt/and-refresh-context)
+          (future/then (reload-resources!) rt/and-refresh-execution-context)
           (catch FileAlreadyExistsException e
             (throw (LuaError. (str "File already exists: " (.getMessage e)))))
           (catch Exception e
@@ -305,7 +305,7 @@
         :else
         (try
           (when (fs/delete-path-directory! dir-path)
-            (future/then (reload-resources!) rt/and-refresh-context))
+            (future/then (reload-resources!) rt/and-refresh-execution-context))
           (catch NotDirectoryException e
             (throw (LuaError. (str "Not a directory: " (.getMessage e)))))
           (catch Exception e
@@ -407,7 +407,7 @@
               (fn [result]
                 (future/then
                   (reload-resources!)
-                  (fn [_] (rt/and-refresh-context result))))))))))
+                  (fn [_] (rt/and-refresh-execution-context result))))))))))
 
 (def bob-options-coercer
   (let [scalar-coercer (coerce/one-of coerce/string coerce/boolean coerce/integer)]
@@ -445,7 +445,7 @@
       (when-not (path/exists? file-path)
         (throw (LuaError. (str "No such file or directory: " file-name))))
       (Files/delete file-path)
-      (future/then (reload-resources!) rt/and-refresh-context))))
+      (future/then (reload-resources!) rt/and-refresh-execution-context))))
 
 (def transaction-steps-coercer
   (coerce/vector-of
@@ -460,7 +460,7 @@
       (fx/on-fx-thread
         (try
           (transact txs)
-          (future/complete! f (rt/and-refresh-context nil))
+          (future/complete! f (rt/and-refresh-execution-context nil))
           (catch Throwable ex (future/fail! f ex))))
       f)))
 
@@ -482,14 +482,14 @@
 
 (defn- make-ext-save-fn [save!]
   (rt/suspendable-lua-fn ext-save [_]
-    (future/then (save!) rt/and-refresh-context)))
+    (future/then (save!) rt/and-refresh-execution-context)))
 
 (defn- make-ext-fetch-libraries-fn [fetch-libraries! localization-state]
   (rt/suspendable-lua-fn ext-fetch-libraries [_]
     (future/then
       (fetch-libraries!)
       (fn [[lib-results reload-succeeded]]
-        (rt/and-refresh-context
+        (rt/and-refresh-execution-context
           (if-not reload-succeeded
             (LuaError. "Reload failed")
             (let [error-messages (coll/into-> lib-results []
@@ -700,7 +700,7 @@
                      (if (path/starts-with? destination project-path)
                        (do
                          @(reload-resources!)
-                         (rt/and-refresh-context response))
+                         (rt/and-refresh-execution-context response))
                        response))))
 
                :else
@@ -1103,7 +1103,7 @@
                   :find-resource (partial find-resource project)
                   :resolve-file (partial resolve-file project-path)
                   :close-written (rt/suspendable-lua-fn [_]
-                                   (future/then (reload-resources!) rt/and-refresh-context))
+                                   (future/then (reload-resources!) rt/and-refresh-execution-context))
                   :out (line-writer #(display-output! :out %))
                   :err (line-writer #(display-output! :err %))
                   :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!

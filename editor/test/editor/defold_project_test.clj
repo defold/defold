@@ -54,7 +54,7 @@
 (deftest loading
   (with-clean-system
     (test-util/with-ui-run-later-rebound
-      (let [load-counter (atom 0)
+      (let [load-fn-call-count (atom 0)
             seen-read-opts (atom [])
             seen-load-opts (atom [])
             sanitized-owner-resources (atom [])
@@ -82,7 +82,7 @@
             load-a
             (fn load-a [{:keys [project] :as load-opts} {:keys [owner-resource resource source-value] self :node-id :as node-load-info}]
               (is (identical? owner-resource resource))
-              (swap! load-counter inc)
+              (swap! load-fn-call-count inc)
               (swap! seen-load-opts conj load-opts)
               (is (string? (:disk-sha256 node-load-info)))
               (is (= [(:b source-value)] (:dependency-proj-paths node-load-info)))
@@ -100,7 +100,7 @@
             load-b
             (fn load-b [load-opts {:keys [owner-resource resource] self :node-id :as node-load-info}]
               (is (identical? owner-resource resource))
-              (swap! load-counter inc)
+              (swap! load-fn-call-count inc)
               (swap! seen-load-opts conj load-opts)
               (is (not (contains? node-load-info :source-value)))
               (let [data (read-string (slurp resource))]
@@ -129,14 +129,14 @@
         (workspace/resource-sync! workspace)
         (let [project (test-util/setup-project! workspace)
               a1 (project/get-resource-node project "/a1.type_a")]
-          (is (zero? @load-counter))
+          (is (zero? @load-fn-call-count))
           (is (coll/empty? @seen-read-opts))
           (g/with-auto-evaluation-context evaluation-context
             (is (= "t" (g/node-value a1 :value-piece evaluation-context)))
-            (is (= 2 @load-counter))
+            (is (= 2 @load-fn-call-count))
             (is (not (resource-node/loaded? @(:basis-ref evaluation-context) (project/get-resource-node project "/a2.type_a" evaluation-context))))
             (is (= "t" (g/node-value (project/get-resource-node project "/a2.type_a" evaluation-context) :value-piece evaluation-context))))
-          (is (= 3 @load-counter))
+          (is (= 3 @load-fn-call-count))
           (is (= 2 (count @seen-read-opts)))
           (is (= #{"/a1.type_a" "/a2.type_a"}
                  (into #{} (map resource/proj-path) @sanitized-owner-resources)))
@@ -262,7 +262,7 @@
                   a2 (project/get-resource-node project "/a2.type_a")
                   b (project/get-resource-node project "/b.type_b")
                   evaluation-context (g/make-evaluation-context)
-                  competing-context (g/make-evaluation-context)]
+                  competing-evaluation-context (g/make-evaluation-context)]
               (is (coll/empty? @loaded))
               (is (= [] (g/node-value project :save-data evaluation-context)))
               (is (= [] (g/node-value project :dirty-save-data evaluation-context)))
@@ -279,9 +279,9 @@
               (is (nil? (g/node-value a1 :source-value)))
               (is (= {:b "/b.type_b"} (g/node-value a1 :source-value evaluation-context)))
               (is (= [] (g/node-value project :save-data)))
-              (g/materialize-node! (if follow-prerequisites b a1) competing-context)
+              (g/materialize-node! (if follow-prerequisites b a1) competing-evaluation-context)
               (is (= (if follow-prerequisites ["/b.type_b" "/a1.type_a"] ["/a1.type_a"]) @loaded))
-              (g/update-system-from-evaluation-context! competing-context)
+              (g/update-system-from-evaluation-context! competing-evaluation-context)
               (g/update-system-from-evaluation-context! evaluation-context)
               (is (= (count @loaded) (count (g/node-value project :save-data))))
               (is (resource-node/loaded? (g/now) a1))
@@ -334,9 +334,10 @@
           (is (= disk-sha256 (g/node-value node-id :disk-sha256)))
           (is (false? (g/node-value node-id :dirty))))))))
 
+;; Verifies that a batch's disk state is initialized before any resource load
+;; operation invokes setters, including source-value conversion, without
+;; materializing other nodes.
 (deftest loading-initializes-disk-state-before-setters
-  ;; Verifies that a batch's disk state is initialized before any load setters,
-  ;; including source-value conversion, without materializing other nodes.
   (with-clean-system
     (test-util/with-ui-run-later-rebound
       (let [workspace (workspace/make-workspace (.getAbsolutePath (io/file "test/resources/load_project")) {} {} test-util/localization)]

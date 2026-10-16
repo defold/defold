@@ -804,7 +804,8 @@
 (defn- migrated? [model-node-id model-desc evaluation-context]
   {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.
   ;; Only sampler names affect this migration. Pulling :materials also evaluates
-  ;; GPU texture generators and vertex data, which are not load prerequisites.
+  ;; GPU texture generators and vertex data, which are not materialization
+  ;; prerequisites.
   (let [{:keys [basis-ref]} evaluation-context
 
         material-name->sampler-names
