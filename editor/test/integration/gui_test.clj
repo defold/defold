@@ -1321,7 +1321,8 @@
       (g/transact
         (gui/add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource name)))))
 
-;; Invalid vector sizes must block GUI builds in every layout, using each layout's effective font.
+;; Invalid vector sizes must block GUI builds in every layout, using each
+;; layout's effective font.
 (deftest vector-font-size-validation-blocks-build
   (test-util/with-loaded-project
     (let [scene (test-util/resource-node project "/fonts/vector_preview.gui")

@@ -341,13 +341,19 @@ static void PushMonotonicCurve(dmArray<EncodedVectorCurve>& curves, const FontGl
     float splits[4] = { 0.0f, 1.0f, 0.0f, 0.0f };
     uint32_t split_count = 2;
     float t;
-    if (FindInteriorAxisExtremum(p0.m_X, p1.m_X, p2.m_X, &t)) AddUniqueSplit(splits, &split_count, t);
-    if (FindInteriorAxisExtremum(p0.m_Y, p1.m_Y, p2.m_Y, &t)) AddUniqueSplit(splits, &split_count, t);
+    if (FindInteriorAxisExtremum(p0.m_X, p1.m_X, p2.m_X, &t))
+        AddUniqueSplit(splits, &split_count, t);
+    if (FindInteriorAxisExtremum(p0.m_Y, p1.m_Y, p2.m_Y, &t))
+        AddUniqueSplit(splits, &split_count, t);
     for (uint32_t i = 1; i < split_count; ++i)
     {
         float value = splits[i];
         uint32_t j = i;
-        while (j > 0 && splits[j - 1] > value) { splits[j] = splits[j - 1]; --j; }
+        while (j > 0 && splits[j - 1] > value)
+        {
+            splits[j] = splits[j - 1];
+            --j;
+        }
         splits[j] = value;
     }
 

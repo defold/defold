@@ -150,6 +150,7 @@ protected:
     }
 };
 
+// Glyph generation skips cached duplicates and transfers each inserted glyph to the caller.
 TEST_F(FontGenTest, GeneratesUniqueUncachedGlyphsAndTransfersOwnership)
 {
     ASSERT_TRUE(FontGenIsSupported());
@@ -195,6 +196,7 @@ TEST_F(FontGenTest, GeneratesUniqueUncachedGlyphsAndTransfersOwnership)
     ASSERT_EQ(1u, m_Font.m_FreeCount);
 }
 
+// Failed cache insertion leaves glyph ownership with the generator for cleanup.
 TEST_F(FontGenTest, RetainsAndFreesGlyphWhenInsertionFails)
 {
     TestContext context = {};
@@ -221,6 +223,7 @@ TEST_F(FontGenTest, RetainsAndFreesGlyphWhenInsertionFails)
     ASSERT_EQ(1u, m_Font.m_FreeCount);
 }
 
+// Equal glyph indices from different fonts remain distinct generation requests.
 TEST_F(FontGenTest, KeepsSameGlyphIndexFromDifferentFonts)
 {
     TestFont fallback_font = m_Font;

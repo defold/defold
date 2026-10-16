@@ -1104,14 +1104,16 @@ namespace dmRender
         FontVectorSlugGlyph glyph;
         if (!FontVectorSlugAddFontGlyph(data, source, VECTOR_SLUG_BANDS, &glyph))
         {
-            if (!data->m_Overflow) return false;
+            if (!data->m_Overflow)
+                return false;
             // Do not invalidate glyphs already submitted in this frame.
             font_map->m_SlugResetPending = true;
             font_map->m_SlugOverflowFrame = cache_glyph->m_Frame;
             dmLogWarning("Slug font atlas is full; deferring cache reset to the next frame");
             return false;
         }
-        if (!glyph.m_CurveCount) return false;
+        if (!glyph.m_CurveCount)
+            return false;
         cache_glyph->m_VectorCurveTexel = glyph.m_BandTexel;
         cache_glyph->m_VectorCurveCount = glyph.m_CurveCount;
         memcpy(cache_glyph->m_VectorBanding, glyph.m_BandTransform, sizeof(glyph.m_BandTransform));

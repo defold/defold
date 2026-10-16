@@ -60,8 +60,6 @@ dmGraphics::HVertexDeclaration CreateFontVertexDeclaration(dmGraphics::HContext 
     return decl;
 }
 
-#define HAS_LAYER(mask,layer) ((mask & layer) == layer)
-
 static void ClearGlyphVertex(GlyphVertex& vertex)
 {
     memset(&vertex, 0, sizeof(vertex));
@@ -159,9 +157,15 @@ static void OutputGlyphVector(uint32_t vertexindex,
         v.m_VectorTexcoord[1] = vv; \
         v.m_VectorTexcoord[2] = curve_count; \
         v.m_VectorTexcoord[3] = 0.0f; \
-        if (bitmap_effect) v.m_VectorEffectParams[0] = sdf_outline; \
-        else memcpy(v.m_VectorEffectParams, banding, sizeof(v.m_VectorEffectParams)); \
-        if (!bitmap_effect) v.m_Position[2] = curve_start;
+        if (bitmap_effect) \
+        { \
+            v.m_VectorEffectParams[0] = sdf_outline; \
+        } \
+        else \
+        { \
+            memcpy(v.m_VectorEffectParams, banding, sizeof(v.m_VectorEffectParams)); \
+            v.m_Position[2] = curve_start; \
+        }
 
     SET_VECTOR_VERTEX(v1, 0.0f, 0.0f)
     SET_VECTOR_VERTEX(v2, 0.0f, 1.0f)
@@ -510,8 +514,6 @@ static uint32_t CreateFontVertexDataFromTextLayout(HFontMap font_map, uint32_t f
 
     return CreateFontVectorVertexData(font_map, frame, layout, te, (GlyphVertex*)_vertices, num_vertices);
 }
-
-#undef HAS_LAYER
 
 uint32_t CreateFontVertexData(HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
 {

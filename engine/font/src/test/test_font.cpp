@@ -490,6 +490,7 @@ TEST_F(FontTest, LoadTTF)
     ASSERT_EQ(FONT_TYPE_TTF, FontGetType(m_Font));
 }
 
+// Glyph outlines can be generated without allocating bitmap data.
 TEST_F(FontTest, GlyphOutlineWithoutBitmap)
 {
     FontGlyphOptions options;
@@ -526,6 +527,7 @@ TEST_F(FontTest, GlyphOutlineWithoutBitmap)
     ASSERT_EQ((FontCurveCommand*)0, glyph.m_Outline.m_Commands);
 }
 
+// Adding an SDF bitmap leaves the analytical outline bounds unchanged.
 TEST_F(FontTest, GlyphOutlineMetricsUnaffectedBySDFBitmap)
 {
     FontGlyphOptions outline_options;

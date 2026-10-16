@@ -297,6 +297,7 @@ TEST_F(dmGuiTest, RecreateNodes)
     }
 }
 
+// GUI text nodes preserve the font size set through the native API.
 TEST_F(dmGuiTest, FontSize)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_TEXT, 0);

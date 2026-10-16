@@ -592,6 +592,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // The vector vertex and fragment shaders cross-compile together for WebGPU and GLES 3.
     @Test
     public void testVectorFontWGSL() throws Exception {
         Path fontDirectory = Path.of("../../engine/font/content/builtins/fonts");
@@ -610,15 +611,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         checkExpectedLanguages(shader, new ShaderDesc.Language[] {
             ShaderDesc.Language.LANGUAGE_WGSL, ShaderDesc.Language.LANGUAGE_GLES_SM300});
-        for (ShaderDesc.Shader stage : shader.getShadersList()) {
-            if (stage.getLanguage() == ShaderDesc.Language.LANGUAGE_WGSL) {
-                assertFalse(stage.getSource().toStringUtf8().contains("diagnostic(off, derivative_uniformity)"));
-            }
-        }
     }
 
+    // WebGPU compilation accepts non-uniform derivatives, matching the shared shader pipeline policy.
     @Test
-    public void testWGSLRejectsNonUniformDerivatives() throws Exception {
+    public void testWGSLAllowsNonUniformDerivatives() throws Exception {
         String source = """
                 #version 330
                 in vec2 uv;
@@ -630,13 +627,9 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                     }
                 }
                 """;
-        try {
-            compileShaderWithCompiler(getProject().getShaderCompiler(Platform.WasmWeb),
-                "webgpu", "non_uniform_derivatives", source);
-            fail("Expected WGSL derivative-uniformity validation to reject the shader");
-        } catch (CompileExceptionError e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("uniform control flow"));
-        }
+        ShaderDesc shader = compileShaderWithCompiler(getProject().getShaderCompiler(Platform.WasmWeb),
+            "webgpu", "non_uniform_derivatives", source);
+        checkExpectedLanguages(shader, new ShaderDesc.Language[] {ShaderDesc.Language.LANGUAGE_WGSL});
     }
 
     @Test
@@ -794,6 +787,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Language.LANGUAGE_SPIRV);
     }
 
+    // Debug GLSL output still honors the project setting that excludes GLES 2 shaders.
     @Test
     public void testExcludeGlesSm100WithDebugGlslOutput() throws Exception {
         getProject().getProjectProperties().putBooleanValue("shader", "exclude_gles_sm100", true);

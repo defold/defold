@@ -109,9 +109,23 @@
 #define DMGRAPHICS_SAMPLER_2D_ARRAY                         (0x8DC1)
 #endif
 
+#ifdef GL_UNSIGNED_INT_SAMPLER_2D
+#define DMGRAPHICS_UNSIGNED_INT_SAMPLER_2D                  (GL_UNSIGNED_INT_SAMPLER_2D)
+#else
 #define DMGRAPHICS_UNSIGNED_INT_SAMPLER_2D                  (0x8DD2)
+#endif
+
+#ifdef GL_R32UI
+#define DMGRAPHICS_TEXTURE_FORMAT_R32UI                     (GL_R32UI)
+#else
 #define DMGRAPHICS_TEXTURE_FORMAT_R32UI                     (0x8236)
+#endif
+
+#ifdef GL_RED_INTEGER
+#define DMGRAPHICS_TEXTURE_FORMAT_RED_INTEGER               (GL_RED_INTEGER)
+#else
 #define DMGRAPHICS_TEXTURE_FORMAT_RED_INTEGER               (0x8D94)
+#endif
 
 // Texture images
 #ifdef GL_IMAGE_2D

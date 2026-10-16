@@ -319,6 +319,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(!fontMap.hasAntialias());
     }
 
+    // Static vector fonts bake curves and omit the source font from the runtime resources.
     @Test
     public void testStaticVectorFontBakesCurvesWithoutCopyingSourceFont() throws Exception {
         StringBuilder src = new StringBuilder();
@@ -374,6 +375,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
             assertEquals(expected, curves.getFloat(), 0.00001f);
     }
 
+    // Implicit and explicit defaults share the same glyph bank instead of duplicating baked data.
     @Test
     public void testGlyphBankHashNormalizesDefaults() {
         FontDesc implicit = FontDesc.newBuilder()
@@ -396,6 +398,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(Fontc.FontDescToHash(implicit), Fontc.FontDescToHash(explicit));
     }
 
+    // Render-only vector properties do not create duplicate glyph banks.
     @Test
     public void testGlyphBankHashSharesRenderPropertyVariants() throws Exception {
         FontDesc desc = FontDesc.newBuilder()
@@ -432,6 +435,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(bank, variantBank);
     }
 
+    // Render-only bitmap and SDF effect variants reuse their baked glyph data.
     @Test
     public void testGlyphBankHashSharesNonVectorEffectVariants() {
         for (String font : new String[] { "/Tuffy.ttf", "/bmfont.fnt" }) {
@@ -453,6 +457,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Single-layer and multi-layer fonts keep separate glyph banks because their baked data differs.
     @Test
     public void testGlyphBankHashRetainsRenderMode() {
         FontDesc singleLayer = FontDesc.newBuilder()
@@ -465,6 +470,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertNotEquals(Fontc.FontDescToHash(singleLayer), Fontc.FontDescToHash(multiLayer));
     }
 
+    // Extra characters affect the bank hash so fonts cannot reuse a bank missing their glyphs.
     @Test
     public void testExtraCharactersHaveSeparateGlyphBanks() throws Exception {
         String source = "font: \"/Tuffy.ttf\"\nmaterial: \"/test.material\"\nsize: 16\n";
@@ -476,6 +482,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(getGlyphBank(extended).getGlyphsList().stream().anyMatch(glyph -> glyph.getCharacter() == 'é'));
     }
 
+    // Vector curves and SDF bitmaps never share a glyph-bank resource path.
     @Test
     public void testVectorAndSdfFontsHaveDifferentGlyphBankHashes() {
         FontDesc sdf = FontDesc.newBuilder()
@@ -492,6 +499,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertNotEquals(Fontc.FontDescToHash(sdf), Fontc.FontDescToHash(vector));
     }
 
+    // Vector effect settings that change baked images produce distinct glyph banks.
     @Test
     public void testStaticVectorEffectChangesGlyphBankHash() {
         FontDesc withoutEffectImage = FontDesc.newBuilder()
@@ -534,6 +542,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(Fontc.FontDescToHash(withoutShadowImage), Fontc.FontDescToHash(invisibleShadow));
     }
 
+    // Static vector fonts bake outline bitmaps alongside their analytical face curves.
     @Test
     public void testStaticVectorFontBakesOutlineBitmap() throws Exception {
         StringBuilder src = new StringBuilder();
@@ -565,6 +574,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(glyphBank.getGlyphs(0).getGlyphDataSize() > 0);
     }
 
+    // Static vector fonts bake shadow bitmaps alongside their analytical face curves.
     @Test
     public void testStaticVectorFontBakesShadowBitmap() throws Exception {
         StringBuilder src = new StringBuilder();
@@ -598,6 +608,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(glyphBank.getGlyphs(0).getGlyphDataSize() > 0);
     }
 
+    // Dynamic SDF fonts retain their source font and prewarm configuration for runtime generation.
     @Test
     public void testTTFSdfRuntime() throws Exception {
         StringBuilder src = new StringBuilder();
@@ -619,6 +630,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(fontMap.getGlyphBank().isEmpty());
     }
 
+    // Invisible vector effects do not allocate unnecessary baked bitmap data.
     @Test
     public void testInvisibleVectorEffectsDoNotBakeSdf() throws Exception {
         String font = "font: \"/Tuffy.ttf\"\nmaterial: \"/test-vector.material\"\n" +
@@ -632,6 +644,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(!glyphBank.getVectorData().isEmpty());
     }
 
+    // Static and dynamic vector effects require the font resource to supply their bitmap size.
     @Test
     public void testVectorEffectsUseAuthoredSizeForStaticAndDynamic() throws Exception {
         for (boolean runtime : new boolean[] {false, true}) {
@@ -651,6 +664,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // An explicit static setting overrides the legacy project-wide runtime-generation option.
     @Test
     public void testExplicitStaticSdfOverridesLegacyRuntimeGeneration() throws Exception {
         getProject().setOption("font-runtime-generation", "true");
@@ -686,6 +700,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Font type, rendering mode, and generation settings resolve consistently across their combinations.
     @Test
     public void testEffectiveFontSettingsMatrix() {
         String[] extensions = {"ttf", "otf", "fnt"};
@@ -728,6 +743,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Legacy bitmap fonts retain their rendering settings when built from TTF or OTF resources.
     @Test
     public void testLegacyBitmapSettingsArePreserved() throws Exception {
         addFile("/Test.otf", getFile("/Tuffy.ttf"));
@@ -759,6 +775,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertEquals("/builtins/fonts/font.material", FontBuilder.getEffectiveFontDesc(bitmap).getMaterial());
     }
 
+    // Dynamic vector fonts retain the shadow settings needed for runtime bitmap generation.
     @Test
     public void testDynamicVectorShadowBitmap() throws Exception {
         StringBuilder src = new StringBuilder();
@@ -775,6 +792,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(fontMap.getVectorBitmapEffects());
     }
 
+    // Vector faces and outlines use the same material instead of selecting an SDF-only material.
     @Test
     public void testTTFOutlineUsesSharedVectorMaterial() throws Exception {
         StringBuilder src = new StringBuilder();
@@ -792,6 +810,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(fontMap.getVectorBitmapEffects());
     }
 
+    // Label vector fonts retain their vector material when an outline is enabled.
     @Test
     public void testTTFLabelOutlineUsesSharedVectorMaterial() throws Exception {
         StringBuilder src = new StringBuilder();
@@ -877,6 +896,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(fontMap.getGlyphBank().isEmpty());
     }
 
+    // OTF resources use the same vector-font build path as TTF resources.
     @Test
     public void testVectorOTF() throws Exception {
         addFile("/Test.otf", getFile("/Tuffy.ttf"));
@@ -919,6 +939,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(3, glyphBank.getGlyphsCount());
     }
 
+    // BMFont resources ignore stale vector and dynamic settings after switching font type.
     @Test
     public void testFNTIgnoresStaleVectorAndDynamicSettings() throws Exception {
         StringBuilder src = new StringBuilder();
@@ -938,6 +959,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                      glyphBank.getImageFormat());
     }
 
+    // BMFont all-chars builds include glyphs beyond the explicitly authored characters.
     @Test
     public void testFNTAllChars() throws Exception {
         StringBuilder src = new StringBuilder();

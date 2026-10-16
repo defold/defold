@@ -167,7 +167,8 @@
           (is (g/error? (g/node-value node-id :shader)))
           (is (g/error? (g/node-value node-id :build-targets))))))))
 
-;; Vector shader builds require an explicit compatibility choice and track changes to that setting.
+;; Vector shader builds require an explicit compatibility choice and track
+;; changes to that setting.
 (deftest vector-shader-requires-explicit-gles2-exclusion
   (test-util/with-loaded-project
     (let [settings (test-util/resource-node project "/game.project")

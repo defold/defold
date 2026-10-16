@@ -1,34 +1,31 @@
 #version 330
 
-// Copyright 2020-2026 The Defold Foundation
-// Copyright 2014-2020 King
-// Copyright 2009-2014 Ragnar Svensson, Christian Murray
-// Licensed under the Defold License version 1.0 (the "License"); you may not use
-// this file except in compliance with the License.
-//
-// You may obtain a copy of the License, together with FAQs at
-// https://www.defold.com/license
-//
-// Unless required by applicable law or agreed to in writing, software distributed
-// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-// CONDITIONS OF ANY KIND, either express or implied. See the License for the
-// specific language governing permissions and limitations under the License.
-
+// Slug's root eligibility uses floatBitsToUint, a GLSL 330 builtin.
 #extension GL_EXT_samplerless_texture_functions : require
+
 precision highp float;
 precision highp int;
+
 #include "/builtins/fonts/font-vector-slug.glsl"
-uniform highp sampler2D effect_bitmap;
+
 in highp vec2 var_texcoord;
-flat in highp float var_mode;
 in mediump vec4 var_color;
+flat in highp float var_mode;
 flat in highp vec4 var_banding;
 flat in highp ivec4 var_glyph;
 flat in highp float var_curve_count;
-out vec4 out_fragColor;
+
+uniform highp sampler2D effect_bitmap;
+
 #ifdef FONT_VECTOR_PICKING
-uniform picking_uniforms { vec4 id; };
+uniform picking_uniforms
+{
+    vec4 id;
+};
 #endif
+
+out vec4 out_fragColor;
+
 void main()
 {
     vec2 emsPerPixel = fwidth(var_texcoord);
@@ -54,12 +51,21 @@ void main()
             coverage = smoothstep(var_banding.x - smoothing, var_banding.x + smoothing, effects.g);
         }
         else
+        {
             coverage = effects.b;
+        }
     }
     else
+    {
         coverage = SlugRender(var_texcoord, emsPerPixel, var_banding, var_glyph);
+    }
+
     out_fragColor = coverage * vec4(var_color.rgb * var_color.a, var_color.a);
-    if ((var_mode < 0.5 && var_curve_count <= 0.0) || out_fragColor.a <= 0.0) discard;
+    if ((var_mode < 0.5 && var_curve_count <= 0.0) || out_fragColor.a <= 0.0)
+    {
+        discard;
+    }
+
 #ifdef FONT_VECTOR_PICKING
     out_fragColor = id;
 #endif

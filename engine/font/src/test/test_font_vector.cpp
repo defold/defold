@@ -21,6 +21,7 @@
 #include "../font_vector_slug.h"
 #include "../render/glyph_gen.h"
 
+// CPU effect generation preserves analytical faces and the outline distance field.
 TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
 {
     char path[512];
@@ -44,7 +45,8 @@ TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
         FontVectorSlugGlyph encoded;
         ASSERT_TRUE(FontVectorSlugAddFontGlyph(&data, glyph, 8, &encoded));
         ASSERT_GT(encoded.m_CurveCount, 0u);
-        if (i == 0) curve_count = encoded.m_CurveCount;
+        if (i == 0)
+            curve_count = encoded.m_CurveCount;
         ASSERT_EQ(curve_count, encoded.m_CurveCount);
         FontGlyphOptions options;
         options.m_Scale = params.m_Scale;
@@ -64,16 +66,19 @@ TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
             ASSERT_EQ(sdf.m_Bitmap.m_Data[p / 3], pixel[1]);
             outline_only += pixel[1] > outline_edge && pixel[0] == 0;
             shadow_only += pixel[1] < outline_edge && pixel[2] > 0;
-            if (i == 0) ASSERT_GE(pixel[2], pixel[0]);
+            if (i == 0)
+                ASSERT_GE(pixel[2], pixel[0]);
         }
         ASSERT_GT(outline_only, 0u);
-        if (i > 0) ASSERT_GT(shadow_only, 0u);
+        if (i > 0)
+            ASSERT_GT(shadow_only, 0u);
         FontFreeGlyph(font, &sdf);
         FontFreeGlyph(font, &glyph);
     }
     FontDestroy(font);
 }
 
+// Cubic OpenType outlines produce normalized vector curves independently of bitmap size.
 TEST(FontVector, CubicOpenTypeOutlinesGenerateSizeIndependentVectorCurves)
 {
     const char* paths[] = { "src/test/data/SourceCodePro-Regular.otf", "src/test/data/SourceSerif4Variable-Roman_cff2.otf" };
@@ -115,6 +120,7 @@ TEST(FontVector, CubicOpenTypeOutlinesGenerateSizeIndependentVectorCurves)
     }
 }
 
+// Enabling bitmap effects leaves encoded vector face curves unchanged.
 TEST(FontVector, EffectsPreserveEncodedFaceCurves)
 {
     char path[512];

@@ -20,6 +20,7 @@
 
 extern "C" void ResourceTypeTTF();
 
+// The null font generator reports unsupported generation and creates no jobs.
 TEST(FontGenNull, IsUnsupportedAndCannotCreateJobs)
 {
     ASSERT_FALSE(FontGenIsSupported());
@@ -29,6 +30,7 @@ TEST(FontGenNull, IsUnsupportedAndCannotCreateJobs)
     ASSERT_EQ((HJob)0, FontGenAddGlyphByIndex(0, 0, 1));
 }
 
+// The null font implementation cannot load TTF data through the full parser.
 TEST(FontGenNull, TTFLoadingDoesNotUseTheRealParser)
 {
     // Force the null archive member into the link, as the engine does through

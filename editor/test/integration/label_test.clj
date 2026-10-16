@@ -261,6 +261,8 @@
           (verify-referenced-component "/scale_migration/referenced_unscaled_label.collection" [0 0] [2.0 3.0 4.0] false)
           (verify-referenced-component "/scale_migration/referenced_unscaled_label_child.collection" [0 0 0] [2.0 3.0 4.0] false))))))
 
+;; Label effect controls reflect the outline and shadow support of the selected
+;; font.
 (deftest label-effect-controls-follow-font-support
   (test-util/with-loaded-project
     (let [font-node (project/get-resource-node project "/editor1/test.font")
@@ -306,7 +308,8 @@
         (is (g/error-fatal? (test-util/prop-error node :style)))
         (is (g/error-fatal? (g/node-value node :build-targets)))))))
 
-;; Invalid vector sizes must block label builds, while hidden bitmap font sizes remain ignored.
+;; Invalid vector sizes must block label builds, while hidden bitmap font sizes
+;; remain ignored.
 (deftest vector-font-size-validation-blocks-build
   (test-util/with-loaded-project
     (let [label-node (project/get-resource-node project "/label/test.label")]
@@ -323,6 +326,7 @@
       (is (nil? (test-util/prop-error label-node :font-size)))
       (is (not (g/error? (g/node-value label-node :build-targets)))))))
 
+;; Label builds retain the vector display size and rich-text style.
 (deftest vector-font-size-and-style-survive-build
   (test-util/with-temp-project-content
     {"/styled.font" {:font "/builtins/fonts/vera_mo_bd.ttf"
@@ -358,6 +362,8 @@
             (is (= 37 (.getSize built-font)))
             (is (= ["default" "notice"] (mapv #(.getName %) (.getStylesList built-font))))))))))
 
+;; Loading and building legacy bitmap labels preserves their font and material
+;; settings.
 (deftest legacy-bitmap-font-and-label-materials-are-preserved
   (test-util/with-temp-project-content
     {"/legacy.font" {:font "/builtins/fonts/vera_mo_bd.ttf"

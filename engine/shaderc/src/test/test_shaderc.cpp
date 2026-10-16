@@ -243,6 +243,7 @@ TEST(Shaderc, ModifyBindings)
     free(data);
 }
 
+// GLSL cross-compilation preserves the material sampler name for samplerless integer textures.
 TEST(Shaderc, SamplerlessIntegerTextureRetainsMaterialNameInGLSL)
 {
     uint32_t data_size;

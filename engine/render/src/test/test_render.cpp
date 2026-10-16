@@ -2815,6 +2815,7 @@ TEST_F(dmRenderTest, MarkupShadowUsesFontBlurWhenOmitted)
     MarkupDestroy(markup);
 }
 
+// Changing the vector draw size leaves the cached curve reference size unchanged.
 TEST_F(dmRenderTest, VectorFontReferenceSizeIsIndependentOfDrawSize)
 {
     const float old_size = m_SystemFontMap->m_Size;
@@ -2832,6 +2833,7 @@ TEST_F(dmRenderTest, VectorFontReferenceSizeIsIndependentOfDrawSize)
     m_SystemFontMap->m_IsVector = old_is_vector;
 }
 
+// Vector fonts cache numeric band data and restore the original material when switching modes.
 TEST_F(dmRenderTest, SlugFontCachesNumericBandsAndRestoresLegacyMaterial)
 {
     dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
@@ -3201,18 +3203,21 @@ TEST_F(VectorFontTest, RichTextShadowOffsetsScaleWithGlyphsAndDecorations)
     }
 }
 
+// Dynamic face-only vector fonts render on demand without a prewarmed glyph cache.
 TEST_F(VectorFontTest, DynamicFaceWithoutPrewarm)
 {
     RenderWithoutPrewarm("../font/src/test/data/vera_mo_bd.ttf", false);
     RenderWithoutPrewarm("../font/src/test/data/SourceCodePro-Regular.otf", false);
 }
 
+// Dynamic vector effects initialize their cache when first rendered without prewarming.
 TEST_F(VectorFontTest, DynamicEffectsWithoutPrewarm)
 {
     RenderWithoutPrewarm("../font/src/test/data/vera_mo_bd.ttf", true);
     RenderWithoutPrewarm("../font/src/test/data/SourceCodePro-Regular.otf", true);
 }
 
+// Truncated vector text never writes beyond the supplied vertex buffer.
 TEST_F(VectorFontTest, TruncationPreservesBufferBounds)
 {
     m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
@@ -3236,6 +3241,7 @@ TEST_F(VectorFontTest, TruncationPreservesBufferBounds)
     }
 }
 
+// Vector rich-text spans apply their own font size and color to generated vertices.
 TEST_F(VectorFontTest, RichTextUsesSpanSizeAndColor)
 {
     m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
@@ -3250,6 +3256,7 @@ TEST_F(VectorFontTest, RichTextUsesSpanSizeAndColor)
     ASSERT_EQ(255u, vertices[6].m_VectorColor[1]);
 }
 
+// Vector glyph vertices retain rich-text corner colors and animated offsets.
 TEST_F(VectorFontTest, RichTextPreservesCornerColorsAndAnimatedOffsets)
 {
     m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
@@ -3274,6 +3281,7 @@ TEST_F(VectorFontTest, RichTextPreservesCornerColorsAndAnimatedOffsets)
     ASSERT_NEAR(before[2].m_Position[0] - before[0].m_Position[0], after[2].m_Position[0] - after[0].m_Position[0], EPSILON);
 }
 
+// Vector rich text emits outline and shadow layers only for spans that enable them.
 TEST_F(VectorFontTest, RichTextOnlyEmitsStyledEffects)
 {
     const uint8_t bitmap[45] = {}; // One by three RGB texels, plus a one-texel border.

@@ -385,6 +385,7 @@
       (testing "rich text can be disabled in an app manifest"
         (is (false? (font-map-uses-rich-text? font-node)))))))
 
+;; Scalable font previews use native rich-text layout and rendering.
 (deftest scalable-font-uses-native-rich-text-preview
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/editor1/test.font")]
@@ -488,6 +489,7 @@
             (is (> w'' w'))
             (is (> h'' h'))))))))
 
+;; Native font previews wrap text consistently with the requested line width.
 (deftest text-wrapping
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/fonts/score.font")
@@ -550,7 +552,8 @@
         (test-util/with-prop [node-id p -1]
           (is (g/error-fatal? (test-util/prop-error node-id p))))))))
 
-;; Incompatible font samplers must block Editor builds, including after unsaved material edits.
+;; Incompatible font samplers must block Editor builds, including after unsaved
+;; material edits.
 (deftest material-sampler-compatibility-blocks-builds
   (test-util/with-scratch-project "test/resources/test_project"
     (let [font-node (test-util/resource-node project "/fonts/vector_implicit_dynamic.font")
@@ -616,6 +619,7 @@
                                              [:renderable :user-data :shader]
                                              [:renderable :user-data :texture]))))
 
+;; Transparent faces retain their configured shadow blur in native previews.
 (deftest native-shadow-blur-does-not-depend-on-face-alpha
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/editor1/test.font")]
@@ -628,6 +632,7 @@
         (is (= 4.0 (double (.-shadowBlur render-params))))
         (is (true? (.-hasShadow render-params)))))))
 
+;; A zero-offset, unblurred shadow does not enable an unnecessary preview layer.
 (deftest native-preview-disables-zero-offset-shadow
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/editor1/test.font")]
@@ -641,6 +646,8 @@
         (is (zero? (bit-and 4 (:layer-mask font-map))))
         (is (false? (.-hasShadow render-params)))))))
 
+;; Saving and reopening a font preserves its explicitly selected
+;; glyph-generation mode.
 (deftest glyph-generation-survives-save-and-reopen
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/fonts/vector_implicit_dynamic.font")
@@ -658,6 +665,8 @@
           (is (= runtime (:runtime (protobuf/inject-defaults Font$FontDesc saved))))
           (is (= runtime (:runtime (protobuf/inject-defaults Font$FontDesc reopened)))))))))
 
+;; Switching away from vector rendering restores the applicable bitmap or SDF
+;; size controls.
 (deftest vector-to-bitmap-or-sdf-font-size
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/editor1/test.font")
@@ -686,6 +695,7 @@
         (is (true? (get-in node-properties [:runtime :read-only?])))
         (is (false? (get-in node-properties [:runtime :value])))))))
 
+;; Vector fonts expose editable static and dynamic glyph-generation choices.
 (deftest vector-glyph-generation-property
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/editor1/test.font")
@@ -706,7 +716,8 @@
         (is (= runtime (:runtime (protobuf/inject-defaults Font$FontDesc (g/node-value font-node :save-value)))))
         (is (= 20 (:size (g/valid-node-value font-node :font-map))))))))
 
-;; A missing effect size is zero, just like an explicit zero, and must be set before baking effects.
+;; A missing effect size is zero, just like an explicit zero, and must be set
+;; before baking effects.
 (deftest vector-font-effect-size-defaults-to-zero
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/fonts/vector_implicit_dynamic.font")]
@@ -721,13 +732,15 @@
       (is (= 15 (:size (g/valid-node-value font-node :font-map))))
       (is (not (g/error? (g/node-value font-node :build-targets)))))))
 
-;; Initial cached values and later edits must agree on protobuf defaults and authored sizes.
+;; Initial cached values and later edits must agree on protobuf defaults and
+;; authored sizes.
 (deftest font-size-defaults-on-initial-load
   (let [sdf-desc {:material "/builtins/fonts/font-df.material"
                   :vector-font-mode :vector-font-mode-sdf}
         vector-desc {:material "/builtins/fonts/font-vector.material"
                      :vector-font-mode :vector-font-mode-vector}
-        ;; Path, source descriptor, displayed size, saved sizes before/after editing, preview/build size.
+        ;; Path, source descriptor, displayed size, saved sizes before/after
+        ;; editing, preview/build size.
         cases [["/sdf-static.font" (assoc sdf-desc :runtime false) 0 [nil nil] nil]
                ["/sdf-dynamic.font" (assoc sdf-desc :runtime true) 0 [nil nil] nil]
                ["/sdf-explicit-size.font" (assoc sdf-desc :runtime false :size 37) 37 [37 37] 37]
@@ -766,6 +779,8 @@
             (when expected-build-size
               (is (= expected-build-size (:size (g/valid-node-value font-node :font-map)))))))))))
 
+;; Vector effect size is validated and serialized on the font resource
+;; independently of its consumers.
 (deftest vector-font-effect-size-is-owned-by-the-resource
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/editor1/test.font")
@@ -821,6 +836,8 @@
       (is (:glyph-bank font-map))
       (is (not (:font font-map))))))
 
+;; Editor builds preserve the selected static or dynamic vector glyph-generation
+;; mode.
 (deftest vector-build-preserves-glyph-generation
   (test-util/with-temp-project-content
     {"/vector.font" {:font "/builtins/fonts/vera_mo_bd.ttf"
@@ -1056,7 +1073,8 @@
               font-renderable (coll/first-where #(= node (:node-id %)) (get renderables pass/transparent))]
           (is (= "default" (get-in font-renderable [:user-data :text-layout :style]))))))))
 
-;; Omitted fields must load like explicit protobuf defaults, including cached save data.
+;; Omitted fields must load like explicit protobuf defaults, including cached
+;; save data.
 (deftest font-omitted-properties-match-defaults
   (let [base {:font "/builtins/fonts/vera_mo_bd.ttf"
               :material "/builtins/fonts/font.material"
@@ -1081,7 +1099,8 @@
           (is (false? (g/node-value omitted-node :runtime)))
           (is (zero? (g/node-value omitted-node :size))))))))
 
-;; Sanitization must recognize the same scalable and bitmap extensions as resource loading.
+;; Sanitization must recognize the same scalable and bitmap extensions as
+;; resource loading.
 (deftest font-extension-case-does-not-change-sanitization
   (doseq [extension ["ttf" "otf" "fnt"]]
     (let [desc {:material "/builtins/fonts/font.material"

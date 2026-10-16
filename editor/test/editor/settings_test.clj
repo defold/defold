@@ -21,7 +21,8 @@
             [editor.settings-core :as settings-core]
             [integration.test-util :as test-util]))
 
-;; The retired project-wide font setting must explain the per-font replacement without blocking builds.
+;; The retired project-wide font setting must explain the per-font replacement
+;; without blocking builds.
 (deftest runtime-font-generation-setting-is-deprecated
   (with-open [reader (io/reader (io/resource "com/dynamo/bob/meta.properties"))]
     (let [meta-setting (settings-core/get-meta-setting (:settings (settings-core/load-meta-properties reader))

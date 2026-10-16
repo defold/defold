@@ -1,13 +1,15 @@
 ;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
-;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; Licensed under the Defold License version 1.0 (the "License"); you may not
+;; use
 ;; this file except in compliance with the License.
 ;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
 ;;
-;; Unless required by applicable law or agreed to in writing, software distributed
+;; Unless required by applicable law or agreed to in writing, software
+;; distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
@@ -37,7 +39,8 @@
 (defn- record-numeric-texture-transfers! [^GLAutoDrawable drawable transfers]
   (gl/with-drawable-as-current drawable
     (let [record-transfer! (fn [format type pixels width height]
-                             ;; Ignore storage allocation without pixel data and ordinary color textures.
+                             ;; Ignore storage allocation without pixel data and
+                             ;; ordinary color textures.
                              (when (and pixels
                                         (contains? #{[GL3/GL_RGBA GL3/GL_HALF_FLOAT]
                                                      [GL3/GL_RED_INTEGER GL3/GL_UNSIGNED_INT]}
@@ -63,7 +66,8 @@
                             [(rem index width) (- height 1 (quot index width))])))
           (.getRGB image 0 0 width height nil 0 width))))
 
-;; Absolute pixel sizes in Label and GUI markup must not scale with the node's base font size.
+;; Absolute pixel sizes in Label and GUI markup must not scale with the node's
+;; base font size.
 (deftest vector-markup-pixel-size-is-independent-of-node-font-size
   (test-util/with-loaded-project
     (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
@@ -88,7 +92,8 @@
           (test-util/prop! node :font-size 32.0)
           (is (= (* 2.0 width) (:width (g/valid-node-value node :text-layout)))))))))
 
-;; Rendering fixed pixel markup must match plain text at that size without reuploading the atlases.
+;; Rendering fixed pixel markup must match plain text at that size without
+;; reuploading the atlases.
 (deftest vector-pixel-size-rendering-reuses-textures
   (test-util/with-loaded-project
     (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
@@ -176,6 +181,7 @@
                 ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
                 (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))))
 
+;; GUI vector text respects clipping during both drawing and selection.
 (deftest vector-gui-preview-clipping-and-picking
   (test-util/with-loaded-project
     (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
@@ -209,6 +215,8 @@
           ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
           (test-util/close-tab! project app-view "/fonts/vector_preview.gui"))))))
 
+;; Open Label and GUI views refresh their rendering and picking when the font
+;; mode changes.
 (deftest font-mode-switch-in-open-views
   (test-util/with-loaded-project
     (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
@@ -254,6 +262,7 @@
             (test-util/close-tab! project app-view "/fonts/vector_preview.go")
             (test-util/close-tab! project app-view "/fonts/vector_preview.gui")))))))
 
+;; The font preview refreshes when switching between SDF and vector rendering.
 (deftest font-mode-switch-in-font-view
   (test-util/with-loaded-project
     (let [path "/fonts/vector_implicit_dynamic.font"
@@ -282,7 +291,8 @@
             ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
             (test-util/close-tab! project app-view path)))))))
 
-;; A batch must upload each numeric atlas once, even when it contains multiple text entries.
+;; A batch must upload each numeric atlas once, even when it contains multiple
+;; text entries.
 (deftest vector-batch-uploads-numeric-textures-once
   (test-util/with-loaded-project
     (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
@@ -314,7 +324,8 @@
           ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
           (test-util/close-tab! project app-view "/fonts/vector_preview.go"))))))
 
-;; Camera changes must reuse vector vertices and their version, with and without bitmap effects.
+;; Camera changes must reuse vector vertices and their version, with and without
+;; bitmap effects.
 (deftest vector-zoom-reuses-vertices
   (test-util/with-loaded-project
     (let [font-path "/fonts/vector_implicit_dynamic.font"
@@ -361,7 +372,8 @@
                 ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
                 (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))))
 
-;; Rendering zoomed Font, Label, and GUI previews must not upload unchanged numeric atlases again.
+;; Rendering zoomed Font, Label, and GUI previews must not upload unchanged
+;; numeric atlases again.
 (deftest vector-preview-zoom-reuses-textures
   (test-util/with-loaded-project
     (let [font-path "/fonts/vector_implicit_dynamic.font"
@@ -405,7 +417,8 @@
                 ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
                 (test-util/close-tab! project app-view path)))))))))
 
-;; Copied shaders and unsaved fragment edits must render through the selected material in every font view.
+;; Copied shaders and unsaved fragment edits must render through the selected
+;; material in every font view.
 (deftest custom-vector-material-preview
   (test-util/with-scratch-project "test/resources/test_project"
     (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")

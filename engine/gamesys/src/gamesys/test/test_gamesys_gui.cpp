@@ -1209,6 +1209,7 @@ TEST_F(FontTest, PrewarmTextRejectsCallbackAfterScriptInstanceReuse)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Face-only vector prewarming uses the curve reference size without allocating effect bitmaps.
 TEST_F(FontTest, VectorFontPrewarmWithoutEffectsUsesCurveReferenceSize)
 {
     const char path_font[] = "/font/dynamic_vector.fontc";
@@ -1244,6 +1245,7 @@ TEST_F(FontTest, VectorFontPrewarmWithoutEffectsUsesCurveReferenceSize)
     dmResource::Release(m_Factory, font);
 }
 
+// Vector effect prewarming uses the bitmap size authored on the font resource.
 TEST_F(FontTest, VectorFontBitmapPrewarmUsesFontResourceSize)
 {
     const char path_font[] = "/font/dynamic_vector_outline.fontc";
@@ -1281,6 +1283,7 @@ TEST_F(FontTest, VectorFontBitmapPrewarmUsesFontResourceSize)
     dmResource::Release(m_Factory, font);
 }
 
+// Static vector effects render from baked bitmaps without loading the source font.
 TEST_F(FontTest, StaticVectorEffectsUseBakedBitmapsWithoutSourceFont)
 {
     const char* paths[] = { "/font/static_vector_outline.fontc", "/font/static_vector_shadow.fontc" };
@@ -1329,6 +1332,7 @@ TEST_F(FontTest, StaticVectorEffectsUseBakedBitmapsWithoutSourceFont)
     }
 }
 
+// Script prewarming reports the unsupported generation mode of a static font.
 TEST_F(FontTest, ScriptPrewarmStaticFontReportsGlyphGeneration)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -1357,6 +1361,7 @@ TEST_F(FontTest, ScriptPrewarmStaticFontReportsGlyphGeneration)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+// Script prewarming generates vector effects before the font is first rendered.
 TEST_F(FontTest, ScriptPrewarmVectorEffectsBeforeRendering)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;

@@ -251,6 +251,7 @@ public class FontRendererTest {
         }
     }
 
+    // Native vector previews generate rich-text face and effect vertices with and without shaping.
     @Test
     public void testVectorPreviewWritesFacesAndEffectsWithRichText() throws Exception {
         byte[] fontBytes;
@@ -312,6 +313,7 @@ public class FontRendererTest {
         }
     }
 
+    // Invisible glyphs do not prevent later visible glyphs from entering the vector atlas.
     @Test
     public void testVectorInvisibleGlyphsDoNotPoisonAtlas() throws Exception {
         byte[] fontBytes;
@@ -345,6 +347,7 @@ public class FontRendererTest {
         }
     }
 
+    // After atlas overflow, a subsequent smaller preview can repopulate the atlas and render.
     @Test
     public void testVectorAtlasRecoversAfterOverflow() throws Exception {
         byte[] fontBytes;
@@ -402,6 +405,7 @@ public class FontRendererTest {
         }
     }
 
+    // Finalizing a vector batch preserves the vertices of every text entry in that batch.
     @Test
     public void testVectorBatchFinalizesAllEntriesTogether() throws Exception {
         byte[] fontBytes;
@@ -438,6 +442,7 @@ public class FontRendererTest {
         }
     }
 
+    // Vector preview vertices refer to the generated curve and band textures.
     @Test
     public void testVectorTextureAndVertices() throws Exception {
         byte[] fontBytes;
@@ -498,6 +503,7 @@ public class FontRendererTest {
         }
     }
 
+    // Vector face quads follow exact outline bounds instead of rounded bitmap widths.
     @Test
     public void testVectorVertexWidthsUseExactOutlineBounds() throws Exception {
         byte[] fontBytes;
@@ -1023,6 +1029,7 @@ public class FontRendererTest {
         }
     }
 
+    // Baked TTF and OTF glyphs keep runtime horizontal placement despite bitmap rounding and effect padding.
     @Test
     public void testBakedGlyphsPreserveRuntimeHorizontalPlacement() throws Exception {
         for (String fontResource : new String[] {"/NotoSans-Regular.ttf", "/SourceCodePro-Regular.otf"}) {
