@@ -13,7 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.model-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
+            [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -155,6 +158,64 @@
               (is (= 3 (count (:children (g/node-value node-id :scene)))))
               (let [mesh-set-build-target (find-mesh-set-build-target (g/node-value node-id :build-targets))]
                 (is (coll/empty? (get-in mesh-set-build-target [:user-data :mesh-set :raw-models])))))))))))
+
+;; Static scene and selected meshes reject skinned materials instead of building
+;; models whose missing skin data can crash graphics adapters.
+(deftest skinned-material-validation
+  (test-util/with-loaded-project
+    (doseq [model-path ["/model/test.model" "/model/mesh_selection.model"]]
+      (testing (str "static meshes reject skinned materials: " model-path)
+        (let [node-id (test-util/resource-node project model-path)
+              binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])
+              material-path "/builtins/materials/model_skinned_instanced.material"]
+          (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace material-path)]
+            (let [result (g/node-value node-id :build-targets)]
+              (is (g/error-value? result))
+              (is (coll/any? #(and (string/includes? % material-path)
+                                   (string/includes? % "has no skin data")
+                                   (string/includes? % "bone_indices and bone_weights"))
+                             (coll/into-> [result] :eduction
+                               (coll/tree-xf :causes :causes)
+                               (keep :message)
+                               (map test-util/localization)))))))))))
+
+;; Missing and stale material bindings still validate the runtime's fallback
+;; assignment, preventing skinned materials from reaching static geometry.
+(deftest skinned-material-fallback
+  (let [scene (-> (json/read-str (slurp "test/resources/test_project/mesh/two_meshes.gltf") :key-fn keyword)
+                  (assoc :materials [{:name "A"} {:name "B"} {:name "C"}])
+                  (update :meshes coll/mapv-> update :primitives coll/mapv-> assoc :material 1))]
+    (test-util/with-temp-project-content
+      {"/test.model" {:mesh "/scene.gltf"
+                      :materials [{:name "A" :material "/builtins/materials/model_skinned_instanced.material"}
+                                  {:name "C" :material "/builtins/materials/model.material"}]}}
+      (spit (io/file (workspace/project-directory workspace) "scene.gltf") (json/write-str scene))
+      (workspace/resource-sync! workspace)
+      (let [node-id (test-util/resource-node project "/test.model")
+            binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])]
+        (doseq [binding-name ["A" "Stale"]]
+          (testing (str "runtime fallback validates binding: " binding-name)
+            (test-util/with-prop [binding-id :name binding-name]
+              (let [result (g/node-value node-id :build-targets)]
+                (is (g/error-value? result))
+                (is (coll/any? #(string/includes? (test-util/localization %) "has no skin data")
+                               (coll/into-> [result] :eduction
+                                 (coll/tree-xf :causes :causes)
+                                 (keep :message))))))))
+        (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace "/builtins/materials/model.material")]
+          (is (not (g/error-value? (g/node-value node-id :build-targets)))))))))
+
+;; Skin data permits skinned materials without animation clips, preventing
+;; compatibility validation from incorrectly requiring an animation resource.
+(deftest skinned-material-without-animations
+  (testing "skin data permits skinned materials without animation clips"
+    (test-util/with-loaded-project
+      (let [node-id (test-util/resource-node project "/model/treasure_chest.model")
+            binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])
+            material (workspace/resolve-workspace-resource workspace "/builtins/materials/model_skinned_instanced.material")]
+        (test-util/with-prop [node-id :animations nil]
+          (test-util/with-prop [binding-id :material material]
+            (is (not (g/error-value? (g/node-value node-id :build-targets))))))))))
 
 (deftest model-validation
   (test-util/with-loaded-project

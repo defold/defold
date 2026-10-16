@@ -167,6 +167,15 @@ dialog.button.cancel = Cancel
 dialog.button.delete = Delete
 dialog.button.apply = Apply
 
+# Model glTF Auto Fill Dialog
+
+dialog.model-auto-fill.title = Auto Fill Model Fields?
+dialog.model-auto-fill.header = Use materials and textures from "{file}"?
+dialog.model-auto-fill.content = This assigns the materials and referenced textures exposed by the glTF file.
+dialog.model-auto-fill.content-replace = This replaces the model's existing material and texture assignments with the resources exposed by the glTF file.
+dialog.model-auto-fill.button.keep-current = Keep Current
+dialog.model-auto-fill.button.auto-fill = Auto Fill
+
 # Error Dialog
 
 dialog.error.title = Error
@@ -1431,6 +1440,28 @@ property.font.style.tooltip = The base style from the selected font. Leave empty
 property.font.markup = Markup
 property.font.markup.tooltip = Opening rich-text tags that define this style. Supports all rich-text tags, including size, links, and sprites.
 
+# Properties: glTF
+
+property.gltf.index = Index
+property.gltf.index.tooltip = The zero-based index of this asset in the corresponding glTF array.
+property.gltf.name.tooltip = The asset name from the glTF file, or a generated name when the source asset is unnamed.
+property.gltf.primitive-count = Primitive Count
+property.gltf.primitive-count.tooltip = The number of primitives contained in this glTF mesh.
+property.gltf.vertex-count = Vertex Count
+property.gltf.vertex-count.tooltip = The total number of vertices across this glTF mesh's primitives.
+property.gltf.material.tooltip = The read-only Material resource generated from this glTF material.
+property.gltf.samplers = Samplers
+property.gltf.samplers.tooltip = The sampler-to-texture bindings referenced by this glTF material.
+property.gltf.image.tooltip = The embedded or external image resource sampled by this glTF texture.
+property.gltf.min-filter = Min Filter
+property.gltf.min-filter.tooltip = The sampling filter used when this glTF texture is displayed smaller than its source image.
+property.gltf.mag-filter = Mag Filter
+property.gltf.mag-filter.tooltip = The sampling filter used when this glTF texture is displayed larger than its source image.
+property.gltf.wrap-s = Wrap S
+property.gltf.wrap-s.tooltip = Controls sampling outside the texture's horizontal coordinate range.
+property.gltf.wrap-t = Wrap T
+property.gltf.wrap-t.tooltip = Controls sampling outside the texture's vertical coordinate range.
+
 # Properties: gui
 
 property.gui.id.tooltip = The identifier used to find this node with `gui.get_node()`. It must be unique within the GUI scene; nodes from a template instance are prefixed with the template node's **Id** and a slash.
@@ -1724,6 +1755,8 @@ property.tile-source.flip-vertical = Flip Vertical
 property.tile-source.flip-vertical.tooltip = Mirror every animation frame vertically during playback.
 property.tile-source.fps = FPS
 property.tile-source.fps.tooltip = The animation playback speed in frames per second. Higher values display the tiles more quickly.
+property.tile-source.frames = Frames
+property.tile-source.frames.tooltip = Tile numbers in animation order, separated by commas, for example `1, 3, 6, 10, 3`. Inclusive ranges such as `1-4, 8, 12` are supported; `4-1` lists tiles in reverse order. Tiles are numbered from `1` at the top-left, proceeding left-to-right and then downward. Repeated tiles are allowed. Empty entries between commas are ignored.
 property.tile-source.inner-padding = Inner Padding
 property.tile-source.inner-padding.tooltip = The number of empty pixels added around each tile in the generated runtime texture. This does not describe spacing already present in the source image.
 property.tile-source.playback = Playback
@@ -1751,6 +1784,9 @@ outline.collection-proxy = Collection Proxy
 outline.collision-object = Collision Object
 outline.font.styles = Styles
 outline.game-object = Game Object
+outline.gltf.materials = Materials
+outline.gltf.meshes = Meshes
+outline.gltf.textures = Textures
 outline.gui.box = Box
 outline.gui.fonts = Fonts
 outline.gui.layouts = Layouts
@@ -1988,6 +2024,8 @@ form.label.project.android.fcm_application_id = FCM Application ID
 form.help.project.android.fcm_application_id = Firebase application ID for this Android app, used by Firebase Cloud Messaging. It identifies the registered Firebase app and is distinct from both the package name and sender ID. Leave empty when push messaging is not configured.
 form.label.project.android.manifest = Manifest
 form.help.project.android.manifest = Android manifest XML template used when bundling. A custom file replaces Defold's built-in base manifest, while native-extension fragments are still merged into it; maintain required entries when upgrading.
+form.label.project.android.vkquality_database = VkQuality Database
+form.help.project.android.vkquality_database = VkQuality database used to select between Vulkan and OpenGL ES on Android. Select a custom `.vkq` file to replace the built-in database.
 form.label.project.android.iap_provider = IAP Provider
 form.help.project.android.iap_provider = Store backend used by the in-app purchase integration. Choose **GooglePlay** for Google Play or **Amazon** for the Amazon Appstore.
 form.label.project.android.input_method = Input Method
@@ -2738,6 +2776,7 @@ error.property-must-be-greater-than-zero = "{property}" must be greater than zer
 error.property-must-be-at-least = "{property}" must be at least {min}.
 error.property-must-be-at-most = "{property}" must be at most {max}.
 error.render-target.color-attachments-cannot-exceed = "{property}" cannot have more than {max} color attachments.
+error.render-target.must-have-attachment = Render targets must have at least one attachment.
 error.render-target.texture-type-must-be-supported = Texture type must be 2D or Cubemap.
 error.render-target.sample-count-must-be-supported = Sample count must be one of 1, 2, 4, 8, or 16.
 error.render-target.cubemap-sample-count-must-be-one = Cubemap render targets only support a sample count of 1.
@@ -2790,6 +2829,7 @@ error.material-expects-paged-atlas = The Material expects a paged Atlas, but the
 error.material-does-not-support-paged-atlases = The Material does not support paged Atlases, but the selected {property} is paged.
 error.material-max-page-count-insufficient = The Material's "Max Page Count" is not sufficient for the number of pages in the selected {property}.
 error.model-unsupported-file-format = {property} "{resource}" has unsupported format {format}. Defold supports only {supported_formats} files for {property}.
+error.model-skinned-material = Material "{material}" in slot "{slot}" requires skinning attributes ({attributes}), but mesh {mesh_index} in "{scene}" has no skin data. Use a non-skinned material.
 error.model-load-failed = The file "{file}" failed to load:\n{error}
 error.model-mesh-selection-file-type = Mesh is only available for glTF and GLB scenes.
 error.model-mesh-selection-name-required = The selected mesh index does not have a mesh name.

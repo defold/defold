@@ -13,26 +13,32 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/sys.h>
+#include <dlib/time.h>
 #include <platform/window.hpp>
 #include "test_app_graphics.h"
 #include "graphics_capture.vp.h"
 #include "graphics_capture.fp.h"
 #include "graphics_capture.cube.fp.h"
+#include "graphics_capture.texture.fp.h"
 #include "graphics_capture.vp.msl.h"
 #include "graphics_capture.fp.msl.h"
 #include "graphics_capture.cube.fp.msl.h"
+#include "graphics_capture.texture.fp.msl.h"
 #include "graphics_capture.vp.wgsl.h"
 #include "graphics_capture.fp.wgsl.h"
 #include "graphics_capture.cube.fp.wgsl.h"
+#include "graphics_capture.texture.fp.wgsl.h"
 #if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
 #include "graphics_capture.vert.spv.h"
 #include "graphics_capture.frag.spv.h"
 #include "graphics_capture.cube.frag.spv.h"
+#include "graphics_capture.texture.frag.spv.h"
 #endif
 
 #define STB_IMAGE_WRITE_STATIC
@@ -100,8 +106,8 @@ struct CaptureResources
     HProgram           m_Program;
     HVertexBuffer      m_Vertices;
     HVertexDeclaration m_Declaration;
-    HTexture           m_Cubemap;
-    HUniformLocation   m_CubemapLocation;
+    HTexture           m_Texture;
+    HUniformLocation   m_TextureLocation;
 };
 
 struct CaptureContext
@@ -110,6 +116,7 @@ struct CaptureContext
     HContext    m_Context;
     HJobContext m_JobContext;
     bool        m_WindowOpened;
+    bool        m_WindowClosed;
 };
 
 struct CaptureStencilOperation
@@ -125,7 +132,7 @@ static const uint32_t CAPTURE_BUFFERS = BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEP
 
 // Each case renders to an offscreen target. run_graphics_images.py compares its
 // PNG with a reviewed reference; the comments below describe the expected image.
-static const char*    CAPTURE_CASES[] = {
+static const char* CAPTURE_CASES[] = {
     "clear",
     "triangle",
     "stencil",
@@ -135,7 +142,99 @@ static const char*    CAPTURE_CASES[] = {
     "stencil_depth",
     "stencil_faces",
     "cubemap",
+#define TEXTURE_FORMAT_CASE(suffix, format, width, height, bytes) "texture_" #suffix,
+#include "texture_formats/formats.inc"
+#undef TEXTURE_FORMAT_CASE
 };
+
+struct CaptureTextureFormat
+{
+    const char*   m_Case;
+    const char*   m_Suffix;
+    TextureFormat m_Format;
+    uint32_t      m_DataSize;
+};
+
+static const CaptureTextureFormat CAPTURE_TEXTURE_FORMATS[] = {
+#define TEXTURE_FORMAT_CASE(suffix, format, width, height, bytes) \
+    { "texture_" #suffix, #suffix, TEXTURE_FORMAT_##format, ((CAPTURE_SIZE + width - 1) / width) * ((CAPTURE_SIZE + height - 1) / height) * bytes },
+#include "texture_formats/formats.inc"
+#undef TEXTURE_FORMAT_CASE
+};
+
+static const CaptureTextureFormat* FindCaptureTextureFormat(const char* name)
+{
+    for (uint32_t i = 0; name && i < DM_ARRAY_SIZE(CAPTURE_TEXTURE_FORMATS); ++i)
+    {
+        if (strcmp(name, CAPTURE_TEXTURE_FORMATS[i].m_Case) == 0)
+        {
+            return &CAPTURE_TEXTURE_FORMATS[i];
+        }
+    }
+    return 0;
+}
+
+static void CaptureTextureUploadComplete(HTexture, void* user_data)
+{
+    *(bool*)user_data = true;
+}
+
+static HTexture CreateCaptureTexture(HContext context, const CaptureTextureFormat& format, HJobContext jobs = 0)
+{
+    char path[1024];
+    dmSnPrintf(path, sizeof(path), "%s/testimage.%s", DM_TEST_TEXTURE_FORMATS_DIR, format.m_Suffix);
+    FILE* file = fopen(path, "rb");
+    if (!file)
+    {
+        dmLogError("Cannot open texture fixture: %s", path);
+        return 0;
+    }
+    uint8_t* data = (uint8_t*)malloc(format.m_DataSize);
+    bool     loaded = fread(data, 1, format.m_DataSize, file) == format.m_DataSize && fgetc(file) == EOF;
+    fclose(file);
+    HTexture texture = 0;
+    if (loaded)
+    {
+        TextureCreationParams creation;
+        creation.m_Width = CAPTURE_SIZE;
+        creation.m_Height = CAPTURE_SIZE;
+        texture = NewTexture(context, creation);
+        if (texture)
+        {
+            TextureParams params;
+            params.m_Width = CAPTURE_SIZE;
+            params.m_Height = CAPTURE_SIZE;
+            params.m_Format = format.m_Format;
+            params.m_Data = data;
+            params.m_DataSize = format.m_DataSize;
+            params.m_MinFilter = TEXTURE_FILTER_NEAREST;
+            params.m_MagFilter = TEXTURE_FILTER_NEAREST;
+            params.m_UWrap = TEXTURE_WRAP_CLAMP_TO_EDGE;
+            params.m_VWrap = TEXTURE_WRAP_CLAMP_TO_EDGE;
+            // Keep the native fixture bytes alive until the upload completes.
+            if (jobs)
+            {
+                bool complete = false;
+                SetTextureAsync(context, texture, params, CaptureTextureUploadComplete, &complete);
+                while (!complete)
+                {
+                    JobSystemUpdate(jobs, 0);
+                    dmTime::Sleep(100);
+                }
+            }
+            else
+            {
+                SetTexture(context, texture, params);
+            }
+        }
+    }
+    else
+    {
+        dmLogError("Texture fixture has an unexpected size: %s (expected %u bytes)", path, format.m_DataSize);
+    }
+    free(data);
+    return texture;
+}
 
 static const CaptureBackend CAPTURE_BACKENDS[] = {
     { "metal", ADAPTER_FAMILY_METAL, WINDOW_GRAPHICS_API_METAL },
@@ -338,7 +437,17 @@ static bool MakeCaptureParent(const char* filename)
     return true;
 }
 
-static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool cubemap)
+static const char* GetCaptureTextureName(AdapterFamily family, bool cubemap)
+{
+    if (family == ADAPTER_FAMILY_OPENGL)
+    {
+        // shaderc combines the separate texture and sampler for GLSL 330.
+        return cubemap ? "SPIRV_Cross_Combinedcubemapcube_sampler" : "SPIRV_Cross_Combinedtest_texturetest_sampler";
+    }
+    return cubemap ? "cubemap" : "test_texture";
+}
+
+static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool cubemap, bool texture)
 {
     ShaderDesc desc = {};
     AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_VERTEX, capture_vp, capture_vp_SIZE);
@@ -347,7 +456,16 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool c
     AddShader(&desc, ShaderDesc::LANGUAGE_SPIRV, ShaderDesc::SHADER_TYPE_VERTEX, capture_vert_spv, capture_vert_spv_SIZE);
 #endif
     AddShader(&desc, ShaderDesc::LANGUAGE_WGSL, ShaderDesc::SHADER_TYPE_VERTEX, capture_vp_wgsl, capture_vp_wgsl_SIZE);
-    if (cubemap)
+    if (texture)
+    {
+        AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_texture_fp, capture_texture_fp_SIZE);
+        AddShader(&desc, ShaderDesc::LANGUAGE_MSL_22, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_texture_fp_msl, capture_texture_fp_msl_SIZE);
+#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
+        AddShader(&desc, ShaderDesc::LANGUAGE_SPIRV, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_texture_frag_spv, capture_texture_frag_spv_SIZE);
+#endif
+        AddShader(&desc, ShaderDesc::LANGUAGE_WGSL, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_texture_fp_wgsl, capture_texture_fp_wgsl_SIZE);
+    }
+    else if (cubemap)
     {
         AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_cube_fp, capture_cube_fp_SIZE);
         AddShader(&desc, ShaderDesc::LANGUAGE_MSL_22, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_cube_fp_msl, capture_cube_fp_msl_SIZE);
@@ -368,23 +486,25 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool c
 
     // NewProgram copies these borrowed mappings before this function returns.
     ShaderDesc::MSLResourceMapping metal_bindings[2] = {};
-    if (cubemap)
+    if (cubemap || texture)
     {
-        ShaderDesc::ShaderDataType texture_type = ShaderDesc::SHADER_TYPE_TEXTURE_CUBE;
+        const char*                texture_name = GetCaptureTextureName(family, cubemap);
+        const char*                sampler_name = cubemap ? "cube_sampler" : "test_sampler";
+        ShaderDesc::ShaderDataType texture_type = cubemap ? ShaderDesc::SHADER_TYPE_TEXTURE_CUBE : ShaderDesc::SHADER_TYPE_TEXTURE2D;
         if (family == ADAPTER_FAMILY_OPENGL)
         {
-            texture_type = ShaderDesc::SHADER_TYPE_SAMPLER_CUBE;
+            texture_type = cubemap ? ShaderDesc::SHADER_TYPE_SAMPLER_CUBE : ShaderDesc::SHADER_TYPE_SAMPLER2D;
         }
-        AddShaderResource(&desc, "cubemap", texture_type, 0, 0, BINDING_TYPE_TEXTURE, SHADER_STAGE_FLAG_FRAGMENT);
+        AddShaderResource(&desc, texture_name, texture_type, 0, 0, BINDING_TYPE_TEXTURE, SHADER_STAGE_FLAG_FRAGMENT);
         if (family != ADAPTER_FAMILY_OPENGL)
         {
-            AddShaderResource(&desc, "cube_sampler", ShaderDesc::SHADER_TYPE_SAMPLER, 1, 0, BINDING_TYPE_TEXTURE, SHADER_STAGE_FLAG_FRAGMENT);
+            AddShaderResource(&desc, sampler_name, ShaderDesc::SHADER_TYPE_SAMPLER, 1, 0, BINDING_TYPE_TEXTURE, SHADER_STAGE_FLAG_FRAGMENT);
             desc.m_Reflection.m_Textures[1].m_Bindinginfo.m_SamplerTextureIndex = 0;
         }
 
         for (uint32_t i = 0; i < 2; ++i)
         {
-            metal_bindings[i].m_NameHash = dmHashString64(i == 0 ? "cubemap" : "cube_sampler");
+            metal_bindings[i].m_NameHash = dmHashString64(i == 0 ? texture_name : sampler_name);
             metal_bindings[i].m_Binding = i;
             metal_bindings[i].m_MslIndex = i;
         }
@@ -412,7 +532,7 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool c
     return program;
 }
 
-static bool CreateCaptureResources(HContext context, AdapterFamily family, bool cubemap, CaptureResources* resources)
+static bool CreateCaptureResources(HContext context, AdapterFamily family, bool cubemap, const CaptureTextureFormat* texture, CaptureResources* resources)
 {
     RenderTargetCreationParams params = {};
     params.m_SampleCount = 1;
@@ -438,7 +558,7 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
     params.m_StencilBufferParams.m_Format = TEXTURE_FORMAT_STENCIL;
 
     resources->m_Target = NewRenderTarget(context, CAPTURE_BUFFERS, params);
-    resources->m_Program = NewCaptureProgram(context, family, cubemap);
+    resources->m_Program = NewCaptureProgram(context, family, cubemap, texture != 0);
     if (!resources->m_Target || !resources->m_Program)
     {
         return false;
@@ -454,29 +574,41 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
     {
         MakeRectangleVertices(CAPTURE_RECTANGLES[i], vertices + 3 + 6 * i);
     }
-    if (cubemap)
+    if (texture)
     {
-        resources->m_Vertices = CreateCubemapVertices(context);
-        resources->m_Cubemap = CreateCaptureCubemap(context);
-        resources->m_CubemapLocation = INVALID_UNIFORM_LOCATION;
+        // The color stream carries top-down UVs through the shared vertex shader.
+        const CaptureVertex quad[] = {
+            { { -1, -1, 0 }, { 0, 1, 0 } },
+            { { 1, -1, 0 }, { 1, 1, 0 } },
+            { { -1, 1, 0 }, { 0, 0, 0 } },
+            { { 1, -1, 0 }, { 1, 1, 0 } },
+            { { 1, 1, 0 }, { 1, 0, 0 } },
+            { { -1, 1, 0 }, { 0, 0, 0 } },
+        };
+        resources->m_Vertices = NewVertexBuffer(context, sizeof(quad), (void*)quad, BUFFER_USAGE_STATIC_DRAW);
+    }
+    else
+    {
+        resources->m_Vertices = cubemap ? CreateCubemapVertices(context) : NewVertexBuffer(context, sizeof(vertices), vertices, BUFFER_USAGE_STATIC_DRAW);
+    }
+    if (cubemap || texture)
+    {
+        resources->m_Texture = cubemap ? CreateCaptureCubemap(context) : CreateCaptureTexture(context, *texture);
+        resources->m_TextureLocation = INVALID_UNIFORM_LOCATION;
         for (uint32_t i = 0; i < GetUniformCount(resources->m_Program); ++i)
         {
             Uniform uniform;
             GetUniform(resources->m_Program, i, &uniform);
-            if (uniform.m_NameHash == dmHashString64("cubemap"))
+            if (uniform.m_NameHash == dmHashString64(GetCaptureTextureName(family, cubemap)))
             {
-                resources->m_CubemapLocation = uniform.m_Location;
+                resources->m_TextureLocation = uniform.m_Location;
             }
         }
-        if (!resources->m_Cubemap || resources->m_CubemapLocation == INVALID_UNIFORM_LOCATION)
+        if (!resources->m_Texture || resources->m_TextureLocation == INVALID_UNIFORM_LOCATION)
         {
-            dmLogError("Cannot create capture cubemap or find its shader binding");
+            dmLogError("Cannot create capture texture or find its shader binding");
             return false;
         }
-    }
-    else
-    {
-        resources->m_Vertices = NewVertexBuffer(context, sizeof(vertices), vertices, BUFFER_USAGE_STATIC_DRAW);
     }
 
     HVertexStreamDeclaration streams = NewVertexStreamDeclaration(context);
@@ -501,9 +633,9 @@ static void DeleteCaptureResources(HContext context, CaptureResources* resources
     {
         DeleteProgram(context, resources->m_Program);
     }
-    if (resources->m_Cubemap)
+    if (resources->m_Texture)
     {
-        DeleteTexture(context, resources->m_Cubemap);
+        DeleteTexture(context, resources->m_Texture);
     }
     if (resources->m_Target)
     {
@@ -720,15 +852,15 @@ static void RenderCapture(HContext context, const CaptureResources& resources, c
         // vertex-layout errors and channel swaps: blue above, red left, green right.
         Draw(context, PRIMITIVE_TRIANGLES, 0, 3, 1);
     }
-    else if (strcmp(name, "cubemap") == 0)
+    else if (resources.m_Texture)
     {
         // Sampling the uploaded cubemap by direction checks face order, binding and
         // orientation. Expect +Y above; -X, +Z, +X, -Z across; and -Y below. Labels
         // and unequal corner markers expose swapped, rotated or mirrored faces.
-        SetSampler(context, resources.m_CubemapLocation, 0);
-        EnableTexture(context, 0, 0, resources.m_Cubemap);
-        Draw(context, PRIMITIVE_TRIANGLES, 0, 36, 1);
-        DisableTexture(context, 0, resources.m_Cubemap);
+        SetSampler(context, resources.m_TextureLocation, 0);
+        EnableTexture(context, 0, 0, resources.m_Texture);
+        Draw(context, PRIMITIVE_TRIANGLES, 0, strcmp(name, "cubemap") == 0 ? 36 : 6, 1);
+        DisableTexture(context, 0, resources.m_Texture);
     }
     else if (strncmp(name, "stencil", 7) == 0)
     {
@@ -918,9 +1050,9 @@ static bool CheckReadbackContinuation(HContext context, const CaptureResources& 
 // Every case must match a second render in the same frame, and a narrow readback
 // must exactly match its slice of the full image. These checks can fail even when
 // the first PNG matches its reference, so they also contribute to the exit status.
-static bool CaptureImage(HContext context, const CaptureResources& resources, const char* name, const char* filename)
+static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResources& resources, const char* name, const char* filename)
 {
-    const char* diagnostics[] = { "repeated", "viewport-expected", "viewport-actual", "depth-stencil-expected", "depth-stencil-actual" };
+    const char* diagnostics[] = { "repeated", "async-upload", "viewport-expected", "viewport-actual", "depth-stencil-expected", "depth-stencil-actual" };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(diagnostics); ++i)
     {
         char path[1200];
@@ -969,6 +1101,29 @@ static bool CaptureImage(HContext context, const CaptureResources& resources, co
         valid = false;
     }
 
+    const CaptureTextureFormat* format = FindCaptureTextureFormat(name);
+    if (format && (format->m_Format == TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 || format->m_Format == TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1))
+    {
+        // A fresh texture exercises allocation and the worker upload path; the
+        // report image above still comes from the synchronous upload.
+        CaptureResources async_resources = resources;
+        async_resources.m_Texture = CreateCaptureTexture(context, *format, jobs);
+        if (async_resources.m_Texture)
+        {
+            RenderCapture(context, async_resources, name);
+            ReadPixels(context, 0, 0, CAPTURE_SIZE, CAPTURE_SIZE, repeated.Begin(), CAPTURE_BYTES);
+            if (!CapturePixelsEqual("PVRTC asynchronous upload", pixels.Begin(), repeated.Begin()))
+            {
+                WriteCaptureDiagnostic(filename, "async-upload", repeated.Begin());
+                valid = false;
+            }
+            DeleteTexture(context, async_resources.m_Texture);
+        }
+        else
+        {
+            valid = false;
+        }
+    }
     // The triangle uses the untextured program shared by these continuation probes.
     if (strcmp(name, "triangle") == 0 && !CheckReadbackContinuation(context, resources, filename))
     {
@@ -994,6 +1149,12 @@ static bool CaptureImage(HContext context, const CaptureResources& resources, co
     return valid && written;
 }
 
+static int CloseCaptureWindow(void* user_data)
+{
+    *(bool*)user_data = true;
+    return 0; // Keep the context alive until its resources have been deleted.
+}
+
 static bool InitializeCapture(const CaptureBackend& backend, CaptureContext* capture)
 {
     capture->m_Window = dmPlatform::NewWindow();
@@ -1004,6 +1165,8 @@ static bool InitializeCapture(const CaptureBackend& backend, CaptureContext* cap
     window_params.m_Height = CAPTURE_SIZE;
     window_params.m_Samples = 1;
     window_params.m_Title = "Graphics capture";
+    window_params.m_CloseCallback = CloseCaptureWindow;
+    window_params.m_CloseCallbackUserData = &capture->m_WindowClosed;
     window_params.m_Hidden = 1;
     window_params.m_FocusOnShow = 0;
     window_params.m_GraphicsApi = backend.m_Api;
@@ -1065,8 +1228,7 @@ static void FinalizeCapture(CaptureContext* capture)
     dmPlatform::DeleteWindow(capture->m_Window);
 }
 
-// Returns -1 when the original interactive test app should handle the arguments.
-int RunGraphicsCapture(int argc, char** argv)
+static int CaptureMain(int argc, char** argv)
 {
     bool selected = false;
     for (int i = 1; i < argc; ++i)
@@ -1075,7 +1237,8 @@ int RunGraphicsCapture(int argc, char** argv)
             strcmp(argv[i], "--list-cases") == 0 ||
             strcmp(argv[i], "--backend") == 0 ||
             strcmp(argv[i], "--output") == 0 ||
-            strcmp(argv[i], "--output-file") == 0)
+            strcmp(argv[i], "--output-file") == 0 ||
+            strcmp(argv[i], "--show") == 0)
         {
             selected = true;
             break;
@@ -1091,11 +1254,17 @@ int RunGraphicsCapture(int argc, char** argv)
     const char* directory = 0;
     const char* output_file = 0;
     bool        list = false;
+    bool        show = false;
     for (int i = 1; i < argc; ++i)
     {
         if (strcmp(argv[i], "--list-cases") == 0)
         {
             list = true;
+            continue;
+        }
+        if (strcmp(argv[i], "--show") == 0 && !show)
+        {
+            show = true;
             continue;
         }
         const char** value = 0;
@@ -1122,7 +1291,7 @@ int RunGraphicsCapture(int argc, char** argv)
         }
         *value = argv[++i];
     }
-    if (list && !name && !backend_name && !directory && !output_file)
+    if (list && !name && !backend_name && !directory && !output_file && !show)
     {
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(CAPTURE_CASES); ++i)
         {
@@ -1141,7 +1310,7 @@ int RunGraphicsCapture(int argc, char** argv)
     }
     if (list || !known_case || !backend_name || (directory && output_file))
     {
-        dmLogError("Usage: --case <name from --list-cases> --backend metal|opengl|vulkan|webgpu [--output directory | --output-file file.png]");
+        dmLogError("Usage: --case <name from --list-cases> --backend metal|opengl|vulkan|webgpu [--output directory | --output-file file.png] [--show]");
         return 1;
     }
     const CaptureBackend* backend = 0;
@@ -1159,6 +1328,8 @@ int RunGraphicsCapture(int argc, char** argv)
         return 1;
     }
     dmLogInfo("GRAPHICS_CAPTURE_BACKEND=%s", backend->m_Name);
+    printf("GRAPHICS_CAPTURE_PLATFORM=%s\n", DM_TEST_GRAPHICS_PLATFORM);
+    fflush(stdout);
 
     char filename[1024];
     int length;
@@ -1185,13 +1356,106 @@ int RunGraphicsCapture(int argc, char** argv)
         return 1;
     }
 
-    CaptureResources resources = {};
-    bool             success = CreateCaptureResources(capture.m_Context, backend->m_Family, strcmp(name, "cubemap") == 0, &resources);
+    CaptureResources            resources = {};
+    const CaptureTextureFormat* texture = FindCaptureTextureFormat(name);
+    bool                        skipped = texture && !IsTextureFormatSupported(capture.m_Context, texture->m_Format);
+    uint16_t                    version_major = 0, version_minor = 0;
+    GetAdapterVersion(capture.m_Context, version_major, version_minor);
+    bool required_rgtc = texture && backend->m_Family == ADAPTER_FAMILY_OPENGL && version_major >= 3 && (texture->m_Format == TEXTURE_FORMAT_R_BC4 || texture->m_Format == TEXTURE_FORMAT_RG_BC5);
+    // The arm64 iOS simulator exposes Apple2, which supports the 2D ASTC formats tested here.
+    bool required_astc = texture && backend->m_Family == ADAPTER_FAMILY_METAL && strcmp(DM_TEST_GRAPHICS_PLATFORM, "arm64_sim-ios") == 0 && IsTextureFormatASTC(texture->m_Format);
+    if (skipped && required_rgtc)
+    {
+        dmLogError("Desktop OpenGL 3.0+ must support BC4 and BC5 textures");
+    }
+    else if (skipped && required_astc)
+    {
+        dmLogError("The arm64 iOS simulator Metal backend must support 2D ASTC textures");
+    }
+    else if (skipped)
+    {
+        printf("GRAPHICS_CAPTURE_SKIP=Texture format %s is not supported by %s\n", texture->m_Suffix, backend_name);
+    }
+    bool success = !skipped && CreateCaptureResources(capture.m_Context, backend->m_Family, strcmp(name, "cubemap") == 0, texture, &resources);
     if (success)
     {
-        success = CaptureImage(capture.m_Context, resources, name, filename);
+        success = CaptureImage(capture.m_Context, capture.m_JobContext, resources, name, filename);
+    }
+    if (success && show)
+    {
+        CaptureResources display = resources;
+        display.m_Target = 0;
+        SetSwapInterval(capture.m_Context, 1);
+        dmPlatform::ShowWindow(capture.m_Window);
+        while (!capture.m_WindowClosed)
+        {
+            dmPlatform::PollEvents(capture.m_Window);
+            if (capture.m_WindowClosed)
+            {
+                break;
+            }
+            BeginFrame(capture.m_Context);
+            RenderCapture(capture.m_Context, display, name);
+            Flip(capture.m_Context);
+        }
     }
     DeleteCaptureResources(capture.m_Context, &resources);
     FinalizeCapture(&capture);
+    if (skipped && !required_rgtc && !required_astc)
+    {
+        return 77;
+    }
     return success ? 0 : 1;
+}
+
+#if defined(DM_PLATFORM_IOS)
+struct IOSCaptureState
+{
+    int    m_Argc;
+    char** m_Argv;
+    int    m_Result;
+};
+
+static void* CreateIOSCapture(int argc, char** argv)
+{
+    static IOSCaptureState state;
+    state.m_Argc = argc;
+    state.m_Argv = argv;
+    return &state;
+}
+
+static int UpdateIOSCapture(void* context)
+{
+    IOSCaptureState* state = (IOSCaptureState*)context;
+    state->m_Result = CaptureMain(state->m_Argc, state->m_Argv);
+    return -1;
+}
+
+static void DestroyIOSCapture(void*) {}
+
+static void GetIOSCaptureResult(void* context, int* run_action, int* exit_code, int*, char***)
+{
+    *run_action = -1;
+    *exit_code = ((IOSCaptureState*)context)->m_Result;
+    // simctl's exit status alone does not establish that the app completed.
+    printf("GRAPHICS_CAPTURE_RESULT=%d\n", *exit_code);
+    fflush(stdout);
+}
+#endif
+
+// Returns -1 when the original interactive test app should handle the arguments.
+int RunGraphicsCapture(int argc, char** argv)
+{
+#if defined(DM_PLATFORM_IOS)
+    for (int i = 1; i < argc; ++i)
+    {
+        if (strcmp(argv[i], "--case") == 0)
+        {
+            // UIKit and the GLFW scene must be ready before creating GPU surfaces.
+            AppBootstrap(argc, argv, 0, 0, 0, CreateIOSCapture, DestroyIOSCapture, UpdateIOSCapture, GetIOSCaptureResult);
+            return 1;
+        }
+    }
+#endif
+    return CaptureMain(argc, argv);
 }

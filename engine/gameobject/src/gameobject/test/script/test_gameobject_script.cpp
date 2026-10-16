@@ -210,6 +210,53 @@ TEST_F(ScriptTest, TestScript01)
     dmGameObject::Delete(m_Collection, go, false);
 }
 
+// Hashed transform targets must update the named object without allocating
+// temporary URLs; missing targets and slot reuse must still resolve by identifier.
+TEST_F(ScriptTest, HashTransformTargetsAvoidTemporaryURLs)
+{
+    dmGameObject::HInstance caller = dmGameObject::New(m_Collection, "/null.goc");
+    dmGameObject::HInstance target = dmGameObject::New(m_Collection, 0);
+    ASSERT_NE(0, caller);
+    ASSERT_NE(0, target);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, caller, "caller"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, target, "target"));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dmGameObject::CompScriptWorld* world = GetScriptWorld(m_Collection);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, world->m_Instances[0]->m_InstanceReference);
+    dmScript::SetInstance(L);
+    const char* code =
+        "if jit then jit.off() end\n"
+        "local id = hash('target')\n"
+        "local p, s, r = vmath.vector3(1, 2, 3), vmath.vector3(2, 3, 4), vmath.quat()\n"
+        "go.set_position(p, id); go.set_scale(s, id); go.set_rotation(r, id)\n"
+        "collectgarbage('collect'); collectgarbage('stop')\n"
+        "local before = collectgarbage('count')\n"
+        "for i = 1, 500 do\n"
+        "    go.set_position(p, id); go.set_scale(s, id); go.set_rotation(r, id)\n"
+        "end\n"
+        "local allocated = collectgarbage('count') - before\n"
+        "collectgarbage('restart')\n"
+        "assert(allocated < 1, 'hashed setters allocated temporary data: ' .. allocated .. ' KiB')\n"
+        "assert(go.get_position(id) == p and go.get_scale(id) == s and go.get_rotation(id) == r)\n"
+        "assert(go.get_position() == vmath.vector3())\n";
+    int result = luaL_dostring(L, code);
+    if (result)
+        dmLogError("%s", lua_tostring(L, -1));
+    ASSERT_EQ(0, result);
+    dmGameObject::Delete(m_Collection, target, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(0, luaL_dostring(L, "assert(not pcall(go.set_position, vmath.vector3(), hash('target')))"));
+
+    target = dmGameObject::New(m_Collection, 0);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, target, "target"));
+    ASSERT_EQ(0, luaL_dostring(L, "go.set_position(vmath.vector3(4, 5, 6), hash('target'))"));
+    ASSERT_NEAR(4.0f, dmGameObject::GetPosition(target).getX(), 0.000001f);
+    ASSERT_NEAR(5.0f, dmGameObject::GetPosition(target).getY(), 0.000001f);
+    ASSERT_NEAR(6.0f, dmGameObject::GetPosition(target).getZ(), 0.000001f);
+}
+
 TEST_F(ScriptTest, TestFailingScript02)
 {
     // Test init failure

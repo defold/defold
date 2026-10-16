@@ -23,6 +23,9 @@ host's Protobuf tools. Protobuf and Abseil use the same CMake toolchain and buil
 graph as the other source dependencies and install directly into `ext`.
 `external/build` itself is generated build output.
 
+CI caches built external dependencies for engine, Bob, and editor jobs using the
+[`build-external`](../.github/actions/build-external/action.yml) action.
+
 To force a fresh build, run
 `./scripts/build.py clean_ext install_ext --platform=<platform>`.
 

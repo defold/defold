@@ -147,6 +147,96 @@ static GuiTextSubmitResult QueueGuiAndGetTextLayout(dmRender::HRenderContext ren
     return SubmitGuiAndGetTextLayout(render_context, collection, false, false);
 }
 
+// Ordered by LabelDesc::Pivot so the index is also the serialized pivot value.
+static const char* layout_object_pivots[] = { "CENTER", "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
+
+struct LayoutObjectTextCase
+{
+    const char* m_Text;
+    float m_Width;
+    uint32_t m_MinLineCount;
+    uint8_t m_MonospacePadding;
+};
+
+static const LayoutObjectTextCase layout_object_text_cases[] = {
+    { "Here is the <sprite src=/icon.png width=1em height=1em/> logo", 200.0f, 1, 0 },
+    { "Title\nHere is the <sprite src=/icon.png width=1em height=1em/> logo", 200.0f, 2, 0 },
+    { "Here is the <sprite src=/icon.png width=1em height=1em/> logo", 80.0f, 2, 0 },
+    { "سلام <sprite src=/icon.png width=1em height=1em/> سلام", 200.0f, 1, 0 },
+    { "Here is the <sprite src=/icon.png width=1em height=1em/> logo", 80.0f, 2, 6 },
+    { "سلام <sprite src=/icon.png width=1em height=1em/> سلام", 200.0f, 1, 6 },
+};
+
+class GuiLayoutObjectPivotTest : public GuiTest {};
+
+class LabelLayoutObjectPivotTest : public LabelComponentTest
+{
+public:
+    const char* GetContentFolder() const override { return "label"; }
+};
+
+static void CheckLayoutObjectRenderPosition(lua_State* L, dmRender::HRenderContext render_context, const Point3& origin, bool north_west)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+    lua_getglobal(L, "layout_objects");
+    ASSERT_TRUE(lua_istable(L, -1));
+    ASSERT_EQ(1u, lua_objlen(L, -1));
+    lua_rawgeti(L, -1, 1);
+    lua_getfield(L, -1, "x");
+    float x = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    lua_getfield(L, -1, "y");
+    float y = lua_tonumber(L, -1);
+    lua_pop(L, 3);
+
+    dmRender::RenderContext* context = (dmRender::RenderContext*)render_context;
+    ASSERT_EQ(1u, context->m_TextContext.m_TextEntries.Size());
+    const dmRender::TextEntry& entry = context->m_TextContext.m_TextEntries[0];
+    HTextLayout layout = entry.m_TextLayout;
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(layout));
+    ASSERT_EQ(dmHashString64("sprite"), TextLayoutGetObjects(layout)[0].m_Tag);
+    const float monospace_padding = dmRender::GetFontMapMonospaced(entry.m_FontMap) ? dmRender::GetFontMapPadding(entry.m_FontMap) : 0.0f;
+
+    if (north_west && TextLayoutGetParagraphs(layout)[0].m_Direction == TEXT_DIRECTION_LTR)
+    {
+        // Working NW content retains the exact original coordinates. Legacy monospace padding needs rendering's inset.
+        float layout_width, layout_height, original_x, original_y;
+        TextLayoutGetBounds(layout, &layout_width, &layout_height);
+        ASSERT_TRUE(TextLayoutGetObjectPosition(layout, TextLayoutGetObjects(layout), 0.0f, 0.0f, layout_width, &original_x, &original_y));
+        EXPECT_EQ(original_x - monospace_padding * 0.5f, x);
+        EXPECT_EQ(original_y, y);
+    }
+
+    // Use the render entry's alignment and transform to obtain the sprite's hit box.
+    TextLayoutHitTestParams hit_test = {};
+    hit_test.m_Tag = dmHashString64("sprite");
+    hit_test.m_Width = entry.m_Width;
+    hit_test.m_Height = entry.m_Height;
+    hit_test.m_Align = entry.m_Align;
+    hit_test.m_VAlign = entry.m_VAlign;
+    hit_test.m_FontSize = dmRender::GetFontMapSize(entry.m_FontMap);
+    hit_test.m_MonospacePadding = monospace_padding;
+    TextLayoutHitTestObject(layout, hit_test);
+    ASSERT_EQ(1u, layout->m_ObjectBounds.Size());
+    const TextLayoutObjectBounds& bounds = layout->m_ObjectBounds[0];
+    Vector4 rendered_position = entry.m_Transform * Point3(bounds.m_MinX, bounds.m_MinY, 0.0f);
+    EXPECT_NEAR(rendered_position.getX(), origin.getX() + x, 0.0001f);
+    EXPECT_NEAR(rendered_position.getY(), origin.getY() + y, 0.0001f);
+}
+
+static void SetLayoutObjectTextCase(lua_State* L, const LayoutObjectTextCase& text_case, dmGameSystem::FontResource* font_resource)
+{
+    // Exercise the padding settings supplied by legacy compiled monospaced fonts.
+    dmRender::FontMap* font_map = (dmRender::FontMap*)dmGameSystem::ResFontGetHandle(font_resource);
+    font_map->m_IsMonospaced = text_case.m_MonospacePadding != 0;
+    font_map->m_Padding = text_case.m_MonospacePadding;
+    lua_pushstring(L, text_case.m_Text);
+    lua_setglobal(L, "layout_object_text");
+    lua_pushnumber(L, text_case.m_Width);
+    lua_setglobal(L, "layout_object_width");
+}
+
 static dmhash_t GetTextLayoutGlyphFontPathHash(dmGameSystem::FontResource* font_resource, HTextLayout layout)
 {
     EXPECT_NE((HTextLayout)0, layout);
@@ -1951,6 +2041,51 @@ TEST_F(GuiTest, GuiLayoutObjectsAreCurrentOnDemand)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verifies GUI sprite positions match rendering across pivots, wrapping, RTL, legacy padding, and cached pivot changes (#13397).
+TEST_P(GuiLayoutObjectPivotTest, SpritePositionMatchesRender)
+{
+    dmGui::SetDefaultResolution(m_GuiContext, 640, 480);
+    dmGui::SetPhysicalResolution(m_GuiContext, 640, 480);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::FontResource* font_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/gui/font_valid_font.fontc", (void**)&font_resource));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(layout_object_text_cases); ++i)
+    {
+        lua_pushstring(L, GetParam());
+        lua_setglobal(L, "layout_object_pivot");
+        SetLayoutObjectTextCase(L, layout_object_text_cases[i], font_resource);
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/layout_object_pivot.goc", dmHashString64("/go"));
+        ASSERT_NE(0, go);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        HTextLayout layout = QueueGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout;
+        ASSERT_NE((HTextLayout)0, layout);
+        ASSERT_GE(TextLayoutGetLineCount(layout), layout_object_text_cases[i].m_MinLineCount);
+        CheckLayoutObjectRenderPosition(L, m_RenderContext, Point3(320.0f, 240.0f, 0.0f), strcmp(GetParam(), "NW") == 0);
+        dmRender::ClearRenderObjects(m_RenderContext);
+
+        lua_pushstring(L, strcmp(GetParam(), "NW") == 0 ? "CENTER" : "NW");
+        lua_setglobal(L, "layout_object_pivot");
+        dmMessage::URL url;
+        dmMessage::ResetURL(&url);
+        url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+        url.m_Path = dmHashString64("/go");
+        url.m_Fragment = dmHashString64("gui");
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&url, &url, dmHashString64("sample"), 0, 0, 0, 0, 0, 0));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        ASSERT_EQ(layout, QueueGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout);
+        CheckLayoutObjectRenderPosition(L, m_RenderContext, Point3(320.0f, 240.0f, 0.0f), strcmp(GetParam(), "NW") != 0);
+        dmRender::ClearRenderObjects(m_RenderContext);
+        DeleteInstance(m_Collection, go);
+    }
+    dmResource::Release(m_Factory, font_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+INSTANTIATE_TEST_CASE_P(AllPivots, GuiLayoutObjectPivotTest, jc_test_values_in(layout_object_pivots));
+
 TEST_F(GuiTest, GuiRichTextLinkInteraction)
 {
     const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -2259,6 +2394,74 @@ TEST_F(LabelComponentTest, LabelTextProperty)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, text_id, options, dmGameObject::PropertyVar("")));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, text_id, options, desc));
     ASSERT_STREQ("", desc.m_Variant.m_Text);
+}
+
+// Verifies label sprite positions match rendering across pivots, wrapping, RTL, and legacy padding, preserving working NW content (#13397).
+TEST_P(LabelLayoutObjectPivotTest, SpritePositionMatchesRender)
+{
+    dmGameSystem::LabelResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/label/layout_object_pivot.labelc", (void**)&resource));
+    dmGameSystemDDF::LabelDesc replacement = *resource->m_DDF;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(layout_object_pivots); ++i)
+    {
+        if (strcmp(GetParam(), layout_object_pivots[i]) == 0)
+            replacement.m_Pivot = (dmGameSystemDDF::LabelDesc::Pivot)i;
+    }
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmGameSystemDDF::LabelDesc::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64("/label/layout_object_pivot.labelc"), buffer.Begin(), buffer.Size()));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(layout_object_text_cases); ++i)
+    {
+        SetLayoutObjectTextCase(L, layout_object_text_cases[i], resource->m_Font);
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/layout_object_pivot.goc", dmHashString64("/go"));
+        ASSERT_NE(0, go);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        HTextLayout layout = QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
+        ASSERT_NE((HTextLayout)0, layout);
+        ASSERT_GE(TextLayoutGetLineCount(layout), layout_object_text_cases[i].m_MinLineCount);
+        CheckLayoutObjectRenderPosition(L, m_RenderContext, Point3(0.0f, 0.0f, 0.0f), strcmp(GetParam(), "NW") == 0);
+        dmRender::ClearRenderObjects(m_RenderContext);
+        DeleteInstance(m_Collection, go);
+    }
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+INSTANTIATE_TEST_CASE_P(AllPivots, LabelLayoutObjectPivotTest, jc_test_values_in(layout_object_pivots));
+
+// Verifies a position query does not replace the captured label layout after a font version change.
+TEST_F(LabelComponentTest, LabelLayoutObjectQueryUsesCapturedLayout)
+{
+    dmGameSystem::FontResource* font_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/label/font_valid_font.fontc", (void**)&font_resource));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    SetLayoutObjectTextCase(L, layout_object_text_cases[0], font_resource);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/layout_object_pivot.goc", dmHashString64("/go"));
+    ASSERT_NE(0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::LabelComponent* component = GetLabelComponent(go, dmHashString64("label"));
+    HTextLayout layout = dmGameSystem::CompLabelGetTextLayout(component);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(layout));
+    // Retain the layout so an incorrect query can be detected without dereferencing freed storage.
+    TextLayoutAcquire(layout);
+    const uint32_t ref_count = layout->m_RefCount;
+    ++font_resource->m_Version;
+    float x, y;
+    EXPECT_TRUE(dmGameSystem::CompLabelGetLayoutObjectPosition(component, layout, TextLayoutGetObjects(layout), &x, &y));
+    EXPECT_EQ(ref_count, layout->m_RefCount);
+    EXPECT_NE(layout, dmGameSystem::CompLabelGetTextLayout(component));
+    TextLayoutRelease(layout);
+
+    DeleteInstance(m_Collection, go);
+    dmResource::Release(m_Factory, font_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 TEST_F(LabelComponentTest, LabelUserDataSurvivesPoolCompaction)
@@ -2765,6 +2968,85 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutFallbackMutation)
 }
 
 /* GUI Box Render */
+
+// Upload all scenes' geometry once, preserve their buffer ranges, and avoid uploads or
+// stale box draws on disabled and text-only frames. Text must still be submitted.
+TEST_F(GuiTest, SharedVertexBufferUpload)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    const uint32_t scene_count = 4;
+    for (uint32_t i = 0; i < scene_count; ++i)
+    {
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_flush_test.goc", dmHashBuffer64(&i, sizeof(i)));
+        ASSERT_NE((dmGameObject::HInstance)0, go);
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiWorld* world = GetGuiComponent(m_Collection)->m_World;
+    ASSERT_EQ(scene_count, world->m_Components.Size());
+    dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*)world->m_VertexBuffer;
+    dmRender::RenderContext* render_context = (dmRender::RenderContext*)m_RenderContext;
+    const char* box_ids[] = {"box1", "box2", "box3", "box4"};
+    const uint32_t enabled_scenes[] = {4, 2, 0, 4, 4};
+
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(enabled_scenes); ++frame)
+    {
+        bool boxes_visible = frame != 3;
+        for (uint32_t i = 0; i < scene_count; ++i)
+        {
+            dmGameSystem::GuiComponent* component = world->m_Components[i];
+            component->m_Enabled = i < enabled_scenes[frame];
+            for (uint32_t box = 0; box < DM_ARRAY_SIZE(box_ids); ++box)
+            {
+                dmGui::HNode node = dmGui::GetNodeById(component->m_Scene, box_ids[box]);
+                ASSERT_NE((dmGui::HNode)0, node);
+                dmGui::SetNodeVisible(component->m_Scene, node, boxes_visible);
+                // Different positions each frame catch stale uploads after shrinking or empty frames.
+                dmGui::SetNodePosition(component->m_Scene, node, Point3(i * 100 + frame, box * 20, 0));
+            }
+        }
+
+        uint32_t expected_boxes = boxes_visible ? enabled_scenes[frame] * 4 : 0;
+        uint32_t expected_vertices = expected_boxes * 6;
+        uint32_t expected_bytes = expected_vertices * sizeof(dmGameSystem::BoxVertex);
+        uint32_t uploads_before = buffer->m_DataSetCount;
+        uint64_t bytes_before = buffer->m_DataSetBytes;
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmGraphics::ResetDrawCount();
+        dmRender::RenderListBegin(m_RenderContext);
+        ASSERT_TRUE(dmGameObject::Render(m_Collection));
+        dmRender::RenderListEnd(m_RenderContext);
+
+        EXPECT_EQ(expected_vertices ? 1U : 0U, buffer->m_DataSetCount - uploads_before);
+        EXPECT_EQ((uint64_t)expected_bytes, buffer->m_DataSetBytes - bytes_before);
+        ASSERT_EQ(expected_vertices, world->m_ClientVertexBuffer.Size());
+        ASSERT_EQ(expected_boxes, world->m_GuiRenderObjects.Size());
+        ASSERT_EQ(expected_boxes + enabled_scenes[frame] * 5, render_context->m_RenderList.Size());
+        if (expected_vertices)
+        {
+            ASSERT_EQ(expected_bytes, dmGraphics::GetVertexBufferSize(world->m_VertexBuffer));
+            ASSERT_EQ(0, memcmp(buffer->m_Buffer, world->m_ClientVertexBuffer.Begin(), expected_bytes));
+        }
+        for (uint32_t i = 0; i < expected_boxes; ++i)
+        {
+            const dmRender::RenderObject& ro = world->m_GuiRenderObjects[i].m_RenderObject;
+            ASSERT_EQ(world->m_VertexBuffer, ro.m_VertexBuffer);
+            ASSERT_EQ(i * 6, ro.m_VertexStart);
+            ASSERT_EQ(6U, ro.m_VertexCount);
+            if (i > 0)
+                ASSERT_LT(world->m_GuiRenderObjects[i - 1].m_SortOrder, world->m_GuiRenderObjects[i].m_SortOrder);
+        }
+
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        if (enabled_scenes[frame])
+            ASSERT_GT(dmGraphics::GetDrawCount(), 0U);
+        else
+            ASSERT_EQ(0U, dmGraphics::GetDrawCount());
+        dmGraphics::Flip(m_GraphicsContext);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
 
 void AssertVertexEqual(const dmGameSystem::BoxVertex& lhs, const dmGameSystem::BoxVertex& rhs)
 {
