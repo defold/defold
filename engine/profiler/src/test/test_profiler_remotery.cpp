@@ -54,6 +54,7 @@ static bool SendPlainHttpRequest(int port)
     return closed;
 }
 
+// Verifies the server closes a connection that fails the WebSocket handshake, guarding against leaking the accepted socket.
 TEST(ProfilerRemotery, RejectedHandshakeClosesConnection)
 {
     rmtSettings* settings = rmt_Settings();
