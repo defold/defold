@@ -675,7 +675,7 @@ public class ProjectBuildTest {
         assertFalse(new File(contentRoot, "build/custom/payload.luac").exists());
     }
 
-    // Verifies #13324: streamed Ogg stays raw across skipped tasks, and toggling streaming rebuilds only the archive.
+    // Verifies #13324: compiled Ogg stays uncompressed across skipped tasks, and toggling streaming rebuilds only the archive.
     @Test
     public void testIncrementalArchiveKeepsStreamedOggUncompressed() throws Exception {
         createDefaultFiles();
@@ -744,7 +744,8 @@ public class ProjectBuildTest {
                         streaming ? 0 : ArchiveEntry.FLAG_COMPRESSED, soundEntry.getFlags() & ArchiveEntry.FLAG_COMPRESSED);
                 if (streaming) {
                     assertEquals(ArchiveEntry.FLAG_UNCOMPRESSED, soundEntry.getCompressedSize());
-                    assertArrayEquals(soundData, reader.getEntryContent(soundEntry));
+                    byte[] compiledSoundData = Files.readAllBytes(new File(contentRoot, "build/assets/short.oggc").toPath());
+                    assertArrayEquals(compiledSoundData, reader.getEntryContent(soundEntry));
                 }
             } finally {
                 reader.close();
