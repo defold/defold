@@ -19,8 +19,9 @@ Use `./scripts/build.py build_ext --platform=<platform>` to rebuild and install
 the source dependencies directly. This builds Basis Universal, both Box2D
 versions, Bullet, HarfBuzz, libunibreak, LZ4, Opus, SheenBidi, and Skribidi on all
 platforms. [Ogg](ogg/README.md) and Protobuf are built for desktop platforms;
-mobile and web builds use the host's tools. Protobuf and Abseil use the same CMake toolchain and build
-graph as the other source dependencies and install directly into `ext`.
+mobile and web builds use the host's tools. Protobuf and Abseil use the same
+CMake toolchain and build graph as the other source dependencies and install
+directly into `ext`.
 `external/build` itself is generated build output.
 
 CI caches built external dependencies for engine, Bob, and editor jobs using the

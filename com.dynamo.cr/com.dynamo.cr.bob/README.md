@@ -8,11 +8,12 @@ For IntelliJ IDEA setup and debugging, see the [IDEA guide](../README_IDEA.md).
 Bob and Bob Light package tools directly from `$DYNAMO_HOME/ext` and use the
 engine helper JARs in `$DYNAMO_HOME/share/java` as compilation dependencies.
 Run `./scripts/build.py install_ext` before building Bob or Bob Light. It installs
-the packaged tools for all supported hosts and builds LuaJIT for the host and
-selected native target. Full Bob also needs the other desktop LuaJIT executables;
-install them with `sync_archive` for an archived revision, or build them on their
-respective platforms. `build_bob` uses the installed tools without extracting
-their packages again.
+the prepackaged tools for all supported hosts and builds LuaJIT and
+[Ogg tools](../../external/ogg/README.md) for the host and supported targets.
+Full Bob also needs these tools for the other desktop hosts; install them with
+`sync_archive` for an archived revision, or build them on their respective
+platforms. `build_bob` uses the installed tools without extracting their packages
+again.
 
 Full Bob uses engines and builtins from `$DYNAMO_HOME/archive/<revision>/engine`
 when available, otherwise from the local engine build. Compiler libraries and
@@ -54,13 +55,6 @@ packaged contents.
 Bob's game archive compression uses the engine's raw LZ4 high compression
 implementation through JNA and `dlib_shared`, packaged in both Bob and Bob Light.
 Local builds must include `dlib_shared` for the host platform.
-
-Ogg compilation removes Vorbis metadata through `OggUtil.stripMetadata(byte[])`,
-shared with the Editor. Opus content in `.ogg` files is preserved byte-for-byte.
-The utility uses the bundled `libogg` and `liboggz` libraries in
-`libexec/<platform>`, including in Bob Light. See the
-[Ogg build notes](../../external/ogg/README.md) for native builds and loader
-requirements.
 
 Both JARs copy dependency entries directly when their compression method matches
 the output, preserving the compressed bytes. Loose files are compressed in
