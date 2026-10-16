@@ -114,6 +114,8 @@ function setupLoaderStartup(hasWebGPU, hasWebGL) {
     context.CUSTOM_PARAMETERS.full_screen_container = null;
     context.CUSTOM_PARAMETERS.unsupported_webgl_callback = () => ++calls.unsupported;
     context.document.createElement = () => ({ getContext: () => ({}) });
+    context.window.top = context.window;
+    context.document.hasFocus = () => true;
     return { context, calls };
 }
 
@@ -157,6 +159,29 @@ function testLoaderStartupFocus() {
         assert.strictEqual(focusCalls, shouldFocus ? 1 : 0);
         assert.strictEqual(context.document.activeElement, shouldFocus ? canvas : activeElement);
         assert.strictEqual(calls.started, 1);
+    }
+}
+
+// Verifies embedded startup only focuses an idle canvas document that already owns focus, preserving host input.
+function testLoaderIframeStartupFocus() {
+    for (const hasFocus of [true, false]) {
+        for (const activeInput of [true, false]) {
+            const { context, calls } = setupLoaderStartup(false, true);
+            let focusCalls = 0;
+            context.Module.setupCanvas = () => context.Module.canvas = {
+                addEventListener() {},
+                focus() { ++focusCalls; }
+            };
+            // A cross-origin host cannot be inspected; comparing its window reference is safe.
+            context.window.top = new Proxy({}, { get() { assert.fail("Inspected the host window"); } });
+            context.document.hasFocus = () => hasFocus;
+            context.document.body = {};
+            context.document.activeElement = activeInput ? {} : context.document.body;
+
+            context.Module.runApp();
+            assert.strictEqual(focusCalls, hasFocus && !activeInput ? 1 : 0);
+            assert.strictEqual(calls.started, 1);
+        }
     }
 }
 
@@ -547,7 +572,8 @@ function testMixedTouchAndMouseSources() {
 async function runTests() {
     for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup,
-                       testLoaderStartupFocus, testLoaderDelayedStartupPreservesFocus, testLoaderArchiveConcurrency,
+                       testLoaderStartupFocus, testLoaderIframeStartupFocus,
+                       testLoaderDelayedStartupPreservesFocus, testLoaderArchiveConcurrency,
                        testLoaderArchiveBufferOwnership,
                        testCanvasFocusRequests, testTouchFocusRetry, testCanvasInputWhenFocusIsDenied,
                        testInputAudioActivation, testTouchMouseSources, testMixedTouchAndMouseSources]) {

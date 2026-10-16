@@ -1246,9 +1246,10 @@ var Module = {
             if (Module.hasWebGLSupport(){{#DEFOLD_HAS_WEBGPU}} || Module.hasWebGPUSupport(){{/DEFOLD_HAS_WEBGPU}}) {
                 Module._isEngineLoaded = true;
                 // Loading may finish after the user has focused another control on the page.
-                // Request initial game focus only while the page is idle; the browser applies iframe policy.
+                // An embedded game must also preserve focus in its host document.
                 var activeElement = document.activeElement;
-                if (!activeElement || activeElement === document.body || activeElement === document.documentElement) {
+                if ((window.top === window || document.hasFocus()) &&
+                    (!activeElement || activeElement === document.body || activeElement === document.documentElement)) {
                     Module.canvas.focus({ preventScroll: true });
                 }
 
