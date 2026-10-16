@@ -23,7 +23,7 @@ SCHEMA = 3
 SOURCE_PATHS = (
     'external/CMakeLists.txt', 'external/basisu', 'external/box2d',
     'external/box2d_v2', 'external/bullet3d', 'external/harfbuzz',
-    'external/libunibreak', 'external/luajit', 'external/lz4', 'external/opus',
+    'external/libunibreak', 'external/luajit', 'external/lz4', 'external/ogg', 'external/opus',
     'external/protobuf', 'external/sheenbidi', 'external/skribidi',
     'scripts/cmake/*.cmake', 'scripts/cmake/*.in', 'ci/ext_cache.py',
     ':(exclude,icase,glob)external/**/readme*', ':(exclude,glob)**/AGENTS.md',

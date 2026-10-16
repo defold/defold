@@ -41,10 +41,11 @@ Tool packaging is defined by two additional manifests:
   are included only in full Bob.
 
 Compiler libraries resolve from local engine builds or archive paths listed in
-`archive-artifacts.json`. `sync_archive` installs archived LuaJIT executables into
-their usual `$DYNAMO_HOME/ext/bin/<platform>` paths, preserving an installed
-compiler for the current host and selected target. Full Bob requires them for
-all desktop hosts; Bob Light requires the current host's executable.
+`archive-artifacts.json`. `sync_archive` installs archived LuaJIT and Ogg tools
+into their usual `$DYNAMO_HOME/ext/bin/<platform>` and `ext/lib/<platform>` paths,
+preserving locally built tools for the current host and selected target.
+Full Bob requires them for all desktop hosts; Bob Light requires the current
+host's LuaJIT executable and Ogg libraries.
 The LuaJIT modules installed in `$DYNAMO_HOME/ext` are assembled into
 `tmp/luajit-share.zip` and packaged inside each JAR as `lib/luajit-share.zip`.
 Both JAR tasks track the manifests as inputs, so changing a list updates the
@@ -53,6 +54,13 @@ packaged contents.
 Bob's game archive compression uses the engine's raw LZ4 high compression
 implementation through JNA and `dlib_shared`, packaged in both Bob and Bob Light.
 Local builds must include `dlib_shared` for the host platform.
+
+Ogg compilation removes Vorbis metadata through `OggUtil.stripMetadata(byte[])`,
+shared with the Editor. Opus content in `.ogg` files is preserved byte-for-byte.
+The utility uses the bundled `libogg` and `liboggz` libraries in
+`libexec/<platform>`, including in Bob Light. See the
+[Ogg build notes](../../external/ogg/README.md) for native builds and loader
+requirements.
 
 Both JARs copy dependency entries directly when their compression method matches
 the output, preserving the compressed bytes. Loose files are compressed in

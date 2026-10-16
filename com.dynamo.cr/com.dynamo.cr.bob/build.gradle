@@ -264,11 +264,12 @@ def artifactFiles = { boolean light ->
 
 def validateArtifacts = { boolean light ->
     def missing = bobArtifacts.entries.findAll { path, artifact ->
-        def required = light ? path.startsWith("libexec/${hostPlatform}/") && path.contains('/luajit-64') : artifact.required
+        def required = light ? path.startsWith("libexec/${hostPlatform}/") &&
+                (path.contains('/luajit-64') || path.contains('/libogg')) : artifact.required
         required && !artifact.source.isFile()
     }
     if (!missing.isEmpty()) {
-        throw new GradleException("Missing Bob artifacts; install the external packages and build or sync the engine: " +
+        throw new GradleException("Missing Bob artifacts; run install_ext and build or sync the engine: " +
                 missing.collect { path, artifact -> "${path}: ${artifact.source}" }.join(', '))
     }
 }
