@@ -15,6 +15,13 @@ endfunction()
 texc_add_test(test_texc "${TEXC_TEST_DIR}/test_texc.cpp")
 texc_add_test(test_texc_image_ops "${TEXC_TEST_DIR}/test_texc_image_ops.cpp")
 
+# Ownership checks inspect freed allocations through the AddressSanitizer API.
+if(WITH_ASAN)
+  defold_add_executable(test_jni_encode_settings "${TEXC_TEST_DIR}/test_jni_encode_settings.cpp")
+  target_include_directories(test_jni_encode_settings PRIVATE "${TEXC_SRC_DIR}")
+  defold_register_test_target(test_jni_encode_settings ON "${TEXC_ROOT}" RUN_GROUP texc)
+endif()
+
 # The in-repo SIMDe scalar subset also exercises AVX kernels through emulation.
 add_library(texc_resize_reference OBJECT EXCLUDE_FROM_ALL "${TEXC_SRC_DIR}/texc_simd_scalar.cpp")
 texc_disable_lto(texc_resize_reference)
