@@ -168,7 +168,8 @@
   `release-notes-range-limit`), and fetches each one's notes in parallel.
   Returns a newest-first vector of {:version <string> :notes <map-or-nil>}, one
   per version, where :notes is nil if that file didn't download. Returns nil if
-  even the manifest can't be fetched."
+  even the manifest can't be fetched. Versions older than `current-version` are
+  left out; nil keeps the newest few."
   [archive-domain channel current-version]
   (when-some [manifest (fetch-manifest! archive-domain channel)]
     (let [versions (versions-to-fetch (filter string? manifest) current-version)]
@@ -188,39 +189,25 @@
     {:update-dir (io/file channel-dir "bundle")
      :update-sha1-file (io/file channel-dir "sha1")}))
 
-(defn- read-downloaded-sha1 [channel]
-  (let [^File update-sha1-file (:update-sha1-file (channel-update-paths channel))]
-    (when (.exists update-sha1-file)
-      (slurp update-sha1-file))))
-
 (defn- make-updater [channel editor-sha1 downloaded-sha1 prefs platform install-dir launcher-path protected-dirs]
-  {:channel channel
-   :platform platform
-   :install-dir install-dir
-   :launcher-path launcher-path
-   :editor-sha1 editor-sha1
-   :prefs prefs
-   :protected-dirs protected-dirs
-   :state-atom (atom {:target-channel channel
-                      :downloaded-sha1 downloaded-sha1
-                      :skipped-sha1 (get (prefs/get prefs [:versioning :skipped-update-sha1s]) channel)
-                      :server-sha1 editor-sha1})})
+  (let [{:keys [update-dir update-sha1-file]} (channel-update-paths channel)]
+    {:channel channel
+     :platform platform
+     :install-dir install-dir
+     :launcher-path launcher-path
+     :editor-sha1 editor-sha1
+     :prefs prefs
+     :protected-dirs protected-dirs
+     :update-dir update-dir
+     :update-sha1-file update-sha1-file
+     :state-atom (atom {:downloaded-sha1 downloaded-sha1
+                        :skipped-sha1 (get (prefs/get prefs [:versioning :skipped-update-sha1s]) channel)
+                        :server-sha1 editor-sha1})}))
 
 (def channels ["stable" "beta"])
 
 (defn installed-channel [updater]
   (:channel updater))
-
-(defn alternate-channel
-  "Returns the channel the user can switch to from the installed one."
-  [updater]
-  (if (= "stable" (installed-channel updater)) "beta" "stable"))
-
-(defn target-channel [updater]
-  (:target-channel @(:state-atom updater)))
-
-(defn switching-channel? [updater]
-  (not= (installed-channel updater) (target-channel updater)))
 
 (defn fetch-channel-infos!
   "Returns a map of channel to {:version <string> :sha1 <string>} for every
@@ -242,24 +229,9 @@
              (when (and stable beta (newer-version? (:version beta) (:version stable)))
                (assoc beta :channel "beta"))))))
 
-(defn set-target-channel!
-  "Points the updater at another channel. The next check, download and install
-  use that channel; a download in progress for the previous one is cancelled."
-  [updater channel]
-  (let [{:keys [state-atom editor-sha1 prefs]} updater
-        [old-state] (swap-vals! state-atom
-                                (fn [state]
-                                  (if (= channel (:target-channel state))
-                                    state
-                                    (-> state
-                                        (dissoc :current-download :release-notes :release-notes-sha :release-notes-complete?)
-                                        (assoc :target-channel channel
-                                               :server-sha1 editor-sha1
-                                               :downloaded-sha1 (read-downloaded-sha1 channel)
-                                               :skipped-sha1 (get (prefs/get prefs [:versioning :skipped-update-sha1s]) channel))))))]
-    (when (not= channel (:target-channel old-state))
-      (some-> old-state :current-download :cancelled-derefable (reset! true)))
-    nil))
+(defn- download-progress [state]
+  (or (-> state :current-download :progress)
+      (-> state :channel-download :progress)))
 
 (defn add-progress-watch
   "Adds a watch that gets notified on download and extraction progress of
@@ -267,17 +239,16 @@
   `f` will receive progress as an argument. Unsubscribe by passing same
   `f` to `remove-progress-watch`"
   [updater f]
-  (let [{:keys [state-atom]} updater
-        {:keys [current-download]} @state-atom]
+  (let [{:keys [state-atom]} updater]
     (add-watch state-atom
                [:progress f]
                (fn [_ _ old-state new-state]
-                 (let [old-progress (-> old-state :current-download :progress)
-                       new-progress (-> new-state :current-download :progress)]
+                 (let [old-progress (download-progress old-state)
+                       new-progress (download-progress new-state)]
                    (when-not (= old-progress new-progress)
                      (f (or new-progress progress/done))))))
-    (when (some? current-download)
-      (f (:progress current-download)))))
+    (when-some [progress (download-progress @state-atom)]
+      (f progress))))
 
 (defn remove-progress-watch [updater f]
   (remove-watch (:state-atom updater) [:progress f]))
@@ -292,8 +263,8 @@
   (add-watch (:state-atom updater)
              [:state f]
              (fn [_ _ old-state new-state]
-               (let [old-state-sha1s (update old-state :current-download :sha1)
-                     new-state-sha1s (update new-state :current-download :sha1)]
+               (let [old-state-sha1s (-> old-state (update :current-download :sha1) (update :channel-download :channel))
+                     new-state-sha1s (-> new-state (update :current-download :sha1) (update :channel-download :channel))]
                  (when-not (= old-state-sha1s new-state-sha1s)
                    (f updater)))))
   (f updater))
@@ -321,8 +292,7 @@
           (or installed-sha1
               (:sha1 current-download)
               downloaded-sha1
-              (when-not (switching-channel? updater)
-                editor-sha1)))))
+              editor-sha1))))
 
 (defn update-advertised? [updater]
   (let [{:keys [server-sha1 skipped-sha1]} @(:state-atom updater)]
@@ -330,7 +300,7 @@
          (not= skipped-sha1 server-sha1))))
 
 (defn skip-update! [updater sha1]
-  (prefs/update! (:prefs updater) [:versioning :skipped-update-sha1s] assoc (target-channel updater) sha1)
+  (prefs/update! (:prefs updater) [:versioning :skipped-update-sha1s] assoc (:channel updater) sha1)
   (swap! (:state-atom updater) assoc :skipped-sha1 sha1))
 
 (defn- bundled-release-notes [version]
@@ -369,11 +339,18 @@
         server-sha1 (:server-sha1 state)]
     (when (and (= (:release-notes-sha state) server-sha1)
                (not (coll/empty? entries)))
-      (let [current-version (when-not (switching-channel? updater)
-                              (system/defold-version))]
+      (let [current-version (system/defold-version)]
         {:markdown (coll/join-to-string "\n\n---\n\n" (e/map #(entry-markdown current-version %) entries))
          :sha1 server-sha1
          :versions (mapv :version entries)}))))
+
+(defn channel-release-notes
+  "Returns {:markdown <string> :version <string>} for the newest release of
+  `channel`, or nil if its notes can't be fetched."
+  [channel]
+  (when-some [entry (first (fetch-release-notes! (system/defold-archive-domain) channel nil))]
+    {:markdown (entry-markdown nil entry)
+     :version (:version entry)}))
 
 (defn can-install-update? [updater]
   (some? (:downloaded-sha1 @(:state-atom updater))))
@@ -381,18 +358,21 @@
 (defn download-in-progress? [updater]
   (some? (:current-download @(:state-atom updater))))
 
+(defn channel-download-in-progress? [updater]
+  (some? (:channel-download @(:state-atom updater))))
+
 (defn channel-offer
   "Returns {:channel <string> :version <string> :sha1 <string>} when a channel
   with a newer version than the installed one is worth suggesting, or nil.
-  Hidden while an update for the installed channel is pending, so only one
-  link shows at a time."
+  Hidden while an update for the installed channel is pending or a download is
+  running, so only one link shows at a time."
   [updater]
   (let [{:keys [channel-offer downloaded-sha1]} @(:state-atom updater)]
     (when (and channel-offer
                (not downloaded-sha1)
-               (not (switching-channel? updater))
                (not (update-advertised? updater))
-               (not (download-in-progress? updater)))
+               (not (download-in-progress? updater))
+               (not (channel-download-in-progress? updater)))
       channel-offer)))
 
 (defn platform-supported? [updater]
@@ -428,9 +408,29 @@
 (defn- executable? [unix-mode]
   (not (zero? (bit-and unix-mode execute-permission-flag))))
 
-(defn- extract! [updater channel ^File zip-file server-sha1 track-extract-progress! cancelled-atom]
-  (let [{:keys [state-atom]} updater
-        {:keys [update-dir update-sha1-file]} (channel-update-paths channel)
+(defn- extract-zip! [^File zip-file ^File dest-dir track-extract-progress! cancelled-atom]
+  (with-open [zip (ZipFile. zip-file)]
+    (let [entries (enumeration-seq (.getEntries zip))
+          entry-count (count entries)]
+      (doseq [[i ^ZipArchiveEntry e] (map-indexed vector entries)
+              :when (and (not (.isDirectory e))
+                         (not @cancelled-atom))
+              :let [file-name-parts (-> e
+                                        .getName
+                                        (FilenameUtils/separatorsToUnix)
+                                        (string/split #"/")
+                                        next)
+                    target-dir-parts (butlast file-name-parts)
+                    target-file ^File (apply io/file dest-dir file-name-parts)]]
+        (.mkdirs ^File (apply io/file dest-dir target-dir-parts))
+        (with-open [in (.getInputStream zip e)]
+          (io/copy in target-file))
+        (when (executable? (.getUnixMode e))
+          (.setExecutable target-file true))
+        (track-extract-progress! (progress/make (localization/message "progress.extracting-update") entry-count (inc i)))))))
+
+(defn- extract! [updater ^File zip-file server-sha1 track-extract-progress! cancelled-atom]
+  (let [{:keys [state-atom update-dir update-sha1-file]} updater
         {:keys [downloaded-sha1]} @state-atom]
     (when (some? downloaded-sha1)
       (log/info :message "Removing previously downloaded update")
@@ -438,36 +438,18 @@
       (FileUtils/deleteQuietly update-dir)
       (FileUtils/deleteQuietly update-sha1-file))
     (log/info :message "Extracting update" :dir (str update-dir))
-    (with-open [zip (ZipFile. zip-file)]
-      (let [entries (enumeration-seq (.getEntries zip))
-            entry-count (count entries)]
-        (doseq [[i ^ZipArchiveEntry e] (map-indexed vector entries)
-                :when (and (not (.isDirectory e))
-                           (not @cancelled-atom))
-                :let [file-name-parts (-> e
-                                          .getName
-                                          (FilenameUtils/separatorsToUnix)
-                                          (string/split #"/")
-                                          next)
-                      target-dir-parts (butlast file-name-parts)
-                      target-file ^File (apply io/file update-dir file-name-parts)]]
-          (.mkdirs ^File (apply io/file update-dir target-dir-parts))
-          (with-open [in (.getInputStream zip e)]
-            (io/copy in target-file))
-          (when (executable? (.getUnixMode e))
-            (.setExecutable target-file true))
-          (track-extract-progress! (progress/make (localization/message "progress.extracting-update") entry-count (inc i)))))
-      (if @cancelled-atom
-        (do (FileUtils/deleteQuietly update-dir)
-            false)
-        (do
-          (spit update-sha1-file server-sha1)
-          (swap! state-atom (fn [state]
-                              (-> state
-                                  (assoc :downloaded-sha1 server-sha1)
-                                  (dissoc :current-download))))
-          (log/info :message "Update extracted")
-          true)))))
+    (extract-zip! zip-file update-dir track-extract-progress! cancelled-atom)
+    (if @cancelled-atom
+      (do (FileUtils/deleteQuietly update-dir)
+          false)
+      (do
+        (spit update-sha1-file server-sha1)
+        (swap! state-atom (fn [state]
+                            (-> state
+                                (assoc :downloaded-sha1 server-sha1)
+                                (dissoc :current-download))))
+        (log/info :message "Update extracted")
+        true))))
 
 (defn download-and-extract!
   "Asynchronously downloads newest zip distribution to temporary directory,
@@ -478,8 +460,8 @@
   operation"
   [updater]
   {:pre [(can-download-update? updater)]}
-  (let [{:keys [state-atom platform]} updater
-        {:keys [current-download server-sha1] channel :target-channel} @state-atom
+  (let [{:keys [state-atom platform channel]} updater
+        {:keys [current-download server-sha1]} @state-atom
         archive-domain (system/defold-archive-domain)
         url (download-url archive-domain server-sha1 channel platform)
         zip-file (create-temp-zip-file)
@@ -499,11 +481,83 @@
         (if @cancelled-atom
           (do (.delete zip-file)
               false)
-          (extract! updater channel zip-file server-sha1 track-extract-progress! cancelled-atom))
+          (extract! updater zip-file server-sha1 track-extract-progress! cancelled-atom))
         (catch Exception e
           (log/info :message "Update download failed" :exception e)
           (swap! state-atom dissoc :current-download)
           false)))))
+
+(defn channel-install-name
+  "Returns the name of the folder (or app bundle on macOS) to install `channel`
+  into, e.g. \"Defold Beta\"."
+  [updater channel]
+  (let [folder-name (str "Defold " (string/capitalize channel))]
+    (if (= "macos" (.getOs ^Platform (:platform updater)))
+      (str folder-name ".app")
+      folder-name)))
+
+(defn default-channel-install-parent
+  "Returns the folder to suggest for installing another channel."
+  ^File [updater]
+  (let [applications-dir (io/file "/Applications")]
+    (if (and (= "macos" (.getOs ^Platform (:platform updater)))
+             (.isDirectory applications-dir))
+      applications-dir
+      (io/file (System/getProperty "user.home")))))
+
+(defn download-channel!
+  "Asynchronously downloads the `channel` build with `sha1` and extracts it into
+  `target-dir`, leaving the current installation untouched.
+
+  Returns future that eventually will contain boolean indicating the success of
+  operation"
+  [updater {:keys [channel version sha1]} ^File target-dir]
+  {:pre [(not (.exists target-dir))]}
+  (let [{:keys [state-atom platform]} updater
+        url (download-url (system/defold-archive-domain) sha1 channel platform)
+        zip-file (create-temp-zip-file)
+        cancelled-atom (atom false)
+        track-progress! (fn [progress]
+                          (swap! state-atom assoc-in [:channel-download :progress] progress))
+        track-download-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 0))
+        track-extract-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 1))]
+    (swap! state-atom assoc :channel-download {:channel channel
+                                               :version version
+                                               :progress (progress/make localization/empty-message 2 0)
+                                               :cancelled-derefable cancelled-atom})
+    (future
+      (try
+        (download! url zip-file track-download-progress! cancelled-atom)
+        (when-not @cancelled-atom
+          (log/info :message "Extracting channel build" :channel channel :dir (str target-dir))
+          (extract-zip! zip-file target-dir track-extract-progress! cancelled-atom))
+        (if @cancelled-atom
+          (do (FileUtils/deleteQuietly target-dir)
+              false)
+          (do (log/info :message "Channel build extracted" :channel channel :dir (str target-dir))
+              true))
+        (catch Exception e
+          (log/info :message "Channel download failed" :channel channel :exception e)
+          (FileUtils/deleteQuietly target-dir)
+          false)
+        (finally
+          (.delete zip-file)
+          (swap! state-atom dissoc :channel-download))))))
+
+(defn channel-launcher
+  "Returns the executable that starts the editor installed in `install-dir`."
+  ^File [updater ^File install-dir]
+  (case (.getOs ^Platform (:platform updater))
+    "macos" (io/file install-dir "Contents" "MacOS" "Defold")
+    "linux" (io/file install-dir "Defold")
+    "win32" (io/file install-dir "Defold.exe")))
+
+(defn launch-channel!
+  "Starts the editor installed in `install-dir` next to the running one."
+  [updater ^File install-dir]
+  (log/info :message "Launching editor" :dir (str install-dir))
+  (process/start! {:dir install-dir :out :discard :err :discard}
+                  (.getPath (channel-launcher updater install-dir))))
 
 (defn- move-file! [^File source-file ^File target-file]
   (Files/move (.toPath source-file)
@@ -543,9 +597,8 @@
   "Installs previously downloaded update"
   [updater]
   {:pre [(can-install-update? updater)]}
-  (let [{:keys [install-dir state-atom]} updater
-        {:keys [current-download downloaded-sha1 target-channel]} @state-atom
-        {:keys [^File update-dir update-sha1-file]} (channel-update-paths target-channel)]
+  (let [{:keys [install-dir state-atom ^File update-dir update-sha1-file]} updater
+        {:keys [current-download downloaded-sha1]} @state-atom]
     (when (some? current-download)
       (reset! (:cancelled-derefable current-download) true)
       (swap! state-atom dissoc :current-download))
@@ -588,8 +641,7 @@
   if no update was found), or false if it failed, e.g. a network error or a
   malformed response."
   [updater]
-  (let [{:keys [state-atom]} updater
-        channel (target-channel updater)
+  (let [{:keys [channel state-atom]} updater
         archive-domain (system/defold-archive-domain)
         url (update-url archive-domain channel)]
     (try
@@ -598,10 +650,7 @@
       (with-open [reader (io/reader url)]
         (let [update (json/read reader :key-fn keyword)
               update-sha1 (:sha1 update)
-              state (swap! state-atom (fn [state]
-                                        (cond-> state
-                                          (= channel (:target-channel state))
-                                          (assoc :server-sha1 update-sha1))))]
+              state (swap! state-atom assoc :server-sha1 update-sha1)]
           (cond
             (not (can-download-update? updater))
             (log/info :message "No update found")
@@ -615,9 +664,7 @@
             :else
             (do
               (log/info :message "New version found" :sha1 update-sha1)
-              (when-some [entries (if (switching-channel? updater)
-                                    (some->> (fetch-release-notes! archive-domain channel nil) (into [] (take 1)))
-                                    (fetch-release-notes! archive-domain channel (system/defold-version)))]
+              (when-some [entries (fetch-release-notes! archive-domain channel (system/defold-version))]
                 ;; Remember which update these notes are for, so a failed fetch
                 ;; for a newer one can't keep showing stale notes. "Complete"
                 ;; means we got notes for every version; an empty or partial
@@ -678,5 +725,8 @@
       (do
         (log/info :message "Automatic updates disabled" :channel channel :sha1 sha1)
         nil)
-      (doto (make-updater channel sha1 (read-downloaded-sha1 channel) prefs platform install-dir launcher-path protected-dirs)
-        (start-timer! initial-update-delay update-delay)))))
+      (let [^File update-sha1-file (:update-sha1-file (channel-update-paths channel))
+            downloaded-sha1 (when (.exists update-sha1-file)
+                              (slurp update-sha1-file))]
+        (doto (make-updater channel sha1 downloaded-sha1 prefs platform install-dir launcher-path protected-dirs)
+          (start-timer! initial-update-delay update-delay))))))

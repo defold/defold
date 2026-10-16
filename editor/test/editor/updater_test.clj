@@ -142,7 +142,8 @@
 (deftest can-download-and-extract-update
   (with-open [_ (start-update-server! "test" "2")]
     (let [updater (make-updater "test" "1" "1" (make-temp-prefs))
-          {:keys [^File update-dir ^File update-sha1-file]} (#'updater/channel-update-paths "test")]
+          ^File update-sha1-file (:update-sha1-file updater)
+          ^File update-dir (:update-dir updater)]
       (fs/delete-directory! update-dir)
       (fs/delete! update-sha1-file)
       (updater/check! updater)
@@ -159,8 +160,10 @@
           alpha-updater (assoc (make-updater "alpha" "A1" nil (make-temp-prefs))
                           :install-dir alpha-install-dir)
           beta-updater (make-updater "beta" "B1" nil (make-temp-prefs))
-          {^File alpha-dir :update-dir ^File alpha-sha1-file :update-sha1-file} (#'updater/channel-update-paths "alpha")
-          {^File beta-dir :update-dir ^File beta-sha1-file :update-sha1-file} (#'updater/channel-update-paths "beta")]
+          ^File alpha-dir (:update-dir alpha-updater)
+          ^File alpha-sha1-file (:update-sha1-file alpha-updater)
+          ^File beta-dir (:update-dir beta-updater)
+          ^File beta-sha1-file (:update-sha1-file beta-updater)]
       (fs/delete-directory! alpha-dir)
       (fs/delete! alpha-sha1-file)
       (fs/delete-directory! beta-dir)
@@ -224,6 +227,43 @@
       (updater/check! updater)
       (is (true? (updater/can-download-update? updater)))
       (is (false? @(updater/download-and-extract! updater))))))
+
+(deftest download-channel-unpacks-into-new-folder
+  (with-open [_ (start-update-server! "beta" "B2")]
+    (let [updater (make-updater "stable" "S1" nil (make-temp-prefs))
+          parent-dir (fs/create-temp-directory! "updater-test-channel")
+          install-dir (io/file parent-dir "Defold Beta")]
+      (try
+        (is (true? @(updater/download-channel! updater {:channel "beta" :version "2.0" :sha1 "B2"} install-dir)))
+        (is (.isDirectory (io/file install-dir "target")))
+        (is (= #{"extracted-file.txt"} (list-files install-dir)))
+        (is (false? (updater/channel-download-in-progress? updater)))
+        (finally
+          (fs/delete-directory! parent-dir))))))
+
+(deftest download-channel-fails-cleanly-when-zip-is-missing
+  (with-open [_ (start-update-server! "beta" "B2")]
+    (let [updater (make-updater "stable" "S1" nil (make-temp-prefs))
+          parent-dir (fs/create-temp-directory! "updater-test-channel")
+          install-dir (io/file parent-dir "Defold Beta")]
+      (try
+        (is (false? @(updater/download-channel! updater {:channel "beta" :version "2.0" :sha1 "B3"} install-dir)))
+        (is (not (.exists install-dir)))
+        (is (false? (updater/channel-download-in-progress? updater)))
+        (finally
+          (fs/delete-directory! parent-dir))))))
+
+(deftest channel-offer-hidden-while-update-advertised-or-channel-download-running
+  (let [updater (make-updater "stable" "S1" nil (make-temp-prefs))
+        offer {:channel "beta" :version "2.0" :sha1 "B2"}]
+    (swap! (:state-atom updater) assoc :channel-offer offer)
+    (is (= offer (updater/channel-offer updater)))
+    (swap! (:state-atom updater) assoc :server-sha1 "S2")
+    (is (nil? (updater/channel-offer updater)))
+    (swap! (:state-atom updater) assoc :server-sha1 "S1" :channel-download {:channel "beta"})
+    (is (nil? (updater/channel-offer updater)))
+    (swap! (:state-atom updater) dissoc :channel-download)
+    (is (= offer (updater/channel-offer updater)))))
 
 (deftest client-has-update-after-check-when-update-appears-on-server
   (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]

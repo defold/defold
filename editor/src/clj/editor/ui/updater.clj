@@ -15,7 +15,6 @@
 (ns editor.ui.updater
   (:require [cljfx.api :as fx]
             [clojure.java.io :as io]
-            [clojure.string :as string]
             [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.localization :as localization]
@@ -23,21 +22,18 @@
             [editor.ui :as ui]
             [editor.updater :as updater]
             [service.log :as log])
-  (:import [javafx.application Platform]
+  (:import [java.io File]
+           [javafx.application Platform]
            [javafx.stage Stage WindowEvent]))
 
 (defn- make-link-fn [link localization]
   (fn [updater]
     (ui/run-later
       (let [can-install (updater/can-install-update? updater)
-            advertised (updater/update-advertised? updater)
-            switching (updater/switching-channel? updater)
-            message-args {"channel" (string/capitalize (updater/target-channel updater))}]
+            advertised (updater/update-advertised? updater)]
         (ui/visible! link (or can-install advertised))
         (cond
-          (and can-install switching) (localization/localize! link localization (localization/message "updater.button.restart-to-switch" message-args))
           can-install (localization/localize! link localization (localization/message "updater.button.restart-to-update"))
-          (and advertised switching) (localization/localize! link localization (localization/message "updater.button.switch-available" message-args))
           advertised (localization/localize! link localization (localization/message "updater.button.update-available")))))))
 
 (defn- install! [^Stage stage updater localization]
@@ -58,77 +54,63 @@
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization props)
               :key :localization-state}]}
-  [{:keys [project localization-state release-notes result-fn switch-channel]}]
+  [{:keys [project localization-state release-notes result-fn]}]
   {:fx/type dialogs/dialog-stage
    :showing true
    :on-close-request (fn [_] (result-fn :later))
-   :title (localization-state (if switch-channel
-                                (localization/message "updater.switch-channel-dialog.title")
-                                (localization/message "updater.release-notes-dialog.title")))
+   :title (localization-state (localization/message "updater.release-notes-dialog.title"))
    :size :large
    :width 800
    :header {:fx/type fxui/legacy-label
             :variant :header
             :text (let [versions (:versions release-notes)]
                     (localization-state
-                      (if switch-channel
-                        (localization/message "updater.release-notes-dialog.switch-header"
-                                              {"channel" (string/capitalize switch-channel)
-                                               "version" (first versions)})
-                        (localization/message "updater.release-notes-dialog.header"
-                                              {"count" (count versions)
-                                               "version" (first versions)}))))}
+                      (localization/message "updater.release-notes-dialog.header"
+                                            {"count" (count versions)
+                                             "version" (first versions)})))}
    :content {:fx/type markdown-view/view
              :content (:markdown release-notes)
              :project project
              :stylesheets [(str (io/resource "editor.css"))]
              :root-props {:style-class "md-page-root"}}
    :footer {:fx/type dialogs/dialog-buttons
-            :children (cond-> [{:fx/type fxui/legacy-button
-                                :text (localization-state (localization/message "updater.release-notes-dialog.button.later"))
-                                :cancel-button true
-                                :on-action (fn [_] (result-fn :later))}]
-                        (not switch-channel)
-                        (conj {:fx/type fxui/legacy-button
-                               :text (localization-state (localization/message "updater.dialog.button.skip-version"))
-                               :on-action (fn [_] (result-fn :skip))})
-                        :always
-                        (conj {:fx/type fxui/legacy-button
-                               :text (localization-state (if switch-channel
-                                                           (localization/message "updater.release-notes-dialog.button.switch-now")
-                                                           (localization/message "updater.release-notes-dialog.button.update-now")))
-                               :variant :primary
-                               :default-button true
-                               :on-action (fn [_] (result-fn :update))}))}})
+            :children [{:fx/type fxui/legacy-button
+                        :text (localization-state (localization/message "updater.release-notes-dialog.button.later"))
+                        :cancel-button true
+                        :on-action (fn [_] (result-fn :later))}
+                       {:fx/type fxui/legacy-button
+                        :text (localization-state (localization/message "updater.dialog.button.skip-version"))
+                        :on-action (fn [_] (result-fn :skip))}
+                       {:fx/type fxui/legacy-button
+                        :text (localization-state (localization/message "updater.release-notes-dialog.button.update-now"))
+                        :variant :primary
+                        :default-button true
+                        :on-action (fn [_] (result-fn :update))}]}})
 
 (defn- show-release-notes-update-dialog!
   "Shows the release notes dialog, blocking the current thread until the user
   dismisses it. Must be called on the JavaFX application thread. Returns the
   user's choice as :skip, :later, or :update."
-  [project localization release-notes switch-channel]
+  [project localization release-notes]
   (fxui/show-stateless-dialog-and-await-result!
     (fn [result-fn]
       {:fx/type release-notes-update-dialog
        :result-fn result-fn
        :localization localization
        :release-notes release-notes
-       :switch-channel switch-channel
        :project project})))
 
 (defn- prompt-and-download! [stage project updater localization download-confirmed]
   (let [release-notes (updater/release-notes updater)
-        switch-channel (when (updater/switching-channel? updater)
-                         (updater/target-channel updater))
         choice (if release-notes
-                 (show-release-notes-update-dialog! project localization release-notes switch-channel)
-                 (if (or download-confirmed switch-channel)
+                 (show-release-notes-update-dialog! project localization release-notes)
+                 (if download-confirmed
                    :update
                    (dialogs/make-download-update-dialog stage localization)))]
     (case choice
       :skip (updater/skip-update! updater (or (:sha1 release-notes)
                                               (updater/current-update-sha1 updater)))
-      :later (when switch-channel
-               (updater/set-target-channel! updater (updater/installed-channel updater)))
+      :later nil
       :update (updater/download-and-extract! updater))))
 
 (defn- handle-update-check! [stage project updater install-and-restart! localization ignore-skip]
@@ -201,15 +183,142 @@
             (finally
               (updater/end-manual-update-check! updater))))))))
 
+(ui/defc channel-release-notes-dialog
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization props)
+              :key :localization-state}]}
+  [{:keys [project localization-state release-notes version result-fn]}]
+  {:fx/type dialogs/dialog-stage
+   :showing true
+   :on-close-request (fn [_] (result-fn false))
+   :title (localization-state (localization/message "updater.try-channel-dialog.title"))
+   :size :large
+   :width 800
+   :header {:fx/type fxui/legacy-label
+            :variant :header
+            :text (localization-state (localization/message "updater.try-channel-dialog.header" {"version" version}))}
+   :content {:fx/type markdown-view/view
+             :content (:markdown release-notes)
+             :project project
+             :stylesheets [(str (io/resource "editor.css"))]
+             :root-props {:style-class "md-page-root"}}
+   :footer {:fx/type dialogs/dialog-buttons
+            :children [{:fx/type fxui/legacy-button
+                        :text (localization-state (localization/message "updater.release-notes-dialog.button.later"))
+                        :cancel-button true
+                        :on-action (fn [_] (result-fn false))}
+                       {:fx/type fxui/legacy-button
+                        :text (localization-state (localization/message "updater.try-channel-dialog.button.download"))
+                        :variant :primary
+                        :default-button true
+                        :on-action (fn [_] (result-fn true))}]}})
+
+(defn- confirm-try-channel! [^Stage stage project localization version release-notes]
+  (if release-notes
+    (fxui/show-stateless-dialog-and-await-result!
+      (fn [result-fn]
+        {:fx/type channel-release-notes-dialog
+         :result-fn result-fn
+         :localization localization
+         :release-notes release-notes
+         :version version
+         :project project}))
+    (dialogs/make-confirmation-dialog
+      localization
+      {:title (localization/message "updater.try-channel-dialog.title")
+       :icon :icon/circle-question
+       :owner stage
+       :header (localization/message "updater.try-channel-dialog.header" {"version" version})
+       :content {:text (localization/message "updater.try-channel-dialog.detail")
+                 :wrap-text true}
+       :buttons [{:text (localization/message "updater.release-notes-dialog.button.later")
+                  :cancel-button true
+                  :result false}
+                 {:text (localization/message "updater.try-channel-dialog.button.download")
+                  :variant :primary
+                  :default-button true
+                  :result true}]})))
+
+(defn- choose-channel-install-dir [^Stage stage updater localization channel]
+  (let [install-name (updater/channel-install-name updater channel)]
+    (loop [initial-dir (updater/default-channel-install-parent updater)]
+      (when-some [parent-dir (dialogs/make-directory-dialog
+                               (localization (localization/message "updater.choose-channel-location-dialog.title"))
+                               initial-dir
+                               stage)]
+        (let [install-dir (io/file parent-dir install-name)]
+          (if (.exists install-dir)
+            (do (dialogs/make-info-dialog
+                  localization
+                  {:title (localization/message "updater.choose-channel-location-dialog.title")
+                   :icon :icon/triangle-warning
+                   :owner stage
+                   :header (localization/message "updater.channel-location-exists-dialog.header" {"name" install-name})
+                   :content (localization/message "updater.channel-location-exists-dialog.detail")})
+                (recur parent-dir))
+            install-dir))))))
+
+(defn- start-channel-download! [^Stage stage updater localization channel-info ^File install-dir]
+  (let [version (:version channel-info)
+        download (updater/download-channel! updater channel-info install-dir)]
+    (future
+      (let [success @download]
+        (ui/run-later
+          (if success
+            (when (dialogs/make-confirmation-dialog
+                    localization
+                    {:title (localization/message "updater.try-channel-dialog.title")
+                     :icon :icon/circle-check
+                     :owner stage
+                     :header (localization/message "updater.channel-download-done-dialog.header" {"version" version})
+                     :content (.getPath install-dir)
+                     :buttons [{:text (localization/message "dialog.button.close")
+                                :cancel-button true
+                                :result false}
+                               {:text (localization/message "updater.channel-download-done-dialog.button.launch")
+                                :variant :primary
+                                :default-button true
+                                :result true}]})
+              (updater/launch-channel! updater install-dir))
+            (dialogs/make-info-dialog
+              localization
+              {:title (localization/message "updater.try-channel-dialog.title")
+               :icon :icon/triangle-error
+               :owner stage
+               :header (localization/message "updater.channel-download-failed-dialog.header" {"version" version})})))))))
+
+(defn try-channel!
+  "Offers to download the beta editor into a new folder of the user's choice
+  and launch it there. The current installation stays as it is."
+  [stage project updater localization]
+  (when (and (not (updater/channel-download-in-progress? updater))
+             (updater/begin-manual-update-check! updater))
+    (future
+      (let [channel "beta"
+            info (get (updater/fetch-channel-infos!) channel)
+            release-notes (when info (updater/channel-release-notes channel))]
+        (ui/run-later
+          (try
+            (if info
+              (when (confirm-try-channel! stage project localization (:version info) release-notes)
+                (when-some [install-dir (choose-channel-install-dir stage updater localization channel)]
+                  (start-channel-download! stage updater localization (assoc info :channel channel) install-dir)))
+              (dialogs/make-info-dialog
+                localization
+                {:title (localization/message "updater.check-failed-dialog.title")
+                 :icon :icon/triangle-error
+                 :owner stage
+                 :header (localization/message "updater.check-failed-dialog.header")}))
+            (finally
+              (updater/end-manual-update-check! updater))))))))
+
 (defn init-channel-offer!
   "Makes `link` suggest a channel with a newer version whenever there is one.
-  Clicking it shows that channel's release notes with a choice to switch."
-  [^Stage stage link project updater install-and-restart! localization]
+  Clicking it offers to download that channel's editor into a new folder."
+  [^Stage stage link project updater localization]
   (ui/on-action! link
     (fn on-channel-offer-link-action [_]
-      (when-let [offer (updater/channel-offer updater)]
-        (updater/set-target-channel! updater (:channel offer))
-        (check-for-updates! stage project updater install-and-restart! localization))))
+      (try-channel! stage project updater localization)))
   (let [link-fn (fn update-channel-offer-link [updater]
                   (ui/run-later
                     (let [offer (updater/channel-offer updater)]
@@ -225,43 +334,6 @@
                       WindowEvent/WINDOW_HIDING
                       (ui/event-handler _
                         (updater/remove-state-watch updater link-fn)))))
-
-(defn switch-channel! [stage project updater install-and-restart! localization]
-  (when (updater/begin-manual-update-check! updater)
-    (future
-      (let [channel (updater/alternate-channel updater)
-            version (:version (get (updater/fetch-channel-infos!) channel))]
-        (ui/run-later
-          (let [channel (try
-                          (if version
-                            (dialogs/make-confirmation-dialog
-                              localization
-                              {:title (localization/message "updater.switch-channel-dialog.title")
-                               :icon :icon/circle-question
-                               :owner stage
-                               :header (localization/message (str "updater.switch-channel-dialog.header." channel)
-                                                             {"version" version})
-                               :content {:text (localization/message "updater.switch-channel-dialog.detail")
-                                         :wrap-text true}
-                               :buttons [{:text (localization/message "dialog.button.cancel")
-                                          :cancel-button true
-                                          :result nil}
-                                         {:text (localization/message "updater.switch-channel-dialog.button.switch"
-                                                                      {"channel" (string/capitalize channel)})
-                                          :variant :primary
-                                          :default-button true
-                                          :result channel}]})
-                            (dialogs/make-info-dialog
-                              localization
-                              {:title (localization/message "updater.check-failed-dialog.title")
-                               :icon :icon/triangle-error
-                               :owner stage
-                               :header (localization/message "updater.check-failed-dialog.header")}))
-                          (finally
-                            (updater/end-manual-update-check! updater)))]
-            (when channel
-              (updater/set-target-channel! updater channel)
-              (check-for-updates! stage project updater install-and-restart! localization))))))))
 
 (defn init! [^Stage stage link project updater install-and-restart! render-progress! localization]
   (let [link-fn (make-link-fn link localization)]

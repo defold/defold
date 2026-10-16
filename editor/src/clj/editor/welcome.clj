@@ -588,7 +588,7 @@
     ;; No project is open on the welcome screen; release-notes links are external
     ;; (forum) urls that don't need one.
     (ui.updater/init! stage update-link nil updater install-and-restart! render-progress! localization)
-    (ui.updater/init-channel-offer! stage channel-offer-link nil updater install-and-restart! localization)))
+    (ui.updater/init-channel-offer! stage channel-offer-link nil updater localization)))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog
