@@ -189,6 +189,24 @@ TEST_F(AndroidJoystickTest, ButtonLayouts)
     }
 }
 
+// Verifies the input queue acknowledges gamepad keys, preventing Android's fallback Square/Back presses.
+TEST_F(AndroidJoystickTest, GamepadKeysAreHandled)
+{
+    const int keys[] = { AKEYCODE_BUTTON_A, AKEYCODE_BUTTON_B, AKEYCODE_BUTTON_C, AKEYCODE_BUTTON_Z, AKEYCODE_BUTTON_START };
+    m_Event.m_Type = AINPUT_EVENT_TYPE_KEY;
+    m_Event.m_Source = AINPUT_SOURCE_GAMEPAD;
+    for (unsigned int i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i)
+    {
+        m_Event.m_KeyCode = keys[i];
+        m_Event.m_Action = AKEY_EVENT_ACTION_DOWN;
+        ASSERT_EQ(1, dmNativeAndroidHandleInput(0, (AInputEvent*)&m_Event));
+        m_Event.m_Action = AKEY_EVENT_ACTION_UP;
+        ASSERT_EQ(1, dmNativeAndroidHandleInput(0, (AInputEvent*)&m_Event));
+    }
+    m_Event.m_KeyCode = AKEYCODE_A;
+    ASSERT_EQ(0, dmNativeAndroidHandleInput(0, (AInputEvent*)&m_Event));
+}
+
 // Verifies Android Back/Menu aliases are available to SDL mappings without changing legacy button state.
 TEST_F(AndroidJoystickTest, ButtonAliases)
 {
