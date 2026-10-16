@@ -516,19 +516,25 @@
   (let [{:keys [state-atom ^Platform platform]} updater
         extension (if (= "macos" (.getOs platform)) "dmg" "zip")
         url (channel-download-url (system/defold-archive-domain) sha1 channel platform extension)
-        file (create-download-file (str "Defold-" version "-" channel "-" (.getPair platform)) extension)
         track-progress! (fn track-progress! [progress]
                           (swap! state-atom assoc-in [:channel-download :progress] progress))]
     (swap! state-atom assoc :channel-download {:channel channel
                                                :progress (progress/make localization/empty-message 1 0)})
     (future
       (try
-        (download! url file track-progress! (atom false))
-        (log/info :message "Channel build downloaded" :channel channel :file (str file))
-        file
+        (let [base-name (str "Defold-" version "-" channel "-" (.getPair platform))
+              part-file (.toFile (Files/createTempFile (.toPath (downloads-dir)) base-name ".part" (into-array FileAttribute [])))]
+          (.deleteOnExit part-file)
+          (try
+            (download! url part-file track-progress! (atom false))
+            (let [file (create-download-file base-name extension)]
+              (Files/move (.toPath part-file) (.toPath file) (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))
+              (log/info :message "Channel build downloaded" :channel channel :file (str file))
+              file)
+            (finally
+              (.delete part-file))))
         (catch Exception e
           (log/info :message "Channel download failed" :channel channel :exception e)
-          (.delete file)
           nil)
         (finally
           (swap! state-atom dissoc :channel-download))))))
