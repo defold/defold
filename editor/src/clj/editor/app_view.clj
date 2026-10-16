@@ -2904,8 +2904,7 @@
     (ui.updater/check-for-updates!
       main-stage project updater
       (ui/user-data main-stage ::ui.updater/install-and-restart!)
-      localization
-      false)))
+      localization)))
 
 (handler/defhandler :help.switch-channel :global
   (label [updater]

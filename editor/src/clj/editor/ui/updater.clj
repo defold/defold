@@ -58,7 +58,7 @@
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization props)
               :key :localization-state}]}
-  [{:keys [project localization-state release-notes result-fn switch-channel offered]}]
+  [{:keys [project localization-state release-notes result-fn switch-channel]}]
   {:fx/type dialogs/dialog-stage
    :showing true
    :on-close-request (fn [_] (result-fn :later))
@@ -88,11 +88,9 @@
                                 :text (localization-state (localization/message "updater.release-notes-dialog.button.later"))
                                 :cancel-button true
                                 :on-action (fn [_] (result-fn :later))}]
-                        (or offered (not switch-channel))
+                        (not switch-channel)
                         (conj {:fx/type fxui/legacy-button
-                               :text (localization-state (if offered
-                                                           (localization/message "updater.release-notes-dialog.button.not-interested")
-                                                           (localization/message "updater.dialog.button.skip-version")))
+                               :text (localization-state (localization/message "updater.dialog.button.skip-version"))
                                :on-action (fn [_] (result-fn :skip))})
                         :always
                         (conj {:fx/type fxui/legacy-button
@@ -107,7 +105,7 @@
   "Shows the release notes dialog, blocking the current thread until the user
   dismisses it. Must be called on the JavaFX application thread. Returns the
   user's choice as :skip, :later, or :update."
-  [project localization release-notes switch-channel offered]
+  [project localization release-notes switch-channel]
   (fxui/show-stateless-dialog-and-await-result!
     (fn [result-fn]
       {:fx/type release-notes-update-dialog
@@ -115,30 +113,25 @@
        :localization localization
        :release-notes release-notes
        :switch-channel switch-channel
-       :offered offered
        :project project})))
 
-(defn- prompt-and-download! [stage project updater localization download-confirmed offered]
+(defn- prompt-and-download! [stage project updater localization download-confirmed]
   (let [release-notes (updater/release-notes updater)
         switch-channel (when (updater/switching-channel? updater)
                          (updater/target-channel updater))
         choice (if release-notes
-                 (show-release-notes-update-dialog! project localization release-notes switch-channel offered)
+                 (show-release-notes-update-dialog! project localization release-notes switch-channel)
                  (if (or download-confirmed switch-channel)
                    :update
                    (dialogs/make-download-update-dialog stage localization)))]
     (case choice
-      :skip (do (if offered
-                  (updater/dismiss-channel-offer! updater)
-                  (updater/skip-update! updater (or (:sha1 release-notes)
-                                                    (updater/current-update-sha1 updater))))
-                (when switch-channel
-                  (updater/set-target-channel! updater (updater/installed-channel updater))))
+      :skip (updater/skip-update! updater (or (:sha1 release-notes)
+                                              (updater/current-update-sha1 updater)))
       :later (when switch-channel
                (updater/set-target-channel! updater (updater/installed-channel updater)))
       :update (updater/download-and-extract! updater))))
 
-(defn- handle-update-check! [stage project updater install-and-restart! localization ignore-skip offered]
+(defn- handle-update-check! [stage project updater install-and-restart! localization ignore-skip]
   (let [can-install (updater/can-install-update? updater)
         update-exists (if ignore-skip
                         (updater/can-download-update? updater)
@@ -149,11 +142,11 @@
       (case (dialogs/make-download-update-or-restart-dialog stage localization)
         :cancel nil
         :skip (updater/skip-update! updater (updater/current-update-sha1 updater))
-        :download (prompt-and-download! stage project updater localization true offered)
+        :download (prompt-and-download! stage project updater localization true)
         :restart (install-and-restart!))
 
       can-get-new
-      (prompt-and-download! stage project updater localization false offered)
+      (prompt-and-download! stage project updater localization false)
 
       (updater/download-in-progress? updater)
       (dialogs/make-info-dialog
@@ -191,14 +184,14 @@
          :owner stage
          :header (localization/message "updater.up-to-date-dialog.header")}))))
 
-(defn check-for-updates! [stage project updater install-and-restart! localization offered]
+(defn check-for-updates! [stage project updater install-and-restart! localization]
   (when (updater/begin-manual-update-check! updater)
     (future
       (let [checked (updater/check! updater)]
         (ui/run-later
           (try
             (if checked
-              (handle-update-check! stage project updater install-and-restart! localization true offered)
+              (handle-update-check! stage project updater install-and-restart! localization true)
               (dialogs/make-info-dialog
                 localization
                 {:title (localization/message "updater.check-failed-dialog.title")
@@ -216,7 +209,7 @@
     (fn on-channel-offer-link-action [_]
       (when-let [offer (updater/channel-offer updater)]
         (updater/set-target-channel! updater (:channel offer))
-        (check-for-updates! stage project updater install-and-restart! localization true))))
+        (check-for-updates! stage project updater install-and-restart! localization))))
   (let [link-fn (fn update-channel-offer-link [updater]
                   (ui/run-later
                     (let [offer (updater/channel-offer updater)]
@@ -268,7 +261,7 @@
                             (updater/end-manual-update-check! updater)))]
             (when channel
               (updater/set-target-channel! updater channel)
-              (check-for-updates! stage project updater install-and-restart! localization false))))))))
+              (check-for-updates! stage project updater install-and-restart! localization))))))))
 
 (defn init! [^Stage stage link project updater install-and-restart! render-progress! localization]
   (let [link-fn (make-link-fn link localization)]
@@ -280,7 +273,7 @@
         true))
     (localization/localize! link localization (localization/message "updater.button.update-available"))
     (ui/on-action! link
-      (fn [_] (handle-update-check! stage project updater install-and-restart! localization false false)))
+      (fn [_] (handle-update-check! stage project updater install-and-restart! localization false)))
     (updater/add-progress-watch updater render-progress!)
     (updater/add-state-watch updater link-fn)
     (.addEventHandler stage

@@ -235,25 +235,8 @@
                         [channel (fetch-json! (channel-info-url archive-domain channel))])
                       channels))))
 
-(defn channel-offer
-  "Returns {:channel <string> :version <string> :sha1 <string>} when a channel
-  with a newer version than the installed one is worth suggesting, or nil."
-  [updater]
-  (let [{:keys [state-atom prefs]} updater
-        {:keys [channel-offer downloaded-sha1]} @state-atom]
-    (when (and channel-offer
-               (not downloaded-sha1)
-               (not (switching-channel? updater))
-               (not (prefs/get prefs [:versioning :channel-offer-dismissed])))
-      channel-offer)))
-
-(defn dismiss-channel-offer! [updater]
-  (prefs/set! (:prefs updater) [:versioning :channel-offer-dismissed] true)
-  (swap! (:state-atom updater) dissoc :channel-offer))
-
 (defn- check-channel-offer! [updater]
-  (when (and (= "stable" (installed-channel updater))
-             (not (prefs/get (:prefs updater) [:versioning :channel-offer-dismissed])))
+  (when (= "stable" (installed-channel updater))
     (let [{stable "stable" beta "beta"} (fetch-channel-infos!)]
       (swap! (:state-atom updater) assoc :channel-offer
              (when (and stable beta (newer-version? (:version beta) (:version stable)))
@@ -397,6 +380,20 @@
 
 (defn download-in-progress? [updater]
   (some? (:current-download @(:state-atom updater))))
+
+(defn channel-offer
+  "Returns {:channel <string> :version <string> :sha1 <string>} when a channel
+  with a newer version than the installed one is worth suggesting, or nil.
+  Hidden while an update for the installed channel is pending, so only one
+  link shows at a time."
+  [updater]
+  (let [{:keys [channel-offer downloaded-sha1]} @(:state-atom updater)]
+    (when (and channel-offer
+               (not downloaded-sha1)
+               (not (switching-channel? updater))
+               (not (update-advertised? updater))
+               (not (download-in-progress? updater)))
+      channel-offer)))
 
 (defn platform-supported? [updater]
   (contains? #{Platform/X86_64Linux

@@ -111,7 +111,6 @@ updater.button.update-available = Update Available
 updater.button.restart-to-update = Restart to Update
 updater.button.switch-available = Switch to {channel}
 updater.button.channel-offer = Defold {version} {channel} is out. Try it
-updater.release-notes-dialog.button.not-interested = Not Interested
 updater.button.restart-to-switch = Restart to Switch to {channel}
 updater.switch-channel-dialog.title = Switch Version
 updater.switch-channel-dialog.header.beta = Try Defold {version} beta?

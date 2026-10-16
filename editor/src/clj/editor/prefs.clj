@@ -90,7 +90,6 @@
    {:versioning {:type :object
                  :properties
                  {:opened-versions {:type :set :item {:type :string}}
-                  :channel-offer-dismissed {:type :boolean}
                   :skipped-update-sha1s {:type :object-of
                                          :key {:type :string}
                                          :val {:type :string}}}}
