@@ -3085,7 +3085,7 @@ namespace dmGraphics
                     const bool is_matrix_input = matrix_vector_count > 0;
                     const uint32_t location_base = vertex_input->m_Binding;
 
-                    // SPIRV-Cross emits a `matN` vertex input as N float4 inputs with semantic
+                    // SPIRV-Cross emits a `matN` vertex input as N vectors with semantic
                     // "TEXCOORD{location}_" and SemanticIndex 0..N-1 (e.g. TEXCOORD3_0..TEXCOORD3_3
                     // for a mat4 at location 3). Mirror that here so the PSO signature matches.
                     const char* semantic_name = "TEXCOORD";
@@ -3102,18 +3102,21 @@ namespace dmGraphics
                         }
                     }
 
+                    const uint32_t num_vectors = is_matrix_input ? matrix_vector_count : 1;
+                    const uint32_t vector_components = stream.m_Size / num_vectors;
+                    const uint32_t vector_stride = vector_components * GetTypeSize(stream.m_Type);
+
                     D3D12_INPUT_ELEMENT_DESC desc;
                     desc.SemanticName         = semantic_name;
-                    desc.Format               = GetDXGIFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
+                    desc.Format               = GetDXGIFormat(stream.m_Type, vector_components, stream.m_Normalize);
                     desc.InputSlot            = i;
                     desc.InputSlotClass       = slot_step_per_instance ? D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA : D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
                     desc.InstanceDataStepRate = slot_step_per_instance ? 1 : 0;
 
-                    const uint32_t num_vectors = is_matrix_input ? matrix_vector_count : 1;
                     for (uint32_t v = 0; v < num_vectors; ++v)
                     {
                         desc.SemanticIndex     = is_matrix_input ? v : location_base + v;
-                        desc.AlignedByteOffset = stream.m_Offset + v * 16;
+                        desc.AlignedByteOffset = stream.m_Offset + v * vector_stride;
                         if (input_layout.Full())
                         {
                             input_layout.OffsetCapacity(32);
