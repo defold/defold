@@ -1084,7 +1084,6 @@ dialog.about.label.build-time = 构建时间：
 dialog.about.label.editor-sha1 = 编辑器 SHA1：
 dialog.about.label.engine-sha1 = 引擎 SHA1：
 dialog.about.value.unavailable = 不可用
-dialog.about.footer.copyright = 版权所有 © 2009-2025
 dialog.about.footer.foundation = Defold 基金会
 dialog.about.sponsor = Defold 基金会 开发基金
 
