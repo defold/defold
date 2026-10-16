@@ -179,7 +179,7 @@ dmResource::Result ReloadTest::ResReloadTargetCreate(const dmResource::ResourceC
     }
     else
     {
-        return dmResource::RESULT_FORMAT_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 }
 
@@ -201,7 +201,7 @@ dmResource::Result ReloadTest::ResReloadTargetRecreate(const dmResource::Resourc
     }
     else
     {
-        return dmResource::RESULT_FORMAT_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 }
 

@@ -68,7 +68,7 @@ static dmResource::Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, u
     if (result != dmDDF::RESULT_OK)
     {
         dmLogError("Failed to parse Manifest (%i)", result);
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 
     if (out_manifest->m_DDF->m_Version != MANIFEST_VERSION)
@@ -86,7 +86,7 @@ static dmResource::Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, u
         dmLogError("Failed to parse Manifest data (%i)", result);
         dmDDF::FreeMessage(out_manifest->m_DDF);
         out_manifest->m_DDF = 0x0;
-        return dmResource::RESULT_DDF_ERROR;
+        return dmResource::RESULT_PROTOBUF_ERROR;
     }
 
     return dmResource::RESULT_OK;
