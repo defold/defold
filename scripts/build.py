@@ -1225,7 +1225,8 @@ class Configuration(object):
         build_private.install_sdk(self, target_platform)
 
     def _activate_ems(self, emsdk, bin_dir, version):
-        run.env_command(self._form_env(), [join(emsdk, 'emsdk'), 'activate', version, '--embedded'])
+        suffix = '.bat' if self.host.endswith('-win32') else ''
+        run.env_command(self._form_env(), [join(emsdk, 'emsdk' + suffix), 'activate', version, '--embedded'])
 
         # prewarm the cache
         # Although this method might be more "correct", it also takes 10 minutes more than we'd like on CI
@@ -1238,7 +1239,7 @@ class Configuration(object):
             f.write('int main() { return 0; }')
         with tempfile.NamedTemporaryFile(suffix='.js', delete=False) as f:
             exe_file = f.name
-        run.env_command(self._form_env(), [f'{bin_dir}/emcc', c_file, '-o', '%s' % exe_file])
+        run.env_command(self._form_env(), [join(bin_dir, 'emcc' + suffix), c_file, '-o', '%s' % exe_file])
 
     def _git_sha1(self, ref = None):
         return self.build_utility.git_sha1(ref)
