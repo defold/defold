@@ -307,12 +307,15 @@ function testAutoplayWaitsForActivation() {
     assert.strictEqual(context.startedBuffers, 1);
 }
 
-// Verifies older browsers require trusted activation events and remember them for later recovery.
+// Verifies older browsers accept trusted input, including modified game keys, and remember it for recovery.
 function testAutoplayWithoutActivationAPI() {
     for (const event of [
         { type: "mousedown" },
         { type: "touchend" },
         { type: "keydown", key: " ", keyCode: 32 },
+        { type: "keydown", key: "ArrowRight", keyCode: 39, ctrlKey: true },
+        { type: "keydown", key: "z", keyCode: 90, altKey: true },
+        { type: "keydown", key: "ArrowUp", keyCode: 38, metaKey: true },
         { type: "pointerdown", pointerType: "mouse" },
         { type: "pointerup", pointerType: "touch" }
     ]) {
@@ -330,7 +333,6 @@ function testAutoplayWithoutActivationAPI() {
             { type: "touchstart", isTrusted: true },
             { type: "touchcancel", isTrusted: true },
             { type: "keydown", isTrusted: true, key: "Escape", keyCode: 27 },
-            { type: "keydown", isTrusted: true, key: "l", ctrlKey: true },
             { type: "pointerdown", isTrusted: true, pointerType: "touch" }
         ]) {
             global.DefoldSoundDevice.TryResumeAudio(ignored);

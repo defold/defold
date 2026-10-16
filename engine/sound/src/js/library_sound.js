@@ -50,8 +50,9 @@ var LibrarySoundDevice =
             }
             switch (event.type) {
                 case "keydown":
-                    return event.key != "Escape" && event.keyCode != 27 &&
-                        !event.ctrlKey && !event.altKey && !event.metaKey;
+                    // Modifiers are also used by game controls. Let the browser decide
+                    // whether a delivered key combination is a reserved shortcut.
+                    return event.key != "Escape" && event.keyCode != 27;
                 case "mousedown":
                 case "touchend":
                     return true;
