@@ -69,6 +69,8 @@ else()
   set_source_files_properties("${OGG_SOURCE_DIR}/src/bitwise.c" "${OGG_SOURCE_DIR}/src/framing.c"
     ${OGGZ_SOURCES} PROPERTIES COMPILE_OPTIONS -fvisibility=default)
   if(APPLE)
+    # Bob and the Editor must be able to load/run these tools on macOS 11.
+    set_target_properties(ogg oggz oggz-validate PROPERTIES DEFOLD_MACOS_DEPLOYMENT_TARGET 11.0)
     set(OGG_ORIGIN "@loader_path")
     set_target_properties(ogg oggz PROPERTIES MACOSX_RPATH ON INSTALL_NAME_DIR "@rpath")
   else()
