@@ -842,7 +842,7 @@ jobs:
           path: ${{ runner.os == 'Windows' && format('{0}\defold-ext-cache\{1}', runner.temp, env.EDITOR_TEST_EXT_CACHE_KEY) || format('{0}/defold-ext-cache/{1}', runner.temp, env.EDITOR_TEST_EXT_CACHE_KEY) }}
           fail-on-cache-miss: true
       - &step_install_editor_test_dependencies
-        name: "Install editor test dependencies without compiling"
+        name: "Install editor test dependencies"
         shell: bash
         run: |
           editor_test_original_path="$PATH"
@@ -854,6 +854,8 @@ jobs:
           import os
           from pathlib import Path
           import shutil
+          import subprocess
+          import urllib.request
 
           platform = os.environ["EDITOR_TEST_PLATFORM"]
           cached = Path(os.environ["RUNNER_TEMP"]) / "defold-ext-cache" / os.environ["EDITOR_TEST_EXT_CACHE_KEY"]
@@ -861,6 +863,18 @@ jobs:
           for name in (f"bin/{platform}", "include/google/protobuf", "share/luajit"):
               shutil.copytree(cached / name, destination / name, dirs_exist_ok=True)
           print("Installed prebuilt protoc, standard schemas, and LuaJIT modules.")
+
+          bob = Path(os.environ["DM_BOB_JAR"])
+          bob.parent.mkdir(parents=True, exist_ok=True)
+          engine_sha = os.environ["OPTION_EDITOR_LOCAL"].split("=", 1)[1]
+          urllib.request.urlretrieve(f"https://d.defold.com/archive/{engine_sha}/bob/bob.jar", bob)
+          classes = Path("tmp/editor-test-bob-classes")
+          sources = Path("com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/shader")
+          subprocess.run(["javac", "-cp", str(bob), "-d", str(classes),
+                          str(sources / "ShaderCompilePipeline.java"),
+                          str(sources / "ShaderCompilePipelineLegacy.java")], check=True)
+          subprocess.run(["jar", "uf", str(bob), "-C", str(classes), "."], check=True)
+          print("Updated archived Bob with the current shader pipeline classes.")
           PYTHON
       - name: "Test editor"
         run: "ci/ci.sh test-editor --platform=x86_64-linux --skip-install-ext ${{ env.OPTION_EDITOR_LOCAL }}"
