@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns hooks.editor-windows-process-test
+(ns hooks.editor-process-test
   (:require [clj-kondo.hooks-api :as api]))
 
 (defn with-child-process [{:keys [node]}]

@@ -69,7 +69,8 @@ env:
   # $DYNAMO_HOME rather than from the archive.
   OPTION_ARCHIVE: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && '--archive' || '' }}
   OPTION_SKIP_ARCHIVE: ${{ (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && '--skip-archive' || '' }}
-  OPTION_EDITOR_LOCAL: ${{ (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && '--engine-artifacts=dynamo-home' || '' }}
+  # Temporary: reuse the last successful PR engine build for editor test iteration.
+  OPTION_EDITOR_LOCAL: --engine-artifacts=6f3960c6e62dd2ad26cbc852438b40902e73d0b1
 
 jobs:
   # Steps and conditions that several jobs share are written once, with a YAML anchor
@@ -186,7 +187,7 @@ jobs:
             timeout: 30
             engine_args: ""
     runs-on: ${{ matrix.runner }}
-    if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
+    if: false # Temporary: editor test iteration only.
     timeout-minutes: ${{ matrix.timeout }}
     # The Windows steps all declared shell: bash already.
     defaults:
@@ -483,7 +484,7 @@ jobs:
   build-reports:
     name: Build Reports
     needs: [bld-eng]
-    if: always()
+    if: false # Temporary: editor test iteration only.
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -511,7 +512,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'skip-ci-') && !startsWith(github.head_ref, 'DEFEDIT-'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))) && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+    if: false # Temporary: editor test iteration only.
     steps:
       - *step_validate_build_commit
       - name: "Checkout CI scripts"
@@ -552,7 +553,7 @@ jobs:
   build-bob:
     needs: [bld-eng]
     runs-on: ubuntu-22.04
-    if: &if_bob_enabled (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true))
+    if: &if_bob_enabled false # Temporary: editor test iteration only.
     timeout-minutes: 15
     steps:
       - *step_validate_build_commit
@@ -596,7 +597,7 @@ jobs:
   test-bob:
     needs: [build-bob]
     runs-on: ubuntu-22.04
-    if: *if_bob_enabled
+    if: false # Temporary: editor test iteration only.
     timeout-minutes: 15
     steps:
       - *step_validate_build_commit
@@ -630,7 +631,7 @@ jobs:
     runs-on: ubuntu-22.04
     # The SDK is merged from the per-platform SDK archives on S3. A contrib build never
     # writes them, so there is nothing to merge.
-    if: ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true))) && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+    if: false # Temporary: editor test iteration only.
     timeout-minutes: 10
     steps:
       - *step_validate_build_commit
@@ -646,7 +647,7 @@ jobs:
 
   gen-release-notes:
     runs-on: ubuntu-22.04
-    if: github.event_name != 'pull_request'
+    if: false # Temporary: editor test iteration only.
     timeout-minutes: 30
     steps:
       - *step_validate_build_commit
@@ -700,7 +701,7 @@ jobs:
     name: "${{ matrix.name }}"
     needs: [build-bob, gen-release-notes]
     runs-on: ${{ matrix.runner }}
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
+    if: false # Temporary: editor test iteration only.
     timeout-minutes: 60
     # The Windows job already ran every one of its steps under bash.
     defaults:
@@ -817,12 +818,7 @@ jobs:
       - *step_notify
 
   test-editor-linux:
-    needs: [build-bob, build-sdk]
     runs-on: ubuntu-22.04
-    # build-sdk is skipped for a contrib build, which would skip this job as well. Every
-    # other reason for build-sdk not succeeding - including a skip_sdk dispatch - still
-    # skips this job, as it did before.
-    if: ${{ !cancelled() && needs.build-bob.result == 'success' && (needs.build-sdk.result == 'success' || (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))) }}
     timeout-minutes: 60
     steps:
       - *step_validate_build_commit
@@ -837,19 +833,26 @@ jobs:
       - name: "Install dependencies"
         run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
       - *step_build_external
-      - *step_download_bob
-      - *step_download_dynamo_home
-      - *step_chmod_dynamo_home
       - name: "Test editor"
         run: "ci/ci.sh test-editor --platform=x86_64-linux --skip-install-ext ${{ env.OPTION_EDITOR_LOCAL }}"
+      - name: "Upload editor test reports"
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: "editor-test-reports-${{ runner.os }}"
+          path: |-
+            editor/target/test-results
+            editor/.lein-failures
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
       - *step_remove_bob_maven
       - *step_notify
 
   test-editor-windows:
-    needs: [build-bob]
     runs-on: windows-2025-vs2026
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
-    timeout-minutes: 30
+    timeout-minutes: 60
     defaults:
       run:
         shell: bash
@@ -868,11 +871,19 @@ jobs:
       - name: "Install dependencies"
         run: "ci/ci.sh install"
       - *step_build_external
-      - *step_download_bob
-      - *step_download_dynamo_home
-      - *step_download_engine_share
       - name: "Test editor"
         run: "ci/ci.sh test-editor --platform=x86_64-win32 --skip-install-ext ${{ env.OPTION_EDITOR_LOCAL }}"
+      - name: "Upload editor test reports"
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: "editor-test-reports-${{ runner.os }}"
+          path: |-
+            editor/target/test-results
+            editor/.lein-failures
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
       - *step_remove_bob_maven
       - *step_notify
 
@@ -891,7 +902,7 @@ jobs:
       queue: max
     # ci.py already refuses to release a branch other than master/beta/dev, but a contrib
     # branch must not even reach the release job.
-    if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))"
+    if: false # Temporary: editor test iteration only.
     permissions:
       contents: write
     steps:

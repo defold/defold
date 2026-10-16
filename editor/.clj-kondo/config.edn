@@ -57,6 +57,7 @@
                         editor.handler/defhandler hooks.editor-handler/defhandler
                         editor.image-util/with-graphics hooks.editor-image-util/with-graphics
                         editor.lsp.async/with-auto-evaluation-context hooks.editor-lsp-async/with-auto-evaluation-context
+                        editor.process-test/with-child-process hooks.editor-process-test/with-child-process
                         editor.ui/change-listener hooks.editor-ui/change-listener
                         editor.ui/defc hooks.editor-ui/defc
                         editor.ui/event-dispatcher hooks.editor-ui/event-dispatcher
@@ -64,7 +65,6 @@
                         editor.ui/invalidation-listener hooks.editor-ui/invalidation-listener
                         editor.ui/with-controls hooks.editor-ui/with-controls
                         editor.ui/with-progress hooks.editor-ui/with-progress
-                        editor.windows-process-test/with-child-process hooks.editor-windows-process-test/with-child-process
                         integration.perf-test/measure hooks.integration-perf-test/measure
                         integration.build-test/with-build-results hooks.integration-build-test/with-build-results
                         integration.lsp-test/with-scratch-project hooks.integration-lsp-test/with-scratch-project
