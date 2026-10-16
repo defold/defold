@@ -1,0 +1,237 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#include <string.h>
+#include <stdio.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+#include "../hid_private.h"
+#include <platform/window.hpp>
+#include <platform/platform_window_constants.h>
+
+extern "C"
+{
+#include "internal.h"
+}
+
+// CMake links this test with --wrap=<symbol>, redirecting calls from the real
+// backend to __wrap_<symbol>. __real_<symbol> calls the original implementation.
+// This lets the tests control the Android SDK version and window lifecycle
+// without creating an Android app surface or polling its live event queue.
+static int g_AndroidSDKVersion = 29;
+// On our minimum SDK, android_get_device_api_level() reads this system property.
+// Override only the SDK version and forward all other properties to Android.
+extern "C" int __real___system_property_get(const char*, char*);
+extern "C" int __wrap___system_property_get(const char* name, char* value)
+{
+    if (strcmp(name, "ro.build.version.sdk") == 0)
+        return snprintf(value, 92, "%d", g_AndroidSDKVersion);
+    return __real___system_property_get(name, value);
+}
+// The fixture supplies joystick state, so skip Android app initialization and termination.
+extern "C" int __wrap_dmNativeOSInit() { return 1; }
+extern "C" int __wrap_dmNativeOSTerminate() { return 1; }
+// These C++ symbols are dmPlatform::GetWindowStateParam and dmPlatform::PollEvents.
+// Report an open window and leave event delivery under the fixture's control.
+extern "C" uint32_t __wrap__ZN10dmPlatform19GetWindowStateParamEP8dmWindow11WindowState(HWindow, WindowState state)
+{
+    return state == WINDOW_STATE_OPENED;
+}
+extern "C" void __wrap__ZN10dmPlatform10PollEventsEP8dmWindow(HWindow) {}
+
+class AndroidGamepadTest : public jc_test_base_class
+{
+protected:
+    void SetUp()
+    {
+        g_AndroidSDKVersion = 29;
+        m_Window = dmPlatform::NewWindow();
+        ASSERT_NE((void*)0, (void*)m_Window);
+        memset(dmNativeJoy, 0, sizeof(dmNativeJoy));
+        dmNativeJoy[0].State = 1;
+        dmNativeJoy[0].DeviceId = 11;
+        dmNativeJoy[0].LayoutLegacy = 1;
+        dmNativeJoy[0].NumAxes = NATIVE_ANDROID_GAMEPAD_NUMAXIS;
+        dmNativeJoy[0].NumButtons = NATIVE_ANDROID_GAMEPAD_NUMBUTTONS;
+        dmNativeJoy[0].SDLNumAxes = 7;
+        dmNativeJoy[0].SDLNumButtons = 16;
+        strcpy(dmNativeJoy[0].DeviceGuid, "0500da4ac82d00001b300000ffff3f00");
+        strcpy(dmNativeJoy[0].DeviceName, "8BitDo Ultimate 2C Wireless");
+        dmHID::NewContextParams params;
+        params.m_IgnoreKeyboard = 1;
+        params.m_IgnoreMouse = 1;
+        params.m_IgnoreTouchDevice = 1;
+        params.m_IgnoreAcceleration = 1;
+        m_Context = dmHID::NewContext(params);
+        dmHID::SetWindow(m_Context, m_Window);
+        ASSERT_TRUE(dmHID::Init(m_Context));
+        m_Gamepad = dmHID::GetGamepad(m_Context, 0);
+    }
+
+    void TearDown()
+    {
+        dmHID::Final(m_Context);
+        dmHID::DeleteContext(m_Context);
+        dmPlatform::DeleteWindow(m_Window);
+    }
+
+    void SelectAutomaticMapping()
+    {
+        ASSERT_EQ((uint32_t)dmHID::GAMEPAD_MAPPING_SUPPORT_AUTOMATIC, dmHID::GetGamepadMappingSupport(m_Context, m_Gamepad));
+        dmHID::SetGamepadLayoutLegacy(m_Gamepad, false);
+        dmHID::SetGamepadMapping(m_Context, m_Gamepad, 0);
+    }
+
+    HWindow m_Window;
+    dmHID::HContext m_Context;
+    dmHID::HGamepad m_Gamepad;
+};
+
+// Verifies Android capabilities enable the automatic fallback only for supported generic gamepads.
+TEST_F(AndroidGamepadTest, MappingSupport)
+{
+    ASSERT_EQ((uint32_t)dmHID::GAMEPAD_MAPPING_SUPPORT_AUTOMATIC, dmHID::GetGamepadMappingSupport(m_Context, m_Gamepad));
+    const char* unsupported[] = {
+        "05000000341200007856000000003f00", // No known face buttons.
+        "050000007e05000006200000ffff3f00", // Nintendo requires a dedicated profile.
+        "030000003412000078560000ffff3f00", // Not an Android capability GUID.
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(unsupported); ++i)
+    {
+        strcpy(dmNativeJoy[0].DeviceGuid, unsupported[i]);
+        ASSERT_EQ((uint32_t)dmHID::GAMEPAD_MAPPING_SUPPORT_NONE, dmHID::GetGamepadMappingSupport(m_Context, m_Gamepad));
+    }
+}
+
+// Verifies SDL Android button slots become the existing canonical HID buttons and hat without duplicate presses.
+TEST_F(AndroidGamepadTest, AutomaticButtons)
+{
+    SelectAutomaticMapping();
+    const uint8_t raw_buttons[] = { 0, 1, 2, 3, 4, 6, 7, 8, 9, 10 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(raw_buttons); ++i)
+    {
+        dmNativeJoy[0].SDLButton[raw_buttons[i]] = 1;
+        dmHID::Update(m_Context);
+        ASSERT_EQ((uint32_t)dmHID::GAMEPAD_MAPPED_BUTTON_COUNT, dmHID::GetGamepadButtonCount(m_Gamepad));
+        for (uint32_t j = 0; j < dmHID::MAX_GAMEPAD_BUTTON_COUNT; ++j)
+            ASSERT_EQ(i == j, dmHID::GetGamepadButton(&m_Gamepad->m_Packet, j));
+        dmNativeJoy[0].SDLButton[raw_buttons[i]] = 0;
+        dmHID::Update(m_Context);
+        ASSERT_FALSE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, i));
+    }
+    const uint8_t hats[] = { 1, 4, 8, 2 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(hats); ++i)
+    {
+        dmNativeJoy[0].SDLButton[11 + i] = 1;
+        dmHID::Update(m_Context);
+        ASSERT_EQ(hats[i], m_Gamepad->m_Packet.m_Hat[0]);
+        ASSERT_EQ(1U, m_Gamepad->m_HatCount);
+        dmNativeJoy[0].SDLButton[11 + i] = 0;
+        dmHID::Update(m_Context);
+        ASSERT_EQ(0U, m_Gamepad->m_Packet.m_Hat[0]);
+    }
+}
+
+// Verifies automatic triggers start released and real normalized axis events survive mapping reselection.
+TEST_F(AndroidGamepadTest, AutomaticAxes)
+{
+    SelectAutomaticMapping();
+    dmHID::Update(m_Context);
+    ASSERT_EQ(-1.0f, m_Gamepad->m_Packet.m_Axis[4]);
+    ASSERT_EQ(-1.0f, m_Gamepad->m_Packet.m_Axis[5]);
+    const float axes[] = { -1.0f, 0.5f, 1.0f, -0.5f, -0.4f, 1.0f };
+    memcpy(dmNativeJoy[0].SDLAxis, axes, sizeof(axes));
+    dmNativeJoy[0].SDLHasAxisEvent = 1;
+    SelectAutomaticMapping();
+    dmHID::Update(m_Context);
+    ASSERT_EQ((uint32_t)dmHID::GAMEPAD_MAPPED_AXIS_COUNT, m_Gamepad->m_AxisCount);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(axes); ++i)
+        ASSERT_EQ(axes[i], m_Gamepad->m_Packet.m_Axis[i]);
+}
+
+// Verifies sparse capabilities omit absent controls and map a TV remote's Back button to B alone.
+TEST_F(AndroidGamepadTest, SparseCapabilities)
+{
+    strcpy(dmNativeJoy[0].DeviceGuid, "05000000341200007856000011000300");
+    SelectAutomaticMapping();
+    memset(dmNativeJoy[0].SDLButton, 1, sizeof(dmNativeJoy[0].SDLButton));
+    for (uint32_t i = 0; i < 7; ++i)
+        dmNativeJoy[0].SDLAxis[i] = 1.0f;
+    dmHID::Update(m_Context);
+    for (uint32_t i = 0; i < dmHID::GAMEPAD_MAPPED_BUTTON_COUNT; ++i)
+        ASSERT_EQ(i < 2, dmHID::GetGamepadButton(&m_Gamepad->m_Packet, i));
+    ASSERT_EQ(0U, m_Gamepad->m_Packet.m_Hat[0]);
+    ASSERT_EQ(1.0f, m_Gamepad->m_Packet.m_Axis[0]);
+    ASSERT_EQ(1.0f, m_Gamepad->m_Packet.m_Axis[1]);
+    ASSERT_EQ(0.0f, m_Gamepad->m_Packet.m_Axis[2]);
+    ASSERT_EQ(0.0f, m_Gamepad->m_Packet.m_Axis[3]);
+    ASSERT_EQ(-1.0f, m_Gamepad->m_Packet.m_Axis[4]);
+    ASSERT_EQ(-1.0f, m_Gamepad->m_Packet.m_Axis[5]);
+}
+
+// Verifies the Guide fallback follows SDL's Android 11 boundary without exposing this SDK rule to input.
+TEST_F(AndroidGamepadTest, GuideSDKVersion)
+{
+    dmNativeJoy[0].SDLButton[5] = 1;
+    for (int sdk = 29; sdk <= 30; ++sdk)
+    {
+        g_AndroidSDKVersion = sdk;
+        SelectAutomaticMapping();
+        dmHID::Update(m_Context);
+        ASSERT_EQ(sdk >= 30, dmHID::GetGamepadButton(&m_Gamepad->m_Packet, dmHID::GAMEPAD_MAPPED_BUTTON_GUIDE));
+    }
+}
+
+// Verifies a selected database mapping retains physical indices and switching back clears old raw button bits.
+TEST_F(AndroidGamepadTest, PhysicalMapping)
+{
+    SelectAutomaticMapping();
+    dmHID::SetGamepadMapping(m_Context, m_Gamepad, "0500da4ac82d00001b300000ffff3f00,Test,a:b9,lefttrigger:a4,righttrigger:a5,");
+    dmNativeJoy[0].SDLNumButtons = 19;
+    dmNativeJoy[0].SDLButton[9] = 1;
+    dmNativeJoy[0].SDLButton[18] = 1;
+    dmHID::Update(m_Context);
+    ASSERT_TRUE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, 9));
+    ASSERT_FALSE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, 8));
+    ASSERT_TRUE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, 18));
+    ASSERT_EQ(-1.0f, m_Gamepad->m_Packet.m_Axis[4]);
+    ASSERT_EQ(0U, m_Gamepad->m_HatCount);
+    SelectAutomaticMapping();
+    dmHID::Update(m_Context);
+    ASSERT_TRUE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, dmHID::GAMEPAD_MAPPED_BUTTON_LEFT_SHOULDER));
+    ASSERT_FALSE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, 18));
+}
+
+// Verifies legacy mappings retain the original Android state after automatic mapping was previously selected.
+TEST_F(AndroidGamepadTest, LegacyMapping)
+{
+    SelectAutomaticMapping();
+    dmHID::SetGamepadLayoutLegacy(m_Gamepad, true);
+    dmHID::SetGamepadMapping(m_Context, m_Gamepad, 0);
+    dmNativeJoy[0].Button[3] = 1;
+    dmNativeJoy[0].Axis[2] = 0.75f;
+    dmNativeJoy[0].Hats = 2;
+    dmHID::Update(m_Context);
+    ASSERT_TRUE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, 3));
+    ASSERT_FALSE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, 2));
+    ASSERT_EQ(0.75f, m_Gamepad->m_Packet.m_Axis[2]);
+    ASSERT_EQ(2U, m_Gamepad->m_Packet.m_Hat[0]);
+    ASSERT_EQ((uint32_t)dmHID::MAX_GAMEPAD_BUTTON_COUNT, dmHID::GetGamepadButtonCount(m_Gamepad));
+}
+
+int main(int argc, char** argv)
+{
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
+}

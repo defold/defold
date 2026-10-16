@@ -148,6 +148,21 @@ if(BUILD_TESTS)
             "build/src/test/build" "build/src/test/build"
     )
 
+    if(TARGET_PLATFORM MATCHES "-android$")
+        defold_add_executable(test_hid_android_gamepad "${HID_SRC_DIR}/test/test_hid_android_gamepad.cpp")
+        target_include_directories(test_hid_android_gamepad PRIVATE
+            "${CMAKE_CURRENT_LIST_DIR}/../platform/src/native"
+            "${CMAKE_CURRENT_LIST_DIR}/../platform/src/native/android")
+        defold_target_link_libraries(test_hid_android_gamepad "${TARGET_PLATFORM}" dlib profile_null testmain hid platform)
+        foreach(function IN ITEMS dmNativeOSInit dmNativeOSTerminate __system_property_get
+                _ZN10dmPlatform19GetWindowStateParamEP8dmWindow11WindowState
+                _ZN10dmPlatform10PollEventsEP8dmWindow)
+            target_link_options(test_hid_android_gamepad PRIVATE "-Wl,--wrap=${function}")
+        endforeach()
+        defold_target_link_socket(test_hid_android_gamepad "${TARGET_PLATFORM}" PRIVATE)
+        defold_register_test_target(test_hid_android_gamepad ON "${CMAKE_CURRENT_LIST_DIR}")
+    endif()
+
     # =====================================================================================
 
     defold_get_graphics_symbols(EXPORTED_SYMBOLS ${TARGET_PLATFORM})
