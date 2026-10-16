@@ -289,14 +289,17 @@ namespace dmGameSystem
                 dmParticle::SetRotation(particle_context, c.m_ParticleInstance, world_transform.GetRotation());
                 dmParticle::SetScale(particle_context, c.m_ParticleInstance, world_transform.GetUniformScale());
                 if (prototype->m_AddedToUpdate && !c.m_AddedToUpdate) {
-                    dmParticle::StartInstance(particle_context, c.m_ParticleInstance);
                     c.m_AddedToUpdate = true;
+                    dmParticle::StartInstance(particle_context, c.m_ParticleInstance);
                 }
             }
         }
 
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
         dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, FetchResourcesCallback);
+
+        // State callbacks can start effects and grow the component array during the update.
+        count = components.Size();
 
         // Prune sleeping instances
         uint32_t i = 0;
@@ -669,6 +672,12 @@ namespace dmGameSystem
 
     static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, dmhash_t component_id, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* emitter_state_changed_data)
     {
+        dmParticle::HInstance particle_instance = dmParticle::CreateInstance(world->m_ParticleContext, prototype->m_ParticlePrototype, emitter_state_changed_data);
+        if (particle_instance == dmParticle::INVALID_INSTANCE)
+        {
+            return particle_instance;
+        }
+
         if (world->m_Components.Full())
         {
             world->m_Components.OffsetCapacity(4);
@@ -685,7 +694,7 @@ namespace dmGameSystem
         // NOTE: We must increase ref-count as a particle fx might be playing after the component is destroyed
         dmResource::HFactory factory = world->m_Context->m_Factory;
         dmResource::IncRef(factory, prototype->m_ParticlePrototype);
-        component->m_ParticleInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype->m_ParticlePrototype, emitter_state_changed_data);
+        component->m_ParticleInstance = particle_instance;
         component->m_ParticlePrototype = prototype->m_ParticlePrototype;
         component->m_World = world;
         component->m_AddedToUpdate = prototype->m_AddedToUpdate;
@@ -755,97 +764,121 @@ namespace dmGameSystem
         dmParticle::DestroyInstance(world->m_ParticleContext, component->m_ParticleInstance);
     }
 
+    bool CompParticleFXPlay(ParticleFXWorld* world, dmGameObject::HInstance go_instance, dmhash_t component_id, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* callback_data)
+    {
+        dmParticle::HParticleContext particle_context = world->m_ParticleContext;
+        dmParticle::HInstance instance = CreateComponent(world, go_instance, component_id, prototype, callback_data);
+        if (instance == dmParticle::INVALID_INSTANCE)
+        {
+            return false;
+        }
+
+        dmTransform::Transform world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
+        world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(go_instance), world_transform);
+        dmParticle::SetPosition(particle_context, instance, Point3(world_transform.GetTranslation()));
+        dmParticle::SetRotation(particle_context, instance, world_transform.GetRotation());
+        dmParticle::SetScale(particle_context, instance, world_transform.GetUniformScale());
+
+        // Start immediately, including from init(), so a subsequent stop cannot be undone by AddToUpdate.
+        // Set the flag before invoking callbacks, which may grow the component array.
+        world->m_Components.Back().m_AddedToUpdate = true;
+        dmParticle::StartInstance(particle_context, instance);
+        return true;
+    }
+
+    void CompParticleFXStop(ParticleFXWorld* world, dmGameObject::HInstance instance, dmhash_t component_id, bool clear_particles)
+    {
+        uint32_t count = world->m_Components.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ParticleFXComponent* component = &world->m_Components[i];
+            if (component->m_Instance == instance && component->m_ComponentId == component_id)
+            {
+                dmParticle::StopInstance(world->m_ParticleContext, component->m_ParticleInstance, clear_particles);
+            }
+        }
+    }
+
+    void CompParticleFXSetConstant(ParticleFXWorld* world, dmGameObject::HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, const Matrix4& value, bool is_matrix4)
+    {
+        uint32_t count = world->m_Components.Size();
+        uint32_t found_count = 0;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ParticleFXComponent* component = &world->m_Components[i];
+            if (component->m_Instance == instance)
+            {
+                if (is_matrix4)
+                {
+                    dmParticle::SetRenderConstantM4(world->m_ParticleContext, component->m_ParticleInstance, emitter_id, name_hash, value);
+                }
+                else
+                {
+                    dmParticle::SetRenderConstant(world->m_ParticleContext, component->m_ParticleInstance, emitter_id, name_hash, value.getCol0());
+                }
+                ++found_count;
+            }
+        }
+        if (found_count == 0)
+        {
+            dmLogWarning("Particle FX to set constant for could not be found. You need to start playing it before setting constants.");
+        }
+    }
+
+    void CompParticleFXResetConstant(ParticleFXWorld* world, dmGameObject::HInstance instance, dmhash_t emitter_id, dmhash_t name_hash)
+    {
+        uint32_t count = world->m_Components.Size();
+        uint32_t found_count = 0;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ParticleFXComponent* component = &world->m_Components[i];
+            if (component->m_Instance == instance)
+            {
+                dmParticle::ResetRenderConstant(world->m_ParticleContext, component->m_ParticleInstance, emitter_id, name_hash);
+                ++found_count;
+            }
+        }
+        if (found_count == 0)
+        {
+            dmLogWarning("Particle FX to reset constant for could not be found.");
+        }
+    }
+
     dmGameObject::UpdateResult CompParticleFXOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
         if (params.m_Message->m_Id == dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash)
         {
-            dmParticle::HParticleContext particle_context = world->m_ParticleContext;
             ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
-            // NOTE: We make a stack allocated instance of EmitterStateChangedData here and pass the address on to create the particle instance.
-            // dmParticle::CreateInstance can be called from outside this method (when reloading particlefx for example, where we don't care about callbacks)
-            // so we want to be able to pass 0x0 in that case. If there is a callback present we will make a shallow copy of the pointers to the callback and userdata,
-            // and transfer ownership of that memory to the particle instance.
-            dmParticle::EmitterStateChangedData emitter_state_changed_data;
-            if(params.m_Message->m_DataSize == sizeof(dmParticle::EmitterStateChanged) + sizeof(EmitterStateChangedScriptData))
+            dmParticle::EmitterStateChangedData callback_data;
+            if (params.m_Message->m_DataSize == sizeof(dmParticle::EmitterStateChanged) + sizeof(EmitterStateChangedScriptData))
             {
-                emitter_state_changed_data.m_UserData = malloc(sizeof(EmitterStateChangedScriptData));
-                memcpy(&(emitter_state_changed_data.m_StateChangedCallback), (params.m_Message->m_Data), sizeof(dmParticle::EmitterStateChanged));
-                memcpy(emitter_state_changed_data.m_UserData, (params.m_Message->m_Data) + sizeof(dmParticle::EmitterStateChanged), sizeof(EmitterStateChangedScriptData));
+                callback_data.m_UserData = malloc(sizeof(EmitterStateChangedScriptData));
+                memcpy(&callback_data.m_StateChangedCallback, params.m_Message->m_Data, sizeof(dmParticle::EmitterStateChanged));
+                memcpy(callback_data.m_UserData, params.m_Message->m_Data + sizeof(dmParticle::EmitterStateChanged), sizeof(EmitterStateChangedScriptData));
             }
 
-            dmhash_t component_id = params.m_Message->m_Receiver.m_Fragment;
-            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, component_id, prototype, &emitter_state_changed_data);
-
-            dmTransform::Transform world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
-            world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(params.m_Instance), world_transform);
-            dmParticle::SetPosition(particle_context, instance, Point3(world_transform.GetTranslation()));
-            dmParticle::SetRotation(particle_context, instance, world_transform.GetRotation());
-            dmParticle::SetScale(particle_context, instance, world_transform.GetUniformScale());
-
-            if (prototype->m_AddedToUpdate)
+            if (!CompParticleFXPlay(world, params.m_Instance, params.m_Message->m_Receiver.m_Fragment, prototype, &callback_data) && callback_data.m_UserData)
             {
-                dmParticle::StartInstance(particle_context, instance);
+                EmitterStateChangedScriptData* data = (EmitterStateChangedScriptData*)callback_data.m_UserData;
+                dmScript::DestroyCallback(data->m_CallbackInfo);
+                free(data);
             }
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::StopParticleFX* ddf = (dmGameSystemDDF::StopParticleFX*)params.m_Message->m_Data;
-            uint32_t count = world->m_Components.Size();
-            for (uint32_t i = 0; i < count; ++i)
-            {
-                ParticleFXComponent* component = &world->m_Components[i];
-                dmhash_t component_id = params.m_Message->m_Receiver.m_Fragment;
-                if (component->m_Instance == params.m_Instance && component->m_ComponentId == component_id)
-                {
-                    dmParticle::StopInstance(world->m_ParticleContext, component->m_ParticleInstance, ddf->m_ClearParticles);
-                }
-            }
+            CompParticleFXStop(world, params.m_Instance, params.m_Message->m_Receiver.m_Fragment, ddf->m_ClearParticles);
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::SetConstantParticleFX* ddf = (dmGameSystemDDF::SetConstantParticleFX*)params.m_Message->m_Data;
-            uint32_t count = world->m_Components.Size();
-            uint32_t found_count = 0;
-            for (uint32_t i = 0; i < count; ++i)
-            {
-                ParticleFXComponent* component = &world->m_Components[i];
-                if (component->m_Instance == params.m_Instance)
-                {
-                    if (ddf->m_IsMatrix4)
-                    {
-                        dmParticle::SetRenderConstantM4(world->m_ParticleContext, component->m_ParticleInstance, ddf->m_EmitterId, ddf->m_NameHash, ddf->m_Value);
-                    }
-                    else
-                    {
-                        dmParticle::SetRenderConstant(world->m_ParticleContext, component->m_ParticleInstance, ddf->m_EmitterId, ddf->m_NameHash, ddf->m_Value.getCol0());
-                    }
-                    ++found_count;
-                }
-            }
-            if (found_count == 0)
-            {
-                dmLogWarning("Particle FX to set constant for could not be found. You need to start playing it before setting constants.");
-            }
+            CompParticleFXSetConstant(world, params.m_Instance, ddf->m_EmitterId, ddf->m_NameHash, ddf->m_Value, ddf->m_IsMatrix4);
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::ResetConstantParticleFX* ddf = (dmGameSystemDDF::ResetConstantParticleFX*)params.m_Message->m_Data;
-            uint32_t count = world->m_Components.Size();
-            uint32_t found_count = 0;
-            for (uint32_t i = 0; i < count; ++i)
-            {
-                ParticleFXComponent* component = &world->m_Components[i];
-                if (component->m_Instance == params.m_Instance)
-                {
-                    dmParticle::ResetRenderConstant(world->m_ParticleContext, component->m_ParticleInstance, ddf->m_EmitterId, ddf->m_NameHash);
-                    ++found_count;
-                }
-            }
-            if (found_count == 0)
-            {
-                dmLogWarning("Particle FX to reset constant for could not be found.");
-            }
+            CompParticleFXResetConstant(world, params.m_Instance, ddf->m_EmitterId, ddf->m_NameHash);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

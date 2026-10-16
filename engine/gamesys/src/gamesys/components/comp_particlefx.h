@@ -17,8 +17,22 @@
 
 #include <gameobject/component.h>
 
+namespace dmParticle
+{
+    struct EmitterStateChangedData;
+}
+
 namespace dmGameSystem
 {
+    struct ParticleFXWorld;
+    struct ParticleFXComponentPrototype;
+
+    // Callback data ownership transfers to the particle instance on success.
+    bool CompParticleFXPlay(ParticleFXWorld* world, dmGameObject::HInstance instance, dmhash_t component_id, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* callback_data);
+    void CompParticleFXStop(ParticleFXWorld* world, dmGameObject::HInstance instance, dmhash_t component_id, bool clear_particles);
+    void CompParticleFXSetConstant(ParticleFXWorld* world, dmGameObject::HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, const dmVMath::Matrix4& value, bool is_matrix4);
+    void CompParticleFXResetConstant(ParticleFXWorld* world, dmGameObject::HInstance instance, dmhash_t emitter_id, dmhash_t name_hash);
+
     dmGameObject::CreateResult CompParticleFXNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
     dmGameObject::CreateResult CompParticleFXDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
