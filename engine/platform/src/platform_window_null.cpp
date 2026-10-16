@@ -390,6 +390,19 @@ namespace dmPlatform
         (void) immersive_mode;
         (void) display_cutout;
     }
+
+    void SetAndroidJoystickLayoutLegacy(uint32_t joystick_index, bool legacy)
+    {
+        (void) joystick_index;
+        (void) legacy;
+    }
+
+    void InitializeAndroidJoystickAxes(uint32_t joystick_index, const float* axes, uint32_t num_axes)
+    {
+        (void) joystick_index;
+        (void) axes;
+        (void) num_axes;
+    }
 #endif
 
 #if defined(DM_PLATFORM_IOS)
