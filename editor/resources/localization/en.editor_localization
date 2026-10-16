@@ -1097,6 +1097,7 @@ code.replace.all = Replace All
 
 dialog.about.label.version = Version:
 dialog.about.label.channel = Channel:
+dialog.about.label.architecture = Architecture:
 dialog.about.label.build-time = Build time:
 dialog.about.label.editor-sha1 = Editor SHA1:
 dialog.about.label.engine-sha1 = Engine SHA1:
