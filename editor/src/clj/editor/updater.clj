@@ -247,9 +247,7 @@
                (not (prefs/get prefs [:versioning :channel-offer-dismissed])))
       channel-offer)))
 
-(defn dismiss-channel-offer!
-  "Stops suggesting other channels for good."
-  [updater]
+(defn dismiss-channel-offer! [updater]
   (prefs/set! (:prefs updater) [:versioning :channel-offer-dismissed] true)
   (swap! (:state-atom updater) dissoc :channel-offer))
 

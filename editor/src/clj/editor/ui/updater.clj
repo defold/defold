@@ -26,16 +26,13 @@
   (:import [javafx.application Platform]
            [javafx.stage Stage WindowEvent]))
 
-(defn- channel-label [channel]
-  (string/capitalize channel))
-
 (defn- make-link-fn [link localization]
   (fn [updater]
     (ui/run-later
       (let [can-install (updater/can-install-update? updater)
             advertised (updater/update-advertised? updater)
             switching (updater/switching-channel? updater)
-            message-args {"channel" (channel-label (updater/target-channel updater))}]
+            message-args {"channel" (string/capitalize (updater/target-channel updater))}]
         (ui/visible! link (or can-install advertised))
         (cond
           (and can-install switching) (localization/localize! link localization (localization/message "updater.button.restart-to-switch" message-args))
@@ -76,7 +73,7 @@
                     (localization-state
                       (if switch-channel
                         (localization/message "updater.release-notes-dialog.switch-header"
-                                              {"channel" (channel-label switch-channel)
+                                              {"channel" (string/capitalize switch-channel)
                                                "version" (first versions)})
                         (localization/message "updater.release-notes-dialog.header"
                                               {"count" (count versions)
@@ -236,28 +233,6 @@
                       (ui/event-handler _
                         (updater/remove-state-watch updater link-fn)))))
 
-(defn- show-switch-channel-dialog!
-  "Asks to confirm switching to `channel`, blocking until the user dismisses
-  it. Returns `channel`, or nil if cancelled."
-  [stage localization channel version]
-  (dialogs/make-confirmation-dialog
-    localization
-    {:title (localization/message "updater.switch-channel-dialog.title")
-     :icon :icon/circle-question
-     :owner stage
-     :header (localization/message (str "updater.switch-channel-dialog.header." channel)
-                                   {"version" version})
-     :content {:text (localization/message "updater.switch-channel-dialog.detail")
-               :wrap-text true}
-     :buttons [{:text (localization/message "dialog.button.cancel")
-                :cancel-button true
-                :result nil}
-               {:text (localization/message "updater.switch-channel-dialog.button.switch"
-                                            {"channel" (channel-label channel)})
-                :variant :primary
-                :default-button true
-                :result channel}]}))
-
 (defn switch-channel! [stage project updater install-and-restart! localization]
   (when (updater/begin-manual-update-check! updater)
     (future
@@ -266,7 +241,23 @@
         (ui/run-later
           (let [channel (try
                           (if version
-                            (show-switch-channel-dialog! stage localization channel version)
+                            (dialogs/make-confirmation-dialog
+                              localization
+                              {:title (localization/message "updater.switch-channel-dialog.title")
+                               :icon :icon/circle-question
+                               :owner stage
+                               :header (localization/message (str "updater.switch-channel-dialog.header." channel)
+                                                             {"version" version})
+                               :content {:text (localization/message "updater.switch-channel-dialog.detail")
+                                         :wrap-text true}
+                               :buttons [{:text (localization/message "dialog.button.cancel")
+                                          :cancel-button true
+                                          :result nil}
+                                         {:text (localization/message "updater.switch-channel-dialog.button.switch"
+                                                                      {"channel" (string/capitalize channel)})
+                                          :variant :primary
+                                          :default-button true
+                                          :result channel}]})
                             (dialogs/make-info-dialog
                               localization
                               {:title (localization/message "updater.check-failed-dialog.title")
