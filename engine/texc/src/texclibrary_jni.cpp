@@ -24,28 +24,10 @@
 #include <dlib/log.h>
 
 #include <texc.h>
+#include "texc_jni_private.h"
 
 namespace
 {
-    // The generated JNI converters copy data with new[] and paths with strdup.
-    // These copies belong to the call, not to the Java settings or the encoder.
-    template <typename T>
-    struct ScopedEncodeSettings
-    {
-        T m_Settings;
-
-        ScopedEncodeSettings() : m_Settings() {}
-        ~ScopedEncodeSettings()
-        {
-            delete[] m_Settings.m_Data;
-            free((void*)m_Settings.m_Path);
-        }
-
-    private:
-        ScopedEncodeSettings(const ScopedEncodeSettings&);
-        ScopedEncodeSettings& operator=(const ScopedEncodeSettings&);
-    };
-
     bool GetPixelFormat(dmImage::Type type, dmTexc::PixelFormat* pixel_format, uint32_t* bytes_per_pixel)
     {
         switch (type)
@@ -364,7 +346,7 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_BasisUEncode(JNIEnv* env, jclass c
         dmTexc::jni::ScopedContext jni_scope(env);
         dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
 
-        ScopedEncodeSettings<dmTexc::BasisUEncodeSettings> owned_input;
+        dmTexc::ScopedEncodeSettings<dmTexc::BasisUEncodeSettings> owned_input;
         dmTexc::BasisUEncodeSettings& input = owned_input.m_Settings;
         bool result = J2C_CreateBasisUEncodeSettings(env, types, settings, &input);
         if (!result)
@@ -408,7 +390,7 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_ASTCEncode(JNIEnv* env, jclass cls
         dmTexc::jni::ScopedContext jni_scope(env);
         dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
 
-        ScopedEncodeSettings<dmTexc::ASTCEncodeSettings> owned_input;
+        dmTexc::ScopedEncodeSettings<dmTexc::ASTCEncodeSettings> owned_input;
         dmTexc::ASTCEncodeSettings& input = owned_input.m_Settings;
         bool result = J2C_CreateASTCEncodeSettings(env, types, settings, &input);
         if (!result)
@@ -442,7 +424,7 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_DefaultEncode(JNIEnv* env, jclass 
         dmTexc::jni::ScopedContext jni_scope(env);
         dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
 
-        ScopedEncodeSettings<dmTexc::DefaultEncodeSettings> owned_input;
+        dmTexc::ScopedEncodeSettings<dmTexc::DefaultEncodeSettings> owned_input;
         dmTexc::DefaultEncodeSettings& input = owned_input.m_Settings;
         bool result = J2C_CreateDefaultEncodeSettings(env, types, settings, &input);
         if (!result)
