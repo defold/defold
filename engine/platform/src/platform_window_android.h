@@ -40,7 +40,7 @@ namespace dmPlatform
     void           SetAndroidFullscreenParameters(bool immersive_mode, bool display_cutout);
     // Select the legacy Defold input layout or the SDL Android database layout for a connected joystick.
     void           SetAndroidJoystickLayoutLegacy(uint32_t joystick_index, bool legacy);
-    // Copy normalized initial axis values from the mapping, unless a motion event has already supplied them.
+    // Set initial axes from normalized mapping values, unless a motion event has already supplied them.
     void           InitializeAndroidJoystickAxes(uint32_t joystick_index, const float* axes, uint32_t num_axes);
 }
 

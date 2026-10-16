@@ -62,10 +62,16 @@ protected:
         dmNativeJoy[0].State = 1;
         dmNativeJoy[0].DeviceId = 11;
         dmNativeJoy[0].LayoutLegacy = 1;
-        dmNativeJoy[0].NumAxes = NATIVE_ANDROID_GAMEPAD_NUMAXIS;
-        dmNativeJoy[0].NumButtons = NATIVE_ANDROID_GAMEPAD_NUMBUTTONS;
-        dmNativeJoy[0].SDLNumAxes = 7;
-        dmNativeJoy[0].SDLNumButtons = 16;
+        dmNativeJoy[0].NumAxes = 7;
+        dmNativeJoy[0].NumButtons = 16;
+        const int axis_ids[] = { AMOTION_EVENT_AXIS_X, AMOTION_EVENT_AXIS_Y, AMOTION_EVENT_AXIS_Z, AMOTION_EVENT_AXIS_RZ,
+                                 AMOTION_EVENT_AXIS_BRAKE, AMOTION_EVENT_AXIS_GAS, AMOTION_EVENT_AXIS_GENERIC_1 };
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(axis_ids); ++i)
+        {
+            dmNativeJoy[0].AxisIds[i] = axis_ids[i];
+            dmNativeJoy[0].AxisMin[i] = -1.0f;
+            dmNativeJoy[0].AxisRange[i] = 2.0f;
+        }
         strcpy(dmNativeJoy[0].DeviceGuid, "0500da4ac82d00001b300000ffff3f00");
         strcpy(dmNativeJoy[0].DeviceName, "8BitDo Ultimate 2C Wireless");
         dmHID::NewContextParams params;
@@ -118,26 +124,27 @@ TEST_F(AndroidGamepadTest, MappingSupport)
 TEST_F(AndroidGamepadTest, AutomaticButtons)
 {
     SelectAutomaticMapping();
-    const uint8_t raw_buttons[] = { 0, 1, 2, 3, 4, 6, 7, 8, 9, 10 };
+    const uint8_t raw_buttons[] = { 0, 1, 3, 6, 16, 15, 17, 18, 4, 5 };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(raw_buttons); ++i)
     {
-        dmNativeJoy[0].SDLButton[raw_buttons[i]] = 1;
+        dmNativeJoy[0].Button[raw_buttons[i]] = 1;
         dmHID::Update(m_Context);
         ASSERT_EQ((uint32_t)dmHID::GAMEPAD_MAPPED_BUTTON_COUNT, dmHID::GetGamepadButtonCount(m_Gamepad));
         for (uint32_t j = 0; j < dmHID::MAX_GAMEPAD_BUTTON_COUNT; ++j)
             ASSERT_EQ(i == j, dmHID::GetGamepadButton(&m_Gamepad->m_Packet, j));
-        dmNativeJoy[0].SDLButton[raw_buttons[i]] = 0;
+        dmNativeJoy[0].Button[raw_buttons[i]] = 0;
         dmHID::Update(m_Context);
         ASSERT_FALSE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, i));
     }
     const uint8_t hats[] = { 1, 4, 8, 2 };
+    const uint8_t dpad_buttons[] = { 14, 11, 12, 13 };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(hats); ++i)
     {
-        dmNativeJoy[0].SDLButton[11 + i] = 1;
+        dmNativeJoy[0].Button[dpad_buttons[i]] = 1;
         dmHID::Update(m_Context);
         ASSERT_EQ(hats[i], m_Gamepad->m_Packet.m_Hat[0]);
         ASSERT_EQ(1U, m_Gamepad->m_HatCount);
-        dmNativeJoy[0].SDLButton[11 + i] = 0;
+        dmNativeJoy[0].Button[dpad_buttons[i]] = 0;
         dmHID::Update(m_Context);
         ASSERT_EQ(0U, m_Gamepad->m_Packet.m_Hat[0]);
     }
@@ -151,8 +158,11 @@ TEST_F(AndroidGamepadTest, AutomaticAxes)
     ASSERT_EQ(-1.0f, m_Gamepad->m_Packet.m_Axis[4]);
     ASSERT_EQ(-1.0f, m_Gamepad->m_Packet.m_Axis[5]);
     const float axes[] = { -1.0f, 0.5f, 1.0f, -0.5f, -0.4f, 1.0f };
-    memcpy(dmNativeJoy[0].SDLAxis, axes, sizeof(axes));
-    dmNativeJoy[0].SDLHasAxisEvent = 1;
+    memcpy(dmNativeJoy[0].Axis, axes, 4 * sizeof(float));
+    // Brake and Gas are device-only axes, stored after the fixed legacy slots.
+    dmNativeJoy[0].Axis[NATIVE_ANDROID_GAMEPAD_NUMAXIS + 4] = axes[4];
+    dmNativeJoy[0].Axis[NATIVE_ANDROID_GAMEPAD_NUMAXIS + 5] = axes[5];
+    dmNativeJoy[0].HasAxisEvent = 1;
     SelectAutomaticMapping();
     dmHID::Update(m_Context);
     ASSERT_EQ((uint32_t)dmHID::GAMEPAD_MAPPED_AXIS_COUNT, m_Gamepad->m_AxisCount);
@@ -165,9 +175,9 @@ TEST_F(AndroidGamepadTest, SparseCapabilities)
 {
     strcpy(dmNativeJoy[0].DeviceGuid, "05000000341200007856000011000300");
     SelectAutomaticMapping();
-    memset(dmNativeJoy[0].SDLButton, 1, sizeof(dmNativeJoy[0].SDLButton));
+    memset(dmNativeJoy[0].Button, 1, sizeof(dmNativeJoy[0].Button));
     for (uint32_t i = 0; i < 7; ++i)
-        dmNativeJoy[0].SDLAxis[i] = 1.0f;
+        dmNativeJoy[0].Axis[i] = 1.0f;
     dmHID::Update(m_Context);
     for (uint32_t i = 0; i < dmHID::GAMEPAD_MAPPED_BUTTON_COUNT; ++i)
         ASSERT_EQ(i < 2, dmHID::GetGamepadButton(&m_Gamepad->m_Packet, i));
@@ -183,7 +193,7 @@ TEST_F(AndroidGamepadTest, SparseCapabilities)
 // Verifies the Guide fallback follows SDL's Android 11 boundary without exposing this SDK rule to input.
 TEST_F(AndroidGamepadTest, GuideSDKVersion)
 {
-    dmNativeJoy[0].SDLButton[5] = 1;
+    dmNativeJoy[0].Button[19] = 1;
     for (int sdk = 29; sdk <= 30; ++sdk)
     {
         g_AndroidSDKVersion = sdk;
@@ -198,9 +208,9 @@ TEST_F(AndroidGamepadTest, PhysicalMapping)
 {
     SelectAutomaticMapping();
     dmHID::SetGamepadMapping(m_Context, m_Gamepad, "0500da4ac82d00001b300000ffff3f00,Test,a:b9,lefttrigger:a4,righttrigger:a5,");
-    dmNativeJoy[0].SDLNumButtons = 19;
-    dmNativeJoy[0].SDLButton[9] = 1;
-    dmNativeJoy[0].SDLButton[18] = 1;
+    dmNativeJoy[0].NumButtons = 19;
+    dmNativeJoy[0].Button[4] = 1;
+    dmNativeJoy[0].Button[7] = 1;
     dmHID::Update(m_Context);
     ASSERT_TRUE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, 9));
     ASSERT_FALSE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, 8));
@@ -221,6 +231,7 @@ TEST_F(AndroidGamepadTest, LegacyMapping)
     dmHID::SetGamepadMapping(m_Context, m_Gamepad, 0);
     dmNativeJoy[0].Button[3] = 1;
     dmNativeJoy[0].Axis[2] = 0.75f;
+    dmNativeJoy[0].HasAxisEvent = 1;
     dmNativeJoy[0].Hats = 2;
     dmHID::Update(m_Context);
     ASSERT_TRUE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, 3));

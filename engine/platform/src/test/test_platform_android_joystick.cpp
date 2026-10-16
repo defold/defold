@@ -102,16 +102,14 @@ class AndroidJoystickTest : public jc_test_base_class
         memset(dmNativeJoy, 0, sizeof(dmNativeJoy));
         dmNativeJoy[0].State = NATIVE_ANDROID_GAMEPAD_CONNECTED;
         dmNativeJoy[0].DeviceId = 10;
-        dmNativeJoy[0].NumAxes = NATIVE_ANDROID_GAMEPAD_NUMAXIS;
         dmNativeJoy[0].NumButtons = NATIVE_ANDROID_GAMEPAD_NUMBUTTONS;
-        dmNativeJoy[0].SDLNumButtons = NATIVE_ANDROID_GAMEPAD_NUMBUTTONS;
-        dmNativeJoy[0].SDLNumAxes = 6;
+        dmNativeJoy[0].NumAxes = 6;
         const int ids[] = { AMOTION_EVENT_AXIS_X, AMOTION_EVENT_AXIS_Y, AMOTION_EVENT_AXIS_RX, AMOTION_EVENT_AXIS_RY, AMOTION_EVENT_AXIS_Z, AMOTION_EVENT_AXIS_RZ };
         for (int i = 0; i < 6; ++i)
         {
-            dmNativeJoy[0].SDLAxisIds[i] = ids[i];
-            dmNativeJoy[0].SDLAxisMin[i] = -1.0f;
-            dmNativeJoy[0].SDLAxisRange[i] = 2.0f;
+            dmNativeJoy[0].AxisIds[i] = ids[i];
+            dmNativeJoy[0].AxisMin[i] = -1.0f;
+            dmNativeJoy[0].AxisRange[i] = 2.0f;
         }
         memset(&m_Event, 0, sizeof(m_Event));
     }
@@ -225,6 +223,34 @@ TEST_F(AndroidJoystickTest, ButtonAliases)
     }
 }
 
+// Verifies releasing one alias preserves another held key that maps to the same SDL button.
+TEST_F(AndroidJoystickTest, HeldButtonAliases)
+{
+    const int keys[][3] = {
+        { AKEYCODE_BUTTON_A, AKEYCODE_DPAD_CENTER, 0 },
+        { AKEYCODE_BUTTON_SELECT, AKEYCODE_BACK, 4 },
+        { AKEYCODE_BUTTON_START, AKEYCODE_MENU, 6 },
+        { AKEYCODE_BUTTON_L2, AKEYCODE_MEDIA_RECORD, 15 },
+    };
+    for (uint32_t i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i)
+    {
+        SendKey(keys[i][0], AKEY_EVENT_ACTION_DOWN);
+        SendKey(keys[i][1], AKEY_EVENT_ACTION_DOWN);
+        dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
+        unsigned char buttons[36] = {};
+        dmNativeOSGetJoystickButtons(0, buttons, 36);
+        ASSERT_EQ(1, buttons[keys[i][2]]);
+        SendKey(keys[i][1], AKEY_EVENT_ACTION_UP);
+        dmNativeOSGetJoystickButtons(0, buttons, 36);
+        ASSERT_EQ(1, buttons[keys[i][2]]);
+        dmPlatform::SetAndroidJoystickLayoutLegacy(0, true);
+        SendKey(keys[i][0], AKEY_EVENT_ACTION_UP);
+        dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
+        dmNativeOSGetJoystickButtons(0, buttons, 36);
+        ASSERT_EQ(0, buttons[keys[i][2]]);
+    }
+}
+
 // Verifies RX/RY triggers and SDL's sorted axes coexist with the unchanged eight-axis legacy packet.
 TEST_F(AndroidJoystickTest, AxisLayouts)
 {
@@ -263,6 +289,15 @@ TEST_F(AndroidJoystickTest, InitialAxisValues)
     for (int i = 0; i < 6; ++i)
         ASSERT_EQ(initial[i], values[i]);
 
+    dmPlatform::SetAndroidJoystickLayoutLegacy(0, true);
+    dmNativeOSGetJoystickPos(0, values, 6);
+    for (int i = 0; i < 6; ++i)
+        ASSERT_EQ(0.0f, values[i]);
+    dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
+    dmNativeOSGetJoystickPos(0, values, 6);
+    for (int i = 0; i < 6; ++i)
+        ASSERT_EQ(initial[i], values[i]);
+
     m_Event.m_Axes[AMOTION_EVENT_AXIS_RX] = 0.25f;
     m_Event.m_Axes[AMOTION_EVENT_AXIS_RY] = 0.75f;
     SendMotion();
@@ -279,8 +314,8 @@ TEST_F(AndroidJoystickTest, InitialAxisValues)
 // Verifies SDL normalization uses the advertised motion range rather than assuming every axis is -1..1.
 TEST_F(AndroidJoystickTest, AxisNormalization)
 {
-    dmNativeJoy[0].SDLAxisMin[2] = 0.0f;
-    dmNativeJoy[0].SDLAxisRange[2] = 255.0f;
+    dmNativeJoy[0].AxisMin[2] = 0.0f;
+    dmNativeJoy[0].AxisRange[2] = 255.0f;
     m_Event.m_Axes[AMOTION_EVENT_AXIS_RX] = 255.0f;
     SendMotion();
     dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
@@ -291,6 +326,29 @@ TEST_F(AndroidJoystickTest, AxisNormalization)
     SendMotion();
     dmNativeOSGetJoystickPos(0, values, 6);
     ASSERT_EQ(-1.0f, values[2]);
+}
+
+// Verifies layout switches retain physical axis values and normalize only the SDL view.
+TEST_F(AndroidJoystickTest, HeldAxesAcrossLayouts)
+{
+    dmNativeJoy[0].AxisMin[4] = 0.0f;
+    dmNativeJoy[0].AxisRange[4] = 255.0f;
+    m_Event.m_Axes[AMOTION_EVENT_AXIS_Z] = 127.5f;
+    m_Event.m_Axes[AMOTION_EVENT_AXIS_RX] = -0.75f;
+    dmPlatform::SetAndroidJoystickLayoutLegacy(0, true);
+    SendMotion();
+    for (int i = 0; i < 3; ++i)
+    {
+        float values[8] = {};
+        dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
+        dmNativeOSGetJoystickPos(0, values, 8);
+        ASSERT_EQ(-0.75f, values[2]);
+        ASSERT_EQ(0.0f, values[4]);
+        dmPlatform::SetAndroidJoystickLayoutLegacy(0, true);
+        dmNativeOSGetJoystickPos(0, values, 8);
+        ASSERT_EQ(127.5f, values[2]);
+    }
+    ASSERT_EQ(127.5f, dmNativeJoy[0].Axis[2]);
 }
 
 // Verifies hat diagonals and centering become SDL buttons while legacy mappings retain their hat,
@@ -328,6 +386,21 @@ TEST_F(AndroidJoystickTest, HatLayouts)
     SendKey(AKEYCODE_DPAD_DOWN, AKEY_EVENT_ACTION_UP);
     dmNativeOSGetJoystickButtons(0, buttons, 36);
     ASSERT_EQ(0, buttons[12]);
+
+    SendKey(AKEYCODE_DPAD_UP, AKEY_EVENT_ACTION_DOWN);
+    m_Event.m_Axes[AMOTION_EVENT_AXIS_HAT_X] = 1.0f;
+    SendMotion();
+    dmNativeOSGetJoystickButtons(0, buttons, 36);
+    ASSERT_EQ(1, buttons[11]);
+    ASSERT_EQ(1, buttons[14]);
+    m_Event.m_Axes[AMOTION_EVENT_AXIS_HAT_X] = 0.0f;
+    SendMotion();
+    dmNativeOSGetJoystickButtons(0, buttons, 36);
+    ASSERT_EQ(1, buttons[11]);
+    ASSERT_EQ(0, buttons[14]);
+    SendKey(AKEYCODE_DPAD_UP, AKEY_EVENT_ACTION_UP);
+    dmNativeOSGetJoystickButtons(0, buttons, 36);
+    ASSERT_EQ(0, buttons[11]);
 }
 
 int main(int argc, char** argv)
