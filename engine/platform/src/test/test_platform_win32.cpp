@@ -21,10 +21,6 @@
 // guarding against generic taskbar icons when startup blocks the window thread.
 TEST(dmPlatform, WindowsClassIconsBeforePolling)
 {
-    HICON icon = (HICON) LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(100),
-                                  IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
-    ASSERT_NE((HICON) 0, icon);
-
     HWindow window = dmPlatform::NewWindow();
     ASSERT_NE((HWindow) 0, window);
 
@@ -36,6 +32,11 @@ TEST(dmPlatform, WindowsClassIconsBeforePolling)
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
 
     HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    // GLFW sets process DPI awareness, which affects the default icon size.
+    HINSTANCE instance = (HINSTANCE) GetWindowLongPtrW(hwnd, GWLP_HINSTANCE);
+    HICON icon = (HICON) LoadImageW(instance, MAKEINTRESOURCEW(100),
+                                  IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
+    ASSERT_NE((HICON) 0, icon);
     ASSERT_EQ((ULONG_PTR) icon, GetClassLongPtrW(hwnd, GCLP_HICON));
     ASSERT_EQ((ULONG_PTR) icon, GetClassLongPtrW(hwnd, GCLP_HICONSM));
 
