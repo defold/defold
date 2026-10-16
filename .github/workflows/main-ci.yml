@@ -262,7 +262,7 @@ jobs:
             ~/.dcache/repo1_maven_org-maven2-com-ibm-icu-icu4j-*.jar-*
             ~/.dcache/github_com-defold-template-empty-archive-*.zip-*
             !~/.dcache/*_tmp
-          key: &dcache_key "${{ runner.os }}-${{ matrix.platform || 'default' }}-${{ steps.dcache-key.outputs.key }}"
+          key: &dcache_key "${{ runner.os }}-${{ matrix.platform || env.EDITOR_TEST_PLATFORM || 'default' }}-${{ steps.dcache-key.outputs.key }}"
       - name: "Cache lein installation and Maven dependencies for docs"
         if: matrix.docs && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -736,11 +736,11 @@ jobs:
           path: |-
             editor/build/lein
             editor/.m2/repository
-          key: "${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}"
+          key: "${{ runner.os }}-${{ matrix.platform || env.EDITOR_TEST_PLATFORM || 'x86_64-linux' }}-lein-maven-editor-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}"
           restore-keys: |-
-            ${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-maven-editor-
+            ${{ runner.os }}-${{ matrix.platform || env.EDITOR_TEST_PLATFORM || 'x86_64-linux' }}-lein-maven-editor-
             ${{ runner.os }}-lein-maven-editor-
-            ${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-editor-
+            ${{ runner.os }}-${{ matrix.platform || env.EDITOR_TEST_PLATFORM || 'x86_64-linux' }}-lein-editor-
             ${{ runner.os }}-lein-editor-
       - *step_java
       - *step_cmake
@@ -819,6 +819,7 @@ jobs:
 
   test-editor-linux:
     env:
+      EDITOR_TEST_PLATFORM: x86_64-linux
       EDITOR_TEST_EXT_CACHE_KEY: ext-v3-x86_64-linux-x86_64-linux-b47b92df1636bac566932ebf0e31c25ab4a222725f80d426b711576eafc30b22
     runs-on: ubuntu-22.04
     timeout-minutes: 60
@@ -843,8 +844,6 @@ jobs:
       - &step_install_editor_test_dependencies
         name: "Install editor test dependencies without compiling"
         shell: bash
-        env:
-          EDITOR_TEST_PLATFORM: ${{ matrix.platform || 'x86_64-linux' }}
         run: |
           editor_test_original_path="$PATH"
           ./scripts/build.py --save-env-path=ci/env.sh save_env
@@ -881,6 +880,7 @@ jobs:
 
   test-editor-windows:
     env:
+      EDITOR_TEST_PLATFORM: x86_64-win32
       EDITOR_TEST_EXT_CACHE_KEY: ext-v3-x86_64-win32-x86_64-win32-e7c688f347cb5bec9d88d63afa1d51cd0f74621ab9608faed9cc7bb2018b4681
     runs-on: windows-2025-vs2026
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
@@ -888,9 +888,6 @@ jobs:
     defaults:
       run:
         shell: bash
-    strategy:
-      matrix:
-        platform: [x86_64-win32]
     steps:
       - *step_validate_build_commit
       - name: "Keep fixture checkout line endings"
