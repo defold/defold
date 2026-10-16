@@ -57,6 +57,7 @@ namespace dmGameSystem
     struct ModelWorld;
     struct ModelResource;
 
+    void                    CompModelCancelAnimation(ModelComponent* component);
     ModelResource*          CompModelGetModelResource(ModelComponent* component);
     dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index);
     bool                    CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled);
