@@ -267,15 +267,18 @@ namespace dmEngine
                                     safe_area.m_InsetRight, safe_area.m_InsetBottom);
     }
 
-    static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
+    void FlushPendingWindowResize(HEngine engine)
     {
+        if (!engine->m_HasPendingWindowResize || !engine->m_RenderContext)
+            return;
+
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
         uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
         dmhash_t message_id = dmRenderDDF::WindowResized::m_DDFDescriptor->m_NameHash;
 
         dmRenderDDF::WindowResized window_resized;
-        window_resized.m_Width = width;
-        window_resized.m_Height = height;
+        window_resized.m_Width = engine->m_PendingWindowResizeWidth;
+        window_resized.m_Height = engine->m_PendingWindowResizeHeight;
 
         dmMessage::URL receiver;
         dmMessage::ResetURL(&receiver);
@@ -291,9 +294,22 @@ namespace dmEngine
             {
                 dmLogError("Could not send 'window_resized' to '%s' socket.", dmRender::RENDER_SOCKET_NAME);
             }
+            else
+            {
+                engine->m_HasPendingWindowResize = false;
+            }
         }
+    }
 
+    void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
+    {
         Engine* engine = (Engine*)user_data;
+        // The graphics adapter may resize the window before @render exists.
+        // Coalesce startup events and deliver the latest size once it is ready.
+        engine->m_PendingWindowResizeWidth = width;
+        engine->m_PendingWindowResizeHeight = height;
+        engine->m_HasPendingWindowResize = true;
+        FlushPendingWindowResize(engine);
         engine->m_InvPhysicalWidth = 1.0f / width;
         engine->m_InvPhysicalHeight = 1.0f / height;
         // update gui context if it exists
@@ -461,6 +477,9 @@ namespace dmEngine
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
     , m_InvPhysicalHeight(1.0f/640)
+    , m_PendingWindowResizeWidth(0)
+    , m_PendingWindowResizeHeight(0)
+    , m_HasPendingWindowResize(false)
     , m_ThrottleCooldownMax(0.0f)
     , m_ThrottleCooldown(0.0f)
     , m_ThrottleEnabled(false)
@@ -1454,6 +1473,7 @@ namespace dmEngine
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
+        FlushPendingWindowResize(engine);
         PopulateContextRegistry(engine);
 
         dmGameObject::Initialize(engine->m_Register, engine->m_ScriptContext);
