@@ -60,10 +60,23 @@ target_include_directories(oggz-validate PRIVATE "${OGGZ_SOURCE_DIR}/src/liboggz
 # including on Windows. Use upstream's export lists there.
 set_target_properties(ogg oggz PROPERTIES PREFIX "lib")
 if(WIN32)
-  target_sources(ogg PRIVATE "${OGG_SOURCE_DIR}/win32/ogg.def")
+  # Upstream's LIBRARY ogg makes consumers import ogg.dll even when /OUT names
+  # the file libogg.dll. Keep the source intact and match our packaged DLL name.
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${OGG_SOURCE_DIR}/win32/ogg.def")
+  file(READ "${OGG_SOURCE_DIR}/win32/ogg.def" OGG_EXPORTS)
+  string(REPLACE "LIBRARY ogg" "LIBRARY libogg.dll" OGG_EXPORTS "${OGG_EXPORTS}")
+  file(CONFIGURE OUTPUT "${OGG_GENERATED_DIR}/ogg.def" CONTENT "${OGG_EXPORTS}" @ONLY)
+  target_sources(ogg PRIVATE "${OGG_GENERATED_DIR}/ogg.def")
   target_sources(oggz PRIVATE "${OGGZ_SOURCE_DIR}/win32/liboggz.def")
   target_sources(oggz-validate PRIVATE "${OGGZ_SOURCE_DIR}/win32/attgetopt.c")
   target_include_directories(oggz-validate PRIVATE "${OGGZ_SOURCE_DIR}/win32")
+  if(CMAKE_HOST_WIN32)
+    # Catch missing or misnamed runtime DLL imports before packaging the tools.
+    add_custom_command(TARGET oggz-validate POST_BUILD
+      COMMAND "$<TARGET_FILE:oggz-validate>" -v
+      COMMENT "Checking Ogg DLL dependencies"
+      VERBATIM)
+  endif()
 else()
   # Override the SDK's hidden visibility after its inherited compile options.
   set_source_files_properties("${OGG_SOURCE_DIR}/src/bitwise.c" "${OGG_SOURCE_DIR}/src/framing.c"

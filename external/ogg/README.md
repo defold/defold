@@ -23,9 +23,11 @@ Chained, multiplexed, or unsupported codec streams are rejected.
 The macOS libraries and validator target macOS 11.0 on both ARM64 and Intel,
 independently of the engine's minimum macOS version. The CMake build sets relative
 loader paths so the libraries work both in the SDK and after extraction beside
-each other. Windows builds use the upstream export
-lists and getopt implementation. The installed Windows validator gets copies of
-its DLLs in `ext/bin/<platform>` as well.
+each other. Windows builds use the upstream export lists and getopt implementation.
+The generated libogg definition changes the upstream DLL name from `ogg.dll` to
+`libogg.dll`, matching the packaged filename. Native Windows builds run the
+validator after linking to check its DLL dependencies. The installed Windows
+validator gets copies of its DLLs in `ext/bin/<platform>` as well.
 
 ## Upstream sources
 
