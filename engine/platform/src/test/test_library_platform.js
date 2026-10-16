@@ -292,6 +292,34 @@ function mouseEvent(context, button = 0) {
     return { target: context.Module.canvas, button, clientX: 70, clientY: 80, preventDefault() {} };
 }
 
+// Verifies keyboard and pointer callbacks forward the browser event to audio without resuming from unfocused input.
+function testInputAudioActivation() {
+    const context = loadPointerEnvironment();
+    const platform = context.DefoldPlatform;
+    const events = [];
+    context.DefoldSoundDevice = { TryResumeAudio: event => events.push(event) };
+    const key = { target: context.Module.canvas, type: "keydown", keyCode: 32, code: "Space",
+                  isTrusted: true, preventDefault() {}, stopPropagation() {} };
+    platform.onKeydown(key);
+    assert.strictEqual(events.pop(), key);
+    assert.strictEqual(platform.keys[32], 1);
+
+    for (const handler of ["onMouseButtonDown", "onMouseButtonUp", "onTouchStart", "onTouchEnd", "onTouchCancel"]) {
+        const event = handler.includes("Touch") ? touchEvent(context, []) : mouseEvent(context);
+        platform[handler](event);
+        assert.strictEqual(events.pop(), event);
+    }
+
+    context.document.activeElement = {};
+    platform.onKeydown({ ...key, target: context.document.activeElement });
+    assert.strictEqual(events.length, 0);
+
+    // Keyboard-only games must still work when the sound device is stripped.
+    delete context.DefoldSoundDevice;
+    platform.onKeydown(key);
+    assert.strictEqual(platform.keys[32], 1);
+}
+
 // Verifies primary-touch emulation tracks its origin, ignores secondary touches, and clears the held marker on end and cancellation.
 function testTouchMouseSources() {
     for (const finish of ["onTouchEnd", "onTouchCancel"]) {
@@ -373,7 +401,7 @@ async function runTests() {
     for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderArchiveConcurrency,
                        testLoaderArchiveBufferOwnership,
-                       testTouchMouseSources, testMixedTouchAndMouseSources]) {
+                       testInputAudioActivation, testTouchMouseSources, testMixedTouchAndMouseSources]) {
         try {
             await test();
             process.stdout.write(test.name + " passed\n");

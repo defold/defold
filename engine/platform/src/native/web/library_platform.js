@@ -234,6 +234,11 @@ var LibraryDefoldPlatform = {
     onKeydown: function(event) {
       if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
+      // Resume within the browser event handler, including games controlled only by keyboard.
+      if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
+        DefoldSoundDevice.TryResumeAudio(event);
+      }
+
       // prevent navigation within the page using arrow keys and space
       switch(event.keyCode) {
         case 37: case 38: case 39:  case 40: // Arrow keys
@@ -336,11 +341,11 @@ var LibraryDefoldPlatform = {
             DefoldPlatform.mouseLeftButtonFromTouch = false;
         }
 
-        // Audio is blocked by default in browsers until a user performs an interaction,
-        // so we need to try to resume on mouse button down/up and touch start/end.
+        // The sound device checks activation before resuming. Touch end can unlock audio;
+        // cancellation can only recover audio that was already allowed to run.
         // We must also check that the sound device hasn't been stripped
         if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
-          DefoldSoundDevice.TryResumeAudio();
+          DefoldSoundDevice.TryResumeAudio(event);
         }
 
         event.preventDefault();
@@ -422,7 +427,7 @@ var LibraryDefoldPlatform = {
 
         // Resume audio on user interaction (see explanation in touchWasFinished).
         if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
-          DefoldSoundDevice.TryResumeAudio();
+          DefoldSoundDevice.TryResumeAudio(event);
         }
 
         event.preventDefault();
@@ -441,7 +446,7 @@ var LibraryDefoldPlatform = {
 
       // Resume audio on user interaction (see explanation in touchWasFinished).
       if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
-        DefoldSoundDevice.TryResumeAudio();
+        DefoldSoundDevice.TryResumeAudio(event);
       }
     },
 
@@ -456,7 +461,7 @@ var LibraryDefoldPlatform = {
 
       // Resume audio on user interaction (see explanation in touchWasFinished).
       if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
-        DefoldSoundDevice.TryResumeAudio();
+        DefoldSoundDevice.TryResumeAudio(event);
       }
     },
 

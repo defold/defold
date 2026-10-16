@@ -65,6 +65,9 @@ function resetEnvironment() {
     delete global.AudioContext;
     delete global.webkitAudioContext;
     delete global._dmJSDeviceShared;
+    global.top = global;
+    // Recovery tests model an activated page; autoplay tests override this state.
+    global.navigator.userActivation = { hasBeenActive: true, isActive: false };
     nowMs = 0;
     wallClockOffsetMs = 0;
     nextTimerId = 1;
@@ -271,6 +274,183 @@ function testInteractionAndDeviceChangeRecoverImmediately() {
     deviceChangeHandler();
     assert.strictEqual(RunningAudioContext.contexts.length, 1);
     assert.strictEqual(RunningAudioContext.contexts[0].state, "running");
+}
+
+// Verifies startup stays silent without premature resume calls, then a timer can use sticky activation.
+function testAutoplayWaitsForActivation() {
+    resetEnvironment();
+    global.navigator.userActivation.hasBeenActive = false;
+    const FakeAudioContext = makeAudioContext({ initialState: "suspended" });
+    global.AudioContext = FakeAudioContext;
+    const id = global.LibrarySoundDevice.dmDeviceJSOpen(4);
+    const context = FakeAudioContext.contexts[0];
+
+    global.LibrarySoundDevice.dmDeviceJSQueue(id, 0, 4410);
+    advanceTime(6000);
+    deviceChangeHandler();
+    for (const type of ["touchstart", "touchcancel", "keydown"]) {
+        global.DefoldSoundDevice.TryResumeAudio({ type, isTrusted: true, key: "Escape", keyCode: 27 });
+    }
+    assert.strictEqual(context.resumeCalls, 0);
+    assert.strictEqual(context.state, "suspended");
+    assert.strictEqual(global._dmJSDeviceShared.resumePending, false);
+    assert.strictEqual(global.LibrarySoundDevice.dmDeviceJSFreeBufferSlots(id), 4);
+    assert.strictEqual(warnings.length, 0);
+
+    // Activation can occur elsewhere on the page and outlive its transient activation window.
+    global.navigator.userActivation.hasBeenActive = true;
+    advanceTime(2000);
+    assert.strictEqual(context.resumeCalls, 1);
+    assert.strictEqual(context.state, "running");
+    assert.strictEqual(timers.size, 0);
+    global.LibrarySoundDevice.dmDeviceJSQueue(id, 0, 4410);
+    assert.strictEqual(context.startedBuffers, 1);
+}
+
+// Verifies older browsers require trusted activation events and remember them for later recovery.
+function testAutoplayWithoutActivationAPI() {
+    for (const event of [
+        { type: "mousedown" },
+        { type: "touchend" },
+        { type: "keydown", key: " ", keyCode: 32 },
+        { type: "pointerdown", pointerType: "mouse" },
+        { type: "pointerup", pointerType: "touch" }
+    ]) {
+        resetEnvironment();
+        delete global.navigator.userActivation;
+        const FakeAudioContext = makeAudioContext({ initialState: "suspended" });
+        global.AudioContext = FakeAudioContext;
+        global.LibrarySoundDevice.dmDeviceJSOpen(4);
+        const context = FakeAudioContext.contexts[0];
+
+        advanceTime(2000);
+        deviceChangeHandler();
+        for (const ignored of [
+            { type: "mousedown", isTrusted: false },
+            { type: "touchstart", isTrusted: true },
+            { type: "touchcancel", isTrusted: true },
+            { type: "keydown", isTrusted: true, key: "Escape", keyCode: 27 },
+            { type: "keydown", isTrusted: true, key: "l", ctrlKey: true },
+            { type: "pointerdown", isTrusted: true, pointerType: "touch" }
+        ]) {
+            global.DefoldSoundDevice.TryResumeAudio(ignored);
+        }
+        assert.strictEqual(context.resumeCalls, 0);
+
+        global.DefoldSoundDevice.TryResumeAudio({ ...event, isTrusted: true });
+        assert.strictEqual(context.state, "running");
+        assert.strictEqual(context.resumeCalls, 1);
+        context.state = "suspended";
+        context.onstatechange();
+        advanceTime(2000);
+        assert.strictEqual(context.state, "running");
+        assert.strictEqual(context.resumeCalls, 2);
+    }
+}
+
+// Verifies activation survives a failed constructor so an unavailable device can recover without another gesture.
+function testActivationSurvivesContextFailure() {
+    resetEnvironment();
+    delete global.navigator.userActivation;
+    global.AudioContext = makeAudioContext({ throwOnConstruct: true });
+    global.LibrarySoundDevice.dmDeviceJSOpen(4);
+    global.DefoldSoundDevice.TryResumeAudio({ type: "touchend", isTrusted: true });
+
+    const RecoveredAudioContext = makeAudioContext({ initialState: "suspended" });
+    global.AudioContext = RecoveredAudioContext;
+    advanceTime(2000);
+    assert.strictEqual(RecoveredAudioContext.contexts[0].state, "running");
+    assert.strictEqual(RecoveredAudioContext.contexts[0].resumeCalls, 1);
+}
+
+// Verifies permitted autoplay still recovers on timers and device changes without requiring a new gesture.
+function testPermittedAutoplayRecoversWithoutActivation() {
+    for (const recover of [() => advanceTime(2000), () => deviceChangeHandler()]) {
+        resetEnvironment();
+        global.navigator.userActivation.hasBeenActive = false;
+        const options = {};
+        const FakeAudioContext = makeAudioContext(options);
+        global.AudioContext = FakeAudioContext;
+        global.LibrarySoundDevice.dmDeviceJSOpen(4);
+        const context = FakeAudioContext.contexts[0];
+
+        context.state = "suspended";
+        context.onstatechange();
+        recover();
+        assert.strictEqual(context.state, "running");
+        assert.strictEqual(context.resumeCalls, 1);
+
+        // A replacement context may need an explicit resume even though the original could autoplay.
+        context.state = "closed";
+        context.onstatechange();
+        options.initialState = "suspended";
+        recover();
+        assert.strictEqual(FakeAudioContext.contexts[1].state, "running");
+        assert.strictEqual(FakeAudioContext.contexts[1].resumeCalls, 1);
+    }
+}
+
+// Verifies an iframe can use delegated autoplay without local activation, including after a pending resume.
+function testIframeAutoplayWithoutLocalActivation() {
+    for (const pending of [false, true]) {
+        resetEnvironment();
+        global.navigator.userActivation.hasBeenActive = false;
+        // Cross-origin ancestors cannot be inspected; only compare the window reference.
+        global.top = new Proxy({}, { get: () => { throw new Error("Cross-origin access"); } });
+        const deferred = deferredResult();
+        const options = { initialState: "suspended" };
+        if (pending) {
+            options.resumeResult = deferred.promise;
+        }
+        const FakeAudioContext = makeAudioContext(options);
+        global.AudioContext = FakeAudioContext;
+        global.LibrarySoundDevice.dmDeviceJSOpen(4);
+        const context = FakeAudioContext.contexts[0];
+
+        advanceTime(2000);
+        assert.strictEqual(context.resumeCalls, 1);
+        if (pending) {
+            assert.strictEqual(global._dmJSDeviceShared.resumeAllowed, false);
+            advanceTime(4000);
+            assert.strictEqual(context.resumeCalls, 1);
+            // A host may request a resume after gaining autoplay permission in the parent.
+            delete options.resumeResult;
+            global.DefoldSoundDevice.TryResumeAudio();
+            assert.strictEqual(context.resumeCalls, 2);
+            deferred.resolve();
+        }
+        assert.strictEqual(context.state, "running");
+        assert.strictEqual(global.navigator.userActivation.hasBeenActive, false);
+        assert.strictEqual(global._dmJSDeviceShared.resumeAllowed, true);
+        assert.strictEqual(global._dmJSDeviceShared.resumePending, false);
+        assert.strictEqual(timers.size, 0);
+    }
+}
+
+// Verifies an input gesture retries a pending resume and stale callbacks cannot override the newer attempt.
+function testGestureRetriesPendingResume() {
+    resetEnvironment();
+    const firstResume = deferredResult();
+    const options = { initialState: "suspended", resumeResult: firstResume.promise };
+    const FakeAudioContext = makeAudioContext(options);
+    global.AudioContext = FakeAudioContext;
+    global.LibrarySoundDevice.dmDeviceJSOpen(4);
+    const context = FakeAudioContext.contexts[0];
+    advanceTime(2000);
+    assert.strictEqual(context.resumeCalls, 1);
+    assert.strictEqual(global._dmJSDeviceShared.resumePending, true);
+
+    const secondResume = deferredResult();
+    options.resumeResult = secondResume.promise;
+    global.DefoldSoundDevice.TryResumeAudio({ type: "keydown", isTrusted: true, key: " ", keyCode: 32 });
+    assert.strictEqual(context.resumeCalls, 2);
+    firstResume.reject();
+    assert.strictEqual(global._dmJSDeviceShared.resumePending, true);
+    context.state = "running";
+    context.onstatechange();
+    secondResume.resolve();
+    assert.strictEqual(global._dmJSDeviceShared.resumePending, false);
+    assert.strictEqual(timers.size, 0);
 }
 
 function testQueueFailureFallsBackAndRecovers() {
@@ -525,6 +705,12 @@ testSilentQueueRestartsAfterIdle();
 testConstructorFailureStaysSilent();
 testPeriodicRecoveryKeepsDeviceRate();
 testInteractionAndDeviceChangeRecoverImmediately();
+testAutoplayWaitsForActivation();
+testAutoplayWithoutActivationAPI();
+testActivationSurvivesContextFailure();
+testPermittedAutoplayRecoversWithoutActivation();
+testIframeAutoplayWithoutLocalActivation();
+testGestureRetriesPendingResume();
 testQueueFailureFallsBackAndRecovers();
 testSuspendCancelsQueuedSourcesBeforeRecovery();
 testResumeFailureAndClosedContextFallBack();

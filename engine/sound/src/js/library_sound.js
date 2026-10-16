@@ -35,6 +35,33 @@ var LibrarySoundDevice =
             }
             return false;
         },
+        HasUserActivation: function(event) {
+            var root = DefoldSoundDevice.GetGlobal();
+            var activation = root !== undefined && root.navigator ? root.navigator.userActivation : undefined;
+            if (activation !== undefined) {
+                // Web Audio uses sticky activation, so later recovery timers may resume too.
+                return activation.hasBeenActive;
+            }
+
+            // Fallback for browsers without navigator.userActivation, including Safari before 16.4.
+            // Only trust activation-triggering input.
+            if (!event || !event.isTrusted) {
+                return false;
+            }
+            switch (event.type) {
+                case "keydown":
+                    return event.key != "Escape" && event.keyCode != 27 &&
+                        !event.ctrlKey && !event.altKey && !event.metaKey;
+                case "mousedown":
+                case "touchend":
+                    return true;
+                case "pointerdown":
+                    return event.pointerType == "mouse";
+                case "pointerup":
+                    return event.pointerType != "mouse";
+            }
+            return false;
+        },
         WarnSilentFallback: function(shared) {
             shared.openedSilently = true;
             if (!shared.fallbackLogged && typeof console !== "undefined" && console.warn) {
@@ -54,6 +81,8 @@ var LibrarySoundDevice =
             }
 
             if (running) {
+                // Autoplay may already be permitted without a gesture. Preserve recovery in that case.
+                shared.resumeAllowed = true;
                 if (shared.retryTimer !== null) {
                     var root = DefoldSoundDevice.GetGlobal();
                     if (root !== undefined && root.clearTimeout) {
@@ -138,7 +167,9 @@ var LibrarySoundDevice =
             DefoldSoundDevice.NotifyContextStateChanged(shared);
             return audioCtx;
         },
-        TryResumeSharedAudio: function(shared, forceResume) {
+        TryResumeSharedAudio: function(shared, forceResume, event) {
+            // Remember activation even if context creation fails, so later retries can recover.
+            shared.resumeAllowed = shared.resumeAllowed || DefoldSoundDevice.HasUserActivation(event);
             var audioCtx = DefoldSoundDevice.TryCreateAudioContext(shared);
             if (audioCtx === undefined) {
                 DefoldSoundDevice.WarnSilentFallback(shared);
@@ -146,7 +177,12 @@ var LibrarySoundDevice =
                 return;
             }
 
-            if (audioCtx.state != "running" && audioCtx.resume && (!shared.resumePending || forceResume)) {
+            // A parent may delegate autoplay without activating the iframe itself. Let the browser
+            // decide in frames, where local userActivation cannot describe the parent's permission.
+            var root = DefoldSoundDevice.GetGlobal();
+            var inIframe = root !== undefined && root.top !== undefined && root.top !== root;
+            // A premature resume can warn and remain pending until a later user gesture retries it.
+            if ((shared.resumeAllowed || inIframe) && audioCtx.state != "running" && audioCtx.resume && (!shared.resumePending || forceResume)) {
                 try {
                     var resumeResult = audioCtx.resume();
                     if (resumeResult && resumeResult.then) {
@@ -228,10 +264,10 @@ var LibrarySoundDevice =
             }
             shared.deviceChangeHandler = null;
         },
-        TryResumeAudio: function() {
+        TryResumeAudio: function(event) {
             var root = DefoldSoundDevice.GetGlobal();
             if (root !== undefined && root._dmJSDeviceShared) {
-                DefoldSoundDevice.TryResumeSharedAudio(root._dmJSDeviceShared, true);
+                DefoldSoundDevice.TryResumeSharedAudio(root._dmJSDeviceShared, true, event);
             }
         }
     },
@@ -254,6 +290,7 @@ var LibrarySoundDevice =
                 recoveryLogged: false,
                 openedSilently: false,
                 contextRunning: false,
+                resumeAllowed: false,
                 resumePending: false,
                 resumeAttempt: 0
             };
