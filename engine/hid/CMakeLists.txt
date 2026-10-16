@@ -51,6 +51,9 @@ else()
         "${HID_SRC_DIR}/native/*.cpp"
         "${HID_SRC_DIR}/native/*.mm")
     list(APPEND hid_SOURCES ${_hid_native_sources})
+    if(TARGET_PLATFORM_OS STREQUAL "android")
+        list(APPEND hid_SOURCES "${HID_SRC_DIR}/android/gamepad_android.cpp")
+    endif()
 endif()
 
 defold_add_library(hid STATIC ${hid_SOURCES})

@@ -47,6 +47,12 @@ namespace dmHID
 
     GamepadDriver* CreateGamepadDriverPlatform(HContext context);
     GamepadDriver* CreateGamepadDriverApple(HContext context);
+
+#if defined(ANDROID)
+    void SetAndroidGamepadMapping(HWindow window, uint32_t joystick_index, HGamepad gamepad, const char* mapping);
+    // Writes up to MAX_GAMEPAD_BUTTON_COUNT entries into the caller's buttons buffer.
+    void UpdateAndroidGamepad(HWindow window, uint32_t joystick_index, HGamepad gamepad, uint8_t* buttons);
+#endif
 }
 
 #endif // HID_NATIVE_PRIVATE_H

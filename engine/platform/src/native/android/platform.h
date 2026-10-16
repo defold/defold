@@ -200,6 +200,7 @@ NativeGLOBAL struct {
 #define DEVICE_GUID_LENGTH 32 // DEFOLD
 #define NATIVE_ANDROID_GAMEPAD_NUMBUTTONS 36
 #define NATIVE_ANDROID_GAMEPAD_NUMAXIS 8
+#define NATIVE_ANDROID_GAMEPAD_MAX_SDL_AXES 32
 
 NativeGLOBAL struct {
     int           State;
@@ -211,6 +212,15 @@ NativeGLOBAL struct {
     float         Axis[NATIVE_ANDROID_GAMEPAD_NUMAXIS];
     unsigned char Button[NATIVE_ANDROID_GAMEPAD_NUMBUTTONS];
     unsigned char Hats;
+    int           LayoutLegacy;
+    int           SDLNumAxes;
+    int           SDLNumButtons;
+    int           SDLHasAxisEvent;
+    int           SDLAxisIds[NATIVE_ANDROID_GAMEPAD_MAX_SDL_AXES];
+    float         SDLAxisMin[NATIVE_ANDROID_GAMEPAD_MAX_SDL_AXES];
+    float         SDLAxisRange[NATIVE_ANDROID_GAMEPAD_MAX_SDL_AXES];
+    float         SDLAxis[NATIVE_ANDROID_GAMEPAD_MAX_SDL_AXES];
+    unsigned char SDLButton[NATIVE_ANDROID_GAMEPAD_NUMBUTTONS];
 } dmNativeJoy[ NATIVE_JOYSTICK_LAST + 1 ];
 
 

@@ -20,7 +20,6 @@
 #include <stdint.h>
 
 #define DEVICE_ID_NONE (-1000)
-#define SDL_ANDROID_GAMEPAD_BUS 0x0005 // Bluetooth
 
 static int dmNativeAndroidJoystickPresent( int joy )
 {
@@ -44,7 +43,8 @@ static int dmNativeAndroidFindJoystick(const int32_t deviceId)
     return -1;
 }
 
-static int32_t dmNativeAndroidConnectJoystick(int32_t deviceId, const char* deviceName, const char* deviceGuid)
+static int32_t dmNativeAndroidConnectJoystick(int32_t deviceId, const char* deviceName, const char* deviceGuid,
+                                             unsigned int buttonMask, const float* axes, int axisCount)
 {
     int32_t joystickIndex = -1;
     for (joystickIndex = 0; joystickIndex <= NATIVE_JOYSTICK_LAST; joystickIndex++)
@@ -61,12 +61,46 @@ static int32_t dmNativeAndroidConnectJoystick(int32_t deviceId, const char* devi
             dmNativeJoy[joystickIndex].DeviceGuid[DEVICE_GUID_LENGTH] = '\0';
             memset(dmNativeJoy[joystickIndex].Axis, 0, sizeof(dmNativeJoy[joystickIndex].Axis));
             memset(dmNativeJoy[joystickIndex].Button, 0, sizeof(dmNativeJoy[joystickIndex].Button));
+            memset(dmNativeJoy[joystickIndex].SDLAxis, 0, sizeof(dmNativeJoy[joystickIndex].SDLAxis));
+            memset(dmNativeJoy[joystickIndex].SDLButton, 0, sizeof(dmNativeJoy[joystickIndex].SDLButton));
+            dmNativeJoy[joystickIndex].Hats = NATIVE_HAT_CENTERED;
+            dmNativeJoy[joystickIndex].LayoutLegacy = 1;
+            dmNativeJoy[joystickIndex].SDLNumAxes = axisCount;
+            dmNativeJoy[joystickIndex].SDLNumButtons = 0;
+            dmNativeJoy[joystickIndex].SDLHasAxisEvent = 0;
+            for (int i = 0; i < axisCount; ++i)
+            {
+                dmNativeJoy[joystickIndex].SDLAxisIds[i] = (int)axes[i * 3];
+                dmNativeJoy[joystickIndex].SDLAxisMin[i] = axes[i * 3 + 1];
+                dmNativeJoy[joystickIndex].SDLAxisRange[i] = axes[i * 3 + 2];
+            }
+            for (int i = 0; i < 32; ++i)
+            {
+                if (buttonMask & (1U << i))
+                    dmNativeJoy[joystickIndex].SDLNumButtons = i + 1;
+            }
+            if (buttonMask == 0xffffffffU)
+                dmNativeJoy[joystickIndex].SDLNumButtons = NATIVE_ANDROID_GAMEPAD_NUMBUTTONS;
 
             dmNativeWin.gamepadCallback(joystickIndex, 1);
             break;
         }
     }
     return joystickIndex;
+}
+
+void dmNativeAndroidSetJoystickLayoutLegacy(int joy, int legacy)
+{
+    dmNativeJoy[joy].LayoutLegacy = legacy;
+}
+
+void dmNativeAndroidInitializeJoystickAxes(int joy, const float* axes, int num_axes)
+{
+    if (dmNativeJoy[joy].SDLHasAxisEvent)
+        return;
+    if (num_axes > dmNativeJoy[joy].SDLNumAxes)
+        num_axes = dmNativeJoy[joy].SDLNumAxes;
+    memcpy(dmNativeJoy[joy].SDLAxis, axes, num_axes * sizeof(float));
 }
 
 static void dmNativeAndroidDisconnectJoystick(const int joystickIndex)
@@ -126,6 +160,14 @@ static void dmNativeAndroidUpdateAxis(const AInputEvent* event)
         dmNativeAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_RTRIGGER);
         dmNativeAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_HAT_X);
         dmNativeAndroidUpdateAxisValue(joystickIndex, event, AMOTION_EVENT_AXIS_HAT_Y);
+        for (int i = 0; i < dmNativeJoy[joystickIndex].SDLNumAxes; ++i)
+        {
+            float value = AMotionEvent_getAxisValue(event, dmNativeJoy[joystickIndex].SDLAxisIds[i], 0);
+            float range = dmNativeJoy[joystickIndex].SDLAxisRange[i];
+            dmNativeJoy[joystickIndex].SDLAxis[i] = range > 0.0f
+                ? (value - dmNativeJoy[joystickIndex].SDLAxisMin[i]) / range * 2.0f - 1.0f : 0.0f;
+        }
+        dmNativeJoy[joystickIndex].SDLHasAxisEvent = 1;
     }
 }
 
@@ -178,7 +220,7 @@ static int dmNativeAndroidKeycodeToJoystickButton(int keyCode)
     }
 }
 
-static void dmNativeAndroidUpdateButton(const AInputEvent* event)
+static int dmNativeAndroidUpdateButton(const AInputEvent* event)
 {
     const int32_t keyCode = AKeyEvent_getKeyCode(event);
     const int32_t joystickIndex = dmNativeAndroidFindJoystick(AInputEvent_getDeviceId(event));
@@ -190,7 +232,23 @@ static void dmNativeAndroidUpdateButton(const AInputEvent* event)
         {
             dmNativeJoy[joystickIndex].Button[button] = (action == AKEY_EVENT_ACTION_DOWN) ? NATIVE_PRESS : NATIVE_RELEASE;
         }
+        // SDL Android uses stable button slots, including aliases used by TV remotes.
+        static const int legacyToSDL[] = { 0, 1, 17, 2, 9, 10, 3, 18, 15, 16, 0, 12, 13, 14, 11, 6, 4, 7, 8, 5 };
+        if (button >= 0 && button < 20)
+            button = legacyToSDL[button];
+        else if (keyCode == AKEYCODE_BACK)
+            button = 4;
+        else if (keyCode == AKEYCODE_MENU)
+            button = 6;
+        else if (keyCode == AKEYCODE_MEDIA_RECORD)
+            button = 15;
+        if (button >= 0)
+        {
+            dmNativeJoy[joystickIndex].SDLButton[button] = (action == AKEY_EVENT_ACTION_DOWN) ? NATIVE_PRESS : NATIVE_RELEASE;
+            return 1;
+        }
     }
+    return 0;
 }
 
 
@@ -205,6 +263,7 @@ static void dmNativeAndroidUpdateDpad(const AInputEvent* event)
     const int32_t action_action = action & AMOTION_EVENT_ACTION_MASK;
     if (joystickIndex >= 0)
     {
+        unsigned char previous_hats = dmNativeJoy[joystickIndex].Hats;
         dmNativeJoy[joystickIndex].Hats = NATIVE_HAT_CENTERED;
         float hatX = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_HAT_X, 0);
         if (hatX == 1.0f)
@@ -228,6 +287,16 @@ static void dmNativeAndroidUpdateDpad(const AInputEvent* event)
             dmNativeJoy[joystickIndex].Button[dmNativeAndroidKeycodeToJoystickButton(AKEYCODE_DPAD_UP)] = (action_action == AMOTION_EVENT_ACTION_DOWN) ? NATIVE_PRESS : NATIVE_RELEASE;
             dmNativeJoy[joystickIndex].Hats |= NATIVE_HAT_UP;
         }
+        // Only hat transitions change SDL buttons; the D-pad can also arrive as key events.
+        unsigned char changed_hats = previous_hats ^ dmNativeJoy[joystickIndex].Hats;
+        if (changed_hats & NATIVE_HAT_UP)
+            dmNativeJoy[joystickIndex].SDLButton[11] = hatY < 0.0f;
+        if (changed_hats & NATIVE_HAT_DOWN)
+            dmNativeJoy[joystickIndex].SDLButton[12] = hatY > 0.0f;
+        if (changed_hats & NATIVE_HAT_LEFT)
+            dmNativeJoy[joystickIndex].SDLButton[13] = hatX < 0.0f;
+        if (changed_hats & NATIVE_HAT_RIGHT)
+            dmNativeJoy[joystickIndex].SDLButton[14] = hatX > 0.0f;
     }
 }
 
@@ -237,7 +306,7 @@ static void dmNativeAndroidUpdateDpad(const AInputEvent* event)
 // Called from android_init.c when input events are processed
 //========================================================================
 
-void dmNativeAndroidUpdateJoystick(const AInputEvent* event)
+int dmNativeAndroidUpdateJoystick(const AInputEvent* event)
 {
     const int32_t source = AInputEvent_getSource(event);
     const int32_t type = AInputEvent_getType(event);
@@ -247,7 +316,7 @@ void dmNativeAndroidUpdateJoystick(const AInputEvent* event)
     {
         if (type == AINPUT_EVENT_TYPE_KEY)
         {
-            dmNativeAndroidUpdateButton(event);
+            return dmNativeAndroidUpdateButton(event);
         }
     }
     else if ((source & AINPUT_SOURCE_JOYSTICK) != 0)
@@ -265,6 +334,7 @@ void dmNativeAndroidUpdateJoystick(const AInputEvent* event)
             dmNativeAndroidUpdateDpad(event);
         }
     }
+    return 0;
 }
 
 
@@ -289,6 +359,8 @@ void dmNativeAndroidDiscoverJoysticks()
         jmethodID get_game_controller_device_descriptor = 0;
         jmethodID get_game_controller_device_vendor_id = 0;
         jmethodID get_game_controller_device_product_id = 0;
+        jmethodID get_game_controller_device_button_mask = 0;
+        jmethodID get_game_controller_device_axes = 0;
         jintArray device_ids = 0;
         jsize device_ids_len = 0;
         jint *device_ids_elements = 0;
@@ -318,6 +390,12 @@ void dmNativeAndroidDiscoverJoysticks()
         {
             goto cleanup_and_early_exit;
         }
+        get_game_controller_device_button_mask = JNIGetMethodID(env, native_activity, "getGameControllerDeviceButtonMask", "(I)I");
+        if (get_game_controller_device_button_mask == 0)
+            goto cleanup_and_early_exit;
+        get_game_controller_device_axes = JNIGetMethodID(env, native_activity, "getGameControllerDeviceAxes", "(I)[F");
+        if (get_game_controller_device_axes == 0)
+            goto cleanup_and_early_exit;
 
         device_ids = (*env)->CallObjectMethod(env, native_activity, get_game_controller_device_ids);
         if (JNICheckAndClearException(env) || device_ids == 0)
@@ -359,6 +437,13 @@ void dmNativeAndroidDiscoverJoysticks()
                 jint product_id = 0;
                 jstring jni_device_name = 0;
                 jstring jni_device_descriptor = 0;
+                jfloatArray jni_axes = 0;
+                float axes[NATIVE_ANDROID_GAMEPAD_MAX_SDL_AXES * 3];
+                int axis_count = 0;
+                unsigned int axis_mask = 0;
+                unsigned int button_mask = 0;
+                int has_z = 0;
+                int has_rx_ry = 0;
                 char *deviceName = 0;
                 char *deviceDescriptor = 0;
                 
@@ -404,11 +489,46 @@ void dmNativeAndroidDiscoverJoysticks()
                     goto cleanup_and_break;
                 }
 
+                button_mask = (unsigned int)(*env)->CallIntMethod(env, native_activity, get_game_controller_device_button_mask, jni_device_id);
+                if (JNICheckAndClearException(env))
+                {
+                    discovery_succeeded = 0;
+                    goto cleanup_and_break;
+                }
+                jni_axes = (*env)->CallObjectMethod(env, native_activity, get_game_controller_device_axes, jni_device_id);
+                if (JNICheckAndClearException(env) || jni_axes == 0)
+                {
+                    discovery_succeeded = 0;
+                    goto cleanup_and_break;
+                }
+                axis_count = (*env)->GetArrayLength(env, jni_axes) / 3;
+                if (axis_count > NATIVE_ANDROID_GAMEPAD_MAX_SDL_AXES)
+                    axis_count = NATIVE_ANDROID_GAMEPAD_MAX_SDL_AXES;
+                (*env)->GetFloatArrayRegion(env, jni_axes, 0, axis_count * 3, axes);
+                if (JNICheckAndClearException(env))
+                {
+                    discovery_succeeded = 0;
+                    goto cleanup_and_break;
+                }
+                if (axis_count >= 2) axis_mask |= 0x03;
+                if (axis_count >= 4) axis_mask |= 0x0c;
+                if (axis_count >= 6) axis_mask |= 0x30;
+                for (int axis = 0; axis < axis_count; ++axis)
+                {
+                    int id = (int)axes[axis * 3];
+                    has_z |= id == AMOTION_EVENT_AXIS_Z;
+                    has_rx_ry |= id > AMOTION_EVENT_AXIS_Z && id < AMOTION_EVENT_AXIS_RZ;
+                }
+                if (has_z && has_rx_ry)
+                    axis_mask |= 0x8000;
+
                 char deviceGuid[DEVICE_GUID_LENGTH + 1];
-                dmNativeCreateJoystickDeviceGuid(SDL_ANDROID_GAMEPAD_BUS, (unsigned short) vendor_id, (unsigned short) product_id,
-                    0, 0, deviceDescriptor, 0, 0, deviceGuid);
-                deviceIndex = dmNativeAndroidConnectJoystick(deviceId, deviceName, deviceGuid);
+                dmNativeAndroidCreateJoystickDeviceGuid((unsigned short)vendor_id, (unsigned short)product_id,
+                    deviceDescriptor, button_mask, axis_mask, deviceGuid);
+                deviceIndex = dmNativeAndroidConnectJoystick(deviceId, deviceName, deviceGuid, button_mask, axes, axis_count);
 cleanup_and_break:
+                if (jni_axes != 0)
+                    (*env)->DeleteLocalRef(env, jni_axes);
                 if (deviceDescriptor != 0)
                 {
                     (*env)->ReleaseStringUTFChars(env, jni_device_descriptor, deviceDescriptor);
@@ -484,13 +604,13 @@ int dmNativeOSGetJoystickParam( int joy, int param )
         return GL_TRUE;
 
     case NATIVE_AXES:
-        return dmNativeJoy[ joy ].NumAxes;
+        return dmNativeJoy[joy].LayoutLegacy ? dmNativeJoy[joy].NumAxes : dmNativeJoy[joy].SDLNumAxes;
 
     case NATIVE_BUTTONS:
-        return dmNativeJoy[ joy ].NumButtons;
+        return dmNativeJoy[joy].LayoutLegacy ? dmNativeJoy[joy].NumButtons : dmNativeJoy[joy].SDLNumButtons;
 
     case NATIVE_HATS:
-        return 1;
+        return dmNativeJoy[joy].LayoutLegacy ? 1 : 0;
 
     default:
         break;
@@ -515,15 +635,16 @@ int dmNativeOSGetJoystickPos( int joy, float *pos, int numaxes )
     }
 
     // Does the joystick support less axes than requested?
-    if( dmNativeJoy[ joy ].NumAxes < numaxes )
+    int axis_count = dmNativeOSGetJoystickParam(joy, NATIVE_AXES);
+    if( axis_count < numaxes )
     {
-        numaxes = dmNativeJoy[ joy ].NumAxes;
+        numaxes = axis_count;
     }
 
     // Copy axis positions from internal state
     for( i = 0; i < numaxes; ++ i )
     {
-        pos[ i ] = dmNativeJoy[ joy ].Axis[ i ];
+        pos[i] = dmNativeJoy[joy].LayoutLegacy ? dmNativeJoy[joy].Axis[i] : dmNativeJoy[joy].SDLAxis[i];
     }
 
     return 0;
@@ -545,15 +666,16 @@ int dmNativeOSGetJoystickButtons( int joy, unsigned char *buttons, int numbutton
     }
 
     // Does the joystick support less buttons than requested?
-    if( dmNativeJoy[ joy ].NumButtons < numbuttons )
+    int button_count = dmNativeOSGetJoystickParam(joy, NATIVE_BUTTONS);
+    if( button_count < numbuttons )
     {
-        numbuttons = dmNativeJoy[ joy ].NumButtons;
+        numbuttons = button_count;
     }
 
     // Copy button states from internal state
     for( i = 0; i < numbuttons; ++ i )
     {
-        buttons[ i ] = dmNativeJoy[ joy ].Button[ i ];
+        buttons[i] = dmNativeJoy[joy].LayoutLegacy ? dmNativeJoy[joy].Button[i] : dmNativeJoy[joy].SDLButton[i];
     }
 
     return numbuttons;
@@ -571,8 +693,12 @@ int dmNativeOSGetJoystickHats( int joy, unsigned char *hats, int numhats )
     {
         return 0;
     }
-    hats[0] |= dmNativeJoy[ joy ].Hats;
-    return 1;
+    if (dmNativeJoy[joy].LayoutLegacy && numhats > 0)
+    {
+        hats[0] |= dmNativeJoy[joy].Hats;
+        return 1;
+    }
+    return 0;
 }
 
 
