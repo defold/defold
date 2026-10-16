@@ -58,7 +58,7 @@
   [{:keys [project localization-state markdown title header buttons result-fn]}]
   {:fx/type dialogs/dialog-stage
    :showing true
-   :on-close-request (fn [_] (result-fn (:result (coll/first-where :cancel-button buttons))))
+   :on-close-request (fn on-close-request [_] (result-fn (:result (coll/first-where :cancel-button buttons))))
    :title (localization-state title)
    :size :large
    :width 800
@@ -74,7 +74,7 @@
             :children (mapv (fn [{:keys [text result default-button cancel-button]}]
                               (cond-> {:fx/type fxui/legacy-button
                                        :text (localization-state text)
-                                       :on-action (fn [_] (result-fn result))}
+                                       :on-action (fn on-action [_] (result-fn result))}
                                 cancel-button (assoc :cancel-button true)
                                 default-button (assoc :variant :primary :default-button true)))
                             buttons)}})
@@ -228,12 +228,13 @@
 (defn- choose-channel-install-dir [^Stage stage updater localization channel]
   (let [install-name (updater/channel-install-name updater channel)]
     (loop [initial-dir (updater/default-channel-install-parent updater)]
-      (when-some [parent-dir (dialogs/make-directory-dialog
-                               (localization (localization/message "updater.choose-channel-location-dialog.title"))
-                               initial-dir
-                               stage)]
+      (when-let [parent-dir (dialogs/make-directory-dialog
+                              (localization (localization/message "updater.choose-channel-location-dialog.title"))
+                              initial-dir
+                              stage)]
         (let [install-dir (io/file parent-dir install-name)]
-          (if (.exists install-dir)
+          (if-not (.exists install-dir)
+            install-dir
             (do (dialogs/make-info-dialog
                   localization
                   {:title (localization/message "updater.choose-channel-location-dialog.title")
@@ -241,8 +242,7 @@
                    :owner stage
                    :header (localization/message "updater.channel-location-exists-dialog.header" {"name" install-name})
                    :content (localization/message "updater.channel-location-exists-dialog.detail")})
-                (recur parent-dir))
-            install-dir))))))
+                (recur parent-dir))))))))
 
 (defn- start-channel-download! [^Stage stage updater localization channel-info ^File install-dir]
   (let [version (:version channel-info)
@@ -287,7 +287,7 @@
           (try
             (if info
               (when (confirm-try-channel! stage project localization (:version info) release-notes)
-                (when-some [install-dir (choose-channel-install-dir stage updater localization channel)]
+                (when-let [install-dir (choose-channel-install-dir stage updater localization channel)]
                   (start-channel-download! stage updater localization (assoc info :channel channel) install-dir)))
               (dialogs/make-info-dialog
                 localization

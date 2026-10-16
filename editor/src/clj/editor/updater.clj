@@ -247,7 +247,7 @@
                        new-progress (download-progress new-state)]
                    (when-not (= old-progress new-progress)
                      (f (or new-progress progress/done))))))
-    (when-some [progress (download-progress @state-atom)]
+    (when-let [progress (download-progress @state-atom)]
       (f progress))))
 
 (defn remove-progress-watch [updater f]
@@ -348,7 +348,7 @@
   "Returns {:markdown <string> :version <string>} for the newest release of
   `channel`, or nil if its notes can't be fetched."
   [channel]
-  (when-some [entry (first (fetch-release-notes! (system/defold-archive-domain) channel nil))]
+  (when-let [entry (first (fetch-release-notes! (system/defold-archive-domain) channel nil))]
     {:markdown (entry-markdown nil entry)
      :version (:version entry)}))
 
@@ -517,7 +517,7 @@
         url (download-url (system/defold-archive-domain) sha1 channel platform)
         zip-file (create-temp-zip-file)
         cancelled-atom (atom false)
-        track-progress! (fn [progress]
+        track-progress! (fn track-progress! [progress]
                           (swap! state-atom assoc-in [:channel-download :progress] progress))
         track-download-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 0))
         track-extract-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 1))]
