@@ -456,49 +456,6 @@ namespace dmGameSystem
         return 1;
     }
 
-    static SoundComponent* GetSoundComponentFromLua(lua_State* L, SoundWorld** world, dmGameObject::HInstance* out_instance, dmMessage::URL* receiver, dmMessage::URL* sender)
-    {
-        dmGameObject::HInstance instance = dmScript::CheckGOInstance(L);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
-        dmGameObject::HRegister regist = dmGameObject::GetRegister(collection);
-
-        dmScript::ResolveURL(L, 1, receiver, sender);
-        if (receiver->m_Socket != dmGameObject::GetMessageSocket(collection))
-        {
-            collection = dmGameObject::GetCollectionByHash(regist, dmMessage::GetSocketNameHash(receiver->m_Socket));
-            if (!collection)
-            {
-                luaL_error(L, "The collection could not be found for socket '%s'", dmHashReverseSafe64(dmMessage::GetSocketNameHash(receiver->m_Socket)));
-                return 0;
-            }
-        }
-
-        instance = dmGameObject::GetInstanceFromIdentifier(collection, receiver->m_Path);
-        if (!instance)
-        {
-            luaL_error(L, "Instance '%s' not found", dmHashReverseSafe64(receiver->m_Path));
-            return 0;
-        }
-
-        dmGameObject::HComponent component;
-        uint32_t component_type;
-        if (dmGameObject::GetComponent(instance, receiver->m_Fragment, &component_type, &component, (dmGameObject::HComponentWorld*)world) != dmGameObject::RESULT_OK)
-        {
-            char buffer[128];
-            luaL_error(L, "The component could not be found: '%s'", dmScript::UrlToString(receiver, buffer, sizeof(buffer)));
-            return 0;
-        }
-
-        dmGameObject::ComponentType* type = dmGameObject::GetComponentType(regist, component_type);
-        if (type->m_NameHash != dmHashString64("soundc"))
-        {
-            luaL_error(L, "Component expected to be of type 'soundc' but was '%s'", type->m_Name);
-            return 0;
-        }
-        *out_instance = instance;
-        return (SoundComponent*)component;
-    }
-
     /*# plays a sound
      * Make the sound component play its sound. Multiple voices are supported. The limit is set to 32 voices per sound component.
      *
@@ -558,7 +515,9 @@ namespace dmGameSystem
         dmGameObject::HInstance instance;
         dmMessage::URL receiver;
         dmMessage::URL sender;
-        SoundComponent* component = GetSoundComponentFromLua(L, &world, &instance, &receiver, &sender);
+        SoundComponent* component;
+        dmScript::GetComponentFromLua(L, 1, "soundc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, &receiver, &instance);
+        dmScript::GetURL(L, &sender);
         float delay = 0.0f, gain = 1.0f, pan = 0.0f, speed = 1.0f;
         float start_time = 0.0f;
         uint32_t start_frame = 0u;
@@ -675,8 +634,8 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         SoundWorld* world;
         dmGameObject::HInstance instance;
-        dmMessage::URL receiver;
-        SoundComponent* component = GetSoundComponentFromLua(L, &world, &instance, &receiver, 0);
+        SoundComponent* component;
+        dmScript::GetComponentFromLua(L, 1, "soundc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0, &instance);
         uint32_t play_id = CheckPlayId(L, 2);
         CompSoundStop(world, instance, component, play_id);
         return 0;
@@ -702,8 +661,8 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         SoundWorld* world;
         dmGameObject::HInstance instance;
-        dmMessage::URL receiver;
-        SoundComponent* component = GetSoundComponentFromLua(L, &world, &instance, &receiver, 0);
+        SoundComponent* component;
+        dmScript::GetComponentFromLua(L, 1, "soundc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0, &instance);
         bool pause = dmScript::CheckBoolean(L, 2);
         CompSoundPause(world, instance, component, pause);
         return 0;
@@ -736,7 +695,8 @@ namespace dmGameSystem
         SoundWorld* world;
         dmGameObject::HInstance instance;
         dmMessage::URL receiver;
-        SoundComponent* component = GetSoundComponentFromLua(L, &world, &instance, &receiver, 0);
+        SoundComponent* component;
+        dmScript::GetComponentFromLua(L, 1, "soundc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, &receiver, &instance);
         float gain = luaL_checknumber(L, 2);
         uint32_t play_id = CheckPlayId(L, 3);
         if (CompSoundSetGain(world, instance, component, gain, play_id, receiver.m_Fragment) != dmGameObject::PROPERTY_RESULT_OK)
@@ -778,7 +738,8 @@ namespace dmGameSystem
         SoundWorld* world;
         dmGameObject::HInstance instance;
         dmMessage::URL receiver;
-        SoundComponent* component = GetSoundComponentFromLua(L, &world, &instance, &receiver, 0);
+        SoundComponent* component;
+        dmScript::GetComponentFromLua(L, 1, "soundc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, &receiver, &instance);
         float pan = luaL_checknumber(L, 2);
         uint32_t play_id = CheckPlayId(L, 3);
         if (CompSoundSetPan(world, instance, component, pan, play_id, receiver.m_Fragment) != dmGameObject::PROPERTY_RESULT_OK)

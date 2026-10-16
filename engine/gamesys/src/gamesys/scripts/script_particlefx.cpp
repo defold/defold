@@ -175,49 +175,6 @@ namespace dmGameSystem
         }
     }
 
-    static ParticleFXComponentPrototype* GetParticleFXComponentFromLua(lua_State* L, ParticleFXWorld** world, dmGameObject::HInstance* out_instance, dmMessage::URL* receiver)
-    {
-        dmGameObject::HInstance instance = dmScript::CheckGOInstance(L);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
-        dmGameObject::HRegister regist = dmGameObject::GetRegister(collection);
-
-        dmScript::ResolveURL(L, 1, receiver, 0);
-        if (receiver->m_Socket != dmGameObject::GetMessageSocket(collection))
-        {
-            collection = dmGameObject::GetCollectionByHash(regist, dmMessage::GetSocketNameHash(receiver->m_Socket));
-            if (!collection)
-            {
-                luaL_error(L, "The collection could not be found for socket '%s'", dmHashReverseSafe64(dmMessage::GetSocketNameHash(receiver->m_Socket)));
-                return 0;
-            }
-        }
-
-        instance = dmGameObject::GetInstanceFromIdentifier(collection, receiver->m_Path);
-        if (!instance)
-        {
-            luaL_error(L, "Instance '%s' not found", dmHashReverseSafe64(receiver->m_Path));
-            return 0;
-        }
-
-        dmGameObject::HComponent component;
-        uint32_t component_type;
-        if (dmGameObject::GetComponent(instance, receiver->m_Fragment, &component_type, &component, (dmGameObject::HComponentWorld*)world) != dmGameObject::RESULT_OK)
-        {
-            char buffer[128];
-            luaL_error(L, "The component could not be found: '%s'", dmScript::UrlToString(receiver, buffer, sizeof(buffer)));
-            return 0;
-        }
-
-        dmGameObject::ComponentType* type = dmGameObject::GetComponentType(regist, component_type);
-        if (type->m_NameHash != dmHashString64("particlefxc"))
-        {
-            luaL_error(L, "Component expected to be of type 'particlefxc' but was '%s'", type->m_Name);
-            return 0;
-        }
-        *out_instance = instance;
-        return (ParticleFXComponentPrototype*)component;
-    }
-
     /*# start playing a particle FX
      * Starts playing a particle FX component.
      * Particle FX started this way need to be manually stopped through `particlefx.stop()`.
@@ -260,7 +217,8 @@ namespace dmGameSystem
         ParticleFXWorld* world;
         dmGameObject::HInstance instance;
         dmMessage::URL receiver;
-        ParticleFXComponentPrototype* prototype = GetParticleFXComponentFromLua(L, &world, &instance, &receiver);
+        ParticleFXComponentPrototype* prototype;
+        dmScript::GetComponentFromLua(L, 1, "particlefxc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&prototype, &receiver, &instance);
 
         dmParticle::EmitterStateChangedData callback_data;
         if (top > 1 && !lua_isnil(L, 2))
@@ -334,7 +292,8 @@ namespace dmGameSystem
         ParticleFXWorld* world;
         dmGameObject::HInstance instance;
         dmMessage::URL receiver;
-        GetParticleFXComponentFromLua(L, &world, &instance, &receiver);
+        ParticleFXComponentPrototype* prototype;
+        dmScript::GetComponentFromLua(L, 1, "particlefxc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&prototype, &receiver, &instance);
         CompParticleFXStop(world, instance, receiver.m_Fragment, clear_particles != 0);
         return 0;
     }
@@ -385,8 +344,8 @@ namespace dmGameSystem
 
         ParticleFXWorld* world;
         dmGameObject::HInstance instance;
-        dmMessage::URL receiver;
-        GetParticleFXComponentFromLua(L, &world, &instance, &receiver);
+        ParticleFXComponentPrototype* prototype;
+        dmScript::GetComponentFromLua(L, 1, "particlefxc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&prototype, 0, &instance);
         CompParticleFXSetConstant(world, instance, emitter_id, name_hash, value, is_matrix4_type);
         return 0;
     }
@@ -423,8 +382,8 @@ namespace dmGameSystem
 
         ParticleFXWorld* world;
         dmGameObject::HInstance instance;
-        dmMessage::URL receiver;
-        GetParticleFXComponentFromLua(L, &world, &instance, &receiver);
+        ParticleFXComponentPrototype* prototype;
+        dmScript::GetComponentFromLua(L, 1, "particlefxc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&prototype, 0, &instance);
         CompParticleFXResetConstant(world, instance, emitter_id, name_hash);
         return 0;
     }
