@@ -135,6 +135,61 @@ function testLoaderWebGLSkipsWebGPUProbe() {
     }
 }
 
+// Verifies startup focuses an idle page without scrolling, but preserves an element already chosen by the user.
+function testLoaderStartupFocus() {
+    for (const active of ["body", "documentElement", "canvas", "input", "none"]) {
+        const { context, calls } = setupLoaderStartup(false, true);
+        let focusCalls = 0;
+        const canvas = { addEventListener() {}, focus(options) {
+            assert.strictEqual(options.preventScroll, true);
+            ++focusCalls;
+            context.document.activeElement = canvas;
+        } };
+        context.Module.setupCanvas = () => context.Module.canvas = canvas;
+        context.document.body = {};
+        context.document.documentElement = {};
+        const activeElement = active === "canvas" ? canvas : active === "input" ? {} :
+                              active === "none" ? null : context.document[active];
+        context.document.activeElement = activeElement;
+
+        context.Module.runApp();
+        const shouldFocus = active !== "input" && active !== "canvas";
+        assert.strictEqual(focusCalls, shouldFocus ? 1 : 0);
+        assert.strictEqual(context.document.activeElement, shouldFocus ? canvas : activeElement);
+        assert.strictEqual(calls.started, 1);
+    }
+}
+
+// Verifies asynchronous engine startup does not steal focus acquired while browser capability detection was pending.
+async function testLoaderDelayedStartupPreservesFocus() {
+    const { context, calls } = setupLoaderStartup(true, true);
+    let resolveProbe;
+    let focusCalls = 0;
+    let signalStarted;
+    const started = new Promise(resolve => signalStarted = resolve);
+    context.Module._preloadAndCallMain = () => {
+        ++calls.started;
+        signalStarted();
+    };
+    context.navigator.gpu = { requestAdapter: () => new Promise(resolve => resolveProbe = resolve) };
+    context.Module.setupCanvas = () => context.Module.canvas = {
+        addEventListener() {},
+        focus() { ++focusCalls; }
+    };
+    context.document.body = {};
+    context.document.activeElement = context.document.body;
+    context.Module.runApp();
+    assert.strictEqual(calls.started, 0);
+
+    const input = {};
+    context.document.activeElement = input;
+    resolveProbe({});
+    await started;
+    assert.strictEqual(calls.started, 1);
+    assert.strictEqual(focusCalls, 0);
+    assert.strictEqual(context.document.activeElement, input);
+}
+
 // Verify WebGPU builds await adapter discovery and retain WebGL fallback when discovery fails.
 async function testLoaderWebGPUProbeGatesStartup() {
     for (const hasWebGL of [true, false]) {
@@ -292,6 +347,98 @@ function mouseEvent(context, button = 0) {
     return { target: context.Module.canvas, button, clientX: 70, clientY: 80, preventDefault() {} };
 }
 
+// Verifies focus is requested only for deliberate canvas presses/taps, never by queries, scrolling, cancellation, or synthetic input.
+function testCanvasFocusRequests() {
+    const context = loadPointerEnvironment();
+    const platform = context.DefoldPlatform;
+    const canvas = context.Module.canvas;
+    const other = { focus() { assert.fail("Engine focused an unrelated page element"); } };
+    let focusCalls = 0;
+    canvas.focus = options => {
+        assert.strictEqual(options.preventScroll, true);
+        ++focusCalls;
+        context.document.activeElement = canvas;
+    };
+    context.document.activeElement = other;
+
+    assert.strictEqual(platform.isCanvasActive({ target: canvas }), true);
+    assert.strictEqual(focusCalls, 0);
+    platform.onMouseWheel({ ...mouseEvent(context), type: "mousewheel", isTrusted: true, cancelable: true });
+    platform.onMouseButtonUp({ ...mouseEvent(context), type: "mouseup", isTrusted: true });
+    for (const handler of ["onTouchMove", "onTouchCancel"]) {
+        platform[handler]({ ...touchEvent(context, []), isTrusted: true });
+    }
+    platform.onMouseButtonDown({ ...mouseEvent(context), type: "mousedown", isTrusted: false });
+    platform.onTouchStart({ ...touchEvent(context, []), type: "touchstart", isTrusted: false });
+    platform.onTouchEnd({ ...touchEvent(context, []), type: "touchend", isTrusted: false });
+    assert.strictEqual(focusCalls, 0);
+    assert.strictEqual(context.document.activeElement, other);
+
+    let prevented = false;
+    platform.mouseButtonFunc = () => assert.strictEqual(context.document.activeElement, canvas);
+    platform.onMouseButtonDown({ ...mouseEvent(context), type: "mousedown", isTrusted: true,
+                                preventDefault() { prevented = true; } });
+    assert.strictEqual(focusCalls, 1);
+    assert.strictEqual(prevented, true);
+
+    platform.onMouseWheel({ ...mouseEvent(context), target: other, isTrusted: true });
+    platform.onKeydown({ target: canvas, keyCode: 65, code: "KeyA", isTrusted: true });
+    assert.strictEqual(focusCalls, 1);
+
+    context.document.activeElement = other;
+    platform.onTouchStart({ ...touchEvent(context, []), type: "touchstart", isTrusted: true });
+    assert.strictEqual(focusCalls, 2);
+    assert.strictEqual(context.document.activeElement, canvas);
+    platform.onTouchEnd({ ...touchEvent(context, []), type: "touchend", isTrusted: true });
+    assert.strictEqual(focusCalls, 2);
+    assert.strictEqual(context.document.activeElement, canvas);
+}
+
+// Verifies touch input starts immediately and touchend retries focus when the browser required activation.
+function testTouchFocusRetry() {
+    const context = loadPointerEnvironment();
+    const platform = context.DefoldPlatform;
+    const canvas = context.Module.canvas;
+    const other = {};
+    const phases = [];
+    const touch = { identifier: 1, clientX: 10, clientY: 20 };
+    let allowFocus = false;
+    let focusCalls = 0;
+    context.document.activeElement = other;
+    canvas.focus = options => {
+        assert.strictEqual(options.preventScroll, true);
+        ++focusCalls;
+        if (allowFocus) context.document.activeElement = canvas;
+    };
+    platform.touchFunc = (id, x, y, phase) => phases.push(phase);
+
+    platform.onTouchStart({ ...touchEvent(context, [touch]), type: "touchstart", isTrusted: true });
+    assert.strictEqual(focusCalls, 1);
+    assert.strictEqual(context.document.activeElement, other);
+    assert.deepStrictEqual(phases, [platform.NATIVE_PHASE_BEGAN]);
+
+    allowFocus = true;
+    platform.onTouchEnd({ ...touchEvent(context, [touch], []), type: "touchend", isTrusted: true });
+    assert.strictEqual(focusCalls, 2);
+    assert.strictEqual(context.document.activeElement, canvas);
+    assert.deepStrictEqual(phases, [platform.NATIVE_PHASE_BEGAN, platform.NATIVE_PHASE_ENDED]);
+}
+
+// Verifies mouse input still reaches the game if the browser declines a focus request.
+function testCanvasInputWhenFocusIsDenied() {
+    const context = loadPointerEnvironment();
+    const active = {};
+    const buttons = [];
+    let focusCalls = 0;
+    context.document.activeElement = active;
+    context.Module.canvas.focus = () => ++focusCalls;
+    context.DefoldPlatform.mouseButtonFunc = (button, status) => buttons.push([button, status]);
+    context.DefoldPlatform.onMouseButtonDown({ ...mouseEvent(context), type: "mousedown", isTrusted: true });
+    assert.strictEqual(focusCalls, 1);
+    assert.strictEqual(context.document.activeElement, active);
+    assert.deepStrictEqual(buttons, [[0, 1]]);
+}
+
 // Verifies keyboard and pointer callbacks forward the browser event to audio without resuming from unfocused input.
 function testInputAudioActivation() {
     const context = loadPointerEnvironment();
@@ -399,8 +546,10 @@ function testMixedTouchAndMouseSources() {
 
 async function runTests() {
     for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
-                       testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderArchiveConcurrency,
+                       testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup,
+                       testLoaderStartupFocus, testLoaderDelayedStartupPreservesFocus, testLoaderArchiveConcurrency,
                        testLoaderArchiveBufferOwnership,
+                       testCanvasFocusRequests, testTouchFocusRetry, testCanvasInputWhenFocusIsDenied,
                        testInputAudioActivation, testTouchMouseSources, testMixedTouchAndMouseSources]) {
         try {
             await test();

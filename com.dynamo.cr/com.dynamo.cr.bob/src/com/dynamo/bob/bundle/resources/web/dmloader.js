@@ -1245,7 +1245,12 @@ var Module = {
         function startApp() {
             if (Module.hasWebGLSupport(){{#DEFOLD_HAS_WEBGPU}} || Module.hasWebGPUSupport(){{/DEFOLD_HAS_WEBGPU}}) {
                 Module._isEngineLoaded = true;
-                Module.canvas.focus();
+                // Loading may finish after the user has focused another control on the page.
+                // Request initial game focus only while the page is idle; the browser applies iframe policy.
+                var activeElement = document.activeElement;
+                if (!activeElement || activeElement === document.body || activeElement === document.documentElement) {
+                    Module.canvas.focus({ preventScroll: true });
+                }
 
                 Module.canvas.addEventListener("webglcontextlost", function(event) {
                     event.preventDefault();

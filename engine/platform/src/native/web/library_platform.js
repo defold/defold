@@ -185,22 +185,16 @@ var LibraryDefoldPlatform = {
     },
 
     isCanvasActive: function(event) {
-      var res = (typeof document.activeElement == 'undefined' || document.activeElement == Module["canvas"]);
+      return typeof document.activeElement == 'undefined' || document.activeElement == Module["canvas"] || event.target == Module["canvas"];
+    },
 
-      if (!res) {
-        res = (event.target == Module["canvas"]);
+    focusCanvasFromInput: function(event) {
+      var canvas = Module["canvas"];
+      // Request focus directly from trusted canvas presses/taps. The browser applies
+      // the embedding policy; a host may allow focus before touchend grants activation.
+      if (event.isTrusted && event.target == canvas && document.activeElement != canvas) {
+        canvas.focus({ preventScroll: true });
       }
-
-      // Pass along focus to element that the event was meant for.
-      // Chrome on Android (and perhaps more mobile browsers) does not
-      // seem to set the document.activeElement, at least while we call
-      // event.preventDefault, meaning if the fullscreen button has a
-      // click handler it will never be called since the element would
-      // never be "active".
-      if (event.target.focus)
-        event.target.focus();
-
-      return res;
     },
 
     onWindowClose: function(event) {
@@ -323,6 +317,11 @@ var LibraryDefoldPlatform = {
     touchWasFinished: function(event, phase) {
         if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
+        // Retry with activation if the browser denied focus at touchstart.
+        if (phase == DefoldPlatform.NATIVE_PHASE_ENDED) {
+          DefoldPlatform.focusCanvasFromInput(event);
+        }
+
         for(var i = 0; i < event.changedTouches.length; ++i) {
           var touch = event.changedTouches[i];
           var coord = DefoldPlatform.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
@@ -404,6 +403,8 @@ var LibraryDefoldPlatform = {
         // check if the target is the canvas directly.
         if (event.target != Module["canvas"]) { return; }
 
+        DefoldPlatform.focusCanvasFromInput(event);
+
         var e = event;
         var touch;
         var coord;
@@ -437,6 +438,10 @@ var LibraryDefoldPlatform = {
       // We don't check if canvas is active here, instead
       // check if the target is the canvas directly.
       if (event.target != Module["canvas"]) { return; }
+
+      // Prevent the default mouse action from overriding our explicit canvas focus.
+      event.preventDefault();
+      DefoldPlatform.focusCanvasFromInput(event);
 
       DefoldPlatform.buttons |= (1 << event['button']);
       if (event['button'] == 0) {
@@ -1207,7 +1212,7 @@ var LibraryDefoldPlatform = {
   dmNativeShowKeyboard: function(show_keyboard) {
     Module['canvas'].contentEditable = show_keyboard ? true : false;
     if (show_keyboard) {
-      Module['canvas'].focus();
+      Module['canvas'].focus({ preventScroll: true });
     }
   },
 
