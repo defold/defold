@@ -1092,7 +1092,6 @@ dialog.about.label.build-time = Tiempo de compilación\:
 dialog.about.label.editor-sha1 = Editor SHA1\:
 dialog.about.label.engine-sha1 = Motor SHA1\:
 dialog.about.value.unavailable = No disponible
-dialog.about.footer.copyright = Copyright © 2009-2025
 dialog.about.footer.foundation = Fundación Defold
 dialog.about.sponsor = Fondo de apoyo al desarrollo Fundación Defold
 
