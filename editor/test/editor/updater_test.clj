@@ -45,6 +45,11 @@
                   (format "http://localhost:%s/archive/%s/%s/editor2/Defold-%s.zip"
                           test-port sha1 channel (.getPair platform)))
 
+                updater/channel-download-url
+                (fn [_archive-domain sha1 channel ^Platform platform _extension]
+                  (format "http://localhost:%s/archive/%s/%s/editor2/Defold-%s.zip"
+                          test-port sha1 channel (.getPair platform)))
+
                 updater/update-url
                 (fn [archive-domain channel]
                   (format "http://localhost:%s/editor2/channels/%s/update-v4.json"
@@ -228,30 +233,34 @@
       (is (true? (updater/can-download-update? updater)))
       (is (false? @(updater/download-and-extract! updater))))))
 
-(deftest download-channel-unpacks-into-new-folder
+(deftest download-channel-saves-into-downloads-folder
   (with-open [_ (start-update-server! "beta" "B2")]
     (let [updater (make-updater "stable" "S1" nil (make-temp-prefs))
-          parent-dir (fs/create-temp-directory! "updater-test-channel")
-          install-dir (io/file parent-dir "Defold Beta")]
-      (try
-        (is (true? @(updater/download-channel! updater {:channel "beta" :version "2.0" :sha1 "B2"} install-dir)))
-        (is (.isDirectory (io/file install-dir "target")))
-        (is (= #{"extracted-file.txt"} (list-files install-dir)))
-        (is (false? (updater/channel-download-in-progress? updater)))
-        (finally
-          (fs/delete-directory! parent-dir))))))
+          downloads-dir (fs/create-temp-directory! "updater-test-downloads")
+          extension (if (= "macos" (.getOs (Platform/getHostPlatform))) "dmg" "zip")
+          base-name (str "Defold-2.0-beta-" (.getPair (Platform/getHostPlatform)))]
+      (with-redefs [updater/downloads-dir (constantly downloads-dir)]
+        (try
+          (let [^File file @(updater/download-channel! updater {:channel "beta" :version "2.0" :sha1 "B2"})
+                ^File second-file @(updater/download-channel! updater {:channel "beta" :version "2.0" :sha1 "B2"})]
+            (is (= (io/file downloads-dir (str base-name "." extension)) file))
+            (is (pos? (.length file)))
+            (is (= (io/file downloads-dir (str base-name " (1)." extension)) second-file))
+            (is (false? (updater/channel-download-in-progress? updater))))
+          (finally
+            (fs/delete-directory! downloads-dir)))))))
 
-(deftest download-channel-fails-cleanly-when-zip-is-missing
+(deftest download-channel-fails-cleanly-when-file-is-missing
   (with-open [_ (start-update-server! "beta" "B2")]
     (let [updater (make-updater "stable" "S1" nil (make-temp-prefs))
-          parent-dir (fs/create-temp-directory! "updater-test-channel")
-          install-dir (io/file parent-dir "Defold Beta")]
-      (try
-        (is (false? @(updater/download-channel! updater {:channel "beta" :version "2.0" :sha1 "B3"} install-dir)))
-        (is (not (.exists install-dir)))
-        (is (false? (updater/channel-download-in-progress? updater)))
-        (finally
-          (fs/delete-directory! parent-dir))))))
+          downloads-dir (fs/create-temp-directory! "updater-test-downloads")]
+      (with-redefs [updater/downloads-dir (constantly downloads-dir)]
+        (try
+          (is (nil? @(updater/download-channel! updater {:channel "beta" :version "2.0" :sha1 "B3"})))
+          (is (= #{} (list-files downloads-dir)))
+          (is (false? (updater/channel-download-in-progress? updater)))
+          (finally
+            (fs/delete-directory! downloads-dir)))))))
 
 (deftest channel-offer-hidden-while-update-advertised-or-channel-download-running
   (let [updater (make-updater "stable" "S1" nil (make-temp-prefs))

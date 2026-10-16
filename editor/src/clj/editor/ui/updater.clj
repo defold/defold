@@ -200,7 +200,9 @@
 (defn- confirm-try-channel! [^Stage stage project localization version release-notes]
   (if release-notes
     (show-release-notes-dialog!
-      project localization (:markdown release-notes)
+      project localization
+      (str "_" (localization (localization/message "updater.try-channel-dialog.detail")) "_\n\n---\n\n"
+           (:markdown release-notes))
       (localization/message "updater.try-channel-dialog.title")
       (localization/message "updater.try-channel-dialog.header" {"version" version})
       [{:text (localization/message "updater.release-notes-dialog.button.later")
@@ -225,47 +227,28 @@
                   :default-button true
                   :result true}]})))
 
-(defn- choose-channel-install-dir [^Stage stage updater localization channel]
-  (let [install-name (updater/channel-install-name updater channel)]
-    (loop [initial-dir (updater/default-channel-install-parent updater)]
-      (when-let [parent-dir (dialogs/make-directory-dialog
-                              (localization (localization/message "updater.choose-channel-location-dialog.title"))
-                              initial-dir
-                              stage)]
-        (let [install-dir (io/file parent-dir install-name)]
-          (if-not (.exists install-dir)
-            install-dir
-            (do (dialogs/make-info-dialog
-                  localization
-                  {:title (localization/message "updater.choose-channel-location-dialog.title")
-                   :icon :icon/triangle-warning
-                   :owner stage
-                   :header (localization/message "updater.channel-location-exists-dialog.header" {"name" install-name})
-                   :content (localization/message "updater.channel-location-exists-dialog.detail")})
-                (recur parent-dir))))))))
-
-(defn- start-channel-download! [^Stage stage updater localization channel-info ^File install-dir]
+(defn- start-channel-download! [^Stage stage updater localization channel-info]
   (let [version (:version channel-info)
-        download (updater/download-channel! updater channel-info install-dir)]
+        download (updater/download-channel! updater channel-info)]
     (future
-      (let [success @download]
+      (let [^File file @download]
         (ui/run-later
-          (if success
+          (if file
             (when (dialogs/make-confirmation-dialog
                     localization
                     {:title (localization/message "updater.try-channel-dialog.title")
                      :icon :icon/circle-check
                      :owner stage
                      :header (localization/message "updater.channel-download-done-dialog.header" {"version" version})
-                     :content (.getPath install-dir)
+                     :content (localization/message "updater.channel-download-done-dialog.detail" {"path" (.getPath file)})
                      :buttons [{:text (localization/message "dialog.button.close")
                                 :cancel-button true
                                 :result false}
-                               {:text (localization/message "updater.channel-download-done-dialog.button.launch")
+                               {:text (localization/message "updater.channel-download-done-dialog.button.show")
                                 :variant :primary
                                 :default-button true
                                 :result true}]})
-              (updater/launch-channel! updater install-dir))
+              (ui/open-file (.getParentFile file)))
             (dialogs/make-info-dialog
               localization
               {:title (localization/message "updater.try-channel-dialog.title")
@@ -274,8 +257,8 @@
                :header (localization/message "updater.channel-download-failed-dialog.header" {"version" version})})))))))
 
 (defn try-channel!
-  "Offers to download the beta editor into a new folder of the user's choice
-  and launch it there. The current installation stays as it is."
+  "Offers to download the beta editor into the user's Downloads folder for them
+  to install. The current installation stays as it is."
   [stage project updater localization]
   (when (and (not (updater/channel-download-in-progress? updater))
              (updater/begin-manual-update-check! updater))
@@ -287,8 +270,7 @@
           (try
             (if info
               (when (confirm-try-channel! stage project localization (:version info) release-notes)
-                (when-let [install-dir (choose-channel-install-dir stage updater localization channel)]
-                  (start-channel-download! stage updater localization (assoc info :channel channel) install-dir)))
+                (start-channel-download! stage updater localization (assoc info :channel channel)))
               (dialogs/make-info-dialog
                 localization
                 {:title (localization/message "updater.check-failed-dialog.title")
@@ -300,7 +282,7 @@
 
 (defn init-channel-offer!
   "Makes `link` suggest a channel with a newer version whenever there is one.
-  Clicking it offers to download that channel's editor into a new folder."
+  Clicking it offers to download that channel's editor."
   [^Stage stage link project updater localization]
   (ui/on-action! link
     (fn on-channel-offer-link-action [_]

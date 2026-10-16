@@ -50,6 +50,9 @@
 (defn- release-notes-version-url [archive-domain channel version]
   (format (get-in connection-properties [:updater :release-notes-version-url-template]) archive-domain channel version))
 
+(defn- channel-download-url [archive-domain sha1 channel ^Platform platform extension]
+  (format (get-in connection-properties [:updater :channel-download-url-template]) archive-domain sha1 channel (.getPair platform) extension))
+
 (defn- channel-info-url [archive-domain channel]
   (format (get-in connection-properties [:updater :channel-info-url-template]) archive-domain channel))
 
@@ -408,27 +411,6 @@
 (defn- executable? [unix-mode]
   (not (zero? (bit-and unix-mode execute-permission-flag))))
 
-(defn- extract-zip! [^File zip-file ^File dest-dir track-extract-progress! cancelled-atom]
-  (with-open [zip (ZipFile. zip-file)]
-    (let [entries (enumeration-seq (.getEntries zip))
-          entry-count (count entries)]
-      (doseq [[i ^ZipArchiveEntry e] (map-indexed vector entries)
-              :when (and (not (.isDirectory e))
-                         (not @cancelled-atom))
-              :let [file-name-parts (-> e
-                                        .getName
-                                        (FilenameUtils/separatorsToUnix)
-                                        (string/split #"/")
-                                        next)
-                    target-dir-parts (butlast file-name-parts)
-                    target-file ^File (apply io/file dest-dir file-name-parts)]]
-        (.mkdirs ^File (apply io/file dest-dir target-dir-parts))
-        (with-open [in (.getInputStream zip e)]
-          (io/copy in target-file))
-        (when (executable? (.getUnixMode e))
-          (.setExecutable target-file true))
-        (track-extract-progress! (progress/make (localization/message "progress.extracting-update") entry-count (inc i)))))))
-
 (defn- extract! [updater ^File zip-file server-sha1 track-extract-progress! cancelled-atom]
   (let [{:keys [state-atom update-dir update-sha1-file]} updater
         {:keys [downloaded-sha1]} @state-atom]
@@ -438,18 +420,36 @@
       (FileUtils/deleteQuietly update-dir)
       (FileUtils/deleteQuietly update-sha1-file))
     (log/info :message "Extracting update" :dir (str update-dir))
-    (extract-zip! zip-file update-dir track-extract-progress! cancelled-atom)
-    (if @cancelled-atom
-      (do (FileUtils/deleteQuietly update-dir)
-          false)
-      (do
-        (spit update-sha1-file server-sha1)
-        (swap! state-atom (fn [state]
-                            (-> state
-                                (assoc :downloaded-sha1 server-sha1)
-                                (dissoc :current-download))))
-        (log/info :message "Update extracted")
-        true))))
+    (with-open [zip (ZipFile. zip-file)]
+      (let [entries (enumeration-seq (.getEntries zip))
+            entry-count (count entries)]
+        (doseq [[i ^ZipArchiveEntry e] (map-indexed vector entries)
+                :when (and (not (.isDirectory e))
+                           (not @cancelled-atom))
+                :let [file-name-parts (-> e
+                                          .getName
+                                          (FilenameUtils/separatorsToUnix)
+                                          (string/split #"/")
+                                          next)
+                      target-dir-parts (butlast file-name-parts)
+                      target-file ^File (apply io/file update-dir file-name-parts)]]
+          (.mkdirs ^File (apply io/file update-dir target-dir-parts))
+          (with-open [in (.getInputStream zip e)]
+            (io/copy in target-file))
+          (when (executable? (.getUnixMode e))
+            (.setExecutable target-file true))
+          (track-extract-progress! (progress/make (localization/message "progress.extracting-update") entry-count (inc i)))))
+      (if @cancelled-atom
+        (do (FileUtils/deleteQuietly update-dir)
+            false)
+        (do
+          (spit update-sha1-file server-sha1)
+          (swap! state-atom (fn [state]
+                              (-> state
+                                  (assoc :downloaded-sha1 server-sha1)
+                                  (dissoc :current-download))))
+          (log/info :message "Update extracted")
+          true)))))
 
 (defn download-and-extract!
   "Asynchronously downloads newest zip distribution to temporary directory,
@@ -487,71 +487,51 @@
           (swap! state-atom dissoc :current-download)
           false)))))
 
-(defn channel-install-name
-  "Returns the name of the folder (or app bundle on macOS) to install `channel`
-  into, e.g. \"Defold Beta\"."
-  [updater channel]
-  (let [folder-name (str "Defold " (string/capitalize channel))]
-    (if (= "macos" (.getOs ^Platform (:platform updater)))
-      (str folder-name ".app")
-      folder-name)))
+(defn- downloads-dir
+  "Returns the user's Downloads folder, or the home folder if there is none."
+  ^File []
+  (let [home-dir (io/file (System/getProperty "user.home"))
+        downloads-dir (io/file home-dir "Downloads")]
+    (if (.isDirectory downloads-dir) downloads-dir home-dir)))
 
-(defn default-channel-install-parent
-  "Returns the folder to suggest for installing another channel."
-  ^File [updater]
-  (let [applications-dir (io/file "/Applications")]
-    (if (and (= "macos" (.getOs ^Platform (:platform updater)))
-             (.isDirectory applications-dir))
-      applications-dir
-      (io/file (System/getProperty "user.home")))))
+(defn- create-download-file
+  "Creates a new, empty file named `base-name` + `extension` in the downloads
+  folder, numbering the name if it's taken."
+  ^File [base-name extension]
+  (let [dir (downloads-dir)]
+    (loop [n 0]
+      (let [file (io/file dir (str base-name (when (pos? n) (str " (" n ")")) "." extension))]
+        (if (.createNewFile file)
+          file
+          (recur (inc n)))))))
 
 (defn download-channel!
-  "Asynchronously downloads the `channel` build with `sha1` and extracts it into
-  `target-dir`, leaving the current installation untouched.
+  "Asynchronously downloads the `channel` build with `sha1` into the user's
+  Downloads folder: the .dmg on macOS, the .zip elsewhere. The current
+  installation is left untouched.
 
-  Returns future that eventually will contain boolean indicating the success of
-  operation"
-  [updater {:keys [channel sha1]} ^File target-dir]
-  {:pre [(not (.exists target-dir))]}
-  (let [{:keys [state-atom platform]} updater
-        url (download-url (system/defold-archive-domain) sha1 channel platform)
-        zip-file (create-temp-zip-file)
-        cancelled-atom (atom false)
+  Returns future that eventually will contain the downloaded file, or nil if
+  the download failed"
+  [updater {:keys [channel version sha1]}]
+  (let [{:keys [state-atom ^Platform platform]} updater
+        extension (if (= "macos" (.getOs platform)) "dmg" "zip")
+        url (channel-download-url (system/defold-archive-domain) sha1 channel platform extension)
+        file (create-download-file (str "Defold-" version "-" channel "-" (.getPair platform)) extension)
         track-progress! (fn track-progress! [progress]
-                          (swap! state-atom assoc-in [:channel-download :progress] progress))
-        track-download-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 0))
-        track-extract-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 1))]
+                          (swap! state-atom assoc-in [:channel-download :progress] progress))]
     (swap! state-atom assoc :channel-download {:channel channel
-                                               :progress (progress/make localization/empty-message 2 0)})
+                                               :progress (progress/make localization/empty-message 1 0)})
     (future
       (try
-        (download! url zip-file track-download-progress! cancelled-atom)
-        (log/info :message "Extracting channel build" :channel channel :dir (str target-dir))
-        (extract-zip! zip-file target-dir track-extract-progress! cancelled-atom)
-        (log/info :message "Channel build extracted" :channel channel :dir (str target-dir))
-        true
+        (download! url file track-progress! (atom false))
+        (log/info :message "Channel build downloaded" :channel channel :file (str file))
+        file
         (catch Exception e
           (log/info :message "Channel download failed" :channel channel :exception e)
-          (FileUtils/deleteQuietly target-dir)
-          false)
+          (.delete file)
+          nil)
         (finally
-          (.delete zip-file)
           (swap! state-atom dissoc :channel-download))))))
-
-(defn channel-launcher
-  "Returns the executable that starts the editor installed in `install-dir`."
-  ^File [updater ^File install-dir]
-  (case (.getOs ^Platform (:platform updater))
-    "macos" (io/file install-dir "Contents" "MacOS" "Defold")
-    "linux" (io/file install-dir "Defold")
-    "win32" (io/file install-dir "Defold.exe")))
-
-(defn launch-channel!
-  "Starts the editor installed in `install-dir` next to the running one."
-  [updater ^File install-dir]
-  (log/info :message "Launching editor" :dir (str install-dir))
-  (process/start! {:dir install-dir :out :discard :err :discard}
-                  (.getPath (channel-launcher updater install-dir))))
 
 (defn- move-file! [^File source-file ^File target-file]
   (Files/move (.toPath source-file)
