@@ -109,7 +109,7 @@
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
-           [java.time LocalTime]
+           [java.time LocalTime Year]
            [java.time.format DateTimeFormatter]
            [java.util Arrays Collection]
            [java.util.concurrent ExecutionException]
@@ -1922,7 +1922,7 @@
         (ui/text! build-time-label (localization (localization/message "dialog.about.label.build-time")))
         (ui/text! editor-sha1-label (localization (localization/message "dialog.about.label.editor-sha1")))
         (ui/text! engine-sha1-label (localization (localization/message "dialog.about.label.engine-sha1")))
-        (ui/text! copyright-label (localization (localization/message "dialog.about.footer.copyright")))
+        (ui/text! copyright-label (localization (localization/message "dialog.about.footer.copyright" {"year" (str (Year/now))})))
         (ui/text! foundation-label (localization (localization/message "dialog.about.footer.foundation")))
         (ui/title! stage (localization (localization/message "command.app.about")))
         (ui/text! version (or (system/defold-version) missing-text))

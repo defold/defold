@@ -1101,7 +1101,7 @@ dialog.about.label.build-time = Build time:
 dialog.about.label.editor-sha1 = Editor SHA1:
 dialog.about.label.engine-sha1 = Engine SHA1:
 dialog.about.value.unavailable = Not available
-dialog.about.footer.copyright = Copyright © 2009-2025
+dialog.about.footer.copyright = Copyright © 2009-{year}
 dialog.about.footer.foundation = Defold Foundation
 dialog.about.sponsor = Defold Foundation Development Fund
 

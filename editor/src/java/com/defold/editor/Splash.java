@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
+import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -145,6 +146,9 @@ public class Splash {
         Label channelLabel = (Label) scene.lookup("#version");
         channelLabel.setText(versionString + " (" + sha1 + ")" + channelName);
         channelLabel.setVisible(true);
+
+        Label copyrightLabel = (Label) scene.lookup("#copyright");
+        copyrightLabel.setText("2009-" + Year.now().getValue() + " Defold Foundation. All rights reserved.");
 
         String windowTitle = "Defold";
         if (hasVersion) {
