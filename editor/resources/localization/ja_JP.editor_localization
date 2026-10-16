@@ -1092,7 +1092,6 @@ dialog.about.label.build-time = ビルド時間：
 dialog.about.label.editor-sha1 = エディターSHA1：
 dialog.about.label.engine-sha1 = エンジンSHA1：
 dialog.about.value.unavailable = 利用不可
-dialog.about.footer.copyright = Copyright © 2009-2025
 dialog.about.footer.foundation = Defold Foundation
 dialog.about.sponsor = Defold Foundation Development Fund
 
