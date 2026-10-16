@@ -315,7 +315,7 @@ function(dlib_add_simd_test target isa version)
     if(isa STREQUAL "WASM")
       target_compile_options(${_suite} PRIVATE -msimd128)
       target_link_options(${target} PRIVATE -msimd128
-        --pre-js "${DLIB_TEST_ROOT}/test_simd_wasm.js")
+        "SHELL:--pre-js \"${DLIB_TEST_ROOT}/test_simd_wasm.js\"")
       set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS "${DLIB_TEST_ROOT}/test_simd_wasm.js")
     else()
       target_compile_options(${_suite} PRIVATE -mno-simd128)

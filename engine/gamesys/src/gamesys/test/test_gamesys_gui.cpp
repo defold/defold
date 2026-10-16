@@ -2766,6 +2766,85 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutFallbackMutation)
 
 /* GUI Box Render */
 
+// Upload all scenes' geometry once, preserve their buffer ranges, and avoid uploads or
+// stale box draws on disabled and text-only frames. Text must still be submitted.
+TEST_F(GuiTest, SharedVertexBufferUpload)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    const uint32_t scene_count = 4;
+    for (uint32_t i = 0; i < scene_count; ++i)
+    {
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_flush_test.goc", dmHashBuffer64(&i, sizeof(i)));
+        ASSERT_NE((dmGameObject::HInstance)0, go);
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiWorld* world = GetGuiComponent(m_Collection)->m_World;
+    ASSERT_EQ(scene_count, world->m_Components.Size());
+    dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*)world->m_VertexBuffer;
+    dmRender::RenderContext* render_context = (dmRender::RenderContext*)m_RenderContext;
+    const char* box_ids[] = {"box1", "box2", "box3", "box4"};
+    const uint32_t enabled_scenes[] = {4, 2, 0, 4, 4};
+
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(enabled_scenes); ++frame)
+    {
+        bool boxes_visible = frame != 3;
+        for (uint32_t i = 0; i < scene_count; ++i)
+        {
+            dmGameSystem::GuiComponent* component = world->m_Components[i];
+            component->m_Enabled = i < enabled_scenes[frame];
+            for (uint32_t box = 0; box < DM_ARRAY_SIZE(box_ids); ++box)
+            {
+                dmGui::HNode node = dmGui::GetNodeById(component->m_Scene, box_ids[box]);
+                ASSERT_NE((dmGui::HNode)0, node);
+                dmGui::SetNodeVisible(component->m_Scene, node, boxes_visible);
+                // Different positions each frame catch stale uploads after shrinking or empty frames.
+                dmGui::SetNodePosition(component->m_Scene, node, Point3(i * 100 + frame, box * 20, 0));
+            }
+        }
+
+        uint32_t expected_boxes = boxes_visible ? enabled_scenes[frame] * 4 : 0;
+        uint32_t expected_vertices = expected_boxes * 6;
+        uint32_t expected_bytes = expected_vertices * sizeof(dmGameSystem::BoxVertex);
+        uint32_t uploads_before = buffer->m_DataSetCount;
+        uint64_t bytes_before = buffer->m_DataSetBytes;
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmGraphics::ResetDrawCount();
+        dmRender::RenderListBegin(m_RenderContext);
+        ASSERT_TRUE(dmGameObject::Render(m_Collection));
+        dmRender::RenderListEnd(m_RenderContext);
+
+        EXPECT_EQ(expected_vertices ? 1U : 0U, buffer->m_DataSetCount - uploads_before);
+        EXPECT_EQ((uint64_t)expected_bytes, buffer->m_DataSetBytes - bytes_before);
+        ASSERT_EQ(expected_vertices, world->m_ClientVertexBuffer.Size());
+        ASSERT_EQ(expected_boxes, world->m_GuiRenderObjects.Size());
+        ASSERT_EQ(expected_boxes + enabled_scenes[frame] * 5, render_context->m_RenderList.Size());
+        if (expected_vertices)
+        {
+            ASSERT_EQ(expected_bytes, dmGraphics::GetVertexBufferSize(world->m_VertexBuffer));
+            ASSERT_EQ(0, memcmp(buffer->m_Buffer, world->m_ClientVertexBuffer.Begin(), expected_bytes));
+        }
+        for (uint32_t i = 0; i < expected_boxes; ++i)
+        {
+            const dmRender::RenderObject& ro = world->m_GuiRenderObjects[i].m_RenderObject;
+            ASSERT_EQ(world->m_VertexBuffer, ro.m_VertexBuffer);
+            ASSERT_EQ(i * 6, ro.m_VertexStart);
+            ASSERT_EQ(6U, ro.m_VertexCount);
+            if (i > 0)
+                ASSERT_LT(world->m_GuiRenderObjects[i - 1].m_SortOrder, world->m_GuiRenderObjects[i].m_SortOrder);
+        }
+
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        if (enabled_scenes[frame])
+            ASSERT_GT(dmGraphics::GetDrawCount(), 0U);
+        else
+            ASSERT_EQ(0U, dmGraphics::GetDrawCount());
+        dmGraphics::Flip(m_GraphicsContext);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 void AssertVertexEqual(const dmGameSystem::BoxVertex& lhs, const dmGameSystem::BoxVertex& rhs)
 {
     EXPECT_NEAR(lhs.m_Position[0], rhs.m_Position[0], EPSILON);

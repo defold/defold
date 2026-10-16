@@ -106,10 +106,11 @@
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
+           [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
-           [java.time LocalTime]
+           [java.time LocalTime Year]
            [java.time.format DateTimeFormatter]
            [java.util Arrays Collection]
            [java.util.concurrent ExecutionException]
@@ -1913,20 +1914,22 @@
   (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)]
-    (ui/with-controls root [version channel editor-sha1 engine-sha1 time sponsor-push
-                            version-label channel-label build-time-label editor-sha1-label engine-sha1-label
+    (ui/with-controls root [version channel architecture editor-sha1 engine-sha1 time sponsor-push
+                            version-label channel-label architecture-label build-time-label editor-sha1-label engine-sha1-label
                             copyright-label foundation-label]
       (let [missing-text (localization (localization/message "dialog.about.value.unavailable"))]
         (ui/text! version-label (localization (localization/message "dialog.about.label.version")))
         (ui/text! channel-label (localization (localization/message "dialog.about.label.channel")))
+        (ui/text! architecture-label (localization (localization/message "dialog.about.label.architecture")))
         (ui/text! build-time-label (localization (localization/message "dialog.about.label.build-time")))
         (ui/text! editor-sha1-label (localization (localization/message "dialog.about.label.editor-sha1")))
         (ui/text! engine-sha1-label (localization (localization/message "dialog.about.label.engine-sha1")))
-        (ui/text! copyright-label (localization (localization/message "dialog.about.footer.copyright")))
+        (ui/text! copyright-label (localization (localization/message "dialog.about.footer.copyright" {"year" (str (Year/now))})))
         (ui/text! foundation-label (localization (localization/message "dialog.about.footer.foundation")))
         (ui/title! stage (localization (localization/message "command.app.about")))
         (ui/text! version (or (system/defold-version) missing-text))
         (ui/text! channel (or (system/defold-channel) missing-text))
+        (ui/text! architecture (.getArch (Platform/getHostPlatform)))
         (ui/text! editor-sha1 (or (system/defold-editor-sha1) missing-text))
         (ui/text! engine-sha1 (or (system/defold-engine-sha1) missing-text))
         (ui/text! time (or (system/defold-build-time) missing-text))
