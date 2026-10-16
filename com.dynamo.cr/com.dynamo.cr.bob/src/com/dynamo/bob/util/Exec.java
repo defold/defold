@@ -89,6 +89,8 @@ public class Exec {
 
         ProcessBuilder processBuilder = new ProcessBuilder(args);
         processBuilder.redirectErrorStream(true);
+        // Set by the macOS editor launcher; inherited, it makes each tool register as the editor app with its own Dock icon
+        processBuilder.environment().remove("CFProcessPath");
 
         Platform platform = Platform.getHostPlatform();
         if (platform == Platform.X86_64Win32) {
