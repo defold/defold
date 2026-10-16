@@ -629,6 +629,10 @@
 #define GL_UNIFORM_BLOCK_INDEX                           0x8A3A
 #endif
 
+#ifndef GL_READ_BUFFER
+#define GL_READ_BUFFER                                   0x0C02
+#endif
+
 #ifndef GL_READ_FRAMEBUFFER
 #define GL_READ_FRAMEBUFFER                              0x8CA8
 #endif

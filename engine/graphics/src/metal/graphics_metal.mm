@@ -1431,6 +1431,7 @@ namespace dmGraphics
         context->m_PolygonOffsetUnits  = 0.0f;
         context->m_PolygonOffsetChanged = true;
 
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BACKBUFFER_READBACK);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
@@ -5717,22 +5718,10 @@ namespace dmGraphics
 
         const uint32_t bytes_per_pixel = 4;
         const uint32_t dst_row_size = width * bytes_per_pixel;
-        if (!buffer || buffer_size < dst_row_size * height)
-        {
-            dmLogError("MetalReadPixels: destination buffer is too small.");
-            return;
-        }
-
         const HRenderTarget render_target = context->m_CurrentRenderTarget;
-        FlushPendingRenderTargetClear(context, render_target);
-        const bool was_rendering = context->m_RenderTargetBound != 0;
-        if (was_rendering)
-        {
-            SuspendRenderPass(context);
-        }
-
         MTL::Texture* source_texture = 0;
         uint32_t source_height = 0;
+        uint32_t source_slice = 0;
         bool source_is_backbuffer = false;
         {
             DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
@@ -5742,18 +5731,38 @@ namespace dmGraphics
                 return;
             }
 
-            MetalTexture* color = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[0]);
+            HTexture color_handle = rt->m_Base.m_TextureColorResolve[0] ? rt->m_Base.m_TextureColorResolve[0] : rt->m_TextureColor[0];
+            MetalTexture* color = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, color_handle);
             if (!color || !color->m_Texture)
             {
                 return;
             }
 
+            const MTL::PixelFormat format = color->m_Texture->pixelFormat();
+            if (format != MTL::PixelFormatRGBA8Unorm && format != MTL::PixelFormatRGBA8Unorm_sRGB &&
+                format != MTL::PixelFormatBGRA8Unorm && format != MTL::PixelFormatBGRA8Unorm_sRGB)
+            {
+                dmLogError("MetalReadPixels: expected an RGBA8/BGRA8 color attachment");
+                return;
+            }
+            if (uint64_t(x) + width > color->m_Texture->width() || uint64_t(y) + height > color->m_Texture->height())
+            {
+                dmLogError("MetalReadPixels: region is outside the color attachment");
+                return;
+            }
+            source_slice = rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? rt->m_Base.m_CubeMapFace : 0;
             source_texture = color->m_Texture;
             source_texture->retain();
             source_height = rt->m_Height;
             source_is_backbuffer = rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID;
         }
 
+        FlushPendingRenderTargetClear(context, render_target);
+        const bool was_rendering = context->m_RenderTargetBound != 0;
+        if (was_rendering)
+        {
+            SuspendRenderPass(context);
+        }
         const bool consumed_main_msaa = source_is_backbuffer && ResolveMainMSAAColor(context);
 
         const uint32_t src_row_size = AlignTo(dst_row_size, 256);
@@ -5782,9 +5791,8 @@ namespace dmGraphics
 
         if (command_buffer)
         {
-            const uint32_t source_x = (uint32_t) dmMath::Max(0, x);
-            const uint32_t requested_y = (uint32_t) dmMath::Max(0, y);
-            const uint32_t source_y = source_is_backbuffer && source_height > requested_y + height ? source_height - requested_y - height : requested_y;
+            const uint32_t source_x = (uint32_t) x;
+            const uint32_t source_y = source_height - y - height;
             MTL::BlitCommandEncoder* blit = command_buffer->blitCommandEncoder();
             if (!blit)
             {
@@ -5794,7 +5802,7 @@ namespace dmGraphics
             }
             blit->copyFromTexture(
                 source_texture,
-                0,
+                source_slice,
                 0,
                 MTL::Origin::Make((NSUInteger)source_x, (NSUInteger)source_y, 0),
                 MTL::Size::Make(width, height, 1),

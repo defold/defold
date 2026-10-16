@@ -1241,6 +1241,9 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
         // support COPY_SRC when it is requested during configuration.
         surface_conf.usage |= WGPUTextureUsage_CopySrc;
 #endif
+        context->m_BaseContext.m_ContextFeatureSupport &= ~(1 << CONTEXT_FEATURE_BACKBUFFER_READBACK);
+        if (surface_conf.usage & WGPUTextureUsage_CopySrc)
+            SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BACKBUFFER_READBACK);
         surface_conf.format                   = context->m_Format;
         surface_conf.width                    = width;
         surface_conf.height                   = height;
@@ -3998,13 +4001,6 @@ static void WebGPUReadPixels(HContext _context, int32_t x, int32_t y, uint32_t w
         return;
     }
 
-    if (!buffer || !width || !height || x < 0 || y < 0 ||
-        uint64_t(width) * height * 4 > buffer_size)
-    {
-        dmLogError("WebGPUReadPixels: invalid destination or region");
-        return;
-    }
-
     if (uint64_t(x) + width > rt->m_Width ||
         uint64_t(y) + height > rt->m_Height)
     {
@@ -4044,7 +4040,8 @@ static void WebGPUReadPixels(HContext _context, int32_t x, int32_t y, uint32_t w
 
     source.texture  = texture->m_Texture;
     source.origin.x = x;
-    source.origin.y = y;
+    source.origin.y = rt->m_Height - y - height;
+    source.origin.z = rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? rt->m_Base.m_CubeMapFace : 0;
     source.aspect   = WGPUTextureAspect_All;
 
     destination.buffer              = staging;

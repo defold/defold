@@ -20,6 +20,7 @@
 #include <wrl/client.h>
 #include "graphics_adapter.h"
 #include "test_app_graphics.h"
+#include "read_pixels_tests.h"
 #include "dx12/graphics_dx12_private.h"
 
 using Microsoft::WRL::ComPtr;
@@ -990,6 +991,7 @@ TEST_F(DX12Test, FrontAndBackCulling)
     for (uint32_t i = 0; i < 64; ++i)
         red_pixels += line_pixels[i * 4 + 2] == 255;
     ASSERT_GT(red_pixels, 0u);
+    ASSERT_TRUE(CheckReadPixelsRegions(GetContext(), 8, 8, 0));
     SetCullFace(GetContext(), FACE_TYPE_FRONT_AND_BACK);
     EnableState(GetContext(), STATE_CULL_FACE);
     for (uint32_t indexed = 0; indexed < 2; ++indexed)
@@ -1331,6 +1333,15 @@ TEST_F(DX12Test, SamplerModesAndFormatCapabilities)
     ASSERT_EQ(D3D12_FILTER_MIN_POINT_MAG_MIP_LINEAR, m_Context->m_TextureSamplers[linear].m_Desc.Filter);
     int32_t aniso = CreateTextureSampler(m_Context, TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 4, 8);
     ASSERT_EQ(D3D12_FILTER_ANISOTROPIC, m_Context->m_TextureSamplers[aniso].m_Desc.Filter);
+}
+
+// Verifies the public readback contract on 2D, multisample and cube targets.
+TEST_F(DX12Test, ReadPixelsTargetContract)
+{
+    HRenderTarget target = CreateTestRenderTarget(16, 16, BUFFER_TYPE_COLOR0_BIT, 1);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    ASSERT_TRUE(CheckReadPixelsTargets(GetContext(), target, 0, 0));
+    DeleteRenderTarget(GetContext(), target);
 }
 
 int main(int argc, char** argv)
