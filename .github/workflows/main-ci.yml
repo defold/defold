@@ -818,6 +818,8 @@ jobs:
       - *step_notify
 
   test-editor-linux:
+    env:
+      EDITOR_TEST_EXT_CACHE_KEY: ext-v3-x86_64-linux-x86_64-linux-b47b92df1636bac566932ebf0e31c25ab4a222725f80d426b711576eafc30b22
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps:
@@ -828,11 +830,35 @@ jobs:
       - *step_cache_dcache
       - *step_cache_lein
       - *step_java
-      - *step_cmake
-      - *step_linux_clang
       - name: "Install dependencies"
         run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
-      - *step_build_external
+      - &step_restore_editor_test_tools
+        name: "Restore prebuilt editor test tools"
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          # Pinned to the tools saved by the first run on this temporary branch.
+          key: ${{ env.EDITOR_TEST_EXT_CACHE_KEY }}
+          path: ${{ runner.temp }}/defold-ext-cache/${{ env.EDITOR_TEST_EXT_CACHE_KEY }}
+          fail-on-cache-miss: true
+      - &step_install_editor_test_dependencies
+        name: "Install editor test dependencies without compiling"
+        shell: bash
+        env:
+          EDITOR_TEST_PLATFORM: ${{ matrix.platform || 'x86_64-linux' }}
+        run: |
+          python scripts/build.py install_ext_packages --platform="$EDITOR_TEST_PLATFORM"
+          python - <<'PYTHON'
+          import os
+          from pathlib import Path
+          import shutil
+
+          platform = os.environ["EDITOR_TEST_PLATFORM"]
+          cached = Path(os.environ["RUNNER_TEMP"]) / "defold-ext-cache" / os.environ["EDITOR_TEST_EXT_CACHE_KEY"]
+          destination = Path("tmp/dynamo_home/ext")
+          for name in (f"bin/{platform}", "include/google/protobuf", "share/luajit"):
+              shutil.copytree(cached / name, destination / name, dirs_exist_ok=True)
+          print("Installed prebuilt protoc, standard schemas, and LuaJIT modules.")
+          PYTHON
       - name: "Test editor"
         run: "ci/ci.sh test-editor --platform=x86_64-linux --skip-install-ext ${{ env.OPTION_EDITOR_LOCAL }}"
       - name: "Upload editor test reports"
@@ -850,6 +876,8 @@ jobs:
       - *step_notify
 
   test-editor-windows:
+    env:
+      EDITOR_TEST_EXT_CACHE_KEY: ext-v3-x86_64-win32-x86_64-win32-e7c688f347cb5bec9d88d63afa1d51cd0f74621ab9608faed9cc7bb2018b4681
     runs-on: windows-2025-vs2026
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
@@ -867,10 +895,10 @@ jobs:
       - *step_cache_dcache
       - *step_cache_lein
       - *step_java
-      - *step_cmake
       - name: "Install dependencies"
         run: "ci/ci.sh install"
-      - *step_build_external
+      - *step_restore_editor_test_tools
+      - *step_install_editor_test_dependencies
       - name: "Test editor"
         run: "ci/ci.sh test-editor --platform=x86_64-win32 --skip-install-ext ${{ env.OPTION_EDITOR_LOCAL }}"
       - name: "Upload editor test reports"
