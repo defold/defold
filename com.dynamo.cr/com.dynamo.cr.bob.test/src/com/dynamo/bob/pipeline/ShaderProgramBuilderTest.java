@@ -592,15 +592,22 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
-    // The vector vertex and fragment shaders cross-compile together for WebGPU and GLES 3.
+    // GLSL 140 vector shaders cross-compile together for the supported modern graphics backends.
     @Test
-    public void testVectorFontWGSL() throws Exception {
+    public void testVectorFontShaderLanguages() throws Exception {
         Path fontDirectory = Path.of("../../engine/font/content/builtins/fonts");
         addFile("/builtins/fonts/font-vector-slug.glsl", Files.readAllBytes(fontDirectory.resolve("font-vector-slug.glsl")));
 
+        ShaderDesc.Language[] languages = {
+            ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+            ShaderDesc.Language.LANGUAGE_GLES_SM300,
+            ShaderDesc.Language.LANGUAGE_SPIRV,
+            ShaderDesc.Language.LANGUAGE_HLSL_50,
+            ShaderDesc.Language.LANGUAGE_MSL_22,
+            ShaderDesc.Language.LANGUAGE_WGSL
+        };
         IShaderCompiler.CompileOptions options = new IShaderCompiler.CompileOptions();
-        options.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
-        options.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+        options.forceIncludeShaderLanguages.addAll(Arrays.asList(languages));
         options.excludeGlesSm100 = true;
         ShaderProgramBuilderBundle.ModuleBundle modules = createShaderModules(
             new String[] {"/builtins/fonts/font-vector.vp", "/builtins/fonts/font-vector.fp"}, options);
@@ -609,8 +616,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                           Files.readString(fontDirectory.resolve("font-vector.fp"))},
             "/vector-font.shbundle");
 
-        checkExpectedLanguages(shader, new ShaderDesc.Language[] {
-            ShaderDesc.Language.LANGUAGE_WGSL, ShaderDesc.Language.LANGUAGE_GLES_SM300});
+        checkExpectedLanguages(shader, languages);
     }
 
     // WebGPU compilation accepts non-uniform derivatives, matching the shared shader pipeline policy.

@@ -52,14 +52,10 @@ ivec2 LoadBand(ivec2 location)
 int CalcRootCode(float y1, float y2, float y3)
 {
 	// Calculate the root eligibility code for a sample-relative quadratic Bézier curve.
-	// Extract the signs of the y coordinates of the three control points.
+	// Comparisons work in GLSL 140 and treat both signed zeros as non-negative,
+	// so a boundary point has the same eligibility regardless of its zero sign.
 
-	uint i1 = floatBitsToUint(y1) >> 31U;
-	uint i2 = floatBitsToUint(y2) >> 30U;
-	uint i3 = floatBitsToUint(y3) >> 29U;
-
-	uint shift = (i2 & 2U) | (i1 & ~2U);
-	shift = (i3 & 4U) | (shift & ~4U);
+	uint shift = uint(y1 < 0.0) | (uint(y2 < 0.0) << 1U) | (uint(y3 < 0.0) << 2U);
 
 	// Eligibility is returned in bits 0 and 8.
 

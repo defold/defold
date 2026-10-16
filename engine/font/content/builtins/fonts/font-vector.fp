@@ -1,6 +1,5 @@
-#version 330
+#version 140
 
-// Slug's root eligibility uses floatBitsToUint, a GLSL 330 builtin.
 #extension GL_EXT_samplerless_texture_functions : require
 
 precision highp float;

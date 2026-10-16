@@ -164,7 +164,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     LoadVectorImageFile("content/builtins/fonts/font-vector.fp", fp);
     LoadVectorImageFile("content/builtins/fonts/font-vector-slug.glsl", slug);
     // Standalone GL has no shader include loader. Inline the production shader
-    // and lower its samplerless integer texture to GLSL 330's integer sampler,
+    // and lower its samplerless integer texture to an integer sampler,
     // as shaderc/SPIRV-Cross does for this backend. Coverage code stays unchanged.
     char* extension = strstr(fp.Begin(), "#extension");
     ASSERT_NE((char*)0, extension);
@@ -463,8 +463,98 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     }
 }
 
+// Exercise the production root selector on the GPU, including both signed zeros.
+// Each pixel covers one of the 64 triples drawn from {-1, -0, +0, +1}.
+static void TestVectorRootEligibility(dmGraphics::HContext context)
+{
+    dmArray<char> slug;
+    LoadVectorImageFile("content/builtins/fonts/font-vector-slug.glsl", slug);
+    char* texture_type = strstr(slug.Begin(), "utexture2D");
+    ASSERT_NE((char*)0, texture_type);
+    memcpy(texture_type, "usampler2D", 10);
+    const char* vertex =
+    "#version 140\n"
+    "in vec4 position;\n"
+    "void main() { gl_Position = position; }\n";
+    const char* fragment_main =
+    "uniform test_uniforms { vec4 samples; };\n"
+    "out vec4 color;\n"
+    "void main() {\n"
+    "    int i = int(gl_FragCoord.x);\n"
+    "    int code = CalcRootCode(samples[i % 4], samples[(i / 4) % 4], samples[i / 16]);\n"
+    "    color = vec4(float(code & 1), float((code >> 8) & 1), 0.0, 1.0);\n"
+    "}\n";
+    dmArray<char> fragment;
+    fragment.SetCapacity(slug.Size() + strlen(fragment_main) + 32);
+    fragment.SetSize(fragment.Capacity());
+    dmSnPrintf(fragment.Begin(), fragment.Size(), "#version 140\n%s\n%s", slug.Begin(), fragment_main);
+    dmGraphics::ShaderDescBuilder shaders;
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vertex, strlen(vertex));
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment.Begin(), strlen(fragment.Begin()));
+    shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    shaders.AddTypeMember("samples", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    shaders.AddUniform("test_uniforms", 0, 0);
+    char                 error[1024] = {};
+    dmGraphics::HProgram program = dmGraphics::NewProgram(context, shaders.Get(), error, sizeof(error));
+    if (!program)
+        printf("Vector root shader: %s\n", error);
+    ASSERT_NE((dmGraphics::HProgram)0, program);
+
+    const float                          vertices[] = { -1, -1, 0, 1, 3, -1, 0, 1, -1, 3, 0, 1 };
+    dmGraphics::HVertexBuffer            buffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+    dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(context);
+    dmGraphics::AddVertexStream(streams, "position", 4, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::HVertexDeclaration declaration = dmGraphics::NewVertexDeclaration(context, streams, 4 * sizeof(float));
+    dmGraphics::DeleteVertexStreamDeclaration(streams);
+    dmGraphics::RenderTargetCreationParams rt;
+    rt.m_ColorBufferCreationParams[0].m_Width = rt.m_ColorBufferParams[0].m_Width = 64;
+    rt.m_ColorBufferCreationParams[0].m_Height = rt.m_ColorBufferParams[0].m_Height = 1;
+    rt.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+    rt.m_SampleCount = 1;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, rt);
+    dmGraphics::BeginFrame(context);
+    dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
+    dmGraphics::SetViewport(context, 0, 0, 64, 1);
+    dmGraphics::DisableState(context, dmGraphics::STATE_BLEND);
+    dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+    dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
+    dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 0, 1, 0);
+    dmGraphics::EnableProgram(context, program);
+    const dmVMath::Vector4 samples(-1.0f, -0.0f, 0.0f, 1.0f);
+    dmGraphics::SetConstantV4(context, &samples, 1, dmGraphics::FindUniformLocation(program, "samples"));
+    dmGraphics::EnableVertexBuffer(context, buffer, 0);
+    dmGraphics::EnableVertexDeclaration(context, declaration, 0, 0, program);
+    dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+    uint8_t pixels[64 * 4];
+    dmGraphics::ReadPixels(context, 0, 0, 64, 1, pixels, sizeof(pixels));
+    dmGraphics::DisableVertexDeclaration(context, declaration);
+    dmGraphics::DisableVertexBuffer(context, buffer);
+    dmGraphics::DisableProgram(context);
+    dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+    dmGraphics::Flip(context);
+    dmGraphics::DeleteRenderTarget(context, target);
+    dmGraphics::DeleteVertexDeclaration(declaration);
+    dmGraphics::DeleteVertexBuffer(buffer);
+    dmGraphics::DeleteProgram(context, program);
+
+    // Positive coordinates and either zero use the same half-open boundary.
+    // These are the eligible roots for the eight combinations of negative signs.
+    const uint16_t expected_codes[] = { 0, 256, 257, 256, 1, 257, 1, 0 };
+    for (uint32_t i = 0; i < 64; ++i)
+    {
+        uint32_t signs = (i % 4 == 0 ? 1 : 0) | ((i / 4) % 4 == 0 ? 2 : 0) | (i / 16 == 0 ? 4 : 0);
+        uint16_t expected = expected_codes[signs];
+        // OpenGL readback is BGRA, as in the font likeness captures.
+        ASSERT_EQ((expected & 1) ? 255 : 0, pixels[i * 4 + 2]);
+        ASSERT_EQ((expected & 256) ? 255 : 0, pixels[i * 4 + 1]);
+        ASSERT_EQ(255, pixels[i * 4 + 3]);
+    }
+}
+
 void TestFontVectorImage(const FontImageCase& c, dmGraphics::HContext context)
 {
+    if (strcmp(c.m_Name, "ttf_vector_multi_face_only") == 0)
+        TestVectorRootEligibility(context);
     VectorImageResources    resources = {};
     dmScript::ContextParams script_params = {};
     script_params.m_GraphicsContext = context;
