@@ -79,6 +79,7 @@
   `(ts/with-clean-system
      (let [~'workspace (test-util/setup-scratch-workspace! project-path)
            ~'project (test-util/setup-project! ~'workspace)]
+       (g/transact (workspace/register-resource-type ~'workspace :ext "txt"))
        ~@forms)))
 
 (defn- content-bytes

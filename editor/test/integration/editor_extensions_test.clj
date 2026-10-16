@@ -1308,16 +1308,16 @@ zip.pack('mixed.zip', {{'foo', '9', level = 9}, {'foo', '1', level = 1}, {'foo',
 Archive path is a directory:
 zip.pack('foo', {'game.project'}) => error: Output path is a directory: foo
 Source path does not exist:
-zip.pack('error.zip', {'does-not-exist.txt'}) => error: Source path does not exist: " root "/does-not-exist.txt
+zip.pack('error.zip', {'does-not-exist.txt'}) => error: Source path does not exist: " (path/of root "does-not-exist.txt") "
 Target path is absolute:
 zip.pack('error.zip', {'" (System/getenv "HOME") "'}) => error: Target path must be relative: " (System/getenv "HOME") "
 Target path is a relative path above root:
-zip.pack('error.zip', {{'game.project', '../../game.project'}}) => error: Target path is above archive root: ../../game.project
-zip.pack('error.zip', {{'game.project', 'foo/bar/../../../../game.project'}}) => error: Target path is above archive root: ../../game.project
+zip.pack('error.zip', {{'game.project', '../../game.project'}}) => error: Target path is above archive root: " (path/of "../../game.project") "
+zip.pack('error.zip', {{'game.project', 'foo/bar/../../../../game.project'}}) => error: Target path is above archive root: " (path/of "../../game.project") "
 Testing zip.unpack...
 zip.unpack('script.zip', 'build', {'script.sh'}) => ok
 Default conflict resolution is error:
-zip.unpack('script.zip', 'build', {'script.sh'}) => error: Path already exists: " root "/build/script.sh
+zip.unpack('script.zip', 'build', {'script.sh'}) => error: Path already exists: " (path/of root "build/script.sh") "
 Overwrite option:
 zip.unpack('script.zip', 'build', {on_conflict = 'overwrite'}, {'script.sh'}) => ok
 Skip:
@@ -1328,15 +1328,15 @@ zip.unpack('multiple.zip', 'build/skip', {on_conflict = 'skip'}) => ok
 build/skip/foo exists: true
 build/skip/bar exists: true
 Overwrite can't replace directory with a file:
-zip.unpack('script.zip', 'build/dir_conflict', {on_conflict = 'overwrite'}) => error: Can't overwrite directory: " root "/build/dir_conflict/script.sh
+zip.unpack('script.zip', 'build/dir_conflict', {on_conflict = 'overwrite'}) => error: Can't overwrite directory: " (path/of root "build/dir_conflict/script.sh") "
 Partial unpack:
 zip.unpack('multiple.zip', 'build/subset', {'settings.ini'}) => ok
 build/subset/settings.ini exists: true
 build/subset/bar exists: false
 build/subset/foo exists: false
 Archive validation:
-zip.unpack('does-not-exist.zip') => error: Archive path does not exist: " root "/does-not-exist.zip
-zip.unpack('foo') => error: Archive path is a directory: " root "/foo
+zip.unpack('does-not-exist.zip') => error: Archive path does not exist: " (path/of root "does-not-exist.zip") "
+zip.unpack('foo') => error: Archive path is a directory: " (path/of root "foo") "
 Paths validation:
 zip.unpack('script.zip', 'build', {on_conflict = 'skip'}, {'foo/../../../bar'}) => error: Invalid argument:
 - \"foo/../../../bar\" is above root
