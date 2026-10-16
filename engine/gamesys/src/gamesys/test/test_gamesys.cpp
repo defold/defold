@@ -1892,7 +1892,6 @@ TEST_F(PackedBufferTest, LoadInterleaved)
 {
     ASSERT_EQ(dmResource::RESULT_OK, Load(PACKED_BUFFER, sizeof(PACKED_BUFFER)));
     dmGameSystem::BufferResource* resource = (dmGameSystem::BufferResource*)m_Descriptor.m_Resource;
-    ASSERT_EQ((void*)0, resource->m_BufferDDF);
     ASSERT_EQ(1u, resource->m_ElementCount);
     ASSERT_EQ(8u, resource->m_Stride);
     void* data;

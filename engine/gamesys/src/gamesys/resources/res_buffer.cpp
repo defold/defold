@@ -23,6 +23,16 @@
 
 namespace dmGameSystem
 {
+    // BUFC files are little-endian: magic[4], version:u16, streams:u16,
+    // elements:u32, stride:u32; then streams of hash:u64, offset:u32,
+    // type:u8, components:u8, padding:u16; then the interleaved payload.
+    enum
+    {
+        BUFFER_FORMAT_VERSION = 1,
+        BUFFER_FILE_HEADER_SIZE = 16,
+        BUFFER_FILE_STREAM_SIZE = 16,
+    };
+
     struct BufferPreloadData
     {
         uint32_t m_ElementCount;

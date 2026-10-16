@@ -3038,9 +3038,9 @@ static int CreateBuffer(lua_State* L)
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
 
-    // Create an empty buffer resource before applying the Lua buffer and its ownership.
-    uint8_t empty_buffer[BUFFER_FILE_HEADER_SIZE + BUFFER_FILE_STREAM_SIZE] = {
-        'B', 'U', 'F', 'C', (uint8_t)BUFFER_FORMAT_VERSION, (uint8_t)(BUFFER_FORMAT_VERSION >> 8), 1, 0,
+    // Create an empty BUFC v1 resource before applying the Lua buffer and its ownership.
+    uint8_t empty_buffer[] = {
+        'B', 'U', 'F', 'C', 1, 0, 1, 0,
         0, 0, 0, 0, 1, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, dmBuffer::VALUE_TYPE_INT8, 1, 0, 0,
