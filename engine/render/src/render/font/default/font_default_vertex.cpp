@@ -283,10 +283,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
         const TextLine& line = lines[i];
         if (line.m_Length == 0)
             continue;
-        float first_x = glyphs[line.m_Index].m_X;
+        const float first_x = TextLayoutGetLineOriginX(layout, i);
         const float first_y = glyphs[line.m_Index].m_Y;
-        for (uint32_t j = line.m_Index + 1; j < line.m_Index + line.m_Length; ++j)
-            first_x = dmMath::Min(first_x, glyphs[j].m_X);
         uint32_t align = te.m_Align;
         if (paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL && align != TEXT_ALIGN_CENTER)
             align = align == TEXT_ALIGN_LEFT ? TEXT_ALIGN_RIGHT : TEXT_ALIGN_LEFT;

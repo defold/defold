@@ -258,33 +258,33 @@ namespace dmRender
         font_map->m_VectorBandTexture = 0;
     }
 
-    static bool CreateSlugTextures(HFontMap font_map)
+    static void ResizeSlugTextures(HFontMap font_map, uint32_t height)
     {
-        FontVectorSlugData* data = new FontVectorSlugData;
-        data->m_MaxTexels = FONT_VECTOR_SLUG_WIDTH * VECTOR_SLUG_TEXTURE_HEIGHT;
-        // Fixed bounded atlas keeps texture handles stable throughout a frame.
+        FontVectorSlugData* data = font_map->m_SlugData;
+        data->m_MaxTexels = FONT_VECTOR_SLUG_WIDTH * height;
+        // Resize only between frames, while no queued vertices use the atlas.
         // Size remains the append cursor; capacity includes the zeroed tail.
         data->m_Curves.SetCapacity(data->m_MaxTexels * 4);
         data->m_Bands.SetCapacity(data->m_MaxTexels);
         memset(data->m_Curves.Begin(), 0, data->m_Curves.Capacity() * sizeof(uint16_t));
         memset(data->m_Bands.Begin(), 0, data->m_Bands.Capacity() * sizeof(uint32_t));
-        font_map->m_SlugData = data;
         RecreateTextureWithData(font_map->m_GraphicsContext, &font_map->m_Texture,
-            FONT_VECTOR_SLUG_WIDTH, VECTOR_SLUG_TEXTURE_HEIGHT, dmGraphics::TEXTURE_FORMAT_RGBA16F,
+            FONT_VECTOR_SLUG_WIDTH, height, dmGraphics::TEXTURE_FORMAT_RGBA16F,
             dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST,
             data->m_Curves.Begin(), data->m_Curves.Capacity() * sizeof(uint16_t));
         RecreateTextureWithData(font_map->m_GraphicsContext, &font_map->m_VectorBandTexture,
-            FONT_VECTOR_SLUG_WIDTH, VECTOR_SLUG_TEXTURE_HEIGHT, dmGraphics::TEXTURE_FORMAT_R32UI,
+            FONT_VECTOR_SLUG_WIDTH, height, dmGraphics::TEXTURE_FORMAT_R32UI,
             dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST,
             data->m_Bands.Begin(), data->m_Bands.Capacity() * sizeof(uint32_t));
-        RecreateVectorSdfTexture(font_map);
-        return true;
     }
 
     static bool CreateVectorTextures(HFontMap font_map)
     {
         DestroySlugData(font_map);
-        return CreateSlugTextures(font_map);
+        font_map->m_SlugData = new FontVectorSlugData;
+        ResizeSlugTextures(font_map, VECTOR_SLUG_TEXTURE_HEIGHT);
+        RecreateVectorSdfTexture(font_map);
+        return true;
     }
 
     static void RestoreLegacyTexture(HFontMap font_map)
@@ -1093,6 +1093,9 @@ namespace dmRender
         if (font_map->m_SlugData)
         {
             FontVectorSlugBegin(font_map->m_SlugData);
+            const uint32_t height = font_map->m_SlugData->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH;
+            if (font_map->m_SlugResetPending && height < FONT_VECTOR_SLUG_MAX_HEIGHT)
+                ResizeSlugTextures(font_map, dmMath::Min(height * 2, FONT_VECTOR_SLUG_MAX_HEIGHT));
             font_map->m_SlugResetPending = false;
         }
         RecreateVectorSdfTexture(font_map);
@@ -1109,7 +1112,7 @@ namespace dmRender
             // Do not invalidate glyphs already submitted in this frame.
             font_map->m_SlugResetPending = true;
             font_map->m_SlugOverflowFrame = cache_glyph->m_Frame;
-            dmLogWarning("Slug font atlas is full; deferring cache reset to the next frame");
+            dmLogWarning("Slug font atlas is full; deferring cache growth/reset to the next frame");
             return false;
         }
         if (!glyph.m_CurveCount)
@@ -1117,10 +1120,11 @@ namespace dmRender
         cache_glyph->m_VectorCurveTexel = glyph.m_BandTexel;
         cache_glyph->m_VectorCurveCount = glyph.m_CurveCount;
         memcpy(cache_glyph->m_VectorBanding, glyph.m_BandTransform, sizeof(glyph.m_BandTransform));
+        const uint32_t height = data->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH;
         UpdateVectorTexture(font_map, font_map->m_Texture, dmGraphics::TEXTURE_FORMAT_RGBA16F,
-            FONT_VECTOR_SLUG_WIDTH, VECTOR_SLUG_TEXTURE_HEIGHT, data->m_Curves.Begin(), data->m_Curves.Capacity() * sizeof(uint16_t));
+            FONT_VECTOR_SLUG_WIDTH, height, data->m_Curves.Begin(), data->m_Curves.Capacity() * sizeof(uint16_t));
         UpdateVectorTexture(font_map, font_map->m_VectorBandTexture, dmGraphics::TEXTURE_FORMAT_R32UI,
-            FONT_VECTOR_SLUG_WIDTH, VECTOR_SLUG_TEXTURE_HEIGHT, data->m_Bands.Begin(), data->m_Bands.Capacity() * sizeof(uint32_t));
+            FONT_VECTOR_SLUG_WIDTH, height, data->m_Bands.Begin(), data->m_Bands.Capacity() * sizeof(uint32_t));
         return true;
     }
 

@@ -86,7 +86,9 @@ def cases(full, rich):
             add(source, True, 'decorations_dashed', text='<ul pattern=dashed>HH HH</ul> <strike pattern=dashed>HH HH</strike>', markup=True, outline_alpha=0, outline=0)
             for name, size in (('half', 20), ('double', 80)):
                 add(source, True, 'decorations_outline_' + name, text='<outline size=8><ul>H H</ul> <strike>H H</strike></outline>', markup=True, size=size, outline=2)
+    add('stress_vector', True, 'atlas_growth', text=''.join(chr(0xE000 + i) for i in range(64)), size=8, outline_alpha=0, outline=0)
     if full:
+        add('arabic_vector', True, 'rtl_wrapped', text='مرحبا    بالعالم', size=24, outline_alpha=0, outline=0)
         lorem=json.loads((DATA/'lorem.json').read_text(encoding="utf-8"))
         for language in ('english','arabic'):
             for multi in (False,True):add('arabic' if language=='arabic' else 'latin',multi,language,text=lorem[language])
@@ -115,6 +117,10 @@ def generate_cases(output):
             values += [str(float(c.get('edge_scale', 0)))+'f', str(c.get('pivot', -1))]
             if 'pivot' in c:
                 lines.append('// Verifies compiled-font placement over a white box at this pivot; guards against #13339.')
+            elif c['scenario'] == 'atlas_growth':
+                lines.append('// Verifies every visible vector glyph renders after growing an overflowing atlas.')
+            elif c['scenario'] == 'rtl_wrapped':
+                lines.append('// Verifies wrapped RTL vector glyphs use the shared content origin, excluding trailing spaces.')
             lines.append('TEST(FontImages_'+c['id']+', Render)\n{\n    const FontImageCase c = { '+', '.join(values)+' };\n    TestFontImage(c);\n}\n')
         lines.append('#endif')
     output.parent.mkdir(parents=True,exist_ok=True); output.write_text('\n'.join(lines)+'\n', encoding="utf-8")

@@ -15,6 +15,7 @@
 #include <jc_test/jc_test.h>
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
+#include <dlib/utf8.h>
 #include <graphics/graphics_util.h>
 #include <graphics_private.h>
 #include <test/test_graphics_util.h>
@@ -136,7 +137,13 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     const bool  baked = strstr(c.m_Source, "_bank") != 0;
     const bool  depth_overlap = strstr(c.m_Name, "_depth_overlap") != 0;
     const bool  decorations = strstr(c.m_Name, "_decorations") != 0;
+    const bool  atlas_growth = strstr(c.m_Name, "_atlas_growth") != 0;
+    const bool  rtl_wrapped = strstr(c.m_Name, "_rtl_wrapped") != 0;
     const char* path = strncmp(c.m_Source, "otf", 3) == 0 ? "src/test/data/SourceCodePro-Regular.otf" : "src/test/data/WorkSans.ttf";
+    if (atlas_growth)
+        path = "src/test/data/vector_atlas_stress.ttf";
+    else if (rtl_wrapped)
+        path = "src/test/data/NotoSansArabic-Regular.ttf";
     HFont       source = resources.m_Source = FontLoadFromPath(path);
     ASSERT_NE((HFont)0, source);
     VectorImageBank&       bank = resources.m_Bank;
@@ -245,7 +252,8 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
 
     TextLayoutSettings settings = {};
     settings.m_Size = c.m_Size;
-    settings.m_Width = g_Capture_vector.m_LayoutWidth;
+    settings.m_Width = rtl_wrapped ? 100 : g_Capture_vector.m_LayoutWidth;
+    settings.m_LineBreak = rtl_wrapped;
     settings.m_Leading = 1;
     settings.m_BaseStyle = default_style;
     settings.m_UseBaseStyle = true;
@@ -263,7 +271,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
         TextToCodePoints(c.m_Text, codepoints);
         ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, codepoints.Begin(), codepoints.Size(), &settings, &layout));
     }
-    // Keep the capture cache fixed so every glyph fits in the first frame.
+    // Keep bitmap cache cells large enough for every captured glyph.
     // Pure curves still need cache entries even though they have no bitmap.
     const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
     for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout); ++i)
@@ -294,6 +302,16 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     vertices.SetCapacity(TextLayoutGetGlyphCount(layout) * 18);
     vertices.SetSize(vertices.Capacity());
     uint32_t count = dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
+    if (atlas_growth)
+    {
+        // Explicit frame boundaries let the runtime grow its numeric atlas.
+        // The same visible glyph set must eventually fit instead of starving.
+        for (uint32_t frame = 2; frame <= 7 && map->m_SlugResetPending; ++frame)
+        {
+            dmRender::PrepareVectorCache(map, frame);
+            count = dmRender::CreateFontVertexData(map, frame, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
+        }
+    }
     ASSERT_GT(count, 0u);
     ASSERT_LE(count, vertices.Size());
     if (depth_overlap)
@@ -426,6 +444,59 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
         }
     }
     WriteFontTestImage(c, width, height, pixels, metadata);
+    if (atlas_growth)
+    {
+        ASSERT_FALSE(map->m_SlugResetPending);
+        ASSERT_EQ(64u * 6, count);
+        for (uint32_t i = 0; i < count; i += 6)
+        {
+            ASSERT_GT(vertices[i].m_VectorTexcoord[2], 0.0f);
+            const int x0 = (int)ceilf(vertices[i].m_Position[0]);
+            const int x1 = (int)floorf(vertices[i + 2].m_Position[0]);
+            const int y0 = (int)ceilf(height - vertices[i + 1].m_Position[1]);
+            const int y1 = (int)floorf(height - vertices[i].m_Position[1]);
+            ASSERT_GE(x0, 0);
+            ASSERT_LT(x1, (int)width);
+            ASSERT_GE(y0, 0);
+            ASSERT_LT(y1, (int)height);
+            bool visible = false;
+            for (int y = y0; y <= y1; ++y)
+                for (int x = x0; x <= x1; ++x)
+                    visible |= pixels[(y * width + x) * 4] > 127;
+            ASSERT_TRUE(visible);
+        }
+    }
+    if (rtl_wrapped)
+    {
+        // Wrapped RTL whitespace must not move visible glyphs away from the
+        // shared content origin used by decorations and hit testing.
+        ASSERT_GT(TextLayoutGetLineCount(layout), 1u);
+        ASSERT_EQ(TEXT_DIRECTION_RTL, TextLayoutGetParagraphs(layout)[0].m_Direction);
+        const TextLine* lines = TextLayoutGetLines(layout);
+        uint32_t        vertex = 0;
+        bool            has_trimmed_space = false;
+        for (uint32_t i = 0; i < TextLayoutGetLineCount(layout); ++i)
+        {
+            const TextLine& line = lines[i];
+            const float     origin = TextLayoutGetLineOriginX(layout, i);
+            for (uint32_t j = line.m_Index; j < line.m_Index + line.m_Length; ++j)
+            {
+                if (dmUtf8::IsWhiteSpace(glyphs[j].m_Codepoint))
+                {
+                    has_trimmed_space |= glyphs[j].m_X < origin;
+                    continue;
+                }
+                FontGlyph* glyph = 0;
+                ASSERT_EQ(FONT_RESULT_OK, dmRender::GetOrCreateGlyphByIndex(map, glyphs[j].m_Font, glyphs[j].m_GlyphIndex, &glyph));
+                const float x = g_Capture_vector.m_OriginX + settings.m_Width - line.m_Width + glyphs[j].m_X - origin + glyph->m_Outline.m_LeftBearing * c.m_Size / params.m_Size;
+                ASSERT_LT(vertex, count);
+                ASSERT_NEAR(x, vertices[vertex].m_Position[0], 0.001f);
+                vertex += 6;
+            }
+        }
+        ASSERT_TRUE(has_trimmed_space);
+        ASSERT_EQ(count, vertex);
+    }
     if (strstr(c.m_Name, "_decorations_outline_"))
     {
         // The requested 8px outline is capped by the font's 2px reference outline:

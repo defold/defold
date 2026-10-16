@@ -26,13 +26,18 @@ Each runtime Vector font map uses these textures:
 
 | Texture | Format | Dimensions | Contents |
 | --- | --- | --- | --- |
-| Curves | `RGBA16F` | **4096 × 8 texels** | Quadratic control points |
-| Bands | `R32UI` | **4096 × 8 texels** | Band headers and references to curves |
+| Curves | `RGBA16F` | **4096 × 8–256 texels** | Quadratic control points |
+| Bands | `R32UI` | **4096 × 8–256 texels** | Band headers and references to curves |
 | Effects (when enabled) | `RGB` | Font cache width × height | SDF outlines and bitmap shadows |
 
 The curve and band textures contain numeric data. Curve records and band lists
 are kept within texture rows. The effects texture stores glyph images in cells
 and follows the font's cache settings.
+
+The runtime starts with eight rows in each numeric texture. When the atlas fills,
+it doubles their height at the next frame boundary, up to 256 rows, and rebuilds
+the cached glyph records. Queued text retains its texture handles for the current
+frame. At the limit, overflow still resets the cache to reclaim unused glyphs.
 
 The editor preview uses the same texture formats and shaders as the runtime.
 Its curve and band textures are
@@ -103,10 +108,10 @@ colors. Face-only Vector fonts need no Bitmap Size.
 
 ## Cache and platform limits
 
-The runtime curve and band textures have fixed dimensions. If a glyph does not
-fit, the cache keeps existing records intact, skips that glyph, and schedules
-a reset for the next frame. A glyph set that exceeds this capacity cannot be
-fully cached at once. Effect atlas growth is applied before render batches
+If a glyph does not fit, the runtime keeps existing records intact, skips that
+glyph, and schedules numeric atlas growth and a cache reset for the next frame.
+A glyph set that exceeds the maximum 4096 × 256 capacity cannot be fully cached
+at once. Numeric and effect atlas growth is applied before render batches
 capture texture handles.
 
 Runtime rendering requires `RGBA16F` and unsigned `R32UI` texture support. It

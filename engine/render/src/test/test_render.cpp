@@ -3166,6 +3166,54 @@ TEST_F(VectorFontTest, OverflowKeepsQueuedTexturesAndFirstGlyph)
     }
 }
 
+// A visible glyph set larger than the initial numeric atlas must fit after
+// growth, without replacing textures or invalidating records in the same frame.
+TEST_F(VectorFontTest, AtlasGrowsBetweenFramesToFitVisibleGlyphs)
+{
+    float       curves[64 * 8];
+    const float curve[] = { 0, 0, .5f, 1, 1, 0, 0, 0 };
+    for (uint32_t i = 0; i < 64; ++i)
+        memcpy(curves + i * 8, curve, sizeof(curve));
+    FontGlyph glyph = {};
+    glyph.m_Vector.m_Data = (const uint8_t*)curves;
+    glyph.m_Vector.m_DataSize = sizeof(curves);
+    glyph.m_Vector.m_CurveCount = 64;
+    FontVectorSlugData* data = m_SystemFontMap->m_SlugData;
+    const uint32_t      initial_capacity = data->m_MaxTexels;
+    uint32_t            cached_count = 0;
+    for (uint32_t frame = 1; frame <= 4; ++frame)
+    {
+        dmRender::PrepareVectorCache(m_SystemFontMap, frame);
+        const dmGraphics::HTexture curves_texture = m_SystemFontMap->m_Texture;
+        const dmGraphics::HTexture bands_texture = m_SystemFontMap->m_VectorBandTexture;
+        cached_count = 0;
+        for (uint32_t i = 0; i < 100; ++i)
+        {
+            dmRender::CacheGlyph* cached = dmRender::GetFromCache(m_SystemFontMap, i, frame);
+            if (!cached)
+                cached = dmRender::AddGlyphToCache(m_SystemFontMap, frame, i, &glyph, 0);
+            cached_count += cached != 0;
+        }
+        dmRender::PrepareVectorCache(m_SystemFontMap, frame);
+        ASSERT_EQ(curves_texture, m_SystemFontMap->m_Texture);
+        ASSERT_EQ(bands_texture, m_SystemFontMap->m_VectorBandTexture);
+        ASSERT_NE((dmRender::CacheGlyph*)0, dmRender::GetFromCache(m_SystemFontMap, 0, frame));
+        if (frame == 1)
+        {
+            ASSERT_LT(cached_count, 100u);
+            ASSERT_TRUE(m_SystemFontMap->m_SlugResetPending);
+        }
+    }
+    EXPECT_EQ(100u, cached_count);
+    EXPECT_FALSE(m_SystemFontMap->m_SlugResetPending);
+    EXPECT_GT(data->m_MaxTexels, initial_capacity);
+    ASSERT_EQ(data->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH, dmGraphics::GetTextureHeight(m_GraphicsContext, m_SystemFontMap->m_Texture));
+    ASSERT_EQ(data->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH, dmGraphics::GetTextureHeight(m_GraphicsContext, m_SystemFontMap->m_VectorBandTexture));
+    dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
+    dmGraphics::NullTexture* bands = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(context->m_BaseContext.m_AssetHandleContainer, m_SystemFontMap->m_VectorBandTexture);
+    ASSERT_EQ(0, memcmp(data->m_Bands.Begin(), bands->m_Data, data->m_Bands.Size() * sizeof(uint32_t)));
+}
+
 // Inherited offsets scale with vector glyphs and decorations; explicit pixel offsets stay fixed.
 TEST_F(VectorFontTest, RichTextShadowOffsetsScaleWithGlyphsAndDecorations)
 {

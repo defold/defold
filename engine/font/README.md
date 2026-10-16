@@ -41,7 +41,7 @@ closing/reopening preview contexts. Run it
 from `editor` with `lein test integration.vector-font-test` after rebuilding Bob's
 font renderer library and Java bindings.
 
-Vector contributes 104 captures across the four configurations:
+Vector contributes 110 captures across the four configurations:
 
 | Sources | Scenarios | Layout/parser configurations |
 | --- | --- | --- |
@@ -51,6 +51,8 @@ Vector contributes 104 captures across the four configurations:
 | All four Vector sources | Overlapping text at different world depths | All four |
 | All four Vector sources | Solid and dashed underline/strikethrough | Legacy/full with rich text |
 | All four Vector sources | Outlined underline/strikethrough at ½× and 2× font size | Legacy/full with rich text |
+| Stress TTF | All 64 visible glyphs render after numeric atlas growth | All four |
+| Arabic TTF | Wrapped RTL placement with trailing whitespace | Full with rich/plain text |
 
 The Vector face uses analytical curves; outline and shadow sample the generated
 SDF effect atlas. Glyph data is generated at size 40, including the cases drawn
@@ -106,7 +108,7 @@ This writes `build/font-manual/legacy-rich/manual.png`. Use `--help` for all
 options. Manual options cannot be combined with `--case`. Layout/parser support
 is chosen by executable: `test_font_bitmap_gen_skribidi`,
 `test_font_bitmap_gen_plain`, or `test_font_bitmap_gen_skribidi_plain`.
-The CMake target runs all four (532 images) and then generates the report.
+The CMake target runs all four (538 images) and then generates the report.
 
 Rendered reference PNGs belong under
 `src/test/data/reference/<configuration>/`. They require visual
