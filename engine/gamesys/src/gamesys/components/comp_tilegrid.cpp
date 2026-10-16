@@ -908,6 +908,14 @@ namespace dmGameSystem
 
     static void CompTileGridSetConstantCallback(void* user_data, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var);
 
+    void CompTileGridResetConstant(TileGridComponent* component, dmhash_t name_hash)
+    {
+        if (component->m_RenderConstants)
+        {
+            ClearRenderConstant(component->m_RenderConstants, name_hash);
+        }
+    }
+
     dmGameObject::UpdateResult CompTileGridOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         TileGridComponent* component = (TileGridComponent*) *params.m_UserData;
@@ -915,9 +923,7 @@ namespace dmGameSystem
         if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::ResetConstantTileMap* ddf = (dmGameSystemDDF::ResetConstantTileMap*)params.m_Message->m_Data;
-            if (component->m_RenderConstants) {
-                ClearRenderConstant(component->m_RenderConstants, ddf->m_NameHash);
-            }
+            CompTileGridResetConstant(component, ddf->m_NameHash);
         }
         else if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
