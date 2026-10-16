@@ -340,7 +340,8 @@
           (or installed-sha1
               (:sha1 current-download)
               downloaded-sha1
-              editor-sha1))))
+              (when-not (switching-channel? updater)
+                editor-sha1)))))
 
 (defn update-advertised? [updater]
   (let [{:keys [server-sha1 skipped-sha1]} @(:state-atom updater)]
