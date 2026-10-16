@@ -2010,6 +2010,7 @@ TEST_F(ModelTest, MultiMaterialVertexSpaceRenderBatching)
 
 // World-space geometry must use the complete late-update transform, including
 // component and mesh offsets, when the game object moves between frames.
+// Also cover meshes first shown or re-enabled after late update.
 TEST_F(ModelTest, WorldSpaceVertexTransforms)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -2036,12 +2037,21 @@ TEST_F(ModelTest, WorldSpaceVertexTransforms)
             : dmTransform::Transform(Vector3(4, -3, 2), Quat::rotationZ(0.4f), 2.0f);
         dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, prototypes[variant], dmHashString64("/model"), 0, Point3(-3, 2, 1), Quat::rotationY(0.3f), Vector3(2, 3, 4));
         ASSERT_NE((dmGameObject::HInstance)0, instance);
-        for (uint32_t frame = 0; frame < 2; ++frame)
+        uint32_t model_type;
+        dmGameObject::HComponent model_component;
+        dmGameObject::HComponentWorld model_world;
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instance, dmHashString64("model"), &model_type, &model_component, &model_world));
+        for (uint32_t frame = 0; frame < 3; ++frame)
         {
+            const bool late_enable = frame != 1;
+            if (late_enable)
+                ASSERT_TRUE(dmGameSystem::CompModelSetMeshEnabled((dmGameSystem::ModelComponent*) model_component, mesh_info.m_Model->m_Id, false));
             dmGameObject::SetPosition(instance, Point3(-3.0f + frame * 5.0f, 2, 1));
             dmRender::ClearRenderObjects(m_RenderContext);
             ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
             ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            if (late_enable)
+                ASSERT_TRUE(dmGameSystem::CompModelSetMeshEnabled((dmGameSystem::ModelComponent*) model_component, mesh_info.m_Model->m_Id, true));
             dmRender::RenderListBegin(m_RenderContext);
             dmGameObject::Render(m_Collection);
             dmRender::RenderListEnd(m_RenderContext);

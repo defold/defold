@@ -3094,11 +3094,14 @@ namespace dmGameSystem
     bool CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled)
     {
         bool found = false;
+        bool update_transforms = false;
         for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
         {
             MeshRenderItem& item = component->m_RenderItems[i];
             if (item.m_Model->m_Id == mesh_id)
             {
+                if (enabled && !item.m_Enabled)
+                    update_transforms = true;
                 item.m_Enabled = enabled?1:0;
                 item.m_Buffers->m_LastUsedFrame = 0xFF;
                 found = true;
@@ -3107,6 +3110,13 @@ namespace dmGameSystem
 
         if (found)
         {
+            // Late update skips disabled meshes, and post-update can enable them before rendering.
+            if (update_transforms)
+            {
+                const Matrix4& go_world = dmGameObject::GetWorldMatrix(component->m_Instance);
+                const Matrix4 world = component->m_TransformIsIdentity ? go_world : go_world * dmTransform::ToMatrix4(component->m_Transform);
+                UpdateMeshTransforms(component, world);
+            }
             SetupRequiresBindPoseCaching(component);
         }
 
