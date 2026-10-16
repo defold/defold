@@ -4452,7 +4452,7 @@ bail:
             VulkanTexture* depth_stencil_texture_ptr = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, depth_stencil_texture);
             if (num_color_textures == 0)
             {
-                fb_width  = rtOut->m_Base.m_DepthStencilTextureParams.m_Height;
+                fb_width  = rtOut->m_Base.m_DepthStencilTextureParams.m_Width;
                 fb_height = rtOut->m_Base.m_DepthStencilTextureParams.m_Height;
             }
 
@@ -4805,6 +4805,12 @@ bail:
 
             const TextureCreationParams& stencil_depth_create_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
 
+            if (color_index == 0)
+            {
+                fb_width  = stencil_depth_create_params.m_Width;
+                fb_height = stencil_depth_create_params.m_Height;
+            }
+
             // Only try depth formats first
             if (has_depth && !has_stencil)
             {
@@ -5030,7 +5036,7 @@ bail:
             VkResult res = CreateDepthStencilTexture(context,
                 vk_depth_stencil_format, vk_image_tiling,
                 width, height, (VkSampleCountFlagBits) brt->m_SampleCount,
-                VK_IMAGE_ASPECT_DEPTH_BIT,
+                GetDefaultDepthAndStencilAspectFlags(vk_depth_stencil_format),
                 depth_stencil_texture);
             CHECK_VK_ERROR(res);
 
