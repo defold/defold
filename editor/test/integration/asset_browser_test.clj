@@ -20,6 +20,7 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.gl :as gl]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -53,7 +54,7 @@
                 preview (make-preview-fn resource-node view-opts 128 128)]
             (try
               (let [image (g/node-value preview :frame)]
-                (is (some? image)))
+                (is (some? image) (str query ": " (gl/gl-support-error))))
               (finally
                 (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
                   (dispose-preview-fn preview))

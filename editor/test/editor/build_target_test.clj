@@ -262,7 +262,7 @@
 
     (doseq [[path session1-content-hash] session1-content-hashes-by-path
             :let [session2-content-hash (session2-content-hashes-by-path path)]]
-      (is (= session1-content-hash session2-content-hash)))))
+      (is (= session1-content-hash session2-content-hash) path))))
 
 (deftest build-target-content-hashes-are-affected-by-engine-revision
   ;; We cannot safely reuse build artifacts that were compiled for a different
