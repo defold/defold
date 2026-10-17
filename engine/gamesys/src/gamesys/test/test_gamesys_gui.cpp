@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include <dlib/thread.h>
 
 using namespace dmVMath;
 
@@ -146,6 +147,96 @@ static GuiTextSubmitResult QueueGuiAndGetTextLayout(dmRender::HRenderContext ren
     return SubmitGuiAndGetTextLayout(render_context, collection, false, false);
 }
 
+// Ordered by LabelDesc::Pivot so the index is also the serialized pivot value.
+static const char* layout_object_pivots[] = { "CENTER", "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
+
+struct LayoutObjectTextCase
+{
+    const char* m_Text;
+    float m_Width;
+    uint32_t m_MinLineCount;
+    uint8_t m_MonospacePadding;
+};
+
+static const LayoutObjectTextCase layout_object_text_cases[] = {
+    { "Here is the <sprite src=/icon.png width=1em height=1em/> logo", 200.0f, 1, 0 },
+    { "Title\nHere is the <sprite src=/icon.png width=1em height=1em/> logo", 200.0f, 2, 0 },
+    { "Here is the <sprite src=/icon.png width=1em height=1em/> logo", 80.0f, 2, 0 },
+    { "سلام <sprite src=/icon.png width=1em height=1em/> سلام", 200.0f, 1, 0 },
+    { "Here is the <sprite src=/icon.png width=1em height=1em/> logo", 80.0f, 2, 6 },
+    { "سلام <sprite src=/icon.png width=1em height=1em/> سلام", 200.0f, 1, 6 },
+};
+
+class GuiLayoutObjectPivotTest : public GuiTest {};
+
+class LabelLayoutObjectPivotTest : public LabelComponentTest
+{
+public:
+    const char* GetContentFolder() const override { return "label"; }
+};
+
+static void CheckLayoutObjectRenderPosition(lua_State* L, dmRender::HRenderContext render_context, const Point3& origin, bool north_west)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+    lua_getglobal(L, "layout_objects");
+    ASSERT_TRUE(lua_istable(L, -1));
+    ASSERT_EQ(1u, lua_objlen(L, -1));
+    lua_rawgeti(L, -1, 1);
+    lua_getfield(L, -1, "x");
+    float x = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    lua_getfield(L, -1, "y");
+    float y = lua_tonumber(L, -1);
+    lua_pop(L, 3);
+
+    dmRender::RenderContext* context = (dmRender::RenderContext*)render_context;
+    ASSERT_EQ(1u, context->m_TextContext.m_TextEntries.Size());
+    const dmRender::TextEntry& entry = context->m_TextContext.m_TextEntries[0];
+    HTextLayout layout = entry.m_TextLayout;
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(layout));
+    ASSERT_EQ(dmHashString64("sprite"), TextLayoutGetObjects(layout)[0].m_Tag);
+    const float monospace_padding = dmRender::GetFontMapMonospaced(entry.m_FontMap) ? dmRender::GetFontMapPadding(entry.m_FontMap) : 0.0f;
+
+    if (north_west && TextLayoutGetParagraphs(layout)[0].m_Direction == TEXT_DIRECTION_LTR)
+    {
+        // Working NW content retains the exact original coordinates. Legacy monospace padding needs rendering's inset.
+        float layout_width, layout_height, original_x, original_y;
+        TextLayoutGetBounds(layout, &layout_width, &layout_height);
+        ASSERT_TRUE(TextLayoutGetObjectPosition(layout, TextLayoutGetObjects(layout), 0.0f, 0.0f, layout_width, &original_x, &original_y));
+        EXPECT_EQ(original_x - monospace_padding * 0.5f, x);
+        EXPECT_EQ(original_y, y);
+    }
+
+    // Use the render entry's alignment and transform to obtain the sprite's hit box.
+    TextLayoutHitTestParams hit_test = {};
+    hit_test.m_Tag = dmHashString64("sprite");
+    hit_test.m_Width = entry.m_Width;
+    hit_test.m_Height = entry.m_Height;
+    hit_test.m_Align = entry.m_Align;
+    hit_test.m_VAlign = entry.m_VAlign;
+    hit_test.m_FontSize = dmRender::GetFontMapSize(entry.m_FontMap);
+    hit_test.m_MonospacePadding = monospace_padding;
+    TextLayoutHitTestObject(layout, hit_test);
+    ASSERT_EQ(1u, layout->m_ObjectBounds.Size());
+    const TextLayoutObjectBounds& bounds = layout->m_ObjectBounds[0];
+    Vector4 rendered_position = entry.m_Transform * Point3(bounds.m_MinX, bounds.m_MinY, 0.0f);
+    EXPECT_NEAR(rendered_position.getX(), origin.getX() + x, 0.0001f);
+    EXPECT_NEAR(rendered_position.getY(), origin.getY() + y, 0.0001f);
+}
+
+static void SetLayoutObjectTextCase(lua_State* L, const LayoutObjectTextCase& text_case, dmGameSystem::FontResource* font_resource)
+{
+    // Exercise the padding settings supplied by legacy compiled monospaced fonts.
+    dmRender::FontMap* font_map = (dmRender::FontMap*)dmGameSystem::ResFontGetHandle(font_resource);
+    font_map->m_IsMonospaced = text_case.m_MonospacePadding != 0;
+    font_map->m_Padding = text_case.m_MonospacePadding;
+    lua_pushstring(L, text_case.m_Text);
+    lua_setglobal(L, "layout_object_text");
+    lua_pushnumber(L, text_case.m_Width);
+    lua_setglobal(L, "layout_object_width");
+}
+
 static dmhash_t GetTextLayoutGlyphFontPathHash(dmGameSystem::FontResource* font_resource, HTextLayout layout)
 {
     EXPECT_NE((HTextLayout)0, layout);
@@ -188,7 +279,7 @@ TEST_F(CursorTest, GuiFlipbookCursor)
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t gui_comp_id = dmHashString64("gui");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_cursor.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     dmMessage::URL msg_url;
     dmMessage::ResetURL(&msg_url);
@@ -238,7 +329,7 @@ TEST_P(CursorTest, Cursor)
     dmhash_t sprite_comp_id = dmHashString64("sprite");
     dmhash_t animation_id = dmHashString64(anim_id_str);
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     // Dummy URL, just needed to kick flipbook animation on sprite
     dmMessage::URL msg_url;
@@ -276,7 +367,7 @@ TEST_P(CursorTest, Cursor)
 TEST_F(GuiTest, GetSetMaterialConstants)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/get_set_material_constants.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 }
 
 // Tests the animation done message/callback
@@ -285,7 +376,7 @@ TEST_F(GuiTest, GuiFlipbookAnim)
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t gui_comp_id = dmHashString64("gui");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_anim.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     dmMessage::URL msg_url;
     dmMessage::ResetURL(&msg_url);
@@ -325,7 +416,7 @@ TEST_F(GuiTest, TextureResources)
     dmGraphics::HTexture valid_texture_th = valid_texture->m_Texture;
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/texture_resources_texture_resources.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     dmResource::Release(m_Factory, valid_atlas);
     dmResource::Release(m_Factory, valid_texture);
@@ -399,7 +490,7 @@ TEST_F(GuiTest, TextureSetterOverrideRefreshesAtlasState)
     ASSERT_NE((void*)0x0, expected_atlas);
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/texture_setter_override.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
@@ -442,7 +533,7 @@ TEST_F(GuiTest, TextureReloadRefreshesAtlasState)
     ASSERT_NE((void*)0x0, expected_atlas);
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/texture_reload_override.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     // The atlas swap happens from script update(), so step one more frame to
@@ -495,7 +586,7 @@ TEST_F(GuiTest, GuiSetNilRemovesRuntimeTextureMapping)
     const dmhash_t texture_b_hash = dmHashString64("/gui/set_texture_nil_b.texturec");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_set_texture_nil.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     uint32_t component_type_index        = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("guic"));
     dmGameSystem::GuiWorld* gui_world    = (dmGameSystem::GuiWorld*) dmGameObject::GetWorld(m_Collection, component_type_index);
@@ -559,7 +650,7 @@ TEST_F(GuiTest, AsyncTextureAutoSize)
     null_context->m_UseAsyncTextureLoad = 1;
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/async_texture_auto_size.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "tests_done"));
 
@@ -570,7 +661,7 @@ TEST_F(GuiTest, AsyncTextureAutoSize)
 TEST_F(GuiTest, MaxDynamictextures)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_max_dynamic_textures.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     uint32_t component_type_index        = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("guic"));
     dmGameSystem::GuiWorld* gui_world    = (dmGameSystem::GuiWorld*) dmGameObject::GetWorld(m_Collection, component_type_index);
@@ -606,7 +697,7 @@ TEST_F(GuiTest, MaxDynamictextures)
 TEST_F(GuiResourceTest, ScriptSetFonts)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/goscript.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     void* font1 = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/valid_font.fontc", (void**) &font1));
@@ -633,6 +724,7 @@ TEST_F(GuiResourceTest, ScriptSetFonts)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// TrueType resources retain their source font for runtime glyph generation.
 TEST_F(FontTest, TrueTypeFontsUseRuntimeGeneration)
 {
     const char path_font_1[] = "/font/glyph_bank_test_1.fontc";
@@ -655,6 +747,67 @@ TEST_F(FontTest, TrueTypeFontsUseRuntimeGeneration)
     // source font and generate their SDF glyph data on demand.
     ASSERT_TRUE(font_1->m_IsDynamic);
     ASSERT_TRUE(font_2->m_IsDynamic);
+
+    dmResource::Release(m_Factory, font_1);
+    dmResource::Release(m_Factory, font_2);
+}
+
+// Static banks keep independent bitmap and layout metrics across effect settings.
+TEST_F(FontTest, GlyphBankTest)
+{
+    const char path_font_1[] = "/font/static_glyph_bank_test_1.fontc";
+    const char path_font_2[] = "/font/static_glyph_bank_test_2.fontc";
+
+    dmGameSystem::FontResource* font_1;
+    dmGameSystem::FontResource* font_2;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_1, (void**) &font_1));
+    ASSERT_NE((void*)0, font_1);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_2, (void**) &font_2));
+    ASSERT_NE((void*)0, font_2);
+
+    dmRender::HFontMap font_map_1 = dmGameSystem::ResFontGetHandle(font_1);
+    ASSERT_NE((void*)0, font_map_1);
+    dmRender::HFontMap font_map_2 = dmGameSystem::ResFontGetHandle(font_2);
+    ASSERT_NE((void*)0, font_map_2);
+
+    HFontCollection font_collection1 = dmRender::GetFontCollection(font_map_1);
+    HFontCollection font_collection2 = dmRender::GetFontCollection(font_map_2);
+    HFont hfont_1 = FontCollectionGetFont(font_collection1, 0);
+    HFont hfont_2 = FontCollectionGetFont(font_collection2, 0);
+
+    FontResult r;
+    FontGlyph* glyph_1 = 0;
+    r = GetGlyph(font_map_1, hfont_1, 'A', &glyph_1);
+    ASSERT_EQ(FONT_RESULT_OK, r);
+    ASSERT_NE((FontGlyph*)0, glyph_1);
+
+    FontGlyph* glyph_2 = 0;
+    r = GetGlyph(font_map_2, hfont_2, 'A', &glyph_2);
+    ASSERT_EQ(FONT_RESULT_OK, r);
+    ASSERT_NE((FontGlyph*)0, glyph_2);
+
+    ASSERT_NE(glyph_1->m_Bitmap.m_Data, glyph_2->m_Bitmap.m_Data);
+
+    dmGameSystem::TTFResource* ttf_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/valid.ttf", (void**)&ttf_resource));
+    HFont ttf = dmGameSystem::GetFont(ttf_resource);
+    FontGlyphOptions options;
+    FontGlyph native_glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(ttf, FontGetGlyphIndex(ttf, 'A'), &options, &native_glyph));
+    dmRender::HFontMap font_maps[] = { font_map_1, font_map_2 };
+    HFont fonts[] = { hfont_1, hfont_2 };
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        FontGlyph layout_glyph;
+        ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(fonts[i], FontGetGlyphIndex(fonts[i], 'A'), &options, &layout_glyph));
+        float scale = FontGetScaleFromSize(ttf, dmRender::GetFontMapSize(font_maps[i]));
+        ASSERT_NEAR(native_glyph.m_Width * scale, layout_glyph.m_Width, 0.001f);
+        ASSERT_NEAR(native_glyph.m_LeftBearing * scale, layout_glyph.m_LeftBearing, 0.001f);
+        ASSERT_FALSE(dmRender::GetFontMapMonospaced(font_maps[i]));
+        ASSERT_EQ(0u, dmRender::GetFontMapPadding(font_maps[i]));
+    }
+    dmResource::Release(m_Factory, ttf_resource);
 
     dmResource::Release(m_Factory, font_1);
     dmResource::Release(m_Factory, font_2);
@@ -716,6 +869,42 @@ TEST_F(FontTest, GlyphBankRecreateKeepsFontHandle)
 
     dmResource::Release(m_Factory, font_1);
     dmResource::Release(m_Factory, font_2);
+}
+
+class FontScriptTest : public ScriptBaseTest
+{
+public:
+    FontScriptTest() { SetContentFolder("font"); }
+};
+
+// Verifies Lua whitespace metrics for glyph banks and runtime fonts on either layout backend (#13375).
+TEST_F(FontScriptTest, ScriptGetTextMetricsWhitespace)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/font/text_metrics_whitespace.goc", dmHashString64("/text_metrics_whitespace"));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    lua_getglobal(m_Scriptlibcontext.m_LuaState, "text_metrics_whitespace_passed");
+    EXPECT_TRUE(lua_toboolean(m_Scriptlibcontext.m_LuaState, -1));
+    lua_pop(m_Scriptlibcontext.m_LuaState, 1);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies Lua wrapped metrics measure overflowing words and fitting text on either layout backend (#13387).
+TEST_F(FontScriptTest, ScriptGetTextMetricsWrapped)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/font/text_metrics_whitespace.goc", dmHashString64("/text_metrics_wrapped"));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    lua_getglobal(m_Scriptlibcontext.m_LuaState, "text_metrics_wrapped_passed");
+    EXPECT_TRUE(lua_toboolean(m_Scriptlibcontext.m_LuaState, -1));
+    lua_pop(m_Scriptlibcontext.m_LuaState, 1);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 TEST_F(FontTest, DynamicGlyph)
@@ -948,8 +1137,8 @@ TEST_F(FontTest, PrewarmTextRejectsCallbackAfterScriptInstanceReuse)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", (void**)&font));
     ASSERT_NE((void*)0, font);
 
-    // Occupy the only worker thread so both prewarm requests remain pending
-    // until the two script instances have been created and destroyed/reused.
+    // Occupy the worker so both requests remain pending during instance reuse.
+    // Without workers they already remain pending until JobSystemUpdate().
     int32_t blocker_started = 0;
     int32_t blocker_allow_finish = 0;
     Job blocker = {};
@@ -957,16 +1146,19 @@ TEST_F(FontTest, PrewarmTextRejectsCallbackAfterScriptInstanceReuse)
     blocker.m_Context = &blocker_started;
     blocker.m_Data = &blocker_allow_finish;
 
-    HJob blocker_job = JobSystemCreateJob(m_JobContext, &blocker);
-    ASSERT_NE((HJob)0, blocker_job);
-    ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobContext, blocker_job));
-
-    uint64_t blocker_stop_time = dmTime::GetMonotonicTime() + 500000;
-    while (!dmAtomicGet32(&blocker_started) && dmTime::GetMonotonicTime() < blocker_stop_time)
+    if (dmThread::PlatformHasThreadSupport())
     {
-        dmTime::Sleep(1000);
+        HJob blocker_job = JobSystemCreateJob(m_JobContext, &blocker);
+        ASSERT_NE((HJob)0, blocker_job);
+        ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobContext, blocker_job));
+
+        uint64_t blocker_stop_time = dmTime::GetMonotonicTime() + 500000;
+        while (!dmAtomicGet32(&blocker_started) && dmTime::GetMonotonicTime() < blocker_stop_time)
+        {
+            dmTime::Sleep(1000);
+        }
+        ASSERT_EQ(1, dmAtomicGet32(&blocker_started));
     }
-    ASSERT_EQ(1, dmAtomicGet32(&blocker_started));
 
     // The first instance starts a prewarm request. Its Lua callback remembers
     // this instance's context-table reference plus callback/self indices.
@@ -1017,6 +1209,7 @@ TEST_F(FontTest, PrewarmTextRejectsCallbackAfterScriptInstanceReuse)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Face-only vector prewarming uses the curve reference size without allocating effect bitmaps.
 TEST_F(FontTest, VectorFontPrewarmWithoutEffectsUsesCurveReferenceSize)
 {
     const char path_font[] = "/font/dynamic_vector.fontc";
@@ -1052,6 +1245,7 @@ TEST_F(FontTest, VectorFontPrewarmWithoutEffectsUsesCurveReferenceSize)
     dmResource::Release(m_Factory, font);
 }
 
+// Vector effect prewarming uses the bitmap size authored on the font resource.
 TEST_F(FontTest, VectorFontBitmapPrewarmUsesFontResourceSize)
 {
     const char path_font[] = "/font/dynamic_vector_outline.fontc";
@@ -1089,6 +1283,7 @@ TEST_F(FontTest, VectorFontBitmapPrewarmUsesFontResourceSize)
     dmResource::Release(m_Factory, font);
 }
 
+// Static vector effects render from baked bitmaps without loading the source font.
 TEST_F(FontTest, StaticVectorEffectsUseBakedBitmapsWithoutSourceFont)
 {
     const char* paths[] = { "/font/static_vector_outline.fontc", "/font/static_vector_shadow.fontc" };
@@ -1137,6 +1332,7 @@ TEST_F(FontTest, StaticVectorEffectsUseBakedBitmapsWithoutSourceFont)
     }
 }
 
+// Script prewarming reports the unsupported generation mode of a static font.
 TEST_F(FontTest, ScriptPrewarmStaticFontReportsGlyphGeneration)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -1165,6 +1361,7 @@ TEST_F(FontTest, ScriptPrewarmStaticFontReportsGlyphGeneration)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+// Script prewarming generates vector effects before the font is first rendered.
 TEST_F(FontTest, ScriptPrewarmVectorEffectsBeforeRendering)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -1532,7 +1729,7 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
@@ -1609,7 +1806,7 @@ TEST_F(GuiTest, GuiPreparedTextLayoutInvalidation)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -1708,7 +1905,7 @@ TEST_F(GuiTest, GuiPreparedTextLayoutLifecycle)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -1745,7 +1942,7 @@ TEST_F(GuiTest, GuiSelectedBaseStyle)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     dmGui::HScene scene = GetGuiComponent(m_Collection)->m_Scene;
@@ -1799,7 +1996,7 @@ TEST_F(GuiTest, GuiPreparedRichTextLayout)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -1839,7 +2036,7 @@ TEST_F(GuiTest, GuiPreparedRichTextLayout)
 TEST_F(GuiTest, GuiLayoutObjectsAreCurrentOnDemand)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_layout_objects_on_demand.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     bool tests_done = false;
     // Rendering would populate the cache and hide failures in the on-demand script path.
@@ -1849,6 +2046,51 @@ TEST_F(GuiTest, GuiLayoutObjectsAreCurrentOnDemand)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verifies GUI sprite positions match rendering across pivots, wrapping, RTL, legacy padding, and cached pivot changes (#13397).
+TEST_P(GuiLayoutObjectPivotTest, SpritePositionMatchesRender)
+{
+    dmGui::SetDefaultResolution(m_GuiContext, 640, 480);
+    dmGui::SetPhysicalResolution(m_GuiContext, 640, 480);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::FontResource* font_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/gui/font_valid_font.fontc", (void**)&font_resource));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(layout_object_text_cases); ++i)
+    {
+        lua_pushstring(L, GetParam());
+        lua_setglobal(L, "layout_object_pivot");
+        SetLayoutObjectTextCase(L, layout_object_text_cases[i], font_resource);
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/layout_object_pivot.goc", dmHashString64("/go"));
+        ASSERT_NE(0, go);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        HTextLayout layout = QueueGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout;
+        ASSERT_NE((HTextLayout)0, layout);
+        ASSERT_GE(TextLayoutGetLineCount(layout), layout_object_text_cases[i].m_MinLineCount);
+        CheckLayoutObjectRenderPosition(L, m_RenderContext, Point3(320.0f, 240.0f, 0.0f), strcmp(GetParam(), "NW") == 0);
+        dmRender::ClearRenderObjects(m_RenderContext);
+
+        lua_pushstring(L, strcmp(GetParam(), "NW") == 0 ? "CENTER" : "NW");
+        lua_setglobal(L, "layout_object_pivot");
+        dmMessage::URL url;
+        dmMessage::ResetURL(&url);
+        url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+        url.m_Path = dmHashString64("/go");
+        url.m_Fragment = dmHashString64("gui");
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&url, &url, dmHashString64("sample"), 0, 0, 0, 0, 0, 0));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        ASSERT_EQ(layout, QueueGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout);
+        CheckLayoutObjectRenderPosition(L, m_RenderContext, Point3(320.0f, 240.0f, 0.0f), strcmp(GetParam(), "NW") != 0);
+        dmRender::ClearRenderObjects(m_RenderContext);
+        DeleteInstance(m_Collection, go);
+    }
+    dmResource::Release(m_Factory, font_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+INSTANTIATE_TEST_CASE_P(AllPivots, GuiLayoutObjectPivotTest, jc_test_values_in(layout_object_pivots));
+
 TEST_F(GuiTest, GuiRichTextLinkInteraction)
 {
     const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -1857,7 +2099,7 @@ TEST_F(GuiTest, GuiRichTextLinkInteraction)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -1947,7 +2189,7 @@ TEST_F(GuiTest, GuiRichTextLinkTargetFontReload)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -2013,7 +2255,7 @@ TEST_F(GuiTest, GuiRichTextLinkInteractionUsesRenderLayerOrder)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -2064,7 +2306,7 @@ TEST_F(GuiTest, GuiRichTextAnimationAdvances)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -2097,7 +2339,7 @@ TEST_F(GuiTest, GuiPreparedTextLayoutDestroyedBeforeDraw)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
@@ -2135,7 +2377,7 @@ TEST_F(LabelComponentTest, LabelTextProperty)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -2159,6 +2401,74 @@ TEST_F(LabelComponentTest, LabelTextProperty)
     ASSERT_STREQ("", desc.m_Variant.m_Text);
 }
 
+// Verifies label sprite positions match rendering across pivots, wrapping, RTL, and legacy padding, preserving working NW content (#13397).
+TEST_P(LabelLayoutObjectPivotTest, SpritePositionMatchesRender)
+{
+    dmGameSystem::LabelResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/label/layout_object_pivot.labelc", (void**)&resource));
+    dmGameSystemDDF::LabelDesc replacement = *resource->m_DDF;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(layout_object_pivots); ++i)
+    {
+        if (strcmp(GetParam(), layout_object_pivots[i]) == 0)
+            replacement.m_Pivot = (dmGameSystemDDF::LabelDesc::Pivot)i;
+    }
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmGameSystemDDF::LabelDesc::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64("/label/layout_object_pivot.labelc"), buffer.Begin(), buffer.Size()));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(layout_object_text_cases); ++i)
+    {
+        SetLayoutObjectTextCase(L, layout_object_text_cases[i], resource->m_Font);
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/layout_object_pivot.goc", dmHashString64("/go"));
+        ASSERT_NE(0, go);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        HTextLayout layout = QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
+        ASSERT_NE((HTextLayout)0, layout);
+        ASSERT_GE(TextLayoutGetLineCount(layout), layout_object_text_cases[i].m_MinLineCount);
+        CheckLayoutObjectRenderPosition(L, m_RenderContext, Point3(0.0f, 0.0f, 0.0f), strcmp(GetParam(), "NW") == 0);
+        dmRender::ClearRenderObjects(m_RenderContext);
+        DeleteInstance(m_Collection, go);
+    }
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+INSTANTIATE_TEST_CASE_P(AllPivots, LabelLayoutObjectPivotTest, jc_test_values_in(layout_object_pivots));
+
+// Verifies a position query does not replace the captured label layout after a font version change.
+TEST_F(LabelComponentTest, LabelLayoutObjectQueryUsesCapturedLayout)
+{
+    dmGameSystem::FontResource* font_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/label/font_valid_font.fontc", (void**)&font_resource));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    SetLayoutObjectTextCase(L, layout_object_text_cases[0], font_resource);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/layout_object_pivot.goc", dmHashString64("/go"));
+    ASSERT_NE(0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::LabelComponent* component = GetLabelComponent(go, dmHashString64("label"));
+    HTextLayout layout = dmGameSystem::CompLabelGetTextLayout(component);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(1u, TextLayoutGetObjectCount(layout));
+    // Retain the layout so an incorrect query can be detected without dereferencing freed storage.
+    TextLayoutAcquire(layout);
+    const uint32_t ref_count = layout->m_RefCount;
+    ++font_resource->m_Version;
+    float x, y;
+    EXPECT_TRUE(dmGameSystem::CompLabelGetLayoutObjectPosition(component, layout, TextLayoutGetObjects(layout), &x, &y));
+    EXPECT_EQ(ref_count, layout->m_RefCount);
+    EXPECT_NE(layout, dmGameSystem::CompLabelGetTextLayout(component));
+    TextLayoutRelease(layout);
+
+    DeleteInstance(m_Collection, go);
+    dmResource::Release(m_Factory, font_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(LabelComponentTest, LabelUserDataSurvivesPoolCompaction)
 {
     const dmhash_t victim_go_id = dmHashString64("/victim");
@@ -2171,9 +2481,9 @@ TEST_F(LabelComponentTest, LabelUserDataSurvivesPoolCompaction)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance victim = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", victim_go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, victim);
+    ASSERT_NE(0, victim);
     dmGameObject::HInstance target = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", target_go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, target);
+    ASSERT_NE(0, target);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -2222,7 +2532,7 @@ TEST_F(LabelComponentTest, LabelSelectedBaseStyles)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/styled_labels.goc", dmHashString64("/go"));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -2278,7 +2588,7 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutInvalidation)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -2368,7 +2678,7 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutInvalidation)
 
     const dmhash_t font_go_id = dmHashString64("/font_go");
     dmGameObject::HInstance font_go = Spawn(m_Factory, m_Collection, "/resource/res_getset_prop.goc", font_go_id);
-    ASSERT_NE((void*)0, font_go);
+    ASSERT_NE(0, font_go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -2404,7 +2714,7 @@ TEST_F(LabelComponentTest, LabelRichTextAnimationAdvances)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     PostLabelSetText(m_Collection, go_id, label_id, "<wave amplitude=4 hz=1 fit=span>Wave</wave>", (uintptr_t)go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -2441,7 +2751,7 @@ TEST_F(LabelComponentTest, LabelRichTextLinkHover)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     PostLabelSetText(m_Collection, go_id, label_id, "<link id=docs>Link</link>", (uintptr_t)go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -2503,7 +2813,7 @@ TEST_F(LabelComponentTest, LegacyRichTextLinkWrappedSpriteInteraction)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/link_hover.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     PostLabelSetText(m_Collection, go_id, label_id, "<link id=icon src=/icon.png><sprite width=32px height=32px/></link>", (uintptr_t)go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -2560,7 +2870,7 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutDestroyedBeforeDraw)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -2621,7 +2931,7 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutFallbackMutation)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -2664,6 +2974,85 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutFallbackMutation)
 
 /* GUI Box Render */
 
+// Upload all scenes' geometry once, preserve their buffer ranges, and avoid uploads or
+// stale box draws on disabled and text-only frames. Text must still be submitted.
+TEST_F(GuiTest, SharedVertexBufferUpload)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    const uint32_t scene_count = 4;
+    for (uint32_t i = 0; i < scene_count; ++i)
+    {
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_flush_test.goc", dmHashBuffer64(&i, sizeof(i)));
+        ASSERT_NE((dmGameObject::HInstance)0, go);
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiWorld* world = GetGuiComponent(m_Collection)->m_World;
+    ASSERT_EQ(scene_count, world->m_Components.Size());
+    dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*)world->m_VertexBuffer;
+    dmRender::RenderContext* render_context = (dmRender::RenderContext*)m_RenderContext;
+    const char* box_ids[] = {"box1", "box2", "box3", "box4"};
+    const uint32_t enabled_scenes[] = {4, 2, 0, 4, 4};
+
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(enabled_scenes); ++frame)
+    {
+        bool boxes_visible = frame != 3;
+        for (uint32_t i = 0; i < scene_count; ++i)
+        {
+            dmGameSystem::GuiComponent* component = world->m_Components[i];
+            component->m_Enabled = i < enabled_scenes[frame];
+            for (uint32_t box = 0; box < DM_ARRAY_SIZE(box_ids); ++box)
+            {
+                dmGui::HNode node = dmGui::GetNodeById(component->m_Scene, box_ids[box]);
+                ASSERT_NE((dmGui::HNode)0, node);
+                dmGui::SetNodeVisible(component->m_Scene, node, boxes_visible);
+                // Different positions each frame catch stale uploads after shrinking or empty frames.
+                dmGui::SetNodePosition(component->m_Scene, node, Point3(i * 100 + frame, box * 20, 0));
+            }
+        }
+
+        uint32_t expected_boxes = boxes_visible ? enabled_scenes[frame] * 4 : 0;
+        uint32_t expected_vertices = expected_boxes * 6;
+        uint32_t expected_bytes = expected_vertices * sizeof(dmGameSystem::BoxVertex);
+        uint32_t uploads_before = buffer->m_DataSetCount;
+        uint64_t bytes_before = buffer->m_DataSetBytes;
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmGraphics::ResetDrawCount();
+        dmRender::RenderListBegin(m_RenderContext);
+        ASSERT_TRUE(dmGameObject::Render(m_Collection));
+        dmRender::RenderListEnd(m_RenderContext);
+
+        EXPECT_EQ(expected_vertices ? 1U : 0U, buffer->m_DataSetCount - uploads_before);
+        EXPECT_EQ((uint64_t)expected_bytes, buffer->m_DataSetBytes - bytes_before);
+        ASSERT_EQ(expected_vertices, world->m_ClientVertexBuffer.Size());
+        ASSERT_EQ(expected_boxes, world->m_GuiRenderObjects.Size());
+        ASSERT_EQ(expected_boxes + enabled_scenes[frame] * 5, render_context->m_RenderList.Size());
+        if (expected_vertices)
+        {
+            ASSERT_EQ(expected_bytes, dmGraphics::GetVertexBufferSize(world->m_VertexBuffer));
+            ASSERT_EQ(0, memcmp(buffer->m_Buffer, world->m_ClientVertexBuffer.Begin(), expected_bytes));
+        }
+        for (uint32_t i = 0; i < expected_boxes; ++i)
+        {
+            const dmRender::RenderObject& ro = world->m_GuiRenderObjects[i].m_RenderObject;
+            ASSERT_EQ(world->m_VertexBuffer, ro.m_VertexBuffer);
+            ASSERT_EQ(i * 6, ro.m_VertexStart);
+            ASSERT_EQ(6U, ro.m_VertexCount);
+            if (i > 0)
+                ASSERT_LT(world->m_GuiRenderObjects[i - 1].m_SortOrder, world->m_GuiRenderObjects[i].m_SortOrder);
+        }
+
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        if (enabled_scenes[frame])
+            ASSERT_GT(dmGraphics::GetDrawCount(), 0U);
+        else
+            ASSERT_EQ(0U, dmGraphics::GetDrawCount());
+        dmGraphics::Flip(m_GraphicsContext);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 void AssertVertexEqual(const dmGameSystem::BoxVertex& lhs, const dmGameSystem::BoxVertex& rhs)
 {
     EXPECT_NEAR(lhs.m_Position[0], rhs.m_Position[0], EPSILON);
@@ -2691,7 +3080,7 @@ TEST_P(BoxRenderTest, BoxRender)
 
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
@@ -3081,7 +3470,7 @@ TEST_F(GuiTest, PerPropertyRegistration)
 
     // Create a GUI component
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     // Test setting per-property with key
     dmGameObject::PropertyOptions options;
@@ -3137,7 +3526,7 @@ TEST_F(GuiTest, PerPropertyPrecedence)
 
     // Create a GUI component
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     dmGameObject::PropertyOptions options;
     dmGameObject::AddPropertyOptionsKey(&options, dmHashString64("test_node"));
@@ -3164,7 +3553,7 @@ TEST_F(GuiTest, GuiCustomPropertiesFromDDF)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
     ASSERT_NE((void*)0x0, gui_component);
@@ -3189,7 +3578,7 @@ TEST_F(GuiTest, GuiCustomPropertiesFromLayoutDDF)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/custom_properties_layout.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
+    ASSERT_NE(0, go);
 
     dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
     ASSERT_NE((void*)0x0, gui_component);

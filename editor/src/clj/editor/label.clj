@@ -41,7 +41,7 @@
             [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Label$LabelDesc Label$LabelDesc$BlendMode Label$LabelDesc$Pivot]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL GL3]
            [editor.gl.shader ShaderLifecycle]))
 
 (set! *warn-on-reflection* true)
@@ -79,13 +79,13 @@
                          (->color-vtx vcount)
                          renderables)))))
 
-(defn render-lines [^GL2 gl render-args renderables rcount]
+(defn render-lines [^GL3 gl render-args renderables rcount]
   (when-let [vb (gen-lines-vb renderables)]
     (let [vertex-binding (vtx/use-with ::lines vb line-shader)]
       (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
         (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
 
-(defn- gen-vb [^GL2 gl renderables render-args]
+(defn- gen-vb [^GL3 gl renderables render-args]
   (let [user-data (get-in renderables [0 :user-data])
         font-data (get-in user-data [:text-data :font-data])
         text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
@@ -99,7 +99,7 @@
     (when font-data
       (font/request-vertex-buffer gl node-ids font-data text-entries render-args))))
 
-(defn render-tris [^GL2 gl render-args renderables rcount]
+(defn render-tris [^GL3 gl render-args renderables rcount]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         font-data (get-in user-data [:text-data :font-data])
@@ -115,7 +115,6 @@
               shader (or material-shader shader)
               vertex-binding (vtx/use-with ::tris vb shader)]
           (gl/with-gl-bindings gl render-args (into [shader vertex-binding gpu-texture] (:vector-textures font-data))
-            (font/set-vector-uniforms! gl shader font-data)
             (light/bind-preview-lights-for-shader! gl shader render-args)
             (gl/set-blend-mode gl blend-mode)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
@@ -125,7 +124,6 @@
         (let [id-shader (or (:selection-shader font-data) id-shader)
               vertex-binding (vtx/use-with ::tris-selection vb id-shader)]
           (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable)) (into [id-shader vertex-binding gpu-texture] (:vector-textures font-data))
-            (font/set-vector-uniforms! gl id-shader font-data)
             (when-not (:vector? font-data)
               (shader/set-uniform id-shader gl "color" (scene-picking/renderable-picking-id-uniform renderable)))
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
@@ -179,7 +177,8 @@
   (let [scene {:node-id _node-id
                :aabb aabb}
         font-map (get-in text-data [:font-data :font-map])
-        material-shader (or (get-in text-data [:font-data :preview-shader]) material-shader)
+        material-shader (cond-> material-shader
+                          (get-in text-data [:font-data :vector?]) font/with-vector-samplers)
         texture-recip-uniform (some-> font-map font/get-texture-recip-uniform)
         material-shader (assoc-in material-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
     (if text-data
@@ -210,8 +209,13 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Label$LabelDesc pb)}))
 
-(g/defnk produce-build-targets [_node-id resource font material save-value dep-build-targets font-map ^:try markup-error style]
-  (or (font/style-error _node-id font-map style)
+(defn- font-size-error [node-id font-map font-size]
+  (when (:vector? font-map)
+    (validation/prop-error :fatal node-id :font-size validation/prop-zero-or-below? font-size (properties/label-message :label :font-size))))
+
+(g/defnk produce-build-targets [_node-id resource font material save-value dep-build-targets font-map ^:try markup-error style font-size]
+  (or (font-size-error _node-id font-map font-size)
+      (font/style-error _node-id font-map style)
       (when (g/error-fatal? markup-error) markup-error)
       (when-let [errors (->> [[font :font font-message]
                               [material :material material-message]]
@@ -225,8 +229,8 @@
                                          (pair (:resource res) res)))
                                  dep-build-targets)
             dep-resources (mapv (fn [[label resource]]
-                                 (pair label (get deps-by-source resource)))
-                               [[:font font] [:material material]])]
+                                  (pair label (get deps-by-source resource)))
+                                [[:font font] [:material material]])]
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
@@ -252,9 +256,8 @@
             (dynamic tooltip (properties/tooltip-dynamic :label :size)))
   (property font-size g/Num (default (protobuf/default Label$LabelDesc :font-size))
             (dynamic visible (g/fnk [font-data] (:vector? font-data)))
-            (dynamic error (g/fnk [_node-id font-size font-data]
-                             (when (:vector? font-data)
-                               (validation/prop-error :fatal _node-id :font-size validation/prop-zero-or-below? font-size (properties/label-message :label :font-size)))))
+            (dynamic error (g/fnk [_node-id font-size font-map]
+                             (font-size-error _node-id font-map font-size)))
             (dynamic label (properties/label-dynamic :label :font-size)))
   (property color types/Color (default (protobuf/default Label$LabelDesc :color))
             (dynamic label (properties/label-dynamic :label :color))
@@ -337,29 +340,18 @@
   (output text-layout g/Any :cached (g/fnk [size font-map font-data font-size text line-break leading tracking style]
                                       (font/layout-text (some-> font-map (assoc :style style)) text line-break (first size) tracking leading
                                                         (when (:vector? font-data) font-size))))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size line-break color outline shadow pivot size]
-                                   (let [text-size [(:width text-layout) (:height text-layout) 0]
-                                         text-data {:text-layout text-layout
-                                                    :font-data font-data
-                                                    :color color
-                                                    :outline outline
-                                                    :shadow shadow
-                                                    :font-size (when (:vector? font-data) font-size)
-                                                    :align (pivot->h-align pivot)}]
-                                     (cond
-                                       (nil? font-data)
-                                       text-data
-
-                                       (get-in font-data [:font-map :native-renderer-spec])
-                                       (assoc text-data
-                                         :box-height (second size)
-                                         :offset (pivot-offset pivot size)
-                                         :vertical-align (pivot->v-align pivot))
-
-                                       :else
-                                       (assoc text-data :offset (let [[x y] (pivot-offset pivot text-size)
-                                                                      h (second text-size)]
-                                                                  [x (+ y (- h (:max-ascent text-layout)))]))))))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color outline shadow pivot size]
+                                   (cond-> {:text-layout text-layout
+                                            :font-data font-data
+                                            :color color
+                                            :outline outline
+                                            :shadow shadow
+                                            :font-size (when (:vector? font-data) font-size)
+                                            :align (pivot->h-align pivot)}
+                                     font-data
+                                     (assoc :box-height (second size)
+                                            :offset (pivot-offset pivot size)
+                                            :vertical-align (pivot->v-align pivot)))))
   (output aabb g/Any :cached (g/fnk [pivot size]
                                (let [offset-fn (partial mapv + (pivot-offset pivot size))
                                      [min-x min-y _] (offset-fn [0 0 0])

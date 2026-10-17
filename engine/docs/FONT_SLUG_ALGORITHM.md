@@ -26,16 +26,21 @@ Each runtime Vector font map uses these textures:
 
 | Texture | Format | Dimensions | Contents |
 | --- | --- | --- | --- |
-| Curves | `RGBA16F` | **4096 × 8 texels** | Quadratic control points |
-| Bands | `R32UI` | **4096 × 8 texels** | Band headers and references to curves |
+| Curves | `RGBA16F` | **4096 × 8–256 texels** | Quadratic control points |
+| Bands | `R32UI` | **4096 × 8–256 texels** | Band headers and references to curves |
 | Effects (when enabled) | `RGB` | Font cache width × height | SDF outlines and bitmap shadows |
 
 The curve and band textures contain numeric data. Curve records and band lists
 are kept within texture rows. The effects texture stores glyph images in cells
 and follows the font's cache settings.
 
-The editor's GL 2 preview uses the same curve records, but stores band fields in
-the R and G channels of an `RGBA32F` texture. Its curve and band textures are
+The runtime starts with eight rows in each numeric texture. When the atlas fills,
+it doubles their height at the next frame boundary, up to 256 rows, and rebuilds
+the cached glyph records. Queued text retains its texture handles for the current
+frame. At the limit, overflow still resets the cache to reclaim unused glyphs.
+
+The editor preview uses the same texture formats and shaders as the runtime.
+Its curve and band textures are
 **4096 texels wide**, with each height determined by the occupied rows, up to
 **256 rows**.
 
@@ -64,9 +69,30 @@ blur requires rebuilding its glyph data.
 | Static (`runtime: false`) | Bob generates curves and optional effect images for the requested characters at build time | Glyph bank |
 | Dynamic (`runtime: true`) | Prewarming and later glyph requests generate data at runtime | Source TTF/OTF |
 
+Omitting `runtime` means Static. New font templates explicitly set `runtime: true`.
+
 Both modes use the same CPU effect generator. Static fonts still pack their
 curves into GPU records and decompress/upload effect images when cached.
 Dynamic prewarming also runs on the CPU; it does not make the font static.
+
+### Updating projects that used runtime generation
+
+The project-wide `font.runtime_generation` setting is deprecated and has no
+effect. Existing fonts that omit `runtime` now use Static generation, even if
+the old project setting is enabled. To retain dynamic glyph generation:
+
+1. Set **Glyph Generation** to **Dynamic** (`runtime: true`) in each SDF or Vector
+   `.font` resource that should generate glyphs at runtime. Keep its existing
+   font mode and material. Bitmap fonts remain Static.
+2. Enable **Use full text layout system** in the project's App Manifest for
+   target builds. Put representative text in **Prewarm Text** (`characters` in
+   the `.font` file) to prepare common glyphs when the font loads.
+3. Remove `font.runtime_generation` from `game.project`.
+
+This is an explicit migration: loading a project does not change its font
+generation choices. Fonts that remain Static only include the glyphs selected
+at build time, so review fonts used with runtime font collections or text that
+contains characters outside that set.
 
 ## Materials and text layout
 
@@ -82,15 +108,16 @@ colors. Face-only Vector fonts need no Bitmap Size.
 
 ## Cache and platform limits
 
-The runtime curve and band textures have fixed dimensions. If a glyph does not
-fit, the cache keeps existing records intact, skips that glyph, and schedules
-a reset for the next frame. A glyph set that exceeds this capacity cannot be
-fully cached at once. Effect atlas growth is applied before render batches
+If a glyph does not fit, the runtime keeps existing records intact, skips that
+glyph, and schedules numeric atlas growth and a cache reset for the next frame.
+A glyph set that exceeds the maximum 4096 × 256 capacity cannot be fully cached
+at once. Numeric and effect atlas growth is applied before render batches
 capture texture handles.
 
 Runtime rendering requires `RGBA16F` and unsigned `R32UI` texture support. It
-does not provide a GLES 2 / WebGL 1 fallback. The editor's GL 2 representation
-is a separate preview path.
+does not provide a GLES 2 / WebGL 1 fallback. Projects using vector fonts must
+explicitly enable **Shader > Exclude GLES 2.0** (`shader.exclude_gles_sm100`) in
+`game.project`. Otherwise, compiling the GLES 2 shader variant reports an error.
 
 The CPU packing code is in [font_vector_slug.cpp](../font/src/font_vector_slug.cpp).
 The shared coverage shader is [font-vector-slug.glsl](../font/content/builtins/fonts/font-vector-slug.glsl),

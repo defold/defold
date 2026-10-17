@@ -1,25 +1,11 @@
 #! /usr/bin/env bash
 
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 set -e
 
 VERSION=4.0.6
 URL=https://github.com/emscripten-core/emsdk/archive/${VERSION}.tar.gz
-PLATFORM=`uname`
-PLATFORM="$(tr [A-Z] [a-z] <<< "$PLATFORM")"
+PLATFORM=$(uname | tr '[:upper:]' '[:lower:]')
+EMSDK_CMD=./emsdk
 
 PWD=`pwd`
 
@@ -28,9 +14,15 @@ if [ "${ARCH}" == 'i386' ]; then
 	ARCH='x86_64'
 fi
 
-if [ "${PLATFORM}" == 'darwin' ]; then
-	PLATFORM='macos'
-fi
+case "${PLATFORM}" in
+	darwin)
+		PLATFORM='macos'
+		;;
+	mingw*|msys*|cygwin*)
+		PLATFORM='win32'
+		EMSDK_CMD=./emsdk.bat
+		;;
+esac
 
 TARGET_PATH=${PWD}/local_sdks
 TMP=${TARGET_PATH}/_tmpdir
@@ -53,7 +45,7 @@ fi
 cd emsdk-${VERSION}
 
 if [ ! -d "upstream" ]; then
-	./emsdk install latest
+	"${EMSDK_CMD}" install "${VERSION}"
 fi
 
 cd ..

@@ -95,6 +95,15 @@ struct FontGlyphBitmap
     uint8_t     m_Flags;
 };
 
+/*#
+ * Commands used to describe a glyph's analytical outline.
+ * @enum
+ * @name FontCurveType
+ * @member FONT_CURVE_MOVE_TO Starts a contour at m_Points[0].
+ * @member FONT_CURVE_LINE_TO Adds a line from the current point to m_Points[0].
+ * @member FONT_CURVE_QUADRATIC_TO Adds a quadratic curve with control point m_Points[0] and endpoint m_Points[1].
+ * @member FONT_CURVE_CLOSE Closes the current contour; no points are used.
+ */
 enum FontCurveType
 {
     FONT_CURVE_MOVE_TO = 0,
@@ -103,30 +112,61 @@ enum FontCurveType
     FONT_CURVE_CLOSE
 };
 
+/*#
+ * A point in a glyph outline, measured in pixels at the requested glyph size.
+ * Coordinates are relative to the glyph's pen origin on the baseline.
+ * @struct
+ * @name FontCurvePoint
+ * @member m_X [type: float] Horizontal coordinate, increasing to the right.
+ * @member m_Y [type: float] Vertical coordinate, increasing above the baseline.
+ */
 struct FontCurvePoint
 {
     float m_X;
     float m_Y;
 };
 
+/*#
+ * One command in a glyph outline. The command type determines which points are used.
+ * @struct
+ * @name FontCurveCommand
+ * @member m_Points [type: FontCurvePoint[2]] Control and endpoint coordinates. See #FontCurveType.
+ * @member m_Type [type: uint8_t] Command type from #FontCurveType.
+ * @member m_Reserved0 [type: uint8_t] Reserved; must be zero.
+ * @member m_Reserved1 [type: uint16_t] Reserved; must be zero.
+ */
 struct FontCurveCommand
 {
-    FontCurvePoint  m_Points[2];
-    uint8_t         m_Type;
-    uint8_t         m_Reserved0;
-    uint16_t        m_Reserved1;
+    FontCurvePoint m_Points[2];
+    uint8_t        m_Type;
+    uint8_t        m_Reserved0;
+    uint16_t       m_Reserved1;
 };
 
+/*#
+ * Analytical glyph outline and unpadded bounds at the requested glyph size.
+ * Generated commands belong to the glyph and are released by FontFreeGlyph.
+ * @struct
+ * @name FontGlyphOutline
+ * @member m_Commands [type: FontCurveCommand*] Contour commands, or null when no outline was generated.
+ * @member m_CommandCount [type: uint32_t] Number of contour commands.
+ * @member m_Flags [type: uint32_t] Reserved; must be zero.
+ * @member m_Width [type: float] Unpadded outline width in pixels.
+ * @member m_Height [type: float] Unpadded outline height in pixels.
+ * @member m_LeftBearing [type: float] Horizontal offset from the pen origin to the outline's left edge.
+ * @member m_Ascent [type: float] Outline extent above the baseline in pixels.
+ * @member m_Descent [type: float] Distance from the baseline to the outline's bottom edge in pixels; positive below the baseline.
+ */
 struct FontGlyphOutline
 {
-    FontCurveCommand*   m_Commands;
-    uint32_t            m_CommandCount;
-    uint32_t            m_Flags;
-    float               m_Width;        // Unpadded analytical outline width
-    float               m_Height;       // Unpadded analytical outline height
-    float               m_LeftBearing;  // Outline offset from the glyph origin
-    float               m_Ascent;       // Outline extent above the baseline
-    float               m_Descent;      // Positive outline extent below the baseline
+    FontCurveCommand* m_Commands;
+    uint32_t          m_CommandCount;
+    uint32_t          m_Flags;
+    float             m_Width;       // Unpadded analytical outline width
+    float             m_Height;      // Unpadded analytical outline height
+    float             m_LeftBearing; // Outline offset from the glyph origin
+    float             m_Ascent;      // Outline extent above the baseline
+    float             m_Descent;     // Distance to the outline's bottom edge, positive below the baseline
 };
 
 /*#
@@ -155,6 +195,8 @@ struct FontGlyphVector
  * @struct
  * @name FontGlyph
  * @member m_Bitmap [type: FontGlyphBitmap] The bitmap data of the glyph.
+ * @member m_Outline [type: FontGlyphOutline] Analytical outline commands and unpadded bounds.
+ * @member m_Vector [type: FontGlyphVector] Prebaked normalized vector curves, when available.
  * @member m_Codepoint [type: uint32_t] The unicode code point
  * @member m_Width [type: float] The glyph bounding width
  * @member m_Height [type: float] The glyph bounding height
@@ -165,17 +207,17 @@ struct FontGlyphVector
  */
 struct FontGlyph
 {
-    FontGlyphBitmap     m_Bitmap;
-    FontGlyphOutline    m_Outline;
-    FontGlyphVector     m_Vector;
-    uint32_t        m_Codepoint;  // Unicode code point (0 if not available)
-    uint32_t        m_GlyphIndex; // glyph index into the font
-    float           m_Width;
-    float           m_Height;
-    float           m_Advance;
-    float           m_LeftBearing;
-    float           m_Ascent;
-    float           m_Descent;
+    FontGlyphBitmap  m_Bitmap;
+    FontGlyphOutline m_Outline;
+    FontGlyphVector  m_Vector;
+    uint32_t         m_Codepoint;  // Unicode code point (0 if not available)
+    uint32_t         m_GlyphIndex; // glyph index into the font
+    float            m_Width;
+    float            m_Height;
+    float            m_Advance;
+    float            m_LeftBearing;
+    float            m_Ascent;
+    float            m_Descent;
 };
 
 typedef struct Font* HFont;

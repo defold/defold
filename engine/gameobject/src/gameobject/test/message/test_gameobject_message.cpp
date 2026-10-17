@@ -222,7 +222,7 @@ void DispatchCallback(dmMessage::Message *message, void* user_ptr)
 TEST_F(MessageTest, TestPostNamedTo)
 {
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/test_onmessage.goc");
-    ASSERT_NE((void*)0, (void*)instance);
+    ASSERT_NE(0, instance);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, instance, "test_instance"));
     dmhash_t message_id = POST_NAMED_TO_INST_ID;
     dmMessage::URL receiver;
@@ -236,7 +236,7 @@ TEST_F(MessageTest, TestPostNamedTo)
 TEST_F(MessageTest, TestPostDDFTo)
 {
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/test_onmessage.goc");
-    ASSERT_NE((void*)0, (void*)instance);
+    ASSERT_NE(0, instance);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, instance, "test_instance"));
     TestGameObjectDDF::TestMessage ddf;
     ddf.m_TestUint32 = 2;
@@ -261,7 +261,7 @@ TEST_F(MessageTest, TestTable)
 TEST_F(MessageTest, TestComponentMessage)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_message.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
 
     ASSERT_EQ(0U, m_MessageTargetCounter);
@@ -292,7 +292,7 @@ TEST_F(MessageTest, TestComponentMessage)
 TEST_F(MessageTest, TestComponentMessageFail)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_message.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
 
     dmhash_t message_id = dmHashString64("inc");
     dmMessage::URL sender;
@@ -313,7 +313,7 @@ TEST_F(MessageTest, TestComponentMessageFail)
 TEST_F(MessageTest, TestBroadcastDDFMessage)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_broadcast_message.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     dmGameObject::SetIdentifier(m_Collection, go, "cbm");
 
     ASSERT_EQ(0U, m_MessageTargetCounter);
@@ -328,7 +328,7 @@ TEST_F(MessageTest, TestBroadcastDDFMessage)
 TEST_F(MessageTest, TestBroadcastNamedMessage)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_broadcast_message.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
 
     ASSERT_EQ(0U, m_MessageTargetCounter);
@@ -348,7 +348,7 @@ TEST_F(MessageTest, TestBroadcastNamedMessage)
 TEST_F(MessageTest, TestInputFocus)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_no_onmessage.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
 
     dmhash_t message_id = dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor->m_NameHash;
@@ -356,21 +356,21 @@ TEST_F(MessageTest, TestInputFocus)
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     receiver.m_Fragment = 0;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor, 0x0, 0, 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, (uintptr_t)dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor, 0x0, 0, 0));
 
-    ASSERT_EQ(0u, m_Collection->m_Collection->m_InputFocusStack.Size());
+    ASSERT_EQ(0u, dmGameObject::GetCollectionFromHandle(m_Collection)->m_InputFocusStack.Size());
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(1u, m_Collection->m_Collection->m_InputFocusStack.Size());
+    ASSERT_EQ(1u, dmGameObject::GetCollectionFromHandle(m_Collection)->m_InputFocusStack.Size());
 
     message_id = dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor->m_NameHash;
 
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor, 0x0, 0, 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, (uintptr_t)dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor, 0x0, 0, 0));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(0u, m_Collection->m_Collection->m_InputFocusStack.Size());
+    ASSERT_EQ(0u, dmGameObject::GetCollectionFromHandle(m_Collection)->m_InputFocusStack.Size());
 
     dmGameObject::Delete(m_Collection, go, false);
 }
@@ -378,9 +378,9 @@ TEST_F(MessageTest, TestInputFocus)
 TEST_F(MessageTest, TestSetParent)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_no_onmessage.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/test_no_onmessage.goc");
-    ASSERT_NE((void*) 0, (void*) parent);
+    ASSERT_NE(0, parent);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent_test_instance"));
 
@@ -402,29 +402,29 @@ TEST_F(MessageTest, TestSetParent)
     dmhash_t parent_id = dmHashString64("parent_test_instance");
     ddf.m_ParentId = parent_id;
     ddf.m_KeepWorldTransform = 0;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
 
-    ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_EQ(0, dmGameObject::GetParent(go));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_NE(0, dmGameObject::GetParent(go));
     ASSERT_EQ(2.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
     ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
 
     // twice to make sure UpdateTransform has run
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_NE(0, dmGameObject::GetParent(go));
     ASSERT_EQ(2.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
     ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
 
     ddf.m_ParentId = 0;
     ddf.m_KeepWorldTransform = 1;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_EQ(0, dmGameObject::GetParent(go));
     ASSERT_EQ(2.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
     ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
@@ -432,7 +432,7 @@ TEST_F(MessageTest, TestSetParent)
     // twice to make sure UpdateTransform has run
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_EQ(0, dmGameObject::GetParent(go));
     ASSERT_EQ(2.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
     ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
@@ -442,34 +442,34 @@ TEST_F(MessageTest, TestSetParent)
 
     ddf.m_ParentId = parent_id;
     ddf.m_KeepWorldTransform = 1;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_NE(0, dmGameObject::GetParent(go));
     ASSERT_EQ(1.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(sq_2_half, dmGameObject::GetWorldRotation(go).getX(), epsilon);
     ASSERT_NEAR(sq_2_half, dmGameObject::GetWorldRotation(go).getW(), epsilon);
 
     // twice to make sure UpdateTransform has run
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_NE(0, dmGameObject::GetParent(go));
     ASSERT_EQ(1.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(sq_2_half, dmGameObject::GetWorldRotation(go).getX(), epsilon);
     ASSERT_NEAR(sq_2_half, dmGameObject::GetWorldRotation(go).getW(), epsilon);
 
     ddf.m_ParentId = 0;
     ddf.m_KeepWorldTransform = 0;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_EQ(0, dmGameObject::GetParent(go));
     ASSERT_EQ(0.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
     ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
 
     // twice to make sure UpdateTransform has run
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_EQ(0, dmGameObject::GetParent(go));
     ASSERT_EQ(0.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
     ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
@@ -481,7 +481,7 @@ TEST_F(MessageTest, TestSetParent)
 TEST_F(MessageTest, TestPingPong)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_ping_pong.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     dmGameObject::SetIdentifier(m_Collection, go, "test_instance");
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::UpdateContext update_context;
@@ -493,7 +493,7 @@ TEST_F(MessageTest, TestPingPong)
 TEST_F(MessageTest, TestInfPingPong)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_inf_ping_pong.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     dmGameObject::SetIdentifier(m_Collection, go, "test_instance");
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::UpdateContext update_context;
@@ -515,7 +515,7 @@ void CustomMessageDestroyCallback(dmMessage::Message* message)
 TEST_F(MessageTest, MessagePostDispatch)
 {
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/test_onmessage.goc");
-    ASSERT_NE((void*)0, (void*)instance);
+    ASSERT_NE(0, instance);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, instance, "test_instance"));
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));

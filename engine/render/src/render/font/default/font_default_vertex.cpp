@@ -61,8 +61,6 @@ dmGraphics::HVertexDeclaration CreateFontVertexDeclaration(dmGraphics::HContext 
     return decl;
 }
 
-#define HAS_LAYER(mask,layer) ((mask & layer) == layer)
-
 static void ClearGlyphVertex(GlyphVertex& vertex)
 {
     memset(&vertex, 0, sizeof(vertex));
@@ -155,13 +153,20 @@ static void OutputGlyphVector(uint32_t vertexindex,
     (Vector4&)v6.m_Position = transform * Vector4(quad_left + width, quad_bottom + height, 0.0f, 1.0f);
 
     #define SET_VECTOR_VERTEX(v, u, vv) \
+        v.m_Position[3] = v.m_Position[2]; \
         v.m_VectorTexcoord[0] = u; \
         v.m_VectorTexcoord[1] = vv; \
         v.m_VectorTexcoord[2] = curve_count; \
         v.m_VectorTexcoord[3] = 0.0f; \
-        if (bitmap_effect) v.m_VectorEffectParams[0] = sdf_outline; \
-        else memcpy(v.m_VectorEffectParams, banding, sizeof(v.m_VectorEffectParams)); \
-        if (!bitmap_effect) v.m_Position[2] = curve_start;
+        if (bitmap_effect) \
+        { \
+            v.m_VectorEffectParams[0] = sdf_outline; \
+        } \
+        else \
+        { \
+            memcpy(v.m_VectorEffectParams, banding, sizeof(v.m_VectorEffectParams)); \
+            v.m_Position[2] = curve_start; \
+        }
 
     SET_VECTOR_VERTEX(v1, 0.0f, 0.0f)
     SET_VECTOR_VERTEX(v2, 0.0f, 1.0f)
@@ -222,6 +227,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
 
     FontLayoutVertexConfig config = {};
     config.m_Layout = layout;
+    config.m_GlyphScale = base_scale;
     config.m_OutlineColor = dmGraphics::UnpackRGBA(te.m_OutlineColor);
     config.m_ShadowColor = dmGraphics::UnpackRGBA(te.m_ShadowColor);
     config.m_OutlineColor.setW(te.m_OutlineAlpha);
@@ -239,8 +245,16 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
     config.m_BaseShadowAlpha = font_map->m_ShadowAlpha;
     config.m_BaseLayerMask = font_map->m_LayerMask;
     config.m_IsSdf = true;
+    config.m_ScaleShadowOffsets = true;
     config.m_MaxVertexCount = num_vertices;
     config.m_FaceOnly = render_layer_mask == FACE;
+    config.m_RenderDecorations = true;
+    config.m_Transform = te.m_Transform;
+    config.m_Width = te.m_Width;
+    config.m_Height = te.m_Height;
+    config.m_Align = te.m_Align;
+    config.m_VerticalAlign = te.m_VAlign;
+    config.m_MonospacePadding = font_map->m_IsMonospaced ? font_map->m_Padding : 0.0f;
 
     FontLayoutVertexMetrics metrics;
     if (!FontGetLayoutVertexMetrics(config, &metrics))
@@ -290,10 +304,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
         const TextLine& line = lines[i];
         if (line.m_Length == 0)
             continue;
-        float first_x = glyphs[line.m_Index].m_X;
+        const float first_x = TextLayoutGetLineOriginX(layout, i);
         const float first_y = glyphs[line.m_Index].m_Y;
-        for (uint32_t j = line.m_Index + 1; j < line.m_Index + line.m_Length; ++j)
-            first_x = dmMath::Min(first_x, glyphs[j].m_X);
         uint32_t align = te.m_Align;
         if (paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL && align != TEXT_ALIGN_CENTER)
             align = align == TEXT_ALIGN_LEFT ? TEXT_ALIGN_RIGHT : TEXT_ALIGN_LEFT;
@@ -306,16 +318,14 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             if ((g->m_Flags & TEXT_GLYPH_FLAG_OBJECT) || dmUtf8::IsWhiteSpace(g->m_Codepoint))
                 continue;
             if (glyph_slot == metrics.m_GlyphQuadCount)
-                return metrics.m_VertexCount;
+                continue;
 
             TextGlyphRenderData render_data;
             TextLayoutGetGlyphRenderData(layout, *g, config.m_FaceColor, &render_data);
             // The cached curves and effects use the font's reference size.
             const float font_scale = base_scale * g->m_RenderScale;
-            TextGlyph scaled_glyph = *g;
-            scaled_glyph.m_RenderScale = font_scale;
             FontGlyphLayerRenderData layer_data;
-            FontResolveGlyphLayerRenderData(config, scaled_glyph, render_data, &layer_data);
+            FontResolveGlyphLayerRenderData(config, *g, render_data, &layer_data);
             const bool emit_face = (render_layer_mask & FACE) != 0;
             const bool emit_outline = (render_layer_mask & layer_data.m_LayerMask & OUTLINE) != 0;
             const bool emit_shadow = (render_layer_mask & layer_data.m_LayerMask & SHADOW) != 0;
@@ -354,11 +364,12 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                         const FontVectorPaintVertex& src = packed[v];
                         GlyphVertex& dst = vertices[glyph_face_vertexindex + layer * 6 + v];
                         (Vector4&)dst.m_Position = src.m_Position;
+                        dst.m_Position[3] = src.m_Position.getZ();
                         dst.m_Position[2] = src.m_Info.getX();
                         dst.m_VectorTexcoord[0] = src.m_Coords.getX();
                         dst.m_VectorTexcoord[1] = src.m_Coords.getY();
                         dst.m_VectorTexcoord[2] = 1;
-                        dst.m_VectorTexcoord[3] = 3; // COLR paint.
+                        dst.m_VectorTexcoord[3] = 4; // COLR paint; mode 3 is reserved for decorations.
                         (Vector4&)dst.m_VectorEffectParams = src.m_Banding;
                         SetVectorColor(dst, src.m_Color);
                         // Reuse streams occupied only by bitmap/SDF fonts.
@@ -448,8 +459,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   sdf_v1,
                                   true,
                                   layer_data.m_SdfOutline,
-                                  layer_data.m_ShadowX * ((render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_X) ? 1.0f : font_scale),
-                                  layer_data.m_ShadowY * ((render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_Y) ? 1.0f : font_scale),
+                                  layer_data.m_ShadowX,
+                                  layer_data.m_ShadowY,
                                   2.0f,
                                   shadow_color,
                                   0,
@@ -517,6 +528,44 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
         }
     }
 
+    if (metrics.m_DecorationQuadCount)
+    {
+        // Reuse the shared layout geometry for decorations. The glyph loop has
+        // consumed its portion of each layer; only the decoration slots remain.
+        FontLayoutVertexMetrics decoration_metrics = {};
+        decoration_metrics.m_DecorationQuadCount = metrics.m_DecorationQuadCount;
+        decoration_metrics.m_FaceQuadCount = metrics.m_DecorationQuadCount;
+        decoration_metrics.m_ShadowQuadCount = metrics.m_ShadowQuadCount - shadow_vertexindex / 6;
+        decoration_metrics.m_OutlineQuadCount = metrics.m_OutlineQuadCount - (outline_vertexindex / 6 - metrics.m_ShadowQuadCount);
+        decoration_metrics.m_VertexCount = (decoration_metrics.m_FaceQuadCount + decoration_metrics.m_OutlineQuadCount + decoration_metrics.m_ShadowQuadCount) * 6;
+        decoration_metrics.m_LayerCount = metrics.m_LayerCount;
+        dmArray<FontGlyphVertex>& scratch = font_map->m_DecorationVertices;
+        if (scratch.Capacity() < decoration_metrics.m_VertexCount)
+            scratch.SetCapacity(decoration_metrics.m_VertexCount);
+        scratch.SetSize(decoration_metrics.m_VertexCount);
+        memset(scratch.Begin(), 0, scratch.Size() * sizeof(FontGlyphVertex));
+        FontCreateLayoutVertices(config, decoration_metrics, scratch.Begin(), scratch.Size());
+        const uint32_t counts[3] = { decoration_metrics.m_ShadowQuadCount * 6, decoration_metrics.m_OutlineQuadCount * 6, decoration_metrics.m_FaceQuadCount * 6 };
+        const uint32_t offsets[3] = { shadow_vertexindex, outline_vertexindex, face_vertexindex };
+        // Shared quads wind counterclockwise; vector glyphs wind clockwise.
+        const uint32_t source_order[6] = { 0, 2, 1, 1, 2, 5 };
+        uint32_t source_index = 0;
+        for (uint32_t layer = 0; layer < 3; ++layer)
+        {
+            for (uint32_t i = 0; i < counts[layer]; ++i)
+            {
+                const FontGlyphVertex& source = scratch[source_index + i / 6 * 6 + source_order[i % 6]];
+                GlyphVertex& destination = vertices[offsets[layer] + i];
+                memcpy(destination.m_Position, source.m_Position, sizeof(source.m_Position));
+                destination.m_Position[3] = source.m_Position[2];
+                destination.m_VectorTexcoord[0] = source.m_LayerMasks[1];
+                destination.m_VectorTexcoord[1] = dmMath::Max(0.0f, -source.m_LayerMasks[2]);
+                destination.m_VectorTexcoord[3] = 3.0f; // Solid or dashed decoration.
+                memcpy(destination.m_VectorColor, layer == 0 ? source.m_ShadowColor : layer == 1 ? source.m_OutlineColor : source.m_FaceColor, 4);
+            }
+            source_index += counts[layer];
+        }
+    }
     return metrics.m_VertexCount;
 }
 
@@ -527,8 +576,6 @@ static uint32_t CreateFontVertexDataFromTextLayout(HFontMap font_map, uint32_t f
 
     return CreateFontVectorVertexData(font_map, frame, layout, te, (GlyphVertex*)_vertices, num_vertices);
 }
-
-#undef HAS_LAYER
 
 uint32_t CreateFontVertexData(HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
 {

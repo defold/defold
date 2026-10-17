@@ -15,6 +15,7 @@
 #include <jc_test/jc_test.h>
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
+#include <dlib/utf8.h>
 #include <graphics/graphics_util.h>
 #include <graphics_private.h>
 #include <test/test_graphics_util.h>
@@ -135,7 +136,17 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
 {
     const bool  baked = strstr(c.m_Source, "_bank") != 0;
     const bool color = strstr(c.m_Name, "_color") != 0;
-    const char* path = color ? "src/test/data/NotoColorEmoji-Regular.ttf" : strncmp(c.m_Source, "otf", 3) == 0 ? "src/test/data/SourceCodePro-Regular.otf" : "src/test/data/WorkSans.ttf";
+    const bool  depth_overlap = strstr(c.m_Name, "_depth_overlap") != 0;
+    const bool  decorations = strstr(c.m_Name, "_decorations") != 0;
+    const bool  atlas_growth = strstr(c.m_Name, "_atlas_growth") != 0;
+    const bool  rtl_wrapped = strstr(c.m_Name, "_rtl_wrapped") != 0;
+    const char* path = strncmp(c.m_Source, "otf", 3) == 0 ? "src/test/data/SourceCodePro-Regular.otf" : "src/test/data/WorkSans.ttf";
+    if (atlas_growth)
+        path = "src/test/data/vector_atlas_stress.ttf";
+    else if (rtl_wrapped)
+        path = "src/test/data/NotoSansArabic-Regular.ttf";
+    if (color)
+        path = "src/test/data/NotoColorEmoji-Regular.ttf";
     HFont       source = resources.m_Source = FontLoadFromPath(path);
     ASSERT_NE((HFont)0, source);
     VectorImageBank&       bank = resources.m_Bank;
@@ -164,7 +175,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     LoadVectorImageFile("content/builtins/fonts/font-vector-slug.glsl", slug);
     LoadVectorImageFile("content/builtins/fonts/font-vector-paint.glsl", paint);
     // Standalone GL has no shader include loader. Inline the production shader
-    // and lower its samplerless integer texture to GLSL 330's integer sampler,
+    // and lower its samplerless integer texture to an integer sampler,
     // as shaderc/SPIRV-Cross does for this backend. Coverage code stays unchanged.
     char* extension = strstr(fp.Begin(), "#extension");
     ASSERT_NE((char*)0, extension);
@@ -245,7 +256,8 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
 
     TextLayoutSettings settings = {};
     settings.m_Size = c.m_Size;
-    settings.m_Width = g_Capture_vector.m_LayoutWidth;
+    settings.m_Width = rtl_wrapped ? 100 : g_Capture_vector.m_LayoutWidth;
+    settings.m_LineBreak = rtl_wrapped;
     settings.m_Leading = 1;
     settings.m_BaseStyle = default_style;
     settings.m_UseBaseStyle = true;
@@ -263,7 +275,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
         TextToCodePoints(c.m_Text, codepoints);
         ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, codepoints.Begin(), codepoints.Size(), &settings, &layout));
     }
-    // Keep the capture cache fixed so every glyph fits in the first frame.
+    // Keep bitmap cache cells large enough for every captured glyph.
     // Pure curves still need cache entries even though they have no bitmap.
     const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
     for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout); ++i)
@@ -277,13 +289,15 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     const uint32_t      width = g_Capture_vector.m_Width;
     const uint32_t      height = g_Capture_vector.m_Height;
     dmRender::TextEntry entry = {};
-    entry.m_Transform = dmVMath::Matrix4::translation(dmVMath::Vector3(g_Capture_vector.m_OriginX, height - g_Capture_vector.m_OriginTop, 0));
+    entry.m_Transform = dmVMath::Matrix4::translation(dmVMath::Vector3(g_Capture_vector.m_OriginX, height - g_Capture_vector.m_OriginTop, depth_overlap ? -0.5f : color ? 0.25f : 0.0f));
     entry.m_TextLayout = layout;
     entry.m_FontSize = c.m_Size;
     entry.m_Width = settings.m_Width;
     entry.m_Leading = 1;
     entry.m_VAlign = dmRender::TEXT_VALIGN_TOP;
     entry.m_FaceColor = dmGraphics::PackRGBA(dmVMath::Vector4(1, 1, 1, c.m_FaceAlpha));
+    if (depth_overlap)
+        entry.m_FaceColor = dmGraphics::PackRGBA(dmVMath::Vector4(0, 1, 0, 1));
     entry.m_OutlineColor = dmGraphics::PackRGBA(dmVMath::Vector4(0, 0, 1, 1));
     entry.m_ShadowColor = dmGraphics::PackRGBA(dmVMath::Vector4(0, 1, 0, 1));
     entry.m_OutlineAlpha = 1.0f;
@@ -291,7 +305,17 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     dmArray<dmRender::FontDefaultVertex> vertices;
     vertices.SetCapacity(color ? 512 * 6 : TextLayoutGetGlyphCount(layout) * 18);
     vertices.SetSize(vertices.Capacity());
-    const uint32_t count = dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
+    uint32_t count = dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
+    if (atlas_growth)
+    {
+        // Explicit frame boundaries let the runtime grow its numeric atlas.
+        // The same visible glyph set must eventually fit instead of starving.
+        for (uint32_t frame = 2; frame <= 7 && map->m_SlugResetPending; ++frame)
+        {
+            dmRender::PrepareVectorCache(map, frame);
+            count = dmRender::CreateFontVertexData(map, frame, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
+        }
+    }
     ASSERT_GT(count, 0u);
     if (color)
     {
@@ -305,13 +329,32 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
             ASSERT_EQ(0xcdu, guard[i]);
     }
     ASSERT_LE(count, vertices.Size());
-    bool face = false, outline = false, shadow = false;
+    if (depth_overlap)
+    {
+        // Draw green text behind identical red text, in that order. With LESS
+        // depth testing, losing world Z makes the second text disappear.
+        const uint32_t back_count = count;
+        vertices.SetCapacity(back_count * 2);
+        vertices.SetSize(vertices.Capacity());
+        entry.m_Transform.setCol3(dmVMath::Vector4(g_Capture_vector.m_OriginX, height - g_Capture_vector.m_OriginTop, 0.5f, 1));
+        entry.m_FaceColor = dmGraphics::PackRGBA(dmVMath::Vector4(1, 0, 0, 1));
+        count += dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)(vertices.Begin() + back_count), back_count);
+        ASSERT_EQ(back_count * 2, count);
+    }
+    bool face = false, outline = false, shadow = false, decoration = false;
     for (uint32_t i = 0; i < count; ++i)
     {
-        face |= vertices[i].m_VectorTexcoord[2] > 0 && (vertices[i].m_VectorTexcoord[3] == 0 || vertices[i].m_VectorTexcoord[3] == 3);
+        face |= vertices[i].m_VectorTexcoord[2] > 0 && (vertices[i].m_VectorTexcoord[3] == 0 || vertices[i].m_VectorTexcoord[3] == 4);
         outline |= vertices[i].m_VectorTexcoord[3] == 1;
         shadow |= vertices[i].m_VectorTexcoord[3] == 2;
+        decoration |= vertices[i].m_VectorTexcoord[3] == 3;
+        // Color layer addresses must not overwrite the glyph's world depth.
+        if (color && vertices[i].m_VectorTexcoord[3] == 4)
+            ASSERT_EQ(0.25f, vertices[i].m_Position[3]);
     }
+    // Underlines and color layers have separate shader modes in the same draw.
+    if (color && c.m_Markup)
+        ASSERT_TRUE(decoration);
     ASSERT_TRUE(face);
     ASSERT_EQ(c.m_OutlineAlpha > 0 && c.m_Outline > 0, outline);
     ASSERT_EQ(c.m_ShadowAlpha > 0, shadow);
@@ -321,15 +364,36 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     rt.m_ColorBufferCreationParams[0].m_Height = rt.m_ColorBufferParams[0].m_Height = height;
     rt.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
     rt.m_SampleCount = 1;
-    dmGraphics::HRenderTarget      target = resources.m_Target = dmGraphics::NewRenderTarget(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, rt);
+    uint32_t buffer_flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+    if (depth_overlap)
+    {
+        rt.m_DepthBufferCreationParams.m_Width = rt.m_DepthBufferParams.m_Width = width;
+        rt.m_DepthBufferCreationParams.m_Height = rt.m_DepthBufferParams.m_Height = height;
+        rt.m_DepthBufferParams.m_Format = dmGraphics::TEXTURE_FORMAT_DEPTH;
+        buffer_flags |= dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+    }
+    dmGraphics::HRenderTarget      target = resources.m_Target = dmGraphics::NewRenderTarget(context, buffer_flags, rt);
     dmGraphics::HVertexBuffer      buffer = resources.m_Buffer = dmGraphics::NewVertexBuffer(context, count * sizeof(vertices[0]), vertices.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
     dmGraphics::HVertexDeclaration declaration = resources.m_Declaration = dmRender::CreateFontVertexDeclaration(context);
     dmGraphics::HTexture           textures[] = { map->m_Texture, map->m_VectorBandTexture, map->m_VectorSdfTexture ? map->m_VectorSdfTexture : map->m_Texture, map->m_VectorPaintTexture };
     dmGraphics::BeginFrame(context);
     dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::SetViewport(context, 0, 0, width, height);
-    dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1, 0);
+    dmGraphics::SetDepthMask(context, true);
+    dmGraphics::Clear(context, buffer_flags, 0, 0, 0, 255, 1, 0);
     dmGraphics::EnableState(context, dmGraphics::STATE_BLEND);
+    if (depth_overlap)
+    {
+        dmGraphics::DisableState(context, dmGraphics::STATE_BLEND);
+        dmGraphics::EnableState(context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::SetDepthFunc(context, dmGraphics::COMPARE_FUNC_LESS);
+    }
+    if (decorations)
+    {
+        // Vector glyphs wind clockwise; decorations must remain visible with them.
+        dmGraphics::EnableState(context, dmGraphics::STATE_CULL_FACE);
+        dmGraphics::SetCullFace(context, dmGraphics::FACE_TYPE_FRONT);
+    }
     dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
     dmGraphics::EnableProgram(context, program);
     dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1, 1);
@@ -346,6 +410,8 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     pixels.SetCapacity(width * height * 4);
     pixels.SetSize(pixels.Capacity());
     dmGraphics::ReadPixels(context, 0, 0, width, height, pixels.Begin(), pixels.Size());
+    dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+    dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
     dmGraphics::DisableVertexDeclaration(context, declaration);
     dmGraphics::DisableVertexBuffer(context, buffer);
     for (uint32_t i = 0; i < 4; ++i)
@@ -358,6 +424,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     // Inspect the actual BGRA readback, independently of optional baselines.
     uint32_t outline_pixels = 0;
     uint32_t shadow_pixels = 0;
+    uint32_t front_pixels = 0;
     uint32_t yellow_pixels = 0, gray_pixels = 0;
     for (uint32_t i = 0; i < pixels.Size(); i += 4)
     {
@@ -366,6 +433,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
         gray_pixels += pixel[2] > 200 && pixel[1] > 200 && pixel[0] > 200;
         outline_pixels += pixel[0] > pixel[1] + 16 && pixel[0] > pixel[2] + 16;
         shadow_pixels += pixel[1] > pixel[0] + 16 && pixel[1] > pixel[2] + 16;
+        front_pixels += pixel[2] > pixel[0] + 16 && pixel[2] > pixel[1] + 16;
     }
     if (color)
     {
@@ -377,11 +445,218 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
         ASSERT_GT(outline_pixels, 0u);
     if (shadow)
         ASSERT_GT(shadow_pixels, 0u);
+    uint32_t visible_decorations = 0;
+    if (decorations)
+    {
+        const TextDecoration* lines = TextLayoutGetDecorations(layout);
+        const TextLine* text_lines = TextLayoutGetLines(layout);
+        float layout_width, layout_height;
+        TextLayoutGetBounds(layout, &layout_width, &layout_height);
+        for (uint32_t i = 0; i < TextLayoutGetDecorationCount(layout); ++i)
+        {
+            const TextDecoration& line = lines[i];
+            uint32_t space = line.m_GlyphStart;
+            while (space < line.m_GlyphStart + line.m_GlyphCount && glyphs[space].m_Codepoint != ' ')
+                ++space;
+            ASSERT_LT(space + 1, line.m_GlyphStart + line.m_GlyphCount);
+            const float first_x = glyphs[text_lines[line.m_LineIndex].m_Index].m_X;
+            const int x0 = (int)ceilf(g_Capture_vector.m_OriginX + glyphs[space].m_X - first_x + 1);
+            const int x1 = (int)floorf(g_Capture_vector.m_OriginX + glyphs[space + 1].m_X - first_x - 1);
+            const float y = height - g_Capture_vector.m_OriginTop - layout_height + text_lines[line.m_LineIndex].m_Baseline + line.m_Y;
+            bool visible = false;
+            for (int py = (int)floorf(height - y - line.m_Thickness); py <= (int)ceilf(height - y + line.m_Thickness); ++py)
+                for (int px = x0; px <= x1; ++px)
+                    if (px >= 0 && px < (int)width && py >= 0 && py < (int)height)
+                    {
+                        const uint8_t* pixel = pixels.Begin() + (py * width + px) * 4;
+                        visible |= pixel[0] > 127 && pixel[1] > 127 && pixel[2] > 127;
+                    }
+            visible_decorations += visible;
+        }
+    }
     WriteFontTestImage(c, width, height, pixels, metadata);
+    if (atlas_growth)
+    {
+        ASSERT_FALSE(map->m_SlugResetPending);
+        ASSERT_EQ(64u * 6, count);
+        for (uint32_t i = 0; i < count; i += 6)
+        {
+            ASSERT_GT(vertices[i].m_VectorTexcoord[2], 0.0f);
+            const int x0 = (int)ceilf(vertices[i].m_Position[0]);
+            const int x1 = (int)floorf(vertices[i + 2].m_Position[0]);
+            const int y0 = (int)ceilf(height - vertices[i + 1].m_Position[1]);
+            const int y1 = (int)floorf(height - vertices[i].m_Position[1]);
+            ASSERT_GE(x0, 0);
+            ASSERT_LT(x1, (int)width);
+            ASSERT_GE(y0, 0);
+            ASSERT_LT(y1, (int)height);
+            bool visible = false;
+            for (int y = y0; y <= y1; ++y)
+                for (int x = x0; x <= x1; ++x)
+                    visible |= pixels[(y * width + x) * 4] > 127;
+            ASSERT_TRUE(visible);
+        }
+    }
+    if (rtl_wrapped)
+    {
+        // Wrapped RTL whitespace must not move visible glyphs away from the
+        // shared content origin used by decorations and hit testing.
+        ASSERT_GT(TextLayoutGetLineCount(layout), 1u);
+        ASSERT_EQ(TEXT_DIRECTION_RTL, TextLayoutGetParagraphs(layout)[0].m_Direction);
+        const TextLine* lines = TextLayoutGetLines(layout);
+        uint32_t        vertex = 0;
+        bool            has_trimmed_space = false;
+        for (uint32_t i = 0; i < TextLayoutGetLineCount(layout); ++i)
+        {
+            const TextLine& line = lines[i];
+            const float     origin = TextLayoutGetLineOriginX(layout, i);
+            for (uint32_t j = line.m_Index; j < line.m_Index + line.m_Length; ++j)
+            {
+                if (dmUtf8::IsWhiteSpace(glyphs[j].m_Codepoint))
+                {
+                    has_trimmed_space |= glyphs[j].m_X < origin;
+                    continue;
+                }
+                FontGlyph* glyph = 0;
+                ASSERT_EQ(FONT_RESULT_OK, dmRender::GetOrCreateGlyphByIndex(map, glyphs[j].m_Font, glyphs[j].m_GlyphIndex, &glyph));
+                const float x = g_Capture_vector.m_OriginX + settings.m_Width - line.m_Width + glyphs[j].m_X - origin + glyph->m_Outline.m_LeftBearing * c.m_Size / params.m_Size;
+                ASSERT_LT(vertex, count);
+                ASSERT_NEAR(x, vertices[vertex].m_Position[0], 0.001f);
+                vertex += 6;
+            }
+        }
+        ASSERT_TRUE(has_trimmed_space);
+        ASSERT_EQ(count, vertex);
+    }
+    if (strstr(c.m_Name, "_decorations_outline_"))
+    {
+        // The requested 8px outline is capped by the font's 2px reference outline:
+        // rendering a 40px font at 20px permits 1px, and at 80px permits 4px.
+        const float expected_outline = c.m_Size == 20 ? 1.0f : 4.0f;
+        const TextDecoration* lines = TextLayoutGetDecorations(layout);
+        uint32_t outline_count = 0;
+        for (uint32_t i = 0; i < count; i += 6)
+        {
+            const dmRender::FontDefaultVertex& vertex = vertices[i];
+            if (vertex.m_VectorTexcoord[3] != 3 || vertex.m_VectorColor[0] != 0 || vertex.m_VectorColor[2] != 255)
+                continue;
+            float min_y = vertex.m_Position[1];
+            float max_y = min_y;
+            for (uint32_t j = 1; j < 6; ++j)
+            {
+                min_y = dmMath::Min(min_y, vertices[i + j].m_Position[1]);
+                max_y = dmMath::Max(max_y, vertices[i + j].m_Position[1]);
+            }
+            ASSERT_LT(outline_count, TextLayoutGetDecorationCount(layout));
+            ASSERT_NEAR(lines[outline_count].m_Thickness + 2 * expected_outline, max_y - min_y, 0.0001f);
+            ++outline_count;
+        }
+        ASSERT_EQ(2u, outline_count);
+    }
+    if (depth_overlap)
+    {
+        ASSERT_GT(front_pixels, 0u);
+        ASSERT_EQ(0u, shadow_pixels);
+    }
+    if (decorations)
+    {
+        ASSERT_EQ(2u, TextLayoutGetDecorationCount(layout));
+        ASSERT_EQ(2u, visible_decorations);
+    }
+}
+
+// Exercise the production root selector on the GPU, including both signed zeros.
+// Each pixel covers one of the 64 triples drawn from {-1, -0, +0, +1}.
+static void TestVectorRootEligibility(dmGraphics::HContext context)
+{
+    dmArray<char> slug;
+    LoadVectorImageFile("content/builtins/fonts/font-vector-slug.glsl", slug);
+    char* texture_type = strstr(slug.Begin(), "utexture2D");
+    ASSERT_NE((char*)0, texture_type);
+    memcpy(texture_type, "usampler2D", 10);
+    const char* vertex =
+    "#version 140\n"
+    "in vec4 position;\n"
+    "void main() { gl_Position = position; }\n";
+    const char* fragment_main =
+    "uniform test_uniforms { vec4 samples; };\n"
+    "out vec4 color;\n"
+    "void main() {\n"
+    "    int i = int(gl_FragCoord.x);\n"
+    "    int code = CalcRootCode(samples[i % 4], samples[(i / 4) % 4], samples[i / 16]);\n"
+    "    color = vec4(float(code & 1), float((code >> 8) & 1), 0.0, 1.0);\n"
+    "}\n";
+    dmArray<char> fragment;
+    fragment.SetCapacity(slug.Size() + strlen(fragment_main) + 32);
+    fragment.SetSize(fragment.Capacity());
+    dmSnPrintf(fragment.Begin(), fragment.Size(), "#version 140\n%s\n%s", slug.Begin(), fragment_main);
+    dmGraphics::ShaderDescBuilder shaders;
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vertex, strlen(vertex));
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment.Begin(), strlen(fragment.Begin()));
+    shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    shaders.AddTypeMember("samples", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    shaders.AddUniform("test_uniforms", 0, 0);
+    char                 error[1024] = {};
+    dmGraphics::HProgram program = dmGraphics::NewProgram(context, shaders.Get(), error, sizeof(error));
+    if (!program)
+        printf("Vector root shader: %s\n", error);
+    ASSERT_NE((dmGraphics::HProgram)0, program);
+
+    const float                          vertices[] = { -1, -1, 0, 1, 3, -1, 0, 1, -1, 3, 0, 1 };
+    dmGraphics::HVertexBuffer            buffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+    dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(context);
+    dmGraphics::AddVertexStream(streams, "position", 4, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::HVertexDeclaration declaration = dmGraphics::NewVertexDeclaration(context, streams, 4 * sizeof(float));
+    dmGraphics::DeleteVertexStreamDeclaration(streams);
+    dmGraphics::RenderTargetCreationParams rt;
+    rt.m_ColorBufferCreationParams[0].m_Width = rt.m_ColorBufferParams[0].m_Width = 64;
+    rt.m_ColorBufferCreationParams[0].m_Height = rt.m_ColorBufferParams[0].m_Height = 1;
+    rt.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+    rt.m_SampleCount = 1;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, rt);
+    dmGraphics::BeginFrame(context);
+    dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
+    dmGraphics::SetViewport(context, 0, 0, 64, 1);
+    dmGraphics::DisableState(context, dmGraphics::STATE_BLEND);
+    dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+    dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
+    dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 0, 1, 0);
+    dmGraphics::EnableProgram(context, program);
+    const dmVMath::Vector4 samples(-1.0f, -0.0f, 0.0f, 1.0f);
+    dmGraphics::SetConstantV4(context, &samples, 1, dmGraphics::FindUniformLocation(program, "samples"));
+    dmGraphics::EnableVertexBuffer(context, buffer, 0);
+    dmGraphics::EnableVertexDeclaration(context, declaration, 0, 0, program);
+    dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+    uint8_t pixels[64 * 4];
+    dmGraphics::ReadPixels(context, 0, 0, 64, 1, pixels, sizeof(pixels));
+    dmGraphics::DisableVertexDeclaration(context, declaration);
+    dmGraphics::DisableVertexBuffer(context, buffer);
+    dmGraphics::DisableProgram(context);
+    dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+    dmGraphics::Flip(context);
+    dmGraphics::DeleteRenderTarget(context, target);
+    dmGraphics::DeleteVertexDeclaration(declaration);
+    dmGraphics::DeleteVertexBuffer(buffer);
+    dmGraphics::DeleteProgram(context, program);
+
+    // Positive coordinates and either zero use the same half-open boundary.
+    // These are the eligible roots for the eight combinations of negative signs.
+    const uint16_t expected_codes[] = { 0, 256, 257, 256, 1, 257, 1, 0 };
+    for (uint32_t i = 0; i < 64; ++i)
+    {
+        uint32_t signs = (i % 4 == 0 ? 1 : 0) | ((i / 4) % 4 == 0 ? 2 : 0) | (i / 16 == 0 ? 4 : 0);
+        uint16_t expected = expected_codes[signs];
+        // OpenGL readback is BGRA, as in the font likeness captures.
+        ASSERT_EQ((expected & 1) ? 255 : 0, pixels[i * 4 + 2]);
+        ASSERT_EQ((expected & 256) ? 255 : 0, pixels[i * 4 + 1]);
+        ASSERT_EQ(255, pixels[i * 4 + 3]);
+    }
 }
 
 void TestFontVectorImage(const FontImageCase& c, dmGraphics::HContext context)
 {
+    if (strcmp(c.m_Name, "ttf_vector_multi_face_only") == 0)
+        TestVectorRootEligibility(context);
     VectorImageResources    resources = {};
     dmScript::ContextParams script_params = {};
     script_params.m_GraphicsContext = context;

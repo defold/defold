@@ -1073,7 +1073,7 @@
   (let [last-line (:last-line subsequence)]
     (cond-> (into [(:first-line subsequence)]
                   (:middle-lines subsequence))
-            (some? last-line) (conj last-line))))
+      (some? last-line) (conj last-line))))
 
 (defn cursor-range-subsequence
   ^Subsequence [lines cursor-range]
@@ -1443,8 +1443,8 @@
         scroll-y (or (scroll-y-fn margin-y (.y canvas-rect) (.h canvas-rect) (.y target-rect) (.h target-rect) (.scroll-y layout)) (.scroll-y layout))
         scroll-y (limit-scroll-y layout (count lines) (Math/floor scroll-y))]
     (cond-> nil
-            (not= (.scroll-x layout) scroll-x) (assoc :scroll-x scroll-x)
-            (not= (.scroll-y layout) scroll-y) (assoc :scroll-y scroll-y))))
+      (not= (.scroll-x layout) scroll-x) (assoc :scroll-x scroll-x)
+      (not= (.scroll-y layout) scroll-y) (assoc :scroll-y scroll-y))))
 
 (defn- scroll-to-cursor [scroll-x-fn scroll-y-fn ^LayoutInfo layout lines ^Cursor adjusted-cursor]
   (let [target-rect (cursor-framing-rect layout lines adjusted-cursor)]
@@ -1884,8 +1884,8 @@
                               (recur (cursor-range-end cursor-range)
                                      (next rest)
                                      (cond-> lines-seqs
-                                             (neg? (compare-cursor-position start prior-end)) (append-subsequence! (cursor-range-subsequence lines (->CursorRange start prior-end)))
-                                             (seq replacement-lines) (append-subsequence! (lines->subsequence replacement-lines)))))
+                                       (neg? (compare-cursor-position start prior-end)) (append-subsequence! (cursor-range-subsequence lines (->CursorRange start prior-end)))
+                                       (seq replacement-lines) (append-subsequence! (lines->subsequence replacement-lines)))))
                             (let [end (->Cursor (dec (count lines)) (count (peek lines)))
                                   end-seq (cursor-range-subsequence lines (->CursorRange start end))]
                               (persistent! (if (empty-subsequence? end-seq)
@@ -2219,8 +2219,8 @@
                :cursor-ranges cursor-ranges'
                :invalidated-row invalidated-row}
 
-              (not= regions regions')
-              (assoc :regions regions')))))
+        (not= regions regions')
+        (assoc :regions regions')))))
 
 (defn- begins-indentation? [grammar ^String line]
   (when (some? line)
@@ -2474,8 +2474,8 @@
                :cursor-ranges cursor-ranges'
                :invalidated-row invalidated-row}
 
-              (not= regions regions')
-              (assoc :regions regions')))))
+        (not= regions regions')
+        (assoc :regions regions')))))
 
 (defn- line-indent-counts [grammar line lex-state ^long tab-spaces]
   (if-let [counts (:counts (:indent grammar))]
@@ -2734,8 +2734,8 @@
     (cond-> {:lines lines'
              :regions regions'}
 
-            (empty? clean-lines)
-            (assoc :invalidated-row 0))))
+      (empty? clean-lines)
+      (assoc :invalidated-row 0))))
 
 (defn delete-character-before-cursor [lines grammar auto-closing-parens syntax-info cursor-range]
   (let [cursor (adjust-cursor lines (CursorRange->Cursor cursor-range))]
@@ -2875,8 +2875,8 @@
     (let [new-scroll-x (limit-scroll-x layout (+ ^double scroll-x (Math/ceil delta-x)))
           new-scroll-y (limit-scroll-y layout (count lines) (+ ^double scroll-y (Math/ceil delta-y)))]
       (cond-> nil
-              (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
-              (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y)))))
+        (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
+        (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y)))))
 
 (defn- key-type-with-auto-insert [indent-level-pattern indent-string grammar lines cursor-ranges regions layout syntax-info ^String typed]
   {:pre [(= 1 (.length typed))
@@ -2986,8 +2986,8 @@
         line-end (count (lines row))]
     (assoc (->CursorRange (->Cursor row line-start)
                           (->Cursor row line-end))
-           :type :execution-marker
-           :location-type location-type)))
+      :type :execution-marker
+      :location-type location-type)))
 
 (defn make-breakpoint-region [lines ^long row]
   (let [line-start (text-start lines row)
@@ -3057,7 +3057,7 @@
                                       :from (->Cursor row (text-start lines row))
                                       :to (->Cursor row (count (lines row))))
                                     (cond-> (string/blank? (:condition breakpoint-region))
-                                            (dissoc :condition)))]
+                                      (dissoc :condition)))]
     {:regions (vec (sort (conj filtered-regions clean-breakpoint-region)))}))
 
 (defn- scroll-y-once [direction ^LayoutInfo layout source-line-count]
@@ -3279,11 +3279,11 @@
                                 (let [scroll-x (:scroll-x (scroll-to-cursor scroll-shortest scroll-shortest layout lines (CursorRange->Cursor box-cursor-range)))
                                       scroll-y (:scroll-y (scroll-to-cursor scroll-shortest scroll-shortest layout lines mouse-cursor))]
                                   (cond-> nil
-                                          (some? scroll-x) (assoc :scroll-x scroll-x)
-                                          (some? scroll-y) (assoc :scroll-y scroll-y))))]
+                                    (some? scroll-x) (assoc :scroll-x scroll-x)
+                                    (some? scroll-y) (assoc :scroll-y scroll-y))))]
         (cond-> scroll-properties
-                (not= cursor-ranges new-cursor-ranges) (merge {:cursor-ranges new-cursor-ranges
-                                                               :hovered-element nil})))
+          (not= cursor-ranges new-cursor-ranges) (merge {:cursor-ranges new-cursor-ranges
+                                                         :hovered-element nil})))
 
       ;; Drag selection.
       :cursor-range-selection
@@ -3505,7 +3505,7 @@
                                      (->CursorRange (.to matching-cursor-range) (.from matching-cursor-range))
                                      matching-cursor-range)
                 cursor-ranges' (with-next-occurrence-search-cursor (concat-cursor-ranges cursor-ranges [added-cursor-range])
-                                                                   (cursor-range-end added-cursor-range))
+                                 (cursor-range-end added-cursor-range))
                 scroll-properties (scroll-to-cursor-range scroll-shortest scroll-center layout lines added-cursor-range)]
             (assoc scroll-properties :cursor-ranges cursor-ranges'))
           (let [cursor-ranges' (with-next-occurrence-search-cursor cursor-ranges (->Cursor 0 0))]
@@ -3636,7 +3636,7 @@
         sorted-cursor-ranges (map (fn [[^long start-row ^long end-row]]
                                     (let [last-row (dec end-row)]
                                       (->CursorRange (->Cursor start-row 0) (->Cursor last-row (count (lines last-row))))))
-                                row-runs)
+                                  row-runs)
         splices (map (fn [^CursorRange sorted-cursor-range]
                        (let [sorted-lines (vec (sort-by sort-key-fn (subsequence->lines (cursor-range-subsequence lines sorted-cursor-range))))]
                          [sorted-cursor-range sorted-lines]))
@@ -3778,15 +3778,16 @@
                       (remove-comment-regions+replacements comment-string lines row+line-starts)
                       (add-comment-regions+replacements comment-string row+line-starts)))
         new-regions (:regions ret all-regions)]
-    (assoc ret :regions (filterv (complement ::cursor) new-regions)
-               :cursor-ranges (into []
-                                    (comp
-                                      (filter ::cursor)
-                                      (map #(-> %
-                                                (update :from dissoc ::sticky)
-                                                (update :to dissoc ::sticky)
-                                                (dissoc ::cursor))))
-                                    new-regions))))
+    (assoc ret
+      :regions (filterv (complement ::cursor) new-regions)
+      :cursor-ranges (into []
+                           (comp
+                             (filter ::cursor)
+                             (map #(-> %
+                                       (update :from dissoc ::sticky)
+                                       (update :to dissoc ::sticky)
+                                       (dissoc ::cursor))))
+                           new-regions))))
 
 (defn- whitespace-run-end
   ^long [^String line ^long start]
@@ -3979,15 +3980,16 @@
                                       cursor-ranges)))
          ret (splice lines all-regions ascending-cursor-ranges-and-replacements)
          new-regions (:regions ret all-regions)]
-     (assoc ret :regions (into [] (remove ::cursor) new-regions)
-                :cursor-ranges (into []
-                                     (comp
-                                       (filter ::cursor)
-                                       (map #(-> %
-                                                 (update :from dissoc ::sticky)
-                                                 (update :to dissoc ::sticky)
-                                                 (dissoc ::cursor))))
-                                     new-regions))))
+     (assoc ret
+       :regions (into [] (remove ::cursor) new-regions)
+       :cursor-ranges (into []
+                            (comp
+                              (filter ::cursor)
+                              (map #(-> %
+                                        (update :from dissoc ::sticky)
+                                        (update :to dissoc ::sticky)
+                                        (dissoc ::cursor))))
+                            new-regions))))
   ([lines regions cursor-ranges ascending-cursor-ranges-and-replacements layout]
    (-> (apply-edits lines regions cursor-ranges ascending-cursor-ranges-and-replacements)
        (update-document-width-after-splice layout)

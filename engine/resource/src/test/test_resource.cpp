@@ -1040,6 +1040,58 @@ dmResource::Result AdResourceDestroy(const dmResource::ResourceDestroyParams* pa
     return dmResource::RESULT_OK;
 }
 
+// Verifies that creation stores distinct resource versions, guarding against
+// assigning the version after copying the descriptor into the resource map.
+TEST_F(ResourceTest, CreatedResourcesHaveDistinctVersions)
+{
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "adc", 0, 0, AdResourceCreate, 0, AdResourceDestroy, 0));
+
+    char data[] = "test";
+    void* first_resource = 0;
+    void* second_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, "/version_first.adc", data, sizeof(data), &first_resource));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, "/version_second.adc", data, sizeof(data), &second_resource));
+
+    uint16_t first_version = dmResource::GetVersion(factory, first_resource);
+    uint16_t second_version = dmResource::GetVersion(factory, second_resource);
+    dmResource::Release(factory, first_resource);
+    dmResource::Release(factory, second_resource);
+
+    ASSERT_NE(dmResource::RESOURCE_VERSION_INVALID, first_version);
+    ASSERT_NE(dmResource::RESOURCE_VERSION_INVALID, second_version);
+    ASSERT_NE(first_version, second_version);
+}
+
+static dmResource::Result VersionResourceCreate(const dmResource::ResourceCreateParams* params)
+{
+    ResourceDescriptorSetResource(params->m_Resource, params->m_Context);
+    return dmResource::RESULT_OK;
+}
+
+// Verifies that reusing a resource's path and address changes its version,
+// preventing stale handles from matching a later resource's identity.
+TEST_F(ResourceTest, RecreatedResourceAtSameAddressHasNewVersion)
+{
+    int resource_storage = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "version", &resource_storage, 0, VersionResourceCreate, 0, DummyDestroy, 0));
+
+    const char* path = "/recreated.version";
+    char data[] = "test";
+    void* first_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, path, data, sizeof(data), &first_resource));
+    uint16_t first_version = dmResource::GetVersion(factory, first_resource);
+    dmResource::Release(factory, first_resource);
+
+    void* recreated_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, path, data, sizeof(data), &recreated_resource));
+    uint16_t recreated_version = dmResource::GetVersion(factory, recreated_resource);
+    dmResource::Release(factory, recreated_resource);
+
+    ASSERT_EQ(first_resource, recreated_resource);
+    ASSERT_NE(dmResource::RESOURCE_VERSION_INVALID, recreated_version);
+    ASSERT_NE(first_version, recreated_version);
+}
+
 TEST(dmResource, Builtins)
 {
     dmResource::NewFactoryParams params;
@@ -1193,6 +1245,17 @@ static void ResourceReloadedHttpCallback(const dmResource::ResourceReloadedParam
     }
 }
 
+static dmThread::Thread SendReload(ReloadedContext* context)
+{
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+    SendReloadThread(context);
+    return 0;
+#else
+    return dmThread::New(&SendReloadThread, 0x8000, context, "reload");
+#endif
+}
+
+// Verify queued reloads and missing-resource callbacks, including on single-thread web builds.
 TEST(RecreateTest, RecreateTestHttp)
 {
     dmResource::NewFactoryParams params;
@@ -1237,7 +1300,7 @@ TEST(RecreateTest, RecreateTestHttp)
     state.m_Reloaded = &send_reload_done;
     dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedHttpCallback, &state);
 
-    dmThread::Thread send_thread = dmThread::New(&SendReloadThread, 0x8000, 0, "reload");
+    dmThread::Thread send_thread = SendReload(0);
 
     uint64_t t_start = dmTime::GetMonotonicTime();
     do
@@ -1253,7 +1316,8 @@ TEST(RecreateTest, RecreateTestHttp)
         }
     } while (!dmAtomicGet32(&send_reload_done));
 
-    dmThread::Join(send_thread);
+    if (send_thread)
+        dmThread::Join(send_thread);
 
     ASSERT_EQ(456, *resource);
 
@@ -1262,7 +1326,7 @@ TEST(RecreateTest, RecreateTestHttp)
     dmSys::Unlink(host_name);
 
     send_reload_done = 0;
-    send_thread = dmThread::New(&SendReloadThread, 0x8000, (void*)&state, "reload");
+    send_thread = SendReload(&state);
 
     do
     {
@@ -1270,7 +1334,8 @@ TEST(RecreateTest, RecreateTestHttp)
         dmResource::UpdateFactory(factory);
     } while (!dmAtomicGet32(&send_reload_done));
 
-    dmThread::Join(send_thread);
+    if (send_thread)
+        dmThread::Join(send_thread);
 
     dmResource::Result rr = dmResource::ReloadResource(factory, resource_name, 0);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, rr);

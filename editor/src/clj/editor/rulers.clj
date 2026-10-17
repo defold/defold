@@ -25,7 +25,7 @@
             [editor.image-util :as image-util]
             [editor.shaders :as shaders]
             [editor.types :as types])
-  (:import  [com.jogamp.opengl GL GL2]
+  (:import  [com.jogamp.opengl GL GL3]
             [java.awt.image BufferedImage]
             [java.nio BufferOverflowException]
             [javax.vecmath Point3d]
@@ -53,11 +53,11 @@
 (def ^:private max-ticks 100)
 (def ^:private max-label-chars 15)
 (def ^:private vertex-buffer-size (+ (* 2 max-ticks) ;; tick lines
-                                    (* 6 max-ticks max-label-chars) ;; labels
-                                    (* 2 2) ;; cursor markers
-                                    (* 6 2) ;; backgrounds
-                                    (* 2 2) ;; borders
-                                    ))
+                                     (* 6 max-ticks max-label-chars) ;; labels
+                                     (* 2 2) ;; cursor markers
+                                     (* 6 2) ;; backgrounds
+                                     (* 2 2) ;; borders
+                                     ))
 
 (defn- char->w ^long [c]
   (case c
@@ -127,7 +127,7 @@
   (color-uv-vtx-put! vb x0 y0 1 1 r g b a)
   (color-uv-vtx-put! vb x1 y1 1 1 r g b a))
 
-(defn render-rulers [^GL2 gl render-args renderables rcount]
+(defn render-rulers [^GL3 gl render-args renderables _renderable-count]
   (doseq [renderable renderables
           :let [user-data (:user-data renderable)
                 {:keys [vb tri-count line-count]} user-data]]
@@ -150,12 +150,12 @@
         offset (Math/ceil start)]
     (->> (for [i (range count)]
            (* (+ offset i) factor))
-      (reduce (fn [res vw]
-                (let [vs (screen-fn vw)]
-                  (if (screen-filter-fn vs)
-                    (conj res [vw vs])
-                    res)))
-              []))))
+         (reduce (fn [res vw]
+                   (let [vs (screen-fn vw)]
+                     (if (screen-filter-fn vs)
+                       (conj res [vw vs])
+                       res)))
+                 []))))
 
 (defn- unproject [camera viewport x y]
   (let [p (c/camera-unproject camera viewport (Point3d. x y 0.0))]
@@ -168,7 +168,7 @@
             (let [mag (int (Math/floor (Math/log10 max-diff)))]
               (when (<= mag 0)
                 (format "%%.%df" (inc (Math/abs mag))))))))
-    "%.0f"))
+      "%.0f"))
 
 (g/defnk produce-renderables [camera viewport cursor-pos vertex-buffer]
   (if (and (not (types/empty-space? viewport)) (c/mode-2d? camera))

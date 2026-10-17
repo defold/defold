@@ -468,6 +468,8 @@ namespace dmGui
         uint8_t  m_AccelerationSet : 1;
         /// If the input action was consumed in an event dispatch
         uint8_t  m_Consumed : 1;
+        /// Device category (dmHID::InputSource), defaulting to keyboard
+        uint8_t  m_Source : 3;
     };
 
     struct RenderEntry {

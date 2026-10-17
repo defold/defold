@@ -73,14 +73,10 @@ public class Fontc {
     public static final class EditorFontMap {
         public final FontMap fontMap;
         public final GlyphBank glyphBank;
-        public final int[] glyphCellWidths;
-        public final int[] glyphCellHeights;
 
-        private EditorFontMap(FontMap fontMap, GlyphBank glyphBank, int[] glyphCellWidths, int[] glyphCellHeights) {
+        private EditorFontMap(FontMap fontMap, GlyphBank glyphBank) {
             this.fontMap = fontMap;
             this.glyphBank = glyphBank;
-            this.glyphCellWidths = glyphCellWidths;
-            this.glyphCellHeights = glyphCellHeights;
         }
     }
 
@@ -89,6 +85,8 @@ public class Fontc {
         int width;
         float advance;
         float leftBearing;
+        float layoutWidth;
+        float layoutLeftBearing;
         int ascent;
         int descent;
         int sourceX;
@@ -326,12 +324,10 @@ public class Fontc {
             int codePoint = metrics == null ? characters.get(i) : metrics.codepoint;
             GeneratedGlyph generated = generatedGlyphs == null ? null : generatedGlyphs[i];
             try {
-                if (generated == null && metrics == null) {
-                    if (copyPixels)
-                        generated = renderer.generateGlyph(codePoint);
-                    else
-                        metrics = renderer.getGlyphMetrics(codePoint);
-                }
+                if (metrics == null)
+                    metrics = renderer.getGlyphMetrics(codePoint);
+                if (copyPixels && generated == null)
+                    generated = renderer.generateGlyph(codePoint);
             } catch (RuntimeException e) {
                 throw new IOException(String.format("Native glyph generation failed for U+%04X: %s", codePoint, e.getMessage()), e);
             }
@@ -340,6 +336,8 @@ public class Fontc {
             Glyph glyph = new Glyph();
             glyph.character = codePoint;
             glyph.advance = generated == null ? metrics.advance : generated.advance;
+            glyph.layoutWidth = metrics.layoutWidth;
+            glyph.layoutLeftBearing = metrics.layoutLeftBearing;
             glyph.leftBearing = generated == null ? metrics.leftBearing : generated.leftBearing;
             glyph.width = generated == null ? metrics.width : generated.width;
             glyph.ascent = Math.round(generated == null ? metrics.ascent : generated.ascent);
@@ -359,7 +357,8 @@ public class Fontc {
         }
         FontRenderer.Layout metrics = renderer.measure("", false, 0.0f, 1.0f, 0.0f);
         glyphBankBuilder.setMaxAscent(metrics.maxAscent).setMaxDescent(metrics.maxDescent)
-            .setMaxAdvance(maxAdvance).setMaxWidth(maxWidth).setMaxHeight(metrics.maxAscent + metrics.maxDescent);
+            .setMaxAdvance(maxAdvance).setMaxWidth(maxWidth).setMaxHeight(metrics.maxAscent + metrics.maxDescent)
+            .setHasLayoutMetrics(true);
     }
 
     private byte[] makeCellBytes(Glyph glyph, DecodedImage bitmapImage, int channels) {
@@ -538,6 +537,8 @@ public class Fontc {
                 .setVectorDataOffset(glyph.vectorDataOffset).setVectorDataSize(glyph.vectorDataSize)
                 .setOutlineWidth(glyph.outlineWidth).setOutlineLeftBearing(glyph.outlineLeftBearing)
                 .setOutlineAscent(glyph.outlineAscent).setOutlineDescent(glyph.outlineDescent);
+            if (glyphBankBuilder.getHasLayoutMetrics())
+                output.setLayoutWidth(glyph.layoutWidth).setLayoutLeftBearing(glyph.layoutLeftBearing);
             if (preview)
                 output.setX(i % columns * cellWidth).setY(i / columns * cellHeight);
             glyphBankBuilder.addGlyphs(output);
@@ -615,14 +616,6 @@ public class Fontc {
         boolean metadataOnly = fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD && !isBitmapFont(fontDesc);
         compile(fontStream, fontDesc, false, bitmapPath, bitmapStream, false, metadataOnly);
         GlyphBank glyphBank = getGlyphBank();
-        int count = glyphBank.getGlyphsCount();
-        int[] widths = new int[count];
-        int[] heights = new int[count];
-        for (int i = 0; i < count; ++i) {
-            Glyph glyph = glyphs.get(i);
-            widths[i] = glyph.width == 0 ? 0 : glyph.width + 2;
-            heights[i] = glyph.pixelHeight == 0 ? 0 : glyph.pixelHeight + 2;
-        }
         FontMap fontMap = FontMap.newBuilder()
             .setMaterial(ResourceUtil.minifyPathAndReplaceExt(fontDesc.getMaterial(), ".material", ".materialc"))
             .setSize(fontDesc.getSize()).setAntialias(fontDesc.getAntialias())
@@ -635,7 +628,7 @@ public class Fontc {
             .setCacheWidth(glyphBank.getCacheWidth()).setCacheHeight(glyphBank.getCacheHeight())
             .setSdfSpread(glyphBank.getSdfSpread()).setSdfOutline(glyphBank.getSdfOutline())
             .setSdfShadow(glyphBank.getSdfShadow()).setPadding(glyphBank.getPadding()).build();
-        return new EditorFontMap(fontMap, glyphBank, widths, heights);
+        return new EditorFontMap(fontMap, glyphBank);
     }
 
     /**
@@ -739,6 +732,12 @@ public class Fontc {
                 .setAlpha(fontDesc.getAlpha()).setOutlineAlpha(fontDesc.getOutlineAlpha())
                 .setOutlineWidth(fontDesc.getOutlineWidth()).addAllStyles(FontStyles.compileStyles(fontDesc)).setLayerMask(GetFontMapLayerMask(fontDesc))
                 .setOutputFormat(fontDesc.getOutputFormat()).setRenderMode(fontDesc.getRenderMode());
+            // Keep the builtin project in sync with FontBuilder.
+            if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+                fontMap.setSdfSpread(GetFontMapSdfSpread(fontDesc))
+                    .setSdfOutline(GetFontMapSdfOutline(fontDesc))
+                    .setSdfShadow(GetFontMapSdfShadow(fontDesc));
+            }
             try (FileOutputStream output = new FileOutputStream(outfile)) {
                 fontMap.build().writeTo(output);
             }

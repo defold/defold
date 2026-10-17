@@ -471,7 +471,7 @@
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (resource/lookup-resource-type (g/unsafe-basis) workspace this))
+  (lookup-resource-type [this editable->type-ext->resource-type] (resource/lookup-resource-type-impl this editable->type-ext->resource-type))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
@@ -540,7 +540,7 @@
                                  :manip-space :world
                                  :scene (Scene. (VBox.))]]
           (g/connect project :_node-id app-view :project-id)
-          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
+          (for [label [:outline-selection-by-resource-node :selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label)))))))
 
 (defn- make-tab! [project app-view path make-view-fn!]
@@ -663,7 +663,7 @@
                  (let [node-id (gt/source-id arc)]
                    (when-not (g/defective? basis node-id)
                      (let [resource (resource-node/resource basis node-id)
-                         proj-path (resource/proj-path resource)]
+                           proj-path (resource/proj-path resource)]
                        (when-some [uncached-save-data-outputs (not-empty (uncached-save-data-outputs basis cache node-id))]
                          (pair proj-path uncached-save-data-outputs)))))))
          (g/inputs basis project :save-data))))

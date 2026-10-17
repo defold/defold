@@ -3,6 +3,14 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
 #include <float.h>
 #include <math.h>
@@ -188,20 +196,15 @@ namespace dmGameSystem
         return 1;
     }
 
-    static btCollisionObject* GetNativeCollisionObject(lua_State* L, dmGameObject::HCollection* out_collection, dmMessage::URL* out_url)
+    static btCollisionObject* GetNativeCollisionObject(lua_State* L)
     {
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
         dmGameObject::HComponent  component = 0;
         void*                     component_world = 0;
-        GetCollisionObject(L, 1, collection, out_url, &component, &component_world);
+        GetCollisionObject(L, 1, collection, 0, &component, &component_world);
         if (!CheckBullet3DWorldBackend(L, component_world))
         {
             return 0;
-        }
-
-        if (out_collection)
-        {
-            *out_collection = collection;
         }
         return (btCollisionObject*)CompCollisionObjectGetBullet3DCollisionObject(component);
     }
@@ -210,12 +213,10 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        dmGameObject::HCollection collection = 0;
-        dmMessage::URL            url;
-        btCollisionObject*        collision_object = GetNativeCollisionObject(L, &collection, &url);
+        btCollisionObject* collision_object = GetNativeCollisionObject(L);
         if (collision_object)
         {
-            PushBullet3DCollisionObject(L, collision_object, collection, url.m_Path);
+            PushBullet3DCollisionObject(L, collision_object, CompCollisionObjectGetInstance(collision_object->getUserPointer()));
         }
         else
         {
@@ -228,12 +229,10 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        dmGameObject::HCollection collection = 0;
-        dmMessage::URL            url;
-        btCollisionObject*        collision_object = GetNativeCollisionObject(L, &collection, &url);
+        btCollisionObject* collision_object = GetNativeCollisionObject(L);
         if (collision_object && btRigidBody::upcast(collision_object))
         {
-            PushBullet3DCollisionObject(L, collision_object, collection, url.m_Path);
+            PushBullet3DCollisionObject(L, collision_object, CompCollisionObjectGetInstance(collision_object->getUserPointer()));
         }
         else
         {

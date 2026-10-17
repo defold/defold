@@ -1889,6 +1889,106 @@ TEST_F(dmRenderTest, TestRenderListSortNoneUsesInsertionOrder)
     ASSERT_EQ(ctx.m_Index, ctx.m_Count);
 }
 
+// Verify tag sorting keeps submission order within each tag list for sorted and unsorted input.
+TEST_F(dmRenderTest, TestRenderListTagSortStableOrder)
+{
+    const dmhash_t tags[] = { dmHashString64("sort_tag_a"), dmHashString64("sort_tag_b"), dmHashString64("sort_tag_c") };
+    uint32_t tag_keys[DM_ARRAY_SIZE(tags)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(tags); ++i)
+        tag_keys[i] = dmRender::RegisterMaterialTagList(m_Context, 1, &tags[i]);
+    std::sort(tag_keys, tag_keys + DM_ARRAY_SIZE(tag_keys));
+
+    // Empty, singleton, equal tags, ordered tags, interleaved tags, and a final inversion.
+    const uint32_t counts[] = { 0, 1, 48, 48, 48, 48 };
+    for (uint32_t layout = 0; layout < DM_ARRAY_SIZE(counts); ++layout)
+    {
+        dmRender::RenderListBegin(m_Context);
+        uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, 0, 0);
+        uint32_t count = counts[layout];
+        dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(m_Context, count);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            uint32_t tag_index = layout < 3 ? 0 : i / 16;
+            if (layout == 4)
+                tag_index = (i * 2) % DM_ARRAY_SIZE(tag_keys);
+            else if (layout == 5 && i == count - 1)
+                tag_index = 0;
+
+            entries[i].m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
+            entries[i].m_TagListKey = tag_keys[tag_index];
+            entries[i].m_Dispatch = dispatch;
+        }
+        dmRender::RenderListSubmit(m_Context, entries, entries + count);
+        dmRender::RenderListEnd(m_Context);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+
+        dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+        ASSERT_EQ(count, context->m_RenderListSortIndices.Size());
+        uint32_t index = 0;
+        for (uint32_t tag = 0; tag < DM_ARRAY_SIZE(tag_keys); ++tag)
+        {
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                if (context->m_RenderList[i].m_TagListKey == tag_keys[tag])
+                {
+                    ASSERT_EQ(i, context->m_RenderListSortIndices[index]);
+                    ++index;
+                }
+            }
+        }
+        ASSERT_EQ(count, index);
+    }
+}
+
+// Verify draw sorting preserves equal-key order, including when only the final entry is out of order.
+TEST_F(dmRenderTest, TestRenderListDrawSortStableOrder)
+{
+    const dmhash_t tag = dmHashString64("sort_tag");
+    const uint32_t tag_key = dmRender::RegisterMaterialTagList(m_Context, 1, &tag);
+    const uint32_t count = 48;
+    // Ordered, interleaved, reversed, and ordered except for the final entry.
+    for (uint32_t layout = 0; layout < 4; ++layout)
+    {
+        dmRender::RenderListBegin(m_Context);
+        uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, 0, 0);
+        dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(m_Context, count);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            uint32_t order = i / 2;
+            if (layout == 1)
+                order = i % 6;
+            else if (layout == 2)
+                order = (count - 1 - i) / 2;
+            else if (layout == 3 && i == count - 1)
+                order = 0;
+
+            entries[i].m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
+            entries[i].m_Order = order;
+            entries[i].m_TagListKey = tag_key;
+            entries[i].m_Dispatch = dispatch;
+        }
+        dmRender::RenderListSubmit(m_Context, entries, entries + count);
+        dmRender::RenderListEnd(m_Context);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+
+        dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+        ASSERT_EQ(count, context->m_RenderListSortBuffer.Size());
+        uint32_t index = 0;
+        for (uint32_t order = 0; order < count / 2; ++order)
+        {
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                if (context->m_RenderList[i].m_Order == order)
+                {
+                    ASSERT_EQ(i, context->m_RenderListSortBuffer[index]);
+                    ++index;
+                }
+            }
+        }
+        ASSERT_EQ(count, index);
+    }
+}
+
 TEST(Render, TextAlignmentOffsets)
 {
     const float text_width = 14.0f;
@@ -1923,6 +2023,113 @@ TEST_F(dmRenderTest, GetTextMetrics)
     ASSERT_EQ(14.0f, metrics.m_Width);
     ASSERT_EQ(9.0f, metrics.m_Height);
     ASSERT_EQ(3u, metrics.m_LineCount);
+}
+
+// Verifies unwrapped glyph-bank metrics preserve whitespace, guarding against #13375.
+TEST_F(dmRenderTest, GetTextMetricsWhitespace)
+{
+    // Spaces have an advance but no visible glyph bounds.
+    m_GlyphBank->m_Glyphs[' '].m_Width = 0;
+    m_GlyphBank->m_Glyphs[' '].m_LeftBearing = 0;
+
+    const struct
+    {
+        const char* m_Text;
+        float       m_ExpectedWidth;
+        float       m_ExpectedHeight;
+        uint32_t    m_ExpectedLineCount;
+    } cases[] = {
+        // Input, then expected width, height and line count.
+        { "",            0.0f,  0.0f, 0 },
+        { " ",           2.0f,  3.0f, 1 },
+        { "   ",         6.0f,  3.0f, 1 },
+        { "Trailing",    16.0f, 3.0f, 1 },
+        { "Trailing ",   18.0f, 3.0f, 1 },
+        { "Trailing   ", 22.0f, 3.0f, 1 },
+        { "Leading",     14.0f, 3.0f, 1 },
+        { " Leading",    16.0f, 3.0f, 1 },
+        { "   Leading",  20.0f, 3.0f, 1 },
+        { " Both ",      12.0f, 3.0f, 1 },
+        { "120",         6.0f,  3.0f, 1 },
+        { "120 ",        8.0f,  3.0f, 1 },
+        { "XX",          4.0f,  3.0f, 1 },
+        { "XX ",         6.0f,  3.0f, 1 },
+        { "A\nXX\nA",    4.0f,  9.0f, 3 },
+        { "XX\nA\n",     4.0f,  6.0f, 2 },
+        { "A\nXX \nA",   6.0f,  9.0f, 3 },
+        { "XX \nA\n",    6.0f,  6.0f, 2 },
+    };
+
+    TextLayoutSettings settings = {};
+    settings.m_Leading = 1.0f;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        dmRender::TextMetrics metrics = {};
+        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, &metrics);
+        printf("Text metrics for '%s': width %g, expected %g\n", cases[i].m_Text, metrics.m_Width, cases[i].m_ExpectedWidth);
+        EXPECT_EQ(cases[i].m_ExpectedWidth, metrics.m_Width);
+        EXPECT_EQ(cases[i].m_ExpectedHeight, metrics.m_Height);
+        EXPECT_EQ(cases[i].m_ExpectedLineCount, metrics.m_LineCount);
+        EXPECT_EQ(2.0f, metrics.m_MaxAscent);
+        EXPECT_EQ(1.0f, metrics.m_MaxDescent);
+    }
+}
+
+// Verifies raw and prepared wrapped metrics report actual line widths, including overflowing words (#13387).
+TEST_F(dmRenderTest, GetTextMetricsWrapped)
+{
+    m_GlyphBank->m_Glyphs[' '].m_Width = 0;
+    m_GlyphBank->m_Glyphs[' '].m_LeftBearing = 0;
+
+    const struct
+    {
+        const char* m_Text;
+        float       m_Width;
+        float       m_ExpectedWidth;
+        float       m_ExpectedHeight;
+        uint32_t    m_ExpectedLineCount;
+    } cases[] = {
+        { "",               100.0f,  0.0f, 0.0f, 0 },
+        { "OverflowX",        1.0f, 18.0f, 3.0f, 1 },
+        { "OverflowX",       10.0f, 18.0f, 3.0f, 1 },
+        { "OverflowX",      100.0f, 18.0f, 3.0f, 1 },
+        { "XX",             100.0f,  4.0f, 3.0f, 1 },
+        { " XX",            100.0f,  6.0f, 3.0f, 1 },
+        { "XX A",             5.0f,  4.0f, 6.0f, 2 },
+        { "A XX",             5.0f,  4.0f, 6.0f, 2 },
+        { "XX A",           100.0f,  8.0f, 3.0f, 1 },
+        { "XX A OverflowX",   5.0f, 18.0f, 9.0f, 3 },
+        { "XX\nA",          100.0f,  4.0f, 6.0f, 2 },
+        { "XX\r\nA",        100.0f,  4.0f, 6.0f, 2 },
+        { "XX\n\nA",        100.0f,  4.0f, 9.0f, 3 },
+        { "A\nXX\nA",       100.0f,  4.0f, 9.0f, 3 },
+        { "XX\nA\n",        100.0f,  4.0f, 6.0f, 2 },
+        { "XX \nA",         100.0f,  4.0f, 6.0f, 2 },
+        { "XX \nA\n",       100.0f,  4.0f, 6.0f, 2 },
+        { "XX ",            100.0f,  4.0f, 3.0f, 1 },
+    };
+
+    TextLayoutSettings settings = {};
+    settings.m_Leading = 1.0f;
+    settings.m_LineBreak = true;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        settings.m_Width = cases[i].m_Width;
+        dmRender::TextMetrics metrics[2] = {};
+        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, &metrics[0]);
+        HTextLayout layout = CreateTextLayout(m_SystemFontMap, cases[i].m_Text, settings);
+        ASSERT_NE((HTextLayout)0, layout);
+        GetTextMetrics(m_SystemFontMap, layout, &metrics[1]);
+        TextLayoutRelease(layout);
+
+        for (uint32_t m = 0; m < DM_ARRAY_SIZE(metrics); ++m)
+        {
+            printf("%s wrapped metrics for '%s', container %g: width %g, expected %g\n", m ? "Prepared" : "Raw", cases[i].m_Text, cases[i].m_Width, metrics[m].m_Width, cases[i].m_ExpectedWidth);
+            EXPECT_EQ(cases[i].m_ExpectedWidth, metrics[m].m_Width);
+            EXPECT_EQ(cases[i].m_ExpectedHeight, metrics[m].m_Height);
+            EXPECT_EQ(cases[i].m_ExpectedLineCount, metrics[m].m_LineCount);
+        }
+    }
 }
 
 TEST_F(dmRenderTest, GetPreparedTextMetrics)
@@ -2608,6 +2815,7 @@ TEST_F(dmRenderTest, MarkupShadowUsesFontBlurWhenOmitted)
     MarkupDestroy(markup);
 }
 
+// Changing the vector draw size leaves the cached curve reference size unchanged.
 TEST_F(dmRenderTest, VectorFontReferenceSizeIsIndependentOfDrawSize)
 {
     const float old_size = m_SystemFontMap->m_Size;
@@ -2625,6 +2833,7 @@ TEST_F(dmRenderTest, VectorFontReferenceSizeIsIndependentOfDrawSize)
     m_SystemFontMap->m_IsVector = old_is_vector;
 }
 
+// Vector fonts cache numeric band data and restore the original material when switching modes.
 TEST_F(dmRenderTest, SlugFontCachesNumericBandsAndRestoresLegacyMaterial)
 {
     dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
@@ -2688,6 +2897,7 @@ TEST_F(dmRenderTest, SlugFontCachesNumericBandsAndRestoresLegacyMaterial)
     ASSERT_EQ(cached, dmRender::GetFromCache(m_SystemFontMap, 65, 2));
     ASSERT_EQ(0, memcmp(data->m_Bands.Begin(), bands->m_Data, band_size * sizeof(uint32_t)));
     data->m_MaxTexels = max_texels;
+    dmRender::PrepareVectorCache(m_SystemFontMap, 3);
     ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::GetFromCache(m_SystemFontMap, 65, 3));
     ASSERT_FALSE(m_SystemFontMap->m_SlugResetPending);
     ASSERT_EQ(0u, data->m_Curves.Size());
@@ -2777,16 +2987,17 @@ protected:
         dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
         m_Formats = context->m_BaseContext.m_TextureFormatSupport;
         context->m_BaseContext.m_TextureFormatSupport |= (1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F) | (1ULL << dmGraphics::TEXTURE_FORMAT_R32UI);
-        const char* shader_src = "uniform sampler2D curve_texture; uniform utexture2D band_texture;";
+        const char* shader_src = "uniform sampler2D curve_texture; uniform utexture2D band_texture; uniform sampler2D effect_bitmap;";
         dmGraphics::ShaderDescBuilder builder;
         builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
         builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
         builder.AddTexture("curve_texture", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
         builder.AddTexture("band_texture", 1, dmGraphics::ShaderDesc::SHADER_TYPE_UTEXTURE2D);
+        builder.AddTexture("effect_bitmap", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
         m_Program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
         m_Material = dmRender::NewMaterial(m_Context, m_Program);
-        const char* samplers[] = { "curve_texture", "band_texture" };
-        for (uint32_t i = 0; i < 2; ++i)
+        const char* samplers[] = { "curve_texture", "band_texture", "effect_bitmap" };
+        for (uint32_t i = 0; i < 3; ++i)
             ASSERT_TRUE(dmRender::SetMaterialSampler(m_Material, dmHashString64(samplers[i]), i,
                 dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
                 dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
@@ -2810,10 +3021,10 @@ protected:
         dmRenderTest::TearDown();
     }
 
-    uint32_t Render(const char* source, bool markup, dmRender::FontDefaultVertex* vertices, uint32_t capacity, float elapsed = 0.0f)
+    uint32_t Render(const char* source, bool markup, dmRender::FontDefaultVertex* vertices, uint32_t capacity, float elapsed = 0.0f, float font_size = 1.0f)
     {
         TextLayoutSettings settings = {};
-        settings.m_Size = 1.0f;
+        settings.m_Size = font_size;
         settings.m_Width = 128.0f;
         settings.m_Leading = 1.0f;
         HTextLayout layout = 0;
@@ -2832,6 +3043,7 @@ protected:
         te.m_OutlineAlpha = te.m_ShadowAlpha = 1.0f;
         te.m_Width = settings.m_Width;
         te.m_Leading = settings.m_Leading;
+        te.m_FontSize = font_size;
         te.m_Align = dmRender::TEXT_ALIGN_LEFT;
         te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
         te.m_TextLayout = layout;
@@ -2913,18 +3125,147 @@ protected:
     }
 };
 
+// Atlas overflow recovery must preserve queued texture handles and every glyph.
+TEST_F(VectorFontTest, OverflowKeepsQueuedTexturesAndFirstGlyph)
+{
+    m_SystemFontMap->m_VectorBitmapEffects = true;
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    dmRender::DrawTextParams draw;
+    draw.m_Text = "AA";
+    draw.m_Width = 128.0f;
+    draw.m_FaceColor = Vector4(1.0f);
+    for (uint32_t pass = 0; pass < 2; ++pass)
+    {
+        dmRender::ClearRenderObjects(m_Context);
+        dmRender::RenderListBegin(m_Context);
+        dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, draw);
+        dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+        dmRender::RenderListEnd(m_Context);
+        dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+        dmRender::TextContext& text = m_Context->m_TextContext;
+        const dmRender::FontDefaultVertex* vertices = (const dmRender::FontDefaultVertex*)text.m_ClientBuffer;
+        uint32_t visible = 0;
+        for (uint32_t i = 0; i < text.m_VertexIndex; ++i)
+            visible += vertices[i].m_VectorColor[3] != 0;
+        EXPECT_EQ(12u, visible);
+        EXPECT_EQ(m_SystemFontMap->m_VectorSdfTexture, text.m_RenderObjects[0].m_Textures[2]);
+        if (pass == 0)
+        {
+            const float curve[] = { 0,0, .5f,1, 1,0, 0,0 };
+            FontGlyph glyph = {};
+            glyph.m_Vector.m_Data = (const uint8_t*)curve;
+            glyph.m_Vector.m_DataSize = sizeof(curve);
+            glyph.m_Vector.m_CurveCount = 1;
+            FontVectorSlugData* data = m_SystemFontMap->m_SlugData;
+            uint32_t maximum = data->m_MaxTexels;
+            data->m_MaxTexels = data->m_Bands.Size();
+            EXPECT_EQ((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(m_SystemFontMap, text.m_Frame, 999, &glyph, 0));
+            EXPECT_TRUE(m_SystemFontMap->m_SlugResetPending);
+            data->m_MaxTexels = maximum;
+        }
+    }
+}
+
+// A visible glyph set larger than the initial numeric atlas must fit after
+// growth, without replacing textures or invalidating records in the same frame.
+TEST_F(VectorFontTest, AtlasGrowsBetweenFramesToFitVisibleGlyphs)
+{
+    float       curves[64 * 8];
+    const float curve[] = { 0, 0, .5f, 1, 1, 0, 0, 0 };
+    for (uint32_t i = 0; i < 64; ++i)
+        memcpy(curves + i * 8, curve, sizeof(curve));
+    FontGlyph glyph = {};
+    glyph.m_Vector.m_Data = (const uint8_t*)curves;
+    glyph.m_Vector.m_DataSize = sizeof(curves);
+    glyph.m_Vector.m_CurveCount = 64;
+    FontVectorSlugData* data = m_SystemFontMap->m_SlugData;
+    const uint32_t      initial_capacity = data->m_MaxTexels;
+    uint32_t            cached_count = 0;
+    for (uint32_t frame = 1; frame <= 4; ++frame)
+    {
+        dmRender::PrepareVectorCache(m_SystemFontMap, frame);
+        const dmGraphics::HTexture curves_texture = m_SystemFontMap->m_Texture;
+        const dmGraphics::HTexture bands_texture = m_SystemFontMap->m_VectorBandTexture;
+        cached_count = 0;
+        for (uint32_t i = 0; i < 100; ++i)
+        {
+            dmRender::CacheGlyph* cached = dmRender::GetFromCache(m_SystemFontMap, i, frame);
+            if (!cached)
+                cached = dmRender::AddGlyphToCache(m_SystemFontMap, frame, i, &glyph, 0);
+            cached_count += cached != 0;
+        }
+        dmRender::PrepareVectorCache(m_SystemFontMap, frame);
+        ASSERT_EQ(curves_texture, m_SystemFontMap->m_Texture);
+        ASSERT_EQ(bands_texture, m_SystemFontMap->m_VectorBandTexture);
+        ASSERT_NE((dmRender::CacheGlyph*)0, dmRender::GetFromCache(m_SystemFontMap, 0, frame));
+        if (frame == 1)
+        {
+            ASSERT_LT(cached_count, 100u);
+            ASSERT_TRUE(m_SystemFontMap->m_SlugResetPending);
+        }
+    }
+    EXPECT_EQ(100u, cached_count);
+    EXPECT_FALSE(m_SystemFontMap->m_SlugResetPending);
+    EXPECT_GT(data->m_MaxTexels, initial_capacity);
+    ASSERT_EQ(data->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH, dmGraphics::GetTextureHeight(m_GraphicsContext, m_SystemFontMap->m_Texture));
+    ASSERT_EQ(data->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH, dmGraphics::GetTextureHeight(m_GraphicsContext, m_SystemFontMap->m_VectorBandTexture));
+    dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
+    dmGraphics::NullTexture* bands = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(context->m_BaseContext.m_AssetHandleContainer, m_SystemFontMap->m_VectorBandTexture);
+    ASSERT_EQ(0, memcmp(data->m_Bands.Begin(), bands->m_Data, data->m_Bands.Size() * sizeof(uint32_t)));
+}
+
+// Inherited offsets scale with vector glyphs and decorations; explicit pixel offsets stay fixed.
+TEST_F(VectorFontTest, RichTextShadowOffsetsScaleWithGlyphsAndDecorations)
+{
+    const uint8_t bitmap[45] = {};
+    m_GlyphBank->m_Provider.m_GlyphPadding = 1;
+    m_GlyphBank->m_Provider.m_GlyphChannels = 3;
+    m_GlyphBank->m_Glyphs[65].m_Data = bitmap;
+    m_GlyphBank->m_Glyphs[65].m_DataSize = sizeof(bitmap);
+    m_SystemFontMap->m_CacheCellPadding = 1;
+    m_SystemFontMap->m_CacheCellMaxAscent = 2;
+    m_SystemFontMap->m_VectorBitmapEffects = true;
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_SHADOW;
+    ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, m_Material));
+    const char* inherited = "<shadow color=#ff0000><size=2em><ul>A</ul></size></shadow>";
+    const char* explicit_offsets = "<shadow color=#ff0000 x=3 y=-2><size=2em><ul>A</ul></size></shadow>";
+    for (uint32_t size = 1; size <= 2; ++size)
+    {
+        dmRender::FontDefaultVertex before[24] = {};
+        dmRender::FontDefaultVertex after[24] = {};
+        m_SystemFontMap->m_ShadowX = m_SystemFontMap->m_ShadowY = 0;
+        ASSERT_EQ(24u, Render(inherited, true, before, 24, 0.0f, (float)size));
+        m_SystemFontMap->m_ShadowX = 3;
+        m_SystemFontMap->m_ShadowY = -2;
+        for (uint32_t explicit_offset = 0; explicit_offset < 2; ++explicit_offset)
+        {
+            ASSERT_EQ(24u, Render(explicit_offset ? explicit_offsets : inherited, true, after, 24, 0.0f, (float)size));
+            const float scale = explicit_offset ? 1.0f : 2.0f * size;
+            for (uint32_t vertex = 0; vertex < 24; ++vertex)
+            {
+                const float shadow_scale = vertex < 12 ? scale : 0.0f;
+                ASSERT_NEAR(3.0f * shadow_scale, after[vertex].m_Position[0] - before[vertex].m_Position[0], EPSILON);
+                ASSERT_NEAR(-2.0f * shadow_scale, after[vertex].m_Position[1] - before[vertex].m_Position[1], EPSILON);
+            }
+        }
+    }
+}
+
+// Dynamic face-only vector fonts render on demand without a prewarmed glyph cache.
 TEST_F(VectorFontTest, DynamicFaceWithoutPrewarm)
 {
     RenderWithoutPrewarm("../font/src/test/data/vera_mo_bd.ttf", false);
     RenderWithoutPrewarm("../font/src/test/data/SourceCodePro-Regular.otf", false);
 }
 
+// Dynamic vector effects initialize their cache when first rendered without prewarming.
 TEST_F(VectorFontTest, DynamicEffectsWithoutPrewarm)
 {
     RenderWithoutPrewarm("../font/src/test/data/vera_mo_bd.ttf", true);
     RenderWithoutPrewarm("../font/src/test/data/SourceCodePro-Regular.otf", true);
 }
 
+// Truncated vector text never writes beyond the supplied vertex buffer.
 TEST_F(VectorFontTest, TruncationPreservesBufferBounds)
 {
     m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
@@ -2948,6 +3289,7 @@ TEST_F(VectorFontTest, TruncationPreservesBufferBounds)
     }
 }
 
+// Vector rich-text spans apply their own font size and color to generated vertices.
 TEST_F(VectorFontTest, RichTextUsesSpanSizeAndColor)
 {
     m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
@@ -2962,6 +3304,7 @@ TEST_F(VectorFontTest, RichTextUsesSpanSizeAndColor)
     ASSERT_EQ(255u, vertices[6].m_VectorColor[1]);
 }
 
+// Vector glyph vertices retain rich-text corner colors and animated offsets.
 TEST_F(VectorFontTest, RichTextPreservesCornerColorsAndAnimatedOffsets)
 {
     m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
@@ -2986,6 +3329,7 @@ TEST_F(VectorFontTest, RichTextPreservesCornerColorsAndAnimatedOffsets)
     ASSERT_NEAR(before[2].m_Position[0] - before[0].m_Position[0], after[2].m_Position[0] - after[0].m_Position[0], EPSILON);
 }
 
+// Vector rich text emits outline and shadow layers only for spans that enable them.
 TEST_F(VectorFontTest, RichTextOnlyEmitsStyledEffects)
 {
     const uint8_t bitmap[45] = {}; // One by three RGB texels, plus a one-texel border.

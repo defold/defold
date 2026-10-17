@@ -39,6 +39,8 @@ struct FontLayoutVertexConfig
     float                  m_FaceColor[4];
     float                  m_Width;
     float                  m_Height;
+    // Layout base size / cached glyph size. Zero keeps the layout glyph scale.
+    float                  m_GlyphScale;
     float                  m_RecipAtlasWidth;
     float                  m_RecipAtlasHeight;
     float                  m_DecorationU;
@@ -63,6 +65,8 @@ struct FontLayoutVertexConfig
     bool                   m_MetricsFromTtf;
     bool                   m_IsSdf;
     bool                   m_IsBMFont;
+    // Vector fonts scale inherited offsets from the cached glyph size to the displayed size.
+    bool                   m_ScaleShadowOffsets;
     bool                   m_ShadowUsesFaceCoverage;
     bool                   m_ShadowIncludesOutline;
     bool                   m_RenderDecorations;

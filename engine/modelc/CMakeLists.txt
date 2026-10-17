@@ -24,6 +24,15 @@ if(TARGET_PLATFORM MATCHES "macos|linux|win32$")
 endif()
 
 if(MODELC_IS_DESKTOP)
+  foreach(_codec IN ITEMS meshoptimizer draco_decoder)
+    set(_codec_path "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}/${CMAKE_STATIC_LIBRARY_PREFIX}${_codec}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    if(NOT EXISTS "${_codec_path}")
+      message(FATAL_ERROR "Missing ${_codec_path}. Run build_ext for ${TARGET_PLATFORM} first.")
+    endif()
+    add_library(${_codec} STATIC IMPORTED)
+    set_target_properties(${_codec} PROPERTIES IMPORTED_LOCATION "${_codec_path}")
+  endforeach()
+
   find_package(JNI REQUIRED)
   find_program(DEFOLD_PYTHON NAMES python3 python REQUIRED)
   defold_find_clang_cpp(DEFOLD_CLANGPP)
@@ -34,7 +43,13 @@ if(MODELC_IS_DESKTOP)
   set(MODELC_CORE_SOURCES
     "${MODELC_SRC_DIR}/modelimporter.cpp"
     "${MODELC_SRC_DIR}/modelimporter_debug.cpp"
-    "${MODELC_SRC_DIR}/modelimporter_gltf.cpp")
+    "${MODELC_SRC_DIR}/modelimporter_gltf.cpp"
+    "${MODELC_SRC_DIR}/modelimporter_compression.cpp")
+  # Upstream Draco's C++11 interface is confined to the codec adapter.
+  if(NOT MSVC)
+    set_source_files_properties("${MODELC_SRC_DIR}/modelimporter_compression.cpp"
+      PROPERTIES COMPILE_OPTIONS -std=c++11)
+  endif()
 
   set(MODELC_JAVA_DIR "${CMAKE_CURRENT_BINARY_DIR}/java")
   set(MODELC_JNI_DIR "${CMAKE_CURRENT_BINARY_DIR}/jni")
@@ -67,6 +82,7 @@ if(MODELC_IS_DESKTOP)
   defold_add_library(model STATIC ${MODELC_CORE_SOURCES})
   target_include_directories(model PUBLIC "${MODELC_SRC_DIR}" "${MODELC_SRC_DIR}/model")
   defold_target_link_libraries(model "${TARGET_PLATFORM}" SCOPE PUBLIC ${MODELC_DEPENDENCIES})
+  target_link_libraries(model PRIVATE meshoptimizer draco_decoder)
 
   add_library(modelc_bindings OBJECT "${MODELC_GENERATED_CPP}")
   defold_target_skip_sanitizer(modelc_bindings)
@@ -83,6 +99,7 @@ if(MODELC_IS_DESKTOP)
   add_dependencies(modelc_shared modelc_bindings)
   defold_target_link_libraries(modelc_shared "${TARGET_PLATFORM}"
     ${MODELC_SHARED_DEPENDENCIES})
+  target_link_libraries(modelc_shared PRIVATE meshoptimizer draco_decoder)
   defold_target_link_app(modelc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_codesign_target(modelc_shared "../engine/darwin/entitlements-macos-debug.plist")
 

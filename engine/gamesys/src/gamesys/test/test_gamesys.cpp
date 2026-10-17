@@ -13,6 +13,9 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include <render/render_target_ddf.h>
+#include "gamesys/resources/res_buffer.h"
+#include "gamesys/resources/res_mesh.h"
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -103,7 +106,7 @@ CollectionProxyComponentRef GetCollectionProxyComponentRef(dmGameObject::HInstan
 dmGameObject::HCollection GetCollectionByName(dmGameObject::HRegister regist, const char* name)
 {
     dmGameObject::HCollection collection = dmGameObject::GetCollectionByHash(regist, dmHashString64(name));
-    EXPECT_NE((void*)0, collection);
+    EXPECT_NE(0, collection);
     return collection;
 }
 
@@ -203,6 +206,67 @@ TEST_F(TileGrid3DResourceTest, LoadTileGrid)
     void* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.tilemapc", &resource));
     ASSERT_NE((void*) 0, resource);
+    dmResource::Release(m_Factory, resource);
+}
+
+// Reject empty and zero-sized serialized attachments before creating a framebuffer.
+TEST_F(RenderTargetResourceTest, InvalidAttachmentsFailToCreate)
+{
+    dmRenderDDF::RenderTargetDesc desc = {};
+    desc.m_Type = dmGraphics::TextureImage::TYPE_2D;
+    const uint32_t dimensions[][2] = {{0, 0}, {0, 32}, {64, 0}};
+    dmRenderDDF::RenderTargetDesc::ColorAttachment attachments[2] = {};
+    attachments[0].m_Width = 64;
+    attachments[0].m_Height = 32;
+    attachments[0].m_Format = attachments[1].m_Format = dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA;
+    // Cover an empty target, then invalid first and second color attachments.
+    for (uint32_t i = 0; i < 1 + 2 * DM_ARRAY_SIZE(dimensions); ++i)
+    {
+        if (i > 0)
+        {
+            attachments[1].m_Width = dimensions[(i - 1) % DM_ARRAY_SIZE(dimensions)][0];
+            attachments[1].m_Height = dimensions[(i - 1) % DM_ARRAY_SIZE(dimensions)][1];
+            desc.m_ColorAttachments.m_Data = i <= DM_ARRAY_SIZE(dimensions) ? &attachments[1] : attachments;
+            desc.m_ColorAttachments.m_Count = i <= DM_ARRAY_SIZE(dimensions) ? 1 : 2;
+        }
+        dmArray<uint8_t> buffer;
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmRenderDDF::RenderTargetDesc::m_DDFDescriptor, buffer));
+        void* resource = 0;
+        ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::CreateResource(m_Factory, "/invalid.render_targetc", buffer.Begin(), buffer.Size(), &resource));
+        ASSERT_EQ((void*) 0, resource);
+    }
+}
+
+// Invalid attachments on hot reload must preserve the existing render target.
+TEST_F(RenderTargetResourceTest, InvalidAttachmentsFailToReload)
+{
+    const char* path = "/render_target/valid.render_targetc";
+    dmGameSystem::RenderTargetResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**) &resource));
+    dmGraphics::HRenderTarget original = resource->m_RenderTarget;
+    dmRenderDDF::RenderTargetDesc desc = {};
+    desc.m_Type = dmGraphics::TextureImage::TYPE_2D;
+    const uint32_t dimensions[][2] = {{0, 0}, {0, 32}, {64, 0}};
+    dmRenderDDF::RenderTargetDesc::ColorAttachment attachments[2] = {};
+    attachments[0].m_Width = 64;
+    attachments[0].m_Height = 32;
+    attachments[0].m_Format = attachments[1].m_Format = dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA;
+    // Cover an empty target, then invalid first and second color attachments.
+    for (uint32_t i = 0; i < 1 + 2 * DM_ARRAY_SIZE(dimensions); ++i)
+    {
+        if (i > 0)
+        {
+            attachments[1].m_Width = dimensions[(i - 1) % DM_ARRAY_SIZE(dimensions)][0];
+            attachments[1].m_Height = dimensions[(i - 1) % DM_ARRAY_SIZE(dimensions)][1];
+            desc.m_ColorAttachments.m_Data = i <= DM_ARRAY_SIZE(dimensions) ? &attachments[1] : attachments;
+            desc.m_ColorAttachments.m_Count = i <= DM_ARRAY_SIZE(dimensions) ? 1 : 2;
+        }
+        dmArray<uint8_t> buffer;
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmRenderDDF::RenderTargetDesc::m_DDFDescriptor, buffer));
+        ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+        ASSERT_EQ(original, resource->m_RenderTarget);
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, original));
+    }
     dmResource::Release(m_Factory, resource);
 }
 
@@ -677,7 +741,7 @@ TEST_F(ResourceFolderTest, TestCreateTextureFromScript)
 
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture.goc", dmHashString64("/create_texture"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Test 1: create a 128x128 empty texture at "/test.texturec"
@@ -813,7 +877,7 @@ TEST_F(ResourceFolderTest, TestCreateTextureAsyncFromCoroutine)
     null_context->m_UseAsyncTextureLoad   = 1;
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture_async_from_coroutine.goc", dmHashString64("/create_texture_async_from_coroutine"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "tests_done"));
 
@@ -843,7 +907,7 @@ TEST_F(ResourceFolderTest, TestCreateSoundDataFromScript)
     lua_setglobal(L, "sound_wav");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_sound_data.goc", dmHashString64("/create_sound_data"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     int count = 0;
     bool tests_done = false;
@@ -874,7 +938,7 @@ TEST_F(ResourceFolderTest, TestResourceScriptBuffer)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_buffer.goc", dmHashString64("/script_buffer"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     DeleteInstance(m_Collection, go);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -895,7 +959,7 @@ TEST_F(ResourceFolderTest, TestResourceScriptRenderTarget)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_render_target.goc", dmHashString64("/script_render_target"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
@@ -915,7 +979,7 @@ TEST_F(ResourceFolderTest, TestResourceScriptAtlas)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_atlas.goc", dmHashString64("/script_atlas"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
@@ -936,7 +1000,7 @@ TEST_F(ResourceFolderTest, TestSetTextureFromScript)
 
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/set_texture.goc", dmHashString64("/set_texture"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     dmGameSystem::TextureSetResource* texture_set_res = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/resource/tile_valid.t.texturesetc", (void**) &texture_set_res));
@@ -1030,7 +1094,7 @@ TEST_P(ComponentTest, Test)
     const char* component_name = go_ddf->m_Components[0].m_Component;
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_name);
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -1076,7 +1140,7 @@ TEST_P(ComponentTest, TestReloadFail)
     const char* temp_name = "tmp";
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_name);
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(CopyResource(GetContentFolder(), component_name, temp_name));
     ASSERT_TRUE(UnlinkResource(GetContentFolder(), component_name));
@@ -1105,7 +1169,7 @@ TEST_P(ComponentTest, TestReloadFail)
 TEST_F(CameraComponentTest, CameraTest)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/camera/camera_info.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1185,10 +1249,10 @@ TEST_F(CollectionProxyComponentTest, ConsumeInputInCollectionProxy)
     dmhash_t hash_go_consume_proxy = dmHashString64("/go_consume_proxy");
 
     dmGameObject::HInstance go_consume_yes = Spawn(m_Factory, m_Collection, path_consume_yes, hash_go_consume_yes, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_consume_yes);
+    ASSERT_NE(0, go_consume_yes);
 
     dmGameObject::HInstance go_consume_no = Spawn(m_Factory, m_Collection, path_consume_no, hash_go_consume_no, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_consume_no);
+    ASSERT_NE(0, go_consume_no);
 
     // Iteration 1: Let script send the "enable" message
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -1262,7 +1326,7 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionLoadInitialize)
     dmhash_t go_hash = dmHashString64("/go");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     for (;;)
     {
@@ -1318,7 +1382,7 @@ TEST_F(CollectionProxyComponentTest, AmbientLightAccumulatesAcrossCollectionProx
 
     dmGameObject::HInstance proxy_go = Spawn(m_Factory, m_Collection, "/collection_proxy/ambient_light_root.goc", dmHashString64("/proxy"), 0,
                                               Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, proxy_go);
+    ASSERT_NE(0, proxy_go);
 
     CollectionProxyComponentRef proxy = GetCollectionProxyComponentRef(proxy_go, dmHashString64("collectionproxy"));
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyLoad(proxy.m_World, proxy.m_Component, 0, 0));
@@ -1386,7 +1450,7 @@ TEST_F(CollectionProxyComponentTest, ReleaseDynamicResourceFromAnotherCollection
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/collection_proxy/release_dynamic_resource_root.goc", dmHashString64("/go"), 0,
                                        Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     bool proxy_unloaded = false;
     for (uint32_t i = 0; i < 64 && !proxy_unloaded; ++i)
@@ -1408,7 +1472,7 @@ TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
     dmhash_t go_hash = dmHashString64("/go");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     bool callback1_ready = false;
     bool callback2_error = false;
@@ -1458,10 +1522,10 @@ TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadDeleteProxyWhileLo
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameObject::HInstance proxy_go = Spawn(m_Factory, m_Collection, "/collection_proxy/script_load_cancel_proxy.goc", dmHashString64("/proxy"));
-    ASSERT_NE((void*)0, proxy_go);
+    ASSERT_NE(0, proxy_go);
 
     dmGameObject::HInstance requester_go = Spawn(m_Factory, m_Collection, "/collection_proxy/script_load_cancel_requester.goc", dmHashString64("/requester"));
-    ASSERT_NE((void*)0, requester_go);
+    ASSERT_NE(0, requester_go);
 
     // Let the requester script start collectionproxy.load() against the proxy object.
     // The requester must stay alive after the proxy is deleted, otherwise script instance
@@ -1522,7 +1586,7 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadIn
     dmhash_t proxy_component_hash = dmHashString64("collectionproxy");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     dmLogInfo("collectionproxy cpp cycle root spawned");
     UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
@@ -1535,7 +1599,7 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadIn
     dmGameObject::HCollection level1_collection = GetCollectionByName(m_Register, "set_collection_cpp_cycle_level1");
     dmLogInfo("collectionproxy cpp cycle level1 loaded and initialized");
     dmGameObject::HInstance level1_go = dmGameObject::GetInstanceFromIdentifier(level1_collection, dmHashString64("/go"));
-    ASSERT_NE((void*)0, level1_go);
+    ASSERT_NE(0, level1_go);
     CollectionProxyComponentRef level1_proxy = GetCollectionProxyComponentRef(level1_go, proxy_component_hash);
     dmLogInfo("collectionproxy cpp cycle level1 set_collection /collection_proxy/set_collection_cpp_cycle_level2.collectionc");
     ConfigureCollectionProxy(level1_proxy, "/collection_proxy/set_collection_cpp_cycle_level2.collectionc");
@@ -1544,7 +1608,7 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadIn
     dmGameObject::HCollection level2_collection = GetCollectionByName(m_Register, "set_collection_cpp_cycle_level2");
     dmLogInfo("collectionproxy cpp cycle level2 loaded and initialized");
     dmGameObject::HInstance level2_go = dmGameObject::GetInstanceFromIdentifier(level2_collection, dmHashString64("/go"));
-    ASSERT_NE((void*)0, level2_go);
+    ASSERT_NE(0, level2_go);
     CollectionProxyComponentRef level2_proxy = GetCollectionProxyComponentRef(level2_go, proxy_component_hash);
     dmLogInfo("collectionproxy cpp cycle level2 set_collection /collection_proxy/set_collection_cpp_cycle_level3.collectionc");
     ConfigureCollectionProxy(level2_proxy, "/collection_proxy/set_collection_cpp_cycle_level3.collectionc");
@@ -1553,7 +1617,7 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadIn
     dmGameObject::HCollection level3_collection = GetCollectionByName(m_Register, "set_collection_cpp_cycle_level3");
     dmLogInfo("collectionproxy cpp cycle level3 loaded and initialized");
     dmGameObject::HInstance level3_go = dmGameObject::GetInstanceFromIdentifier(level3_collection, dmHashString64("/go"));
-    ASSERT_NE((void*)0, level3_go);
+    ASSERT_NE(0, level3_go);
     CollectionProxyComponentRef level3_proxy = GetCollectionProxyComponentRef(level3_go, proxy_component_hash);
 
     // Establish the back-edge in C++ without loading it.
@@ -1562,9 +1626,9 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadIn
     // Try to create a cyclic graph
     ConfigureCollectionProxy(level3_proxy, "/collection_proxy/set_collection_cpp_cycle_level1.collectionc", dmGameObject::RESULT_ALREADY_REGISTERED);
 
-    ASSERT_NE((void*)0, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level1"));
-    ASSERT_NE((void*)0, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level2"));
-    ASSERT_NE((void*)0, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level3"));
+    ASSERT_NE(0, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level1"));
+    ASSERT_NE(0, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level2"));
+    ASSERT_NE(0, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level3"));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1580,7 +1644,7 @@ TEST_P(ComponentFailTest, Test)
     const char* go_name = GetParam();
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_name);
-    ASSERT_EQ((void*)0, go);
+    ASSERT_EQ(0, go);
 }
 
 void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t* out_val) {
@@ -1772,6 +1836,198 @@ ResourceFailParams invalid_material_resources[] =
 INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, jc_test_values_in(invalid_material_resources));
 
 /* Buffer */
+
+// A literal BUFC file with uint8[3] and float32 streams, including alignment padding.
+static const uint8_t PACKED_BUFFER[] = {
+    'B', 'U', 'F', 'C', 1, 0, 2, 0, 1, 0, 0, 0, 8, 0, 0, 0,
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0,
+    2, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 8, 1, 0, 0,
+    1, 2, 3, 0, 0, 0, 128, 63,
+};
+
+class PackedBufferTest : public jc_test_base_class
+{
+protected:
+    ResourceDescriptor m_Descriptor;
+
+    void SetUp()
+    {
+        dmBuffer::NewContext();
+        memset(&m_Descriptor, 0, sizeof(m_Descriptor));
+    }
+
+    void TearDown()
+    {
+        if (m_Descriptor.m_Resource)
+        {
+            dmResource::ResourceDestroyParams params = {};
+            params.m_Resource = &m_Descriptor;
+            dmGameSystem::ResBufferDestroy(&params);
+        }
+        dmBuffer::DeleteContext();
+    }
+
+    dmResource::Result Load(const void* bytes, uint32_t size)
+    {
+        void* preload = 0;
+        dmResource::ResourcePreloadParams params = {};
+        params.m_Buffer = bytes;
+        params.m_BufferSize = size;
+        params.m_PreloadData = &preload;
+        dmResource::Result result = dmGameSystem::ResBufferPreload(&params);
+        if (result != dmResource::RESULT_OK)
+            return result;
+        dmResource::ResourceCreateParams create = {};
+        create.m_Buffer = bytes;
+        create.m_BufferSize = size;
+        create.m_Filename = "/packed.bufferc";
+        create.m_PreloadData = preload;
+        create.m_Resource = &m_Descriptor;
+        return dmGameSystem::ResBufferCreate(&create);
+    }
+};
+
+// Verify a literal binary resource is consumed directly with the runtime's stream layout.
+TEST_F(PackedBufferTest, LoadInterleaved)
+{
+    ASSERT_EQ(dmResource::RESULT_OK, Load(PACKED_BUFFER, sizeof(PACKED_BUFFER)));
+    dmGameSystem::BufferResource* resource = (dmGameSystem::BufferResource*)m_Descriptor.m_Resource;
+    ASSERT_EQ(1u, resource->m_ElementCount);
+    ASSERT_EQ(8u, resource->m_Stride);
+    void* data;
+    uint32_t size;
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetBytes(resource->m_Buffer, &data, &size));
+    ASSERT_EQ(8u, size);
+    ASSERT_EQ(0, memcmp(data, PACKED_BUFFER + 48, size));
+    void* stream;
+    uint32_t count, components, stride;
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStream(resource->m_Buffer, 2, &stream, &count, &components, &stride));
+    ASSERT_EQ(1.0f, *(float*)stream);
+    ASSERT_EQ(1u, count);
+    ASSERT_EQ(1u, components);
+    ASSERT_EQ(2u, stride);
+}
+
+// Empty resources still expose their stream declarations to mesh and Lua consumers.
+TEST_F(PackedBufferTest, ZeroElements)
+{
+    uint8_t bytes[sizeof(PACKED_BUFFER)];
+    memcpy(bytes, PACKED_BUFFER, sizeof(bytes));
+    bytes[8] = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, Load(bytes, 48));
+    dmGameSystem::BufferResource* resource = (dmGameSystem::BufferResource*)m_Descriptor.m_Resource;
+    ASSERT_EQ(0u, resource->m_ElementCount);
+    dmBuffer::ValueType type;
+    uint32_t count;
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(resource->m_Buffer, 2, &type, &count));
+    ASSERT_EQ(dmBuffer::VALUE_TYPE_FLOAT32, type);
+    ASSERT_EQ(1u, count);
+}
+
+// Reject corrupt metadata, truncated payloads and legacy DDF before allocating a runtime buffer.
+TEST_F(PackedBufferTest, InvalidData)
+{
+    const uint32_t offsets[] = {0, 4, 6, 7, 8, 12, 24, 28, 29, 40};
+    const uint8_t values[] = {'X', 2, 0, 1, 255, 9, 1, 9, 0, 0};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(offsets); ++i)
+    {
+        uint8_t bytes[sizeof(PACKED_BUFFER) + 1];
+        memcpy(bytes, PACKED_BUFFER, sizeof(PACKED_BUFFER));
+        bytes[offsets[i]] = values[i];
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Load(bytes, sizeof(PACKED_BUFFER)));
+    }
+    for (uint32_t size = 0; size < sizeof(PACKED_BUFFER); ++size)
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Load(PACKED_BUFFER, size));
+    uint8_t extra[sizeof(PACKED_BUFFER) + 1] = {};
+    memcpy(extra, PACKED_BUFFER, sizeof(PACKED_BUFFER));
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Load(extra, sizeof(extra)));
+
+    dmBufferDDF::StreamDesc stream = {};
+    stream.m_Name = "legacy";
+    stream.m_ValueType = dmBufferDDF::VALUE_TYPE_UINT8;
+    stream.m_ValueCount = 1;
+    dmBufferDDF::BufferDesc desc = {};
+    desc.m_Streams.m_Data = &stream;
+    desc.m_Streams.m_Count = 1;
+    dmArray<uint8_t> ddf;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmBufferDDF::BufferDesc::m_DDFDescriptor, ddf));
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Load(ddf.Begin(), ddf.Size()));
+}
+
+// Failed reloads preserve the old buffer; successful reloads replace its data and element count.
+TEST_F(PackedBufferTest, Reload)
+{
+    ASSERT_EQ(dmResource::RESULT_OK, Load(PACKED_BUFFER, sizeof(PACKED_BUFFER)));
+    dmGameSystem::BufferResource* resource = (dmGameSystem::BufferResource*)m_Descriptor.m_Resource;
+    dmBuffer::HBuffer original = resource->m_Buffer;
+    dmResource::ResourceRecreateParams params = {};
+    params.m_Resource = &m_Descriptor;
+    params.m_Buffer = PACKED_BUFFER;
+    params.m_BufferSize = sizeof(PACKED_BUFFER) - 1;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmGameSystem::ResBufferRecreate(&params));
+    ASSERT_EQ(original, resource->m_Buffer);
+    ASSERT_TRUE(dmBuffer::IsBufferValid(original));
+
+    uint8_t replacement[64];
+    memcpy(replacement, PACKED_BUFFER, sizeof(PACKED_BUFFER));
+    memcpy(replacement + 56, PACKED_BUFFER + 48, 8);
+    replacement[8] = 2;
+    replacement[48] = 42;
+    params.m_Buffer = replacement;
+    params.m_BufferSize = sizeof(replacement);
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResBufferRecreate(&params));
+    ASSERT_NE(original, resource->m_Buffer);
+    ASSERT_EQ(2u, resource->m_ElementCount);
+    ASSERT_FALSE(dmBuffer::IsBufferValid(original));
+    void* bytes;
+    uint32_t size;
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetBytes(resource->m_Buffer, &bytes, &size));
+    ASSERT_EQ(16u, size);
+    ASSERT_EQ(0, memcmp(replacement + 48, bytes, size));
+    uint32_t version;
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetContentVersion(resource->m_Buffer, &version));
+    ASSERT_EQ(1u, version);
+}
+
+class PackedMeshTest : public ResourceTest
+{
+public:
+    PackedMeshTest() { SetContentFolder("mesh"); }
+};
+
+// Mesh stream types must come from the packed buffer, including byte-sized normals.
+TEST_F(PackedMeshTest, MixedStreamTypes)
+{
+    uint8_t bytes[64] = {
+        'B', 'U', 'F', 'C', 1, 0, 2, 0, 1, 0, 0, 0, 16, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 3, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 4, 3, 0, 0,
+        0, 0, 128, 63, 0, 0, 0, 64, 0, 0, 64, 64, 128, 127, 255, 0,
+    };
+    dmhash_t names[] = {dmHashString64("position"), dmHashString64("normal")};
+    for (uint32_t s = 0; s < DM_ARRAY_SIZE(names); ++s)
+        for (uint32_t b = 0; b < 8; ++b)
+            bytes[16 + s * 16 + b] = (uint8_t)(names[s] >> (b * 8));
+
+    dmGameSystem::BufferResource* buffer;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/mixed.bufferc", bytes, sizeof(bytes), (void**)&buffer));
+    dmMeshDDF::MeshDesc mesh_desc = {};
+    mesh_desc.m_Material = "/mesh/mesh.materialc";
+    mesh_desc.m_Vertices = "/mixed.bufferc";
+    mesh_desc.m_PositionStream = "position";
+    mesh_desc.m_NormalStream = "normal";
+    mesh_desc.m_PrimitiveType = dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLES;
+    dmArray<uint8_t> mesh_bytes;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&mesh_desc, dmMeshDDF::MeshDesc::m_DDFDescriptor, mesh_bytes));
+    dmGameSystem::MeshResource* mesh;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/mixed.meshc", mesh_bytes.Begin(), mesh_bytes.Size(), (void**)&mesh));
+    ASSERT_EQ(buffer, mesh->m_BufferResource);
+    ASSERT_EQ(16u, buffer->m_Stride);
+    ASSERT_EQ(dmBufferDDF::VALUE_TYPE_FLOAT32, mesh->m_PositionStreamType);
+    ASSERT_EQ(dmBufferDDF::VALUE_TYPE_INT8, mesh->m_NormalStreamType);
+    dmResource::Release(m_Factory, mesh);
+    dmResource::Release(m_Factory, buffer);
+}
 
 const char* valid_buffer_resources[] = {"/mesh/no_data.bufferc", "/mesh/triangle.bufferc"};
 INSTANTIATE_TEST_CASE_P(Buffer, ResourceTest, jc_test_values_in(valid_buffer_resources));

@@ -14,6 +14,7 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <dlib/testutil.h>
 
 #include "../fontcollection.h"
 #include "../markup.h"
@@ -74,9 +75,11 @@ TEST(MarkupNull, LinksPlainTextLayout)
     ASSERT_EQ(4u, codepoints.Size());
 }
 
+// Verify that precompiled styles render with a staged font even when the parser is disabled.
 TEST(MarkupNull, PrecompiledBaseStyleRendersWithoutParser)
 {
-    HFont font = FontLoadFromPath("src/test/data/vera_mo_bd.ttf");
+    char font_path[512];
+    HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(font_path, sizeof(font_path), "src/test/data/vera_mo_bd.ttf"));
     ASSERT_NE((HFont)0, font);
     HFontCollection collection = FontCollectionCreate();
     ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, font));

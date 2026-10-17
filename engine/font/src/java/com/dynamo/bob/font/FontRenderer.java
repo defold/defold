@@ -190,6 +190,8 @@ public final class FontRenderer implements AutoCloseable {
         public float sdfScale;
         public long baseStyle;
         public boolean useBaseStyle;
+        /** Vector layout size in pixels; zero uses Params.size without changing the atlas. */
+        public float fontSize;
     }
 
     /** Font-independent compiled resource style; native setters copy these values. */
@@ -542,6 +544,10 @@ public final class FontRenderer implements AutoCloseable {
         public final float leftBearing;
         public final float ascent;
         public final float descent;
+        /** Width used for text measurement, excluding bitmap sampling bounds. */
+        public final float layoutWidth;
+        /** Bearing used for text measurement, excluding bitmap sampling bounds. */
+        public final float layoutLeftBearing;
 
         private GlyphMetrics(MemorySegment values) {
             codepoint = FontcGlyphMetrics.m_Codepoint(values);
@@ -552,6 +558,8 @@ public final class FontRenderer implements AutoCloseable {
             leftBearing = FontcGlyphMetrics.m_LeftBearing(values);
             ascent = FontcGlyphMetrics.m_Ascent(values);
             descent = FontcGlyphMetrics.m_Descent(values);
+            layoutWidth = FontcGlyphMetrics.m_LayoutWidth(values);
+            layoutLeftBearing = FontcGlyphMetrics.m_LayoutLeftBearing(values);
         }
     }
 
@@ -796,6 +804,7 @@ public final class FontRenderer implements AutoCloseable {
     /**
      * Removes unsupported visible codepoints from rich-text markup with the native parser.
      * Tags, attributes, and entity spellings are preserved byte-for-byte.
+     * Literal ampersands are escaped to preserve their meaning after filtering.
      */
     public static String filterMarkup(String markup, int[] allowedCodepoints) {
         if (markup == null || allowedCodepoints == null)
@@ -806,15 +815,16 @@ public final class FontRenderer implements AutoCloseable {
         }
 
         byte[] bytes = markup.getBytes(StandardCharsets.UTF_8);
+        int outputCapacity = Math.multiplyExact(bytes.length, 5);
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment output = arena.allocate(JAVA_BYTE, Math.max(1, bytes.length));
+            MemorySegment output = arena.allocate(JAVA_BYTE, Math.max(1, outputCapacity));
             MemorySegment outputByteCount = arena.allocate(JAVA_INT);
             checkResult(FontcFilterMarkup(arena.allocateFrom(JAVA_BYTE, bytes), bytes.length,
                             arena.allocateFrom(JAVA_INT, allowedCodepoints), allowedCodepoints.length,
-                            output, bytes.length, outputByteCount),
+                            output, outputCapacity, outputByteCount),
                     "Native rich-text filtering failed");
             int filteredByteCount = outputByteCount.get(JAVA_INT, 0);
-            if (filteredByteCount < 0 || filteredByteCount > bytes.length)
+            if (filteredByteCount < 0 || filteredByteCount > outputCapacity)
                 throw new IllegalStateException("Invalid native filtered markup length");
             return new String(output.asSlice(0, filteredByteCount).toArray(JAVA_BYTE), StandardCharsets.UTF_8);
         }
@@ -933,6 +943,7 @@ public final class FontRenderer implements AutoCloseable {
             FontcProperties.m_VerticalAlign(values, properties.verticalAlign);
             FontcProperties.m_BaseStyle(values, properties.baseStyle);
             FontcProperties.m_UseBaseStyle(values, flag(properties.useBaseStyle));
+            FontcProperties.m_FontSize(values, properties.fontSize);
             checkResult(FontcSetProperties(requireHandle(), values), "Unable to set native font renderer properties");
         }
     }
@@ -1014,7 +1025,7 @@ public final class FontRenderer implements AutoCloseable {
     }
 
     /**
-     * Returns complete Slug curve (RGBA16F) and band (RGBA32F) texture updates.
+     * Returns complete Slug curve (RGBA16F) and band (R32UI) texture updates.
      * Call generateTexture for every entry in the batch first, then request these
      * textures once. Both textures share the final atlas version; null
      * pixels mean the caller's textures are current. Returned buffers are owned
@@ -1027,7 +1038,7 @@ public final class FontRenderer implements AutoCloseable {
             try {
                 checkResult(FontcGetVectorTextures(requireHandle(), knownAtlasVersion, curves, bands),
                         "Native Vector texture generation failed");
-                return new Texture[] {new Texture(curves, Short.BYTES), new Texture(bands, Float.BYTES)};
+                return new Texture[] {new Texture(curves, Short.BYTES), new Texture(bands, Integer.BYTES)};
             } finally {
                 FontcFreeTexture(curves);
                 FontcFreeTexture(bands);

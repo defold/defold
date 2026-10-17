@@ -21,6 +21,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/webserver.h>
 #include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/gameobject/res_collection.h>
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/hid/hid.h>
 #include <dmsdk/render/render.h>
@@ -266,15 +267,18 @@ namespace dmEngine
                                     safe_area.m_InsetRight, safe_area.m_InsetBottom);
     }
 
-    static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
+    void FlushPendingWindowResize(HEngine engine)
     {
+        if (!engine->m_HasPendingWindowResize || !engine->m_RenderContext)
+            return;
+
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
         uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
         dmhash_t message_id = dmRenderDDF::WindowResized::m_DDFDescriptor->m_NameHash;
 
         dmRenderDDF::WindowResized window_resized;
-        window_resized.m_Width = width;
-        window_resized.m_Height = height;
+        window_resized.m_Width = engine->m_PendingWindowResizeWidth;
+        window_resized.m_Height = engine->m_PendingWindowResizeHeight;
 
         dmMessage::URL receiver;
         dmMessage::ResetURL(&receiver);
@@ -290,9 +294,22 @@ namespace dmEngine
             {
                 dmLogError("Could not send 'window_resized' to '%s' socket.", dmRender::RENDER_SOCKET_NAME);
             }
+            else
+            {
+                engine->m_HasPendingWindowResize = false;
+            }
         }
+    }
 
+    void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
+    {
         Engine* engine = (Engine*)user_data;
+        // The graphics adapter may resize the window before @render exists.
+        // Coalesce startup events and deliver the latest size once it is ready.
+        engine->m_PendingWindowResizeWidth = width;
+        engine->m_PendingWindowResizeHeight = height;
+        engine->m_HasPendingWindowResize = true;
+        FlushPendingWindowResize(engine);
         engine->m_InvPhysicalWidth = 1.0f / width;
         engine->m_InvPhysicalHeight = 1.0f / height;
         // update gui context if it exists
@@ -427,7 +444,7 @@ namespace dmEngine
     : m_Config(0)
     , m_Window(0)
     , m_Alive(true)
-    , m_MainCollection(0)
+    , m_MainCollectionResource(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
     , m_GraphicsContext(0)
@@ -460,6 +477,9 @@ namespace dmEngine
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
     , m_InvPhysicalHeight(1.0f/640)
+    , m_PendingWindowResizeWidth(0)
+    , m_PendingWindowResizeHeight(0)
+    , m_HasPendingWindowResize(false)
     , m_ThrottleCooldownMax(0.0f)
     , m_ThrottleCooldown(0.0f)
     , m_ThrottleEnabled(false)
@@ -489,6 +509,11 @@ namespace dmEngine
         return new Engine(engine_service);
     }
 
+    static dmGameObject::HCollection GetMainCollection(HEngine engine)
+    {
+        return dmGameObject::ResCollectionGetCollection(engine->m_MainCollectionResource);
+    }
+
     void Delete(HEngine engine)
     {
         {
@@ -499,8 +524,8 @@ namespace dmEngine
             dmExtension::DispatchEvent( params, &event );
         }
 
-        if (engine->m_MainCollection)
-            dmResource::Release(engine->m_Factory, engine->m_MainCollection);
+        if (engine->m_MainCollectionResource)
+            dmResource::Release(engine->m_Factory, engine->m_MainCollectionResource);
         dmGameObject::PostUpdate(engine->m_Register);
 
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
@@ -1068,7 +1093,7 @@ namespace dmEngine
         if (1 == dmConfigFile::GetInt(engine->m_Config, "html5.show_console_banner", 1))
         {
             EM_ASM({
-                if (navigator.userAgent.toLowerCase().indexOf('chrome') > -1) {
+                if (typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().indexOf('chrome') > -1) {
                     console.log("%c    %c    Made with Defold    %c    %c    https://www.defold.com",
                         "background: #fd6623; padding:5px 0; border: 5px;",
                         "background: #272c31; color: #fafafa; padding:5px 0;",
@@ -1126,7 +1151,7 @@ namespace dmEngine
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
 
         // Accelerometer
-        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
+        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 0);
         new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
 
 #if defined(__EMSCRIPTEN__)
@@ -1448,6 +1473,7 @@ namespace dmEngine
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
+        FlushPendingWindowResize(engine);
         PopulateContextRegistry(engine);
 
         dmGameObject::Initialize(engine->m_Register, engine->m_ScriptContext);
@@ -1695,10 +1721,10 @@ namespace dmEngine
         // setup streaming for resource types, before we load the first collection
         SetupStreamingResourceTypes(engine);
 
-        fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**) &engine->m_MainCollection);
+        fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**)&engine->m_MainCollectionResource);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
-        dmGameObject::Init(engine->m_MainCollection);
+        dmGameObject::Init(GetMainCollection(engine));
 
         engine->m_LastReloadMTime = 0;
 
@@ -1821,6 +1847,7 @@ bail:
         dmArray<dmGameObject::InputAction>* input_buffer = &engine->m_InputBuffer;
         dmGameObject::InputAction input_action;
         input_action.m_ActionId = action_id;
+        input_action.m_Source = action->m_Source;
         input_action.m_Value = action->m_Value;
         input_action.m_Pressed = action->m_Pressed;
         input_action.m_Released = action->m_Released;
@@ -2077,7 +2104,7 @@ bail:
                 uint32_t input_buffer_size = input_buffer.Size();
                 if (input_buffer_size > 0)
                 {
-                    dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
+                    dmGameObject::DispatchInput(GetMainCollection(engine), &input_buffer[0], input_buffer.Size());
                 }
 
 
@@ -2086,7 +2113,7 @@ bail:
                 update_context.m_DT = dt;
                 update_context.m_FixedUpdateFrequency = engine->m_FixedUpdateFrequency;
                 update_context.m_AccumFrameTime = engine->m_AccumFrameTime;
-                dmGameObject::Update(engine->m_MainCollection, &update_context);
+                dmGameObject::Update(GetMainCollection(engine), &update_context);
 
                 dmSound::Update();
 
@@ -2105,7 +2132,7 @@ bail:
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmGameObject::Render(engine->m_MainCollection);
+                    dmGameObject::Render(GetMainCollection(engine));
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -2135,7 +2162,7 @@ bail:
                     }
                 }
 
-                dmGameObject::PostUpdate(engine->m_MainCollection);
+                dmGameObject::PostUpdate(GetMainCollection(engine));
                 dmGameObject::PostUpdate(engine->m_Register);
 
                 if (do_render)
@@ -2463,7 +2490,7 @@ bail:
         engine->m_RunResult.m_Argv[argc++] = strdup("dmengine");
 
         // This value should match the count in dmSystemDDF::Reboot
-        const int ARG_COUNT = 6;
+        const int ARG_COUNT = 8;
         const char* args[ARG_COUNT] =
         {
             reboot->m_Arg1,
@@ -2472,6 +2499,8 @@ bail:
             reboot->m_Arg4,
             reboot->m_Arg5,
             reboot->m_Arg6,
+            reboot->m_Arg7,
+            reboot->m_Arg8,
         };
 
         for (int i = 0; i < ARG_COUNT; ++i)

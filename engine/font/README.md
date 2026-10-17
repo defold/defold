@@ -105,7 +105,7 @@ exercise prebaked layout/fallback. Vector banks use the curve and effect payload
 exported by Fontc. Java/Bob tests cover the resource compiler integration.
 Labels and GUI components are not included here.
 
-Editor Vector previews use the same Slug curve and band records, with an OpenGL 2
+Editor Vector previews use the same Slug curve and band records, with a float-atlas
 adapter that stores the two integer band fields as exact float32 values. Faces
 remain analytical; outlines use the generated SDF channel and shadows use the
 blurred bitmap channel. Numeric textures are finalized and uploaded once after
@@ -117,13 +117,18 @@ closing/reopening preview contexts. Run it
 from `editor` with `lein test integration.vector-font-test` after rebuilding Bob's
 font renderer library and Java bindings.
 
-Vector contributes 61 captures across the four configurations:
+Vector contributes 115 captures across the four configurations:
 
 | Sources | Scenarios | Layout/parser configurations |
 | --- | --- | --- |
 | TTF and OTF runtime glyphs | Face only; face + outline + shadow; 2× font size | All four |
 | TTF and OTF Fontc glyph banks | Same three scenarios | All four |
 | All four Vector sources | Rich text color and 150% size override | Legacy/full with rich text |
+| All four Vector sources | Overlapping text at different world depths | All four |
+| All four Vector sources | Solid and dashed underline/strikethrough | Legacy/full with rich text |
+| All four Vector sources | Outlined underline/strikethrough at ½× and 2× font size | Legacy/full with rich text |
+| Stress TTF | All 64 visible glyphs render after numeric atlas growth | All four |
+| Arabic TTF | Wrapped RTL placement with trailing whitespace | Full with rich/plain text |
 | COLR runtime emoji | Palette/gradient colors; unsupported-glyph fallback; text-color preservation | Full layout, plain/rich (tint requires rich text) |
 
 The Vector face uses analytical curves; outline and shadow sample the generated
@@ -131,6 +136,11 @@ SDF effect atlas. Glyph data is generated at size 40, including the cases drawn
 at size 80. Captures assert that faces, blue outlines, and green shadows are
 present and fit within the fixed capture rectangle. Vector uses separate layer
 quads; manual Vector captures require `--layers multi`.
+The depth case draws coincident red foreground and green background text through
+a depth buffer and requires only the red text to remain. Decoration cases enable
+face culling and check pixels inside word spaces, independently of reference
+images. The outlined cases also check that the outline limit scales with font
+size. Their references gate the full rendered result at 98% likeness.
 
 ```sh
 ./build/arm64-macos/src/test/test_font_bitmap_gen --case otf_vector_bank_multi_effects \
@@ -175,7 +185,7 @@ This writes `build/font-manual/legacy-rich/manual.png`. Use `--help` for all
 options. Manual options cannot be combined with `--case`. Layout/parser support
 is chosen by executable: `test_font_bitmap_gen_skribidi`,
 `test_font_bitmap_gen_plain`, or `test_font_bitmap_gen_skribidi_plain`.
-The CMake target runs all four (453 images) and then generates the report.
+The CMake target runs all four (543 images) and then generates the report.
 
 Rendered reference PNGs belong under
 `src/test/data/reference/<configuration>/`. They require visual

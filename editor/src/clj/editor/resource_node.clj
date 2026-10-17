@@ -149,15 +149,15 @@
   (output own-build-errors g/Any (g/constantly nil))
   (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id _overridden-properties child-outlines own-build-errors resource source-outline]
-      (let [rt (resource/resource-type resource)]
-        {:node-id _node-id
-         :node-outline-key (or (:ext rt) "unknown")
-         :label (or (:label rt) (:ext rt) (localization/message "outline.unknown"))
-         :icon (or (:icon rt) unknown-icon)
-         :children (cond-> child-outlines source-outline (into (:children source-outline)))
-         :outline-error? (g/error-fatal? own-build-errors)
-         :outline-overridden? (not (empty? _overridden-properties))})))
+          (g/fnk [_node-id _overridden-properties child-outlines own-build-errors resource source-outline]
+            (let [rt (resource/resource-type resource)]
+              {:node-id _node-id
+               :node-outline-key (or (:ext rt) "unknown")
+               :label (or (:label rt) (:ext rt) (localization/message "outline.unknown"))
+               :icon (or (:icon rt) unknown-icon)
+               :children (cond-> child-outlines source-outline (into (:children source-outline)))
+               :outline-error? (g/error-fatal? own-build-errors)
+               :outline-overridden? (not (empty? _overridden-properties))})))
   (output sha256 g/Str :cached produce-sha256))
 
 ;; TODO(save-value-cleanup): Can we remove this now?
@@ -322,16 +322,15 @@
   The owner-resource is the containing resource, or nil for a template without
   an owner. The same read-opts map is passed to :read-fn and :sanitize-fn. See
   workspace/make-read-opts for details."
-  [workspace & {:keys [editable ext node-type ddf-type read-defaults read-fn load-fn dependencies-fn editor-dependencies sanitize-fn search-fn pb-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
+  [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn editor-dependencies sanitize-fn search-fn pb-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
   {:pre [(protobuf/pb-class? ddf-type)
          (or (nil? built-pb-class) (protobuf/pb-class? built-pb-class))]}
   (let [read-defaults (boolean read-defaults)
-        read-raw-fn (or read-fn
-                       (if read-defaults
-                         (fn read-with-defaults [_read-opts _owner-resource readable]
-                           (protobuf/read-map-with-defaults ddf-type readable))
-                         (fn read-without-defaults [_read-opts _owner-resource readable]
-                           (protobuf/read-map-without-defaults ddf-type readable))))
+        read-raw-fn (if read-defaults
+                      (fn read-with-defaults [_read-opts _owner-resource readable]
+                        (protobuf/read-map-with-defaults ddf-type readable))
+                      (fn read-without-defaults [_read-opts _owner-resource readable]
+                        (protobuf/read-map-without-defaults ddf-type readable)))
         read-fn (if-not sanitize-fn
                   read-raw-fn
                   (fn read-fn [read-opts owner-resource readable]

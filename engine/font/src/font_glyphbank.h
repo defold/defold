@@ -39,6 +39,9 @@ struct FontGlyphBankGlyph
     float          m_OutlineAscent;
     float          m_OutlineDescent;
     uint8_t        m_BitmapFlags;
+    // Used for measurement when the provider has separate layout metrics.
+    float          m_LayoutWidth;
+    float          m_LayoutLeftBearing;
 };
 
 /*# Returns the codepoint for a zero-based glyph index.
@@ -78,6 +81,8 @@ struct FontGlyphBankProvider
     float                       m_MaxDescent;
     // Zero keeps bitmap metrics fixed; vector metrics scale from this baked size.
     float                       m_ReferenceSize;
+    // False retains the legacy use of bitmap bounds for measurement.
+    bool                        m_HasLayoutMetrics;
 };
 
 /*# Creates a prebaked glyph-bank font.

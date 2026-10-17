@@ -459,9 +459,9 @@
         host-name "target-dotted.local"
         packet (make-response-packet
                  (service-records service-type full-name host-name 8127 {:txt-entries ["id=test-id"
-                                                                                        (str "name=" instance-name)
-                                                                                        "log_port=7001"
-                                                                                        "schema=1"]}))]
+                                                                                       (str "name=" instance-name)
+                                                                                       "log_port=7001"
+                                                                                       "schema=1"]}))]
     (parse-and-rebuild! mdns packet)
     (let [devices ^MDNSServiceInfo/1 (.getDevices mdns)]
       (is (= 1 (alength devices)))
@@ -956,25 +956,25 @@
                                "7001"
                                {"schema" "1"})
         host-changed (MDNSServiceInfo. 120
-                                      "id"
-                                      "instance"
-                                      "service"
-                                      "host-two.local"
-                                      "10.0.0.1"
-                                      "192.168.0.10"
-                                      8123
-                                      "7001"
-                                      {"schema" "1"})
+                                       "id"
+                                       "instance"
+                                       "service"
+                                       "host-two.local"
+                                       "10.0.0.1"
+                                       "192.168.0.10"
+                                       8123
+                                       "7001"
+                                       {"schema" "1"})
         local-address-changed (MDNSServiceInfo. 120
-                                               "id"
-                                               "instance"
-                                               "service"
-                                               "host-one.local"
-                                               "10.0.0.1"
-                                               "192.168.0.11"
-                                               8123
-                                               "7001"
-                                               {"schema" "1"})]
+                                                "id"
+                                                "instance"
+                                                "service"
+                                                "host-one.local"
+                                                "10.0.0.1"
+                                                "192.168.0.11"
+                                                8123
+                                                "7001"
+                                                {"schema" "1"})]
     (is (= base same))
     (is (not= base host-changed))
     (is (not= base local-address-changed))))

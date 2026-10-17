@@ -14,12 +14,12 @@
 
 (ns editor.error-reporting
   (:require
-   [editor.analytics :as analytics]
-   [editor.sentry :as sentry]
-   [editor.system :as system]
-   [service.log :as log])
+    [editor.analytics :as analytics]
+    [editor.sentry :as sentry]
+    [editor.system :as system]
+    [service.log :as log])
   (:import
-   (java.util.concurrent LinkedBlockingQueue)))
+    (java.util.concurrent LinkedBlockingQueue)))
 
 (set! *warn-on-reflection* true)
 

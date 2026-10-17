@@ -17,6 +17,7 @@
 
 #include "font_renderer.h"
 #include <font/font_vector_slug.h>
+#include <font/render/glyph_vertex.h>
 #include <font/font_vector_paint.hpp>
 #include "../render_private.h"
 
@@ -77,6 +78,7 @@ namespace dmRender
         dmGraphics::HTexture    m_VectorSdfTexture;
         dmGraphics::HTexture    m_VectorBandTexture;
         FontVectorSlugData*     m_SlugData;
+        dmArray<FontGlyphVertex> m_DecorationVertices;
         FontVectorPaintCache*   m_VectorPaint;
         dmGraphics::HTexture   m_VectorPaintTexture;
         bool                    m_VectorBitmapEffects;
@@ -141,6 +143,8 @@ namespace dmRender
         uint8_t                 m_IsVector:1;
         uint8_t                 :3;
     };
+    // Apply deferred vector atlas changes before any render batch captures textures.
+    void PrepareVectorCache(HFontMap font_map, uint32_t frame);
 }
 
 #endif // #ifndef DM_FONTMAP_PRIVATE_H

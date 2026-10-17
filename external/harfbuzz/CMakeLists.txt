@@ -38,7 +38,7 @@ set(HARFBUZZ_AMALGAMATION_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz.cc")
 file(CONFIGURE OUTPUT "${HARFBUZZ_AMALGAMATION_SOURCE}" CONTENT "${HARFBUZZ_AMALGAMATION}" @ONLY)
 
 add_library(harfbuzz STATIC "${HARFBUZZ_AMALGAMATION_SOURCE}")
-target_include_directories(harfbuzz PRIVATE "${HARFBUZZ_SOURCE_DIR}")
+target_include_directories(harfbuzz PUBLIC "${HARFBUZZ_SOURCE_DIR}")
 target_compile_definitions(harfbuzz PRIVATE
   NDEBUG HB_TINY HB_EXTERN=
   "HB_CONFIG_OVERRIDE_H=\"${CMAKE_CURRENT_LIST_DIR}/config-override.h\"")

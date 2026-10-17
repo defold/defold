@@ -1,0 +1,15 @@
+function init(self)
+    local node = gui.get_node("text")
+    gui.set_pivot(node, gui["PIVOT_" .. layout_object_pivot])
+    gui.set_size(node, vmath.vector3(layout_object_width, 100, 0))
+    gui.set_text(node, layout_object_text)
+    layout_objects = gui.get_layout_objects(node)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("sample") then
+        local node = gui.get_node("text")
+        gui.set_pivot(node, gui["PIVOT_" .. layout_object_pivot])
+        layout_objects = gui.get_layout_objects(node)
+    end
+end

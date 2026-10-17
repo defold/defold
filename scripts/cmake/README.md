@@ -80,10 +80,10 @@ matching `WITH_*` cache options, such as `WITH_ASAN=ON`. The graphics toggles
 such as `--with-vulkan` continue to map to `WITH_VULKAN`.
 
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
-include Vulkan as an additional adapter. iOS and the iOS simulator still default
-to OpenGL ES; pass `--with-metal` (or `WITH_METAL=ON`) to include Metal as an
-additional adapter on those platforms. This option has no effect on macOS or
-other platforms. App manifest graphics selections
+include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;
+pass `--with-metal` (or `WITH_METAL=ON`) to include Metal on those devices.
+The iOS simulator (`arm64_sim-ios`) always uses Metal, regardless of graphics
+backend options. App manifest graphics selections
 control the bundled adapters and Bob's shader formats: Metal uses MSL, while
 Vulkan uses SPIR-V.
 
@@ -95,17 +95,18 @@ for building and repacking an APK for Android 14 or newer.
 ## Invocation
 
 Run `./scripts/build.py --platform=<platform> install_ext` before the first
-engine build, with the platform SDK already set up. It installs the prepackaged
-dependencies, then builds Bullet, Basis Universal, LZ4, and,
-on iOS, GLFW with the same platform toolchain and installs them into
-`tmp/dynamo_home/ext`. Run `install_ext` again when those sources or the toolchain
-change. Its persistent CMake cache lives under `external/build/<platform>` and is
+engine build, with the platform SDK already set up. It installs the remaining
+prepackaged dependencies, then calls `build_ext` to build Bullet, Basis Universal,
+LZ4, LuaJIT, both Box2D versions, HarfBuzz, libunibreak, Opus, SheenBidi, Skribidi, and desktop Protobuf
+with the same platform toolchain and installs them into
+`tmp/dynamo_home/ext`. Run `build_ext` when those sources or the toolchain change,
+or `install_ext` to also reinstall the packages.
+Its persistent CMake cache lives under `external/build/<platform>` and is
 separate from the engine build to keep normal rebuilds fast.
 
-Both `arm64-ios` and `arm64_sim-ios` always build GLFW from source during `install_ext`.
-Their `install_ext` package lists do not include a prebuilt GLFW archive.
-`install_ext` builds the library before `build_engine` consumes it, and the
-platform SDK includes the resulting library.
+The iOS, Android, and web window backends build directly into the engine's
+`platform` library during `build_engine`; they do not need a separate GLFW
+dependency from `install_ext`. Desktop platforms continue to use GLFW3.
 
 `scripts/build.py build_engine` configures from the top-level `CMakeLists.txt`,
 with one CMake cache under `engine/build/<platform>`. Each engine library still

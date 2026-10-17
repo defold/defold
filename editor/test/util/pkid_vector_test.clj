@@ -136,7 +136,7 @@
   (testing "Batched transient finalization preserves metadata."
     (let [metadata {:test true}
           initial-vector (with-meta (reduce conj (pkid-vector/pkid-vector) (range 65))
-                                    metadata)
+                           metadata)
           associated-vector (pkid-vector/assoc-pkids initial-vector [0 32 64] :x)
           dissociated-vector (pkid-vector/dissoc-pkids associated-vector [1 33])]
       (is (= metadata (meta associated-vector)))
@@ -258,7 +258,7 @@
     (doseq [^long size [0 1 31 32 33 1023 1024 1025]]
       (let [metadata {:size size}
             initial-pkid-vector (with-meta (reduce conj (pkid-vector/pkid-vector) (range size))
-                                           metadata)
+                                  metadata)
             pkid-vector (pkid-vector/assoc-pkids initial-pkid-vector [size] :appended)]
         (check-state! pkid-vector (conj (vec (range size)) :appended) [] (inc size))
         (is (= metadata (meta pkid-vector))))))
@@ -843,7 +843,7 @@
     (let [size (long size)
           values (vec (range size))
           initial-pkid-vector (with-meta (reduce conj (pkid-vector/pkid-vector) values)
-                                         metadata)
+                                metadata)
           index (mod (long raw-index) (inc size))
           associated-pkid-vector (assoc initial-pkid-vector index :associated)
           expected-associated-values (assoc values index :associated)

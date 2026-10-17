@@ -43,7 +43,7 @@
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL GL3]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
@@ -141,7 +141,7 @@
              0
              renderable-datas))
 
-(defn render-sprites [^GL2 gl render-args renderables _count]
+(defn render-sprites [^GL3 gl render-args renderables _count]
   (let [user-data (:user-data (first renderables))
         scene-infos (:scene-infos user-data)
         pass (:pass render-args)
@@ -180,7 +180,7 @@
           (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 num-vertices))))))
 
-(defn- render-sprite-outlines [^GL2 gl render-args renderables _count]
+(defn- render-sprite-outlines [^GL3 gl render-args renderables _count]
   (assert (= pass/outline (:pass render-args)))
   (let [num-quads (count-quads renderables)
         outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables num-quads) outline-shader)]
@@ -234,8 +234,8 @@
                                                   :quad-count (quad-count size-mode slice9)}
                                       :passes [pass/outline]}}]}
 
-            (< 1 (count (:frames first-animation)))
-            (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" first-animation)))))
+      (< 1 (count (:frames first-animation)))
+      (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" first-animation)))))
 
 (def ^:private material-message (properties/label-message :material))
 (def ^:private default-animation-message (properties/label-message :sprite :default-animation))
@@ -247,7 +247,7 @@
 
 (g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count exclude-gles-sm100 material-samplers material-shader blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
   (g/precluding-errors
-    (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler texture-binding-infos)
+    (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler identity texture-binding-infos)
           is-paged-material (and (shader/shader-lifecycle? material-shader)
                                  (shader/is-using-array-samplers? material-shader))
           unassigned-default-animation-error (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation default-animation-message)]
@@ -298,7 +298,7 @@
   (reify resource/Resource
     (children [_])
     (ext [_] "")
-    (resource-type [_])
+    (lookup-resource-type [_ _editable->type-ext->resource-type])
     (source-type [_])
     (exists? [_] false)
     (read-only? [_] true)
@@ -481,9 +481,9 @@
                                                        (get (:anim-data info) new-value))
                                                      texture-binding-infos)]
                            (g/set-property self :manual-size
-                                           [(double (:width animation))
-                                            (double (:height animation))
-                                            0.0])))))))
+                             [(double (:width animation))
+                              (double (:height animation))
+                              0.0])))))))
             (dynamic label (properties/label-dynamic :sprite :default-animation))
             (dynamic tooltip (properties/tooltip-dynamic :sprite :default-animation))
             (dynamic error (g/fnk [_node-id textures primary-texture-binding-info default-animation]
@@ -623,22 +623,22 @@
   {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
   (cond-> (dissoc sprite-desc :tile-set)
 
-          (= protobuf/vector4-zero slice9)
-          (dissoc :slice9)
+    (= protobuf/vector4-zero slice9)
+    (dissoc :slice9)
 
-          (= :size-mode-auto size-mode)
-          (dissoc :size-mode :size)
+    (= :size-mode-auto size-mode)
+    (dissoc :size-mode :size)
 
-          (= protobuf/vector4-zero size)
-          (dissoc :size)
+    (= protobuf/vector4-zero size)
+    (dissoc :size)
 
-          (nil? material)
-          (assoc :material default-material-proj-path)
+    (nil? material)
+    (assoc :material default-material-proj-path)
 
-          (and (zero? (count textures))
-               (pos? (count tile-set)))
-          (assoc :textures [{:sampler "texture_sampler"
-                             :texture tile-set}])))
+    (and (zero? (count textures))
+         (pos? (count tile-set)))
+    (assoc :textures [{:sampler "texture_sampler"
+                       :texture tile-set}])))
 
 (defn- load-sprite [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id sprite-desc :source-value}]
   {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.

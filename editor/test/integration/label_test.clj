@@ -17,6 +17,7 @@
             [clojure.test :refer :all]
             [clojure.walk :as walk]
             [dynamo.graph :as g]
+            [editor.build :as build]
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
             [editor.gl.pass :as pass]
@@ -42,7 +43,7 @@
               [case path] cases]
         (testing case
           (test-util/with-prop [node-id prop (workspace/resolve-workspace-resource workspace path)]
-                               (is (g/error? (test-util/prop-error node-id prop)))))))))
+            (is (g/error? (test-util/prop-error node-id prop)))))))))
 
 (deftest unassigned-font-label-preview-test
   (test-util/with-loaded-project
@@ -50,7 +51,7 @@
       (test-util/with-prop [node-id :font nil]
         (is (nil? (g/node-value node-id :font-map)))
         (let [text-layout (g/node-value node-id :text-layout)]
-          (is (= [] (:lines text-layout)))
+          (is (= 0 (:line-count text-layout)))
           (is (= 0 (:height text-layout))))
         (let [scene (g/node-value node-id :scene)]
           (is (map? scene))
@@ -86,16 +87,24 @@
 
 (deftest label-scene-test
   (test-util/with-loaded-project
-    (let [node-id (project/get-resource-node project "/label/test.label")]
-      (let [scene (g/node-value node-id :scene)
-            aabb (g/node-value node-id :aabb)]
-        (is (= aabb (:aabb scene)))
-        (is (= node-id (:node-id scene)))
-        (is (= node-id (some-> scene :renderable :select-batch-key)))
-        (is (= :blend-mode-alpha (some-> scene :renderable :batch-key :blend-mode)))
-        (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :lines first)))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source) "gl_FragColor"))))))
+    (let [node-id (project/get-resource-node project "/label/test.label")
+          scene (g/node-value node-id :scene)
+          aabb (g/node-value node-id :aabb)]
+      (is (= aabb (:aabb scene)))
+      (is (= node-id (:node-id scene)))
+      (is (= node-id (some-> scene :renderable :select-batch-key)))
+      (is (= :blend-mode-alpha (some-> scene :renderable :batch-key :blend-mode)))
+      (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :text)))
+      (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
+      (let [fragment-source (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source)]
+        (is (string/starts-with? fragment-source "#version 330"))
+        (is (re-find #"\bout vec4 \w+;" fragment-source))
+        (is (not (re-find #"\bgl_FragColor\b" fragment-source))))
+      (test-util/test-uses-assigned-material
+        workspace project node-id
+        :material
+        [:renderable :user-data :material-shader]
+        [:renderable :user-data :gpu-texture]))))
 
 (deftest native-label-text-box-alignment-test
   (test-util/with-loaded-project
@@ -205,14 +214,6 @@
                   pass/transparent {label/render-tris 2}}
                  (render-call-counts #{} :batch-key))))))))
 
-(deftest label-scene-test
-  (test-util/with-loaded-project
-    (let [node-id (project/get-resource-node project "/label/test.label")]
-      (test-util/test-uses-assigned-material workspace project node-id
-                                             :material
-                                             [:renderable :user-data :material-shader]
-                                             [:renderable :user-data :gpu-texture]))))
-
 (deftest label-migration-test
   (test-util/with-loaded-project "test/resources/label_migration_project"
     (let [resources-with-dirty-save-data (into #{}
@@ -260,6 +261,8 @@
           (verify-referenced-component "/scale_migration/referenced_unscaled_label.collection" [0 0] [2.0 3.0 4.0] false)
           (verify-referenced-component "/scale_migration/referenced_unscaled_label_child.collection" [0 0 0] [2.0 3.0 4.0] false))))))
 
+;; Label effect controls reflect the outline and shadow support of the selected
+;; font.
 (deftest label-effect-controls-follow-font-support
   (test-util/with-loaded-project
     (let [font-node (project/get-resource-node project "/editor1/test.font")
@@ -305,24 +308,44 @@
         (is (g/error-fatal? (test-util/prop-error node :style)))
         (is (g/error-fatal? (g/node-value node :build-targets)))))))
 
+;; Invalid vector sizes must block label builds, while hidden bitmap font sizes
+;; remain ignored.
+(deftest vector-font-size-validation-blocks-build
+  (test-util/with-loaded-project
+    (let [label-node (project/get-resource-node project "/label/test.label")]
+      (test-util/prop! label-node :font-size 0.0)
+      (is (nil? (test-util/prop-error label-node :font-size)))
+      (is (not (g/error? (g/node-value label-node :build-targets))))
+      (test-util/prop! label-node :font (workspace/find-resource workspace "/fonts/vector_implicit_dynamic.font"))
+      (test-util/prop! label-node :material (workspace/find-resource workspace "/builtins/fonts/label-vector.material"))
+      (doseq [size [0.0 -1.0]]
+        (test-util/prop! label-node :font-size size)
+        (is (g/error-fatal? (test-util/prop-error label-node :font-size)))
+        (is (g/error-fatal? (build/resolve-node-dependencies label-node project))))
+      (test-util/prop! label-node :font-size 32.0)
+      (is (nil? (test-util/prop-error label-node :font-size)))
+      (is (not (g/error? (g/node-value label-node :build-targets)))))))
+
+;; Label builds retain the vector display size and rich-text style.
 (deftest vector-font-size-and-style-survive-build
   (test-util/with-temp-project-content
     {"/styled.font" {:font "/builtins/fonts/vera_mo_bd.ttf"
-                      :material "/builtins/fonts/font-vector.material"
-                      :vector-font-mode :vector-font-mode-vector
-                      :runtime false
-                      :size 37
-                      :outline-alpha 1.0
-                      :outline-width 2.0
-                      :characters "A"
-                      :styles [{:name "default"}
-                               {:name "notice" :markup "<color=#ff6600>"}]}
+                     :material "/builtins/fonts/font-vector.material"
+                     :vector-font-mode :vector-font-mode-vector
+                     :runtime false
+                     :size 37
+                     :outline-alpha 1.0
+                     :outline-width 2.0
+                     :characters "A"
+                     :styles [{:name "default"}
+                              {:name "notice" :markup "<color=#ff6600>"}]}
      "/styled.label" {:font "/styled.font"
-                       :material "/builtins/fonts/label-vector.material"
-                       :text "A"
-                       :size [128.0 32.0 0.0 0.0]
-                       :font-size 64.0
-                       :style "notice"}}
+                      :material "/builtins/fonts/label-vector.material"
+                      :text "A"
+                      :size [128.0 32.0 0.0 0.0]
+                      :font-size 64.0
+                      :style "notice"}}
+    (test-util/set-setting! (test-util/resource-node project "/game.project") ["shader" "exclude_gles_sm100"] true)
     (let [font-node (test-util/resource-node project "/styled.font")
           label-node (test-util/resource-node project "/styled.label")]
       (doseq [runtime [false true]]
@@ -339,6 +362,8 @@
             (is (= 37 (.getSize built-font)))
             (is (= ["default" "notice"] (mapv #(.getName %) (.getStylesList built-font))))))))))
 
+;; Loading and building legacy bitmap labels preserves their font and material
+;; settings.
 (deftest legacy-bitmap-font-and-label-materials-are-preserved
   (test-util/with-temp-project-content
     {"/legacy.font" {:font "/builtins/fonts/vera_mo_bd.ttf"

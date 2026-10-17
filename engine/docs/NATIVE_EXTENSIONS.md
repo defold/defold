@@ -72,7 +72,7 @@ The native extensions are only supported via Editor 2.
 
 ### Build
 
-The setup steps are described [here](./editor/README.md)
+The setup steps are described [here](../../editor/README.md)
 
 ### Run
 

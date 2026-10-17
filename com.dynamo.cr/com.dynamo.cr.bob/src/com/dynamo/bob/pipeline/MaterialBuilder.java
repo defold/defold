@@ -44,7 +44,6 @@ import com.google.protobuf.TextFormat;
 @BuilderParams(name = "Material", inExts = {".material"}, outExt = ".materialc")
 public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
-    private static final String VECTOR_CURVE_TEXTURE_SAMPLER = "curve_texture";
 
     // This is the uniform name we are looking for in the reflection:
     private static final String PBR_MATERIAL_NAME = "PbrMaterial";
@@ -137,14 +136,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
         compileOptions.maxPageCount = materialBuilder.getMaxPageCount();
-        for (MaterialDesc.Sampler sampler : materialBuilder.getSamplersList()) {
-            if (VECTOR_CURVE_TEXTURE_SAMPLER.equals(sampler.getName())) {
-                // Vector shaders use texelFetch/textureLoad and have no valid GLES 1.00 representation.
-                compileOptions.excludeGlesSm100 = true;
-                break;
-            }
-        }
-
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
         modules.addModule(materialBuilder.getVertexProgram());
         modules.addModule(materialBuilder.getFragmentProgram());

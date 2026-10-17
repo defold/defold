@@ -49,7 +49,7 @@
   (:import [com.dynamo.bob.pipeline CollisionMeshCompiler]
            [com.dynamo.gamesys.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
            [com.dynamo.rig.proto Rig$MeshSet]
-           [com.jogamp.opengl GL2]
+           [com.jogamp.opengl GL3]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -310,7 +310,7 @@
 
         user-data
         (cond-> user-data
-                point-scale-override (assoc :point-scale point-scale-override))]
+          point-scale-override (assoc :point-scale point-scale-override))]
 
     (pair visibility-aabb user-data)))
 
@@ -373,7 +373,7 @@
 
         user-data
         (cond-> user-data
-                point-scale-override (assoc :point-scale point-scale-override))]
+          point-scale-override (assoc :point-scale point-scale-override))]
 
     (pair visibility-aabb user-data)))
 
@@ -401,9 +401,9 @@
                                        :color color
                                        :geometry scene-shapes/box-triangles)
 
-                                     is-2d
-                                     (assoc :double-sided true
-                                            :point-count 6))}
+                               is-2d
+                               (assoc :double-sided true
+                                      :point-count 6))}
      :children [{:node-id _node-id
                  :aabb local-aabb
                  :renderable {:render-fn render-lines-uniform-scale
@@ -414,8 +414,8 @@
                                                    :color color
                                                    :geometry scene-shapes/box-lines)
 
-                                                 is-2d
-                                                 (assoc :point-count 8))}}]}))
+                                           is-2d
+                                           (assoc :point-count 8))}}]}))
 
 (defn- preview-capsule-shape-renderable
   [visibility-aabb user-data prop-kw->override-value]
@@ -451,8 +451,8 @@
 
         user-data
         (cond-> user-data
-                point-scale-override (assoc :point-scale point-scale-override)
-                point-offset-by-w-override (assoc :point-offset-by-w point-offset-by-w-override))]
+          point-scale-override (assoc :point-scale point-scale-override)
+          point-offset-by-w-override (assoc :point-offset-by-w point-offset-by-w-override))]
 
     (pair visibility-aabb user-data)))
 
@@ -632,14 +632,14 @@
         :user-data {:color color
                     :point-count (graphics.types/element-count position-buffer)
                     :point-size 3.0
-                    :geometry {:primitive-type GL2/GL_POINTS
+                    :geometry {:primitive-type GL3/GL_POINTS
                                :position-buffer position-buffer}}}
        {:render-fn render-triangles-uniform-scale
         :tags #{:collision-shape :gizmo}
         :passes [pass/transparent pass/selection]
         :user-data {:color color
                     :double-sided true
-                    :geometry {:primitive-type GL2/GL_TRIANGLES
+                    :geometry {:primitive-type GL3/GL_TRIANGLES
                                :index-buffer index-buffer
                                :position-buffer position-buffer}}})}))
 
@@ -712,9 +712,9 @@
   (output shape-errors g/Any
           (g/fnk [_node-id id id-counts shape-type inline-data mesh-scene mesh-name mesh-index ^:try collision-meshes]
             (g/package-errors _node-id
-                              (validate-image-id _node-id id id-counts)
-                              (when (mesh-source-shape? shape-type inline-data mesh-scene mesh-name mesh-index)
-                                (mesh-shape-selection-error _node-id shape-type mesh-scene mesh-name mesh-index collision-meshes)))))
+              (validate-image-id _node-id id id-counts)
+              (when (mesh-source-shape? shape-type inline-data mesh-scene mesh-name mesh-index)
+                (mesh-shape-selection-error _node-id shape-type mesh-scene mesh-name mesh-index collision-meshes)))))
   (output shape-data g/Any (g/fnk [inline-data] inline-data)))
 
 (g/defnode HullShape
@@ -810,8 +810,8 @@
   (let [resolve-resource #(resolve-resource-fn owner-resource %)
         resolve-shape-resources (fn [shape]
                                   (cond-> shape
-                                          (:mesh-scene shape)
-                                          (update :mesh-scene resolve-resource)))
+                                    (:mesh-scene shape)
+                                    (update :mesh-scene resolve-resource)))
         to-comma-separated-string #(some->> % (string/join ", "))]
     (concat
       (gu/set-properties-from-pb-map self Physics$CollisionObjectDesc collision-object-desc
@@ -861,7 +861,7 @@
                       :passes [pass/transparent pass/selection]
                       :user-data {:color color
                                   :double-sided true
-                                  :geometry {:primitive-type GL2/GL_TRIANGLE_FAN
+                                  :geometry {:primitive-type GL3/GL_TRIANGLE_FAN
                                              :vbuf vbuf}}}
          :children [{:node-id _node-id
                      :aabb aabb
@@ -869,7 +869,7 @@
                                   :tags #{:collision-shape :gizmo :outline}
                                   :passes [pass/outline]
                                   :user-data {:color color
-                                              :geometry {:primitive-type GL2/GL_LINE_LOOP
+                                              :geometry {:primitive-type GL3/GL_LINE_LOOP
                                                          :vbuf vbuf}}}}]}
         {:node-id _node-id
          :node-outline-key "3D Convex Hull"
@@ -879,7 +879,7 @@
                       :passes [pass/outline pass/selection]
                       :user-data {:color color
                                   :point-size 3.0
-                                  :geometry {:primitive-type GL2/GL_POINTS
+                                  :geometry {:primitive-type GL3/GL_POINTS
                                              :vbuf vbuf}}}}))))
 
 (g/defnk produce-scene
@@ -918,8 +918,8 @@
   ;; Physics$CollisionObjectDesc in map format.
   (cond-> collision-object-desc
 
-          (empty? (:shapes (:embedded-collision-shape collision-object-desc)))
-          (dissoc :embedded-collision-shape)))
+    (empty? (:shapes (:embedded-collision-shape collision-object-desc)))
+    (dissoc :embedded-collision-shape)))
 
 (g/defnk produce-save-value
   [collision-shape-resource type mass friction restitution
@@ -927,10 +927,10 @@
    shapes]
   (let [embedded-collision-shape (make-embedded-collision-shape shapes)
         mask (cond-> []
-                     (some? mask)
-                     (into (comp (map string/trim)
-                                 (remove string/blank?))
-                           (string/split mask #",")))]
+               (some? mask)
+               (into (comp (map string/trim)
+                           (remove string/blank?))
+                     (string/split mask #",")))]
     (-> (protobuf/make-map-without-defaults Physics$CollisionObjectDesc
           :collision-shape (resource/resource->proj-path collision-shape-resource)
           :type type
@@ -975,8 +975,8 @@
                  :index (count (:data collision-shape))
                  :count (count (:data convex-shape))}]
       (-> collision-shape
-        (update :shapes conj shape)
-        (update :data into (:data convex-shape))))
+          (update :shapes conj shape)
+          (update :data into (:data convex-shape))))
     collision-shape))
 
 (defn- insert-id-hashes [shapes]
