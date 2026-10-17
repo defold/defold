@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "record.h"
+#include "record_file.h"
 #include "record_service.h"
 #include "record_service_openapi.h"
 #include <dlib/array.h>
@@ -75,7 +76,7 @@ namespace dmRecord
     {
         RecordingFile* file = g_Files[index];
         JoinWorker(file->m_Worker);
-        remove(file->m_Path);
+        FileRemove(file->m_Path);
         dmMutex::Delete(file->m_Mutex);
         if (g_CurrentFile == file)
             g_CurrentFile = 0;
@@ -90,7 +91,7 @@ namespace dmRecord
         mbedtls_md_init(&hash);
         const mbedtls_md_info_t* info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
         bool                     failed = !info || mbedtls_md_setup(&hash, info, 0) != 0 || mbedtls_md_starts(&hash) != 0;
-        FILE*                    file = failed ? 0 : fopen(recording->m_Path, "rb");
+        FILE*                    file = failed ? 0 : FileOpen(recording->m_Path, "rb");
         uint64_t                 size = 0;
         if (!file)
             failed = true;
@@ -426,7 +427,7 @@ namespace dmRecord
             Error(request, 416, "invalid_range", "provide a closed byte range of at most 1 MiB within the file");
             return;
         }
-        FILE* input = fopen(file->m_Path, "rb");
+        FILE* input = FileOpen(file->m_Path, "rb");
 #if defined(_WIN32)
         bool seek_ok = input && _fseeki64(input, start, SEEK_SET) == 0;
 #else
@@ -596,10 +597,15 @@ namespace dmRecord
             Error(request, 507, "storage_full", "delete retained recording files before starting another recording");
             return;
         }
-        if (!g_Directory[0] && dmSys::GetApplicationSavePath("defold-record", g_Directory, sizeof(g_Directory)) != dmSys::RESULT_OK)
+        if (!g_Directory[0])
         {
-            Error(request, 500, "storage_unavailable", "cannot create recording storage");
-            return;
+            char directory[sizeof(g_Directory)];
+            if (dmSys::GetApplicationSavePath("defold-record", directory, sizeof(directory)) != dmSys::RESULT_OK ||
+                !HostPathToUtf8(directory, g_Directory, sizeof(g_Directory)))
+            {
+                Error(request, 500, "storage_unavailable", "cannot create recording storage");
+                return;
+            }
         }
         RecordingFile* recording = new RecordingFile;
         memset(recording, 0, sizeof(*recording));

@@ -16,7 +16,8 @@ import unittest
 class RecordingServiceTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.directory = tempfile.TemporaryDirectory(prefix="defold-record-test-")
+        # Exercise start, hashing, download and cleanup in a non-ASCII storage path.
+        cls.directory = tempfile.TemporaryDirectory(prefix="defold-record-test-é-录像-")
         cls.log = tempfile.TemporaryFile(mode="w+")
         cls.process = subprocess.Popen([SERVER, cls.directory.name], stdout=subprocess.PIPE,
                                        stderr=cls.log, text=True, bufsize=1)

@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <record/record_private.h>
+#include <record/record_file.h>
 #include <record/record_service.h>
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
@@ -82,7 +83,7 @@ namespace dmRecord
         memset(&g_Status, 0, sizeof(g_Status));
         g_Status.m_Supported = true;
         dmStrlCpy(g_Status.m_Path, path, sizeof(g_Status.m_Path));
-        FILE* file = fopen(path, "wb");
+        FILE* file = FileOpen(path, "wb");
         if (!file || g_FailStart)
         {
             dmStrlCpy(g_Status.m_Failure, "test start failed", sizeof(g_Status.m_Failure));
@@ -262,11 +263,22 @@ static void TestHandler(void*, dmWebServer::Request* request)
         dmWebServer::SetStatusCode(request, 404);
 }
 
+#if defined(_WIN32)
+int wmain(int argc, wchar_t** argv)
+#else
 int main(int argc, char** argv)
+#endif
 {
     if (argc != 2)
         return 2;
+#if defined(_WIN32)
+    char directory[1024];
+    if (!WideCharToMultiByte(CP_UTF8, 0, argv[1], -1, directory, sizeof(directory), 0, 0))
+        return 2;
+    g_Directory = directory;
+#else
     g_Directory = argv[1];
+#endif
     dmSocket::Initialize();
     dmRecord::g_Mutex = dmMutex::New();
     dmWebServer::NewParams params;

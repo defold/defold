@@ -41,7 +41,7 @@ endif()
 # Release engines omit this library; headless debug engines can report unsupported.
 if(NOT RECORD_FEATURE_DISABLED AND TARGET_PLATFORM MATCHES "(macos|linux|win32)$")
   defold_add_library(record_service STATIC
-    src/record/record_service.cpp src/record/record_extension.cpp)
+    src/record/record_service.cpp src/record/record_file.cpp src/record/record_extension.cpp)
   target_include_directories(record_service PUBLIC "${RECORD_ROOT}/src")
   defold_target_link_libraries(record_service "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
   list(APPEND RECORD_INSTALL_TARGETS record_service)

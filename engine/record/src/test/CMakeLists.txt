@@ -19,6 +19,7 @@ endfunction()
 # No permission prompt or native window is needed to test lifecycle races.
 if(TARGET_PLATFORM MATCHES "(macos|linux|win32)$")
   record_test(test_record test_record.cpp ../record/record.cpp ../record/record_common.cpp)
+  record_test(test_record_file test_record_file.cpp ../record/record_file.cpp)
 endif()
 record_test(test_record_null test_record_null.cpp)
 defold_target_link_libraries(test_record_null "${TARGET_PLATFORM}" record_null)
@@ -50,7 +51,7 @@ endif()
 
 if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND TARGET_PLATFORM MATCHES "(macos|linux|win32)$")
   defold_add_executable(record_test_server record_test_server.cpp
-    ../record/record.cpp ../record/record_common.cpp ../record/record_service.cpp
+    ../record/record.cpp ../record/record_common.cpp ../record/record_service.cpp ../record/record_file.cpp
     ../record/record_extension.cpp)
   target_include_directories(record_test_server PRIVATE "${RECORD_ROOT}/src")
   target_compile_definitions(record_test_server PRIVATE DLIB_LOG_DOMAIN="RECORD_TEST")
