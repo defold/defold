@@ -61,6 +61,7 @@ namespace dmGameSystem
 
     static HttpService* g_Service = 0;
     static uint64_t     g_Timeout = 0;
+    static uint64_t     g_StallTimeout = 0;
     static const char*  SCRIPT_HTTP_SERVICE_CONTEXT_NAME = HTTP_SERVICE_CONTEXT_NAME;
 
     struct ScriptHttpRequest
@@ -278,7 +279,8 @@ namespace dmGameSystem
     /*# HTTP request options
      * @struct
      * @name http.request_options
-     * @member timeout? [type:number] timeout in seconds
+     * @member timeout? [type:number] timeout in seconds for the complete request, including the response body. A transfer that takes longer fails, even if data arrives.
+     * @member stall_timeout? [type:number] timeout in seconds without sent or received data. The request fails if the transfer stops for this long. It also limits the connection setup.
      * @member path? [type:string] absolute destination path; overwritten only for status 200
      * @member ignore_cache? [type:boolean] do not return cached data for status 304; unavailable on HTML5
      * @member chunked_transfer? [type:boolean] use chunked transfer encoding for HTTPS requests larger than 16 KB; defaults to true and is unavailable on HTML5
@@ -289,6 +291,11 @@ namespace dmGameSystem
      * Perform a HTTP/HTTPS request.
      *
      * [icon:attention] If no timeout value is passed, the configuration value "network.http_timeout" is used. If that is not set, the timeout value is `0` (which blocks indefinitely).
+     *
+     * [icon:attention] If no stall_timeout value is passed, the configuration value "network.http_stall_timeout" is used. If that is not set, the stall timeout value is `0` (disabled).
+     * To limit unresponsive servers but let slow downloads complete, set a stall timeout and no total timeout.
+     *
+     * [icon:html5] If a request with post data has a stall timeout, cross-origin requests use a CORS preflight request.
      *
      * @name http.request
      * @param url [type:string] target url
@@ -419,6 +426,7 @@ namespace dmGameSystem
             }
 
             uint64_t    timeout = g_Timeout;
+            uint64_t    stall_timeout = g_StallTimeout;
             const char* path = 0;
             const char* proxy = 0;
             bool        ignore_cache = false;
@@ -435,6 +443,10 @@ namespace dmGameSystem
                     if (strcmp(attr, "timeout") == 0)
                     {
                         timeout = luaL_checknumber(L, -1) * 1000000.0f;
+                    }
+                    else if (strcmp(attr, "stall_timeout") == 0)
+                    {
+                        stall_timeout = luaL_checknumber(L, -1) * 1000000.0f;
                     }
                     else if (strcmp(attr, "path") == 0)
                     {
@@ -498,6 +510,10 @@ namespace dmGameSystem
             if (r == HTTP_RESULT_OK)
             {
                 r = HttpSetTimeout(request->m_HttpRequest, (uint32_t)timeout);
+            }
+            if (r == HTTP_RESULT_OK)
+            {
+                r = HttpSetStallTimeout(request->m_HttpRequest, (uint32_t)stall_timeout);
             }
             if (r == HTTP_RESULT_OK && path)
             {
@@ -601,6 +617,8 @@ namespace dmGameSystem
         {
             float timeout = dmConfigFile::GetFloat(config_file, "network.http_timeout", 0.0f);
             g_Timeout = (uint64_t)(timeout * 1000000.0f);
+            float stall_timeout = dmConfigFile::GetFloat(config_file, "network.http_stall_timeout", 0.0f);
+            g_StallTimeout = (uint64_t)(stall_timeout * 1000000.0f);
         }
 
         luaL_register(L, "http", HTTP_COMP_FUNCTIONS);
