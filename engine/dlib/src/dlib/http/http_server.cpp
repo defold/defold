@@ -318,7 +318,10 @@ bail:
         HTTP_SERVER_SENDALL_AND_BAIL("Server: Dynamo 1.0\r\n")
         if (internal_req->m_CloseConnection)
             HTTP_SERVER_SENDALL_AND_BAIL("Connection: close\r\n")
-        HTTP_SERVER_SENDALL_AND_BAIL(chunked_header)
+        if (internal_req->m_StatusCode != 204)
+        {
+            HTTP_SERVER_SENDALL_AND_BAIL(chunked_header)
+        }
         HTTP_SERVER_SENDALL_AND_BAIL("\r\n")
 
         return;
@@ -357,6 +360,10 @@ bail:
 
         if (!internal_req->m_AttributesSent)
             SendAttributes(internal_req);
+
+        // A 204 response ends at the headers, without a body or terminating chunk.
+        if (internal_req->m_StatusCode == 204)
+            return;
 
         FlushSendBuffer(request);
 

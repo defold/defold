@@ -6,6 +6,7 @@ import http.client
 import json
 import pathlib
 import queue
+import socket
 import threading
 import subprocess
 import tempfile
@@ -140,6 +141,29 @@ class RecordingServiceTest(unittest.TestCase):
         self.request("DELETE", url, expected=204)
         self.request("GET", url, expected=410)
         self.assertEqual([], list(pathlib.Path(self.directory.name).iterdir()))
+
+    # A 204 must end at its headers so the next keep-alive response starts with a status line.
+    def test_delete_preserves_keep_alive(self):
+        receipt = self.request("POST", "/recording/start", {}, 202)
+        self.wait_status()
+        self.request("POST", "/recording/stop", {"operation_id": receipt["operation_id"]}, 202)
+        url = self.wait_status(complete_file=True)["file"]["url"]
+        with socket.create_connection(("127.0.0.1", self.port), timeout=5) as connection:
+            with connection.makefile("rb") as response:
+                connection.sendall((f"DELETE {url} HTTP/1.1\r\n"
+                                    "Host: 127.0.0.1\r\n"
+                                    f"X-Recording-Instance: {self.instance_id}\r\n\r\n").encode("ascii"))
+                self.assertEqual(b"HTTP/1.1 204 No Content\r\n", response.readline())
+                headers = http.client.parse_headers(response)
+                self.assertIsNone(headers.get("Transfer-Encoding"))
+                self.assertIsNone(headers.get("Content-Length"))
+                connection.sendall(("GET /recording/status HTTP/1.1\r\n"
+                                    "Host: 127.0.0.1\r\n"
+                                    f"X-Recording-Instance: {self.instance_id}\r\n"
+                                    "Connection: close\r\n\r\n").encode("ascii"))
+                self.assertEqual(b"HTTP/1.1 200 OK\r\n", response.readline())
+                response.read()
+        self.request("GET", url, expected=410)
 
     # Header casing must not reject valid commands or bypass stale-instance checks.
     def test_case_insensitive_headers(self):
