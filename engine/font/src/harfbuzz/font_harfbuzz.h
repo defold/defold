@@ -98,7 +98,7 @@ void FontHarfbuzzGetGlyphHMetrics(FontHarfbuzz* font, uint32_t glyph_index, int3
  */
 FontOutlineType FontHarfbuzzGetOutlineType(FontHarfbuzz* font);
 
-/*# return unscaled glyph bounds
+/*# return unscaled outline bounds, excluding COLR paint and clip data
  * @name FontHarfbuzzGetGlyphBox
  * @param font [type: FontHarfbuzz*] source face
  * @param glyph_index [type: uint32_t] glyph index

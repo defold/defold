@@ -20,6 +20,7 @@
 #include "font.h"
 #include "font_harfbuzz.h"
 #include "truetype/font_truetype.h"
+#include "truetype/font_colr.h"
 
 struct FontHarfbuzz
 {
@@ -34,8 +35,11 @@ static void DestroyTrueType(void* data)
 
 static hb_bool_t GetGlyphExtents(hb_font_t* font, void* data, hb_codepoint_t glyph, hb_glyph_extents_t* extents, void*)
 {
-    int32_t x0, y0, x1, y1;
-    if (!FontTrueTypeGetGlyphBox((FontTrueType*)data, glyph, &x0, &y0, &x1, &y1))
+    int32_t       x0, y0, x1, y1;
+    FontTrueType* true_type = (FontTrueType*)data;
+    // Shaping uses the color glyph's extents; PaintGlyph uses only its raw outline.
+    if (!FontColrGetGlyphBox(FontTrueTypeGetColr(true_type), glyph, &x0, &y0, &x1, &y1) &&
+        !FontTrueTypeGetGlyphBox(true_type, glyph, &x0, &y0, &x1, &y1))
         return false;
 
     // Shaping requests bounds through HarfBuzz even though it no longer
@@ -135,15 +139,7 @@ FontOutlineType FontHarfbuzzGetOutlineType(FontHarfbuzz* font)
 
 bool FontHarfbuzzGetGlyphBox(FontHarfbuzz* font, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
 {
-    hb_glyph_extents_t extents;
-    if (!hb_font_get_glyph_extents(font->m_Font, glyph_index, &extents))
-        return false;
-
-    *x0 = extents.x_bearing;
-    *y1 = extents.y_bearing;
-    *x1 = extents.x_bearing + extents.width;
-    *y0 = extents.y_bearing + extents.height;
-    return true;
+    return FontTrueTypeGetGlyphBox(font->m_TrueType, glyph_index, x0, y0, x1, y1);
 }
 
 hb_font_t* FontHarfbuzzGetFont(FontHarfbuzz* font)

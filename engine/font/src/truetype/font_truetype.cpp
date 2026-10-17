@@ -2296,9 +2296,6 @@ FontOutlineType FontTrueTypeGetOutlineType(FontTrueType* font)
 
 bool FontTrueTypeGetGlyphBox(FontTrueType* font, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
 {
-    if (FontColrGetGlyphBox(&font->m_Colr, glyph_index, x0, y0, x1, y1))
-        return true;
-
     if (font->m_OutlineType == FONT_OUTLINE_TYPE_GLYF)
     {
         const uint8_t* data;

@@ -19,6 +19,16 @@ vec4 paintData(int index)
     return texelFetch(paint_texture, ivec2(index & 4095, index >> 12), 0);
 }
 
+vec3 linearColor(vec3 color)
+{
+    return mix(color / 12.92, pow((color + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), color));
+}
+
+vec3 srgbColor(vec3 color)
+{
+    return mix(12.92 * color, 1.055 * pow(color, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), color));
+}
+
 vec4 stopColor(int index, vec4 foreground)
 {
     vec4 color = paintData(index);
@@ -99,32 +109,63 @@ vec4 FontVectorPaintColor(int paint, vec2 p, vec4 foreground)
 
 vec4 FontVectorPaintGlyphColor(int glyph, vec2 p, vec2 dx, vec2 dy, vec4 foreground)
 {
+    // Palette stops are already linearized in the cache. Foreground is dynamic.
+    foreground.rgb = linearColor(foreground.rgb);
     vec4 result = vec4(0.0);
     int count = int(paintData(glyph).x);
+    vec4 composite = vec4(0.0);
+    float coverage = 0.0;
+    int compositeEnd = count;
     // Front-to-back source-over permits stopping behind an opaque layer.
     // Derivatives are supplied by the caller outside non-uniform control flow.
     for (int i = count - 1; i >= 0; --i)
     {
         int layer = glyph + 1 + i * 6;
         vec4 clip = paintData(layer + 5);
-        if (any(lessThan(p, clip.xy)) || any(greaterThan(p, clip.zw)))
-            continue;
-        vec4 x = paintData(layer);
+        bool clipped = any(lessThan(p, clip.xy)) || any(greaterThan(p, clip.zw));
         vec4 y = paintData(layer + 1);
-        vec2 uv = vec2(dot(x.xyz, vec3(p, 1.0)), dot(y.xyz, vec3(p, 1.0)));
-        vec2 emsPerPixel = abs(vec2(dot(x.xy, dx), dot(y.xy, dx))) + abs(vec2(dot(x.xy, dy), dot(y.xy, dy)));
-        if (any(lessThan(uv, -2.0 * emsPerPixel)) || any(greaterThan(uv, vec2(1.0) + 2.0 * emsPerPixel)))
-            continue;
-        int band = int(x.w);
-        float coverage = SlugRender(uv, emsPerPixel, paintData(layer + 2), ivec4(band & 4095, band >> 12, 7, 7));
-        if (coverage <= 0.0)
-            continue;
-        vec2 position = vec2(dot(paintData(layer + 3).xyz, vec3(p, 1.0)), dot(paintData(layer + 4).xyz, vec3(p, 1.0)));
-        vec4 color = coverage * FontVectorPaintColor(int(y.w), position, foreground);
-        result += (1.0 - result.a) * color;
-        if (result.a >= 1.0)
-            break;
+        if (i < compositeEnd)
+        {
+            compositeEnd = y.w < 0.0 ? i - int(paintData(layer + 3).w) + 1 : i;
+            if (i == compositeEnd && clipped)
+                continue;
+            vec4 x = paintData(layer);
+            vec2 uv = vec2(dot(x.xyz, vec3(p, 1.0)), dot(y.xyz, vec3(p, 1.0)));
+            vec2 emsPerPixel = abs(vec2(dot(x.xy, dx), dot(y.xy, dx))) + abs(vec2(dot(x.xy, dy), dot(y.xy, dy)));
+            if (any(lessThan(uv, -2.0 * emsPerPixel)) || any(greaterThan(uv, vec2(1.0) + 2.0 * emsPerPixel)))
+            {
+                i = compositeEnd;
+                continue;
+            }
+            int band = int(x.w);
+            coverage = SlugRender(uv, emsPerPixel, paintData(layer + 2), ivec4(band & 4095, band >> 12, 7, 7));
+            if (coverage <= 0.0)
+            {
+                i = compositeEnd;
+                continue;
+            }
+        }
+        if (!clipped)
+        {
+            vec2 position = vec2(dot(paintData(layer + 3).xyz, vec3(p, 1.0)), dot(paintData(layer + 4).xyz, vec3(p, 1.0)));
+            int paint = int(y.w < 0.0 ? -y.w - 1.0 : y.w);
+            composite += (1.0 - composite.a) * FontVectorPaintColor(paint, position, foreground);
+        }
+        if (i == compositeEnd || composite.a >= 1.0)
+        {
+            // A composite inside PaintGlyph shares its clip. Apply Slug coverage
+            // once to the completed fill, including at partially covered edges.
+            result += (1.0 - result.a) * coverage * composite;
+            composite = vec4(0.0);
+            i = compositeEnd;
+            if (result.a >= 1.0)
+                break;
+        }
     }
+    if (result.a <= 0.0)
+        return vec4(0.0);
+    // Return premultiplied sRGB to match ordinary text and framebuffer blending.
+    result.rgb = srgbColor(result.rgb / result.a) * result.a;
     // Text opacity belongs to the completed glyph, not its overlapping paints.
     return foreground.a * result;
 }

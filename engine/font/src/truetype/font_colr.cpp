@@ -395,8 +395,12 @@ static FontResult Paint(PaintContext* c, uint64_t offset, uint32_t depth)
         uint32_t source = U24(p + 1), backdrop = U24(p + 5);
         if (!source || !backdrop)
             return FONT_RESULT_ERROR;
-        FontResult result = Paint(c, offset + backdrop, depth + 1);
-        return result == FONT_RESULT_OK ? Paint(c, offset + source, depth + 1) : result;
+        bool       ok = c->m_Callbacks->m_PushComposite(c->m_Context);
+        FontResult result = ok ? Paint(c, offset + backdrop, depth + 1) : FONT_RESULT_NOT_SUPPORTED;
+        if (result == FONT_RESULT_OK)
+            result = Paint(c, offset + source, depth + 1);
+        c->m_Callbacks->m_PopComposite(c->m_Context);
+        return result;
     }
     return Transform(c, offset, p, depth);
 }

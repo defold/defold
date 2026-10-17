@@ -128,6 +128,71 @@ TEST(FontVector, ColorGlyphQuadAndCompositionRecords)
     FontDestroy(font);
 }
 
+// PaintGlyph must use raw outline bounds even when that glyph has its own COLR clip.
+TEST(FontVector, ColorClipDoesNotCropReusedOutline)
+{
+    char  path[512];
+    HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/color-test.ttf"));
+    ASSERT_NE((HFont)0, font);
+    uint32_t         clipped = FontGetGlyphIndex(font, 'B');
+    FontGlyphOptions options;
+    options.m_StbttSDFPadding = 0;
+    FontGlyph outline;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, clipped, &options, &outline));
+    ASSERT_EQ(500.0f, outline.m_Width); // Layout sees the color glyph's clipped bounds.
+    FontFreeGlyph(font, &outline);
+    options.m_GenerateOutline = true;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, clipped, &options, &outline));
+    ASSERT_EQ(1000.0f, outline.m_Outline.m_Width);
+    ASSERT_EQ(1000.0f, outline.m_Outline.m_Height);
+    FontFreeGlyph(font, &outline);
+
+    FontVectorSlugData   data;
+    FontVectorPaintCache cache;
+    cache.m_Slug = &data;
+    uint32_t index;
+    bool     color;
+    ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, clipped, &index, &color));
+    ASSERT_TRUE(color);
+    ASSERT_EQ(500.0f, cache.m_Glyphs[index].m_Bounds.getZ());
+    ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, FontGetGlyphIndex(font, 'C'), &index, &color));
+    ASSERT_TRUE(color);
+    ASSERT_EQ(1000.0f, cache.m_Glyphs[index].m_Bounds.getZ());
+    FontDestroy(font);
+}
+
+// Only explicit composites inside one outline share coverage. Nested composites
+// flatten into that group, while sibling clips and layer lists remain separate.
+TEST(FontVector, SharedClipCompositeRecords)
+{
+    char  path[512];
+    HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/color-test.ttf"));
+    ASSERT_NE((HFont)0, font);
+    FontVectorSlugData   data;
+    FontVectorPaintCache cache;
+    cache.m_Slug = &data;
+    const uint32_t counts[] = { 1, 2, 1, 1, 3, 2, 1 }; // J-P.
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(counts); ++i)
+    {
+        uint32_t index;
+        bool     color;
+        ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, FontGetGlyphIndex(font, 'J' + i), &index, &color));
+        ASSERT_TRUE(color);
+        const FontVectorPaintGlyph& glyph = cache.m_Glyphs[index];
+        const FontVectorPaintLayer& last = cache.m_Layers[glyph.m_FirstLayer + glyph.m_LayerCount - 1];
+        ASSERT_EQ(counts[i], last.m_CompositeCount);
+        ASSERT_EQ((float)counts[i], cache.m_Paints[glyph.m_Paint + 1 + (glyph.m_LayerCount - 1) * 6 + 3].getW());
+        ASSERT_EQ(counts[i] > 1, cache.m_Paints[glyph.m_Paint + 1 + (glyph.m_LayerCount - 1) * 6 + 1].getW() < 0);
+        ASSERT_EQ(glyph.m_Paint + 1 + glyph.m_LayerCount * 6, cache.m_Paints.Size());
+        if (i == 2 || i == 3)
+        {
+            ASSERT_EQ(2u, glyph.m_LayerCount);
+            ASSERT_EQ(1u, cache.m_Layers[glyph.m_FirstLayer].m_CompositeCount);
+        }
+    }
+    FontDestroy(font);
+}
+
 // CPU effect generation preserves analytical faces and the outline distance field.
 TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
 {

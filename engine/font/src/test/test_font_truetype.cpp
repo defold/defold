@@ -395,6 +395,21 @@ TEST(FontTrueTypeReference, HarfBuzzSymbolCmap)
     FreeReferenceFont(&font);
 }
 
+// Color bounds used for shaping must not replace the raw glyph's outline bounds.
+TEST(FontTrueTypeReference, ColorAndOutlineBounds)
+{
+    ReferenceFont font;
+    ASSERT_TRUE(LoadFont("src/test/data/color-test.ttf", &font));
+    uint32_t glyph = FontHarfbuzzGetGlyphIndex(font.m_Harfbuzz, 'B');
+    int32_t  x0, y0, x1, y1;
+    ASSERT_TRUE(FontHarfbuzzGetGlyphBox(font.m_Harfbuzz, glyph, &x0, &y0, &x1, &y1));
+    ASSERT_EQ(1000, x1);
+    hb_glyph_extents_t extents;
+    ASSERT_TRUE(hb_font_get_glyph_extents(FontHarfbuzzGetFont(font.m_Harfbuzz), glyph, &extents));
+    ASSERT_EQ(500, extents.width);
+    FreeReferenceFont(&font);
+}
+
 TEST(FontTrueTypeReference, OpenTypeCFF1)
 {
     ReferenceFont font;

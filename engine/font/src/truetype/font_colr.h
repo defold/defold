@@ -67,6 +67,9 @@ struct FontColrCallbacks
     bool (*m_PushClipGlyph)(void* context, uint32_t glyph);
     bool (*m_PushClipRectangle)(void* context, float x0, float y0, float x1, float y1);
     void (*m_PopClip)(void* context);
+    // Isolate source-over operands from the current clip's edge coverage.
+    bool (*m_PushComposite)(void* context);
+    void (*m_PopComposite)(void* context);
     bool (*m_Paint)(void* context, const FontColrPaint* paint);
 };
 

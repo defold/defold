@@ -106,7 +106,7 @@ void FontTrueTypeGetGlyphHMetrics(FontTrueType* font, uint32_t glyph_index, int3
  */
 FontOutlineType FontTrueTypeGetOutlineType(FontTrueType* font);
 
-/*# return unscaled glyph bounds
+/*# return unscaled outline bounds, excluding COLR paint and clip data
  * @name FontTrueTypeGetGlyphBox
  * @param font [type: FontTrueType*] source face
  * @param glyph_index [type: uint32_t] glyph index

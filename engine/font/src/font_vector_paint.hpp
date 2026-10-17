@@ -35,6 +35,7 @@ struct FontVectorPaintLayer
 {
     uint32_t         m_Path;
     uint32_t         m_Paint;
+    uint32_t         m_CompositeCount; // On the last layer: paints sharing one outline coverage.
     dmVMath::Matrix4 m_Transform;
     dmVMath::Matrix4 m_PaintTransform;
     dmVMath::Vector4 m_Clip;

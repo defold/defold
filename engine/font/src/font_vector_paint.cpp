@@ -37,6 +37,7 @@ struct PaintContext
     HFont                 m_Font;
     dmArray<Matrix4>      m_Transforms;
     dmArray<PaintClip>    m_Clips;
+    dmArray<uint32_t>     m_Composites;
     uint32_t              m_FirstLayer;
     bool                  m_Failed;
 };
@@ -159,9 +160,38 @@ static void PopClip(void* data)
     context->m_Clips.SetSize(context->m_Clips.Size() - 1);
 }
 
+static bool PushComposite(void* data)
+{
+    PaintContext* context = (PaintContext*)data;
+    uint32_t      first = context->m_Composites.Empty() ? ~0u : context->m_Composites.Back();
+    if (first == ~0u && CurrentClip(context).m_Path != ~0u)
+        first = context->m_Cache->m_Layers.Size();
+    Append(context->m_Composites, first);
+    return true;
+}
+
+static void PopComposite(void* data)
+{
+    PaintContext* context = (PaintContext*)data;
+    uint32_t      first = context->m_Composites.Back();
+    context->m_Composites.Pop();
+    // Nested source-over composites share the outer group's coverage. Separate
+    // PaintGlyph nodes and ordinary layer lists retain their individual coverage.
+    if (first != ~0u && (context->m_Composites.Empty() || context->m_Composites.Back() != first) &&
+        context->m_Cache->m_Layers.Size() > first)
+        context->m_Cache->m_Layers.Back().m_CompositeCount = context->m_Cache->m_Layers.Size() - first;
+}
+
+static float SRGBToLinear(float color)
+{
+    return color <= 0.04045f ? color / 12.92f : powf((color + 0.055f) / 1.055f, 2.4f);
+}
+
 static void AppendStop(FontVectorPaintCache* cache, const FontColrStop& stop)
 {
-    Append(cache->m_Paints, Vector4(stop.m_Color[0], stop.m_Color[1], stop.m_Color[2], stop.m_Color[3]));
+    // COLR interpolates and composites in linear light. Convert static palette
+    // values once, while caching, rather than for every fragment and stop.
+    Append(cache->m_Paints, Vector4(SRGBToLinear(stop.m_Color[0]), SRGBToLinear(stop.m_Color[1]), SRGBToLinear(stop.m_Color[2]), stop.m_Color[3]));
     Append(cache->m_Paints, Vector4(stop.m_Offset, stop.m_Foreground ? 1.0f : 0.0f, 0, 0));
 }
 
@@ -193,6 +223,7 @@ static bool AddPaint(PaintContext* context, uint32_t type, uint32_t stops, uint3
     FontVectorPaintLayer layer;
     layer.m_Path = clip.m_Path;
     layer.m_Paint = cache->m_Paints.Size();
+    layer.m_CompositeCount = 1;
     layer.m_Transform = clip.m_Transform;
     layer.m_PaintTransform = inverse(paint_transform) * clip.m_Transform;
     layer.m_Clip = clip.m_Rect;
@@ -236,6 +267,8 @@ static const FontColrCallbacks COLR_CALLBACKS = {
     PushClipGlyph,
     PushClipRectangle,
     PopClip,
+    PushComposite,
+    PopComposite,
     PaintColor
 };
 
@@ -279,9 +312,12 @@ static void EncodeGlyph(FontVectorPaintCache* cache, FontVectorPaintGlyph* glyph
                      Matrix4::translation(dmVMath::Vector3(-path.m_Bounds.getX(), -path.m_Bounds.getY(), 0)) * inverse_transform;
         Matrix4 paint = layer.m_PaintTransform * inverse_transform;
         Append(cache->m_Paints, PaintRow(uv, 0, (float)path.m_Slug.m_BandTexel));
-        Append(cache->m_Paints, PaintRow(uv, 1, (float)layer.m_Paint));
+        // A negative paint index marks a shared composite. Ordinary layers can
+        // reject uncovered fragments without fetching the paint transform/count.
+        float paint_index = layer.m_CompositeCount > 1 ? -(float)(layer.m_Paint + 1) : (float)layer.m_Paint;
+        Append(cache->m_Paints, PaintRow(uv, 1, paint_index));
         Append(cache->m_Paints, Vector4(path.m_Slug.m_BandTransform[0], path.m_Slug.m_BandTransform[1], path.m_Slug.m_BandTransform[2], path.m_Slug.m_BandTransform[3]));
-        Append(cache->m_Paints, PaintRow(paint, 0, 0));
+        Append(cache->m_Paints, PaintRow(paint, 0, (float)layer.m_CompositeCount));
         Append(cache->m_Paints, PaintRow(paint, 1, 0));
         Append(cache->m_Paints, layer.m_Clip);
         Vector4 bounds(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);

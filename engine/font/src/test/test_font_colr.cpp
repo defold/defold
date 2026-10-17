@@ -30,6 +30,8 @@ struct Capture
     uint32_t              m_ClipDepth;
     uint32_t              m_TransformDepth;
     uint32_t              m_TransformCount;
+    uint32_t              m_CompositeDepth;
+    uint32_t              m_CompositeCount;
     float                 m_Matrix[6];
     float                 m_Box[4];
     bool                  m_Reject;
@@ -38,6 +40,8 @@ struct Capture
         , m_ClipDepth(0)
         , m_TransformDepth(0)
         , m_TransformCount(0)
+        , m_CompositeDepth(0)
+        , m_CompositeCount(0)
         , m_Reject(false)
     {
     }
@@ -78,6 +82,17 @@ static void PopClip(void* data)
 {
     --((Capture*)data)->m_ClipDepth;
 }
+static bool PushComposite(void* data)
+{
+    Capture* c = (Capture*)data;
+    ++c->m_CompositeDepth;
+    ++c->m_CompositeCount;
+    return !c->m_Reject;
+}
+static void PopComposite(void* data)
+{
+    --((Capture*)data)->m_CompositeDepth;
+}
 static bool Paint(void* data, const FontColrPaint* paint)
 {
     Capture* c = (Capture*)data;
@@ -92,7 +107,7 @@ static bool Paint(void* data, const FontColrPaint* paint)
     }
     return !c->m_Reject;
 }
-static const FontColrCallbacks CALLBACKS = { PushTransform, PopTransform, PushGlyph, PushRectangle, PopClip, Paint };
+static const FontColrCallbacks CALLBACKS = { PushTransform, PopTransform, PushGlyph, PushRectangle, PopClip, PushComposite, PopComposite, Paint };
 static const uint8_t           CPAL[] = {
     0,
     0,
@@ -286,7 +301,8 @@ TEST(FontColr, TransformAndCallbackFailure)
     ASSERT_EQ(0u, c.m_ClipDepth);
 }
 
-// Source-over visits the backdrop first and rejects unsupported composition.
+// Source-over visits the backdrop first, preserves composite boundaries, and
+// balances callbacks even when the consumer rejects a group or its source fails.
 TEST(FontColr, SourceOverPaintOrder)
 {
     const uint8_t graph[] = {
@@ -324,6 +340,18 @@ TEST(FontColr, SourceOverPaintOrder)
     ASSERT_EQ(3u, c.m_Glyphs[0]);
     ASSERT_EQ(4u, c.m_Glyphs[1]);
     ASSERT_EQ(0u, c.m_ClipDepth);
+    ASSERT_EQ(1u, c.m_CompositeCount);
+    ASSERT_EQ(0u, c.m_CompositeDepth);
+    c.m_Reject = true;
+    ASSERT_EQ(FONT_RESULT_NOT_SUPPORTED, FontColrPaintGlyph(&font, 42, &CALLBACKS, &c));
+    ASSERT_EQ(2u, c.m_CompositeCount);
+    ASSERT_EQ(0u, c.m_CompositeDepth);
+    c.m_Reject = false;
+    bytes[44 + 19] = 255;
+    ASSERT_EQ(FONT_RESULT_NOT_SUPPORTED, FontColrPaintGlyph(&font, 42, &CALLBACKS, &c));
+    ASSERT_EQ(3u, c.m_CompositeCount);
+    ASSERT_EQ(0u, c.m_CompositeDepth);
+    bytes[44 + 19] = 10;
     bytes[44 + 4] = 5; // SRC_IN requires a compositor; do not approximate it.
     ASSERT_EQ(FONT_RESULT_NOT_SUPPORTED, FontColrPaintGlyph(&font, 42, &CALLBACKS, &c));
 }

@@ -22,6 +22,7 @@
 #include "font_ttf.h"
 #include "font_outline.h"
 #include "font_sdf.h"
+#include "truetype/font_colr.h"
 
 #if defined(FONT_USE_HARFBUZZ)
     #include "harfbuzz/font_harfbuzz.h"
@@ -365,7 +366,11 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
     // generation already needs instead of interpreting its CharString twice.
     bool bounds_from_outline = options->m_GenerateImage && !font->m_HasGlyfOutlines;
     FontImplGetGlyphHMetrics(font->m_Font, glyph_index, &advx, &lsb);
-    if (!bounds_from_outline)
+    // Metrics-only requests also serve legacy layout. Drawing a PaintGlyph or
+    // rasterizing an outline must ignore the glyph's independent COLR bounds.
+    bool color_bounds = !options->m_GenerateOutline && !options->m_GenerateImage &&
+                        FontColrGetGlyphBox(FontImplGetColr(font->m_Font), glyph_index, &x0, &y0, &x1, &y1);
+    if (!bounds_from_outline && !color_bounds)
         FontImplGetGlyphBox(font->m_Font, glyph_index, &x0, &y0, &x1, &y1);
 
     float scale = options->m_Scale;
