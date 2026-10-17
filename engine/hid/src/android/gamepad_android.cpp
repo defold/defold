@@ -119,12 +119,10 @@ namespace dmHID
             if (target == 0)
                 continue;
             target += strlen(triggers[i]);
-            float minimum = -1.0f;
-            float maximum = 1.0f;
+            // Defold scales signed trigger bindings across the full normalized range too.
+            float released = *target == '-' ? 1.0f : -1.0f;
             if (*target == '+' || *target == '-')
             {
-                minimum = 0.0f;
-                maximum = *target == '+' ? 1.0f : -1.0f;
                 ++target;
             }
             if (*target++ != 'a')
@@ -135,11 +133,11 @@ namespace dmHID
                 continue;
             if (*end == '~')
             {
-                minimum = maximum;
+                released = -released;
                 ++end;
             }
             if (*end == ',' || *end == 0)
-                axes[axis] = minimum;
+                axes[axis] = released;
         }
         dmPlatform::InitializeAndroidJoystickAxes(joystick_index, axes, MAX_GAMEPAD_AXIS_COUNT);
     }

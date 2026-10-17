@@ -223,6 +223,33 @@ TEST_F(AndroidGamepadTest, PhysicalMapping)
     ASSERT_FALSE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, 18));
 }
 
+// Verifies signed and inverted database triggers start at the endpoint that Defold scales to released.
+TEST_F(AndroidGamepadTest, DatabaseTriggerRestValues)
+{
+    struct TriggerMapping
+    {
+        const char* m_Mapping;
+        float m_Left;
+        float m_Right;
+    };
+    const TriggerMapping mappings[] = {
+        { "0500da4ac82d00001b300000ffff3f00,Test,lefttrigger:a4,righttrigger:a5,", -1.0f, -1.0f },
+        { "0500da4ac82d00001b300000ffff3f00,Test,lefttrigger:+a4,righttrigger:-a5,", -1.0f, 1.0f },
+        { "0500da4ac82d00001b300000ffff3f00,Test,lefttrigger:-a4,righttrigger:+a5,", 1.0f, -1.0f },
+        { "0500da4ac82d00001b300000ffff3f00,Test,lefttrigger:a4~,righttrigger:a5~,", 1.0f, 1.0f },
+        { "0500da4ac82d00001b300000ffff3f00,Test,lefttrigger:+a4~,righttrigger:-a5~,", 1.0f, -1.0f },
+        { "0500da4ac82d00001b300000ffff3f00,Test,lefttrigger:-a4~,righttrigger:+a5~,", -1.0f, 1.0f },
+    };
+    dmHID::SetGamepadLayoutLegacy(m_Gamepad, false);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(mappings); ++i)
+    {
+        dmHID::SetGamepadMapping(m_Context, m_Gamepad, mappings[i].m_Mapping);
+        dmHID::Update(m_Context);
+        ASSERT_EQ(mappings[i].m_Left, m_Gamepad->m_Packet.m_Axis[4]);
+        ASSERT_EQ(mappings[i].m_Right, m_Gamepad->m_Packet.m_Axis[5]);
+    }
+}
+
 // Verifies legacy mappings retain the original Android state after automatic mapping was previously selected.
 TEST_F(AndroidGamepadTest, LegacyMapping)
 {
