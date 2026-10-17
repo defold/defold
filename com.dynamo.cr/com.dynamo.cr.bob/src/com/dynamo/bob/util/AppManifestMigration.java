@@ -110,6 +110,7 @@ public final class AppManifestMigration {
                 "profilerext_null",
                 "record",
                 "record_null",
+                "record_service",
                 "render",
                 "resource",
                 "rig",

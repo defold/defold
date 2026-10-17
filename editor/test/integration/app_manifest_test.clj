@@ -116,6 +116,151 @@
         (is (= (slurp (:resource save-data))
                (resource-node/save-data-content save-data)))))))
 
+;; Verifies legacy recording exclusions cover the native service and encoder,
+;; preserve unrelated settings, and migrate only once.
+(deftest record-exclusion-migration-test
+  (doseq [[platforms expected-libraries expected-symbols]
+          [[[:osx :arm64-osx :x86_64-osx :win32 :x86_64-win32]
+            ["custom" "record" "record_service"]
+            ["CustomSymbol" "EngineRecord"]]
+
+           [[nil :common :linux :x86_64-linux :arm64-linux]
+            ["custom" "record" "record_service" "openh264"]
+            ["CustomSymbol" "EngineRecord"]]
+
+           [[:ios :arm64-ios :arm64_sim-ios
+             :android :armv7-android :arm64-android :x86_64-android
+             :web :wasm-web :wasm_pthread-web]
+            ["custom" "record"]
+            ["CustomSymbol"]]]
+
+          platform platforms
+          vpx ["vpx" "vpx.lib" "libvpx" "libvpx.lib"]]
+    (let [path (if platform [:platforms platform :context] [:context])
+
+          context
+          {:excludeLibs ["custom" "record" vpx]
+           :excludeSymbols ["CustomSymbol"]
+           :libs ["record_null" "custom"]
+           :defines ["CUSTOM"]}
+
+          manifest (assoc-in {} path context)
+          migrated (#'app-manifest/migrate-record-exclusions manifest)]
+      (is (= (assoc context
+                   :excludeLibs expected-libraries
+                   :excludeSymbols expected-symbols)
+             (get-in migrated path)))
+      (is (= migrated (#'app-manifest/migrate-record-exclusions migrated)))))
+
+  (testing "Legacy Windows names and missing symbol lists"
+    (let [manifest
+          {:platforms
+           {:x86_64-win32
+            {:context
+             {:excludeLibs ["librecord" "vpx"]
+              :libs ["librecord_null.lib"]}}}}
+
+          migrated
+          (-> manifest
+              (#'app-manifest/migrate-windows-library-names)
+              (#'app-manifest/migrate-record-exclusions))]
+      (is (= {:excludeLibs ["record" "record_service"]
+              :excludeSymbols ["EngineRecord"]
+              :libs ["record_null"]}
+             (get-in migrated [:platforms :x86_64-win32 :context])))))
+
+  (testing "Existing service and encoder exclusions are not duplicated"
+    (let [context
+          {:excludeLibs ["record" "vpx" "record_service" "openh264"]
+           :excludeSymbols ["EngineRecord"]}]
+      (is (= (assoc context :excludeLibs ["record" "record_service" "openh264"])
+             (#'app-manifest/migrate-record-context context :linux)))))
+
+  (testing "Partial and malformed settings are preserved"
+    (doseq [context [nil 42 []
+                     {:excludeLibs ["record"]
+                      :libs ["record_null"]}
+                     {:excludeLibs ["vpx"]}
+                     {:excludeLibs "record"}
+                     {:excludeLibs [nil 42 "custom"]}
+                     {:excludeLibs ["record" "vpx"]
+                      :excludeSymbols "invalid"}]
+
+            path [[:context]
+                  [:platforms :common :context]
+                  [:platforms :x86_64-linux :context]]]
+      (let [manifest (assoc-in {} path context)]
+        (is (= manifest (#'app-manifest/migrate-record-exclusions manifest)))))
+
+    (doseq [manifest [nil true [] {} {:platforms []} {:platforms {:linux nil}}]]
+      (is (= manifest (#'app-manifest/migrate-record-exclusions manifest))))))
+
+;; Verifies the recording toggle writes all current exclusions and can remove
+;; them again, without generating obsolete VPX entries.
+(deftest record-setting-test
+  (let [enabled
+        (app-manifest/set-setting-value {} app-manifest/record-setting true)
+
+        disabled
+        (app-manifest/set-setting-value enabled app-manifest/record-setting false)]
+    (is (true? (app-manifest/get-setting-value enabled app-manifest/record-setting)))
+    (is (false? (app-manifest/get-setting-value disabled app-manifest/record-setting)))
+
+    (doseq [platform app-manifest/all-platforms]
+      (let [context (get-in enabled [:platforms platform :context])
+            desktop-platform (app-manifest/desktop platform)]
+        (is (= (cond-> ["record"]
+                 desktop-platform
+                 (conj "record_service")
+
+                 (app-manifest/linux platform)
+                 (conj "openh264"))
+               (:excludeLibs context)))
+        (is (= (when desktop-platform ["EngineRecord"])
+               (:excludeSymbols context)))
+        (is (= ["record_null"] (:libs context)))
+        (is (= (cond-> {:excludeLibs []
+                       :libs []}
+                 desktop-platform
+                 (assoc :excludeSymbols []))
+               (get-in disabled [:platforms platform :context])))))))
+
+;; Verifies loading and saving an old recording exclusion preserves the checked
+;; setting, and reloading the saved migration does not dirty the manifest again.
+(deftest record-exclusion-load-migration-test
+  (let [migrated-content
+        (test-util/with-loaded-project
+          (let [node
+                (test-util/resource-node project "/app_manifest/exclude_many.appmanifest")
+
+                manifest (g/node-value node :manifest)
+                save-data (g/node-value node :save-data)]
+            (is (true? (g/node-value node :exclude-record)))
+            (is (true? (:dirty save-data)))
+
+            (doseq [platform app-manifest/all-platforms]
+              (is (coll/not-any? #{"vpx"}
+                                (get-in manifest [:platforms platform :context :excludeLibs]))))
+
+            (let [content (resource-node/save-data-content save-data)]
+              (is (= manifest (yaml/load content keyword)))
+              content)))]
+    (test-util/with-temp-project-content
+      {"/current.appmanifest" (data/string->lines migrated-content)}
+      (let [node (test-util/resource-node project "/current.appmanifest")
+            save-data (g/node-value node :save-data)]
+        (is (true? (g/node-value node :exclude-record)))
+        (is (false? (:dirty save-data)))
+        (is (= migrated-content (resource-node/save-data-content save-data)))
+
+        (g/set-property! node :exclude-record false)
+        (is (false? (g/node-value node :exclude-record)))
+
+        (let [manifest (g/node-value node :manifest)]
+          (doseq [platform app-manifest/desktop]
+            (is (coll/not-any? #{"EngineRecord"}
+                              (get-in manifest [:platforms platform :context :excludeSymbols])))))))))
+
 (deftest toggle-test
   (testing "contains toggles"
     (let [toggle (app-manifest/contains-toggle :common :libs "foo")]

@@ -483,8 +483,54 @@ public class ExtenderUtil {
         return modified;
     }
 
-    // Complete legacy Bullet3D exclusions, Windows library names, and macOS
-    // Vulkan platform selection before upload, even without opening the editor.
+    @SuppressWarnings("unchecked")
+    private static boolean migrateRecordExclusions(Object contextValue, Object platform) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        Object excludedLibrariesValue = context.get("excludeLibs");
+        Object excludedSymbolsValue = context.get("excludeSymbols");
+        if (!(excludedLibrariesValue instanceof List<?>)
+                || (excludedSymbolsValue != null && !(excludedSymbolsValue instanceof List<?>))) {
+            return false;
+        }
+
+        // Match the legacy toggle, leaving intentional null-backend service
+        // configurations and unrelated VPX libraries alone.
+        List<?> excludedLibraries = (List<?>) excludedLibrariesValue;
+        List<String> obsolete = Arrays.asList("vpx", "vpx.lib", "libvpx", "libvpx.lib");
+        if (Collections.disjoint(excludedLibraries, Arrays.asList("record", "record.lib", "librecord", "librecord.lib"))
+                || Collections.disjoint(excludedLibraries, obsolete)) {
+            return false;
+        }
+
+        boolean common = platform == null || "common".equals(platform);
+        boolean linux = common || List.of("linux", "x86_64-linux", "arm64-linux").contains(platform);
+        boolean desktop = linux || List.of("osx", "x86_64-osx", "arm64-osx", "win32", "x86-win32", "x86_64-win32").contains(platform);
+        List<Object> libraries = new ArrayList<>(excludedLibraries);
+        libraries.removeAll(obsolete);
+        if (desktop && !libraries.contains("record_service")) {
+            libraries.add("record_service");
+        }
+        if (linux && !libraries.contains("openh264")) {
+            libraries.add("openh264");
+        }
+        context.put("excludeLibs", libraries);
+        if (desktop) {
+            List<Object> symbols = excludedSymbolsValue == null
+                    ? new ArrayList<>()
+                    : new ArrayList<>((List<?>) excludedSymbolsValue);
+            if (!symbols.contains("EngineRecord")) {
+                symbols.add("EngineRecord");
+                context.put("excludeSymbols", symbols);
+            }
+        }
+        return true;
+    }
+
+    // Migrate legacy app manifest settings before upload, even without opening
+    // the editor.
     private static byte[] migrateAppManifest(byte[] content) {
         Object manifestValue;
         try {
@@ -498,6 +544,7 @@ public class ExtenderUtil {
 
         Map<?, ?> manifest = (Map<?, ?>) manifestValue;
         boolean modified = addBullet3DCompatibilityExclusions(manifest.get("context"));
+        modified |= migrateRecordExclusions(manifest.get("context"), null);
         Object platformsValue = manifest.get("platforms");
         if (platformsValue instanceof Map<?, ?>) {
             for (Map.Entry<?, ?> platform : ((Map<?, ?>) platformsValue).entrySet()) {
@@ -522,6 +569,7 @@ public class ExtenderUtil {
                             || "x86_64-win32".equals(platform.getKey())) {
                         modified |= migrateLibraryNames(context, AppManifestMigration.WINDOWS_LIBRARY_NAMES);
                     }
+                    modified |= migrateRecordExclusions(context, platform.getKey());
                 }
             }
         }

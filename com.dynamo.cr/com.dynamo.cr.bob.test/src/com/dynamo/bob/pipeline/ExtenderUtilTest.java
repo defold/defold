@@ -379,6 +379,74 @@ public class ExtenderUtilTest {
         }
     }
 
+    // Verifies legacy recording exclusions cover the new service and Linux
+    // encoder before upload, without changing source files or migrating twice.
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testLegacyRecordingExclusionsMigrateBeforeUpload() throws Exception {
+        for (String platform : List.of("root", "common", "osx", "arm64-osx", "x86_64-osx",
+                "linux", "x86_64-linux", "arm64-linux", "win32", "x86-win32", "x86_64-win32",
+                "ios", "arm64-ios", "arm64_sim-ios", "android", "armv7-android", "arm64-android",
+                "x86_64-android", "web", "wasm-web", "wasm_pthread-web")) {
+            for (String vpx : List.of("vpx", "vpx.lib", "libvpx", "libvpx.lib")) {
+                boolean windows = platform.endsWith("win32");
+                boolean linux = List.of("root", "common", "linux", "x86_64-linux", "arm64-linux").contains(platform);
+                boolean desktop = linux || windows || platform.endsWith("osx");
+                String contextYaml = "{excludeLibs: [custom, " + (windows ? "librecord" : "record") + ", " + vpx
+                        + "], excludeSymbols: [CustomSymbol], libs: [" + (windows ? "librecord_null.lib" : "record_null")
+                        + ", custom], defines: [CUSTOM]}";
+                String yaml = platform.equals("root")
+                        ? "context: " + contextYaml + "\n"
+                        : "platforms: {" + platform + ": {context: " + contextYaml + "}}\n";
+                byte[] original = yaml.getBytes(StandardCharsets.UTF_8);
+                createFile(fileSystem, "legacy-record.appmanifest", original);
+                project.getProjectProperties().putStringValue("native_extension", "app_manifest", "legacy-record.appmanifest");
+                byte[] migrated = findResource(ExtenderUtil.getExtensionSources(project, Platform.X86_64Linux, null),
+                        ExtenderUtil.appManifestPath).getContent();
+                Map<String, Object> manifest = new Yaml().load(new String(migrated, StandardCharsets.UTF_8));
+                Map<String, Object> platformValue = platform.equals("root")
+                        ? manifest
+                        : (Map<String, Object>) ((Map<String, Object>) manifest.get("platforms")).get(platform);
+                Map<String, Object> context = (Map<String, Object>) platformValue.get("context");
+                assertEquals(platform, linux ? List.of("custom", "record", "record_service", "openh264")
+                        : desktop ? List.of("custom", "record", "record_service") : List.of("custom", "record"), context.get("excludeLibs"));
+                assertEquals(platform, desktop ? List.of("CustomSymbol", "EngineRecord") : List.of("CustomSymbol"), context.get("excludeSymbols"));
+                assertEquals(List.of("record_null", "custom"), context.get("libs"));
+                assertEquals(List.of("CUSTOM"), context.get("defines"));
+                assertArrayEquals(original, project.getResource("legacy-record.appmanifest").getContent());
+                createFile(fileSystem, "legacy-record.appmanifest", migrated);
+                assertArrayEquals(migrated, findResource(ExtenderUtil.getExtensionSources(project, Platform.X86_64Linux, null),
+                        ExtenderUtil.appManifestPath).getContent());
+            }
+        }
+    }
+
+    // Verifies recording migrations add missing symbol lists, avoid duplicate
+    // exclusions, and preserve partial, current, and malformed manifests.
+    @Test
+    public void testRecordingExclusionMigrationEdgeCases() throws Exception {
+        for (String[] contexts : List.of(
+                new String[]{"{excludeLibs: [record, vpx]}",
+                        "{excludeLibs: [record, record_service, openh264], excludeSymbols: [EngineRecord]}"},
+                new String[]{"{excludeLibs: [record, vpx, record_service, openh264], excludeSymbols: [EngineRecord]}",
+                        "{excludeLibs: [record, record_service, openh264], excludeSymbols: [EngineRecord]}"})) {
+            createFile(fileSystem, "record.appmanifest", ("platforms: {linux: {context: " + contexts[0] + "}}").getBytes(StandardCharsets.UTF_8));
+            byte[] migrated = new ExtenderUtil.FSAppManifestResource(
+                    project.getResource("record.appmanifest"), project.getRootDirectory(), ExtenderUtil.appManifestPath, null).getContent();
+            assertEquals((Object) new Yaml().load("platforms: {linux: {context: " + contexts[1] + "}}"),
+                    (Object) new Yaml().load(new String(migrated, StandardCharsets.UTF_8)));
+        }
+        for (String context : List.of("null", "42", "[]", "{excludeLibs: [record], libs: [record_null]}",
+                "{excludeLibs: [vpx]}", "{excludeLibs: record}", "{excludeLibs: [null, 42, custom]}",
+                "{excludeLibs: [record, vpx], excludeSymbols: invalid}",
+                "{excludeLibs: [record, record_service, openh264], excludeSymbols: [EngineRecord], libs: [record_null]}")) {
+            byte[] original = ("# Preserve formatting\nplatforms: {linux: {context: " + context + "}}").getBytes(StandardCharsets.UTF_8);
+            createFile(fileSystem, "record.appmanifest", original);
+            assertArrayEquals(original, new ExtenderUtil.FSAppManifestResource(
+                    project.getResource("record.appmanifest"), project.getRootDirectory(), ExtenderUtil.appManifestPath, null).getContent());
+        }
+    }
+
     @Test
     public void testUnchangedAppManifestsPreserveTheirContent() throws Exception {
         for (String manifestYaml : List.of(
