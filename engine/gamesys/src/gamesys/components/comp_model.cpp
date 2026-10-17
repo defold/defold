@@ -122,7 +122,6 @@ namespace dmGameSystem
     {
         dmGameObject::HInstance     m_Instance;
         dmTransform::Transform      m_Transform;
-        Matrix4                     m_World;
         ModelResource*              m_Resource;
         dmRig::HRigInstance         m_RigInstance;
         FModelAnimationCallback     m_Callback;
@@ -1262,7 +1261,6 @@ namespace dmGameSystem
 
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
-        component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
         component->m_Callback = 0;
         component->m_CallbackContext = 0;
@@ -2207,20 +2205,7 @@ namespace dmGameSystem
             const ModelComponent* c = render_item->m_Component;
             if (c->m_RigInstance)
             {
-                dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(c->m_RigInstance);
-
-                dmVMath::Matrix4 model_matrix;
-                if (IsRigidBoneParentedRenderItem(*render_item))
-                {
-                    dmRig::BonePose bone_pose = pose[render_item->m_BoneIndex];
-                    model_matrix = dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(render_item->m_Model->m_Local);
-                }
-                else
-                {
-                    model_matrix = dmTransform::ToMatrix4(render_item->m_Model->m_Local);
-                }
-
-                dmVMath::Matrix4 world_matrix     = c->m_World * model_matrix;
+                const dmVMath::Matrix4& world_matrix = render_item->m_World;
                 dmVMath::Matrix4 normal_matrix    = dmRender::GetNormalMatrix(render_context, world_matrix);
                 bool has_custom_vertex_attributes = vx_decl != world->m_VertexDeclaration;
                 vb_end = WriteWorldSpaceVertexData(world, render_context, c, render_item, material_infos_vertex, vertex_stride, material, render_item->m_MaterialIndex, world_matrix, normal_matrix, has_custom_vertex_attributes, vb_end);
@@ -2361,9 +2346,8 @@ namespace dmGameSystem
         dmGraphics::SetTexture(graphics_context, anim_data.m_BindPoseCacheTexture, tp);
     }
 
-    static void UpdateMeshTransforms(ModelComponent* component)
+    static void UpdateMeshTransforms(ModelComponent* component, const dmVMath::Matrix4& world)
     {
-        dmVMath::Matrix4 world = component->m_World;
         dmArray<dmRig::BonePose>* pose = component->m_RigInstance ? dmRig::GetPose(component->m_RigInstance) : 0;
 
         for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
@@ -2411,8 +2395,15 @@ namespace dmGameSystem
                 continue;
 
             const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
-            c->m_World = c->m_TransformIsIdentity ? go_world : go_world * dmTransform::ToMatrix4(c->m_Transform);
-            UpdateMeshTransforms(c);
+            if (c->m_TransformIsIdentity)
+            {
+                UpdateMeshTransforms(c, go_world);
+            }
+            else
+            {
+                const Matrix4 world_matrix = go_world * dmTransform::ToMatrix4(c->m_Transform);
+                UpdateMeshTransforms(c, world_matrix);
+            }
 
             num_render_items += c->m_RenderItems.Size();
         }
@@ -3103,11 +3094,14 @@ namespace dmGameSystem
     bool CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled)
     {
         bool found = false;
+        bool update_transforms = false;
         for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
         {
             MeshRenderItem& item = component->m_RenderItems[i];
             if (item.m_Model->m_Id == mesh_id)
             {
+                if (enabled && !item.m_Enabled)
+                    update_transforms = true;
                 item.m_Enabled = enabled?1:0;
                 item.m_Buffers->m_LastUsedFrame = 0xFF;
                 found = true;
@@ -3116,6 +3110,13 @@ namespace dmGameSystem
 
         if (found)
         {
+            // Late update skips disabled meshes, and post-update can enable them before rendering.
+            if (update_transforms)
+            {
+                const Matrix4& go_world = dmGameObject::GetWorldMatrix(component->m_Instance);
+                const Matrix4 world = component->m_TransformIsIdentity ? go_world : go_world * dmTransform::ToMatrix4(component->m_Transform);
+                UpdateMeshTransforms(component, world);
+            }
             SetupRequiresBindPoseCaching(component);
         }
 
