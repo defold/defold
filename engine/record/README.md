@@ -97,6 +97,8 @@ are reported asynchronously in the status receipt. ScreenCaptureKit is weakly
 linked; Windows capture APIs are resolved at runtime. Recordings contain the
 window's client area, excluding its title bar and borders. Windows crop geometry
 is measured in physical pixels regardless of the calling thread's DPI awareness.
+Resizing the Windows window refreshes the capture buffers and client crop, while
+scaling the new client area into the video dimensions selected at start.
 
 Windows application audio uses WASAPI process loopback for the engine process and
 its children, with 48 kHz stereo PCM encoded to 128 kbit/s AAC in the MP4. It does
@@ -186,7 +188,8 @@ This opt-in suite opens its own window and plays test tones. It decodes the actu
 MP4 tracks to verify H.264/AAC, tone/flash synchronization, silent audio, recording
 without a render stream, repeated recording, shutdown finalization, failed-start
 cleanup and `audio=false`. Colored client corners verify cropping for DPI-unaware,
-system-aware and per-monitor-aware windows; run above 100% display scaling to
+system-aware and per-monitor-aware windows, and while growing and shrinking the
+window; run above 100% display scaling to
 exercise DPI virtualization. The launcher plays a competing tone in another process
 so the silence cases also check application isolation. Completion uses playback
 and capture events; the native tests are excluded from the default CI test suite.

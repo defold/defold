@@ -386,7 +386,7 @@ protected:
         }
     }
 
-    void InspectClientArea()
+    void InspectClientArea(uint32_t expected_phases = 0)
     {
         wchar_t path[MAX_PATH];
         MultiByteToWideChar(CP_UTF8, 0, m_Recording.m_Path, -1, path, MAX_PATH);
@@ -410,6 +410,9 @@ protected:
         ASSERT_EQ(240u, height);
         LONG stride = (LONG)MFGetAttributeUINT32(type.Get(), MF_MT_DEFAULT_STRIDE, width * 4);
         uint32_t frames = 0;
+        uint32_t phases = 0;
+        uint32_t phase_frames[3] = {};
+        bool previous_white = false;
         for (;;)
         {
             DWORD flags;
@@ -438,15 +441,33 @@ protected:
                 const BYTE* pixel = data + y * abs(stride) + x * 4;
                 for (uint32_t c = 0; c < 3; ++c)
                     valid = valid && abs((int)pixel[c] - expected[i][c]) < 25;
-                if (!valid)
+                if (!valid && !expected_phases)
                     printf("%s: incorrect client corner %u: BGR=(%u,%u,%u)\n",
                         m_Recording.m_Path, i, pixel[0], pixel[1], pixel[2]);
             }
+            if (expected_phases && bytes >= abs(stride) * height)
+            {
+                bool white = data[(height / 2) * abs(stride) + (width / 2) * 4] > 200;
+                if (!phases || white != previous_white)
+                    ++phases;
+                previous_white = white;
+                if (valid && phases <= 3)
+                    ++phase_frames[phases - 1];
+            }
             buffer->Unlock();
-            ASSERT_TRUE(valid);
+            if (!expected_phases)
+                ASSERT_TRUE(valid);
             ++frames;
         }
         ASSERT_GT(frames, 5u);
+        if (expected_phases)
+        {
+            ASSERT_EQ(expected_phases, phases);
+            // Ignore transient compositor frames while resizing, but require
+            // complete client content in each stable size, including the last.
+            for (uint32_t i = 0; i < expected_phases; ++i)
+                ASSERT_GT(phase_frames[i], 5u);
+        }
         printf("%s: all four client corners preserved in %u frames\n", m_Recording.m_Path, frames);
     }
 };
@@ -470,6 +491,35 @@ TEST_F(RecordWindowsTest, ClientAreaCropping)
         ASSERT_TRUE(m_Recording.m_StopResult);
         InspectClientArea();
     }
+}
+
+// Growing and shrinking the window must preserve all client corners at the fixed video size.
+TEST_F(RecordWindowsTest, ResizeClientArea)
+{
+    DestroyWindow(m_Window);
+    CreateTestWindow(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+    ASSERT_TRUE(Begin(false, "resize", false, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE));
+    const LONG widths[] = {320, 480, 240};
+    const LONG heights[] = {240, 360, 180};
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+        RECT rect = {0, 0, widths[i], heights[i]};
+        ASSERT_TRUE(AdjustWindowRectExForDpi(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0, GetDpiForWindow(m_Window)));
+        g_White = i == 1;
+        ASSERT_TRUE(SetWindowPos(m_Window, 0, 0, 0, rect.right - rect.left, rect.bottom - rect.top,
+            SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE));
+        SetThreadDpiAwarenessContext(previous);
+        InvalidateRect(m_Window, 0, FALSE);
+        UpdateWindow(m_Window);
+        DwmFlush();
+        ResetEvent(g_Painted);
+        g_PaintTarget = g_Paints + 40;
+        ASSERT_TRUE(PumpUntil(g_Painted));
+    }
+    Finish();
+    ASSERT_TRUE(m_Recording.m_StopResult);
+    InspectClientArea(3);
 }
 
 // Decode both tracks and compare a visible flash with a tone, also exercising repeated start/stop.

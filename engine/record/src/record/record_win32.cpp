@@ -291,6 +291,8 @@ namespace dmRecord
             , m_CropY(0)
             , m_CropWidth(0)
             , m_CropHeight(0)
+            , m_CaptureSize()
+            , m_CropDirty(false)
             , m_StreamIndex(0)
             , m_AudioStreamIndex(0)
             , m_AudioCapture(0)
@@ -356,7 +358,10 @@ namespace dmRecord
             result = CreateCaptureItem();
             if (FAILED(result))
                 return Fail(result, failure, failure_size);
-            if (!ResolveClientCrop())
+            result = m_Item->get_Size(&m_CaptureSize);
+            if (FAILED(result))
+                return Fail(result, failure, failure_size);
+            if (!ResolveClientCrop(m_CaptureSize))
             {
                 CopyText(failure, failure_size, "could not resolve the Defold window client area inside the capture surface");
                 return false;
@@ -518,7 +523,7 @@ namespace dmRecord
                                             reinterpret_cast<void**>(m_Item.ReleaseAndGetAddressOf()));
         }
 
-        bool ResolveClientCrop()
+        bool ResolveClientCrop(const ABI::Windows::Graphics::SizeInt32& capture_size)
         {
             // WGC textures and DWM frame bounds are physical pixels. Query the
             // client rectangle in that same space even when the caller is DPI
@@ -536,9 +541,6 @@ namespace dmRecord
             if (!have_rects)
                 return false;
 
-            ABI::Windows::Graphics::SizeInt32 capture_size;
-            if (FAILED(m_Item->get_Size(&capture_size)))
-                return false;
             LONG window_width = window_rect.right - window_rect.left;
             LONG window_height = window_rect.bottom - window_rect.top;
             LONG client_width = client_rect.right - client_rect.left;
@@ -588,15 +590,11 @@ namespace dmRecord
             reinterpret_cast<void**>(statics.ReleaseAndGetAddressOf()));
             if (FAILED(result))
                 return result;
-            ABI::Windows::Graphics::SizeInt32 size;
-            result = m_Item->get_Size(&size);
-            if (FAILED(result))
-                return result;
             result = statics->CreateFreeThreaded(
             m_Direct3DDevice.Get(),
             ABI::Windows::Graphics::DirectX::DirectXPixelFormat_B8G8R8A8UIntNormalized,
             3,
-            size,
+            m_CaptureSize,
             &m_FramePool);
             if (FAILED(result))
                 return result;
@@ -810,9 +808,56 @@ namespace dmRecord
                 LeaveCriticalSection(&m_FrameLock);
                 return;
             }
-            ComPtr<Direct3DAbi::IDirect3DSurface> surface;
+            ABI::Windows::Graphics::SizeInt32 size = {};
             if (SUCCEEDED(result))
-                result = frame->get_Surface(&surface);
+                result = frame->get_ContentSize(&size);
+            bool valid_size = size.Width > 0 && size.Height > 0;
+            bool resized = valid_size && (size.Width != m_CaptureSize.Width || size.Height != m_CaptureSize.Height);
+            if (SUCCEEDED(result) && valid_size && !resized)
+                result = ReadFrame(frame.Get());
+
+            // The resize notification still uses the old pool's texture: it is
+            // clipped on growth and has undefined pixels on shrink. Discard it
+            // and return the surface before recreating the pool.
+            CloseInspectable(frame.Get());
+            frame.Reset();
+            if (SUCCEEDED(result) && resized && !InterlockedCompareExchange(&m_Stopping, 0, 0))
+            {
+                result = sender->Recreate(m_Direct3DDevice.Get(),
+                    ABI::Windows::Graphics::DirectX::DirectXPixelFormat_B8G8R8A8UIntNormalized, 3, size);
+                if (SUCCEEDED(result))
+                {
+                    m_CaptureSize = size;
+                    m_CropDirty = true;
+                    m_Staging.Reset();
+                }
+                else if (InterlockedCompareExchange(&m_Stopping, 0, 0))
+                    result = S_FALSE; // Stop may have closed the pool during Recreate.
+            }
+            if (FAILED(result))
+            {
+                AcquireSRWLockExclusive(&m_FailureLock);
+                if (!m_Failure[0])
+                    HResultText(result, m_Failure, sizeof(m_Failure));
+                ReleaseSRWLockExclusive(&m_FailureLock);
+            }
+            if (m_FrameCount > 0 || m_Failure[0])
+                SetEvent(m_FirstFrameEvent);
+            LeaveCriticalSection(&m_FrameLock);
+        }
+
+        HRESULT ReadFrame(CaptureAbi::IDirect3D11CaptureFrame* frame)
+        {
+            if (m_CropDirty)
+            {
+                // Measure against the new frame's content size, not the item's
+                // initial size. Retry if the window has no client area yet.
+                if (!ResolveClientCrop(m_CaptureSize))
+                    return S_FALSE;
+                m_CropDirty = false;
+            }
+            ComPtr<Direct3DAbi::IDirect3DSurface> surface;
+            HRESULT result = frame->get_Surface(&surface);
             ComPtr<Direct3DInterop::IDirect3DDxgiInterfaceAccess> access;
             if (SUCCEEDED(result))
                 result = surface.As(&access);
@@ -824,16 +869,7 @@ namespace dmRecord
                 result = frame->get_SystemRelativeTime(&time);
             if (SUCCEEDED(result))
                 result = WriteFrame(texture.Get(), time.Duration);
-            if (FAILED(result))
-            {
-                AcquireSRWLockExclusive(&m_FailureLock);
-                if (!m_Failure[0])
-                    HResultText(result, m_Failure, sizeof(m_Failure));
-                ReleaseSRWLockExclusive(&m_FailureLock);
-            }
-            if (m_FrameCount > 0 || m_Failure[0])
-                SetEvent(m_FirstFrameEvent);
-            LeaveCriticalSection(&m_FrameLock);
+            return result;
         }
 
         HRESULT WriteFrame(ID3D11Texture2D* texture, uint64_t time)
@@ -965,6 +1001,8 @@ namespace dmRecord
         bool                                            m_RestoreCornerPreference;
         uint32_t                                        m_OutputWidth, m_OutputHeight, m_Fps;
         uint32_t                                        m_CropX, m_CropY, m_CropWidth, m_CropHeight;
+        ABI::Windows::Graphics::SizeInt32                m_CaptureSize;
+        bool                                            m_CropDirty;
         DWORD                                           m_StreamIndex;
         DWORD                                           m_AudioStreamIndex;
         AudioCapture*                                   m_AudioCapture;
