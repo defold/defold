@@ -16,6 +16,7 @@
 
 #include <string.h>
 #include <float.h>
+#include <new>
 
 #include <dlib/array.h>
 #include <dlib/hash.h>
@@ -25,6 +26,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/object_pool.h>
 #include <dlib/math.h>
+#include <dlib/memory.h>
 #include <dmsdk/dlib/vmath.h>
 #include <graphics/graphics.h>
 #include <rig/rig.h>
@@ -59,6 +61,7 @@ namespace dmGameSystem
     using namespace dmGameSystemDDF;
 
     static const char* MODEL_MAX_COUNT_KEY = "model.max_count";
+    static const uint32_t MODEL_COMPONENT_CHUNK_SIZE = 64;
 
     static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED   = 0xffff;
     static const uint8_t ATTRIBUTE_RENDER_DATA_MAX_FRAME_TICKS = 30;
@@ -167,6 +170,8 @@ namespace dmGameSystem
         dmRender::HRenderContext         m_RenderContext;
         dmRender::HRenderItemDispatch    m_RenderDispatch;
         dmObjectPool<ModelComponent*>    m_Components;
+        // Chunks own component storage; live component addresses never change.
+        dmArray<ModelComponent*>         m_ComponentChunks;
         dmArray<dmRender::RenderObject>  m_RenderObjects;
         DynamicAttributePool             m_DynamicVertexAttributePool;
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
@@ -241,6 +246,7 @@ namespace dmGameSystem
         world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentHeight = 0;
 
         world->m_Components.SetCapacity(comp_count);
+        world->m_ComponentChunks.SetCapacity((comp_count + MODEL_COMPONENT_CHUNK_SIZE - 1) / MODEL_COMPONENT_CHUNK_SIZE);
         world->m_RenderObjects.SetCapacity(comp_count);
         // position, normal, tangent, color, texcoord0, texcoord1 * sizeof(float)
         DM_STATIC_ASSERT( sizeof(dmRig::RigModelVertex) == ((3+3+4+4+2+2)*4), Invalid_Struct_Size);
@@ -379,6 +385,9 @@ namespace dmGameSystem
         delete [] world->m_VertexBufferData;
         delete [] world->m_VertexBufferDispatchCounts;
         delete [] world->m_VertexBuffers;
+
+        for (uint32_t i = 0; i < world->m_ComponentChunks.Size(); ++i)
+            dmMemory::AlignedFree(world->m_ComponentChunks[i]);
 
         delete world;
 
@@ -1282,7 +1291,19 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         uint32_t index = world->m_Components.Alloc();
-        ModelComponent* component = new ModelComponent;
+        uint32_t chunk_index = index / MODEL_COMPONENT_CHUNK_SIZE;
+        if (chunk_index == world->m_ComponentChunks.Size())
+        {
+            uint32_t count = dmMath::Min(MODEL_COMPONENT_CHUNK_SIZE, world->m_Components.Capacity() - chunk_index * MODEL_COMPONENT_CHUNK_SIZE);
+            ModelComponent* chunk;
+            if (dmMemory::AlignedMalloc((void**)&chunk, 128, count * sizeof(ModelComponent)) != dmMemory::RESULT_OK)
+            {
+                world->m_Components.Free(index, true);
+                return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            }
+            world->m_ComponentChunks.Push(chunk);
+        }
+        ModelComponent* component = new (world->m_ComponentChunks[chunk_index] + index % MODEL_COMPONENT_CHUNK_SIZE) ModelComponent;
         memset(component, 0, sizeof(ModelComponent));
         world->m_Components.Set(index, component);
         component->m_Instance = params.m_Instance;
@@ -1377,7 +1398,7 @@ namespace dmGameSystem
             FreeMaterialAttribute(world->m_DynamicVertexAttributePool, component->m_RenderItems[i].m_DynamicVertexAttributeIndex);
         }
 
-        delete component;
+        component->~ModelComponent();
         world->m_Components.Free(index, true);
     }
 

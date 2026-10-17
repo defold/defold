@@ -2131,6 +2131,60 @@ TEST_F(ModelTest, PlayAnimMessage)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Growing and reusing model storage must preserve live component pointers and
+// the animated model's callback owner, including a partially filled last chunk.
+TEST_F(ModelTest, ComponentPoolGrowthAndReuse)
+{
+    const uint32_t population = 129;
+    m_ModelContext.m_MaxModelCount = population;
+    dmGameObject::HCollection collection = dmGameObject::NewCollection("model_pool", m_Factory, m_Register, population + 256, 0);
+    ASSERT_NE((dmGameObject::HCollection)0, collection);
+    ASSERT_TRUE(dmGameObject::Init(collection));
+    dmGameObject::HInstance instances[population];
+    dmGameObject::HComponent components[population];
+    for (uint32_t i = 0; i < population; ++i)
+    {
+        char id[32];
+        dmSnPrintf(id, sizeof(id), "/model_%u", i);
+        const char* prototype = i == 0 ? "/model/script_model_anim.goc" : "/model/static_vertex_attributes.goc";
+        instances[i] = Spawn(m_Factory, collection, prototype, dmHashString64(id));
+        ASSERT_NE((dmGameObject::HInstance)0, instances[i]);
+        uint32_t type;
+        dmGameObject::HComponentWorld world;
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instances[i], dmHashString64(i == 0 ? "fox" : "model"), &type, &components[i], &world));
+    }
+    for (uint32_t i = 1; i < population; i += 2)
+        dmGameObject::Delete(collection, instances[i], false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(collection));
+    for (uint32_t i = 1; i < population; i += 2)
+    {
+        char id[32];
+        dmSnPrintf(id, sizeof(id), "/replacement_%u", i);
+        instances[i] = Spawn(m_Factory, collection, "/model/static_vertex_attributes.goc", dmHashString64(id));
+        ASSERT_NE((dmGameObject::HInstance)0, instances[i]);
+        uint32_t type;
+        dmGameObject::HComponent component;
+        dmGameObject::HComponentWorld world;
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instances[i], dmHashString64("model"), &type, &component, &world));
+        bool reused = false;
+        for (uint32_t j = 1; j < population; j += 2)
+            reused |= component == components[j];
+        ASSERT_TRUE(reused);
+    }
+    for (uint32_t i = 0; i < population; i += 2)
+    {
+        uint32_t type;
+        dmGameObject::HComponent component;
+        dmGameObject::HComponentWorld world;
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instances[i], dmHashString64(i == 0 ? "fox" : "model"), &type, &component, &world));
+        ASSERT_EQ(components[i], component);
+    }
+    ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, collection, &m_UpdateContext, false, "play_anim_done", 5));
+    RenderCollection(m_RenderContext, collection);
+    ASSERT_TRUE(dmGameObject::Final(collection));
+    dmGameObject::DeleteCollection(collection);
+}
+
 TEST_F(ModelTest, PlayAnimMissingAnimation)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_anim_missing.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
