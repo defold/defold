@@ -52,9 +52,16 @@ namespace dmRecord
 
     static dmExtension::Result FinalizeExtension(dmExtension::Params*)
     {
-        // Extension finalization precedes graphics/window destruction.
+        // Fallback for hosts that finalize without an engine-delete event.
         FinalizeService();
         return dmExtension::RESULT_OK;
+    }
+
+    static void OnEvent(dmExtension::Params*, const dmExtension::Event* event)
+    {
+        // Join native capture before sound, render and window teardown begins.
+        if (event->m_Event == EXTENSION_EVENT_ID_ENGINE_DELETE)
+            FinalizeService();
     }
 
     static dmExtension::Result AppFinalize(dmExtension::AppParams*)
@@ -65,4 +72,4 @@ namespace dmRecord
     }
 } // namespace dmRecord
 
-DM_DECLARE_EXTENSION(EngineRecord, "Record", dmRecord::AppInitialize, dmRecord::AppFinalize, dmRecord::Initialize, dmRecord::Update, 0, dmRecord::FinalizeExtension)
+DM_DECLARE_EXTENSION(EngineRecord, "Record", dmRecord::AppInitialize, dmRecord::AppFinalize, dmRecord::Initialize, dmRecord::Update, dmRecord::OnEvent, dmRecord::FinalizeExtension)

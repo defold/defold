@@ -25,6 +25,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32)
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace dmRecord
 {
@@ -53,6 +58,8 @@ namespace dmRecord
     static dmArray<RecordingFile*> g_Files;
     static RecordingFile*          g_CurrentFile;
     static uint64_t                g_Sequence;
+    static char                    g_InstanceId[96];
+    static uint64_t                g_Generation;
 
     static void                    JoinWorker(dmThread::Thread worker)
     {
@@ -202,10 +209,11 @@ namespace dmRecord
         EscapeJson(status->m_Failure, failure);
         char body[8192];
         dmSnPrintf(body, sizeof(body),
-                   "{\"operation_id\":%llu,\"state\":\"%s\",\"pending\":%s,\"supported\":%s,\"active\":%s,\"finalized\":%s,"
+                   "{\"instance_id\":\"%s\",\"operation_id\":%llu,\"state\":\"%s\",\"pending\":%s,\"supported\":%s,\"active\":%s,\"finalized\":%s,"
                    "\"backend\":\"%s\",\"format\":\"mp4\",\"codec\":\"h264\",\"audio\":%s,\"width\":%u,\"height\":%u,\"fps\":%u,"
                    "\"started_wall_time_us\":%llu,\"started_monotonic_time_us\":%llu,\"stopped_wall_time_us\":%llu,"
                    "\"stopped_monotonic_time_us\":%llu,\"failure\":\"%s\",\"file\":%s}",
+                   g_InstanceId,
                    (unsigned long long)status->m_Id,
                    state,
                    status->m_Pending ? "true" : "false",
@@ -465,7 +473,6 @@ namespace dmRecord
             Error(request, 400, "invalid_body", "cannot read request body");
             return;
         }
-        UpdateService();
         const char* path = request->m_Resource;
         if (strchr(path, '?'))
         {
@@ -496,6 +503,19 @@ namespace dmRecord
             Error(request, 400, "unexpected_body", "this route does not accept a body");
             return;
         }
+        const char* instance = dmWebServer::GetHeader(request, "X-Recording-Instance");
+        const bool  mutation = start || stop || (file && !strcmp(request->m_Method, "DELETE"));
+        if (mutation && (!instance || !instance[0]))
+        {
+            Error(request, 400, "missing_instance", "X-Recording-Instance from /recording/capabilities is required");
+            return;
+        }
+        if (!capabilities && instance && strcmp(instance, g_InstanceId))
+        {
+            Error(request, 410, "stale_instance", "recording service restarted; obtain capabilities and reacquire recording receipts");
+            return;
+        }
+        UpdateService();
         if (file)
         {
             FileRequest(request, path + 17);
@@ -506,8 +526,9 @@ namespace dmRecord
             char response[2048];
             bool supported = IsSupported() && g_GetWindow();
             dmSnPrintf(response, sizeof(response),
-                       "{\"version\":1,\"supported\":%s,\"audio\":%s,\"backend\":\"%s\",\"format\":\"mp4\",\"codec\":\"h264\","
+                       "{\"version\":1,\"instance_id\":\"%s\",\"supported\":%s,\"audio\":%s,\"backend\":\"%s\",\"format\":\"mp4\",\"codec\":\"h264\","
                        "\"minimum_platform_version\":\"%s\",\"unsupported_reason\":\"%s\",\"max_fps\":60,\"max_dimension\":16384}",
+                       g_InstanceId,
                        supported ? "true" : "false",
                        supported && IsAudioSupported() ? "true" : "false",
                        GetBackendName(),
@@ -619,6 +640,14 @@ namespace dmRecord
         g_Server = server;
         g_GetWindow = get_window;
         dmStrlCpy(g_Directory, directory ? directory : "", sizeof(g_Directory));
+#if defined(_WIN32)
+        uint32_t process_id = (uint32_t)_getpid();
+#else
+        uint32_t process_id = (uint32_t)getpid();
+#endif
+        // The generation distinguishes reboots even within one clock tick; the
+        // process and clocks distinguish replacement engines at the same URL.
+        dmSnPrintf(g_InstanceId, sizeof(g_InstanceId), "%llx-%llx-%x-%llu", (unsigned long long)dmTime::GetTime(), (unsigned long long)dmTime::GetMonotonicTime(), process_id, (unsigned long long)++g_Generation);
         return true;
     }
 
@@ -634,5 +663,6 @@ namespace dmRecord
         g_Server = 0;
         g_GetWindow = 0;
         g_Directory[0] = 0;
+        g_InstanceId[0] = 0;
     }
 } // namespace dmRecord

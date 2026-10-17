@@ -22,8 +22,10 @@ There is one recording per process. Public calls run on the main thread; startup
 stop and native teardown run on a single persistent worker. `Start` copies its
 options and snapshots the supplied native window on the main thread. A successful
 start/stop return means accepted; poll `m_Pending` and then inspect the result.
-`Finalize` joins outstanding work before the window is destroyed. The C++ caller
-owns its output path; the HTTP service owns and cleans up its generated files.
+The built-in extension handles `ENGINE_DELETE` and calls `Finalize` before sound,
+render and window teardown. Later extension/app finalizers are safe to repeat.
+The C++ caller owns its output path; the HTTP service owns and cleans up its
+generated files.
 
 ## HTTP interface
 
@@ -37,6 +39,19 @@ All routes use the engine service port and are described in `/openapi.json`.
 | POST | `/recording/stop` | Stop that operation; returns HTTP 202 |
 | GET | `/recording/files/{id}` | Download a finalized MP4 using a closed byte range |
 | DELETE | `/recording/files/{id}` | Delete a retained, completed file |
+
+First read `/recording/capabilities` and retain its `instance_id`. Send it as the
+`X-Recording-Instance` header on every POST and DELETE request. Status and accepted
+start/stop receipts also include this identity. It changes on engine restart or
+reboot, independently of automation. A missing header returns HTTP 400
+(`missing_instance`); a stale identity returns HTTP 410 (`stale_instance`) before
+changing recording state. GET status/download requests can send the same header
+to reject results from a replacement service. Capabilities always allows discovery
+of the current identity.
+
+Retain the identity together with the operation/file receipt; do not replace it
+with a newly discovered identity when retrying an old command. Operation counters
+can be reused by a replacement process.
 
 Start accepts an optional JSON object:
 
@@ -99,9 +114,12 @@ failed startup, thread ownership and shutdown during startup/stop. The service
 suite uses a real HTTP server and a controlled recorder, without automation,
 graphics, Lua or capture permissions. It covers discovery, schema validation,
 receipts, download/checksum/delete, unsupported capabilities and reboot cleanup.
+It also checks stale identities across real process replacement, reused operation
+counters, and early shutdown through the registered extension event callback.
 
-Validated on arm64 macOS: all 13 recording tests; debug, headless and release
+Validated on arm64 macOS: all 16 recording tests; debug, headless and release
 engine builds; live debug/headless discovery; native 320×240 H.264 MP4 capture,
-ranged download, SHA-256, `ffprobe`, and normal engine exit. Binary inspection
-confirmed that release omits the service/native backend and all three variants
+ranged download, SHA-256, `ffprobe`, and normal engine exit with application audio
+recording active. Binary inspection confirmed that release omits the service/native
+backend and all three variants
 omit automation and VP8. The Windows backend has not been run on this branch.

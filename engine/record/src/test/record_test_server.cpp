@@ -19,6 +19,9 @@
 #include <dlib/mutex.h>
 #include <dlib/socket.h>
 #include <dlib/webserver.h>
+#include <extension/extension.hpp>
+#include <dmsdk/engine/extension.hpp>
+#include <dmsdk/graphics/graphics_native.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -31,6 +34,9 @@ namespace dmRecord
     static bool            g_Supported = true;
     static bool            g_FailStart;
     static bool            g_NoWindow;
+    static bool            g_Teardown;
+    static uint32_t        g_Finalizes;
+    static uint32_t        g_LateFinalizes;
 
     bool                   IsSupported()
     {
@@ -106,15 +112,78 @@ namespace dmRecord
     {
         Status status;
         StopNative(&status);
+        dmMutex::ScopedLock lock(g_Mutex);
+        ++g_Finalizes;
+        if (g_Teardown)
+            ++g_LateFinalizes;
     }
 } // namespace dmRecord
 
-static bool                 g_Quit;
-static dmWebServer::HServer g_Server;
-static const char*          g_Directory;
-static void*                Window()
+static bool                   g_Quit;
+static dmWebServer::HServer   g_Server;
+static const char*            g_Directory;
+static dmExtension::AppParams g_AppParams;
+static dmExtension::Params    g_Params;
+static void*                  TestNativeWindow()
 {
     return dmRecord::g_NoWindow ? 0 : (void*)1;
+}
+
+// Supply the host entry points while exercising the real extension registration.
+namespace dmEngine
+{
+    dmWebServer::HServer GetWebServer(dmExtension::AppParams*)
+    {
+        return g_Server;
+    }
+} // namespace dmEngine
+
+namespace dmGraphics
+{
+#if defined(DM_PLATFORM_MACOS)
+    id GetNativeOSXNSWindow()
+    {
+        return (id)TestNativeWindow();
+    }
+#elif defined(DM_PLATFORM_WINDOWS)
+    HWND GetNativeWindowsHWND()
+    {
+        return (HWND)TestNativeWindow();
+    }
+#endif
+} // namespace dmGraphics
+
+extern "C" void EngineRecord();
+
+static void     EngineDelete()
+{
+    dmExtension::Event event;
+    event.m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
+    dmExtension::DispatchEvent(&g_Params, &event);
+    dmMutex::ScopedLock lock(dmRecord::g_Mutex);
+    dmRecord::g_Teardown = true;
+}
+
+static bool InitializeService()
+{
+    // Retain test-owned storage when AppInitialize registers the same server.
+    return dmRecord::RegisterService(g_Server, TestNativeWindow, g_Directory) &&
+    dmExtension::AppInitialize(&g_AppParams) == dmExtension::RESULT_OK &&
+    dmExtension::Initialize(&g_Params) == dmExtension::RESULT_OK;
+}
+
+static void FinalizeExtensions()
+{
+    dmExtension::Finalize(&g_Params);
+    dmExtension::AppFinalize(&g_AppParams);
+}
+
+static void SendLifecycle(dmWebServer::Request* request)
+{
+    dmMutex::ScopedLock lock(dmRecord::g_Mutex);
+    char                body[128];
+    dmSnPrintf(body, sizeof(body), "{\"active\":%s,\"finalizes\":%u,\"late_finalizes\":%u}", dmRecord::g_Status.m_Active ? "true" : "false", dmRecord::g_Finalizes, dmRecord::g_LateFinalizes);
+    dmWebServer::Send(request, body, (uint32_t)strlen(body));
 }
 
 static void TestHandler(void*, dmWebServer::Request* request)
@@ -129,13 +198,34 @@ static void TestHandler(void*, dmWebServer::Request* request)
         dmRecord::g_NoWindow = true;
     else if (!strcmp(request->m_Resource, "/test/restart"))
     {
-        dmRecord::FinalizeService();
+        EngineDelete();
+        FinalizeExtensions();
         memset(&dmRecord::g_Status, 0, sizeof(dmRecord::g_Status));
         dmRecord::g_Supported = true;
         dmRecord::g_FailStart = false;
         dmRecord::g_NoWindow = false;
-        if (!dmRecord::RegisterService(g_Server, Window, g_Directory))
+        dmRecord::g_Teardown = false;
+        dmRecord::g_Finalizes = 0;
+        dmRecord::g_LateFinalizes = 0;
+        if (!InitializeService())
             dmWebServer::SetStatusCode(request, 500);
+    }
+    else if (!strcmp(request->m_Resource, "/test/engine-delete"))
+    {
+        EngineDelete();
+        SendLifecycle(request);
+    }
+    else if (!strcmp(request->m_Resource, "/test/finalize"))
+    {
+        FinalizeExtensions();
+        SendLifecycle(request);
+    }
+    else if (!strcmp(request->m_Resource, "/test/deactivate"))
+    {
+        dmExtension::Event event;
+        event.m_Event = EXTENSION_EVENT_ID_DEACTIVATEAPP;
+        dmExtension::DispatchEvent(&g_Params, &event);
+        SendLifecycle(request);
     }
     else if (!strcmp(request->m_Resource, "/test/unregister"))
         dmRecord::FinalizeService();
@@ -167,7 +257,10 @@ int main(int argc, char** argv)
     handler.m_Userdata = 0;
     handler.m_Handler = TestHandler;
     dmWebServer::AddHandler(g_Server, "/", &handler);
-    if (!dmRecord::RegisterService(g_Server, Window, g_Directory))
+    EngineRecord();
+    ExtensionAppParamsInitialize(&g_AppParams);
+    ExtensionParamsInitialize(&g_Params);
+    if (!InitializeService())
         return 4;
     dmSocket::Address address;
     uint16_t          port;
@@ -179,7 +272,10 @@ int main(int argc, char** argv)
         dmWebServer::Update(g_Server);
         dmRecord::UpdateService();
     }
-    dmRecord::FinalizeService();
+    EngineDelete();
+    FinalizeExtensions();
+    ExtensionParamsFinalize(&g_Params);
+    ExtensionAppParamsFinalize(&g_AppParams);
     dmWebServer::Delete(g_Server);
     dmMutex::Delete(dmRecord::g_Mutex);
     dmSocket::Finalize();

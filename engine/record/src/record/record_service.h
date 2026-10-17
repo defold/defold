@@ -25,7 +25,7 @@ namespace dmRecord
     // The optional directory is for embedders/tests; the default is application storage.
     bool RegisterService(dmWebServer::HServer server, GetNativeWindow get_window, const char* directory = 0);
     void UpdateService();
-    // Unregister before the server is destroyed; join capture before window teardown.
+    // Call on ENGINE_DELETE, before sound/render/window teardown. Safe to repeat.
     void FinalizeService();
 } // namespace dmRecord
 
