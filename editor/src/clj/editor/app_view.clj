@@ -382,6 +382,7 @@
   (input active-outline g/Any)
   (input active-scene g/Any)
   (input project-id g/NodeID)
+  (input outline-selection-by-resource-node g/Any)
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
   (input sub-selections-by-resource-node g/Any)
@@ -422,6 +423,8 @@
   ;; NOTE: Empty rather than nil when nothing is selected. Command contexts with a nil
   ;; selection stop the context chain in handler/eval-contexts, which leaves a
   ;; context menu opened over a tab without a resource with nothing to show.
+  (output outline-selection g/Any (g/fnk [outline-selection-by-resource-node active-resource-node]
+                                    (get outline-selection-by-resource-node active-resource-node [])))
   (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource-node active-resource-node]
                                     (get selected-node-ids-by-resource-node active-resource-node [])))
   (output selected-node-properties g/Any (g/fnk [selected-node-properties-by-resource-node active-resource-node]
