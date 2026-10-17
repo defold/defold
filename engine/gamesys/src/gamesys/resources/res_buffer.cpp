@@ -15,241 +15,207 @@
 #include "res_buffer.h"
 
 #include <dlib/buffer.h>
+#include <dlib/endian.h>
 #include <dlib/log.h>
-#include <dlib/path.h>
-#include <dlib/dstrings.h>
-#include <dlib/memory.h>
 
-#include <render/render.h>
+#include <stdlib.h>
+#include <string.h>
 
 namespace dmGameSystem
 {
-    static void ReleaseResources(dmResource::HFactory factory, BufferResource* resource)
+    // BUFC files are little-endian: magic[4], version:u16, streams:u16,
+    // elements:u32, stride:u32; then streams of hash:u64, offset:u32,
+    // type:u8, components:u8, padding:u16; then the interleaved payload.
+    enum
     {
-        if (resource->m_BufferDDF != 0x0)
-            dmDDF::FreeMessage(resource->m_BufferDDF);
-        resource->m_BufferDDF = 0x0;
+        BUFFER_FORMAT_VERSION = 1,
+        BUFFER_FILE_HEADER_SIZE = 16,
+        BUFFER_FILE_STREAM_SIZE = 16,
+    };
 
-        if (resource->m_Buffer) {
-            dmBuffer::Destroy(resource->m_Buffer);
+    struct BufferPreloadData
+    {
+        uint32_t m_ElementCount;
+        uint32_t m_Stride;
+        uint32_t m_DataOffset;
+        uint32_t m_StreamCount;
+        // Followed by m_StreamCount StreamDeclarations, owned by this allocation.
+    };
+
+    static uint64_t ReadInteger(const uint8_t* data, uint32_t size)
+    {
+        uint64_t value = 0;
+        for (uint32_t i = 0; i < size; ++i)
+            value |= (uint64_t)data[i] << (i * 8);
+        return value;
+    }
+
+    static dmResource::Result ParseBuffer(const void* data, uint32_t size, BufferPreloadData** out)
+    {
+        *out = 0;
+        if (size < BUFFER_FILE_HEADER_SIZE || memcmp(data, "BUFC", 4) != 0)
+            return dmResource::RESULT_INVALID_DATA;
+
+        const uint8_t* bytes = (const uint8_t*)data;
+        uint32_t version = ReadInteger(bytes + 4, 2);
+        if (version != BUFFER_FORMAT_VERSION)
+        {
+            dmLogError("Unsupported buffer format version %u (expected %u).", version, BUFFER_FORMAT_VERSION);
+            return dmResource::RESULT_INVALID_DATA;
         }
+        uint32_t stream_count = ReadInteger(bytes + 6, 2);
+        if (stream_count == 0 || stream_count > 255)
+            return dmResource::RESULT_INVALID_DATA;
+
+        uint32_t data_offset = BUFFER_FILE_HEADER_SIZE + stream_count * BUFFER_FILE_STREAM_SIZE;
+        uint32_t element_count = ReadInteger(bytes + 8, 4);
+        uint32_t stride = ReadInteger(bytes + 12, 4);
+        if (data_offset > size || data_offset + (uint64_t)element_count * stride != size)
+            return dmResource::RESULT_INVALID_DATA;
+
+        BufferPreloadData* preload = (BufferPreloadData*)malloc(sizeof(BufferPreloadData) + stream_count * sizeof(dmBuffer::StreamDeclaration));
+        if (!preload)
+            return dmResource::RESULT_OUT_OF_MEMORY;
+
+        dmBuffer::StreamDeclaration* streams = (dmBuffer::StreamDeclaration*)(preload + 1);
+        uint32_t offsets[255];
+        for (uint32_t i = 0; i < stream_count; ++i)
+        {
+            const uint8_t* stream = bytes + BUFFER_FILE_HEADER_SIZE + i * BUFFER_FILE_STREAM_SIZE;
+            if (stream[12] >= dmBuffer::MAX_VALUE_TYPE_COUNT || stream[13] == 0)
+            {
+                free(preload);
+                return dmResource::RESULT_INVALID_DATA;
+            }
+            streams[i].m_Name = ReadInteger(stream, 8);
+            streams[i].m_Type = (dmBuffer::ValueType)stream[12];
+            streams[i].m_Count = stream[13];
+            streams[i].m_Flags = 0;
+            streams[i].m_Reserved = 0;
+        }
+
+        uint32_t struct_size;
+        dmBuffer::CalcStructSize(stream_count, streams, &struct_size, offsets);
+        if (struct_size != stride)
+        {
+            free(preload);
+            return dmResource::RESULT_INVALID_DATA;
+        }
+        for (uint32_t i = 0; i < stream_count; ++i)
+        {
+            const uint8_t* stream = bytes + BUFFER_FILE_HEADER_SIZE + i * BUFFER_FILE_STREAM_SIZE;
+            if (ReadInteger(stream + 8, 4) != offsets[i])
+            {
+                free(preload);
+                return dmResource::RESULT_INVALID_DATA;
+            }
+        }
+
+        preload->m_ElementCount = element_count;
+        preload->m_Stride = stride;
+        preload->m_DataOffset = data_offset;
+        preload->m_StreamCount = stream_count;
+        *out = preload;
+        return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResBufferPreload(const dmResource::ResourcePreloadParams* params)
     {
-        dmBufferDDF::BufferDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
-        if (e != dmDDF::RESULT_OK)
-        {
-            return dmResource::RESULT_DDF_ERROR;
-        }
-
-        *params->m_PreloadData = ddf;
-        return dmResource::RESULT_OK;
+        BufferPreloadData* preload;
+        dmResource::Result result = ParseBuffer(params->m_Buffer, params->m_BufferSize, &preload);
+        *params->m_PreloadData = preload;
+        return result;
     }
 
-    static uint32_t GetValueCount(const dmBufferDDF::StreamDesc& ddf_stream)
+    static dmResource::Result BuildBuffer(const void* data, const BufferPreloadData* preload, BufferResource* resource)
     {
-        switch (ddf_stream.m_ValueType)
+        const dmBuffer::StreamDeclaration* streams = (const dmBuffer::StreamDeclaration*)(preload + 1);
+        dmBuffer::Result result = dmBuffer::Create(preload->m_ElementCount, streams, preload->m_StreamCount, &resource->m_Buffer);
+        if (result != dmBuffer::RESULT_OK)
         {
-            case dmBufferDDF::VALUE_TYPE_UINT8:
-            case dmBufferDDF::VALUE_TYPE_UINT16:
-            case dmBufferDDF::VALUE_TYPE_UINT32:
-                return ddf_stream.m_Ui.m_Count;
-
-            case dmBufferDDF::VALUE_TYPE_UINT64:
-                return ddf_stream.m_Ui64.m_Count;
-
-            case dmBufferDDF::VALUE_TYPE_INT8:
-            case dmBufferDDF::VALUE_TYPE_INT16:
-            case dmBufferDDF::VALUE_TYPE_INT32:
-                return ddf_stream.m_I.m_Count;
-
-            case dmBufferDDF::VALUE_TYPE_INT64:
-                return ddf_stream.m_I64.m_Count;
-
-            case dmBufferDDF::VALUE_TYPE_FLOAT32:
-                return ddf_stream.m_F.m_Count;
-
-            default:
-                assert(false && "Unknown value type of stream, cannot get value count.");
-                return 0;
-        }
-    }
-
-#define MAKE_STREAM_BUILDER(F_NAME, C_DATA_TYPE, C_DEFAULT, DDF_FIELD) \
-    static void Build##F_NAME##Stream(void* out_data, const uint32_t count, uint32_t components, uint32_t stride, const dmBufferDDF::StreamDesc& ddf_stream) \
-    { \
-        C_DATA_TYPE* out_data_typed = (C_DATA_TYPE*)out_data; \
-        for (int i = 0; i < count; ++i) \
-        { \
-            for (int c = 0; c < components; ++c) \
-            { \
-                uint64_t data_i = i*components + c; \
-                if (data_i < ddf_stream.DDF_FIELD.m_Count) { \
-                    out_data_typed[c] = ddf_stream.DDF_FIELD.m_Data[data_i]; \
-                } else { \
-                    out_data_typed[c] = C_DEFAULT; \
-                    dmLogError("Trying to get stream data outside of input DDF array."); \
-                } \
-            } \
-            out_data_typed += stride; \
-        } \
-    }
-
-    MAKE_STREAM_BUILDER(UINT8, uint8_t, 0, m_Ui)
-    MAKE_STREAM_BUILDER(UINT16, uint16_t, 0, m_Ui)
-    MAKE_STREAM_BUILDER(UINT32, uint32_t, 0, m_Ui)
-    MAKE_STREAM_BUILDER(UINT64, uint64_t, 0, m_Ui64)
-    MAKE_STREAM_BUILDER(INT8, int8_t, 0, m_I)
-    MAKE_STREAM_BUILDER(INT16, int16_t, 0, m_I)
-    MAKE_STREAM_BUILDER(INT32, int32_t, 0, m_I)
-    MAKE_STREAM_BUILDER(INT64, int64_t, 0, m_I64)
-    MAKE_STREAM_BUILDER(FLOAT32, float, 0.0f, m_F)
-
-#undef MAKE_STREAM_BUILDER
-
-    static bool BuildBuffer(BufferResource* buffer_resource)
-    {
-        // Figure out stream count (+ element count, by counting max entries in each stream)
-        uint64_t max_elem = 0;
-        uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
-        dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*)malloc(stream_count * sizeof(dmBuffer::StreamDeclaration));
-        for (uint32_t i = 0; i < stream_count; ++i)
-        {
-            const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
-            streams_decl[i].m_Name                    = ddf_stream.m_NameHash;
-            streams_decl[i].m_Type                    = (dmBuffer::ValueType)ddf_stream.m_ValueType;
-            streams_decl[i].m_Count                   = ddf_stream.m_ValueCount;
-
-            assert(streams_decl[i].m_Count > 0);
-
-            uint64_t elem_count = GetValueCount(ddf_stream) / streams_decl[i].m_Count;
-            if (elem_count > max_elem) {
-                max_elem = elem_count;
-            }
+            dmLogError("Unable to create buffer (%d)", result);
+            return result == dmBuffer::RESULT_ALLOCATION_ERROR ? dmResource::RESULT_OUT_OF_MEMORY : dmResource::RESULT_INVALID_DATA;
         }
 
-        buffer_resource->m_ElementCount = max_elem;
-
-        dmBuffer::Result r = dmBuffer::Create(max_elem, streams_decl, stream_count, &buffer_resource->m_Buffer);
-
-        if (r != dmBuffer::RESULT_OK) {
-            dmLogError("Unable to create buffer (%d)", r);
-            free(streams_decl);
-            return false;
-        }
-
-        // Figure out buffer elem count
-        for (int s = 0; s < stream_count; ++s)
+        void* bytes;
+        uint32_t size;
+        dmBuffer::GetBytes(resource->m_Buffer, &bytes, &size);
+        memcpy(bytes, (const uint8_t*)data + preload->m_DataOffset, size);
+#if DM_ENDIAN == DM_ENDIAN_BIG
+        // Current targets are little-endian. Convert scalar bytes for big-endian hosts.
+        for (uint32_t s = 0; s < preload->m_StreamCount; ++s)
         {
-            dmBuffer::StreamDeclaration& stream_decl = streams_decl[s];
-            const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[s];
-
-            void* data = 0x0;
-            uint32_t count = 0;
-            uint32_t components = 0;
-            uint32_t stride = 0;
-
-            dmBuffer::Result r = dmBuffer::GetStream(buffer_resource->m_Buffer, stream_decl.m_Name, &data, &count, &components, &stride);
-
-            if (r == dmBuffer::RESULT_OK)
+            uint32_t value_size = dmBuffer::GetSizeForValueType(streams[s].m_Type);
+            uint32_t offset;
+            dmBuffer::GetStreamOffset(resource->m_Buffer, s, &offset);
+            for (uint32_t i = 0; i < preload->m_ElementCount; ++i)
             {
-                switch (ddf_stream.m_ValueType)
+                for (uint32_t c = 0; c < streams[s].m_Count; ++c)
                 {
-                    case dmBufferDDF::VALUE_TYPE_UINT8:
-                        BuildUINT8Stream(data, count, components, stride, ddf_stream);
-                        break;
-                    case dmBufferDDF::VALUE_TYPE_UINT16:
-                        BuildUINT16Stream(data, count, components, stride, ddf_stream);
-                        break;
-                    case dmBufferDDF::VALUE_TYPE_UINT32:
-                        BuildUINT32Stream(data, count, components, stride, ddf_stream);
-                        break;
-                    case dmBufferDDF::VALUE_TYPE_UINT64:
-                        BuildUINT64Stream(data, count, components, stride, ddf_stream);
-                        break;
-                    case dmBufferDDF::VALUE_TYPE_INT8:
-                        BuildINT8Stream(data, count, components, stride, ddf_stream);
-                        break;
-                    case dmBufferDDF::VALUE_TYPE_INT16:
-                        BuildINT16Stream(data, count, components, stride, ddf_stream);
-                        break;
-                    case dmBufferDDF::VALUE_TYPE_INT32:
-                        BuildINT32Stream(data, count, components, stride, ddf_stream);
-                        break;
-                    case dmBufferDDF::VALUE_TYPE_INT64:
-                        BuildINT64Stream(data, count, components, stride, ddf_stream);
-                        break;
-                    case dmBufferDDF::VALUE_TYPE_FLOAT32:
-                        BuildFLOAT32Stream(data, count, components, stride, ddf_stream);
-                        break;
-
-                    default:
-                        dmLogError("Could not build stream data of unknown type.");
-                        free(streams_decl);
-                        return false;
+                    uint8_t* value = (uint8_t*)bytes + i * preload->m_Stride + offset + c * value_size;
+                    for (uint32_t b = 0; b < value_size / 2; ++b)
+                    {
+                        uint8_t temp = value[b];
+                        value[b] = value[value_size - b - 1];
+                        value[value_size - b - 1] = temp;
+                    }
                 }
-
-            } else {
-                dmLogError("Could not get raw bytes from buffer resource.");
-                free(streams_decl);
-                return false;
             }
         }
-
-        free(streams_decl);
-
-        buffer_resource->m_Stride = dmBuffer::GetStructSize(buffer_resource->m_Buffer);
-
-        return true;
+#endif
+        resource->m_ElementCount = preload->m_ElementCount;
+        resource->m_Stride = preload->m_Stride;
+        dmBuffer::GetContentVersion(resource->m_Buffer, &resource->m_Version);
+        return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams* params)
     {
-        BufferResource* buffer_resource = new BufferResource();
-        memset(buffer_resource, 0, sizeof(BufferResource));
-        buffer_resource->m_BufferDDF = (dmBufferDDF::BufferDesc*) params->m_PreloadData;
-        ResourceDescriptorSetResource(params->m_Resource, buffer_resource);
-        buffer_resource->m_NameHash = dmHashString64(params->m_Filename);
-
-        if (!BuildBuffer(buffer_resource))
-        {
+        BufferPreloadData* preload = (BufferPreloadData*)params->m_PreloadData;
+        if (!preload)
             return dmResource::RESULT_INVALID_DATA;
+
+        BufferResource* resource = new BufferResource();
+        memset(resource, 0, sizeof(BufferResource));
+        resource->m_NameHash = dmHashString64(params->m_Filename);
+        dmResource::Result result = BuildBuffer(params->m_Buffer, preload, resource);
+        free(preload);
+        if (result != dmResource::RESULT_OK)
+        {
+            delete resource;
+            return result;
         }
-
-        dmBuffer::GetContentVersion(buffer_resource->m_Buffer, &buffer_resource->m_Version);
-
+        ResourceDescriptorSetResource(params->m_Resource, resource);
         return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResBufferDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        BufferResource* buffer_resource = (BufferResource*)ResourceDescriptorGetResource(params->m_Resource);
-        ReleaseResources(params->m_Factory, buffer_resource);
-        delete buffer_resource;
+        BufferResource* resource = (BufferResource*)ResourceDescriptorGetResource(params->m_Resource);
+        dmBuffer::Destroy(resource->m_Buffer);
+        delete resource;
         return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResBufferRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        dmBufferDDF::BufferDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
-        if (e != dmDDF::RESULT_OK)
-        {
-            return dmResource::RESULT_DDF_ERROR;
-        }
-        BufferResource* buffer_resource = (BufferResource*)ResourceDescriptorGetResource(params->m_Resource);
-        ReleaseResources(params->m_Factory, buffer_resource);
-        buffer_resource->m_BufferDDF = ddf;
+        BufferPreloadData* preload;
+        dmResource::Result result = ParseBuffer(params->m_Buffer, params->m_BufferSize, &preload);
+        if (result != dmResource::RESULT_OK)
+            return result;
 
-        if (!BuildBuffer(buffer_resource))
-        {
-            return dmResource::RESULT_INVALID_DATA;
-        }
+        BufferResource replacement = {};
+        result = BuildBuffer(params->m_Buffer, preload, &replacement);
+        free(preload);
+        if (result != dmResource::RESULT_OK)
+            return result;
 
-        dmBuffer::UpdateContentVersion(buffer_resource->m_Buffer);
-
+        BufferResource* resource = (BufferResource*)ResourceDescriptorGetResource(params->m_Resource);
+        dmBuffer::Destroy(resource->m_Buffer);
+        resource->m_Buffer = replacement.m_Buffer;
+        resource->m_ElementCount = replacement.m_ElementCount;
+        resource->m_Stride = replacement.m_Stride;
+        dmBuffer::UpdateContentVersion(resource->m_Buffer);
         return dmResource::RESULT_OK;
     }
 }

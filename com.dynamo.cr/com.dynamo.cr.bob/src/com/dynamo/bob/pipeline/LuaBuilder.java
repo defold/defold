@@ -21,7 +21,6 @@ import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
@@ -129,10 +128,12 @@ public abstract class LuaBuilder extends Builder {
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
+        boolean useUncompressedLuaSource = project.option("use-uncompressed-lua-source", "false").equals("true");
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.disableMinifyPath().changeExt(params.outExt()));
+                .addOutput(input.disableMinifyPath().changeExt(params.outExt()),
+                        useUncompressedLuaSource ? Task.OutputFlags.UNCOMPRESSED : Task.OutputFlags.ENCRYPTED);
 
         LuaScanner.Result result = getLuaScannerResult(input);
         long finalLuaHash = MurmurHash.hash64(result.code());
@@ -497,20 +498,6 @@ public abstract class LuaBuilder extends Builder {
         }
 
         boolean useUncompressedLuaSource = this.project.option("use-uncompressed-lua-source", "false").equals("true");
-        // set compression and encryption flags
-        // if the use-uncompressed-lua-source flag is set the project will use uncompressed plain text Lua script files
-        // if the use-uncompressed-lua-source flag is NOT set the project will use encrypted and possibly also compressed bytecode
-        for(IResource res : task.getOutputs()) {
-            String path = res.getAbsPath();
-            if(path.endsWith("luac") || path.endsWith("scriptc") || path.endsWith("gui_scriptc") || path.endsWith("render_scriptc")) {
-                if (useUncompressedLuaSource) {
-                    project.addOutputFlags(path, Project.OutputFlags.UNCOMPRESSED);
-                }
-                else {
-                    project.addOutputFlags(path, Project.OutputFlags.ENCRYPTED);
-                }
-            }
-        }
 
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
         srcBuilder.setFilename(getChunkName(task));

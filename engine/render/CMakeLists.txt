@@ -68,7 +68,8 @@ list(REMOVE_ITEM RENDER_CORE_SOURCES
   "${RENDER_SRC_DIR}/render/render_inspection.cpp"
   "${RENDER_SRC_DIR}/render/render_inspection_null.cpp")
 file(GLOB RENDER_FONT_SOURCES CONFIGURE_DEPENDS "${RENDER_SRC_DIR}/render/font/*.cpp")
-set(RENDER_SOURCES ${RENDER_CORE_SOURCES} ${RENDER_FONT_SOURCES} ${RENDER_PROTO_CC})
+set(RENDER_SOURCES ${RENDER_CORE_SOURCES} ${RENDER_FONT_SOURCES} ${RENDER_PROTO_CC}
+  "${RENDER_SRC_DIR}/render/font/default/font_default_vertex.cpp")
 
 if(TARGET_PLATFORM MATCHES "web$")
   list(APPEND RENDER_SOURCES "${RENDER_SRC_DIR}/platform/renderer_web.cpp")

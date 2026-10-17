@@ -283,53 +283,59 @@
                                       :type :choicebox
                                       :options (sort-by first (make-options os-values))
                                       :default (ffirst os-values)}
-                          :panel-form {:sections
-                                       [{:fields
-                                         [{:path [:formats]
-                                           :localization-key "texture-profiles.profiles.platforms.formats"
-                                           :type :2panel
-                                           :panel-key {:path [:format]
-                                                       :localization-key "texture-profiles.profiles.platforms.formats.format"
-                                                       :type :choicebox
-                                                       :options (sort-by first (make-options format-values-filtered))
-                                                       :default (ffirst format-values-filtered)}
-                                           :panel-form-fn
-                                           (fn panel-form-fn [selected-format]
-                                             (let [texture-format (when (:format selected-format)
-                                                                    (protobuf/val->pb-enum Graphics$TextureImage$TextureFormat (:format selected-format)))
-                                                   available-compressors-for-format (keep (fn [[compressor-name compressor-instance]]
-                                                                                            (when (.supportsTextureFormat ^ITextureCompressor compressor-instance texture-format)
-                                                                                              [compressor-name compressor-name]))
-                                                                                          available-compressors)
-                                                   available-presets-for-compressor (mapv
-                                                                                      (fn [preset-name]
-                                                                                        [preset-name (.getDisplayName (TextureCompression/getPreset preset-name))])
-                                                                                      (TextureCompression/getPresetNamesForCompressor (:compressor selected-format)))]
-                                               {:sections
-                                                [{:fields
-                                                  [{:path [:compressor]
-                                                    :localization-key "texture-profiles.profiles.platforms.formats.compressor"
-                                                    :type :choicebox
-                                                    :options (make-options available-compressors-for-format) ; Unsorted.
-                                                    :default (TextureCompressorUncompressed/TextureCompressorName)}
-                                                   {:path [:compressor-preset]
-                                                    :localization-key "texture-profiles.profiles.platforms.formats.compressor-preset"
-                                                    :type :choicebox
-                                                    :options available-presets-for-compressor ; Unsorted.
-                                                    :default (ffirst available-presets-for-compressor)}]}]}))}
-                                          {:path [:mipmaps]
-                                           :type :boolean
-                                           :localization-key "texture-profiles.profiles.platforms.mipmaps"}
-                                          {:path [:max-texture-size]
-                                           :type :integer
-                                           :localization-key "texture-profiles.profiles.platforms.max-texture-size"
-                                           :default (protobuf/default Graphics$PlatformProfile :max-texture-size)
-                                           :optional true}
-                                          {:path [:premultiply-alpha]
-                                           :type :boolean
-                                           :localization-key "texture-profiles.profiles.platforms.premultiply-alpha"
-                                           :default (protobuf/default Graphics$PlatformProfile :premultiply-alpha)
-                                           :optional true}]}]}}]}]}}]}]}))
+                          :panel-form
+                          {:sections
+                           [{:fields
+                             [{:path [:keep-ktx2-format]
+                               :type :boolean
+                               :localization-key "texture-profiles.profiles.platforms.keep-ktx2-format"
+                               :default (protobuf/default Graphics$PlatformProfile :keep-ktx2-format)
+                               :optional true}
+                              {:path [:formats]
+                               :localization-key "texture-profiles.profiles.platforms.formats"
+                               :type :2panel
+                               :panel-key {:path [:format]
+                                           :localization-key "texture-profiles.profiles.platforms.formats.format"
+                                           :type :choicebox
+                                           :options (sort-by first (make-options format-values-filtered))
+                                           :default (ffirst format-values-filtered)}
+                               :panel-form-fn
+                               (fn panel-form-fn [selected-format]
+                                 (let [texture-format (when (:format selected-format)
+                                                        (protobuf/val->pb-enum Graphics$TextureImage$TextureFormat (:format selected-format)))
+                                       available-compressors-for-format (keep (fn [[compressor-name compressor-instance]]
+                                                                                (when (.supportsTextureFormat ^ITextureCompressor compressor-instance texture-format)
+                                                                                  [compressor-name compressor-name]))
+                                                                              available-compressors)
+                                       available-presets-for-compressor (mapv
+                                                                          (fn [preset-name]
+                                                                            [preset-name (.getDisplayName (TextureCompression/getPreset preset-name))])
+                                                                          (TextureCompression/getPresetNamesForCompressor (:compressor selected-format)))]
+                                   {:sections
+                                    [{:fields
+                                      [{:path [:compressor]
+                                        :localization-key "texture-profiles.profiles.platforms.formats.compressor"
+                                        :type :choicebox
+                                        :options (make-options available-compressors-for-format) ; Unsorted.
+                                        :default TextureCompressorUncompressed/TextureCompressorName}
+                                       {:path [:compressor-preset]
+                                        :localization-key "texture-profiles.profiles.platforms.formats.compressor-preset"
+                                        :type :choicebox
+                                        :options available-presets-for-compressor ; Unsorted.
+                                        :default (ffirst available-presets-for-compressor)}]}]}))}
+                              {:path [:mipmaps]
+                               :type :boolean
+                               :localization-key "texture-profiles.profiles.platforms.mipmaps"}
+                              {:path [:max-texture-size]
+                               :type :integer
+                               :localization-key "texture-profiles.profiles.platforms.max-texture-size"
+                               :default (protobuf/default Graphics$PlatformProfile :max-texture-size)
+                               :optional true}
+                              {:path [:premultiply-alpha]
+                               :type :boolean
+                               :localization-key "texture-profiles.profiles.platforms.premultiply-alpha"
+                               :default (protobuf/default Graphics$PlatformProfile :premultiply-alpha)
+                               :optional true}]}]}}]}]}}]}]}))
 
 (defn produce-form-data
   ([node-id pb def]

@@ -88,18 +88,91 @@ function testGamepadCapabilitiesAndInput() {
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(0, param)), [0, 0, 0, 0]);
 }
 
-// Verify the bundled loader enters and exits fullscreen through the renamed backend for every supported target.
-function testLoaderFullscreenToggle() {
+function loadLoaderEnvironment(hasWebGPU = false) {
     const loaderPath = path.resolve(__dirname,
         "../../../../com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/bundle/resources/web/dmloader.js");
-    // Fullscreen has no template inputs; omit optional sections and fill scalar placeholders for evaluation.
+    const flags = { "html5.verify_downloaded_file_size": true, DEFOLD_HAS_WASM_ENGINE: true,
+                    DEFOLD_HAS_WEBGPU: hasWebGPU };
     const loader = fs.readFileSync(loaderPath, "utf8")
         .replace(/\{\{![\s\S]*?\}\}/g, "")
-        .replace(/\{\{[#^]([^}]+)\}\}[\s\S]*?\{\{\/\1\}\}/g, "")
+        .replace(/\{\{([#^])([^}]+)\}\}([\s\S]*?)\{\{\/\2\}\}/g,
+            (_, kind, name, content) => (kind === "#" ? !!flags[name] : !flags[name]) ? content : "")
         .replace(/\{\{[^}]+\}\}/g, "0");
+    const context = loadEnvironment();
+    vm.runInContext(loader, context, { filename: loaderPath });
+    return context;
+}
+
+function setupLoaderStartup(hasWebGPU, hasWebGL) {
+    const context = loadLoaderEnvironment(hasWebGPU);
+    const calls = { started: 0, unsupported: 0, probes: 0 };
+    context.Module.setupCanvas = () => {
+        context.Module.canvas = { focus() {}, addEventListener() {} };
+    };
+    context.Module.hasWebGLSupport = () => hasWebGL;
+    context.Module._preloadAndCallMain = () => ++calls.started;
+    context.CUSTOM_PARAMETERS.full_screen_container = null;
+    context.CUSTOM_PARAMETERS.unsupported_webgl_callback = () => ++calls.unsupported;
+    context.document.createElement = () => ({ getContext: () => ({}) });
+    return { context, calls };
+}
+
+// Verify WebGL-only builds start synchronously without waiting for or querying a WebGPU adapter.
+function testLoaderWebGLSkipsWebGPUProbe() {
+    for (const hasWebGL of [true, false]) {
+        const { context, calls } = setupLoaderStartup(false, hasWebGL);
+        context.navigator.gpu = { requestAdapter() {
+            ++calls.probes;
+            return new Promise(() => {});
+        } };
+
+        context.Module.runApp();
+        assert.strictEqual(calls.probes, 0);
+        assert.strictEqual(calls.started, hasWebGL ? 1 : 0);
+        assert.strictEqual(calls.unsupported, hasWebGL ? 0 : 1);
+        assert.strictEqual(context.Module.probeWebGPUSupport, undefined);
+        assert.strictEqual(context.Module.hasWebGPUSupport, undefined);
+    }
+}
+
+// Verify WebGPU builds await adapter discovery and retain WebGL fallback when discovery fails.
+async function testLoaderWebGPUProbeGatesStartup() {
+    for (const hasWebGL of [true, false]) {
+        for (const outcome of ["adapter", "null", "rejected", "throws", "unavailable"]) {
+            const { context, calls } = setupLoaderStartup(true, hasWebGL);
+            let resolveProbe, rejectProbe;
+            context.console = { log() {} };
+            if (outcome !== "unavailable") {
+                context.navigator.gpu = { requestAdapter() {
+                    ++calls.probes;
+                    if (outcome === "throws") throw new Error("Adapter unavailable");
+                    return new Promise((resolve, reject) => { resolveProbe = resolve; rejectProbe = reject; });
+                } };
+            }
+
+            context.Module.runApp();
+            if (resolveProbe) {
+                assert.strictEqual(calls.started, 0);
+                assert.strictEqual(calls.unsupported, 0);
+                assert.strictEqual(context.Module._isEngineLoaded, false);
+                if (outcome === "rejected") rejectProbe(new Error("Adapter unavailable"));
+                else resolveProbe(outcome === "adapter" ? {} : null);
+                await Promise.resolve();
+            }
+
+            const supported = hasWebGL || outcome === "adapter";
+            assert.strictEqual(calls.probes, outcome === "unavailable" ? 0 : 1);
+            assert.strictEqual(calls.started, supported ? 1 : 0);
+            assert.strictEqual(calls.unsupported, supported ? 0 : 1);
+            assert.strictEqual(context.Module.hasWebGPUSupport(), outcome === "adapter");
+        }
+    }
+}
+
+// Verify the bundled loader enters and exits fullscreen through the renamed backend for every supported target.
+function testLoaderFullscreenToggle() {
     for (const target of ["canvas", "container", "explicit"]) {
-        const context = loadEnvironment();
-        vm.runInContext(loader, context, { filename: loaderPath });
+        const context = loadLoaderEnvironment();
         context.Module.canvas = context.createFullscreenElement();
         if (target !== "canvas")
             context.Module.fullScreenContainer = context.createFullscreenElement();
@@ -113,6 +186,83 @@ function testLoaderFullscreenToggle() {
         assert.strictEqual(context.document.fullscreenElement, null);
         assert.strictEqual(context.DefoldPlatform.isFullscreen, false);
     }
+}
+
+// Verify limited and unlimited downloads reconstruct every file and finish when pieces arrive out of order.
+async function testLoaderArchiveConcurrency() {
+    for (const limit of [1, 2, 6, undefined]) {
+        const context = loadLoaderEnvironment();
+        const loader = context.GameArchiveLoader;
+        const pending = [];
+        const responses = new Map();
+        const expectedFiles = [];
+        const loadedFiles = [];
+        let completed = 0;
+        let maxPending = 0;
+        loader.MAX_CONCURRENT_XHR = limit;
+        loader._files = [8, 3].map((pieceCount, fileIndex) => {
+            const file = { name: "file" + fileIndex, size: pieceCount * 2, pieces: [] };
+            const data = [];
+            for (let index = 0; index < pieceCount; ++index) {
+                const name = file.name + "-piece" + index;
+                const bytes = Uint8Array.of(fileIndex, index);
+                file.pieces.push({ name, offset: index * 2 });
+                responses.set("split/" + name, bytes.buffer);
+                data.push(...bytes);
+            }
+            expectedFiles.push({ name: file.name, data });
+            return file;
+        });
+        loader.addFileLoadedListener(file => loadedFiles.push({ name: file.name, data: Array.from(file.data) }));
+        loader.addArchiveLoadedListener(() => ++completed);
+        context.FileLoader.load = (url, responseType, onprogress, onerror, onload) => {
+            assert.strictEqual(responseType, "arraybuffer");
+            pending.push(() => onload(responses.get(url(0))));
+            maxPending = Math.max(maxPending, pending.length);
+        };
+
+        await loader.downloadContent();
+        while (pending.length > 0) {
+            pending.pop()();
+            // Let completed file verification enqueue the next file's downloads.
+            await Promise.resolve();
+        }
+
+        assert.strictEqual(completed, 1, "archive did not complete with concurrency " + limit);
+        assert.deepStrictEqual(loadedFiles, expectedFiles);
+        assert.strictEqual(maxPending, limit === undefined ? 8 : limit);
+    }
+}
+
+// Verify preloading transfers archive buffers to the filesystem, releases the queue, and remains idempotent.
+function testLoaderArchiveBufferOwnership() {
+    const context = loadLoaderEnvironment();
+    const files = new Map();
+    const archives = [
+        { name: "game.arci", data: Uint8Array.of(1, 2, 3) },
+        { name: "game.arcd", data: new Uint8Array(4096).fill(7) }
+    ];
+    let preloadedFiles = 0;
+    context.FS = {
+        createPreloadedFile(parent, name, data, canRead, canWrite, onload, onerror, dontCreateFile, canOwn) {
+            files.set(name, canOwn ? data.subarray(0) : data.slice());
+            ++preloadedFiles;
+        }
+    };
+    for (const archive of archives) {
+        context.Module.onArchiveFileLoaded(archive);
+    }
+
+    context.Module.preloadAll();
+    assert.strictEqual(context.Module._filesToPreload.length, 0);
+    for (const archive of archives) {
+        const contents = files.get(archive.name);
+        assert.deepStrictEqual(contents, archive.data);
+        assert.strictEqual(contents.buffer, archive.data.buffer);
+    }
+
+    context.Module.preloadAll();
+    assert.strictEqual(preloadedFiles, archives.length);
 }
 
 function loadPointerEnvironment() {
@@ -219,13 +369,19 @@ function testMixedTouchAndMouseSources() {
     assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), true);
 }
 
-for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
-                   testTouchMouseSources, testMixedTouchAndMouseSources]) {
-    try {
-        test();
-        process.stdout.write(test.name + " passed\n");
-    } catch (error) {
-        console.error(test.name, error);
-        process.exitCode = 1;
+async function runTests() {
+    for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
+                       testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderArchiveConcurrency,
+                       testLoaderArchiveBufferOwnership,
+                       testTouchMouseSources, testMixedTouchAndMouseSources]) {
+        try {
+            await test();
+            process.stdout.write(test.name + " passed\n");
+        } catch (error) {
+            console.error(test.name, error);
+            process.exitCode = 1;
+        }
     }
 }
+
+runTests();

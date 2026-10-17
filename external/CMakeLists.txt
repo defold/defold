@@ -12,6 +12,9 @@ set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}/ext" CACHE PATH "External library i
 add_subdirectory(bullet3d)
 add_subdirectory(basisu)
 add_subdirectory(lz4)
+if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+  add_subdirectory(luajit)
+endif()
 add_subdirectory(box2d)
 add_subdirectory(box2d_v2)
 add_subdirectory(harfbuzz)
@@ -20,7 +23,10 @@ add_subdirectory(opus)
 add_subdirectory(sheenbidi)
 add_subdirectory(skribidi)
 
-# Protobuf is used by desktop tools, including the host tools in cross-builds.
+# These libraries are used by desktop tools, including the host in cross-builds.
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
+  add_subdirectory(meshoptimizer)
+  add_subdirectory(draco)
+  add_subdirectory(ogg)
   add_subdirectory(protobuf)
 endif()

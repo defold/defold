@@ -26,7 +26,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
-@BuilderParams(name = "Texture", inExts = {".png", ".jpg", ".jpeg", ".hdr"}, outExt = ".texturec", isCacheble = true, paramsForSignature = {"texture-compression"})
+@BuilderParams(name = "Texture", inExts = {".png", ".jpg", ".jpeg", ".hdr", ".ktx2"}, outExt = ".texturec", isCacheble = true, paramsForSignature = {"texture-compression"})
 public class TextureBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(TextureBuilder.class.getName());
@@ -55,7 +55,7 @@ public class TextureBuilder extends Builder {
         try {
             boolean compress = project.option("texture-compression", "false").equals("true");
             generateResult = TextureGenerator.generate(task.firstInput().getContent(), texProfile, compress);
-        } catch (TextureGeneratorException e) {
+        } catch (TextureGeneratorException | IOException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 

@@ -20,6 +20,8 @@ def isLightTool = { String path ->
     lightToolPatterns.any { SelectorUtils.matchPath(it, platformPath) }
 }
 def desktopPlatforms = ['x86_64-macos', 'arm64-macos', 'x86_64-linux', 'arm64-linux', 'x86_64-win32']
+def requireAllTools = System.getenv('CI')?.toBoolean() || System.getenv('GITHUB_ACTIONS')?.toBoolean() ||
+        System.getenv('GITHUB_WORKFLOW') != null
 
 def libraryName = { String platform, String name ->
     platform.endsWith('win32') ? "${name}.dll" : "lib${name}.${platform.endsWith('macos') ? 'dylib' : 'so'}"
@@ -43,7 +45,10 @@ def add = { String path, File source, boolean required = false ->
 }
 
 toolSources.each { path, source ->
-    add(path, new File(dynamoHome, source), true)
+    def nonHostTool = desktopPlatforms.any { platform ->
+        platform != settings.hostPlatform && path.startsWith("libexec/${platform}/")
+    }
+    add(path, new File(dynamoHome, source), requireAllTools || !nonHostTool)
 }
 desktopPlatforms.each { platform ->
     ['dlib', 'texc', 'modelc', 'shaderc', 'fontc'].each { library ->

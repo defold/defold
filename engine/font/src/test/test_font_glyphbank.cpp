@@ -245,6 +245,36 @@ TEST(FontGlyphBank, LayoutMetrics)
     ASSERT_TRUE(destroyed);
 }
 
+// Vector glyph-bank layout scales from the size used to bake its metrics.
+TEST(FontGlyphBank, VectorLayoutScalesFromBakedSize)
+{
+    bool destroyed = false;
+    TestGlyphBankProvider* glyph_bank = CreateTestGlyphBank(1, &destroyed);
+    FontGlyphBankGlyph& glyph = glyph_bank->m_Glyphs[0];
+    glyph.m_Codepoint = 'A';
+    glyph.m_Width = glyph.m_Advance = 8.0f;
+    glyph.m_Ascent = 10.0f;
+    glyph.m_Descent = 2.0f;
+    glyph_bank->m_Provider.m_MaxAscent = 10.0f;
+    glyph_bank->m_Provider.m_MaxDescent = 2.0f;
+    glyph_bank->m_Provider.m_ReferenceSize = 16.0f;
+    HFont font = FontCreateGlyphBank("vector.glyph_bankc", &glyph_bank->m_Provider);
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = FontCollectionCreate();
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, font));
+    TextLayoutSettings settings = {};
+    settings.m_Leading = 1.0f;
+    settings.m_Size = 36.0f;
+    AssertGlyphBankLayout(collection, "AA", &settings, 36.0f, 27.0f, 1);
+    ASSERT_EQ(22.5f, FontGetAscent(font, FontGetScaleFromSize(font, 36)));
+    ASSERT_EQ(4.5f, FontGetDescent(font, FontGetScaleFromSize(font, 36)));
+    settings.m_Size = 16.0f;
+    AssertGlyphBankLayout(collection, "AA", &settings, 16.0f, 12.0f, 1);
+    FontCollectionDestroy(collection);
+    FontDestroy(font);
+    ASSERT_TRUE(destroyed);
+}
+
 // Verifies separate measurement and bitmap bounds, while old banks keep their
 // previous metrics. Guards against #13339 without changing glyph rasterization.
 TEST(FontGlyphBank, SeparateLayoutAndBitmapMetrics)
@@ -299,6 +329,21 @@ TEST(FontGlyphBank, RejectsInvalidProvider)
     ASSERT_EQ((HFont)0, FontCreateGlyphBank("test.glyph_bankc", 0));
 }
 
+// Verifies both alignment resources load through the host filesystem, guarding against missing wasm fixtures.
+TEST(FontAlignment, LoadsPreviewAndCompiledResources)
+{
+    FontAlignmentFixture preview;
+    FontAlignmentFixture compiled;
+    CreateAlignmentFixture(preview, false);
+    ASSERT_EQ(DM_ARRAY_SIZE(preview.m_Glyphs), preview.m_GlyphCount);
+    ASSERT_NE((HFont)0, preview.m_Font);
+    ASSERT_NE((HTextLayout)0, preview.m_Layout);
+    CreateAlignmentFixture(compiled, true);
+    ASSERT_EQ(DM_ARRAY_SIZE(compiled.m_Glyphs), compiled.m_GlyphCount);
+    ASSERT_NE((dmFontDDF::GlyphBank*)0, compiled.m_Bank);
+    ASSERT_NE((HTextLayout)0, compiled.m_Layout);
+}
+
 // Compiling a font must preserve every GUI pivot's glyph positions; guards
 // against #13339's raster-padding/monospaced-layout offset in offline fonts.
 TEST(FontAlignment, CompiledFontMatchesPreviewAtEveryPivot)
@@ -306,7 +351,9 @@ TEST(FontAlignment, CompiledFontMatchesPreviewAtEveryPivot)
     FontAlignmentFixture preview;
     FontAlignmentFixture compiled;
     CreateAlignmentFixture(preview, false);
+    ASSERT_EQ(DM_ARRAY_SIZE(preview.m_Glyphs), preview.m_GlyphCount);
     CreateAlignmentFixture(compiled, true);
+    ASSERT_EQ(DM_ARRAY_SIZE(compiled.m_Glyphs), compiled.m_GlyphCount);
     uint32_t mismatched_pivots = 0;
     for (uint32_t pivot = 0; pivot < 9; ++pivot)
     {
@@ -333,7 +380,9 @@ TEST(FontAlignment, CompiledFontMatchesPreviewAtWrapBoundary)
     FontAlignmentFixture preview;
     FontAlignmentFixture compiled;
     CreateAlignmentFixture(preview, false);
+    ASSERT_EQ(DM_ARRAY_SIZE(preview.m_Glyphs), preview.m_GlyphCount);
     CreateAlignmentFixture(compiled, true);
+    ASSERT_EQ(DM_ARRAY_SIZE(compiled.m_Glyphs), compiled.m_GlyphCount);
     dmArray<uint32_t> codepoints;
     TextToCodePoints("Example Example", codepoints);
     TextLayoutSettings settings = {};

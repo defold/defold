@@ -157,6 +157,8 @@ extern "C"
         uint32_t m_VerticalAlign;
         uint64_t m_BaseStyle;
         uint32_t m_UseBaseStyle;
+        // Vector layout size in pixels; zero uses the glyph generation size.
+        float    m_FontSize;
     } FontcProperties;
 
     /* Compiled style data. Color arrays are RGBA; flags distinguish inherited
@@ -468,7 +470,10 @@ extern "C"
      * Parses UTF-8 rich-text markup with the native parser and copies it to the
      * caller-owned output buffer, omitting visible codepoints not present in the
      * allowed set. Markup syntax and entity spellings are preserved byte-for-byte.
-     * The output buffer must be at least `markup_byte_count` bytes.
+     * Literal ampersands are escaped as `&amp;` to preserve visible text after
+     * filtering. The output buffer must be at least `markup_byte_count` bytes,
+     * with additional space for escaped ampersands. A buffer of
+     * `5 * markup_byte_count` bytes is always sufficient.
      *
      * @name FontcFilterMarkup
      * @param markup [type: const char*] UTF-8 rich-text markup.
@@ -646,7 +651,9 @@ extern "C"
      * returned atlas version must be retained by the caller for subsequent calls.
      * The returned pixel buffer, when present, is owned by the caller and must be
      * released with FontcFreeTexture. Generate the texture before querying
-     * or writing vertices so their glyphs are available in the atlas.
+     * or writing vertices so their glyphs are available in the atlas. For Vector
+     * fonts this is the byte effect atlas; also request the numeric textures with
+     * FontcGetVectorTextures using the same known atlas version.
      *
      * @name FontcGenerateTexture
      * @param renderer [type: HFontRenderer] Font renderer context.
@@ -657,6 +664,14 @@ extern "C"
     DM_DLLEXPORT FontRendererResult FontcGenerateTexture(HFontRenderer renderer,
                                                          uint64_t      known_atlas_version,
                                                          FontcTexture* texture);
+
+    /* Returns Slug numeric textures after FontcGenerateTexture has prepared the
+     * glyphs for all entries in a batch. Curves are RGBA16F; bands are packed R32UI,
+     * matching the runtime texture formats. Updates contain complete images, whose
+     * heights grow with the active glyph set. Release both with FontcFreeTexture.
+     * The existing atlas version covers all three textures. */
+    DM_DLLEXPORT FontRendererResult FontcGetVectorTextures(HFontRenderer renderer, uint64_t known_atlas_version,
+                                                          FontcTexture* curves, FontcTexture* bands);
 
     /*#
      * Releases the pixel buffer in a texture update and clears the structure.
