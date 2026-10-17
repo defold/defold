@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
-#include <string.h>
 
 #include <dlib/mutex.h>
 #include <dlib/thread.h>
@@ -22,9 +21,21 @@
 
 namespace dmRender
 {
-    struct RenderExecution
+    // Engine-owned execution/ownership context, not the renderer or its scene data.
+    // Records the selected mode and uses per-context TLS to identify the game and
+    // render owners so call sites can assert that work runs on the correct thread.
+    // Inline mode assigns both roles to the caller; threaded mode allows one distinct
+    // render owner to bind. Graphics operations belong to that render owner as well.
+    // Created during engine startup and destroyed by the game owner after all other
+    // users have stopped and any separate render owner has released its binding.
+    //
+    // This context currently creates no threads, schedules no jobs and stores no frames.
+    // The future executor and frame handoff will build around this ownership contract:
+    // publish immutable frame inputs, consume them inline or on the render owner,
+    // signal completion and drain accepted work before shutdown.
+    struct RenderExecutionContext
     {
-        ExecutionPolicy  m_Policy;
+        ExecutionMode    m_Mode;
         dmThread::TlsKey m_OwnerKey;
         dmMutex::HMutex  m_BindMutex;
         bool             m_RenderBound;
@@ -32,17 +43,6 @@ namespace dmRender
         char             m_GameToken;
         char             m_RenderToken;
     };
-
-    ExecutionRequest ParseExecutionRequest(const char* value)
-    {
-        if (!value)
-            return EXECUTION_REQUEST_DEFAULT;
-        if (strcmp(value, "0") == 0)
-            return EXECUTION_REQUEST_INLINE;
-        if (strcmp(value, "1") == 0)
-            return EXECUTION_REQUEST_THREADED;
-        return EXECUTION_REQUEST_INVALID;
-    }
 
     ExecutionCapabilities GetExecutionCapabilities(bool executor_available)
     {
@@ -62,53 +62,48 @@ namespace dmRender
         return capabilities;
     }
 
-    ExecutionSelection ResolveExecutionPolicy(ExecutionRequest request, const ExecutionCapabilities& capabilities)
+    ExecutionSelection ResolveExecutionMode(ExecutionMode mode, const ExecutionCapabilities& capabilities)
     {
         ExecutionSelection selection;
-        selection.m_Policy = EXECUTION_POLICY_INLINE;
-        if (request != EXECUTION_REQUEST_DEFAULT && request != EXECUTION_REQUEST_INLINE && request != EXECUTION_REQUEST_THREADED)
+        selection.m_ExecutionMode = EXECUTION_MODE_INLINE;
+        if (mode != EXECUTION_MODE_INLINE && mode != EXECUTION_MODE_THREADED)
         {
-            selection.m_Policy = EXECUTION_POLICY_INVALID;
-            selection.m_Reason = EXECUTION_REASON_INVALID_REQUEST;
+            selection.m_ExecutionMode = EXECUTION_MODE_INVALID;
+            selection.m_ExecutionReason = EXECUTION_REASON_INVALID_MODE;
         }
         else if (!capabilities.m_BuildEnabled)
         {
-            selection.m_Reason = EXECUTION_REASON_BUILD_DISABLED;
+            selection.m_ExecutionReason = EXECUTION_REASON_BUILD_DISABLED;
         }
-        else if (request == EXECUTION_REQUEST_DEFAULT)
+        else if (mode == EXECUTION_MODE_INLINE)
         {
-            // The default changes only in the final, qualified release PR.
-            selection.m_Reason = EXECUTION_REASON_DEFAULT_INLINE;
-        }
-        else if (request == EXECUTION_REQUEST_INLINE)
-        {
-            selection.m_Reason = EXECUTION_REASON_EXPLICIT_INLINE;
+            selection.m_ExecutionReason = EXECUTION_REASON_INLINE;
         }
         else if (!capabilities.m_ThreadsSupported)
         {
-            selection.m_Policy = EXECUTION_POLICY_INVALID;
-            selection.m_Reason = EXECUTION_REASON_THREADS_UNSUPPORTED;
+            selection.m_ExecutionMode = EXECUTION_MODE_INVALID;
+            selection.m_ExecutionReason = EXECUTION_REASON_THREADS_UNSUPPORTED;
         }
         else if (!capabilities.m_ExecutorAvailable)
         {
-            selection.m_Policy = EXECUTION_POLICY_INVALID;
-            selection.m_Reason = EXECUTION_REASON_EXECUTOR_UNAVAILABLE;
+            selection.m_ExecutionMode = EXECUTION_MODE_INVALID;
+            selection.m_ExecutionReason = EXECUTION_REASON_EXECUTOR_UNAVAILABLE;
         }
         else
         {
-            selection.m_Policy = EXECUTION_POLICY_THREADED;
-            selection.m_Reason = EXECUTION_REASON_THREADED;
+            selection.m_ExecutionMode = EXECUTION_MODE_THREADED;
+            selection.m_ExecutionReason = EXECUTION_REASON_THREADED;
         }
         return selection;
     }
 
-    const char* GetExecutionPolicyName(ExecutionPolicy policy)
+    const char* GetExecutionModeName(ExecutionMode mode)
     {
-        switch (policy)
+        switch (mode)
         {
-            case EXECUTION_POLICY_INLINE:   return "inline";
-            case EXECUTION_POLICY_THREADED: return "threaded";
-            default:                        return "invalid";
+            case EXECUTION_MODE_INLINE:   return "inline";
+            case EXECUTION_MODE_THREADED: return "threaded";
+            default:                      return "invalid";
         }
     }
 
@@ -116,27 +111,26 @@ namespace dmRender
     {
         switch (reason)
         {
-            case EXECUTION_REASON_DEFAULT_INLINE:       return "development default";
-            case EXECUTION_REASON_EXPLICIT_INLINE:      return "explicit inline request";
+            case EXECUTION_REASON_INLINE:               return "inline mode";
             case EXECUTION_REASON_BUILD_DISABLED:       return "threaded rendering excluded by build";
-            case EXECUTION_REASON_THREADED:             return "explicit threaded request";
+            case EXECUTION_REASON_THREADED:             return "threaded mode";
             case EXECUTION_REASON_THREADS_UNSUPPORTED:  return "platform thread support unavailable";
             case EXECUTION_REASON_EXECUTOR_UNAVAILABLE: return "threaded executor unavailable";
-            default:                                    return "invalid render.internal_threaded value (expected 0 or 1)";
+            default:                                    return "invalid execution mode";
         }
     }
 
-    HRenderExecution NewRenderExecution(ExecutionRequest request, bool executor_available, ExecutionSelection* selection)
+    HRenderExecution NewRenderExecution(ExecutionMode mode, bool executor_available, ExecutionSelection* selection)
     {
-        *selection = ResolveExecutionPolicy(request, GetExecutionCapabilities(executor_available));
-        if (selection->m_Policy == EXECUTION_POLICY_INVALID)
+        *selection = ResolveExecutionMode(mode, GetExecutionCapabilities(executor_available));
+        if (selection->m_ExecutionMode == EXECUTION_MODE_INVALID)
             return 0;
 
-        RenderExecution* execution = new RenderExecution;
-        execution->m_Policy = selection->m_Policy;
+        RenderExecutionContext* execution = new RenderExecutionContext;
+        execution->m_Mode = selection->m_ExecutionMode;
         execution->m_OwnerKey = dmThread::AllocTls();
         execution->m_BindMutex = dmMutex::New();
-        execution->m_RenderBound = selection->m_Policy == EXECUTION_POLICY_INLINE;
+        execution->m_RenderBound = selection->m_ExecutionMode == EXECUTION_MODE_INLINE;
         execution->m_RenderAttached = false;
         // TLS membership is portable; Win32 GetCurrentThread returns a pseudo-handle
         // that must not be compared with a stored value to determine ownership.
@@ -158,8 +152,8 @@ namespace dmRender
 
     void ReleaseRenderExecutionOwner(HRenderExecution execution)
     {
-        assert(execution->m_Policy == EXECUTION_POLICY_THREADED);
-        AssertRenderExecutionOwner(execution, EXECUTION_OWNER_RENDER);
+        assert(execution->m_Mode == EXECUTION_MODE_THREADED);
+        assert(IsRenderExecutionOwner(execution, EXECUTION_OWNER_RENDER));
         DM_MUTEX_SCOPED_LOCK(execution->m_BindMutex);
         dmThread::SetTlsValue(execution->m_OwnerKey, 0);
         execution->m_RenderAttached = false;
@@ -170,19 +164,14 @@ namespace dmRender
         void* token = dmThread::GetTlsValue(execution->m_OwnerKey);
         if (owner == EXECUTION_OWNER_GAME)
             return token == &execution->m_GameToken;
-        if (owner == EXECUTION_OWNER_RENDER || owner == EXECUTION_OWNER_GRAPHICS)
-            return token == &execution->m_RenderToken || (execution->m_Policy == EXECUTION_POLICY_INLINE && token == &execution->m_GameToken);
+        if (owner == EXECUTION_OWNER_RENDER)
+            return token == &execution->m_RenderToken || (execution->m_Mode == EXECUTION_MODE_INLINE && token == &execution->m_GameToken);
         return false;
-    }
-
-    void AssertRenderExecutionOwner(HRenderExecution execution, ExecutionOwner owner)
-    {
-        assert(IsRenderExecutionOwner(execution, owner));
     }
 
     void DeleteRenderExecution(HRenderExecution execution)
     {
-        AssertRenderExecutionOwner(execution, EXECUTION_OWNER_GAME);
+        assert(IsRenderExecutionOwner(execution, EXECUTION_OWNER_GAME));
         assert(!execution->m_RenderAttached);
         dmThread::SetTlsValue(execution->m_OwnerKey, 0);
         dmThread::FreeTls(execution->m_OwnerKey);

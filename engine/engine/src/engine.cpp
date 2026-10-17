@@ -501,8 +501,8 @@ namespace dmEngine
     {
         if (engine->m_RenderExecution)
         {
-            dmRender::AssertRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME);
-            dmRender::AssertRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GRAPHICS);
+            assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME));
+            assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER));
         }
         {
             ScopedExtensionParams params(engine);
@@ -1137,22 +1137,24 @@ namespace dmEngine
             }
         }
 
-        // Resolve before extensions, graphics ownership and bootstrap resources exist.
-        // The build capability alone cannot activate the unmigrated engine: executor
-        // infrastructure and component/resource ownership must be ready first.
-        // No public project setting is finalized here.
-        dmRender::ExecutionRequest execution_request = dmRender::ParseExecutionRequest(
-            dmConfigFile::GetString(engine->m_Config, "render.internal_threaded", 0));
+        // Select before extensions, graphics ownership and bootstrap resources exist.
+        // The build define is the only selector during development. Threaded builds
+        // reject startup until executor infrastructure and migrated paths are available.
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+        dmRender::ExecutionMode execution_mode = dmRender::EXECUTION_MODE_THREADED;
+#else
+        dmRender::ExecutionMode execution_mode = dmRender::EXECUTION_MODE_INLINE;
+#endif
         dmRender::ExecutionSelection execution_selection;
-        engine->m_RenderExecution = dmRender::NewRenderExecution(execution_request, false, &execution_selection);
+        engine->m_RenderExecution = dmRender::NewRenderExecution(execution_mode, false, &execution_selection);
         if (!engine->m_RenderExecution)
         {
-            dmLogError("Render execution: %s (%s)", dmRender::GetExecutionPolicyName(execution_selection.m_Policy),
-                dmRender::GetExecutionReasonString(execution_selection.m_Reason));
+            dmLogError("Render execution: %s (%s)", dmRender::GetExecutionModeName(execution_selection.m_ExecutionMode),
+                dmRender::GetExecutionReasonString(execution_selection.m_ExecutionReason));
             return false;
         }
-        dmLogInfo("Render execution: %s (%s)", dmRender::GetExecutionPolicyName(execution_selection.m_Policy),
-            dmRender::GetExecutionReasonString(execution_selection.m_Reason));
+        dmLogInfo("Render execution: %s (%s)", dmRender::GetExecutionModeName(execution_selection.m_ExecutionMode),
+            dmRender::GetExecutionReasonString(execution_selection.m_ExecutionReason));
 
         dmBuffer::NewContext();
 
@@ -1367,7 +1369,7 @@ namespace dmEngine
             graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 0);
         }
 
-        dmRender::AssertRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GRAPHICS);
+        assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER));
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
         {
@@ -1984,7 +1986,7 @@ bail:
 
     static void StepFrame(HEngine engine, float dt)
     {
-        dmRender::AssertRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME);
+        assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME));
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
         if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED)
@@ -2131,8 +2133,7 @@ bail:
                 {
                     // Begin the renderer frame with current time since engine start and frame delta-time.
                     // Use the same dt that is passed into script updates and the accumulated engine time.
-                    dmRender::AssertRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER);
-                    dmRender::AssertRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GRAPHICS);
+                    assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER));
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
 
                     // Call pre render functions for extensions, if available.

@@ -252,8 +252,13 @@ TEST_F(EngineTest, ProjectFail)
     ProfileFinalize(); // Making sure it is cleaned up
 }
 
-static void VerifyRenderExecutionStartup(const char* setting, bool expected_success)
+static void VerifyRenderExecutionStartup(const char* setting)
 {
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+    const bool expected_success = false;
+#else
+    const bool expected_success = true;
+#endif
     char project_path[256];
     char setting_arg[128];
     const char* argv[6] = {
@@ -280,9 +285,9 @@ static void VerifyRenderExecutionStartup(const char* setting, bool expected_succ
         bool initialized = dmEngine::Init(partial, argc, (char**)argv);
         const char* loaded_setting = partial->m_Config ?
             dmConfigFile::GetString(partial->m_Config, "render.internal_threaded", 0) : 0;
-        // A missing project must not masquerade as execution-policy rejection.
-        rejected_before_graphics = !initialized && loaded_setting && setting &&
-            strcmp(loaded_setting, setting) == 0 && !partial->m_ConnectionAppMode && !partial->m_Window &&
+        // A missing project must not masquerade as execution-mode rejection.
+        bool config_loaded = partial->m_Config && (!setting || (loaded_setting && strcmp(loaded_setting, setting) == 0));
+        rejected_before_graphics = !initialized && config_loaded && !partial->m_ConnectionAppMode && !partial->m_Window &&
             !partial->m_GraphicsContext && !partial->m_RenderExecution;
         dmEngine::Delete(partial);
     }
@@ -292,8 +297,7 @@ static void VerifyRenderExecutionStartup(const char* setting, bool expected_succ
     bool created = engine != 0;
     bool owns_all_roles = engine && engine->m_RenderExecution &&
         dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME) &&
-        dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER) &&
-        dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GRAPHICS);
+        dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER);
     if (engine)
         dmEngineDestroy(engine);
 
@@ -307,25 +311,25 @@ static void VerifyRenderExecutionStartup(const char* setting, bool expected_succ
         ASSERT_TRUE(owns_all_roles);
 }
 
-// Default and explicit inline startup must bind all execution roles to the calling engine thread.
-TEST_F(EngineTest, RenderExecutionInlineStartup)
+// The build define alone selects inline startup or rejection of the still-unavailable threaded executor.
+TEST_F(EngineTest, RenderExecutionBuildModeStartup)
 {
-    VerifyRenderExecutionStartup(0, true);
-    VerifyRenderExecutionStartup("0", true);
+    VerifyRenderExecutionStartup(0);
 }
 
-// The build gate must prevent activation; enabled builds reject the still-unavailable executor before graphics initialization.
-TEST_F(EngineTest, RenderExecutionThreadedStartupGate)
+// Legacy project values cannot enable, disable or invalidate the build-selected execution mode.
+TEST_F(EngineTest, RenderExecutionLegacySettingIgnored)
 {
-    dmRender::ExecutionCapabilities capabilities = dmRender::GetExecutionCapabilities(false);
-    VerifyRenderExecutionStartup("1", !capabilities.m_BuildEnabled);
+    VerifyRenderExecutionStartup("0");
+    VerifyRenderExecutionStartup("1");
+    VerifyRenderExecutionStartup("true");
 }
 
-// Invalid selectors must clean up partial initialization and leave a subsequent inline startup usable.
-TEST_F(EngineTest, RenderExecutionInvalidStartupCleanup)
+// Successful inline startup and rejected threaded startup both release contexts across repeated creation attempts.
+TEST_F(EngineTest, RenderExecutionRepeatedStartupCleanup)
 {
-    VerifyRenderExecutionStartup("true", false);
-    VerifyRenderExecutionStartup("0", true);
+    VerifyRenderExecutionStartup(0);
+    VerifyRenderExecutionStartup(0);
 }
 
 TEST_F(EngineTest, NonProjectLastArgumentDoesNotOverrideProjectFile)

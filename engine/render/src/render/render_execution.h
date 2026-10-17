@@ -18,32 +18,35 @@
 namespace dmRender
 {
     // Engine-internal contract, not an extension SDK or a rendering architecture selector.
-    enum ExecutionRequest
+    enum ExecutionMode
     {
-        EXECUTION_REQUEST_DEFAULT,
-        EXECUTION_REQUEST_INLINE,
-        EXECUTION_REQUEST_THREADED,
-        EXECUTION_REQUEST_INVALID,
+        EXECUTION_MODE_INLINE,
+        EXECUTION_MODE_THREADED,
+        EXECUTION_MODE_INVALID,
     };
 
-    enum ExecutionPolicy
-    {
-        EXECUTION_POLICY_INLINE,
-        EXECUTION_POLICY_THREADED,
-        EXECUTION_POLICY_INVALID,
-    };
-
+    // Explains why mode selection chose inline/threaded execution or rejected the mode.
+    // Used for startup diagnostics and capability-validation results.
     enum ExecutionReason
     {
-        EXECUTION_REASON_DEFAULT_INLINE,
-        EXECUTION_REASON_EXPLICIT_INLINE,
+        EXECUTION_REASON_INLINE,
         EXECUTION_REASON_BUILD_DISABLED,
         EXECUTION_REASON_THREADED,
         EXECUTION_REASON_THREADS_UNSUPPORTED,
         EXECUTION_REASON_EXECUTOR_UNAVAILABLE,
-        EXECUTION_REASON_INVALID_REQUEST,
+        EXECUTION_REASON_INVALID_MODE,
     };
 
+    // Logical roles checked by ownership assertions. Inline assigns both to one thread;
+    // threaded execution separates game work from rendering, including graphics calls.
+    enum ExecutionOwner
+    {
+        EXECUTION_OWNER_GAME,
+        EXECUTION_OWNER_RENDER,
+    };
+
+    // Build, platform and executor availability used to validate a requested mode.
+    // These capabilities describe engine support, not project configuration.
     struct ExecutionCapabilities
     {
         bool m_BuildEnabled;
@@ -51,39 +54,32 @@ namespace dmRender
         bool m_ExecutorAvailable;
     };
 
+    // Resolved execution mode and its diagnostic reason, returned on success or failure.
     struct ExecutionSelection
     {
-        ExecutionPolicy m_Policy;
-        ExecutionReason m_Reason;
+        ExecutionMode   m_ExecutionMode;
+        ExecutionReason m_ExecutionReason;
     };
 
-    enum ExecutionOwner
-    {
-        EXECUTION_OWNER_GAME,
-        EXECUTION_OWNER_RENDER,
-        EXECUTION_OWNER_GRAPHICS,
-    };
+    struct RenderExecutionContext;
+    typedef RenderExecutionContext* HRenderExecution;
 
-    struct RenderExecution;
-    typedef RenderExecution* HRenderExecution;
-
-    // Missing value means the development default (inline); only exact "0"/"1" are accepted.
-    ExecutionRequest ParseExecutionRequest(const char* value);
     ExecutionCapabilities GetExecutionCapabilities(bool executor_available);
-    // Pure policy resolution. An excluded build always resolves valid requests to inline.
-    // Explicit unsupported requests in an enabled build fail, never silently change owners.
-    ExecutionSelection ResolveExecutionPolicy(ExecutionRequest request, const ExecutionCapabilities& capabilities);
-    const char* GetExecutionPolicyName(ExecutionPolicy policy);
+    // The caller selects an explicit mode; configuration parsing belongs outside dmRender.
+    // An excluded build always resolves valid modes to inline. Unsupported threading
+    // in an enabled build fails, never silently changes owners.
+    ExecutionSelection ResolveExecutionMode(ExecutionMode mode, const ExecutionCapabilities& capabilities);
+    const char* GetExecutionModeName(ExecutionMode mode);
     const char* GetExecutionReasonString(ExecutionReason reason);
 
     // Resolve once, before extension/graphics/bootstrap initialization. No thread is created.
-    // The caller becomes the game owner; inline also binds render/graphics to this caller.
+    // The caller becomes the game owner; inline also binds rendering to this caller.
     // executor_available is supplied by engine integration, NOT by project configuration.
     // It stays false until a caller can provide the required executor and migrated paths.
     // Returns null for an invalid selection. The selection is returned on success and failure.
-    HRenderExecution NewRenderExecution(ExecutionRequest request, bool executor_available, ExecutionSelection* selection);
+    HRenderExecution NewRenderExecution(ExecutionMode mode, bool executor_available, ExecutionSelection* selection);
 
-    // Threaded executor startup only: bind exactly one distinct render/graphics owner.
+    // Threaded executor startup only: bind exactly one distinct render owner, including graphics.
     // Native: render thread. Web: browser main, with NewRenderExecution on the game pthread.
     // The executor must signal successful binding before allowing frame/owner work.
     // Binding does not transfer a native graphics context; backend ownership must be
@@ -91,18 +87,17 @@ namespace dmRender
     // Returns false for inline, game-owner binding, or any second binding attempt.
     bool BindRenderExecutionOwner(HRenderExecution execution);
     // Called by the render owner after draining, before its thread exits or is joined.
-    // This does not allow rebinding or runtime policy changes.
+    // This does not allow rebinding or runtime mode changes.
     void ReleaseRenderExecutionOwner(HRenderExecution execution);
     bool IsRenderExecutionOwner(HRenderExecution execution, ExecutionOwner owner);
-    void AssertRenderExecutionOwner(HRenderExecution execution, ExecutionOwner owner);
     // Game owner only, after the executor has stopped/joined all other users.
     void DeleteRenderExecution(HRenderExecution execution);
 
     // Executor operation ownership (frame storage/handoff is introduced separately):
     // - Game: build/extract and publish immutable frame inputs; retire CPU references.
-    // - Render: consume published inputs; cull, sort, batch, generate geometry and submit.
-    // - Graphics: same owner as render. Backend-managed upload jobs retain their own rules;
-    //   this contract does not make arbitrary dmGraphics calls safe on workers.
+    // - Render: consume published inputs; cull, sort, batch, generate geometry and issue
+    //   graphics calls. Backend-managed upload jobs retain their own rules; this contract
+    //   does not make arbitrary dmGraphics calls safe on workers.
     // - Pump: service available work without waiting on the game owner on browser main.
     // - Stop/drain: stop admission, finish accepted readers, then release owner bindings.
     // Inline executes these stages sequentially with the same data/lifetime contract.

@@ -15,6 +15,8 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#include <assert.h>
+
 #include <dlib/condition_variable.h>
 #include <dlib/mutex.h>
 #include <dlib/thread.h>
@@ -24,72 +26,60 @@
 
 using namespace dmRender;
 
-// Verify only missing, exact "0" and exact "1" are accepted, not permissive integer conversions.
-TEST(RenderExecution, ParseRequest)
+// Verify every capability combination resolves explicit modes and rejects unavailable threading.
+TEST(RenderExecution, ModeMatrix)
 {
-    ASSERT_EQ(EXECUTION_REQUEST_DEFAULT, ParseExecutionRequest(0));
-    ASSERT_EQ(EXECUTION_REQUEST_INLINE, ParseExecutionRequest("0"));
-    ASSERT_EQ(EXECUTION_REQUEST_THREADED, ParseExecutionRequest("1"));
-    const char* invalid[] = { "", "00", "01", "2", "-1", "+1", "true", "false", " 1", "1 ", "\t0", "1\n", "1threaded" };
-    for (unsigned int i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
-        ASSERT_EQ(EXECUTION_REQUEST_INVALID, ParseExecutionRequest(invalid[i]));
-}
-
-// Verify every capability combination keeps the development default inline and rejects unavailable explicit threading.
-TEST(RenderExecution, PolicyMatrix)
-{
-    struct PolicyCase
+    struct ModeCase
     {
         ExecutionCapabilities m_Capabilities;
-        ExecutionReason m_DefaultReason;
         ExecutionReason m_InlineReason;
-        ExecutionPolicy m_ThreadedPolicy;
+        ExecutionMode m_ThreadedMode;
         ExecutionReason m_ThreadedReason;
     };
-    const PolicyCase cases[] = {
-        { { false, false, false }, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_POLICY_INLINE, EXECUTION_REASON_BUILD_DISABLED },
-        { { false, false, true  }, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_POLICY_INLINE, EXECUTION_REASON_BUILD_DISABLED },
-        { { false, true,  false }, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_POLICY_INLINE, EXECUTION_REASON_BUILD_DISABLED },
-        { { false, true,  true  }, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_POLICY_INLINE, EXECUTION_REASON_BUILD_DISABLED },
-        { { true,  false, false }, EXECUTION_REASON_DEFAULT_INLINE, EXECUTION_REASON_EXPLICIT_INLINE, EXECUTION_POLICY_INVALID, EXECUTION_REASON_THREADS_UNSUPPORTED },
-        { { true,  false, true  }, EXECUTION_REASON_DEFAULT_INLINE, EXECUTION_REASON_EXPLICIT_INLINE, EXECUTION_POLICY_INVALID, EXECUTION_REASON_THREADS_UNSUPPORTED },
-        { { true,  true,  false }, EXECUTION_REASON_DEFAULT_INLINE, EXECUTION_REASON_EXPLICIT_INLINE, EXECUTION_POLICY_INVALID, EXECUTION_REASON_EXECUTOR_UNAVAILABLE },
-        { { true,  true,  true  }, EXECUTION_REASON_DEFAULT_INLINE, EXECUTION_REASON_EXPLICIT_INLINE, EXECUTION_POLICY_THREADED, EXECUTION_REASON_THREADED },
+    const ModeCase cases[] = {
+        { { false, false, false }, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED },
+        { { false, false, true  }, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED },
+        { { false, true,  false }, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED },
+        { { false, true,  true  }, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED },
+        { { true,  false, false }, EXECUTION_REASON_INLINE, EXECUTION_MODE_INVALID, EXECUTION_REASON_THREADS_UNSUPPORTED },
+        { { true,  false, true  }, EXECUTION_REASON_INLINE, EXECUTION_MODE_INVALID, EXECUTION_REASON_THREADS_UNSUPPORTED },
+        { { true,  true,  false }, EXECUTION_REASON_INLINE, EXECUTION_MODE_INVALID, EXECUTION_REASON_EXECUTOR_UNAVAILABLE },
+        { { true,  true,  true  }, EXECUTION_REASON_INLINE, EXECUTION_MODE_THREADED, EXECUTION_REASON_THREADED },
     };
     for (unsigned int i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
     {
-        ExecutionSelection selection = ResolveExecutionPolicy(EXECUTION_REQUEST_DEFAULT, cases[i].m_Capabilities);
-        ASSERT_EQ(EXECUTION_POLICY_INLINE, selection.m_Policy);
-        ASSERT_EQ(cases[i].m_DefaultReason, selection.m_Reason);
-        selection = ResolveExecutionPolicy(EXECUTION_REQUEST_INLINE, cases[i].m_Capabilities);
-        ASSERT_EQ(EXECUTION_POLICY_INLINE, selection.m_Policy);
-        ASSERT_EQ(cases[i].m_InlineReason, selection.m_Reason);
-        selection = ResolveExecutionPolicy(EXECUTION_REQUEST_THREADED, cases[i].m_Capabilities);
-        ASSERT_EQ(cases[i].m_ThreadedPolicy, selection.m_Policy);
-        ASSERT_EQ(cases[i].m_ThreadedReason, selection.m_Reason);
+        ExecutionSelection selection = ResolveExecutionMode(EXECUTION_MODE_INLINE, cases[i].m_Capabilities);
+        ASSERT_EQ(EXECUTION_MODE_INLINE, selection.m_ExecutionMode);
+        ASSERT_EQ(cases[i].m_InlineReason, selection.m_ExecutionReason);
+        selection = ResolveExecutionMode(EXECUTION_MODE_THREADED, cases[i].m_Capabilities);
+        ASSERT_EQ(cases[i].m_ThreadedMode, selection.m_ExecutionMode);
+        ASSERT_EQ(cases[i].m_ThreadedReason, selection.m_ExecutionReason);
 
-        selection = ResolveExecutionPolicy(EXECUTION_REQUEST_INVALID, cases[i].m_Capabilities);
-        ASSERT_EQ(EXECUTION_POLICY_INVALID, selection.m_Policy);
-        ASSERT_EQ(EXECUTION_REASON_INVALID_REQUEST, selection.m_Reason);
+        const ExecutionMode invalid_modes[] = { EXECUTION_MODE_INVALID, (ExecutionMode)99 };
+        for (unsigned int j = 0; j < sizeof(invalid_modes) / sizeof(invalid_modes[0]); ++j)
+        {
+            selection = ResolveExecutionMode(invalid_modes[j], cases[i].m_Capabilities);
+            ASSERT_EQ(EXECUTION_MODE_INVALID, selection.m_ExecutionMode);
+            ASSERT_EQ(EXECUTION_REASON_INVALID_MODE, selection.m_ExecutionReason);
+        }
     }
 }
 
-// Verify startup diagnostics distinguish build exclusions, unsupported targets, missing executors and invalid settings.
+// Verify startup diagnostics distinguish build exclusions, unsupported targets, missing executors and invalid modes.
 TEST(RenderExecution, Diagnostics)
 {
-    ASSERT_STREQ("inline", GetExecutionPolicyName(EXECUTION_POLICY_INLINE));
-    ASSERT_STREQ("threaded", GetExecutionPolicyName(EXECUTION_POLICY_THREADED));
-    ASSERT_STREQ("invalid", GetExecutionPolicyName(EXECUTION_POLICY_INVALID));
-    ASSERT_STREQ("development default", GetExecutionReasonString(EXECUTION_REASON_DEFAULT_INLINE));
-    ASSERT_STREQ("explicit inline request", GetExecutionReasonString(EXECUTION_REASON_EXPLICIT_INLINE));
+    ASSERT_STREQ("inline", GetExecutionModeName(EXECUTION_MODE_INLINE));
+    ASSERT_STREQ("threaded", GetExecutionModeName(EXECUTION_MODE_THREADED));
+    ASSERT_STREQ("invalid", GetExecutionModeName(EXECUTION_MODE_INVALID));
+    ASSERT_STREQ("inline mode", GetExecutionReasonString(EXECUTION_REASON_INLINE));
     ASSERT_STREQ("threaded rendering excluded by build", GetExecutionReasonString(EXECUTION_REASON_BUILD_DISABLED));
-    ASSERT_STREQ("explicit threaded request", GetExecutionReasonString(EXECUTION_REASON_THREADED));
+    ASSERT_STREQ("threaded mode", GetExecutionReasonString(EXECUTION_REASON_THREADED));
     ASSERT_STREQ("platform thread support unavailable", GetExecutionReasonString(EXECUTION_REASON_THREADS_UNSUPPORTED));
     ASSERT_STREQ("threaded executor unavailable", GetExecutionReasonString(EXECUTION_REASON_EXECUTOR_UNAVAILABLE));
-    ASSERT_STREQ("invalid render.internal_threaded value (expected 0 or 1)", GetExecutionReasonString(EXECUTION_REASON_INVALID_REQUEST));
+    ASSERT_STREQ("invalid execution mode", GetExecutionReasonString(EXECUTION_REASON_INVALID_MODE));
 }
 
-// Verify reported capabilities match this actual binary, independently of the pure policy matrix.
+// Verify reported capabilities match this actual binary, independently of the pure mode matrix.
 TEST(RenderExecution, BuildCapabilities)
 {
     ExecutionCapabilities unavailable = GetExecutionCapabilities(false);
@@ -117,75 +107,68 @@ static unsigned int OwnerMask(HRenderExecution execution)
         mask |= 1;
     if (IsRenderExecutionOwner(execution, EXECUTION_OWNER_RENDER))
         mask |= 2;
-    if (IsRenderExecutionOwner(execution, EXECUTION_OWNER_GRAPHICS))
-        mask |= 4;
     return mask;
 }
 
-// Verify real creation cannot activate a missing executor, and a disabled build cannot be overridden by a request.
+// Verify real creation cannot activate a missing executor, and a disabled build cannot be overridden by a requested mode.
 TEST(RenderExecution, CreationWithoutExecutor)
 {
     ExecutionCapabilities capabilities = GetExecutionCapabilities(false);
     ExecutionSelection selection;
-    HRenderExecution execution = NewRenderExecution(EXECUTION_REQUEST_THREADED, false, &selection);
+    HRenderExecution execution = NewRenderExecution(EXECUTION_MODE_THREADED, false, &selection);
     if (!capabilities.m_BuildEnabled)
     {
         ASSERT_NE((HRenderExecution)0, execution);
-        ASSERT_EQ(EXECUTION_POLICY_INLINE, selection.m_Policy);
-        ASSERT_EQ(EXECUTION_REASON_BUILD_DISABLED, selection.m_Reason);
-        ASSERT_EQ(7u, OwnerMask(execution));
+        ASSERT_EQ(EXECUTION_MODE_INLINE, selection.m_ExecutionMode);
+        ASSERT_EQ(EXECUTION_REASON_BUILD_DISABLED, selection.m_ExecutionReason);
+        ASSERT_EQ(3u, OwnerMask(execution));
         ASSERT_FALSE(BindRenderExecutionOwner(execution));
         DeleteRenderExecution(execution);
     }
     else
     {
         ASSERT_EQ((HRenderExecution)0, execution);
-        ASSERT_EQ(EXECUTION_POLICY_INVALID, selection.m_Policy);
-        ASSERT_EQ(capabilities.m_ThreadsSupported ? EXECUTION_REASON_EXECUTOR_UNAVAILABLE : EXECUTION_REASON_THREADS_UNSUPPORTED, selection.m_Reason);
+        ASSERT_EQ(EXECUTION_MODE_INVALID, selection.m_ExecutionMode);
+        ASSERT_EQ(capabilities.m_ThreadsSupported ? EXECUTION_REASON_EXECUTOR_UNAVAILABLE : EXECUTION_REASON_THREADS_UNSUPPORTED, selection.m_ExecutionReason);
     }
 }
 
-// Verify invalid startup requests do not create a context, even when an executor is reported available.
-TEST(RenderExecution, CreationInvalidRequest)
+// Verify invalid startup modes do not create a context, even when an executor is reported available.
+TEST(RenderExecution, CreationInvalidMode)
 {
     ExecutionSelection selection;
-    ASSERT_EQ((HRenderExecution)0, NewRenderExecution(EXECUTION_REQUEST_INVALID, true, &selection));
-    ASSERT_EQ(EXECUTION_POLICY_INVALID, selection.m_Policy);
-    ASSERT_EQ(EXECUTION_REASON_INVALID_REQUEST, selection.m_Reason);
+    ASSERT_EQ((HRenderExecution)0, NewRenderExecution(EXECUTION_MODE_INVALID, true, &selection));
+    ASSERT_EQ(EXECUTION_MODE_INVALID, selection.m_ExecutionMode);
+    ASSERT_EQ(EXECUTION_REASON_INVALID_MODE, selection.m_ExecutionReason);
 }
 
-// Verify default and opt-out creation bind every inline role to the caller without a worker or subsequent binding.
+// Verify explicit inline creation binds both owners to the caller without a worker or subsequent binding.
 TEST(RenderExecution, InlineOwners)
 {
-    const ExecutionRequest requests[] = { EXECUTION_REQUEST_DEFAULT, EXECUTION_REQUEST_INLINE };
-    for (unsigned int i = 0; i < sizeof(requests) / sizeof(requests[0]); ++i)
-    {
-        ExecutionSelection selection;
-        HRenderExecution execution = NewRenderExecution(requests[i], true, &selection);
-        ASSERT_NE((HRenderExecution)0, execution);
-        ASSERT_EQ(EXECUTION_POLICY_INLINE, selection.m_Policy);
-        ASSERT_EQ(7u, OwnerMask(execution));
-        ASSERT_FALSE(BindRenderExecutionOwner(execution));
-        AssertRenderExecutionOwner(execution, EXECUTION_OWNER_GAME);
-        AssertRenderExecutionOwner(execution, EXECUTION_OWNER_RENDER);
-        AssertRenderExecutionOwner(execution, EXECUTION_OWNER_GRAPHICS);
-        DeleteRenderExecution(execution);
-    }
+    ExecutionSelection selection;
+    HRenderExecution execution = NewRenderExecution(EXECUTION_MODE_INLINE, true, &selection);
+    ASSERT_NE((HRenderExecution)0, execution);
+    ASSERT_EQ(EXECUTION_MODE_INLINE, selection.m_ExecutionMode);
+    ASSERT_EQ(3u, OwnerMask(execution));
+    ASSERT_FALSE(BindRenderExecutionOwner(execution));
+    assert(IsRenderExecutionOwner(execution, EXECUTION_OWNER_GAME));
+    assert(IsRenderExecutionOwner(execution, EXECUTION_OWNER_RENDER));
+    DeleteRenderExecution(execution);
 }
 
 // Verify deleting one context does not clear another context's thread-local ownership.
 TEST(RenderExecution, IndependentInlineContexts)
 {
     ExecutionSelection selection;
-    HRenderExecution first = NewRenderExecution(EXECUTION_REQUEST_INLINE, false, &selection);
-    HRenderExecution second = NewRenderExecution(EXECUTION_REQUEST_INLINE, false, &selection);
+    HRenderExecution first = NewRenderExecution(EXECUTION_MODE_INLINE, false, &selection);
+    HRenderExecution second = NewRenderExecution(EXECUTION_MODE_INLINE, false, &selection);
     ASSERT_NE((HRenderExecution)0, first);
     ASSERT_NE((HRenderExecution)0, second);
-    ASSERT_EQ(7u, OwnerMask(first));
-    ASSERT_EQ(7u, OwnerMask(second));
+    ASSERT_EQ(3u, OwnerMask(first));
+    ASSERT_EQ(3u, OwnerMask(second));
     DeleteRenderExecution(first);
-    ASSERT_EQ(7u, OwnerMask(second));
-    AssertRenderExecutionOwner(second, EXECUTION_OWNER_GAME);
+    ASSERT_EQ(3u, OwnerMask(second));
+    assert(IsRenderExecutionOwner(second, EXECUTION_OWNER_GAME));
     DeleteRenderExecution(second);
 }
 
@@ -209,14 +192,14 @@ TEST(RenderExecution, InlineRejectsOtherThread)
     if (!GetExecutionCapabilities(false).m_ThreadsSupported)
         return;
     ExecutionSelection selection;
-    HRenderExecution execution = NewRenderExecution(EXECUTION_REQUEST_INLINE, false, &selection);
+    HRenderExecution execution = NewRenderExecution(EXECUTION_MODE_INLINE, false, &selection);
     ASSERT_NE((HRenderExecution)0, execution);
-    InlineProbe probe = { execution, 7u, true };
+    InlineProbe probe = { execution, 3u, true };
     dmThread::Thread worker = dmThread::New(ProbeInlineWorker, 0x80000, &probe, "owner-probe");
     dmThread::Join(worker);
     ASSERT_EQ(0u, probe.m_Owners);
     ASSERT_FALSE(probe.m_Bound);
-    ASSERT_EQ(7u, OwnerMask(execution));
+    ASSERT_EQ(3u, OwnerMask(execution));
     DeleteRenderExecution(execution);
 }
 
@@ -240,25 +223,24 @@ static void ProbeThreadedWorker(void* context)
     probe->m_SecondBind = BindRenderExecutionOwner(probe->m_Execution);
     if (probe->m_FirstBind)
     {
-        AssertRenderExecutionOwner(probe->m_Execution, EXECUTION_OWNER_RENDER);
-        AssertRenderExecutionOwner(probe->m_Execution, EXECUTION_OWNER_GRAPHICS);
+        assert(IsRenderExecutionOwner(probe->m_Execution, EXECUTION_OWNER_RENDER));
         ReleaseRenderExecutionOwner(probe->m_Execution);
     }
     probe->m_ReleasedOwners = OwnerMask(probe->m_Execution);
     probe->m_BindAfterRelease = BindRenderExecutionOwner(probe->m_Execution);
 }
 
-// Verify an available threaded policy binds exactly one distinct owner and cannot rebind after release or thread exit.
+// Verify an available threaded mode binds exactly one distinct owner and cannot rebind after release or thread exit.
 TEST(RenderExecution, ThreadedOwnerLifecycle)
 {
     ExecutionCapabilities capabilities = GetExecutionCapabilities(true);
     ExecutionSelection selection;
-    HRenderExecution execution = NewRenderExecution(EXECUTION_REQUEST_THREADED, true, &selection);
+    HRenderExecution execution = NewRenderExecution(EXECUTION_MODE_THREADED, true, &selection);
     if (!capabilities.m_BuildEnabled)
     {
         ASSERT_NE((HRenderExecution)0, execution);
-        ASSERT_EQ(EXECUTION_POLICY_INLINE, selection.m_Policy);
-        ASSERT_EQ(EXECUTION_REASON_BUILD_DISABLED, selection.m_Reason);
+        ASSERT_EQ(EXECUTION_MODE_INLINE, selection.m_ExecutionMode);
+        ASSERT_EQ(EXECUTION_REASON_BUILD_DISABLED, selection.m_ExecutionReason);
         ASSERT_FALSE(BindRenderExecutionOwner(execution));
         DeleteRenderExecution(execution);
         return;
@@ -266,14 +248,14 @@ TEST(RenderExecution, ThreadedOwnerLifecycle)
     if (!capabilities.m_ThreadsSupported)
     {
         ASSERT_EQ((HRenderExecution)0, execution);
-        ASSERT_EQ(EXECUTION_POLICY_INVALID, selection.m_Policy);
-        ASSERT_EQ(EXECUTION_REASON_THREADS_UNSUPPORTED, selection.m_Reason);
+        ASSERT_EQ(EXECUTION_MODE_INVALID, selection.m_ExecutionMode);
+        ASSERT_EQ(EXECUTION_REASON_THREADS_UNSUPPORTED, selection.m_ExecutionReason);
         return;
     }
 
     ASSERT_NE((HRenderExecution)0, execution);
-    ASSERT_EQ(EXECUTION_POLICY_THREADED, selection.m_Policy);
-    ASSERT_EQ(EXECUTION_REASON_THREADED, selection.m_Reason);
+    ASSERT_EQ(EXECUTION_MODE_THREADED, selection.m_ExecutionMode);
+    ASSERT_EQ(EXECUTION_REASON_THREADED, selection.m_ExecutionReason);
     ASSERT_EQ(1u, OwnerMask(execution));
     ASSERT_FALSE(BindRenderExecutionOwner(execution));
     ThreadedProbe probe = {};
@@ -283,12 +265,12 @@ TEST(RenderExecution, ThreadedOwnerLifecycle)
     ASSERT_EQ(0u, probe.m_BeforeOwners);
     ASSERT_TRUE(probe.m_FirstBind);
     ASSERT_FALSE(probe.m_SecondBind);
-    ASSERT_EQ(6u, probe.m_BoundOwners);
+    ASSERT_EQ(2u, probe.m_BoundOwners);
     ASSERT_EQ(0u, probe.m_ReleasedOwners);
     ASSERT_FALSE(probe.m_BindAfterRelease);
     ASSERT_EQ(1u, OwnerMask(execution));
 
-    InlineProbe later = { execution, 7u, true };
+    InlineProbe later = { execution, 3u, true };
     worker = dmThread::New(ProbeInlineWorker, 0x80000, &later, "late-owner");
     dmThread::Join(worker);
     ASSERT_EQ(0u, later.m_Owners);
@@ -326,8 +308,8 @@ TEST(RenderExecution, IndependentThreadedContexts)
     if (!capabilities.m_BuildEnabled || !capabilities.m_ThreadsSupported)
         return;
     ExecutionSelection selection;
-    HRenderExecution first = NewRenderExecution(EXECUTION_REQUEST_THREADED, true, &selection);
-    HRenderExecution second = NewRenderExecution(EXECUTION_REQUEST_THREADED, true, &selection);
+    HRenderExecution first = NewRenderExecution(EXECUTION_MODE_THREADED, true, &selection);
+    HRenderExecution second = NewRenderExecution(EXECUTION_MODE_THREADED, true, &selection);
     ASSERT_NE((HRenderExecution)0, first);
     ASSERT_NE((HRenderExecution)0, second);
     IndependentProbe probe = {};
@@ -337,8 +319,8 @@ TEST(RenderExecution, IndependentThreadedContexts)
     dmThread::Join(worker);
     ASSERT_TRUE(probe.m_FirstBound);
     ASSERT_TRUE(probe.m_SecondBound);
-    ASSERT_EQ(6u, probe.m_FirstAfterSecondBind);
-    ASSERT_EQ(6u, probe.m_SecondAfterFirstRelease);
+    ASSERT_EQ(2u, probe.m_FirstAfterSecondBind);
+    ASSERT_EQ(2u, probe.m_SecondAfterFirstRelease);
     ASSERT_EQ(1u, OwnerMask(first));
     ASSERT_EQ(1u, OwnerMask(second));
     DeleteRenderExecution(first);
@@ -401,7 +383,7 @@ TEST(RenderExecution, CompetingRenderOwnerBindings)
     if (!capabilities.m_BuildEnabled || !capabilities.m_ThreadsSupported)
         return;
     ExecutionSelection selection;
-    HRenderExecution execution = NewRenderExecution(EXECUTION_REQUEST_THREADED, true, &selection);
+    HRenderExecution execution = NewRenderExecution(EXECUTION_MODE_THREADED, true, &selection);
     ASSERT_NE((HRenderExecution)0, execution);
 
     BindRace race = {};
@@ -435,7 +417,7 @@ TEST(RenderExecution, CompetingRenderOwnerBindings)
     ASSERT_EQ(1u, (unsigned int)contenders[0].m_Bound + (unsigned int)contenders[1].m_Bound);
     for (unsigned int i = 0; i < 2; ++i)
     {
-        ASSERT_EQ(contenders[i].m_Bound ? 6u : 0u, contenders[i].m_BoundOwners);
+        ASSERT_EQ(contenders[i].m_Bound ? 2u : 0u, contenders[i].m_BoundOwners);
         ASSERT_EQ(0u, contenders[i].m_ReleasedOwners);
         ASSERT_FALSE(contenders[i].m_BindAfterRelease);
     }
@@ -458,7 +440,7 @@ struct WorkerGameOwner
 static void CreateOnGameWorker(void* context)
 {
     WorkerGameOwner* game = (WorkerGameOwner*)context;
-    game->m_Execution = NewRenderExecution(EXECUTION_REQUEST_THREADED, true, &game->m_Selection);
+    game->m_Execution = NewRenderExecution(EXECUTION_MODE_THREADED, true, &game->m_Selection);
     if (game->m_Execution)
         game->m_InitialOwners = OwnerMask(game->m_Execution);
 
@@ -519,29 +501,28 @@ TEST(RenderExecution, GameWorkerWithMainRenderOwner)
     dmMutex::Delete(game.m_Mutex);
 
     ASSERT_TRUE(created);
-    ASSERT_EQ(EXECUTION_POLICY_THREADED, game.m_Selection.m_Policy);
+    ASSERT_EQ(EXECUTION_MODE_THREADED, game.m_Selection.m_ExecutionMode);
     ASSERT_EQ(1u, game.m_InitialOwners);
     ASSERT_EQ(1u, game.m_FinalOwners);
     ASSERT_EQ(0u, initial_owners);
     ASSERT_TRUE(bound);
-    ASSERT_EQ(6u, bound_owners);
+    ASSERT_EQ(2u, bound_owners);
     ASSERT_EQ(0u, released_owners);
     ASSERT_FALSE(rebound);
 }
 
 #if !defined(JC_TEST_NO_DEATH_TEST) && !defined(NDEBUG)
-// Verify a threaded game's actual owner cannot perform render or graphics work before a consumer binds.
+// Verify a threaded game's actual owner cannot perform render work, including graphics calls, before a consumer binds.
 TEST(RenderExecution, ThreadedGameOwnerAssertion)
 {
     ExecutionCapabilities capabilities = GetExecutionCapabilities(true);
     if (!capabilities.m_BuildEnabled || !capabilities.m_ThreadsSupported)
         return;
     ExecutionSelection selection;
-    HRenderExecution execution = NewRenderExecution(EXECUTION_REQUEST_THREADED, true, &selection);
+    HRenderExecution execution = NewRenderExecution(EXECUTION_MODE_THREADED, true, &selection);
     ASSERT_NE((HRenderExecution)0, execution);
     ASSERT_EQ(1u, OwnerMask(execution));
-    ASSERT_DEATH(AssertRenderExecutionOwner(execution, EXECUTION_OWNER_RENDER), "");
-    ASSERT_DEATH(AssertRenderExecutionOwner(execution, EXECUTION_OWNER_GRAPHICS), "");
+    ASSERT_DEATH(assert(IsRenderExecutionOwner(execution, EXECUTION_OWNER_RENDER)), "");
     ASSERT_EQ(1u, OwnerMask(execution));
     DeleteRenderExecution(execution);
 }
