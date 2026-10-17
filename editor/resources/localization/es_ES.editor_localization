@@ -167,6 +167,9 @@ dialog.button.cancel = Cancelar
 dialog.button.delete = Eliminar
 dialog.button.apply = Aplicar
 
+# Model glTF Auto Fill Dialog
+
+
 # Error Dialog
 
 dialog.error.title = Error
@@ -1089,7 +1092,6 @@ dialog.about.label.build-time = Tiempo de compilación\:
 dialog.about.label.editor-sha1 = Editor SHA1\:
 dialog.about.label.engine-sha1 = Motor SHA1\:
 dialog.about.value.unavailable = No disponible
-dialog.about.footer.copyright = Copyright © 2009-{year}
 dialog.about.footer.foundation = Fundación Defold
 dialog.about.sponsor = Fondo de apoyo al desarrollo Fundación Defold
 
@@ -1279,6 +1281,9 @@ property.atlas.max-page-size.tooltip = La anchura y altura máximas de cada pág
 property.atlas.rename-patterns = Renombrar patrones
 property.atlas.rename-patterns.tooltip = Patrones `search\=replace` separados por comas aplicados a cada nombre base de imagen. Por ejemplo, `hat\=cat,_normal\=` cambia `hat_normal` a `cat`; los nombres coincidentes son útiles cuando los fotogramas corresponden a múltiples atlas.
 
+# Properties: KTX2
+
+
 # Properties: camera
 
 property.camera.aspect-ratio = Relación de aspecto
@@ -1313,6 +1318,9 @@ property.camera.orthographic-mode = Modo de zoom ortográfico
 
 
 # Properties: font
+
+
+# Properties: glTF
 
 
 # Properties: gui

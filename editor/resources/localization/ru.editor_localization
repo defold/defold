@@ -169,12 +169,6 @@ dialog.button.apply = Применить
 
 # Model glTF Auto Fill Dialog
 
-dialog.model-auto-fill.title = Автоматически заполнить поля модели?
-dialog.model-auto-fill.header = Использовать материалы и текстуры из файла «{file}»?
-dialog.model-auto-fill.content = При этом будут назначены материалы и связанные с ними текстуры, предоставленные файлом glTF.
-dialog.model-auto-fill.content-replace = При этом текущие назначения материалов и текстур модели будут заменены ресурсами, предоставленными файлом glTF.
-dialog.model-auto-fill.button.keep-current = Сохранить текущие
-dialog.model-auto-fill.button.auto-fill = Заполнить автоматически
 
 # Error Dialog
 
@@ -1101,7 +1095,6 @@ dialog.about.label.build-time = Время сборки\:
 dialog.about.label.editor-sha1 = SHA1 редактора\:
 dialog.about.label.engine-sha1 = SHA1 движка\:
 dialog.about.value.unavailable = Нет данных
-dialog.about.footer.copyright = Copyright ©️ 2009-{year}
 dialog.about.footer.foundation = Фонд Defold
 dialog.about.sponsor = Фонд разработки Defold
 
@@ -1296,6 +1289,9 @@ property.atlas.max-page-size.tooltip = Максимальные ширина и 
 property.atlas.rename-patterns = Шаблоны переименований
 property.atlas.rename-patterns.tooltip = Разделённые запятыми шаблоны `search\=replace`, применяемые к базовому имени каждого изображения. Например, `hat\=cat,_normal\=` заменяет `hat_normal` на `cat`; совпадающие имена полезны, когда соответствующие кадры находятся в разных атласах.
 
+# Properties: KTX2
+
+
 # Properties: camera
 
 property.camera.aspect-ratio = Соотношение сторон
@@ -1404,7 +1400,6 @@ property.font.output-format.tooltip = **Bitmap** растрирует глифы
 property.font.render-mode = Режим рендеринга
 property.font.render-mode.tooltip = **Single Layer** отрисовывает один квад на символ. **Multi Layer** отрисовывает тень, контур и лицевую часть отдельно, не позволяя широким контурам перекрывать соседние глифы и разрешая смещения **Shadow X/Y**.
 property.font.size = Размер
-property.font.size.tooltip = Целевой размер глифов в пикселях при создании шрифта. Растровые шрифты лучше всего выглядят при близком к этому размере; шрифтам с полем расстояний нужен достаточный размер, чтобы сохранять детали формы при увеличении.
 property.font.antialias = Сглаживание
 property.font.antialias.tooltip = Сглаживает края глифов при растрировании шрифта. Отключите для попиксельной отрисовки шрифта.
 property.font.alpha = Альфа
@@ -1428,7 +1423,6 @@ property.font.cache-height.tooltip = Высота в пикселях текст
 property.font.characters = Символы
 property.font.characters.tooltip = Символы, включаемые при сборке офлайн-шрифта; ограничение этого набора уменьшает размер шрифта. Для шрифтов времени выполнения эти символы создаются заранее, чтобы прогреть кэш глифов. Очистка поля восстанавливает печатные символы ASCII.
 property.font.all-chars = Все символы
-property.font.all-chars.tooltip = Для офлайн-шрифтов включает все глифы из источника вместо одних лишь **Символов**, что может значительно увеличить размер шрифта. Для шрифтов времени выполнения глифы создаются по запросу, и включение этого параметра пропускает прогрев символов из поля **Символы**.
 property.font.style = Стиль
 property.font.style.tooltip = Базовый стиль выбранного шрифта. Оставьте пустым, чтобы не использовать базовый стиль. Встроенная разметка переопределяет выбранный стиль.
 property.font.markup = Разметка
@@ -1436,25 +1430,6 @@ property.font.markup.tooltip = Открывающие теги форматир�
 
 # Properties: glTF
 
-property.gltf.index = Индекс
-property.gltf.index.tooltip = Индекс этого ресурса с нуля в соответствующем массиве glTF.
-property.gltf.name.tooltip = Имя ресурса из файла glTF или сгенерированное имя, если исходный ресурс не имеет имени.
-property.gltf.primitive-count = Количество примитивов
-property.gltf.primitive-count.tooltip = Количество примитивов в этом меше glTF.
-property.gltf.vertex-count = Количество вершин
-property.gltf.vertex-count.tooltip = Общее количество вершин во всех примитивах этого меша glTF.
-property.gltf.material.tooltip = Доступный только для чтения ресурс «Материал», созданный из этого материала glTF.
-property.gltf.samplers = Сэмплеры
-property.gltf.samplers.tooltip = Привязки сэмплеров к текстурам, на которые ссылается этот материал glTF.
-property.gltf.image.tooltip = Встроенный или внешний ресурс изображения, из которого выполняет выборку эта текстура glTF.
-property.gltf.min-filter = Мин. фильтр
-property.gltf.min-filter.tooltip = Фильтр выборки, используемый при отображении этой текстуры glTF меньше исходного изображения.
-property.gltf.mag-filter = Макс. фильтр
-property.gltf.mag-filter.tooltip = Фильтр выборки, используемый при отображении этой текстуры glTF больше исходного изображения.
-property.gltf.wrap-s = Обёртка по S
-property.gltf.wrap-s.tooltip = Управляет выборкой за пределами диапазона горизонтальной координаты текстуры.
-property.gltf.wrap-t = Обёртка по T
-property.gltf.wrap-t.tooltip = Управляет выборкой за пределами диапазона вертикальной координаты текстуры.
 
 # Properties: gui
 
@@ -1774,9 +1749,6 @@ outline.collection-proxy = Прокси коллекции
 outline.collision-object = Объект коллизий
 outline.font.styles = Стили
 outline.game-object = Игровой объект
-outline.gltf.materials = Материалы
-outline.gltf.meshes = Меши
-outline.gltf.textures = Текстуры
 outline.gui.box = Прямоугольник
 outline.gui.fonts = Шрифты
 outline.gui.layouts = Компоновки

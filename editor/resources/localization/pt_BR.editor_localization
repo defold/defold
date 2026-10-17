@@ -167,6 +167,9 @@ dialog.button.cancel = Cancelar
 dialog.button.delete = Deletar
 dialog.button.apply = Aplicar
 
+# Model glTF Auto Fill Dialog
+
+
 # Error Dialog
 
 dialog.error.title = Erro
@@ -1092,7 +1095,6 @@ dialog.about.label.build-time = Tempo de Compilação\:
 dialog.about.label.editor-sha1 = Editor SHA1\:
 dialog.about.label.engine-sha1 = Motor SHA1\:
 dialog.about.value.unavailable = Não disponível
-dialog.about.footer.copyright = Copyright © 2009-{year}
 dialog.about.footer.foundation = Fundação Defold
 dialog.about.sponsor = Fundo de Desenvolvimento da Fundação Defold
 
@@ -1285,6 +1287,9 @@ property.atlas.max-page-size.tooltip = A largura e altura máxima de cada págin
 property.atlas.rename-patterns = Renomear Padrões
 property.atlas.rename-patterns.tooltip = Padrões `search\=replace` separados por vírgula aplicados ao nome da base de cada imagem. Por exemplo, `hat\=cat,_normal\=` modifica `hat_normal` para `cat`; padrões de nomes são úteis quando os quadros correspondentes vêm de múltiplos atlas.
 
+# Properties: KTX2
+
+
 # Properties: camera
 
 property.camera.aspect-ratio = Taxa de Proporção
@@ -1377,7 +1382,6 @@ property.font.output-format = Formato de Saída
 property.font.output-format.tooltip = **Bitmap** rasteriza os glifos TTF/OTF e é necessário para fontes BMFont (`.fnt`). **Distance Field** armazena dados de distância para dimensionamento mais limpo e requer um material de campo distanciado compatível.
 property.font.render-mode = Modo de Renderização
 property.font.size = Tamanho
-property.font.size.tooltip = Tamanho do glifo alvo em pixels ao gerar a fonte. As fontes de Bitmap parecem melhor perto deste tamanho; fontes de distance field precisam de tamanho suficiente para preservar detalhes da forma quando escalonadas.
 property.font.antialias = Suavização
 property.font.antialias.tooltip = Suavisa as bordas do glifo quando a fonte é rasterizada. Desative para renderização pixel-perfect.
 property.font.alpha = Alfa
@@ -1403,6 +1407,9 @@ property.font.characters.tooltip = Caracteres incluídos ao construir uma fonte 
 property.font.all-chars = Todos Caracteres
 property.font.style = Estilo
 property.font.markup = Marcação
+
+# Properties: glTF
+
 
 # Properties: gui
 
