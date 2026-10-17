@@ -21,7 +21,9 @@
 #include <dlib/webserver.h>
 #include <extension/extension.hpp>
 #include <dmsdk/engine/extension.hpp>
+#if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_WINDOWS)
 #include <dmsdk/graphics/graphics_native.h>
+#endif
 #include <stdio.h>
 #include <string.h>
 
