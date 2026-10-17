@@ -413,6 +413,32 @@ public class GltfMountPointTest {
         }
     }
 
+    // Guards optional Meshopt GLB asset discovery while leaving BIN and compressed geometry unread.
+    @Test
+    public void testInspectionKeepsOptionalMeshoptGlbAssets() throws Exception {
+        byte[] binary = Base64.getDecoder().decode(GEOMETRY_BUFFER_BASE64);
+        for (String extension : List.of("EXT_meshopt_compression", "KHR_meshopt_compression")) {
+            // The fallback is in BIN; inspection must not read it or resolve the compressed geometry.
+            String json = "{\"asset\":{\"version\":\"2.0\"},\"extensionsUsed\":[\"" + extension + "\"],"
+                    + "\"buffers\":[{\"byteLength\":42},{\"uri\":\"missing.bin\",\"byteLength\":32}],"
+                    + "\"bufferViews\":[{\"buffer\":0,\"byteLength\":36,\"byteStride\":12,"
+                    + "\"extensions\":{\"" + extension + "\":{\"buffer\":1,\"byteLength\":32,"
+                    + "\"byteStride\":12,\"count\":3,\"mode\":\"ATTRIBUTES\"}}},"
+                    + "{\"buffer\":0,\"byteOffset\":36,\"byteLength\":6}],"
+                    + "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\","
+                    + "\"min\":[0,0,0],\"max\":[1,1,0]},"
+                    + "{\"bufferView\":1,\"componentType\":5123,\"count\":3,\"type\":\"SCALAR\"}],"
+                    + "\"materials\":[{\"name\":\"Paint\"}],"
+                    + "\"meshes\":[{\"name\":\"Triangle\",\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1,\"material\":0}]}]}";
+            ByteArrayInputStream stream = new ByteArrayInputStream(glbFromJson(json, binary));
+            GltfContainer.Extraction extraction = GltfContainer.inspect(stream, "models/triangle.glb");
+            assertTrue(extraction.diagnostics().isEmpty());
+            assertEquals(List.of("/models/triangle.glb/materials/Paint_0.material", "/models/triangle.glb/meshes/Triangle_0"),
+                    extraction.assets().stream().map(GltfContainer.Asset::resourcePath).toList());
+            assertEquals((binary.length + 3) & ~3, stream.available());
+        }
+    }
+
     @Test
     public void testExternalBufferUriWithSpaces() throws Exception {
         String embeddedGeometry = "\"uri\":\"data:application/octet-stream;base64,"

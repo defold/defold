@@ -70,7 +70,7 @@ static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Opti
     {
         for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
         {
-            if (scene->m_Buffers[i].m_Buffer)
+            if (scene->m_Buffers[i].m_Buffer || scene->m_Buffers[i].m_BufferCount == 0)
                 continue;
             if (!scene->m_Buffers[i].m_Uri)
                 continue;

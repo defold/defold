@@ -60,6 +60,14 @@ tasks.register('createTestJar', Jar) {
         include 'test/**/*.*', 'testappmanifest/**/*.*', 'testextension/**/*.*'
         exclude 'test/build/**/*.*'
     }
+    from("${project.bobDir}/../../engine/modelc/src/test/assets/compression/box/glTF-Meshopt/Box-embedded.gltf") {
+        into 'com/dynamo/bob/pipeline'
+        rename { 'box_meshopt.gltf' }
+    }
+    from("${project.bobDir}/../../engine/modelc/src/test/assets/compression/draco/shared.gltf") {
+        into 'com/dynamo/bob/pipeline'
+        rename { 'draco_shared.gltf' }
+    }
 }
 
 tasks.register('testJar', Test) {
