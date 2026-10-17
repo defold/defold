@@ -50,6 +50,12 @@
 (defn- release-notes-version-url [archive-domain channel version]
   (format (get-in connection-properties [:updater :release-notes-version-url-template]) archive-domain channel version))
 
+(defn- channel-download-url [archive-domain sha1 channel ^Platform platform extension]
+  (format (get-in connection-properties [:updater :channel-download-url-template]) archive-domain sha1 channel (.getPair platform) extension))
+
+(defn- channel-info-url [archive-domain channel]
+  (format (get-in connection-properties [:updater :channel-info-url-template]) archive-domain channel))
+
 (defn release-notes-markdown
   ^String [release-notes]
   (let [issue-types ["BREAKING CHANGE" "NEW" "FIX"]
@@ -165,10 +171,11 @@
   `release-notes-range-limit`), and fetches each one's notes in parallel.
   Returns a newest-first vector of {:version <string> :notes <map-or-nil>}, one
   per version, where :notes is nil if that file didn't download. Returns nil if
-  even the manifest can't be fetched."
-  [archive-domain channel]
+  even the manifest can't be fetched. Versions older than `current-version` are
+  left out; nil keeps the newest few."
+  [archive-domain channel current-version]
   (when-some [manifest (fetch-manifest! archive-domain channel)]
-    (let [versions (versions-to-fetch (filter string? manifest) (system/defold-version))]
+    (let [versions (versions-to-fetch (filter string? manifest) current-version)]
       (coll/pmapv (fn [version]
                     {:version version
                      :notes (fetch-version-notes! archive-domain channel version)})
@@ -200,23 +207,59 @@
                         :skipped-sha1 (get (prefs/get prefs [:versioning :skipped-update-sha1s]) channel)
                         :server-sha1 editor-sha1})}))
 
+(def channels ["stable" "beta"])
+
+(defn installed-channel [updater]
+  (:channel updater))
+
+(defn fetch-channel-infos!
+  "Returns a map of channel to {:version <string> :sha1 <string>} for every
+  channel whose info could be downloaded."
+  []
+  (let [archive-domain (system/defold-archive-domain)]
+    (into {}
+          (keep (fn [[channel info]]
+                  (when (and (string? (:version info)) (string? (:sha1 info)))
+                    [channel (select-keys info [:version :sha1])])))
+          (coll/pmapv (fn [channel]
+                        [channel (fetch-json! (channel-info-url archive-domain channel))])
+                      channels))))
+
+(defn platform-supported? [updater]
+  (contains? #{Platform/X86_64Linux
+               Platform/Arm64MacOS
+               Platform/X86_64MacOS
+               Platform/X86_64Win32}
+             (:platform updater)))
+
+(defn- check-channel-offer! [updater]
+  (when (and (platform-supported? updater)
+             (= "stable" (installed-channel updater)))
+    (let [{stable "stable" beta "beta"} (fetch-channel-infos!)]
+      (swap! (:state-atom updater) assoc :channel-offer
+             (when (and stable beta (newer-version? (:version beta) (:version stable)))
+               (assoc beta :channel "beta"))))))
+
+(defn- download-progress [state]
+  (or (-> state :current-download :progress)
+      (-> state :channel-download :progress)))
+
 (defn add-progress-watch
   "Adds a watch that gets notified on download and extraction progress of
   updater + immediately if download is currently in progress.
   `f` will receive progress as an argument. Unsubscribe by passing same
   `f` to `remove-progress-watch`"
   [updater f]
-  (let [{:keys [state-atom]} updater
-        {:keys [current-download]} @state-atom]
+  (let [{:keys [state-atom]} updater]
     (add-watch state-atom
                [:progress f]
                (fn [_ _ old-state new-state]
-                 (let [old-progress (-> old-state :current-download :progress)
-                       new-progress (-> new-state :current-download :progress)]
+                 (let [old-progress (download-progress old-state)
+                       new-progress (download-progress new-state)]
                    (when-not (= old-progress new-progress)
                      (f (or new-progress progress/done))))))
-    (when (some? current-download)
-      (f (:progress current-download)))))
+    (when-let [progress (download-progress @state-atom)]
+      (f progress))))
 
 (defn remove-progress-watch [updater f]
   (remove-watch (:state-atom updater) [:progress f]))
@@ -231,8 +274,8 @@
   (add-watch (:state-atom updater)
              [:state f]
              (fn [_ _ old-state new-state]
-               (let [old-state-sha1s (update old-state :current-download :sha1)
-                     new-state-sha1s (update new-state :current-download :sha1)]
+               (let [old-state-sha1s (-> old-state (update :current-download :sha1) (update :channel-download :channel))
+                     new-state-sha1s (-> new-state (update :current-download :sha1) (update :channel-download :channel))]
                  (when-not (= old-state-sha1s new-state-sha1s)
                    (f updater)))))
   (f updater))
@@ -312,18 +355,39 @@
          :sha1 server-sha1
          :versions (mapv :version entries)}))))
 
+(defn channel-release-notes
+  "Returns {:markdown <string>} for `version` of `channel`, or nil if the notes
+  can't be turned into markdown."
+  [channel version]
+  (try
+    {:markdown (entry-markdown nil {:version version
+                                    :notes (fetch-version-notes! (system/defold-archive-domain) channel version)})}
+    (catch Exception e
+      (log/warn :message "Failed to build channel release notes" :channel channel :exception e)
+      nil)))
+
 (defn can-install-update? [updater]
   (some? (:downloaded-sha1 @(:state-atom updater))))
 
 (defn download-in-progress? [updater]
   (some? (:current-download @(:state-atom updater))))
 
-(defn platform-supported? [updater]
-  (contains? #{Platform/X86_64Linux
-               Platform/Arm64MacOS
-               Platform/X86_64MacOS
-               Platform/X86_64Win32}
-             (:platform updater)))
+(defn channel-download-in-progress? [updater]
+  (some? (:channel-download @(:state-atom updater))))
+
+(defn channel-offer
+  "Returns {:channel <string> :version <string> :sha1 <string>} when a channel
+  with a newer version than the installed one is worth suggesting, or nil.
+  Hidden while an update for the installed channel is pending or a download is
+  running, so only one link shows at a time."
+  [updater]
+  (let [{:keys [channel-offer downloaded-sha1]} @(:state-atom updater)]
+    (when (and channel-offer
+               (not downloaded-sha1)
+               (not (update-advertised? updater))
+               (not (download-in-progress? updater))
+               (not (channel-download-in-progress? updater)))
+      channel-offer)))
 
 (defn- create-temp-zip-file ^File []
   (let [empty-attrs (into-array FileAttribute [])
@@ -427,6 +491,58 @@
           (swap! state-atom dissoc :current-download)
           false)))))
 
+(defn- downloads-dir
+  "Returns the user's Downloads folder, or the home folder if there is none."
+  ^File []
+  (let [home-dir (io/file (System/getProperty "user.home"))
+        downloads-dir (io/file home-dir "Downloads")]
+    (if (.isDirectory downloads-dir) downloads-dir home-dir)))
+
+(defn- create-download-file
+  "Creates a new, empty file named `base-name` + `extension` in the downloads
+  folder, numbering the name if it's taken."
+  ^File [base-name extension]
+  (let [dir (downloads-dir)]
+    (loop [n 0]
+      (let [file (io/file dir (str base-name (when (pos? n) (str " (" n ")")) "." extension))]
+        (if (.createNewFile file)
+          file
+          (recur (inc n)))))))
+
+(defn download-channel!
+  "Asynchronously downloads the `channel` build with `sha1` into the user's
+  Downloads folder: the .dmg on macOS, the .zip elsewhere. The current
+  installation is left untouched.
+
+  Returns future that eventually will contain the downloaded file, or nil if
+  the download failed"
+  [updater {:keys [channel version sha1]}]
+  (let [{:keys [state-atom ^Platform platform]} updater
+        extension (if (= "macos" (.getOs platform)) "dmg" "zip")
+        url (channel-download-url (system/defold-archive-domain) sha1 channel platform extension)
+        track-progress! (fn track-progress! [progress]
+                          (swap! state-atom assoc-in [:channel-download :progress] progress))]
+    (swap! state-atom assoc :channel-download {:channel channel
+                                               :progress (progress/make localization/empty-message 1 0)})
+    (future
+      (try
+        (let [base-name (str "Defold-" version "-" channel "-" (.getPair platform))
+              part-file (.toFile (Files/createTempFile (.toPath (downloads-dir)) base-name ".part" (into-array FileAttribute [])))]
+          (.deleteOnExit part-file)
+          (try
+            (download! url part-file track-progress! (atom false))
+            (let [file (create-download-file base-name extension)]
+              (Files/move (.toPath part-file) (.toPath file) (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))
+              (log/info :message "Channel build downloaded" :channel channel :file (str file))
+              file)
+            (finally
+              (.delete part-file))))
+        (catch Exception e
+          (log/info :message "Channel download failed" :channel channel :exception e)
+          nil)
+        (finally
+          (swap! state-atom dissoc :channel-download))))))
+
 (defn- move-file! [^File source-file ^File target-file]
   (Files/move (.toPath source-file)
               (.toPath target-file)
@@ -513,6 +629,7 @@
         archive-domain (system/defold-archive-domain)
         url (update-url archive-domain channel)]
     (try
+      (check-channel-offer! updater)
       (log/info :message "Checking for updates" :url url)
       (with-open [reader (io/reader url)]
         (let [update (json/read reader :key-fn keyword)
@@ -531,7 +648,7 @@
             :else
             (do
               (log/info :message "New version found" :sha1 update-sha1)
-              (when-some [entries (fetch-release-notes! archive-domain channel)]
+              (when-some [entries (fetch-release-notes! archive-domain channel (system/defold-version))]
                 ;; Remember which update these notes are for, so a failed fetch
                 ;; for a newer one can't keep showing stale notes. "Complete"
                 ;; means we got notes for every version; an empty or partial

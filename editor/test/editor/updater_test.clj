@@ -45,6 +45,11 @@
                   (format "http://localhost:%s/archive/%s/%s/editor2/Defold-%s.zip"
                           test-port sha1 channel (.getPair platform)))
 
+                updater/channel-download-url
+                (fn [_archive-domain sha1 channel ^Platform platform _extension]
+                  (format "http://localhost:%s/archive/%s/%s/editor2/Defold-%s.zip"
+                          test-port sha1 channel (.getPair platform)))
+
                 updater/update-url
                 (fn [archive-domain channel]
                   (format "http://localhost:%s/editor2/channels/%s/update-v4.json"
@@ -228,6 +233,47 @@
       (is (true? (updater/can-download-update? updater)))
       (is (false? @(updater/download-and-extract! updater))))))
 
+(deftest download-channel-saves-into-downloads-folder
+  (with-open [_ (start-update-server! "beta" "B2")]
+    (let [updater (make-updater "stable" "S1" nil (make-temp-prefs))
+          downloads-dir (fs/create-temp-directory! "updater-test-downloads")
+          extension (if (= "macos" (.getOs (Platform/getHostPlatform))) "dmg" "zip")
+          base-name (str "Defold-2.0-beta-" (.getPair (Platform/getHostPlatform)))]
+      (with-redefs [updater/downloads-dir (constantly downloads-dir)]
+        (try
+          (let [^File file @(updater/download-channel! updater {:channel "beta" :version "2.0" :sha1 "B2"})
+                ^File second-file @(updater/download-channel! updater {:channel "beta" :version "2.0" :sha1 "B2"})]
+            (is (= (io/file downloads-dir (str base-name "." extension)) file))
+            (is (pos? (.length file)))
+            (is (= (io/file downloads-dir (str base-name " (1)." extension)) second-file))
+            (is (false? (updater/channel-download-in-progress? updater))))
+          (finally
+            (fs/delete-directory! downloads-dir)))))))
+
+(deftest download-channel-fails-cleanly-when-file-is-missing
+  (with-open [_ (start-update-server! "beta" "B2")]
+    (let [updater (make-updater "stable" "S1" nil (make-temp-prefs))
+          downloads-dir (fs/create-temp-directory! "updater-test-downloads")]
+      (with-redefs [updater/downloads-dir (constantly downloads-dir)]
+        (try
+          (is (nil? @(updater/download-channel! updater {:channel "beta" :version "2.0" :sha1 "B3"})))
+          (is (= #{} (list-files downloads-dir)))
+          (is (false? (updater/channel-download-in-progress? updater)))
+          (finally
+            (fs/delete-directory! downloads-dir)))))))
+
+(deftest channel-offer-hidden-while-update-advertised-or-channel-download-running
+  (let [updater (make-updater "stable" "S1" nil (make-temp-prefs))
+        offer {:channel "beta" :version "2.0" :sha1 "B2"}]
+    (swap! (:state-atom updater) assoc :channel-offer offer)
+    (is (= offer (updater/channel-offer updater)))
+    (swap! (:state-atom updater) assoc :server-sha1 "S2")
+    (is (nil? (updater/channel-offer updater)))
+    (swap! (:state-atom updater) assoc :server-sha1 "S1" :channel-download {:channel "beta"})
+    (is (nil? (updater/channel-offer updater)))
+    (swap! (:state-atom updater) dissoc :channel-download)
+    (is (= offer (updater/channel-offer updater)))))
+
 (deftest client-has-update-after-check-when-update-appears-on-server
   (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
     (with-open [_ (start-update-server! "test" "1")]
@@ -374,7 +420,7 @@
   (with-redefs [updater/fetch-manifest! (fn [_ _] ["1.13.2" "1.13.1" "1.13.0"])
                 updater/fetch-version-notes! (fn [_ _ v] {:version v :issues []})]
     (is (= ["1.13.2" "1.13.1" "1.13.0"]
-           (mapv :version (#'updater/fetch-release-notes! "d" "test"))))))
+           (mapv :version (#'updater/fetch-release-notes! "d" "test" nil))))))
 
 (deftest fetch-release-notes-keeps-failed-entries
   ;; a version whose file fails stays as an entry with nil notes, in order
@@ -382,14 +428,14 @@
                 updater/fetch-version-notes! (fn [_ _ v]
                                                (when (= v "1.14.0")
                                                  {:version v :issues []}))]
-    (let [entries (#'updater/fetch-release-notes! "d" "test")]
+    (let [entries (#'updater/fetch-release-notes! "d" "test" nil)]
       (is (= ["1.14.0" "1.13.0"] (mapv :version entries)))
       (is (some? (:notes (first entries))))
       (is (nil? (:notes (second entries)))))))
 
 (deftest fetch-release-notes-nil-when-manifest-fails
   (with-redefs [updater/fetch-manifest! (fn [_ _] nil)]
-    (is (nil? (#'updater/fetch-release-notes! "d" "test")))))
+    (is (nil? (#'updater/fetch-release-notes! "d" "test" nil)))))
 
 (deftest check-skips-refetch-when-complete
   ;; a complete fetch arms the sha guard, so the next check does not re-download

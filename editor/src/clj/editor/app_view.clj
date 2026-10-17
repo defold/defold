@@ -2091,6 +2091,8 @@
                 :command :help.open-release-notes}
                {:label (localization/message "command.help.check-for-updates")
                 :command :help.check-for-updates}
+               {:label (localization/message "command.help.try-beta")
+                :command :help.try-beta}
                {:label (localization/message "command.help.open-forum")
                 :command :help.open-forum}
                {:label (localization/message "command.help.open-editor-server")
@@ -2904,6 +2906,16 @@
       main-stage project updater
       (ui/user-data main-stage ::ui.updater/install-and-restart!)
       localization)))
+
+(handler/defhandler :help.try-beta :global
+  (enabled? [updater]
+    (and updater
+         (updater/platform-supported? updater)
+         (= "stable" (updater/installed-channel updater))
+         (not (updater/manual-update-check-in-progress? updater))
+         (not (updater/channel-download-in-progress? updater))))
+  (run [updater project main-stage localization]
+    (ui.updater/try-channel! main-stage project updater localization)))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [basis (:basis evaluation-context)

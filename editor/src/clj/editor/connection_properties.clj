@@ -26,7 +26,9 @@
                        :custom-build-servers {"alpha" "https://build-stage.defold.com"
                                               "beta" "https://build-stage.defold.com"}}
    :updater {:download-url-template "https://%s/archive/%s/%s/editor2/Defold-%s.zip"
+             :channel-download-url-template "https://%s/archive/%s/%s/editor2/Defold-%s.%s"
              :update-url-template "https://%s/editor2/channels/%s/update-v4.json"
+             :channel-info-url-template "https://%s/%s/info.json"
              :release-notes-manifest-url-template "https://%s/editor2/channels/%s/release-notes/manifest.json"
              :release-notes-version-url-template "https://%s/editor2/channels/%s/release-notes/%s.json"}})
 
