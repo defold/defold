@@ -53,7 +53,8 @@ static hb_bool_t GetGlyphExtents(hb_font_t* font, void* data, hb_codepoint_t gly
 
 FontHarfbuzz* FontHarfbuzzCreate(const void* data, uint32_t data_size, uint32_t face_index)
 {
-    FontTrueType* true_type = FontTrueTypeCreate(data, data_size, face_index);
+    // HarfBuzz owns cmap selection, including encodings our outline decoder does not map.
+    FontTrueType* true_type = FontTrueTypeCreate(data, data_size, face_index, false);
     if (!true_type)
         return 0;
 

@@ -362,6 +362,39 @@ TEST(FontTrueTypeReference, Format4SentinelPadding)
     FreeReferenceFont(&font);
 }
 
+// HarfBuzz's symbol cmap support must survive using the standalone outline decoder.
+TEST(FontTrueTypeReference, HarfBuzzSymbolCmap)
+{
+    ReferenceFont font;
+    ASSERT_TRUE(LoadReferenceFont("src/test/data/NotoSans-Regular.ttf", &font));
+    uint32_t expected = FontHarfbuzzGetGlyphIndex(font.m_Harfbuzz, 'A');
+    ASSERT_NE(0u, expected);
+    FontHarfbuzzDestroy(font.m_Harfbuzz);
+    uint8_t* cmap = font.m_Data + stbtt__find_table(font.m_Data, 0, "cmap");
+    uint32_t count = ttUSHORT(cmap + 2);
+    uint32_t format4 = 0;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        uint32_t offset = ttULONG(cmap + 4 + i * 8 + 4);
+        if (ttUSHORT(cmap + offset) == 4)
+            format4 = offset;
+    }
+    ASSERT_NE(0u, format4);
+    // Replace the directory with one Windows Symbol (3,0), format 4 record.
+    const uint8_t header[] = { 0, 0, 0, 1, 0, 3, 0, 0 };
+    memcpy(cmap, header, sizeof(header));
+    for (uint32_t i = 0; i < 4; ++i)
+        cmap[8 + i] = (uint8_t)(format4 >> (24 - 8 * i));
+    font.m_Harfbuzz = FontHarfbuzzCreate(font.m_Data, font.m_DataSize, 0);
+    ASSERT_NE((FontHarfbuzz*)0, font.m_Harfbuzz);
+    ASSERT_EQ(expected, FontHarfbuzzGetGlyphIndex(font.m_Harfbuzz, 'A'));
+    FontOutline outline = {};
+    ASSERT_EQ(FONT_RESULT_OK, FontHarfbuzzGetGlyphOutline(font.m_Harfbuzz, expected, &outline));
+    ASSERT_GT(outline.m_CommandCount, 0u);
+    FontFreeGlyphOutline(&outline);
+    FreeReferenceFont(&font);
+}
+
 TEST(FontTrueTypeReference, OpenTypeCFF1)
 {
     ReferenceFont font;
