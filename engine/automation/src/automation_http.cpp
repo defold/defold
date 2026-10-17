@@ -20,7 +20,6 @@
 #include <dlib/sys.h>
 #include <remotery/profiler_remotery.h>
 #include "automation_engine_access.h"
-#include "automation_recording.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -545,14 +544,6 @@ namespace dmAutomation
         if (IsMetalCaptureSupported())
         {
             AppendCapability(&names, &versions, &first, "metal.capture");
-        }
-        if (IsNativeRecordingSupported())
-        {
-            AppendCapability(&names, &versions, &first, "recording.video");
-            if (IsNativeRecordingAudioSupported())
-            {
-                AppendCapability(&names, &versions, &first, "recording.application_audio");
-            }
         }
         StringBufferAppend(out, "{");
         StringBufferAppend(out, versions.m_Data ? versions.m_Data : "");
@@ -2243,176 +2234,6 @@ namespace dmAutomation
         RequestSendJson(ctx, 200, &response);
     }
 
-    static void AppendRecordingStatusJson(StringBuffer* out, const RecordingStatus* status)
-    {
-        StringBufferAppend(out, "{\"operation_id\":");
-        AppendNumber(out, (double)status->m_Id);
-        StringBufferAppend(out, ",\"pending\":");
-        StringBufferAppend(out, status->m_Pending ? "true" : "false");
-        StringBufferAppend(out, ",\"state\":");
-        AppendJsonString(out, status->m_Pending ? (status->m_Stopping ? "stopping" : "starting") : (status->m_Failure[0] ? "failed" : (status->m_Active ? "recording" : (status->m_Finalized ? "complete" : "idle"))));
-        StringBufferAppend(out, ",\"supported\":");
-        StringBufferAppend(out, status->m_Supported ? "true" : "false");
-        StringBufferAppend(out, ",\"active\":");
-        StringBufferAppend(out, status->m_Active ? "true" : "false");
-        StringBufferAppend(out, ",\"finalized\":");
-        StringBufferAppend(out, status->m_Finalized ? "true" : "false");
-        StringBufferAppend(out, ",\"backend\":");
-        AppendJsonString(out, NativeRecordingBackendName());
-        StringBufferAppend(out, ",\"container\":\"mp4\",\"video_codec\":\"h264\"");
-        StringBufferAppend(out, ",\"audio\":");
-        StringBufferAppend(out, status->m_Audio ? "true" : "false");
-        StringBufferAppend(out, ",\"width\":");
-        AppendNumber(out, (double)status->m_Width);
-        StringBufferAppend(out, ",\"height\":");
-        AppendNumber(out, (double)status->m_Height);
-        StringBufferAppend(out, ",\"fps\":");
-        AppendNumber(out, (double)status->m_Fps);
-        StringBufferAppend(out, ",\"artifact\":");
-        AppendArtifactJson(out, status->m_Finalized ? status->m_Path : 0);
-        StringBufferAppend(out, ",\"started_wall_time_us\":");
-        if (status->m_StartedWallTime) AppendTimestamp(out, status->m_StartedWallTime); else StringBufferAppend(out, "null");
-        StringBufferAppend(out, ",\"started_monotonic_time_us\":");
-        if (status->m_StartedMonotonicTime) AppendTimestamp(out, status->m_StartedMonotonicTime); else StringBufferAppend(out, "null");
-        StringBufferAppend(out, ",\"stopped_wall_time_us\":");
-        if (status->m_StoppedWallTime) AppendTimestamp(out, status->m_StoppedWallTime); else StringBufferAppend(out, "null");
-        StringBufferAppend(out, ",\"stopped_monotonic_time_us\":");
-        if (status->m_StoppedMonotonicTime) AppendTimestamp(out, status->m_StoppedMonotonicTime); else StringBufferAppend(out, "null");
-        StringBufferAppend(out, ",\"duration_seconds\":");
-        if (status->m_StartedMonotonicTime && status->m_StoppedMonotonicTime >= status->m_StartedMonotonicTime)
-        {
-            AppendNumber(out, (double)(status->m_StoppedMonotonicTime - status->m_StartedMonotonicTime) / 1000000.0);
-        }
-        else
-        {
-            StringBufferAppend(out, "null");
-        }
-        StringBufferAppend(out, ",\"failure\":");
-        if (status->m_Failure[0]) AppendJsonString(out, status->m_Failure); else StringBufferAppend(out, "null");
-        StringBufferAppend(out, "}");
-    }
-
-    static void SendRecordingStatus(RequestContext* ctx, const RecordingStatus* status)
-    {
-        StringBuffer response;
-        StringBufferInit(&response);
-        StringBufferAppend(&response, "{\"ok\":true,\"data\":");
-        AppendRecordingStatusJson(&response, status);
-        StringBufferAppend(&response, "}\n");
-        RequestSendJson(ctx, status->m_Pending ? 202 : 200, &response);
-    }
-
-    static void HandleRecordingCapabilities(RequestContext* ctx)
-    {
-        RecordingStatus status;
-        GetRecordingStatus(&status);
-        StringBuffer response;
-        StringBufferInit(&response);
-        StringBufferAppend(&response, "{\"ok\":true,\"data\":{\"backend\":");
-        AppendJsonString(&response, NativeRecordingBackendName());
-        StringBufferAppend(&response, ",\"available\":");
-        StringBufferAppend(&response, status.m_Supported ? "true" : "false");
-        StringBufferAppend(&response, ",\"application_window\":");
-        StringBufferAppend(&response, status.m_Supported ? "true" : "false");
-        StringBufferAppend(&response, ",\"application_audio\":");
-        StringBufferAppend(&response, status.m_Supported && IsNativeRecordingAudioSupported() ? "true" : "false");
-        StringBufferAppend(&response, ",\"resize_output\":");
-        StringBufferAppend(&response, status.m_Supported ? "true" : "false");
-        StringBufferAppend(&response, ",\"frame_rate\":");
-        StringBufferAppend(&response, status.m_Supported ? "true" : "false");
-        StringBufferAppend(&response, ",\"containers\":[\"mp4\"],\"video_codecs\":[\"h264\"],\"minimum_platform_version\":");
-        AppendJsonString(&response, NativeRecordingMinimumPlatformVersion());
-        StringBufferAppend(&response, ",\"reason\":");
-        if (!status.m_Supported && status.m_Failure[0]) AppendJsonString(&response, status.m_Failure); else StringBufferAppend(&response, "null");
-        StringBufferAppend(&response, "}}\n");
-        RequestSendJson(ctx, 200, &response);
-    }
-
-    static void HandleRecordingStatus(RequestContext* ctx)
-    {
-        RecordingStatus status;
-        GetRecordingStatus(&status);
-        SendRecordingStatus(ctx, &status);
-    }
-
-    static void HandleRecordingStart(RequestContext* ctx)
-    {
-        if (!IsNativeRecordingSupported())
-        {
-            RequestSendError(ctx, 501, "recording_unsupported", NativeRecordingUnsupportedReason());
-            return;
-        }
-        uint32_t width = 0;
-        uint32_t height = 0;
-        bool has_width = !IsEmpty(RequestGetParam(ctx, "width"));
-        bool has_height = !IsEmpty(RequestGetParam(ctx, "height"));
-        if (has_width != has_height ||
-            (has_width && (!RequestGetUIntParam(ctx, "width", &width, 16384) ||
-                           !RequestGetUIntParam(ctx, "height", &height, 16384))))
-        {
-            RequestSendError(ctx, 400, "bad_request", "width and height must be positive integers no greater than 16384, or both omitted");
-            return;
-        }
-        uint32_t fps = 30;
-        if (!IsEmpty(RequestGetParam(ctx, "fps")) && !RequestGetUIntParam(ctx, "fps", &fps, 60))
-        {
-            RequestSendError(ctx, 400, "bad_request", "fps must be an integer between 1 and 60");
-            return;
-        }
-        bool audio = IsNativeRecordingAudioSupported();
-        if (!IsEmpty(RequestGetParam(ctx, "audio")) && !RequestGetBoolParam(ctx, "audio", &audio))
-        {
-            RequestSendError(ctx, 400, "bad_request", "audio must be a boolean");
-            return;
-        }
-        if (audio && !IsNativeRecordingAudioSupported())
-        {
-            RequestSendError(ctx, 501, "recording_audio_unsupported", "application audio is not supported by this recording backend; use audio=false");
-            return;
-        }
-        char path[1024];
-        if (!BuildCapturePath(".mp4", path, sizeof(path)))
-        {
-            RequestSendError(ctx, 500, "storage_unavailable", "cannot create engine capture storage");
-            return;
-        }
-        RecordingStatus status;
-        if (!StartRecording(path, width, height, fps, audio, &status))
-        {
-            ReleaseCapturePath(path);
-            RequestSendError(ctx, status.m_Active ? 409 : 500,
-                             status.m_Active ? "recording_active" : "recording_start_failed",
-                             status.m_Failure[0] ? status.m_Failure : "video recording could not be started");
-            return;
-        }
-        SendRecordingStatus(ctx, &status);
-    }
-
-    static void HandleRecordingStop(RequestContext* ctx)
-    {
-        uint64_t operation_id = 0;
-        RecordingStatus current;
-        GetRecordingStatus(&current);
-        if (!RequestGetUInt64Param(ctx, "operation_id", &operation_id))
-        { RequestSendError(ctx, 400, "bad_request", "operation_id is required"); return; }
-        if (current.m_Id != operation_id)
-        { RequestSendError(ctx, 410, "stale_operation", "recording receipt was replaced by another operation"); return; }
-        RecordingStatus status;
-        GetRecordingStatus(&status);
-        if (!status.m_Active)
-        {
-            RequestSendError(ctx, 409, "recording_inactive", "no video recording is active");
-            return;
-        }
-        if (!StopRecording(&status))
-        {
-            RequestSendError(ctx, 500, "recording_stop_failed",
-                             status.m_Failure[0] ? status.m_Failure : "video recording could not be stopped");
-            return;
-        }
-        SendRecordingStatus(ctx, &status);
-    }
-
     static void HandleEventCursor(RequestContext* ctx)
     {
         StringBuffer response;
@@ -2878,19 +2699,6 @@ namespace dmAutomation
         {0, JSON_FIELD_ANY}
     };
 
-    static const JsonFieldRule RECORDING_START_FIELDS[] = {
-        {"width", JSON_FIELD_UINT},
-        {"height", JSON_FIELD_UINT},
-        {"fps", JSON_FIELD_UINT},
-        {"audio", JSON_FIELD_BOOL},
-        {0, JSON_FIELD_ANY}
-    };
-
-    static const JsonFieldRule RECORDING_STOP_FIELDS[] = {
-        {"operation_id", JSON_FIELD_UINT},
-        {0, JSON_FIELD_ANY}
-    };
-
     static const JsonFieldRule COMMAND_FIELDS[] = {
         {"name", JSON_FIELD_STRING},
         {"data", JSON_FIELD_ANY},
@@ -2974,10 +2782,6 @@ namespace dmAutomation
         {"/input/pointer/hold", "POST", HandlePointerHold, POINTER_FIELDS, INPUT_FIELDS},
         {"/input/pointer/up", "POST", HandlePointerUp, 0, INPUT_FIELDS},
         {"/screenshot", "POST", HandleScreenshot, SCREENSHOT_FIELDS, 0},
-        {"/recording/capabilities", "GET", HandleRecordingCapabilities},
-        {"/recording/status", "GET", HandleRecordingStatus},
-        {"/recording/start", "POST", HandleRecordingStart, RECORDING_START_FIELDS, 0},
-        {"/recording/stop", "POST", HandleRecordingStop, RECORDING_STOP_FIELDS, 0},
         {"/events/cursor", "GET", HandleEventCursor},
         {"/events", "GET", HandleEvents},
         {"/events/wait", "GET", HandleEvents},
@@ -3105,8 +2909,7 @@ namespace dmAutomation
                 route->m_Handler == HandlePointerOpen || route->m_Handler == HandleObservationPost ||
                 route->m_Handler == HandleCommandSubmit;
             bool pending = accepted_only || observation || route->m_Handler == HandleElements ||
-                route->m_Handler == HandleRecordingStart || route->m_Handler == HandleRecordingStop ||
-                route->m_Handler == HandleRecordingStatus || route->m_Handler == HandleInputCancel ||
+                route->m_Handler == HandleInputCancel ||
                 route->m_Handler == HandlePointerMove || route->m_Handler == HandlePointerHold ||
                 route->m_Handler == HandlePointerUp;
             for (uint32_t status = 200; status <= 202; status += 2)

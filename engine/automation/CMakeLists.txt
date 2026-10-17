@@ -19,21 +19,17 @@ defold_add_library(automation STATIC
   src/automation_engine_access.cpp
   src/automation_http.cpp
   src/automation_json.cpp
-  src/automation_recording_async.cpp
   src/automation_input.cpp
   src/automation_scene.cpp
   src/automation_util.cpp)
 
 set(AUTOMATION_CAPTURE_SOURCES
   src/automation_screenshot.cpp
-  src/automation_metal.cpp
-  src/automation_recording.cpp)
+  src/automation_metal.cpp)
 defold_add_library(automation_capture_null STATIC ${AUTOMATION_CAPTURE_SOURCES})
 target_compile_definitions(automation_capture_null PRIVATE DM_AUTOMATION_HEADLESS=1)
 if(TARGET_PLATFORM MATCHES "macos$")
-  list(APPEND AUTOMATION_CAPTURE_SOURCES src/automation_metal.mm src/automation_recording_osx.mm)
-elseif(TARGET_PLATFORM MATCHES "win32$")
-  list(APPEND AUTOMATION_CAPTURE_SOURCES src/automation_recording_windows.cpp)
+  list(APPEND AUTOMATION_CAPTURE_SOURCES src/automation_metal.mm)
 endif()
 defold_add_library(automation_capture STATIC ${AUTOMATION_CAPTURE_SOURCES})
 
@@ -59,12 +55,7 @@ foreach(target automation automation_capture automation_capture_null)
 endforeach()
 if(TARGET_PLATFORM MATCHES "macos$")
   target_link_libraries(automation_capture PUBLIC
-    "-framework AVFoundation" "-framework AppKit" "-framework CoreMedia"
-    "-framework CoreVideo" "-framework Foundation" "-framework Metal"
-    "-weak_framework ScreenCaptureKit")
-elseif(TARGET_PLATFORM MATCHES "win32$")
-  set_source_files_properties(src/automation_recording_windows.cpp PROPERTIES COMPILE_OPTIONS "-std=c++17")
-  target_link_libraries(automation_capture PUBLIC dxgi dwmapi mfuuid ole32)
+    "-framework AppKit" "-framework Foundation" "-framework Metal")
 endif()
 defold_install_targets(TARGETS automation automation_capture automation_capture_null
   ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
@@ -119,16 +110,6 @@ if(AUTOMATION_BUILD_TESTS AND TARGET_PLATFORM STREQUAL HOST_PLATFORM AND
     endif()
   endfunction()
 
-  # A controlled backend verifies recording thread ownership, completion, and shutdown races.
-  defold_add_executable(test_automation_recording src/test/test_recording_async.cpp)
-  defold_target_link_libraries(test_automation_recording "${TARGET_PLATFORM}"
-    testmain automation dlib profile_null)
-  if(TARGET_PLATFORM MATCHES "linux$")
-    find_package(Threads REQUIRED)
-    target_link_libraries(test_automation_recording PRIVATE Threads::Threads dl)
-  endif()
-  automation_add_test(automation_recording_async test_automation_recording "$<TARGET_FILE:test_automation_recording>")
-
   # Borrowed device services must pass fixture checks and never be terminated by cleanup.
   automation_add_test(automation_test_harness dmengine_headless "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_harness.py")
@@ -162,7 +143,8 @@ if(AUTOMATION_BUILD_TESTS AND TARGET_PLATFORM STREQUAL HOST_PLATFORM AND
       RuntimeTest.test_pointer_hold_and_move RuntimeTest.test_drag_holds
       RuntimeTest.test_touch_taps RuntimeTest.test_touch_hold_and_move RuntimeTest.test_touch_cancellation
       RuntimeTest.test_mouse_cancellation RuntimeTest.test_key_cancellation
-      RuntimeTest.test_debugger_pause_and_resume RuntimeTest.test_input_sources)
+      RuntimeTest.test_debugger_pause_and_resume RuntimeTest.test_input_sources
+      RuntimeTest.test_recording_service_independence)
     _defold_find_python(capture_python)
     defold_get_graphics_symbols(capture_symbols "${TARGET_PLATFORM}")
     set(capture_adapters "")

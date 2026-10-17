@@ -273,6 +273,7 @@ namespace dmHttpServer
             case 429: return "Too Many Requests";
             case 501: return "Not Implemented";
             case 503: return "Service Unavailable";
+            case 507: return "Insufficient Storage";
             case 200:
                 return "OK";
             case 404:

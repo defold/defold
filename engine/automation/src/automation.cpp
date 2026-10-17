@@ -33,7 +33,6 @@
 #include <script_extension.h>
 #include <dlib/webserver.h>
 #include "automation_engine_access.h"
-#include "automation_recording.h"
 
 namespace dmAutomation
 {
@@ -198,7 +197,6 @@ namespace dmAutomation
     {
         (void)params;
         StopMetalCapture();
-        FinalizeRecording();
         FreeAutomationBridgeContext(&g_AutomationBridge);
         InitAutomationBridgeContext(&g_AutomationBridge);
         return dmExtension::RESULT_OK;
@@ -277,7 +275,6 @@ namespace dmAutomation
         if (!g_AutomationBridge.m_Initialized) return;
         rendering = rendering && !dmGraphics::GetWindowStateParam(g_AutomationBridge.m_GraphicsContext, WINDOW_STATE_ICONIFIED);
         MaintainInput();
-        PollRecording();
         if (!g_AutomationBridge.m_SceneReadyMonotonicTime && g_AutomationBridge.m_Frame)
             g_AutomationBridge.m_SceneReadyMonotonicTime = dmTime::GetMonotonicTime();
         CompleteObservations();
@@ -307,7 +304,6 @@ namespace dmAutomation
         MaintainInput(true);
         if (g_AutomationBridge.m_HidContext) dmHID::ClearSyntheticTouch(g_AutomationBridge.m_HidContext);
         StopMetalCapture();
-        FinalizeRecording();
         g_AutomationBridge.m_Initialized = false;
     }
 

@@ -1,4 +1,4 @@
-# Debug automation capture dependencies; headless uses automation_capture_null.
+# Debug automation storage and standalone native recording dependencies.
 platforms:
     common:
         context:
@@ -6,11 +6,16 @@ platforms:
     osx:
         context:
             libs: ["dmbedtls"]
-            weakFrameworks: ["ScreenCaptureKit"]
+            symbols: ["EngineRecord"]
+            linkFlags: ["-Wl,-weak_framework,ScreenCaptureKit"]
             frameworks: ["CoreMedia"]
     ios:
         context:
             libs: ["dmbedtls"]
     win32:
         context:
+            symbols: ["EngineRecord"]
             libs: ["dxgi", "dwmapi", "mfuuid"]
+    linux:
+        context:
+            symbols: ["EngineRecord"]

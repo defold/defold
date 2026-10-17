@@ -1,4 +1,4 @@
-"""Reject automation/inspection implementations and capture imports in release images."""
+"""Reject automation/inspection/recording implementations and capture imports in release images."""
 from pathlib import Path
 import re
 import sys
@@ -8,7 +8,8 @@ import sys
 def verify_release(path):
     data = Path(path).read_bytes()
     forbidden = (b'automation-bridge/v3', b'automation_bridge', b'AutomationBridgeContext',
-                 b'EngineAutomation', b'ScreenCaptureKit', b'MFCreateSinkWriterFromURL',
+                 b'EngineAutomation', b'EngineRecord', b'/recording/start',
+                 b'ScreenCaptureKit', b'MFCreateSinkWriterFromURL',
                  b'GraphicsCaptureItem', b'CreateDirect3D11DeviceFromDXGIDevice',
                  b'AccumulateInspectionProjection')
     present = [name.decode() for name in forbidden if name in data]

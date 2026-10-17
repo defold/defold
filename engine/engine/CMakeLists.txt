@@ -48,7 +48,7 @@ set(ENGINE_NULL_GRAPHICS_EXECUTABLE_DEPENDENCIES
   hid_null
   platform_null
   sound_null)
-set(ENGINE_RECORD_EXECUTABLE_DEPENDENCIES record vpx hid)
+set(ENGINE_RECORD_EXECUTABLE_DEPENDENCIES record hid)
 set(ENGINE_RECORD_NULL_EXECUTABLE_DEPENDENCIES record_null hid)
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
@@ -411,6 +411,10 @@ endif()
 list(APPEND ENGINE_EXPORTED_SYMBOLS ${ENGINE_GRAPHICS_SYMBOLS})
 
 set(ENGINE_PROFILE_LIBS profile profilerext)
+set(ENGINE_RECORD_SYMBOLS)
+if(TARGET record_service)
+  set(ENGINE_RECORD_SYMBOLS EngineRecord)
+endif()
 set(ENGINE_AUTOMATION_SYMBOLS)
 if(TARGET automation)
   set(ENGINE_AUTOMATION_SYMBOLS EngineAutomation)
@@ -450,6 +454,9 @@ function(engine_configure_executable target variant engine_lib engine_service_li
     target_compile_definitions(${target} PRIVATE DM_RELEASE=1)
   else()
     defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_DEBUGGER_LIBS})
+  endif()
+  if(NOT variant STREQUAL "release" AND TARGET record_service)
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" record_service)
   endif()
   if(variant STREQUAL "release" OR NOT TARGET automation)
     defold_target_link_libraries(${target} "${TARGET_PLATFORM}" automation_null)
@@ -524,6 +531,7 @@ function(engine_add_binary target)
 endfunction()
 
 set(ENGINE_DMENGINE_SYMBOLS
+  ${ENGINE_RECORD_SYMBOLS}
   ${ENGINE_AUTOMATION_SYMBOLS}
   ${ENGINE_DEBUGGER_SYMBOLS}
   ${ENGINE_EXPORTED_SYMBOLS}
@@ -558,6 +566,7 @@ endif()
 defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 
 set(ENGINE_HEADLESS_SYMBOLS
+  ${ENGINE_RECORD_SYMBOLS}
   ${ENGINE_AUTOMATION_SYMBOLS}
   ${ENGINE_DEBUGGER_SYMBOLS}
   LiveUpdateExt

@@ -233,6 +233,35 @@ class RuntimeTest(EngineTest):
         with urllib.request.urlopen(self.url.split('/automation-bridge/')[0] + '/openapi.json', timeout=2) as response:
             return json.load(response)
 
+    # Video routes and capabilities belong to record, without automation runtime guards or aliases.
+    def test_recording_service_independence(self):
+        health = self.request('/health')[1]['data']
+        paths = self.openapi()['paths']
+        for capability in ('recording.video', 'recording.application_audio'):
+            self.assertNotIn(capability, health['capabilities'])
+        for route, method in (('/recording/capabilities', 'GET'), ('/recording/status', 'GET'),
+                              ('/recording/start', 'POST'), ('/recording/stop', 'POST')):
+            self.assertNotIn('/automation-bridge/v3' + route, paths)
+            self.assertEqual(404, self.request(route, method, {} if method == 'POST' else None)[0])
+        if health['platform'] not in ('macos', 'linux', 'windows'):
+            self.assertFalse(any(path.startswith('/recording/') for path in paths))
+            return
+        self.assertEqual({'/recording/capabilities', '/recording/status', '/recording/start',
+                          '/recording/stop', '/recording/files/{id}'},
+                         {path for path in paths if path.startswith('/recording/')})
+        base = self.url.split('/automation-bridge/')[0]
+        # An unrelated automation identity cannot prevent discovery of the recording service.
+        for route in ('capabilities', 'status'):
+            request = urllib.request.Request(base + '/recording/' + route,
+                                             headers={'X-Automation-Runtime': 'unrelated-runtime'})
+            with urllib.request.urlopen(request, timeout=2) as response:
+                self.assertEqual(200, response.status)
+                receipt = json.load(response)
+            self.assertIn('supported', receipt)
+            self.assertNotIn('ok', receipt)
+            if health['backend']['headless']:
+                self.assertFalse(receipt['supported'])
+
     # Discovery includes typed mutations, selectors, opaque path IDs, and bounded binary artifact transfers.
     def test_openapi_discovery(self):
         document = self.openapi()

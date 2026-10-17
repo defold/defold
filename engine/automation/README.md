@@ -10,12 +10,19 @@ registration, Lua namespace, routes, and capture dependencies.
 ## Integration and ownership
 
 `automation` owns HTTP, scene snapshots, input, application synchronization, and
-asynchronous operation state. `automation_capture` supplies platform capture;
-`automation_capture_null` supplies headless capture stubs without desktop
-recording libraries. `automation_null` supplies the engine hooks for release and
+asynchronous operation state. `automation_capture` supplies screenshots and Metal
+traces; `automation_capture_null` supplies their headless stubs.
+`automation_null` supplies the engine hooks for release and
 unsupported platforms. All four archives are installed into the SDK. Selection
 happens at link time in CMake and the Extender manifests, without `DM_RELEASE`
 wrappers in the module. No code from the `dap` branch is required.
+
+Video recording belongs to the independent [record library](../record/README.md).
+Its `EngineRecord` extension registers `/recording/*` and its own OpenAPI metadata
+on the engine service. Automation neither links to record nor owns recording
+state, workers, files, capabilities, or shutdown. Both extensions can be used
+independently. Clients discover recording through `/openapi.json` and
+`/recording/capabilities` at the service root.
 
 Rendering follows the same convention: `render_inspection` owns projection
 history in a private context, while `render_inspection_null` supplies no-op hooks
@@ -107,7 +114,6 @@ schema; optional defaults apply only when a field is omitted. Command and marker
 | `POST /commands`; `GET /commands?id=...`; `DELETE /commands` | Named Lua commands and receipts |
 | `POST /markers` | Application/trace markers |
 | `POST /screenshot`; `GET /screenshot/status` | PNG capture receipts |
-| `GET /recording/capabilities`, `/recording/status`; `POST /recording/start`, `/recording/stop` | Asynchronous video operations |
 | `GET`, `POST`, `DELETE /metal` | Metal trace lifecycle |
 | `GET`, `DELETE /artifacts/{id}` | Bounded download and cleanup |
 
@@ -129,18 +135,20 @@ There can be 16 pending observations, each with a 30-second deadline. Request
 bodies are limited to 64 KiB and JSON nesting to 16 levels; application JSON is
 limited to 32 KiB. Existing input queue, lease, and gesture limits remain in force.
 
-Capture files live in platform application storage. Completed capture status
+Screenshot and Metal capture files live in platform application storage. Completed capture status
 returns an artifact ID, byte size, SHA-256, and preparation state. GET supports a
 single explicit byte range of at most 1 MiB; clients concatenate and verify ranges
 before publishing a local file. Metal directories transfer as tar archives. There
 are at most 128 retained captures; DELETE frees storage. Reboot/shutdown cleans up
 retained captures. Engine filesystem paths are not a transfer protocol.
 
-Video start and stop return pending operation receipts. Poll recording status and
-match `operation_id`; stop requires that ID. Platform callbacks/workers publish
-completion records and never touch scene objects or Lua. Screenshot encoding uses
-the bundled stb writer. PNGs and input use the same top-left coordinates, and
-screenshots retain the input overlay.
+The former `/automation-bridge/v3/recording/*` routes and `recording.*` automation
+capabilities are removed. Video clients use the root `/recording/*` routes and
+the record library's status/file receipts instead of automation's response envelope
+and artifact IDs. The optional `recording_timestamp_us` marker field remains
+client-supplied event metadata; automation does not query or control a recorder.
+Screenshot encoding uses the bundled stb writer. PNGs and input use the same
+top-left coordinates, and screenshots retain the input overlay.
 
 ## Lua and platforms
 
@@ -158,15 +166,11 @@ state, named commands, acknowledgements, annotations, and application contracts.
 clamped to 16–4096. Core inspection/input require no application opt-in.
 
 macOS, Windows, Linux, Android, and iOS have the core module. Desktop headless
-engines use null HID for input and omit framebuffer/window/video/Metal capabilities.
-PNG capture supports OpenGL, OpenGL ES, Vulkan, and Metal adapters. Video retains
-the existing macOS 15+ ScreenCaptureKit and Windows 10 1903+ Windows Graphics
-Capture backends. Only macOS supports application audio. Platform requirements
-stay in the capture implementation; ScreenCaptureKit is weak-linked and optional
-Windows capture entry points are loaded dynamically. Metal traces retain their
-macOS Metal adapter and `METAL_CAPTURE_ENABLED=1` requirements. HTML5 automation,
-pause/stepping, arbitrary property mutation, and additional video backends are out
-of scope.
+engines use null HID for input and omit framebuffer/window/Metal capabilities.
+PNG capture supports OpenGL, OpenGL ES, Vulkan, and Metal adapters. Metal traces
+retain their macOS Metal adapter and `METAL_CAPTURE_ENABLED=1` requirements.
+Video platform support and optional dependencies are documented by record.
+HTML5 automation, pause/stepping, and arbitrary property mutation are out of scope.
 
 ## Validation
 

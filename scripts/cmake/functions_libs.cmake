@@ -92,6 +92,7 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   profilerext_null
   record
   record_null
+  record_service
   render
   render_inspection
   render_inspection_null
@@ -109,7 +110,6 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   sound_openal
   testmain
   texc
-  vpx
   zip
   zip_noasan)
 

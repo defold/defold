@@ -12,29 +12,49 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <stdint.h>
-
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "record.h"
-#include <dlib/log.h>
+#include <string.h>
 
 namespace dmRecord
 {
-    Result New(const NewParams* params, HRecorder* recorder)
+    bool IsSupported()
     {
-        return RESULT_RECORD_NOT_SUPPORTED;
+        return false;
+    }
+    bool IsAudioSupported()
+    {
+        return false;
+    }
+    const char* GetBackendName()
+    {
+        return "unsupported";
+    }
+    const char* GetMinimumPlatformVersion()
+    {
+        return "";
+    }
+    const char* GetUnsupportedReason()
+    {
+        return "native video recording requires a supported macOS or Windows debug runtime with a window";
     }
 
-    Result Delete(HRecorder recorder)
+    void GetStatus(Status* status)
     {
-        return RESULT_OK;
+        memset(status, 0, sizeof(*status));
+        strcpy(status->m_Failure, GetUnsupportedReason());
     }
 
-    Result RecordFrame(HRecorder recorder, const void* frame_buffer, uint32_t frame_buffer_size, BufferFormat format)
+    bool Start(const StartParams*, Status* status)
     {
-        return RESULT_RECORD_NOT_SUPPORTED;
+        GetStatus(status);
+        return false;
     }
-}
 
+    bool Stop(Status* status)
+    {
+        GetStatus(status);
+        return false;
+    }
+
+    void Finalize() {}
+} // namespace dmRecord

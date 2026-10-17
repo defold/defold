@@ -168,6 +168,39 @@ The runner saves `acceptance.json` and capture PNGs/likeness metadata locally.
 Health records the active adapter, and the launcher explicitly supplies device
 kind and OS/device name. Failed or skipped required checks fail acceptance.
 
+## Standalone recording integration (2026-10-17)
+
+Applied the focused recording change from `record-native` (`728f1e7836`) to
+`automation-bridge-in`, then removed automation's native recording backends,
+worker, lifecycle hooks, HTTP handlers, OpenAPI routes, capability entries,
+build dependencies and duplicate lifecycle tests. `engine/record` is identical
+to the standalone branch. Screenshot and Metal trace ownership stays in automation.
+
+Verified on Apple Silicon macOS:
+
+- Debug, headless and release engines, plus the unrelated/legacy-extension test
+  engines, build successfully. All 13 recording tests pass.
+- All seven configured automation checks pass: harness ownership, stock headless
+  runtime (30 cases), release exclusion, unrelated-extension coexistence (30
+  cases), legacy rejection, native input (10 cases), and Metal screenshot capture.
+- The new regression checks that recording has independent root routes and
+  OpenAPI entries, rejects the removed automation aliases, and ignores automation
+  runtime identity headers. It passes in headless and native desktop engines.
+  Its mobile path also checks route absence, but was not run here.
+- All automation archives contain no recording objects or record API references.
+  Debug/headless register both extensions; release registers neither and has no
+  native recording dependency.
+- A live debug engine recorded a 320x240 H.264 MP4 while automation health stayed
+  responsive. Ranged download, SHA-256 and ffprobe checks passed. Normal exit also
+  succeeded with a second native recording active.
+- Extender manifests parse and retain both independent registrations with the
+  intended debug/headless/release library selection. No Extender service build
+  or Windows execution was performed for this integration.
+
+The earlier companion Python capture results describe the API before extraction.
+Clients using `/automation-bridge/v3/recording/*` must migrate to `/recording/*`
+and the independent file receipts described in [record](../record/README.md).
+
 ## Outstanding acceptance gates
 
 - Windows compilation and runtime, including Windows Graphics Capture and its

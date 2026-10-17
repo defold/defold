@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "automation_recording.h"
+#include "record_private.h"
 
 #if defined(DM_PLATFORM_MACOS)
 
@@ -21,7 +21,6 @@
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 
 #include <dmsdk/dlib/time.h>
-#include <dmsdk/graphics/graphics_native.h>
 #include <dispatch/dispatch.h>
 #include <math.h>
 #include <stdio.h>
@@ -32,16 +31,16 @@
 // public entry points. ScreenCaptureKit itself is present from macOS 12.3.
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
 
-@interface AutomationBridgeRecordingDelegate : NSObject <SCRecordingOutputDelegate>
+@interface DefoldRecordingDelegate : NSObject <SCRecordingOutputDelegate>
 {
-@public
+    @public
     dispatch_semaphore_t m_Started;
     dispatch_semaphore_t m_Finished;
     NSError*             m_Error;
 }
 @end
 
-@implementation AutomationBridgeRecordingDelegate
+@implementation DefoldRecordingDelegate
 
 - (id)init
 {
@@ -87,26 +86,26 @@
 
 @end
 
-namespace dmAutomation
+namespace dmRecord
 {
     // AppKit includes the rounded bottom edge in NSWindow's content rect. The
     // window server masks roughly 14-15 points there on current macOS releases,
     // so exclude a narrow safety row to produce a fully rectangular game frame.
-    static const CGFloat WINDOW_BOTTOM_CORNER_CROP_POINTS = 16.0;
+    static const CGFloat            WINDOW_BOTTOM_CORNER_CROP_POINTS = 16.0;
 
-    static NSLock* g_Lock = nil;
-    static bool g_Starting = false;
-    static SCStream* g_Stream = nil;
-    static SCRecordingOutput* g_Output = nil;
-    static AutomationBridgeRecordingDelegate* g_Delegate = nil;
-    static RecordingStatus g_Status;
+    static NSLock*                  g_Lock = nil;
+    static bool                     g_Starting = false;
+    static SCStream*                g_Stream = nil;
+    static SCRecordingOutput*       g_Output = nil;
+    static DefoldRecordingDelegate* g_Delegate = nil;
+    static Status                   g_Status;
 
-    static NSLock* RecordingLock()
+    static NSLock*                  RecordingLock()
     {
         static dispatch_once_t once;
         dispatch_once(&once, ^{
-            g_Lock = [[NSLock alloc] init];
-            memset(&g_Status, 0, sizeof(g_Status));
+          g_Lock = [[NSLock alloc] init];
+          memset(&g_Status, 0, sizeof(g_Status));
         });
         return g_Lock;
     }
@@ -117,12 +116,12 @@ namespace dmAutomation
         snprintf(output, output_size, "%s", text ? text : "");
     }
 
-    static void SetFailure(RecordingStatus* status, NSString* failure)
+    static void SetFailure(Status* status, NSString* failure)
     {
         CopyText(status->m_Failure, sizeof(status->m_Failure), failure);
     }
 
-    static NSError* DelegateError(AutomationBridgeRecordingDelegate* delegate)
+    static NSError* DelegateError(DefoldRecordingDelegate* delegate)
     {
         @synchronized(delegate)
         {
@@ -133,13 +132,14 @@ namespace dmAutomation
     static bool Wait(dispatch_semaphore_t semaphore, uint64_t seconds)
     {
         return dispatch_semaphore_wait(semaphore,
-            dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC))) == 0;
+                                       dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC))) == 0;
     }
 
-    bool GetRecordingWindow(RecordingWindow* target)
+    bool GetWindow(void* native_window, Window* target)
     {
-        NSWindow* window = dmGraphics::GetNativeOSXNSWindow();
-        if (!window) return false;
+        NSWindow* window = (NSWindow*)native_window;
+        if (!window)
+            return false;
         NSRect frame = [window frame];
         NSRect content = [window contentRectForFrameRect:frame];
         target->m_Handle = (uintptr_t)[window windowNumber];
@@ -161,7 +161,7 @@ namespace dmAutomation
         g_Delegate = nil;
     }
 
-    bool IsNativeRecordingSupported()
+    bool IsSupported()
     {
         if (@available(macOS 15.0, *))
         {
@@ -170,36 +170,36 @@ namespace dmAutomation
         return false;
     }
 
-    bool IsNativeRecordingAudioSupported()
+    bool IsAudioSupported()
     {
-        return IsNativeRecordingSupported();
+        return IsSupported();
     }
 
-    const char* NativeRecordingBackendName()
+    const char* GetBackendName()
     {
         return "screen_capture_kit";
     }
 
-    const char* NativeRecordingMinimumPlatformVersion()
+    const char* GetMinimumPlatformVersion()
     {
         return "macOS 15.0";
     }
 
-    const char* NativeRecordingUnsupportedReason()
+    const char* GetUnsupportedReason()
     {
         return "native video recording requires macOS 15 or newer";
     }
 
-    void GetNativeRecordingStatus(RecordingStatus* status)
+    void GetNativeStatus(Status* status)
     {
         @autoreleasepool
         {
             [RecordingLock() lock];
             *status = g_Status;
-            status->m_Supported = IsNativeRecordingSupported();
+            status->m_Supported = IsSupported();
             if (!status->m_Supported && status->m_Failure[0] == 0)
             {
-                SetFailure(status, [NSString stringWithUTF8String:NativeRecordingUnsupportedReason()]);
+                SetFailure(status, [NSString stringWithUTF8String:GetUnsupportedReason()]);
             }
             else if (g_Delegate)
             {
@@ -213,8 +213,7 @@ namespace dmAutomation
         }
     }
 
-    bool StartNativeRecording(const RecordingWindow* target, const char* path, uint32_t requested_width, uint32_t requested_height,
-                              uint32_t fps, bool audio, RecordingStatus* status)
+    bool StartNative(const Window* target, const char* path, uint32_t requested_width, uint32_t requested_height, uint32_t fps, bool audio, Status* status)
     {
         @autoreleasepool
         {
@@ -227,14 +226,14 @@ namespace dmAutomation
                 return false;
             }
             memset(&g_Status, 0, sizeof(g_Status));
-            g_Status.m_Supported = IsNativeRecordingSupported();
+            g_Status.m_Supported = IsSupported();
             g_Starting = true;
             [RecordingLock() unlock];
 
-            if (!IsNativeRecordingSupported())
+            if (!IsSupported())
             {
                 [RecordingLock() lock];
-                SetFailure(&g_Status, [NSString stringWithUTF8String:NativeRecordingUnsupportedReason()]);
+                SetFailure(&g_Status, [NSString stringWithUTF8String:GetUnsupportedReason()]);
                 g_Starting = false;
                 *status = g_Status;
                 [RecordingLock() unlock];
@@ -242,15 +241,15 @@ namespace dmAutomation
             }
 
             __block SCShareableContent* shareable = nil;
-            __block NSError* setup_error = nil;
-            dispatch_semaphore_t content_ready = dispatch_semaphore_create(0);
+            __block NSError*            setup_error = nil;
+            dispatch_semaphore_t        content_ready = dispatch_semaphore_create(0);
             [SCShareableContent getShareableContentExcludingDesktopWindows:NO
                                                        onScreenWindowsOnly:YES
-                                                        completionHandler:^(SCShareableContent* content, NSError* error) {
-                shareable = [content retain];
-                setup_error = [error retain];
-                dispatch_semaphore_signal(content_ready);
-            }];
+                                                         completionHandler:^(SCShareableContent* content, NSError* error) {
+                                                           shareable = [content retain];
+                                                           setup_error = [error retain];
+                                                           dispatch_semaphore_signal(content_ready);
+                                                         }];
 
             NSString* failure = nil;
             if (!Wait(content_ready, 15))
@@ -279,21 +278,19 @@ namespace dmAutomation
                 }
             }
 
-            SCStream* stream = nil;
-            SCRecordingOutput* output = nil;
-            AutomationBridgeRecordingDelegate* delegate = nil;
-            uint32_t width = 0;
-            uint32_t height = 0;
+            SCStream*                stream = nil;
+            SCRecordingOutput*       output = nil;
+            DefoldRecordingDelegate* delegate = nil;
+            uint32_t                 width = 0;
+            uint32_t                 height = 0;
             if (!failure)
             {
-                CGRect source_rect = CGRectMake(target->m_X, target->m_Y, target->m_Width, target->m_Height);
+                CGRect  source_rect = CGRectMake(target->m_X, target->m_Y, target->m_Width, target->m_Height);
                 CGFloat scale = target->m_Scale;
-                if (!failure)
-                {
-                    width = requested_width ? requested_width : (uint32_t)llround(source_rect.size.width * scale);
-                    height = requested_height ? requested_height : (uint32_t)llround(source_rect.size.height * scale);
+                width = requested_width ? requested_width : (uint32_t)llround(source_rect.size.width * scale);
+                height = requested_height ? requested_height : (uint32_t)llround(source_rect.size.height * scale);
 
-                    SCStreamConfiguration* configuration = [[SCStreamConfiguration alloc] init];
+                SCStreamConfiguration* configuration = [[SCStreamConfiguration alloc] init];
                 [configuration setWidth:width];
                 [configuration setHeight:height];
                 [configuration setSourceRect:source_rect];
@@ -308,41 +305,42 @@ namespace dmAutomation
                 [configuration setIgnoreShadowsSingleWindow:YES];
                 [configuration setShouldBeOpaque:YES];
 
-                    SCContentFilter* filter = [[SCContentFilter alloc] initWithDesktopIndependentWindow:selected_window];
-                    stream = [[SCStream alloc] initWithFilter:filter configuration:configuration delegate:nil];
+                SCContentFilter* filter = [[SCContentFilter alloc] initWithDesktopIndependentWindow:selected_window];
+                stream = [[SCStream alloc] initWithFilter:filter configuration:configuration delegate:nil];
                 [filter release];
                 [configuration release];
 
-                    NSString* output_path = [NSString stringWithUTF8String:path];
-                NSURL* output_url = [NSURL fileURLWithPath:output_path];
+                NSString*      output_path = [NSString stringWithUTF8String:path];
+                NSURL*         output_url = [NSURL fileURLWithPath:output_path];
                 NSFileManager* files = [NSFileManager defaultManager];
                 [files createDirectoryAtURL:[output_url URLByDeletingLastPathComponent]
-                 withIntermediateDirectories:YES attributes:nil error:nil];
+                withIntermediateDirectories:YES
+                                 attributes:nil
+                                      error:nil];
                 [files removeItemAtURL:output_url error:nil];
 
-                    SCRecordingOutputConfiguration* recording_configuration = [[SCRecordingOutputConfiguration alloc] init];
+                SCRecordingOutputConfiguration* recording_configuration = [[SCRecordingOutputConfiguration alloc] init];
                 [recording_configuration setOutputURL:output_url];
                 [recording_configuration setOutputFileType:AVFileTypeMPEG4];
                 [recording_configuration setVideoCodecType:AVVideoCodecTypeH264];
-                    delegate = [[AutomationBridgeRecordingDelegate alloc] init];
-                    output = [[SCRecordingOutput alloc] initWithConfiguration:recording_configuration delegate:delegate];
+                delegate = [[DefoldRecordingDelegate alloc] init];
+                output = [[SCRecordingOutput alloc] initWithConfiguration:recording_configuration delegate:delegate];
                 [recording_configuration release];
 
                 NSError* add_error = nil;
-                    if (![stream addRecordingOutput:output error:&add_error])
+                if (![stream addRecordingOutput:output error:&add_error])
                 {
                     failure = [add_error localizedDescription];
-                }
                 }
             }
 
             if (!failure)
             {
-                __block NSError* start_error = nil;
+                __block NSError*     start_error = nil;
                 dispatch_semaphore_t capture_started = dispatch_semaphore_create(0);
                 [stream startCaptureWithCompletionHandler:^(NSError* error) {
-                    start_error = [error retain];
-                    dispatch_semaphore_signal(capture_started);
+                  start_error = [error retain];
+                  dispatch_semaphore_signal(capture_started);
                 }];
                 if (!Wait(capture_started, 15))
                 {
@@ -408,7 +406,7 @@ namespace dmAutomation
         }
     }
 
-    bool StopNativeRecording(RecordingStatus* status)
+    bool StopNative(Status* status)
     {
         @autoreleasepool
         {
@@ -420,13 +418,13 @@ namespace dmAutomation
                 [RecordingLock() unlock];
                 return false;
             }
-            SCStream* stream = [g_Stream retain];
-            SCRecordingOutput* output = [g_Output retain];
-            AutomationBridgeRecordingDelegate* delegate = [g_Delegate retain];
+            SCStream*                stream = [g_Stream retain];
+            SCRecordingOutput*       output = [g_Output retain];
+            DefoldRecordingDelegate* delegate = [g_Delegate retain];
             [RecordingLock() unlock];
 
             NSString* failure = nil;
-            NSError* remove_error = nil;
+            NSError*  remove_error = nil;
             if (![stream removeRecordingOutput:output error:&remove_error])
             {
                 failure = [remove_error localizedDescription];
@@ -436,11 +434,11 @@ namespace dmAutomation
                 failure = @"timed out while finalizing the MP4 file";
             }
 
-            __block NSError* stop_error = nil;
+            __block NSError*     stop_error = nil;
             dispatch_semaphore_t capture_stopped = dispatch_semaphore_create(0);
             [stream stopCaptureWithCompletionHandler:^(NSError* error) {
-                stop_error = [error retain];
-                dispatch_semaphore_signal(capture_stopped);
+              stop_error = [error retain];
+              dispatch_semaphore_signal(capture_stopped);
             }];
             if (!Wait(capture_stopped, 15) && !failure)
             {
@@ -461,7 +459,8 @@ namespace dmAutomation
             g_Status.m_StoppedWallTime = dmTime::GetTime();
             g_Status.m_StoppedMonotonicTime = dmTime::GetMonotonicTime();
             NSDictionary* attributes = [[NSFileManager defaultManager]
-                attributesOfItemAtPath:[NSString stringWithUTF8String:g_Status.m_Path] error:nil];
+            attributesOfItemAtPath:[NSString stringWithUTF8String:g_Status.m_Path]
+                             error:nil];
             g_Status.m_Finalized = !failure && [[attributes objectForKey:NSFileSize] unsignedLongLongValue] > 0;
             if (failure)
             {
@@ -479,15 +478,15 @@ namespace dmAutomation
         }
     }
 
-    void FinalizeNativeRecording()
+    void FinalizeNative()
     {
-        RecordingStatus status;
-        GetNativeRecordingStatus(&status);
+        Status status;
+        GetNativeStatus(&status);
         if (status.m_Active)
         {
-            StopNativeRecording(&status);
+            StopNative(&status);
         }
     }
-}
+} // namespace dmRecord
 
 #endif
