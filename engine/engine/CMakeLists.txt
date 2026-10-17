@@ -15,6 +15,7 @@ set(ENGINE_FONT_CONTENT_DIR "${DEFOLD_HOME}/engine/font/content")
 set(ENGINE_DDF_GENERATED_DEPENDENCIES gameobject)
 set(ENGINE_SERVICE_DEPENDENCIES gameobject gamesys gui)
 set(ENGINE_DEPENDENCIES
+  datastore
   gameobject
   gamesys
   gui
@@ -323,6 +324,7 @@ endforeach()
 add_dependencies(engine
   profilerext_sdk_headers
   crashext_sdk_headers
+  datastore_sdk_headers
   liveupdate_sdk_headers)
 defold_target_link_libraries(engine "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_DEPENDENCIES})
 target_link_libraries(engine PUBLIC engine_service)
