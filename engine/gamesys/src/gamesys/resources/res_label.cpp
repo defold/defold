@@ -41,6 +41,15 @@ namespace dmGameSystem
             return result;
         }
 
+        if (resource->m_DDF->m_Text && resource->m_DDF->m_Text[0] != 0)
+        {
+            result = ResFontPrewarmText(resource->m_Font, resource->m_DDF->m_Text, 0, 0);
+            if (result != dmResource::RESULT_OK && result != dmResource::RESULT_NOT_SUPPORTED)
+            {
+                dmLogWarning("Unable to prewarm label text glyphs for '%s': %d", filename, result);
+            }
+        }
+
         return dmResource::RESULT_OK;
     }
 
