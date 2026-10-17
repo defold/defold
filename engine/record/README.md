@@ -6,7 +6,7 @@ work on `automation-bridge-in` at `dc343a46f1`.
 
 ## Libraries and lifetime
 
-- `record`: asynchronous capture and native H.264/MP4 backends.
+- `record`: asynchronous capture and H.264/MP4 backends.
 - `record_null`: the same C++ interface with recording reported as unsupported.
 - `record_service`: the `EngineRecord` built-in extension, HTTP handlers,
   OpenAPI metadata, recording files and downloads. It works with either backend.
@@ -88,7 +88,8 @@ within a process; stale stop IDs and deleted file IDs return HTTP 410.
 | --- | --- | --- |
 | macOS 15+ | ScreenCaptureKit | Application audio |
 | Windows 10 version 1903+ | Windows Graphics Capture and Media Foundation | Application audio on Windows build 20348+ |
-| Linux and headless debug | Null backend; capabilities and errors remain discoverable | Unsupported |
+| Linux debug, OpenGL/OpenGL ES or Vulkan | Framebuffer capture, OpenH264 and minimp4 | Video only |
+| Headless debug | Null backend; capabilities and errors remain discoverable | Unsupported |
 | Release, mobile and web | No recording HTTP service | Unsupported |
 
 OS availability does not guarantee permission or device support. Capture failures
@@ -103,6 +104,38 @@ not capture other applications or the microphone. Audio support is detected
 separately from video; older Windows versions continue to support `audio=false`.
 Both tracks use a common QPC timeline. Silent intervals are preserved, and stop
 drains audio capture before finalizing the file. No external encoder is required.
+
+Linux records the engine backbuffer in the post-render extension callback, before
+`Flip`. Capture uses the graphics API without depending on X11 or Wayland
+desktop capture portals or window-selection prompts. It captures rendered game
+content, including the debug profiler overlay, rather than the desktop or other
+windows. OpenGL, OpenGL ES and Vulkan are supported; the Linux WebGPU adapter is
+not advertised because its surface readback support is optional.
+
+Linux builds OpenH264 2.6.0 from the pinned sources in `external/openh264` and
+compiles the pinned `external/minimp4` header into `record`. Neither dependency is
+linked into release, headless, macOS or Windows engines. `audio` is reported as
+false and explicit `audio=true` requests return `audio_unsupported`.
+Extender uses the same backend for custom Linux debug engines and excludes the
+codec from its release and headless variants.
+
+Frame readback is synchronous on the render thread. A separate encoder worker
+scales top-down BGRA pixels to the fixed output size, converts to BT.601 I420,
+and writes H.264 into MP4. Output dimensions are rounded down to even values,
+with a minimum of 16 pixels per side; oversized encoder requests fail
+asynchronously. The encoder supports at most 36,864 16x16 macroblocks per frame.
+Readback accepts at most 4096x4096 pixels in total, independently of output size.
+Window resizing changes the input size while retaining the chosen output size.
+Scaling uses nearest-neighbor sampling.
+
+The queue holds at most three frames, including the frame being encoded. Frames
+are dropped when it is full, keeping memory bounded and avoiding waits for the
+encoder. MP4 sample durations use monotonic capture times, so dropped frames or
+pauses in rendering preserve elapsed time. The first image covers startup
+latency and the last image extends to stop. Stop/shutdown drains accepted frames
+and writes the MP4 index. Stopping before any frame is captured reports failure.
+CPU encoding and GPU readback can affect game performance, especially at high
+resolutions or frame rates.
 
 This replaces the VP8/IVF framebuffer recorder. The old C++ `New`/`RecordFrame`/
 `Delete` interface and the `start_record`/`stop_record` system messages are removed,
@@ -127,6 +160,21 @@ across real process replacement, reused operation counters, and early shutdown
 through the registered extension event callback. The timeline suite
 covers leading silence, gaps, overlapping packets, clipping at stop and rounding
 over long recordings.
+
+On Linux, the normal test suite also runs `test_record_linux`. It uses controlled
+framebuffer pixels with the real OpenH264 encoder, MP4 muxer/demuxer and H.264
+decoder. Tests verify colors, orientation, resize scaling, video-only tracks,
+duration, odd output sizes, shutdown/restart, unsupported audio, empty recordings,
+readback limits and failed starts. The timeline suite also checks capture
+deadline rounding and drift.
+It does not require a display server. Run the focused targets with:
+
+```sh
+cmake --build engine/build/arm64-linux --target run_test_record_linux run_test_record run_test_record_null run_test_record_service
+```
+
+Set `DEFOLD_RECORD_TEST_OUTPUT` to a writable path when running the Linux test
+binary to retain a sample MP4 for independent player or FFmpeg validation.
 
 On an interactive Windows desktop with an audio output device, run:
 
@@ -155,3 +203,16 @@ service suites, and the native recording suite using 320×240 H.264 video and
 48 kHz stereo AAC. Native decoding verifies synchronization, stream contents and
 client-area cropping at 150% display scaling across all three DPI awareness modes.
 The Windows sources also build with MSVC and the Windows SDK 10.0.20348.0.
+
+Validated in Ubuntu 24.04 containers on arm64 and x86_64: all 31 recording,
+null, timeline and HTTP service tests, with NEON and x86 assembly respectively.
+FFmpeg independently decodes the generated MP4s; ffprobe confirms H.264 I420
+video with no audio track. macOS recording, null, timeline and service regression
+suites also pass. These Linux tests supply framebuffer pixels through a test
+adapter; live OpenGL/OpenGL ES/Vulkan window capture and desktop performance
+still require an interactive Linux smoke test.
+
+A minimal Clang 18 `-O2` executable linking the encoder and minimp4 (including
+its demuxer) is approximately 579 KiB stripped on arm64 and 687 KiB on x86_64.
+This is a dependency footprint check, not a measurement of the full engine's
+size increase. The source dependency adds approximately 6.4 MiB to the checkout.

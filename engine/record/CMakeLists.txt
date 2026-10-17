@@ -14,7 +14,7 @@ set_target_properties(record_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET record_sd
 set(RECORD_INSTALL_TARGETS record_null)
 
 defold_feature_disabled(record RECORD_FEATURE_DISABLED)
-if(NOT RECORD_FEATURE_DISABLED AND TARGET_PLATFORM MATCHES "(macos|win32)$")
+if(NOT RECORD_FEATURE_DISABLED AND TARGET_PLATFORM MATCHES "(macos|linux|win32)$")
   defold_add_library(record STATIC src/record/record.cpp src/record/record_common.cpp)
   target_include_directories(record PUBLIC "${RECORD_ROOT}/src")
   defold_target_link_libraries(record "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
@@ -23,6 +23,10 @@ if(NOT RECORD_FEATURE_DISABLED AND TARGET_PLATFORM MATCHES "(macos|win32)$")
     target_link_libraries(record PUBLIC
       "-framework AVFoundation" "-framework AppKit" "-framework CoreMedia"
       "-framework CoreVideo" "-framework Foundation" "-weak_framework ScreenCaptureKit")
+  elseif(TARGET_PLATFORM MATCHES "linux$")
+    target_sources(record PRIVATE src/record/record_linux.cpp)
+    target_include_directories(record PRIVATE "${DEFOLD_HOME}/external/minimp4")
+    defold_target_link_libraries(record "${TARGET_PLATFORM}" SCOPE PUBLIC openh264)
   else()
     target_sources(record PRIVATE src/record/record_win32.cpp src/record/record_audio_win32.cpp)
     # Windows SDK / WRL declarations require C++17, confined to this backend.

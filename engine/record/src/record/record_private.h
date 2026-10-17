@@ -31,6 +31,10 @@ namespace dmRecord
     bool StartNative(const Window* window, const char* path, uint32_t width, uint32_t height, uint32_t fps, bool audio, Status* status);
     bool StopNative(Status* status);
     void FinalizeNative();
+
+    // Linux framebuffer capture, called on the render thread before Flip().
+    // The null backend does nothing, including in headless Linux engines.
+    void CaptureFrame();
 } // namespace dmRecord
 
 #endif

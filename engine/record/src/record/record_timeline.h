@@ -19,6 +19,14 @@
 
 namespace dmRecord
 {
+    // Framebuffer capture uses microseconds. Round the next boundary up so a
+    // fractional interval (e.g. 60 fps) cannot capture twice at the same tick.
+    static inline uint64_t NextVideoFrameTime(uint64_t elapsed, uint32_t fps)
+    {
+        uint64_t tick = elapsed * fps / 1000000 + 1;
+        return (tick * 1000000 + fps - 1) / fps;
+    }
+
     // Media Foundation and WASAPI timestamps are in 100 ns units. Calculate
     // absolute sample boundaries rather than accumulating rounded durations.
     static inline uint64_t FramesToTime(uint64_t frames, uint32_t rate)

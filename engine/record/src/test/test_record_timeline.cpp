@@ -88,6 +88,25 @@ TEST(RecordTimeline, FrameDurationsDoNotDrift)
     ASSERT_EQ(60ULL * 3600, TimeToFrames(duration, 60));
 }
 
+// Fractional microsecond deadlines must advance and skipped render ticks must not accumulate drift.
+TEST(RecordTimeline, VideoCaptureDeadlines)
+{
+    ASSERT_EQ(16667ULL, NextVideoFrameTime(0, 60));
+    ASSERT_EQ(16667ULL, NextVideoFrameTime(16666, 60));
+    ASSERT_EQ(33334ULL, NextVideoFrameTime(16667, 60));
+    ASSERT_EQ(50000ULL, NextVideoFrameTime(33334, 60));
+    ASSERT_EQ(1016667ULL, NextVideoFrameTime(1000000, 60));
+    ASSERT_EQ(2000000ULL, NextVideoFrameTime(1000000, 1));
+    uint64_t time = 0;
+    for (uint32_t i = 0; i < 60 * 3600; ++i)
+    {
+        uint64_t next = NextVideoFrameTime(time, 60);
+        ASSERT_GT(next, time);
+        time = next;
+    }
+    ASSERT_EQ(3600000000ULL, time);
+}
+
 int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);

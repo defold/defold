@@ -23,6 +23,8 @@
 #include <dmsdk/engine/extension.hpp>
 #if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_WINDOWS)
 #include <dmsdk/graphics/graphics_native.h>
+#elif defined(DM_PLATFORM_LINUX)
+#include <dmsdk/graphics/graphics.h>
 #endif
 #include <stdio.h>
 #include <string.h>
@@ -153,8 +155,20 @@ namespace dmGraphics
     {
         return (HWND)TestNativeWindow();
     }
+#elif defined(DM_PLATFORM_LINUX)
+    HContext GetInstalledContext()
+    {
+        return (HContext)TestNativeWindow();
+    }
 #endif
 } // namespace dmGraphics
+
+#if defined(DM_PLATFORM_LINUX)
+namespace dmRecord
+{
+    void CaptureFrame() {}
+}
+#endif
 
 extern "C" void EngineRecord();
 

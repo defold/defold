@@ -24,7 +24,7 @@ namespace dmRecord
     struct StartParams
     {
         StartParams();
-        void*       m_Window; // NSWindow* on macOS, HWND on Windows. Borrowed until Finalize().
+        void*       m_Window; // NSWindow*, HWND, or Linux graphics context. Borrowed until Finalize().
         const char* m_Path;   // UTF-8 MP4 output path, copied by Start().
         uint32_t    m_Width;  // Both dimensions zero selects the native content size.
         uint32_t    m_Height;

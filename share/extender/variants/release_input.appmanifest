@@ -14,7 +14,7 @@ platforms:
 
     linux:
         context:
-            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery", "record", "record_service"]
+            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery", "record", "record_service", "openh264"]
             libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null", "record_null"]
             excludeSymbols: ['LuaDebugger', 'ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
 

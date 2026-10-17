@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "record.h"
+#include "record_private.h"
 #include <string.h>
 
 namespace dmRecord
@@ -35,7 +35,7 @@ namespace dmRecord
     }
     const char* GetUnsupportedReason()
     {
-        return "native video recording requires a supported macOS or Windows debug runtime with a window";
+        return "video recording requires a supported desktop debug runtime with a window";
     }
 
     void GetStatus(Status* status)
@@ -57,4 +57,5 @@ namespace dmRecord
     }
 
     void Finalize() {}
+    void CaptureFrame() {}
 } // namespace dmRecord
