@@ -110,7 +110,8 @@
 
                      [org.snakeyaml/snakeyaml-engine "1.0"]
 
-                     [net.objecthunter/exp4j "0.4.8"]]
+                     [net.objecthunter/exp4j "0.4.8"]
+                     [io.github.CDAGaming/DiscordIPC "0.10.2"]]
 
   ;; ci/cache_key.py reads this :version. If keys or the map structure change,
   ;; check and update that script as needed.
