@@ -375,12 +375,12 @@
 (def record-setting
   (make-check-box-setting
     (coll/into-> [(exclude-libs-toggles all-platforms ["record"])
-                 (exclude-libs-toggles desktop ["record_service"])
-                 (exclude-libs-toggles linux ["openh264"])
-                 (generic-contains-toggles desktop :excludeSymbols ["EngineRecord"])
-                 (libs-toggles all-platforms ["record_null"])]
-                []
-                cat)))
+                  (exclude-libs-toggles desktop ["record_service"])
+                  (exclude-libs-toggles linux ["openh264"])
+                  (generic-contains-toggles desktop :excludeSymbols ["EngineRecord"])
+                  (libs-toggles all-platforms ["record_null"])]
+      []
+      cat)))
 
 (def profiler-setting
   (let [none-toggles (concat
@@ -944,9 +944,9 @@
             libraries
             (coll/into-> excluded-libraries [] (remove obsolete))]
         (cond-> (assoc context
-                       :excludeLibs
-                       (coll/into-> required-libraries libraries
-                                    (remove (set libraries))))
+                  :excludeLibs
+                  (coll/into-> required-libraries libraries
+                    (remove (set libraries))))
           (and desktop-platform (coll/not-any? #{"EngineRecord"} excluded-symbols))
           (assoc :excludeSymbols (conj (or excluded-symbols []) "EngineRecord")))))))
 
@@ -955,9 +955,9 @@
     manifest
     (let [context-paths
           (coll/into-> (get-in-guarded manifest :platforms map?)
-                       [[nil [:context]]]
-                       (map (fn [[platform _]]
-                              [platform [:platforms platform :context]])))]
+            [[nil [:context]]]
+            (map (fn [[platform _]]
+                   [platform [:platforms platform :context]])))]
       (reduce (fn [manifest [platform path]]
                 ;; Contexts come from arbitrary YAML. Validate their shape here
                 ;; so the context migration only handles valid library lists.

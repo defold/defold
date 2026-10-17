@@ -147,8 +147,8 @@
           manifest (assoc-in {} path context)
           migrated (#'app-manifest/migrate-record-exclusions manifest)]
       (is (= (assoc context
-                   :excludeLibs expected-libraries
-                   :excludeSymbols expected-symbols)
+               :excludeLibs expected-libraries
+               :excludeSymbols expected-symbols)
              (get-in migrated path)))
       (is (= migrated (#'app-manifest/migrate-record-exclusions migrated)))))
 
@@ -220,7 +220,7 @@
                (:excludeSymbols context)))
         (is (= ["record_null"] (:libs context)))
         (is (= (cond-> {:excludeLibs []
-                       :libs []}
+                        :libs []}
                  desktop-platform
                  (assoc :excludeSymbols []))
                (get-in disabled [:platforms platform :context])))))))
@@ -240,7 +240,7 @@
 
             (doseq [platform app-manifest/all-platforms]
               (is (coll/not-any? #{"vpx"}
-                                (get-in manifest [:platforms platform :context :excludeLibs]))))
+                                 (get-in manifest [:platforms platform :context :excludeLibs]))))
 
             (let [content (resource-node/save-data-content save-data)]
               (is (= manifest (yaml/load content keyword)))
@@ -259,7 +259,7 @@
         (let [manifest (g/node-value node :manifest)]
           (doseq [platform app-manifest/desktop]
             (is (coll/not-any? #{"EngineRecord"}
-                              (get-in manifest [:platforms platform :context :excludeSymbols])))))))))
+                               (get-in manifest [:platforms platform :context :excludeSymbols])))))))))
 
 (deftest toggle-test
   (testing "contains toggles"
