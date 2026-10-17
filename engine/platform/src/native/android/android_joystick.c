@@ -23,6 +23,7 @@
 
 enum
 {
+    ANDROID_SDL_BUTTON_RECORD = 15,
     ANDROID_BUTTON_BACK = NATIVE_ANDROID_GAMEPAD_NUMBUTTONS,
     ANDROID_BUTTON_MENU,
     ANDROID_BUTTON_RECORD,
@@ -574,7 +575,11 @@ int dmNativeOSGetJoystickParam( int joy, int param )
         return dmNativeJoy[joy].LayoutLegacy ? NATIVE_ANDROID_GAMEPAD_NUMAXIS : dmNativeJoy[joy].NumAxes;
 
     case NATIVE_BUTTONS:
-        return dmNativeJoy[joy].LayoutLegacy ? NATIVE_ANDROID_GAMEPAD_NUMBUTTONS : dmNativeJoy[joy].NumButtons;
+        if (dmNativeJoy[joy].LayoutLegacy)
+            return NATIVE_ANDROID_GAMEPAD_NUMBUTTONS;
+        // Reserve Record's alias slot without adding it to SDL's GUID capability mask.
+        return dmNativeJoy[joy].NumButtons > ANDROID_SDL_BUTTON_RECORD
+            ? dmNativeJoy[joy].NumButtons : ANDROID_SDL_BUTTON_RECORD + 1;
 
     case NATIVE_HATS:
         return dmNativeJoy[joy].LayoutLegacy ? 1 : 0;
@@ -669,7 +674,7 @@ int dmNativeOSGetJoystickButtons( int joy, unsigned char *buttons, int numbutton
             else if (i == ANDROID_BUTTON_MENU)
                 button = 6;
             else if (i == ANDROID_BUTTON_RECORD)
-                button = 15;
+                button = ANDROID_SDL_BUTTON_RECORD;
             if (button < numbuttons)
                 buttons[button] |= dmNativeJoy[joy].Button[i];
         }

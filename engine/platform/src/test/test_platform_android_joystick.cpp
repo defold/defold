@@ -223,6 +223,27 @@ TEST_F(AndroidJoystickTest, ButtonAliases)
     }
 }
 
+// Verifies the SDL count includes Record's alias when the capability mask only exposes slots 0 through 14.
+TEST_F(AndroidJoystickTest, RecordAliasWithCapabilityCount)
+{
+    dmNativeJoy[0].NumButtons = 15; // The SDL capability mask 0x7fff does not include MEDIA_RECORD.
+    dmNativeAndroidCreateJoystickDeviceGuid(0x045e, 0x0b12, "Xbox Controller", 0x7fff, 0x3f, dmNativeJoy[0].DeviceGuid);
+    dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
+    ASSERT_STREQ("ff7f3f00", dmNativeJoy[0].DeviceGuid + 24);
+    ASSERT_EQ(16, dmNativeOSGetJoystickParam(0, NATIVE_BUTTONS));
+    unsigned char buttons[17];
+    memset(buttons, 0x7b, sizeof(buttons));
+    SendKey(AKEYCODE_MEDIA_RECORD, AKEY_EVENT_ACTION_DOWN);
+    ASSERT_EQ(16, dmNativeOSGetJoystickButtons(0, buttons, sizeof(buttons)));
+    for (int i = 0; i < 15; ++i)
+        ASSERT_EQ(0, buttons[i]);
+    ASSERT_EQ(1, buttons[15]);
+    ASSERT_EQ(0x7b, buttons[16]);
+    SendKey(AKEYCODE_MEDIA_RECORD, AKEY_EVENT_ACTION_UP);
+    ASSERT_EQ(16, dmNativeOSGetJoystickButtons(0, buttons, sizeof(buttons)));
+    ASSERT_EQ(0, buttons[15]);
+}
+
 // Verifies releasing one alias preserves another held key that maps to the same SDL button.
 TEST_F(AndroidJoystickTest, HeldButtonAliases)
 {
