@@ -17,8 +17,22 @@
 
 #include <gameobject/component.h>
 
+namespace dmGameSystemDDF
+{
+    struct PlaySound;
+}
+
 namespace dmGameSystem
 {
+    struct SoundWorld;
+    struct SoundComponent;
+
+    // UINTPTR_MAX suppresses completion events for direct calls without a callback.
+    bool CompSoundPlay(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, const dmGameSystemDDF::PlaySound& play_sound, const dmMessage::URL& receiver, const dmMessage::URL& listener, uintptr_t callback);
+    void CompSoundStop(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, uint32_t play_id);
+    void CompSoundPause(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, bool pause);
+    dmGameObject::PropertyResult CompSoundSetGain(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, float gain, uint32_t play_id, dmhash_t component_id);
+    dmGameObject::PropertyResult CompSoundSetPan(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, float pan, uint32_t play_id, dmhash_t component_id);
 }
 
 #endif

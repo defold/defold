@@ -22,6 +22,7 @@
 #include <dlib/hash.h>
 #include <dlib/object_pool.h>
 #include <dlib/profile.h>
+#include <dmsdk/gameobject/script.h>
 #include <sound/sound.h>
 
 #include <gamesys/gamesys_ddf.h>
@@ -355,6 +356,129 @@ namespace dmGameSystem
         return component->m_SoundData ? component->m_SoundData : component->m_Resource->m_SoundDataRes;
     }
 
+    bool CompSoundPlay(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, const dmGameSystemDDF::PlaySound& play_sound, const dmMessage::URL& receiver, const dmMessage::URL& listener, uintptr_t callback)
+    {
+        if (world->m_EntryIndices.Remaining() == 0)
+        {
+            dmLogError("A sound could not be played since all sound instances are used (%d). Increase the project setting 'sound.max_sound_instances'", world->m_EntryIndices.Capacity());
+            return false;
+        }
+
+        Sound* sound = component->m_Resource;
+        SoundDataResource* sound_data_resource = GetSoundDataResource(component);
+        dmSound::HSoundData sound_data = ResSoundDataGetSoundData(sound_data_resource);
+
+        uint32_t index = world->m_EntryIndices.Pop();
+        PlayEntry& entry = world->m_Entries[index];
+        entry.m_Sound = sound;
+        entry.m_StopRequested = 0;
+        entry.m_PauseRequested = 0;
+        entry.m_Paused = 0;
+        entry.m_Instance = instance;
+        entry.m_Receiver = receiver;
+        entry.m_Delay = play_sound.m_Delay;
+        entry.m_PlayId = play_sound.m_PlayId;
+        entry.m_ShouldDispatchEvents = entry.m_PlayId != dmSound::INVALID_PLAY_ID;
+        dmMessage::ResetURL(&entry.m_Listener);
+        entry.m_LuaCallback = 0;
+        dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_SoundInstance);
+        if (result == dmSound::RESULT_OK)
+        {
+            result = dmSound::SetInstanceGroup(entry.m_SoundInstance, entry.m_Sound->m_GroupHash);
+            if (result != dmSound::RESULT_OK)
+            {
+                dmLogError("Failed to set sound group (%d)", result);
+            }
+
+            float gain = play_sound.m_Gain * component->m_Gain;
+            float pan = play_sound.m_Pan + component->m_Pan;
+            float speed = play_sound.m_Speed * component->m_Speed;
+            dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(gain, 0, 0, 0));
+            dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_PAN, dmVMath::Vector4(pan, 0, 0, 0));
+            dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(speed, 0, 0, 0));
+            dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping, (sound->m_Looping && !sound->m_Loopcount) ? -1 : sound->m_Loopcount ); // loopcounter semantics differ a bit from loopcount. If -1, it means loopforever, otherwise it contains the # of loops remaining.
+
+            // Apply start offset before playback (initial-only; not re-applied on loops)
+            // If both are provided via message, start_frame wins
+            if (play_sound.m_StartFrame != 0)
+            {
+                dmSound::Result rskip = dmSound::SetStartFrame(entry.m_SoundInstance, play_sound.m_StartFrame);
+                if (rskip != dmSound::RESULT_OK)
+                {
+                    dmLogWarning("Failed to set start_frame offset (%d)", rskip);
+                }
+            }
+            else if (play_sound.m_StartTime > 0.0f)
+            {
+                dmSound::Result rskip = dmSound::SetStartTime(entry.m_SoundInstance, play_sound.m_StartTime);
+                if (rskip != dmSound::RESULT_OK)
+                {
+                    dmLogWarning("Failed to set start_time offset (%d)", rskip);
+                }
+            }
+
+            entry.m_Listener = listener;
+            if (callback == UINTPTR_MAX)
+            {
+                // Direct calls without a callback do not send completion events.
+                callback = 0;
+                entry.m_ShouldDispatchEvents = 0;
+            }
+            entry.m_LuaCallback = callback;
+        }
+        else
+        {
+            // Free the sound index slot if we can't create a sound-instance.
+            world->m_EntryIndices.Push(index);
+            dmLogError("A sound could not be played, error: %d.", result);
+            return false;
+        }
+        return true;
+    }
+
+    void CompSoundStop(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, uint32_t play_id)
+    {
+        for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
+        {
+            PlayEntry& entry = world->m_Entries[i];
+            if (entry.m_SoundInstance != 0 && entry.m_Sound == component->m_Resource && entry.m_Instance == instance)
+            {
+                if (play_id == dmSound::INVALID_PLAY_ID)
+                {
+                    entry.m_StopRequested = 1;
+                }
+                else if (entry.m_PlayId == play_id)
+                {
+                    entry.m_StopRequested = 1;
+                    break;
+                }
+            }
+        }
+    }
+
+    void CompSoundPause(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, bool pause)
+    {
+        for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
+        {
+            PlayEntry& entry = world->m_Entries[i];
+            if (entry.m_SoundInstance != 0 && entry.m_Sound == component->m_Resource && entry.m_Instance == instance)
+            {
+                entry.m_PauseRequested = 1;
+                entry.m_Paused = pause;
+            }
+        }
+    }
+
+    dmGameObject::PropertyResult CompSoundSetGain(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, float gain, uint32_t play_id, dmhash_t component_id)
+    {
+        return SoundSetParameter(world, instance, component, dmSound::PARAMETER_GAIN, gain, play_id, component_id);
+    }
+
+    dmGameObject::PropertyResult CompSoundSetPan(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, float pan, uint32_t play_id, dmhash_t component_id)
+    {
+        return SoundSetParameter(world, instance, component, dmSound::PARAMETER_PAN, pan, play_id, component_id);
+    }
+
     static dmGameObject::UpdateResult CompSoundOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         SoundWorld* world = (SoundWorld*)params.m_World;
@@ -363,142 +487,38 @@ namespace dmGameSystem
 
         if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor)
         {
-            if (world->m_EntryIndices.Remaining() > 0)
+            dmGameSystemDDF::PlaySound* play_sound = (dmGameSystemDDF::PlaySound*)params.m_Message->m_Data;
+            uintptr_t callback = params.m_Message->m_UserData2;
+            if (!CompSoundPlay(world, params.m_Instance, component, *play_sound, params.m_Message->m_Receiver, params.m_Message->m_Sender, callback) && callback && callback != UINTPTR_MAX)
             {
-                dmGameSystemDDF::PlaySound* play_sound = (dmGameSystemDDF::PlaySound*)params.m_Message->m_Data;
-                Sound* sound = component->m_Resource;
-                SoundDataResource* sound_data_resource = GetSoundDataResource(component);
-                dmSound::HSoundData sound_data = ResSoundDataGetSoundData(sound_data_resource);
-
-                uint32_t index = world->m_EntryIndices.Pop();
-                PlayEntry& entry = world->m_Entries[index];
-                entry.m_Sound = sound;
-                entry.m_StopRequested = 0;
-                entry.m_PauseRequested = 0;
-                entry.m_Paused = 0;
-                entry.m_Instance = params.m_Instance;
-                entry.m_Receiver = params.m_Message->m_Receiver;
-                entry.m_Delay = play_sound->m_Delay;
-                entry.m_PlayId = play_sound->m_PlayId;
-                entry.m_ShouldDispatchEvents = entry.m_PlayId != dmSound::INVALID_PLAY_ID;
-                dmMessage::ResetURL(&entry.m_Listener);
-                entry.m_LuaCallback = 0;
-                dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_SoundInstance);
-                if (result == dmSound::RESULT_OK)
-                {
-                    result = dmSound::SetInstanceGroup(entry.m_SoundInstance, entry.m_Sound->m_GroupHash);
-                    if (result != dmSound::RESULT_OK)
-                    {
-                        dmLogError("Failed to set sound group (%d)", result);
-                    }
-
-                    float gain = play_sound->m_Gain * component->m_Gain;
-                    float pan = play_sound->m_Pan + component->m_Pan;
-                    float speed = play_sound->m_Speed * component->m_Speed;
-                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(gain, 0, 0, 0));
-                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_PAN, dmVMath::Vector4(pan, 0, 0, 0));
-                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(speed, 0, 0, 0));
-                    dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping, (sound->m_Looping && !sound->m_Loopcount) ? -1 : sound->m_Loopcount ); // loopcounter semantics differ a bit from loopcount. If -1, it means loopforever, otherwise it contains the # of loops remaining.
-
-                    // Apply start offset before playback (initial-only; not re-applied on loops)
-                    // If both are provided via message, start_frame wins
-                    if (play_sound->m_StartFrame != 0)
-                    {
-                        dmSound::Result rskip = dmSound::SetStartFrame(entry.m_SoundInstance, play_sound->m_StartFrame);
-                        if (rskip != dmSound::RESULT_OK)
-                        {
-                            dmLogWarning("Failed to set start_frame offset (%d)", rskip);
-                        }
-                    }
-                    else if (play_sound->m_StartTime > 0.0f)
-                    {
-                        dmSound::Result rskip = dmSound::SetStartTime(entry.m_SoundInstance, play_sound->m_StartTime);
-                        if (rskip != dmSound::RESULT_OK)
-                        {
-                            dmLogWarning("Failed to set start_time offset (%d)", rskip);
-                        }
-                    }
-
-                    entry.m_Listener = params.m_Message->m_Sender;
-                    uintptr_t callback = params.m_Message->m_UserData2;
-                    if (callback == UINTPTR_MAX)
-                    {
-                        // UINTPTR_MAX used as default for `sound.play()` in `script_sound.cpp`
-                        // to make distinguish between function call and `play_sound` message
-                        // if it's a function call without callback (UINTPTR_MAX) then event
-                        // shouldn't be dispatched
-                        callback = callback == UINTPTR_MAX ? 0x0 : callback;
-                        entry.m_ShouldDispatchEvents = 0;
-                    }
-                    entry.m_LuaCallback = callback;
-                }
-                else
-                {
-                    // Free the sound index slot if we can't create a sound-instance.
-                    world->m_EntryIndices.Push(index);
-                    LogMessageError(params.m_Message, "A sound could not be played, error: %d.", result);
-                }
-            }
-            else
-            {
-                LogMessageError(params.m_Message, "A sound could not be played since all sounds instances are used (%d). Increase the project setting 'sound.max_sound_instances'", world->m_EntryIndices.Capacity());
+                dmGameObject::PostScriptUnrefMessage(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, callback);
             }
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor)
         {
             dmGameSystemDDF::StopSound* stop_sound = (dmGameSystemDDF::StopSound*)params.m_Message->m_Data;
-            uint32_t play_id = stop_sound->m_PlayId;
-            for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
-            {
-                PlayEntry& entry = world->m_Entries[i];
-                if (entry.m_SoundInstance != 0 && entry.m_Sound == component->m_Resource && entry.m_Instance == params.m_Instance)
-                {
-                    if (play_id == dmSound::INVALID_PLAY_ID)
-                    {
-                        entry.m_StopRequested = 1;
-                    }
-                    else if (entry.m_PlayId == play_id)
-                    {
-                        entry.m_StopRequested = 1;
-                        break; 
-                    }
-                }
-            }
+            CompSoundStop(world, params.m_Instance, component, stop_sound->m_PlayId);
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::PauseSound::m_DDFDescriptor)
         {
-            SoundWorld* world = (SoundWorld*)params.m_World;
             dmGameSystemDDF::PauseSound* pause_sound = (dmGameSystemDDF::PauseSound*)params.m_Message->m_Data;
-            uint32_t pause = (uint32_t)pause_sound->m_Pause;
-            for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
-            {
-                PlayEntry& entry = world->m_Entries[i];
-                if (entry.m_SoundInstance != 0 && entry.m_Sound == component->m_Resource && entry.m_Instance == params.m_Instance)
-                {
-                    entry.m_PauseRequested = 1;
-                    entry.m_Paused = pause;
-                }
-            }
+            CompSoundPause(world, params.m_Instance, component, pause_sound->m_Pause);
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::SetGain::m_DDFDescriptor)
         {
             dmGameSystemDDF::SetGain* set_gain = (dmGameSystemDDF::SetGain*)params.m_Message->m_Data;
-
-            if (dmGameObject::PROPERTY_RESULT_OK != SoundSetParameter(world, params.m_Instance, component, dmSound::PARAMETER_GAIN, set_gain->m_Gain, set_gain->m_PlayId, params.m_Message->m_Receiver.m_Fragment))
+            if (dmGameObject::PROPERTY_RESULT_OK != CompSoundSetGain(world, params.m_Instance, component, set_gain->m_Gain, set_gain->m_PlayId, params.m_Message->m_Receiver.m_Fragment))
             {
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
-            return dmGameObject::UPDATE_RESULT_OK;
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::SetPan::m_DDFDescriptor)
         {
             dmGameSystemDDF::SetPan* set_pan = (dmGameSystemDDF::SetPan*)params.m_Message->m_Data;
-
-            if (dmGameObject::PROPERTY_RESULT_OK != SoundSetParameter(world, params.m_Instance, component, dmSound::PARAMETER_PAN, set_pan->m_Pan, set_pan->m_PlayId, params.m_Message->m_Receiver.m_Fragment))
+            if (dmGameObject::PROPERTY_RESULT_OK != CompSoundSetPan(world, params.m_Instance, component, set_pan->m_Pan, set_pan->m_PlayId, params.m_Message->m_Receiver.m_Fragment))
             {
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
-            return dmGameObject::UPDATE_RESULT_OK;
         }
 
         return dmGameObject::UPDATE_RESULT_OK;

@@ -23,7 +23,6 @@
 
 #include "script_label.h"
 #include "../components/comp_label.h"
-#include <gamesys/gamesys_ddf.h>
 #include <gamesys/label_ddf.h>
 
 namespace dmGameSystem
@@ -277,15 +276,13 @@ static const char* LABEL_EXT = "labelc";
 
 /*# set the text for a label
  *
- * Sets the text of a label component
+ * Sets the text of a label component immediately. Components in other loaded
+ * collections can be addressed using their full URLs.
  *
  * [icon:attention] This function is deprecated. Use `go.set("#label", "text", value)` instead.
  *
- * [icon:attention] This method uses the message passing that means the value will be set after `dispatch messages` step.
- * More information is available in the <a href="/manuals/application-lifecycle">Application Lifecycle manual</a>.
- *
  * @name label.set_text
- * @param url [type:string|hash|url] the label that should have a constant set
+ * @param url [type:string|hash|url] the label that should have its text set
  * @param text [type:string|number] the text
  * @examples
  *
@@ -301,35 +298,10 @@ static int SetText(lua_State* L)
 
     dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, "label", "set_text", "go", "set");
 
-    (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
-    size_t text_len = 0;
-    const char* text = luaL_checklstring(L, 2, &text_len);
-    if (!text)
-    {
-        return DM_LUA_ERROR("Expected string as second argument");
-    }
-
-    uint32_t data_size = sizeof(dmGameSystemDDF::SetText) + text_len + 1;
-    if (data_size > dmMessage::DM_MESSAGE_MAX_DATA_SIZE)
-    {
-        return DM_LUA_ERROR("The label string is too long: %u (max is message size %u)", data_size, dmMessage::DM_MESSAGE_MAX_DATA_SIZE);
-    }
-    uint8_t data[dmMessage::DM_MESSAGE_MAX_DATA_SIZE];
-
-    dmGameSystemDDF::SetText* message = (dmGameSystemDDF::SetText*)data;
-    message->m_Text = (const char*)sizeof(dmGameSystemDDF::SetText);
-    memcpy((void*)(data + sizeof(dmGameSystemDDF::SetText)), text, text_len + 1);
-
-    dmMessage::URL receiver;
-    dmMessage::URL sender;
-    dmScript::GetURL(L, &sender);
-    dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-    if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, data, data_size, 0) )
-    {
-        return DM_LUA_ERROR("Failed to send label string as message!");
-    }
+    LabelComponent* component;
+    dmScript::GetComponentFromLua(L, 1, LABEL_EXT, 0, (dmGameObject::HComponent*)&component, 0);
+    const char* text = luaL_checkstring(L, 2);
+    CompLabelSetText(component, text);
     return 0;
 }
 
