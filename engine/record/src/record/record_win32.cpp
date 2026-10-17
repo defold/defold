@@ -125,6 +125,7 @@ namespace dmRecord
     static decltype(&::MFCreateMemoryBuffer)      pMFCreateMemoryBuffer;
     static decltype(&::MFCreateSample)            pMFCreateSample;
     static decltype(&::MFCreateSinkWriterFromURL) pMFCreateSinkWriterFromURL;
+    static decltype(&::SetThreadDpiAwarenessContext) pSetThreadDpiAwarenessContext;
     static BOOL CALLBACK                          LoadRecorderApis(PINIT_ONCE, PVOID, PVOID*)
     {
         wchar_t system_directory[MAX_PATH];
@@ -171,6 +172,9 @@ namespace dmRecord
         HMODULE module3 = LoadLibraryW(path3);
         pMFCreateSinkWriterFromURL = module3 ? (decltype(pMFCreateSinkWriterFromURL))GetProcAddress(module3, "MFCreateSinkWriterFromURL") : 0;
         available = available && pMFCreateSinkWriterFromURL;
+        HMODULE user32 = GetModuleHandleW(L"user32.dll");
+        pSetThreadDpiAwarenessContext = user32 ? (decltype(pSetThreadDpiAwarenessContext))GetProcAddress(user32, "SetThreadDpiAwarenessContext") : 0;
+        available = available && pSetThreadDpiAwarenessContext;
         g_RecorderApisAvailable = available;
         return TRUE;
     }
@@ -516,13 +520,20 @@ namespace dmRecord
 
         bool ResolveClientCrop()
         {
+            // WGC textures and DWM frame bounds are physical pixels. Query the
+            // client rectangle in that same space even when the caller is DPI
+            // unaware or system-aware on a monitor with a different scale.
+            DPI_AWARENESS_CONTEXT previous = pSetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+            if (!previous)
+                return false;
             RECT  window_rect;
             RECT  client_rect;
             POINT client_origin = { 0, 0 };
-            if (FAILED(DwmGetWindowAttribute(m_Window, DWMWA_EXTENDED_FRAME_BOUNDS, &window_rect, sizeof(window_rect))) &&
-                !GetWindowRect(m_Window, &window_rect))
-                return false;
-            if (!GetClientRect(m_Window, &client_rect) || !ClientToScreen(m_Window, &client_origin))
+            bool have_rects = (SUCCEEDED(DwmGetWindowAttribute(m_Window, DWMWA_EXTENDED_FRAME_BOUNDS, &window_rect, sizeof(window_rect))) ||
+                               GetWindowRect(m_Window, &window_rect)) &&
+                              GetClientRect(m_Window, &client_rect) && ClientToScreen(m_Window, &client_origin);
+            pSetThreadDpiAwarenessContext(previous);
+            if (!have_rects)
                 return false;
 
             ABI::Windows::Graphics::SizeInt32 capture_size;

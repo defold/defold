@@ -93,8 +93,9 @@ within a process; stale stop IDs and deleted file IDs return HTTP 410.
 
 OS availability does not guarantee permission or device support. Capture failures
 are reported asynchronously in the status receipt. ScreenCaptureKit is weakly
-linked; Windows capture APIs are resolved at runtime. Existing native capture and
-window-cropping behavior is preserved from the automation implementation.
+linked; Windows capture APIs are resolved at runtime. Recordings contain the
+window's client area, excluding its title bar and borders. Windows crop geometry
+is measured in physical pixels regardless of the calling thread's DPI awareness.
 
 Windows application audio uses WASAPI process loopback for the engine process and
 its children, with 48 kHz stereo PCM encoded to 128 kbit/s AAC in the MP4. It does
@@ -136,7 +137,9 @@ cmake --build engine/build/x86_64-win32 --target run_test_record_win32_native
 This opt-in suite opens its own window and plays test tones. It decodes the actual
 MP4 tracks to verify H.264/AAC, tone/flash synchronization, silent audio, recording
 without a render stream, repeated recording, shutdown finalization, failed-start
-cleanup and `audio=false`. The launcher plays a competing tone in another process
+cleanup and `audio=false`. Colored client corners verify cropping for DPI-unaware,
+system-aware and per-monitor-aware windows; run above 100% display scaling to
+exercise DPI virtualization. The launcher plays a competing tone in another process
 so the silence cases also check application isolation. Completion uses playback
 and capture events; the native tests are excluded from the default CI test suite.
 
@@ -149,5 +152,6 @@ backend and all three variants omit automation and VP8.
 
 Validated on x86_64 Windows 11 build 26200: recording, null, timeline and HTTP
 service suites, and the native recording suite using 320×240 H.264 video and
-48 kHz stereo AAC. Native decoding verifies synchronization and stream contents.
+48 kHz stereo AAC. Native decoding verifies synchronization, stream contents and
+client-area cropping at 150% display scaling across all three DPI awareness modes.
 The Windows sources also build with MSVC and the Windows SDK 10.0.20348.0.

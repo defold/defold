@@ -57,9 +57,21 @@ static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPA
         RECT rect;
         GetClientRect(window, &rect);
         FillRect(dc, &rect, (HBRUSH)GetStockObject(g_White ? WHITE_BRUSH : BLACK_BRUSH));
+        const COLORREF colors[] = {RGB(224, 32, 32), RGB(32, 224, 32), RGB(32, 32, 224), RGB(224, 224, 32)};
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            LONG x = (i & 1) ? rect.right - 24 : 0;
+            LONG y = (i & 2) ? rect.bottom - 24 : 0;
+            RECT corner = {x, y, x + 24, y + 24};
+            HBRUSH brush = CreateSolidBrush(colors[i]);
+            FillRect(dc, &corner, brush);
+            DeleteObject(brush);
+        }
         // Keep WGC producing frames even during silence or a static test image.
-        rect.right = 8;
-        rect.bottom = 8;
+        rect.left = rect.right / 2;
+        rect.right = rect.left + 8;
+        rect.top = 8;
+        rect.bottom = 16;
         HBRUSH marker = CreateSolidBrush(RGB(++g_Paints % 256, 40, 80));
         FillRect(dc, &rect, marker);
         DeleteObject(marker);
@@ -100,12 +112,15 @@ struct Recording
     bool m_Audio;
     bool m_Finalize;
     bool m_StartResult, m_StopResult;
+    DPI_AWARENESS_CONTEXT m_DpiContext;
+    bool m_DpiContextPreserved;
     char m_Path[MAX_PATH];
 };
 
 static DWORD WINAPI RecordWorker(void* context)
 {
     Recording* recording = (Recording*)context;
+    DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(recording->m_DpiContext);
     recording->m_StartResult = dmRecord::StartNative(&recording->m_Window, recording->m_Path,
         320, 240, 30, recording->m_Audio, &recording->m_Status);
     SetEvent(recording->m_Started);
@@ -122,6 +137,8 @@ static DWORD WINAPI RecordWorker(void* context)
             recording->m_StopResult = dmRecord::StopNative(&recording->m_Status);
     }
     dmRecord::FinalizeNative();
+    recording->m_DpiContextPreserved = AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), recording->m_DpiContext);
+    SetThreadDpiAwarenessContext(previous);
     return 0;
 }
 
@@ -139,6 +156,21 @@ protected:
     HANDLE m_Played;
     Recording m_Recording;
 
+    void CreateTestWindow(DPI_AWARENESS_CONTEXT context)
+    {
+        DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(context);
+        ASSERT_NE((DPI_AWARENESS_CONTEXT)0, previous);
+        RECT rect = {0, 0, 320, 240};
+        AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
+        m_Window = CreateWindowW(L"DefoldRecordingTest", L"Defold recording test", WS_OVERLAPPEDWINDOW,
+            40, 40, rect.right - rect.left, rect.bottom - rect.top, 0, 0, GetModuleHandleW(0), 0);
+        SetThreadDpiAwarenessContext(previous);
+        ASSERT_NE((HWND)0, m_Window);
+        ShowWindow(m_Window, SW_SHOWNOACTIVATE);
+        UpdateWindow(m_Window);
+        SetTimer(m_Window, 1, 16, 0);
+    }
+
     void SetUp()
     {
         memset(&m_Recording, 0, sizeof(m_Recording));
@@ -147,14 +179,7 @@ protected:
         g_White = false;
         g_PaintTarget = 0;
         g_Painted = CreateEventW(0, TRUE, FALSE, 0);
-        RECT rect = {0, 0, 320, 240};
-        AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
-        m_Window = CreateWindowW(L"DefoldRecordingTest", L"Defold recording test", WS_OVERLAPPEDWINDOW,
-            40, 40, rect.right - rect.left, rect.bottom - rect.top, 0, 0, GetModuleHandleW(0), 0);
-        ASSERT_NE((HWND)0, m_Window);
-        ShowWindow(m_Window, SW_SHOWNOACTIVATE);
-        UpdateWindow(m_Window);
-        SetTimer(m_Window, 1, 16, 0);
+        CreateTestWindow(DPI_AWARENESS_CONTEXT_UNAWARE);
         ASSERT_TRUE(dmRecord::IsSupported());
         ASSERT_TRUE(dmRecord::IsAudioSupported());
         WAVEFORMATEX format = {};
@@ -181,11 +206,13 @@ protected:
         CloseHandle(g_Painted);
     }
 
-    bool Begin(bool audio, const char* suffix, bool finalize = false)
+    bool Begin(bool audio, const char* suffix, bool finalize = false,
+               DPI_AWARENESS_CONTEXT dpi_context = DPI_AWARENESS_CONTEXT_UNAWARE)
     {
         memset(&m_Recording, 0, sizeof(m_Recording));
         m_Recording.m_Audio = audio;
         m_Recording.m_Finalize = finalize;
+        m_Recording.m_DpiContext = dpi_context;
         dmRecord::GetWindow(m_Window, &m_Recording.m_Window);
         snprintf(m_Recording.m_Path, sizeof(m_Recording.m_Path), "record-native-%lu-%s.mp4", GetCurrentProcessId(), suffix);
         m_Recording.m_Started = CreateEventW(0, TRUE, FALSE, 0);
@@ -208,6 +235,7 @@ protected:
             CloseHandle(m_Recording.m_Stop);
             CloseHandle(m_Recording.m_Started);
             m_Recording.m_Thread = 0;
+            ASSERT_TRUE(m_Recording.m_DpiContextPreserved);
             if (m_Recording.m_StartResult && !m_Recording.m_StopResult)
                 printf("Stop failed: %s\n", m_Recording.m_Status.m_Failure);
         }
@@ -357,7 +385,92 @@ protected:
             ASSERT_LT(fabs((double)(audio_onset - white_onset)), 1500000.0);
         }
     }
+
+    void InspectClientArea()
+    {
+        wchar_t path[MAX_PATH];
+        MultiByteToWideChar(CP_UTF8, 0, m_Recording.m_Path, -1, path, MAX_PATH);
+        ComPtr<IMFAttributes> attributes;
+        ASSERT_EQ(S_OK, MFCreateAttributes(&attributes, 1));
+        attributes->SetUINT32(MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, TRUE);
+        ComPtr<IMFSourceReader> reader;
+        ASSERT_EQ(S_OK, MFCreateSourceReaderFromURL(path, attributes.Get(), &reader));
+        reader->SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS, FALSE);
+        reader->SetStreamSelection(MF_SOURCE_READER_FIRST_VIDEO_STREAM, TRUE);
+        ComPtr<IMFMediaType> type;
+        ASSERT_EQ(S_OK, MFCreateMediaType(&type));
+        type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+        type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32);
+        ASSERT_EQ(S_OK, reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, type.Get()));
+        type.Reset();
+        ASSERT_EQ(S_OK, reader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, &type));
+        UINT32 width, height;
+        ASSERT_EQ(S_OK, MFGetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, &width, &height));
+        ASSERT_EQ(320u, width);
+        ASSERT_EQ(240u, height);
+        LONG stride = (LONG)MFGetAttributeUINT32(type.Get(), MF_MT_DEFAULT_STRIDE, width * 4);
+        uint32_t frames = 0;
+        for (;;)
+        {
+            DWORD flags;
+            ComPtr<IMFSample> sample;
+            ASSERT_EQ(S_OK, reader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, 0, &flags, 0, &sample));
+            if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
+                break;
+            if (!sample)
+                continue;
+            ComPtr<IMFMediaBuffer> buffer;
+            ASSERT_EQ(S_OK, sample->ConvertToContiguousBuffer(&buffer));
+            BYTE* data;
+            DWORD bytes;
+            ASSERT_EQ(S_OK, buffer->Lock(&data, 0, &bytes));
+            bool valid = bytes >= abs(stride) * height;
+            const BYTE expected[4][3] = {{32, 32, 224}, {32, 224, 32}, {224, 32, 32}, {32, 224, 224}};
+            // Sample just inside each client corner, allowing H.264 color loss.
+            // All four must survive: checking only the center misses title bars,
+            // shifted crops, truncated content and an upside-down image.
+            for (uint32_t i = 0; valid && i < 4; ++i)
+            {
+                uint32_t x = (i & 1) ? width - 9 : 8;
+                uint32_t y = (i & 2) ? height - 9 : 8;
+                if (stride < 0)
+                    y = height - 1 - y;
+                const BYTE* pixel = data + y * abs(stride) + x * 4;
+                for (uint32_t c = 0; c < 3; ++c)
+                    valid = valid && abs((int)pixel[c] - expected[i][c]) < 25;
+                if (!valid)
+                    printf("%s: incorrect client corner %u: BGR=(%u,%u,%u)\n",
+                        m_Recording.m_Path, i, pixel[0], pixel[1], pixel[2]);
+            }
+            buffer->Unlock();
+            ASSERT_TRUE(valid);
+            ++frames;
+        }
+        ASSERT_GT(frames, 5u);
+        printf("%s: all four client corners preserved in %u frames\n", m_Recording.m_Path, frames);
+    }
 };
+
+// Exclude window decorations and preserve every client corner in all DPI awareness modes.
+// Run on a display above 100% scaling to catch logical/physical coordinate mismatches.
+TEST_F(RecordWindowsTest, ClientAreaCropping)
+{
+    const DPI_AWARENESS_CONTEXT contexts[] = {DPI_AWARENESS_CONTEXT_UNAWARE,
+        DPI_AWARENESS_CONTEXT_SYSTEM_AWARE, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE};
+    const char* suffixes[] = {"crop-unaware", "crop-system", "crop-per-monitor"};
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        DestroyWindow(m_Window);
+        CreateTestWindow(contexts[i]);
+        ASSERT_TRUE(Begin(false, suffixes[i], false, contexts[i]));
+        ResetEvent(g_Painted);
+        g_PaintTarget = g_Paints + 40;
+        ASSERT_TRUE(PumpUntil(g_Painted));
+        Finish();
+        ASSERT_TRUE(m_Recording.m_StopResult);
+        InspectClientArea();
+    }
+}
 
 // Decode both tracks and compare a visible flash with a tone, also exercising repeated start/stop.
 TEST_F(RecordWindowsTest, AudioVideoSynchronization)
@@ -373,6 +486,7 @@ TEST_F(RecordWindowsTest, AudioVideoSynchronization)
         ASSERT_TRUE(m_Recording.m_StopResult);
         ASSERT_TRUE(m_Recording.m_Status.m_Finalized);
         Inspect(true, true);
+        InspectClientArea();
     }
 }
 
