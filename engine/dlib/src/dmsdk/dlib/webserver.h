@@ -158,7 +158,7 @@ namespace dmWebServer
      */
     Result SetStatusCode(Request* request, int status_code);
 
-    /*# Get http header value for key
+    /*# Get http header value for key, ignoring ASCII case in the header name
      * @name GetHeader
      * @param request [type:Request*] Request
      * @param name [type:const char*] Header key

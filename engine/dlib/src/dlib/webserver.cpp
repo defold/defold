@@ -62,6 +62,19 @@ namespace dmWebServer
         server->m_StringBytesAllocated = 0;
     }
 
+    static uint32_t HashHeaderName(const char* name)
+    {
+        HashState32 state;
+        dmHashInit32(&state, false);
+        for (; *name; ++name)
+        {
+            // HTTP field names are ASCII and case-insensitive, regardless of locale.
+            char c = *name >= 'A' && *name <= 'Z' ? *name + ('a' - 'A') : *name;
+            dmHashUpdateBuffer32(&state, &c, sizeof(c));
+        }
+        return dmHashFinal32(&state);
+    }
+
     static void AddHeader(Server* server, const char* name, const char* value)
     {
         if (server->m_Headers.Full())
@@ -75,7 +88,7 @@ namespace dmWebServer
         {
             char* p = server->m_StringBuffer + server->m_StringBytesAllocated;
             memcpy(p, value, value_buf_length);
-            uint32_t name_hash = dmHashBufferNoReverse32(name, strlen(name));
+            uint32_t name_hash = HashHeaderName(name);
             server->m_Headers.Put(name_hash, p);
             server->m_StringBytesAllocated += value_buf_length;
         }
@@ -338,7 +351,7 @@ namespace dmWebServer
 
     const char* GetHeader(Request* request, const char* name)
     {
-        uint32_t name_hash = dmHashBufferNoReverse32(name, strlen(name));
+        uint32_t name_hash = HashHeaderName(name);
         InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
         const char** value = internal_request->m_Server->m_Headers.Get(name_hash);
         if (value)

@@ -140,6 +140,31 @@ class RecordingServiceTest(unittest.TestCase):
         self.request("GET", url, expected=410)
         self.assertEqual([], list(pathlib.Path(self.directory.name).iterdir()))
 
+    # Header casing must not reject valid commands or bypass stale-instance checks.
+    def test_case_insensitive_headers(self):
+        for instance_name, type_name, range_name in [
+            ("x-recording-instance", "content-type", "range"),
+            ("x-ReCoRdInG-InStAnCe", "cOnTeNt-TyPe", "rAnGe"),
+        ]:
+            with self.subTest(instance_name=instance_name):
+                headers = {instance_name: self.instance_id, type_name: "application/json"}
+                self.request("POST", "/recording/start", "{}", 202, headers, instance=False)
+                status = self.wait_status()
+                self.assertTrue(status["active"])
+                stale = {instance_name: "old-instance"}
+                self.request("GET", "/recording/status", expected=410, headers=stale, instance=False)
+                body = json.dumps({"operation_id": status["operation_id"]})
+                self.request("POST", "/recording/stop", body, 202, headers, instance=False)
+                status = self.wait_status(complete_file=True)
+                url = status["file"]["url"]
+                download_headers = {instance_name: self.instance_id,
+                                    range_name: f'bytes=0-{status["file"]["size"] - 1}'}
+                data = self.request("GET", url, expected=206, headers=download_headers, instance=False)
+                self.assertEqual(b"standalone recording test\n", data)
+                self.request("DELETE", url, expected=410, headers=stale, instance=False)
+                self.request("DELETE", url, expected=204,
+                             headers={instance_name: self.instance_id}, instance=False)
+
     # Reject invalid JSON, unknown/duplicate keys and invalid bounds before starting capture.
     def test_request_validation(self):
         invalid = [[], {"path": "/tmp/unowned.mp4"}, {"fps": 0}, {"fps": 61}, {"width": 10},
