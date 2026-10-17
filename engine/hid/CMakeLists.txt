@@ -153,7 +153,8 @@ if(BUILD_TESTS)
         target_include_directories(test_hid_android_gamepad PRIVATE
             "${CMAKE_CURRENT_LIST_DIR}/../platform/src/native"
             "${CMAKE_CURRENT_LIST_DIR}/../platform/src/native/android")
-        defold_target_link_libraries(test_hid_android_gamepad "${TARGET_PLATFORM}" dlib profile_null testmain hid platform)
+        # Exercise input mapping selection before the real Android HID backend captures a reconnect packet.
+        defold_target_link_libraries(test_hid_android_gamepad "${TARGET_PLATFORM}" dlib profile_null testmain hid platform input)
         foreach(function IN ITEMS dmNativeOSInit dmNativeOSTerminate __system_property_get
                 _ZN10dmPlatform19GetWindowStateParamEP8dmWindow11WindowState
                 _ZN10dmPlatform10PollEventsEP8dmWindow)

@@ -17,6 +17,10 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include "../hid_private.h"
+#include "../native/hid_native_private.h"
+#include <dlib/hash.h>
+#include <input.h>
+#include <input_private.h>
 #include <platform/window.hpp>
 #include <platform/platform_window_constants.h>
 
@@ -266,6 +270,63 @@ TEST_F(AndroidGamepadTest, LegacyMapping)
     ASSERT_EQ(0.75f, m_Gamepad->m_Packet.m_Axis[2]);
     ASSERT_EQ(2U, m_Gamepad->m_Packet.m_Hat[0]);
     ASSERT_EQ((uint32_t)dmHID::MAX_GAMEPAD_BUTTON_COUNT, dmHID::GetGamepadButtonCount(m_Gamepad));
+}
+
+// Verifies reconnect mapping precedes the first packet and preserves motion already received on reconnect.
+TEST_F(AndroidGamepadTest, ReconnectTriggerActions)
+{
+    dmInput::NewContextParams params = {};
+    params.m_HidContext = m_Context;
+    dmInput::HContext input_context = dmInput::NewContext(params);
+    dmInputDDF::GamepadMapsRuntime maps = {};
+    dmInput::RegisterGamepads(input_context, &maps);
+    dmHID::SetGamepadConnectivityCallback(m_Context, dmInput::GamepadConnectivityCallback, input_context);
+    dmInput::HBinding binding = dmInput::NewBinding(input_context);
+    dmInputDDF::GamepadTrigger triggers[] = {
+        { dmInputDDF::GAMEPAD_LTRIGGER, "left_trigger" },
+        { dmInputDDF::GAMEPAD_RTRIGGER, "right_trigger" },
+    };
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_GamepadTrigger.m_Data = triggers;
+    ddf.m_GamepadTrigger.m_Count = DM_ARRAY_SIZE(triggers);
+    dmInput::SetBinding(binding, &ddf);
+    ASSERT_EQ(1U, binding->m_GamepadBindings.Size());
+    dmInput::HGamepadBinding gamepad_binding = binding->m_GamepadBindings[0];
+    const dmhash_t left_trigger = dmHashString64("left_trigger");
+    const dmhash_t right_trigger = dmHashString64("right_trigger");
+    dmHID::Update(m_Context);
+    dmInput::UpdateBinding(binding, 1.0f / 60.0f);
+    ASSERT_EQ(0.0f, dmInput::GetValue(gamepad_binding, left_trigger));
+    ASSERT_EQ(0.0f, dmInput::GetValue(gamepad_binding, right_trigger));
+
+    for (int motion_received = 0; motion_received <= 1; ++motion_received)
+    {
+        dmNativeJoy[0].State = 0;
+        dmHID::SetGamepadConnectionStatus(m_Context, m_Gamepad, false);
+        dmHID::Update(m_Context);
+        dmInput::UpdateBinding(binding, 1.0f / 60.0f);
+        ASSERT_FALSE(dmHID::IsGamepadConnected(m_Gamepad));
+
+        dmNativeJoy[0].State = 1;
+        dmNativeJoy[0].LayoutLegacy = 1;
+        dmNativeJoy[0].HasAxisEvent = motion_received;
+        memset(dmNativeJoy[0].Axis, 0, sizeof(dmNativeJoy[0].Axis));
+        if (motion_received)
+        {
+            dmNativeJoy[0].Axis[NATIVE_ANDROID_GAMEPAD_NUMAXIS + 4] = -0.5f;
+            dmNativeJoy[0].Axis[NATIVE_ANDROID_GAMEPAD_NUMAXIS + 5] = 0.5f;
+        }
+        dmHID::SetGamepadConnectionStatus(m_Context, m_Gamepad, true);
+        dmHID::Update(m_Context);
+        dmInput::UpdateBinding(binding, 1.0f / 60.0f);
+        ASSERT_TRUE(dmHID::IsGamepadConnected(m_Gamepad));
+        ASSERT_EQ(1U, binding->m_GamepadBindings.Size());
+        ASSERT_TRUE(gamepad_binding == binding->m_GamepadBindings[0]);
+        ASSERT_EQ(motion_received ? 0.25f : 0.0f, dmInput::GetValue(gamepad_binding, left_trigger));
+        ASSERT_EQ(motion_received ? 0.75f : 0.0f, dmInput::GetValue(gamepad_binding, right_trigger));
+    }
+    dmInput::DeleteBinding(binding);
+    dmInput::DeleteContext(input_context);
 }
 
 int main(int argc, char** argv)
