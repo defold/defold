@@ -23,7 +23,9 @@
             [editor.debugging.variables :as debugger-variables]
             [editor.defold-project :as project]
             [editor.engine :as engine]
+            [editor.fs :as fs]
             [editor.os :as os]
+            [editor.prefs :as prefs]
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
@@ -133,6 +135,7 @@
 (deftest late-debugger-port-test
   (test-support/with-clean-system
     (let [workspace (workspace/make-workspace "test/resources/empty_project" {} {} nil)
+          prefs (prefs/global (fs/create-temp-file! "late-debugger" ".editor_settings"))
           project (g/make-node! project/Project :workspace workspace)
           changes (LinkedBlockingQueue.)
           view (g/make-node! debug-view/DebugView :state-changed-fn (fn [_] (.add changes true)))
@@ -143,10 +146,11 @@
           process (.start (ProcessBuilder. ^java.util.List command))]
       (try
         (binding [ui/*main-stage* (atom stage)]
-          (let [target (targets/add-launched-target! 1 {:process process :address "127.0.0.1"})
+          (let [target (targets/add-launched-target! prefs 0 {:process process :address "127.0.0.1"})
                 removed (promise)
                 cancel-watch (targets/when-url-or-removed (:id target) #(deliver removed %))]
             (try
+              (is (= target (targets/selected-target prefs)))
               (dap-util/with-server
                 (fn [request _ out _] (dap-util/respond! out request {}))
                 (debug-view/start-debugger! view project target false)
@@ -160,10 +164,11 @@
                     (is (identical? session (debug-view/current-session view)))
                     (finally (dap/close! session)))))
               (finally
-                (.destroyForcibly process)
+                (targets/kill-launched-target! target)
                 (.waitFor process)
                 (try
-                  (is (nil? (dap-util/await! removed)))
+                  (is (nil? @removed))
+                  (is (nil? (targets/selected-target prefs)))
                   (finally (cancel-watch)))))))
         (finally
           (.destroyForcibly process)

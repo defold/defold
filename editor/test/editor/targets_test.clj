@@ -17,8 +17,11 @@
             [editor.console :as console]
             [editor.engine :as engine]
             [editor.prefs :as prefs]
+            [editor.process :as process]
             [editor.targets :as targets]
             [util.fn :as fn]))
+
+(set! *warn-on-reflection* true)
 
 (def ^:private local-target
   {:name "Local"
@@ -126,49 +129,13 @@
       (targets/select-target! nil (make-iphone-device-info))
       (is (nil? @selected-stream)))))
 
-(deftest kill-launched-target-prefers-clean-exit-when-service-url-is-known
-  (let [alive (atom true)
-        destroyed (atom 0)
-        exit-calls (atom [])
-        process (proxy [Process] []
-                  (getOutputStream [] nil)
-                  (getInputStream [] nil)
-                  (getErrorStream [] nil)
-                  (waitFor
-                    ([] 0)
-                    ([timeout unit]
-                     (reset! alive false)
-                     true))
-                  (exitValue [] 0)
-                  (destroy [] (swap! destroyed inc))
-                  (isAlive [] @alive))
-        target {:process process
-                :url "http://127.0.0.1:8001"}]
-    (with-redefs [engine/exit! (fn [target code]
-                                 (swap! exit-calls conj [target code])
-                                 :ok)]
-      (#'editor.targets/kill-launched-target! target)
-      (is (= [[target 0]] @exit-calls))
-      (is (= 0 @destroyed)))))
-
-(deftest kill-launched-target-falls-back-to-process-destroy-when-clean-exit-fails
-  (let [alive (atom true)
-        destroyed (atom 0)
-        process (proxy [Process] []
-                  (getOutputStream [] nil)
-                  (getInputStream [] nil)
-                  (getErrorStream [] nil)
-                  (waitFor
-                    ([] 0)
-                    ([timeout unit] false))
-                  (exitValue [] 0)
-                  (destroy []
-                    (swap! destroyed inc)
-                    (reset! alive false))
-                  (isAlive [] @alive))
-        target {:process process
-                :url "http://127.0.0.1:8001"}]
-    (with-redefs [engine/exit! (fn [& _]
-                                 (throw (ex-info "boom" {})))]
-      (#'editor.targets/kill-launched-target! target)
-      (is (= 1 @destroyed)))))
+;; An unregistered target must not stop its process, guarding against stale
+;; or duplicate stop requests affecting a process outside the target registry.
+(deftest kill-unregistered-target-test
+  (let [process (process/start! "sh" "-c" "read value")]
+    (try
+      (targets/kill-launched-target! {:process process})
+      (is (.isAlive process))
+      (finally
+        (.destroyForcibly process)
+        (.waitFor process)))))
