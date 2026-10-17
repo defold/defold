@@ -14,6 +14,9 @@
 
 package com.dynamo.bob;
 
+import com.dynamo.bob.bundle.BundleHelper;
+import com.defold.extender.client.ExtenderProgressListener;
+
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -204,9 +207,120 @@ public class ProgressTest {
     }
 
     @Test
+    public void buildingEngineStageLabel() {
+        assertEquals("Linking engine", new IProgress.Message.BuildingEngineStage("arm64-ios", "LINKING", "Linking engine", -1, -1).label());
+        assertEquals("SDK", new IProgress.Message.BuildingEngineStage("arm64-ios", "SDK", null, -1, -1).label());
+        assertEquals("ext: compiling source files (3/17)", new IProgress.Message.BuildingEngineStage("arm64-ios", "COMPILING", "ext: compiling source files", 3, 17).label());
+        assertEquals("", new IProgress.Message.BuildingEngineStage("arm64-ios", null, null, -1, -1).label());
+    }
+
+    @Test
+    public void concurrentSubtasksNeverReportDecreasingFractions() throws Exception {
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
+        IProgress.ISplit split = progress.split(4);
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < 4; ++i) {
+            IProgress subtask = split.subtask();
+            IProgress.ISplit subSplit = subtask.split(1000);
+            threads.add(new Thread(() -> {
+                for (int j = 0; j < 1000; ++j) {
+                    subSplit.worked();
+                }
+                subtask.close();
+            }));
+        }
+        threads.forEach(Thread::start);
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        progress.close();
+
+        double[] fractions = reporter.reports.stream().mapToDouble(Report::fraction).toArray();
+        for (int i = 1; i < fractions.length; ++i) {
+            assertTrue("fraction decreased at report " + i, fractions[i] >= fractions[i - 1]);
+        }
+        assertEquals(1.0, fractions[fractions.length - 1], 0.0);
+    }
+
+    @Test
+    public void deferredProgressHoldsMessagesUntilReleased() {
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
+        IProgress.ISplit phases = progress.split(2);
+        Progress.Deferred deferred = Progress.deferMessages(phases.subtask());
+        IProgress.Message.BuildingEngineStage first = new IProgress.Message.BuildingEngineStage("arm64-ios", "SDK", "Downloading SDK", -1, -1);
+        IProgress.Message.BuildingEngineStage second = new IProgress.Message.BuildingEngineStage("arm64-ios", "LINKING", "Linking engine", -1, -1);
+
+        IProgress.ISplit split = deferred.split(2);
+        IProgress architecture = split.subtask();
+        architecture.message(first);
+        architecture.message(second);
+        split.worked();
+        assertEquals(1, reporter.reports.size());
+        assertSame(IProgress.Message.Working.INSTANCE, reporter.reports.get(0).message());
+        assertEquals(0.25, reporter.reports.get(0).fraction(), 0.0);
+
+        deferred.releaseMessages();
+        assertEquals(2, reporter.reports.size());
+        assertSame(second, reporter.reports.get(1).message());
+
+        IProgress.Message.BuildingEngineStage third = new IProgress.Message.BuildingEngineStage("arm64-ios", "SUCCESS", null, -1, -1);
+        architecture.message(third);
+        assertSame(third, reporter.reports.get(2).message());
+
+        architecture.close();
+        architecture.message(first);
+        deferred.close();
+        deferred.message(first);
+        assertSame(third, reporter.reports.get(reporter.reports.size() - 1).message());
+        assertEquals(0.5, reporter.reports.get(reporter.reports.size() - 1).fraction(), 0.0);
+    }
+
+    @Test
+    public void workReportCarriesLatestMessage() throws Exception {
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
+        IProgress.ISplit split = progress.split(1000);
+        IProgress.Message.BuildingEngineStage stage = new IProgress.Message.BuildingEngineStage("arm64-ios", "LINKING", "Linking engine", -1, -1);
+        Thread worker = new Thread(() -> {
+            for (int i = 0; i < 999; ++i) {
+                split.worked();
+            }
+        });
+        worker.start();
+        progress.message(stage);
+        worker.join();
+
+        assertSame(stage, reporter.reports.get(reporter.reports.size() - 1).message());
+    }
+
+    @Test
+    public void extenderProgressListenerNeverDecreases() {
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
+        ExtenderProgressListener listener = BundleHelper.createProgressListener(progress, "arm64-ios");
+
+        listener.onProgress("SDK", "Downloading SDK", 10, -1, -1);
+        listener.onProgress("COMPILING", "ext: compiling source files", 50, 1, 2);
+        listener.onProgress("COMPILING", "ext: compiling source files", 0, 2, 2);
+        listener.onProgress("SUCCESS", null, 100, -1, -1);
+
+        Report last = reporter.reports.get(reporter.reports.size() - 1);
+        assertEquals(0.9, last.fraction(), 1e-9);
+        assertEquals("SUCCESS", ((IProgress.Message.BuildingEngineStage) last.message()).label());
+        progress.close();
+        assertEquals(1.0, reporter.reports.get(reporter.reports.size() - 1).fraction(), 0.0);
+        double[] fractions = reporter.reports.stream().mapToDouble(Report::fraction).toArray();
+        for (int i = 1; i < fractions.length; ++i) {
+            assertTrue(fractions[i] >= fractions[i - 1]);
+        }
+    }
+
+    @Test
     public void closeStopsFurtherNotifications() {
-        var reporter = new RecordingReporter();
-        var progress = new Progress(reporter);
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
 
         progress.close();
         progress.message(IProgress.Message.Cleaning.INSTANCE);
