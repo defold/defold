@@ -42,9 +42,11 @@ endif()
 
 if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND TARGET_PLATFORM MATCHES "(macos|linux|win32)$")
   defold_add_executable(record_test_server record_test_server.cpp
-    ../record/record.cpp ../record/record_common.cpp ../record/record_service.cpp)
+    ../record/record.cpp ../record/record_common.cpp ../record/record_service.cpp
+    ../record/record_extension.cpp)
   target_include_directories(record_test_server PRIVATE "${RECORD_ROOT}/src")
-  defold_target_link_libraries(record_test_server "${TARGET_PLATFORM}" dlib profile_null)
+  target_compile_definitions(record_test_server PRIVATE DLIB_LOG_DOMAIN="RECORD_TEST")
+  defold_target_link_libraries(record_test_server "${TARGET_PLATFORM}" extension dlib profile_null)
   if(TARGET_PLATFORM MATCHES "linux$")
     target_link_libraries(record_test_server PRIVATE Threads::Threads dl)
   endif()

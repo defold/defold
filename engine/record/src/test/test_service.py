@@ -35,6 +35,7 @@ class RecordingServiceTest(unittest.TestCase):
         try:
             cls.port = ready.get(timeout=15)
             if cls.port is not None:
+                cls.instance_id = cls.request("GET", "/recording/capabilities")["instance_id"]
                 return
         except queue.Empty:
             pass
@@ -61,12 +62,15 @@ class RecordingServiceTest(unittest.TestCase):
 
     def setUp(self):
         self.request("GET", "/test/restart")
+        type(self).instance_id = self.request("GET", "/recording/capabilities")["instance_id"]
 
     @classmethod
-    def request(cls, method, path, body=None, expected=200, headers=None):
+    def request(cls, method, path, body=None, expected=200, headers=None, instance=True):
         headers = dict(headers or {})
         # Each request owns one connection; explicitly release the server slot.
         headers.setdefault("Connection", "close")
+        if instance and path.startswith("/recording/") and path != "/recording/capabilities":
+            headers.setdefault("X-Recording-Instance", cls.instance_id)
         if isinstance(body, dict):
             body = json.dumps(body)
             headers["Content-Type"] = "application/json"
@@ -98,6 +102,13 @@ class RecordingServiceTest(unittest.TestCase):
         self.assertNotIn("automation", json.dumps(paths))
         self.assertEqual(60, paths["/recording/start"]["post"]["requestBody"]["content"]
                          ["application/json"]["schema"]["properties"]["fps"]["maximum"])
+        for path, method in (("/recording/start", "post"), ("/recording/stop", "post"),
+                             ("/recording/files/{id}", "delete")):
+            parameter = next(p for p in paths[path][method]["parameters"]
+                             if p["name"] == "X-Recording-Instance")
+            self.assertTrue(parameter["required"])
+            self.assertEqual("header", parameter["in"])
+            self.assertIn("410", paths[path][method]["responses"])
         self.request("GET", "/test/unregister")
         self.assertEqual({}, self.request("GET", "/openapi.json")["paths"])
         self.request("GET", "/recording/status", expected=404)
@@ -188,14 +199,82 @@ class RecordingServiceTest(unittest.TestCase):
         self.assertEqual("failed", status["state"])
         self.assertEqual([], list(pathlib.Path(self.directory.name).iterdir()))
         self.request("GET", "/test/restart")
+        type(self).instance_id = self.request("GET", "/recording/capabilities")["instance_id"]
         old = self.request("POST", "/recording/start", {}, 202)
         self.wait_status()
         self.request("GET", "/test/restart")
+        type(self).instance_id = self.request("GET", "/recording/capabilities")["instance_id"]
         self.assertEqual([], list(pathlib.Path(self.directory.name).iterdir()))
         current = self.request("POST", "/recording/start", {}, 202)
         self.assertGreater(current["operation_id"], old["operation_id"])
         self.request("POST", "/recording/stop", {"operation_id": old["operation_id"]}, 410)
         self.request("GET", old["file"]["url"], expected=410)
+
+    # Mutations require recording-owned identity; reboots invalidate it independently of operation IDs.
+    def test_instance_preconditions(self):
+        original = self.instance_id
+        self.assertTrue(original)
+        self.assertEqual(original, self.request("GET", "/recording/status")["instance_id"])
+        missing = self.request("POST", "/recording/start", {}, 400, instance=False)
+        self.assertEqual("missing_instance", missing["error"]["code"])
+        self.request("GET", "/test/restart")
+        type(self).instance_id = self.request("GET", "/recording/capabilities")["instance_id"]
+        self.assertNotEqual(original, self.instance_id)
+        stale = {"X-Recording-Instance": original}
+        self.assertEqual(self.instance_id, self.request("GET", "/recording/capabilities", headers=stale)["instance_id"])
+        self.request("GET", "/recording/status", expected=410, headers=stale)
+        result = self.request("POST", "/recording/start", {}, 410, stale)
+        self.assertEqual("stale_instance", result["error"]["code"])
+        self.assertEqual([], list(pathlib.Path(self.directory.name).iterdir()))
+        # Only the recording identity is checked, independently of automation identity.
+        current = self.request("POST", "/recording/start", {}, 202, {"X-Automation-Runtime": "unrelated"})
+        self.assertEqual(self.instance_id, current["instance_id"])
+        self.wait_status()
+        body = {"operation_id": current["operation_id"]}
+        self.request("POST", "/recording/stop", body, 400, instance=False)
+        self.request("POST", "/recording/stop", body, 410, stale)
+        self.assertTrue(self.request("GET", "/recording/status")["active"])
+        self.request("POST", "/recording/stop", body, 202)
+        status = self.wait_status(complete_file=True)
+        url = status["file"]["url"]
+        self.request("DELETE", url, expected=400, instance=False)
+        self.request("DELETE", url, expected=410, headers=stale)
+        self.request("GET", url, expected=206, headers={"Range": f'bytes=0-{status["file"]["size"] - 1}'})
+        self.request("DELETE", url, expected=204)
+
+    # Reused counters in replacement processes must not let an old receipt stop a new recording.
+    def test_stale_instance_after_process_restart(self):
+        cls = type(self)
+        cls.tearDownClass()
+        cls.setUpClass()
+        old = self.request("POST", "/recording/start", {}, 202)
+        self.wait_status()
+        cls.tearDownClass()
+        cls.setUpClass()
+        current = self.request("POST", "/recording/start", {}, 202)
+        self.wait_status()
+        self.assertEqual(old["operation_id"], current["operation_id"])
+        self.assertNotEqual(old["instance_id"], current["instance_id"])
+        response = self.request("POST", "/recording/stop", {"operation_id": old["operation_id"]}, 410,
+                                {"X-Recording-Instance": old["instance_id"]})
+        self.assertEqual("stale_instance", response["error"]["code"])
+        self.assertTrue(self.request("GET", "/recording/status")["active"])
+        self.request("POST", "/recording/stop", {"operation_id": current["operation_id"]}, 202)
+        self.assertTrue(self.wait_status(complete_file=True)["finalized"])
+
+    # The registered ENGINE_DELETE callback joins capture before teardown; later finalizers are harmless.
+    def test_engine_delete_finalizes_before_teardown(self):
+        self.request("POST", "/recording/start", {}, 202)
+        self.wait_status()
+        self.assertEqual({"active": True, "finalizes": 0, "late_finalizes": 0},
+                         self.request("GET", "/test/deactivate"))
+        expected = {"active": False, "finalizes": 1, "late_finalizes": 0}
+        self.assertEqual(expected, self.request("GET", "/test/engine-delete"))
+        self.assertEqual([], list(pathlib.Path(self.directory.name).iterdir()))
+        self.assertEqual({}, self.request("GET", "/openapi.json")["paths"])
+        self.request("GET", "/recording/status", expected=404)
+        self.assertEqual(expected, self.request("GET", "/test/finalize"))
+        self.assertEqual(expected, self.request("GET", "/test/finalize"))
 
 
 if __name__ == "__main__":

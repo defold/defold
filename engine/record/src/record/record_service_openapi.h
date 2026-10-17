@@ -32,6 +32,7 @@ namespace dmRecord
                 "type": "object",
                 "properties": {
                   "version": {"type": "integer", "enum": [1]},
+                  "instance_id": {"type": "string", "description": "Recording service identity; changes on engine restart or reboot. Send as X-Recording-Instance for mutations."},
                   "supported": {"type": "boolean"},
                   "audio": {"type": "boolean"},
                   "backend": {"type": "string"},
@@ -45,6 +46,7 @@ namespace dmRecord
                 "additionalProperties": false,
                 "required": [
                   "version",
+                  "instance_id",
                   "supported",
                   "audio",
                   "backend",
@@ -78,6 +80,7 @@ namespace dmRecord
     "get": {
       "tags": ["Recording"],
       "summary": "Get the current recording and download receipt",
+      "parameters": [{"name": "X-Recording-Instance", "in": "header", "required": false, "schema": {"type": "string"}, "description": "Reject a receipt from a replacement recording service."}],
       "responses": {
         "200": {
           "description": "OK",
@@ -86,6 +89,7 @@ namespace dmRecord
               "schema": {
                 "type": "object",
                 "properties": {
+                  "instance_id": {"type": "string"},
                   "operation_id": {"type": "integer", "minimum": 0},
                   "state": {"type": "string", "enum": ["idle", "starting", "recording", "stopping", "complete", "failed"]},
                   "pending": {"type": "boolean"},
@@ -120,6 +124,7 @@ namespace dmRecord
                 },
                 "additionalProperties": false,
                 "required": [
+                  "instance_id",
                   "operation_id",
                   "state",
                   "pending",
@@ -143,6 +148,10 @@ namespace dmRecord
               }
             }
           }
+        },
+        "410": {
+          "description": "Recording service instance is stale.",
+          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "400": {
           "description": "Malformed request or parameters.",
@@ -179,13 +188,14 @@ namespace dmRecord
     "post": {
       "tags": ["Recording"],
       "summary": "Start native H.264 MP4 recording",
+      "parameters": [{"name": "X-Recording-Instance", "in": "header", "required": true, "schema": {"type": "string", "minLength": 1}, "description": "instance_id from /recording/capabilities. Retain this identity with the accepted operation."}],
       "responses": {
         "202": {
           "description": "Accepted; poll /recording/status until pending is false.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/200/content/application~1json/schema"}}}
         },
         "400": {
-          "description": "Malformed request or parameters.",
+          "description": "Malformed request, parameters or missing X-Recording-Instance.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "405": {
@@ -198,6 +208,10 @@ namespace dmRecord
         },
         "409": {
           "description": "Recording is already active or pending.",
+          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
+        },
+        "410": {
+          "description": "Recording service instance is stale.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "415": {
@@ -243,13 +257,14 @@ namespace dmRecord
     "post": {
       "tags": ["Recording"],
       "summary": "Stop and finalize the current recording",
+      "parameters": [{"name": "X-Recording-Instance", "in": "header", "required": true, "schema": {"type": "string", "minLength": 1}, "description": "instance_id retained from the accepted start receipt."}],
       "responses": {
         "202": {
           "description": "Accepted; poll /recording/status until pending is false.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/200/content/application~1json/schema"}}}
         },
         "400": {
-          "description": "Malformed request or parameters.",
+          "description": "Malformed request, parameters or missing X-Recording-Instance.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "405": {
@@ -265,7 +280,7 @@ namespace dmRecord
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "410": {
-          "description": "Operation ID is stale.",
+          "description": "Recording service instance or operation ID is stale.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "415": {
@@ -294,6 +309,7 @@ namespace dmRecord
       "tags": ["Recording"],
       "summary": "Download a finalized recording in chunks of at most 1 MiB",
       "parameters": [
+        {"name": "X-Recording-Instance", "in": "header", "required": false, "schema": {"type": "string"}, "description": "Reject a download from a replacement recording service."},
         {
           "name": "Range",
           "in": "header",
@@ -345,10 +361,11 @@ namespace dmRecord
     "delete": {
       "tags": ["Recording"],
       "summary": "Delete a retained recording",
+      "parameters": [{"name": "X-Recording-Instance", "in": "header", "required": true, "schema": {"type": "string", "minLength": 1}, "description": "instance_id retained with the recording file receipt."}],
       "responses": {
         "204": {"description": "Deleted."},
         "400": {
-          "description": "Unexpected request body or query.",
+          "description": "Unexpected request body, query or missing X-Recording-Instance.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "405": {
@@ -364,7 +381,7 @@ namespace dmRecord
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "410": {
-          "description": "File no longer exists.",
+          "description": "Recording service instance is stale or the file no longer exists.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         }
       }
