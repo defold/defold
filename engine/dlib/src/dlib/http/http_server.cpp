@@ -259,6 +259,17 @@ namespace dmHttpServer
     {
         switch (status_code)
         {
+            case 202: return "Accepted";
+            case 204: return "No Content";
+            case 206: return "Partial Content";
+            case 400: return "Bad Request";
+            case 409: return "Conflict";
+            case 410: return "Gone";
+            case 413: return "Content Too Large";
+            case 415: return "Unsupported Media Type";
+            case 416: return "Range Not Satisfiable";
+            case 501: return "Not Implemented";
+            case 507: return "Insufficient Storage";
             case 200:
                 return "OK";
             case 404:

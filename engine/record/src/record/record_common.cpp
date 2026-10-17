@@ -13,17 +13,16 @@
 // specific language governing permissions and limitations under the License.
 
 #include "record.h"
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 namespace dmRecord
 {
-    NewParams::NewParams()
+    StartParams::StartParams()
+        : m_Window(0)
+        , m_Path(0)
+        , m_Width(0)
+        , m_Height(0)
+        , m_Fps(30)
+        , m_Audio(false)
     {
-        memset(this, 0, sizeof(*this));
-        m_ContainerFormat = CONTAINER_FORMAT_IVF;
-        m_VideoCodec = VIDOE_CODEC_VP8;
-        m_Fps = 30;
     }
-}
+} // namespace dmRecord

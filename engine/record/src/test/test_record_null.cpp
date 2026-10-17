@@ -1,0 +1,41 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+#include <record/record.h>
+
+// Release and unsupported targets expose the same API without native capture resources.
+TEST(RecordNull, Unsupported)
+{
+    ASSERT_FALSE(dmRecord::IsSupported());
+    ASSERT_FALSE(dmRecord::IsAudioSupported());
+    ASSERT_STREQ("unsupported", dmRecord::GetBackendName());
+    dmRecord::Status status;
+    dmRecord::GetStatus(&status);
+    ASSERT_FALSE(status.m_Supported);
+    ASSERT_FALSE(status.m_Pending);
+    ASSERT_FALSE(status.m_Active);
+    ASSERT_NE(0, status.m_Failure[0]);
+    dmRecord::StartParams params;
+    ASSERT_FALSE(dmRecord::Start(&params, &status));
+    ASSERT_FALSE(dmRecord::Stop(&status));
+    dmRecord::Finalize();
+}
+
+int main(int argc, char** argv)
+{
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
+}

@@ -8,13 +8,13 @@ platforms:
 
     osx:
         context:
-            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery", "record", "vpx"]
+            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery", "record", "record_service"]
             libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null", "record_null"]
             excludeSymbols: ['LuaDebugger', 'ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
 
     linux:
         context:
-            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery", "record", "vpx"]
+            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery", "record", "record_service"]
             libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null", "record_null"]
             excludeSymbols: ['LuaDebugger', 'ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
 
@@ -26,7 +26,7 @@ platforms:
 
     win32:
         context:
-            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery", "record", "vpx"]
+            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery", "record", "record_service"]
             libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null", "record_null"]
             linkFlags: ["-Wl,/subsystem:windows"]
             excludeSymbols: ['LuaDebugger', 'ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
