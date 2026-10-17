@@ -1255,7 +1255,6 @@ property.appmanifest.graphics-android.tooltip = Selecione o backend gráfico inc
 property.appmanifest.graphics-web = Gráficos (HTML5)
 property.appmanifest.graphics-web.tooltip = Selecione o backend gráfico incluído nas compilações HTML5. WebGL é o padrão; incluir WebGL e WebGPU permite uma reserva mas aumenta o tamanho do motor.
 property.appmanifest.use-font-layout = Usar sistema de layout de texto completo
-property.appmanifest.use-font-layout.tooltip = Inclui o sistema de layout de texto completo necessário para geração de fonte SDF de fontes do TrueType. Rasterização glyph de execução também requer `font.runtime_generation` em `game.project`; ele suporta recursos como texto da direita para a esquerda.
 property.appmanifest.use-rich-text = Usar Rich Text
 property.appmanifest.use-rich-text.tooltip = Incluir texto rico e efeitos de estilo para rótulos e texto GUI. Desative isso para reduzir o tamanho do motor; a marcação irá então renderizar como texto sem formatação.
 
@@ -1383,7 +1382,6 @@ property.font.output-format = Formato de Saída
 property.font.output-format.tooltip = **Bitmap** rasteriza os glifos TTF/OTF e é necessário para fontes BMFont (`.fnt`). **Distance Field** armazena dados de distância para dimensionamento mais limpo e requer um material de campo distanciado compatível.
 property.font.render-mode = Modo de Renderização
 property.font.size = Tamanho
-property.font.size.tooltip = Tamanho do glifo alvo em pixels ao gerar a fonte. As fontes de Bitmap parecem melhor perto deste tamanho; fontes de distance field precisam de tamanho suficiente para preservar detalhes da forma quando escalonadas.
 property.font.antialias = Suavização
 property.font.antialias.tooltip = Suavisa as bordas do glifo quando a fonte é rasterizada. Desative para renderização pixel-perfect.
 property.font.alpha = Alfa
@@ -2006,7 +2004,6 @@ form.label.project.engine.max_time_step = Passo de Tempo Máximo
 form.label.project.font = Fonte
 form.help.project.font = Configurações de Fonte
 form.label.project.font.runtime_generation = Geraçao em Tempo de Execução
-form.help.project.font.runtime_generation = Gera glifos TrueType sob demanda em vez de transformar eles em texturas. Aplica-se às fontes de **Distance Field** com um material compatível; coleções de fonte de tempo de execução podem adicionar mais fontes de TTF. As compilações dos alvos requerem **usar Sistema Completo de Layout de Texto** no Manifesto do Aplicativo. Coloque texto em forma representativa em **Caracteres** para pré-aquecer glifos comuns. Isso pode reduzir o tamanho do pacote e a memória em tempo de execução.
 
 form.label.project.graphics = Gráficos
 form.help.project.graphics = Configurações de Gráficos
