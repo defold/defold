@@ -265,7 +265,7 @@
     (future
       (let [channel "beta"
             info (get (updater/fetch-channel-infos!) channel)
-            release-notes (when info (updater/channel-release-notes channel))]
+            release-notes (when info (updater/channel-release-notes channel (:version info)))]
         (ui/run-later
           (try
             (if info

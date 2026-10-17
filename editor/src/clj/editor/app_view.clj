@@ -2910,6 +2910,7 @@
 (handler/defhandler :help.try-beta :global
   (enabled? [updater]
     (and updater
+         (updater/platform-supported? updater)
          (= "stable" (updater/installed-channel updater))
          (not (updater/manual-update-check-in-progress? updater))
          (not (updater/channel-download-in-progress? updater))))

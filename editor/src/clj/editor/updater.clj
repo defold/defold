@@ -225,8 +225,16 @@
                         [channel (fetch-json! (channel-info-url archive-domain channel))])
                       channels))))
 
+(defn platform-supported? [updater]
+  (contains? #{Platform/X86_64Linux
+               Platform/Arm64MacOS
+               Platform/X86_64MacOS
+               Platform/X86_64Win32}
+             (:platform updater)))
+
 (defn- check-channel-offer! [updater]
-  (when (= "stable" (installed-channel updater))
+  (when (and (platform-supported? updater)
+             (= "stable" (installed-channel updater)))
     (let [{stable "stable" beta "beta"} (fetch-channel-infos!)]
       (swap! (:state-atom updater) assoc :channel-offer
              (when (and stable beta (newer-version? (:version beta) (:version stable)))
@@ -348,12 +356,15 @@
          :versions (mapv :version entries)}))))
 
 (defn channel-release-notes
-  "Returns {:markdown <string> :version <string>} for the newest release of
-  `channel`, or nil if its notes can't be fetched."
-  [channel]
-  (when-let [entry (first (fetch-release-notes! (system/defold-archive-domain) channel nil))]
-    {:markdown (entry-markdown nil entry)
-     :version (:version entry)}))
+  "Returns {:markdown <string>} for `version` of `channel`, or nil if the notes
+  can't be turned into markdown."
+  [channel version]
+  (try
+    {:markdown (entry-markdown nil {:version version
+                                    :notes (fetch-version-notes! (system/defold-archive-domain) channel version)})}
+    (catch Exception e
+      (log/warn :message "Failed to build channel release notes" :channel channel :exception e)
+      nil)))
 
 (defn can-install-update? [updater]
   (some? (:downloaded-sha1 @(:state-atom updater))))
@@ -377,13 +388,6 @@
                (not (download-in-progress? updater))
                (not (channel-download-in-progress? updater)))
       channel-offer)))
-
-(defn platform-supported? [updater]
-  (contains? #{Platform/X86_64Linux
-               Platform/Arm64MacOS
-               Platform/X86_64MacOS
-               Platform/X86_64Win32}
-             (:platform updater)))
 
 (defn- create-temp-zip-file ^File []
   (let [empty-attrs (into-array FileAttribute [])
