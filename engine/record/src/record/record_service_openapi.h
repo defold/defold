@@ -21,7 +21,6 @@ namespace dmRecord
 {
   "/recording/capabilities": {
     "get": {
-      "tags": ["Recording"],
       "summary": "Get native recording capabilities",
       "responses": {
         "200": {
@@ -31,7 +30,7 @@ namespace dmRecord
               "schema": {
                 "type": "object",
                 "properties": {
-                  "version": {"type": "integer", "enum": [1]},
+                  "version": {"type": "integer"},
                   "instance_id": {"type": "string", "description": "Recording service identity; changes on engine restart or reboot. Send as X-Recording-Instance for mutations."},
                   "supported": {"type": "boolean"},
                   "audio": {"type": "boolean"},
@@ -40,10 +39,9 @@ namespace dmRecord
                   "codec": {"type": "string"},
                   "minimum_platform_version": {"type": "string"},
                   "unsupported_reason": {"type": "string"},
-                  "max_fps": {"type": "integer", "minimum": 0},
-                  "max_dimension": {"type": "integer", "minimum": 0}
+                  "max_fps": {"type": "integer"},
+                  "max_dimension": {"type": "integer"}
                 },
-                "additionalProperties": false,
                 "required": [
                   "version",
                   "instance_id",
@@ -64,23 +62,14 @@ namespace dmRecord
         "400": {
           "description": "Malformed request or parameters.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
-        },
-        "405": {
-          "description": "Unsupported method; see the Allow header.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
-        },
-        "413": {
-          "description": "Request body must be smaller than 1024 bytes.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         }
       }
     }
   },
   "/recording/status": {
     "get": {
-      "tags": ["Recording"],
       "summary": "Get the current recording and download receipt",
-      "parameters": [{"name": "X-Recording-Instance", "in": "header", "required": false, "schema": {"type": "string"}, "description": "Reject a receipt from a replacement recording service."}],
+      "parameters": [{"name": "X-Recording-Instance", "in": "header", "schema": {"type": "string"}, "description": "Reject a receipt from a replacement recording service."}],
       "responses": {
         "200": {
           "description": "OK",
@@ -90,7 +79,7 @@ namespace dmRecord
                 "type": "object",
                 "properties": {
                   "instance_id": {"type": "string"},
-                  "operation_id": {"type": "integer", "minimum": 0},
+                  "operation_id": {"type": "integer"},
                   "state": {"type": "string", "enum": ["idle", "starting", "recording", "stopping", "complete", "failed"]},
                   "pending": {"type": "boolean"},
                   "supported": {"type": "boolean"},
@@ -101,28 +90,26 @@ namespace dmRecord
                   "format": {"type": "string"},
                   "codec": {"type": "string"},
                   "failure": {"type": "string"},
-                  "width": {"type": "integer", "minimum": 0},
-                  "height": {"type": "integer", "minimum": 0},
-                  "fps": {"type": "integer", "minimum": 0},
-                  "started_wall_time_us": {"type": "integer", "minimum": 0},
-                  "started_monotonic_time_us": {"type": "integer", "minimum": 0},
-                  "stopped_wall_time_us": {"type": "integer", "minimum": 0},
-                  "stopped_monotonic_time_us": {"type": "integer", "minimum": 0},
+                  "width": {"type": "integer"},
+                  "height": {"type": "integer"},
+                  "fps": {"type": "integer"},
+                  "started_wall_time_us": {"type": "integer"},
+                  "started_monotonic_time_us": {"type": "integer"},
+                  "stopped_wall_time_us": {"type": "integer"},
+                  "stopped_monotonic_time_us": {"type": "integer"},
                   "file": {
                     "type": "object",
                     "properties": {
                       "id": {"type": "string"},
                       "url": {"type": "string"},
                       "state": {"type": "string", "enum": ["pending", "complete", "failed"]},
-                      "size": {"type": "integer", "minimum": 0},
+                      "size": {"type": "integer"},
                       "sha256": {"type": "string", "description": "SHA-256 hex digest, available when state is complete."}
                     },
-                    "additionalProperties": false,
                     "required": ["id", "url", "state", "size", "sha256"],
                     "nullable": true
                   }
                 },
-                "additionalProperties": false,
                 "required": [
                   "instance_id",
                   "operation_id",
@@ -163,32 +150,21 @@ namespace dmRecord
                   "error": {
                     "type": "object",
                     "properties": {"code": {"type": "string"}, "message": {"type": "string"}},
-                    "additionalProperties": false,
                     "required": ["code", "message"]
                   }
                 },
-                "additionalProperties": false,
                 "required": ["error"]
               }
             }
           }
-        },
-        "405": {
-          "description": "Unsupported method; see the Allow header.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
-        },
-        "413": {
-          "description": "Request body must be smaller than 1024 bytes.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         }
       }
     }
   },
   "/recording/start": {
     "post": {
-      "tags": ["Recording"],
       "summary": "Start native H.264 MP4 recording",
-      "parameters": [{"name": "X-Recording-Instance", "in": "header", "required": true, "schema": {"type": "string", "minLength": 1}, "description": "instance_id from /recording/capabilities. Retain this identity with the accepted operation."}],
+      "parameters": [{"name": "X-Recording-Instance", "in": "header", "required": true, "schema": {"type": "string"}, "description": "instance_id from /recording/capabilities. Retain this identity with the accepted operation."}],
       "responses": {
         "202": {
           "description": "Accepted; poll /recording/status until pending is false.",
@@ -198,24 +174,12 @@ namespace dmRecord
           "description": "Malformed request, parameters or missing X-Recording-Instance.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
-        "405": {
-          "description": "Unsupported method; see the Allow header.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
-        },
-        "413": {
-          "description": "Request body must be smaller than 1024 bytes.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
-        },
         "409": {
           "description": "Recording is already active or pending.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "410": {
           "description": "Recording service instance is stale.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
-        },
-        "415": {
-          "description": "Use application/json.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "500": {
@@ -227,12 +191,11 @@ namespace dmRecord
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "507": {
-          "description": "128 recordings are retained; delete files before recording again.",
+          "description": "Recording storage is full; delete retained files before recording again.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         }
       },
       "requestBody": {
-        "required": false,
         "content": {
           "application/json": {
             "schema": {
@@ -241,12 +204,10 @@ namespace dmRecord
                 "width": {"type": "integer", "minimum": 1, "maximum": 16384},
                 "height": {"type": "integer", "minimum": 1, "maximum": 16384},
                 "fps": {"type": "integer", "minimum": 1, "maximum": 60, "default": 30},
-                "audio": {"type": "boolean", "description": "Capture application audio. Defaults to backend support; query /recording/capabilities. Windows audio requires build 20348 or newer."}
+                "audio": {"type": "boolean", "description": "Capture application audio. Defaults to backend support; query /recording/capabilities."}
               },
               "additionalProperties": false,
-              "required": [],
-              "oneOf": [{"required": ["width", "height"]}, {"not": {"anyOf": [{"required": ["width"]}, {"required": ["height"]}]}}],
-              "description": "Omit both dimensions to use the native window content size. No filesystem path is accepted. Integer values use decimal integer notation."
+              "description": "Specify both width and height, or omit both to use the native window content size. Integer values use decimal integer notation."
             }
           }
         }
@@ -255,9 +216,8 @@ namespace dmRecord
   },
   "/recording/stop": {
     "post": {
-      "tags": ["Recording"],
       "summary": "Stop and finalize the current recording",
-      "parameters": [{"name": "X-Recording-Instance", "in": "header", "required": true, "schema": {"type": "string", "minLength": 1}, "description": "instance_id retained from the accepted start receipt."}],
+      "parameters": [{"name": "X-Recording-Instance", "in": "header", "required": true, "schema": {"type": "string"}, "description": "instance_id retained from the accepted start receipt."}],
       "responses": {
         "202": {
           "description": "Accepted; poll /recording/status until pending is false.",
@@ -267,24 +227,12 @@ namespace dmRecord
           "description": "Malformed request, parameters or missing X-Recording-Instance.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
-        "405": {
-          "description": "Unsupported method; see the Allow header.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
-        },
-        "413": {
-          "description": "Request body must be smaller than 1024 bytes.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
-        },
         "409": {
           "description": "No active recording is ready to stop.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "410": {
           "description": "Recording service instance or operation ID is stale.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
-        },
-        "415": {
-          "description": "Use application/json.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         }
       },
@@ -306,16 +254,16 @@ namespace dmRecord
   "/recording/files/{id}": {
     "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
     "get": {
-      "tags": ["Recording"],
-      "summary": "Download a finalized recording in chunks of at most 1 MiB",
+      "summary": "Download a finalized recording",
       "parameters": [
-        {"name": "X-Recording-Instance", "in": "header", "required": false, "schema": {"type": "string"}, "description": "Reject a download from a replacement recording service."},
+        {"name": "X-Recording-Instance", "in": "header", "schema": {"type": "string"}, "description": "Reject a download from a replacement recording service."},
         {
           "name": "Range",
           "in": "header",
           "required": true,
-          "schema": {"type": "string", "pattern": "^bytes=[0-9]+-[0-9]+$"},
-          "description": "Closed inclusive byte range, for example bytes=0-1023. File size and SHA-256 are in the status receipt."
+          "schema": {"type": "string"},
+          "example": "bytes=0-1023",
+          "description": "Closed inclusive byte range of at most 1 MiB. File size and SHA-256 are in the status receipt."
         }
       ],
       "responses": {
@@ -330,14 +278,6 @@ namespace dmRecord
         },
         "400": {
           "description": "Unexpected request body or query.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
-        },
-        "405": {
-          "description": "Unsupported method.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
-        },
-        "413": {
-          "description": "Request body too large.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "409": {
@@ -359,21 +299,12 @@ namespace dmRecord
       }
     },
     "delete": {
-      "tags": ["Recording"],
       "summary": "Delete a retained recording",
-      "parameters": [{"name": "X-Recording-Instance", "in": "header", "required": true, "schema": {"type": "string", "minLength": 1}, "description": "instance_id retained with the recording file receipt."}],
+      "parameters": [{"name": "X-Recording-Instance", "in": "header", "required": true, "schema": {"type": "string"}, "description": "instance_id retained with the recording file receipt."}],
       "responses": {
         "204": {"description": "Deleted."},
         "400": {
           "description": "Unexpected request body, query or missing X-Recording-Instance.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
-        },
-        "405": {
-          "description": "Unsupported method.",
-          "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
-        },
-        "413": {
-          "description": "Request body too large.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "409": {
