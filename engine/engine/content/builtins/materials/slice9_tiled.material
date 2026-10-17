@@ -1,0 +1,15 @@
+# Defold #5400 opt-in GUI Slice-9 tile material (CPU-subdivided geometry path).
+# Register as GUI scene material with the EXACT id "slice9_tiled".
+# comp_gui.cpp selects tiled box UV subdivision by this material ID, while
+# the standard 40-byte GUI BoxVertex and shader inputs remain unchanged.
+# This is intentionally NOT the experimental attribute-rich shader paths.
+name: "slice9_tiled"
+tags: "gui"
+vertex_program: "/builtins/materials/gui.vp"
+fragment_program: "/builtins/materials/gui.fp"
+vertex_space: VERTEX_SPACE_WORLD
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+max_page_count: 0

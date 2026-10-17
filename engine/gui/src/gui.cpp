@@ -222,6 +222,8 @@ namespace dmGui
             PROP(shadow, PROPERTY_SHADOW )
             PROP(slice9, PROPERTY_SLICE9 )
             PROP(euler, PROPERTY_EULER )
+            PROP(repeat_zoom, PROPERTY_REPEAT_ZOOM )
+            PROP(repeat_offset, PROPERTY_REPEAT_OFFSET )
             { dmHashString64("inner_radius"), PROPERTY_PIE_PARAMS, 0 },
             { dmHashString64("fill_angle"), PROPERTY_PIE_PARAMS, 1 },
             { dmHashString64("leading"), PROPERTY_TEXT_PARAMS, 0 },
@@ -239,6 +241,8 @@ namespace dmGui
             { dmHashString64("shadow"), PROPERTY_SHADOW, 0xff },
             { dmHashString64("slice"), PROPERTY_SLICE9, 0xff },
             { dmHashString64("euler"), PROPERTY_EULER, 0xff },
+            { dmHashString64("repeat_zoom"), PROPERTY_REPEAT_ZOOM, 0xff },
+            { dmHashString64("repeat_offset"), PROPERTY_REPEAT_OFFSET, 0xff },
     };
 
     PropDesc* GetPropertyDesc(dmhash_t property_hash)
@@ -2020,6 +2024,37 @@ namespace dmGui
         }
     }
 
+    // Repeat zoom/offset are also animated by directly writing their scalar
+    // slots. Ease-back and elastic curves can overshoot valid endpoints, so
+    // clamp only these XY slots to the same limits as the Lua setters.
+    static float ClampRepeatAnimationValue(HScene scene, HNode node, float* value, float candidate)
+    {
+        InternalNode* n = &scene->m_Nodes[node & 0xffff];
+        float* zoom = (float*)&n->m_Node.m_Properties[PROPERTY_REPEAT_ZOOM];
+        float* offset = (float*)&n->m_Node.m_Properties[PROPERTY_REPEAT_OFFSET];
+        float min_value, max_value;
+        if (value == zoom || value == zoom + 1)
+        {
+            min_value = 0.01f;
+            max_value = 256.0f;
+        }
+        else if (value == offset || value == offset + 1)
+        {
+            min_value = -1000000.0f;
+            max_value = 1000000.0f;
+        }
+        else
+        {
+            return candidate;
+        }
+
+        if (candidate < min_value) return min_value;
+        if (candidate > max_value) return max_value;
+        // Malformed custom easing curves may return NaN. Keep the last
+        // valid animated value rather than passing NaN to tiled geometry.
+        return candidate >= min_value && candidate <= max_value ? candidate : *value;
+    }
+
     void UpdateAnimations(HScene scene, float dt)
     {
         dmArray<Animation>* animations = &scene->m_Animations;
@@ -2081,7 +2116,8 @@ namespace dmGui
 
                 float x = dmEasing::GetValue(anim->m_Easing, t2);
 
-                *anim->m_Value = anim->m_From + (anim->m_To - anim->m_From) * x;
+                *anim->m_Value = ClampRepeatAnimationValue(scene, anim->m_Node, anim->m_Value,
+                                                           anim->m_From + (anim->m_To - anim->m_From) * x);
                 // Flag local transform as dirty for the node
                 scene->m_Nodes[anim->m_Node & 0xffff].m_Node.m_DirtyLocal = 1;
 
@@ -2110,13 +2146,10 @@ namespace dmGui
             Animation* anim = &(*animations)[i];
             if ((anim->m_Elapsed >= anim->m_Duration && anim->m_Delay == 0) || anim->m_Cancelled)
             {
-                // If we have cancelled an animation, its callback won't be called which means
-                // we potentially get dangling lua refs in the script system
-                if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
-                {
-                    anim->m_AnimationCompleteCalled = 1;
-                    anim->m_AnimationComplete(scene, anim->m_Node, !anim->m_Cancelled, anim->m_Userdata1, anim->m_Userdata2);
-                }
+                // Cancellation must also release custom easing curves
+                // (LuaCurveRelease removes their registry reference).
+                // CompleteAnimation releases before invoking any callback.
+                CompleteAnimation(scene, anim, !anim->m_Cancelled);
 
                 RemoveAnimation(*animations, i);
                 i--;
@@ -2794,6 +2827,9 @@ namespace dmGui
         node->m_Node.m_Properties[PROPERTY_TEXT_PARAMS] = Vector4(1, 0, 0, 0);
         node->m_Node.m_Properties[PROPERTY_EULER] = Vector4(0);
         node->m_Node.m_Properties[PROPERTY_PREV_EULER] = Vector4(0);
+        node->m_Node.m_Properties[PROPERTY_REPEAT_ZOOM] = Vector4(1,1,0,0);
+        node->m_Node.m_Properties[PROPERTY_REPEAT_OFFSET] = Vector4(0,0,0,0);
+        node->m_Node.m_Properties[PROPERTY_REPEAT_MODE] = Vector4(0,0,0,0);
         node->m_Node.m_LocalTransform = Matrix4::identity();
         node->m_Node.m_LocalAdjustScale = Vector4(1.0, 1.0, 1.0, 1.0);
         node->m_Node.m_PerimeterVertices = 32;
@@ -4186,14 +4222,11 @@ namespace dmGui
         }
         else
         {
-            // Make sure to invoke the callback when we are re-using the
-            // animation index so that we can clean up dangling ref's in
-            // the gui_script module.
+            // Release the previous custom easing curve as well as invoking
+            // its completion callback before replacing the animation slot.
+            // This matters for looping animations, which may never finish.
             Animation* anim = &scene->m_Animations[animation_index];
-            if (anim->m_AnimationComplete && !anim->m_AnimationCompleteCalled)
-            {
-                anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
-            }
+            CompleteAnimation(scene, anim, false);
         }
 
         animation.m_Node = node;
@@ -4264,11 +4297,15 @@ namespace dmGui
 
     dmhash_t GetPropertyHash(Property property)
     {
-        dmhash_t hash = 0;
-        if (PROPERTY_SHADOW >= property) {
-            hash = g_PropTable[property].m_Hash;
+        // Not every Property enum value has an entry in g_PropTable.
+        // In particular PIE/TEXT/PREV_EULER and REPEAT_MODE are not named
+        // vector properties, so indexing this table by the enum is unsafe.
+        for (uint32_t i = 0; i < sizeof(g_PropTable) / sizeof(g_PropTable[0]); ++i)
+        {
+            if (g_PropTable[i].m_Property == property)
+                return g_PropTable[i].m_Hash;
         }
-        return hash;
+        return 0;
     }
 
     void CancelAnimationHash(HScene scene, HNode node, dmhash_t property_hash)

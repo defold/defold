@@ -680,6 +680,33 @@
                                              [:children 0 :renderable :user-data :material-shader]
                                              [:children 0 :renderable :user-data :gpu-texture]))))
 
+;; Ensure Repeat properties survive GUI save and build serialization and that
+;; the GL3-based GUI renderer entry points remain available.
+(deftest gui-box-repeat-save-and-build-gl3-test
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/logic/main.gui")
+          box (gui-node scene "left")
+          zoom [1.25 0.75 0.0 0.0]
+          offset [-8.0 6.0 0.0 0.0]]
+      (is (= "com.jogamp.opengl.GL3" (.getName com.jogamp.opengl.GL3)))
+      (is (fn? gui/render-tris))
+      (is (fn? gui/render-lines))
+      (g/set-property! box :texture-mode :texture-mode-repeat)
+      (g/set-property! box :repeat-zoom zoom)
+      (g/set-property! box :repeat-offset offset)
+      (let [saved (g/node-value scene :save-value)
+            saved-box (coll/first-where #(= "left" (:id %)) (:nodes saved))
+            built (-> (g/valid-node-value scene :build-targets)
+                      first
+                      (get-in [:user-data :pb]))
+            built-box (coll/first-where #(= "left" (:id %)) (:nodes built))]
+        (is (= :texture-mode-repeat (:texture-mode saved-box)))
+        (is (= zoom (:repeat-zoom saved-box)))
+        (is (= offset (:repeat-offset saved-box)))
+        (is (= :texture-mode-repeat (:texture-mode built-box)))
+        (is (= zoom (:repeat-zoom built-box)))
+        (is (= offset (:repeat-offset built-box)))))))
+
 (deftest gui-scene-validation
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/logic/main.gui")]
@@ -718,6 +745,40 @@
       (is (= (:ball sizes) (g/node-value box :size)))
       (g/set-property! box :texture "atlas_texture/left_hud")
       (is (= (:left-hud sizes) (g/node-value box :size))))))
+
+;; Explicit Repeat must draw at the effective atlas frame size even when the
+;; user chooses Auto. Non-unit zoom and phase still subdivide that frame.
+;; Legacy material-only tiling remains Manual-only for compatibility.
+(deftest gui-box-auto-size-repeat-preview-test
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/logic/main.gui")
+          box (gui-node scene "left")
+          zoom [0.5 0.5 0.0 0.0]
+          offset [4.0 -3.0 0.0 0.0]]
+      (g/set-property! box :texture "atlas_texture/ball")
+      (g/set-property! box :size-mode :size-mode-auto)
+      (g/set-property! box :repeat-zoom zoom)
+      (g/set-property! box :repeat-offset offset)
+      (let [stretch (g/node-value box :scene-renderable-user-data)
+            atlas-page (:page-index stretch)]
+        (is (= 6 (count (:geom-data stretch))))
+        (g/set-property! box :texture-mode :texture-mode-repeat)
+        (let [repeated (g/node-value box :scene-renderable-user-data)
+              repeated-verts (count (:geom-data repeated))
+              auto-size (g/node-value box :size)]
+          (is (= 54 repeated-verts)
+              "Auto-size Repeat with zoom 0.5 and phase offset must tile, not Stretch")
+          (is (= repeated-verts (count (:uv-data repeated))))
+          (is (= atlas-page (:page-index repeated)))
+          (is (= (:line-data stretch) (:line-data repeated)))
+          (is (= :texture-mode-repeat (:texture-mode (g/node-value box :node-msg))))
+          (is (= zoom (:repeat-zoom (g/node-value box :node-msg))))
+          (is (= offset (:repeat-offset (g/node-value box :node-msg))))
+          (g/set-property! box :size-mode :size-mode-manual)
+          (g/set-property! box :manual-size auto-size)
+          (is (= repeated-verts
+                 (count (:geom-data (g/node-value box :scene-renderable-user-data))))
+              "Manual and Auto modes with equal effective frame size must match"))))))
 
 (deftest gui-scene-pie
   (test-util/with-loaded-project
@@ -1094,6 +1155,41 @@
         (is (and box-landscape-pos (not= box-default-pos box-landscape-pos))))
       (let [new-dims (g/valid-node-value node-id :scene-dims)]
         (is (and new-dims (not= dims new-dims)))))))
+
+;; PRIVATE SOURCE QA: check per-layout Repeat overrides instead of the normal
+;; GUI scene save/build path covered by gui-box-repeat-save-and-build-gl3-test.
+(deftest gui-box-repeat-layout-override-roundtrip-test
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/layouts.gui")
+          box (gui-node scene "box")
+          zoom [1.5 0.75 0.0 0.0]
+          offset [12.0 -7.0 0.0 0.0]]
+      (is (= :texture-mode-stretch (g/node-value box :texture-mode)))
+      (set-visible-layout! scene "Landscape")
+      ;; Inspector edit-type setters persist overrides for the current layout.
+      ;; Raw g/set-property! would modify the Default node's stored values.
+      (test-util/prop! box :texture-mode :texture-mode-repeat)
+      (test-util/prop! box :repeat-zoom zoom)
+      (test-util/prop! box :repeat-offset offset)
+      (is (= :texture-mode-repeat (g/node-value box :texture-mode)))
+      (is (= zoom (g/node-value box :repeat-zoom)))
+      (is (= offset (g/node-value box :repeat-offset)))
+      (set-visible-layout! scene "")
+      (is (= :texture-mode-stretch (g/node-value box :texture-mode)))
+      (is (= [1.0 1.0 0.0 0.0] (g/node-value box :repeat-zoom)))
+      (is (= [0.0 0.0 0.0 0.0] (g/node-value box :repeat-offset)))
+      (let [saved (g/valid-node-value scene :save-value)
+            saved-layout (coll/first-where #(= "Landscape" (:name %)) (:layouts saved))
+            saved-node (coll/first-where #(= "box" (:id %)) (:nodes saved-layout))
+            built (-> (g/valid-node-value scene :build-targets) first (get-in [:user-data :pb]))
+            built-layout (coll/first-where #(= "Landscape" (:name %)) (:layouts built))
+            built-node (coll/first-where #(= "box" (:id %)) (:nodes built-layout))]
+        (is (= :texture-mode-repeat (:texture-mode saved-node)))
+        (is (= zoom (:repeat-zoom saved-node)))
+        (is (= offset (:repeat-offset saved-node)))
+        (is (= :texture-mode-repeat (:texture-mode built-node)))
+        (is (= zoom (:repeat-zoom built-node)))
+        (is (= offset (:repeat-offset built-node)))))))
 
 (deftest gui-layout-add
   (test-util/with-loaded-project

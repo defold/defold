@@ -14,6 +14,7 @@
 
 #include "gui_script.h"
 #include <float.h>
+#include <math.h>
 
 #include <dlib/hash.h>
 #include <dlib/dstrings.h>
@@ -192,6 +193,8 @@ namespace dmGui
      * @member gui.PROP_SHADOW shadow color property
      * @member gui.PROP_SIZE size property
      * @member gui.PROP_SLICE9 slice9 property
+     * @member gui.PROP_REPEAT_ZOOM Repeat texture magnification, positive x/y. Animatable.
+     * @member gui.PROP_REPEAT_OFFSET Repeat texture phase in local node pixels. Animatable.
      * @member gui.PROP_TRACKING tracking property
      */
 
@@ -1557,6 +1560,29 @@ namespace dmGui
         else
         {
             to = *dmScript::CheckVector4(L, 3);
+        }
+
+        // Repeat texture properties share the dedicated Lua setters' bounds.
+        // Animation writes directly into the native property components, so
+        // without this check an invalid target silently disables tiling.
+        dmGui::PropDesc* repeat_property = dmGui::GetPropertyDesc(property_hash);
+        if (repeat_property &&
+            (repeat_property->m_Property == dmGui::PROPERTY_REPEAT_ZOOM ||
+             repeat_property->m_Property == dmGui::PROPERTY_REPEAT_OFFSET))
+        {
+            if (dmGui::GetNodeType(scene, hnode) != dmGui::NODE_TYPE_BOX)
+                return luaL_error(L, "repeat animation is supported only on box nodes");
+
+            const bool check_x = repeat_property->m_Component == 0xff || repeat_property->m_Component == 0;
+            const bool check_y = repeat_property->m_Component == 0xff || repeat_property->m_Component == 1;
+            if (repeat_property->m_Property == dmGui::PROPERTY_REPEAT_ZOOM &&
+                ((check_x && !(to.getX() >= 0.01f && to.getX() <= 256.0f)) ||
+                 (check_y && !(to.getY() >= 0.01f && to.getY() <= 256.0f))))
+                return luaL_error(L, "repeat zoom animation target must be in [0.01, 256]");
+            if (repeat_property->m_Property == dmGui::PROPERTY_REPEAT_OFFSET &&
+                ((check_x && !(fabsf(to.getX()) <= 1000000.0f)) ||
+                 (check_y && !(fabsf(to.getY()) <= 1000000.0f))))
+                return luaL_error(L, "repeat offset animation target must be finite and within +/-1000000");
         }
 
         dmEasing::Curve curve;
@@ -3217,6 +3243,131 @@ namespace dmGui
 
         Scene* scene = GuiScriptInstance_Check(L);
         dmScript::PushVector4(L, dmGui::GetNodeProperty(scene, hnode, dmGui::PROPERTY_SLICE9));
+        return 1;
+    }
+
+    // Repeat is an explicit node mode. Materials named slice9_tiled and
+    // slice9_tiled_paged remain backwards-compatible opt-ins; switching the
+    // mode directly also works with an ordinary compatible GUI material.
+    // The value is intentionally not animatable: zoom, offset and size are.
+    /*# set repeat mode for a box node
+     * @name gui.set_repeat_mode
+     * @param node [type:node] target box node
+     * @param mode [type:number] gui.REPEAT_MODE_STRETCH or gui.REPEAT_MODE_REPEAT
+     */
+    static int LuaSetRepeatMode(lua_State* L)
+    {
+        HNode node;
+        LuaCheckNodeInternal(L, 1, &node);
+        int mode = luaL_checkint(L, 2);
+        if (mode != 0 && mode != 1)
+            return luaL_error(L, "repeat mode must be STRETCH (0) or REPEAT (1)");
+        Scene* scene = GuiScriptInstance_Check(L);
+        if (dmGui::GetNodeType(scene, node) != dmGui::NODE_TYPE_BOX)
+            return luaL_error(L, "repeat mode is supported only on box nodes");
+        dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_REPEAT_MODE, Vector4((float)mode,0,0,0));
+        return 0;
+    }
+
+    /*# get repeat mode for a box node
+     * @name gui.get_repeat_mode
+     * @param node [type:node] target box node
+     * @return mode [type:number] repeat mode
+     */
+    static int LuaGetRepeatMode(lua_State* L)
+    {
+        HNode node;
+        LuaCheckNodeInternal(L, 1, &node);
+        Scene* scene = GuiScriptInstance_Check(L);
+        if (dmGui::GetNodeType(scene, node) != dmGui::NODE_TYPE_BOX)
+            return luaL_error(L, "repeat mode is supported only on box nodes");
+        lua_pushnumber(L, dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_REPEAT_MODE).getX());
+        return 1;
+    }
+
+    /*# set the texture repeat zoom
+     * Image magnification in X and Y. A zoom of 2 draws each image tile at
+     * twice its native size; (1,1) is the default. The underlying named
+     * property repeat_zoom can be animated using gui.animate().
+     * @name gui.set_repeat_zoom
+     * @param node [type:node] target box node
+     * @param zoom [type:vector3|vector4] XY magnification from 0.01 to 256
+     */
+    static int LuaSetRepeatZoom(lua_State* L)
+    {
+        HNode node;
+        LuaCheckNodeInternal(L, 1, &node);
+        Vector4 zoom;
+        Vector3* v3 = dmScript::ToVector3(L, 2);
+        if (v3)
+            zoom = Vector4(*v3,0);
+        else
+            zoom = *dmScript::CheckVector4(L, 2);
+        if (!(zoom.getX() >= 0.01f && zoom.getY() >= 0.01f &&
+              zoom.getX() <= 256.0f && zoom.getY() <= 256.0f))
+            return luaL_error(L, "repeat zoom components must be in [0.01, 256]");
+        Scene* scene = GuiScriptInstance_Check(L);
+        if (dmGui::GetNodeType(scene, node) != dmGui::NODE_TYPE_BOX)
+            return luaL_error(L, "repeat zoom is supported only on box nodes");
+        dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_REPEAT_ZOOM, zoom);
+        return 0;
+    }
+
+    /*# get the repeat texture zoom
+     * @name gui.get_repeat_zoom
+     * @param node [type:node] target box node
+     * @return zoom [type:vector3] current XY texture magnification
+     */
+    static int LuaGetRepeatZoom(lua_State* L)
+    {
+        HNode node;
+        LuaCheckNodeInternal(L, 1, &node);
+        Scene* scene = GuiScriptInstance_Check(L);
+        if (dmGui::GetNodeType(scene, node) != dmGui::NODE_TYPE_BOX)
+            return luaL_error(L, "repeat zoom is supported only on box nodes");
+        dmScript::PushVector3(L, dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_REPEAT_ZOOM).getXYZ());
+        return 1;
+    }
+
+    /*# set repeat texture offset
+     * Phase translation in local node pixels, modulo the scaled source tile.
+     * The repeat_offset property is animatable using gui.animate().
+     * @name gui.set_repeat_offset
+     * @param node [type:node] target box node
+     * @param offset [type:vector3|vector4] XY pixel offsets
+     */
+    static int LuaSetRepeatOffset(lua_State* L)
+    {
+        HNode node;
+        LuaCheckNodeInternal(L, 1, &node);
+        Vector4 offset;
+        Vector3* v3 = dmScript::ToVector3(L, 2);
+        if (v3)
+            offset = Vector4(*v3,0);
+        else
+            offset = *dmScript::CheckVector4(L, 2);
+        if (!(fabsf(offset.getX()) <= 1000000.0f && fabsf(offset.getY()) <= 1000000.0f))
+            return luaL_error(L, "repeat offset components must be finite and within +/-1000000");
+        Scene* scene = GuiScriptInstance_Check(L);
+        if (dmGui::GetNodeType(scene, node) != dmGui::NODE_TYPE_BOX)
+            return luaL_error(L, "repeat offset is supported only on box nodes");
+        dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_REPEAT_OFFSET, offset);
+        return 0;
+    }
+
+    /*# get repeat texture offset
+     * @name gui.get_repeat_offset
+     * @param node [type:node] target box node
+     * @return offset [type:vector3] current XY phase in local node pixels
+     */
+    static int LuaGetRepeatOffset(lua_State* L)
+    {
+        HNode node;
+        LuaCheckNodeInternal(L, 1, &node);
+        Scene* scene = GuiScriptInstance_Check(L);
+        if (dmGui::GetNodeType(scene, node) != dmGui::NODE_TYPE_BOX)
+            return luaL_error(L, "repeat offset is supported only on box nodes");
+        dmScript::PushVector3(L, dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_REPEAT_OFFSET).getXYZ());
         return 1;
     }
 
@@ -5080,6 +5231,12 @@ namespace dmGui
         {"get_height",      LuaGetHeight},
         {"get_slice9",      LuaGetSlice9},
         {"set_slice9",      LuaSetSlice9},
+        {"set_repeat_mode", LuaSetRepeatMode},
+        {"get_repeat_mode", LuaGetRepeatMode},
+        {"set_repeat_zoom", LuaSetRepeatZoom},
+        {"get_repeat_zoom", LuaGetRepeatZoom},
+        {"set_repeat_offset", LuaSetRepeatOffset},
+        {"get_repeat_offset", LuaGetRepeatOffset},
         {"pick_node",       LuaPickNode},
         {"is_enabled",      LuaIsEnabled},
         {"set_enabled",     LuaSetEnabled},
@@ -5231,6 +5388,13 @@ namespace dmGui
         SETPROP(leading, LEADING)
         SETPROP(tracking, TRACKING)
         SETPROP(slice9, SLICE9)
+        SETPROP(repeat_zoom, REPEAT_ZOOM)
+        SETPROP(repeat_offset, REPEAT_OFFSET)
+
+        lua_pushnumber(L, 0);
+        lua_setfield(L, -2, "REPEAT_MODE_STRETCH");
+        lua_pushnumber(L, 1);
+        lua_setfield(L, -2, "REPEAT_MODE_REPEAT");
 
 #undef SETPROP
 

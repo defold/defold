@@ -55,6 +55,7 @@
             [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
             [editor.shaders :as shaders]
+            [editor.slice9 :as slice9]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.util :as eutil]
@@ -69,7 +70,7 @@
             [util.ensure :as ensure]
             [util.fn :as fn]
             [util.murmur :as murmur])
-  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$SceneDesc$FontDesc Gui$SceneDesc$LayerDesc Gui$SceneDesc$LayoutDesc Gui$SceneDesc$MaterialDesc Gui$SceneDesc$ParticleFXDesc Gui$SceneDesc$TextureDesc]
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$TextureMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$SceneDesc$FontDesc Gui$SceneDesc$LayerDesc Gui$SceneDesc$LayoutDesc Gui$SceneDesc$MaterialDesc Gui$SceneDesc$ParticleFXDesc Gui$SceneDesc$TextureDesc]
            [com.jogamp.opengl GL GL3]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
@@ -1947,11 +1948,63 @@
 
 ;; Box nodes
 
-(g/defnk produce-box-node-msg [shape-base-node-msg ^:raw slice9]
-  (assoc shape-base-node-msg :slice9 slice9))
+(defn- invalid-repeat-zoom-message
+  [repeat-zoom]
+  (when (coll/any? (fn [value]
+                     (let [value (double value)]
+                       (or (not (Double/isFinite value))
+                           (< value 0.01)
+                           (> value 256.0))))
+                   [(nth repeat-zoom 0) (nth repeat-zoom 1)])
+    "Repeat Zoom X and Y must be between 0.01 and 256."))
+
+(defn- invalid-repeat-offset-message
+  [repeat-offset]
+  (when (coll/any? (fn [value]
+                     (let [value (double value)]
+                       (or (not (Double/isFinite value))
+                           (> (Math/abs value) 1000000.0))))
+                   [(nth repeat-offset 0) (nth repeat-offset 1)])
+    "Repeat Offset X and Y must be finite and within 1,000,000 pixels."))
+
+(g/defnk produce-box-node-msg [shape-base-node-msg ^:raw slice9 ^:raw texture-mode ^:raw repeat-zoom ^:raw repeat-offset]
+  (assoc shape-base-node-msg
+    :slice9 slice9
+    :texture-mode texture-mode
+    :repeat-zoom repeat-zoom
+    :repeat-offset repeat-offset))
 
 (g/defnode BoxNode
   (inherits ShapeNode)
+
+  (property texture-mode g/Keyword (default (protobuf/default Gui$NodeDesc :texture-mode))
+            (dynamic edit-type (layout-property-edit-type texture-mode (properties/->pb-choicebox Gui$NodeDesc$TextureMode)))
+            (dynamic label (g/constantly "Texture Mode"))
+            (dynamic tooltip (g/constantly "Stretch normally or repeat the source image inside the box."))
+            (value (layout-property-getter texture-mode))
+            (set (layout-property-setter texture-mode)))
+
+  (property repeat-zoom types/Vec4 (default [1.0 1.0 0.0 0.0])
+            (dynamic visible (g/fnk [texture-mode] (= :texture-mode-repeat texture-mode)))
+            (dynamic error (g/fnk [_node-id texture-mode repeat-zoom]
+                             (when (= :texture-mode-repeat texture-mode)
+                               (validation/prop-error :fatal _node-id :repeat-zoom invalid-repeat-zoom-message repeat-zoom))))
+            (dynamic edit-type (layout-property-edit-type repeat-zoom {:type types/Vec4 :labels ["X" "Y" "Z" "W"]}))
+            (dynamic label (g/constantly "Repeat Zoom"))
+            (dynamic tooltip (g/constantly "Tile magnification per axis (0.01 to 256)."))
+            (value (layout-property-getter repeat-zoom))
+            (set (layout-property-setter repeat-zoom)))
+
+  (property repeat-offset types/Vec4 (default [0.0 0.0 0.0 0.0])
+            (dynamic visible (g/fnk [texture-mode] (= :texture-mode-repeat texture-mode)))
+            (dynamic error (g/fnk [_node-id texture-mode repeat-offset]
+                             (when (= :texture-mode-repeat texture-mode)
+                               (validation/prop-error :fatal _node-id :repeat-offset invalid-repeat-offset-message repeat-offset))))
+            (dynamic edit-type (layout-property-edit-type repeat-offset {:type types/Vec4 :labels ["X" "Y" "Z" "W"]}))
+            (dynamic label (g/constantly "Repeat Offset"))
+            (dynamic tooltip (g/constantly "Shift repeated image phase in local pixels."))
+            (value (layout-property-getter repeat-offset))
+            (set (layout-property-setter repeat-offset)))
 
   (property slice9 types/Vec4 (default (protobuf/default Gui$NodeDesc :slice9))
             (dynamic read-only? (g/fnk [size-mode] (not= :size-mode-manual size-mode)))
@@ -1962,15 +2015,40 @@
             (set (layout-property-setter slice9)))
 
   (display-order (into base-display-order
-                       [:manual-size :texture-size :size-mode :enabled :visible :texture :material :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                       [:manual-size :texture-size :size-mode :enabled :visible :texture :material :texture-mode :repeat-zoom :repeat-offset :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   ;; Overloaded outputs
   (output node-msg g/Any :cached produce-box-node-msg)
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [pivot size-mode size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
+          (g/fnk [pivot size-mode size color+alpha slice9 anim-data material texture-mode repeat-zoom repeat-offset clipping-mode clipping-visible clipping-inverted]
             (let [frame (get-in anim-data [:frames 0])
-                  vertex-data (texture-set/vertex-data frame size-mode size slice9 pivot)
+                  tiled-preview (and (or (= :texture-mode-repeat texture-mode)
+                                         (contains? #{"slice9_tiled" "slice9_tiled_paged"} material))
+                                     ;; Explicit Repeat also applies to Auto-sized boxes:
+                                     ;; their effective size is the atlas frame size, and
+                                     ;; non-unit zoom/offset can still produce many tiles.
+                                     ;; Preserve the old material-only opt-in's Manual gate.
+                                     (or (= size-mode :size-mode-manual)
+                                         (= :texture-mode-repeat texture-mode))
+                                     frame
+                                     (or (slice9/sliced? slice9)
+                                         (not (:use-geometries frame))))
+                  preview-margins (if tiled-preview
+                                    (slice9/oriented-margins slice9 (:flip-horizontal frame) (:flip-vertical frame))
+                                    slice9)
+                  ;; Auto size ordinarily takes the raw frame quad, ignoring
+                  ;; Slice-9. Native Repeat retains nonzero Slice-9 borders in
+                  ;; either size mode, so start from the segmented frame here.
+                  preview-size-mode (if (and tiled-preview
+                                             (= :texture-mode-repeat texture-mode))
+                                      :size-mode-manual
+                                      size-mode)
+                  vertex-data (texture-set/vertex-data frame preview-size-mode size preview-margins pivot)
+                  vertex-data (if tiled-preview
+                                (slice9/tiled-vertex-data (assoc frame :repeat-zoom repeat-zoom :repeat-offset repeat-offset)
+                                  size preview-margins vertex-data)
+                                vertex-data)
                   user-data {:geom-data (:position-data vertex-data)
                              :line-data (:line-data vertex-data)
                              :uv-data (:uv-data vertex-data)
