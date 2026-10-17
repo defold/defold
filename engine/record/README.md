@@ -104,8 +104,10 @@ Windows application audio uses WASAPI process loopback for the engine process an
 its children, with 48 kHz stereo PCM encoded to 128 kbit/s AAC in the MP4. It does
 not capture other applications or the microphone. Audio support is detected
 separately from video; older Windows versions continue to support `audio=false`.
-Both tracks use a common QPC timeline. Silent intervals are preserved, and stop
-drains audio capture before finalizing the file. No external encoder is required.
+Both tracks use a common QPC timeline. Silent intervals and static video are
+preserved through the stop boundary, including video-only recordings. Stop drains
+audio capture and writes the final held video frame before finalizing the file.
+No external encoder is required.
 
 Linux records the engine backbuffer in the post-render extension callback, before
 `Flip`. Capture uses the graphics API without depending on X11 or Wayland
@@ -187,10 +189,10 @@ cmake --build engine/build/x86_64-win32 --target run_test_record_win32_native
 This opt-in suite opens its own window and plays test tones. It decodes the actual
 MP4 tracks to verify H.264/AAC, tone/flash synchronization, silent audio, recording
 without a render stream, repeated recording, shutdown finalization, failed-start
-cleanup and `audio=false`. Colored client corners verify cropping for DPI-unaware,
-system-aware and per-monitor-aware windows, and while growing and shrinking the
-window; run above 100% display scaling to
-exercise DPI virtualization. The launcher plays a competing tone in another process
+cleanup, static/paused video duration and `audio=false`. Colored client corners
+verify cropping for DPI-unaware, system-aware and per-monitor-aware windows, and
+while growing and shrinking the window; run above 100% display scaling to exercise
+DPI virtualization. The launcher plays a competing tone in another process
 so the silence cases also check application isolation. Completion uses playback
 and capture events; the native tests are excluded from the default CI test suite.
 

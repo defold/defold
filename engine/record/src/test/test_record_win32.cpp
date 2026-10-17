@@ -35,10 +35,12 @@
 #include <jc_test/jc_test.h>
 #include <record/record_private.h>
 #include <record/record_timeline.h>
+#include <dlib/time.h>
 
 using Microsoft::WRL::ComPtr;
 
 static bool g_White;
+static bool g_Animate;
 static uint32_t g_Paints;
 static uint32_t g_PaintTarget;
 static HANDLE g_Painted;
@@ -47,7 +49,8 @@ static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPA
 {
     if (message == WM_TIMER)
     {
-        InvalidateRect(window, 0, FALSE);
+        if (g_Animate)
+            InvalidateRect(window, 0, FALSE);
         return 0;
     }
     if (message == WM_PAINT)
@@ -67,12 +70,14 @@ static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPA
             FillRect(dc, &corner, brush);
             DeleteObject(brush);
         }
-        // Keep WGC producing frames even during silence or a static test image.
+        // Most tests animate a marker; static-duration tests deliberately stop
+        // changing pixels so WGC has no new frames to deliver.
         rect.left = rect.right / 2;
         rect.right = rect.left + 8;
         rect.top = 8;
         rect.bottom = 16;
-        HBRUSH marker = CreateSolidBrush(RGB(++g_Paints % 256, 40, 80));
+        ++g_Paints;
+        HBRUSH marker = CreateSolidBrush(RGB(g_Animate ? g_Paints % 256 : 0, 40, 80));
         FillRect(dc, &rect, marker);
         DeleteObject(marker);
         EndPaint(window, &paint);
@@ -114,6 +119,7 @@ struct Recording
     bool m_StartResult, m_StopResult;
     DPI_AWARENESS_CONTEXT m_DpiContext;
     bool m_DpiContextPreserved;
+    uint64_t m_StartBefore, m_StartAfter, m_StopBefore;
     char m_Path[MAX_PATH];
 };
 
@@ -121,10 +127,13 @@ static DWORD WINAPI RecordWorker(void* context)
 {
     Recording* recording = (Recording*)context;
     DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(recording->m_DpiContext);
+    recording->m_StartBefore = dmTime::GetMonotonicTime();
     recording->m_StartResult = dmRecord::StartNative(&recording->m_Window, recording->m_Path,
         320, 240, 30, recording->m_Audio, &recording->m_Status);
+    recording->m_StartAfter = dmTime::GetMonotonicTime();
     SetEvent(recording->m_Started);
     WaitForSingleObject(recording->m_Stop, INFINITE);
+    recording->m_StopBefore = dmTime::GetMonotonicTime();
     if (recording->m_StartResult)
     {
         if (recording->m_Finalize)
@@ -177,6 +186,7 @@ protected:
         m_Output = 0;
         m_Played = CreateEventW(0, FALSE, FALSE, 0);
         g_White = false;
+        g_Animate = true;
         g_PaintTarget = 0;
         g_Painted = CreateEventW(0, TRUE, FALSE, 0);
         CreateTestWindow(DPI_AWARENESS_CONTEXT_UNAWARE);
@@ -263,7 +273,62 @@ protected:
         ASSERT_TRUE(completed);
     }
 
-    void Inspect(bool audio, bool tone)
+    void InspectVideo(LONGLONG* video_end, LONGLONG* white_onset, uint32_t minimum_frames)
+    {
+        wchar_t path[MAX_PATH];
+        MultiByteToWideChar(CP_UTF8, 0, m_Recording.m_Path, -1, path, MAX_PATH);
+        ComPtr<IMFAttributes> attributes;
+        ASSERT_EQ(S_OK, MFCreateAttributes(&attributes, 1));
+        attributes->SetUINT32(MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, TRUE);
+        ComPtr<IMFSourceReader> reader;
+        ASSERT_EQ(S_OK, MFCreateSourceReaderFromURL(path, attributes.Get(), &reader));
+        reader->SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS, FALSE);
+        reader->SetStreamSelection(MF_SOURCE_READER_FIRST_VIDEO_STREAM, TRUE);
+        ComPtr<IMFMediaType> type;
+        ASSERT_EQ(S_OK, MFCreateMediaType(&type));
+        type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+        type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32);
+        ASSERT_EQ(S_OK, reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, type.Get()));
+        *video_end = 0;
+        *white_onset = -1;
+        uint32_t frames = 0;
+        for (;;)
+        {
+            DWORD flags;
+            LONGLONG time;
+            ComPtr<IMFSample> sample;
+            ASSERT_EQ(S_OK, reader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, 0, &flags, &time, &sample));
+            if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
+                break;
+            if (!sample)
+                continue;
+            ComPtr<IMFMediaBuffer> buffer;
+            ASSERT_EQ(S_OK, sample->ConvertToContiguousBuffer(&buffer));
+            BYTE* data;
+            DWORD bytes;
+            ASSERT_EQ(S_OK, buffer->Lock(&data, 0, &bytes));
+            if (bytes >= 320 * 240 * 4 && *white_onset < 0 && data[(120 * 320 + 160) * 4] > 200)
+                *white_onset = time;
+            buffer->Unlock();
+            LONGLONG duration;
+            ASSERT_EQ(S_OK, sample->GetSampleDuration(&duration));
+            ASSERT_GT(duration, 0LL);
+            if (frames)
+                ASSERT_LT(fabs((double)(time - *video_end)), 10000.0);
+            *video_end = time + duration;
+            ++frames;
+        }
+        ASSERT_GT(frames, minimum_frames);
+        // Bound the capture epoch by Start's entry/return, excluding finalization
+        // latency. A static tail must reach Stop even without an audio track.
+        LONGLONG minimum_duration = (m_Recording.m_StopBefore - m_Recording.m_StartAfter) * 10;
+        LONGLONG maximum_duration = (m_Recording.m_StopBefore - m_Recording.m_StartBefore) * 10;
+        ASSERT_GE(*video_end + 333334, minimum_duration);
+        ASSERT_LE(*video_end, maximum_duration + 1000000);
+        printf("%s: video=%u frames, duration=%.1f ms\n", m_Recording.m_Path, frames, *video_end / 10000.0);
+    }
+
+    void Inspect(bool audio, bool tone, uint32_t minimum_video_frames = 10)
     {
         wchar_t path[MAX_PATH];
         MultiByteToWideChar(CP_UTF8, 0, m_Recording.m_Path, -1, path, MAX_PATH);
@@ -282,6 +347,8 @@ protected:
         if (!audio)
         {
             ASSERT_EQ(MF_E_INVALIDSTREAMNUMBER, result);
+            LONGLONG video_end, white_onset;
+            InspectVideo(&video_end, &white_onset, minimum_video_frames);
             return;
         }
         ASSERT_EQ(S_OK, result);
@@ -338,44 +405,10 @@ protected:
         else
             ASSERT_LT(peak, 100);
 
-        reader.Reset();
-        ASSERT_EQ(S_OK, MFCreateSourceReaderFromURL(path, attributes.Get(), &reader));
-        reader->SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS, FALSE);
-        reader->SetStreamSelection(MF_SOURCE_READER_FIRST_VIDEO_STREAM, TRUE);
-        type.Reset();
-        ASSERT_EQ(S_OK, MFCreateMediaType(&type));
-        type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
-        type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32);
-        ASSERT_EQ(S_OK, reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, type.Get()));
-        LONGLONG video_end = 0, white_onset = -1;
-        uint32_t video_frames = 0;
-        for (;;)
-        {
-            DWORD flags;
-            LONGLONG time;
-            ComPtr<IMFSample> sample;
-            ASSERT_EQ(S_OK, reader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, 0, &flags, &time, &sample));
-            if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
-                break;
-            if (!sample)
-                continue;
-            ComPtr<IMFMediaBuffer> buffer;
-            ASSERT_EQ(S_OK, sample->ConvertToContiguousBuffer(&buffer));
-            BYTE* data;
-            DWORD bytes;
-            ASSERT_EQ(S_OK, buffer->Lock(&data, 0, &bytes));
-            if (bytes >= 320 * 240 * 4 && white_onset < 0 && data[(120 * 320 + 160) * 4] > 200)
-                white_onset = time;
-            buffer->Unlock();
-            LONGLONG duration;
-            ASSERT_EQ(S_OK, sample->GetSampleDuration(&duration));
-            ASSERT_GE(time + duration, video_end);
-            video_end = time + duration;
-            ++video_frames;
-        }
-        ASSERT_GT(video_frames, 10u);
-        printf("%s: audio=%llu frames, peak=%d, video=%u frames, end difference=%.1f ms\n",
-            m_Recording.m_Path, audio_frames, peak, video_frames, (audio_end - video_end) / 10000.0);
+        LONGLONG video_end, white_onset;
+        InspectVideo(&video_end, &white_onset, minimum_video_frames);
+        printf("%s: audio=%llu frames, peak=%d, end difference=%.1f ms\n",
+            m_Recording.m_Path, audio_frames, peak, (audio_end - video_end) / 10000.0);
         ASSERT_LT(fabs((double)(audio_end - video_end)), 1500000.0);
         if (tone)
         {
@@ -584,6 +617,31 @@ TEST_F(RecordWindowsTest, VideoOnly)
     Finish();
     ASSERT_TRUE(m_Recording.m_StopResult);
     Inspect(false, true);
+}
+
+// Static windows and a paused animation must retain their full duration, with or without audio.
+TEST_F(RecordWindowsTest, StaticVideoDuration)
+{
+    const char* suffixes[] = {"static-video", "static-audio", "paused-video", "paused-audio"};
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        bool audio = (i & 1) != 0;
+        g_Animate = (i & 2) != 0;
+        ASSERT_TRUE(Begin(audio, suffixes[i], i == 3));
+        if (g_Animate)
+        {
+            ResetEvent(g_Painted);
+            g_PaintTarget = g_Paints + 40;
+            ASSERT_TRUE(PumpUntil(g_Painted));
+        }
+        g_Animate = false;
+        // Playback completion gives a bounded, measurable static interval without
+        // relying on sleeps or forcing any further changes to the window's pixels.
+        Play(false, 96000);
+        Finish();
+        ASSERT_TRUE(m_Recording.m_StopResult);
+        Inspect(audio, false, 0);
+    }
 }
 
 int main(int argc, char** argv)

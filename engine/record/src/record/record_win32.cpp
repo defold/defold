@@ -453,6 +453,11 @@ namespace dmRecord
                 if (FAILED(result) && !failure[0])
                     HResultText(result, failure, failure_size);
             }
+            // WGC only delivers changed content. Keep the final image visible
+            // through the same stop boundary as audio, including video-only files.
+            result = FlushVideoFrame(m_StopTime);
+            if (FAILED(result) && !failure[0])
+                HResultText(result, failure, failure_size);
             if (m_Writer)
                 result = m_Writer->Finalize();
             if (FAILED(result) && !failure[0])
@@ -938,15 +943,40 @@ namespace dmRecord
                 return result;
             uint64_t sample_time = FramesToTime(frame_slot, m_Fps);
             sample->SetSampleTime(sample_time);
-            sample->SetSampleDuration(FramesToTime(frame_slot + 1, m_Fps) - sample_time);
             EnterCriticalSection(&m_WriterLock);
-            result = m_Writer->WriteSample(m_StreamIndex, sample.Get());
-            LeaveCriticalSection(&m_WriterLock);
-            if (SUCCEEDED(result))
+            if (time - m_StartTime >= m_StopTime)
+                result = S_FALSE;
+            else
             {
-                m_LastFrameSlot = frame_slot;
-                ++m_FrameCount;
+                // Delay writing one frame until its duration is known. A static
+                // image lasts until the next captured image or the stop boundary.
+                result = FlushVideoFrame(sample_time);
+                if (SUCCEEDED(result))
+                {
+                    m_PendingVideoSample = sample;
+                    m_LastFrameSlot = frame_slot;
+                    // A captured frame is enough to complete Start; waiting for
+                    // a second frame would time out on a static window.
+                    ++m_FrameCount;
+                }
             }
+            LeaveCriticalSection(&m_WriterLock);
+            return result;
+        }
+
+        // Called with the writer lock held, or after both capture producers join.
+        HRESULT FlushVideoFrame(uint64_t end_time)
+        {
+            if (!m_PendingVideoSample)
+                return S_OK;
+            uint64_t time = FramesToTime(m_LastFrameSlot, m_Fps);
+            if (end_time <= time)
+                return S_FALSE;
+            HRESULT result = m_PendingVideoSample->SetSampleDuration(end_time - time);
+            if (SUCCEEDED(result))
+                result = m_Writer->WriteSample(m_StreamIndex, m_PendingVideoSample.Get());
+            if (SUCCEEDED(result))
+                m_PendingVideoSample.Reset();
             return result;
         }
 
@@ -979,6 +1009,7 @@ namespace dmRecord
             m_Item.Reset();
             m_Direct3DDevice.Reset();
             m_Staging.Reset();
+            m_PendingVideoSample.Reset();
             m_Writer.Reset();
             m_Context.Reset();
             m_Device.Reset();
@@ -1023,6 +1054,7 @@ namespace dmRecord
         ComPtr<ID3D11Device>                            m_Device;
         ComPtr<ID3D11DeviceContext>                     m_Context;
         ComPtr<ID3D11Texture2D>                         m_Staging;
+        ComPtr<IMFSample>                               m_PendingVideoSample;
         ComPtr<IMFSinkWriter>                           m_Writer;
         ComPtr<Direct3DAbi::IDirect3DDevice>            m_Direct3DDevice;
         ComPtr<CaptureAbi::IGraphicsCaptureItem>        m_Item;
