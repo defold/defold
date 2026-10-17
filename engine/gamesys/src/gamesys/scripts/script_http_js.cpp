@@ -47,6 +47,7 @@ extern "C"
 namespace dmGameSystem
 {
     uint64_t g_Timeout = 0;
+    uint64_t g_StallTimeout = 0;
 
     typedef void (*OnLoad)(void* context, int status, void* content, int content_size, const char* headers);
     typedef void (*OnError)(void* context, int status);
@@ -70,14 +71,15 @@ namespace dmGameSystem
         void*       m_SendData;
         size_t      m_SendDataLength;
         uint64_t    m_RequestTimeout;
+        uint64_t    m_StallTimeout;
         bool        m_ReportProgress;
     };
 
-    extern "C" void dmScriptHttpRequestAsync(const char* method, const char* url, const char* headers, void* arg, OnLoad onload, OnError onerror, OnProgress onprogress, const void* send_data, int send_data_length, int timeout);
+    extern "C" void dmScriptHttpRequestAsync(const char* method, const char* url, const char* headers, void* arg, OnLoad onload, OnError onerror, OnProgress onprogress, const void* send_data, int send_data_length, int timeout, int stall_timeout);
 
     void            HttpRequestAsync(const RequestParams& request_params, OnLoad ol, OnError oe, OnProgress op)
     {
-        dmScriptHttpRequestAsync(request_params.m_Method, request_params.m_Url, request_params.m_Headers, request_params.m_Args, ol, oe, request_params.m_ReportProgress ? op : NULL, request_params.m_SendData, request_params.m_SendDataLength, request_params.m_RequestTimeout);
+        dmScriptHttpRequestAsync(request_params.m_Method, request_params.m_Url, request_params.m_Headers, request_params.m_Args, ol, oe, request_params.m_ReportProgress ? op : NULL, request_params.m_SendData, request_params.m_SendDataLength, request_params.m_RequestTimeout, request_params.m_StallTimeout);
     }
 
     static void MessageDestroyCallback(dmMessage::Message* message)
@@ -200,6 +202,7 @@ namespace dmGameSystem
             }
 
             request_params.m_RequestTimeout = g_Timeout;
+            request_params.m_StallTimeout = g_StallTimeout;
             if (top > 5 && !lua_isnil(L, 6))
             {
                 luaL_checktype(L, 6, LUA_TTABLE);
@@ -211,6 +214,10 @@ namespace dmGameSystem
                     if (strcmp(attr, "timeout") == 0)
                     {
                         request_params.m_RequestTimeout = luaL_checknumber(L, -1) * 1000000.0f;
+                    }
+                    else if (strcmp(attr, "stall_timeout") == 0)
+                    {
+                        request_params.m_StallTimeout = luaL_checknumber(L, -1) * 1000000.0f;
                     }
                     else if (strcmp(attr, "report_progress") == 0)
                     {
@@ -270,6 +277,8 @@ namespace dmGameSystem
         {
             float timeout = dmConfigFile::GetFloat(config_file, "network.http_timeout", 0.0f);
             g_Timeout = (uint64_t)(timeout * 1000000.0f);
+            float stall_timeout = dmConfigFile::GetFloat(config_file, "network.http_stall_timeout", 0.0f);
+            g_StallTimeout = (uint64_t)(stall_timeout * 1000000.0f);
         }
 
         luaL_register(L, "http", HTTP_COMP_FUNCTIONS);

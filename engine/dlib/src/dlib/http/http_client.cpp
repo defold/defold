@@ -190,7 +190,9 @@ namespace dmHttpClient
         HttpWriteHeaders    m_HttpWriteHeaders;
         int                 m_MaxGetRetries;
         int                 m_RequestTimeout;
+        int                 m_StallTimeout;
         uint64_t            m_RequestStart;
+        uint64_t            m_LastActivity;
         Statistics          m_Statistics;
 
         dmHttpCache::HCache m_HttpCache;
@@ -221,6 +223,9 @@ namespace dmHttpClient
 
             dmSocket::SetSendTimeout(m_Socket, SOCKET_TIMEOUT);
             dmSocket::SetReceiveTimeout(m_Socket, SOCKET_TIMEOUT);
+            // A pooled SSL connection keeps the read timeout of the request that opened it
+            if (m_SSLSocket)
+                dmSSLSocket::SetReceiveTimeout(m_SSLSocket, SOCKET_TIMEOUT);
 
             return RESULT_OK;
         } else {
@@ -239,6 +244,7 @@ namespace dmHttpClient
         if (r == dmConnectionPool::RESULT_OK)
         {
             m_SSLSocket = dmConnectionPool::GetSSLSocket(m_Pool, m_Connection);
+            dmSSLSocket::SetReceiveTimeout(m_SSLSocket, SOCKET_TIMEOUT);
             return RESULT_OK;
         }
         else
@@ -282,12 +288,23 @@ namespace dmHttpClient
         params->m_HttpCache = 0;
         params->m_MaxGetRetries = 1;
         params->m_RequestTimeout = 0;
+        params->m_StallTimeout = 0;
+    }
+
+    // Connection setup (DNS, connect, TLS handshake) does not update the activity time, so both timeouts limit it
+    static int GetConnectTimeout(int request_timeout, int stall_timeout)
+    {
+        if (request_timeout == 0)
+            return stall_timeout;
+        if (stall_timeout == 0)
+            return request_timeout;
+        return dmMath::Min(request_timeout, stall_timeout);
     }
 
     HClient New(const NewParams* params, const dmURI::Parts* hostURI, int* cancelflag, dmURI::Parts* proxyURI)
     {
         dmSocket::Address address;
-        if (dmSocket::GetHostByNameT(hostURI->m_Hostname, &address, params->m_RequestTimeout, cancelflag) != dmSocket::RESULT_OK)
+        if (dmSocket::GetHostByNameT(hostURI->m_Hostname, &address, GetConnectTimeout(params->m_RequestTimeout, params->m_StallTimeout), cancelflag) != dmSocket::RESULT_OK)
         {
             return 0;
         }
@@ -304,7 +321,9 @@ namespace dmHttpClient
         client->m_HttpWriteHeaders = params->m_HttpWriteHeaders;
         client->m_MaxGetRetries = params->m_MaxGetRetries;
         client->m_RequestTimeout = params->m_RequestTimeout;
+        client->m_StallTimeout = params->m_StallTimeout;
         client->m_RequestStart = 0;
+        client->m_LastActivity = 0;
         client->m_Secure = (strcmp(hostURI->m_Scheme, "https") == 0) || (strcmp(hostURI->m_Scheme, "wss") == 0);
         client->m_CancelFlag = cancelflag;
 
@@ -346,6 +365,9 @@ namespace dmHttpClient
             case OPTION_REQUEST_TIMEOUT:
                 client->m_RequestTimeout = (int) value;
                 break;
+            case OPTION_STALL_TIMEOUT:
+                client->m_StallTimeout = (int) value;
+                break;
             case OPTION_REQUEST_IGNORE_CACHE:
 #if defined(DM_NO_HTTP_CACHE)
                 client->m_IgnoreCache = 1;
@@ -376,10 +398,18 @@ namespace dmHttpClient
     {
         if (client->m_CancelFlag && *client->m_CancelFlag)
             return true;
-        if( client->m_RequestTimeout == 0 )
+        if (client->m_RequestTimeout == 0 && client->m_StallTimeout == 0)
             return false;
         uint64_t currenttime = dmTime::GetMonotonicTime();
-        return int(currenttime - client->m_RequestStart) >= client->m_RequestTimeout;
+        if (client->m_RequestTimeout != 0 && int(currenttime - client->m_RequestStart) >= client->m_RequestTimeout)
+            return true;
+        return client->m_StallTimeout != 0 && int(currenttime - client->m_LastActivity) >= client->m_StallTimeout;
+    }
+
+    static void StartRequest(HClient client)
+    {
+        client->m_RequestStart = dmTime::GetMonotonicTime();
+        client->m_LastActivity = client->m_RequestStart;
     }
 
     static dmSocket::Result SendAll(Response* response, const char* buffer, int length)
@@ -394,6 +424,8 @@ namespace dmHttpClient
             else
                 r = dmSocket::Send(response->m_Socket, buffer + total_sent_bytes, length - total_sent_bytes, &sent_bytes);
 
+            if (r == dmSocket::RESULT_OK && sent_bytes > 0)
+                response->m_Client->m_LastActivity = dmTime::GetMonotonicTime();
             if( r == dmSocket::RESULT_WOULDBLOCK )
             {
                 r = dmSocket::RESULT_TRY_AGAIN;
@@ -417,11 +449,15 @@ namespace dmHttpClient
 
     static dmSocket::Result Receive(Response* response, void* buffer, int length, int* received_bytes)
     {
+        dmSocket::Result r;
         if (response->m_SSLSocket != 0) {
-            return dmSSLSocket::Receive(response->m_SSLSocket, buffer, length, received_bytes);
+            r = dmSSLSocket::Receive(response->m_SSLSocket, buffer, length, received_bytes);
         } else {
-            return dmSocket::Receive(response->m_Socket, buffer, length, received_bytes);
+            r = dmSocket::Receive(response->m_Socket, buffer, length, received_bytes);
         }
+        if (r == dmSocket::RESULT_OK && *received_bytes > 0)
+            response->m_Client->m_LastActivity = dmTime::GetMonotonicTime();
+        return r;
     }
 
     static void HandleVersion(void* user_data, int major, int minor, int status, const char* status_str)
@@ -1161,16 +1197,20 @@ bail:
             Result r = response.Connect(use_proxy ? client->m_ProxyURI.m_Hostname : client->m_HostURI.m_Hostname,
                                         use_proxy ? client->m_ProxyURI.m_Port : client->m_HostURI.m_Port,
                                         use_proxy ? false : client->m_Secure,
-                                        client->m_RequestTimeout,
+                                        GetConnectTimeout(client->m_RequestTimeout, client->m_StallTimeout),
                                         client->m_CancelFlag);
             if (r != RESULT_OK)
             {
                 return r;
             }
 
+            // GetConnectTimeout() limits each connection setup step, so the stall timeout starts after the setup
+            client->m_LastActivity = dmTime::GetMonotonicTime();
+
             if( HasRequestTimedOut(client) )
             {
-                return r;
+                client->m_SocketResult = dmSocket::RESULT_WOULDBLOCK;
+                return RESULT_SOCKET_ERROR;
             }
 
             // client, response, path, method
@@ -1209,7 +1249,7 @@ bail:
             {
                 if (client->m_Secure)
                 {
-                    r = response.CreateSSLSocket(client->m_HostURI.m_Hostname, client->m_RequestTimeout);
+                    r = response.CreateSSLSocket(client->m_HostURI.m_Hostname, GetConnectTimeout(client->m_RequestTimeout, client->m_StallTimeout));
                 }
 
                 if (r == RESULT_OK)
@@ -1286,7 +1326,7 @@ bail:
 
     Result Get(HClient client, const char* path)
     {
-        client->m_RequestStart = dmTime::GetMonotonicTime();
+        StartRequest(client);
 
         Result r;
 
@@ -1327,7 +1367,7 @@ bail:
                 // Try again
                 if (i < client->m_MaxGetRetries - 1) {
                     client->m_Statistics.m_Reconnections++;
-                    client->m_RequestStart = dmTime::GetMonotonicTime();
+                    StartRequest(client);
                     dmLogInfo("HTTPCLIENT: Connection lost, reconnecting. (%d/%d)", i + 1, client->m_MaxGetRetries - 1);
                 }
             }
@@ -1349,7 +1389,7 @@ bail:
         if (strcmp(method, "GET") == 0) {
             return Get(client, path);
         } else {
-            client->m_RequestStart = dmTime::GetMonotonicTime();
+            StartRequest(client);
             Result r = DoRequest(client, path, method);
             return r;
         }

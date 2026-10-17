@@ -117,6 +117,8 @@ namespace dmHttpClient
         OPTION_REQUEST_IGNORE_CACHE,
         /// Use chunked transfer encoding for POST/PUT if request data is larger than 16k
         OPTION_REQUEST_CHUNKED_TRANSFER,
+        /// Stall timeout in us. The request fails if no data is sent or received for this long. 0 disables it.
+        OPTION_STALL_TIMEOUT,
     };
 
     /**
@@ -157,6 +159,9 @@ namespace dmHttpClient
 
         /// Request timeout in us
         int m_RequestTimeout;
+
+        /// Stall timeout in us
+        int m_StallTimeout;
 
         NewParams()
         {

@@ -706,6 +706,69 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 0);
 }
 
+// Verifies that the stall timeout fails a request to a server that sends no data,
+// without a total request timeout. Before #12911, such a request blocked forever.
+// The request reuses a pooled connection opened without timeouts, which previously kept an unlimited SSL read wait.
+TEST_P(dmHttpClientTest, ClientStallTimeout)
+{
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+    ASSERT_EQ(dmHttpClient::RESULT_OK, HttpGet("/add/1/1"));
+
+    int sleep_time_ms = 5 * 1000;
+    #if defined(DM_PLATFORM_VENDOR) || defined (DM_SANITIZE_THREAD)
+        const int stall_timeout_us = 5000 * 1000;
+        sleep_time_ms = 50 * 1000;
+    #elif defined(__SCE__)
+        const int stall_timeout_us = 1000 * 1000;
+    #else
+        const int stall_timeout_us = 500 * 1000;
+    #endif
+
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_STALL_TIMEOUT, stall_timeout_us); // microseconds
+
+    char buf[128];
+    dmSnPrintf(buf, sizeof(buf), "/sleep/%d", sleep_time_ms); // milliseconds
+    uint64_t timestart = dmTime::GetMonotonicTime();
+    dmHttpClient::Result r = HttpGet(buf);
+    uint64_t elapsed = dmTime::GetMonotonicTime() - timestart;
+    ASSERT_NE(dmHttpClient::RESULT_OK, r);
+    ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
+    ASSERT_EQ(-1, m_StatusCode);
+    ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, dmHttpClient::GetLastSocketResult(m_Client));
+    ASSERT_LT(elapsed, (uint64_t)sleep_time_ms * 1000);
+
+    r = HttpGet("/add/1/1000");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ(1001, strtol(m_Content.c_str(), 0, 10));
+
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_STALL_TIMEOUT, 0);
+}
+
+// Verifies that the stall timeout lets a slow transfer complete while data keeps arriving,
+// even when the transfer takes longer than the stall timeout. The request timeout aborts such a transfer (#12911).
+TEST_P(dmHttpClientTest, ClientStallTimeoutSlowTransfer)
+{
+    const int stall_timeout_us = 1500 * 1000;
+    const int byte_count = 30;
+    const int byte_interval_ms = 100;
+
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_STALL_TIMEOUT, stall_timeout_us); // microseconds
+
+    char buf[128];
+    dmSnPrintf(buf, sizeof(buf), "/drip/%d/%d", byte_count, byte_interval_ms);
+    uint64_t timestart = dmTime::GetMonotonicTime();
+    dmHttpClient::Result r = HttpGet(buf);
+    uint64_t elapsed = dmTime::GetMonotonicTime() - timestart;
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ(200, m_StatusCode);
+    ASSERT_EQ((size_t)byte_count, m_Content.size());
+    // The server waits after each byte, so the transfer always takes longer than the stall timeout
+    ASSERT_GT(elapsed, (uint64_t)stall_timeout_us);
+
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_STALL_TIMEOUT, 0);
+}
+
 TEST_P(dmHttpClientTest, ServerClose)
 {
     dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 1);
@@ -1072,6 +1135,28 @@ TEST_P(dmHttpClientTestTLS, FailedSSLHandshake)
             ASSERT_TRUE(0);
         }
     }
+}
+
+// Verifies that the stall timeout alone limits a TLS handshake that does not progress.
+// Without it, a request with only a stall timeout waits for the server to complete the handshake (#12911).
+TEST_P(dmHttpClientTestTLS, FailedSSLHandshakeStallTimeout)
+{
+    uint64_t stall_timeout = 130 * 1000;
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_STALL_TIMEOUT, stall_timeout); // microseconds
+
+    uint64_t timestart = dmTime::GetMonotonicTime();
+    dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/5000"); // milliseconds
+    uint64_t elapsed = dmTime::GetMonotonicTime() - timestart;
+
+    ASSERT_NE(dmHttpClient::RESULT_OK, r);
+    ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
+    ASSERT_EQ(-1, m_StatusCode);
+    ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, dmHttpClient::GetLastSocketResult(m_Client));
+    ASSERT_GE(elapsed, stall_timeout);
+    // The test server waits 10 seconds before it accepts the TLS connection
+    ASSERT_LT(elapsed, 10 * 1000000U);
+
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_STALL_TIMEOUT, 0);
 }
 
 // Covers the shutdown gap where the raw socket exists but the connection has not yet been

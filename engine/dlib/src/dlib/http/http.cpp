@@ -45,6 +45,7 @@ HttpRequest::HttpRequest()
     m_Owner = 0;
     m_Handle = InvalidRequestHandle();
     m_Timeout = 0;
+    m_StallTimeout = 0;
     m_IgnoreCache = 0;
     m_ChunkedTransfer = 1;
     m_ReportProgress = 0;
@@ -619,6 +620,17 @@ extern "C"
         }
 
         request->m_Timeout = timeout_us;
+        return HTTP_RESULT_OK;
+    }
+
+    HttpResult HttpSetStallTimeout(HttpRequest* request, uint32_t stall_timeout_us)
+    {
+        if (!CanModifyRequest(request))
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        request->m_StallTimeout = stall_timeout_us;
         return HTTP_RESULT_OK;
     }
 

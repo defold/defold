@@ -367,6 +367,7 @@ TEST_F(Http, RequestConfiguration)
     ASSERT_EQ(HTTP_RESULT_OK, HttpSetBasicAuth(request, "user", "password"));
     ASSERT_EQ(HTTP_RESULT_OK, HttpSetBearerAuth(request, "token"));
     ASSERT_EQ(HTTP_RESULT_OK, HttpSetTimeout(request, 1000));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetStallTimeout(request, 1000));
     ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, 0));
 }
 

@@ -362,6 +362,7 @@ public class TestHttpServer extends AbstractHandler
     Pattern m_ClosePattern = Pattern.compile("/close");
     Pattern m_CloseReusedPattern = Pattern.compile("/close-reused");
     Pattern m_SleepPattern = Pattern.compile("/sleep/(\\d+)");
+    Pattern m_DripPattern = Pattern.compile("/drip/(\\d+)/(\\d+)");
     Map<Object, Integer> m_CloseReusedConnections = Collections.synchronizedMap(new IdentityHashMap<Object, Integer>());
 
     static final String SSL_SESSION_ATTRIBUTE = "defold.tsl.session";
@@ -575,6 +576,7 @@ public class TestHttpServer extends AbstractHandler
         Matcher echom = m_EchoPattern.matcher(target);
         Matcher closem = m_ClosePattern.matcher(target);
         Matcher sleepm = m_SleepPattern.matcher(target);
+        Matcher dripm = m_DripPattern.matcher(target);
 
         // for HTTP proxy connections using CONNECT method
         // this toggles the server to proxy connect mode by
@@ -823,6 +825,22 @@ public class TestHttpServer extends AbstractHandler
             }
         } else if (closem.matches()) {
             HttpConnection.getCurrentConnection().getHttpChannel().getConnection().close();
+        } else if (dripm.matches()) {
+            // Slow but active transfer: send one byte, then wait, for each byte
+            int n = Integer.parseInt(dripm.group(1));
+            int interval = Integer.parseInt(dripm.group(2));
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.setContentLength(n);
+            baseRequest.setHandled(true);
+            for (int i = 0; i < n; ++i) {
+                response.getOutputStream().write('x');
+                response.flushBuffer();
+                try {
+                    Thread.sleep(interval);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
         } else if (sleepm.matches()) {
             int t = Integer.parseInt(sleepm.group(1));
             try {

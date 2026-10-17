@@ -226,6 +226,7 @@ auto_finish_transactions = 0
 
 [network]
 http_timeout = 3.0
+http_stall_timeout = 5.0
 ssl_certificates = /builtins/ca-certificates/cacert.pem
 http_thread_count = 2
 http_cache_enabled = 0
