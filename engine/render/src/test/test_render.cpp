@@ -3265,6 +3265,50 @@ TEST_F(VectorFontTest, DynamicEffectsWithoutPrewarm)
     RenderWithoutPrewarm("../font/src/test/data/SourceCodePro-Regular.otf", true);
 }
 
+// Color-cache preparation follows the vertex budget, including whitespace,
+// ordinary outlines and the extra quads consumed by rich-text effects.
+TEST_F(VectorFontTest, TruncationBoundsColorCachePreparation)
+{
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_SHADOW;
+
+    const struct
+    {
+        const char* m_Text;
+        uint32_t    m_Capacity;
+        uint32_t    m_Vertices;
+        uint32_t    m_ColorGlyphs;
+    } cases[] = {
+        { "AB", 0, 0, 0 },
+        { "AB", 5, 0, 0 },
+        { "AB", 6, 6, 1 },
+        { "AB", 12, 12, 2 },
+        { " A B", 6, 6, 1 },
+        { "?AB", 6, 6, 0 },
+        { "? AB", 12, 12, 1 },
+        { "<shadow color=#000000>AB</shadow>", 6, 0, 0 },
+        { "<shadow color=#000000>AB</shadow>", 12, 12, 1 },
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        // Switching material resets both the color and ordinary glyph caches.
+        EXPECT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, m_OriginalMaterial));
+        EXPECT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, m_Material));
+        EXPECT_EQ(0u, m_SystemFontMap->m_VectorPaint->m_Glyphs.Size());
+        dmRender::FontDefaultVertex vertices[12];
+        EXPECT_EQ(cases[i].m_Vertices, Render(cases[i].m_Text, true, vertices, cases[i].m_Capacity));
+        EXPECT_EQ(cases[i].m_ColorGlyphs, m_SystemFontMap->m_VectorPaint->m_Glyphs.Size());
+        EXPECT_FALSE(m_SystemFontMap->m_SlugResetPending);
+    }
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
+}
+
 // Truncated vector text never writes beyond the supplied vertex buffer.
 TEST_F(VectorFontTest, TruncationPreservesBufferBounds)
 {

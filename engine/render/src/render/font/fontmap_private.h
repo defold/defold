@@ -23,9 +23,10 @@
 
 namespace dmRender
 {
-    // Adds color glyphs to the shared numeric cache and uploads changes once
-    // per layout. Ordinary vector glyphs keep using the existing cache.
-    void PrepareVectorPaintGlyphs(HFontMap font_map, HTextLayout layout, uint32_t frame);
+    // Adds color glyphs within the visible glyph budget to the shared numeric
+    // cache and uploads changes once per layout. Ordinary vector glyphs keep
+    // using the existing cache, but still consume the glyph budget.
+    void PrepareVectorPaintGlyphs(HFontMap font_map, HTextLayout layout, uint32_t frame, uint32_t max_glyph_count);
     const FontVectorPaintGlyph* GetVectorPaintGlyph(HFontMap font_map, HFont font, uint32_t glyph);
 
     struct FontMap

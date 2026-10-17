@@ -21,6 +21,7 @@
 #include <dlib/math.h>
 #include <dlib/mutex.h>
 #include <dlib/profile.h>
+#include <dlib/utf8.h>
 #include <dlib/zlib.h>
 
 #include <font/text_layout.h>
@@ -1121,15 +1122,19 @@ namespace dmRender
         return index ? &font_map->m_VectorPaint->m_Glyphs[*index] : 0;
     }
 
-    void PrepareVectorPaintGlyphs(HFontMap font_map, HTextLayout layout, uint32_t frame)
+    void PrepareVectorPaintGlyphs(HFontMap font_map, HTextLayout layout, uint32_t frame, uint32_t max_glyph_count)
     {
         FontVectorPaintCache* cache = font_map->m_VectorPaint;
         uint32_t previous_count = cache->m_Glyphs.Size();
         TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
-        for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout); ++i)
+        uint32_t glyph_slot = 0;
+        for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout) && glyph_slot < max_glyph_count; ++i)
         {
             const TextGlyph& glyph = glyphs[i];
-            if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT || !FontVectorPaintHasGlyph(glyph.m_Font, glyph.m_GlyphIndex))
+            if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT || dmUtf8::IsWhiteSpace(glyph.m_Codepoint))
+                continue;
+            ++glyph_slot;
+            if (!FontVectorPaintHasGlyph(glyph.m_Font, glyph.m_GlyphIndex))
                 continue;
             uint32_t index;
             bool has_color;

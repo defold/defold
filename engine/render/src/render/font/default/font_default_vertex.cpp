@@ -262,7 +262,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
     if (metrics.m_Truncated)
         dmLogWarning("Character buffer exceeded (size: %u), increase the \"graphics.max_characters\" property in your game.project file.", num_vertices / 6);
 
-    PrepareVectorPaintGlyphs(font_map, layout, frame);
+    PrepareVectorPaintGlyphs(font_map, layout, frame, metrics.m_GlyphQuadCount);
     // Layer offsets come from the bounded shared plan, including span effects.
     // Missing glyphs leave transparent quads.
     memset(vertices, 0, metrics.m_VertexCount * sizeof(*vertices));

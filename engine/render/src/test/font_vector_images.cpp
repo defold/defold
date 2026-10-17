@@ -305,6 +305,22 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     dmArray<dmRender::FontDefaultVertex> vertices;
     vertices.SetCapacity(TextLayoutGetGlyphCount(layout) * 18);
     vertices.SetSize(vertices.Capacity());
+    if (color)
+    {
+        // A color glyph fits the same single-quad budget as ordinary text.
+        // Start cold: truncated glyphs must not allocate curves or paints.
+        ASSERT_EQ(0u, map->m_VectorPaint->m_Glyphs.Size());
+        dmRender::FontDefaultVertex bounded[7];
+        memset(bounded, 0xcd, sizeof(bounded));
+        ASSERT_EQ(6u, dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)bounded, 6));
+        ASSERT_EQ(4.0f, bounded[0].m_VectorTexcoord[3]);
+        ASSERT_EQ(1u, map->m_VectorPaint->m_Glyphs.Size());
+        ASSERT_NE((const FontVectorPaintGlyph*)0, dmRender::GetVectorPaintGlyph(map, glyphs[0].m_Font, glyphs[0].m_GlyphIndex));
+        // Guard the next slot against writes from any of its internal layers.
+        const uint8_t* guard = (const uint8_t*)&bounded[6];
+        for (uint32_t i = 0; i < sizeof(bounded[6]); ++i)
+            ASSERT_EQ(0xcdu, guard[i]);
+    }
     uint32_t count = dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
     if (atlas_growth)
     {
@@ -317,18 +333,6 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
         }
     }
     ASSERT_GT(count, 0u);
-    if (color)
-    {
-        // A color glyph fits the same single-quad budget as ordinary text.
-        // Guard the next slot against writes from any of its internal layers.
-        dmRender::FontDefaultVertex bounded[7];
-        memset(bounded, 0xcd, sizeof(bounded));
-        ASSERT_EQ(6u, dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)bounded, 6));
-        ASSERT_EQ(4.0f, bounded[0].m_VectorTexcoord[3]);
-        const uint8_t* guard = (const uint8_t*)&bounded[6];
-        for (uint32_t i = 0; i < sizeof(bounded[6]); ++i)
-            ASSERT_EQ(0xcdu, guard[i]);
-    }
     ASSERT_LE(count, vertices.Size());
     if (depth_overlap)
     {
