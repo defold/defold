@@ -78,22 +78,54 @@ vec4 FontVectorPaintColor(int paint, vec2 p, vec4 foreground)
         float c = dot(q, q) - p0.z * p0.z;
         if (abs(a) < 0.00001)
         {
-            if (abs(b) < 0.00001) discard;
+            if (abs(b) < 0.00001) return vec4(0.0);
             t = -c / b;
-            if (p0.z + t * dr < 0.0) discard;
+            if (p0.z + t * dr < 0.0) return vec4(0.0);
         }
         else
         {
             float d = b * b - 4.0 * a * c;
-            if (d < 0.0) discard;
+            if (d < 0.0) return vec4(0.0);
             float t0 = (-b - sqrt(d)) / (2.0 * a);
             float t1 = (-b + sqrt(d)) / (2.0 * a);
             float hi = max(t0, t1);
             float lo = min(t0, t1);
             t = p0.z + hi * dr >= 0.0 ? hi : lo;
-            if (p0.z + t * dr < 0.0) discard;
+            if (p0.z + t * dr < 0.0) return vec4(0.0);
         }
     }
-    return foreground.a * colorLine(t, int(header.y), int(header.z), paint, foreground);
+    return colorLine(t, int(header.y), int(header.z), paint, foreground);
+}
+
+vec4 FontVectorPaintGlyphColor(int glyph, vec2 p, vec2 dx, vec2 dy, vec4 foreground)
+{
+    vec4 result = vec4(0.0);
+    int count = int(paintData(glyph).x);
+    // Front-to-back source-over permits stopping behind an opaque layer.
+    // Derivatives are supplied by the caller outside non-uniform control flow.
+    for (int i = count - 1; i >= 0; --i)
+    {
+        int layer = glyph + 1 + i * 6;
+        vec4 clip = paintData(layer + 5);
+        if (any(lessThan(p, clip.xy)) || any(greaterThan(p, clip.zw)))
+            continue;
+        vec4 x = paintData(layer);
+        vec4 y = paintData(layer + 1);
+        vec2 uv = vec2(dot(x.xyz, vec3(p, 1.0)), dot(y.xyz, vec3(p, 1.0)));
+        vec2 emsPerPixel = abs(vec2(dot(x.xy, dx), dot(y.xy, dx))) + abs(vec2(dot(x.xy, dy), dot(y.xy, dy)));
+        if (any(lessThan(uv, -2.0 * emsPerPixel)) || any(greaterThan(uv, vec2(1.0) + 2.0 * emsPerPixel)))
+            continue;
+        int band = int(x.w);
+        float coverage = SlugRender(uv, emsPerPixel, paintData(layer + 2), ivec4(band & 4095, band >> 12, 7, 7));
+        if (coverage <= 0.0)
+            continue;
+        vec2 position = vec2(dot(paintData(layer + 3).xyz, vec3(p, 1.0)), dot(paintData(layer + 4).xyz, vec3(p, 1.0)));
+        vec4 color = coverage * FontVectorPaintColor(int(y.w), position, foreground);
+        result += (1.0 - result.a) * color;
+        if (result.a >= 1.0)
+            break;
+    }
+    // Text opacity belongs to the completed glyph, not its overlapping paints.
+    return foreground.a * result;
 }
 #endif

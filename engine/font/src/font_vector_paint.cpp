@@ -37,6 +37,7 @@ struct PaintContext
     HFont                 m_Font;
     dmArray<Matrix4>      m_Transforms;
     dmArray<PaintClip>    m_Clips;
+    uint32_t              m_FirstLayer;
     bool                  m_Failed;
 };
 
@@ -180,7 +181,10 @@ static bool AddPaint(PaintContext* context, uint32_t type, uint32_t stops, uint3
     const Matrix4& paint_transform = CurrentTransform(context);
     if (fabsf(determinant(paint_transform)) < 1e-12f)
         return false;
-    if (3 + stops * 2 > cache->m_Slug->m_MaxTexels - cache->m_Paints.Size())
+    // Reserve the glyph header and layer records before adding paint data, so
+    // overflow rolls back the whole graph through the existing failure path.
+    uint32_t records = 1 + (cache->m_Layers.Size() - context->m_FirstLayer + 1) * 6;
+    if (3 + stops * 2 + records > cache->m_Slug->m_MaxTexels - cache->m_Paints.Size())
     {
         cache->m_Slug->m_Overflow = true;
         context->m_Failed = true;
@@ -251,6 +255,47 @@ bool FontVectorPaintHasGlyph(HFont font, uint32_t glyph)
     FontColrHasGlyph(FontGetColrTTF(font), glyph);
 }
 
+static Vector4 PaintRow(const Matrix4& transform, uint32_t row, float value)
+{
+    Vector4 r = transform.getRow(row);
+    return Vector4(r.getX(), r.getY(), r.getW(), value);
+}
+
+static void EncodeGlyph(FontVectorPaintCache* cache, FontVectorPaintGlyph* glyph)
+{
+    glyph->m_Bounds = Vector4(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);
+    glyph->m_Paint = cache->m_Paints.Size();
+    if (!glyph->m_LayerCount)
+        return;
+    Append(cache->m_Paints, Vector4((float)glyph->m_LayerCount, 0, 0, 0));
+    for (uint32_t i = 0; i < glyph->m_LayerCount; ++i)
+    {
+        const FontVectorPaintLayer& layer = cache->m_Layers[glyph->m_FirstLayer + i];
+        const FontVectorPaintPath&  path = cache->m_Paths[layer.m_Path];
+        Matrix4                     inverse_transform = inverse(layer.m_Transform);
+        float                       width = path.m_Bounds.getZ() - path.m_Bounds.getX();
+        float                       height = path.m_Bounds.getW() - path.m_Bounds.getY();
+        Matrix4 uv = Matrix4::scale(dmVMath::Vector3(1.0f / width, 1.0f / height, 1)) *
+                     Matrix4::translation(dmVMath::Vector3(-path.m_Bounds.getX(), -path.m_Bounds.getY(), 0)) * inverse_transform;
+        Matrix4 paint = layer.m_PaintTransform * inverse_transform;
+        Append(cache->m_Paints, PaintRow(uv, 0, (float)path.m_Slug.m_BandTexel));
+        Append(cache->m_Paints, PaintRow(uv, 1, (float)layer.m_Paint));
+        Append(cache->m_Paints, Vector4(path.m_Slug.m_BandTransform[0], path.m_Slug.m_BandTransform[1], path.m_Slug.m_BandTransform[2], path.m_Slug.m_BandTransform[3]));
+        Append(cache->m_Paints, PaintRow(paint, 0, 0));
+        Append(cache->m_Paints, PaintRow(paint, 1, 0));
+        Append(cache->m_Paints, layer.m_Clip);
+        Vector4 bounds(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);
+        for (uint32_t corner = 0; corner < 4; ++corner)
+        {
+            Vector4 p = layer.m_Transform * Vector4(corner & 1 ? path.m_Bounds.getZ() : path.m_Bounds.getX(), corner & 2 ? path.m_Bounds.getW() : path.m_Bounds.getY(), 0, 1);
+            bounds = Vector4(fminf(bounds.getX(), p.getX()), fminf(bounds.getY(), p.getY()), fmaxf(bounds.getZ(), p.getX()), fmaxf(bounds.getW(), p.getY()));
+        }
+        bounds = Intersect(bounds, layer.m_Clip);
+        if (bounds.getX() < bounds.getZ() && bounds.getY() < bounds.getW())
+            glyph->m_Bounds = Vector4(fminf(glyph->m_Bounds.getX(), bounds.getX()), fminf(glyph->m_Bounds.getY(), bounds.getY()), fmaxf(glyph->m_Bounds.getZ(), bounds.getZ()), fmaxf(glyph->m_Bounds.getW(), bounds.getW()));
+    }
+}
+
 bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t glyph_index, uint32_t* index, bool* has_color)
 {
     *index = ~0u;
@@ -266,11 +311,15 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
         *index = *existing;
         return true;
     }
-    FontVectorPaintGlyph glyph = { source, glyph_index, cache->m_Layers.Size(), 0 };
+    FontVectorPaintGlyph glyph = {};
+    glyph.m_Font = source;
+    glyph.m_Glyph = glyph_index;
+    glyph.m_FirstLayer = cache->m_Layers.Size();
     PaintContext         context;
     context.m_Cache = cache;
     context.m_Font = source;
     context.m_Failed = false;
+    context.m_FirstLayer = glyph.m_FirstLayer;
     Append(context.m_Transforms, Matrix4::identity());
     PaintClip clip = { ~0u, Matrix4::identity(), Vector4(-FLT_MAX, -FLT_MAX, FLT_MAX, FLT_MAX) };
     Append(context.m_Clips, clip);
@@ -319,52 +368,36 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
             dmLogWarning("Unsupported COLR paint in glyph %u of %s; using an outline fallback", glyph.m_Glyph, FontGetPath(source));
     }
     glyph.m_LayerCount = cache->m_Layers.Size() - glyph.m_FirstLayer;
+    EncodeGlyph(cache, &glyph);
     Append(cache->m_Glyphs, glyph);
     *index = cache->m_Glyphs.Size() - 1;
     Put(cache->m_GlyphLookup, key, *index);
     return true;
 }
 
-void FontVectorPaintPackLayer(const FontVectorPaintCache* cache, uint32_t layer_index, float scale, float pixel_scale, float x, float y, const Matrix4& transform, const Vector4& clip, const TextGlyphFaceColors& colors, FontVectorPaintVertex vertices[6])
+void FontVectorPaintPackGlyph(const FontVectorPaintGlyph& glyph, float scale, float pixel_scale, float x, float y, const Matrix4& transform, const Vector4& clip, const TextGlyphFaceColors& colors, FontVectorPaintVertex vertices[6])
 {
-    static const uint32_t       corners[] = { 0, 1, 2, 2, 1, 3 };
+    static const uint32_t       corners[] = { 0, 2, 1, 1, 2, 3 };
     const float*                rgba[] = { colors.m_BottomLeft, colors.m_BottomRight, colors.m_TopLeft, colors.m_TopRight };
-    const FontVectorPaintLayer& layer = cache->m_Layers[layer_index];
-    const FontVectorPaintPath&  path = cache->m_Paths[layer.m_Path];
-    const float                 width = path.m_Bounds.getZ() - path.m_Bounds.getX();
-    const float                 height = path.m_Bounds.getW() - path.m_Bounds.getY();
-    // Map a two-pixel AA margin back through the layer transform, including
-    // preview zoom, so small or transformed layers keep their edge coverage.
-    const float xx = layer.m_Transform.getCol0().getX();
-    const float yx = layer.m_Transform.getCol0().getY();
-    const float xy = layer.m_Transform.getCol1().getX();
-    const float yy = layer.m_Transform.getCol1().getY();
-    const float determinant = fabsf(xx * yy - xy * yx);
-    if (determinant < 1e-12f)
+    if (!glyph.m_LayerCount || glyph.m_Bounds.getX() >= glyph.m_Bounds.getZ() || glyph.m_Bounds.getY() >= glyph.m_Bounds.getW())
     {
         memset(vertices, 0, 6 * sizeof(*vertices));
         return;
     }
-    const float padding = 2.0f / (pixel_scale * determinant);
-    const float padding_x = padding * (fabsf(yy) + fabsf(xy));
-    const float padding_y = padding * (fabsf(xx) + fabsf(yx));
+    // A root-space quad keeps the winding fixed even when paint layers mirror
+    // their outlines. Leave two screen pixels around the union for coverage.
+    const float padding = 2.0f / pixel_scale;
     for (uint32_t v = 0; v < 6; ++v)
     {
         uint32_t               corner = corners[v];
-        float                  px = corner & 1 ? path.m_Bounds.getZ() + padding_x : path.m_Bounds.getX() - padding_x;
-        float                  py = corner & 2 ? path.m_Bounds.getW() + padding_y : path.m_Bounds.getY() - padding_y;
-        Vector4                local(px, py, 0, 1);
-        Vector4                p = layer.m_Transform * local;
-        Vector4                paint = layer.m_PaintTransform * local;
+        float                  px = corner & 1 ? glyph.m_Bounds.getZ() + padding : glyph.m_Bounds.getX() - padding;
+        float                  py = corner & 2 ? glyph.m_Bounds.getW() + padding : glyph.m_Bounds.getY() - padding;
         FontVectorPaintVertex& vertex = vertices[v];
-        vertex.m_Position = transform * Vector4(x + p.getX() * scale, y + p.getY() * scale, 0, 1);
-        vertex.m_Coords = Vector4((px - path.m_Bounds.getX()) / width, (py - path.m_Bounds.getY()) / height, paint.getX(), paint.getY());
-        vertex.m_Banding = Vector4(path.m_Slug.m_BandTransform[0], path.m_Slug.m_BandTransform[1], path.m_Slug.m_BandTransform[2], path.m_Slug.m_BandTransform[3]);
-        vertex.m_Info = Vector4((float)path.m_Slug.m_BandTexel, (float)layer.m_Paint, 0, 0);
+        vertex.m_Position = transform * Vector4(x + px * scale, y + py * scale, 0, 1);
         vertex.m_Color = Vector4(rgba[corner][0], rgba[corner][1], rgba[corner][2], rgba[corner][3]);
         vertex.m_Clip = clip;
-        vertex.m_FontClip = layer.m_Clip;
-        vertex.m_FontPosition[0] = p.getX();
-        vertex.m_FontPosition[1] = p.getY();
+        vertex.m_FontPosition[0] = px;
+        vertex.m_FontPosition[1] = py;
+        vertex.m_Paint = (float)glyph.m_Paint;
     }
 }

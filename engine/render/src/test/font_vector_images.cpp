@@ -303,7 +303,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     entry.m_OutlineAlpha = 1.0f;
     entry.m_ShadowAlpha = 1.0f;
     dmArray<dmRender::FontDefaultVertex> vertices;
-    vertices.SetCapacity(color ? 512 * 6 : TextLayoutGetGlyphCount(layout) * 18);
+    vertices.SetCapacity(TextLayoutGetGlyphCount(layout) * 18);
     vertices.SetSize(vertices.Capacity());
     uint32_t count = dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
     if (atlas_growth)
@@ -319,11 +319,12 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     ASSERT_GT(count, 0u);
     if (color)
     {
-        // A small client buffer may drop a color glyph, but cannot emit a
-        // partial graph or overwrite the following memory.
+        // A color glyph fits the same single-quad budget as ordinary text.
+        // Guard the next slot against writes from any of its internal layers.
         dmRender::FontDefaultVertex bounded[7];
         memset(bounded, 0xcd, sizeof(bounded));
-        ASSERT_LE(dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)bounded, 6), 6u);
+        ASSERT_EQ(6u, dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)bounded, 6));
+        ASSERT_EQ(4.0f, bounded[0].m_VectorTexcoord[3]);
         const uint8_t* guard = (const uint8_t*)&bounded[6];
         for (uint32_t i = 0; i < sizeof(bounded[6]); ++i)
             ASSERT_EQ(0xcdu, guard[i]);
@@ -388,9 +389,10 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
         dmGraphics::EnableState(context, dmGraphics::STATE_DEPTH_TEST);
         dmGraphics::SetDepthFunc(context, dmGraphics::COMPARE_FUNC_LESS);
     }
-    if (decorations)
+    if (decorations || color)
     {
-        // Vector glyphs wind clockwise; decorations must remain visible with them.
+        // Ordinary glyphs, decorations and composed color glyphs must all
+        // remain visible with the same clockwise winding.
         dmGraphics::EnableState(context, dmGraphics::STATE_CULL_FACE);
         dmGraphics::SetCullFace(context, dmGraphics::FACE_TYPE_FRONT);
     }
@@ -410,6 +412,27 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     pixels.SetCapacity(width * height * 4);
     pixels.SetSize(pixels.Capacity());
     dmGraphics::ReadPixels(context, 0, 0, width, height, pixels.Begin(), pixels.Size());
+    if (color && !decoration)
+    {
+        // Test isolated glyphs: decorations can overlap them as separate draws.
+        // A half-opacity glyph must be its completed opaque image faded over
+        // the background. Per-layer alpha would expose the paints underneath.
+        entry.m_FaceColor = dmGraphics::PackRGBA(dmVMath::Vector4(1, 1, 1, 128.0f / 255.0f));
+        uint32_t faded_count = dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
+        ASSERT_EQ(count, faded_count);
+        dmGraphics::SetVertexBufferData(buffer, count * sizeof(vertices[0]), vertices.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        dmGraphics::Clear(context, buffer_flags, 0, 0, 0, 255, 1, 0);
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, count, 1);
+        dmArray<uint8_t> faded;
+        faded.SetCapacity(pixels.Size());
+        faded.SetSize(pixels.Size());
+        dmGraphics::ReadPixels(context, 0, 0, width, height, faded.Begin(), faded.Size());
+        uint32_t max_error = 0;
+        for (uint32_t i = 0; i < pixels.Size(); ++i)
+            if (i % 4 != 3)
+                max_error = dmMath::Max(max_error, (uint32_t)abs((int)faded[i] - (int)(pixels[i] * 128 / 255)));
+        ASSERT_LE(max_error, 2u);
+    }
     dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
     dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
     dmGraphics::DisableVertexDeclaration(context, declaration);
@@ -664,6 +687,7 @@ void TestFontVectorImage(const FontImageCase& c, dmGraphics::HContext context)
     dmRender::RenderContextParams render_params;
     render_params.m_ScriptContext = resources.m_Script;
     render_params.m_MaxCharacters = 512;
+    render_params.m_MaxBatches = 8;
     resources.m_Render = dmRender::NewRenderContext(context, render_params);
     RenderFontVectorImage(c, context, resources);
     if (resources.m_Declaration)

@@ -108,12 +108,11 @@ void FontViewerVectorFontPack(FontViewerVectorFont* cache, uint32_t index, float
 {
     const FontVectorPaintGlyph& glyph = cache->m_Paint.m_Glyphs[index];
     uint32_t                    first = cache->m_Vertices.Size();
-    uint32_t                    end = first + glyph.m_LayerCount * 6;
+    uint32_t                    end = first + 6;
     if (cache->m_Vertices.Capacity() < end)
         cache->m_Vertices.SetCapacity(end + 192);
     cache->m_Vertices.SetSize(end);
-    for (uint32_t i = 0; i < glyph.m_LayerCount; ++i)
-        FontVectorPaintPackLayer(&cache->m_Paint, glyph.m_FirstLayer + i, scale, pixel_scale, x, y, transform, clip, colors, &cache->m_Vertices[first + i * 6]);
+    FontVectorPaintPackGlyph(glyph, scale, pixel_scale, x, y, transform, clip, colors, &cache->m_Vertices[first]);
 }
 
 static bool CreateProgram(FontViewerVectorFont* cache)
@@ -143,12 +142,18 @@ static bool CreateProgram(FontViewerVectorFont* cache)
     dmGraphics::ShaderDescBuilder shaders;
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, (const char*)FONTVIEWER_VECTOR_VP, FONTVIEWER_VECTOR_VP_SIZE);
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment.Begin(), fragment.Size() - 1);
-    const char*                          attributes[] = { "position", "coords", "banding", "info", "color", "clip", "font_clip", "font_position" };
+    const char*                          attributes[] = { "position", "color", "clip", "font_position", "paint" };
+    const uint32_t                       components[] = { 4, 4, 4, 2, 1 };
+    const dmGraphics::ShaderDesc::ShaderDataType types[] = {
+        dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4,
+        dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC2,
+        dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT
+    };
     dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(cache->m_Context);
-    for (uint32_t i = 0; i < 8; ++i)
+    for (uint32_t i = 0; i < 5; ++i)
     {
-        shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, attributes[i], i, i == 7 ? dmGraphics::ShaderDesc::SHADER_TYPE_VEC2 : dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
-        dmGraphics::AddVertexStream(streams, attributes[i], i == 7 ? 2 : 4, dmGraphics::TYPE_FLOAT, false);
+        shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, attributes[i], i, types[i]);
+        dmGraphics::AddVertexStream(streams, attributes[i], components[i], dmGraphics::TYPE_FLOAT, false);
     }
     cache->m_Declaration = dmGraphics::NewVertexDeclaration(cache->m_Context, streams, sizeof(FontVectorPaintVertex));
     dmGraphics::DeleteVertexStreamDeclaration(streams);

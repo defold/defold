@@ -42,22 +42,21 @@ struct FontVectorPaintLayer
 
 struct FontVectorPaintGlyph
 {
-    HFont    m_Font;
-    uint32_t m_Glyph;
-    uint32_t m_FirstLayer;
-    uint32_t m_LayerCount;
+    HFont            m_Font;
+    uint32_t         m_Glyph;
+    uint32_t         m_FirstLayer;
+    uint32_t         m_LayerCount;
+    uint32_t         m_Paint; // Header followed by six texels per layer in m_Paints.
+    dmVMath::Vector4 m_Bounds;
 };
 
 struct FontVectorPaintVertex
 {
     dmVMath::Vector4 m_Position;
-    dmVMath::Vector4 m_Coords;
-    dmVMath::Vector4 m_Banding;
-    dmVMath::Vector4 m_Info;
     dmVMath::Vector4 m_Color;
     dmVMath::Vector4 m_Clip;
-    dmVMath::Vector4 m_FontClip;
     float            m_FontPosition[2];
+    float            m_Paint;
 };
 
 struct FontVectorPaintCache
@@ -79,9 +78,10 @@ bool FontVectorPaintHasGlyph(HFont font, uint32_t glyph);
 // outline, or .notdef when it is empty. Output is cached, including fallback.
 // False means the bounded cache is full or the outline cannot be decoded.
 bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont font, uint32_t glyph, uint32_t* index, bool* has_color);
-// Packs one layer into six vertices. Scale maps font units to pixels;
+// Packs one glyph into six clockwise vertices. Its layers are composed in the
+// fragment shader before text opacity is applied. Scale maps font units to pixels;
 // pixel_scale includes view zoom for antialiasing. Transform maps to the
 // caller's coordinate space; clip is in that same space.
-void FontVectorPaintPackLayer(const FontVectorPaintCache* cache, uint32_t layer, float scale, float pixel_scale, float x, float y, const dmVMath::Matrix4& transform, const dmVMath::Vector4& clip, const TextGlyphFaceColors& colors, FontVectorPaintVertex vertices[6]);
+void FontVectorPaintPackGlyph(const FontVectorPaintGlyph& glyph, float scale, float pixel_scale, float x, float y, const dmVMath::Matrix4& transform, const dmVMath::Vector4& clip, const TextGlyphFaceColors& colors, FontVectorPaintVertex vertices[6]);
 
 #endif

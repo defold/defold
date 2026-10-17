@@ -16,6 +16,7 @@
 #include <jc_test/jc_test.h>
 #include <dlib/testutil.h>
 #include <math.h>
+#include <float.h>
 #include <dmsdk/font/font.h>
 #include "../font.h"
 #include "../font_vector_slug.h"
@@ -72,6 +73,58 @@ TEST(FontVector, ColorPaintCacheFallbackAndReuse)
     FontVectorPaintClear(&cache);
     ASSERT_EQ(0u, cache.m_GlyphLookup.Size());
     ASSERT_EQ(0u, cache.m_PathLookup.Size());
+    FontDestroy(font);
+}
+
+// Internal paint transforms must not change the single glyph quad's winding
+// or its text opacity, and cached composition records must stay within budget.
+TEST(FontVector, ColorGlyphQuadAndCompositionRecords)
+{
+    char  path[512];
+    HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/NotoColorEmoji-Regular.ttf"));
+    ASSERT_NE((HFont)0, font);
+    FontVectorSlugData   data;
+    FontVectorPaintCache cache;
+    cache.m_Slug = &data;
+    uint32_t index;
+    bool     color;
+    ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, FontGetGlyphIndex(font, 0x1f600), &index, &color));
+    const FontVectorPaintGlyph& glyph = cache.m_Glyphs[index];
+    ASSERT_GT(glyph.m_LayerCount, 1u);
+    ASSERT_EQ((float)glyph.m_LayerCount, cache.m_Paints[glyph.m_Paint].getX());
+    ASSERT_EQ(glyph.m_Paint + 1 + glyph.m_LayerCount * 6, cache.m_Paints.Size());
+    ASSERT_LE(cache.m_Paints.Size(), data.m_MaxTexels);
+    TextGlyphFaceColors colors;
+    float*              corners[] = { colors.m_BottomLeft, colors.m_BottomRight, colors.m_TopLeft, colors.m_TopRight };
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        corners[i][0] = corners[i][1] = corners[i][2] = 1;
+        corners[i][3] = .5f;
+    }
+    FontVectorPaintVertex vertices[6];
+    FontVectorPaintPackGlyph(glyph, 1, 1, 0, 0, dmVMath::Matrix4::identity(), dmVMath::Vector4(-FLT_MAX, -FLT_MAX, FLT_MAX, FLT_MAX), colors, vertices);
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        ASSERT_EQ(.5f, vertices[i].m_Color.getW());
+        ASSERT_EQ((float)glyph.m_Paint, vertices[i].m_Paint);
+    }
+    for (uint32_t i = 0; i < 6; i += 3)
+    {
+        dmVMath::Vector4 a = vertices[i + 1].m_Position - vertices[i].m_Position;
+        dmVMath::Vector4 b = vertices[i + 2].m_Position - vertices[i].m_Position;
+        ASSERT_LT(a.getX() * b.getY() - a.getY() * b.getX(), 0.0f);
+    }
+    // Reuse the paths but leave room only for paint nodes, without another
+    // composition header/layer table. The original glyph must remain intact.
+    uint32_t paints = cache.m_Paints.Size();
+    uint32_t layers = cache.m_Layers.Size();
+    cache.m_GlyphLookup.Clear();
+    data.m_MaxTexels = paints + glyph.m_Paint;
+    ASSERT_FALSE(FontVectorPaintAddGlyph(&cache, font, glyph.m_Glyph, &index, &color));
+    ASSERT_TRUE(data.m_Overflow);
+    ASSERT_EQ(paints, cache.m_Paints.Size());
+    ASSERT_EQ(layers, cache.m_Layers.Size());
+    ASSERT_EQ(1u, cache.m_Glyphs.Size());
     FontDestroy(font);
 }
 

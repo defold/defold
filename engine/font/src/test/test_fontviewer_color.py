@@ -90,6 +90,18 @@ class ColorEmojiTest(unittest.TestCase):
         self.assertEqual(normal.size, transparent.size)
         self.assertIsNone(ImageChops.difference(normal, transparent).getbbox())
 
+    # Fading a glyph must preserve its composed colors, including overlapping
+    # translucent paints and mirrored paths, rather than expose lower layers.
+    def test_opacity_preserves_composed_colors(self):
+        text = "😀 🍎 🚀"
+        normal = self.render(text, size=64)[0]
+        faded = self.render("<color=#FFFFFF80>" + text + "</color>", size=64)[0]
+        self.assertEqual(normal.size, faded.size)
+        background = Image.new("RGB", normal.size, normal.getpixel((0, 0)))
+        expected = Image.blend(background, normal, 128 / 255)
+        difference = ImageChops.difference(expected, faded)
+        self.assertLessEqual(max(high for low, high in difference.getextrema()), 2)
+
     def test_rich_text_size(self):
         small = self.render("😀", 32)[0]
         large = self.render("<size=200%>😀</size>", 32)[0]

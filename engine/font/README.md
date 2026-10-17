@@ -22,7 +22,8 @@ then build `fontviewer`. From the repository root, open the rich text sample wit
 The shared engine reader in `src/truetype/font_colr.cpp` reads COLR/CPAL without
 HarfBuzz paint callbacks. The standalone TrueType/CFF parser extracts outlines;
 the production Slug encoder and coverage shader render them. Solid colors and linear/radial gradients are evaluated
-on the GPU. The numeric textures hold curves, bands and paint parameters, with
+on the GPU. Each color glyph uses one quad; the shader composites its layers before
+applying text opacity, preserving colors when text fades. The numeric textures hold curves, bands and paint parameters, with
 no raster emoji atlas. Ordinary Vector text uses the same analytical Slug
 coverage with the rich text face color; its outlines and shadows use the SDF
 effect atlas. Bitmap uses generated coverage with baked outlines and shadows.
@@ -49,7 +50,7 @@ python3 src/test/test_fontviewer_color.py <fontviewer>
 ```
 
 They check all three modes, monochrome emoji fallback, bitmap span outlines,
-palette colors, gradients, transparency, rich text sizes, ZWJ and skin-tone
+palette colors, gradients, composed-glyph opacity, rich text sizes, ZWJ and skin-tone
 sequences, animation, unsupported-glyph fallback, and the complete rich text sample.
 Use `-o output.png` for a PNG export; animations also write
 `output-000001.png`, `output-000002.png`, etc. WebP export still uses `img2webp`.

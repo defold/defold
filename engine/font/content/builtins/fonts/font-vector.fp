@@ -9,9 +9,7 @@ precision highp int;
 #include "/builtins/fonts/font-vector-paint.glsl"
 
 in highp vec2 var_font_position;
-in highp vec2 var_paint_position;
 flat in highp float var_paint;
-flat in highp vec4 var_font_clip;
 in highp vec2 var_texcoord;
 in mediump vec4 var_color;
 flat in highp float var_mode;
@@ -33,6 +31,8 @@ out vec4 out_fragColor;
 void main()
 {
     vec2 emsPerPixel = fwidth(var_texcoord);
+    vec2 font_dx = dFdx(var_font_position);
+    vec2 font_dy = dFdy(var_font_position);
     vec3 effects = vec3(0.0);
     if (var_mode > 0.5 && var_mode < 2.5)
     {
@@ -59,17 +59,17 @@ void main()
             coverage = effects.b;
         }
     }
-    else
+    else if (var_mode < 0.5)
     {
         coverage = SlugRender(var_texcoord, emsPerPixel, var_banding, var_glyph);
     }
+    else
+        coverage = 0.0;
 
     out_fragColor = coverage * vec4(var_color.rgb * var_color.a, var_color.a);
     if (var_mode > 3.5)
     {
-        if (any(lessThan(var_font_position, var_font_clip.xy)) || any(greaterThan(var_font_position, var_font_clip.zw)))
-            discard;
-        out_fragColor = coverage * FontVectorPaintColor(int(var_paint + 0.5), var_paint_position, var_color);
+        out_fragColor = FontVectorPaintGlyphColor(int(var_paint + 0.5), var_font_position, font_dx, font_dy, var_color);
     }
     if ((var_mode < 0.5 && var_curve_count <= 0.0) || out_fragColor.a <= 0.0)
     {

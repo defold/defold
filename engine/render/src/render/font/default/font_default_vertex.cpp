@@ -263,25 +263,6 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
         dmLogWarning("Character buffer exceeded (size: %u), increase the \"graphics.max_characters\" property in your game.project file.", num_vertices / 6);
 
     PrepareVectorPaintGlyphs(font_map, layout, frame);
-    // Each color glyph can use the remaining face-quad budget. Rejected glyphs
-    // leave their reserved transparent quad, without partially drawing layers.
-    const uint32_t base_vertex_count = metrics.m_VertexCount;
-    uint32_t extra_vertices = 0;
-    uint32_t planned_glyphs = 0;
-    TextGlyph* planned = TextLayoutGetGlyphs(layout);
-    for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout) && planned_glyphs < metrics.m_GlyphQuadCount; ++i)
-    {
-        if ((planned[i].m_Flags & TEXT_GLYPH_FLAG_OBJECT) || dmUtf8::IsWhiteSpace(planned[i].m_Codepoint))
-            continue;
-        ++planned_glyphs;
-        const FontVectorPaintGlyph* paint = GetVectorPaintGlyph(font_map, planned[i].m_Font, planned[i].m_GlyphIndex);
-        uint32_t extra = paint && paint->m_LayerCount > 1 ? (paint->m_LayerCount - 1) * 6 : 0;
-        if (extra <= num_vertices - base_vertex_count - extra_vertices)
-            extra_vertices += extra;
-    }
-    metrics.m_VertexCount += extra_vertices;
-    uint32_t extra_budget = num_vertices - base_vertex_count;
-
     // Layer offsets come from the bounded shared plan, including span effects.
     // Missing glyphs leave transparent quads.
     memset(vertices, 0, metrics.m_VertexCount * sizeof(*vertices));
@@ -344,42 +325,25 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             const FontVectorPaintGlyph* paint = GetVectorPaintGlyph(font_map, g->m_Font, g->m_GlyphIndex);
             if (paint)
             {
-                uint32_t extra = paint->m_LayerCount > 1 ? (paint->m_LayerCount - 1) * 6 : 0;
-                if (extra > extra_budget)
-                    continue;
-                extra_budget -= extra;
-                face_vertexindex += extra;
                 if (!emit_face)
                     continue;
                 float scale = FontGetScaleFromSize(g->m_Font, reference_size) * font_scale;
                 float view_scale = dmMath::Max(length(te.m_Transform.getCol0().getXYZ()), length(te.m_Transform.getCol1().getXYZ()));
-                for (uint32_t layer = 0; layer < paint->m_LayerCount; ++layer)
+                FontVectorPaintVertex packed[6];
+                FontVectorPaintPackGlyph(*paint, scale, scale * dmMath::Max(view_scale, 0.0001f), x, y, te.m_Transform, Vector4(-FLT_MAX, -FLT_MAX, FLT_MAX, FLT_MAX), render_data.m_FaceColors, packed);
+                for (uint32_t v = 0; v < 6; ++v)
                 {
-                    FontVectorPaintVertex packed[6];
-                    FontVectorPaintPackLayer(font_map->m_VectorPaint, paint->m_FirstLayer + layer, scale,
-                                            scale * dmMath::Max(view_scale, 0.0001f), x, y, te.m_Transform,
-                                            Vector4(-FLT_MAX, -FLT_MAX, FLT_MAX, FLT_MAX), render_data.m_FaceColors, packed);
-                    for (uint32_t v = 0; v < 6; ++v)
-                    {
-                        const FontVectorPaintVertex& src = packed[v];
-                        GlyphVertex& dst = vertices[glyph_face_vertexindex + layer * 6 + v];
-                        (Vector4&)dst.m_Position = src.m_Position;
-                        dst.m_Position[3] = src.m_Position.getZ();
-                        dst.m_Position[2] = src.m_Info.getX();
-                        dst.m_VectorTexcoord[0] = src.m_Coords.getX();
-                        dst.m_VectorTexcoord[1] = src.m_Coords.getY();
-                        dst.m_VectorTexcoord[2] = 1;
-                        dst.m_VectorTexcoord[3] = 4; // COLR paint; mode 3 is reserved for decorations.
-                        (Vector4&)dst.m_VectorEffectParams = src.m_Banding;
-                        SetVectorColor(dst, src.m_Color);
-                        // Reuse streams occupied only by bitmap/SDF fonts.
-                        memcpy(dst.m_UV, src.m_FontPosition, sizeof(dst.m_UV));
-                        dst.m_FaceColor[0] = src.m_Coords.getZ();
-                        dst.m_FaceColor[1] = src.m_Coords.getW();
-                        dst.m_FaceColor[2] = src.m_Info.getY();
-                        dst.m_FaceColor[3] = 0;
-                        memcpy(dst.m_OutlineColor, &src.m_FontClip, sizeof(dst.m_OutlineColor));
-                    }
+                    const FontVectorPaintVertex& src = packed[v];
+                    GlyphVertex&                 dst = vertices[glyph_face_vertexindex + v];
+                    (Vector4&)dst.m_Position = src.m_Position;
+                    dst.m_Position[3] = src.m_Position.getZ();
+                    dst.m_Position[2] = 0;
+                    dst.m_VectorTexcoord[2] = 1;
+                    dst.m_VectorTexcoord[3] = 4; // COLR paint; mode 3 is reserved for decorations.
+                    SetVectorColor(dst, src.m_Color);
+                    // Reuse streams occupied only by bitmap/SDF fonts.
+                    memcpy(dst.m_UV, src.m_FontPosition, sizeof(dst.m_UV));
+                    dst.m_FaceColor[2] = src.m_Paint;
                 }
                 continue;
             }
