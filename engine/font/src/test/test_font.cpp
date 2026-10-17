@@ -6083,6 +6083,7 @@ TEST_F(FontTest, LayoutRequiresResolverForResourceObjects)
 }
 
 #if defined(FONT_USE_SKRIBIDI)
+// Emoji selection follows collection membership without changing surrounding text.
 TEST_F(FontTest, SkribidiLayoutSelectsEmojiFamily)
 {
     HFont emoji_font = 0;

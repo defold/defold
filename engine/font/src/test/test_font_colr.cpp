@@ -160,6 +160,7 @@ static void V1(dmArray<uint8_t>& bytes, const uint8_t* paint, uint32_t size)
     memcpy(bytes.Begin() + sizeof(header), paint, size);
 }
 
+// COLRv0 layers preserve palette alpha, foreground selection and glyph order.
 TEST(FontColr, PaletteAndForegroundLayers)
 {
     FontColr font;
@@ -180,6 +181,7 @@ TEST(FontColr, PaletteAndForegroundLayers)
     ASSERT_EQ(0u, c.m_ClipDepth);
 }
 
+// Gradient stops are ordered stably and truncated color lines are rejected.
 TEST(FontColr, GradientStopOrderAndAlpha)
 {
     const uint8_t graph[] = {
@@ -250,6 +252,7 @@ TEST(FontColr, GradientStopOrderAndAlpha)
     }
 }
 
+// Transforms are decoded correctly and callback failure unwinds both stacks.
 TEST(FontColr, TransformAndCallbackFailure)
 {
     const uint8_t graph[] = {
@@ -283,6 +286,7 @@ TEST(FontColr, TransformAndCallbackFailure)
     ASSERT_EQ(0u, c.m_ClipDepth);
 }
 
+// Source-over visits the backdrop first and rejects unsupported composition.
 TEST(FontColr, SourceOverPaintOrder)
 {
     const uint8_t graph[] = {
@@ -324,6 +328,7 @@ TEST(FontColr, SourceOverPaintOrder)
     ASSERT_EQ(FONT_RESULT_NOT_SUPPORTED, FontColrPaintGlyph(&font, 42, &CALLBACKS, &c));
 }
 
+// Malformed offsets, cycles and unsupported paints fail without reading past tables.
 TEST(FontColr, RejectsCyclesOffsetsAndUnsupportedPaints)
 {
     const uint8_t    cycle[] = { 11, 0, 42 }; // PaintColrGlyph refers to itself.
@@ -345,6 +350,7 @@ TEST(FontColr, RejectsCyclesOffsetsAndUnsupportedPaints)
         ASSERT_FALSE(FontColrInitialize(&font, V0, size, CPAL, sizeof(CPAL)));
 }
 
+// Radial gradients retain unsigned radii and glyph clip boxes stay balanced.
 TEST(FontColr, RadialGradientAndClipBox)
 {
     const uint8_t graph[] = {
@@ -377,6 +383,7 @@ TEST(FontColr, RadialGradientAndClipBox)
     ASSERT_EQ(0u, c.m_ClipDepth);
 }
 
+// All supported static transform formats match independently derived matrices.
 TEST(FontColr, StaticTransformFormats)
 {
     // OpenType COLR formats 12,14,16,18,20,22,24,26,28,30.
@@ -417,6 +424,7 @@ TEST(FontColr, StaticTransformFormats)
     }
 }
 
+// The real emoji fixture retains its supported glyph set, layers and bounds.
 TEST(FontColr, NotoEmojiLayersAndBounds)
 {
     char path[512];

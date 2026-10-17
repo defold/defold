@@ -378,6 +378,7 @@ TEST(FontTrueTypeReference, OpenTypeCFF1)
     FreeReferenceFont(&font);
 }
 
+// Every CFF2 glyph must match the saved HarfBuzz outline reference at default axes.
 TEST(FontTrueTypeReference, CFF2HarfBuzzReferencePaths)
 {
     ReferenceFont font;
@@ -527,6 +528,7 @@ TEST(FontTrueTypeReference, DefaultVariationStyle)
     hb_face_destroy(face);
 }
 
+// Shaping receives standalone CFF extents at nonuniform and large HarfBuzz scales.
 TEST(FontTrueTypeReference, ShapingReceivesScaledCFFBounds)
 {
     ReferenceFont font;
