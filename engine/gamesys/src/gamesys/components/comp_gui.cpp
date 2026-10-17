@@ -1010,6 +1010,16 @@ namespace dmGameSystem
 
     static void SendLayoutChangedMessage(const dmGui::HScene scene, dmhash_t layout_id, dmhash_t previous_layout_id)
     {
+        GuiComponent* gui_component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        if (!gui_component->m_Initialized)
+        {
+            // Coalesce changes until init completes, preserving the first previous layout.
+            if (!gui_component->m_LayoutChangedPending)
+                gui_component->m_PendingPreviousLayout = previous_layout_id;
+            gui_component->m_LayoutChangedPending = 1;
+            return;
+        }
+
         char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
         dmMessage::Message* message = (dmMessage::Message*)buf;
         memset(message, 0, sizeof(dmMessage::Message));
@@ -1022,6 +1032,18 @@ namespace dmGameSystem
         message_data->m_Id = layout_id;
         message_data->m_PreviousId = previous_layout_id;
         DispatchMessage(scene, message);
+    }
+
+    static void FlushPendingLayoutChanged(GuiComponent* gui_component)
+    {
+        if (!gui_component->m_LayoutChangedPending)
+            return;
+
+        dmhash_t previous_layout_id = gui_component->m_PendingPreviousLayout;
+        dmhash_t layout_id = dmGui::GetLayout(gui_component->m_Scene);
+        gui_component->m_LayoutChangedPending = 0;
+        if (layout_id != previous_layout_id)
+            SendLayoutChangedMessage(gui_component->m_Scene, layout_id, previous_layout_id);
     }
 
     static void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
@@ -1380,6 +1402,8 @@ namespace dmGameSystem
         gui_component->m_ComponentIndex = params.m_ComponentIndex;
         gui_component->m_Enabled = 1;
         gui_component->m_AddedToUpdate = 0;
+        gui_component->m_Initialized = 0;
+        gui_component->m_LayoutChangedPending = 0;
 
         dmGui::NewSceneParams scene_params;
         // This is a hard cap since the render key has 13 bits for node index (see gui.cpp)
@@ -1463,24 +1487,43 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static dmGui::Result InitGuiScene(GuiComponent* gui_component)
+    {
+        gui_component->m_Initialized = 0;
+        dmGui::Result result = dmGui::InitScene(gui_component->m_Scene);
+        if (result == dmGui::RESULT_OK)
+        {
+            gui_component->m_Initialized = 1;
+            FlushPendingLayoutChanged(gui_component);
+        }
+        return result;
+    }
+
+    static dmGui::Result FinalGuiScene(GuiComponent* gui_component)
+    {
+        gui_component->m_Initialized = 0;
+        ClearGuiLayoutObjectInteraction(gui_component);
+        dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
+        gui_component->m_LayoutChangedPending = 0;
+        return result;
+    }
+
     static dmGameObject::CreateResult CompGuiInit(const dmGameObject::ComponentInitParams& params)
     {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
-        dmGui::Result result = dmGui::InitScene(gui_component->m_Scene);
+        dmGui::Result result = InitGuiScene(gui_component);
         if (result != dmGui::RESULT_OK)
         {
             dmLogError("Error when initializing gui component: %s.", dmGui::GetResultLiteral(result));
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
-        gui_component->m_Initialized = 1;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     static dmGameObject::CreateResult CompGuiFinal(const dmGameObject::ComponentFinalParams& params)
     {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
-        ClearGuiLayoutObjectInteraction(gui_component);
-        dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
+        dmGui::Result result = FinalGuiScene(gui_component);
         if (result != dmGui::RESULT_OK)
         {
             dmLogError("Error when finalizing gui component: %s.", dmGui::GetResultLiteral(result));
@@ -3497,8 +3540,7 @@ namespace dmGameSystem
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
-        ClearGuiLayoutObjectInteraction(gui_component);
-        dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
+        dmGui::Result result = FinalGuiScene(gui_component);
         if (result != dmGui::RESULT_OK)
         {
             dmLogError("Error when finalizing gui component: %s.", dmGui::GetResultLiteral(result));
@@ -3509,7 +3551,7 @@ namespace dmGameSystem
         dmGui::ClearLayouts(gui_component->m_Scene);
         if (SetupGuiScene(gui_world, gui_component, gui_component->m_Scene, scene_resource))
         {
-            result = dmGui::InitScene(gui_component->m_Scene);
+            result = InitGuiScene(gui_component);
             if (result != dmGui::RESULT_OK)
             {
                 dmLogError("Error when initializing gui component: %s.", dmGui::GetResultLiteral(result));
