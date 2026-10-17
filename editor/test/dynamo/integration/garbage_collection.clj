@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns dynamo.integration.garbage-collection
-"Garbage disposal of nodes on the dynamo graph level"
+  "Garbage disposal of nodes on the dynamo graph level"
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.graph.types :as gt]

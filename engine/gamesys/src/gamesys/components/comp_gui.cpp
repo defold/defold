@@ -32,6 +32,7 @@
 #include <render/display_profiles.h>
 #include <render/font/font_renderer.h>
 #include <gameobject/component.h>
+#include <gameobject/script.h>
 #include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
 #include <gamesys/atlas_ddf.h>
 #include <dmsdk/gamesys/resources/res_font.h>
@@ -2887,13 +2888,6 @@ namespace dmGameSystem
         }
 
         dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, false);
-
-        dmGraphics::SetVertexBufferData(gui_world->m_VertexBuffer,
-                                        gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
-                                        gui_world->m_ClientVertexBuffer.Begin(),
-                                        dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-
-        DM_PROPERTY_ADD_U32(rmtp_GuiVertexCount, gui_world->m_ClientVertexBuffer.Size());
     }
 
     static dmGraphics::TextureFormat ToGraphicsFormat(dmImage::Type type)
@@ -2938,7 +2932,6 @@ namespace dmGameSystem
                                                             dmImage::Type type, dmImage::CompressionType compression_type, const void* data, uint32_t data_size)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
-
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
 
@@ -3272,6 +3265,18 @@ namespace dmGameSystem
             dmRender::RenderListSubmit(gui_context->m_RenderContext, render_list, write_ptr);
         }
 
+        // All scenes in this world append to the same buffer. Upload it once after
+        // their render objects have been submitted, before the render list is drawn.
+        const uint32_t vertex_count = gui_world->m_ClientVertexBuffer.Size();
+        if (vertex_count > 0)
+        {
+            dmGraphics::SetVertexBufferData(gui_world->m_VertexBuffer,
+                                           vertex_count * sizeof(BoxVertex),
+                                           gui_world->m_ClientVertexBuffer.Begin(),
+                                           dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            DM_PROPERTY_ADD_U32(rmtp_GuiVertexCount, vertex_count);
+        }
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -3416,6 +3421,7 @@ namespace dmGameSystem
             dmGui::HScene scene = gui_component->m_Scene;
             dmGui::InputAction gui_input_action;
             gui_input_action.m_ActionId = params.m_InputAction->m_ActionId;
+            gui_input_action.m_Source = params.m_InputAction->m_Source;
             gui_input_action.m_Value = params.m_InputAction->m_Value;
             gui_input_action.m_Pressed = params.m_InputAction->m_Pressed;
             gui_input_action.m_Released = params.m_InputAction->m_Released;
@@ -3529,11 +3535,22 @@ namespace dmGameSystem
     }
 
     // Callback used to integrate GUI scenes with game objects
-    uintptr_t GuiGetUserDataCallback(dmGui::HScene scene)
+    static uintptr_t GuiGetUserDataCallback(dmGui::HScene scene)
     {
-        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
-        return (uintptr_t)component->m_Instance;
+        return (uintptr_t)dmGui::GetSceneUserData(scene);
     }
+
+    static dmGameObject::HGameObject GuiScriptInstanceGetGameObject(void* script_instance)
+    {
+        dmGui::HScene scene = (dmGui::HScene)script_instance;
+        if (!scene)
+            return 0;
+
+        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        return component ? component->m_Instance : 0;
+    }
+
+    static dmGameObject::ScriptInstanceGameObjectResolver g_GuiScriptInstanceGameObjectResolver = { GuiScriptInstanceGetGameObject };
 
     // Callback used to integrate GUI scenes with game objects
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path)
@@ -3995,6 +4012,9 @@ namespace dmGameSystem
                                    GuiResolvePathCallback,
                                    (dmGui::GetTextMetricsCallback) GuiGetTextMetricsCallback);
         dmGui::InitializeScript(gui_context->m_ScriptContext);
+        dmGui::SetScriptInstanceMetaData(gui_context->m_ScriptContext,
+                                         dmGameObject::META_TABLE_GET_GAME_OBJECT,
+                                         &g_GuiScriptInstanceGameObjectResolver);
 
         ComponentTypeSetPrio(type, 300);
 
@@ -4155,7 +4175,9 @@ namespace dmGameSystem
                 uint32_t capacity = comp_gui_context->m_CustomNodeTypes.Capacity() + 4;
                 comp_gui_context->m_CustomNodeTypes.SetCapacity(dmMath::Max(1U, capacity/3), capacity);
             }
-            comp_gui_context->m_CustomNodeTypes.Put(type_desc->m_NameHash, node_type);
+            // Descriptors register before reverse hashing is enabled at startup.
+            // Record the name now so inspection can resolve custom node subtypes.
+            comp_gui_context->m_CustomNodeTypes.Put(dmHashString32(type_desc->m_Name), node_type);
 
             type_desc = type_desc->m_Next;
         }

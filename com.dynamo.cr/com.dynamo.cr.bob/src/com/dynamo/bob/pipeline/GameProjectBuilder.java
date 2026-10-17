@@ -23,8 +23,6 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -66,7 +64,7 @@ import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", paramsForSignature = {"liveupdate", "variant", "archive", "archive-resource-padding",
-                "platform", "build-report-json", "build-report-html"})
+                "platform", "build-report-json", "build-report-html", "sound-stream-enabled"})
 public class GameProjectBuilder extends Builder {
 
     // Root nodes to follow (default values from engine.cpp)
@@ -131,7 +129,7 @@ public class GameProjectBuilder extends Builder {
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        gameProjectDependencies = new String[ROOT_NODES.length + 1];
+        gameProjectDependencies = new String[ROOT_NODES.length];
         int index = 0;
         for (String[] tuples : ROOT_NODES) {
             gameProjectDependencies[index] = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
@@ -140,12 +138,6 @@ public class GameProjectBuilder extends Builder {
         gameProjectDependencies[ROOT_NODE_INPUT_GAMEPADS_INDEX] = getGamepadsOutputPath(
                 project.getProjectProperties().getStringValue("input", "gamepads", DEFAULT_GAMEPADS),
                 project.getProjectProperties().getStringValue("input", "gamepad_database", DEFAULT_GAMEPAD_DATABASE));
-        // Editor debugger scripts
-        if (project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG)) {
-            gameProjectDependencies[index] = "/builtins/scripts/debugger.luac";
-            index++;
-        }
-
         boolean nonStandardGameProjectFile = !project.getGameProjectResource().getAbsPath().equals(input.getAbsPath());
         if (nonStandardGameProjectFile) {
             throw new CompileExceptionError(input, -1, "Found non-standard game.project file: " + input.getPath());
@@ -235,12 +227,11 @@ public class GameProjectBuilder extends Builder {
         long tstart = System.currentTimeMillis();
 
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
-        HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
         for (IResource resource : resources) {
             String path = resource.getAbsPath();
-            EnumSet<Project.OutputFlags> flags = outputs.get(path);
-            boolean compress = (flags == null || !flags.contains(Project.OutputFlags.UNCOMPRESSED)) && doCompress;
-            boolean encrypt = (flags != null && flags.contains(Project.OutputFlags.ENCRYPTED));
+            Set<Task.OutputFlags> flags = project.getOutputFlags(path);
+            boolean compress = (flags == null || !flags.contains(Task.OutputFlags.UNCOMPRESSED)) && doCompress;
+            boolean encrypt = (flags != null && flags.contains(Task.OutputFlags.ENCRYPTED));
 
             archiveBuilder.add(path, compress, encrypt);
         }

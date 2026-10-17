@@ -64,7 +64,7 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
-            [editor.markdown :as markdown]
+            [editor.markdown-view :as markdown-view]
             [editor.menu-items :as menu-items]
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
@@ -106,10 +106,11 @@
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
+           [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
-           [java.time LocalTime]
+           [java.time LocalTime Year]
            [java.time.format DateTimeFormatter]
            [java.util Arrays Collection]
            [java.util.concurrent ExecutionException]
@@ -335,20 +336,19 @@
   (and (not (g/error-value? outline-pane-desc))
        (coll/any? #(= :outline-pane %) (get open-sidebar-panes active-view))))
 
-(g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc outline-active]
+(g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc]
   {:fx/type fxui/ext-dedupe-identical-desc
    :desc {:fx/type fx/ext-let-refs
-          ;; If outline is active (requested by the view), we want to ensure
-          ;; that it's updated even if it's hidden when the debug view is shown.
+          ;; We want to ensure that the outline stays mounted even if it's
+          ;; hidden, so it keeps its expansion state and stays up to date.
           ;; This is necessary because the outline view defines commands on the
           ;; :workbench context, which is available throughout the editor, and
-          ;; those commands expect the outline view to be up to date. When
-          ;; outline is active, it's guaranteed that it's not an error value,
-          ;; but we need to keep the `^:try` so that the broken outline does not
-          ;; fail this whole output when it's inactive
-          :refs (if outline-active
-                  {:outline-pane outline-pane-desc}
-                  {})
+          ;; those commands expect the outline view to be up to date. We need
+          ;; to keep the `^:try` so that the broken outline does not fail this
+          ;; whole output
+          :refs (if (g/error-value? outline-pane-desc)
+                  {}
+                  {:outline-pane outline-pane-desc})
           :desc {:fx/type ext-with-split-pane-props
                  :desc {:fx/type ui/ext-value :value right-split}
                  :props {:items (or (coll/not-empty
@@ -382,6 +382,7 @@
   (input active-outline g/Any)
   (input active-scene g/Any)
   (input project-id g/NodeID)
+  (input outline-selection-by-resource-node g/Any)
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
   (input sub-selections-by-resource-node g/Any)
@@ -422,6 +423,8 @@
   ;; NOTE: Empty rather than nil when nothing is selected. Command contexts with a nil
   ;; selection stop the context chain in handler/eval-contexts, which leaves a
   ;; context menu opened over a tab without a resource with nothing to show.
+  (output outline-selection g/Any (g/fnk [outline-selection-by-resource-node active-resource-node]
+                                    (get outline-selection-by-resource-node active-resource-node [])))
   (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource-node active-resource-node]
                                     (get selected-node-ids-by-resource-node active-resource-node [])))
   (output selected-node-properties g/Any (g/fnk [selected-node-properties-by-resource-node active-resource-node]
@@ -748,8 +751,9 @@
       (set-pane-visible! scene pane-kw false))))
 
 (handler/defhandler :app.preferences :global
-  (run [workspace prefs app-view localization]
+  (run [workspace prefs app-view project localization]
     (prefs-dialog/open! prefs localization)
+    (project/update-language-servers! project prefs {})
     (workspace/update-build-settings! workspace prefs)
     (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
     (let [new-keymap (keymap/from-prefs prefs)]
@@ -992,18 +996,15 @@
       (throw e))))
 
 (defn- make-launched-log-sink [launched-target on-service-url-found]
-  (let [initial-output (atom "")
-        version-line (atom nil)
+  (let [version-line (atom nil)
         updated-target (atom nil)]
     (fn [line]
-      (when (< (count @initial-output) 5000)
-        (swap! initial-output str line "\n")
-        (when-let [target-info (engine/parse-launched-target-info @initial-output)]
-          (let [result-target (targets/update-launched-target! launched-target target-info)]
-            (reset! updated-target result-target)))
-        (when (not @version-line)
-          (when-let [engine-version-line (engine/parse-engine-version-line line)]
-            (reset! version-line engine-version-line))))
+      ;; Metadata may arrive after startup, e.g. when attaching a debugger.
+      (when-let [target-info (engine/parse-launched-target-info line)]
+        (reset! updated-target (targets/update-launched-target! launched-target target-info)))
+      (when-not @version-line
+        (when-let [engine-version-line (engine/parse-engine-version-line line)]
+          (reset! version-line engine-version-line)))
       ;; After the version line, wait briefly for stream readiness, then call the callback.
       (when (and @updated-target (= @version-line line))
         (future
@@ -1024,10 +1025,13 @@
   (try
     (report-build-launch-progress!
       (localization/message "progress.rebooting-engine" {"engine" (targets/target-message target)}))
-    (engine/reboot! target (local-url target web-server) debug focus)
-    (report-build-launch-progress!
-      (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
-    target
+    (let [target (assoc target :debugger-port (when debug (engine/debugger-port target)))]
+      (when (targets/launched-target? target)
+        (targets/update-launched-target! target (select-keys target [:debugger-port])))
+      (engine/reboot! target (local-url target web-server) debug focus)
+      (report-build-launch-progress!
+        (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
+      target)
     (catch Exception e
       (report-build-launch-progress! (localization/message "progress.engine-reboot-failed"))
       (throw e))))
@@ -1559,8 +1563,8 @@
         (if (and (handle-build-results! workspace render-build-error! build-results)
                  (or engine skip-engine))
           (let [{:keys [error target]} (launch-built-project! project engine project-directory prefs web-server true true)]
-            (when (and target (nil? (debug-view/current-session debug-view)))
-              (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0)))
+            (when (and target (not (debug-view/current-session debug-view)))
+              (debug-view/start-debugger! debug-view project target false))
             (cond-> build-results
               error (assoc :error (exception->target-error error))
               target (assoc :target target)))
@@ -1913,20 +1917,22 @@
   (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)]
-    (ui/with-controls root [version channel editor-sha1 engine-sha1 time sponsor-push
-                            version-label channel-label build-time-label editor-sha1-label engine-sha1-label
+    (ui/with-controls root [version channel architecture editor-sha1 engine-sha1 time sponsor-push
+                            version-label channel-label architecture-label build-time-label editor-sha1-label engine-sha1-label
                             copyright-label foundation-label]
       (let [missing-text (localization (localization/message "dialog.about.value.unavailable"))]
         (ui/text! version-label (localization (localization/message "dialog.about.label.version")))
         (ui/text! channel-label (localization (localization/message "dialog.about.label.channel")))
+        (ui/text! architecture-label (localization (localization/message "dialog.about.label.architecture")))
         (ui/text! build-time-label (localization (localization/message "dialog.about.label.build-time")))
         (ui/text! editor-sha1-label (localization (localization/message "dialog.about.label.editor-sha1")))
         (ui/text! engine-sha1-label (localization (localization/message "dialog.about.label.engine-sha1")))
-        (ui/text! copyright-label (localization (localization/message "dialog.about.footer.copyright")))
+        (ui/text! copyright-label (localization (localization/message "dialog.about.footer.copyright" {"year" (str (Year/now))})))
         (ui/text! foundation-label (localization (localization/message "dialog.about.footer.foundation")))
         (ui/title! stage (localization (localization/message "command.app.about")))
         (ui/text! version (or (system/defold-version) missing-text))
         (ui/text! channel (or (system/defold-channel) missing-text))
+        (ui/text! architecture (.getArch (Platform/getHostPlatform)))
         (ui/text! editor-sha1 (or (system/defold-editor-sha1) missing-text))
         (ui/text! engine-sha1 (or (system/defold-engine-sha1) missing-text))
         (ui/text! time (or (system/defold-build-time) missing-text))
@@ -2524,11 +2530,15 @@
     (when (= :scene (:id view-type))
       (ui/observe (.selectedProperty tab)
                   (fn [_ _ selected]
-                    (when selected
-                      (when-let [content-parent (.getParent (.getContent tab))]
-                        (.applyCss content-parent)
-                        (.layout content-parent)
-                        (refresh-scene-view! view 0))))))
+                    (if-not selected
+                      (scene/suspend-scene-view! view)
+                      (do
+                        (scene/resume-scene-view! view)
+                        (when-let [content-parent (.getParent (.getContent tab))]
+                          (.applyCss content-parent)
+                          (.layout content-parent)
+                          (refresh-scene-view! view 0))))))
+      (scene/suspend-scene-view! view))
 
     (.add tabs tab)
     (ui/add-styles! tab style-classes)
@@ -2855,7 +2865,7 @@
       view :view
       {:fx/type fxui/ext-with-anchor-pane-props
        :desc {:fx/type ui/ext-value :value parent}
-       :props {:children [{:fx/type markdown/view
+       :props {:children [{:fx/type markdown-view/view
                            :anchor-pane/top 0
                            :anchor-pane/right 0
                            :anchor-pane/bottom 0
@@ -3626,7 +3636,7 @@
               [lib-results false]
               (ui/run-now
                 (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
-                (project/update-library-notifications! project [])
+                (project/update-fetch-libraries-notification! project)
                 [lib-results true]))))
         (catch Throwable error
           (error-reporting/report-exception! error)

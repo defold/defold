@@ -574,9 +574,9 @@
               :location location
               :array-size array-size)
 
-            (< (vector-type-component-count target-vector-type)
-               (vector-type-component-count source-vector-type))
-            (assoc :vector-type target-vector-type))))
+      (< (vector-type-component-count target-vector-type)
+         (vector-type-component-count source-vector-type))
+      (assoc :vector-type target-vector-type))))
 
 (defn attribute-info-byte-size
   ^long [{:keys [data-type vector-type :as _attribute-info]}]
@@ -630,9 +630,6 @@
        (boolean? (:mipmaps value))
        (nat-int? (:max-texture-size value 0))
        (boolean? (:premultiply-alpha value true))
-       (boolean? (:recompress value false))
-       (boolean? (:regenerate-mipmaps value false))
-       (boolean? (:keep-ktx2-format value false))
        (let [formats (:formats value)]
          (or (nil? formats)
              (and (vector? formats)

@@ -229,11 +229,11 @@
                    :children
                    (-> []
                        (cond-> show-text-field
-                               (conj {:fx/type fxui/text-field
-                                      :style-class "ext-combo-box-popup-field"
-                                      :prompt-text filter-prompt-text
-                                      :text filter-text
-                                      :on-text-changed #(swap-state set-filter-text %)}))
+                         (conj {:fx/type fxui/text-field
+                                :style-class "ext-combo-box-popup-field"
+                                :prompt-text filter-prompt-text
+                                :text filter-text
+                                :on-text-changed #(swap-state set-filter-text %)}))
                        (conj (if (zero? (count filtered-items))
                                {:fx/type fxui/label
                                 :alignment :center

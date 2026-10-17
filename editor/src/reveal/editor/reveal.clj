@@ -127,13 +127,13 @@
                           (fn [label]
                             (label-tree-node ec node-id label))))]
       (cond->> children
-               override-original
-               (cons {:value override-original
-                      :render (r/horizontal
-                                (r/raw-string "override-original" {:fill :symbol})
-                                r/separator
-                                (node-id-sf ec override-original))
-                      :children (node-children-fn ec override-original)})))))
+        override-original
+        (cons {:value override-original
+               :render (r/horizontal
+                         (r/raw-string "override-original" {:fill :symbol})
+                         r/separator
+                         (node-id-sf ec override-original))
+               :children (node-children-fn ec override-original)})))))
 
 (defn- label-tree-node [{:keys [basis] :as ec} node-id label]
   (let [[v e :as v-or-e] (node-value-or-err ec node-id label)
@@ -371,16 +371,16 @@
     (apply
       r/horizontal
       (r/as from
-        (r/horizontal
-          (r/raw-string "[" {:fill :object})
-          (stream-cursor-contents from)
-          (r/raw-string "]" {:fill :object})))
+            (r/horizontal
+              (r/raw-string "[" {:fill :object})
+              (stream-cursor-contents from)
+              (r/raw-string "]" {:fill :object})))
       r/separator
       (r/as to
-        (r/horizontal
-          (r/raw-string "[" {:fill :object})
-          (stream-cursor-contents to)
-          (r/raw-string "]" {:fill :object})))
+            (r/horizontal
+              (r/raw-string "[" {:fill :object})
+              (stream-cursor-contents to)
+              (r/raw-string "]" {:fill :object})))
       (when-let [rest (seq (dissoc range :from :to))]
         [r/separator (->> rest (eduction (map r/horizontally)) (r/horizontally))]))
     (r/raw-string "]" {:fill :object})))

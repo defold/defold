@@ -88,7 +88,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -124,19 +123,13 @@ public class Project implements AutoCloseable {
     public final static String PLUGINS_DIR = "./build/plugins";
     private static ClassLoaderScanner scanner = null;
 
-    public enum OutputFlags {
-        NONE,
-        UNCOMPRESSED,
-        ENCRYPTED
-    }
-
     private ExecutorService executor = Executors.newCachedThreadPool();
     private ResourceCache resourceCache = new ResourceCache();
     private IFileSystem fileSystem;
     private final ProjectResourceWalker resourceWalker;
     private Map<String, Class<? extends Builder>> extToBuilder = new HashMap<String, Class<? extends Builder>>();
     private List<String> inputs = new ArrayList<String>();
-    private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
+    private final Map<String, Set<Task.OutputFlags>> outputs = new HashMap<>();
     private HashMap<String, Task> tasks = new HashMap<String, Task>();
     private Set<String> circularDependencyChecker = new LinkedHashSet<>();
     private State state;
@@ -1544,7 +1537,7 @@ public class Project implements AutoCloseable {
 
     private static LinkedHashSet<String> getDefaultShaderAdapters(Platform platform) {
         LinkedHashSet<String> adapters = new LinkedHashSet<>();
-        if (platform.isMacOS()) {
+        if (platform.isMacOS() || platform == Platform.Arm64IosSim) {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_METAL);
         } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
@@ -1643,6 +1636,9 @@ public class Project implements AutoCloseable {
 
     public static String getShaderAdaptersOption(Platform platform, List<Map<String, Object>> platformsSettings) {
         LinkedHashSet<String> adapters = getDefaultShaderAdapters(platform);
+        if (platform == Platform.Arm64IosSim) {
+            return String.join(",", adapters);
+        }
         LinkedHashSet<String> adaptersToAdd = new LinkedHashSet<>();
         LinkedHashSet<String> adaptersToRemove = new LinkedHashSet<>();
         for (Map<String, Object> platformSettings : platformsSettings) {
@@ -2166,10 +2162,14 @@ public class Project implements AutoCloseable {
 
             TaskBuilder taskBuilder = new TaskBuilder(getTasks(), this);
 
-            // create mapping between output and flags
+            // Collect declared flags before execution, including for skipped and cached tasks.
             outputs.clear();
-            for (IResource res : taskBuilder.getAllOutputs()) {
-                outputs.put(res.getAbsPath(), EnumSet.noneOf(OutputFlags.class));
+            for (Task task : getTasks()) {
+                List<IResource> taskOutputs = task.getOutputs();
+                for (int outputIndex = 0; outputIndex < taskOutputs.size(); ++outputIndex) {
+                    IResource res = taskOutputs.get(outputIndex);
+                    outputs.put(res.getAbsPath(), task.getOutputFlags(outputIndex));
+                }
             }
 
             // build all tasks and make sure no new tasks were created while building
@@ -2191,27 +2191,12 @@ public class Project implements AutoCloseable {
         this.inputs = new ArrayList<String>(inputs);
     }
 
-    public HashMap<String, EnumSet<OutputFlags>> getOutputs() {
-        return outputs;
+    public Map<String, Set<Task.OutputFlags>> getOutputs() {
+        return Collections.unmodifiableMap(outputs);
     }
 
-    public EnumSet<OutputFlags> getOutputFlags(String resourcePath) {
+    public Set<Task.OutputFlags> getOutputFlags(String resourcePath) {
         return outputs.get(resourcePath);
-    }
-
-    /**
-     * Add output flag to resource
-     * @param resourcePath output resource absolute path
-     * @param flag OutputFlag to add
-     */
-    public boolean addOutputFlags(String resourcePath, OutputFlags flag) {
-        EnumSet<OutputFlags> currentFlags = outputs.get(resourcePath);
-        if(currentFlags == null) {
-            return false;
-        }
-        currentFlags.add(flag);
-        outputs.replace(resourcePath, currentFlags);
-        return true;
     }
 
     /// Set URIs of libraries to use.

@@ -89,8 +89,6 @@ editor/.lsp/sqlite.db
 # generated solutions
 /solutions
 
-# ChatGPT
-AGENTS.md
 /share/ext/astcenc/build/
 /share/ext/astcenc/source
 /engine/dlib/test_http_server.log

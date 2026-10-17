@@ -182,10 +182,11 @@
           unloaded-proj-path? (g/raw-property-value basis workspace :unloaded-proj-path?)
           lib-results (library/cached project-directory library-uris)
           new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-results)
-          snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
-                                             (make-directory-snapshot workspace project-directory project-directory editable-proj-path? unloaded-proj-path?)
-                                             (make-debugger-snapshot workspace)
-                                             (make-library-snapshots new-library-snapshot-cache lib-results)))]
+          snapshot (combine-snapshots
+                     (list* (make-builtins-snapshot workspace)
+                            (make-directory-snapshot workspace project-directory project-directory editable-proj-path? unloaded-proj-path?)
+                            (make-debugger-snapshot workspace)
+                            (make-library-snapshots new-library-snapshot-cache lib-results)))]
       {:snapshot snapshot
        :snapshot-cache new-library-snapshot-cache})))
 
@@ -195,9 +196,8 @@
               (coll/pair-map-by resource/proj-path))
         (:resources snapshot)))
 
-(defn- resource-status [snapshot resource]
-  [(get-in snapshot [:status-map (resource/proj-path resource)])
-   (mapv #(get-in snapshot [:status-map %]) (resource/snapshot-dependencies resource))])
+(defn- resource-status [snapshot path]
+  (get-in snapshot [:status-map path]))
 
 (defn diff [old-snapshot new-snapshot]
   (let [old-map (make-resource-map old-snapshot)
@@ -205,8 +205,8 @@
         old-paths (set (keys old-map))
         new-paths (set (keys new-map))
         common-paths (set/intersection new-paths old-paths)
-        changed-paths (filterv #(not= (resource-status old-snapshot (old-map %))
-                                      (resource-status new-snapshot (new-map %)))
+        changed-paths (filterv #(not= (resource-status old-snapshot %)
+                                      (resource-status new-snapshot %))
                                common-paths)
 
         {changed-from-folder-to-file :file

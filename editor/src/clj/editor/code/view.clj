@@ -53,7 +53,7 @@
             [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.lsp :as lsp]
-            [editor.markdown :as markdown]
+            [editor.markdown-view :as markdown-view]
             [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
             [editor.os :as os]
@@ -87,7 +87,8 @@
            [java.util BitSet Collection]
            [java.util.concurrent ConcurrentHashMap]
            [java.util.regex Pattern]
-           [javafx.beans.binding ObjectBinding]
+           [javafx.beans Observable]
+           [javafx.beans.binding Bindings ObjectBinding]
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
            [javafx.beans.value ChangeListener]
            [javafx.event Event EventHandler]
@@ -2550,7 +2551,7 @@
                              :children [{:fx/type fx.region/lifecycle
                                          :style-class "flat-list-doc-background"}
                                         (cond->
-                                          {:fx/type markdown/view
+                                          {:fx/type markdown-view/view
                                            :base-url (:base-url doc)
                                            :event-filter (fn [e]
                                                            (when (instance? KeyEvent e)
@@ -4044,7 +4045,7 @@
           :min-width 10
           :min-height 10
           :style-class "hover-background"}
-         {:fx/type markdown/view
+         {:fx/type markdown-view/view
           :content (->> hover-showing-regions
                         (e/mapcat
                           (fn [region]
@@ -4575,15 +4576,24 @@
                      :prefs prefs
                      :open-resource-fn open-resource-fn}]
 
-    ;; Canvas stretches to fit view, and updates properties in view node.
-    (b/bind! (.widthProperty canvas) (.widthProperty canvas-pane))
-    (b/bind! (.heightProperty canvas) (.heightProperty canvas-pane))
-    (ui/observe (.widthProperty canvas)
+    ;; Canvas stretches to fit view, and updates properties in view node. When it's not selected, set the width/height to 0
+    ;; so JavaFX can free the GPU resources
+    (b/bind! (.widthProperty canvas)
+             (Bindings/createDoubleBinding
+               (fn canvas-width [] (if (.isSelected tab) (.getWidth canvas-pane) 0.0))
+               (into-array Observable [(.selectedProperty tab)
+                                       (.widthProperty canvas-pane)])))
+    (b/bind! (.heightProperty canvas)
+             (Bindings/createDoubleBinding
+               (fn canvas-height [] (if (.isSelected tab) (.getHeight canvas-pane) 0.0))
+               (into-array Observable [(.selectedProperty tab)
+                                       (.heightProperty canvas-pane)])))
+    (ui/observe (.widthProperty canvas-pane)
                 (fn [_ _ width]
                   (g/transact
                     {:undoable false}
                     (g/set-property view-node :canvas-width width))))
-    (ui/observe (.heightProperty canvas)
+    (ui/observe (.heightProperty canvas-pane)
                 (fn [_ _ height]
                   (g/transact
                     {:undoable false}
@@ -4625,6 +4635,7 @@
     (ui/observe (.selectedProperty tab)
                 (fn [_ _ became-selected?]
                   (when became-selected?
+                    (g/user-data! view-node :canvas-repaint-info nil)
                     ;; Must run-later here since we're not part of the Scene when we observe the property change.
                     ;; Also note that we don't want to steal focus from the inactive tab pane, if present.
                     (ui/run-later

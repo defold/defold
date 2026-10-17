@@ -358,8 +358,8 @@
                      :label name
                      :icon "icons/32/Icons_01-Folder-closed.png"
                      :outline-error? (g/error-fatal? build-errors)}
-                    (resource/resource? test-gui-resource-resource)
-                    (assoc :link test-gui-resource-resource :outline-show-link? true))))
+              (resource/resource? test-gui-resource-resource)
+              (assoc :link test-gui-resource-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name test-gui-resource]
                          {:name name
                           :path (resource/resource->proj-path test-gui-resource)}))
@@ -1704,8 +1704,8 @@
 (defn- saved-node-desc-resource-field-values [node-desc]
   (let [spine-scene (saved-node-desc-custom-property-value node-desc "spine_scene" :string)]
     (cond-> (select-keys node-desc [:font :layer :material :particlefx :texture])
-            spine-scene
-            (assoc :spine-scene spine-scene))))
+      spine-scene
+      (assoc :spine-scene spine-scene))))
 
 (deftest custom-gui-custom-properties-test
   (test-util/with-scratch-project "test/resources/empty_project"

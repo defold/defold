@@ -39,7 +39,7 @@
 
   (property derived-property g/Str
             (value (g/fnk [source]
-                          (and source (.toUpperCase source)))))
+                     (and source (.toUpperCase source)))))
 
   (output transformed g/Str :cached (g/fnk [source] (and source (.toUpperCase source))))
   (output upstream    g/Int (g/fnk [reference] reference)))
@@ -106,8 +106,8 @@
 (g/defnode DefaultSetter
   (property final g/Str)
   (property chain g/Str
-    (default "test-val")
-    (set (fn [_evaluation-context self old-value new-value] (g/set-property self :final new-value)))))
+            (default "test-val")
+            (set (fn [_evaluation-context self old-value new-value] (g/set-property self :final new-value)))))
 
 (deftest default-setter
   (testing "default values are used even when there is a setter"

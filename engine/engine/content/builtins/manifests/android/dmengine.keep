@@ -4,6 +4,10 @@
 -renamesourcefileattribute SourceFile
 -keepattributes SourceFile,LineNumberTable
 
+# Preserve nested-class metadata as a pair. R8 rejects dependency consumer rules
+# that keep only InnerClasses or EnclosingMethod unless both are kept.
+-keepattributes InnerClasses,EnclosingMethod
+
 # Defold owns these Android namespaces. Keep their complete Java surface so new
 # engine callbacks and JNI entry points do not require matching rule updates.
 -keep,allowoptimization class com.dynamo.android.** { *; }

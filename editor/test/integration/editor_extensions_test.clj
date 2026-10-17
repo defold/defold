@@ -30,6 +30,7 @@
             [editor.editor-extensions.vm :as vm]
             [editor.future :as future]
             [editor.graph-util :as gu]
+            [editor.graphics.types :as graphics.types]
             [editor.handler :as handler]
             [editor.html-view :as html-view]
             [editor.library :as library]
@@ -836,6 +837,34 @@
         output-matches-expectation (= expected actual)]
     (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3))))))
 
+(def ^:private expected-resource-children-test-output
+  "Root contains assets: true
+Library contains logo: true
+/assets
+/assets/triangle.gltf
+/assets/triangle.gltf/images
+/assets/triangle.gltf/images/Albedo_0.png
+/assets/triangle.gltf/materials
+/assets/triangle.gltf/materials/Paint_0.material
+/assets/triangle.gltf/meshes
+/assets/triangle.gltf/meshes/Triangle_0
+File children: 0
+Collection resource children: 0
+Collection scene children: 1
+Missing path: /missing not found
+Relative path rejected: true
+Non-string rejected: true
+Missing argument rejected: true
+Extra argument rejected: true
+")
+
+(deftest resource-children-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/resource_children_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-resource-children-test-output out))))
+
 (def ^:private expected-fetch-libraries-test-output
   "fetch libraries: ok
 resource exists after fetch: true
@@ -1603,6 +1632,50 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
               (is (= "captured\n" body))
               (is (= [] @displayed-output)))))))))
 
+;; Generated material attribute properties must be readable and writable through
+;; their Lua names, including attributes whose names contain underscores or hyphens.
+(deftest vertex-attribute-property-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
+    (reload-editor-scripts! project)
+    (let [material-node-id (project/get-resource-node project "/builtins/materials/particlefx.material")
+          particlefx-node-id (project/get-resource-node project "/main/main.particlefx")
+          emitter-node-id (-> (g/node-value particlefx-node-id :node-outline) :children first :node-id)
+          original-value [1.0 1.0 1.0 1.0]
+          override-value [0.25 0.5 0.75 0.875]]
+      (doseq [attribute-name ["color" "tint_color" "tint-color"]]
+        (testing attribute-name
+          (g/set-property! material-node-id :attributes
+            [{:name attribute-name
+              :semantic-type :semantic-type-color
+              :data-type :type-unsigned-byte
+              :vector-type :vector-type-vec4
+              :normalize true
+              :values original-value}])
+          (let [ext-key (str "attribute_0_" (string/replace attribute-name \- \_))]
+            (g/with-auto-evaluation-context ec
+              (let [{:keys [rt]} (extensions/ext-state project ec)
+                    getter (graph/ext-value-getter emitter-node-id ext-key project ec)
+                    setter (graph/ext-lua-value-setter emitter-node-id ext-key rt project ec)]
+                (is (coll/any? #{ext-key} (graph/ext-readable-properties emitter-node-id project ec)))
+                (is (some? getter))
+                (is (some? setter))
+                (when getter
+                  (is (= original-value (getter))))
+                (when setter
+                  (g/transact (setter (rt/->lua override-value))))))
+            (g/with-auto-evaluation-context ec
+              (when-let [getter (graph/ext-value-getter emitter-node-id ext-key project ec)]
+                (is (= override-value (getter))))))
+          (is (= override-value
+                 (get-in (g/node-value emitter-node-id :vertex-attribute-overrides)
+                         [(graphics.types/attribute-name-key attribute-name) :values])))
+          (is (= {:name attribute-name
+                  :double-values {:v override-value}}
+                 (select-keys (get-in (g/node-value particlefx-node-id :save-value)
+                                      [:emitters 0 :attributes 0])
+                              [:name :double-values])))
+          (g/set-property! emitter-node-id :vertex-attribute-overrides {}))))))
+
 (deftest property-availability-test
   (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
     (reload-editor-scripts! project)
@@ -1756,7 +1829,9 @@ Transaction: add animations and collision groups
 After transaction (add animations and collision groups):
   animations: 2
     animation: idle
+    frames: {1}
     animation: walk
+    frames: {2, 3, 4, 5, 6}
   collision groups: 4
     collision group: obstacle
     collision group: character
@@ -1765,11 +1840,16 @@ After transaction (add animations and collision groups):
   tile collision groups: 2
     tile collision group: 1 obstacle
     tile collision group: 3 character
+Frames before setting modified array: {2, 3, 4, 5, 6}
+Frames after setting modified array: {2, 3, 4, 5, 6, 2}
+Frames after clearing: {}
 Transaction: set tile_collision_groups to its current value
 After transaction (tile_collision_groups roundtrip):
   animations: 2
     animation: idle
+    frames: {1}
     animation: walk
+    frames: {2, 3, 4, 5, 6, 2}
   collision groups: 4
     collision group: obstacle
     collision group: character
@@ -1779,6 +1859,12 @@ After transaction (tile_collision_groups roundtrip):
     tile collision group: 1 obstacle
     tile collision group: 3 character
 Expected errors
+  Frames string => \"2-6\" is not an array
+  Fractional frame => 2.5 is not an integer
+  String frame => \"2\" is not an integer
+  Added animation with invalid frames => false is not an integer
+Frames after rejected edits: {2, 3, 4, 5, 6, 2}
+Animations after rejected attachment: 2
   Using non-existent collision group => Collision group \"does-not-exist\" is not defined in the tilesource
 Transaction: clear tilesource
 After transaction (clear):
@@ -2428,6 +2514,15 @@ After transaction (add font styles after clear):
     markup: [<color=#aa3300>\\n<ul>]
     id: accent
     markup: [<color=#ff6600>]
+glTF lists:
+  meshes: 1, can add: false, can set: false, can reorder: false
+  materials: 1, can add: false, can set: false, can reorder: false
+  textures: 1, can add: false, can set: false, can reorder: false
+  mesh: gltf-mesh, Triangle, index: 0, primitives: 1, vertices: 3
+  material: gltf-material, Paint, /assets/triangle.gltf/materials/Paint_0.material
+  texture: gltf-texture, AlbedoTexture, /assets/triangle.gltf/images/Albedo_0.png
+  mesh name writable: false
+  image path: /assets/triangle.gltf/images/Albedo_0.png
 ")
 
 (deftest attachment-properties-test

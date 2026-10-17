@@ -8,7 +8,7 @@ project(harfbuzz_external VERSION 13.2.1 LANGUAGES C CXX)
 set(HARFBUZZ_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/package/harfbuzz-13.2.1/src")
 
 add_library(harfbuzz STATIC "${HARFBUZZ_SOURCE_DIR}/harfbuzz.cc")
-target_include_directories(harfbuzz PRIVATE "${HARFBUZZ_SOURCE_DIR}")
+target_include_directories(harfbuzz PUBLIC "${HARFBUZZ_SOURCE_DIR}")
 target_compile_definitions(harfbuzz PRIVATE
   NDEBUG HB_TINY HB_EXTERN=
   "HB_CONFIG_OVERRIDE_H=\"${CMAKE_CURRENT_LIST_DIR}/config-override.h\"")

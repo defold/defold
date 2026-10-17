@@ -27,7 +27,7 @@
         metadata (meta id-vec)]
     (cond-> (IdVec. (inc id)
                     (conj entries (pair id value)))
-            metadata (with-meta metadata))))
+      metadata (with-meta metadata))))
 
 (defn iv-into
   ^IdVec [^IdVec id-vec coll]
@@ -41,7 +41,7 @@
         next-id (+ first-id (- (count new-entries) (count old-entries)))
         metadata (meta id-vec)]
     (cond-> (IdVec. next-id new-entries)
-            metadata (with-meta metadata))))
+      metadata (with-meta metadata))))
 
 (defn iv-vec
   ^IdVec [coll]
@@ -87,14 +87,14 @@
   ^IdVec [f ^IdVec id-vec ids]
   (let [updated-ids (some-> ids not-empty set)]
     (cond-> id-vec
-            updated-ids
-            (xform-entries
-              (map (fn [entry]
-                     (let [id (first entry)]
-                       (if (updated-ids id)
-                         (let [value (second entry)]
-                           (pair id (f value)))
-                         entry))))))))
+      updated-ids
+      (xform-entries
+        (map (fn [entry]
+               (let [id (first entry)]
+                 (if (updated-ids id)
+                   (let [value (second entry)]
+                     (pair id (f value)))
+                   entry))))))))
 
 (defn iv-remove-ids
   ^IdVec [^IdVec id-vec ids]

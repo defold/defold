@@ -192,6 +192,11 @@
    {:default
     {"type" :allowed-default}}
 
+   'dmGameSystemDDF.Animation
+   {:default
+    {"start_tile" :deprecated
+     "end_tile" :deprecated}} ; Migration tested in integration.tile-source-test/animation-frame-migration.
+
    'dmGameSystemDDF.LabelDesc
    {:default
     {"scale" :deprecated ; Migration tested in integration.label-test/label-migration-test.
@@ -961,7 +966,7 @@
 
          filtered-resources
          (cond->> root-level-editable-file-resources
-                  pred (filter pred))]
+           pred (filter pred))]
 
      (->> filtered-resources
           (sort-by (juxt resource/type-ext resource/proj-path))
@@ -1193,8 +1198,8 @@
     (if (nil? type-field-desc)
       field-frequencies
       (cond-> (pb-enum-desc-empty-frequencies (.getEnumType type-field-desc))
-              (pos? (count field-frequencies))
-              (assoc type-token field-frequencies)))))
+        (pos? (count field-frequencies))
+        (assoc type-token field-frequencies)))))
 
 (defn- pb-read-resource
   ^Message [resource]
@@ -1364,7 +1369,7 @@
                 (->> template-node-pb
                      (.getTemplate)
                      (gui-proj-path->node-pbs)
-                     (coll/pair-map-by gui-node-pb->id))
+                     (coll/pair-map-by gui-node-pb->id identity))
 
                 override-node-pb->override-info
                 (fn override-node-pb->override-info [^Gui$NodeDesc override-node-pb]

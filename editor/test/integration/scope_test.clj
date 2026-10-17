@@ -65,7 +65,7 @@
           (is (= [] (map g/node-type* new))))))))
 
 (def inline-atlas
-"
+  "
   images {
     image: \"/switcher/images/blue_candy.png\"
   }
@@ -87,7 +87,7 @@
 ")
 
 (def inline-collection
-"
+  "
   name: \"main\"
   instances {
     id: \"parent_node-id\"
@@ -141,7 +141,7 @@
 ")
 
 (def inline-game-object
-"
+  "
   embedded_components {
   id: \"co\"
   type: \"collisionobject\"

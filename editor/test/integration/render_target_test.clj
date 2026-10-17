@@ -23,6 +23,23 @@
   (coll/first-where #(= path (:path %))
                     (eduction (mapcat :fields) (:sections form-data))))
 
+;; Reject empty resources and allow color-only and depth/stencil-only targets.
+(deftest attachment-presence-validation
+  (test-util/with-temp-project-content
+    {"/empty.render_target" {}}
+    (let [node-id (test-util/resource-node project "/empty.render_target")]
+      (is (g/error-fatal? (g/node-value node-id :build-errors)))
+      (is (g/error-fatal? (g/node-value node-id :build-targets)))
+
+      (g/set-property! node-id :depth-stencil-attachment-width 64)
+      (g/set-property! node-id :depth-stencil-attachment-height 32)
+      (is (not (g/error? (g/node-value node-id :build-errors))))
+
+      (g/set-property! node-id :depth-stencil-attachment-width 0)
+      (g/set-property! node-id :depth-stencil-attachment-height 0)
+      (g/set-property! node-id :color-attachments [{:width 64 :height 32 :format :texture-format-rgba}])
+      (is (not (g/error? (g/node-value node-id :build-errors)))))))
+
 (deftest cubemap-sample-count-validation
   (test-util/with-temp-project-content
     {"/cubemap.render_target"

@@ -126,6 +126,7 @@ namespace dmInput
         Action action;
         memset(&action, 0, sizeof(Action));
         action.m_IsGamepad = 1;
+        action.m_Source = dmHID::INPUT_SOURCE_GAMEPAD;
         action.m_GamepadUnknown = gamepad_binding->m_Unknown;
 
         gamepad_binding->m_Index = gamepad_index;
@@ -683,10 +684,9 @@ namespace dmInput
             binding->m_TextBinding = 0x0;
         }
 
-        if (binding->m_AccelerationBinding == 0x0)
+        if (binding->m_AccelerationBinding != 0x0)
         {
-            binding->m_AccelerationBinding = new AccelerationBinding();
-            memset(binding->m_AccelerationBinding, 0, sizeof(*binding->m_AccelerationBinding));
+            binding->m_AccelerationBinding->m_Action.m_AccelerationSet = 0;
         }
     }
 
@@ -937,6 +937,7 @@ namespace dmInput
 
     void ClearAction(void*, const dmhash_t* id, Action* action)
     {
+        // Active inputs replace the source; the final release keeps the previous source.
         action->m_PrevValue = action->m_Value;
         action->m_Value = 0.0f;
         action->m_PositionSet = 0;
@@ -983,7 +984,6 @@ namespace dmInput
         {
             KeyboardBinding* keyboard_binding = binding->m_KeyboardBinding;
             dmHID::KeyboardPacket* packet = &keyboard_binding->m_Packet;
-            dmHID::KeyboardPacket* prev_packet = &keyboard_binding->m_PreviousPacket;
             if (dmHID::GetKeyboardPacket(keyboard_binding->m_Keyboard, packet))
             {
                 const dmArray<KeyTrigger>& triggers = keyboard_binding->m_Triggers;
@@ -994,6 +994,10 @@ namespace dmInput
                     Action* action = binding->m_Actions.Get(trigger.m_ActionId);
                     if (action != 0x0)
                     {
+                        if (v != 0.0f)
+                        {
+                            action->m_Source = dmHID::INPUT_SOURCE_KEYBOARD;
+                        }
                         if (dmMath::Abs(action->m_Value) < v)
                         {
                             action->m_Value = v;
@@ -1001,7 +1005,6 @@ namespace dmInput
                         UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                     }
                 }
-                *prev_packet = *packet;
             }
         }
         if (binding->m_TextBinding != 0x0)
@@ -1025,6 +1028,10 @@ namespace dmInput
                             }
                             action->m_Count = text_packet->m_Size;
                             action->m_HasText = action->m_Count > 0;
+                            if (action->m_HasText)
+                            {
+                                action->m_Source = dmHID::INPUT_SOURCE_TEXT;
+                            }
                         }
                     }
                 }
@@ -1047,6 +1054,10 @@ namespace dmInput
                             }
                             action->m_Count = marked_packet->m_Size;
                             action->m_HasText = marked_packet->m_HasText || action->m_Count > 0;
+                            if (action->m_HasText)
+                            {
+                                action->m_Source = dmHID::INPUT_SOURCE_TEXT;
+                            }
                         }
                     }
                 }
@@ -1064,6 +1075,7 @@ namespace dmInput
                 {
                     const MouseTrigger& trigger = triggers[i];
                     float v = 0.0f;
+                    dmHID::InputSource source = dmHID::INPUT_SOURCE_MOUSE;
                     switch (trigger.m_Input)
                     {
                     case dmInputDDF::MOUSE_WHEEL_UP:
@@ -1073,8 +1085,15 @@ namespace dmInput
                         v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
                         break;
                     default:
-                        v = dmHID::GetMouseButton(packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0f : 0.0f;
+                    {
+                        dmHID::MouseButton button = MOUSE_BUTTON_MAP[trigger.m_Input];
+                        v = dmHID::GetMouseButton(packet, button) ? 1.0f : 0.0f;
+                        if (button == dmHID::MOUSE_BUTTON_LEFT && packet->m_LeftButtonFromTouch)
+                        {
+                            source = dmHID::INPUT_SOURCE_TOUCH;
+                        }
                         break;
+                    }
                     }
 
                     v = dmMath::Clamp(v, 0.0f, 1.0f);
@@ -1082,6 +1101,10 @@ namespace dmInput
 
                     if (action != 0x0)
                     {
+                        if (v != 0.0f)
+                        {
+                            action->m_Source = source;
+                        }
                         if (dmMath::Abs(action->m_Value) < v)
                         {
                             action->m_Value = v;
@@ -1104,6 +1127,10 @@ namespace dmInput
                     action->m_DX = packet->m_PositionX - prev_packet->m_PositionX;
                     action->m_DY = packet->m_PositionY - prev_packet->m_PositionY;
                     action->m_PositionSet = 1;
+                    if (action->m_DX != 0 || action->m_DY != 0)
+                    {
+                        action->m_Source = packet->m_PositionFromTouch ? dmHID::INPUT_SOURCE_TOUCH : dmHID::INPUT_SOURCE_MOUSE;
+                    }
                 }
 
                 *prev_packet = *packet;
@@ -1288,6 +1315,10 @@ namespace dmInput
                         // was minimized, giving continuous strokes of input
 
                         int32_t tn = packet->m_TouchCount;
+                        if (tn > 0)
+                        {
+                            action->m_Source = dmHID::INPUT_SOURCE_TOUCH;
+                        }
                         // NOTE: We assume dmHID::MAX_TOUCH_COUNT for both source and destination here
                         assert(tn <= (int32_t) (sizeof(action->m_Touch) / sizeof(action->m_Touch[0])));
                         action->m_Value = 0;
@@ -1314,24 +1345,24 @@ namespace dmInput
                 *prev_packet = *packet;
             }
         }
-        if (binding->m_AccelerationBinding != 0x0)
+        if (dmHID::IsAccelerometerConnected(hid_context))
         {
-            if (dmHID::IsAccelerometerConnected(hid_context))
+            if (binding->m_AccelerationBinding == 0x0)
             {
-                Action* action = binding->m_Actions.Get(0);
-                if (action)
-                {
-                    AccelerationBinding* acceleration_binding = binding->m_AccelerationBinding;
-                    dmHID::AccelerationPacket* packet = &acceleration_binding->m_Packet;
-                    dmHID::AccelerationPacket* prev_packet = &acceleration_binding->m_PreviousPacket;
-                    dmHID::GetAccelerationPacket(hid_context, packet);
-                    action->m_AccX = packet->m_X;
-                    action->m_AccY = packet->m_Y;
-                    action->m_AccZ = packet->m_Z;
-                    action->m_AccelerationSet = 1;
-                    *prev_packet = *packet;
-                }
+                binding->m_AccelerationBinding = new AccelerationBinding();
+                binding->m_AccelerationBinding->m_Action.m_Source = dmHID::INPUT_SOURCE_ACCELEROMETER;
             }
+            dmHID::AccelerationPacket packet;
+            dmHID::GetAccelerationPacket(hid_context, &packet);
+            Action* action = &binding->m_AccelerationBinding->m_Action;
+            action->m_AccX = packet.m_X;
+            action->m_AccY = packet.m_Y;
+            action->m_AccZ = packet.m_Z;
+            action->m_AccelerationSet = 1;
+        }
+        else if (binding->m_AccelerationBinding != 0x0 && binding->m_AccelerationBinding->m_Action.m_AccelerationSet)
+        {
+            binding->m_AccelerationBinding->m_Action.m_AccelerationSet = 0;
         }
     }
 
@@ -1425,7 +1456,7 @@ namespace dmInput
         active = active || action->m_Dirty; // e.g. for analog stick action being released
         active = active || action->m_HasGamepadPacket; // Raw gamepad data
         active = active || action->m_HasText; // Text input
-        active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0 || action->m_AccelerationSet)); // Mouse move action
+        active = active || (*key == 0 && action->m_PositionSet && (action->m_DX != 0 || action->m_DY != 0)); // Mouse move action
         if (active)
         {
             data->m_Callback(*key, action, data->m_UserData);
@@ -1448,6 +1479,11 @@ namespace dmInput
                 }
                 gamepad_binding->m_Actions.Iterate<CallbackData>(ForEachActiveCallback, &data);
             }
+        }
+        if (binding->m_AccelerationBinding != 0x0 && binding->m_AccelerationBinding->m_Action.m_AccelerationSet)
+        {
+            // Both devices use an unnamed action, but deliver separate payloads.
+            callback(0, &binding->m_AccelerationBinding->m_Action, user_data);
         }
     }
 

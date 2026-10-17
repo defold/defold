@@ -70,6 +70,8 @@
     (is (= "Default" (:name (tex-gen/match-texture-profile texture-profiles "/foo/photos/not-a-png.atlas"))))
     (is (= "Photo"   (:name (tex-gen/match-texture-profile texture-profiles "/foo/photos/a-png.png"))))))
 
+;; KTX2 format preservation works without explicit format alternatives.
+;; Compressed builds and uncompressed previews honor size and mipmap settings.
 (deftest keep-ktx2-format-without-format-alternatives
   (let [bytes (with-open [stream (io/input-stream "../com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/ktx2/etc1s.ktx2")]
                 (.readAllBytes stream))
@@ -79,8 +81,8 @@
                               :mipmaps false
                               :max-texture-size 4
                               :premultiply-alpha false}]}
-        ^TextureGenerator$GenerateResult built (tex-gen/make-ktx2-texture-image bytes profile true false)
-        ^TextureGenerator$GenerateResult preview (tex-gen/make-ktx2-texture-image bytes profile false true)]
+        built (tex-gen/make-ktx2-texture-image bytes profile true false)
+        preview (tex-gen/make-ktx2-texture-image bytes profile false true)]
     (is (= Graphics$TextureImage$CompressionType/COMPRESSION_TYPE_BASIS_ETC1S
            (.. built textureImage (getAlternatives 0) getCompressionType)))
     (is (= Graphics$TextureImage$CompressionType/COMPRESSION_TYPE_DEFAULT

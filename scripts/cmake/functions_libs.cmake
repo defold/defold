@@ -17,6 +17,7 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   decoder_wav
   ddf
   ddf_noasan
+  debugger
   dlib
   dlib_noasan
   engine
@@ -154,6 +155,9 @@ function(defold_target_link_libraries target platform)
       list(APPEND _LIBS ${_vendor_libs})
     elseif(_lib STREQUAL "graphics" AND DEFINED DEFOLD_PLATFORM_GRAPHICS_LIBS)
       list(APPEND _LIBS ${DEFOLD_PLATFORM_GRAPHICS_LIBS})
+    elseif(_lib STREQUAL "graphics" AND platform MATCHES "android$" AND WITH_VULKAN AND NOT WITH_OPENGL)
+      # Generic graphics consumers must not reintroduce the GLES platform backend.
+      list(APPEND _LIBS graphics_vulkan)
     elseif(_lib STREQUAL "lua" AND NOT "${platform}" MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
       list(APPEND _LIBS luajit-5.1)
     else()
