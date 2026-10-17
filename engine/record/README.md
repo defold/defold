@@ -72,7 +72,7 @@ within a process; stale stop IDs and deleted file IDs return HTTP 410.
 | Runtime | Backend | Audio |
 | --- | --- | --- |
 | macOS 15+ | ScreenCaptureKit | Application audio |
-| Windows 10 version 1903+ | Windows Graphics Capture and Media Foundation | Unsupported |
+| Windows 10 version 1903+ | Windows Graphics Capture and Media Foundation | Application audio on Windows build 20348+ |
 | Linux and headless debug | Null backend; capabilities and errors remain discoverable | Unsupported |
 | Release, mobile and web | No recording HTTP service | Unsupported |
 
@@ -80,6 +80,13 @@ OS availability does not guarantee permission or device support. Capture failure
 are reported asynchronously in the status receipt. ScreenCaptureKit is weakly
 linked; Windows capture APIs are resolved at runtime. Existing native capture and
 window-cropping behavior is preserved from the automation implementation.
+
+Windows application audio uses WASAPI process loopback for the engine process and
+its children, with 48 kHz stereo PCM encoded to 128 kbit/s AAC in the MP4. It does
+not capture other applications or the microphone. Audio support is detected
+separately from video; older Windows versions continue to support `audio=false`.
+Both tracks use a common QPC timeline. Silent intervals are preserved, and stop
+drains audio capture before finalizing the file. No external encoder is required.
 
 This replaces the VP8/IVF framebuffer recorder. The old C++ `New`/`RecordFrame`/
 `Delete` interface and the `start_record`/`stop_record` system messages are removed,
@@ -91,7 +98,7 @@ HTTP service. Automation clients can discover and call these routes directly.
 From the repository root with the usual Defold SDK configured:
 
 ```sh
-cmake --build engine/build/arm64-macos --target run_test_record run_test_record_null run_test_record_service
+cmake --build engine/build/arm64-macos --target run_test_record run_test_record_null run_test_record_timeline run_test_record_service
 ```
 
 The lifecycle suite uses controlled completion signals to cover repeated capture,
@@ -99,9 +106,30 @@ failed startup, thread ownership and shutdown during startup/stop. The service
 suite uses a real HTTP server and a controlled recorder, without automation,
 graphics, Lua or capture permissions. It covers discovery, schema validation,
 receipts, download/checksum/delete, unsupported capabilities and reboot cleanup.
+It also checks audio defaults and explicit opt-in/opt-out. The timeline suite
+covers leading silence, gaps, overlapping packets, clipping at stop and rounding
+over long recordings.
+
+On an interactive Windows desktop with an audio output device, run:
+
+```sh
+cmake --build engine/build/x86_64-win32 --target run_test_record_win32_native
+```
+
+This opt-in suite opens its own window and plays test tones. It decodes the actual
+MP4 tracks to verify H.264/AAC, tone/flash synchronization, silent audio, recording
+without a render stream, repeated recording, shutdown finalization, failed-start
+cleanup and `audio=false`. The launcher plays a competing tone in another process
+so the silence cases also check application isolation. Completion uses playback
+and capture events; the native tests are excluded from the default CI test suite.
 
 Validated on arm64 macOS: all 13 recording tests; debug, headless and release
 engine builds; live debug/headless discovery; native 320×240 H.264 MP4 capture,
 ranged download, SHA-256, `ffprobe`, and normal engine exit. Binary inspection
 confirmed that release omits the service/native backend and all three variants
-omit automation and VP8. The Windows backend has not been run on this branch.
+omit automation and VP8.
+
+Validated on x86_64 Windows 11 build 26200: recording, null, timeline and HTTP
+service suites, and the native recording suite using 320×240 H.264 video and
+48 kHz stereo AAC. Native decoding verifies synchronization and stream contents.
+The Windows sources also build with MSVC and the Windows SDK 10.0.20348.0.

@@ -22,6 +22,23 @@ if(TARGET_PLATFORM MATCHES "(macos|linux|win32)$")
 endif()
 record_test(test_record_null test_record_null.cpp)
 defold_target_link_libraries(test_record_null "${TARGET_PLATFORM}" record_null)
+record_test(test_record_timeline test_record_timeline.cpp)
+
+if(TARGET record AND TARGET_PLATFORM MATCHES "win32$")
+  # Explicit opt-in: opens a test window and plays a tone on the default device.
+  # Keep it out of run_tests/build_tests on headless CI workers.
+  defold_add_executable(test_record_win32_native test_record_win32.cpp)
+  target_compile_features(test_record_win32_native PRIVATE cxx_std_17)
+  target_include_directories(test_record_win32_native PRIVATE "${RECORD_ROOT}/src")
+  defold_target_link_libraries(test_record_win32_native "${TARGET_PLATFORM}" record dlib profile_null)
+  target_link_libraries(test_record_win32_native PRIVATE mfplat mfreadwrite mfuuid ole32 winmm user32 gdi32 dwmapi)
+  set_target_properties(test_record_win32_native PROPERTIES EXCLUDE_FROM_ALL TRUE)
+  _defold_find_python(record_native_python)
+  add_custom_target(run_test_record_win32_native
+    COMMAND "${record_native_python}" "${CMAKE_CURRENT_SOURCE_DIR}/test_win32.py"
+      --test "$<TARGET_FILE:test_record_win32_native>"
+    DEPENDS test_record_win32_native VERBATIM)
+endif()
 
 if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND TARGET_PLATFORM MATCHES "(macos|linux|win32)$")
   defold_add_executable(record_test_server record_test_server.cpp

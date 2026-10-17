@@ -227,7 +227,7 @@ namespace dmRecord
                 "width": {"type": "integer", "minimum": 1, "maximum": 16384},
                 "height": {"type": "integer", "minimum": 1, "maximum": 16384},
                 "fps": {"type": "integer", "minimum": 1, "maximum": 60, "default": 30},
-                "audio": {"type": "boolean", "description": "Defaults to backend support: true on supported macOS, false on Windows."}
+                "audio": {"type": "boolean", "description": "Capture application audio. Defaults to backend support; query /recording/capabilities. Windows audio requires build 20348 or newer."}
               },
               "additionalProperties": false,
               "required": [],

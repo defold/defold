@@ -65,6 +65,8 @@ class RecordingServiceTest(unittest.TestCase):
     @classmethod
     def request(cls, method, path, body=None, expected=200, headers=None):
         headers = dict(headers or {})
+        # Each request owns one connection; explicitly release the server slot.
+        headers.setdefault("Connection", "close")
         if isinstance(body, dict):
             body = json.dumps(body)
             headers["Content-Type"] = "application/json"
@@ -162,6 +164,21 @@ class RecordingServiceTest(unittest.TestCase):
         self.request("GET", "/test/unsupported")
         self.request("POST", "/recording/start", {}, 501)
         self.assertEqual([], list(pathlib.Path(self.directory.name).iterdir()))
+
+    # Audio-capable backends default to audio and preserve explicit opt-in/opt-out in receipts.
+    def test_audio_options(self):
+        self.request("GET", "/test/audio-support")
+        self.assertTrue(self.request("GET", "/recording/capabilities")["audio"])
+        for options, expected_audio in [({}, True), ({"audio": True}, True), ({"audio": False}, False)]:
+            with self.subTest(options=options):
+                self.request("POST", "/recording/start", options, 202)
+                status = self.wait_status()
+                self.assertTrue(status["active"])
+                self.assertEqual(expected_audio, status["audio"])
+                self.request("POST", "/recording/stop", {"operation_id": status["operation_id"]}, 202)
+                status = self.wait_status(complete_file=True)
+                self.assertTrue(status["finalized"])
+                self.assertEqual(expected_audio, status["audio"])
 
     # Failed starts release partial files; reboot invalidates receipts and cleans active recordings.
     def test_failure_and_restart_cleanup(self):

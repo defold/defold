@@ -40,6 +40,9 @@
 #include <wrl/event.h>
 #include <wrl/implements.h>
 
+#include "record_audio_win32.h"
+#include "record_timeline.h"
+
 #include <dmsdk/dlib/time.h>
 
 #include <dlib/math.h>
@@ -57,7 +60,7 @@ typedef __FITypedEventHandler_2_Windows__CGraphics__CCapture__CDirect3D11Capture
 
 struct AgileFrameArrivedHandler
     : public Microsoft::WRL::RuntimeClass<
-      Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::WinRtClassicComMix>,
+      Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::WinRtClassicComMix | Microsoft::WRL::InhibitRoOriginateError>,
       FrameArrivedHandler,
       Microsoft::WRL::FtmBase>
 {
@@ -285,6 +288,11 @@ namespace dmRecord
             , m_CropWidth(0)
             , m_CropHeight(0)
             , m_StreamIndex(0)
+            , m_AudioStreamIndex(0)
+            , m_AudioCapture(0)
+            , m_AudioFrames(0)
+            , m_StartTime(0)
+            , m_StopTime(UINT64_MAX)
             , m_FrameCount(0)
             , m_LastFrameSlot(UINT64_MAX)
             , m_Stopping(0)
@@ -293,10 +301,10 @@ namespace dmRecord
             , m_FirstFrameEvent(0)
         {
             InitializeCriticalSection(&m_FrameLock);
+            InitializeCriticalSection(&m_WriterLock);
+            InitializeSRWLock(&m_FailureLock);
             m_FirstFrameEvent = CreateEventW(0, TRUE, FALSE, 0);
             m_Failure[0] = 0;
-            QueryPerformanceFrequency(&m_CounterFrequency);
-            QueryPerformanceCounter(&m_StartCounter);
         }
 
         ~WindowsRecorder()
@@ -305,9 +313,10 @@ namespace dmRecord
             if (m_FirstFrameEvent)
                 CloseHandle(m_FirstFrameEvent);
             DeleteCriticalSection(&m_FrameLock);
+            DeleteCriticalSection(&m_WriterLock);
         }
 
-        bool Start(HWND window, const char* path, uint32_t requested_width, uint32_t requested_height, uint32_t fps, char* failure, size_t failure_size)
+        bool Start(HWND window, const char* path, uint32_t requested_width, uint32_t requested_height, uint32_t fps, bool audio, char* failure, size_t failure_size)
         {
             if (!RecorderApisAvailable())
                 return Fail(E_NOTIMPL, failure, failure_size);
@@ -363,13 +372,22 @@ namespace dmRecord
             result = CreateDevice();
             if (FAILED(result))
                 return Fail(result, failure, failure_size);
-            result = CreateWriter();
+            if (audio)
+            {
+                result = NewAudioCapture(&m_AudioCapture, DispatchAudio, this);
+                if (FAILED(result))
+                    return Fail(result, failure, failure_size);
+            }
+            result = CreateWriter(audio);
             if (FAILED(result))
                 return Fail(result, failure, failure_size);
 
             result = CreateFramePool();
             if (FAILED(result))
                 return Fail(result, failure, failure_size);
+            m_StartTime = GetCounterTime();
+            if (m_AudioCapture)
+                StartAudioCapture(m_AudioCapture);
             result = m_Session->StartCapture();
             if (FAILED(result))
                 return Fail(result, failure, failure_size);
@@ -384,11 +402,17 @@ namespace dmRecord
             bool ok = m_Failure[0] == 0 && m_FrameCount > 0;
             CopyText(failure, failure_size, m_Failure);
             LeaveCriticalSection(&m_FrameLock);
+            result = GetAudioCaptureResult(m_AudioCapture);
+            if (FAILED(result))
+                return Fail(result, failure, failure_size);
             return ok;
         }
 
         bool Stop(char* failure, size_t failure_size)
         {
+            EnterCriticalSection(&m_WriterLock);
+            m_StopTime = GetCounterTime() - m_StartTime;
+            LeaveCriticalSection(&m_WriterLock);
             InterlockedExchange(&m_Stopping, 1);
             if (m_FramePool && m_FrameHandler)
                 m_FramePool->remove_FrameArrived(m_FrameToken);
@@ -401,12 +425,27 @@ namespace dmRecord
             // FramePool is free-threaded. Taking this lock after closing it waits
             // for an in-flight callback before the sink writer is finalized.
             EnterCriticalSection(&m_FrameLock);
-            HRESULT result = S_OK;
-            if (m_Writer)
-                result = m_Writer->Finalize();
             if (m_Failure[0] && !failure[0])
                 CopyText(failure, failure_size, m_Failure);
             LeaveCriticalSection(&m_FrameLock);
+
+            bool audio = m_AudioCapture != 0;
+            HRESULT result = DeleteAudioCapture(m_AudioCapture);
+            m_AudioCapture = 0;
+            if (FAILED(result) && !failure[0])
+                HResultText(result, failure, failure_size);
+            // A silent application still needs a complete AAC track. Also pad
+            // the final partial capture period up to the common stop boundary.
+            if (audio && SUCCEEDED(result))
+            {
+                uint64_t end = TimeToFrames(m_StopTime, RECORD_AUDIO_RATE);
+                if (end > m_AudioFrames)
+                    result = WriteSilence(end - m_AudioFrames);
+                if (FAILED(result) && !failure[0])
+                    HResultText(result, failure, failure_size);
+            }
+            if (m_Writer)
+                result = m_Writer->Finalize();
             if (FAILED(result) && !failure[0])
                 HResultText(result, failure, failure_size);
 
@@ -433,7 +472,28 @@ namespace dmRecord
             return m_Fps;
         }
 
+        void GetFailure(char* failure, size_t failure_size)
+        {
+            // Status is queried from the engine thread; never wait for GPU
+            // readback or encoding while copying the asynchronous error.
+            AcquireSRWLockShared(&m_FailureLock);
+            CopyText(failure, failure_size, m_Failure);
+            ReleaseSRWLockShared(&m_FailureLock);
+            HRESULT result = GetAudioCaptureResult(m_AudioCapture);
+            if (FAILED(result) && !failure[0])
+                HResultText(result, failure, failure_size);
+        }
+
         private:
+        static uint64_t GetCounterTime()
+        {
+            LARGE_INTEGER counter, frequency;
+            QueryPerformanceCounter(&counter);
+            QueryPerformanceFrequency(&frequency);
+            return counter.QuadPart / frequency.QuadPart * 10000000 +
+                   counter.QuadPart % frequency.QuadPart * 10000000 / frequency.QuadPart;
+        }
+
         bool Fail(HRESULT result, char* failure, size_t failure_size)
         {
             HResultText(result, failure, failure_size);
@@ -554,9 +614,9 @@ namespace dmRecord
             return MFSetAttributeSize(attributes, key, width, height);
         }
 
-        HRESULT CreateWriter()
+        HRESULT CreateWriter(bool audio)
         {
-            HRESULT result = MFStartup(MF_VERSION);
+            HRESULT result = MFStartup(MF_VERSION, MFSTARTUP_FULL);
             if (FAILED(result))
                 return result;
             m_MfStarted = true;
@@ -612,7 +672,97 @@ namespace dmRecord
                 return result;
             if (FAILED(result = m_Writer->SetInputMediaType(m_StreamIndex, input_type.Get(), 0)))
                 return result;
+            if (audio && FAILED(result = CreateAudioStream()))
+                return result;
             return m_Writer->BeginWriting();
+        }
+
+        HRESULT CreateAudioStream()
+        {
+            ComPtr<IMFMediaType> output;
+            HRESULT result = MFCreateMediaType(&output);
+            if (FAILED(result))
+                return result;
+            if (FAILED(result = output->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio)) ||
+                FAILED(result = output->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_AAC)) ||
+                FAILED(result = output->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, RECORD_AUDIO_CHANNELS)) ||
+                FAILED(result = output->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, RECORD_AUDIO_RATE)) ||
+                FAILED(result = output->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16)) ||
+                FAILED(result = output->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 16000)) ||
+                FAILED(result = m_Writer->AddStream(output.Get(), &m_AudioStreamIndex)))
+                return result;
+            ComPtr<IMFMediaType> input;
+            result = MFCreateMediaType(&input);
+            if (FAILED(result))
+                return result;
+            if (FAILED(result = input->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio)) ||
+                FAILED(result = input->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM)) ||
+                FAILED(result = input->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, RECORD_AUDIO_CHANNELS)) ||
+                FAILED(result = input->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, RECORD_AUDIO_RATE)) ||
+                FAILED(result = input->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16)) ||
+                FAILED(result = input->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, RECORD_AUDIO_CHANNELS * sizeof(int16_t))) ||
+                FAILED(result = input->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, RECORD_AUDIO_RATE * RECORD_AUDIO_CHANNELS * sizeof(int16_t))))
+                return result;
+            return m_Writer->SetInputMediaType(m_AudioStreamIndex, input.Get(), 0);
+        }
+
+        HRESULT WriteAudio(const int16_t* samples, uint32_t frames, bool discontinuity)
+        {
+            DWORD bytes = frames * RECORD_AUDIO_CHANNELS * sizeof(int16_t);
+            ComPtr<IMFMediaBuffer> buffer;
+            HRESULT result = MFCreateMemoryBuffer(bytes, &buffer);
+            if (FAILED(result))
+                return result;
+            BYTE* data = 0;
+            if (FAILED(result = buffer->Lock(&data, 0, 0)))
+                return result;
+            if (samples)
+                memcpy(data, samples, bytes);
+            else
+                memset(data, 0, bytes);
+            buffer->Unlock();
+            buffer->SetCurrentLength(bytes);
+            ComPtr<IMFSample> sample;
+            if (FAILED(result = MFCreateSample(&sample)) || FAILED(result = sample->AddBuffer(buffer.Get())))
+                return result;
+            uint64_t time = FramesToTime(m_AudioFrames, RECORD_AUDIO_RATE);
+            sample->SetSampleTime(time);
+            sample->SetSampleDuration(FramesToTime(m_AudioFrames + frames, RECORD_AUDIO_RATE) - time);
+            if (discontinuity)
+                sample->SetUINT32(MFSampleExtension_Discontinuity, TRUE);
+            result = m_Writer->WriteSample(m_AudioStreamIndex, sample.Get());
+            if (SUCCEEDED(result))
+                m_AudioFrames += frames;
+            return result;
+        }
+
+        HRESULT WriteSilence(uint64_t frames)
+        {
+            // Bound allocations even after a long period without any packets.
+            while (frames)
+            {
+                uint32_t count = (uint32_t)dmMath::Min<uint64_t>(frames, RECORD_AUDIO_RATE / 10);
+                HRESULT result = WriteAudio(0, count, false);
+                if (FAILED(result))
+                    return result;
+                frames -= count;
+            }
+            return S_OK;
+        }
+
+        static HRESULT DispatchAudio(void* context, const int16_t* samples, uint32_t frames, uint64_t time, bool discontinuity)
+        {
+            WindowsRecorder* recorder = (WindowsRecorder*)context;
+            EnterCriticalSection(&recorder->m_WriterLock);
+            uint64_t limit = recorder->m_StopTime == UINT64_MAX ? UINT64_MAX : TimeToFrames(recorder->m_StopTime, RECORD_AUDIO_RATE);
+            AudioPacketRange range = GetAudioPacketRange(recorder->m_StartTime, time, frames,
+                RECORD_AUDIO_RATE, recorder->m_AudioFrames, limit);
+            HRESULT result = recorder->WriteSilence(range.m_SilenceFrames);
+            if (SUCCEEDED(result) && range.m_Frames)
+                result = recorder->WriteAudio(samples ? samples + range.m_SkipFrames * RECORD_AUDIO_CHANNELS : 0,
+                    range.m_Frames, discontinuity || range.m_SilenceFrames != 0);
+            LeaveCriticalSection(&recorder->m_WriterLock);
+            return result;
         }
 
         HRESULT EnsureStagingTexture()
@@ -658,21 +808,28 @@ namespace dmRecord
             ComPtr<ID3D11Texture2D> texture;
             if (SUCCEEDED(result))
                 result = access->GetInterface(IID_PPV_ARGS(&texture));
+            ABI::Windows::Foundation::TimeSpan time;
             if (SUCCEEDED(result))
-                result = WriteFrame(texture.Get());
-            if (FAILED(result) && !m_Failure[0])
-                HResultText(result, m_Failure, sizeof(m_Failure));
+                result = frame->get_SystemRelativeTime(&time);
+            if (SUCCEEDED(result))
+                result = WriteFrame(texture.Get(), time.Duration);
+            if (FAILED(result))
+            {
+                AcquireSRWLockExclusive(&m_FailureLock);
+                if (!m_Failure[0])
+                    HResultText(result, m_Failure, sizeof(m_Failure));
+                ReleaseSRWLockExclusive(&m_FailureLock);
+            }
             if (m_FrameCount > 0 || m_Failure[0])
                 SetEvent(m_FirstFrameEvent);
             LeaveCriticalSection(&m_FrameLock);
         }
 
-        HRESULT WriteFrame(ID3D11Texture2D* texture)
+        HRESULT WriteFrame(ID3D11Texture2D* texture, uint64_t time)
         {
-            LARGE_INTEGER counter;
-            QueryPerformanceCounter(&counter);
-            uint64_t frame_slot = (uint64_t)(counter.QuadPart - m_StartCounter.QuadPart) * m_Fps /
-            (uint64_t)m_CounterFrequency.QuadPart;
+            if (time < m_StartTime)
+                return S_FALSE;
+            uint64_t frame_slot = TimeToFrames(time - m_StartTime, m_Fps);
             if (m_LastFrameSlot != UINT64_MAX && frame_slot <= m_LastFrameSlot)
                 return S_FALSE;
 
@@ -732,10 +889,12 @@ namespace dmRecord
                 return result;
             if (FAILED(result = sample->AddBuffer(buffer.Get())))
                 return result;
-            LONGLONG duration = 10000000LL / m_Fps;
-            sample->SetSampleTime((LONGLONG)frame_slot * duration);
-            sample->SetSampleDuration(duration);
+            uint64_t sample_time = FramesToTime(frame_slot, m_Fps);
+            sample->SetSampleTime(sample_time);
+            sample->SetSampleDuration(FramesToTime(frame_slot + 1, m_Fps) - sample_time);
+            EnterCriticalSection(&m_WriterLock);
             result = m_Writer->WriteSample(m_StreamIndex, sample.Get());
+            LeaveCriticalSection(&m_WriterLock);
             if (SUCCEEDED(result))
             {
                 m_LastFrameSlot = frame_slot;
@@ -762,6 +921,11 @@ namespace dmRecord
                 m_FramePool->remove_FrameArrived(m_FrameToken);
             CloseInspectable(m_Session.Get());
             CloseInspectable(m_FramePool.Get());
+            // Join both producers before releasing the writer, including a
+            // failed Start after one of the capture streams already began.
+            DeleteAudioCapture(m_AudioCapture);
+            m_AudioCapture = 0;
+            EnterCriticalSection(&m_FrameLock);
             m_FrameHandler.Reset();
             m_Session.Reset();
             m_FramePool.Reset();
@@ -771,6 +935,7 @@ namespace dmRecord
             m_Writer.Reset();
             m_Context.Reset();
             m_Device.Reset();
+            LeaveCriticalSection(&m_FrameLock);
             if (m_MfStarted)
             {
                 MFShutdown();
@@ -790,15 +955,20 @@ namespace dmRecord
         uint32_t                                        m_OutputWidth, m_OutputHeight, m_Fps;
         uint32_t                                        m_CropX, m_CropY, m_CropWidth, m_CropHeight;
         DWORD                                           m_StreamIndex;
+        DWORD                                           m_AudioStreamIndex;
+        AudioCapture*                                   m_AudioCapture;
+        uint64_t                                        m_AudioFrames;
+        uint64_t                                        m_StartTime;
+        uint64_t                                        m_StopTime;
         uint64_t                                        m_FrameCount;
         uint64_t                                        m_LastFrameSlot;
         volatile LONG                                   m_Stopping;
-        LARGE_INTEGER                                   m_StartCounter;
-        LARGE_INTEGER                                   m_CounterFrequency;
         bool                                            m_MfStarted;
         bool                                            m_RoInitialized;
         HANDLE                                          m_FirstFrameEvent;
         CRITICAL_SECTION                                m_FrameLock;
+        CRITICAL_SECTION                                m_WriterLock;
+        SRWLOCK                                         m_FailureLock;
         char                                            m_Failure[512];
         wchar_t                                         m_OutputPath[1024];
         ComPtr<ID3D11Device>                            m_Device;
@@ -831,7 +1001,7 @@ namespace dmRecord
 
     bool IsAudioSupported()
     {
-        return false;
+        return IsSupported() && IsProcessAudioCaptureSupported();
     }
 
     const char* GetBackendName()
@@ -853,6 +1023,8 @@ namespace dmRecord
     {
         AcquireSRWLockShared(&g_StateLock);
         *status = g_Status;
+        if (g_Recorder && status->m_Active)
+            g_Recorder->GetFailure(status->m_Failure, sizeof(status->m_Failure));
         ReleaseSRWLockShared(&g_StateLock);
         status->m_Supported = IsSupported();
         if (!status->m_Supported && !status->m_Failure[0])
@@ -878,9 +1050,9 @@ namespace dmRecord
             ReleaseSRWLockExclusive(&g_StateLock);
             return false;
         }
-        if (audio)
+        if (audio && !IsProcessAudioCaptureSupported())
         {
-            CopyText(g_Status.m_Failure, sizeof(g_Status.m_Failure), "application audio recording is not implemented by the Windows backend; use audio=false");
+            CopyText(g_Status.m_Failure, sizeof(g_Status.m_Failure), "application audio recording requires Windows build 20348 or newer; use audio=false");
             *status = g_Status;
             ReleaseSRWLockExclusive(&g_StateLock);
             return false;
@@ -897,12 +1069,12 @@ namespace dmRecord
         ReleaseSRWLockExclusive(&g_StateLock);
 
         char failure[512] = {};
-        bool started = recorder->Start((HWND)target->m_Handle, path, width, height, fps, failure, sizeof(failure));
+        bool started = recorder->Start((HWND)target->m_Handle, path, width, height, fps, audio, failure, sizeof(failure));
         AcquireSRWLockExclusive(&g_StateLock);
         if (started)
         {
             g_Status.m_Active = true;
-            g_Status.m_Audio = false;
+            g_Status.m_Audio = audio;
             g_Status.m_Width = recorder->Width();
             g_Status.m_Height = recorder->Height();
             g_Status.m_Fps = recorder->Fps();

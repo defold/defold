@@ -31,6 +31,7 @@ namespace dmRecord
     static bool            g_Supported = true;
     static bool            g_FailStart;
     static bool            g_NoWindow;
+    static bool            g_AudioSupported;
 
     bool                   IsSupported()
     {
@@ -38,7 +39,7 @@ namespace dmRecord
     }
     bool IsAudioSupported()
     {
-        return false;
+        return g_AudioSupported;
     }
     const char* GetBackendName()
     {
@@ -127,6 +128,8 @@ static void TestHandler(void*, dmWebServer::Request* request)
         dmRecord::g_Supported = false;
     else if (!strcmp(request->m_Resource, "/test/no-window"))
         dmRecord::g_NoWindow = true;
+    else if (!strcmp(request->m_Resource, "/test/audio-support"))
+        dmRecord::g_AudioSupported = true;
     else if (!strcmp(request->m_Resource, "/test/restart"))
     {
         dmRecord::FinalizeService();
@@ -134,6 +137,7 @@ static void TestHandler(void*, dmWebServer::Request* request)
         dmRecord::g_Supported = true;
         dmRecord::g_FailStart = false;
         dmRecord::g_NoWindow = false;
+        dmRecord::g_AudioSupported = false;
         if (!dmRecord::RegisterService(g_Server, Window, g_Directory))
             dmWebServer::SetStatusCode(request, 500);
     }

@@ -24,9 +24,10 @@ if(NOT RECORD_FEATURE_DISABLED AND TARGET_PLATFORM MATCHES "(macos|win32)$")
       "-framework AVFoundation" "-framework AppKit" "-framework CoreMedia"
       "-framework CoreVideo" "-framework Foundation" "-weak_framework ScreenCaptureKit")
   else()
-    target_sources(record PRIVATE src/record/record_win32.cpp)
+    target_sources(record PRIVATE src/record/record_win32.cpp src/record/record_audio_win32.cpp)
     # Windows SDK / WRL declarations require C++17, confined to this backend.
-    set_source_files_properties(src/record/record_win32.cpp PROPERTIES COMPILE_OPTIONS "-std=c++17")
+    set_source_files_properties(src/record/record_win32.cpp src/record/record_audio_win32.cpp
+      PROPERTIES COMPILE_OPTIONS "$<IF:$<CXX_COMPILER_ID:MSVC>,/std:c++17,-std=c++17>")
     target_link_libraries(record PUBLIC dxgi dwmapi mfuuid ole32)
   endif()
   list(APPEND RECORD_INSTALL_TARGETS record)
