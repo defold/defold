@@ -60,10 +60,13 @@ static bool        g_AlignmentPreview = false;
 #include <test/test_graphics_util.h>
 #include <platform/window.hpp>
 #include <font_render.h>
+#include <font_effect.h>
 #include <font_glyphbank.h>
 
 extern "C" void                       dmExportedSymbols();
 
+static FontEffectCache*               g_ImageEffects = 0;
+static uint32_t                       g_ImageFrame = 0;
 static HWindow                        g_ImageWindow = 0;
 static dmGraphics::HContext           g_ImageContext = 0;
 static dmGraphics::HProgram           g_ImagePrograms[3] = {};
@@ -102,6 +105,25 @@ static bool LoadImageShader(const char* path, dmArray<char>& data)
     bool ok = fread(data.Begin(), 1, size, file) == (size_t)size;
     data[size] = 0;
     fclose(file);
+    const char  include[] = "#include \"/builtins/fonts/font-effect.glsl\"";
+    const char* directive = strstr(data.Begin(), include);
+    if (ok && directive)
+    {
+        dmArray<char> effect;
+        if (!LoadImageShader("content/builtins/fonts/font-effect.glsl", effect))
+        {
+            return false;
+        }
+        const uint32_t prefix = (uint32_t)(directive - data.Begin());
+        const uint32_t suffix = prefix + sizeof(include) - 1;
+        dmArray<char>  expanded;
+        expanded.SetCapacity(prefix + effect.Size() - 1 + data.Size() - suffix);
+        expanded.SetSize(expanded.Capacity());
+        memcpy(expanded.Begin(), data.Begin(), prefix);
+        memcpy(expanded.Begin() + prefix, effect.Begin(), effect.Size() - 1);
+        memcpy(expanded.Begin() + prefix + effect.Size() - 1, data.Begin() + suffix, data.Size() - suffix);
+        data.Swap(expanded);
+    }
     return ok;
 }
 
@@ -133,6 +155,7 @@ static void InitializeFontImages()
     ASSERT_NE((dmGraphics::HContext)0, g_ImageContext);
     dmGraphics::SetSwapInterval(g_ImageContext, 0);
     g_ImageDeclaration = FontCreateGlyphVertexDeclaration(g_ImageContext);
+    g_ImageEffects = FontCreateEffectCache(g_ImageContext);
     const char* vertex_paths[] = { "content/builtins/fonts/font-df.vp", "src/test/data/font_render/font.vp", "src/test/data/font_render/font.vp" };
     const char* fragment_paths[] = { "content/builtins/fonts/font-df.fp", "src/test/data/font_render/font.fp", "src/test/data/font_render/font-fnt.fp" };
     for (uint32_t i = 0; i < 3; ++i)
@@ -147,6 +170,11 @@ static void InitializeFontImages()
         dmGraphics::ShaderDesc::ShaderDataType types[] = { dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC2, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3 };
         for (uint32_t j = 0; j < 7; ++j)
             shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, inputs[j], j, types[j]);
+        if (i == 0)
+        {
+            shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "effect", 7, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+            shaders.AddTexture("font_effects", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+        }
         shaders.AddTypeMember("view_proj", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
         shaders.AddUniform("vs_uniforms", 0, 0);
         shaders.AddTexture("texture_sampler", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
@@ -165,6 +193,8 @@ static void FinalizeFontImages()
     for (uint32_t i = 0; i < 3; ++i)
         if (g_ImagePrograms[i])
             dmGraphics::DeleteProgram(g_ImageContext, g_ImagePrograms[i]);
+    FontDeleteEffectCache(g_ImageEffects);
+    g_ImageEffects = 0;
     dmGraphics::DeleteVertexDeclaration(g_ImageDeclaration);
     dmGraphics::DeleteContext(g_ImageContext);
     dmPlatform::CloseWindow(g_ImageWindow);
@@ -409,6 +439,11 @@ static void WriteFontImage(const char* directory, const char* name, uint32_t wid
     ++g_TestImagesWritten;
 }
 
+static uint32_t ResolveImageEffect(void*, const FontEffectRecord& record)
+{
+    return FontCacheEffect(g_ImageEffects, record, g_ImageFrame);
+}
+
 // Render and finish readback without destroying resources, so transition cases
 // can draw both states through the same atlas, buffer and render target.
 static void CaptureFontImage(dmGraphics::HRenderTarget target, dmGraphics::HTexture texture,
@@ -432,6 +467,13 @@ static void CaptureFontImage(dmGraphics::HRenderTarget target, dmGraphics::HText
     dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1, 1);
     dmGraphics::SetConstantM4(g_ImageContext, (dmVMath::Vector4*)&projection, 1, dmGraphics::FindUniformLocation(program, "view_proj"));
     dmGraphics::EnableTexture(g_ImageContext, 0, 0, texture);
+    const dmGraphics::HUniformLocation effect_location = dmGraphics::FindUniformLocation(program, "font_effects");
+    if (effect_location != dmGraphics::INVALID_UNIFORM_LOCATION)
+    {
+        FontUploadEffects(g_ImageEffects);
+        dmGraphics::SetSampler(g_ImageContext, effect_location, 1);
+        dmGraphics::EnableTexture(g_ImageContext, 1, 0, FontGetEffectTexture(g_ImageEffects));
+    }
     dmGraphics::EnableVertexBuffer(g_ImageContext, buffer, 0);
     dmGraphics::EnableVertexDeclaration(g_ImageContext, g_ImageDeclaration, 0, 0, program);
     dmGraphics::Draw(g_ImageContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_count, 1);
@@ -441,6 +483,10 @@ static void CaptureFontImage(dmGraphics::HRenderTarget target, dmGraphics::HText
     dmGraphics::DisableVertexDeclaration(g_ImageContext, g_ImageDeclaration);
     dmGraphics::DisableVertexBuffer(g_ImageContext, buffer);
     dmGraphics::DisableTexture(g_ImageContext, 0, texture);
+    if (effect_location != dmGraphics::INVALID_UNIFORM_LOCATION)
+    {
+        dmGraphics::DisableTexture(g_ImageContext, 1, FontGetEffectTexture(g_ImageEffects));
+    }
     dmGraphics::SetRenderTarget(g_ImageContext, 0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::Flip(g_ImageContext);
 }
@@ -511,6 +557,7 @@ static void TestFontImage(const FontImageCase& c)
         return;
     }
     InitializeFontImages();
+    ++g_ImageFrame;
     ASSERT_NE((dmGraphics::HContext)0, g_ImageContext);
     const bool  fnt = strcmp(c.m_Source, "fnt") == 0;
     const bool  bank_source = fnt || strstr(c.m_Source, "_bank");
@@ -563,6 +610,10 @@ static void TestFontImage(const FontImageCase& c)
     TextLayoutSettings settings = {};
     settings.m_Size = c.m_Size;
     FontImageCaptureGeometry geometry = arabic ? g_Capture_arabic : paragraph ? g_Capture_english : g_Capture_single_line;
+    if (strstr(c.m_Name, "radial_block_ellipse"))
+    {
+        geometry = g_Capture_radial_block_ellipse;
+    }
     if (c.m_EdgeScale > 0.0f)
     {
         const FontImageCaptureGeometry ttf[] = { g_Capture_ttf_edge_half, g_Capture_ttf_edge_one, g_Capture_ttf_edge_two };
@@ -659,6 +710,10 @@ static void TestFontImage(const FontImageCase& c)
     config.m_Layout = layout;
     config.m_ResolveGlyph = ResolveImageGlyph;
     config.m_ResolveGlyphContext = &glyphs;
+    if (!bitmap)
+    {
+        config.m_ResolveEffect = ResolveImageEffect;
+    }
     config.m_Transform = dmVMath::Matrix4::identity();
     config.m_RecipAtlasWidth = 1.0f / atlas_width;
     config.m_RecipAtlasHeight = 1.0f / atlas_height;

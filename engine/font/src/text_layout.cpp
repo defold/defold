@@ -152,7 +152,7 @@ static bool DecorationRequiresGlyphSegments(HTextLayout layout, const TextDecora
     const TextGradientEffect& gradient = gradient_effect->m_Gradient;
     return gradient.m_Fit == TEXT_EFFECT_FIT_GLYPH ||
            (gradient.m_Fit == TEXT_EFFECT_FIT_TEXT &&
-            (gradient.m_BottomLeft[3] != gradient.m_BottomRight[3] || gradient.m_TopLeft[3] != gradient.m_TopRight[3]));
+            (gradient.m_Corners.m_BottomLeft[3] != gradient.m_Corners.m_BottomRight[3] || gradient.m_Corners.m_TopLeft[3] != gradient.m_Corners.m_TopRight[3]));
 }
 
 static uint32_t GetDecorationIndex(HTextLayout layout, const TextDecoration& decoration)
@@ -1511,8 +1511,8 @@ static void ApplyGradientColor(float color[4], const TextGradientEffect& gradien
 {
     for (uint32_t i = 0; i < 4; ++i)
     {
-        const float bottom = gradient.m_BottomLeft[i] + (gradient.m_BottomRight[i] - gradient.m_BottomLeft[i]) * x;
-        const float top = gradient.m_TopLeft[i] + (gradient.m_TopRight[i] - gradient.m_TopLeft[i]) * x;
+        const float bottom = gradient.m_Corners.m_BottomLeft[i] + (gradient.m_Corners.m_BottomRight[i] - gradient.m_Corners.m_BottomLeft[i]) * x;
+        const float top = gradient.m_Corners.m_TopLeft[i] + (gradient.m_Corners.m_TopRight[i] - gradient.m_Corners.m_TopLeft[i]) * x;
         const float value = bottom + (top - bottom) * y;
         color[i] = i == 3 ? fminf(color[i], value) : value;
     }
@@ -1596,6 +1596,10 @@ static void ApplyFaceColor(TextGlyphFaceColors* colors, const float sample[4])
 static void ApplyGradientEffect(const TextLayout* layout, const TextGlyph& glyph, const TextEffect& effect, TextGlyphFaceColors* colors)
 {
     const TextGradientEffect& gradient = effect.m_Gradient;
+    if (gradient.m_Mode == TEXT_GRADIENT_MODE_SPATIAL)
+    {
+        return;
+    }
     const float animation_t = (float)(layout->m_ElapsedTime * gradient.m_Hz * 2.0);
 
     if (gradient.m_Fit == TEXT_EFFECT_FIT_SPAN)
@@ -1678,6 +1682,11 @@ static void ApplyWaveEffect(const TextLayout* layout, const TextGlyph& glyph, co
 
 void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data)
 {
+    TextLayoutGetGlyphRenderData(layout, glyph, base_color, data, true);
+}
+
+void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data, bool apply_gradients)
+{
     TextLayout* internal = (TextLayout*)layout;
     const TextRenderStyle* style = internal && glyph.m_StyleIndex < internal->m_Styles.Size() ? &internal->m_Styles[glyph.m_StyleIndex] : 0;
     InitializeGlyphRenderData(style, base_color, data);
@@ -1697,7 +1706,7 @@ void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, co
 
         if (effect.m_Type == TEXT_EFFECT_GRADIENT)
         {
-            if (effect.m_TextLength != 0)
+            if (apply_gradients && effect.m_TextLength != 0)
             {
                 gradient_effect = &effect;
             }

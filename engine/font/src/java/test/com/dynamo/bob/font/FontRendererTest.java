@@ -36,7 +36,7 @@ import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
 
 public class FontRendererTest {
-    private static final int VERTEX_STRIDE = 56;
+    private static final int VERTEX_STRIDE = 72;
     private static final int VERTEX_FACE_COLOR_OFFSET = 16;
     private static final int VERTEX_SHADOW_COLOR_OFFSET = 24;
     private static final int VERTEX_SDF_SHADOW_OFFSET = 40;
@@ -155,6 +155,277 @@ public class FontRendererTest {
                 actual = renderer.measure("ABC", false, 0, 1, 0);
                 assertEquals(plain.width, actual.width, 0.001f);
                 assertEquals(plain.height, actual.height, 0.001f);
+            }
+        }
+    }
+
+    // GPU previews must retain all radial stops and own their metadata when another batch reuses a row.
+    @Test
+    public void testGpuGradientBatchTexture() throws Exception {
+        for (boolean shaping : new boolean[] {false, true}) {
+            try (FontRenderer renderer = createRenderer(32, 512, 512, shaping)) {
+                FontRenderer.Properties properties = properties(100, 1, 0);
+                properties.useGpuEffects = true;
+                renderer.setProperties(properties);
+                renderer.setMarkup("<gradient type=radial fit=glyph color0=#FF0000 color1=#FFFF00 color2=#00FF00 color3=#0000FF>AA</gradient>");
+                renderer.beginBatch();
+                renderer.generateTexture(0);
+                TestVertices radial = getVertices(renderer, IDENTITY);
+                assertEquals(12, radial.vertexCount);
+                int row = (int)radial.vertices.getFloat(64);
+                assertEquals(1, row);
+                for (int vertex = 0; vertex < radial.vertexCount; ++vertex) {
+                    int offset = vertex * VERTEX_STRIDE;
+                    assertEquals(row, (int)radial.vertices.getFloat(offset + 64));
+                    assertEquals(255, Byte.toUnsignedInt(radial.vertices.get(offset + VERTEX_FACE_COLOR_OFFSET)));
+                    assertEquals(255, Byte.toUnsignedInt(radial.vertices.get(offset + VERTEX_FACE_COLOR_OFFSET + 1)));
+                }
+                FontRenderer.Texture first = renderer.getEffectTexture();
+                assertEquals(16, first.width);
+                assertEquals(2, first.height);
+                assertEquals(128, first.pixels.remaining());
+                assertEquals(0.5f, first.pixels.duplicate().order(ByteOrder.LITTLE_ENDIAN).getFloat(0), 0.0f);
+                assertEquals(4, first.channels);
+                assertEquals(2, first.pixels.get(row * 64)); // Radial, not four sampled vertex colors.
+                assertEquals(4, first.pixels.get(row * 64 + 1));
+                assertEquals(255, Byte.toUnsignedInt(first.pixels.get(row * 64 + 4)));
+                assertEquals(255, Byte.toUnsignedInt(first.pixels.get(row * 64 + 18)));
+
+                renderer.beginBatch();
+                renderer.setMarkup("<gradient type=linear color0=#00FF00 color1=#FF0000>AA</gradient>");
+                TestVertices linear = getVertices(renderer, IDENTITY);
+                assertEquals(row, (int)linear.vertices.getFloat(64));
+                FontRenderer.Texture second = renderer.getEffectTexture();
+                assertEquals(1, second.pixels.get(row * 64));
+                assertEquals(0, second.pixels.get(row * 64 + 4));
+                assertEquals(2, first.pixels.get(row * 64));
+                assertEquals(255, Byte.toUnsignedInt(first.pixels.get(row * 64 + 4)));
+
+                properties.useGpuEffects = false;
+                renderer.setProperties(properties);
+                TestVertices fallback = getVertices(renderer, IDENTITY);
+                assertEquals(0, (int)fallback.vertices.getFloat(64));
+            }
+        }
+    }
+
+    // Inner colors must not shrink the authored span, including across line breaks.
+    @Test
+    public void testSpanGradientBoundsIgnoreColorOverrides() throws Exception {
+        String[] gradients = {
+            "linear angle=45 color0=#ff0000 color1=#0000ff",
+            "radial color0=#ff0000 color1=#0000ff"
+        };
+        for (boolean shaping : new boolean[] {false, true}) {
+            try (FontRenderer renderer = createRenderer(32, 512, 512, shaping)) {
+                FontRenderer.Properties properties = properties(100, 1, 0);
+                properties.useGpuEffects = true;
+                renderer.setProperties(properties);
+                for (String gradient : gradients) {
+                    String open = "<gradient type=" + gradient + " fit=span>";
+                    for (String separator : new String[] {"", "\n"}) {
+                        renderer.setMarkup(open + "AA" + separator + "AA</gradient>");
+                        renderer.beginBatch();
+                        renderer.generateTexture(0);
+                        TestVertices reference = getVertices(renderer, IDENTITY);
+                        for (int colored = 0; colored < 2; ++colored) {
+                            String first = colored == 0 ? "<color=#ffffff>AA</color>" : "AA";
+                            String last = colored == 1 ? "<color=#ffffff>AA</color>" : "AA";
+                            renderer.setMarkup(open + first + separator + last + "</gradient>");
+                            renderer.beginBatch();
+                            renderer.generateTexture(0);
+                            TestVertices actual = getVertices(renderer, IDENTITY);
+                            assertEquals(reference.vertexCount, actual.vertexCount);
+                            int start = colored == 0 ? 12 : 0;
+                            for (int vertex = start; vertex < start + 12; ++vertex) {
+                                int offset = vertex * VERTEX_STRIDE;
+                                assertTrue(actual.vertices.getFloat(offset + 64) > 0);
+                                assertEquals(reference.vertices.getFloat(offset + 56), actual.vertices.getFloat(offset + 56), 0.00001f);
+                                assertEquals(reference.vertices.getFloat(offset + 60), actual.vertices.getFloat(offset + 60), 0.00001f);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Snapshots contain only used rows, survive later batches, and allocate no pixels for plain text.
+    @Test
+    public void testGpuGradientTextureGrowth() throws Exception {
+        try (FontRenderer renderer = createRenderer(32, 512, 512, false)) {
+            FontRenderer.Properties properties = properties(100, 1, 0);
+            properties.useGpuEffects = true;
+            renderer.setProperties(properties);
+            StringBuilder markup = new StringBuilder();
+            for (int i = 1; i <= 300; ++i)
+                markup.append(String.format("<gradient type=radial fit=block color0=#%06x color1=#0000ff>A</gradient>", i));
+            renderer.setMarkup(markup.toString());
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+            TestVertices vertices = getVertices(renderer, IDENTITY);
+            assertEquals(1800, vertices.vertexCount);
+            assertEquals(300, (int)vertices.vertices.getFloat(299 * 6 * VERTEX_STRIDE + 64));
+            FontRenderer.Texture snapshot = renderer.getEffectTexture();
+            assertEquals(301, snapshot.height);
+            assertEquals(301 * 64, snapshot.pixels.remaining());
+            assertEquals(1.0f / 301, snapshot.pixels.duplicate().order(ByteOrder.LITTLE_ENDIAN).getFloat(0), 0.0f);
+            assertEquals(2, snapshot.pixels.get(300 * 64));
+            StringBuilder reversed = new StringBuilder();
+            for (int i = 300; i >= 1; --i)
+                reversed.append(String.format("<gradient type=radial fit=block color0=#%06x color1=#0000ff>A</gradient>", i));
+            renderer.setMarkup(reversed.toString());
+            TestVertices reused = getVertices(renderer, IDENTITY);
+            for (int glyph = 0; glyph < 300; ++glyph)
+                assertEquals(300 - glyph, (int)reused.vertices.getFloat(glyph * 6 * VERTEX_STRIDE + 64));
+            renderer.beginBatch();
+            renderer.setMarkup("<gradient type=color color0=#ffffff>A</gradient>");
+            getVertices(renderer, IDENTITY);
+            FontRenderer.Texture small = renderer.getEffectTexture();
+            assertEquals(2, small.height);
+            assertEquals(128, small.pixels.remaining());
+            assertEquals(0.5f, small.pixels.duplicate().order(ByteOrder.LITTLE_ENDIAN).getFloat(0), 0.0f);
+            assertEquals(0, small.pixels.get(64));
+            assertEquals(2, snapshot.pixels.get(64));
+
+            renderer.beginBatch();
+            renderer.setText("A");
+            TestVertices plain = getVertices(renderer, IDENTITY);
+            assertEquals(0.0f, plain.vertices.getFloat(64), 0.0f);
+            FontRenderer.Texture empty = renderer.getEffectTexture();
+            assertEquals(0, empty.width);
+            assertEquals(0, empty.height);
+            assertNull(empty.pixels);
+        }
+    }
+
+    // Four stops, elliptical radii, and rotation survive the native style compiler and Java/native round trip.
+    @Test
+    public void testSpatialGradientStyleRoundTrip() throws Exception {
+        String markup = "<gradient type=radial fit=block color0=#FF0000 color1=#00FF00 color2=#0000FF color3=#FFFF00 stop1=0.2 stop2=0.8 pivot-x=0.3 pivot-y=0.7 radius=0.6 radius-y=0.25 angle=45>";
+        FontRenderer.Style style = FontRenderer.compileStyle(markup);
+        assertEquals(1, style.effects.length);
+        FontRenderer.StyleEffect effect = style.effects[0];
+        assertEquals(4, effect.stopCount);
+        assertEquals(2, effect.colorType);
+        assertArrayEquals(new float[] {0, 0.2f, 0.8f, 1}, effect.positions, 0.00001f);
+        assertArrayEquals(new float[] {0.3f, 0.7f, 0.6f, 0.25f, 45, 0}, effect.parameters, 0.00001f);
+        for (boolean shaping : new boolean[] {false, true}) {
+            try (FontRenderer renderer = createRenderer(32, 512, 512, shaping)) {
+                renderer.setStyle(1, style);
+                FontRenderer.Properties properties = new FontRenderer.Properties();
+                properties.baseStyle = 1;
+                properties.useBaseStyle = true;
+                properties.useGpuEffects = true;
+                renderer.setProperties(properties);
+                renderer.setText("AAAA");
+                renderer.beginBatch();
+                renderer.generateTexture(0);
+                TestVertices named = getVertices(renderer, IDENTITY);
+                ByteBuffer namedEffects = renderer.getEffectTexture().pixels;
+                properties.useBaseStyle = false;
+                renderer.setProperties(properties);
+                renderer.setMarkup(markup + "AAAA</gradient>");
+                renderer.beginBatch();
+                renderer.generateTexture(0);
+                TestVertices inline = getVertices(renderer, IDENTITY);
+                ByteBuffer inlineEffects = renderer.getEffectTexture().pixels;
+                int namedRow = (int)named.vertices.getFloat(64);
+                int inlineRow = (int)inline.vertices.getFloat(64);
+                assertTrue(namedRow > 0);
+                assertTrue(inlineRow > 0);
+                for (int i = 0; i < 28; ++i) {
+                    assertEquals(inlineEffects.get(inlineRow * 64 + i), namedEffects.get(namedRow * 64 + i));
+                }
+                inlineEffects.order(ByteOrder.LITTLE_ENDIAN);
+                namedEffects.order(ByteOrder.LITTLE_ENDIAN);
+                for (int i = 0; i < 6; ++i) {
+                    assertEquals(inlineEffects.getFloat(inlineRow * 64 + 28 + i * 4),
+                                 namedEffects.getFloat(namedRow * 64 + 28 + i * 4), 0.00001f);
+                }
+                assertEquals(24, named.vertexCount);
+                assertEquals(inline.vertexCount, named.vertexCount);
+                for (int i = 0; i < named.vertexCount; ++i) {
+                    for (int channel = 0; channel < 4; ++channel) {
+                        int offset = i * VERTEX_STRIDE + VERTEX_FACE_COLOR_OFFSET + channel;
+                        assertEquals(inline.vertices.get(offset), named.vertices.get(offset));
+                    }
+                }
+            }
+        }
+    }
+
+    // Packed types, fits, and 1-4 stops must survive both directions of the Java/native ABI.
+    @Test
+    public void testPackedGradientStopsRoundTrip() throws Exception {
+        String[] colors = {"#FF0000", "#00FF00", "#0000FF", "#FFFF00"};
+        String[] fits = {"glyph", "span", "block"};
+        int[] fitValues = {0, 1, 3};
+        String[] types = {"linear", "radial"};
+        try (FontRenderer renderer = createRenderer(32)) {
+            for (int type = 0; type < types.length; ++type) {
+                for (int fit = 0; fit < fits.length; ++fit) {
+                    for (int count = 1; count <= 4; ++count) {
+                        StringBuilder markup = new StringBuilder("<gradient type=" + types[type] + " fit=" + fits[fit]);
+                        for (int stop = 0; stop < count; ++stop)
+                            markup.append(" color").append(stop).append('=').append(colors[stop]);
+                        markup.append('>');
+                        FontRenderer.Style style = FontRenderer.compileStyle(markup.toString());
+                        FontRenderer.StyleEffect effect = style.effects[0];
+                        assertEquals(0, effect.type);
+                        assertEquals(fitValues[fit], effect.fit);
+                        assertEquals(3, effect.gradientMode);
+                        assertEquals(type + 1, effect.colorType);
+                        assertEquals(count, effect.stopCount);
+                        renderer.setStyle(1, style);
+
+                        FontRenderer.Properties properties = properties(100, 1, 0);
+                        properties.baseStyle = 1;
+                        properties.useBaseStyle = true;
+                        properties.useGpuEffects = true;
+                        renderer.setProperties(properties);
+                        renderer.setText("AB");
+                        renderer.beginBatch();
+                        renderer.generateTexture(0);
+                        TestVertices named = getVertices(renderer, IDENTITY);
+                        ByteBuffer namedEffects = renderer.getEffectTexture().pixels;
+
+                        properties.useBaseStyle = false;
+                        renderer.setProperties(properties);
+                        renderer.setMarkup(markup + "AB</gradient>");
+                        renderer.beginBatch();
+                        renderer.generateTexture(0);
+                        TestVertices inline = getVertices(renderer, IDENTITY);
+                        assertEquals(inline.vertices, named.vertices);
+                        ByteBuffer inlineEffects = renderer.getEffectTexture().pixels;
+                        int row = (int)inline.vertices.getFloat(64);
+                        assertTrue(row > 0);
+                        assertEquals(count, Byte.toUnsignedInt(inlineEffects.get(row * 64 + 1)));
+                        for (int i = 0; i < 64; ++i)
+                            assertEquals(inlineEffects.get(row * 64 + i), namedEffects.get(row * 64 + i));
+                    }
+                }
+            }
+        }
+    }
+
+    // Values outside the packed fields must fail instead of wrapping into valid effects or alignments.
+    @Test
+    public void testPackedFieldsRejectTruncation() throws Exception {
+        try (FontRenderer renderer = createRenderer(32)) {
+            FontRenderer.Style style = FontRenderer.compileStyle("<gradient type=linear color0=#FF0000>");
+            style.effects[0].stopCount = 8;
+            try {
+                renderer.setStyle(1, style);
+                fail("An overflowing stop count must be rejected");
+            } catch (IllegalArgumentException expected) {
+            }
+            FontRenderer.Properties properties = properties(100, 1, 0);
+            properties.align = 4;
+            try {
+                renderer.setProperties(properties);
+                fail("An overflowing alignment must be rejected");
+            } catch (IllegalArgumentException expected) {
             }
         }
     }

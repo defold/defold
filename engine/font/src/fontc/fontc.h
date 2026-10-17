@@ -139,6 +139,10 @@ extern "C"
         // Text measurement at the renderer's size, independent of raster padding.
         float    m_LayoutWidth;
         float    m_LayoutLeftBearing;
+        // Unpadded bounds used to match runtime gradient fitting to previews.
+        float    m_UnpaddedWidth;
+        float    m_UnpaddedAscent;
+        float    m_UnpaddedDescent;
     } FontcGlyphMetrics;
 
     typedef struct FontcProperties
@@ -152,11 +156,22 @@ extern "C"
         float    m_Leading;
         float    m_Tracking;
         float    m_SdfScale;
-        uint32_t m_LineBreak;
-        uint32_t m_Align;
-        uint32_t m_VerticalAlign;
         uint64_t m_BaseStyle;
-        uint32_t m_UseBaseStyle;
+        // Java accesses m_Bits because jextract does not expose bit fields.
+        // The supported editor hosts use the little-endian layout below.
+        union
+        {
+            struct
+            {
+                uint8_t m_LineBreak : 1;
+                uint8_t m_Align : 2;
+                uint8_t m_VerticalAlign : 2;
+                uint8_t m_UseBaseStyle : 1;
+                // Emit effect UVs and lookup indices for shaders with a font_effects sampler.
+                uint8_t m_UseGPUEffects : 1;
+            };
+            uint8_t m_Bits;
+        };
     } FontcProperties;
 
     /* Compiled style data. Color arrays are RGBA; flags distinguish inherited
@@ -182,13 +197,26 @@ extern "C"
 
     typedef struct FontcStyleEffect
     {
-        float m_Colors[16];
-        float m_Amplitude;
-        float m_Hz;
-        float m_Wavelength;
-        uint32_t m_Type;
-        uint32_t m_Fit;
-        uint32_t m_GradientMode;
+        float    m_Colors[16];
+        float    m_Amplitude;
+        float    m_Hz;
+        float    m_Wavelength;
+        float    m_Positions[4];
+        // Authored linear angle, or radial pivot x/y, radius x/y, angle, and unused.
+        float    m_Parameters[6];
+        // Low-to-high bits of m_Bits on editor hosts; also read/written by Java.
+        union
+        {
+            struct
+            {
+                uint16_t m_Type : 2;
+                uint16_t m_Fit : 2;
+                uint16_t m_GradientMode : 2;
+                uint16_t m_ColorType : 2;
+                uint16_t m_StopCount : 3; // 0 when unused, otherwise 1-4.
+            };
+            uint16_t m_Bits;
+        };
     } FontcStyleEffect;
 
     typedef struct FontcStyleData
@@ -629,7 +657,7 @@ extern "C"
     DM_DLLEXPORT uint64_t FontcHash(HFontRenderer renderer);
 
     /*#
-     * Starts preparation of a render batch.
+     * Starts preparation of a render batch and clears its gradient lookup records.
      * Glyphs touched after this call are protected from atlas eviction for the
      * remainder of the batch. Call this once before preparing all text entries
      * whose generated texture and vertices will be rendered together.
@@ -662,11 +690,26 @@ extern "C"
                                                          FontcTexture* texture);
 
     /*#
+     * Copies the gradient lookup texture for vertices generated since FontcBeginBatch.
+     * Enable FontcProperties.m_UseGPUEffects when the material has a font_effects
+     * sampler, then call this after writing all vertices in the batch. Keep the
+     * returned snapshot with those vertices; the next batch may reuse lookup indices.
+     * Copies only the used rows. Batches without GPU effects return an empty texture.
+     * Release the copied pixel buffer with FontcFreeTexture.
+     *
+     * @name FontcGetEffectTexture
+     * @param renderer [type: HFontRenderer] Font renderer context.
+     * @param texture [type: FontcTexture*] Receives the full RGBA8 lookup texture.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcGetEffectTexture(HFontRenderer renderer, FontcTexture* texture);
+
+    /*#
      * Releases the pixel buffer in a texture update and clears the structure.
      * Passing a null pointer is allowed.
      *
      * @name FontcFreeTexture
-     * @param texture [type: FontcTexture*] Texture returned by FontcGenerateTexture.
+     * @param texture [type: FontcTexture*] Texture returned by FontcGenerateTexture or FontcGetEffectTexture.
      */
     DM_DLLEXPORT void FontcFreeTexture(FontcTexture* texture);
 

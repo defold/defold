@@ -23,6 +23,7 @@
 #include "../util.h"
 
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
 #include <dlib/testutil.h>
 #include <dlib/time.h>
 #include <dlib/utf8.h>
@@ -34,6 +35,8 @@
 #include "glyph_gen.h"
 #include "glyph_vertex.h"
 #include "layout_vertex.h"
+#include "font_effect.h"
+#include "font_effect_index.h"
 #include "text_layout.h"
 
 // static const char* g_TextLorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut tempus quam in lacinia imperdiet. Vestibulum interdum erat quis purus lacinia, at ullamcorper arcu sagittis. Etiam molestie varius lacus, eget fringilla enim tempor quis. In at mollis dolor, et dictum sem. Mauris condimentum metus sed auctor tempus.";
@@ -1239,7 +1242,7 @@ TEST_F(FontTest, ColorPackingClampsFinalAlpha)
 
 TEST_F(FontTest, PackLayeredGlyphVertices)
 {
-    ASSERT_EQ(56u, sizeof(FontGlyphVertex));
+    ASSERT_EQ(72u, sizeof(FontGlyphVertex));
 
     FontGlyphGenParams params;
     params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
@@ -1375,6 +1378,677 @@ static bool ResolveTestLayoutGlyph(void* context, const TextGlyph&, FontLayoutCa
     output->m_CellY = 0;
 
     return true;
+}
+
+struct TestEffectRecord
+{
+    FontEffectRecord m_Record;
+    uint32_t         m_Index;
+};
+
+static uint32_t ResolveTestEffect(void* context, const FontEffectRecord& record)
+{
+    TestEffectRecord* captured = (TestEffectRecord*)context;
+    captured->m_Record = record;
+    return captured->m_Index;
+}
+
+// An inner gradient replaces enclosing gradients and inherited text RGB.
+TEST_F(FontTest, InnermostGradientWins)
+{
+    const char source[] =
+    "<color=#808080><gradient left=#ff0000 right=#ff0000>"
+    "<gradient left=#0000ff right=#0000ff>A</gradient></gradient></color>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+    const float         white[] = { 1, 1, 1, 1 };
+    TextGlyphRenderData data;
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &data);
+    ASSERT_EQ(0.0f, data.m_FaceColors.m_BottomLeft[0]);
+    ASSERT_EQ(1.0f, data.m_FaceColors.m_BottomLeft[2]);
+    TextLayoutRelease(layout);
+}
+
+// GPU records retain positioned stops and all four colors without baking a ramp.
+TEST_F(FontTest, PackColorEffectStops)
+{
+    FontColorEffect effect = {};
+    effect.m_Type = FONT_COLOR_EFFECT_LINEAR;
+    effect.m_StopCount = 4;
+    effect.m_Positions[0] = 0.0f;
+    effect.m_Positions[1] = 0.25f;
+    effect.m_Positions[2] = 0.75f;
+    effect.m_Positions[3] = 1.0f;
+    effect.m_Parameters[0] = 1.0f;
+    effect.m_Colors[0][0] = 255;
+    effect.m_Colors[1][1] = 255;
+    effect.m_Colors[2][2] = 255;
+    effect.m_Colors[3][3] = 128;
+    FontEffectRecord record;
+    FontPackEffect(effect, &record);
+    ASSERT_EQ(1, record.m_Data[0]);
+    ASSERT_EQ(4, record.m_Data[1]);
+    ASSERT_EQ(255, record.m_Data[4]);
+    ASSERT_EQ(255, record.m_Data[9]);
+    ASSERT_EQ(255, record.m_Data[14]);
+    ASSERT_EQ(128, record.m_Data[19]);
+    ASSERT_EQ(0x40, record.m_Data[22]);
+    ASSERT_EQ(0x00, record.m_Data[23]);
+    ASSERT_EQ(0xbf, record.m_Data[24]);
+    ASSERT_EQ(0xff, record.m_Data[25]);
+    ASSERT_EQ(0xff, record.m_Data[26]);
+    ASSERT_EQ(0xff, record.m_Data[27]);
+    ASSERT_EQ(0x80, record.m_Data[30]);
+    ASSERT_EQ(0x3f, record.m_Data[31]);
+}
+
+// Metrics-only glyph queries retain unpadded vertical extents needed by spatial gradient fits.
+TEST_F(FontTest, GlyphMetricsVerticalBoundsWithoutImage)
+{
+    FontGlyphOptions options;
+    options.m_Scale = FontGetScaleFromSize(m_Font, 64);
+    options.m_StbttSDFPadding = 0;
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyph(m_Font, 'g', &options, &glyph));
+    ASSERT_GT(glyph.m_Ascent, 0.0f);
+    ASSERT_GT(glyph.m_Descent, 0.0f);
+    ASSERT_NEAR(glyph.m_Height, glyph.m_Ascent + glyph.m_Descent, 0.0001f);
+    ASSERT_EQ((uint8_t*)0, glyph.m_Bitmap.m_Data);
+}
+
+// Explicit four-stop types validate authored metadata without growing the legacy effect struct.
+TEST_F(FontTest, SpatialGradientMarkup)
+{
+    ASSERT_EQ(72u, sizeof(TextGradientEffect));
+    const char* definitions[] = {
+        "<gradient type=color color0=#12345678 fit=block>",
+        "<gradient type=linear angle=45 color0=#ff0000 color1=#00ff00 color2=#0000ff color3=#ffff00 stop1=0.2 stop2=0.8 fit=span hz=0.5 direction=reverse>",
+        "<gradient type=radial color0=#ff0000 color1=#00ff00 color2=#0000ff color3=#ffff00 pivot-x=0.3 pivot-y=0.7 radius=0.6 fit=glyph>",
+        "<gradient type=four-corner bl=#ff0000 br=#00ff00 tl=#0000ff tr=#ffff00 fit=block>",
+    };
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        TextRenderStyle     style;
+        dmArray<TextEffect> effects;
+        ASSERT_TRUE(TextLayoutCompileStyleFragment(definitions[i], strlen(definitions[i]), &style, &effects, 0, 0));
+        ASSERT_EQ(1u, effects.Size());
+        const TextGradientEffect& gradient = effects[0].m_Gradient;
+        ASSERT_EQ(TEXT_GRADIENT_MODE_SPATIAL, gradient.m_Mode);
+        ASSERT_EQ(i, (uint32_t)gradient.m_Color.m_Type);
+        ASSERT_EQ(i ? 4 : 1, gradient.m_Color.m_StopCount);
+        if (i == 1)
+        {
+            ASSERT_EQ(45.0f, gradient.m_Color.m_Parameters[0]);
+            ASSERT_EQ(-0.5f, gradient.m_Hz);
+            ASSERT_EQ(0.2f, gradient.m_Color.m_Positions[1]);
+            ASSERT_EQ(0.8f, gradient.m_Color.m_Positions[2]);
+        }
+        if (i == 2)
+        {
+            ASSERT_EQ(0.3f, gradient.m_Color.m_Parameters[0]);
+            ASSERT_EQ(0.7f, gradient.m_Color.m_Parameters[1]);
+            ASSERT_EQ(0.6f, gradient.m_Color.m_Parameters[2]);
+            ASSERT_EQ(0.6f, gradient.m_Color.m_Parameters[3]);
+        }
+    }
+    const char* invalid[] = {
+        "<gradient type=linear color0=#ff0000 color2=#0000ff>",
+        "<gradient type=linear color0=#ff0000 color1=#0000ff stop0=0.8 stop1=0.2>",
+        "<gradient type=radial color0=#ff0000 radius=0>",
+        "<gradient type=color color0=#ff0000 angle=45>",
+        "<gradient type=color color0=#ff0000 color1=#0000ff>",
+        "<gradient type=four-corner bl=#ff0000 br=#0000ff tl=#00ff00>",
+        "<gradient left=#ff0000 right=#0000ff angle=45>",
+    };
+    for (uint32_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
+    {
+        TextRenderStyle     style;
+        dmArray<TextEffect> effects;
+        ASSERT_FALSE(TextLayoutCompileStyleFragment(invalid[i], strlen(invalid[i]), &style, &effects, 0, 0));
+    }
+}
+
+// Radial axes override the radius shorthand independent of attribute order; invalid radii and angles are rejected.
+TEST_F(FontTest, RadialGradientEllipseMarkup)
+{
+    const struct
+    {
+        const char* m_Attributes;
+        float       m_RadiusX, m_RadiusY, m_Angle;
+    } cases[] = {
+        { "", 0.5f, 0.5f, 0 },
+        { "radius=0.7", 0.7f, 0.7f, 0 },
+        { "radius-x=0.8", 0.8f, 0.5f, 0 },
+        { "radius-y=0.3", 0.5f, 0.3f, 0 },
+        { "radius=0.7 radius-x=0.8 radius-y=0.3 angle=45", 0.8f, 0.3f, 45 },
+        { "radius-x=0.8 radius-y=0.3 angle=45 radius=0.7", 0.8f, 0.3f, 45 },
+        { "radius-y=0.3 radius=0.7 angle=-90", 0.7f, 0.3f, -90 },
+        { "radius-x=0.8 radius=0.7 angle=450", 0.8f, 0.7f, 450 },
+    };
+    ASSERT_EQ(72u, sizeof(TextGradientEffect));
+    ASSERT_EQ(64u, sizeof(FontEffectRecord));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        char source[256];
+        dmSnPrintf(source, sizeof(source), "<gradient type=radial color0=#ff0000 %s>", cases[i].m_Attributes);
+        TextRenderStyle     style;
+        dmArray<TextEffect> effects;
+        ASSERT_TRUE(TextLayoutCompileStyleFragment(source, strlen(source), &style, &effects, 0, 0));
+        ASSERT_EQ(1u, effects.Size());
+        const FontColorEffect& color = effects[0].m_Gradient.m_Color;
+        ASSERT_EQ(0.5f, color.m_Parameters[0]);
+        ASSERT_EQ(0.5f, color.m_Parameters[1]);
+        ASSERT_EQ(cases[i].m_RadiusX, color.m_Parameters[2]);
+        ASSERT_EQ(cases[i].m_RadiusY, color.m_Parameters[3]);
+        ASSERT_EQ(cases[i].m_Angle, color.m_Parameters[4]);
+    }
+    const char* invalid[] = {
+        "type=radial radius-x=0",
+        "type=radial radius-y=-1",
+        "type=radial radius-x=nan",
+        "type=radial radius-y=inf",
+        "type=radial angle=nan",
+        "type=radial angle=inf",
+        "type=linear radius-x=0.5",
+        "type=color radius-y=0.5",
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid); ++i)
+    {
+        char source[128];
+        dmSnPrintf(source, sizeof(source), "<gradient color0=#ff0000 %s>", invalid[i]);
+        TextRenderStyle     style;
+        dmArray<TextEffect> effects;
+        ASSERT_FALSE(TextLayoutCompileStyleFragment(source, strlen(source), &style, &effects, 0, 0));
+    }
+}
+
+// Linear and radial markup preserve 1-4 stops and pad GPU records with the final authored stop.
+TEST_F(FontTest, SpatialGradientStopCounts)
+{
+    const char*   types[] = { "linear", "radial" };
+    const char*   colors[] = { "#f01428ff", "#14dc3cc0", "#283cf080", "#f0c82840" };
+    const uint8_t rgba[4][4] = { { 240, 20, 40, 255 }, { 20, 220, 60, 192 }, { 40, 60, 240, 128 }, { 240, 200, 40, 64 } };
+    const float   positions[] = { 0.125f, 0.375f, 0.625f, 0.875f };
+    for (uint32_t type = 0; type < DM_ARRAY_SIZE(types); ++type)
+    {
+        for (uint32_t count = 1; count <= 4; ++count)
+        {
+            for (uint32_t custom = 0; custom < 2; ++custom)
+            {
+                char source[512];
+                dmSnPrintf(source, sizeof(source), "<gradient type=%s", types[type]);
+                for (uint32_t i = 0; i < count; ++i)
+                {
+                    char attribute[64];
+                    dmSnPrintf(attribute, sizeof(attribute), " color%u=%s", i, colors[i]);
+                    dmStrlCat(source, attribute, sizeof(source));
+                    if (custom)
+                    {
+                        dmSnPrintf(attribute, sizeof(attribute), " stop%u=%g", i, positions[i]);
+                        dmStrlCat(source, attribute, sizeof(source));
+                    }
+                }
+                dmStrlCat(source, ">", sizeof(source));
+                TextRenderStyle     style;
+                dmArray<TextEffect> effects;
+                ASSERT_TRUE(TextLayoutCompileStyleFragment(source, strlen(source), &style, &effects, 0, 0));
+                ASSERT_EQ(1u, effects.Size());
+                const FontColorEffect& color = effects[0].m_Gradient.m_Color;
+                ASSERT_EQ(TEXT_GRADIENT_MODE_SPATIAL, effects[0].m_Gradient.m_Mode);
+                ASSERT_EQ(FONT_COLOR_EFFECT_LINEAR + type, color.m_Type);
+                ASSERT_EQ(count, color.m_StopCount);
+                for (uint32_t i = 0; i < count; ++i)
+                {
+                    const float position = custom ? positions[i] : count > 1 ? (float)i / (count - 1) :
+                                                                               0.0f;
+                    ASSERT_NEAR(position, color.m_Positions[i], 0.00001f);
+                    ASSERT_EQ(0, memcmp(rgba[i], color.m_Colors[i], 4));
+                }
+                FontEffectRecord record;
+                FontPackEffect(color, &record);
+                ASSERT_EQ(count, record.m_Data[1]);
+                for (uint32_t i = 0; i < 4; ++i)
+                {
+                    const uint32_t stop = dmMath::Min(i, count - 1);
+                    const uint32_t packed_position = (record.m_Data[20 + i * 2] << 8) | record.m_Data[21 + i * 2];
+                    ASSERT_EQ(0, memcmp(rgba[stop], &record.m_Data[4 + i * 4], 4));
+                    ASSERT_NEAR(color.m_Positions[stop], packed_position / 65535.0f, 1.0f / 65535.0f);
+                }
+            }
+        }
+    }
+}
+
+struct SpatialTestRecords
+{
+    FontEffectRecord m_Records[32];
+    uint32_t         m_Count;
+};
+
+static uint32_t ResolveSpatialTestEffect(void* context, const FontEffectRecord& record)
+{
+    SpatialTestRecords* records = (SpatialTestRecords*)context;
+    records->m_Records[records->m_Count++] = record;
+    return 1;
+}
+
+static float ReadTestEffectParameter(const FontEffectRecord& record, uint32_t index)
+{
+    uint32_t bits = 0;
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        bits |= (uint32_t)record.m_Data[28 + index * 4 + i] << (i * 8);
+    }
+    float value;
+    memcpy(&value, &bits, sizeof(value));
+    return value;
+}
+
+// Linear angles rotate counterclockwise from bottom-to-top for every fit, including negative and wrapped angles.
+TEST_F(FontTest, LinearGradientCounterclockwiseAngles)
+{
+    const struct
+    {
+        float m_Angle;
+        float m_StartU, m_StartV;
+        float m_EndU, m_EndV;
+    } cases[] = {
+        { 0, 0.5f, 0, 0.5f, 1 },
+        { 90, 1, 0.5f, 0, 0.5f },
+        { 180, 0.5f, 1, 0.5f, 0 },
+        { 270, 0, 0.5f, 1, 0.5f },
+        { -90, 0, 0.5f, 1, 0.5f },
+        { 450, 1, 0.5f, 0, 0.5f },
+        { 45, 1, 0, 0, 1 },
+        { -45, 0, 0, 1, 1 },
+    };
+    const char*        fits[] = { "glyph", "span", "block" };
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, 'A'), &params, &glyph));
+    TestLayoutCachedGlyph cached = { &glyph };
+    for (uint32_t fit = 0; fit < DM_ARRAY_SIZE(fits); ++fit)
+    {
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+        {
+            char source[256];
+            dmSnPrintf(source, sizeof(source), "<gradient type=linear fit=%s angle=%g color0=#ff0000 color1=#0000ff>AA\nA</gradient>", fits[fit], cases[i].m_Angle);
+            HMarkup markup = 0;
+            ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, strlen(source), &markup, 0));
+            TextLayoutSettings settings = {};
+            settings.m_Size = 32.0f;
+            HTextLayout layout = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+            MarkupDestroy(markup);
+            SpatialTestRecords     records = {};
+            FontLayoutVertexConfig config = {};
+            config.m_Layout = layout;
+            config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+            config.m_ResolveGlyphContext = &cached;
+            config.m_ResolveEffect = ResolveSpatialTestEffect;
+            config.m_ResolveEffectContext = &records;
+            config.m_Transform = dmVMath::Matrix4::identity();
+            config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+            config.m_MetricsFromTtf = true;
+            FontLayoutVertexMetrics metrics;
+            ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+            FontGlyphVertex vertices[18];
+            ASSERT_EQ(18u, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
+            ASSERT_GT(records.m_Count, 0u);
+            for (uint32_t record = 0; record < records.m_Count; ++record)
+            {
+                const float dx = ReadTestEffectParameter(records.m_Records[record], 0);
+                const float dy = ReadTestEffectParameter(records.m_Records[record], 1);
+                const float offset = ReadTestEffectParameter(records.m_Records[record], 2);
+                ASSERT_NEAR(0.0f, dx * cases[i].m_StartU + dy * cases[i].m_StartV + offset, 0.0001f);
+                ASSERT_NEAR(1.0f, dx * cases[i].m_EndU + dy * cases[i].m_EndV + offset, 0.0001f);
+            }
+            TextLayoutRelease(layout);
+        }
+    }
+    FontFreeGlyph(m_Font, &glyph);
+}
+
+// Ellipse axes rotate in local distance units for every fit, with matching GPU records and CPU fallback colors.
+TEST_F(FontTest, RadialGradientEllipseVertexFits)
+{
+    const struct
+    {
+        float m_Angle, m_Cosine, m_Sine;
+    } rotations[] = {
+        { 0, 1, 0 },
+        { 45, 0.70710678f, 0.70710678f },
+        { 90, 0, 1 },
+        { -45, 0.70710678f, -0.70710678f },
+        { 450, 0, 1 },
+    };
+    const char*        fits[] = { "glyph", "span", "block" };
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, 'A'), &params, &glyph));
+    TestLayoutCachedGlyph cached = { &glyph };
+    for (uint32_t fit = 0; fit < DM_ARRAY_SIZE(fits); ++fit)
+    {
+        for (uint32_t angle = 0; angle < DM_ARRAY_SIZE(rotations); ++angle)
+        {
+            char source[256];
+            dmSnPrintf(source, sizeof(source), "<gradient type=radial fit=%s pivot-x=0.3 pivot-y=0.7 radius-x=0.8 radius-y=0.4 angle=%g color0=#ff0000 color1=#0000ff>AA\nAAAA</gradient>", fits[fit], rotations[angle].m_Angle);
+            HMarkup markup = 0;
+            ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, strlen(source), &markup, 0));
+            TextLayoutSettings settings = {};
+            settings.m_Size = 32.0f;
+            settings.m_Leading = 1.2f;
+            HTextLayout layout = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+            MarkupDestroy(markup);
+            SpatialTestRecords     records = {};
+            FontLayoutVertexConfig config = {};
+            config.m_Layout = layout;
+            config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+            config.m_ResolveGlyphContext = &cached;
+            config.m_ResolveEffect = ResolveSpatialTestEffect;
+            config.m_ResolveEffectContext = &records;
+            config.m_Transform = dmVMath::Matrix4::identity();
+            config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+            config.m_MetricsFromTtf = true;
+            for (uint32_t channel = 0; channel < 4; ++channel)
+            {
+                config.m_FaceColor[channel] = 1.0f;
+            }
+            FontLayoutVertexMetrics metrics;
+            ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+            FontGlyphVertex vertices[36];
+            ASSERT_EQ(36u, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
+            ASSERT_GT(records.m_Count, 0u);
+            float matrix[6];
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(matrix); ++i)
+            {
+                matrix[i] = ReadTestEffectParameter(records.m_Records[0], i);
+            }
+            ASSERT_EQ(0.3f, matrix[0]);
+            ASSERT_EQ(0.7f, matrix[1]);
+            const float width = (vertices[1].m_Position[0] - vertices[0].m_Position[0]) / (vertices[1].m_Effect[0] - vertices[0].m_Effect[0]);
+            const float height = (vertices[2].m_Position[1] - vertices[0].m_Position[1]) / (vertices[2].m_Effect[1] - vertices[0].m_Effect[1]);
+            const float radius_x = 0.8f * dmMath::Max(width, height);
+            const float radius_y = 0.4f * dmMath::Max(width, height);
+            const float cosine = rotations[angle].m_Cosine, sine = rotations[angle].m_Sine;
+            // The endpoints of the rotated physical axes map to the unit circle.
+            const float axes[2][2] = { { cosine * radius_x / width, sine * radius_x / height },
+                                       { -sine * radius_y / width, cosine * radius_y / height } };
+            for (uint32_t axis = 0; axis < 2; ++axis)
+            {
+                ASSERT_NEAR(axis == 0 ? 1.0f : 0.0f, axes[axis][0] * matrix[2] + axes[axis][1] * matrix[4], 0.0001f);
+                ASSERT_NEAR(axis == 1 ? 1.0f : 0.0f, axes[axis][0] * matrix[5] + axes[axis][1] * matrix[3], 0.0001f);
+            }
+            float expected[6];
+            for (uint32_t i = 0; i < 6; ++i)
+            {
+                const float x = (vertices[i].m_Effect[0] - 0.3f) * width;
+                const float y = (vertices[i].m_Effect[1] - 0.7f) * height;
+                const float u = (cosine * x + sine * y) / radius_x;
+                const float v = (-sine * x + cosine * y) / radius_y;
+                expected[i] = dmMath::Min(1.0f, sqrtf(u * u + v * v));
+            }
+            config.m_ResolveEffect = 0;
+            ASSERT_EQ(36u, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
+            for (uint32_t i = 0; i < 6; ++i)
+            {
+                ASSERT_EQ(0.0f, vertices[i].m_Effect[2]);
+                ASSERT_NEAR(255.0f * (1.0f - expected[i]), vertices[i].m_FaceColor[0], 1.0f);
+                ASSERT_NEAR(255.0f * expected[i], vertices[i].m_FaceColor[2], 1.0f);
+            }
+            TextLayoutRelease(layout);
+        }
+    }
+    FontFreeGlyph(m_Font, &glyph);
+}
+
+// Multiline fits use spatial bounds, preserve a physical 45-degree axis, and keep radial distances circular.
+TEST_F(FontTest, SpatialGradientVertexFits)
+{
+    const char* types[] = { "four-corner bl=#ff0000 br=#00ff00 tl=#0000ff tr=#ffff00", "linear angle=45 color0=#ff0000 color1=#00ff00 color2=#0000ff color3=#ffff00", "radial color0=#ff0000 color1=#00ff00 color2=#0000ff color3=#ffff00" };
+    const char* fits[] = { "glyph", "span", "block" };
+    for (uint32_t type = 0; type < 3; ++type)
+    {
+        for (uint32_t fit = 0; fit < 3; ++fit)
+        {
+            char source[1024];
+            dmSnPrintf(source, sizeof(source), "<gradient type=%s fit=%s>AA</gradient>\n<gradient type=%s fit=%s>AAAA</gradient>", types[type], fits[fit], types[type], fits[fit]);
+            HMarkup markup = 0;
+            ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, strlen(source), &markup, 0));
+            TextLayoutSettings settings = {};
+            settings.m_Size = 32.0f;
+            settings.m_Leading = 1.2f;
+            HTextLayout layout = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+            MarkupDestroy(markup);
+            FontGlyphGenParams params;
+            params.m_Scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+            FontGlyph glyph;
+            ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, 'A'), &params, &glyph));
+            TestLayoutCachedGlyph  cached = { &glyph };
+            SpatialTestRecords     records = {};
+            FontLayoutVertexConfig config = {};
+            config.m_Layout = layout;
+            config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+            config.m_ResolveGlyphContext = &cached;
+            config.m_ResolveEffect = ResolveSpatialTestEffect;
+            config.m_ResolveEffectContext = &records;
+            config.m_Transform = dmVMath::Matrix4::identity();
+            config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+            config.m_MetricsFromTtf = true;
+            for (uint32_t i = 0; i < 4; ++i)
+            {
+                config.m_FaceColor[i] = 1.0f;
+            }
+            FontLayoutVertexMetrics metrics;
+            ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+            FontGlyphVertex vertices[36];
+            ASSERT_EQ(36u, FontCreateLayoutVertices(config, metrics, vertices, 36));
+            // Each span/block projection is resolved once, not once per glyph.
+            if (fit != 0)
+            {
+                ASSERT_EQ(2u, records.m_Count);
+            }
+            else
+            {
+                ASSERT_LE(records.m_Count, 6u);
+            }
+            ASSERT_EQ(4, records.m_Records[0].m_Data[1]);
+            ASSERT_GT(vertices[0].m_Effect[1], -0.5f);
+            ASSERT_LT(vertices[2].m_Effect[1], 1.5f);
+            const float du = vertices[1].m_Effect[0] - vertices[0].m_Effect[0];
+            const float dv = vertices[2].m_Effect[1] - vertices[0].m_Effect[1];
+            const float width = glyph.m_Bitmap.m_Width;
+            const float height = glyph.m_Ascent + glyph.m_Descent;
+            if (type == 1 || type == 2)
+            {
+                const uint32_t offset = type == 1 ? 0 : 2;
+                const float    dx = ReadTestEffectParameter(records.m_Records[0], offset) * du / width;
+                const float    dy = ReadTestEffectParameter(records.m_Records[0], offset + 1) * dv / height;
+                ASSERT_NEAR(type == 1 ? -dx : dx, dy, 0.0001f);
+            }
+            if (fit == 0)
+            {
+                ASSERT_NEAR(vertices[0].m_Effect[0], vertices[6].m_Effect[0], 0.0001f);
+                ASSERT_NEAR(vertices[0].m_Effect[1], vertices[12].m_Effect[1], 0.0001f);
+            }
+            else
+            {
+                ASSERT_GT(vertices[6].m_Effect[0], vertices[0].m_Effect[0]);
+                if (fit == 1)
+                {
+                    ASSERT_NEAR(vertices[0].m_Effect[1], vertices[12].m_Effect[1], 0.0001f);
+                }
+                else
+                {
+                    ASSERT_GT(vertices[0].m_Effect[1], vertices[12].m_Effect[1]);
+                    ASSERT_EQ(0, memcmp(&records.m_Records[0], &records.m_Records[records.m_Count - 1], sizeof(FontEffectRecord)));
+                }
+            }
+            // Missing sampler still produces usable corner colors and no invalid metadata index.
+            config.m_ResolveEffect = 0;
+            ASSERT_EQ(36u, FontCreateLayoutVertices(config, metrics, vertices, 36));
+            ASSERT_EQ(0.0f, vertices[0].m_Effect[2]);
+            ASSERT_TRUE(vertices[0].m_FaceColor[0] < 255 || vertices[0].m_FaceColor[1] < 255 || vertices[0].m_FaceColor[2] < 255);
+            // Runtime glyph generation may return a successful resolver with no bitmap yet.
+            cached.m_Glyph = 0;
+            ASSERT_EQ(36u, FontCreateLayoutVertices(config, metrics, vertices, 36));
+            ASSERT_EQ(0.0f, vertices[0].m_Effect[2]);
+            FontFreeGlyph(m_Font, &glyph);
+            TextLayoutRelease(layout);
+        }
+    }
+}
+
+static bool ResolveRadialTestGlyph(void* context, const TextGlyph& glyph, FontLayoutCachedGlyph* output)
+{
+    FontGlyph* glyphs = (FontGlyph*)context;
+    output->m_Glyph = &glyphs[glyph.m_Codepoint == 'L' ? 0 : glyph.m_Codepoint == 'i' ? 1 :
+                                                                                        2];
+    return true;
+}
+
+// Glyph radial centers share each line's Y range despite ascenders/descenders, including an authored pivot.
+TEST_F(FontTest, RadialGlyphCentersAlignWithinLine)
+{
+    const char         codepoints[] = "Lip";
+    FontGlyph          glyphs[3];
+    FontGlyph          unpadded[3];
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    FontGlyphOptions options;
+    options.m_Scale = params.m_Scale;
+    options.m_StbttSDFPadding = 0;
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, codepoints[i]), &params, &glyphs[i]));
+        ASSERT_EQ(FONT_RESULT_OK, FontGetGlyph(m_Font, codepoints[i], &options, &unpadded[i]));
+    }
+    const float pivots[] = { 0.5f, 0.25f };
+    for (uint32_t pivot = 0; pivot < DM_ARRAY_SIZE(pivots); ++pivot)
+    {
+        char source[256];
+        dmSnPrintf(source, sizeof(source), "<gradient type=radial fit=glyph pivot-y=%g color0=#ff0000 color1=#0000ff>Lip\nLi</gradient>", pivots[pivot]);
+        HMarkup markup = 0;
+        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, strlen(source), &markup, 0));
+        TextLayoutSettings settings = {};
+        settings.m_Size = 32.0f;
+        settings.m_Leading = 1.2f;
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+        MarkupDestroy(markup);
+        ASSERT_EQ(2u, TextLayoutGetLineCount(layout));
+        SpatialTestRecords     records = {};
+        FontLayoutVertexConfig config = {};
+        config.m_Layout = layout;
+        config.m_ResolveGlyph = ResolveRadialTestGlyph;
+        config.m_ResolveGlyphContext = glyphs;
+        config.m_VerticalAlign = 2;
+        config.m_ResolveEffect = ResolveSpatialTestEffect;
+        config.m_ResolveEffectContext = &records;
+        config.m_Transform = dmVMath::Matrix4::identity();
+        config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+        config.m_MetricsFromTtf = true;
+        FontLayoutVertexMetrics metrics;
+        ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+        FontGlyphVertex vertices[30];
+        ASSERT_EQ(30u, FontCreateLayoutVertices(config, metrics, vertices, 30));
+        ASSERT_EQ(5u, records.m_Count);
+        const TextLine* lines = TextLayoutGetLines(layout);
+        const float     top = dmMath::Max(unpadded[0].m_Ascent, unpadded[1].m_Ascent);
+        const float     bottom = -dmMath::Max(unpadded[0].m_Descent, unpadded[1].m_Descent);
+        for (uint32_t i = 0; i < 5; ++i)
+        {
+            const uint32_t          line = i < 3 ? 0 : 1;
+            const uint32_t          glyph = i < 3 ? i : i - 3;
+            const float             line_top = line ? top : dmMath::Max(top, unpadded[2].m_Ascent);
+            const float             line_bottom = line ? bottom : dmMath::Min(bottom, -unpadded[2].m_Descent);
+            const FontGlyphVertex*  quad = &vertices[i * 6];
+            const FontEffectRecord& record = records.m_Records[i];
+            const float             dx = (quad[1].m_Position[0] - quad[0].m_Position[0]) / (quad[1].m_Effect[0] - quad[0].m_Effect[0]);
+            const float             dy = (quad[2].m_Position[1] - quad[0].m_Position[1]) / (quad[2].m_Effect[1] - quad[0].m_Effect[1]);
+            const float             center_y = quad[0].m_Position[1] + (ReadTestEffectParameter(record, 1) - quad[0].m_Effect[1]) * dy;
+            const float             center_x = quad[0].m_Position[0] + (ReadTestEffectParameter(record, 0) - quad[0].m_Effect[0]) * dx;
+            const TextGlyph&        text_glyph = TextLayoutGetGlyphs(layout)[lines[line].m_Index + glyph];
+            const float             expected_x = text_glyph.m_X - TextLayoutGetGlyphs(layout)[lines[line].m_Index].m_X + unpadded[glyph].m_LeftBearing + unpadded[glyph].m_Width * 0.5f;
+            ASSERT_NEAR(lines[line].m_Baseline + line_bottom + pivots[pivot] * (line_top - line_bottom), center_y, 0.0001f);
+            ASSERT_NEAR(expected_x, center_x, 0.0001f);
+            ASSERT_NEAR(unpadded[glyph].m_Width, dx, 0.0001f);
+            ASSERT_NEAR(ReadTestEffectParameter(record, 2) / dx, ReadTestEffectParameter(record, 3) / dy, 0.0001f);
+        }
+        TextLayoutRelease(layout);
+    }
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        FontFreeGlyph(m_Font, &glyphs[i]);
+    }
+}
+
+// GPU gradients preserve glyph and underline tint/fitting while long-running animation stays bounded.
+TEST_F(FontTest, GPUGradientVerticesPreserveTintAndPhase)
+{
+    const char source[] = "<ul><color=#808080><gradient fit=glyph hz=0.5 left=#ff0000 right=#0000ff>AB</gradient></color></ul>";
+    HMarkup    markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+    ((TextLayout*)layout)->m_ElapsedTime = 1000000000000.25;
+    FontGlyphGenParams glyph_params;
+    glyph_params.m_Scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, 'A'), &glyph_params, &glyph));
+    TestLayoutCachedGlyph cached = { &glyph };
+    TestEffectRecord      effect = {};
+    effect.m_Index = 7;
+    FontLayoutVertexConfig config = {};
+    config.m_Layout = layout;
+    config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+    config.m_ResolveGlyphContext = &cached;
+    config.m_ResolveEffect = ResolveTestEffect;
+    config.m_ResolveEffectContext = &effect;
+    config.m_Transform = dmVMath::Matrix4::identity();
+    config.m_RecipAtlasWidth = config.m_RecipAtlasHeight = 1.0f / 256;
+    config.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    config.m_MetricsFromTtf = true;
+    config.m_RenderDecorations = true;
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        config.m_FaceColor[i] = 1.0f;
+    }
+    FontLayoutVertexMetrics metrics;
+    ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+    FontGlyphVertex vertices[24];
+    ASSERT_EQ(24u, FontCreateLayoutVertices(config, metrics, vertices, 24));
+    ASSERT_EQ(FONT_COLOR_EFFECT_LINEAR, effect.m_Record.m_Data[0]);
+    for (uint32_t i = 0; i < 24; ++i)
+    {
+        ASSERT_EQ(128, vertices[i].m_FaceColor[0]);
+        ASSERT_EQ(128, vertices[i].m_FaceColor[1]);
+        ASSERT_EQ(128, vertices[i].m_FaceColor[2]);
+        ASSERT_NEAR(i % 12 < 6 ? 0.25f : 0.75f, vertices[i].m_Effect[0], 0.00001f);
+        ASSERT_EQ(-7.0f, vertices[i].m_Effect[2]);
+        ASSERT_NEAR(0.25f, vertices[i].m_Effect[3], 0.00001f);
+    }
+    // Cache exhaustion keeps the CPU compatibility path usable without a bad texture index.
+    effect.m_Index = UINT32_MAX;
+    ASSERT_EQ(24u, FontCreateLayoutVertices(config, metrics, vertices, 24));
+    ASSERT_EQ(0.0f, vertices[0].m_Effect[2]);
+    ASSERT_EQ(0, vertices[0].m_FaceColor[1]);
+    FontFreeGlyph(m_Font, &glyph);
+    TextLayoutRelease(layout);
 }
 
 TEST_F(FontTest, FontLayersPreserveInlineStyleOverrides)
@@ -7048,6 +7722,37 @@ TEST_F(FontTest, TextArabic)
 //     FontDestroy(font);
 //     return 0;
 // }
+
+// Distinct records with the same hash remain addressable through growth, erasure, and batch reset.
+TEST(FontEffectIndex, CollisionsPreserveRecords)
+{
+    FontEffectIndex index;
+    FontResizeEffectIndex(&index, 4);
+    FontEffectRecord records[4] = {};
+    for (uint32_t i = 1; i < 4; ++i)
+    {
+        records[i].m_Data[4] = (uint8_t)i;
+        FontInsertEffect(&index, 42, i);
+    }
+    FontResizeEffectIndex(&index, 8);
+    for (uint32_t i = 1; i < 4; ++i)
+    {
+        ASSERT_EQ(i, FontFindEffect(index, 42, records[i], records));
+    }
+    FontEraseEffect(&index, 42, 2);
+    ASSERT_EQ(0u, FontFindEffect(index, 42, records[2], records));
+    ASSERT_EQ(1u, FontFindEffect(index, 42, records[1], records));
+    ASSERT_EQ(3u, FontFindEffect(index, 42, records[3], records));
+    FontEraseEffect(&index, 42, 3);
+    ASSERT_EQ(1u, FontFindEffect(index, 42, records[1], records));
+    FontEraseEffect(&index, 42, 1);
+    ASSERT_EQ(0u, index.m_Rows.Size());
+    FontInsertEffect(&index, 42, 1);
+    index.m_Rows.Clear();
+    FontInsertEffect(&index, 42, 2);
+    ASSERT_EQ(0u, FontFindEffect(index, 42, records[1], records));
+    ASSERT_EQ(2u, FontFindEffect(index, 42, records[2], records));
+}
 
 int main(int argc, char **argv)
 {

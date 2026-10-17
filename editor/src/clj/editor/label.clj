@@ -85,7 +85,7 @@
       (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
         (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
 
-(defn- gen-vb [^GL3 gl renderables render-args]
+(defn- gen-render-data [^GL3 gl renderables render-args material-shader]
   (let [user-data (get-in renderables [0 :user-data])
         font-data (get-in user-data [:text-data :font-data])
         text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
@@ -97,23 +97,25 @@
                            renderables)
         node-ids (into #{} (map :node-id) renderables)]
     (when font-data
-      (font/request-vertex-buffer gl node-ids font-data text-entries render-args))))
+      (font/request-render-data gl node-ids font-data text-entries render-args material-shader))))
 
 (defn render-tris [^GL3 gl render-args renderables rcount]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
         render-pass (:pass render-args)
-        vb (gen-vb gl renderables render-args)
+        material-shader (or (:material-shader user-data) shader)
+        {vb :vertex-buffer effect-texture :effect-texture} (gen-render-data gl renderables render-args material-shader)
         vcount (count vb)]
     (when (> vcount 0)
       (condp = render-pass
         pass/transparent
-        (let [material-shader (get user-data :material-shader)
-              blend-mode (get user-data :blend-mode)
-              shader (or material-shader shader)
+        (let [blend-mode (get user-data :blend-mode)
+              shader material-shader
               vertex-binding (vtx/use-with ::tris vb shader)]
-          (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+          (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture effect-texture]
+            (when effect-texture
+              (shader/set-samplers-by-name shader gl "font_effects" (:texture-units effect-texture)))
             (light/bind-preview-lights-for-shader! gl shader render-args)
             (gl/set-blend-mode gl blend-mode)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)

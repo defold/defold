@@ -18,6 +18,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -32,6 +33,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
@@ -123,6 +125,47 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     private ShaderDesc compileShaderForPlatform(Platform platform, String shaderAdapters, String outputResource) throws Exception {
         return compileShaderWithCompiler(getProject().getShaderCompiler(platform), shaderAdapters, outputResource);
+    }
+
+    // Verifies all built-in font variants compile for WebGPU with per-vertex gradient branches
+    // and retain the metadata texture in both stages, including legacy vertex color evaluation.
+    @Test
+    public void testBuiltinFontEffectsWebGPU() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        String[][] shaderPairs = {
+            {"font.vp", "font.fp"},
+            {"font.vp", "font-singlelayer.fp"},
+            {"font-fnt.vp", "font-fnt.fp"},
+            {"font-df.vp", "font-df.fp"},
+            {"font-df.vp", "font-df-singlelayer.fp"},
+            {"font-df.vp", "font-df-ms.fp"},
+            {"font-df.vp", "font-df-ms-singlelayer.fp"}
+        };
+        IShaderCompiler.CompileOptions options = new IShaderCompiler.CompileOptions();
+        options.shaderAdapters = "webgpu";
+        IShaderCompiler compiler = getProject().getShaderCompiler(Platform.getHostPlatform());
+        for (String[] pair : shaderPairs) {
+            ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
+            for (int stage = 0; stage < pair.length; ++stage) {
+                String path = "/builtins/fonts/" + pair[stage];
+                String source = new String(getProject().getResource(path).getContent(), StandardCharsets.UTF_8);
+                ShaderCompilePipeline.ShaderModuleDesc module = new ShaderCompilePipeline.ShaderModuleDesc();
+                module.type = stage == 0 ? ShaderDesc.ShaderType.SHADER_TYPE_VERTEX : ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+                module.resourcePath = path;
+                module.source = new ShaderPreprocessor(getProject(), path, source, null).getCompiledSource();
+                modules.add(module);
+            }
+            ShaderDesc shader = ShaderProgramBuilder.buildResultsToShaderDescBuildResults(
+                compiler.compile(modules, "/font_effects_" + pair[1] + ".spc", options)).shaderDesc;
+            checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_WGSL);
+            assertEquals(pair[1], 2, shader.getShadersCount());
+            ShaderDesc.ResourceBinding effects = shader.getReflection().getTexturesList().stream()
+                .filter(binding -> binding.getName().equals("font_effects"))
+                .findFirst().orElse(null);
+            assertNotNull(pair[1], effects);
+            int bothStages = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() | Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
+            assertEquals(pair[1], bothStages, effects.getStageFlags());
+        }
     }
 
     private ShaderDesc compileShaderWithCompiler(IShaderCompiler shaderCompiler, String shaderAdapters, String outputResource) throws Exception {

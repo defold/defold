@@ -125,6 +125,48 @@ TEST(FontcMarkupApi, ValidatesArgumentsAndAcceptsEmptyInput)
     FontcDestroyMarkup(0);
 }
 
+// Java reads and writes the packed words directly; verify the compiler's bit field ABI.
+TEST(FontcMarkupApi, PackedFieldsMatchJavaLayout)
+{
+    for (uint16_t bits = 0; bits < 2048; ++bits)
+    {
+        FontcStyleEffect effect = {};
+        effect.m_Type = bits & 3;
+        effect.m_Fit = (bits >> 2) & 3;
+        effect.m_GradientMode = (bits >> 4) & 3;
+        effect.m_ColorType = (bits >> 6) & 3;
+        effect.m_StopCount = (bits >> 8) & 7;
+        ASSERT_EQ(bits, effect.m_Bits);
+
+        FontcStyleEffect decoded = {};
+        decoded.m_Bits = bits;
+        ASSERT_EQ(effect.m_Type, decoded.m_Type);
+        ASSERT_EQ(effect.m_Fit, decoded.m_Fit);
+        ASSERT_EQ(effect.m_GradientMode, decoded.m_GradientMode);
+        ASSERT_EQ(effect.m_ColorType, decoded.m_ColorType);
+        ASSERT_EQ(effect.m_StopCount, decoded.m_StopCount);
+    }
+
+    for (uint8_t bits = 0; bits < 128; ++bits)
+    {
+        FontcProperties properties = {};
+        properties.m_LineBreak = bits & 1;
+        properties.m_Align = (bits >> 1) & 3;
+        properties.m_VerticalAlign = (bits >> 3) & 3;
+        properties.m_UseBaseStyle = (bits >> 5) & 1;
+        properties.m_UseGPUEffects = (bits >> 6) & 1;
+        ASSERT_EQ(bits, properties.m_Bits);
+
+        FontcProperties decoded = {};
+        decoded.m_Bits = bits;
+        ASSERT_EQ(properties.m_LineBreak, decoded.m_LineBreak);
+        ASSERT_EQ(properties.m_Align, decoded.m_Align);
+        ASSERT_EQ(properties.m_VerticalAlign, decoded.m_VerticalAlign);
+        ASSERT_EQ(properties.m_UseBaseStyle, decoded.m_UseBaseStyle);
+        ASSERT_EQ(properties.m_UseGPUEffects, decoded.m_UseGPUEffects);
+    }
+}
+
 int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);

@@ -165,8 +165,8 @@
                           (->uv-color-vtx vcount)
                           renderables)))))
 
-(defn- gen-font-vb
-  [gl user-data renderables render-args]
+(defn- gen-font-render-data
+  [^GL3 gl user-data renderables render-args material-shader]
   (let [font-data (get-in user-data [:text-data :font-data])
         text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
                                          alpha (get-in (:user-data r) [:color 3])]
@@ -177,38 +177,40 @@
                                          (update-in [:shadow 3] * alpha))))
                            renderables)
         node-ids (into #{} (map :node-id) renderables)]
-    (font/request-vertex-buffer gl node-ids font-data text-entries render-args)))
+    (font/request-render-data gl node-ids font-data text-entries render-args material-shader)))
 
-(defn- gen-vb [^GL3 gl renderables render-args]
+(defn- gen-render-data [^GL3 gl renderables render-args material-shader]
   (let [user-data (get-in renderables [0 :user-data])]
     (cond
       (contains? user-data :geom-data)
-      (gen-geom-vb renderables)
+      {:vertex-buffer (gen-geom-vb renderables)}
 
       (get-in user-data [:text-data :font-data])
-      (gen-font-vb gl user-data renderables render-args)
+      (gen-font-render-data gl user-data renderables render-args material-shader)
 
       (contains? user-data :gen-vb)
-      ((:gen-vb user-data) user-data renderables))))
+      {:vertex-buffer ((:gen-vb user-data) user-data renderables)})))
 
 (defn render-tris [^GL3 gl render-args renderables _rcount]
   (let [user-data (get-in renderables [0 :user-data])
         clipping-state (:clipping-state user-data)
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
-        material-shader (get user-data :material-shader)
+        material-shader (or (:material-shader user-data) shader)
         blend-mode (get user-data :blend-mode)
         render-pass (:pass render-args)
-        vb (gen-vb gl renderables render-args)
+        {vb :vertex-buffer effect-texture :effect-texture} (gen-render-data gl renderables render-args material-shader)
         vcount (count vb)]
     (when (> vcount 0)
       (condp = render-pass
         pass/transparent
-        (let [shader (or material-shader shader)
+        (let [shader material-shader
               vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
                                (vtx2/use-with ::tris vb shader)
                                (vtx/use-with ::tris vb shader))]
-          (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+          (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture effect-texture]
             (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
+            (when effect-texture
+              (shader/set-samplers-by-name shader gl "font_effects" (:texture-units effect-texture)))
             (clipping/setup-gl gl clipping-state)
             (gl/set-blend-mode gl blend-mode)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)

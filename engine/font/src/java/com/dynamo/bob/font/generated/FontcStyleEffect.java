@@ -33,9 +33,18 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  *     float m_Amplitude;
  *     float m_Hz;
  *     float m_Wavelength;
- *     uint32_t m_Type;
- *     uint32_t m_Fit;
- *     uint32_t m_GradientMode;
+ *     float m_Positions[4];
+ *     float m_Parameters[6];
+ *     union {
+ *         struct {
+ *             uint16_t m_Type : 2;
+ *             uint16_t m_Fit : 2;
+ *             uint16_t m_GradientMode : 2;
+ *             uint16_t m_ColorType : 2;
+ *             uint16_t m_StopCount : 3;
+ *         };
+ *         uint16_t m_Bits;
+ *     };
  * }
  * }
  */
@@ -50,9 +59,15 @@ public class FontcStyleEffect {
         FontRendererFFM.C_FLOAT.withName("m_Amplitude"),
         FontRendererFFM.C_FLOAT.withName("m_Hz"),
         FontRendererFFM.C_FLOAT.withName("m_Wavelength"),
-        FontRendererFFM.C_INT.withName("m_Type"),
-        FontRendererFFM.C_INT.withName("m_Fit"),
-        FontRendererFFM.C_INT.withName("m_GradientMode")
+        MemoryLayout.sequenceLayout(4, FontRendererFFM.C_FLOAT).withName("m_Positions"),
+        MemoryLayout.sequenceLayout(6, FontRendererFFM.C_FLOAT).withName("m_Parameters"),
+        MemoryLayout.unionLayout(
+            MemoryLayout.structLayout(
+                MemoryLayout.paddingLayout(2)
+            ).withName("$anon$210:13"),
+            FontRendererFFM.C_SHORT.withName("m_Bits")
+        ).withName("$anon$208:9"),
+        MemoryLayout.paddingLayout(2)
     ).withName("FontcStyleEffect");
 
     /**
@@ -271,136 +286,202 @@ public class FontcStyleEffect {
         struct.set(m_Wavelength$LAYOUT, m_Wavelength$OFFSET, fieldValue);
     }
 
-    private static final OfInt m_Type$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_Type"));
+    private static final SequenceLayout m_Positions$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("m_Positions"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * uint32_t m_Type
+     * float m_Positions[4]
      * }
      */
-    public static final OfInt m_Type$layout() {
-        return m_Type$LAYOUT;
+    public static final SequenceLayout m_Positions$layout() {
+        return m_Positions$LAYOUT;
     }
 
-    private static final long m_Type$OFFSET = $LAYOUT.byteOffset(groupElement("m_Type"));
+    private static final long m_Positions$OFFSET = $LAYOUT.byteOffset(groupElement("m_Positions"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * uint32_t m_Type
+     * float m_Positions[4]
      * }
      */
-    public static final long m_Type$offset() {
-        return m_Type$OFFSET;
+    public static final long m_Positions$offset() {
+        return m_Positions$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * uint32_t m_Type
+     * float m_Positions[4]
      * }
      */
-    public static int m_Type(MemorySegment struct) {
-        return struct.get(m_Type$LAYOUT, m_Type$OFFSET);
+    public static MemorySegment m_Positions(MemorySegment struct) {
+        return struct.asSlice(m_Positions$OFFSET, m_Positions$LAYOUT.byteSize());
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * uint32_t m_Type
+     * float m_Positions[4]
      * }
      */
-    public static void m_Type(MemorySegment struct, int fieldValue) {
-        struct.set(m_Type$LAYOUT, m_Type$OFFSET, fieldValue);
+    public static void m_Positions(MemorySegment struct, MemorySegment fieldValue) {
+        MemorySegment.copy(fieldValue, 0L, struct, m_Positions$OFFSET, m_Positions$LAYOUT.byteSize());
     }
 
-    private static final OfInt m_Fit$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_Fit"));
+    private static long[] m_Positions$DIMS = { 4 };
+
+    /**
+     * Dimensions for array field:
+     * {@snippet lang=c :
+     * float m_Positions[4]
+     * }
+     */
+    public static long[] m_Positions$dimensions() {
+        return m_Positions$DIMS;
+    }
+    private static final VarHandle m_Positions$ELEM_HANDLE = m_Positions$LAYOUT.varHandle(sequenceElement());
+
+    /**
+     * Indexed getter for field:
+     * {@snippet lang=c :
+     * float m_Positions[4]
+     * }
+     */
+    public static float m_Positions(MemorySegment struct, long index0) {
+        return (float)m_Positions$ELEM_HANDLE.get(struct, m_Positions$OFFSET, index0);
+    }
+
+    /**
+     * Indexed setter for field:
+     * {@snippet lang=c :
+     * float m_Positions[4]
+     * }
+     */
+    public static void m_Positions(MemorySegment struct, long index0, float fieldValue) {
+        m_Positions$ELEM_HANDLE.set(struct, m_Positions$OFFSET, index0, fieldValue);
+    }
+
+    private static final SequenceLayout m_Parameters$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("m_Parameters"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * uint32_t m_Fit
+     * float m_Parameters[6]
      * }
      */
-    public static final OfInt m_Fit$layout() {
-        return m_Fit$LAYOUT;
+    public static final SequenceLayout m_Parameters$layout() {
+        return m_Parameters$LAYOUT;
     }
 
-    private static final long m_Fit$OFFSET = $LAYOUT.byteOffset(groupElement("m_Fit"));
+    private static final long m_Parameters$OFFSET = $LAYOUT.byteOffset(groupElement("m_Parameters"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * uint32_t m_Fit
+     * float m_Parameters[6]
      * }
      */
-    public static final long m_Fit$offset() {
-        return m_Fit$OFFSET;
+    public static final long m_Parameters$offset() {
+        return m_Parameters$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * uint32_t m_Fit
+     * float m_Parameters[6]
      * }
      */
-    public static int m_Fit(MemorySegment struct) {
-        return struct.get(m_Fit$LAYOUT, m_Fit$OFFSET);
+    public static MemorySegment m_Parameters(MemorySegment struct) {
+        return struct.asSlice(m_Parameters$OFFSET, m_Parameters$LAYOUT.byteSize());
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * uint32_t m_Fit
+     * float m_Parameters[6]
      * }
      */
-    public static void m_Fit(MemorySegment struct, int fieldValue) {
-        struct.set(m_Fit$LAYOUT, m_Fit$OFFSET, fieldValue);
+    public static void m_Parameters(MemorySegment struct, MemorySegment fieldValue) {
+        MemorySegment.copy(fieldValue, 0L, struct, m_Parameters$OFFSET, m_Parameters$LAYOUT.byteSize());
     }
 
-    private static final OfInt m_GradientMode$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_GradientMode"));
+    private static long[] m_Parameters$DIMS = { 6 };
+
+    /**
+     * Dimensions for array field:
+     * {@snippet lang=c :
+     * float m_Parameters[6]
+     * }
+     */
+    public static long[] m_Parameters$dimensions() {
+        return m_Parameters$DIMS;
+    }
+    private static final VarHandle m_Parameters$ELEM_HANDLE = m_Parameters$LAYOUT.varHandle(sequenceElement());
+
+    /**
+     * Indexed getter for field:
+     * {@snippet lang=c :
+     * float m_Parameters[6]
+     * }
+     */
+    public static float m_Parameters(MemorySegment struct, long index0) {
+        return (float)m_Parameters$ELEM_HANDLE.get(struct, m_Parameters$OFFSET, index0);
+    }
+
+    /**
+     * Indexed setter for field:
+     * {@snippet lang=c :
+     * float m_Parameters[6]
+     * }
+     */
+    public static void m_Parameters(MemorySegment struct, long index0, float fieldValue) {
+        m_Parameters$ELEM_HANDLE.set(struct, m_Parameters$OFFSET, index0, fieldValue);
+    }
+
+    private static final OfShort m_Bits$LAYOUT = (OfShort)$LAYOUT.select(groupElement("$anon$208:9"), groupElement("m_Bits"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * uint32_t m_GradientMode
+     * uint16_t m_Bits
      * }
      */
-    public static final OfInt m_GradientMode$layout() {
-        return m_GradientMode$LAYOUT;
+    public static final OfShort m_Bits$layout() {
+        return m_Bits$LAYOUT;
     }
 
-    private static final long m_GradientMode$OFFSET = $LAYOUT.byteOffset(groupElement("m_GradientMode"));
+    private static final long m_Bits$OFFSET = $LAYOUT.byteOffset(groupElement("$anon$208:9"), groupElement("m_Bits"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * uint32_t m_GradientMode
+     * uint16_t m_Bits
      * }
      */
-    public static final long m_GradientMode$offset() {
-        return m_GradientMode$OFFSET;
+    public static final long m_Bits$offset() {
+        return m_Bits$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * uint32_t m_GradientMode
+     * uint16_t m_Bits
      * }
      */
-    public static int m_GradientMode(MemorySegment struct) {
-        return struct.get(m_GradientMode$LAYOUT, m_GradientMode$OFFSET);
+    public static short m_Bits(MemorySegment struct) {
+        return struct.get(m_Bits$LAYOUT, m_Bits$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * uint32_t m_GradientMode
+     * uint16_t m_Bits
      * }
      */
-    public static void m_GradientMode(MemorySegment struct, int fieldValue) {
-        struct.set(m_GradientMode$LAYOUT, m_GradientMode$OFFSET, fieldValue);
+    public static void m_Bits(MemorySegment struct, short fieldValue) {
+        struct.set(m_Bits$LAYOUT, m_Bits$OFFSET, fieldValue);
     }
 
     /**

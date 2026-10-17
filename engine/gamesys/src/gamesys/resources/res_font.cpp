@@ -87,13 +87,43 @@ namespace dmGameSystem
                 const dmRenderDDF::StyleEffect& input = source.m_Effects[j];
                 TextEffect                      effect = {};
                 effect.m_Type = (uint16_t)input.m_Type;
-                if (input.m_Fit > TEXT_EFFECT_FIT_TEXT)
+                if (input.m_Fit > TEXT_EFFECT_FIT_BLOCK)
+                {
                     return false;
+                }
                 if (effect.m_Type == TEXT_EFFECT_GRADIENT)
                 {
-                    if (input.m_Colors.m_Count != 16 || input.m_GradientMode > TEXT_GRADIENT_MODE_QUAD)
+                    if (input.m_Colors.m_Count != 16 || input.m_GradientMode > TEXT_GRADIENT_MODE_SPATIAL)
+                    {
                         return false;
-                    memcpy(effect.m_Gradient.m_BottomLeft, input.m_Colors.m_Data, 16 * sizeof(float));
+                    }
+                    if (input.m_GradientMode == TEXT_GRADIENT_MODE_SPATIAL)
+                    {
+                        if (input.m_Positions.m_Count != 4 || input.m_Parameters.m_Count != 6 ||
+                            input.m_StopCount < 1 || input.m_StopCount > 4 || input.m_ColorType > FONT_COLOR_EFFECT_FOUR_CORNER ||
+                            (input.m_ColorType == FONT_COLOR_EFFECT_COLOR && input.m_StopCount != 1) ||
+                            (input.m_ColorType == FONT_COLOR_EFFECT_FOUR_CORNER && input.m_StopCount != 4))
+                        {
+                            return false;
+                        }
+                        FontColorEffect& color = effect.m_Gradient.m_Color;
+                        for (uint32_t stop = 0; stop < 4; ++stop)
+                        {
+                            for (uint32_t channel = 0; channel < 4; ++channel)
+                            {
+                                color.m_Colors[stop][channel] = (uint8_t)(input.m_Colors[stop * 4 + channel] * 255.0f + 0.5f);
+                            }
+                        }
+                        memcpy(color.m_Positions, input.m_Positions.m_Data, sizeof(color.m_Positions));
+                        memcpy(color.m_Parameters, input.m_Parameters.m_Data, sizeof(color.m_Parameters));
+                        color.m_Type = input.m_ColorType;
+                        color.m_StopCount = input.m_StopCount;
+                        color.m_Flags = input.m_Hz != 0.0f ? FONT_COLOR_EFFECT_MIRROR : 0;
+                    }
+                    else
+                    {
+                        memcpy(effect.m_Gradient.m_Corners.m_BottomLeft, input.m_Colors.m_Data, 16 * sizeof(float));
+                    }
                     effect.m_Flags = TEXT_EFFECT_AFFECTS_COLOR;
                     effect.m_Gradient.m_Hz = input.m_Hz;
                     effect.m_Gradient.m_Fit = input.m_Fit;

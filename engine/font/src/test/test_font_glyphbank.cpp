@@ -26,6 +26,7 @@
 #include <font/text_layout.h>
 
 #include "test_font_alignment.h"
+#include <dlib/dstrings.h>
 
 struct TestGlyphBankProvider
 {
@@ -261,6 +262,9 @@ TEST(FontGlyphBank, SeparateLayoutAndBitmapMetrics)
     source.m_Descent = 3;
     source.m_LayoutWidth = 7.25f;
     source.m_LayoutLeftBearing = 1.5f;
+    source.m_UnpaddedWidth = 7.0f;
+    source.m_UnpaddedAscent = 8.5f;
+    source.m_UnpaddedDescent = 1.5f;
     source.m_Data = pixels;
     source.m_DataSize = sizeof(pixels);
     bank->m_Provider.m_GlyphPadding = 1;
@@ -279,6 +283,16 @@ TEST(FontGlyphBank, SeparateLayoutAndBitmapMetrics)
     ASSERT_EQ(7.25f, glyph.m_Width);
     ASSERT_EQ(1.5f, glyph.m_LeftBearing);
     ASSERT_EQ(9.0f, glyph.m_Advance);
+
+    options.m_UseUnpaddedBounds = true;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
+    ASSERT_EQ(7.25f, glyph.m_Width); // Older banks retain their existing metrics.
+    bank->m_Provider.m_HasUnpaddedMetrics = true;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
+    ASSERT_EQ(7.0f, glyph.m_Width);
+    ASSERT_EQ(8.5f, glyph.m_Ascent);
+    ASSERT_EQ(1.5f, glyph.m_Descent);
+    ASSERT_EQ(10.0f, glyph.m_Height);
 
     options.m_GenerateImage = true;
     ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
@@ -378,5 +392,52 @@ TEST(FontAlignment, CompiledFontMatchesPreviewAtWrapBoundary)
         TextLayoutGetBounds(compiled.m_Layout, &compiled_width, &compiled_height);
         ASSERT_NEAR(preview_width, compiled_width, 0.001f);
         ASSERT_NEAR(preview_height, compiled_height, 0.001f);
+    }
+}
+
+static uint32_t ResolveAlignmentEffect(void*, const FontEffectRecord&)
+{
+    return 1;
+}
+
+// Compiled fonts must use the same gradient bounds as previews, independent of SDF padding.
+TEST(FontAlignment, CompiledGradientsMatchPreview)
+{
+    const char* types[] = { "linear angle=0", "linear angle=45", "radial" };
+    const char* fits[] = { "glyph", "span", "block" };
+    for (uint32_t type = 0; type < DM_ARRAY_SIZE(types); ++type)
+    {
+        for (uint32_t fit = 0; fit < DM_ARRAY_SIZE(fits); ++fit)
+        {
+            FontAlignmentFixture preview;
+            FontAlignmentFixture compiled;
+            CreateAlignmentFixture(preview, false);
+            CreateAlignmentFixture(compiled, true);
+            FontAlignmentFixture* fixtures[] = { &preview, &compiled };
+            char                  source[256];
+            dmSnPrintf(source, sizeof(source), "<gradient type=%s fit=%s color0=#ff0000 color1=#0000ff>Example</gradient>", types[type], fits[fit]);
+            for (uint32_t i = 0; i < 2; ++i)
+            {
+                FontAlignmentFixture& fixture = *fixtures[i];
+                TextLayoutRelease(fixture.m_Layout);
+                HMarkup markup = 0;
+                ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, strlen(source), &markup, 0));
+                TextLayoutSettings settings = {};
+                settings.m_Size = 15;
+                settings.m_Leading = 1;
+                ASSERT_EQ(TEXT_RESULT_OK, TextLayoutLegacyCreateMarkup(fixture.m_Collection, markup, &settings, &fixture.m_Layout));
+                MarkupDestroy(markup);
+                fixture.m_Config.m_Layout = fixture.m_Layout;
+                fixture.m_Config.m_ResolveEffect = ResolveAlignmentEffect;
+                CreateAlignmentVertices(fixture, FONT_ALIGNMENT_PIVOTS[0]);
+            }
+            for (uint32_t vertex = 0; vertex < 42; ++vertex)
+            {
+                for (uint32_t axis = 0; axis < 2; ++axis)
+                {
+                    ASSERT_NEAR(preview.m_Vertices[vertex].m_Effect[axis], compiled.m_Vertices[vertex].m_Effect[axis], 0.0001f);
+                }
+            }
+        }
     }
 }

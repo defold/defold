@@ -54,6 +54,9 @@ function(font_configure_test target font_target)
   set(run ON)
   if(target MATCHES "^test_font_bitmap_gen")
     set(run OFF)
+  elseif(target STREQUAL "test_font_effects" AND DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$")
+    # Like the font image tests, GPU tests require OpenGL, available only on Linux CI runners.
+    set(run OFF)
   endif()
   defold_register_test_target(${target} ${run} "${FONT_ROOT}"
     RUN_GROUP font
@@ -287,13 +290,24 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     OUTPUT_HEADER "${FONTVIEWER_ARABIC_FONT_HEADER}"
     OUTPUT_CPP "${FONTVIEWER_ARABIC_FONT_CPP}"
     SYMBOL FONTVIEWER_NOTO_SANS_ARABIC)
+  # Standalone viewers bypass Bob's shader include preprocessor.
+  set(_font_effect_shader "${FONT_ROOT}/content/builtins/fonts/font-effect.glsl")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_font_effect_shader}")
+  file(READ "${_font_effect_shader}" _font_effect_source)
+  foreach(stage IN ITEMS vp fp)
+    set(_font_shader "${FONT_ROOT}/content/builtins/fonts/font-df.${stage}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_font_shader}")
+    file(READ "${_font_shader}" _font_source)
+    string(REPLACE "#include \"/builtins/fonts/font-effect.glsl\"" "${_font_effect_source}" _font_source "${_font_source}")
+    file(GENERATE OUTPUT "${FONTVIEWER_GENERATED_DIR}/font-df.${stage}" CONTENT "${_font_source}")
+  endforeach()
   defold_embed_to_header(
-    INPUT "${FONT_ROOT}/content/builtins/fonts/font-df.vp"
+    INPUT "${FONTVIEWER_GENERATED_DIR}/font-df.vp"
     OUTPUT_HEADER "${FONTVIEWER_VERTEX_SHADER_HEADER}"
     OUTPUT_CPP "${FONTVIEWER_VERTEX_SHADER_CPP}"
     SYMBOL FONTVIEWER_FONT_DF_VP)
   defold_embed_to_header(
-    INPUT "${FONT_ROOT}/content/builtins/fonts/font-df.fp"
+    INPUT "${FONTVIEWER_GENERATED_DIR}/font-df.fp"
     OUTPUT_HEADER "${FONTVIEWER_FRAGMENT_SHADER_HEADER}"
     OUTPUT_CPP "${FONTVIEWER_FRAGMENT_SHADER_CPP}"
     SYMBOL FONTVIEWER_FONT_DF_FP)
@@ -347,7 +361,9 @@ if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
     COMMAND "${_font_report_python}" "${FONT_TEST_ROOT}/make_report.py" --generate-cases "${_font_image_generated}/font_image_cases.inc"
     DEPENDS "${FONT_TEST_ROOT}/make_report.py" "${FONT_TEST_ROOT}/data/font_render/lorem.json" "${FONT_TEST_ROOT}/data/font_render/capture_geometry.json")
   defold_create_exported_symbols_file("${_font_image_generated}/exports.cpp" "GraphicsAdapterOpenGL")
-  foreach(target IN ITEMS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
+  defold_add_executable(test_font_effects "${FONT_TEST_ROOT}/test_font_effects.cpp")
+  font_configure_test(test_font_effects font)
+  foreach(target IN ITEMS test_font_effects test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
     target_sources(${target} PRIVATE "${_font_image_generated}/exports.cpp" "${_font_image_generated}/font_image_cases.inc")
     target_include_directories(${target} PRIVATE "${_font_image_generated}" "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
     set(WITH_OPENGL ON)

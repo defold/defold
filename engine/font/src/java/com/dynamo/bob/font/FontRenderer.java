@@ -31,6 +31,7 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateTexture;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetEffectTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetGlyphMetrics;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetMarkupData;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetSupportedGlyphMetrics;
@@ -188,6 +189,7 @@ public final class FontRenderer implements AutoCloseable {
         public float sdfScale;
         public long baseStyle;
         public boolean useBaseStyle;
+        public boolean useGpuEffects;
     }
 
     /** Font-independent compiled resource style; native setters copy these values. */
@@ -233,6 +235,10 @@ public final class FontRenderer implements AutoCloseable {
         public int type;
         public int fit;
         public int gradientMode;
+        public float[] positions = new float[4];
+        public float[] parameters = new float[6];
+        public int colorType;
+        public int stopCount;
     }
 
     /** Compile opening-only markup, including static resource decorations. */
@@ -273,9 +279,14 @@ public final class FontRenderer implements AutoCloseable {
                         effect.amplitude = FontcStyleEffect.m_Amplitude(item);
                         effect.hz = FontcStyleEffect.m_Hz(item);
                         effect.wavelength = FontcStyleEffect.m_Wavelength(item);
-                        effect.type = FontcStyleEffect.m_Type(item);
-                        effect.fit = FontcStyleEffect.m_Fit(item);
-                        effect.gradientMode = FontcStyleEffect.m_GradientMode(item);
+                        int bits = Short.toUnsignedInt(FontcStyleEffect.m_Bits(item));
+                        effect.type = bits & 3;
+                        effect.fit = (bits >>> 2) & 3;
+                        effect.gradientMode = (bits >>> 4) & 3;
+                        effect.colorType = (bits >>> 6) & 3;
+                        effect.stopCount = (bits >>> 8) & 7;
+                        effect.parameters = FontcStyleEffect.m_Parameters(item).toArray(JAVA_FLOAT);
+                        effect.positions = FontcStyleEffect.m_Positions(item).toArray(JAVA_FLOAT);
                         style.effects[i] = effect;
                     }
                 }
@@ -317,9 +328,14 @@ public final class FontRenderer implements AutoCloseable {
                     FontcStyleEffect.m_Amplitude(item, effect.amplitude);
                     FontcStyleEffect.m_Hz(item, effect.hz);
                     FontcStyleEffect.m_Wavelength(item, effect.wavelength);
-                    FontcStyleEffect.m_Type(item, effect.type);
-                    FontcStyleEffect.m_Fit(item, effect.fit);
-                    FontcStyleEffect.m_GradientMode(item, effect.gradientMode);
+                    // Check representability before packing the native bit fields.
+                    if (((effect.type | effect.fit | effect.gradientMode | effect.colorType) & ~3) != 0 ||
+                            (effect.stopCount & ~7) != 0)
+                        throw new IllegalArgumentException("Invalid font style effect fields");
+                    FontcStyleEffect.m_Bits(item, (short)(effect.type | (effect.fit << 2) |
+                            (effect.gradientMode << 4) | (effect.colorType << 6) | (effect.stopCount << 8)));
+                    FontcStyleEffect.m_Parameters(item, arena.allocateFrom(JAVA_FLOAT, effect.parameters));
+                    FontcStyleEffect.m_Positions(item, arena.allocateFrom(JAVA_FLOAT, effect.positions));
                 }
             }
             checkResult(FontRendererFFM.FontcSetStyle(requireHandle(), name, data), "Unable to register font style");
@@ -514,6 +530,12 @@ public final class FontRenderer implements AutoCloseable {
         public final float leftBearing;
         public final float ascent;
         public final float descent;
+        /** Unpadded outline width used for gradient fitting. */
+        public final float unpaddedWidth;
+        /** Unpadded outline ascent used for gradient fitting. */
+        public final float unpaddedAscent;
+        /** Unpadded outline descent used for gradient fitting. */
+        public final float unpaddedDescent;
         /** Width used for text measurement, excluding bitmap sampling bounds. */
         public final float layoutWidth;
         /** Bearing used for text measurement, excluding bitmap sampling bounds. */
@@ -528,6 +550,9 @@ public final class FontRenderer implements AutoCloseable {
             leftBearing = FontcGlyphMetrics.m_LeftBearing(values);
             ascent = FontcGlyphMetrics.m_Ascent(values);
             descent = FontcGlyphMetrics.m_Descent(values);
+            unpaddedWidth = FontcGlyphMetrics.m_UnpaddedWidth(values);
+            unpaddedAscent = FontcGlyphMetrics.m_UnpaddedAscent(values);
+            unpaddedDescent = FontcGlyphMetrics.m_UnpaddedDescent(values);
             layoutWidth = FontcGlyphMetrics.m_LayoutWidth(values);
             layoutLeftBearing = FontcGlyphMetrics.m_LayoutLeftBearing(values);
         }
@@ -893,6 +918,8 @@ public final class FontRenderer implements AutoCloseable {
             throw new NullPointerException();
         if (properties.faceColor.length != 4 || properties.outlineColor.length != 4 || properties.shadowColor.length != 4)
             throw new IllegalArgumentException("Invalid color array size");
+        if (((properties.align | properties.verticalAlign) & ~3) != 0)
+            throw new IllegalArgumentException("Invalid font alignment");
 
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment values = FontcProperties.allocate(arena);
@@ -905,11 +932,11 @@ public final class FontRenderer implements AutoCloseable {
             FontcProperties.m_Leading(values, properties.leading);
             FontcProperties.m_Tracking(values, properties.tracking);
             FontcProperties.m_SdfScale(values, properties.sdfScale);
-            FontcProperties.m_LineBreak(values, flag(properties.lineBreak));
-            FontcProperties.m_Align(values, properties.align);
-            FontcProperties.m_VerticalAlign(values, properties.verticalAlign);
             FontcProperties.m_BaseStyle(values, properties.baseStyle);
-            FontcProperties.m_UseBaseStyle(values, flag(properties.useBaseStyle));
+            // Matches the low-to-high bit fields in FontcProperties.
+            FontcProperties.m_Bits(values, (byte)(flag(properties.lineBreak) | (properties.align << 1) |
+                    (properties.verticalAlign << 3) | (flag(properties.useBaseStyle) << 5) |
+                    (flag(properties.useGpuEffects) << 6)));
             checkResult(FontcSetProperties(requireHandle(), values), "Unable to set native font renderer properties");
         }
     }
@@ -962,7 +989,7 @@ public final class FontRenderer implements AutoCloseable {
     }
 
     /**
-     * Starts a render batch and protects glyphs used in it from atlas eviction.
+     * Starts a render batch, clears its gradient records, and protects glyphs from atlas eviction.
      *
      * <p>Used by the Editor before generating textures for all text entries in a render batch.</p>
      */
@@ -984,6 +1011,23 @@ public final class FontRenderer implements AutoCloseable {
                 Texture result = new Texture(texture);
                 atlasVersion = result.atlasVersion;
                 return result;
+            } finally {
+                FontcFreeTexture(texture);
+            }
+        }
+    }
+
+    /**
+     * Copies the lookup texture for GPU effects emitted since {@link #beginBatch()}.
+     * Keep this snapshot with its vertex buffer when caching editor render batches.
+     * Batches without GPU effects return an empty texture with null pixels.
+     */
+    public synchronized Texture getEffectTexture() {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment texture = FontcTexture.allocate(arena);
+            checkResult(FontcGetEffectTexture(requireHandle(), texture), "Unable to get font effect texture");
+            try {
+                return new Texture(texture);
             } finally {
                 FontcFreeTexture(texture);
             }

@@ -246,6 +246,49 @@ protected:
     }
 };
 
+// Effects stay immutable within a frame, grow when pinned, and reuse unpinned rows later.
+TEST_F(dmRenderTest, FontEffectCachePinsRecordsUntilNextFrame)
+{
+    FontEffectCache* cache = FontCreateEffectCache(m_GraphicsContext);
+    FontColorEffect  effect = {};
+    effect.m_StopCount = 1;
+    effect.m_Colors[0][3] = 255;
+    FontEffectRecord record;
+    for (uint32_t i = 1; i < FONT_EFFECT_TEXTURE_HEIGHT; ++i)
+    {
+        effect.m_Colors[0][0] = (uint8_t)i;
+        FontPackEffect(effect, &record);
+        ASSERT_EQ(i, FontCacheEffect(cache, record, 7));
+    }
+    effect.m_Colors[0][0] = 1;
+    FontPackEffect(effect, &record);
+    ASSERT_EQ(1u, FontCacheEffect(cache, record, 7));
+    effect.m_Colors[0][1] = 255;
+    FontPackEffect(effect, &record);
+    ASSERT_EQ(FONT_EFFECT_TEXTURE_HEIGHT, FontCacheEffect(cache, record, 7));
+    ASSERT_EQ(FONT_EFFECT_TEXTURE_HEIGHT, FontCacheEffect(cache, record, 8));
+    for (uint32_t i = FONT_EFFECT_TEXTURE_HEIGHT + 1; i < FONT_EFFECT_TEXTURE_HEIGHT * 2; ++i)
+    {
+        effect.m_Colors[0][0] = (uint8_t)(i - FONT_EFFECT_TEXTURE_HEIGHT + 1);
+        FontPackEffect(effect, &record);
+        ASSERT_EQ(i, FontCacheEffect(cache, record, 7));
+    }
+    effect.m_Colors[0][2] = 1;
+    FontPackEffect(effect, &record);
+    ASSERT_EQ(1u, FontCacheEffect(cache, record, 8));
+    const FontEffectRecord replacement = record;
+    effect.m_Colors[0][0] = 1;
+    effect.m_Colors[0][1] = effect.m_Colors[0][2] = 0;
+    FontPackEffect(effect, &record);
+    // The evicted content must be inserted again without aliasing its replacement.
+    ASSERT_EQ(2u, FontCacheEffect(cache, record, 8));
+    ASSERT_EQ(1u, FontCacheEffect(cache, replacement, 8));
+    FontUploadEffects(cache);
+    ASSERT_EQ(FONT_EFFECT_TEXTURE_WIDTH, dmGraphics::GetTextureWidth(m_GraphicsContext, FontGetEffectTexture(cache)));
+    ASSERT_EQ(FONT_EFFECT_TEXTURE_HEIGHT * 2, dmGraphics::GetTextureHeight(m_GraphicsContext, FontGetEffectTexture(cache)));
+    FontDeleteEffectCache(cache);
+}
+
 TEST_F(dmRenderTest, TestFontMapTextureFiltering)
 {
     dmRender::HFontMap bitmap_font_map;
@@ -3406,13 +3449,83 @@ TEST_F(dmRenderTest, DrawTextPreparedTextLayoutRetainedUntilClear)
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
+// Gradients share one batch, and reusing it without GPU effects clears the metadata binding.
+TEST_F(dmRenderTest, GradientRecordsDoNotSplitFontBatch)
+{
+    dmGraphics::ShaderDescBuilder shaders;
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shaders.AddTexture("texture_sampler", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shaders.AddTexture("font_effects", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shaders.Get(), 0, 0);
+    dmRender::HMaterial  material = dmRender::NewMaterial(m_Context, program);
+    ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64("font_effects"), 1, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+    const char* sources[] = {
+        "<gradient hz=0.5 left=#ff0000 right=#0000ff>A</gradient>",
+        "<gradient hz=0.5 left=#00ff00 right=#ffffff>B</gradient>"
+    };
+    HTextLayout        layouts[2];
+    TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
+    settings.m_Leading = 1.0f;
+    dmRender::RenderListBegin(m_Context);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        HMarkup markup = 0;
+        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(sources[i], strlen(sources[i]), &markup, 0));
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), markup, &settings, &layouts[i]));
+        MarkupDestroy(markup);
+        TextLayoutUpdate(layouts[i], i * 0.25f);
+        dmRender::DrawTextParams params;
+        params.m_TextLayout = layouts[i];
+        params.m_FaceColor = Vector4(1.0f);
+        params.m_WorldTransform = Matrix4::identity();
+        dmRender::DrawText(m_Context, m_SystemFontMap, material, 0, params);
+    }
+    dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_RenderObjectIndex);
+    const FontGlyphVertex* vertices = (const FontGlyphVertex*)m_Context->m_TextContext.m_ClientBuffer.Begin();
+    ASSERT_NE(0.0f, vertices[0].m_Effect[2]);
+    ASSERT_NE(vertices[0].m_Effect[2], vertices[6].m_Effect[2]);
+    ASSERT_NEAR(0.0f, vertices[0].m_Effect[3], 0.00001f);
+    ASSERT_NEAR(0.25f, vertices[6].m_Effect[3], 0.00001f);
+    ASSERT_EQ(FontGetEffectTexture(m_SystemFontMap->m_EffectCache), m_Context->m_TextContext.m_RenderObjects[0].m_Textures[1]);
+    dmRender::ClearRenderObjects(m_Context);
+
+    dmRender::HMaterial      fallback_material = dmRender::NewMaterial(m_Context, program);
+    dmRender::DrawTextParams params;
+    params.m_TextLayout = layouts[0];
+    params.m_FaceColor = Vector4(1.0f);
+    params.m_WorldTransform = Matrix4::identity();
+    dmRender::RenderListBegin(m_Context);
+    dmRender::DrawText(m_Context, m_SystemFontMap, fallback_material, 0, params);
+    dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_RenderObjectIndex);
+    const dmRender::RenderObject& render_object = m_Context->m_TextContext.m_RenderObjects[0];
+    ASSERT_EQ(m_SystemFontMap->m_Texture, render_object.m_Textures[0]);
+    for (uint32_t i = 1; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+    {
+        ASSERT_EQ((dmGraphics::HTexture)0, render_object.m_Textures[i]);
+    }
+    dmRender::ClearRenderObjects(m_Context);
+    TextLayoutRelease(layouts[0]);
+    TextLayoutRelease(layouts[1]);
+    dmRender::DeleteMaterial(m_Context, fallback_material);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
 TEST_F(dmRenderTest, FontVertexDeclaration)
 {
     ASSERT_NE((dmGraphics::HVertexDeclaration)0, m_Context->m_TextContext.m_VertexDecl);
     ASSERT_EQ(sizeof(FontGlyphVertex), dmGraphics::GetVertexDeclarationStride(m_Context->m_TextContext.m_VertexDecl));
 
     dmGraphics::VertexDeclaration* declaration = (dmGraphics::VertexDeclaration*)m_Context->m_TextContext.m_VertexDecl;
-    ASSERT_EQ(7u, declaration->m_StreamCount);
+    ASSERT_EQ(8u, declaration->m_StreamCount);
     ASSERT_EQ(2u, declaration->m_Streams[1].m_Size);
     ASSERT_EQ(dmGraphics::TYPE_UNSIGNED_SHORT, declaration->m_Streams[1].m_Type);
     ASSERT_TRUE(declaration->m_Streams[1].m_Normalize);
@@ -3429,6 +3542,9 @@ TEST_F(dmRenderTest, FontVertexDeclaration)
     ASSERT_EQ(offsetof(FontGlyphVertex, m_ShadowColor), declaration->m_Streams[4].m_Offset);
     ASSERT_EQ(offsetof(FontGlyphVertex, m_SdfParams), declaration->m_Streams[5].m_Offset);
     ASSERT_EQ(offsetof(FontGlyphVertex, m_LayerMasks), declaration->m_Streams[6].m_Offset);
+    ASSERT_EQ(offsetof(FontGlyphVertex, m_Effect), declaration->m_Streams[7].m_Offset);
+    ASSERT_EQ(4u, declaration->m_Streams[7].m_Size);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT, declaration->m_Streams[7].m_Type);
 }
 
 // TEST_F(dmRenderTest, GetTextMetricsMeasureTrailingSpace)
