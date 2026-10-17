@@ -12,18 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <float.h>
-#include <stdio.h>
-#include <assert.h>
-
 #include <dlib/hash.h>
-#include <dlib/log.h>
-#include <dlib/math.h>
+#include <dmsdk/gamesys/script.h>
 #include <script/script.h>
 
 #include "gamesys.h"
-#include <gamesys/gamesys_ddf.h>
-#include "../gamesys_private.h"
+#include "../components/comp_sprite.h"
 
 #include "script_sprite.h"
 
@@ -39,6 +33,9 @@ namespace dmGameSystem
     /*# Sprite API documentation
      *
      * Functions, messages and properties used to manipulate sprite components.
+     *
+     * Sprite functions apply changes immediately. Components in other loaded
+     * collections can be addressed using their full URLs.
      *
      * @document
      * @name Sprite
@@ -259,6 +256,49 @@ namespace dmGameSystem
     * ```
     */
 
+    static SpriteComponent* GetSpriteComponentFromLua(lua_State* L, dmMessage::URL* sender)
+    {
+        dmGameObject::HInstance instance = dmScript::CheckGOInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+        dmGameObject::HRegister regist = dmGameObject::GetRegister(collection);
+
+        dmMessage::URL receiver;
+        dmScript::ResolveURL(L, 1, &receiver, sender);
+        if (receiver.m_Socket != dmGameObject::GetMessageSocket(collection))
+        {
+            collection = dmGameObject::GetCollectionByHash(regist, dmMessage::GetSocketNameHash(receiver.m_Socket));
+            if (!collection)
+            {
+                luaL_error(L, "The collection could not be found for socket '%s'", dmHashReverseSafe64(dmMessage::GetSocketNameHash(receiver.m_Socket)));
+                return 0;
+            }
+        }
+
+        instance = dmGameObject::GetInstanceFromIdentifier(collection, receiver.m_Path);
+        if (!instance)
+        {
+            luaL_error(L, "Instance '%s' not found", dmHashReverseSafe64(receiver.m_Path));
+            return 0;
+        }
+
+        dmGameObject::HComponent component;
+        uint32_t component_type;
+        if (dmGameObject::GetComponent(instance, receiver.m_Fragment, &component_type, &component, 0) != dmGameObject::RESULT_OK)
+        {
+            char buffer[128];
+            luaL_error(L, "The component could not be found: '%s'", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));
+            return 0;
+        }
+
+        dmGameObject::ComponentType* type = dmGameObject::GetComponentType(regist, component_type);
+        if (type->m_NameHash != dmHashString64("spritec"))
+        {
+            luaL_error(L, "Component expected to be of type 'spritec' but was '%s'", type->m_Name);
+            return 0;
+        }
+        return (SpriteComponent*)component;
+    }
+
     /*# set horizontal flipping on a sprite's animations
      * Sets horizontal flipping of the provided sprite's animations.
      * The sprite is identified by its URL.
@@ -282,19 +322,9 @@ namespace dmGameSystem
      */
     int SpriteComp_SetHFlip(lua_State* L)
     {
-        int top = lua_gettop(L);
-
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
-        dmGameSystemDDF::SetFlipHorizontal msg;
-        msg.m_Flip = (uint32_t)lua_toboolean(L, 2);
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        DM_LUA_STACK_CHECK(L, 0);
+        SpriteComponent* component = GetSpriteComponentFromLua(L, 0);
+        CompSpriteSetHFlip(component, lua_toboolean(L, 2) != 0);
         return 0;
     }
 
@@ -321,19 +351,9 @@ namespace dmGameSystem
      */
     int SpriteComp_SetVFlip(lua_State* L)
     {
-        int top = lua_gettop(L);
-
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
-        dmGameSystemDDF::SetFlipVertical msg;
-        msg.m_Flip = (uint32_t)lua_toboolean(L, 2);
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        DM_LUA_STACK_CHECK(L, 0);
+        SpriteComponent* component = GetSpriteComponentFromLua(L, 0);
+        CompSpriteSetVFlip(component, lua_toboolean(L, 2) != 0);
         return 0;
     }
 
@@ -361,41 +381,20 @@ namespace dmGameSystem
      */
     int SpriteComp_ResetConstant(lua_State* L)
     {
-        int top = lua_gettop(L);
-
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
+        DM_LUA_STACK_CHECK(L, 0);
+        SpriteComponent* component = GetSpriteComponentFromLua(L, 0);
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
-
-        dmGameSystemDDF::ResetConstant msg;
-        msg.m_NameHash = name_hash;
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::ResetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        CompSpriteResetConstant(component, name_hash);
         return 0;
     }
 
     // Docs intentionally left out until we decide to go public with this function
     int SpriteComp_SetScale(lua_State* L)
     {
-        int top = lua_gettop(L);
-
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
+        DM_LUA_STACK_CHECK(L, 0);
+        SpriteComponent* component = GetSpriteComponentFromLua(L, 0);
         dmVMath::Vector3* scale = dmScript::CheckVector3(L, 2);
-
-        dmGameSystemDDF::SetScale msg;
-        msg.m_Scale = *scale;
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetScale::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        CompSpriteSetScale(component, *scale);
         return 0;
     }
 
@@ -454,12 +453,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
 
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
         dmhash_t id_hash = dmScript::CheckHashOrString(L, 2);
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         lua_Number offset = 0.0, playback_rate = 1.0;
 
@@ -479,6 +473,8 @@ namespace dmGameSystem
             lua_pop(L, 1);
         }
 
+        dmMessage::URL sender;
+        SpriteComponent* component = GetSpriteComponentFromLua(L, &sender);
         int functionref = 0;
         if (top > 2)
         {
@@ -489,14 +485,10 @@ namespace dmGameSystem
                 functionref = dmScript::RefInInstance(L) - LUA_NOREF;
             }
         }
-
-
-        dmGameSystemDDF::PlayAnimation msg;
-        msg.m_Id = id_hash;
-        msg.m_Offset = offset;
-        msg.m_PlaybackRate = playback_rate;
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        if (!CompSpritePlayAnimation(component, id_hash, offset, playback_rate, sender, functionref) && functionref)
+        {
+            dmScript::UnrefInInstance(L, functionref + LUA_NOREF);
+        }
         return 0;
     }
 

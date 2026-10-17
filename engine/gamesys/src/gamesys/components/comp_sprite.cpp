@@ -2020,19 +2020,11 @@ namespace dmGameSystem
                     return;
                 }
 
-                // Should this check be handled by the comp_script.cpp?
-                dmGameObject::HInstance listener_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), component->m_Listener.m_Path);
-                if (!listener_instance)
-                {
-                    dmLogError("Could not send animation_done to instance: %s:%s#%s", dmHashReverseSafe64(component->m_Listener.m_Socket), dmHashReverseSafe64(component->m_Listener.m_Path), dmHashReverseSafe64(component->m_Listener.m_Fragment));
-                    return;
-                }
-
                 dmGameSystemDDF::AnimationDone message;
                 message.m_CurrentTile = component->m_CurrentAnimationFrame + 1; // Engine has 0-based indices, scripts use 1-based
                 message.m_Id = component->m_CurrentAnimation;
 
-                // This is a 'done' callback, so we should tell the message system to remove the callback once it's been consumed
+                // Dispatch resolves the listener in its own collection and removes the callback once consumed.
                 dmGameObject::Result go_result = dmGameObject::PostDDF(&message, &sender, &component->m_Listener, component->m_FunctionRef, true);
                 component->m_FunctionRef = 0;
 
@@ -2439,6 +2431,46 @@ namespace dmGameSystem
         return component->m_AnimationFrameCount;
     }
 
+    void CompSpriteSetHFlip(SpriteComponent* component, bool flip)
+    {
+        component->m_FlipHorizontal = flip;
+    }
+
+    void CompSpriteSetVFlip(SpriteComponent* component, bool flip)
+    {
+        component->m_FlipVertical = flip;
+    }
+
+    void CompSpriteResetConstant(SpriteComponent* component, dmhash_t name_hash)
+    {
+        if (component->m_RenderConstants && ClearRenderConstant(component->m_RenderConstants, name_hash))
+        {
+            component->m_ReHash = 1;
+        }
+    }
+
+    void CompSpriteSetScale(SpriteComponent* component, const Vector3& scale)
+    {
+        component->m_Scale = scale;
+    }
+
+    bool CompSpritePlayAnimation(SpriteComponent* component, dmhash_t animation, float offset, float playback_rate, const dmMessage::URL& listener, int function_ref)
+    {
+        if (!PlayAnimation(component, animation, offset, playback_rate))
+            return false;
+
+        // Release the previous callback in the script instance that owns it.
+        if (component->m_FunctionRef)
+        {
+            dmMessage::URL sender = {};
+            GetSender(component, &sender);
+            dmGameObject::PostScriptUnrefMessage(&sender, &component->m_Listener, component->m_FunctionRef);
+        }
+        component->m_Listener = listener;
+        component->m_FunctionRef = function_ref;
+        return true;
+    }
+
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
@@ -2457,41 +2489,31 @@ namespace dmGameSystem
             if (message_id == dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)params.m_Message->m_Data;
-                if (PlayAnimation(component, ddf->m_Id, ddf->m_Offset, ddf->m_PlaybackRate))
+                int function_ref = params.m_Message->m_UserData2;
+                if (!CompSpritePlayAnimation(component, ddf->m_Id, ddf->m_Offset, ddf->m_PlaybackRate, params.m_Message->m_Sender, function_ref) && function_ref)
                 {
-                    // Remove the currently assigned callback by sending an unref message
-                    if (component->m_FunctionRef)
-                    {
-                        dmMessage::URL sender = {};
-                        GetSender(component, &sender);
-                        dmGameObject::PostScriptUnrefMessage(&sender, &component->m_Listener, component->m_FunctionRef);
-                    }
-                    component->m_Listener = params.m_Message->m_Sender;
-                    component->m_FunctionRef = params.m_Message->m_UserData2;
+                    dmGameObject::PostScriptUnrefMessage(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, function_ref);
                 }
             }
             else if (message_id == dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SetFlipHorizontal* ddf = (dmGameSystemDDF::SetFlipHorizontal*)params.m_Message->m_Data;
-                component->m_FlipHorizontal = ddf->m_Flip != 0 ? 1 : 0;
+                CompSpriteSetHFlip(component, ddf->m_Flip != 0);
             }
             else if (message_id == dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SetFlipVertical* ddf = (dmGameSystemDDF::SetFlipVertical*)params.m_Message->m_Data;
-                component->m_FlipVertical = ddf->m_Flip != 0 ? 1 : 0;
+                CompSpriteSetVFlip(component, ddf->m_Flip != 0);
             }
             else if (message_id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                if (component->m_RenderConstants && dmGameSystem::ClearRenderConstant(component->m_RenderConstants, ddf->m_NameHash))
-                {
-                    component->m_ReHash = 1;
-                }
+                CompSpriteResetConstant(component, ddf->m_NameHash);
             }
             else if (message_id == dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SetScale* ddf = (dmGameSystemDDF::SetScale*)params.m_Message->m_Data;
-                component->m_Scale = ddf->m_Scale;
+                CompSpriteSetScale(component, ddf->m_Scale);
             }
         }
 
