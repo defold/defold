@@ -52,6 +52,7 @@ endfunction()
 
 foreach(_render_test IN ITEMS
   test_render
+  test_render_execution
   test_display_profiles
   test_render_programs
   test_render_script

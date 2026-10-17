@@ -447,8 +447,10 @@ namespace dmEngine
     , m_MainCollectionResource(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
+    , m_JobThreadContext(0)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
+    , m_RenderExecution(0)
     , m_ScriptContext(0x0)
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
@@ -516,6 +518,11 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
+        if (engine->m_RenderExecution)
+        {
+            dmRender::AssertRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME);
+            dmRender::AssertRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GRAPHICS);
+        }
         {
             ScopedExtensionParams params(engine);
 
@@ -641,6 +648,9 @@ namespace dmEngine
         free(engine->m_DependenciesJsonResource);
         engine->m_DependenciesJsonResource = 0;
         engine->m_DependenciesJsonSize = 0;
+
+        if (engine->m_RenderExecution)
+            dmRender::DeleteRenderExecution(engine->m_RenderExecution);
 
         delete engine;
     }
@@ -1146,6 +1156,23 @@ namespace dmEngine
             }
         }
 
+        // Resolve before extensions, graphics ownership and bootstrap resources exist.
+        // The build capability alone cannot activate the unmigrated engine: executor
+        // infrastructure and component/resource ownership must be ready first.
+        // No public project setting is finalized here.
+        dmRender::ExecutionRequest execution_request = dmRender::ParseExecutionRequest(
+            dmConfigFile::GetString(engine->m_Config, "render.internal_threaded", 0));
+        dmRender::ExecutionSelection execution_selection;
+        engine->m_RenderExecution = dmRender::NewRenderExecution(execution_request, false, &execution_selection);
+        if (!engine->m_RenderExecution)
+        {
+            dmLogError("Render execution: %s (%s)", dmRender::GetExecutionPolicyName(execution_selection.m_Policy),
+                dmRender::GetExecutionReasonString(execution_selection.m_Reason));
+            return false;
+        }
+        dmLogInfo("Render execution: %s (%s)", dmRender::GetExecutionPolicyName(execution_selection.m_Policy),
+            dmRender::GetExecutionReasonString(execution_selection.m_Reason));
+
         dmBuffer::NewContext();
 
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
@@ -1359,6 +1386,7 @@ namespace dmEngine
             graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 0);
         }
 
+        dmRender::AssertRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GRAPHICS);
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
         {
@@ -1976,6 +2004,7 @@ bail:
 
     static void StepFrame(HEngine engine, float dt)
     {
+        dmRender::AssertRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME);
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
         if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED)
@@ -2122,6 +2151,8 @@ bail:
                 {
                     // Begin the renderer frame with current time since engine start and frame delta-time.
                     // Use the same dt that is passed into script updates and the accumulated engine time.
+                    dmRender::AssertRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER);
+                    dmRender::AssertRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GRAPHICS);
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
 
                     // Call pre render functions for extensions, if available.
