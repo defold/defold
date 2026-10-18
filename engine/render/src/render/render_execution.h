@@ -15,6 +15,8 @@
 #ifndef DM_RENDER_EXECUTION_H
 #define DM_RENDER_EXECUTION_H
 
+#include <stdint.h>
+
 namespace dmRender
 {
     struct RenderExecutionContext;
@@ -52,9 +54,9 @@ namespace dmRender
     // These capabilities describe engine support, not project configuration.
     struct ExecutionCapabilities
     {
-        bool m_BuildEnabled;
-        bool m_ThreadsSupported;
-        bool m_ExecutorAvailable;
+        uint8_t m_BuildEnabled : 1;
+        uint8_t m_ThreadsSupported : 1;
+        uint8_t m_ExecutorAvailable : 1;
     };
 
     // Resolved execution mode and its diagnostic reason, returned on success or failure.

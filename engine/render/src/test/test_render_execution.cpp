@@ -26,26 +26,28 @@
 
 using namespace dmRender;
 
+struct RenderExecution
+{
+    ExecutionReason       m_InlineReason;
+    ExecutionMode         m_ThreadedMode;
+    ExecutionReason       m_ThreadedReason;
+    ExecutionCapabilities m_Capabilities;
+};
+
 // Verify every capability combination resolves explicit modes and rejects unavailable threading.
 TEST(RenderExecution, ModeMatrix)
 {
-    struct ModeCase
-    {
-        ExecutionCapabilities m_Capabilities;
-        ExecutionReason m_InlineReason;
-        ExecutionMode m_ThreadedMode;
-        ExecutionReason m_ThreadedReason;
+    const RenderExecution cases[] = {
+        { EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED, { false, false, false } },
+        { EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED, { false, false, true  } },
+        { EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED, { false, true,  false } },
+        { EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED, { false, true,  true  } },
+        { EXECUTION_REASON_INLINE, EXECUTION_MODE_INVALID, EXECUTION_REASON_THREADS_UNSUPPORTED, { true,  false, false } },
+        { EXECUTION_REASON_INLINE, EXECUTION_MODE_INVALID, EXECUTION_REASON_THREADS_UNSUPPORTED, { true,  false, true  } },
+        { EXECUTION_REASON_INLINE, EXECUTION_MODE_INVALID, EXECUTION_REASON_EXECUTOR_UNAVAILABLE, { true,  true,  false } },
+        { EXECUTION_REASON_INLINE, EXECUTION_MODE_THREADED, EXECUTION_REASON_THREADED, { true,  true,  true  } },
     };
-    const ModeCase cases[] = {
-        { { false, false, false }, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED },
-        { { false, false, true  }, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED },
-        { { false, true,  false }, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED },
-        { { false, true,  true  }, EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED },
-        { { true,  false, false }, EXECUTION_REASON_INLINE, EXECUTION_MODE_INVALID, EXECUTION_REASON_THREADS_UNSUPPORTED },
-        { { true,  false, true  }, EXECUTION_REASON_INLINE, EXECUTION_MODE_INVALID, EXECUTION_REASON_THREADS_UNSUPPORTED },
-        { { true,  true,  false }, EXECUTION_REASON_INLINE, EXECUTION_MODE_INVALID, EXECUTION_REASON_EXECUTOR_UNAVAILABLE },
-        { { true,  true,  true  }, EXECUTION_REASON_INLINE, EXECUTION_MODE_THREADED, EXECUTION_REASON_THREADED },
-    };
+
     for (unsigned int i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
     {
         ExecutionSelection selection = ResolveExecutionMode(EXECUTION_MODE_INLINE, cases[i].m_Capabilities);
@@ -176,7 +178,7 @@ struct InlineProbe
 {
     HRenderExecution m_Execution;
     unsigned int m_Owners;
-    bool m_Bound;
+    uint8_t m_Bound : 1;
 };
 
 static void ProbeInlineWorker(void* context)
@@ -190,7 +192,10 @@ static void ProbeInlineWorker(void* context)
 TEST(RenderExecution, InlineRejectsOtherThread)
 {
     if (!GetExecutionCapabilities(false).m_ThreadsSupported)
+    {
         return;
+    }
+
     ExecutionSelection selection;
     HRenderExecution execution = NewRenderExecution(EXECUTION_MODE_INLINE, false, &selection);
     ASSERT_NE((HRenderExecution)0, execution);
@@ -206,12 +211,12 @@ TEST(RenderExecution, InlineRejectsOtherThread)
 struct ThreadedProbe
 {
     HRenderExecution m_Execution;
-    unsigned int m_BeforeOwners;
-    unsigned int m_BoundOwners;
-    unsigned int m_ReleasedOwners;
-    bool m_FirstBind;
-    bool m_SecondBind;
-    bool m_BindAfterRelease;
+    unsigned int     m_BeforeOwners;
+    unsigned int     m_BoundOwners;
+    unsigned int     m_ReleasedOwners;
+    uint8_t          m_FirstBind : 1;
+    uint8_t          m_SecondBind : 1;
+    uint8_t          m_BindAfterRelease : 1;
 };
 
 static void ProbeThreadedWorker(void* context)
@@ -282,10 +287,10 @@ struct IndependentProbe
 {
     HRenderExecution m_First;
     HRenderExecution m_Second;
-    bool m_FirstBound;
-    bool m_SecondBound;
     unsigned int m_FirstAfterSecondBind;
     unsigned int m_SecondAfterFirstRelease;
+    uint8_t m_FirstBound : 1;
+    uint8_t m_SecondBound : 1;
 };
 
 static void ProbeIndependentWorker(void* context)
@@ -335,17 +340,17 @@ struct BindRace
     dmConditionVariable::HConditionVariable m_Changed;
     unsigned int m_ReadyCount;
     unsigned int m_AttemptCount;
-    bool m_Start;
-    bool m_Release;
+    uint8_t m_Start : 1;
+    uint8_t m_Release : 1;
 };
 
 struct BindContender
 {
     BindRace* m_Race;
-    bool m_Bound;
-    bool m_BindAfterRelease;
     unsigned int m_BoundOwners;
     unsigned int m_ReleasedOwners;
+    uint8_t m_Bound : 1;
+    uint8_t m_BindAfterRelease : 1;
 };
 
 static void CompeteForRenderOwner(void* context)
@@ -427,14 +432,14 @@ TEST(RenderExecution, CompetingRenderOwnerBindings)
 
 struct WorkerGameOwner
 {
-    HRenderExecution m_Execution;
     ExecutionSelection m_Selection;
+    HRenderExecution m_Execution;
     dmMutex::HMutex m_Mutex;
     dmConditionVariable::HConditionVariable m_Changed;
     unsigned int m_InitialOwners;
     unsigned int m_FinalOwners;
-    bool m_Created;
-    bool m_RenderFinished;
+    uint8_t m_Created : 1;
+    uint8_t m_RenderFinished : 1;
 };
 
 static void CreateOnGameWorker(void* context)

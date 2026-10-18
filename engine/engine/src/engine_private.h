@@ -38,6 +38,7 @@
 #include <gui/gui.h>
 
 #include <gamesys/gamesys.h>
+#include <gamesys/component_render.h>
 
 #include <record/record.h>
 
@@ -132,6 +133,7 @@ namespace dmEngine
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
         dmRender::HRenderExecution                  m_RenderExecution;
+        dmGameSystem::HComponentRenderContext       m_ComponentRenderContext;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
         dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
         dmScript::HContext                          m_ScriptContext;

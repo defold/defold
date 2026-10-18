@@ -40,13 +40,13 @@ namespace
 
     struct BenchmarkResult
     {
+        BenchmarkConsumer m_Consumer;
         uint64_t m_Capture;
         uint64_t m_Copy;
         uint64_t m_Consume;
         uint64_t m_Retire;
         uint64_t m_CopiedBytes;
         uint64_t m_Reservations;
-        BenchmarkConsumer m_Consumer;
     };
 
     static void FillItems(BenchmarkItem* items, uint32_t iteration)

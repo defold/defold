@@ -220,8 +220,8 @@ TEST(RenderFrame, InvalidTableArguments)
         uint32_t m_Count;
         uint32_t m_Stride;
         uint32_t m_Alignment;
-        bool m_NullIndex;
-        bool m_NullData;
+        uint8_t m_NullIndex : 1;
+        uint8_t m_NullData : 1;
     };
     const InvalidArguments invalid[] = {
         { 0, 1, 1, false, false },

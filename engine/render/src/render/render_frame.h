@@ -69,10 +69,10 @@ namespace dmRender
     // Uploads outliving consumption must copy/transfer into independently owned storage.
     struct RenderFrameView
     {
+        RenderFrameStatistics   m_Statistics;
         RenderFrameId           m_FrameId;
         const uint8_t*          m_Payload;
         const RenderFrameTable* m_Tables;
-        RenderFrameStatistics   m_Statistics;
     };
 
     // Releases one already-retained dependency on the game owner, in reverse insertion order.
@@ -84,6 +84,9 @@ namespace dmRender
     void              BeginRenderFrame(HRenderFrame frame, RenderFrameId frame_id);
     RenderFrameResult SealRenderFrame(HRenderFrame frame);
     void              ResetRenderFrame(HRenderFrame frame);
+    // Propagate a higher-level extraction failure into the same sticky capture error.
+    // The first non-OK error wins, so no caller can publish a partially extracted frame.
+    RenderFrameResult FailRenderFrame(HRenderFrame frame, RenderFrameResult error);
 
     // Building-only capture. Every error is sticky until Reset; output is assigned only on
     // success. Direct allocation avoids a copy; callers initialize every declared element.

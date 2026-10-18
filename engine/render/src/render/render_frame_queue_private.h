@@ -25,8 +25,8 @@ namespace dmRender
     // Fixed slot metadata protected by the queue mutex in threaded mode.
     struct RenderFrameSlot
     {
-        HRenderFrame     m_Frame;
         RenderFrameId    m_FrameId;
+        HRenderFrame     m_Frame;
         RenderFrameState m_State;
     };
 
@@ -36,24 +36,28 @@ namespace dmRender
     {
         RenderFrameQueueParams                  m_Params;
         RenderFrameSlot                         m_Slots[2];
-        dmMutex::HMutex                         m_Mutex;
-        dmConditionVariable::HConditionVariable m_Changed;
         RenderFrameId                           m_NextFrameId;
         uint64_t                                m_Revision;
         uint64_t                                m_Published;
         uint64_t                                m_Consumed;
         uint64_t                                m_Cancelled;
         uint64_t                                m_Retired;
+        dmMutex::HMutex                         m_Mutex;
+        dmConditionVariable::HConditionVariable m_Changed;
         int32_t                                 m_Building;
         int32_t                                 m_Active;
         // Render-owner-only acknowledgement, kept until TryLock succeeds on a later pump.
         int32_t                                 m_Completed;
+        // Use full bytes, not bitfields: the shared flags and owner-local guards have
+        // different synchronization and must not read/modify/write the same byte.
+        // Shared flags are protected by the handoff mutex in threaded mode.
         // Cancellation does not restore an update credit while the previous reader is active.
-        bool                                    m_LeadReserved;
-        bool                                    m_Stopping;
-        bool                                    m_ServicePending;
-        bool                                    m_InPump;
-        bool                                    m_InRetire;
+        uint8_t                                 m_LeadReserved;
+        uint8_t                                 m_Stopping;
+        uint8_t                                 m_ServicePending;
+        // These guards are updated by their respective owners outside the handoff lock.
+        uint8_t                                 m_InPump; // Render owner only.
+        uint8_t                                 m_InRetire; // Game owner only.
     };
 
 }

@@ -35,35 +35,36 @@ static const uint32_t SAMPLE_TABLE_TYPE = 17;
 
 struct SampleInput
 {
-    uint32_t m_Sequence;
     uint32_t m_Values[4];
+    uint32_t m_Sequence;
 };
 
 // Lives until the executor is joined and all frames are retired. Only the consumer
 // modifies observations, under this mutex; release callbacks run on the game owner.
 struct QueueProbe
 {
-    HRenderExecution m_Execution;
-    dmMutex::HMutex m_Mutex;
+    SampleInput                             m_Inputs[MAX_TEST_FRAMES];
+    RenderFrameId                           m_FrameIds[MAX_TEST_FRAMES];
+    uint32_t                                m_ReleaseOrder[MAX_TEST_FRAMES];
+    HRenderExecution                        m_Execution;
+    dmMutex::HMutex                         m_Mutex;
     dmConditionVariable::HConditionVariable m_Changed;
-    SampleInput m_Inputs[MAX_TEST_FRAMES];
-    RenderFrameId m_FrameIds[MAX_TEST_FRAMES];
-    uint32_t m_ReleaseOrder[MAX_TEST_FRAMES];
-    uint32_t m_Consumed;
-    uint32_t m_Released;
-    uint32_t m_ServiceCount;
-    bool m_WrongOwner;
-    bool m_InvalidInput;
-    bool m_HoldFirstReader;
-    bool m_FirstReaderEntered;
-    bool m_ReleaseFirstReader;
-    bool m_HoldFirstService;
-    bool m_FirstServiceEntered;
-    bool m_ReleaseFirstService;
-    bool m_CopyUpload;
-    SampleInput* m_Upload;
-    const uint8_t* m_FirstPayload;
-    bool m_ReusedPayload;
+    SampleInput*                            m_Upload;
+    const uint8_t*                          m_FirstPayload;
+    uint32_t                                m_Consumed;
+    uint32_t                                m_Released;
+    uint32_t                                m_ServiceCount;
+    // Configuration is set before starting the executor; later flag writes use m_Mutex.
+    uint8_t                                 m_WrongOwner : 1;
+    uint8_t                                 m_InvalidInput : 1;
+    uint8_t                                 m_HoldFirstReader : 1;
+    uint8_t                                 m_FirstReaderEntered : 1;
+    uint8_t                                 m_ReleaseFirstReader : 1;
+    uint8_t                                 m_HoldFirstService : 1;
+    uint8_t                                 m_FirstServiceEntered : 1;
+    uint8_t                                 m_ReleaseFirstService : 1;
+    uint8_t                                 m_CopyUpload : 1;
+    uint8_t                                 m_ReusedPayload : 1;
 };
 
 static void ConsumeFrame(void* context, const RenderFrameView& frame)
@@ -139,9 +140,9 @@ static void ReleaseReference(void* context, void* resource)
 
 struct QueueFixture
 {
+    QueueProbe m_Probe;
     HRenderExecution m_Execution;
     HRenderFrameQueue m_Queue;
-    QueueProbe m_Probe;
 };
 
 static bool HasThreadedExecution()
@@ -191,10 +192,15 @@ struct TestExecutor
     dmThread::Thread m_Thread;
     dmMutex::HMutex m_Mutex;
     dmConditionVariable::HConditionVariable m_Changed;
-    bool m_Started;
-    bool m_Bound;
-    bool m_Run;
-    bool m_Released;
+    // Use full bytes, not bitfields: these flags use different synchronization and
+    // must not race through a shared read/modify/write byte.
+    // The startup/run flags share m_Mutex; the observations below use distinct barriers.
+    uint8_t m_Started;
+    uint8_t m_Run;
+    // Published by the startup barrier, never modified afterwards.
+    uint8_t m_Bound;
+    // Worker-owned until Join; do not share storage with startup observations.
+    uint8_t m_Released;
 };
 
 static void RunExecutor(void* context)
@@ -693,8 +699,8 @@ struct MainRenderProbe
     dmMutex::HMutex m_Mutex;
     dmConditionVariable::HConditionVariable m_Changed;
     MainRenderPhase m_Phase;
-    bool m_GameOwner;
-    bool m_ReferenceReleased;
+    uint8_t m_GameOwner : 1;
+    uint8_t m_ReferenceReleased : 1;
 };
 
 static void SetMainRenderPhase(MainRenderProbe* probe, MainRenderPhase phase)
@@ -920,10 +926,10 @@ struct PumpStepExecutor
     dmConditionVariable::HConditionVariable m_Changed;
     uint32_t m_Requested;
     uint32_t m_Finished;
-    bool m_Started;
-    bool m_Consume;
-    bool m_Exit;
     RenderFramePumpResult m_Result;
+    uint8_t m_Started : 1;
+    uint8_t m_Consume : 1;
+    uint8_t m_Exit : 1;
 };
 
 static void RunPumpSteps(void* context)

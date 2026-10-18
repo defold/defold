@@ -35,13 +35,13 @@ namespace dmRender
     // signal completion and drain accepted work before shutdown.
     struct RenderExecutionContext
     {
-        ExecutionMode    m_Mode;
         dmThread::TlsKey m_OwnerKey;
         dmMutex::HMutex  m_BindMutex;
-        bool             m_RenderBound;
-        bool             m_RenderAttached;
+        ExecutionMode    m_Mode;
         char             m_GameToken;
         char             m_RenderToken;
+        uint8_t          m_RenderBound : 1;
+        uint8_t          m_RenderAttached : 1;
     };
 
     ExecutionCapabilities GetExecutionCapabilities(bool executor_available)

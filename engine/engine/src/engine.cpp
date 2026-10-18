@@ -435,6 +435,7 @@ namespace dmEngine
     , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_RenderExecution(0)
+    , m_ComponentRenderContext(0)
     , m_ScriptContext(0x0)
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
@@ -517,6 +518,14 @@ namespace dmEngine
         dmGameObject::PostUpdate(engine->m_Register);
 
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
+
+        // Game worlds can disappear before their renderer-owned state. Finish renderer
+        // cleanup while type contexts, the resource factory and graphics still exist.
+        if (engine->m_ComponentRenderContext)
+        {
+            dmGameSystem::DeleteComponentRenderContext(engine->m_ComponentRenderContext);
+            engine->m_ComponentRenderContext = 0;
+        }
 
         dmHttpClient::ShutdownConnectionPool();
 
@@ -1641,6 +1650,16 @@ namespace dmEngine
         // Variables need to be declared up here due to the goto's
         bool has_host_mount = dmSys::GetEnv("DM_HOSTFS") != 0;
 
+        {
+            // Internal foundation budget; no buffers are allocated until a component opts
+            // in. Component migration will size these limits for real captured workloads.
+            dmRender::RenderFrameLimits limits = { 256 * 1024, 1024, 1024 };
+            engine->m_ComponentRenderContext = dmGameSystem::NewComponentRenderContext(
+                engine->m_Register, engine->m_RenderExecution, limits);
+            if (!engine->m_ComponentRenderContext)
+                goto bail;
+        }
+
         engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("luac"), &engine->m_ModuleContext);
@@ -2144,7 +2163,10 @@ bail:
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmGameObject::Render(GetMainCollection(engine));
+                    // Extract opted-in component inputs after final transforms/PreRender,
+                    // before destructive PostUpdate. Legacy types retain their render path.
+                    if (!dmGameSystem::RenderComponentsInline(engine->m_ComponentRenderContext, GetMainCollection(engine)))
+                        dmLogError("Component rendering or extraction failed.");
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -2174,8 +2196,20 @@ bail:
                     }
                 }
 
+                // Keep captured dependencies through render-script/list dispatch, even
+                // while this foundation's component consumer is still invoked inline.
+                dmGameSystem::RetireComponentRenderFrames(engine->m_ComponentRenderContext);
                 dmGameObject::PostUpdate(GetMainCollection(engine));
                 dmGameObject::PostUpdate(engine->m_Register);
+                // World deletion may enqueue renderer cleanup even on a non-drawing frame.
+                dmGameSystem::ServiceComponentRenderContext(engine->m_ComponentRenderContext);
+                dmRender::RenderFrameResult component_render_result = dmRender::GetRenderComponentResult(
+                    dmGameSystem::GetComponentRenderManager(engine->m_ComponentRenderContext));
+                if (component_render_result != dmRender::RENDER_FRAME_OK)
+                {
+                    dmLogError("Component renderer failed (%d); stopping the engine.", component_render_result);
+                    Exit(engine, 1);
+                }
 
                 if (do_render)
                 {

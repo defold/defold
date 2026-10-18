@@ -57,29 +57,35 @@ namespace dmRender
         RenderFrameQueueContext* queue = (RenderFrameQueueContext*)calloc(1, sizeof(RenderFrameQueueContext));
         if (!queue)
             return 0;
+
         queue->m_Params = params;
         queue->m_NextFrameId = 1;
         queue->m_Revision = 1;
         queue->m_Building = -1;
         queue->m_Active = -1;
         queue->m_Completed = -1;
+
         for (uint32_t i = 0; i < 2; ++i)
         {
             queue->m_Slots[i].m_Frame = NewRenderFrame(params.m_Limits);
             if (!queue->m_Slots[i].m_Frame)
             {
                 for (uint32_t j = 0; j < i; ++j)
+                {
                     DeleteRenderFrame(queue->m_Slots[j].m_Frame);
+                }
                 free(queue);
                 return 0;
             }
             queue->m_Slots[i].m_State = RENDER_FRAME_FREE;
         }
+
         if (GetRenderExecutionMode(params.m_Execution) == EXECUTION_MODE_THREADED)
         {
             queue->m_Mutex = dmMutex::New();
             queue->m_Changed = dmConditionVariable::New();
         }
+
         return queue;
     }
 

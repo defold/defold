@@ -44,8 +44,8 @@ namespace dmRender
     // until the queue returns retirement to that producer.
     struct RenderFrameStorage
     {
-        RenderFrameLimits       m_Limits;
         RenderFrameView         m_View;
+        RenderFrameLimits       m_Limits;
         uint8_t*                m_Payload;
         RenderFrameTable*       m_Tables;
         RenderFrameReference*   m_References;
@@ -72,14 +72,17 @@ namespace dmRender
         RenderFrameStorage* frame = (RenderFrameStorage*)calloc(1, sizeof(RenderFrameStorage));
         if (!frame)
             return 0;
+
         frame->m_Limits = limits;
         frame->m_State = RENDER_FRAME_STORAGE_FREE;
         frame->m_Error = RENDER_FRAME_OK;
+
         if (limits.m_PayloadBytes && dmMemory::RESULT_OK != dmMemory::AlignedMalloc((void**)&frame->m_Payload, 16, limits.m_PayloadBytes))
         {
             DeleteRenderFrame(frame);
             return 0;
         }
+
         if (table_bytes)
         {
             frame->m_Tables = (RenderFrameTable*)malloc((size_t)table_bytes);
@@ -89,6 +92,7 @@ namespace dmRender
                 return 0;
             }
         }
+
         if (reference_bytes)
         {
             frame->m_References = (RenderFrameReference*)malloc((size_t)reference_bytes);
@@ -127,6 +131,13 @@ namespace dmRender
         return RENDER_FRAME_OK;
     }
 
+    RenderFrameResult FailRenderFrame(HRenderFrame frame, RenderFrameResult error)
+    {
+        assert(error != RENDER_FRAME_OK);
+        RenderFrameResult result = CheckCapture(frame);
+        return result != RENDER_FRAME_OK ? result : FailCapture(frame, error);
+    }
+
     RenderFrameResult AllocateRenderFrameTable(HRenderFrame frame, uint32_t type, uint32_t count,
         uint32_t stride, uint32_t alignment, uint32_t* table_index, void** data)
     {
@@ -139,6 +150,7 @@ namespace dmRender
         RenderFrameStatistics& statistics = frame->m_View.m_Statistics;
         const uint64_t bytes = (uint64_t)count * stride;
         const uint64_t offset = ((uint64_t)statistics.m_PayloadBytes + alignment - 1) & ~((uint64_t)alignment - 1);
+
         if (statistics.m_TableCount == frame->m_Limits.m_MaxTables || offset + bytes > frame->m_Limits.m_PayloadBytes)
             return FailCapture(frame, RENDER_FRAME_CAPACITY_EXCEEDED);
 
@@ -151,6 +163,7 @@ namespace dmRender
         *data = frame->m_Payload + offset;
         statistics.m_PayloadBytes = (uint32_t)(offset + bytes);
         ++statistics.m_AllocationCount;
+
         return RENDER_FRAME_OK;
     }
 
@@ -167,6 +180,7 @@ namespace dmRender
         result = AllocateRenderFrameTable(frame, type, count, stride, alignment, table_index, &destination);
         if (result != RENDER_FRAME_OK)
             return result;
+
         // Allocation validated the product against the uint32_t payload capacity.
         const uint32_t bytes = count * stride;
         memcpy(destination, data, bytes);
@@ -185,7 +199,10 @@ namespace dmRender
 
         RenderFrameStatistics& statistics = frame->m_View.m_Statistics;
         if (statistics.m_ReferenceCount == frame->m_Limits.m_MaxReferences)
+        {
             return FailCapture(frame, RENDER_FRAME_CAPACITY_EXCEEDED);
+        }
+
         RenderFrameReference& reference = frame->m_References[statistics.m_ReferenceCount++];
         reference.m_Resource = resource;
         reference.m_Release = release;

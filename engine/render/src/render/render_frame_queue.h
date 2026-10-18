@@ -37,8 +37,8 @@ namespace dmRender
     // stale tickets when the same storage is reused. Never retain a mutable data pointer.
     struct RenderFrameTicket
     {
-        HRenderFrame  m_Frame;
         RenderFrameId m_FrameId;
+        HRenderFrame  m_Frame;
     };
 
     // Consumer must finish every CPU reader before returning. No mutable game/Lua pointers
@@ -52,8 +52,8 @@ namespace dmRender
     // Stable until deletion; execution outlives queue, callback contexts outlive all pumps.
     struct RenderFrameQueueParams
     {
-        HRenderExecution   m_Execution;
         RenderFrameLimits  m_Limits;
+        HRenderExecution   m_Execution;
         RenderFrameConsume m_Consume;
         void*              m_ConsumeContext;
         RenderFrameService m_Service;
@@ -63,14 +63,14 @@ namespace dmRender
     // Game-owner diagnostic snapshot; revision supports event-driven waits without lost wakes.
     struct RenderFrameQueueStatus
     {
-        RenderFrameState m_States[2];
         RenderFrameId    m_FrameIds[2];
         uint64_t         m_Revision;
         uint64_t         m_Published;
         uint64_t         m_Consumed;
         uint64_t         m_Cancelled;
         uint64_t         m_Retired;
-        bool             m_Stopping;
+        RenderFrameState m_States[2];
+        uint8_t          m_Stopping : 1;
     };
 
     // A bounded pump consumes at most one accepted frame; BUSY never waits for a producer
