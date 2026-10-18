@@ -113,7 +113,7 @@ namespace dmRecord
     static void CopyText(char* output, size_t output_size, NSString* value)
     {
         const char* text = value ? [value UTF8String] : "";
-        snprintf(output, output_size, "%s", text ? text : "");
+        CopyTextUtf8(output, output_size, text);
     }
 
     static void SetFailure(Status* status, NSString* failure)

@@ -12,10 +12,28 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "record.h"
+#include "record_private.h"
+
+#include <string.h>
 
 namespace dmRecord
 {
+    void CopyTextUtf8(char* output, size_t output_size, const char* text)
+    {
+        if (!output_size)
+            return;
+        text = text ? text : "";
+        size_t length = strlen(text);
+        if (length >= output_size)
+        {
+            length = output_size - 1;
+            while (length && ((unsigned char)text[length] & 0xc0) == 0x80)
+                --length;
+        }
+        memcpy(output, text, length);
+        output[length] = 0;
+    }
+
     StartParams::StartParams()
         : m_Window(0)
         , m_Path(0)

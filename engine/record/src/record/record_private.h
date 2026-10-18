@@ -16,9 +16,13 @@
 #define DM_RECORD_PRIVATE_H
 
 #include "record.h"
+#include <stddef.h>
 
 namespace dmRecord
 {
+    // Copy valid UTF-8 without leaving a partial character when the buffer fills.
+    void CopyTextUtf8(char* output, size_t output_size, const char* text);
+
     struct Window
     {
         uintptr_t m_Handle;

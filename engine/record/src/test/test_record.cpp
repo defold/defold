@@ -24,6 +24,51 @@
 
 using namespace dmRecord;
 
+// Localized recording failures must retain their UTF-8 bytes for JSON responses.
+TEST(RecordingText, UnicodeMessage)
+{
+    const char message[] = "Error: \xc3\xa9\xd0\x96\xe6\x97\xa5\xf0\x9f\x8e\xa5";
+    char output[sizeof(message)];
+    CopyTextUtf8(output, sizeof(output), message);
+    ASSERT_STREQ(message, output);
+    CopyTextUtf8(output, sizeof(output), 0);
+    ASSERT_STREQ("", output);
+    output[0] = '!';
+    CopyTextUtf8(output, 0, message);
+    ASSERT_EQ('!', output[0]);
+}
+
+// Truncating two-, three- or four-byte characters must not corrupt JSON UTF-8.
+TEST(RecordingText, TruncateAtCharacterBoundary)
+{
+    const char message[] = "\xc3\xa9\xe6\x97\xa5\xf0\x9f\x8e\xa5";
+    const char* expected[] = {
+        "", "", "\xc3\xa9", "\xc3\xa9", "\xc3\xa9",
+        "\xc3\xa9\xe6\x97\xa5", "\xc3\xa9\xe6\x97\xa5", "\xc3\xa9\xe6\x97\xa5", "\xc3\xa9\xe6\x97\xa5",
+        message
+    };
+    for (size_t size = 1; size <= sizeof(message); ++size)
+    {
+        char output[sizeof(message) + 1];
+        memset(output, '!', sizeof(output));
+        CopyTextUtf8(output, size, message);
+        ASSERT_STREQ(expected[size - 1], output);
+        ASSERT_EQ('!', output[size]);
+    }
+}
+
+// Long macOS/Windows error descriptions must not end with a partial UTF-8 character.
+TEST(RecordingText, StatusFailureLimit)
+{
+    Status status = {};
+    char message[sizeof(status.m_Failure) + 2];
+    memset(message, 'x', sizeof(message));
+    memcpy(message + sizeof(status.m_Failure) - 2, "\xe6\x97\xa5", 4);
+    CopyTextUtf8(status.m_Failure, sizeof(status.m_Failure), message);
+    ASSERT_EQ(sizeof(status.m_Failure) - 2, strlen(status.m_Failure));
+    ASSERT_EQ(0, memcmp(message, status.m_Failure, sizeof(status.m_Failure) - 2));
+}
+
 struct RecordingBackend
 {
     dmMutex::HMutex                         m_Mutex;

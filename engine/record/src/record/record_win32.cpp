@@ -205,31 +205,42 @@ namespace dmRecord
 
     static void    CopyText(char* output, size_t output_size, const char* value)
     {
-        snprintf(output, output_size, "%s", value ? value : "");
+        CopyTextUtf8(output, output_size, value);
     }
 
     static void HResultText(HRESULT result, char* output, size_t output_size)
     {
-        char* system_message = 0;
-        DWORD length = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+        wchar_t* system_message = 0;
+        DWORD length = FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
                                       FORMAT_MESSAGE_IGNORE_INSERTS,
                                       0,
                                       (DWORD)result,
                                       0,
-                                      (char*)&system_message,
+                                      (wchar_t*)&system_message,
                                       0,
                                       0);
         if (length && system_message)
         {
-            while (length && (system_message[length - 1] == '\r' || system_message[length - 1] == '\n'))
+            while (length && (system_message[length - 1] == L'\r' || system_message[length - 1] == L'\n'))
                 system_message[--length] = 0;
-            snprintf(output, output_size, "%s (0x%08lx)", system_message, (unsigned long)result);
+            int utf8_size = WideCharToMultiByte(CP_UTF8, 0, system_message, -1, 0, 0, 0, 0);
+            char* utf8 = utf8_size > 0 ? new (std::nothrow) char[utf8_size] : 0;
+            bool converted = utf8 && WideCharToMultiByte(CP_UTF8, 0, system_message, -1, utf8, utf8_size, 0, 0) > 0;
             LocalFree(system_message);
+            char code[16];
+            snprintf(code, sizeof(code), " (0x%08lx)", (unsigned long)result);
+            size_t code_length = strlen(code);
+            if (converted && output_size > code_length)
+            {
+                // Keep the HRESULT even when a localized description is too long.
+                CopyTextUtf8(output, output_size - code_length, utf8);
+                memcpy(output + strlen(output), code, code_length + 1);
+            }
+            delete[] utf8;
+            if (converted && output_size > code_length)
+                return;
         }
-        else
-        {
-            snprintf(output, output_size, "Windows error 0x%08lx", (unsigned long)result);
-        }
+        snprintf(output, output_size, "Windows error 0x%08lx", (unsigned long)result);
     }
 
     static bool Utf8ToWide(const char* input, wchar_t* output, uint32_t output_count)
