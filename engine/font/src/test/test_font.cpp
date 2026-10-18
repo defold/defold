@@ -1594,7 +1594,9 @@ TEST_F(FontTest, RadialGradientEllipseMarkup)
     const struct
     {
         const char* m_Attributes;
-        float       m_RadiusX, m_RadiusY, m_Angle;
+        float       m_RadiusX;
+        float       m_RadiusY;
+        float       m_Angle;
     } cases[] = {
         { "", 0.5f, 0.5f, 0 },
         { "radius=0.7", 0.7f, 0.7f, 0 },
@@ -1730,8 +1732,10 @@ TEST_F(FontTest, LinearGradientCounterclockwiseAngles)
     const struct
     {
         float m_Angle;
-        float m_StartU, m_StartV;
-        float m_EndU, m_EndV;
+        float m_StartU;
+        float m_StartV;
+        float m_EndU;
+        float m_EndV;
     } cases[] = {
         { 0, 0.5f, 0, 0.5f, 1 },
         { 90, 1, 0.5f, 0, 0.5f },
@@ -1795,7 +1799,9 @@ TEST_F(FontTest, RadialGradientEllipseVertexFits)
 {
     const struct
     {
-        float m_Angle, m_Cosine, m_Sine;
+        float m_Angle;
+        float m_Cosine;
+        float m_Sine;
     } rotations[] = {
         { 0, 1, 0 },
         { 45, 0.70710678f, 0.70710678f },
