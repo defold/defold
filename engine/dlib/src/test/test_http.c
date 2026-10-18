@@ -476,6 +476,32 @@ TEST_F(Http, AddReturnsData)
     ASSERT_EQ(response->m_DataEventCount, response->m_CompleteDataEventCount);
 }
 
+// Verifies that the largest timeout values do not make a request fail at once.
+// The client keeps timeouts as int, so values above INT32_MAX became negative before they were clamped.
+TEST_F(Http, LargeTimeoutsDoNotFail)
+{
+    HttpRequest*      request = jc_test_fixture->m_Request;
+    HttpRequestHandle request_handle;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
+    char              url[256];
+
+    memset(&request_handle, 0, sizeof(request_handle));
+
+    snprintf(url, sizeof(url), "http://%s:%d/add/10/20", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort);
+
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetTimeout(request, 0xFFFFFFFF));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetStallTimeout(request, 0xFFFFFFFF));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+
+    ASSERT_EQ(0, WaitForComplete(response, 10));
+
+    ASSERT_EQ(HTTP_RESULT_OK, response->m_Result);
+    ASSERT_EQ(200, response->m_StatusCode);
+    ASSERT_EQ(30, strtol(response->m_Data, 0, 10));
+}
+
 TEST_F(Http, ResponseHeaders)
 {
     HttpRequest*      request = jc_test_fixture->m_Request;

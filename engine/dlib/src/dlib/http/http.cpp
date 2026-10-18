@@ -19,6 +19,7 @@
 #include <string.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/math.h>
 
 #include "http_private.h"
 #include "http_service.h"
@@ -619,7 +620,7 @@ extern "C"
             return HTTP_RESULT_INVAL;
         }
 
-        request->m_Timeout = timeout_us;
+        request->m_Timeout = dmMath::Min(timeout_us, (uint32_t)INT32_MAX); // The client keeps timeouts as int
         return HTTP_RESULT_OK;
     }
 
@@ -630,7 +631,7 @@ extern "C"
             return HTTP_RESULT_INVAL;
         }
 
-        request->m_StallTimeout = stall_timeout_us;
+        request->m_StallTimeout = dmMath::Min(stall_timeout_us, (uint32_t)INT32_MAX); // The client keeps timeouts as int
         return HTTP_RESULT_OK;
     }
 

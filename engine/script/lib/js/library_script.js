@@ -57,6 +57,10 @@ var LibraryScript = {
             {{{ makeDynCall('viii', 'onprogress') }}}(arg, progress_event.loaded, progress_event.total);
         }
       };
+      // An upload listener makes cross-origin requests use a CORS preflight, so add it only when it is necessary
+      if (stall_timeout > 0 && send_data_length > 0) {
+          xhr.upload.onprogress = resetStallTimer;
+      }
       xhr.open(UTF8ToString(method), UTF8ToString(url), true);
       // TODO: Doesn't work in node.js. Why? xhr2?
       xhr.responseType = 'arraybuffer';
@@ -70,11 +74,6 @@ var LibraryScript = {
               var a = headersArray[i].split(":");
               xhr.setRequestHeader(a[0], a[1]);
           }
-      }
-
-      // An upload listener makes cross-origin requests use a CORS preflight, so add it only when it is necessary
-      if (stall_timeout > 0 && send_data_length > 0) {
-          xhr.upload.onprogress = resetStallTimer;
       }
 
       resetStallTimer();

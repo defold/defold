@@ -213,11 +213,11 @@ namespace dmGameSystem
                     const char* attr = lua_tostring(L, -2);
                     if (strcmp(attr, "timeout") == 0)
                     {
-                        request_params.m_RequestTimeout = luaL_checknumber(L, -1) * 1000000.0f;
+                        request_params.m_RequestTimeout = HttpTimeoutFromSeconds(luaL_checknumber(L, -1));
                     }
                     else if (strcmp(attr, "stall_timeout") == 0)
                     {
-                        request_params.m_StallTimeout = luaL_checknumber(L, -1) * 1000000.0f;
+                        request_params.m_StallTimeout = HttpTimeoutFromSeconds(luaL_checknumber(L, -1));
                     }
                     else if (strcmp(attr, "report_progress") == 0)
                     {
@@ -276,9 +276,9 @@ namespace dmGameSystem
         if (config_file)
         {
             float timeout = dmConfigFile::GetFloat(config_file, "network.http_timeout", 0.0f);
-            g_Timeout = (uint64_t)(timeout * 1000000.0f);
+            g_Timeout = HttpTimeoutFromSeconds(timeout);
             float stall_timeout = dmConfigFile::GetFloat(config_file, "network.http_stall_timeout", 0.0f);
-            g_StallTimeout = (uint64_t)(stall_timeout * 1000000.0f);
+            g_StallTimeout = HttpTimeoutFromSeconds(stall_timeout);
         }
 
         luaL_register(L, "http", HTTP_COMP_FUNCTIONS);

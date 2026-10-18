@@ -187,8 +187,8 @@ if(NOT DLIB_TEST_SKIP_HTTP)
         --keystore "${DLIB_TEST_ROOT}/data/keystore"
         "$<TARGET_FILE:${_http_test}>")
       if(_http_test STREQUAL "test_httpclient")
-        # Exercise TLS 1.2 RSA-PSS negotiation and TLS 1.3 using the local server.
-        list(APPEND _http_test_command "--test-filter=dmHttpClient.Tls*")
+        # Exercise TLS 1.2 RSA-PSS negotiation, TLS 1.3 and the stall timeout using the local server.
+        list(APPEND _http_test_command "--test-filter=dmHttpClient.Tls*" "--test-filter=*StallTimeout*")
       endif()
       defold_test_run_settings(_http_test_runner _http_test_options shared)
       add_custom_target(run_${_http_test}

@@ -455,7 +455,7 @@ extern "C"
     /*# set request timeout
      * @name HttpSetTimeout
      * @param request [type:HttpRequest*] Request object.
-     * @param timeout_us [type:uint32_t] Timeout in microseconds.
+     * @param timeout_us [type:uint32_t] Timeout in microseconds. Values above INT32_MAX are clamped to INT32_MAX.
      * @return result [type:HttpResult] HTTP_RESULT_OK on success.
      */
     HttpResult HttpSetTimeout(HttpRequest* request, uint32_t timeout_us);
@@ -465,7 +465,7 @@ extern "C"
      * The stall timeout also limits the connection setup. 0 disables it.
      * @name HttpSetStallTimeout
      * @param request [type:HttpRequest*] Request object.
-     * @param stall_timeout_us [type:uint32_t] Stall timeout in microseconds.
+     * @param stall_timeout_us [type:uint32_t] Stall timeout in microseconds. Values above INT32_MAX are clamped to INT32_MAX.
      * @return result [type:HttpResult] HTTP_RESULT_OK on success.
      */
     HttpResult HttpSetStallTimeout(HttpRequest* request, uint32_t stall_timeout_us);

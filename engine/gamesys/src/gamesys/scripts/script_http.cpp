@@ -292,6 +292,8 @@ namespace dmGameSystem
      *
      * [icon:attention] If no timeout value is passed, the configuration value "network.http_timeout" is used. If that is not set, the timeout value is `0` (which blocks indefinitely).
      *
+     * [icon:attention] Timeout values above 2147 seconds are limited to 2147 seconds.
+     *
      * [icon:attention] If no stall_timeout value is passed, the configuration value "network.http_stall_timeout" is used. If that is not set, the stall timeout value is `0` (disabled).
      * To limit unresponsive servers but let slow downloads complete, set a stall timeout and no total timeout.
      *
@@ -442,11 +444,11 @@ namespace dmGameSystem
                     const char* attr = lua_tostring(L, -2);
                     if (strcmp(attr, "timeout") == 0)
                     {
-                        timeout = luaL_checknumber(L, -1) * 1000000.0f;
+                        timeout = HttpTimeoutFromSeconds(luaL_checknumber(L, -1));
                     }
                     else if (strcmp(attr, "stall_timeout") == 0)
                     {
-                        stall_timeout = luaL_checknumber(L, -1) * 1000000.0f;
+                        stall_timeout = HttpTimeoutFromSeconds(luaL_checknumber(L, -1));
                     }
                     else if (strcmp(attr, "path") == 0)
                     {
@@ -616,9 +618,9 @@ namespace dmGameSystem
         if (config_file)
         {
             float timeout = dmConfigFile::GetFloat(config_file, "network.http_timeout", 0.0f);
-            g_Timeout = (uint64_t)(timeout * 1000000.0f);
+            g_Timeout = HttpTimeoutFromSeconds(timeout);
             float stall_timeout = dmConfigFile::GetFloat(config_file, "network.http_stall_timeout", 0.0f);
-            g_StallTimeout = (uint64_t)(stall_timeout * 1000000.0f);
+            g_StallTimeout = HttpTimeoutFromSeconds(stall_timeout);
         }
 
         luaL_register(L, "http", HTTP_COMP_FUNCTIONS);
