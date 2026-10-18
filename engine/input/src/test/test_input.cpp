@@ -606,6 +606,46 @@ TEST_F(InputTest, Gamepad)
     dmInput::DeleteBinding(binding);
 }
 
+// Verifies the DualSense button indices produce independent mapped actions, including Square at button zero.
+TEST_F(InputTest, MappedButtonsAreIndependent)
+{
+    dmInputDDF::GamepadTrigger triggers[] = {
+        {dmInputDDF::GAMEPAD_RPAD_LEFT, "square"},
+        {dmInputDDF::GAMEPAD_RPAD_RIGHT, "circle"},
+        {dmInputDDF::GAMEPAD_RSHOULDER, "r1"},
+        {dmInputDDF::GAMEPAD_RSTICK_CLICK, "r3"},
+    };
+    const uint32_t buttons[] = { 0, 17, 18, 6 };
+    dmInput::GamepadConfig* config = GetGamepadConfigForLookup(m_Context, dmHashString32("null_device"));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(triggers); ++i)
+    {
+        dmInput::GamepadInput& input = config->m_Inputs[triggers[i].m_Input];
+        memset(&input, 0, sizeof(input));
+        input.m_Type = dmInputDDF::GAMEPAD_TYPE_BUTTON;
+        input.m_Index = buttons[i];
+    }
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_GamepadTrigger.m_Data = triggers;
+    ddf.m_GamepadTrigger.m_Count = DM_ARRAY_SIZE(triggers);
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, &ddf);
+    dmInput::GamepadBinding* gamepad = binding->m_GamepadBindings[0];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(buttons); ++i)
+    {
+        dmHID::SetGamepadButton(gamepad->m_Gamepad, buttons[i], true);
+        dmHID::Update(m_HidContext);
+        dmInput::UpdateBinding(binding, m_DT);
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(triggers); ++j)
+            ASSERT_EQ(i == j ? 1.0f : 0.0f, dmInput::GetValue(gamepad, dmHashString64(triggers[j].m_Action)));
+        dmHID::SetGamepadButton(gamepad->m_Gamepad, buttons[i], false);
+        dmHID::Update(m_HidContext);
+        dmInput::UpdateBinding(binding, m_DT);
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(triggers); ++j)
+            ASSERT_EQ(0.0f, dmInput::GetValue(gamepad, dmHashString64(triggers[j].m_Action)));
+    }
+    dmInput::DeleteBinding(binding);
+}
+
 TEST_F(InputTest, GamepadWithoutRegisteredMaps)
 {
     dmInput::NewContextParams params;
