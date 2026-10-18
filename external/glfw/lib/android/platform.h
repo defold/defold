@@ -261,6 +261,7 @@ GLFWGLOBAL struct {
 #define DEVICE_GUID_LENGTH 32 // DEFOLD
 #define GLFW_ANDROID_GAMEPAD_NUMBUTTONS 36
 #define GLFW_ANDROID_GAMEPAD_NUMAXIS 8
+#define GLFW_ANDROID_GAMEPAD_MAX_AXES 32
 
 GLFWGLOBAL struct {
     int           State;
@@ -269,9 +270,18 @@ GLFWGLOBAL struct {
     char          DeviceGuid[DEVICE_GUID_LENGTH+1];
     int           NumAxes;
     int           NumButtons;
-    float         Axis[GLFW_ANDROID_GAMEPAD_NUMAXIS];
-    unsigned char Button[GLFW_ANDROID_GAMEPAD_NUMBUTTONS];
+    // Legacy axes keep their fixed slots; device-only axes use slots 8 + device axis index.
+    float         Axis[GLFW_ANDROID_GAMEPAD_NUMAXIS + GLFW_ANDROID_GAMEPAD_MAX_AXES];
+    // Legacy key slots plus separate Back, Menu and Record aliases.
+    unsigned char Button[GLFW_ANDROID_GAMEPAD_NUMBUTTONS + 3];
     unsigned char Hats;
+    int           LayoutLegacy;
+    // Keep mapping defaults separate from axes that have reported a nonzero sample.
+    uint64_t      AxisEventMask;
+    uint64_t      AxisInitialMask;
+    int           AxisIds[GLFW_ANDROID_GAMEPAD_MAX_AXES];
+    float         AxisMin[GLFW_ANDROID_GAMEPAD_MAX_AXES];
+    float         AxisRange[GLFW_ANDROID_GAMEPAD_MAX_AXES];
 } _glfwJoy[ GLFW_JOYSTICK_LAST + 1 ];
 
 

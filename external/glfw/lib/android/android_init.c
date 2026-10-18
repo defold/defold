@@ -927,7 +927,7 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
 {
     out->m_Type = AInputEvent_getType(event);
 
-    glfwAndroidUpdateJoystick(event);
+    int gamepad_handled = glfwAndroidUpdateJoystick(event);
 
     if (out->m_Type == AINPUT_EVENT_TYPE_MOTION)
     {
@@ -1075,7 +1075,8 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
         case AKEYCODE_BREAK:            return 1;
         case AKEYCODE_DPAD_CENTER:      return 1;
         default:
-            return 0;
+            // Consumed gamepad keys must not generate Android's fallback navigation events.
+            return gamepad_handled;
             break;
         }
     }
