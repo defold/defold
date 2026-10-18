@@ -70,7 +70,7 @@ namespace dmRecord
     {
         dmMutex::ScopedLock lock(g_Mutex);
         g_NativeStatus.m_Active = false;
-        g_NativeStatus.m_Finalized = !g_FailStop;
+        g_NativeStatus.m_Finalized = !g_FailStop && !g_NativeStatus.m_Failure[0];
         if (g_FailStop)
             dmStrlCpy(g_NativeStatus.m_Failure, "disk full", sizeof(g_NativeStatus.m_Failure));
         *status = g_NativeStatus;
@@ -340,7 +340,7 @@ TEST_F(RecordScriptTest, StopFromStartedCallback)
     ASSERT_TRUE(Run("assert(#events == 2 and events[1] == recorder.EVENT_STARTED and events[2] == recorder.EVENT_STOPPED)"));
 }
 
-// Capture failures use the same terminal callback and cleanup path as explicit stops.
+// A capture error alone must deliver one terminal callback and permit another recording.
 TEST_F(RecordScriptTest, CaptureFailure)
 {
     ASSERT_TRUE(Run("assert(recorder.start({path='capture.mp4'}, callback))"));
@@ -348,13 +348,17 @@ TEST_F(RecordScriptTest, CaptureFailure)
     dmRecord::UpdateScript();
     {
         dmMutex::ScopedLock lock(g_Mutex);
-        g_NativeStatus.m_Stopping = true;
         dmStrlCpy(g_NativeStatus.m_Failure, "capture failed", sizeof(g_NativeStatus.m_Failure));
     }
-    g_FailStop = true;
     Complete();
     dmRecord::UpdateScript();
-    ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_ERROR)"));
+    dmRecord::UpdateScript();
+    ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_ERROR); "
+                   "assert(results[2].error == 'capture failed'); "
+                   "assert(recorder.start({path='retry.mp4'}, callback))"));
+    Complete();
+    dmRecord::UpdateScript();
+    ASSERT_TRUE(Run("assert(#events == 3 and events[3] == recorder.EVENT_STARTED)"));
 }
 
 // Resizing finalizes recording through ordinary updates without requiring a Lua stop call.

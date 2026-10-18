@@ -184,11 +184,11 @@ namespace dmRecord
         while (!g_Backend.m_AllowStop)
             dmConditionVariable::Wait(g_Backend.m_Condition, g_Backend.m_Mutex);
         g_Backend.m_Status.m_Active = false;
-        g_Backend.m_Status.m_Finalized = !g_Backend.m_FailStop;
+        g_Backend.m_Status.m_Finalized = !g_Backend.m_FailStop && !g_Backend.m_Status.m_Failure[0];
         if (g_Backend.m_FailStop)
             dmStrlCpy(g_Backend.m_Status.m_Failure, "stop failed", sizeof(g_Backend.m_Status.m_Failure));
         *status = g_Backend.m_Status;
-        return !g_Backend.m_FailStop;
+        return status->m_Finalized;
     }
 
     void FinalizeNative()
@@ -498,7 +498,7 @@ TEST_F(RecordingAsyncTest, FailedStopRestoresWindow)
     ASSERT_EQ(1u, g_Backend.m_WindowRestores);
 }
 
-// A native capture failure must complete cleanup before restoring the game window.
+// Native errors without a stopping flag must finish cleanup before restoring the window.
 TEST_F(RecordingAsyncTest, FailedCaptureRestoresWindow)
 {
     Status status;
@@ -507,14 +507,23 @@ TEST_F(RecordingAsyncTest, FailedCaptureRestoresWindow)
     ASSERT_TRUE(status.m_Active);
     {
         dmMutex::ScopedLock lock(g_Backend.m_Mutex);
-        g_Backend.m_Status.m_Stopping = true;
+        g_Backend.m_AllowStop = false;
         dmStrlCpy(g_Backend.m_Status.m_Failure, "capture failed", sizeof(g_Backend.m_Status.m_Failure));
     }
+    GetStatus(&status);
+    ASSERT_TRUE(status.m_Pending);
+    ASSERT_TRUE(status.m_Stopping);
+    WaitForOperation(true);
+    ASSERT_TRUE(g_Backend.m_WindowPrepared);
+    ASSERT_EQ(0u, g_Backend.m_WindowRestores);
+    AllowOperations();
     status = WaitForCompletion();
     ASSERT_FALSE(status.m_Pending);
     ASSERT_FALSE(status.m_Active);
+    ASSERT_FALSE(status.m_Finalized);
     ASSERT_STREQ("capture failed", status.m_Failure);
     ASSERT_FALSE(g_Backend.m_WindowPrepared);
+    GetStatus(&status);
     ASSERT_EQ(1u, g_Backend.m_Stops);
     ASSERT_EQ(1u, g_Backend.m_WindowRestores);
 }

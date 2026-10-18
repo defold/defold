@@ -117,10 +117,11 @@ namespace dmRecord
                  window.m_Scale != g_Recording.m_Window.m_Scale))
                 current.m_Stopping = true;
             dmMutex::ScopedLock lock(g_Recording.m_Mutex);
-            if (current.m_Active && current.m_Stopping)
+            if (current.m_Active && (current.m_Stopping || current.m_Failure[0]))
             {
                 // Finalize on the same worker that owns the native recorder.
                 dmLogWarning("Stopping video recording: %s", current.m_Failure[0] ? current.m_Failure : "window size changed");
+                current.m_Stopping = true;
                 current.m_Pending = true;
                 g_Recording.m_Request = RECORDING_REQUEST_STOP;
                 dmConditionVariable::Signal(g_Recording.m_Condition);
