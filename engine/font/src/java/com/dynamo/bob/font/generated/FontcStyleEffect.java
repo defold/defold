@@ -64,9 +64,9 @@ public class FontcStyleEffect {
         MemoryLayout.unionLayout(
             MemoryLayout.structLayout(
                 MemoryLayout.paddingLayout(2)
-            ).withName("$anon$210:13"),
+            ).withName("$anon$212:13"),
             FontRendererFFM.C_SHORT.withName("m_Bits")
-        ).withName("$anon$208:9"),
+        ).withName("$anon$210:9"),
         MemoryLayout.paddingLayout(2)
     ).withName("FontcStyleEffect");
 
@@ -440,7 +440,7 @@ public class FontcStyleEffect {
         m_Parameters$ELEM_HANDLE.set(struct, m_Parameters$OFFSET, index0, fieldValue);
     }
 
-    private static final OfShort m_Bits$LAYOUT = (OfShort)$LAYOUT.select(groupElement("$anon$208:9"), groupElement("m_Bits"));
+    private static final OfShort m_Bits$LAYOUT = (OfShort)$LAYOUT.select(groupElement("$anon$210:9"), groupElement("m_Bits"));
 
     /**
      * Layout for field:
@@ -452,7 +452,7 @@ public class FontcStyleEffect {
         return m_Bits$LAYOUT;
     }
 
-    private static final long m_Bits$OFFSET = $LAYOUT.byteOffset(groupElement("$anon$208:9"), groupElement("m_Bits"));
+    private static final long m_Bits$OFFSET = $LAYOUT.byteOffset(groupElement("$anon$210:9"), groupElement("m_Bits"));
 
     /**
      * Offset for field:

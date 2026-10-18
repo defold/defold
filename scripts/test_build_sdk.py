@@ -1,6 +1,7 @@
 import contextlib
 import io
 import json
+import os
 import shlex
 import sys
 import tempfile
@@ -113,6 +114,33 @@ class BuildSdkTests(unittest.TestCase):
 
 
 class SdkInstallationTests(unittest.TestCase):
+    # Execute the host launchers, including SDK paths with spaces, to guard against WinError 193.
+    def test_web_sdk_activation_and_cache_warmup_use_runnable_launchers(self):
+        with tempfile.TemporaryDirectory(prefix='emsdk test ') as directory:
+            emsdk = Path(directory)
+            bin_dir = emsdk / 'upstream' / 'emscripten'
+            bin_dir.mkdir(parents=True)
+            launchers = {
+                emsdk / 'emsdk': '#!/bin/sh\nprintf "%s\\n" "$*" > "$0.args"\n',
+                emsdk / 'emsdk.bat': '@echo off\necho %* > "%~dp0emsdk.args"\n',
+                bin_dir / 'emcc': '#!/bin/sh\ncp "$1" "$0.input"\ncp "$1" "$3"\n',
+                bin_dir / 'emcc.bat': '@echo off\ncopy /Y "%~1" "%~dp0emcc.input" >nul\ncopy /Y "%~1" "%~3" >nul\n',
+            }
+            for path, content in launchers.items():
+                path.write_text(content)
+                path.chmod(0o755)
+            configuration = build.Configuration.__new__(build.Configuration)
+            configuration.host = build.get_host_platform()
+            configuration._form_env = lambda: os.environ.copy()
+            version = build.sdk.EMSCRIPTEN_VERSION_STR
+            with mock.patch.object(build.tempfile, 'tempdir', directory):
+                configuration._activate_ems(str(emsdk), str(bin_dir), version)
+            self.assertEqual(f'activate {version} --embedded', (emsdk / 'emsdk.args').read_text().strip())
+            self.assertEqual('int main() { return 0; }', (bin_dir / 'emcc.input').read_text())
+            outputs = list(emsdk.glob('*.js'))
+            self.assertEqual(1, len(outputs))
+            self.assertEqual('int main() { return 0; }', outputs[0].read_text())
+
     # macOS ARMv7 source builds need the Web SDK for LuaJIT's 32-bit generators; other Android builds do not.
     def test_android_installs_web_sdk_only_for_macos_armv7(self):
         with tempfile.TemporaryDirectory() as directory:

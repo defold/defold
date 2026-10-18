@@ -276,6 +276,7 @@
                                                              :properties {:projection {:type :enum
                                                                                        :values [:orthographic :perspective]
                                                                                        :default :orthographic}
+                                                                          :mode-2d {:type :boolean}
                                                                           :position {:type :tuple
                                                                                      :items [{:type :number :default 0.0}
                                                                                              {:type :number :default 0.0}

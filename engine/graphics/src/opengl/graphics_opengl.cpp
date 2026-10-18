@@ -1057,6 +1057,7 @@ static void LogFrameBufferError(GLenum status)
             case GL_FLOAT_MAT3:               return TYPE_FLOAT_MAT3;
             case GL_FLOAT_MAT4:               return TYPE_FLOAT_MAT4;
             case GL_SAMPLER_2D:               return TYPE_SAMPLER_2D;
+            case DMGRAPHICS_UNSIGNED_INT_SAMPLER_2D: return TYPE_SAMPLER_2D;
             case DMGRAPHICS_SAMPLER_2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case GL_SAMPLER_CUBE:             return TYPE_SAMPLER_CUBE;
             case DMGRAPHICS_IMAGE_2D:         return TYPE_IMAGE_2D;
@@ -1732,6 +1733,7 @@ static void LogFrameBufferError(GLenum status)
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG16F;
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R32F;
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R32UI;
 
             context->m_InstancingSupport = 1;
 
@@ -2078,6 +2080,7 @@ static void LogFrameBufferError(GLenum status)
         #endif
         }
 
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BACKBUFFER_READBACK);
         if (context->m_MultiTargetRenderingSupport)      SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         if (context->m_TextureArraySupport)              SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         if (context->m_ComputeSupport)                   SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
@@ -2961,6 +2964,11 @@ static void LogFrameBufferError(GLenum status)
             gl_type            = GL_FLOAT;
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
+            break;
+        case TEXTURE_FORMAT_R32UI:
+            gl_type            = GL_UNSIGNED_INT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED_INTEGER;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32UI;
             break;
         case TEXTURE_FORMAT_DEPTH:
             // GLES requires an integer upload type for normalized depth storage.
@@ -4676,7 +4684,6 @@ static void LogFrameBufferError(GLenum status)
             {
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachment_targets[i], GL_RENDERBUFFER, GetGLHandle(context, attachment.m_Buffer));
                 CHECK_GL_ERROR;
-                CHECK_GL_FRAMEBUFFER_ERROR;
             }
         }
         else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
@@ -4687,7 +4694,6 @@ static void LogFrameBufferError(GLenum status)
             {
                 glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_targets[i], texture_target, GetGLHandle(context, attachment_tex->m_TextureIds[0]), 0);
                 CHECK_GL_ERROR;
-                CHECK_GL_FRAMEBUFFER_ERROR;
             }
         }
         else assert(0);
@@ -4750,6 +4756,8 @@ static void LogFrameBufferError(GLenum status)
                     CHECK_GL_ERROR;
                 }
 
+                attachment_tex->m_Base.m_Width = rt->m_Base.m_DepthStencilTextureParams.m_Width;
+                attachment_tex->m_Base.m_Height = rt->m_Base.m_DepthStencilTextureParams.m_Height;
                 glBindTexture(texture_target, 0);
             #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
@@ -4952,17 +4960,22 @@ static void LogFrameBufferError(GLenum status)
             BUFFER_TYPE_COLOR3_BIT,
         };
 
-        // NOTE: Regarding this, the OpenGL context we create is to low on all current desktop platforms to use, but it should work for the other adapters.
-        if (stencil_texture)
+        // Packed depth/stencil storage supports depth sampling, but not stencil sampling.
+        if (use_stencil_attachment && params.m_StencilTexture)
         {
-            dmLogWarning("Stencil textures are not supported on the OpenGL adapter, defaulting to render buffer.");
+            dmLogWarning("Stencil texture sampling is not supported on the OpenGL adapter.");
         }
 
         if (use_depth_attachment && use_stencil_attachment && stencil_texture != depth_texture)
         {
-            dmLogWarning("Creating a RenderTarget with different backing storage (depth: %s != stencil: %s), defaulting to the depth buffer type for both.",
-                (depth_texture ? "texture" : "buffer"),
-                (stencil_texture ? "texture" : "buffer"));
+            // Sampling depth without sampling stencil still uses a packed depth/stencil texture.
+            // Only warn when stencil sampling was requested with a depth render buffer.
+            if (stencil_texture)
+            {
+                dmLogWarning("Creating a RenderTarget with different backing storage (depth: %s != stencil: %s), defaulting to the depth buffer type for both.",
+                    (depth_texture ? "texture" : "buffer"),
+                    (stencil_texture ? "texture" : "buffer"));
+            }
             stencil_texture = depth_texture;
         }
 
@@ -5793,6 +5806,7 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_FORMAT_R32F:
             case TEXTURE_FORMAT_RG16F:
             case TEXTURE_FORMAT_RG32F:
+            case TEXTURE_FORMAT_R32UI:
                 if (tex->m_Base.m_Type == TEXTURE_TYPE_2D || tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_2D)
                 {
                     const char* p = (const char*) params.m_Data;
@@ -6022,12 +6036,38 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
-        assert(buffer_size >= width * height * 4);
-        glReadPixels(x, y, width, height,
-                     GL_BGRA,
-                     GL_UNSIGNED_BYTE,
-                     buffer);
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLRenderTarget* rt = context->m_CurrentRenderTarget ?
+            GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget) : 0;
+        const uint32_t target_width = rt ? rt->m_Base.m_ColorTextureParams[0].m_Width : dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
+        const uint32_t target_height = rt ? rt->m_Base.m_ColorTextureParams[0].m_Height : dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
+        if ((rt && !(rt->m_BufferTypeFlags & BUFFER_TYPE_COLOR0_BIT)) ||
+            uint64_t(x) + width > target_width || uint64_t(y) + height > target_height)
+        {
+            dmLogError("OpenGLReadPixels: region is outside the color attachment");
+            return;
+        }
+
+        const bool select_read_buffer = rt && context->m_IsGles3Version && PFN_glReadBuffer;
+        GLint previous_read_buffer = 0;
+        if (select_read_buffer)
+            glGetIntegerv(GL_READ_BUFFER, &previous_read_buffer);
+        if (rt && rt->m_Base.m_SampleCount > 1)
+        {
+            ResolveMultisampleRenderTarget(context, rt);
+            glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_ResolveId));
+        }
+        if (select_read_buffer)
+            PFN_glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+        // RGBA/UNSIGNED_BYTE is also supported on OpenGL ES, unlike BGRA.
+        glReadPixels(x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
         CHECK_GL_ERROR;
+        if (rt && rt->m_Base.m_SampleCount > 1)
+            glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_Id));
+        if (select_read_buffer)
+            PFN_glReadBuffer(previous_read_buffer);
+        SwizzleRGBAToBGRA(buffer, width * height);
         unsigned int *pixels = (unsigned int*)buffer;
         // flip vertically
         for (uint32_t yi = 0; yi < (height / 2); ++yi)

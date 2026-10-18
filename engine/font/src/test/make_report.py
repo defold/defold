@@ -38,6 +38,7 @@ except ImportError:
 DATA = Path(__file__).resolve().parent / 'data/font_render'
 TEXT = 'ABCDEFGabcdefg 0123456789'
 SOURCES = ('ttf_sdf', 'otf_sdf', 'ttf_bitmap', 'otf_bitmap', 'ttf_sdf_bank', 'otf_sdf_bank', 'ttf_bitmap_bank', 'otf_bitmap_bank', 'fnt')
+VECTOR_SOURCES = ('ttf_vector', 'otf_vector', 'ttf_vector_bank', 'otf_vector_bank')
 
 def cases(full, rich):
     result = []
@@ -78,7 +79,22 @@ def cases(full, rich):
             text='<gradient type=radial fit=block angle=45 radius-x=0.5 radius-y=0.25\n'
                  '          color0=#FFFF00 color1=#FF8000 color2=#FF0000 color3=#8000FF>\n'
                  'Lorem ipsum\ndolor sit amet\n</gradient>')
+    # Vector always uses separate face/effect quads. Exercise runtime sources and
+    # the exact prebaked curve payload exported by Fontc, including magnification.
+    for source in VECTOR_SOURCES:
+        add(source, True, 'face_only', outline_alpha=0, outline=0)
+        add(source, True, 'effects', shadow_alpha=1, shadow_blur=2, shadow_x=6, shadow_y=-6)
+        add(source, True, 'scaled', text='Example', size=80, outline_alpha=0, outline=0)
+        add(source, True, 'depth_overlap', text='Depth', size=80, outline_alpha=0, outline=0)
+        if rich:
+            add(source, True, 'rich_style', text='<color=#ff8080><size=150%>AB</size></color>CD', markup=True, outline_alpha=0, outline=0)
+            add(source, True, 'decorations', text='<ul>HH HH</ul> <strike>HH HH</strike>', markup=True, outline_alpha=0, outline=0)
+            add(source, True, 'decorations_dashed', text='<ul pattern=dashed>HH HH</ul> <strike pattern=dashed>HH HH</strike>', markup=True, outline_alpha=0, outline=0)
+            for name, size in (('half', 20), ('double', 80)):
+                add(source, True, 'decorations_outline_' + name, text='<outline size=8><ul>H H</ul> <strike>H H</strike></outline>', markup=True, size=size, outline=2)
+    add('stress_vector', True, 'atlas_growth', text=''.join(chr(0xE000 + i) for i in range(64)), size=8, outline_alpha=0, outline=0)
     if full:
+        add('arabic_vector', True, 'rtl_wrapped', text='مرحبا    بالعالم', size=24, outline_alpha=0, outline=0)
         lorem=json.loads((DATA/'lorem.json').read_text(encoding="utf-8"))
         for language in ('english','arabic'):
             for multi in (False,True):add('arabic' if language=='arabic' else 'latin',multi,language,text=lorem[language])
@@ -107,6 +123,10 @@ def generate_cases(output):
             values += [str(float(c.get('edge_scale', 0)))+'f', str(c.get('pivot', -1))]
             if 'pivot' in c:
                 lines.append('// Verifies compiled-font placement over a white box at this pivot; guards against #13339.')
+            elif c['scenario'] == 'atlas_growth':
+                lines.append('// Verifies every visible vector glyph renders after growing an overflowing atlas.')
+            elif c['scenario'] == 'rtl_wrapped':
+                lines.append('// Verifies wrapped RTL vector glyphs use the shared content origin, excluding trailing spaces.')
             if 'description' in c:
                 lines.append('// ' + c['description'])
             lines.append('TEST(FontImages_'+c['id']+', Render)\n{\n    const FontImageCase c = { '+', '.join(values)+' };\n    TestFontImage(c);\n}\n')
@@ -845,7 +865,7 @@ def build_reports(images, output, binaries, generation_results):
             results.append(result)
     return build_report(results,output,dict(title='Font library rendering tests',source='current',backend='opengl',
         expected_cases=expected,executables=executables,stable_case_paths=True,
-        scope='Font generation, Bob-compiled pivot fixture, glyph-bank providers, layout, vertex packing and shaders. No engine or project.',
+        scope='Font generation, glyph-bank providers, layout, production Vector vertex/cache backend and shaders. No engine or project.',
         reference_policy='Rendered references require review; old raw-distance-field images are not equivalent.'))
 
 

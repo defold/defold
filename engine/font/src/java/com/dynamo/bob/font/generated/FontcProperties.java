@@ -49,6 +49,7 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  *         };
  *         uint8_t m_Bits;
  *     };
+ *     float m_FontSize;
  * }
  * }
  */
@@ -75,7 +76,8 @@ public class FontcProperties {
             ).withName("$anon$164:13"),
             FontRendererFFM.C_CHAR.withName("m_Bits")
         ).withName("$anon$162:9"),
-        MemoryLayout.paddingLayout(7)
+        MemoryLayout.paddingLayout(3),
+        FontRendererFFM.C_FLOAT.withName("m_FontSize")
     ).withName("FontcProperties");
 
     /**
@@ -666,6 +668,50 @@ public class FontcProperties {
      */
     public static void m_Bits(MemorySegment struct, byte fieldValue) {
         struct.set(m_Bits$LAYOUT, m_Bits$OFFSET, fieldValue);
+    }
+
+    private static final OfFloat m_FontSize$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_FontSize"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_FontSize
+     * }
+     */
+    public static final OfFloat m_FontSize$layout() {
+        return m_FontSize$LAYOUT;
+    }
+
+    private static final long m_FontSize$OFFSET = $LAYOUT.byteOffset(groupElement("m_FontSize"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_FontSize
+     * }
+     */
+    public static final long m_FontSize$offset() {
+        return m_FontSize$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_FontSize
+     * }
+     */
+    public static float m_FontSize(MemorySegment struct) {
+        return struct.get(m_FontSize$LAYOUT, m_FontSize$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_FontSize
+     * }
+     */
+    public static void m_FontSize(MemorySegment struct, float fieldValue) {
+        struct.set(m_FontSize$LAYOUT, m_FontSize$OFFSET, fieldValue);
     }
 
     /**
