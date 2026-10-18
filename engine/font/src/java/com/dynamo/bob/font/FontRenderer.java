@@ -252,8 +252,9 @@ public final class FontRenderer implements AutoCloseable {
             MemorySegment data = FontcStyleData.allocate(arena);
             MemorySegment error = FontcMarkupError.allocate(arena);
             int result = FontRendererFFM.FontcCompileStyle(arena.allocateFrom(JAVA_BYTE, bytes), bytes.length, data, error);
-            if (result != 0)
-                throw new IllegalArgumentException("Invalid style markup at byte " + FontcMarkupError.m_ByteOffset(error));
+            if (result == FontRendererFFM.FONT_RENDERER_RESULT_TEXT_ERROR())
+                throw new MarkupException(markupError(bytes, FontcMarkupError.m_ByteOffset(error), FontcMarkupError.m_Type(error)));
+            checkResult(result, "Native style compilation failed");
             try {
                 Style style = new Style();
                 MemorySegment values = FontcStyleData.m_Style(data);
@@ -363,10 +364,6 @@ public final class FontRenderer implements AutoCloseable {
             this(values, markupError, null);
         }
 
-        private Layout(MemorySegment values, MarkupDocument markupDocument) {
-            this(values, null, markupDocument);
-        }
-
         private Layout(MemorySegment values, MarkupError markupError, MarkupDocument markupDocument) {
             width = FontcLayout.m_Width(values);
             height = FontcLayout.m_Height(values);
@@ -391,6 +388,16 @@ public final class FontRenderer implements AutoCloseable {
             this.column = column;
             this.errorType = errorType;
             this.message = "Invalid rich text markup at line " + line + ", column " + column + ": " + description;
+        }
+    }
+
+    /** Style compilation failed at the source location described by error. */
+    public static final class MarkupException extends IllegalArgumentException {
+        public final MarkupError error;
+
+        private MarkupException(MarkupError error) {
+            super(error.message);
+            this.error = error;
         }
     }
 
@@ -790,7 +797,9 @@ public final class FontRenderer implements AutoCloseable {
                         flag(lineBreak), width, leading, tracking, result);
                 checkResult(status, "Native rich-text shaping failed");
                 return includeDocument
-                        ? new Layout(result, copyMarkupDocument(parsedMarkup, arena))
+                        ? new Layout(result, FontcMarkupError.m_Type(parseError) == 0 ? null : markupError(bytes,
+                                FontcMarkupError.m_ByteOffset(parseError), FontcMarkupError.m_Type(parseError)),
+                                copyMarkupDocument(parsedMarkup, arena))
                         : new Layout(result);
             } finally {
                 FontcDestroyMarkup(parsedMarkup);
@@ -801,7 +810,7 @@ public final class FontRenderer implements AutoCloseable {
     /**
      * Parses UTF-8 rich text without requiring a font renderer.
      *
-     * @return a font-independent document on success, or a structured parser error
+     * @return a font-independent document on success, with an optional effect warning; parser errors have no document
      */
     public static MarkupParseResult parseMarkup(String markup) {
         if (markup == null)
@@ -819,7 +828,9 @@ public final class FontRenderer implements AutoCloseable {
 
             MemorySegment parsedMarkup = parsedMarkupPointer.get(ADDRESS, 0);
             try {
-                return new MarkupParseResult(copyMarkupDocument(parsedMarkup, arena), null);
+                return new MarkupParseResult(copyMarkupDocument(parsedMarkup, arena),
+                        FontcMarkupError.m_Type(parseError) == 0 ? null : markupError(bytes,
+                                FontcMarkupError.m_ByteOffset(parseError), FontcMarkupError.m_Type(parseError)));
             } finally {
                 FontcDestroyMarkup(parsedMarkup);
             }
@@ -1284,7 +1295,8 @@ public final class FontRenderer implements AutoCloseable {
             case 11 -> "markup is unsupported";
             case 12 -> "unknown tag";
             case 13 -> "unknown attribute";
-            case 14 -> "unknown value for attribute";
+            case 14 -> "invalid attribute value";
+            case 15 -> "gradient radius must be greater than zero";
             default -> "parse error";
         };
     }

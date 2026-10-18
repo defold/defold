@@ -662,8 +662,18 @@ static bool ApplyStyleNode(HMarkup markup, const MarkupStyleNode& node, float ba
     return true;
 }
 
+static bool InvalidGradientAttribute(const MarkupAttribute* attribute, MarkupErrorType type, MarkupError* error)
+{
+    if (error && attribute)
+    {
+        error->m_ByteOffset = attribute->m_Value.m_Offset;
+        error->m_Type = type;
+    }
+    return false;
+}
+
 // Explicit types use spatial fits; legacy corner markup keeps its original sampling.
-static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, TextEffect* effect)
+static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, TextEffect* effect, MarkupError* error)
 {
     const char*            source = MarkupGetSource(markup);
     const MarkupAttribute* type = FindAttribute(markup, node, MARKUP_ATTRIBUTE_TYPE);
@@ -693,7 +703,7 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
         float rgba[4];
         if (missing_color || !ParseColor(source, attribute->m_Value, rgba))
         {
-            return false;
+            return InvalidGradientAttribute(attribute, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
         }
         for (uint32_t channel = 0; channel < 4; ++channel)
         {
@@ -714,7 +724,7 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
         {
             if (stop)
             {
-                return false;
+                return InvalidGradientAttribute(stop, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
             }
             continue;
         }
@@ -723,7 +733,7 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
             color.m_Positions[i] < 0.0f || color.m_Positions[i] > 1.0f ||
             (i && color.m_Positions[i] < color.m_Positions[i - 1]))
         {
-            return false;
+            return InvalidGradientAttribute(stop, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
         }
     }
     color.m_Parameters[0] = color.m_Type == FONT_COLOR_EFFECT_RADIAL ? 0.5f : 0.0f;
@@ -741,7 +751,7 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
             case MARKUP_ATTRIBUTE_ANGLE:
                 if (color.m_Type != FONT_COLOR_EFFECT_LINEAR && color.m_Type != FONT_COLOR_EFFECT_RADIAL)
                 {
-                    return false;
+                    return InvalidGradientAttribute(&attribute, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
                 }
                 value = &color.m_Parameters[color.m_Type == FONT_COLOR_EFFECT_RADIAL ? 4 : 0];
                 break;
@@ -749,7 +759,7 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
             case MARKUP_ATTRIBUTE_PIVOT_Y:
                 if (color.m_Type != FONT_COLOR_EFFECT_RADIAL)
                 {
-                    return false;
+                    return InvalidGradientAttribute(&attribute, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
                 }
                 value = &color.m_Parameters[attribute.m_Type - MARKUP_ATTRIBUTE_PIVOT_X];
                 break;
@@ -758,7 +768,7 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
             case MARKUP_ATTRIBUTE_RADIUS_Y:
                 if (color.m_Type != FONT_COLOR_EFFECT_RADIAL)
                 {
-                    return false;
+                    return InvalidGradientAttribute(&attribute, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
                 }
                 value = attribute.m_Type == MARKUP_ATTRIBUTE_RADIUS ? &radius :
                                                                       &color.m_Parameters[2 + attribute.m_Type - MARKUP_ATTRIBUTE_RADIUS_X];
@@ -776,17 +786,17 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
                     if (attribute.m_Type != MARKUP_ATTRIBUTE_BL && attribute.m_Type != MARKUP_ATTRIBUTE_BR &&
                         attribute.m_Type != MARKUP_ATTRIBUTE_TL && attribute.m_Type != MARKUP_ATTRIBUTE_TR)
                     {
-                        return false;
+                        return InvalidGradientAttribute(&attribute, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
                     }
                 }
                 else if (attribute.m_Type < MARKUP_ATTRIBUTE_COLOR0 || attribute.m_Type > MARKUP_ATTRIBUTE_STOP3)
                 {
-                    return false;
+                    return InvalidGradientAttribute(&attribute, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
                 }
         }
         if (value && !ParseFloat(source, attribute.m_Value, value))
         {
-            return false;
+            return InvalidGradientAttribute(&attribute, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
         }
     }
     // Axis-specific radii override the shorthand regardless of attribute order.
@@ -800,13 +810,31 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
         {
             color.m_Parameters[3] = radius;
         }
-        if (radius <= 0.0f || color.m_Parameters[2] <= 0.0f || color.m_Parameters[3] <= 0.0f)
-        {
-            return false;
-        }
     }
-    if (gradient.m_Hz < 0.0f)
+    MarkupAttributeType invalid_type = MARKUP_ATTRIBUTE_CUSTOM;
+    MarkupErrorType     error_type = MARKUP_ERROR_INVALID_GRADIENT_RADIUS;
+    if (color.m_Type == FONT_COLOR_EFFECT_RADIAL)
     {
+        invalid_type = radius <= 0.0f ? MARKUP_ATTRIBUTE_RADIUS :
+        color.m_Parameters[2] <= 0.0f ? MARKUP_ATTRIBUTE_RADIUS_X :
+        color.m_Parameters[3] <= 0.0f ? MARKUP_ATTRIBUTE_RADIUS_Y :
+                                        MARKUP_ATTRIBUTE_CUSTOM;
+    }
+    if (invalid_type == MARKUP_ATTRIBUTE_CUSTOM && gradient.m_Hz < 0.0f)
+    {
+        invalid_type = MARKUP_ATTRIBUTE_HZ;
+        error_type = MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE;
+    }
+    if (invalid_type != MARKUP_ATTRIBUTE_CUSTOM)
+    {
+        // Numeric attributes retain their existing last-value-wins behavior.
+        for (uint32_t i = node.m_AttributeCount; i > 0; --i)
+        {
+            if (attributes[i - 1].m_Type == invalid_type)
+            {
+                return InvalidGradientAttribute(&attributes[i - 1], error_type, error);
+            }
+        }
         return false;
     }
     float direction;
@@ -821,7 +849,7 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
     return true;
 }
 
-static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t text_offset, uint32_t text_length, TextEffect* effect)
+static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t text_offset, uint32_t text_length, TextEffect* effect, MarkupError* error)
 {
     const char* source = MarkupGetSource(markup);
     memset(effect, 0, sizeof(*effect));
@@ -832,7 +860,7 @@ static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t t
     {
         if (FindAttribute(markup, node, MARKUP_ATTRIBUTE_TYPE))
         {
-            return CreateSpatialGradient(markup, node, effect);
+            return CreateSpatialGradient(markup, node, effect, error);
         }
         const MarkupAttribute* left                = 0;
         const MarkupAttribute* right               = 0;
@@ -1011,6 +1039,28 @@ static bool IsStyleNode(const MarkupStyleNode& node)
            node.m_Type == MARKUP_TAG_OUTLINE || node.m_Type == MARKUP_TAG_SHADOW;
 }
 
+bool TextLayoutValidateMarkupEffects(HMarkup markup, MarkupError* error)
+{
+    error->m_Type = MARKUP_ERROR_NONE;
+    error->m_ByteOffset = 0;
+    const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
+    const uint32_t         node_count = MarkupGetStyleNodeCount(markup);
+    for (uint32_t i = 1; i < node_count; ++i)
+    {
+        TextEffect effect;
+        if (IsEffectNode(nodes[i]) && !CreateEffect(markup, nodes[i], nodes[i].m_TextOffset, nodes[i].m_TextLength, &effect, error))
+        {
+            if (error->m_Type == MARKUP_ERROR_NONE)
+            {
+                error->m_Type = MARKUP_ERROR_INVALID_TAG;
+                error->m_ByteOffset = nodes[i].m_Tag.m_Offset - 1;
+            }
+            return false;
+        }
+    }
+    return true;
+}
+
 static void LogInvalidNode(HMarkup markup, const MarkupStyleNode& node)
 {
     const char* source = MarkupGetSource(markup);
@@ -1088,9 +1138,9 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
 
         if (IsEffectNode(nodes[i]))
         {
-            if (!CreateEffect(markup, nodes[i], 0, 1, &effect))
+            if (!CreateEffect(markup, nodes[i], 0, 1, &effect, error))
             {
-                if (error)
+                if (error && error->m_Type == MARKUP_ERROR_NONE)
                 {
                     error->m_ByteOffset = nodes[i].m_Tag.m_Offset - 1;
                     error->m_Type = MARKUP_ERROR_INVALID_TAG;
@@ -1311,7 +1361,7 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
         {
             TextEffect effect = {};
 
-            if (!CreateEffect(markup, nodes[i], nodes[i].m_TextOffset, nodes[i].m_TextLength, &effect))
+            if (!CreateEffect(markup, nodes[i], nodes[i].m_TextOffset, nodes[i].m_TextLength, &effect, 0))
             {
                 state.m_Invalid = 1;
                 LogInvalidNode(markup, nodes[i]);

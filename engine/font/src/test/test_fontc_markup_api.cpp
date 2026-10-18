@@ -18,6 +18,8 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#include <dlib/dstrings.h>
+
 #include "fontc.h"
 
 static void AssertSourceString(const FontcMarkupData& data, FontcMarkupString string, const char* expected)
@@ -123,6 +125,47 @@ TEST(FontcMarkupApi, ValidatesArgumentsAndAcceptsEmptyInput)
 
     FontcDestroyMarkup(markup);
     FontcDestroyMarkup(0);
+}
+
+// Effect warnings retain the parsed text and source location; named styles reject the same invalid value.
+TEST(FontcMarkupApi, ReportsGradientValueDiagnostics)
+{
+    const struct
+    {
+        const char*          m_Attributes;
+        const char*          m_InvalidValue;
+        FontcMarkupErrorType m_Type;
+    } cases[] = {
+        { "radius-x=0", "0", FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS },
+        { "radius-y=-1", "-1", FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS },
+        { "radius=0 radius-x=1 radius-y=1", "0", FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS },
+        { "angle=invalid", "invalid", FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE },
+        { "stop0=0.8 stop1=0.2", "0.2", FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE },
+        { "stop0=1 color2=#00ff00", 0, FONTC_MARKUP_ERROR_INVALID_TAG }
+    };
+    for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        char source[256];
+        dmSnPrintf(source, sizeof(source), "<gradient type=radial color0=#ff0000 color1=#0000ff %s>", cases[i].m_Attributes);
+        const uint32_t   offset = cases[i].m_InvalidValue ? (uint32_t)(strstr(strstr(source, cases[i].m_Attributes), cases[i].m_InvalidValue) - source) : 0;
+        FontcStyleData   style = {};
+        FontcMarkupError error = {};
+        ASSERT_EQ(FONT_RENDERER_RESULT_TEXT_ERROR, FontcCompileStyle(source, strlen(source), &style, &error));
+        ASSERT_EQ(cases[i].m_Type, error.m_Type);
+        ASSERT_EQ(offset, error.m_ByteOffset);
+        ASSERT_EQ((FontcStyleEffect*)0, style.m_Effects);
+
+        dmStrlCat(source, "A</gradient>", sizeof(source));
+        HFontcMarkup markup = 0;
+        ASSERT_EQ(FONT_RENDERER_RESULT_OK, FontcParseMarkup(source, strlen(source), &markup, &error));
+        ASSERT_EQ(cases[i].m_Type, error.m_Type);
+        ASSERT_EQ(offset, error.m_ByteOffset);
+        FontcMarkupData data;
+        ASSERT_EQ(FONT_RENDERER_RESULT_OK, FontcGetMarkupData(markup, &data));
+        ASSERT_EQ(1u, data.m_TextLength);
+        ASSERT_EQ((uint32_t)'A', data.m_Text[0]);
+        FontcDestroyMarkup(markup);
+    }
 }
 
 // Java reads and writes the packed words directly; verify the compiler's bit field ABI.

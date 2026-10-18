@@ -1066,8 +1066,49 @@ public class FontRendererTest {
             FontRenderer.MarkupError unknownConstant = renderer.measureMarkup("<wave fit=word>Text</wave>", false, 0.0f, 1.0f, 0.0f).markupError;
             assertNotNull(unknownConstant);
             assertEquals(10, unknownConstant.byteOffset);
-            assertTrue(unknownConstant.message.contains("unknown value for attribute"));
+            assertTrue(unknownConstant.message.contains("invalid attribute value"));
         }
+    }
+
+    // Invalid radii carry UTF-8 offsets and UTF-16 columns without preventing ordinary layout or rendering.
+    @Test
+    public void testGradientCompilationDiagnostics() throws Exception {
+        String source = "valid\n\uD83D\uDE00<gradient type=radial radius-x=0 color0=#FF0000 color1=#0000FF>A</gradient>";
+        int position = source.indexOf("radius-x=0") + "radius-x=".length();
+        FontRenderer.MarkupParseResult parsed = FontRenderer.parseMarkup(source);
+        assertNotNull(parsed.document);
+        assertNotNull(parsed.error);
+        assertEquals(15, parsed.error.errorType);
+        assertEquals(source.substring(0, position).getBytes(java.nio.charset.StandardCharsets.UTF_8).length, parsed.error.byteOffset);
+        assertEquals(2, parsed.error.line);
+        assertEquals(position - source.indexOf('\n'), parsed.error.column);
+        assertTrue(parsed.error.message.contains("gradient radius must be greater than zero"));
+        try (FontRenderer renderer = createRenderer(32)) {
+            FontRenderer.Layout layout = renderer.measureMarkup(source, false, 0, 1, 0);
+            assertNull(layout.markupError);
+            assertTrue(layout.width > 0);
+            FontRenderer.Layout inspected = renderer.measureMarkupWithDocument(source, false, 0, 1, 0);
+            assertEquals(layout.width, inspected.width, 0);
+            assertEquals(parsed.error.byteOffset, inspected.markupError.byteOffset);
+            assertNotNull(inspected.markupDocument);
+            renderer.setProperties(properties(100, 1, 0));
+            renderer.setMarkup(source);
+            renderer.generateTexture(0);
+            assertTrue(getVertices(renderer, IDENTITY).vertexCount > 0);
+        }
+
+        String style = "<color=#FFFFFF>\n<gradient type=radial radius-y=0 color0=#FF0000>";
+        try {
+            FontRenderer.compileStyle(style);
+            fail("Accepted an invalid radial gradient style");
+        } catch (FontRenderer.MarkupException exception) {
+            assertEquals(15, exception.error.errorType);
+            assertEquals(2, exception.error.line);
+            assertEquals(style.lastIndexOf("=0") + 1, exception.error.byteOffset);
+            assertTrue(exception.getMessage().contains("gradient radius must be greater than zero"));
+        }
+        assertNull(FontRenderer.parseMarkup("<gradient type=radial radius-x=0.5 color0=#FF0000>A</gradient>").error);
+        assertNull(FontRenderer.parseMarkup("<gradient type=radial radius-x=0 radius-x=0.5 color0=#FF0000>A</gradient>").error);
     }
 
     @Test

@@ -295,6 +295,9 @@ float TextLayoutGetLineOriginX(HTextLayout layout, uint32_t line_index);
 // Resolves generic markup nodes into renderer-facing styles, effects, and objects.
 bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, ResolvedMarkup* resolved);
 
+// Validates effect values for tooling without a font or layout. Reports the first invalid effect.
+bool TextLayoutValidateMarkupEffects(HMarkup markup, MarkupError* error);
+
 struct TextNamedStyleDecoration;
 // Compiles an opening-tag fragment into one named style and its effects.
 // A decoration output enables underline and strikethrough; null rejects them.

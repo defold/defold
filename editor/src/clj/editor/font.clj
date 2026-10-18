@@ -53,7 +53,7 @@
             [schema.core :as schema]
             [util.coll :as coll]
             [util.defonce :as defonce])
-  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$GlyphBank FontRenderer$GlyphBankGlyph FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$MarkupSpan FontRenderer$Params FontRenderer$Properties FontRenderer$Style FontRenderer$Texture FontRenderer$VertexBufferRequirements FontStyles]
+  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$GlyphBank FontRenderer$GlyphBankGlyph FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupException FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$MarkupSpan FontRenderer$Params FontRenderer$Properties FontRenderer$Style FontRenderer$Texture FontRenderer$VertexBufferRequirements FontStyles]
            [com.dynamo.bob.util MurmurHash]
            [com.dynamo.font.proto GlyphBankProto$GlyphBank]
            [com.dynamo.render.proto Font$CompiledStyle Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$StyleDesc Font$VectorFontMode]
@@ -618,10 +618,13 @@
                  (localization/message "error.font.no-reserved-distance-field-data-for-rich-text-shadow-blur")))))
 
 (defn- markup-parser-error
-  [node-id property text ^FontRenderer$MarkupError error]
+  [node-id property severity text ^FontRenderer$MarkupError error]
   (let [line (.-line error)
-        column (.-column error)]
-    (g/->error node-id property :warning text (.-message error)
+        column (.-column error)
+        message (if (= 15 (.-errorType error))
+                  (localization/message "error.font.invalid-gradient-radius" {"line" line "column" column})
+                  (.-message error))]
+    (g/->error node-id property severity text message
                {:byte-offset (.-byteOffset error)
                 :column column
                 :cursor-range (code.data/line-number->CursorRange line column)
@@ -642,7 +645,7 @@
               (let [^FontRenderer$MarkupParseResult result (FontRenderer/parseMarkup text)]
                 [(.-document result) (.-error result)]))]
         (if error
-          (markup-parser-error node-id property text error)
+          (markup-parser-error node-id property :warning text error)
           (layer-capability-error node-id property font-map text
                                   (markup-layer-info document (double (:size font-map 1.0)))))))))
 
@@ -1501,8 +1504,8 @@
                            (localization/message "error.font.authored-default-style")))
               (try
                 (FontRenderer/compileStyle authored-markup)
-                (catch IllegalArgumentException error
-                  (g/->error _node-id :markup :fatal authored-markup (.getMessage error)))))))
+                (catch FontRenderer$MarkupException exception
+                  (markup-parser-error _node-id :markup :fatal authored-markup (.-error exception)))))))
   (output markup-error g/Any
           (g/fnk [^:try compiled-style]
             (when (g/error-value? compiled-style)

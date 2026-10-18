@@ -44,7 +44,7 @@ extern "C"
         FONT_RENDERER_LAYER_SHADOW = 4,
     } FontRendererLayer;
 
-    /* Rich-text parser error classification returned by FontcParseMarkup. */
+    /* Rich-text diagnostic classification returned by FontcParseMarkup and FontcCompileStyle. */
     typedef enum FontcMarkupErrorType
     {
         FONTC_MARKUP_ERROR_NONE,
@@ -62,6 +62,7 @@ extern "C"
         FONTC_MARKUP_ERROR_UNKNOWN_TAG,
         FONTC_MARKUP_ERROR_UNKNOWN_ATTRIBUTE,
         FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE,
+        FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS,
     } FontcMarkupErrorType;
 
     typedef struct FontcParams
@@ -384,12 +385,14 @@ extern "C"
      * Parses UTF-8 rich text into a font-independent syntax tree. On success,
      * the returned handle owns the parsed source, visible text, nodes,
      * attributes, and spans until released with `FontcDestroyMarkup`.
+     * Invalid effect values do not prevent parsing; error then identifies the
+     * first ignored effect so tooling can display a warning.
      *
      * @name FontcParseMarkup
      * @param markup [type: const char*] UTF-8 rich-text markup.
      * @param markup_byte_count [type: uint32_t] Number of bytes in the markup.
      * @param parsed_markup [type: HFontcMarkup*] Receives the parsed handle on success.
-     * @param error [type: FontcMarkupError*] Receives structured parser error information.
+     * @param error [type: FontcMarkupError*] Receives the first parser error or effect warning, or FONTC_MARKUP_ERROR_NONE.
      * @return result [type: FontRendererResult] Result of the operation.
      */
     DM_DLLEXPORT FontRendererResult FontcParseMarkup(const char*       markup,

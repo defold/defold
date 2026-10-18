@@ -298,6 +298,28 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Style build failures retain the native diagnostic and identify the authored style and invalid radius.
+    @Test
+    public void testGradientStyleDiagnostic() {
+        com.dynamo.render.proto.Font.FontDesc font = com.dynamo.render.proto.Font.FontDesc.newBuilder()
+                .setFont("/Tuffy.ttf").setMaterial("/test.material").setSize(16)
+                .addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("ellipse")
+                        .setMarkup("<gradient type=radial radius-x=0 color0=#FF0000>"))
+                .build();
+        try {
+            com.dynamo.bob.font.FontStyles.compileStyles(font);
+            fail("Accepted a style with a zero gradient radius");
+        } catch (IllegalArgumentException exception) {
+            assertTrue(exception.getMessage().contains("Font style 'ellipse'"));
+            assertTrue(exception.getMessage().contains("gradient radius must be greater than zero"));
+            com.dynamo.bob.font.FontRenderer.MarkupException cause =
+                    (com.dynamo.bob.font.FontRenderer.MarkupException)exception.getCause();
+            assertEquals(15, cause.error.errorType);
+            assertEquals(1, cause.error.line);
+            assertEquals(32, cause.error.column);
+        }
+    }
+
     @Test
     public void testLabelAndGuiStyleSelection() throws Exception {
         ParseUtil.addParser("labelc", com.dynamo.gamesys.proto.Label.LabelDesc::parseFrom);

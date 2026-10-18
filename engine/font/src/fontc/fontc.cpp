@@ -70,7 +70,7 @@ static_assert(offsetof(FontcMarkupSpan, m_NodeIndex) == offsetof(MarkupSpan, m_S
 static_assert(sizeof(FontcMarkupError) == 8, "Unexpected FontcMarkupError ABI layout");
 static_assert((int)FONTC_MARKUP_ERROR_NONE == (int)MARKUP_ERROR_NONE, "Unexpected FontcMarkupErrorType values");
 static_assert((int)FONTC_MARKUP_ERROR_MISMATCHED_CLOSING_TAG == (int)MARKUP_ERROR_MISMATCHED_CLOSING_TAG, "Unexpected FontcMarkupErrorType values");
-static_assert((int)FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE == (int)MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, "Unexpected FontcMarkupErrorType values");
+static_assert((int)FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS == (int)MARKUP_ERROR_INVALID_GRADIENT_RADIUS, "Unexpected FontcMarkupErrorType values");
 static_assert(sizeof(FontcMarkupData) == 80, "Unexpected FontcMarkupData ABI layout");
 static_assert(offsetof(FontcMarkupData, m_Text) == 16, "Unexpected FontcMarkupData ABI layout");
 static_assert(offsetof(FontcMarkupData, m_Nodes) == 32, "Unexpected FontcMarkupData ABI layout");
@@ -1187,6 +1187,10 @@ FontRendererResult FontcParseMarkup(const char*       markup,
 
     MarkupError        error = {};
     const MarkupResult result = MarkupCreate(markup ? markup : "", markup_byte_count, parsed_markup, &error);
+    if (result == MARKUP_RESULT_OK)
+    {
+        TextLayoutValidateMarkupEffects(*parsed_markup, &error);
+    }
     output_error->m_ByteOffset = error.m_ByteOffset;
     output_error->m_Type = (FontcMarkupErrorType)error.m_Type;
 

@@ -86,8 +86,7 @@ enum MarkupResult
 
 /*# Markup parsing error type
  *
- * Describes the first error encountered by `MarkupCreate()` or
- * `MarkupCreateStyleFragment()`.
+ * Describes syntax or style-value errors encountered while compiling markup.
  *
  * @enum
  * @name MarkupErrorType
@@ -105,7 +104,8 @@ enum MarkupResult
  * @member MARKUP_ERROR_UNSUPPORTED Markup support is not linked into this engine.
  * @member MARKUP_ERROR_UNKNOWN_TAG The tag name is syntactically valid but is not supported.
  * @member MARKUP_ERROR_UNKNOWN_ATTRIBUTE The attribute name is not supported by its tag.
- * @member MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE The attribute requires a known string constant.
+ * @member MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE The attribute value is not valid.
+ * @member MARKUP_ERROR_INVALID_GRADIENT_RADIUS A gradient radius must be greater than zero.
  */
 enum MarkupErrorType
 {
@@ -124,11 +124,12 @@ enum MarkupErrorType
     MARKUP_ERROR_UNKNOWN_TAG,
     MARKUP_ERROR_UNKNOWN_ATTRIBUTE,
     MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE,
+    MARKUP_ERROR_INVALID_GRADIENT_RADIUS,
 };
 
 /*# Markup parsing error
  *
- * Identifies the first parsing error and its location in the original source.
+ * Identifies the first syntax or style-value error and its location in the original source.
  *
  * @struct
  * @name MarkupError

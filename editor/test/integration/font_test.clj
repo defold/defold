@@ -496,7 +496,32 @@
                          "unknown attribute"))
         (is (= 10 (get-in unknown-constant-error [:user-data :byte-offset])))
         (is (s/includes? (test-util/localization (g/error-message unknown-constant-error))
-                         "unknown value for attribute"))))))
+                         "invalid attribute value"))))))
+
+;; Invalid gradients warn on text and identify the value in style build errors.
+(deftest gradient-compilation-diagnostics
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")
+          font-map (g/node-value font-node :font-map)
+          markup "<gradient type=radial radius-x=0 color0=#FF0000>"
+          text (str markup "A</gradient>")
+          offset (inc (s/index-of markup "=0"))]
+      (doseq [preview-font-map [font-map {:use-rich-text true}]]
+        (let [error (font/markup-error font-node :text preview-font-map text)]
+          (is (g/error-warning? error))
+          (is (= offset (get-in error [:user-data :byte-offset])))
+          (is (= (inc offset) (get-in error [:user-data :column])))
+          (is (s/includes? (test-util/localization (g/error-message error))
+                           "gradient radius must be greater than zero"))))
+      (is (pos? (:width (font/layout-text font-map text false 0 0 1 nil))))
+      (let [style-node (:node-id (second (g/node-value font-node :style-infos)))]
+        (test-util/with-prop [style-node :markup markup]
+          (let [error (test-util/prop-error style-node :markup)]
+            (is (g/error-fatal? error))
+            (is (= offset (get-in error [:user-data :byte-offset])))
+            (is (s/includes? (test-util/localization (g/error-message error))
+                             "gradient radius must be greater than zero")))
+          (is (g/error-fatal? (g/node-value font-node :build-targets))))))))
 
 (deftest bmfont-uses-glyph-bank-native-rich-text-preview
   (test-util/with-loaded-project "test/resources/reload_unchanged_project"

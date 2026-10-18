@@ -265,6 +265,15 @@ public class FontRendererFFM extends FontRendererSymbols {
     public static int FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE() {
         return FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE;
     }
+    private static final int FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS = (int)15L;
+    /**
+     * {@snippet lang=c :
+     * enum FontcMarkupErrorType.FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS = 15
+     * }
+     */
+    public static int FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS() {
+        return FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS;
+    }
 
     private static class FontcCompileStyle {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
