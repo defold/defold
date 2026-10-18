@@ -126,7 +126,12 @@ namespace dmRecord
     {
         @autoreleasepool
         {
-            NSString*      output_path = [NSString stringWithUTF8String:path];
+            NSString* output_path = [NSString stringWithUTF8String:path];
+            if (!output_path)
+            {
+                SetFailure(status, @"recording path must be valid UTF-8");
+                return false;
+            }
             NSURL*         output_url = [NSURL fileURLWithPath:output_path];
             NSFileManager* files = [NSFileManager defaultManager];
             NSError*       error = nil;

@@ -56,6 +56,34 @@ TEST_F(RecordOutputTest, NewOutput)
     ASSERT_NE(0, access(m_Path, F_OK));
 }
 
+// Malformed UTF-8 must return an error instead of passing a nil path to NSURL and aborting.
+TEST_F(RecordOutputTest, InvalidUtf8)
+{
+    const char* invalid[] = {
+        "\xff", "\x80", "\xc0\xaf", "\xc2", "\xe2\x82", "\xf0\x9f\x8e",
+        "\xc2x", "\xed\xa0\x80", "\xf4\x90\x80\x80"
+    };
+    for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
+    {
+        char path[1024];
+        ASSERT_LT(snprintf(path, sizeof(path), "%s/%s", m_Directory, invalid[i]), (int)sizeof(path));
+        dmRecord::Status status = {};
+        ASSERT_FALSE(dmRecord::PrepareOutputFile(path, &status));
+        ASSERT_STREQ("recording path must be valid UTF-8", status.m_Failure);
+    }
+}
+
+// UTF-8 validation must still accept two-, three- and four-byte characters in output filenames.
+TEST_F(RecordOutputTest, UnicodeOutput)
+{
+    char path[1024];
+    ASSERT_LT(snprintf(path, sizeof(path), "%s/\xc3\xa9-\xe6\x97\xa5-\xf0\x9f\x8e\xa5.mp4", m_Directory), (int)sizeof(path));
+    dmRecord::Status status = {};
+    ASSERT_TRUE(dmRecord::PrepareOutputFile(path, &status));
+    ASSERT_EQ(0, status.m_Failure[0]);
+    ASSERT_NE(0, access(path, F_OK));
+}
+
 // Recording may replace an existing regular file without removing its parent directory.
 TEST_F(RecordOutputTest, ReplaceFile)
 {
