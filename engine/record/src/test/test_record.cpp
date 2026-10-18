@@ -81,9 +81,15 @@ struct RecordingBackend
     uint32_t                                m_Stops;
     uint32_t                                m_Finalizes;
     uint32_t                                m_WrongThread;
+    uint32_t                                m_WindowPrepares;
+    uint32_t                                m_WindowRestores;
+    uint32_t                                m_EarlyRestores;
     bool                                    m_AllowStart;
     bool                                    m_AllowStop;
     bool                                    m_FailStart;
+    bool                                    m_FailStop;
+    bool                                    m_FailPrepare;
+    bool                                    m_WindowPrepared;
     bool                                    m_FinalizeRequested;
     bool                                    m_Unsupported;
     bool                                    m_NoWindow;
@@ -113,6 +119,27 @@ namespace dmRecord
         window->m_Height = g_Backend.m_WindowHeight;
         window->m_Scale = 1.0;
         return !g_Backend.m_NoWindow;
+    }
+
+    bool PrepareWindow(void* native_window, Window* window)
+    {
+        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        if (dmThread::GetTlsValue(g_Backend.m_ThreadKey) != &g_Backend.m_WindowPrepared)
+            ++g_Backend.m_WrongThread;
+        ++g_Backend.m_WindowPrepares;
+        g_Backend.m_WindowPrepared = true;
+        return !g_Backend.m_FailPrepare && GetWindow(native_window, window);
+    }
+
+    void RestoreWindow()
+    {
+        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        if (dmThread::GetTlsValue(g_Backend.m_ThreadKey) != &g_Backend.m_WindowPrepared)
+            ++g_Backend.m_WrongThread;
+        if (g_Backend.m_Status.m_Active)
+            ++g_Backend.m_EarlyRestores;
+        ++g_Backend.m_WindowRestores;
+        g_Backend.m_WindowPrepared = false;
     }
 
     void GetNativeStatus(Status* status)
@@ -157,9 +184,11 @@ namespace dmRecord
         while (!g_Backend.m_AllowStop)
             dmConditionVariable::Wait(g_Backend.m_Condition, g_Backend.m_Mutex);
         g_Backend.m_Status.m_Active = false;
-        g_Backend.m_Status.m_Finalized = true;
+        g_Backend.m_Status.m_Finalized = !g_Backend.m_FailStop;
+        if (g_Backend.m_FailStop)
+            dmStrlCpy(g_Backend.m_Status.m_Failure, "stop failed", sizeof(g_Backend.m_Status.m_Failure));
         *status = g_Backend.m_Status;
-        return true;
+        return !g_Backend.m_FailStop;
     }
 
     void FinalizeNative()
@@ -191,6 +220,7 @@ class RecordingAsyncTest : public jc_test_base_class
         g_Backend.m_Mutex = dmMutex::New();
         g_Backend.m_Condition = dmConditionVariable::New();
         g_Backend.m_ThreadKey = dmThread::AllocTls();
+        dmThread::SetTlsValue(g_Backend.m_ThreadKey, &g_Backend.m_WindowPrepared);
         g_Backend.m_AllowStart = true;
         g_Backend.m_AllowStop = true;
         g_Backend.m_Status.m_Supported = true;
@@ -202,6 +232,10 @@ class RecordingAsyncTest : public jc_test_base_class
     {
         AllowOperations();
         Finalize();
+        ASSERT_EQ(g_Backend.m_WindowPrepares, g_Backend.m_WindowRestores);
+        ASSERT_FALSE(g_Backend.m_WindowPrepared);
+        ASSERT_EQ(0u, g_Backend.m_EarlyRestores);
+        ASSERT_EQ(0u, g_Backend.m_WrongThread);
         dmThread::FreeTls(g_Backend.m_ThreadKey);
         dmConditionVariable::Delete(g_Backend.m_Condition);
         dmMutex::Delete(g_Backend.m_Mutex);
@@ -242,25 +276,27 @@ class RecordingAsyncTest : public jc_test_base_class
         return status;
     }
 
-    static void FinalizeWorker(void*)
+    static void AllowOperationsWorker(void*)
     {
-        {
-            dmMutex::ScopedLock lock(g_Backend.m_Mutex);
-            g_Backend.m_FinalizeRequested = true;
-            dmConditionVariable::Broadcast(g_Backend.m_Condition);
-        }
-        Finalize();
-    }
-
-    static void FinalizeBlockedOperation()
-    {
-        dmThread::Thread thread = dmThread::New(FinalizeWorker, 512 * 1024, 0, "recording-finalize-test");
         {
             dmMutex::ScopedLock lock(g_Backend.m_Mutex);
             while (!g_Backend.m_FinalizeRequested)
                 dmConditionVariable::Wait(g_Backend.m_Condition, g_Backend.m_Mutex);
         }
         AllowOperations();
+    }
+
+    static void FinalizeBlockedOperation()
+    {
+        dmThread::Thread thread = dmThread::New(AllowOperationsWorker, 512 * 1024, 0, "recording-unblock-test");
+        {
+            dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+            g_Backend.m_FinalizeRequested = true;
+            dmConditionVariable::Broadcast(g_Backend.m_Condition);
+        }
+        // Window restoration belongs to the caller's main thread, even when
+        // finalization must wait for a blocked native start/stop operation.
+        Finalize();
         dmThread::Join(thread);
 #if defined(_WIN32)
         dmThread::Detach(thread);
@@ -277,6 +313,7 @@ TEST_F(RecordingAsyncTest, StartStopSameThread)
         Status status;
         ASSERT_TRUE(Start(&status));
         ASSERT_TRUE(status.m_Pending);
+        ASSERT_TRUE(g_Backend.m_WindowPrepared);
         ASSERT_GT(status.m_Id, previous_id);
         previous_id = status.m_Id;
         status = WaitForCompletion();
@@ -292,6 +329,7 @@ TEST_F(RecordingAsyncTest, StartStopSameThread)
         ASSERT_FALSE(status.m_Pending);
         ASSERT_FALSE(status.m_Active);
         ASSERT_TRUE(status.m_Finalized);
+        ASSERT_FALSE(g_Backend.m_WindowPrepared);
         ASSERT_EQ(previous_id, status.m_Id);
     }
     Finalize();
@@ -321,6 +359,7 @@ TEST_F(RecordingAsyncTest, ResizeFinalizesRecording)
     ASSERT_FALSE(status.m_Active);
     ASSERT_TRUE(status.m_Finalized);
     ASSERT_TRUE(status.m_Stopping);
+    ASSERT_FALSE(g_Backend.m_WindowPrepared);
     ASSERT_EQ(id, status.m_Id);
     ASSERT_EQ(320u, status.m_Width);
     ASSERT_EQ(240u, status.m_Height);
@@ -407,6 +446,7 @@ TEST_F(RecordingAsyncTest, RetryFailedStart)
     ASSERT_FALSE(status.m_Active);
     ASSERT_STREQ("start failed", status.m_Failure);
     ASSERT_STREQ("recording-test.mp4", status.m_Path);
+    ASSERT_FALSE(g_Backend.m_WindowPrepared);
     {
         dmMutex::ScopedLock lock(g_Backend.m_Mutex);
         g_Backend.m_FailStart = false;
@@ -420,6 +460,63 @@ TEST_F(RecordingAsyncTest, RetryFailedStart)
     ASSERT_EQ(2u, g_Backend.m_Starts);
     ASSERT_EQ(1u, g_Backend.m_Finalizes);
     ASSERT_EQ(0u, g_Backend.m_WrongThread);
+}
+
+// A failed window preparation must restore decorations before returning to the caller.
+TEST_F(RecordingAsyncTest, FailedWindowPreparation)
+{
+    g_Backend.m_FailPrepare = true;
+    Status status;
+    ASSERT_FALSE(Start(&status));
+    ASSERT_FALSE(g_Backend.m_WindowPrepared);
+    ASSERT_EQ(1u, g_Backend.m_WindowRestores);
+    ASSERT_EQ(0u, g_Backend.m_Starts);
+}
+
+// Decorations remain removed until a pending stop completes, including failed finalization.
+TEST_F(RecordingAsyncTest, FailedStopRestoresWindow)
+{
+    Status status;
+    ASSERT_TRUE(Start(&status));
+    status = WaitForCompletion();
+    ASSERT_TRUE(status.m_Active);
+    g_Backend.m_AllowStop = false;
+    g_Backend.m_FailStop = true;
+    ASSERT_TRUE(Stop(&status));
+    WaitForOperation(true);
+    GetStatus(&status);
+    ASSERT_TRUE(status.m_Pending);
+    ASSERT_TRUE(g_Backend.m_WindowPrepared);
+    ASSERT_EQ(0u, g_Backend.m_WindowRestores);
+    AllowOperations();
+    status = WaitForCompletion();
+    ASSERT_FALSE(status.m_Active);
+    ASSERT_FALSE(status.m_Finalized);
+    ASSERT_STREQ("stop failed", status.m_Failure);
+    ASSERT_FALSE(g_Backend.m_WindowPrepared);
+    GetStatus(&status);
+    ASSERT_EQ(1u, g_Backend.m_WindowRestores);
+}
+
+// A native capture failure must complete cleanup before restoring the game window.
+TEST_F(RecordingAsyncTest, FailedCaptureRestoresWindow)
+{
+    Status status;
+    ASSERT_TRUE(Start(&status));
+    status = WaitForCompletion();
+    ASSERT_TRUE(status.m_Active);
+    {
+        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        g_Backend.m_Status.m_Stopping = true;
+        dmStrlCpy(g_Backend.m_Status.m_Failure, "capture failed", sizeof(g_Backend.m_Status.m_Failure));
+    }
+    status = WaitForCompletion();
+    ASSERT_FALSE(status.m_Pending);
+    ASSERT_FALSE(status.m_Active);
+    ASSERT_STREQ("capture failed", status.m_Failure);
+    ASSERT_FALSE(g_Backend.m_WindowPrepared);
+    ASSERT_EQ(1u, g_Backend.m_Stops);
+    ASSERT_EQ(1u, g_Backend.m_WindowRestores);
 }
 
 // Finalization without a recording must not invoke native cleanup or create a worker.

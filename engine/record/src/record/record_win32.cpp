@@ -288,6 +288,13 @@ namespace dmRecord
         return target->m_Handle != 0;
     }
 
+    bool PrepareWindow(void* native_window, Window* target)
+    {
+        return GetWindow(native_window, target);
+    }
+
+    void RestoreWindow() {}
+
     struct WindowsRecorder
     {
         public:

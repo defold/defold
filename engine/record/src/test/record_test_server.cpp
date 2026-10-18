@@ -70,6 +70,13 @@ namespace dmRecord
         return true;
     }
 
+    bool PrepareWindow(void* native_window, Window* window)
+    {
+        return GetWindow(native_window, window);
+    }
+
+    void RestoreWindow() {}
+
     void GetNativeStatus(Status* status)
     {
         dmMutex::ScopedLock lock(g_Mutex);

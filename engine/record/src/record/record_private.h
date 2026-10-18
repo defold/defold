@@ -31,6 +31,10 @@ namespace dmRecord
 
     // Snapshot window geometry on the main thread before handing it to the worker.
     bool GetWindow(void* native_window, Window* window);
+    // Prepare the window before taking that snapshot and restore it after capture.
+    // Both hooks run on the main thread, including failure and shutdown cleanup.
+    bool PrepareWindow(void* native_window, Window* window);
+    void RestoreWindow();
     void GetNativeStatus(Status* status);
     bool StartNative(const Window* window, const char* path, uint32_t fps, bool audio, Status* status);
     bool StopNative(Status* status);

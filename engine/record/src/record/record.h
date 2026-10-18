@@ -55,7 +55,8 @@ namespace dmRecord
     const char* GetBackendName();
     const char* GetMinimumPlatformVersion();
     const char* GetUnsupportedReason();
-    // Polling also requests finalization when the native content size changes.
+    // Polling also requests finalization when the native content size changes
+    // and restores temporary window decorations after the worker finishes.
     void        GetStatus(Status* status);
 
     // True means the operation was accepted. Poll GetStatus() until m_Pending
@@ -64,7 +65,7 @@ namespace dmRecord
     bool Start(const StartParams* params, Status* status);
     bool Stop(Status* status);
 
-    // Joins outstanding operations and finalizes an active MP4 before returning.
+    // Joins outstanding operations, finalizes an active MP4 and restores the window.
     // Call before destroying the native window. Does not delete the output file.
     void Finalize();
 } // namespace dmRecord

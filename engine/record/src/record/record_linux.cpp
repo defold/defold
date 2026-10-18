@@ -115,6 +115,13 @@ namespace dmRecord
         *status = g_Capture.m_Status;
     }
 
+    bool PrepareWindow(void* context, Window* window)
+    {
+        return GetWindow(context, window);
+    }
+
+    void RestoreWindow() {}
+
     static void Fail(LinuxRecording* recording, const char* message)
     {
         // Caller holds the mutex, or startup has not published an active recorder.

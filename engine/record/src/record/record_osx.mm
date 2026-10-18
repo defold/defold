@@ -88,10 +88,10 @@
 
 namespace dmRecord
 {
-    // AppKit includes the rounded bottom edge in NSWindow's content rect. The
-    // window server masks roughly 14-15 points there on current macOS releases,
-    // so exclude a narrow safety row to produce a fully rectangular game frame.
-    static const CGFloat            WINDOW_BOTTOM_CORNER_CROP_POINTS = 16.0;
+    // Only the main thread changes the window. Capture workers never dispatch
+    // back to it, so shutdown can join the worker before restoring decorations.
+    static NSWindow*                g_BorderlessWindow = nil;
+    static NSWindowStyleMask        g_WindowStyle;
 
     static NSLock*                  g_Lock = nil;
     static bool                     g_Starting = false;
@@ -146,9 +146,49 @@ namespace dmRecord
         target->m_X = NSMinX(content) - NSMinX(frame);
         target->m_Y = NSMaxY(frame) - NSMaxY(content);
         target->m_Width = NSWidth(content);
-        target->m_Height = NSHeight(content) - MIN(WINDOW_BOTTOM_CORNER_CROP_POINTS, NSHeight(content) * 0.25);
+        target->m_Height = NSHeight(content);
         target->m_Scale = [window backingScaleFactor];
         return target->m_Width > 0 && target->m_Height > 0;
+    }
+
+    static void SetWindowStyle(NSWindow* window, NSWindowStyleMask style)
+    {
+        // Keep the rendered content at the same screen position and size while
+        // AppKit rebuilds the surrounding frame. Preserve keyboard input too.
+        NSRect content = [window contentRectForFrameRect:[window frame]];
+        NSResponder* responder = [[window firstResponder] retain];
+        [window setStyleMask:style];
+        [window setFrame:[window frameRectForContentRect:content] display:YES];
+        [window makeFirstResponder:responder];
+        [responder release];
+    }
+
+    bool PrepareWindow(void* native_window, Window* target)
+    {
+        NSWindow* window = (NSWindow*)native_window;
+        if (!window)
+            return false;
+        NSWindowStyleMask style = [window styleMask];
+        // Fullscreen and already-borderless windows need no decoration changes.
+        if ((style & NSWindowStyleMaskTitled) && !(style & NSWindowStyleMaskFullScreen))
+        {
+            g_BorderlessWindow = [window retain];
+            g_WindowStyle = style;
+            SetWindowStyle(window, style & ~(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable));
+        }
+        return GetWindow(native_window, target);
+    }
+
+    void RestoreWindow()
+    {
+        NSWindow* window = g_BorderlessWindow;
+        g_BorderlessWindow = nil;
+        if (window)
+        {
+            // Preserve content geometry if the user moved or resized the window.
+            SetWindowStyle(window, g_WindowStyle);
+            [window release];
+        }
     }
 
     static void ReleaseRecorderObjects()
@@ -207,6 +247,7 @@ namespace dmRecord
                 if (error)
                 {
                     SetFailure(status, [error localizedDescription]);
+                    status->m_Stopping = status->m_Active;
                 }
             }
             [RecordingLock() unlock];

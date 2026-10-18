@@ -38,9 +38,19 @@ namespace dmRecord
         dmConditionVariable::HConditionVariable m_Condition;
         dmThread::Thread                        m_Thread;
         RecordingRequest                        m_Request;
+        bool                                    m_WindowPrepared;
     };
     static RecordingOperation g_Recording;
     static uint64_t           g_OperationId;
+
+    static void RestorePreparedWindow()
+    {
+        if (g_Recording.m_WindowPrepared)
+        {
+            g_Recording.m_WindowPrepared = false;
+            RestoreWindow();
+        }
+    }
 
     static void               RecordingWorker(void* arg)
     {
@@ -110,7 +120,7 @@ namespace dmRecord
             if (current.m_Active && current.m_Stopping)
             {
                 // Finalize on the same worker that owns the native recorder.
-                dmLogWarning("Window size changed; stopping video recording");
+                dmLogWarning("Stopping video recording: %s", current.m_Failure[0] ? current.m_Failure : "window size changed");
                 current.m_Pending = true;
                 g_Recording.m_Request = RECORDING_REQUEST_STOP;
                 dmConditionVariable::Signal(g_Recording.m_Condition);
@@ -118,6 +128,8 @@ namespace dmRecord
             g_Recording.m_Status = current;
             *status = current;
         }
+        if (!status->m_Pending && !status->m_Active)
+            RestorePreparedWindow();
     }
 
     static bool Fail(Status* status, const char* message)
@@ -140,37 +152,49 @@ namespace dmRecord
         if (params->m_Audio && !IsAudioSupported())
             return Fail(status, "application audio is not supported by this recording backend");
         Window window = {};
-        if (!params->m_Window || !GetWindow(params->m_Window, &window))
+        if (!params->m_Window)
             return Fail(status, "recording window is unavailable");
+        if (!PrepareWindow(params->m_Window, &window))
+        {
+            RestoreWindow();
+            return Fail(status, "recording window is unavailable");
+        }
+        g_Recording.m_WindowPrepared = true;
         if (!g_Recording.m_Mutex)
         {
             g_Recording.m_Mutex = dmMutex::New();
             g_Recording.m_Condition = dmConditionVariable::New();
         }
-        dmMutex::ScopedLock lock(g_Recording.m_Mutex);
-        g_Recording.m_Window = window;
-        g_Recording.m_NativeWindow = params->m_Window;
-        memset(&g_Recording.m_Status, 0, sizeof(g_Recording.m_Status));
-        Status* pending = &g_Recording.m_Status;
-        pending->m_Id = ++g_OperationId;
-        pending->m_Supported = true;
-        pending->m_Pending = true;
-        pending->m_Fps = params->m_Fps;
-        pending->m_Audio = params->m_Audio;
-        dmStrlCpy(pending->m_Path, params->m_Path, sizeof(pending->m_Path));
-        g_Recording.m_Request = RECORDING_REQUEST_START;
-        *status = *pending;
-        if (!g_Recording.m_Thread)
-            g_Recording.m_Thread = dmThread::New(RecordingWorker, 512 * 1024, &g_Recording, "record");
+        {
+            dmMutex::ScopedLock lock(g_Recording.m_Mutex);
+            g_Recording.m_Window = window;
+            g_Recording.m_NativeWindow = params->m_Window;
+            memset(&g_Recording.m_Status, 0, sizeof(g_Recording.m_Status));
+            Status* pending = &g_Recording.m_Status;
+            pending->m_Id = ++g_OperationId;
+            pending->m_Supported = true;
+            pending->m_Pending = true;
+            pending->m_Fps = params->m_Fps;
+            pending->m_Audio = params->m_Audio;
+            dmStrlCpy(pending->m_Path, params->m_Path, sizeof(pending->m_Path));
+            g_Recording.m_Request = RECORDING_REQUEST_START;
+            if (!g_Recording.m_Thread)
+                g_Recording.m_Thread = dmThread::New(RecordingWorker, 512 * 1024, &g_Recording, "record");
+            if (!g_Recording.m_Thread)
+            {
+                g_Recording.m_Request = RECORDING_REQUEST_NONE;
+                pending->m_Pending = false;
+                dmStrlCpy(pending->m_Failure, "recording worker unavailable", sizeof(pending->m_Failure));
+            }
+            else
+                dmConditionVariable::Signal(g_Recording.m_Condition);
+            *status = *pending;
+        }
         if (!g_Recording.m_Thread)
         {
-            g_Recording.m_Request = RECORDING_REQUEST_NONE;
-            g_Recording.m_Status.m_Pending = false;
-            dmStrlCpy(g_Recording.m_Status.m_Failure, "recording worker unavailable", sizeof(g_Recording.m_Status.m_Failure));
-            *status = g_Recording.m_Status;
+            RestorePreparedWindow();
             return false;
         }
-        dmConditionVariable::Signal(g_Recording.m_Condition);
         return true;
     }
 
@@ -205,6 +229,7 @@ namespace dmRecord
             dmThread::Detach(g_Recording.m_Thread);
 #endif
         }
+        RestorePreparedWindow();
         if (g_Recording.m_Condition)
             dmConditionVariable::Delete(g_Recording.m_Condition);
         if (g_Recording.m_Mutex)
