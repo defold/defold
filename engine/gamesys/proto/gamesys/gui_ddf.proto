@@ -208,6 +208,7 @@ message NodeDesc
     optional string    custom_type_name  = 49;
     repeated Property  custom_properties = 50;
     optional string    style             = 51 [default = "default"];
+    optional float     font_size          = 52 [default = 16.0];
 }
 
 message SceneDesc
@@ -287,6 +288,10 @@ message SceneDesc
  *
  * This message is broadcast to every GUI component when a layout change has been initiated
  * on device.
+ *
+ * Layout changes before or during `init()` are applied immediately, but their notifications
+ * are coalesced and delivered after `init()` completes successfully. If the final layout
+ * matches the layout before these changes, no notification is sent.
  *
  * @message
  * @name layout_changed

@@ -3085,7 +3085,7 @@ namespace dmGraphics
                     const bool is_matrix_input = matrix_vector_count > 0;
                     const uint32_t location_base = vertex_input->m_Binding;
 
-                    // SPIRV-Cross emits a `matN` vertex input as N float4 inputs with semantic
+                    // SPIRV-Cross emits a `matN` vertex input as N vectors with semantic
                     // "TEXCOORD{location}_" and SemanticIndex 0..N-1 (e.g. TEXCOORD3_0..TEXCOORD3_3
                     // for a mat4 at location 3). Mirror that here so the PSO signature matches.
                     const char* semantic_name = "TEXCOORD";
@@ -3102,18 +3102,21 @@ namespace dmGraphics
                         }
                     }
 
+                    const uint32_t num_vectors = is_matrix_input ? matrix_vector_count : 1;
+                    const uint32_t vector_components = stream.m_Size / num_vectors;
+                    const uint32_t vector_stride = vector_components * GetTypeSize(stream.m_Type);
+
                     D3D12_INPUT_ELEMENT_DESC desc;
                     desc.SemanticName         = semantic_name;
-                    desc.Format               = GetDXGIFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
+                    desc.Format               = GetDXGIFormat(stream.m_Type, vector_components, stream.m_Normalize);
                     desc.InputSlot            = i;
                     desc.InputSlotClass       = slot_step_per_instance ? D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA : D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
                     desc.InstanceDataStepRate = slot_step_per_instance ? 1 : 0;
 
-                    const uint32_t num_vectors = is_matrix_input ? matrix_vector_count : 1;
                     for (uint32_t v = 0; v < num_vectors; ++v)
                     {
                         desc.SemanticIndex     = is_matrix_input ? v : location_base + v;
-                        desc.AlignedByteOffset = stream.m_Offset + v * 16;
+                        desc.AlignedByteOffset = stream.m_Offset + v * vector_stride;
                         if (input_layout.Full())
                         {
                             input_layout.OffsetCapacity(32);
@@ -5006,12 +5009,14 @@ namespace dmGraphics
     {
         DX12Context* context = (DX12Context*) _context;
         DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
-        if (!rt || !rt->m_Base.m_TextureColor[0] || !buffer || !width || !height || (uint64_t) width * height * 4 > buffer_size)
+        if (!rt || !rt->m_Base.m_TextureColor[0])
             return;
 
         DX12Texture* color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[0]);
         const DXGI_FORMAT format = color->m_ResourceDesc.Format;
-        if ((format != DXGI_FORMAT_R8G8B8A8_UNORM && format != DXGI_FORMAT_B8G8R8A8_UNORM) || x < 0 || y < 0 ||
+        const bool is_rgba = format == DXGI_FORMAT_R8G8B8A8_UNORM || format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        const bool is_bgra = format == DXGI_FORMAT_B8G8R8A8_UNORM || format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+        if ((!is_rgba && !is_bgra) ||
             (uint64_t) x + width > color->m_ResourceDesc.Width || (uint64_t) y + height > color->m_ResourceDesc.Height)
             return;
 
@@ -5079,9 +5084,9 @@ namespace dmGraphics
                 {
                     const uint8_t* src = mapped_data + footprint.Offset + row * footprint.Footprint.RowPitch + col * 4;
                     uint8_t* dst = (uint8_t*) buffer + (row * width + col) * 4;
-                    dst[0] = src[format == DXGI_FORMAT_R8G8B8A8_UNORM ? 2 : 0];
+                    dst[0] = src[is_rgba ? 2 : 0];
                     dst[1] = src[1];
-                    dst[2] = src[format == DXGI_FORMAT_R8G8B8A8_UNORM ? 0 : 2];
+                    dst[2] = src[is_rgba ? 0 : 2];
                     dst[3] = src[3];
                 }
             D3D12_RANGE written_range = { 0, 0 };

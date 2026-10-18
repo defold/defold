@@ -20,6 +20,7 @@
 #include <wrl/client.h>
 #include "graphics_adapter.h"
 #include "test_app_graphics.h"
+#include "read_pixels_tests.h"
 #include "dx12/graphics_dx12_private.h"
 
 using Microsoft::WRL::ComPtr;
@@ -990,6 +991,7 @@ TEST_F(DX12Test, FrontAndBackCulling)
     for (uint32_t i = 0; i < 64; ++i)
         red_pixels += line_pixels[i * 4 + 2] == 255;
     ASSERT_GT(red_pixels, 0u);
+    ASSERT_TRUE(CheckReadPixelsRegions(GetContext(), 8, 8, 0));
     SetCullFace(GetContext(), FACE_TYPE_FRONT_AND_BACK);
     EnableState(GetContext(), STATE_CULL_FACE);
     for (uint32_t indexed = 0; indexed < 2; ++indexed)
@@ -1331,6 +1333,149 @@ TEST_F(DX12Test, SamplerModesAndFormatCapabilities)
     ASSERT_EQ(D3D12_FILTER_MIN_POINT_MAG_MIP_LINEAR, m_Context->m_TextureSamplers[linear].m_Desc.Filter);
     int32_t aniso = CreateTextureSampler(m_Context, TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 4, 8);
     ASSERT_EQ(D3D12_FILTER_ANISOTROPIC, m_Context->m_TextureSamplers[aniso].m_Desc.Filter);
+}
+
+// Verifies the public readback contract on 2D, multisample and cube targets.
+TEST_F(DX12Test, ReadPixelsTargetContract)
+{
+    HRenderTarget target = CreateTestRenderTarget(16, 16, BUFFER_TYPE_COLOR0_BIT, 1);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    ASSERT_TRUE(CheckReadPixelsTargets(GetContext(), target, 0, 0));
+    DeleteRenderTarget(GetContext(), target);
+}
+
+// Verifies packed mat2/mat3/mat4 columns reach the shader intact, guarding against 16-byte mat3 column spacing.
+TEST_F(DX12Test, PackedMatrixVertexInputs)
+{
+    HRenderTarget target = CreateTestRenderTarget(4, 4);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
+
+    const ShaderDesc::ShaderDataType types[] = {
+        ShaderDesc::SHADER_TYPE_MAT2,
+        ShaderDesc::SHADER_TYPE_MAT3,
+        ShaderDesc::SHADER_TYPE_MAT4,
+    };
+
+    const char* fragment_source =
+        "float4 main(float4 position : SV_Position, float valid : TEXCOORD0) : SV_Target\n"
+        "{\n"
+        "    return float4(0, valid, 0, 1);\n"
+        "}\n";
+
+    for (uint32_t n = 2; n <= 4; ++n)
+    {
+        char source[4096] =
+            "struct Input\n"
+            "{\n"
+            "    float4 position : TEXCOORD0;\n"
+            "    float2 uv : TEXCOORD1;\n";
+
+        char part[256];
+        for (uint32_t column = 0; column < n; ++column)
+        {
+            dmSnPrintf(part, sizeof(part), "    float%u column%u : TEXCOORD2_%u;\n", n, column, column);
+            dmStrlCat(source, part, sizeof(source));
+        }
+
+        dmStrlCat(source,
+            "};\n"
+            "\n"
+            "struct Output\n"
+            "{\n"
+            "    float4 position : SV_Position;\n"
+            "    float valid : TEXCOORD0;\n"
+            "};\n"
+            "\n"
+            "Output main(Input input)\n"
+            "{\n"
+            "    Output output;\n"
+            "    output.position = input.position;\n"
+            "    output.valid = all(input.uv == float2(0.25, 0.75));\n",
+            sizeof(source));
+
+        for (uint32_t column = 0; column < n; ++column)
+        {
+            for (uint32_t row = 0; row < n; ++row)
+            {
+                dmSnPrintf(part, sizeof(part), "    output.valid *= (input.column%u[%u] == %u.0);\n", column, row, column * n + row + 1);
+                dmStrlCat(source, part, sizeof(source));
+            }
+        }
+
+        dmStrlCat(source,
+            "\n"
+            "    return output;\n"
+            "}\n",
+            sizeof(source));
+
+        TestProgram shader;
+        shader.AddShaderStage(source, ShaderDesc::SHADER_TYPE_VERTEX);
+        shader.AddShaderStage(fragment_source, ShaderDesc::SHADER_TYPE_FRAGMENT);
+        shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+
+        AddShaderResource(&shader.m_Desc, "position", ShaderDesc::SHADER_TYPE_VEC4, 0, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(&shader.m_Desc, "texcoord0", ShaderDesc::SHADER_TYPE_VEC2, 1, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(&shader.m_Desc, "texture_transform_2d", types[n - 2], 2, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+
+        HProgram program = shader.CreateProgram(GetContext());
+        ASSERT_NE((HProgram)0, program);
+
+        const uint32_t components = 6 + n * n;
+        float vertices[3 * (6 + 16)] = {};
+        const float positions[3][4] = {
+            {-1, -1, 0.5f, 1},
+            {-1,  3, 0.5f, 1},
+            { 3, -1, 0.5f, 1},
+        };
+
+        for (uint32_t vertex = 0; vertex < 3; ++vertex)
+        {
+            float* data = vertices + vertex * components;
+            memcpy(data, positions[vertex], sizeof(positions[vertex]));
+            data[4] = 0.25f;
+            data[5] = 0.75f;
+
+            for (uint32_t component = 0; component < n * n; ++component)
+            {
+                data[6 + component] = (float)(component + 1);
+            }
+        }
+
+        HVertexBuffer buffer = NewVertexBuffer(GetContext(), 3 * components * sizeof(float), vertices, BUFFER_USAGE_STATIC_DRAW);
+
+        HVertexStreamDeclaration streams = NewVertexStreamDeclaration(GetContext());
+        AddVertexStream(streams, "position", 4, TYPE_FLOAT, false);
+        AddVertexStream(streams, "texcoord0", 2, TYPE_FLOAT, false);
+        AddVertexStream(streams, "texture_transform_2d", n * n, TYPE_FLOAT, false);
+        HVertexDeclaration declaration = NewVertexDeclaration(GetContext(), streams);
+
+        EnableProgram(GetContext(), program);
+        EnableVertexBuffer(GetContext(), buffer, 0);
+        EnableVertexDeclaration(GetContext(), declaration, 0, 0, program);
+        Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 0, 1, 0);
+        Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+
+        uint8_t pixels[4 * 4 * 4] = {};
+        ReadPixels(GetContext(), 0, 0, 4, 4, pixels, sizeof(pixels));
+
+        for (uint32_t pixel = 0; pixel < 16; ++pixel)
+        {
+            ASSERT_EQ(255, pixels[pixel * 4 + 1]);
+        }
+
+        SubmitAndWait();
+        DisableVertexDeclaration(GetContext(), declaration);
+        DisableVertexBuffer(GetContext(), buffer);
+        DeleteVertexDeclaration(declaration);
+        DeleteVertexStreamDeclaration(streams);
+        DeleteVertexBuffer(buffer);
+        DeleteProgram(GetContext(), program);
+    }
+
+    DeleteRenderTarget(GetContext(), target);
 }
 
 int main(int argc, char** argv)

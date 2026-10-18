@@ -17,6 +17,8 @@
 
 #include "glyph_vertex.h"
 
+struct TextGlyphRenderData;
+
 struct FontLayoutCachedGlyph
 {
     FontGlyph* m_Glyph;
@@ -37,6 +39,8 @@ struct FontLayoutVertexConfig
     float                  m_FaceColor[4];
     float                  m_Width;
     float                  m_Height;
+    // Layout base size / cached glyph size. Zero keeps the layout glyph scale.
+    float                  m_GlyphScale;
     float                  m_RecipAtlasWidth;
     float                  m_RecipAtlasHeight;
     float                  m_DecorationU;
@@ -61,11 +65,15 @@ struct FontLayoutVertexConfig
     bool                   m_MetricsFromTtf;
     bool                   m_IsSdf;
     bool                   m_IsBMFont;
+    // Vector fonts scale inherited offsets from the cached glyph size to the displayed size.
+    bool                   m_ScaleShadowOffsets;
     bool                   m_ShadowUsesFaceCoverage;
     bool                   m_ShadowIncludesOutline;
     bool                   m_RenderDecorations;
     bool                   m_RenderObjectOutlines;
     bool                   m_ResolveGlyphsForMetrics;
+    // Curve previews render SDF effects in a separate pass.
+    bool                   m_FaceOnly;
 };
 
 struct FontLayoutVertexMetrics
@@ -83,6 +91,25 @@ struct FontLayoutVertexMetrics
     uint8_t  m_LayerMask;
     bool     m_Truncated;
 };
+
+struct FontGlyphLayerRenderData
+{
+    uint32_t m_OutlineColor;
+    uint32_t m_ShadowColor;
+    float    m_SdfOutline;
+    float    m_SdfShadow;
+    float    m_OutlineWidth;
+    float    m_ShadowX;
+    float    m_ShadowY;
+    uint8_t  m_LayerMask;
+};
+
+// Internal style resolution shared by the bitmap/SDF and Vector backends.
+// Inputs are borrowed for this call. No allocations or input pointers are retained.
+void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
+                                     const TextGlyph&              glyph,
+                                     const TextGlyphRenderData&    render_data,
+                                     FontGlyphLayerRenderData*     layer_data);
 
 bool     FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayoutVertexMetrics* metrics);
 
