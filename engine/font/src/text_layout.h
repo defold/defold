@@ -211,7 +211,10 @@ struct TextLayoutObjectBounds
 // Scratch bounds reused by vertex generation: effects, lines, block, then a source-cluster range tree.
 struct TextGradientBounds
 {
-    float m_MinX, m_MinY, m_MaxX, m_MaxY;
+    float m_MinX;
+    float m_MinY;
+    float m_MaxX;
+    float m_MaxY;
 };
 
 struct TextLayout
@@ -357,10 +360,8 @@ uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestPara
 void TextLayoutGetGlyphFaceColors(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphFaceColors* colors);
 
 // Resolves all static style and animated-effect data needed for vertex generation.
-void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data);
-
 // GPU renderers resolve gradients separately; static tint and position effects remain CPU-side.
-void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data, bool apply_gradients);
+void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data, bool apply_gradients = true);
 
 // Reports whether the layout needs an outline vertex layer.
 bool TextLayoutHasMarkupOutline(HTextLayout layout);

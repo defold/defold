@@ -1680,11 +1680,6 @@ static void ApplyWaveEffect(const TextLayout* layout, const TextGlyph& glyph, co
     data->m_OffsetY += sinf(phase) * effect.m_Wave.m_Amplitude;
 }
 
-void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data)
-{
-    TextLayoutGetGlyphRenderData(layout, glyph, base_color, data, true);
-}
-
 void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data, bool apply_gradients)
 {
     TextLayout* internal = (TextLayout*)layout;

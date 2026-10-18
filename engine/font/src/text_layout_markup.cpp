@@ -729,7 +729,8 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
     color.m_Parameters[0] = color.m_Type == FONT_COLOR_EFFECT_RADIAL ? 0.5f : 0.0f;
     color.m_Parameters[1] = 0.5f;
     color.m_Parameters[2] = 0.5f;
-    float                  radius = 0.5f;
+    float radius = 0.5f;
+
     const MarkupAttribute* attributes = MarkupGetAttributes(markup) + node.m_AttributeIndex;
     for (uint32_t i = 0; i < node.m_AttributeCount; ++i)
     {

@@ -49,6 +49,7 @@ namespace dmRender
     using namespace dmVMath;
 
     static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
+    static const dmhash_t FONT_EFFECTS_HASH = dmHashString64("font_effects");
 
     static CacheGlyph* GetDecorationCacheGlyph(HFontMap font_map, uint32_t frame)
     {
@@ -460,7 +461,7 @@ namespace dmRender
         config.m_Layout = layout;
         config.m_ResolveGlyph = ResolveLayoutGlyph;
         config.m_ResolveGlyphContext = &glyph_context;
-        if (te.m_Material && GetMaterialSamplerUnit(te.m_Material, dmHashString64("font_effects")) != INVALID_SAMPLER_UNIT)
+        if (te.m_Material && GetMaterialSamplerUnit(te.m_Material, FONT_EFFECTS_HASH) != INVALID_SAMPLER_UNIT)
         {
             if (!font_map->m_EffectCache)
             {
@@ -623,7 +624,7 @@ namespace dmRender
             ro->m_Textures[texture_unit] = font_map->m_Texture;
         else
             ro->m_Textures[0] = font_map->m_Texture;
-        const uint32_t effect_unit = GetMaterialSamplerUnit(material, dmHashString64("font_effects"));
+        const uint32_t effect_unit = GetMaterialSamplerUnit(material, FONT_EFFECTS_HASH);
         if (effect_unit != INVALID_SAMPLER_UNIT)
         {
             if (!font_map->m_EffectCache)

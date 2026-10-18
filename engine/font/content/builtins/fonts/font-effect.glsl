@@ -1,6 +1,9 @@
 // Layout and dimensions are shared with font_effect.h / FontPackEffect.
 uniform mediump sampler2D font_effects;
 
+// Metadata decoding and texture addressing need highp when available, regardless
+// of the project's default float precision. Bob's GLES2 guard only sets that
+// default; it does not change explicit qualifiers on these values.
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 #define FONT_EFFECT_PRECISION highp
 #else

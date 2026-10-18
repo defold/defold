@@ -487,7 +487,8 @@ typedef TextGradientBounds SpatialGradientBounds;
 struct SpatialGradientCache
 {
     const TextEffect* m_Effect;
-    float             m_Width, m_Height;
+    float             m_Width;
+    float             m_Height;
     FontColorEffect   m_Color;
     uint32_t          m_Index;
 };
