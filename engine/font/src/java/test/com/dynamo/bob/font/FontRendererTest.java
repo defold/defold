@@ -556,26 +556,26 @@ public class FontRendererTest {
                     int layerVertexCount = decoration ? 12 : 6;
                     int vertexCount = layerVertexCount * (1 + (outline ? 1 : 0) + (shadow ? 1 : 0));
                     assertEquals(text, vertexCount, requirements.vertexCount);
-                    assertEquals(vertexCount * 52, requirements.byteCount);
+                    assertEquals(vertexCount * 68, requirements.byteCount);
                     ByteBuffer vertices = ByteBuffer.allocateDirect(requirements.byteCount).order(ByteOrder.nativeOrder());
                     for (int i = 0; i < vertices.capacity(); ++i)
                         vertices.put(i, (byte)0x7f);
                     renderer.getVertices(IDENTITY, vertices, requirements);
                     for (int i = 0; i < requirements.vertexCount; ++i) {
-                        assertTrue(text, Float.isFinite(vertices.getFloat(i * 52)));
-                        assertEquals(text, 0.0f, vertices.getFloat(i * 52 + 12), 0.0f);
+                        assertTrue(text, Float.isFinite(vertices.getFloat(i * 68)));
+                        assertEquals(text, 0.0f, vertices.getFloat(i * 68 + 12), 0.0f);
                         assertEquals(text, decoration && i % layerVertexCount >= 6 ? 3.0f :
                                 shadow && i < layerVertexCount ? 2.0f : outline && i < layerVertexCount * (shadow ? 2 : 1) ? 1.0f : 0.0f,
-                                vertices.getFloat(i * 52 + 28), 0.0f);
+                                vertices.getFloat(i * 68 + 28), 0.0f);
                     }
                     // Faces, effects, and decorations must survive the same culling mode.
                     for (int i = 0; i < requirements.vertexCount; i += 3) {
-                        float ax = vertices.getFloat(i * 52);
-                        float ay = vertices.getFloat(i * 52 + 4);
-                        float bx = vertices.getFloat((i + 1) * 52);
-                        float by = vertices.getFloat((i + 1) * 52 + 4);
-                        float cx = vertices.getFloat((i + 2) * 52);
-                        float cy = vertices.getFloat((i + 2) * 52 + 4);
+                        float ax = vertices.getFloat(i * 68);
+                        float ay = vertices.getFloat(i * 68 + 4);
+                        float bx = vertices.getFloat((i + 1) * 68);
+                        float by = vertices.getFloat((i + 1) * 68 + 4);
+                        float cx = vertices.getFloat((i + 2) * 68);
+                        float cy = vertices.getFloat((i + 2) * 68 + 4);
                         assertTrue(text + " triangle " + i / 3,
                                 (bx - ax) * (cy - ay) - (by - ay) * (cx - ax) < 0);
                     }
@@ -750,7 +750,7 @@ public class FontRendererTest {
 
             FontRenderer.VertexBufferRequirements requirements = renderer.getVertexBufferRequirements();
             assertEquals(12, requirements.vertexCount);
-            assertEquals(12 * 52, requirements.byteCount);
+            assertEquals(12 * 68, requirements.byteCount);
             TestVertices vertices = getVertices(renderer, IDENTITY);
             assertTrue(vertices.vertices.getFloat(6 * Float.BYTES) > 0.0f); // texcoord.z: curve count
             assertTrue(vertices.vertices.getFloat(2 * Float.BYTES) >= 0.0f); // position.z: band texel
@@ -771,6 +771,49 @@ public class FontRendererTest {
             renderer.setText("Ag");
             TestVertices repacked = getVertices(renderer, IDENTITY);
             assertEquals(vertices.vertices, repacked.vertices);
+        }
+    }
+
+    // Vector preview conversion must retain gradient rows, UVs, and animation phase for the shader.
+    @Test
+    public void testVectorGradientMetadata() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+            assertNotNull(input);
+            fontBytes = input.readAllBytes();
+        }
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.size = 32.0f;
+        params.cacheWidth = 256;
+        params.cacheHeight = 256;
+        params.vector = true;
+        try (FontRenderer renderer = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
+            FontRenderer.Properties properties = properties(100, 1, 0);
+            properties.useGpuEffects = true;
+            renderer.setProperties(properties);
+            String[] gradients = {
+                "type=color color0=#ff0000",
+                "type=linear fit=block angle=90 color0=#ff0000 color1=#00ff00 color2=#0000ff color3=#ffff00",
+                "type=radial fit=span angle=45 radius-x=0.5 radius-y=0.25 color0=#ff0000 color1=#00ff00 color2=#0000ff color3=#ffff00",
+                "fit=glyph tl=#ff0000 tr=#00ff00 bl=#0000ff br=#ffff00"
+            };
+            for (int gradient = 0; gradient < gradients.length; ++gradient) {
+                renderer.setMarkup("<gradient hz=0.5 " + gradients[gradient] + "><ul>Ag</ul></gradient>");
+                renderer.beginBatch();
+                renderer.generateTexture(0);
+                TestVertices vertices = getVertices(renderer, IDENTITY);
+                ByteBuffer effects = renderer.getEffectTexture().pixels;
+                assertNotNull(effects);
+                for (int i = 0; i < vertices.vertexCount; ++i) {
+                    int offset = i * 68 + 52;
+                    float row = vertices.vertices.getFloat(offset + 8);
+                    assertTrue(gradient == 3 ? row < 0 : row > 0);
+                    assertEquals(0.0f, vertices.vertices.getFloat(offset + 12), 0.00001f);
+                    assertEquals(gradient, effects.get((int)Math.abs(row) * 64));
+                }
+                assertTrue(vertices.vertices.getFloat(52) < vertices.vertices.getFloat(2 * 68 + 52));
+                assertTrue(vertices.vertices.getFloat(56) < vertices.vertices.getFloat(68 + 56));
+            }
         }
     }
 

@@ -1,9 +1,14 @@
 #version 140
 
+#include "/builtins/fonts/font-effect.glsl"
+
 in highp vec4 position;
 in highp vec4 texcoord;
 in highp vec4 effect_params;
 in lowp vec4 color;
+in highp vec4 effect;
+
+out highp vec4 var_effect;
 
 out highp vec2 var_texcoord;
 out mediump vec4 var_color;
@@ -23,7 +28,8 @@ void main()
     int band_max = 7; // Matches the runtime cache’s eight bands per axis.
     var_texcoord = texcoord.xy;
     var_mode = texcoord.w;
-    var_color = color;
+    var_effect = effect;
+    var_color = font_effect_vertex_color(var_effect, color);
     var_banding = effect_params;
     var_glyph = ivec4(header & 4095, header >> 12, band_max, band_max);
     var_curve_count = texcoord.z;

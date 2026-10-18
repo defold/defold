@@ -483,16 +483,6 @@ static void SetGlyphColorEffect(FontGlyphVertex* vertices, const GlyphColorEffec
 
 typedef TextGradientBounds SpatialGradientBounds;
 
-// Reuse projection, packed record, and resolver result for adjacent glyphs with the same fit.
-struct SpatialGradientCache
-{
-    const TextEffect* m_Effect;
-    float             m_Width;
-    float             m_Height;
-    FontColorEffect   m_Color;
-    uint32_t          m_Index;
-};
-
 static SpatialGradientBounds GetGlyphUnpaddedBounds(const FontLayoutVertexConfig& config, const TextGlyph& glyph, float x, float y)
 {
     FontGlyphOptions options;
@@ -515,7 +505,7 @@ static void ExpandGradientBounds(SpatialGradientBounds* bounds, const SpatialGra
     bounds->m_MaxY = dmMath::Max(bounds->m_MaxY, unpadded.m_MaxY);
 }
 
-static void PrepareSpatialGradientBounds(const FontLayoutVertexConfig& config)
+void FontPrepareSpatialGradientBounds(const FontLayoutVertexConfig& config)
 {
     TextLayout* layout = config.m_Layout;
     bool        needed = false;
@@ -695,7 +685,7 @@ static void ApplySpatialGradientFallback(FontGlyphVertex* vertices, const FontCo
     }
 }
 
-static void ApplySpatialGradient(const FontLayoutVertexConfig& config, const TextLine& line, const TextGlyph& glyph, const SpatialGradientBounds& unpadded, const SpatialGradientBounds& quad, SpatialGradientCache* cache, const FontVertexLayerParams& layers)
+void FontApplySpatialGradient(const FontLayoutVertexConfig& config, const TextLine& line, const TextGlyph& glyph, const SpatialGradientBounds& unpadded, const SpatialGradientBounds& quad, FontSpatialGradientCache* cache, const FontVertexLayerParams& layers)
 {
     const TextEffect* effect = FindGlyphGradient(config.m_Layout, glyph);
     if (!effect || effect->m_Gradient.m_Mode != TEXT_GRADIENT_MODE_SPATIAL)
@@ -1058,8 +1048,8 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
     uint32_t             emitted_shadows = 0;
     uint32_t             emitted_objects = 0;
     GlyphRenderDataCache render_data_cache = {};
-    SpatialGradientCache spatial_cache = {};
-    PrepareSpatialGradientBounds(config);
+    FontSpatialGradientCache spatial_cache = {};
+    FontPrepareSpatialGradientBounds(config);
     const uint32_t       line_count = TextLayoutGetLineCount(config.m_Layout);
 
     for (uint32_t line_index = 0; line_index < line_count; ++line_index)
@@ -1117,7 +1107,7 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             uint32_t                   scratch_face_colors[4];
             const uint32_t*            face_colors;
             const TextGlyphRenderData* render_data = GetGlyphRenderData(config, text_glyph, gpu_gradient, &render_data_cache, &scratch_render_data, scratch_face_colors, &face_colors);
-            FontGlyphLayerRenderData    layer_data;
+            FontGlyphLayerRenderData   layer_data;
             FontResolveGlyphLayerRenderData(config, text_glyph, *render_data, &layer_data);
             FontGlyphVertex* outline_vertices = (layer_data.m_LayerMask & FONT_RENDER_LAYER_OUTLINE) != 0 && emitted_outlines < metrics.m_OutlineQuadCount ? vertices + outline_vertex_index : 0;
             FontGlyphVertex* shadow_vertices = (layer_data.m_LayerMask & FONT_RENDER_LAYER_SHADOW) != 0 && emitted_shadows < metrics.m_ShadowQuadCount ? vertices + shadow_vertex_index : 0;
@@ -1148,7 +1138,7 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
                 const float                 left = x + (glyph.m_LeftBearing - (width - glyph.m_Width) * 0.5f) * scale;
                 const SpatialGradientBounds quad = { left, y - glyph.m_Descent * scale, left + width * scale, y + glyph.m_Ascent * scale };
                 const SpatialGradientBounds unpadded = spatial_effect->m_Gradient.m_Fit == TEXT_EFFECT_FIT_GLYPH && spatial_effect->m_Gradient.m_Color.m_Type != FONT_COLOR_EFFECT_COLOR ? GetGlyphUnpaddedBounds(config, text_glyph, x, y) : quad;
-                ApplySpatialGradient(config, line, text_glyph, unpadded, quad, &spatial_cache, layers);
+                FontApplySpatialGradient(config, line, text_glyph, unpadded, quad, &spatial_cache, layers);
             }
             if (gpu_gradient)
             {
@@ -1282,7 +1272,7 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             {
                 const SpatialGradientBounds quad = { decoration_params.m_X0, decoration_params.m_Y0 - decoration.m_Thickness * 0.5f, decoration_params.m_X1, decoration_params.m_Y1 + decoration.m_Thickness * 0.5f };
                 const SpatialGradientBounds unpadded = GetGlyphUnpaddedBounds(config, glyph, line_x + glyph.m_X - cached_first_x, line_y + glyph.m_Y - glyphs[line.m_Index].m_Y);
-                ApplySpatialGradient(config, line, glyph, unpadded, quad, &spatial_cache, layers);
+                FontApplySpatialGradient(config, line, glyph, unpadded, quad, &spatial_cache, layers);
             }
             if (gpu_gradient)
             {

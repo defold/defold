@@ -143,7 +143,8 @@
   (vec4 position)
   (vec4 texcoord)
   (vec4 effect_params)
-  (vec4.ubyte color true))
+  (vec4.ubyte color true)
+  (vec4 effect))
 
 (def ^:private ^:const sdf-min-w 1.0e-6)
 (def ^:private ^:const sdf-min-scale 1.0e-6)
@@ -913,14 +914,15 @@
      :effect-texture
      (when (.-use-gpu-effects request)
        (let [^FontRenderer$Texture effect-texture (.getEffectTexture ^FontRenderer native-renderer)
-             pixels (.-pixels effect-texture)]
+             pixels (.-pixels effect-texture)
+             texture-unit (if (.isVector ^FontRenderer native-renderer) 3 1)]
          (if-not pixels
-           (texture/set-base-unit @texture/white-pixel 1)
+           (texture/set-base-unit @texture/white-pixel texture-unit)
            (texture/make-gpu-texture
              [::effects (.-request-id request)]
              [(texture/make-texture-request-data pixels (buffers/data-hash pixels) :rgba
                                                  (.-width effect-texture) (.-height effect-texture) false)]
-             (vector-of :int 1)
+             (vector-of :int texture-unit)
              {:min-filter gl/nearest :mag-filter gl/nearest
               :wrap-s gl/clamp-to-edge :wrap-t gl/clamp-to-edge}))))}))
 
@@ -957,9 +959,10 @@
   (update material-shader :uniforms assoc
           "effect_bitmap" 0
           "curve_texture" 1
-          "band_texture" 2))
+          "band_texture" 2
+          "font_effects" 3))
 
-(defn- make-selection-shader [node-id shader-source-info]
+(defn- make-selection-shader [node-id vertex-shader-source-info shader-source-info]
   (let [fragment-source (s/replace-first (:shader-source shader-source-info)
                                          #"(?m)^([ \t]*#version[^\r\n]*)"
                                          "$1\n#define FONT_VECTOR_PICKING")
@@ -972,7 +975,7 @@
                                           (fn [path]
                                             (if (= "font_vector.fp" path)
                                               fragment-source
-                                              (slurp (io/resource path)))))
+                                              (:shader-source vertex-shader-source-info))))
 
         request-data
         (shader/make-shader-request-data
@@ -1670,6 +1673,12 @@
              :child-reqs [{:node-type FontStyle
                            :tx-attach-fn (fn [_parent child] (attach-style styles-node child))}]}))
 
+  (property vector-vertex-shader-source resource/Resource
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:shader-source-info :vector-vertex-shader-source-info]))))
+
   (property vector-shader-source resource/Resource
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self old-value new-value]
@@ -1849,6 +1858,7 @@
   (input material-samplers [g/KeywordMap])
   (input material-shader ShaderLifecycle)
   (input vector-shader-source-info g/Any)
+  (input vector-vertex-shader-source-info g/Any)
   (input font-resource-map g/Any)
   (input use-font-layout g/Bool)
   (input use-rich-text g/Bool)
@@ -1890,9 +1900,9 @@
               material-shader
               (with-vector-samplers material-shader))))
   (output selection-shader g/Any :cached
-          (g/fnk [_node-id font vector-font-mode vector-shader-source-info]
+          (g/fnk [_node-id font vector-font-mode vector-vertex-shader-source-info vector-shader-source-info]
             (when (vector-font? font vector-font-mode)
-              (make-selection-shader _node-id vector-shader-source-info))))
+              (make-selection-shader _node-id vector-vertex-shader-source-info vector-shader-source-info))))
   (output type g/Keyword produce-font-type)
   (output font-data FontData :cached (g/fnk [font vector-font-mode type gpu-texture vector-textures font-map selection-shader]
                                        {:type type
@@ -1911,7 +1921,8 @@
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
   (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (into
-      [(g/set-property self :vector-shader-source (resolve-resource "/builtins/fonts/font-vector.fp"))
+      [(g/set-property self :vector-vertex-shader-source (resolve-resource "/builtins/fonts/font-vector.vp"))
+       (g/set-property self :vector-shader-source (resolve-resource "/builtins/fonts/font-vector.fp"))
        (g/connect project :use-font-layout self :use-font-layout)
        (g/connect project :use-rich-text self :use-rich-text)
        (g/make-nodes [styles-node FontStylesNode]
@@ -2042,7 +2053,7 @@
        :label font-label
        :node-type FontNode
        :ddf-type Font$FontDesc
-       :editor-dependencies ["/builtins/fonts/font-vector.fp"]
+       :editor-dependencies ["/builtins/fonts/font-vector.vp" "/builtins/fonts/font-vector.fp"]
        :load-fn load-font
        :sanitize-fn sanitize-font
        :icon font-icon

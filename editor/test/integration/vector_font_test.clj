@@ -1,15 +1,13 @@
 ;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
-;; Licensed under the Defold License version 1.0 (the "License"); you may not
-;; use
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
 ;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
 ;;
-;; Unless required by applicable law or agreed to in writing, software
-;; distributed
+;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
@@ -180,6 +178,49 @@
               (finally
                 ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
                 (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))))
+
+;; Vector gradients retain all four stops in preview pixels and picking.
+(deftest vector-gradient-preview-and-picking
+  (test-util/with-loaded-project
+    (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
+          label-node (project/get-resource-node project "/label/test.label")]
+      (g/transact
+        {:undoable false}
+        [(g/set-property font-node :characters "I")
+         (g/set-property font-node :outline-alpha 0.0)
+         (g/set-property font-node :shadow-alpha 0.0)
+         (g/set-property label-node :font (workspace/find-resource workspace "/fonts/vector_implicit_dynamic.font"))
+         (g/set-property label-node :material (workspace/find-resource workspace "/builtins/fonts/font-vector.material"))
+         (g/set-property label-node :font-size 80.0)])
+      (let [[go-node view] (test-util/open-scene-view! project app-view "/fonts/vector_preview.go" 512 256)
+            component-node (:node-id (test-util/outline go-node [0]))]
+        (try
+          (doseq [type ["linear" "radial"]]
+            (g/set-property! label-node :text
+              (str "<gradient type=" type " fit=glyph color0=#ff0000 color1=#00ff00 color2=#0000ff color3=#ffff00>III</gradient>"))
+            (let [image (g/valid-node-value view :frame)]
+              (is (pos? (count (image-points image
+                                             (fn [rgb]
+                                               (and (> (bit-and 255 (bit-shift-right rgb 16)) 100)
+                                                    (> (bit-and 255 (bit-shift-right rgb 8)) 100)
+                                                    (< (bit-and 255 rgb) 40)))))) type)
+              (doseq [shift [16 8 0]]
+                (let [points (image-points image
+                                           (fn [rgb]
+                                             (let [channel (bit-and 255 (bit-shift-right rgb shift))
+                                                   others (- (+ (bit-and 255 rgb)
+                                                                (bit-and 255 (bit-shift-right rgb 8))
+                                                                (bit-and 255 (bit-shift-right rgb 16))) channel)]
+                                               (> channel (+ others 32)))))]
+                  (is (pos? (count points)) (str type " channel " shift))
+                  (when-not (coll/empty? points)
+                    (let [[x y] (first points)]
+                      (test-util/mouse-click! view 5 5)
+                      (test-util/mouse-click! view x y)
+                      (is (test-util/selected? app-view component-node))))))))
+          (finally
+            ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
+            (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))
 
 ;; GUI vector text respects clipping during both drawing and selection.
 (deftest vector-gui-preview-clipping-and-picking
@@ -435,7 +476,7 @@
       (let [custom-material (workspace/find-resource workspace "/fonts/custom-vector.material")
             fragment-node (project/get-resource-node project "/fonts/custom-vector.fp")
             original-lines (test-util/code-editor-lines fragment-node)
-            green-lines (mapv #(string/replace % "var_color.rgb * var_color.a" "vec3(0.0, 1.0, 0.0) * var_color.a") original-lines)]
+            green-lines (mapv #(string/replace % "face_color.rgb * face_color.a" "vec3(0.0, 1.0, 0.0) * face_color.a") original-lines)]
         (g/transact
           [(g/set-property font-node :characters "O")
            (g/set-property font-node :material custom-material)

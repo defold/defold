@@ -281,6 +281,7 @@ struct VectorPreviewVertex
     float   m_Texcoord[4];
     float   m_EffectParams[4];
     uint8_t m_Color[4];
+    float   m_Effect[4];
 };
 
 struct EncodedVectorCurve
@@ -2118,13 +2119,16 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
                 destination.m_Texcoord[2] = (float)cached->m_VectorGlyph.m_CurveCount;
                 memcpy(destination.m_EffectParams, cached->m_VectorGlyph.m_BandTransform, sizeof(destination.m_EffectParams));
                 memcpy(destination.m_Color, source.m_FaceColor, 4);
+                memcpy(destination.m_Effect, source.m_Effect, sizeof(source.m_Effect));
             }
             ++quad_index;
         }
         for (uint32_t i = face_metrics.m_GlyphQuadCount * 6; i < face_metrics.m_VertexCount; ++i)
         {
             const FontGlyphVertex& source = face_vertices[i / 6 * 6 + source_order[i % 6]];
-            WriteVectorDecorationVertex(source, source.m_FaceColor, &vector_vertices[effect_count + i]);
+            VectorPreviewVertex&   destination = vector_vertices[effect_count + i];
+            WriteVectorDecorationVertex(source, source.m_FaceColor, &destination);
+            memcpy(destination.m_Effect, source.m_Effect, sizeof(source.m_Effect));
         }
     }
     TextLayoutRelease(layout);

@@ -31,13 +31,27 @@
 
 #include <dmsdk/font/text_layout.h>
 #include <font/text_layout.h>
+#include <font_render.h>
 #include <font/render/layout_vertex.h>
 
 namespace dmRender
 {
 
 static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
+static const dmhash_t FONT_EFFECTS_HASH = dmHashString64("font_effects");
 typedef FontDefaultVertex GlyphVertex;
+
+struct VectorEffectContext
+{
+    HFontMap m_FontMap;
+    uint32_t m_Frame;
+};
+
+static uint32_t ResolveVectorEffect(void* context, const FontEffectRecord& record)
+{
+    VectorEffectContext* effect_context = (VectorEffectContext*)context;
+    return FontCacheEffect(effect_context->m_FontMap->m_EffectCache, record, effect_context->m_Frame);
+}
 
 dmGraphics::HVertexDeclaration CreateFontVertexDeclaration(dmGraphics::HContext context)
 {
@@ -226,7 +240,17 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
     const float base_scale = reference_size > 0.0f ? font_size / reference_size : 1.0f;
     const uint8_t render_layer_mask = font_map->m_LayerMask;
 
+    VectorEffectContext    effect_context = { font_map, frame };
     FontLayoutVertexConfig config = {};
+    if (te.m_Material && GetMaterialSamplerUnit(te.m_Material, FONT_EFFECTS_HASH) != INVALID_SAMPLER_UNIT)
+    {
+        if (!font_map->m_EffectCache)
+        {
+            font_map->m_EffectCache = FontCreateEffectCache(font_map->m_GraphicsContext);
+        }
+        config.m_ResolveEffect = ResolveVectorEffect;
+        config.m_ResolveEffectContext = &effect_context;
+    }
     config.m_Layout = layout;
     config.m_GlyphScale = base_scale;
     config.m_OutlineColor = dmGraphics::UnpackRGBA(te.m_OutlineColor);
@@ -277,6 +301,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
     TextLayoutGetBounds(layout, &layout_width, &layout_height);
     const float layout_y = OffsetLayoutY(te.m_VAlign, te.m_Height, layout_height);
     const uint32_t line_count = TextLayoutGetLineCount(layout);
+    FontSpatialGradientCache spatial_cache = {};
+    FontPrepareSpatialGradientBounds(config);
     float sdf_atlas_width = 0.0f;
     float sdf_atlas_height = 0.0f;
 
@@ -462,6 +488,31 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   face_color,
                                   colors,
                                   vertices);
+
+                if (!layout->m_Effects.Empty())
+                {
+                    // Share fit bounds, projection, and CPU fallback with bitmap/SDF fonts.
+                    FontGlyphVertex       color_vertices[6] = {};
+                    static const uint32_t source_order[6] = { 0, 2, 1, 1, 2, 5 };
+                    for (uint32_t v = 0; v < 6; ++v)
+                    {
+                        memcpy(color_vertices[source_order[v]].m_FaceColor, vertices[glyph_face_vertexindex + v].m_VectorColor, 4);
+                    }
+                    const float              origin_x = x - render_data.m_OffsetX;
+                    const float              origin_y = y - render_data.m_OffsetY;
+                    const float              left = origin_x + glyph->m_Outline.m_LeftBearing * font_scale;
+                    const TextGradientBounds bounds = { left, origin_y - glyph->m_Outline.m_Descent * font_scale, left + glyph->m_Outline.m_Width * font_scale, origin_y + glyph->m_Outline.m_Ascent * font_scale };
+                    FontVertexLayerParams    layers = {};
+                    layers.m_FaceVertices = color_vertices;
+                    FontApplySpatialGradient(config, line, *g, bounds, bounds, &spatial_cache, layers);
+                    for (uint32_t v = 0; v < 6; ++v)
+                    {
+                        const FontGlyphVertex& source = color_vertices[source_order[v]];
+                        GlyphVertex&           destination = vertices[glyph_face_vertexindex + v];
+                        memcpy(destination.m_VectorColor, source.m_FaceColor, 4);
+                        memcpy(destination.m_Effect, source.m_Effect, sizeof(source.m_Effect));
+                    }
+                }
             }
         }
     }
@@ -500,6 +551,10 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                 destination.m_VectorTexcoord[1] = dmMath::Max(0.0f, -source.m_LayerMasks[2]);
                 destination.m_VectorTexcoord[3] = 3.0f; // Solid or dashed decoration.
                 memcpy(destination.m_VectorColor, layer == 0 ? source.m_ShadowColor : layer == 1 ? source.m_OutlineColor : source.m_FaceColor, 4);
+                if (layer == 2)
+                {
+                    memcpy(destination.m_Effect, source.m_Effect, sizeof(source.m_Effect));
+                }
             }
             source_index += counts[layer];
         }
