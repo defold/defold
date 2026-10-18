@@ -91,6 +91,21 @@ if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
 endif()
 
 if(TARGET_PLATFORM MATCHES "-android$")
+    defold_add_executable(test_platform_android_joystick
+        "${CMAKE_CURRENT_LIST_DIR}/test_platform_android_joystick.cpp")
+    target_include_directories(test_platform_android_joystick PRIVATE
+        "${CMAKE_CURRENT_LIST_DIR}/../native"
+        "${CMAKE_CURRENT_LIST_DIR}/../native/android")
+    defold_target_link_libraries(test_platform_android_joystick "${TARGET_PLATFORM}" dlib profile_null testmain platform)
+    foreach(function IN ITEMS AInputEvent_getDeviceId AInputEvent_getType AInputEvent_getSource
+            AKeyEvent_getKeyCode AKeyEvent_getAction AKeyEvent_getFlags AKeyEvent_getMetaState
+            AKeyEvent_getScanCode AKeyEvent_getRepeatCount AKeyEvent_getDownTime AKeyEvent_getEventTime
+            AMotionEvent_getAction AMotionEvent_getAxisValue)
+        target_link_options(test_platform_android_joystick PRIVATE "-Wl,--wrap=${function}")
+    endforeach()
+    defold_target_link_socket(test_platform_android_joystick "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_platform_android_joystick ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
     foreach(backend IN ITEMS gl no_api)
         set(test_target "test_platform_android_insets_${backend}")
         defold_add_executable(${test_target}

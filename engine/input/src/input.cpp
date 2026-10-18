@@ -1680,6 +1680,14 @@ namespace dmInput
             // If this is an old binding, reset it, otherwise create a new one.
             if (gamepad_binding)
             {
+                // Apply the mapping before HID captures the first reconnect packet.
+                char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+                GamepadConfig* selected_config = GetGamepadConfig(binding, gamepad_binding->m_Gamepad, device_name_out);
+                if (selected_config)
+                {
+                    gamepad_binding->m_DeviceId = selected_config->m_DeviceId;
+                    ConfigureGamepadPacketLayout(binding, gamepad_binding->m_Gamepad, selected_config);
+                }
                 ResetGamepadBindings(binding, gamepad_binding, gamepad_index);
             } else {
                 gamepad_binding = NewGamepadBinding(binding, gamepad_index);
