@@ -361,7 +361,7 @@ void TextLayoutGetGlyphFaceColors(HTextLayout layout, const TextGlyph& glyph, co
 
 // Resolves all static style and animated-effect data needed for vertex generation.
 // GPU renderers resolve gradients separately; static tint and position effects remain CPU-side.
-void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data, bool apply_gradients = true);
+void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data, bool apply_gradients);
 
 // Reports whether the layout needs an outline vertex layer.
 bool TextLayoutHasMarkupOutline(HTextLayout layout);

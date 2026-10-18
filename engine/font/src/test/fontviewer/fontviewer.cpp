@@ -1301,7 +1301,7 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
             }
 
             TextGlyphRenderData glyph_render_data;
-            TextLayoutGetGlyphRenderData(layout, text_glyph, base_face_color, &glyph_render_data);
+            TextLayoutGetGlyphRenderData(layout, text_glyph, base_face_color, &glyph_render_data, true);
             const bool glyph_has_markup_outline = (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) != 0 && glyph_render_data.m_OutlineWidth > 0.0f;
             const float glyph_outline_alpha = glyph_has_markup_outline ? overall_alpha * viewer->m_Properties.m_OutlineAlpha * glyph_render_data.m_OutlineColor[3]
                                                                         : outline_color.getW() * glyph_render_data.m_OutlineColor[3];
@@ -1458,7 +1458,7 @@ static void PackLayoutDecorations(Viewer* viewer, HTextLayout layout, float para
             if (glyph_segments)
             {
                 TextGlyphRenderData render_data;
-                TextLayoutGetGlyphRenderData(layout, glyphs[decoration_segment.m_GlyphIndex], base_face_color, &render_data);
+                TextLayoutGetGlyphRenderData(layout, glyphs[decoration_segment.m_GlyphIndex], base_face_color, &render_data, true);
                 segment_colors = render_data.m_FaceColors;
             }
             else
@@ -1613,7 +1613,7 @@ static uint32_t HitTestPreviewLink(Viewer* viewer, float mouse_x, float mouse_y)
                 float               descent = fabsf(FontGetDescent(glyph.m_Font, scale));
                 const float         white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
                 TextGlyphRenderData render_data;
-                TextLayoutGetGlyphRenderData(layout, glyph, white, &render_data);
+                TextLayoutGetGlyphRenderData(layout, glyph, white, &render_data, true);
                 float        x = line_x + glyph.m_X - first_x + render_data.m_OffsetX;
                 float        width = dmMath::Max(glyph.m_Width, glyph_size * 0.35f);
                 CachedGlyph* cached_glyph = FindGlyph(viewer, glyph.m_Font, glyph.m_GlyphIndex, viewer->m_LayoutSizes[0], true);

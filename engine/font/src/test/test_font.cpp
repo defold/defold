@@ -107,12 +107,12 @@ TEST_F(FontTest, BaseStylePreservesInlineOverridesAndRefreshes)
     MarkupDestroy(markup);
     const float         color[4] = { 0.2f, 0.4f, 0.6f, 0.8f };
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], color, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], color, &data, true);
     ASSERT_EQ(2.0f, data.m_OutlineWidth);
     ASSERT_EQ(0.37f, data.m_OutlineColor[3]);
     ASSERT_EQ(0u, data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_COLOR);
     ASSERT_EQ(color[0], data.m_FaceColors.m_BottomLeft[0]);
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data, true);
     ASSERT_EQ(0.0f, data.m_OutlineColor[3]);
 
     TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
@@ -120,20 +120,20 @@ TEST_F(FontTest, BaseStylePreservesInlineOverridesAndRefreshes)
     FontCollectionSetNamedStyle(m_FontCollection, name, base, 0, 0);
     TextLayoutUpdate(layout, 0.0f);
     ASSERT_EQ(glyphs, TextLayoutGetGlyphs(layout));
-    TextLayoutGetGlyphRenderData(layout, glyphs[0], color, &data);
+    TextLayoutGetGlyphRenderData(layout, glyphs[0], color, &data, true);
     ASSERT_EQ(3.0f, data.m_OutlineWidth);
-    TextLayoutGetGlyphRenderData(layout, glyphs[1], color, &data);
+    TextLayoutGetGlyphRenderData(layout, glyphs[1], color, &data, true);
     ASSERT_EQ(0.0f, data.m_OutlineWidth);
     TextLayoutRelease(layout);
 
     uint32_t plain[] = { 'A', 'B' };
     ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, plain, 2, &settings, &layout));
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], color, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], color, &data, true);
     ASSERT_EQ(3.0f, data.m_OutlineWidth);
     TextLayoutRelease(layout);
     settings.m_BaseStyle = 0;
     ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, plain, 2, &settings, &layout));
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], color, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], color, &data, true);
     ASSERT_EQ(0u, data.m_StyleFlags);
     TextLayoutRelease(layout);
 }
@@ -163,7 +163,7 @@ TEST_F(FontTest, NoBaseStylePreservesInlineStylesOnFontStyleUpdate)
         TextLayoutUpdate(layout, 0.25f);
         TextGlyphRenderData before[3] = {};
         for (uint32_t i = 0; i < 3; ++i)
-            TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[i], color, &before[i]);
+            TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[i], color, &before[i], true);
         ASSERT_EQ(0.0f, before[1].m_FaceColors.m_BottomLeft[1]);
         ASSERT_EQ(0.0f, before[1].m_OutlineWidth);
         ASSERT_NE(0.0f, before[1].m_OffsetY);
@@ -174,7 +174,7 @@ TEST_F(FontTest, NoBaseStylePreservesInlineStylesOnFontStyleUpdate)
         for (uint32_t i = 0; i < 3; ++i)
         {
             TextGlyphRenderData after = {};
-            TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[i], color, &after);
+            TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[i], color, &after, true);
             ASSERT_EQ(0, memcmp(&before[i], &after, sizeof(after)));
         }
         ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
@@ -211,10 +211,10 @@ TEST_F(FontTest, ResourceStyleOpacityPreservesInheritedColors)
     MarkupDestroy(markup);
     const float         color[4] = { 0.2f, 0.4f, 0.6f, 0.8f };
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], color, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], color, &data, true);
     ASSERT_EQ(0.12345679f, data.m_OutlineColor[3]);
     ASSERT_EQ(0.375f, data.m_ShadowColor[3]);
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data, true);
     ASSERT_EQ(0.75f, data.m_OutlineColor[3]);
     ASSERT_EQ(0.25f, data.m_ShadowColor[3]);
     ASSERT_EQ(1.25f, data.m_OutlineWidth);
@@ -1483,7 +1483,7 @@ TEST_F(FontTest, InnermostGradientWins)
     MarkupDestroy(markup);
     const float         white[] = { 1, 1, 1, 1 };
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &data, true);
     ASSERT_EQ(0.0f, data.m_FaceColors.m_BottomLeft[0]);
     ASSERT_EQ(1.0f, data.m_FaceColors.m_BottomLeft[2]);
     TextLayoutRelease(layout);
@@ -4206,17 +4206,17 @@ TEST_F(FontTest, LegacyLayoutResolvesRenderOnlyMarkup)
 
     const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
     TextGlyphRenderData render_data;
-    TextLayoutGetGlyphRenderData(layout, glyphs[1], white, &render_data);
+    TextLayoutGetGlyphRenderData(layout, glyphs[1], white, &render_data, true);
     ASSERT_EQ(0.0f, render_data.m_FaceColors.m_BottomLeft[0]);
     ASSERT_EQ(1.0f, render_data.m_FaceColors.m_BottomLeft[1]);
     ASSERT_EQ(0.0f, render_data.m_FaceColors.m_BottomLeft[2]);
 
-    TextLayoutGetGlyphRenderData(layout, glyphs[2], white, &render_data);
+    TextLayoutGetGlyphRenderData(layout, glyphs[2], white, &render_data, true);
     ASSERT_EQ(0.75f, render_data.m_FaceColors.m_BottomLeft[0]);
     ASSERT_EQ(0.25f, render_data.m_FaceColors.m_BottomLeft[2]);
     ASSERT_EQ(render_data.m_FaceColors.m_BottomLeft[0], render_data.m_FaceColors.m_BottomRight[0]);
     ASSERT_EQ(render_data.m_FaceColors.m_BottomLeft[2], render_data.m_FaceColors.m_BottomRight[2]);
-    TextLayoutGetGlyphRenderData(layout, glyphs[3], white, &render_data);
+    TextLayoutGetGlyphRenderData(layout, glyphs[3], white, &render_data, true);
     ASSERT_EQ(0.25f, render_data.m_FaceColors.m_BottomLeft[0]);
     ASSERT_EQ(0.75f, render_data.m_FaceColors.m_BottomLeft[2]);
     ASSERT_EQ(render_data.m_FaceColors.m_BottomLeft[0], render_data.m_FaceColors.m_BottomRight[0]);
@@ -4224,27 +4224,27 @@ TEST_F(FontTest, LegacyLayoutResolvesRenderOnlyMarkup)
 
     ASSERT_TRUE(TextLayoutHasMarkupOutline(layout));
     ASSERT_EQ(2.0f, TextLayoutGetMaxMarkupOutlineWidth(layout));
-    TextLayoutGetGlyphRenderData(layout, glyphs[4], white, &render_data);
+    TextLayoutGetGlyphRenderData(layout, glyphs[4], white, &render_data, true);
     ASSERT_EQ(2.0f, render_data.m_OutlineWidth);
     ASSERT_EQ(1.0f, render_data.m_OutlineColor[0]);
     ASSERT_EQ(1.0f, render_data.m_OutlineColor[1]);
     ASSERT_EQ(0.0f, render_data.m_OutlineColor[2]);
 
     TextGlyphRenderData shake_before;
-    TextLayoutGetGlyphRenderData(layout, glyphs[5], white, &shake_before);
+    TextLayoutGetGlyphRenderData(layout, glyphs[5], white, &shake_before, true);
     TextLayoutUpdate(layout, 0.03f);
     TextGlyphRenderData shake_after;
-    TextLayoutGetGlyphRenderData(layout, glyphs[5], white, &shake_after);
+    TextLayoutGetGlyphRenderData(layout, glyphs[5], white, &shake_after, true);
     ASSERT_TRUE(fabsf(shake_before.m_OffsetX - shake_after.m_OffsetX) > 0.0001f ||
                 fabsf(shake_before.m_OffsetY - shake_after.m_OffsetY) > 0.0001f);
-    TextLayoutGetGlyphRenderData(layout, glyphs[6], white, &render_data);
+    TextLayoutGetGlyphRenderData(layout, glyphs[6], white, &render_data, true);
     ASSERT_TRUE(TextLayoutHasMarkupShadow(layout));
     ASSERT_EQ(3.0f, render_data.m_ShadowX);
     ASSERT_EQ(-2.0f, render_data.m_ShadowY);
     ASSERT_EQ(2.0f, render_data.m_ShadowBlur);
     ASSERT_NEAR(32.0f / 255.0f, render_data.m_ShadowColor[0], 0.0001f);
     ASSERT_NEAR(160.0f / 255.0f, render_data.m_ShadowColor[3], 0.0001f);
-    TextLayoutGetGlyphRenderData(layout, glyphs[7], white, &render_data);
+    TextLayoutGetGlyphRenderData(layout, glyphs[7], white, &render_data, true);
     ASSERT_EQ(0.0f, render_data.m_OffsetX);
     ASSERT_EQ(0.0f, render_data.m_OffsetY);
     ASSERT_EQ(0u, render_data.m_StyleFlags & (TEXT_RENDER_STYLE_SHADOW_COLOR | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y | TEXT_RENDER_STYLE_SHADOW_BLUR));
@@ -4708,7 +4708,7 @@ TEST_F(FontTest, LayoutHitTestIsStableAcrossStyleAnimations)
     TextLayoutUpdate(layout, 0.25f);
     const float         white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &data, true);
     ASSERT_NEAR(100.0f, data.m_OffsetY, 0.001f);
     ASSERT_EQ(0u, TextLayoutHitTestObject(layout, hit_test));
     hit_test.m_Width = 500.0f;
@@ -4734,7 +4734,7 @@ static void AssertGlyphColor(HTextLayout layout, uint32_t glyph_index, float red
 {
     const float         white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[glyph_index], white, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[glyph_index], white, &data, true);
     ASSERT_NEAR(red, data.m_FaceColors.m_BottomLeft[0], 0.0001f);
     ASSERT_NEAR(green, data.m_FaceColors.m_BottomLeft[1], 0.0001f);
     ASSERT_NEAR(blue, data.m_FaceColors.m_BottomLeft[2], 0.0001f);
@@ -4918,7 +4918,7 @@ TEST_F(FontTest, LayoutNestedColorsOverrideEnclosingGradients)
             for (uint32_t k = 0; k < 8; ++k)
             {
                 TextGlyphRenderData data;
-                TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[k], base, &data);
+                TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[k], base, &data, true);
                 ASSERT_NEAR(2.0f, data.m_OffsetY, 0.0001f);
             }
         }
@@ -4986,7 +4986,7 @@ TEST_F(FontTest, LayoutNamedStylePreservesColorGradientOrder)
             ASSERT_EQ(1u, TextLayoutSetObjectStyle(layout, dmHashString64("target"), 0));
             AssertGlyphFaceColor(layout, 1, base, expected);
             TextGlyphRenderData data;
-            TextLayoutGetGlyphRenderData(layout, glyphs[1], base, &data);
+            TextLayoutGetGlyphRenderData(layout, glyphs[1], base, &data, true);
             ASSERT_NEAR(4.0f, data.m_OffsetY, 0.0001f);
         }
     }
@@ -5211,7 +5211,7 @@ TEST_F(FontTest, LayoutBaseGradientPreservesSolidColorOverrides)
         for (uint32_t j = 0; j < 4; ++j)
         {
             TextGlyphRenderData data;
-            TextLayoutGetGlyphRenderData(layout, glyphs[j], base, &data);
+            TextLayoutGetGlyphRenderData(layout, glyphs[j], base, &data, true);
             ASSERT_NEAR(2.0f, data.m_OffsetY, 0.0001f);
         }
     }
@@ -5261,7 +5261,7 @@ TEST_F(FontTest, LayoutObjectGradientPreservesInlineSolidColor)
     for (uint32_t i = 1; i < 5; ++i)
     {
         TextGlyphRenderData data;
-        TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[i], base, &data);
+        TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[i], base, &data, true);
         ASSERT_NEAR(3.0f, data.m_OffsetY, 0.0001f);
     }
     ASSERT_EQ(1u, TextLayoutSetObjectStyle(layout, dmHashString64("target"), dmHashString64("link:hover")));
@@ -5707,7 +5707,7 @@ TEST_F(FontTest, LayoutObjectStyleReplacementPreservesInlineMarkup)
     const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
     const TextGlyph original = TextLayoutGetGlyphs(layout)[0];
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, original, white, &data);
+    TextLayoutGetGlyphRenderData(layout, original, white, &data, true);
     ASSERT_EQ(2.0f, data.m_OutlineWidth);
     AssertGlyphColor(layout, 0, 1.0f, 0.0f, 0.0f);
     AssertGlyphColor(layout, 1, 0.0f, 0.0f, 1.0f);
@@ -5720,7 +5720,7 @@ TEST_F(FontTest, LayoutObjectStyleReplacementPreservesInlineMarkup)
         ASSERT_EQ((uint8_t)TEXT_DECORATION_PATTERN_DASHED, TextLayoutGetDecorations(layout)[0].m_Pattern);
         AssertGlyphColor(layout, 0, 0.0f, 1.0f, 0.0f);
         AssertGlyphColor(layout, 1, 0.0f, 0.0f, 1.0f);
-        TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &data);
+        TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &data, true);
         ASSERT_EQ(0u, data.m_StyleFlags & (TEXT_RENDER_STYLE_OUTLINE_WIDTH | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_BLUR));
         const TextResolvedSpan& span = layout->m_ResolvedSpans[TextLayoutGetGlyphs(layout)[1].m_MarkupSpanIndex];
         ASSERT_EQ(2u, span.m_EffectCount);
@@ -6449,7 +6449,7 @@ TEST_F(FontTest, LayoutDecorationPreservesCappedGradientAlpha)
                 for (uint32_t g = 0; g < 4; ++g)
                 {
                     TextGlyphRenderData data;
-                    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[g], config.m_FaceColor, &data);
+                    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[g], config.m_FaceColor, &data, true);
                     for (uint32_t s = 0; s < DM_ARRAY_SIZE(samples); ++s)
                     {
                         const float sample_x = x0 + (x1 - x0) * (g + samples[s]) / 4.0f;
@@ -6571,13 +6571,13 @@ TEST_F(FontTest, LayoutEvaluatesWaveEffect)
     TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
     TextGlyphRenderData first;
     TextGlyphRenderData second;
-    TextLayoutGetGlyphRenderData(layout, glyphs[0], base_color, &first);
-    TextLayoutGetGlyphRenderData(layout, glyphs[1], base_color, &second);
+    TextLayoutGetGlyphRenderData(layout, glyphs[0], base_color, &first, true);
+    TextLayoutGetGlyphRenderData(layout, glyphs[1], base_color, &second, true);
     ASSERT_NEAR(0.0f, first.m_OffsetY, 0.0001f);
     ASSERT_NEAR(4.0f, second.m_OffsetY, 0.0001f);
 
     TextLayoutUpdate(layout, 0.5f);
-    TextLayoutGetGlyphRenderData(layout, glyphs[0], base_color, &first);
+    TextLayoutGetGlyphRenderData(layout, glyphs[0], base_color, &first, true);
     ASSERT_NEAR(4.0f, first.m_OffsetY, 0.0001f);
     TextLayoutRelease(layout);
 }
@@ -6599,14 +6599,14 @@ TEST_F(FontTest, LayoutWaveUsesDefaultAnimationSettings)
     TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
     TextGlyphRenderData first;
     TextGlyphRenderData second;
-    TextLayoutGetGlyphRenderData(layout, glyphs[0], base_color, &first);
-    TextLayoutGetGlyphRenderData(layout, glyphs[1], base_color, &second);
+    TextLayoutGetGlyphRenderData(layout, glyphs[0], base_color, &first, true);
+    TextLayoutGetGlyphRenderData(layout, glyphs[1], base_color, &second, true);
     ASSERT_NEAR(0.0f, first.m_OffsetY, 0.0001f);
     ASSERT_NEAR(sinf(6.28318530717958647692f / 6.0f), second.m_OffsetY, 0.0001f);
 
     TextLayoutUpdate(layout, 0.5f);
-    TextLayoutGetGlyphRenderData(layout, glyphs[0], base_color, &first);
-    TextLayoutGetGlyphRenderData(layout, glyphs[1], base_color, &second);
+    TextLayoutGetGlyphRenderData(layout, glyphs[0], base_color, &first, true);
+    TextLayoutGetGlyphRenderData(layout, glyphs[1], base_color, &second, true);
     ASSERT_NEAR(0.0f, first.m_OffsetY, 0.0001f);
     ASSERT_NEAR(-sinf(6.28318530717958647692f / 3.0f), second.m_OffsetY, 0.0001f);
     TextLayoutRelease(layout);
@@ -6629,11 +6629,11 @@ TEST_F(FontTest, LayoutWaveSupportsGlyphAndSpanFit)
     TextGlyphRenderData first;
     TextGlyphRenderData second;
     TextLayoutUpdate(layout, 0.125f);
-    TextLayoutGetGlyphRenderData(layout, glyphs[0], base_color, &first);
-    TextLayoutGetGlyphRenderData(layout, glyphs[1], base_color, &second);
+    TextLayoutGetGlyphRenderData(layout, glyphs[0], base_color, &first, true);
+    TextLayoutGetGlyphRenderData(layout, glyphs[1], base_color, &second, true);
     ASSERT_EQ(first.m_OffsetY, second.m_OffsetY);
-    TextLayoutGetGlyphRenderData(layout, glyphs[2], base_color, &first);
-    TextLayoutGetGlyphRenderData(layout, glyphs[3], base_color, &second);
+    TextLayoutGetGlyphRenderData(layout, glyphs[2], base_color, &first, true);
+    TextLayoutGetGlyphRenderData(layout, glyphs[3], base_color, &second, true);
     ASSERT_NE(first.m_OffsetY, second.m_OffsetY);
 
     TextLayoutRelease(layout);
@@ -6657,12 +6657,12 @@ TEST_F(FontTest, LayoutShakeSupportsGlyphAndSpanFit)
     TextGlyphRenderData first;
     TextGlyphRenderData second;
     TextLayoutUpdate(layout, 0.03f);
-    TextLayoutGetGlyphRenderData(layout, glyphs[0], base_color, &first);
-    TextLayoutGetGlyphRenderData(layout, glyphs[1], base_color, &second);
+    TextLayoutGetGlyphRenderData(layout, glyphs[0], base_color, &first, true);
+    TextLayoutGetGlyphRenderData(layout, glyphs[1], base_color, &second, true);
     ASSERT_EQ(first.m_OffsetX, second.m_OffsetX);
     ASSERT_EQ(first.m_OffsetY, second.m_OffsetY);
-    TextLayoutGetGlyphRenderData(layout, glyphs[2], base_color, &first);
-    TextLayoutGetGlyphRenderData(layout, glyphs[3], base_color, &second);
+    TextLayoutGetGlyphRenderData(layout, glyphs[2], base_color, &first, true);
+    TextLayoutGetGlyphRenderData(layout, glyphs[3], base_color, &second, true);
     ASSERT_TRUE(first.m_OffsetX != second.m_OffsetX || first.m_OffsetY != second.m_OffsetY);
 
     TextLayoutRelease(layout);
@@ -6685,8 +6685,8 @@ TEST_F(FontTest, LayoutWaveSupportsReverseDirection)
     TextGlyphRenderData forward;
     TextGlyphRenderData reverse;
     TextLayoutUpdate(layout, 0.125f);
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], base_color, &forward);
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], base_color, &reverse);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], base_color, &forward, true);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], base_color, &reverse, true);
     ASSERT_NEAR(forward.m_OffsetY, -reverse.m_OffsetY, 0.0001f);
 
     TextLayoutRelease(layout);
@@ -7093,20 +7093,20 @@ TEST_F(FontTest, SkribidiLayoutResolvesShakeAndAccumulatesTime)
     TextLayoutGetBounds(layout, &width_before, &height_before);
     const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
     TextGlyphRenderData before;
-    TextLayoutGetGlyphRenderData(layout, glyphs[0], white, &before);
+    TextLayoutGetGlyphRenderData(layout, glyphs[0], white, &before, true);
 
     TextLayoutUpdate(layout, 0.03f);
     TextLayoutUpdate(layout, -1.0f);
     TextLayoutUpdate(layout, INFINITY);
     ASSERT_NEAR(0.03, internal->m_ElapsedTime, 0.000001);
     TextGlyphRenderData after;
-    TextLayoutGetGlyphRenderData(layout, glyphs[0], white, &after);
+    TextLayoutGetGlyphRenderData(layout, glyphs[0], white, &after, true);
     ASSERT_TRUE(fabsf(before.m_OffsetX - after.m_OffsetX) > 0.0001f ||
                 fabsf(before.m_OffsetY - after.m_OffsetY) > 0.0001f);
     TextGlyphRenderData span_first;
     TextGlyphRenderData span_second;
-    TextLayoutGetGlyphRenderData(layout, glyphs[8], white, &span_first);
-    TextLayoutGetGlyphRenderData(layout, glyphs[9], white, &span_second);
+    TextLayoutGetGlyphRenderData(layout, glyphs[8], white, &span_first, true);
+    TextLayoutGetGlyphRenderData(layout, glyphs[9], white, &span_second, true);
     ASSERT_EQ(span_first.m_OffsetX, span_second.m_OffsetX);
     ASSERT_EQ(span_first.m_OffsetY, span_second.m_OffsetY);
     ASSERT_EQ(glyph_x, glyphs[0].m_X);
@@ -7181,13 +7181,13 @@ TEST_F(FontTest, SkribidiLayoutResolvesMarkupOutline)
 
     const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
     TextGlyphRenderData render_data;
-    TextLayoutGetGlyphRenderData(layout, glyphs[0], white, &render_data);
+    TextLayoutGetGlyphRenderData(layout, glyphs[0], white, &render_data, true);
     ASSERT_EQ(3.0f, render_data.m_OutlineWidth);
     ASSERT_NEAR(128.0f / 255.0f, render_data.m_OutlineColor[0], 0.0001f);
     ASSERT_EQ(1.0f, render_data.m_OutlineColor[1]);
     ASSERT_EQ(0.0f, render_data.m_OutlineColor[2]);
 
-    TextLayoutGetGlyphRenderData(layout, glyphs[2], white, &render_data);
+    TextLayoutGetGlyphRenderData(layout, glyphs[2], white, &render_data, true);
     ASSERT_EQ(0.0f, render_data.m_OutlineWidth);
     ASSERT_EQ(0.0f, render_data.m_OutlineColor[3]);
 
@@ -7214,7 +7214,7 @@ TEST_F(FontTest, LayoutResolvesMarkupShadow)
     const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
     TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
     TextGlyphRenderData render_data;
-    TextLayoutGetGlyphRenderData(layout, glyphs[0], white, &render_data);
+    TextLayoutGetGlyphRenderData(layout, glyphs[0], white, &render_data, true);
     ASSERT_EQ(3.0f, render_data.m_ShadowX);
     ASSERT_EQ(-2.0f, render_data.m_ShadowY);
     ASSERT_EQ(4.0f, render_data.m_ShadowBlur);
@@ -7223,7 +7223,7 @@ TEST_F(FontTest, LayoutResolvesMarkupShadow)
     ASSERT_NEAR(128.0f / 255.0f, render_data.m_ShadowColor[2], 0.0001f);
     ASSERT_NEAR(160.0f / 255.0f, render_data.m_ShadowColor[3], 0.0001f);
 
-    TextLayoutGetGlyphRenderData(layout, glyphs[1], white, &render_data);
+    TextLayoutGetGlyphRenderData(layout, glyphs[1], white, &render_data, true);
     ASSERT_EQ(-1.0f, render_data.m_ShadowX);
     ASSERT_EQ(-2.0f, render_data.m_ShadowY);
     ASSERT_EQ(2.0f, render_data.m_ShadowBlur);
@@ -7231,7 +7231,7 @@ TEST_F(FontTest, LayoutResolvesMarkupShadow)
     ASSERT_TRUE((render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_Y) != 0);
     ASSERT_TRUE((render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_BLUR) != 0);
 
-    TextLayoutGetGlyphRenderData(layout, glyphs[2], white, &render_data);
+    TextLayoutGetGlyphRenderData(layout, glyphs[2], white, &render_data, true);
     ASSERT_EQ(0u, render_data.m_StyleFlags & (TEXT_RENDER_STYLE_SHADOW_COLOR | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y | TEXT_RENDER_STYLE_SHADOW_BLUR));
     ASSERT_EQ(1.0f, render_data.m_ShadowColor[3]);
 
@@ -7314,7 +7314,7 @@ TEST_F(FontTest, SkribidiLayoutResolvesMarkupOutlineWidthOnly)
 
     const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
     TextGlyphRenderData render_data;
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &render_data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &render_data, true);
     ASSERT_EQ(1.0f, render_data.m_OutlineColor[0]);
     ASSERT_EQ(1.0f, render_data.m_OutlineColor[1]);
     ASSERT_EQ(1.0f, render_data.m_OutlineColor[2]);

@@ -1794,6 +1794,6 @@ bool TextLayoutHasMarkupShadow(HTextLayout layout)
 void TextLayoutGetGlyphFaceColors(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphFaceColors* colors)
 {
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, glyph, base_color, &data);
+    TextLayoutGetGlyphRenderData(layout, glyph, base_color, &data, true);
     *colors = data.m_FaceColors;
 }

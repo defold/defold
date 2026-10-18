@@ -139,7 +139,7 @@ class FontEffectTest : public jc_test_base_class
         dmPlatform::DeleteWindow(m_Window);
     }
 
-    uint32_t Draw(const FontColorEffect& effect, float phase = 0.0f, const float* face_color = 0, bool premultiplied = false, bool vertex_evaluation = false)
+    uint32_t Draw(const FontColorEffect& effect, float phase, const float* face_color, bool premultiplied, bool vertex_evaluation)
     {
         FontEffectRecord record;
         FontPackEffect(effect, &record);
@@ -228,7 +228,7 @@ class FontEffectTest : public jc_test_base_class
                 for (uint32_t animated = 0; animated < 2; ++animated)
                 {
                     effect.m_Flags = animated ? FONT_COLOR_EFFECT_MIRROR : 0;
-                    Draw(effect, (float)animated);
+                    Draw(effect, (float)animated, 0, false, false);
                     for (uint32_t sample = 0; sample <= 8; ++sample)
                     {
                         const float t = animated ? 1.0f - sample / 8.0f : sample / 8.0f;
@@ -268,7 +268,7 @@ TEST_F(FontEffectTest, SingleColor)
     effect.m_StopCount = 1;
     const uint8_t color[] = { 64, 128, 192, 128 };
     memcpy(effect.m_Colors[0], color, 4);
-    Draw(effect);
+    Draw(effect, 0.0f, 0, false, false);
     for (uint32_t c = 0; c < 4; ++c)
     {
         EXPECT_NEAR(color[c], Pixel(0, 0)[c], 1);
@@ -300,7 +300,7 @@ TEST_F(FontEffectTest, PositionedStopsInsideQuad)
     effect.m_Positions[2] = 0.75f;
     effect.m_Positions[3] = 1.0f;
     effect.m_Parameters[0] = 1.0f;
-    Draw(effect);
+    Draw(effect, 0.0f, 0, false, false);
     EXPECT_NEAR(255, Pixel(32, 32)[0], 1);
     EXPECT_NEAR(255, Pixel(32, 32)[1], 1);
     EXPECT_NEAR(123, Pixel(80, 32)[1], 2);
@@ -320,7 +320,7 @@ TEST_F(FontEffectTest, CircularRadialGradient)
     effect.m_Parameters[0] = effect.m_Parameters[1] = 0.5f;
     effect.m_Parameters[2] = 128.0f / 16.0f;
     effect.m_Parameters[3] = 64.0f / 16.0f;
-    Draw(effect);
+    Draw(effect, 0.0f, 0, false, false);
     EXPECT_GT(Pixel(64, 32)[0], 230);
     EXPECT_LT(Pixel(64, 32)[2], 20);
     EXPECT_NEAR(Pixel(75, 32)[2], Pixel(64, 43)[2], 1);
@@ -351,7 +351,7 @@ TEST_F(FontEffectTest, RotatedEllipticalRadialGradient)
             effect.m_Parameters[3] = 0.8f * 64.0f / 20.0f;
             effect.m_Parameters[4] = 0.6f * 64.0f / 40.0f;
             effect.m_Parameters[5] = -0.6f * 128.0f / 20.0f;
-            Draw(effect, animated ? 0.25f : 0.0f);
+            Draw(effect, animated ? 0.25f : 0.0f, 0, false, false);
             for (uint32_t i = 0; i <= 4; ++i)
             {
                 float t = i * 0.25f + (animated ? 0.25f : 0.0f);
@@ -381,7 +381,7 @@ TEST_F(FontEffectTest, FourCornerGradient)
     effect.m_StopCount = 4;
     const uint8_t colors[4][4] = { { 255, 0, 0, 255 }, { 0, 255, 0, 255 }, { 0, 0, 255, 255 }, { 255, 255, 255, 255 } };
     memcpy(effect.m_Colors, colors, sizeof(colors));
-    Draw(effect);
+    Draw(effect, 0.0f, 0, false, false);
     for (uint32_t c = 0; c < 3; ++c)
     {
         EXPECT_NEAR(128, Pixel(64, 32)[c], 3);
@@ -399,9 +399,9 @@ TEST_F(FontEffectTest, AnimationSharesRecord)
     effect.m_Colors[1][2] = effect.m_Colors[1][3] = 255;
     effect.m_Positions[1] = 1.0f;
     effect.m_Parameters[0] = 1.0f;
-    uint32_t index = Draw(effect);
+    uint32_t index = Draw(effect, 0.0f, 0, false, false);
     EXPECT_GT(Pixel(0, 0)[0], 250);
-    EXPECT_EQ(index, Draw(effect, 1.0f));
+    EXPECT_EQ(index, Draw(effect, 1.0f, 0, false, false));
     EXPECT_GT(Pixel(0, 0)[2], 250);
 }
 
@@ -427,7 +427,7 @@ TEST_F(FontEffectTest, GradientOverridesInheritedColor)
         for (uint32_t premultiplied = 0; premultiplied < 2; ++premultiplied)
         {
             effect.m_Colors[0][3] = alpha[a];
-            Draw(effect, 0.0f, face_color, premultiplied != 0);
+            Draw(effect, 0.0f, face_color, premultiplied != 0, false);
             const float expected_alpha = a == 0 ? 64.0f : 128.0f;
             for (uint32_t channel = 0; channel < 3; ++channel)
             {
@@ -466,13 +466,13 @@ TEST_F(FontEffectTest, GrowthPreservesRadialGradient)
     radial.m_Parameters[0] = radial.m_Parameters[1] = 0.5f;
     radial.m_Parameters[2] = 4;
     radial.m_Parameters[3] = 2;
-    ASSERT_EQ(301u, Draw(radial));
+    ASSERT_EQ(301u, Draw(radial, 0.0f, 0, false, false));
     ASSERT_GT(Pixel(64, 32)[0], 240);
     ASSERT_EQ(255, Pixel(0, 0)[2]);
     ASSERT_EQ(512u, dmGraphics::GetTextureHeight(m_Context, FontGetEffectTexture(m_Cache)));
     color.m_Colors[0][0] = 1;
     color.m_Colors[0][1] = 0;
-    ASSERT_EQ(1u, Draw(color));
+    ASSERT_EQ(1u, Draw(color, 0.0f, 0, false, false));
     ASSERT_EQ(1, Pixel(64, 32)[0]);
 }
 

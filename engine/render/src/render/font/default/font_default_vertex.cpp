@@ -302,7 +302,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                 continue;
 
             TextGlyphRenderData render_data;
-            TextLayoutGetGlyphRenderData(layout, *g, config.m_FaceColor, &render_data);
+            TextLayoutGetGlyphRenderData(layout, *g, config.m_FaceColor, &render_data, true);
             // The cached curves and effects use the font's reference size.
             const float font_scale = base_scale * g->m_RenderScale;
             FontGlyphLayerRenderData layer_data;
