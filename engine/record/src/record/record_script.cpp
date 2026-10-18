@@ -14,6 +14,7 @@
 
 #include "record_private.h"
 #include "record_script.h"
+#include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/script/script.h>
 #include <math.h>
 #include <string.h>
@@ -46,7 +47,7 @@ namespace dmRecord
     /*# recording options
      * @struct
      * @name recorder.options
-     * @member path [type:string] Writable UTF-8 MP4 output path; the parent directory must exist.
+     * @member path [type:string] Writable MP4 output path, for example from [ref:sys.get_save_file]. Uses the host path encoding (Windows ANSI code page; UTF-8 elsewhere). The parent directory must exist.
      * @member fps? [type:integer] Capture rate from 1 to 60; defaults to 30.
      * @member audio? [type:boolean] Record application audio; defaults to false.
      */
@@ -54,7 +55,7 @@ namespace dmRecord
     /*# recording event result
      * @struct
      * @name recorder.result
-     * @member path [type:string] Output file path.
+     * @member path [type:string] Output file path, preserving the path supplied to [ref:recorder.start].
      * @member width [type:integer] Recorded video width in pixels.
      * @member height [type:integer] Recorded video height in pixels.
      * @member fps [type:integer] Capture rate.
@@ -73,6 +74,8 @@ namespace dmRecord
     static bool g_Initialized;
     static dmScript::LuaCallbackInfo* g_Callback;
     static uint64_t g_RecordingId;
+    // Keep the callback's host-encoded path separate from the native UTF-8 path.
+    static char g_Path[sizeof(Status().m_Path)];
     static bool g_Started;
     static bool g_StartPending;
     static bool g_EndPending;
@@ -90,12 +93,14 @@ namespace dmRecord
                 g_Started = true;
                 g_StartPending = true;
                 g_StartStatus = *status;
+                dmStrlCpy(g_StartStatus.m_Path, g_Path, sizeof(g_StartStatus.m_Path));
             }
         }
         else
         {
             g_EndPending = true;
             g_EndStatus = *status;
+            dmStrlCpy(g_EndStatus.m_Path, g_Path, sizeof(g_EndStatus.m_Path));
         }
     }
 
@@ -162,10 +167,10 @@ namespace dmRecord
         lua_getfield(L, 1, "path");
         luaL_checktype(L, -1, LUA_TSTRING);
         size_t path_size;
-        params.m_Path = lua_tolstring(L, -1, &path_size);
-        if (!path_size || path_size >= sizeof(Status().m_Path) || strlen(params.m_Path) != path_size)
+        const char* path = lua_tolstring(L, -1, &path_size);
+        if (!path_size || path_size >= sizeof(Status().m_Path) || strlen(path) != path_size)
             return luaL_error(L, "recorder.start path must contain 1–1023 bytes without NUL characters");
-        // Keep the string on the stack until Start copies it. An options
+        // Keep the original path on the stack until it is copied for callbacks. An options
         // metatable may have generated it instead of retaining it in the table.
         lua_getfield(L, 1, "fps");
         if (!lua_isnil(L, -1))
@@ -189,6 +194,10 @@ namespace dmRecord
         if (g_Callback)
             return ReturnError(L, "a recording operation is already active or awaiting its callback");
 
+        char native_path[sizeof(Status().m_Path)];
+        if (!HostPathToUtf8(path, native_path, sizeof(native_path)))
+            return luaL_error(L, "recorder.start path is invalid or exceeds 1023 bytes after UTF-8 conversion");
+        params.m_Path = native_path;
         dmScript::LuaCallbackInfo* callback = dmScript::CreateCallback(L, 2);
         if (!callback)
             return ReturnError(L, "recorder.start requires a script instance");
@@ -201,6 +210,7 @@ namespace dmRecord
         }
         g_Callback = callback;
         g_RecordingId = status.m_Id;
+        dmStrlCpy(g_Path, path, sizeof(g_Path));
         g_Started = g_StartPending = g_EndPending = false;
         lua_pushboolean(L, 1);
         return 1;

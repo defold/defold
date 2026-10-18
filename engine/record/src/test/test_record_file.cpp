@@ -15,6 +15,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <record/record_file.h>
+#include <record/record_private.h>
 #include <string.h>
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN

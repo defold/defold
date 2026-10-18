@@ -20,7 +20,7 @@ endfunction()
 # No permission prompt or native window is needed to test lifecycle races.
 if(TARGET_PLATFORM MATCHES "(macos|linux|win32)$")
   record_test(test_record test_record.cpp ../record/record.cpp ../record/record_common.cpp)
-  record_test(test_record_file test_record_file.cpp ../record/record_file.cpp)
+  record_test(test_record_file test_record_file.cpp ../record/record_file.cpp ../record/record_common.cpp)
   record_test(test_record_script test_record_script.cpp
     ../record/record.cpp ../record/record_common.cpp ../record/record_script.cpp)
   defold_target_link_libraries(test_record_script "${TARGET_PLATFORM}"

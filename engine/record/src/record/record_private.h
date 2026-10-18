@@ -34,6 +34,9 @@ namespace dmRecord
     // Copy valid UTF-8 without leaving a partial character when the buffer fills.
     void CopyTextUtf8(char* output, size_t output_size, const char* text);
 
+    // dmSys/Lua paths use the ANSI code page on Windows; native recording paths use UTF-8.
+    bool HostPathToUtf8(const char* path, char* output, uint32_t output_size);
+
 #if defined(DM_PLATFORM_MACOS)
     // Prepare the native output path without removing directories or their contents.
     bool PrepareOutputFile(const char* path, Status* status);

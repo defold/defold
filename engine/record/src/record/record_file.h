@@ -15,13 +15,10 @@
 #ifndef DM_RECORD_FILE_H
 #define DM_RECORD_FILE_H
 
-#include <stdint.h>
 #include <stdio.h>
 
 namespace dmRecord
 {
-    // dmSys paths use the ANSI code page on Windows; recording paths use UTF-8.
-    bool HostPathToUtf8(const char* path, char* output, uint32_t output_size);
     FILE* FileOpen(const char* path, const char* mode);
     int FileRemove(const char* path);
 }

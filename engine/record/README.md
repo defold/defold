@@ -56,6 +56,9 @@ if not ok then print(err) end
 ```
 
 `path` is required and must name a writable MP4 file in an existing directory.
+It uses the host path encoding, like `sys.get_save_file` and Lua file I/O
+(the Windows ANSI code page on Windows, UTF-8 elsewhere). Callback results
+preserve the supplied path. Native C++ recording paths remain UTF-8.
 An existing file may be overwritten. FPS defaults to 30 and application audio
 defaults to false. Unsupported audio returns an error. Unknown options and
 invalid argument types or values raise Lua errors.

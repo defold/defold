@@ -15,6 +15,10 @@
 #include "record_private.h"
 
 #include <string.h>
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 namespace dmRecord
 {
@@ -60,6 +64,29 @@ namespace dmRecord
         }
         memcpy(output, text, length);
         output[length] = 0;
+    }
+
+    bool HostPathToUtf8(const char* path, char* output, uint32_t output_size)
+    {
+        if (!output_size)
+            return false;
+        output[0] = 0;
+#if defined(_WIN32)
+        wchar_t wide[1024];
+        if (!MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS, path, -1, wide, sizeof(wide) / sizeof(wide[0])))
+            return false;
+        if (!WideCharToMultiByte(CP_UTF8, 0, wide, -1, output, output_size, 0, 0))
+        {
+            output[0] = 0;
+            return false;
+        }
+#else
+        size_t size = strlen(path) + 1;
+        if (size > output_size)
+            return false;
+        memcpy(output, path, size);
+#endif
+        return true;
     }
 
     StartParams::StartParams()

@@ -22,6 +22,10 @@
 #include <record/record_private.h>
 #include <record/record_script.h>
 #include <string.h>
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 static dmMutex::HMutex g_Mutex;
 static dmRecord::Status g_NativeStatus;
@@ -213,6 +217,78 @@ TEST_F(RecordScriptTest, StartStop)
     dmRecord::UpdateScript();
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_STOPPED)"));
 }
+
+// Paths from the Windows host code page reach native capture as UTF-8 and return to Lua unchanged.
+TEST_F(RecordScriptTest, HostPathEncoding)
+{
+    char host[128];
+    char expected[128];
+#if defined(_WIN32)
+    const wchar_t path[] = L"capture-\x00e9-\x0416-\x65e5.mp4";
+    wchar_t wide[128];
+    ASSERT_GT(WideCharToMultiByte(CP_ACP, 0, path, -1, host, sizeof(host), 0, 0), 0);
+    ASSERT_GT(MultiByteToWideChar(CP_ACP, 0, host, -1, wide, sizeof(wide) / sizeof(wide[0])), 0);
+    ASSERT_GT(WideCharToMultiByte(CP_UTF8, 0, wide, -1, expected, sizeof(expected), 0, 0), 0);
+#else
+    strcpy(host, "capture-\xc3\xa9-\xe6\x97\xa5.mp4");
+    strcpy(expected, host);
+#endif
+    lua_pushstring(m_L, host);
+    lua_setglobal(m_L, "output_path");
+    ASSERT_TRUE(Run("assert(recorder.start({path=output_path}, callback))"));
+    Complete();
+    {
+        dmMutex::ScopedLock lock(g_Mutex);
+        ASSERT_STREQ(expected, g_NativeStatus.m_Path);
+    }
+    dmRecord::UpdateScript();
+    ASSERT_TRUE(Run("assert(#events == 1 and results[1].path == output_path); assert(recorder.stop())"));
+    Complete();
+    dmRecord::UpdateScript();
+    ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_STOPPED); "
+                   "assert(results[2].path == output_path)"));
+}
+
+#if defined(_WIN32)
+// A host path that expands beyond the native UTF-8 limit must fail before allocating a callback.
+TEST_F(RecordScriptTest, ExpandedHostPathLimit)
+{
+    const wchar_t candidates[] = {0x00e9, 0x0416, 0x65e5, 0xac00, 0x03a9, 0x0e01, 0x05d0, 0x0633};
+    char host_character[8];
+    size_t host_size = 0;
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i)
+    {
+        wchar_t wide[] = {candidates[i], 0};
+        wchar_t roundtrip[2];
+        char utf8[8];
+        int size = WideCharToMultiByte(CP_ACP, 0, wide, -1, host_character, sizeof(host_character), 0, 0);
+        if (size <= 1 || !MultiByteToWideChar(CP_ACP, 0, host_character, -1, roundtrip, 2) || roundtrip[0] != wide[0])
+            continue;
+        int utf8_size = WideCharToMultiByte(CP_UTF8, 0, wide, -1, utf8, sizeof(utf8), 0, 0);
+        if (utf8_size > size)
+        {
+            host_size = size - 1;
+            break;
+        }
+    }
+    if (!host_size)
+        SKIP(); // UTF-8 system locales cannot expand during this conversion.
+    char path[1024];
+    size_t length = 0;
+    while (length + host_size + sizeof(".mp4") <= sizeof(path))
+    {
+        memcpy(path + length, host_character, host_size);
+        length += host_size;
+    }
+    strcpy(path + length, ".mp4");
+    lua_pushstring(m_L, path);
+    lua_setglobal(m_L, "output_path");
+    ASSERT_TRUE(Run("local ok, err = pcall(recorder.start, {path=output_path}, callback); "
+                   "assert(not ok and string.find(err, 'UTF-8 conversion', 1, true)); assert(#events == 0)"));
+    ASSERT_EQ(m_Refs, dmScript::GetLuaRefCount());
+    ASSERT_FALSE(g_NativeStatus.m_Active);
+}
+#endif
 
 // Busy starts and idle stops fail without replacing or leaking the original callback.
 TEST_F(RecordScriptTest, ConflictingRequests)
