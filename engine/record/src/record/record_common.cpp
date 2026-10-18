@@ -18,6 +18,34 @@
 
 namespace dmRecord
 {
+    static StatusListener* g_Listeners;
+
+    void AddStatusListener(StatusListener* listener)
+    {
+        listener->m_Next = g_Listeners;
+        g_Listeners = listener;
+    }
+
+    void RemoveStatusListener(StatusListener* listener)
+    {
+        for (StatusListener** current = &g_Listeners; *current; current = &(*current)->m_Next)
+        {
+            if (*current == listener)
+            {
+                *current = listener->m_Next;
+                listener->m_Next = 0;
+                break;
+            }
+        }
+    }
+
+    void NotifyStatus(const Status* status)
+    {
+        if (!status->m_Pending)
+            for (StatusListener* listener = g_Listeners; listener; listener = listener->m_Next)
+                listener->m_Callback(status);
+    }
+
     void CopyTextUtf8(char* output, size_t output_size, const char* text)
     {
         if (!output_size)

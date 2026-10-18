@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "record.h"
+#include "record_private.h"
 #include "record_file.h"
 #include "record_service.h"
 #include "record_service_openapi.h"
@@ -48,6 +48,7 @@ namespace dmRecord
         char             m_Path[1024];
         char             m_Sha256[65];
         uint64_t         m_Size;
+        uint64_t         m_OperationId;
         dmMutex::HMutex  m_Mutex;
         dmThread::Thread m_Worker;
         FileState        m_State;
@@ -123,16 +124,12 @@ namespace dmRecord
         recording->m_State = failed ? FILE_FAILED : FILE_READY;
     }
 
-    void UpdateService()
+    static void OnStatus(const Status* status)
     {
-        if (!g_CurrentFile)
-            return;
-        Status status;
-        GetStatus(&status);
-        if (status.m_Pending || status.m_Active)
+        if (!g_CurrentFile || g_CurrentFile->m_OperationId != status->m_Id || status->m_Pending || status->m_Active)
             return;
         RecordingFile* file = g_CurrentFile;
-        if (!status.m_Finalized)
+        if (!status->m_Finalized)
         {
             for (uint32_t i = 0; i < g_Files.Size(); ++i)
             {
@@ -151,6 +148,14 @@ namespace dmRecord
         file->m_Worker = dmThread::New(PrepareFile, 128 * 1024, file, "record-file");
         if (!file->m_Worker)
             file->m_State = FILE_FAILED;
+    }
+
+    static StatusListener g_StatusListener = {OnStatus, 0};
+
+    void UpdateService()
+    {
+        Status status;
+        GetStatus(&status);
     }
 
     // All response strings originate in bounded status/platform buffers.
@@ -197,7 +202,7 @@ namespace dmRecord
         if (!status->m_Pending)
             UpdateService();
         char file_json[512] = "null";
-        if (g_CurrentFile && strcmp(g_CurrentFile->m_Path, status->m_Path) == 0)
+        if (g_CurrentFile && g_CurrentFile->m_OperationId == status->m_Id)
         {
             RecordingFile*      file = g_CurrentFile;
             dmMutex::ScopedLock lock(file->m_Mutex);
@@ -622,6 +627,7 @@ namespace dmRecord
             return;
         }
         recording->m_Mutex = dmMutex::New();
+        recording->m_OperationId = status.m_Id;
         recording->m_State = FILE_RECORDING;
         if (g_Files.Full())
             g_Files.OffsetCapacity(16);
@@ -640,6 +646,7 @@ namespace dmRecord
         if (dmWebServer::AddHandler(server, "/recording", &handler, RECORD_OPENAPI) != dmWebServer::RESULT_OK)
             return false;
         g_Server = server;
+        AddStatusListener(&g_StatusListener);
         g_GetWindow = get_window;
         dmStrlCpy(g_Directory, directory ? directory : "", sizeof(g_Directory));
 #if defined(_WIN32)
@@ -658,6 +665,7 @@ namespace dmRecord
         if (!g_Server)
             return;
         dmWebServer::RemoveHandler(g_Server, "/recording");
+        RemoveStatusListener(&g_StatusListener);
         Finalize();
         while (!g_Files.Empty())
             DeleteFile(g_Files.Size() - 1);

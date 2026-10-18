@@ -130,6 +130,7 @@ namespace dmRecord
         }
         if (!status->m_Pending && !status->m_Active)
             RestorePreparedWindow();
+        NotifyStatus(status);
     }
 
     static bool Fail(Status* status, const char* message)

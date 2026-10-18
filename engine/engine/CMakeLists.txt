@@ -277,6 +277,7 @@ set(ENGINE_COMMON_SOURCES
   "${ENGINE_SRC_DIR}/engine_main.cpp"
   "${ENGINE_SRC_DIR}/engine_loop.cpp"
   "${ENGINE_SRC_DIR}/extension.cpp"
+  "${DEFOLD_HOME}/engine/record/src/record/record_script.cpp"
   "${ENGINE_SRC_DIR}/script/script_engine.cpp")
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_COMMON_SOURCES "${ENGINE_SRC_DIR}/engine_web.cpp")

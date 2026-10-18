@@ -38,23 +38,11 @@ namespace dmRecord
 #endif
     }
 
-#if defined(DM_PLATFORM_LINUX)
-    static ExtensionResult PostRender(dmExtension::Params*)
-    {
-        CaptureFrame();
-        return EXTENSION_RESULT_OK;
-    }
-#endif
-
     static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
     {
         dmWebServer::HServer server = dmEngine::GetWebServer(params);
         if (server && !RegisterService(server, NativeWindow))
             dmLogError("Unable to register the recording service");
-#if defined(DM_PLATFORM_LINUX)
-        if (server)
-            dmExtension::RegisterCallback(dmExtension::CALLBACK_POST_RENDER, PostRender);
-#endif
         return dmExtension::RESULT_OK;
     }
 

@@ -1,6 +1,6 @@
 # Native video recording
 
-`engine/record` owns native window recording and its HTTP service. It has no
+`engine/record` owns native window recording, its Lua bindings and HTTP service. It has no
 dependency on automation. The implementation is extracted from the recording
 work on `automation-bridge-in` at `dc343a46f1`.
 
@@ -8,6 +8,8 @@ work on `automation-bridge-in` at `dc343a46f1`.
 
 - `record`: asynchronous capture and H.264/MP4 backends.
 - `record_null`: the same C++ interface with recording reported as unsupported.
+- `record_script.cpp`: the Lua `recorder` module, compiled into the engine variants
+  and linked against their selected native or null backend.
 - `record_service`: the `EngineRecord` built-in extension, HTTP handlers,
   OpenAPI metadata, recording files and downloads. It works with either backend.
 
@@ -22,10 +24,54 @@ There is one recording per process. Public calls run on the main thread; startup
 stop and native teardown run on a single persistent worker. `Start` copies its
 options and snapshots the supplied native window on the main thread. A successful
 start/stop return means accepted; poll `m_Pending` and then inspect the result.
-The built-in extension handles `ENGINE_DELETE` and calls `Finalize` before sound,
-render and window teardown. Later extension/app finalizers are safe to repeat.
+The engine polls recording state during script updates and finalizes capture
+before script, sound, render and window teardown. Linux reads the backbuffer
+after post-render extension callbacks and before `Flip`, independently of HTTP.
+The service also handles `ENGINE_DELETE`; repeated finalization is safe.
 The C++ caller owns its output path; the HTTP service owns and cleans up its
 generated files.
+
+## Lua interface
+
+The module exposes only `recorder.start(options, callback)` and `recorder.stop()`.
+Lua and HTTP share one recording: a second start fails while capture or
+finalization is pending. No recording ID or capability check is required.
+Unsupported builds provide the same functions and return an error.
+
+```lua
+local ok, err = recorder.start({
+    path = sys.get_save_file("my_game", "capture.mp4"),
+    fps = 30,
+    audio = false,
+}, function(self, event, result)
+    if event == recorder.EVENT_STARTED then
+        -- Capture is active; recorder.stop() can now be called.
+    elseif event == recorder.EVENT_STOPPED then
+        print("MP4 ready:", result.path)
+    elseif event == recorder.EVENT_ERROR then
+        print("Recording failed:", result.error)
+    end
+end)
+if not ok then print(err) end
+```
+
+`path` is required and must name a writable MP4 file in an existing directory.
+An existing file may be overwritten. FPS defaults to 30 and application audio
+defaults to false. Unsupported audio returns an error. Unknown options and
+invalid argument types or values raise Lua errors.
+
+Both functions return `true` when accepted, or `nil, error` when rejected.
+Callbacks run during engine update, never inside start/stop. A successful start
+produces `EVENT_STARTED`, followed by one `EVENT_STOPPED` or `EVENT_ERROR`;
+startup failure produces only `EVENT_ERROR`. Results contain `path`, `width`,
+`height`, `fps` and `audio`, plus `error` on failure. STOPPED means the MP4 is
+finalized and ready to read, including after an automatic stop on resize.
+
+The callback belongs to the initiating script. Script deletion suppresses the
+callback without stopping capture; engine shutdown finalizes without invoking
+Lua callbacks. The caller owns its output file, which survives service cleanup
+and engine shutdown. Completion observers retain the previous session's result
+before another Lua/HTTP caller can replace it.
 
 ## HTTP interface
 
@@ -111,7 +157,7 @@ preserved through the stop boundary, including video-only recordings. Stop drain
 audio capture and writes the final held video frame before finalizing the file.
 No external encoder is required.
 
-Linux records the engine backbuffer in the post-render extension callback, before
+Linux records the engine backbuffer after post-render extension callbacks, before
 `Flip`. Capture uses the graphics API without depending on X11 or Wayland
 desktop capture portals or window-selection prompts. It captures rendered game
 content, including the debug profiler overlay, rather than the desktop or other
@@ -152,7 +198,7 @@ HTTP service. Automation clients can discover and call these routes directly.
 From the repository root with the usual Defold SDK configured:
 
 ```sh
-cmake --build engine/build/arm64-macos --target run_test_record run_test_record_null run_test_record_timeline run_test_record_service
+cmake --build engine/build/arm64-macos --target run_test_record run_test_record_script run_test_record_null run_test_record_timeline run_test_record_service
 ```
 
 The lifecycle suite uses controlled completion signals to cover repeated capture,
@@ -165,6 +211,13 @@ across real process replacement, reused operation counters, and early shutdown
 through the registered extension event callback. The timeline suite
 covers leading silence, gaps, overlapping packets, clipping at stop and rounding
 over long recordings.
+
+The Lua suite uses real script contexts and the asynchronous recorder with a
+controlled backend. It checks callback ordering, validation, busy/unsupported
+requests, start/stop/capture failures, resize, deletion, shutdown and callbacks
+that stop or restart recording. The service suite also verifies that a direct
+caller can replace an HTTP recording without losing its completed file or
+transferring ownership of the caller's output to the service.
 
 On Linux, the normal test suite also runs `test_record_linux`. It uses controlled
 framebuffer pixels with the real OpenH264 encoder, MP4 muxer/demuxer and H.264

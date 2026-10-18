@@ -20,6 +20,17 @@
 
 namespace dmRecord
 {
+    // Main-thread observers snapshot completed states before another caller can
+    // replace the current operation. Observers must not call back into the recorder.
+    struct StatusListener
+    {
+        void (*m_Callback)(const Status* status);
+        StatusListener* m_Next;
+    };
+    void AddStatusListener(StatusListener* listener);
+    void RemoveStatusListener(StatusListener* listener);
+    void NotifyStatus(const Status* status);
+
     // Copy valid UTF-8 without leaving a partial character when the buffer fills.
     void CopyTextUtf8(char* output, size_t output_size, const char* text);
 

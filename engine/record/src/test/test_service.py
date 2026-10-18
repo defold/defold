@@ -144,6 +144,40 @@ class RecordingServiceTest(unittest.TestCase):
         self.request("GET", url, expected=410)
         self.assertEqual([], list(pathlib.Path(self.directory.name).iterdir()))
 
+    # A direct caller must not steal the previous HTTP completion or transfer file ownership.
+    def test_shared_recording_ownership(self):
+        receipt = self.request("POST", "/recording/start", {}, 202)
+        self.wait_status()
+        self.request("GET", "/test/replace-recording")
+        status = self.wait_status()
+        self.assertTrue(status["active"])
+        self.assertIsNone(status["file"])
+        self.assertNotEqual(receipt["operation_id"], status["operation_id"])
+        expected = b"standalone recording test\n"
+        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        deadline = time.monotonic() + 10
+        try:
+            while time.monotonic() < deadline:
+                connection.request("GET", receipt["file"]["url"],
+                                   headers={"Range": f"bytes=0-{len(expected) - 1}"})
+                response = connection.getresponse()
+                data = response.read()
+                if response.status != 409:
+                    self.assertEqual(206, response.status)
+                    self.assertEqual(expected, data)
+                    break
+            else:
+                self.fail("The previous HTTP recording was not finalized")
+        finally:
+            connection.close()
+        self.request("POST", "/recording/stop", {"operation_id": status["operation_id"]}, 202)
+        self.wait_status()
+        self.request("GET", "/test/restart")
+        # Service cleanup only deletes its own recording. The caller retains its MP4.
+        caller = pathlib.Path(self.directory.name) / "caller.mp4"
+        self.assertEqual(expected, caller.read_bytes())
+        caller.unlink()
+
     # A 204 must end at its headers so the next keep-alive response starts with a status line.
     def test_delete_preserves_keep_alive(self):
         receipt = self.request("POST", "/recording/start", {}, 202)

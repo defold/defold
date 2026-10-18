@@ -19,6 +19,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/mutex.h>
 #include <dlib/socket.h>
+#include <dlib/time.h>
 #include <dlib/webserver.h>
 #include <extension/extension.hpp>
 #include <dmsdk/engine/extension.hpp>
@@ -223,6 +224,23 @@ static void TestHandler(void*, dmWebServer::Request* request)
         dmRecord::g_NoWindow = true;
     else if (!strcmp(request->m_Resource, "/test/audio-support"))
         dmRecord::g_AudioSupported = true;
+    else if (!strcmp(request->m_Resource, "/test/replace-recording"))
+    {
+        // A non-HTTP caller stops the service recording and immediately starts
+        // its own, before another UpdateService can consume the old receipt.
+        dmRecord::Status status;
+        bool stopped = dmRecord::Stop(&status);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (status.m_Pending && dmTime::GetMonotonicTime() < deadline)
+            dmRecord::GetStatus(&status);
+        char path[1024];
+        dmSnPrintf(path, sizeof(path), "%s/caller.mp4", g_Directory);
+        dmRecord::StartParams params;
+        params.m_Window = TestNativeWindow();
+        params.m_Path = path;
+        if (!stopped || status.m_Pending || !dmRecord::Start(&params, &status))
+            dmWebServer::SetStatusCode(request, 500);
+    }
     else if (!strcmp(request->m_Resource, "/test/restart"))
     {
         EngineDelete();
