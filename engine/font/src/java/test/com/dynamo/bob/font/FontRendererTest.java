@@ -817,6 +817,41 @@ public class FontRendererTest {
         }
     }
 
+    // Gradient UVs must cover the drawn vector glyph when its size differs from the cached size.
+    @Test
+    public void testVectorGradientUvsFollowFontSize() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+            assertNotNull(input);
+            fontBytes = input.readAllBytes();
+        }
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.size = 32.0f;
+        params.cacheWidth = 256;
+        params.cacheHeight = 256;
+        params.vector = true;
+        try (FontRenderer renderer = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
+            FontRenderer.Properties properties = properties(100, 1, 0);
+            properties.useGpuEffects = true;
+            float[][] expectedUvs = {{0, 0}, {0, 1}, {1, 0}, {1, 0}, {0, 1}, {1, 1}};
+            for (float fontSize : new float[] {16.0f, 32.0f, 80.0f}) {
+                properties.fontSize = fontSize;
+                renderer.setProperties(properties);
+                for (String fit : new String[] {"glyph", "span", "block"}) {
+                    renderer.setMarkup("<gradient type=linear fit=" + fit + " color0=#ff0000 color1=#0000ff>I</gradient>");
+                    renderer.beginBatch();
+                    renderer.generateTexture(0);
+                    TestVertices vertices = getVertices(renderer, IDENTITY);
+                    assertEquals(expectedUvs.length, vertices.vertexCount);
+                    for (int i = 0; i < vertices.vertexCount; ++i) {
+                        assertEquals(expectedUvs[i][0], vertices.vertices.getFloat(i * 68 + 52), 0.0001f);
+                        assertEquals(expectedUvs[i][1], vertices.vertices.getFloat(i * 68 + 56), 0.0001f);
+                    }
+                }
+            }
+        }
+    }
+
     // Vector face quads follow exact outline bounds instead of rounded bitmap widths.
     @Test
     public void testVectorVertexWidthsUseExactOutlineBounds() throws Exception {

@@ -1133,7 +1133,7 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             if (cached.m_Glyph && spatial_effect && spatial_effect->m_Gradient.m_Mode == TEXT_GRADIENT_MODE_SPATIAL)
             {
                 const FontGlyph&            glyph = *cached.m_Glyph;
-                const float                 scale = text_glyph.m_RenderScale;
+                const float                 scale = glyph_params.m_RenderScale;
                 const float                 width = config.m_MetricsFromTtf ? glyph.m_Bitmap.m_Width : glyph.m_Width;
                 const float                 left = x + (glyph.m_LeftBearing - (width - glyph.m_Width) * 0.5f) * scale;
                 const SpatialGradientBounds quad = { left, y - glyph.m_Descent * scale, left + width * scale, y + glyph.m_Ascent * scale };

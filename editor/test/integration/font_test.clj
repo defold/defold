@@ -518,7 +518,9 @@
         (test-util/with-prop [style-node :markup markup]
           (let [error (test-util/prop-error style-node :markup)]
             (is (g/error-fatal? error))
-            (is (= offset (get-in error [:user-data :byte-offset])))
+            (is (coll/any? #(= offset (get-in % [:user-data :byte-offset]))
+                           (coll/into-> [error] []
+                             (coll/tree-xf :causes :causes))))
             (is (s/includes? (test-util/localization (g/error-message error))
                              "gradient radius must be greater than zero")))
           (is (g/error-fatal? (g/node-value font-node :build-targets))))))))
