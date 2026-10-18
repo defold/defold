@@ -449,6 +449,18 @@ TEST_F(RecordScriptTest, Resize)
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_STOPPED)"));
 }
 
+// A resize before the first status poll must preserve STARTED before the automatic STOPPED event.
+TEST_F(RecordScriptTest, ResizeBeforeFirstStatusPoll)
+{
+    ASSERT_TRUE(Run("assert(recorder.start({path='capture.mp4'}, callback))"));
+    g_Resized = true;
+    Complete();
+    ASSERT_TRUE(Run("assert(#events == 0)"));
+    dmRecord::UpdateScript();
+    dmRecord::UpdateScript();
+    ASSERT_TRUE(Run("assert(#events == 2 and events[1] == recorder.EVENT_STARTED and events[2] == recorder.EVENT_STOPPED)"));
+}
+
 // Deleting the script suppresses its callback while allowing the global recording to finish.
 TEST_F(RecordScriptTest, DeletedScript)
 {

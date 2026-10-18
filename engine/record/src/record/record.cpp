@@ -107,6 +107,9 @@ namespace dmRecord
         }
         if (!status->m_Pending && status->m_Active)
         {
+            // Preserve a completed start before polling can replace it with an
+            // automatic stop or an asynchronous capture failure.
+            NotifyStatus(status);
             Status current;
             GetNativeStatus(&current);
             current.m_Id = status->m_Id;
