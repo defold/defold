@@ -736,9 +736,9 @@ class FontImageReportTest(unittest.TestCase):
                 vector = [c for c in cases if c['source'] in report.VECTOR_SOURCES]
                 self.assertEqual(set(report.VECTOR_SOURCES), {c['source'] for c in vector})
                 self.assertTrue(all(c['multi'] for c in vector))
-                self.assertEqual(4 * (9 if rich else 4), len(vector))
+                self.assertEqual(4 * (11 if rich else 4), len(vector))
                 count += len(cases)
-        self.assertEqual(540, count)
+        self.assertEqual(556, count)
 
     # Verifies all pivots use the shared preview references and that a one-pixel
     # text shift fails even with the large unchanged white box from #13339.
@@ -807,7 +807,7 @@ class FontImageReportTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             root=Path(temporary)
             summary=report.build_reports(root/'missing',root/'report',{},False)
-            self.assertEqual(540,summary['failed'])
+            self.assertEqual(556,summary['failed'])
             self.assertEqual(0,summary['completed'])
             self.assertEqual('fail',summary['status'])
             self.assertTrue((root/'report/index.html').exists())
