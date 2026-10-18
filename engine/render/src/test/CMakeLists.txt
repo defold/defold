@@ -53,6 +53,8 @@ endfunction()
 foreach(_render_test IN ITEMS
   test_render
   test_render_execution
+  test_render_frame
+  test_render_frame_queue
   test_display_profiles
   test_render_programs
   test_render_script
@@ -62,3 +64,5 @@ foreach(_render_test IN ITEMS
     "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp")
   render_configure_test(${_render_test})
 endforeach()
+
+target_sources(test_render_frame_queue PRIVATE "${RENDER_TEST_ROOT}/render_frame_benchmark.cpp")

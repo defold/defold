@@ -17,6 +17,9 @@
 
 namespace dmRender
 {
+    struct RenderExecutionContext;
+    typedef RenderExecutionContext* HRenderExecution;
+
     // Engine-internal contract, not an extension SDK or a rendering architecture selector.
     enum ExecutionMode
     {
@@ -61,16 +64,13 @@ namespace dmRender
         ExecutionReason m_ExecutionReason;
     };
 
-    struct RenderExecutionContext;
-    typedef RenderExecutionContext* HRenderExecution;
-
     ExecutionCapabilities GetExecutionCapabilities(bool executor_available);
     // The caller selects an explicit mode; configuration parsing belongs outside dmRender.
     // An excluded build always resolves valid modes to inline. Unsupported threading
     // in an enabled build fails, never silently changes owners.
     ExecutionSelection ResolveExecutionMode(ExecutionMode mode, const ExecutionCapabilities& capabilities);
-    const char* GetExecutionModeName(ExecutionMode mode);
-    const char* GetExecutionReasonString(ExecutionReason reason);
+    const char*        GetExecutionModeName(ExecutionMode mode);
+    const char*        GetExecutionReasonString(ExecutionReason reason);
 
     // Resolve once, before extension/graphics/bootstrap initialization. No thread is created.
     // The caller becomes the game owner; inline also binds rendering to this caller.
@@ -78,6 +78,8 @@ namespace dmRender
     // It stays false until a caller can provide the required executor and migrated paths.
     // Returns null for an invalid selection. The selection is returned on success and failure.
     HRenderExecution NewRenderExecution(ExecutionMode mode, bool executor_available, ExecutionSelection* selection);
+    // Immutable after construction; used to select inline or synchronized frame handoff.
+    ExecutionMode GetRenderExecutionMode(HRenderExecution execution);
 
     // Threaded executor startup only: bind exactly one distinct render owner, including graphics.
     // Native: render thread. Web: browser main, with NewRenderExecution on the game pthread.

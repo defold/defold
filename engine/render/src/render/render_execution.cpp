@@ -29,8 +29,8 @@ namespace dmRender
     // Created during engine startup and destroyed by the game owner after all other
     // users have stopped and any separate render owner has released its binding.
     //
-    // This context currently creates no threads, schedules no jobs and stores no frames.
-    // The future executor and frame handoff will build around this ownership contract:
+    // This context creates no threads, schedules no jobs and stores no frames.
+    // The separate frame queue and its executors build around this ownership contract:
     // publish immutable frame inputs, consume them inline or on the render owner,
     // signal completion and drain accepted work before shutdown.
     struct RenderExecutionContext
@@ -136,6 +136,11 @@ namespace dmRender
         // that must not be compared with a stored value to determine ownership.
         dmThread::SetTlsValue(execution->m_OwnerKey, &execution->m_GameToken);
         return execution;
+    }
+
+    ExecutionMode GetRenderExecutionMode(HRenderExecution execution)
+    {
+        return execution->m_Mode;
     }
 
     bool BindRenderExecutionOwner(HRenderExecution execution)
