@@ -39,8 +39,7 @@ namespace dmRecord
                   "codec": {"type": "string"},
                   "minimum_platform_version": {"type": "string"},
                   "unsupported_reason": {"type": "string"},
-                  "max_fps": {"type": "integer"},
-                  "max_dimension": {"type": "integer"}
+                  "max_fps": {"type": "integer"}
                 },
                 "required": [
                   "version",
@@ -52,8 +51,7 @@ namespace dmRecord
                   "codec",
                   "minimum_platform_version",
                   "unsupported_reason",
-                  "max_fps",
-                  "max_dimension"
+                  "max_fps"
                 ]
               }
             }
@@ -201,13 +199,11 @@ namespace dmRecord
             "schema": {
               "type": "object",
               "properties": {
-                "width": {"type": "integer", "minimum": 1, "maximum": 16384},
-                "height": {"type": "integer", "minimum": 1, "maximum": 16384},
                 "fps": {"type": "integer", "minimum": 1, "maximum": 60, "default": 30},
                 "audio": {"type": "boolean", "description": "Capture application audio. Defaults to backend support; query /recording/capabilities."}
               },
               "additionalProperties": false,
-              "description": "Specify both width and height, or omit both to use the native window content size. Integer values use decimal integer notation."
+              "description": "Records at the native window content size. Resizing the window stops and finalizes the recording. Integer values use decimal integer notation."
             }
           }
         }

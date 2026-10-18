@@ -56,14 +56,16 @@ can be reused by a replacement process.
 Start accepts an optional JSON object:
 
 ```json
-{"width": 1280, "height": 720, "fps": 30, "audio": false}
+{"fps": 30, "audio": false}
 ```
 
-Omit both dimensions to select native content size. Explicit dimensions must both
-be present and between 1 and 16384. The backend may adjust dimensions for its
-encoder; the status contains the actual result. Capture rate is 1–60 fps,
-defaulting to 30. Audio defaults to backend support. The service accepts no output
-path. Unknown or duplicate fields, invalid types and malformed JSON are rejected.
+Recording uses the native window content size in physical pixels. There are no
+width, height or scale options. At most one row and column are cropped to satisfy
+the encoder's even-dimension requirement; status reports the actual video size.
+Changing the window size or pixel density stops and finalizes the recording.
+Capture rate is 1–60 fps, defaulting to 30. Audio defaults to backend support.
+The service accepts no output path. Unknown or duplicate fields, invalid types
+and malformed JSON are rejected.
 
 Poll status until `pending` is false and `active` is true. Stop with the returned ID:
 
@@ -97,8 +99,8 @@ are reported asynchronously in the status receipt. ScreenCaptureKit is weakly
 linked; Windows capture APIs are resolved at runtime. Recordings contain the
 window's client area, excluding its title bar and borders. Windows crop geometry
 is measured in physical pixels regardless of the calling thread's DPI awareness.
-Resizing the Windows window refreshes the capture buffers and client crop, while
-scaling the new client area into the video dimensions selected at start.
+Windows copies the native client pixels into the encoder without resampling.
+A resized capture frame is discarded before the recording is finalized.
 
 Windows application audio uses WASAPI process loopback for the engine process and
 its children, with 48 kHz stereo PCM encoded to 128 kbit/s AAC in the MP4. It does
@@ -124,13 +126,12 @@ Extender uses the same backend for custom Linux debug engines and excludes the
 codec from its release and headless variants.
 
 Frame readback is synchronous on the render thread. A separate encoder worker
-scales top-down BGRA pixels to the fixed output size, converts to BT.601 I420,
-and writes H.264 into MP4. Output dimensions are rounded down to even values,
-with a minimum of 16 pixels per side; oversized encoder requests fail
-asynchronously. The encoder supports at most 36,864 16x16 macroblocks per frame.
-Readback accepts at most 4096x4096 pixels in total, independently of output size.
-Window resizing changes the input size while retaining the chosen output size.
-Scaling uses nearest-neighbor sampling.
+converts native-size top-down BGRA pixels to BT.601 I420 and writes H.264 into MP4.
+The framebuffer must be at least 16 pixels per side. Odd dimensions crop one row
+or column without scaling; invalid native sizes fail asynchronously.
+The encoder supports at most 36,864 16x16 macroblocks per frame, and the framebuffer
+may contain at most 4096x4096 pixels in total. Window resizing stops capture before
+readback and drains accepted frames into the finalized file.
 
 The queue holds at most three frames, including the frame being encoded. Frames
 are dropped when it is full, keeping memory bounded and avoiding waits for the
@@ -167,8 +168,8 @@ over long recordings.
 
 On Linux, the normal test suite also runs `test_record_linux`. It uses controlled
 framebuffer pixels with the real OpenH264 encoder, MP4 muxer/demuxer and H.264
-decoder. Tests verify colors, orientation, resize scaling, video-only tracks,
-duration, odd output sizes, shutdown/restart, unsupported audio, empty recordings,
+decoder. Tests verify colors, orientation, finalization on resize, video-only tracks,
+duration, odd native sizes, shutdown/restart, unsupported audio, empty recordings,
 readback limits and failed starts. The timeline suite also checks capture
 deadline rounding and drift.
 It does not require a display server. Run the focused targets with:
@@ -190,8 +191,8 @@ This opt-in suite opens its own window and plays test tones. It decodes the actu
 MP4 tracks to verify H.264/AAC, tone/flash synchronization, silent audio, recording
 without a render stream, repeated recording, shutdown finalization, failed-start
 cleanup, static/paused video duration and `audio=false`. Colored client corners
-verify cropping for DPI-unaware, system-aware and per-monitor-aware windows, and
-while growing and shrinking the window; run above 100% display scaling to exercise
+verify cropping for DPI-unaware, system-aware and per-monitor-aware windows,
+and finalization after a window resize; run above 100% display scaling to exercise
 DPI virtualization. The launcher plays a competing tone in another process
 so the silence cases also check application isolation. Completion uses playback
 and capture events; the native tests are excluded from the default CI test suite.

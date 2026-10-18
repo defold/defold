@@ -292,7 +292,6 @@ namespace dmRecord
             , m_CropWidth(0)
             , m_CropHeight(0)
             , m_CaptureSize()
-            , m_CropDirty(false)
             , m_StreamIndex(0)
             , m_AudioStreamIndex(0)
             , m_AudioCapture(0)
@@ -322,7 +321,7 @@ namespace dmRecord
             DeleteCriticalSection(&m_WriterLock);
         }
 
-        bool Start(HWND window, const char* path, uint32_t requested_width, uint32_t requested_height, uint32_t fps, bool audio, char* failure, size_t failure_size)
+        bool Start(HWND window, const char* path, uint32_t fps, bool audio, char* failure, size_t failure_size)
         {
             if (!RecorderApisAvailable())
                 return Fail(E_NOTIMPL, failure, failure_size);
@@ -368,8 +367,13 @@ namespace dmRecord
             }
 
             // The Media Foundation H.264 encoder requires even dimensions.
-            m_OutputWidth = dmMath::Max<uint32_t>(2, (requested_width ? requested_width : m_CropWidth) & ~1U);
-            m_OutputHeight = dmMath::Max<uint32_t>(2, (requested_height ? requested_height : m_CropHeight) & ~1U);
+            m_OutputWidth = m_CropWidth & ~1U;
+            m_OutputHeight = m_CropHeight & ~1U;
+            if (!m_OutputWidth || !m_OutputHeight)
+            {
+                CopyText(failure, failure_size, "recording requires a client area of at least 2x2 pixels");
+                return false;
+            }
             m_Fps = fps;
             if (!Utf8ToWide(path, m_OutputPath, sizeof(m_OutputPath) / sizeof(m_OutputPath[0])))
             {
@@ -484,6 +488,11 @@ namespace dmRecord
         uint32_t Fps() const
         {
             return m_Fps;
+        }
+
+        bool IsStopping()
+        {
+            return InterlockedCompareExchange(&m_Stopping, 0, 0) != 0;
         }
 
         void GetFailure(char* failure, size_t failure_size)
@@ -818,27 +827,23 @@ namespace dmRecord
                 result = frame->get_ContentSize(&size);
             bool valid_size = size.Width > 0 && size.Height > 0;
             bool resized = valid_size && (size.Width != m_CaptureSize.Width || size.Height != m_CaptureSize.Height);
-            if (SUCCEEDED(result) && valid_size && !resized)
+            if (SUCCEEDED(result) && resized)
+            {
+                InterlockedExchange(&m_Stopping, 1);
+                if (!m_FrameCount)
+                {
+                    AcquireSRWLockExclusive(&m_FailureLock);
+                    CopyText(m_Failure, sizeof(m_Failure), "window size changed before the first capture frame");
+                    ReleaseSRWLockExclusive(&m_FailureLock);
+                }
+            }
+            else if (SUCCEEDED(result) && valid_size)
                 result = ReadFrame(frame.Get());
 
-            // The resize notification still uses the old pool's texture: it is
-            // clipped on growth and has undefined pixels on shrink. Discard it
-            // and return the surface before recreating the pool.
+            // A resized frame belongs to the old pool and may be clipped or
+            // undefined. Drop it and let the recording worker finalize the file.
             CloseInspectable(frame.Get());
             frame.Reset();
-            if (SUCCEEDED(result) && resized && !InterlockedCompareExchange(&m_Stopping, 0, 0))
-            {
-                result = sender->Recreate(m_Direct3DDevice.Get(),
-                    ABI::Windows::Graphics::DirectX::DirectXPixelFormat_B8G8R8A8UIntNormalized, 3, size);
-                if (SUCCEEDED(result))
-                {
-                    m_CaptureSize = size;
-                    m_CropDirty = true;
-                    m_Staging.Reset();
-                }
-                else if (InterlockedCompareExchange(&m_Stopping, 0, 0))
-                    result = S_FALSE; // Stop may have closed the pool during Recreate.
-            }
             if (FAILED(result))
             {
                 AcquireSRWLockExclusive(&m_FailureLock);
@@ -853,14 +858,6 @@ namespace dmRecord
 
         HRESULT ReadFrame(CaptureAbi::IDirect3D11CaptureFrame* frame)
         {
-            if (m_CropDirty)
-            {
-                // Measure against the new frame's content size, not the item's
-                // initial size. Retry if the window has no client area yet.
-                if (!ResolveClientCrop(m_CaptureSize))
-                    return S_FALSE;
-                m_CropDirty = false;
-            }
             ComPtr<Direct3DAbi::IDirect3DSurface> surface;
             HRESULT result = frame->get_Surface(&surface);
             ComPtr<Direct3DInterop::IDirect3DDxgiInterfaceAccess> access;
@@ -918,15 +915,10 @@ namespace dmRecord
                 uint32_t    destination_stride = m_OutputWidth * 4;
                 for (uint32_t y = 0; y < m_OutputHeight; ++y)
                 {
-                    uint32_t source_y = (uint32_t)((uint64_t)y * m_CropHeight / m_OutputHeight);
                     // RGB32 is conventionally bottom-up in Media Foundation.
                     BYTE*       destination_row = destination + (size_t)(m_OutputHeight - 1 - y) * destination_stride;
-                    const BYTE* source_row = source + (size_t)source_y * mapped.RowPitch;
-                    for (uint32_t x = 0; x < m_OutputWidth; ++x)
-                    {
-                        uint32_t source_x = (uint32_t)((uint64_t)x * m_CropWidth / m_OutputWidth);
-                        memcpy(destination_row + (size_t)x * 4, source_row + (size_t)source_x * 4, 4);
-                    }
+                    const BYTE* source_row = source + (size_t)y * mapped.RowPitch;
+                    memcpy(destination_row, source_row, destination_stride);
                 }
                 buffer->Unlock();
                 buffer->SetCurrentLength((DWORD)buffer_size_64);
@@ -1033,7 +1025,6 @@ namespace dmRecord
         uint32_t                                        m_OutputWidth, m_OutputHeight, m_Fps;
         uint32_t                                        m_CropX, m_CropY, m_CropWidth, m_CropHeight;
         ABI::Windows::Graphics::SizeInt32                m_CaptureSize;
-        bool                                            m_CropDirty;
         DWORD                                           m_StreamIndex;
         DWORD                                           m_AudioStreamIndex;
         AudioCapture*                                   m_AudioCapture;
@@ -1105,14 +1096,17 @@ namespace dmRecord
         AcquireSRWLockShared(&g_StateLock);
         *status = g_Status;
         if (g_Recorder && status->m_Active)
+        {
             g_Recorder->GetFailure(status->m_Failure, sizeof(status->m_Failure));
+            status->m_Stopping = g_Recorder->IsStopping();
+        }
         ReleaseSRWLockShared(&g_StateLock);
         status->m_Supported = IsSupported();
         if (!status->m_Supported && !status->m_Failure[0])
             CopyText(status->m_Failure, sizeof(status->m_Failure), GetUnsupportedReason());
     }
 
-    bool StartNative(const Window* target, const char* path, uint32_t width, uint32_t height, uint32_t fps, bool audio, Status* status)
+    bool StartNative(const Window* target, const char* path, uint32_t fps, bool audio, Status* status)
     {
         AcquireSRWLockExclusive(&g_StateLock);
         if (g_Recorder)
@@ -1150,7 +1144,7 @@ namespace dmRecord
         ReleaseSRWLockExclusive(&g_StateLock);
 
         char failure[512] = {};
-        bool started = recorder->Start((HWND)target->m_Handle, path, width, height, fps, audio, failure, sizeof(failure));
+        bool started = recorder->Start((HWND)target->m_Handle, path, fps, audio, failure, sizeof(failure));
         AcquireSRWLockExclusive(&g_StateLock);
         if (started)
         {

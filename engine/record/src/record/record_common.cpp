@@ -19,8 +19,6 @@ namespace dmRecord
     StartParams::StartParams()
         : m_Window(0)
         , m_Path(0)
-        , m_Width(0)
-        , m_Height(0)
         , m_Fps(30)
         , m_Audio(false)
     {

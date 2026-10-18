@@ -77,7 +77,7 @@ namespace dmRecord
         status->m_Supported = IsSupported();
     }
 
-    bool StartNative(const Window*, const char* path, uint32_t width, uint32_t height, uint32_t fps, bool audio, Status* status)
+    bool StartNative(const Window*, const char* path, uint32_t fps, bool audio, Status* status)
     {
         dmMutex::ScopedLock lock(g_Mutex);
         memset(&g_Status, 0, sizeof(g_Status));
@@ -96,8 +96,8 @@ namespace dmRecord
             fwrite(contents, 1, sizeof(contents) - 1, file);
             fclose(file);
             g_Status.m_Active = true;
-            g_Status.m_Width = width ? width : 320;
-            g_Status.m_Height = height ? height : 240;
+            g_Status.m_Width = 320;
+            g_Status.m_Height = 240;
             g_Status.m_Fps = fps;
             g_Status.m_Audio = audio;
         }

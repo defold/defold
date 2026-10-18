@@ -26,8 +26,6 @@ namespace dmRecord
         StartParams();
         void*       m_Window; // NSWindow*, HWND, or Linux graphics context. Borrowed until Finalize().
         const char* m_Path;   // UTF-8 MP4 output path, copied by Start().
-        uint32_t    m_Width;  // Both dimensions zero selects the native content size.
-        uint32_t    m_Height;
         uint32_t    m_Fps;   // Capture rate, 1..60. Defaults to 30.
         bool        m_Audio; // Application audio, where supported. Defaults to false.
     };
@@ -57,6 +55,7 @@ namespace dmRecord
     const char* GetBackendName();
     const char* GetMinimumPlatformVersion();
     const char* GetUnsupportedReason();
+    // Polling also requests finalization when the native content size changes.
     void        GetStatus(Status* status);
 
     // True means the operation was accepted. Poll GetStatus() until m_Pending

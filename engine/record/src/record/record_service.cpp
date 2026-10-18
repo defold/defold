@@ -313,15 +313,15 @@ namespace dmRecord
             char name[32];
             if (!ParseName(&p, name, sizeof(name)))
                 return false;
-            uint32_t field = !strcmp(name, "width") ? 1 : (!strcmp(name, "height") ? 2 : (!strcmp(name, "fps") ? 4 : (!strcmp(name, "audio") ? 8 : (!strcmp(name, "operation_id") ? 16 : 0))));
-            if (!field || (seen & field) || (stopping ? field != 16 : field == 16))
+            uint32_t field = !strcmp(name, "fps") ? 1 : (!strcmp(name, "audio") ? 2 : (!strcmp(name, "operation_id") ? 4 : 0));
+            if (!field || (seen & field) || (stopping ? field != 4 : field == 4))
                 return false;
             seen |= field;
             SkipWhitespace(&p);
             if (*p++ != ':')
                 return false;
             SkipWhitespace(&p);
-            if (field == 8)
+            if (field == 2)
             {
                 if (!strncmp(p, "true", 4))
                 {
@@ -341,13 +341,9 @@ namespace dmRecord
                 uint64_t value;
                 if (!ParseUInt(&p, &value) || !value)
                     return false;
-                if (field != 16 && value > (field == 4 ? 60u : 16384u))
+                if (field == 1 && value > 60)
                     return false;
                 if (field == 1)
-                    params->m_Width = (uint32_t)value;
-                else if (field == 2)
-                    params->m_Height = (uint32_t)value;
-                else if (field == 4)
                     params->m_Fps = (uint32_t)value;
                 else
                     *id = value;
@@ -363,7 +359,7 @@ namespace dmRecord
         }
         ++p;
         SkipWhitespace(&p);
-        return *p == 0 && (stopping ? seen == 16 : ((seen & 3) == 0 || (seen & 3) == 3));
+        return *p == 0 && (!stopping || seen == 4);
     }
 
     static bool ReceiveBody(dmWebServer::Request* request, char* body, uint32_t capacity)
@@ -528,7 +524,7 @@ namespace dmRecord
             bool supported = IsSupported() && g_GetWindow();
             dmSnPrintf(response, sizeof(response),
                        "{\"version\":1,\"instance_id\":\"%s\",\"supported\":%s,\"audio\":%s,\"backend\":\"%s\",\"format\":\"mp4\",\"codec\":\"h264\","
-                       "\"minimum_platform_version\":\"%s\",\"unsupported_reason\":\"%s\",\"max_fps\":60,\"max_dimension\":16384}",
+                       "\"minimum_platform_version\":\"%s\",\"unsupported_reason\":\"%s\",\"max_fps\":60}",
                        g_InstanceId,
                        supported ? "true" : "false",
                        supported && IsAudioSupported() ? "true" : "false",

@@ -213,7 +213,7 @@ namespace dmRecord
         }
     }
 
-    bool StartNative(const Window* target, const char* path, uint32_t requested_width, uint32_t requested_height, uint32_t fps, bool audio, Status* status)
+    bool StartNative(const Window* target, const char* path, uint32_t fps, bool audio, Status* status)
     {
         @autoreleasepool
         {
@@ -281,19 +281,21 @@ namespace dmRecord
             SCStream*                stream = nil;
             SCRecordingOutput*       output = nil;
             DefoldRecordingDelegate* delegate = nil;
-            uint32_t                 width = 0;
-            uint32_t                 height = 0;
+            uint32_t                 width = (uint32_t)llround(target->m_Width * target->m_Scale) & ~1U;
+            uint32_t                 height = (uint32_t)llround(target->m_Height * target->m_Scale) & ~1U;
+            if (!failure && (!width || !height))
+                failure = @"recording requires a content area of at least 2x2 pixels";
             if (!failure)
             {
-                CGRect  source_rect = CGRectMake(target->m_X, target->m_Y, target->m_Width, target->m_Height);
-                CGFloat scale = target->m_Scale;
-                width = requested_width ? requested_width : (uint32_t)llround(source_rect.size.width * scale);
-                height = requested_height ? requested_height : (uint32_t)llround(source_rect.size.height * scale);
+                // Match source and output pixels, cropping only codec alignment.
+                CGRect source_rect = CGRectMake(target->m_X, target->m_Y,
+                                                width / target->m_Scale, height / target->m_Scale);
 
                 SCStreamConfiguration* configuration = [[SCStreamConfiguration alloc] init];
                 [configuration setWidth:width];
                 [configuration setHeight:height];
                 [configuration setSourceRect:source_rect];
+                [configuration setScalesToFit:NO];
                 [configuration setMinimumFrameInterval:CMTimeMake(1, (int32_t)fps)];
                 [configuration setQueueDepth:6];
                 [configuration setPixelFormat:kCVPixelFormatType_32BGRA];

@@ -30,6 +30,8 @@ struct RecordingBackend
     dmConditionVariable::HConditionVariable m_Condition;
     dmThread::TlsKey                        m_ThreadKey;
     Status                                  m_Status;
+    uint32_t                                m_WindowWidth;
+    uint32_t                                m_WindowHeight;
     uint32_t                                m_Starts;
     uint32_t                                m_Stops;
     uint32_t                                m_Finalizes;
@@ -62,6 +64,9 @@ namespace dmRecord
     {
         memset(window, 0, sizeof(*window));
         window->m_Handle = 1;
+        window->m_Width = g_Backend.m_WindowWidth;
+        window->m_Height = g_Backend.m_WindowHeight;
+        window->m_Scale = 1.0;
         return !g_Backend.m_NoWindow;
     }
 
@@ -71,7 +76,7 @@ namespace dmRecord
         *status = g_Backend.m_Status;
     }
 
-    bool StartNative(const Window*, const char* path, uint32_t width, uint32_t height, uint32_t fps, bool audio, Status* status)
+    bool StartNative(const Window* window, const char* path, uint32_t fps, bool audio, Status* status)
     {
         dmMutex::ScopedLock lock(g_Backend.m_Mutex);
         // TLS detects a replacement thread even if the OS reuses its thread ID.
@@ -88,8 +93,8 @@ namespace dmRecord
         else
         {
             dmStrlCpy(g_Backend.m_Status.m_Path, path, sizeof(g_Backend.m_Status.m_Path));
-            g_Backend.m_Status.m_Width = width;
-            g_Backend.m_Status.m_Height = height;
+            g_Backend.m_Status.m_Width = (uint32_t)window->m_Width;
+            g_Backend.m_Status.m_Height = (uint32_t)window->m_Height;
             g_Backend.m_Status.m_Fps = fps;
             g_Backend.m_Status.m_Audio = audio;
         }
@@ -144,6 +149,8 @@ class RecordingAsyncTest : public jc_test_base_class
         g_Backend.m_AllowStart = true;
         g_Backend.m_AllowStop = true;
         g_Backend.m_Status.m_Supported = true;
+        g_Backend.m_WindowWidth = 320;
+        g_Backend.m_WindowHeight = 240;
     }
 
     void TearDown()
@@ -160,8 +167,6 @@ class RecordingAsyncTest : public jc_test_base_class
         StartParams params;
         params.m_Window = (void*)1;
         params.m_Path = "recording-test.mp4";
-        params.m_Width = 320;
-        params.m_Height = 240;
         return dmRecord::Start(&params, status);
     }
 
@@ -255,6 +260,47 @@ TEST_F(RecordingAsyncTest, StartStopSameThread)
     ASSERT_FALSE(reset.m_Active);
     ASSERT_FALSE(reset.m_Finalized);
     ASSERT_STREQ("", reset.m_Path);
+}
+
+// A content-size change finalizes on the owning worker and retains the original video dimensions.
+TEST_F(RecordingAsyncTest, ResizeFinalizesRecording)
+{
+    Status status;
+    ASSERT_TRUE(Start(&status));
+    status = WaitForCompletion();
+    ASSERT_TRUE(status.m_Active);
+    uint64_t id = status.m_Id;
+    g_Backend.m_WindowWidth = 640;
+    status = WaitForCompletion();
+    ASSERT_FALSE(status.m_Pending);
+    ASSERT_FALSE(status.m_Active);
+    ASSERT_TRUE(status.m_Finalized);
+    ASSERT_TRUE(status.m_Stopping);
+    ASSERT_EQ(id, status.m_Id);
+    ASSERT_EQ(320u, status.m_Width);
+    ASSERT_EQ(240u, status.m_Height);
+    ASSERT_EQ(0, status.m_Failure[0]);
+    ASSERT_EQ(1u, g_Backend.m_Stops);
+    ASSERT_EQ(0u, g_Backend.m_WrongThread);
+}
+
+// A native capture resize signal also schedules finalization on the owning worker.
+TEST_F(RecordingAsyncTest, NativeResizeFinalizesRecording)
+{
+    Status status;
+    ASSERT_TRUE(Start(&status));
+    status = WaitForCompletion();
+    ASSERT_TRUE(status.m_Active);
+    {
+        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        g_Backend.m_Status.m_Stopping = true;
+    }
+    status = WaitForCompletion();
+    ASSERT_FALSE(status.m_Pending);
+    ASSERT_FALSE(status.m_Active);
+    ASSERT_TRUE(status.m_Finalized);
+    ASSERT_EQ(1u, g_Backend.m_Stops);
+    ASSERT_EQ(0u, g_Backend.m_WrongThread);
 }
 
 // Shutdown during startup waits for the worker and cleans up on the initializing thread.
@@ -351,11 +397,6 @@ TEST_F(RecordingAsyncTest, InvalidOptions)
     params.m_Fps = 61;
     ASSERT_FALSE(dmRecord::Start(&params, &status));
     params.m_Fps = 30;
-    params.m_Width = 320;
-    ASSERT_FALSE(dmRecord::Start(&params, &status));
-    params.m_Height = 16385;
-    ASSERT_FALSE(dmRecord::Start(&params, &status));
-    params.m_Height = 240;
     params.m_Audio = true;
     ASSERT_FALSE(dmRecord::Start(&params, &status));
     params.m_Audio = false;

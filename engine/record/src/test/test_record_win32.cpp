@@ -129,7 +129,7 @@ static DWORD WINAPI RecordWorker(void* context)
     DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(recording->m_DpiContext);
     recording->m_StartBefore = dmTime::GetMonotonicTime();
     recording->m_StartResult = dmRecord::StartNative(&recording->m_Window, recording->m_Path,
-        320, 240, 30, recording->m_Audio, &recording->m_Status);
+        30, recording->m_Audio, &recording->m_Status);
     recording->m_StartAfter = dmTime::GetMonotonicTime();
     SetEvent(recording->m_Started);
     WaitForSingleObject(recording->m_Stop, INFINITE);
@@ -419,7 +419,7 @@ protected:
         }
     }
 
-    void InspectClientArea(uint32_t expected_phases = 0)
+    void InspectClientArea(uint32_t minimum_frames = 6)
     {
         wchar_t path[MAX_PATH];
         MultiByteToWideChar(CP_UTF8, 0, m_Recording.m_Path, -1, path, MAX_PATH);
@@ -439,13 +439,10 @@ protected:
         ASSERT_EQ(S_OK, reader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, &type));
         UINT32 width, height;
         ASSERT_EQ(S_OK, MFGetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, &width, &height));
-        ASSERT_EQ(320u, width);
-        ASSERT_EQ(240u, height);
+        ASSERT_EQ(m_Recording.m_Status.m_Width, width);
+        ASSERT_EQ(m_Recording.m_Status.m_Height, height);
         LONG stride = (LONG)MFGetAttributeUINT32(type.Get(), MF_MT_DEFAULT_STRIDE, width * 4);
         uint32_t frames = 0;
-        uint32_t phases = 0;
-        uint32_t phase_frames[3] = {};
-        bool previous_white = false;
         for (;;)
         {
             DWORD flags;
@@ -478,29 +475,11 @@ protected:
                     printf("%s: incorrect client corner %u: BGR=(%u,%u,%u)\n",
                         m_Recording.m_Path, i, pixel[0], pixel[1], pixel[2]);
             }
-            if (expected_phases && bytes >= abs(stride) * height)
-            {
-                bool white = data[(height / 2) * abs(stride) + (width / 2) * 4] > 200;
-                if (!phases || white != previous_white)
-                    ++phases;
-                previous_white = white;
-                if (valid && phases <= 3)
-                    ++phase_frames[phases - 1];
-            }
             buffer->Unlock();
-            if (!expected_phases)
-                ASSERT_TRUE(valid);
+            ASSERT_TRUE(valid);
             ++frames;
         }
-        ASSERT_GT(frames, 5u);
-        if (expected_phases)
-        {
-            ASSERT_EQ(expected_phases, phases);
-            // Ignore transient compositor frames while resizing, but require
-            // complete client content in each stable size, including the last.
-            for (uint32_t i = 0; i < expected_phases; ++i)
-                ASSERT_GT(phase_frames[i], 5u);
-        }
+        ASSERT_GE(frames, minimum_frames);
         printf("%s: all four client corners preserved in %u frames\n", m_Recording.m_Path, frames);
     }
 };
@@ -517,6 +496,12 @@ TEST_F(RecordWindowsTest, ClientAreaCropping)
         DestroyWindow(m_Window);
         CreateTestWindow(contexts[i]);
         ASSERT_TRUE(Begin(false, suffixes[i], false, contexts[i]));
+        DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+        RECT client;
+        ASSERT_TRUE(GetClientRect(m_Window, &client));
+        SetThreadDpiAwarenessContext(previous);
+        ASSERT_EQ((uint32_t)(client.right - client.left) & ~1U, m_Recording.m_Status.m_Width);
+        ASSERT_EQ((uint32_t)(client.bottom - client.top) & ~1U, m_Recording.m_Status.m_Height);
         ResetEvent(g_Painted);
         g_PaintTarget = g_Paints + 40;
         ASSERT_TRUE(PumpUntil(g_Painted));
@@ -526,33 +511,31 @@ TEST_F(RecordWindowsTest, ClientAreaCropping)
     }
 }
 
-// Growing and shrinking the window must preserve all client corners at the fixed video size.
-TEST_F(RecordWindowsTest, ResizeClientArea)
+// A resized WGC frame must be discarded and the original-size recording can be finalized.
+TEST_F(RecordWindowsTest, ResizeStopsCapture)
 {
     DestroyWindow(m_Window);
     CreateTestWindow(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
     ASSERT_TRUE(Begin(false, "resize", false, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE));
-    const LONG widths[] = {320, 480, 240};
-    const LONG heights[] = {240, 360, 180};
-    for (uint32_t i = 0; i < 3; ++i)
+    DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+    RECT rect = {0, 0, 480, 360};
+    ASSERT_TRUE(AdjustWindowRectExForDpi(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0, GetDpiForWindow(m_Window)));
+    ASSERT_TRUE(SetWindowPos(m_Window, 0, 0, 0, rect.right - rect.left, rect.bottom - rect.top,
+        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE));
+    SetThreadDpiAwarenessContext(previous);
+    dmRecord::Status status;
+    uint64_t deadline = dmTime::GetMonotonicTime() + 15000000;
+    do
     {
-        DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
-        RECT rect = {0, 0, widths[i], heights[i]};
-        ASSERT_TRUE(AdjustWindowRectExForDpi(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0, GetDpiForWindow(m_Window)));
-        g_White = i == 1;
-        ASSERT_TRUE(SetWindowPos(m_Window, 0, 0, 0, rect.right - rect.left, rect.bottom - rect.top,
-            SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE));
-        SetThreadDpiAwarenessContext(previous);
-        InvalidateRect(m_Window, 0, FALSE);
-        UpdateWindow(m_Window);
-        DwmFlush();
         ResetEvent(g_Painted);
-        g_PaintTarget = g_Paints + 40;
+        g_PaintTarget = g_Paints + 1;
         ASSERT_TRUE(PumpUntil(g_Painted));
-    }
+        dmRecord::GetNativeStatus(&status);
+    } while (!status.m_Stopping && dmTime::GetMonotonicTime() < deadline);
+    ASSERT_TRUE(status.m_Stopping);
     Finish();
     ASSERT_TRUE(m_Recording.m_StopResult);
-    InspectClientArea(3);
+    InspectClientArea(1);
 }
 
 // Decode both tracks and compare a visible flash with a tone, also exercising repeated start/stop.

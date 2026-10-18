@@ -14,6 +14,7 @@
 
 #include "record_private.h"
 #include <dmsdk/dlib/dstrings.h>
+#include <dmsdk/dlib/log.h>
 #include <string.h>
 #include <dmsdk/dlib/condition_variable.h>
 #include <dmsdk/dlib/thread.h>
@@ -32,6 +33,7 @@ namespace dmRecord
     {
         Status                                  m_Status;
         Window                                  m_Window;
+        void*                                   m_NativeWindow;
         dmMutex::HMutex                         m_Mutex;
         dmConditionVariable::HConditionVariable m_Condition;
         dmThread::Thread                        m_Thread;
@@ -68,7 +70,7 @@ namespace dmRecord
             if (request == RECORDING_REQUEST_STOP)
                 StopNative(&result);
             else
-                StartNative(&window, pending.m_Path, pending.m_Width, pending.m_Height, pending.m_Fps, pending.m_Audio, &result);
+                StartNative(&window, pending.m_Path, pending.m_Fps, pending.m_Audio, &result);
             if (!result.m_Path[0])
                 dmStrlCpy(result.m_Path, pending.m_Path, sizeof(result.m_Path));
             result.m_Id = pending.m_Id;
@@ -98,8 +100,21 @@ namespace dmRecord
             Status current;
             GetNativeStatus(&current);
             current.m_Id = status->m_Id;
-            current.m_Stopping = status->m_Stopping;
+            Window window = {};
+            if (current.m_Active && GetWindow(g_Recording.m_NativeWindow, &window) &&
+                (window.m_Width != g_Recording.m_Window.m_Width ||
+                 window.m_Height != g_Recording.m_Window.m_Height ||
+                 window.m_Scale != g_Recording.m_Window.m_Scale))
+                current.m_Stopping = true;
             dmMutex::ScopedLock lock(g_Recording.m_Mutex);
+            if (current.m_Active && current.m_Stopping)
+            {
+                // Finalize on the same worker that owns the native recorder.
+                dmLogWarning("Window size changed; stopping video recording");
+                current.m_Pending = true;
+                g_Recording.m_Request = RECORDING_REQUEST_STOP;
+                dmConditionVariable::Signal(g_Recording.m_Condition);
+            }
             g_Recording.m_Status = current;
             *status = current;
         }
@@ -120,8 +135,6 @@ namespace dmRecord
             return Fail(status, GetUnsupportedReason());
         if (!params->m_Path || !params->m_Path[0] || strlen(params->m_Path) >= sizeof(status->m_Path))
             return Fail(status, "recording path is empty or too long");
-        if ((params->m_Width == 0) != (params->m_Height == 0) || params->m_Width > 16384 || params->m_Height > 16384)
-            return Fail(status, "width and height must both be zero, or between 1 and 16384");
         if (params->m_Fps < 1 || params->m_Fps > 60)
             return Fail(status, "fps must be between 1 and 60");
         if (params->m_Audio && !IsAudioSupported())
@@ -136,13 +149,12 @@ namespace dmRecord
         }
         dmMutex::ScopedLock lock(g_Recording.m_Mutex);
         g_Recording.m_Window = window;
+        g_Recording.m_NativeWindow = params->m_Window;
         memset(&g_Recording.m_Status, 0, sizeof(g_Recording.m_Status));
         Status* pending = &g_Recording.m_Status;
         pending->m_Id = ++g_OperationId;
         pending->m_Supported = true;
         pending->m_Pending = true;
-        pending->m_Width = params->m_Width;
-        pending->m_Height = params->m_Height;
         pending->m_Fps = params->m_Fps;
         pending->m_Audio = params->m_Audio;
         dmStrlCpy(pending->m_Path, params->m_Path, sizeof(pending->m_Path));

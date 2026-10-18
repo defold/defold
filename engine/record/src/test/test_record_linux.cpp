@@ -52,8 +52,8 @@ namespace dmGraphics
         ASSERT_TRUE(g_Backbuffer);
         ASSERT_EQ(0, x);
         ASSERT_EQ(0, y);
-        ASSERT_EQ(g_Width, width);
-        ASSERT_EQ(g_Height, height);
+        ASSERT_EQ(g_Width & ~1U, width);
+        ASSERT_EQ(g_Height & ~1U, height);
         ASSERT_EQ(width * height * 4, size);
         const uint8_t colors[4][4] = { { 0, 0, 255, 255 }, { 0, 255, 0, 255 }, { 255, 0, 0, 255 }, { 255, 255, 255, 255 } };
         for (uint32_t row = 0; row < height; ++row)
@@ -224,13 +224,11 @@ class LinuxRecordingTest : public jc_test_base_class
     }
 };
 
-// Decode the real MP4 and check color channels, orientation, scaling, timing and absence of audio.
-TEST_F(LinuxRecordingTest, VideoOnlyAndResize)
+// Decode the native-size MP4 and check color channels, orientation, timing and absence of audio.
+TEST_F(LinuxRecordingTest, VideoOnly)
 {
     Start();
     Capture();
-    g_Width = 320;
-    g_Height = 240;
     Capture();
     Capture();
     dmRecord::Status status;
@@ -252,6 +250,36 @@ TEST_F(LinuxRecordingTest, VideoOnlyAndResize)
             ASSERT_EQ(bytes, fwrite(buffer, 1, bytes, target));
         fclose(source);
         ASSERT_EQ(0, fclose(target));
+    }
+}
+
+// Growth and shrink stop before readback, preserve the completed video and permit recording at the new size.
+TEST_F(LinuxRecordingTest, ResizeFinalizesAndRestarts)
+{
+    const uint32_t widths[] = {320, 160};
+    const uint32_t heights[] = {240, 120};
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        uint32_t width = g_Width;
+        uint32_t height = g_Height;
+        Start();
+        Capture();
+        uint32_t reads = g_Reads;
+        g_Width = widths[i];
+        g_Height = heights[i];
+        dmRecord::Status status;
+        uint64_t deadline = dmTime::GetMonotonicTime() + 10000000;
+        do
+        {
+            dmRecord::CaptureFrame();
+            dmRecord::GetNativeStatus(&status);
+        } while ((status.m_Active || status.m_Pending) && dmTime::GetMonotonicTime() < deadline);
+        ASSERT_FALSE(status.m_Active);
+        ASSERT_FALSE(status.m_Pending);
+        ASSERT_TRUE(status.m_Finalized);
+        ASSERT_EQ(0, status.m_Failure[0]);
+        ASSERT_EQ(reads, g_Reads);
+        Verify(1, width, height, &status);
     }
 }
 
@@ -321,12 +349,12 @@ TEST_F(LinuxRecordingTest, EmptyRecordingFails)
     ASSERT_NE(0, status.m_Failure[0]);
 }
 
-// Odd requested dimensions are normalized to an even I420 frame and reported accurately.
-TEST_F(LinuxRecordingTest, OddOutputDimensions)
+// Odd native dimensions crop one row/column for I420 without resampling the image.
+TEST_F(LinuxRecordingTest, OddNativeDimensions)
 {
+    g_Width = 319;
+    g_Height = 239;
     dmRecord::StartParams params = Params();
-    params.m_Width = 319;
-    params.m_Height = 239;
     dmRecord::Status status;
     ASSERT_TRUE(dmRecord::Start(&params, &status));
     status = Complete();
@@ -340,18 +368,14 @@ TEST_F(LinuxRecordingTest, OddOutputDimensions)
     Verify(1, 318, 238, &status);
 }
 
-// A resize beyond the readback limit fails without a large allocation and permits a new recording.
+// Native dimensions beyond the readback limit fail before allocating buffers and permit retry.
 TEST_F(LinuxRecordingTest, OversizedFramebufferCanRetry)
 {
-    Start();
     g_Width = g_Height = 8192;
+    dmRecord::StartParams params = Params();
     dmRecord::Status status;
-    uint64_t         deadline = dmTime::GetMonotonicTime() + 10000000;
-    do
-    {
-        dmRecord::CaptureFrame();
-        dmRecord::GetStatus(&status);
-    } while (status.m_Active && dmTime::GetMonotonicTime() < deadline);
+    ASSERT_TRUE(dmRecord::Start(&params, &status));
+    status = Complete();
     ASSERT_FALSE(status.m_Active);
     ASSERT_FALSE(status.m_Finalized);
     ASSERT_NE(0, status.m_Failure[0]);
@@ -369,13 +393,27 @@ TEST_F(LinuxRecordingTest, OversizedFramebufferCanRetry)
 // The encoder rejects excessive dimensions before allocating large frame buffers.
 TEST_F(LinuxRecordingTest, OversizedOutputFails)
 {
+    g_Width = 4096;
+    g_Height = 2306;
     dmRecord::StartParams params = Params();
-    params.m_Width = params.m_Height = 16384;
     dmRecord::Status status;
     ASSERT_TRUE(dmRecord::Start(&params, &status));
     status = Complete();
     ASSERT_FALSE(status.m_Active);
     ASSERT_NE(0, status.m_Failure[0]);
+}
+
+// A native framebuffer below the encoder minimum fails instead of being silently enlarged.
+TEST_F(LinuxRecordingTest, SmallFramebufferFails)
+{
+    g_Width = 15;
+    dmRecord::StartParams params = Params();
+    dmRecord::Status status;
+    ASSERT_TRUE(dmRecord::Start(&params, &status));
+    status = Complete();
+    ASSERT_FALSE(status.m_Active);
+    ASSERT_NE(0, status.m_Failure[0]);
+    ASSERT_EQ(0U, g_Reads);
 }
 
 int main(int argc, char** argv)

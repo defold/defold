@@ -102,6 +102,8 @@ class RecordingServiceTest(unittest.TestCase):
         self.assertEqual({"/recording/capabilities", "/recording/status", "/recording/start",
                           "/recording/stop", "/recording/files/{id}"}, set(paths))
         self.assertNotIn("automation", json.dumps(paths))
+        properties = paths["/recording/start"]["post"]["requestBody"]["content"]["application/json"]["schema"]["properties"]
+        self.assertEqual({"fps", "audio"}, set(properties))
         self.assertEqual(60, paths["/recording/start"]["post"]["requestBody"]["content"]
                          ["application/json"]["schema"]["properties"]["fps"]["maximum"])
         for path, method in (("/recording/start", "post"), ("/recording/stop", "post"),
@@ -119,11 +121,11 @@ class RecordingServiceTest(unittest.TestCase):
 
     # Start/stop receipts, bounded downloads, checksums and deletion form a complete service.
     def test_record_download_delete(self):
-        receipt = self.request("POST", "/recording/start", {"width": 640, "height": 360, "fps": 60}, 202)
+        receipt = self.request("POST", "/recording/start", {"fps": 60}, 202)
         self.assertTrue(receipt["pending"])
         status = self.wait_status()
         self.assertTrue(status["active"])
-        self.assertEqual((640, 360, 60), (status["width"], status["height"], status["fps"]))
+        self.assertEqual((320, 240, 60), (status["width"], status["height"], status["fps"]))
         self.assertEqual(receipt["operation_id"], status["operation_id"])
         self.request("POST", "/recording/start", {}, 409)
         self.request("POST", "/recording/stop", {"operation_id": status["operation_id"] + 1}, 410)
@@ -193,7 +195,7 @@ class RecordingServiceTest(unittest.TestCase):
     # Reject invalid JSON, unknown/duplicate keys and invalid bounds before starting capture.
     def test_request_validation(self):
         invalid = [[], {"path": "/tmp/unowned.mp4"}, {"fps": 0}, {"fps": 61}, {"width": 10},
-                   {"width": 0, "height": 0}, {"width": 16385, "height": 10}, {"audio": "true"},
+                   {"height": 240}, {"width": 640, "height": 360}, {"scale": 0.5}, {"audio": "true"},
                    {"fps": None}, {"fps": True}, {"fps": {"value": 30}}]
         for value in invalid:
             with self.subTest(value=value):

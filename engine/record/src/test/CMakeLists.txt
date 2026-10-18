@@ -7,6 +7,7 @@ endif()
 
 function(record_test name)
   defold_add_executable(${name} ${ARGN})
+  target_compile_definitions(${name} PRIVATE DLIB_LOG_DOMAIN="RECORD_TEST")
   target_include_directories(${name} PRIVATE "${RECORD_ROOT}/src")
   defold_target_link_libraries(${name} "${TARGET_PLATFORM}" testmain dlib profile_null)
   if(TARGET_PLATFORM MATCHES "linux$")

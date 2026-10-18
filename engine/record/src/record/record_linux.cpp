@@ -37,8 +37,6 @@ namespace dmRecord
     {
         uint8_t* m_Pixels;
         uint32_t m_Capacity;
-        uint32_t m_Width;
-        uint32_t m_Height;
         uint64_t m_Time;
     };
 
@@ -49,6 +47,8 @@ namespace dmRecord
         dmThread::Thread                        m_Thread;
         dmGraphics::HContext                    m_Context;
         Status                                  m_Status;
+        uint32_t                                m_CaptureWidth;
+        uint32_t                                m_CaptureHeight;
         Frame                                   m_Frames[FRAME_QUEUE_SIZE];
         uint32_t                                m_Read;
         uint32_t                                m_Write;
@@ -128,8 +128,8 @@ namespace dmRecord
         return fseeko(file, (off_t)offset, SEEK_SET) || fwrite(buffer, 1, size, file) != size ? -1 : 0;
     }
 
-    // ReadPixels supplies top-down BGRA. Scale to the fixed output dimensions and
-    // convert to limited-range BT.601 I420, averaging chroma over each 2x2 block.
+    // Convert native-size top-down BGRA to limited-range BT.601 I420,
+    // averaging chroma over each 2x2 block without resampling the image.
     static void ConvertFrame(const Frame* frame, uint8_t* yuv, uint32_t width, uint32_t height)
     {
         uint8_t* u = yuv + width * height;
@@ -141,11 +141,9 @@ namespace dmRecord
                 int r = 0, g = 0, b = 0;
                 for (uint32_t dy = 0; dy < 2; ++dy)
                 {
-                    uint32_t sy = (uint64_t)(y + dy) * frame->m_Height / height;
                     for (uint32_t dx = 0; dx < 2; ++dx)
                     {
-                        uint32_t       sx = (uint64_t)(x + dx) * frame->m_Width / width;
-                        const uint8_t* pixel = frame->m_Pixels + (sy * frame->m_Width + sx) * 4;
+                        const uint8_t* pixel = frame->m_Pixels + ((y + dy) * width + x + dx) * 4;
                         yuv[(y + dy) * width + x + dx] = ((66 * pixel[2] + 129 * pixel[1] + 25 * pixel[0] + 128) >> 8) + 16;
                         r += pixel[2];
                         g += pixel[1];
@@ -307,7 +305,7 @@ namespace dmRecord
         recording->m_Status.m_Finalized = !recording->m_Status.m_Failure[0];
     }
 
-    bool StartNative(const Window* window, const char* path, uint32_t width, uint32_t height, uint32_t fps, bool audio, Status* status)
+    bool StartNative(const Window* window, const char* path, uint32_t fps, bool audio, Status* status)
     {
         LinuxRecording* recording = &g_Capture;
         if (recording->m_Thread)
@@ -320,12 +318,10 @@ namespace dmRecord
         memset(&recording->m_Writer, 0, sizeof(recording->m_Writer));
         recording->m_Status.m_Supported = true;
         dmStrlCpy(recording->m_Status.m_Path, path, sizeof(recording->m_Status.m_Path));
-        width = (width ? width : (uint32_t)window->m_Width) & ~1U;
-        height = (height ? height : (uint32_t)window->m_Height) & ~1U;
-        if (width < 16)
-            width = 16;
-        if (height < 16)
-            height = 16;
+        recording->m_CaptureWidth = (uint32_t)window->m_Width;
+        recording->m_CaptureHeight = (uint32_t)window->m_Height;
+        uint32_t width = recording->m_CaptureWidth & ~1U;
+        uint32_t height = recording->m_CaptureHeight & ~1U;
         recording->m_Status.m_Width = width;
         recording->m_Status.m_Height = height;
         recording->m_Status.m_Fps = fps;
@@ -335,6 +331,10 @@ namespace dmRecord
         recording->m_Stop = false;
         if (audio)
             Fail(recording, "Linux recording supports video only");
+        else if (width < 16 || height < 16)
+            Fail(recording, "recording requires a framebuffer of at least 16x16 pixels");
+        else if ((uint64_t)recording->m_CaptureWidth * recording->m_CaptureHeight > MAX_CAPTURE_PIXELS)
+            Fail(recording, "framebuffer exceeds the recording readback size limit");
         else if ((uint64_t)((width + 15) / 16) * ((height + 15) / 16) > 36864)
             Fail(recording, "recording dimensions exceed the H.264 encoder frame-size limit");
         else if (WelsCreateSVCEncoder(&recording->m_Encoder) != cmResultSuccess)
@@ -413,13 +413,18 @@ namespace dmRecord
         uint32_t height = dmGraphics::GetWindowHeight(recording->m_Context);
         if (!width || !height)
             return;
-        if ((uint64_t)width * height > MAX_CAPTURE_PIXELS)
+        if (width != recording->m_CaptureWidth || height != recording->m_CaptureHeight)
         {
-            Fail(recording, "framebuffer exceeds the recording readback size limit");
+            recording->m_Status.m_Stopping = true;
+            recording->m_Status.m_StoppedMonotonicTime = now;
+            recording->m_Status.m_StoppedWallTime = dmTime::GetTime();
             recording->m_Stop = true;
             dmConditionVariable::Signal(recording->m_Condition);
             return;
         }
+        // Crop at most one row/column for I420; never scale the captured pixels.
+        width = recording->m_Status.m_Width;
+        height = recording->m_Status.m_Height;
         Frame*   frame = &recording->m_Frames[recording->m_Write];
         uint32_t bytes = width * height * 4;
         if (frame->m_Capacity < bytes)
@@ -435,8 +440,6 @@ namespace dmRecord
             frame->m_Pixels = (uint8_t*)pixels;
             frame->m_Capacity = bytes;
         }
-        frame->m_Width = width;
-        frame->m_Height = height;
         frame->m_Time = now;
         dmGraphics::RenderTargetBindingParams params = {};
         dmGraphics::SetRenderTarget(recording->m_Context, 0, params);
