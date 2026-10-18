@@ -33,6 +33,12 @@ record_test(test_record_null test_record_null.cpp)
 defold_target_link_libraries(test_record_null "${TARGET_PLATFORM}" record_null)
 record_test(test_record_timeline test_record_timeline.cpp)
 
+if(TARGET record AND TARGET_PLATFORM MATCHES "macos$")
+  # Exercise native output path handling without a window or capture permission.
+  record_test(test_record_osx test_record_osx.cpp)
+  defold_target_link_libraries(test_record_osx "${TARGET_PLATFORM}" record)
+endif()
+
 if(TARGET record AND TARGET_PLATFORM MATCHES "linux$")
   # Real H.264 encode/decode and MP4 validation with a deterministic framebuffer;
   # no display server or capture permission is needed on CI.

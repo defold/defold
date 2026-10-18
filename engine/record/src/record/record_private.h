@@ -34,6 +34,11 @@ namespace dmRecord
     // Copy valid UTF-8 without leaving a partial character when the buffer fills.
     void CopyTextUtf8(char* output, size_t output_size, const char* text);
 
+#if defined(DM_PLATFORM_MACOS)
+    // Prepare the native output path without removing directories or their contents.
+    bool PrepareOutputFile(const char* path, Status* status);
+#endif
+
     struct Window
     {
         uintptr_t m_Handle;

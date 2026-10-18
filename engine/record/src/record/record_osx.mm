@@ -22,6 +22,7 @@
 
 #include <dmsdk/dlib/time.h>
 #include <dispatch/dispatch.h>
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -119,6 +120,33 @@ namespace dmRecord
     static void SetFailure(Status* status, NSString* failure)
     {
         CopyText(status->m_Failure, sizeof(status->m_Failure), failure);
+    }
+
+    bool PrepareOutputFile(const char* path, Status* status)
+    {
+        @autoreleasepool
+        {
+            NSString*      output_path = [NSString stringWithUTF8String:path];
+            NSURL*         output_url = [NSURL fileURLWithPath:output_path];
+            NSFileManager* files = [NSFileManager defaultManager];
+            NSError*       error = nil;
+            if (![files createDirectoryAtURL:[output_url URLByDeletingLastPathComponent]
+                 withIntermediateDirectories:YES
+                                  attributes:nil
+                                       error:&error])
+            {
+                SetFailure(status, [error localizedDescription]);
+                return false;
+            }
+            // unlink only removes files, even if the target becomes a directory
+            // after the caller supplied it. NSFileManager removal is recursive.
+            if (unlink([output_url fileSystemRepresentation]) != 0 && errno != ENOENT)
+            {
+                SetFailure(status, [[NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil] localizedDescription]);
+                return false;
+            }
+            return true;
+        }
     }
 
     static NSError* DelegateError(DefoldRecordingDelegate* delegate)
@@ -353,15 +381,14 @@ namespace dmRecord
                 [filter release];
                 [configuration release];
 
-                NSString*      output_path = [NSString stringWithUTF8String:path];
-                NSURL*         output_url = [NSURL fileURLWithPath:output_path];
-                NSFileManager* files = [NSFileManager defaultManager];
-                [files createDirectoryAtURL:[output_url URLByDeletingLastPathComponent]
-                withIntermediateDirectories:YES
-                                 attributes:nil
-                                      error:nil];
-                [files removeItemAtURL:output_url error:nil];
+                Status file_status = {};
+                if (!PrepareOutputFile(path, &file_status))
+                    failure = [NSString stringWithUTF8String:file_status.m_Failure];
+            }
 
+            if (!failure)
+            {
+                NSURL* output_url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];
                 SCRecordingOutputConfiguration* recording_configuration = [[SCRecordingOutputConfiguration alloc] init];
                 [recording_configuration setOutputURL:output_url];
                 [recording_configuration setOutputFileType:AVFileTypeMPEG4];
