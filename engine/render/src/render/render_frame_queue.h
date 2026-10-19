@@ -23,33 +23,43 @@ namespace dmRender
     struct RenderFrameQueueContext;
     typedef RenderFrameQueueContext* HRenderFrameQueue;
 
-    // CPU ownership only; Retired is NOT GPU completion.
+    /** CPU slot ownership. Retirement permits CPU storage reuse, not GPU resource deletion. */
     enum RenderFrameState
     {
-        RENDER_FRAME_FREE,
-        RENDER_FRAME_BUILDING,
-        RENDER_FRAME_READY,
-        RENDER_FRAME_READING,
-        RENDER_FRAME_RETIRED,
+        RENDER_FRAME_FREE,     // Reusable storage, with no capture or CPU reader.
+        RENDER_FRAME_BUILDING, // Game-owner capture; unpublished work can be cancelled.
+        RENDER_FRAME_READY,    // Accepted immutable work waiting for the render owner.
+        RENDER_FRAME_READING,  // Consumer owns inputs, or completion acknowledgement is pending.
+        RENDER_FRAME_RETIRED,  // CPU readers finished; game owner must release references/reset.
     };
 
-    // Borrowed capture access, valid only until publication/cancellation. The ID detects
-    // stale tickets when the same storage is reused. Never retain a mutable data pointer.
+    /**
+     * Borrowed capture access, valid until publication/cancellation. The ID detects stale
+     * tickets when storage is reused. Never retain a mutable pointer after publication.
+     */
     struct RenderFrameTicket
     {
         RenderFrameId m_FrameId;
         HRenderFrame  m_Frame;
     };
 
-    // Consumer must finish every CPU reader before returning. No mutable game/Lua pointers
-    // in inputs; retained resources need their own immutable/read-safe access contract.
+    /**
+     * Consume on the render owner, finishing every CPU reader before returning. Inputs must
+     * not contain mutable game/Lua pointers; retained resources need a read-safe contract.
+     * Do not reenter queue APIs or block browser main on game work/GPU completion.
+     * @param context Context supplied in RenderFrameQueueParams
+     * @param frame Borrowed immutable inputs, valid only for this call
+     */
     typedef void (*RenderFrameConsume)(void* context, const RenderFrameView& frame);
-    // Optional persistent owner service (e.g. future resource completions), even without
-    // a frame. Not a draw callback or an owned task queue. Callbacks must not reenter queue APIs.
-    // On browser main, callbacks must also avoid blocking on game work or GPU completion.
+    /**
+     * Service persistent render-owner work, even without a frame or explicit wake request.
+     * Not a draw callback or owned task queue. Do not reenter queue APIs or block browser
+     * main on game work/GPU completion.
+     * @param context Context supplied in RenderFrameQueueParams
+     */
     typedef void (*RenderFrameService)(void* context);
 
-    // Stable until deletion; execution outlives queue, callback contexts outlive all pumps.
+    /** Copied at creation; execution outlives queue and callback contexts outlive all pumps. */
     struct RenderFrameQueueParams
     {
         RenderFrameLimits  m_Limits;
@@ -60,7 +70,7 @@ namespace dmRender
         void*              m_ServiceContext;
     };
 
-    // Game-owner diagnostic snapshot; revision supports event-driven waits without lost wakes.
+    /** Game-owner diagnostic snapshot; revision supports event-driven waits without lost wakes. */
     struct RenderFrameQueueStatus
     {
         RenderFrameId    m_FrameIds[2];
@@ -73,8 +83,10 @@ namespace dmRender
         uint8_t          m_Stopping : 1;
     };
 
-    // A bounded pump consumes at most one accepted frame; BUSY never waits for a producer
-    // lock. Completion acknowledgement may be deferred until the next pump.
+    /**
+     * A bounded pump consumes at most one accepted frame. BUSY never waits for a producer
+     * lock; completion acknowledgement may be deferred until the next pump.
+     */
     enum RenderFramePumpResult
     {
         RENDER_FRAME_PUMP_IDLE,
@@ -83,45 +95,120 @@ namespace dmRender
         RENDER_FRAME_PUMP_DRAINED,
     };
 
-    // Creates exactly two preallocated CPU slots. Inline creates no queue mutex/CV/thread.
-    // No production thread is started here; platform executors own binding and scheduling.
+    /**
+     * Create two preallocated CPU slots on the game owner. Inline creates no queue mutex,
+     * condition variable or thread. Platform executors own thread binding and scheduling.
+     * @param params Capacities, execution and callbacks; copied at creation
+     * @return Queue, or null for a missing consumer, invalid capacity or allocation failure
+     */
     HRenderFrameQueue NewRenderFrameQueue(const RenderFrameQueueParams& params);
-    // Game owner: stop, finish pumping, stop/join the executor, retire, then delete.
+
+    /**
+     * Delete on the game owner after stopping/draining, stopping or joining the executor,
+     * and retiring every slot. No callback or other owner may still access the queue.
+     * @param queue Stopped queue with all slots Free
+     */
     void DeleteRenderFrameQueue(HRenderFrameQueue queue);
+
+    /**
+     * Calculate queue metadata and two slots' storage without allocating. Excludes the
+     * execution context, synchronization object allocations and allocator overhead.
+     * @param limits Requested per-slot capacities
+     * @return Fixed storage budget in bytes
+     */
     uint64_t GetRenderFrameQueueStorageSize(const RenderFrameLimits& limits);
 
-    // Game owner: reserve BEFORE the simulation update to bound its lead, not just at capture.
-    // At most one Building plus one Ready/Reading frame. Retired slots need explicit retirement.
-    // Cancelling an update built ahead does not restore its credit until the previous reader
-    // completes; otherwise repeated cancellation could allow unbounded simulation lead.
+    /**
+     * Reserve on the game owner BEFORE simulation to bound its lead: at most one Building
+     * plus one Ready/Reading frame. Retired slots require retirement. Cancellation does not
+     * restore lead credit until the previous reader completes. Does not wait for a slot or
+     * reader, but threaded metadata access takes a mutex.
+     * @param queue Queue accepting game-owner capture
+     * @param ticket Output capture access, assigned only on success
+     * @return OK, WOULD_BLOCK, STOPPED, or CAPACITY_EXCEEDED if frame IDs are exhausted
+     */
     RenderFrameResult BeginRenderFrameCapture(HRenderFrameQueue queue, RenderFrameTicket* ticket);
-    // Nonblocking; WOULD_BLOCK keeps Building ownership intact. Seals only on acceptance.
-    // Inline immediately uses the same pump, but retirement remains a separate game-owner step.
+
+    /**
+     * Publish on the game owner without waiting for an earlier reader; threaded metadata
+     * access takes a mutex. Seals only on acceptance; WOULD_BLOCK keeps Building ownership.
+     * Accepted frames are never dropped/replaced. Inline consumes through the same pump
+     * before returning; retirement remains a separate game-owner step.
+     * @param queue Queue containing the capture
+     * @param ticket Current capture; all mutable access ends on success
+     * @return OK, WOULD_BLOCK, STOPPED, or a capture/state error
+     */
     RenderFrameResult PublishRenderFrame(HRenderFrameQueue queue, const RenderFrameTicket& ticket);
-    // Only unpublished capture can be cancelled. Releases partial capture on the game owner.
+
+    /**
+     * Cancel unpublished Building work and release partial capture on the game owner.
+     * Published work cannot be cancelled, including during shutdown.
+     * @param queue Queue containing the capture
+     * @param ticket Current unpublished capture
+     * @return OK, or INVALID_STATE for a stale/non-building ticket
+     */
     RenderFrameResult CancelRenderFrameCapture(HRenderFrameQueue queue, const RenderFrameTicket& ticket);
-    // Game owner: release retained CPU references outside the handoff lock, then reuse storage.
+
+    /**
+     * Release retained references on the game owner, outside the handoff lock, then reuse
+     * storage. Release callbacks must not reenter capture, publication or retirement.
+     * CPU retirement does not establish GPU completion.
+     * @param queue Queue with completed or cancelled slots
+     * @return Number of slots reset to Free
+     */
     uint32_t RetireRenderFrames(HRenderFrameQueue queue);
 
-    // Render owner: TryLock only, never waits for readiness, the game owner or GPU completion.
-    // Invoke on browser rAF for frame work; service-only calls may be made outside rAF by
-    // passing consume_frame=false. Those calls never issue a frame consume callback.
+    /**
+     * Pump on the render owner using TryLock only: never wait for readiness, game work or
+     * GPU completion. Consume at most one frame; acknowledgement may defer to a later pump.
+     * Browser frame work runs on rAF; service-only calls may run outside rAF.
+     * @param queue Queue bound to this render owner
+     * @param consume_frame Whether to consume a Ready frame; false runs service only
+     * @return IDLE, CONSUMED, BUSY or DRAINED; DRAINED is not reference/GPU retirement
+     */
     RenderFramePumpResult PumpRenderFrameQueue(HRenderFrameQueue queue, bool consume_frame);
-    // Threaded: non-render producers; inline: game owner only (workers relay via that owner).
-    // Other callers get INVALID_STATE. Coalesced wake for the service hook, not task submission.
-    // Requests accepted before Stop are serviced during drain; requests after Stop are rejected.
+
+    /**
+     * Request a coalesced service wake, not task submission. Threaded non-render producers
+     * may call; inline requires the game owner. Metadata access may take a mutex. Pre-stop
+     * requests are serviced during drain; requests after Stop are rejected.
+     * @param queue Queue with a service callback
+     * @return OK, STOPPED, or INVALID_STATE for the wrong owner/missing service callback
+     */
     RenderFrameResult RequestRenderFrameService(HRenderFrameQueue queue);
 
-    // Game owner: close admission, cancel partial capture, preserve/drain all accepted frames.
-    // Nonblocking; continue pumping until DRAINED, join/release owner, retire and delete.
+    /**
+     * Close admission on the game owner, cancel Building work and retire available slots.
+     * Idempotent; never wait for or interrupt accepted work. Continue pumping to DRAINED,
+     * stop/join the executor, retire remaining slots, then delete. Metadata access takes a
+     * mutex in threaded mode. Drain lifetimes requiring new service requests BEFORE Stop,
+     * since those requests are rejected after Stop.
+     * @param queue Queue to stop
+     */
     void StopRenderFrameQueue(HRenderFrameQueue queue);
+
+    /**
+     * Read a synchronized game-owner snapshot.
+     * @param queue Queue to inspect
+     * @return Slot states/IDs, counters, stopping state and progress revision
+     */
     RenderFrameQueueStatus GetRenderFrameQueueStatus(HRenderFrameQueue queue);
 
-    // Blocking helpers for dedicated native executor/game pthread ONLY, never browser main.
-    // Sample revision BEFORE a failed operation, then wait for a change and retry.
+    /**
+     * Block the threaded game owner/game pthread until progress or stopping. Never call
+     * inline or on browser main. Sample revision BEFORE an operation that may WOULD_BLOCK,
+     * then wait and retry, to avoid lost wakes.
+     * @param queue Threaded queue owned by this game owner
+     * @param revision Previously sampled progress revision
+     */
     void WaitForRenderFrameProgress(HRenderFrameQueue queue, uint64_t revision);
-    // Native render loop: pump, then wait if IDLE/BUSY. Pending acknowledgements never
-    // sleep on the condition; native mutex acquisition lets a contended producer finish.
+
+    /**
+     * Block a dedicated native render owner after an IDLE/BUSY pump. Never call inline or
+     * on browser main. Pending acknowledgements do not sleep on the condition; mutex
+     * acquisition can wait for a contended producer to finish.
+     * @param queue Threaded queue bound to this native render owner
+     */
     void WaitForRenderFrameWork(HRenderFrameQueue queue);
 }
 

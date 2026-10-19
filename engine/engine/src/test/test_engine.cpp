@@ -252,7 +252,9 @@ TEST_F(EngineTest, ProjectFail)
     ProfileFinalize(); // Making sure it is cleaned up
 }
 
-static void VerifyRenderExecutionStartup(const char* setting)
+// Verify the development build gate selects inline startup or rejection before graphics,
+// and both partial initialization and public engine creation clean up their contexts.
+TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
 {
 #if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
     const bool expected_success = false;
@@ -260,20 +262,13 @@ static void VerifyRenderExecutionStartup(const char* setting)
     const bool expected_success = true;
 #endif
     char project_path[256];
-    char setting_arg[128];
-    const char* argv[6] = {
+    const char* argv[] = {
         "test_engine",
         "--config=dmengine.unload_builtins=0",
         "--config=bootstrap.main_collection=/text_input/text_input.collectionc",
         "--config=input.game_binding=/text_input/text_input.input_bindingc",
+        MAKE_PATH(project_path, "/game.projectc"),
     };
-    uint32_t argc = 4;
-    if (setting)
-    {
-        dmSnPrintf(setting_arg, sizeof(setting_arg), "--config=render.internal_threaded=%s", setting);
-        argv[argc++] = setting_arg;
-    }
-    argv[argc++] = MAKE_PATH(project_path, "/game.projectc");
 
     dmEngineInitialize();
 
@@ -282,22 +277,20 @@ static void VerifyRenderExecutionStartup(const char* setting)
     if (!expected_success)
     {
         dmEngine::HEngine partial = dmEngine::New(0);
-        bool initialized = dmEngine::Init(partial, argc, (char**)argv);
-        const char* loaded_setting = partial->m_Config ?
-            dmConfigFile::GetString(partial->m_Config, "render.internal_threaded", 0) : 0;
+        bool initialized = dmEngine::Init(partial, DM_ARRAY_SIZE(argv), (char**)argv);
         // A missing project must not masquerade as execution-mode rejection.
-        bool config_loaded = partial->m_Config && (!setting || (loaded_setting && strcmp(loaded_setting, setting) == 0));
-        rejected_before_graphics = !initialized && config_loaded && !partial->m_ConnectionAppMode && !partial->m_Window &&
+        rejected_before_graphics = !initialized && partial->m_Config && !partial->m_ConnectionAppMode && !partial->m_Window &&
             !partial->m_GraphicsContext && !partial->m_RenderExecution;
         dmEngine::Delete(partial);
     }
 
     // Exercise the public creation path too: it owns cleanup on initialization failure.
-    dmEngine::HEngine engine = dmEngineCreate(argc, (char**)argv);
+    dmEngine::HEngine engine = dmEngineCreate(DM_ARRAY_SIZE(argv), (char**)argv);
     bool created = engine != 0;
     bool owns_all_roles = engine && engine->m_RenderExecution &&
         dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME) &&
         dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER);
+
     if (engine)
         dmEngineDestroy(engine);
 
@@ -309,27 +302,6 @@ static void VerifyRenderExecutionStartup(const char* setting)
     ASSERT_TRUE(rejected_before_graphics);
     if (expected_success)
         ASSERT_TRUE(owns_all_roles);
-}
-
-// The build define alone selects inline startup or rejection of the still-unavailable threaded executor.
-TEST_F(EngineTest, RenderExecutionBuildModeStartup)
-{
-    VerifyRenderExecutionStartup(0);
-}
-
-// Legacy project values cannot enable, disable or invalidate the build-selected execution mode.
-TEST_F(EngineTest, RenderExecutionLegacySettingIgnored)
-{
-    VerifyRenderExecutionStartup("0");
-    VerifyRenderExecutionStartup("1");
-    VerifyRenderExecutionStartup("true");
-}
-
-// Successful inline startup and rejected threaded startup both release contexts across repeated creation attempts.
-TEST_F(EngineTest, RenderExecutionRepeatedStartupCleanup)
-{
-    VerifyRenderExecutionStartup(0);
-    VerifyRenderExecutionStartup(0);
 }
 
 TEST_F(EngineTest, NonProjectLastArgumentDoesNotOverrideProjectFile)

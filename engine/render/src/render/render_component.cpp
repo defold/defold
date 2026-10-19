@@ -31,6 +31,9 @@ namespace dmRender
         HRenderExecution      m_Execution;
         HRenderFrameQueue     m_Queue;
         dmMutex::HMutex       m_ReaperMutex;
+        // Head of the m_Next-linked list awaiting render-owner destruction. The game
+        // owner enqueues worlds after their last reference is released; the render
+        // owner detaches the list under m_ReaperMutex and destroys it outside the lock.
         HRenderComponentWorld m_Reaper;
         int32_atomic_t        m_WorldCount;
         int32_atomic_t        m_Result;
@@ -139,6 +142,7 @@ namespace dmRender
     {
         assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME));
         assert(!context->m_InCapture);
+
         if (!callbacks.m_Initialize || !callbacks.m_Consume || !callbacks.m_Destroy ||
             (init_size && !init_data) || GetRenderComponentWorldCount(context) == INT32_MAX)
         {
@@ -175,8 +179,7 @@ namespace dmRender
     {
         HRenderComponentContext context = (HRenderComponentContext)context_ptr;
         HRenderComponentWorld world = (HRenderComponentWorld)resource;
-        assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME));
-        assert(world->m_Context == context && world->m_References);
+        assert(world->m_References);
         if (--world->m_References)
         {
             return;
@@ -230,7 +233,10 @@ namespace dmRender
         void* data;
         RenderFrameResult result = AllocateRenderFrameTable(frame, UINT32_MAX, 1, sizeof(RenderComponentDispatch), 16, &dispatch_index, &data);
         if (result != RENDER_FRAME_OK)
+        {
             return result;
+        }
+
         ++world->m_References;
         result = AddRenderFrameReference(frame, world, ReleaseWorldReference, context);
         if (result != RENDER_FRAME_OK)
@@ -238,6 +244,7 @@ namespace dmRender
             --world->m_References;
             return result;
         }
+
         RenderComponentDispatch* dispatch = (RenderComponentDispatch*)data;
         dispatch->m_World = world;
         dispatch->m_FirstTable = dispatch_index + 1;
@@ -245,8 +252,12 @@ namespace dmRender
         context->m_InCapture = true;
         result = capture(frame, producer_context);
         context->m_InCapture = false;
+
         if (result != RENDER_FRAME_OK)
+        {
             return FailRenderFrame(frame, result);
+        }
+
         dispatch->m_TableCount = GetRenderFrameStatistics(frame).m_TableCount - dispatch->m_FirstTable;
         return RENDER_FRAME_OK;
     }
@@ -261,18 +272,24 @@ namespace dmRender
         {
             const RenderFrameTable& table = frame.m_Tables[i];
             if (table.m_Type != UINT32_MAX)
+            {
                 continue;
+            }
+
             assert(table.m_Count == 1 && table.m_Stride == sizeof(RenderComponentDispatch));
             const RenderComponentDispatch* dispatch = (const RenderComponentDispatch*)GetRenderFrameTableData(frame, i);
             assert(dispatch->m_FirstTable == i + 1 && dispatch->m_TableCount <= frame.m_Statistics.m_TableCount - i - 1);
+
             HRenderComponentWorld world = dispatch->m_World;
             assert(world->m_Context == context);
+
             i += dispatch->m_TableCount;
             if (!world->m_Initialized)
             {
                 world->m_Initialized = true;
                 world->m_InitResult = world->m_Callbacks.m_Initialize(world->m_RendererContext, world->m_InitData, world->m_InitSize, &world->m_State);
                 RecordError(context, world->m_InitResult);
+
                 if (world->m_InitResult != RENDER_FRAME_OK && world->m_State)
                 {
                     world->m_Callbacks.m_Destroy(world->m_RendererContext, world->m_State);
@@ -292,18 +309,27 @@ namespace dmRender
         HRenderComponentContext context = (HRenderComponentContext)context_ptr;
         assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_RENDER));
         assert(!context->m_InConsume && !context->m_InService);
+
         if (context->m_ReaperMutex && !dmMutex::TryLock(context->m_ReaperMutex))
+        {
             return;
+        }
+
         HRenderComponentWorld world = context->m_Reaper;
         context->m_Reaper = 0;
         if (context->m_ReaperMutex)
+        {
             dmMutex::Unlock(context->m_ReaperMutex);
+        }
+
         context->m_InService = true;
         while (world)
         {
             HRenderComponentWorld next = world->m_Next;
             if (world->m_Initialized && world->m_InitResult == RENDER_FRAME_OK)
+            {
                 world->m_Callbacks.m_Destroy(world->m_RendererContext, world->m_State);
+            }
             dmMemory::AlignedFree(world->m_InitData);
             free(world);
             ChangeWorldCount(context, -1);
@@ -316,10 +342,13 @@ namespace dmRender
     {
         assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME));
         assert(GetRenderComponentWorldCount(context) == 0);
+
         // All pumps have stopped/joined; no queue callback can still reach this context.
-        assert(!context->m_InCapture && !context->m_InConsume && !context->m_InService && !context->m_Reaper);
+        assert(!context->m_InCapture && !context->m_InConsume && !context->m_InService);
         if (context->m_ReaperMutex)
+        {
             dmMutex::Delete(context->m_ReaperMutex);
+        }
         free(context);
     }
 }

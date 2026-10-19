@@ -23,8 +23,10 @@ namespace dmGameSystem
     struct ComponentRenderContext;
     typedef ComponentRenderContext* HComponentRenderContext;
 
-    // Immutable initialization values copied for each distinct component-world lifetime.
-    // No collection handle, game world or game component context crosses to the renderer.
+    /**
+     * Immutable initialization values copied for each component-world lifetime.
+     * Contains no collection handle, game world or mutable game component context.
+     */
     struct ComponentRenderWorldInfo
     {
         uint64_t m_WorldId;
@@ -33,8 +35,10 @@ namespace dmGameSystem
         uint32_t m_MaxComponentInstances;
     };
 
-    // Borrowed game-side inputs. Extraction copies values and retains dependencies into
-    // m_Frame; renderer callbacks never receive this structure or any of its game pointers.
+    /**
+     * Borrowed game-side extraction inputs. Copy values and retain dependencies into
+     * m_Frame; renderer callbacks never receive this structure or its game pointers.
+     */
     struct ComponentRenderExtractParams
     {
         dmRender::HRenderFrame    m_Frame;
@@ -43,11 +47,18 @@ namespace dmGameSystem
         dmGameObject::HCollection m_Collection;
     };
 
+    /**
+     * Extract a component world's inputs on the game owner.
+     * @param params Borrowed game state and building frame
+     * @return RENDER_FRAME_OK on success; any error rejects the complete frame capture
+     */
     typedef dmRender::RenderFrameResult (*ComponentRenderExtract)(const ComponentRenderExtractParams& params);
 
-    // Internal opt-in, not the SDK component interface. m_RenderContext must be explicitly
-    // renderer-owned/read-safe and outlive deferred destruction; never reuse the game context.
-    // Initialize receives a copied ComponentRenderWorldInfo as its init_data.
+    /**
+     * Internal component opt-in, not an SDK interface. m_RenderContext must be
+     * renderer-owned/read-safe and outlive deferred destruction; never reuse the mutable
+     * game context. Initialize receives a copied ComponentRenderWorldInfo as init_data.
+     */
     struct ComponentRenderType
     {
         dmRender::RenderComponentCallbacks m_RenderCallbacks;
@@ -55,29 +66,70 @@ namespace dmGameSystem
         void*                              m_RenderContext;
     };
 
-    // Frame buffers are allocated for the first successful type registration; failed
-    // registration releases provisional storage again. Register before starting any pumps.
-    // One context per register; register/execution outlive it. No production thread is created.
+    /**
+     * Create the game-owner bridge between collection lifecycle and component rendering.
+     * One context per register. Creates no production thread or frame buffers.
+     * @param regist Game-object register, which must outlive this context
+     * @param execution Execution context, which must outlive this context
+     * @param limits Per-slot storage limits used when the first component opts in
+     * @return New context, or null on allocation failure
+     */
     HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits);
+
+    /**
+     * Register component render callbacks on the game owner, before world creation or pumping.
+     * The first successful registration allocates frame storage; failure releases provisional storage.
+     * @param context Component rendering bridge
+     * @param component_index Actual component registration index
+     * @param type Extraction callback, renderer callbacks and renderer context
+     * @return RESULT_OK, or a game-object registration/allocation error
+     */
     dmGameObject::Result    RegisterComponentRenderType(HComponentRenderContext context, uint32_t component_index, const ComponentRenderType& type);
 
-    // Existing render traversal plus capture/consume for opted-in components. Inline
-    // only until the platform executor is integrated. With no registrations, calls legacy Render.
-    // Retire after the surrounding render-script/draw work, before destructive PostUpdate.
+    /**
+     * Run existing render traversal plus capture/consume for opted-in components, inline only.
+     * With no registered render types, calls the existing game-object Render path.
+     * @param context Component rendering bridge with inline execution
+     * @param collection Root collection to render/extract
+     * @return True on success; false on traversal, capture or renderer failure
+     */
     bool RenderComponentsInline(HComponentRenderContext context, dmGameObject::HCollection collection);
-    // Game owner, explicit end-of-render cleanup. No queue means no work.
+
+    /**
+     * Retire completed frame references on the game owner. Call after surrounding
+     * render-script/draw work, before destructive PostUpdate. No queue means no work.
+     * @param context Component rendering bridge
+     */
     void RetireComponentRenderFrames(HComponentRenderContext context);
-    // Render owner, also on non-drawing frames and after PostUpdate: deferred world destruction.
+
+    /**
+     * Service deferred world destruction on the render owner without drawing a frame.
+     * Call on non-drawing frames too, including after PostUpdate in inline execution.
+     * @param context Component rendering bridge
+     */
     void ServiceComponentRenderContext(HComponentRenderContext context);
 
-    // Internal executor/test access. Null queue means no types have opted in.
+    /**
+     * Get the shared frame queue for internal executor/test integration.
+     * @param context Component rendering bridge
+     * @return Frame queue, or null when no component has opted in
+     */
     dmRender::HRenderFrameQueue       GetComponentRenderQueue(HComponentRenderContext context);
+
+    /**
+     * Get the manager responsible for independent renderer-world lifetimes.
+     * @param context Component rendering bridge
+     * @return Component lifetime manager
+     */
     dmRender::HRenderComponentContext GetComponentRenderManager(HComponentRenderContext context);
 
-    // Game owner, final teardown only, after all collections are destroyed. Inline drains
-    // remaining cleanup itself. Threaded callers must consume/retire/service worlds to zero,
-    // stop/drain/join the queue executor first. No blocking drain occurs inside DeleteWorld.
-    // Must precede destruction of registered callback contexts, render context and resources.
+    /**
+     * Delete the bridge on the game owner after all collections are destroyed.
+     * Inline drains remaining cleanup. Threaded callers must first consume/retire frames,
+     * service worlds to zero, then stop/drain/join the executor. Individual DeleteWorld
+     * calls never block to drain. Callback contexts, rendering and resources must remain alive.
+     * @param context Component rendering bridge ready for final teardown
+     */
     void DeleteComponentRenderContext(HComponentRenderContext context);
 }
 

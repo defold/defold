@@ -28,9 +28,9 @@ using namespace dmRender;
 
 struct RenderExecution
 {
-    ExecutionReason       m_InlineReason;
+    ExecutionResult       m_InlineResult;
     ExecutionMode         m_ThreadedMode;
-    ExecutionReason       m_ThreadedReason;
+    ExecutionResult       m_ThreadedResult;
     ExecutionCapabilities m_Capabilities;
 };
 
@@ -38,31 +38,31 @@ struct RenderExecution
 TEST(RenderExecution, ModeMatrix)
 {
     const RenderExecution cases[] = {
-        { EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED, { false, false, false } },
-        { EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED, { false, false, true  } },
-        { EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED, { false, true,  false } },
-        { EXECUTION_REASON_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_REASON_BUILD_DISABLED, { false, true,  true  } },
-        { EXECUTION_REASON_INLINE, EXECUTION_MODE_INVALID, EXECUTION_REASON_THREADS_UNSUPPORTED, { true,  false, false } },
-        { EXECUTION_REASON_INLINE, EXECUTION_MODE_INVALID, EXECUTION_REASON_THREADS_UNSUPPORTED, { true,  false, true  } },
-        { EXECUTION_REASON_INLINE, EXECUTION_MODE_INVALID, EXECUTION_REASON_EXECUTOR_UNAVAILABLE, { true,  true,  false } },
-        { EXECUTION_REASON_INLINE, EXECUTION_MODE_THREADED, EXECUTION_REASON_THREADED, { true,  true,  true  } },
+        { EXECUTION_RESULT_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_RESULT_BUILD_DISABLED, { false, false, false } },
+        { EXECUTION_RESULT_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_RESULT_BUILD_DISABLED, { false, false, true  } },
+        { EXECUTION_RESULT_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_RESULT_BUILD_DISABLED, { false, true,  false } },
+        { EXECUTION_RESULT_BUILD_DISABLED, EXECUTION_MODE_INLINE, EXECUTION_RESULT_BUILD_DISABLED, { false, true,  true  } },
+        { EXECUTION_RESULT_INLINE, EXECUTION_MODE_INVALID, EXECUTION_RESULT_THREADS_UNSUPPORTED, { true,  false, false } },
+        { EXECUTION_RESULT_INLINE, EXECUTION_MODE_INVALID, EXECUTION_RESULT_THREADS_UNSUPPORTED, { true,  false, true  } },
+        { EXECUTION_RESULT_INLINE, EXECUTION_MODE_INVALID, EXECUTION_RESULT_EXECUTOR_UNAVAILABLE, { true,  true,  false } },
+        { EXECUTION_RESULT_INLINE, EXECUTION_MODE_THREADED, EXECUTION_RESULT_THREADED, { true,  true,  true  } },
     };
 
     for (unsigned int i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
     {
         ExecutionSelection selection = ResolveExecutionMode(EXECUTION_MODE_INLINE, cases[i].m_Capabilities);
         ASSERT_EQ(EXECUTION_MODE_INLINE, selection.m_ExecutionMode);
-        ASSERT_EQ(cases[i].m_InlineReason, selection.m_ExecutionReason);
+        ASSERT_EQ(cases[i].m_InlineResult, selection.m_ExecutionResult);
         selection = ResolveExecutionMode(EXECUTION_MODE_THREADED, cases[i].m_Capabilities);
         ASSERT_EQ(cases[i].m_ThreadedMode, selection.m_ExecutionMode);
-        ASSERT_EQ(cases[i].m_ThreadedReason, selection.m_ExecutionReason);
+        ASSERT_EQ(cases[i].m_ThreadedResult, selection.m_ExecutionResult);
 
         const ExecutionMode invalid_modes[] = { EXECUTION_MODE_INVALID, (ExecutionMode)99 };
         for (unsigned int j = 0; j < sizeof(invalid_modes) / sizeof(invalid_modes[0]); ++j)
         {
             selection = ResolveExecutionMode(invalid_modes[j], cases[i].m_Capabilities);
             ASSERT_EQ(EXECUTION_MODE_INVALID, selection.m_ExecutionMode);
-            ASSERT_EQ(EXECUTION_REASON_INVALID_MODE, selection.m_ExecutionReason);
+            ASSERT_EQ(EXECUTION_RESULT_INVALID_MODE, selection.m_ExecutionResult);
         }
     }
 }
@@ -73,12 +73,12 @@ TEST(RenderExecution, Diagnostics)
     ASSERT_STREQ("inline", GetExecutionModeName(EXECUTION_MODE_INLINE));
     ASSERT_STREQ("threaded", GetExecutionModeName(EXECUTION_MODE_THREADED));
     ASSERT_STREQ("invalid", GetExecutionModeName(EXECUTION_MODE_INVALID));
-    ASSERT_STREQ("inline mode", GetExecutionReasonString(EXECUTION_REASON_INLINE));
-    ASSERT_STREQ("threaded rendering excluded by build", GetExecutionReasonString(EXECUTION_REASON_BUILD_DISABLED));
-    ASSERT_STREQ("threaded mode", GetExecutionReasonString(EXECUTION_REASON_THREADED));
-    ASSERT_STREQ("platform thread support unavailable", GetExecutionReasonString(EXECUTION_REASON_THREADS_UNSUPPORTED));
-    ASSERT_STREQ("threaded executor unavailable", GetExecutionReasonString(EXECUTION_REASON_EXECUTOR_UNAVAILABLE));
-    ASSERT_STREQ("invalid execution mode", GetExecutionReasonString(EXECUTION_REASON_INVALID_MODE));
+    ASSERT_STREQ("inline mode", GetExecutionResultString(EXECUTION_RESULT_INLINE));
+    ASSERT_STREQ("threaded rendering excluded by build", GetExecutionResultString(EXECUTION_RESULT_BUILD_DISABLED));
+    ASSERT_STREQ("threaded mode", GetExecutionResultString(EXECUTION_RESULT_THREADED));
+    ASSERT_STREQ("platform thread support unavailable", GetExecutionResultString(EXECUTION_RESULT_THREADS_UNSUPPORTED));
+    ASSERT_STREQ("threaded executor unavailable", GetExecutionResultString(EXECUTION_RESULT_EXECUTOR_UNAVAILABLE));
+    ASSERT_STREQ("invalid execution mode", GetExecutionResultString(EXECUTION_RESULT_INVALID_MODE));
 }
 
 // Verify reported capabilities match this actual binary, independently of the pure mode matrix.
@@ -122,7 +122,7 @@ TEST(RenderExecution, CreationWithoutExecutor)
     {
         ASSERT_NE((HRenderExecution)0, execution);
         ASSERT_EQ(EXECUTION_MODE_INLINE, selection.m_ExecutionMode);
-        ASSERT_EQ(EXECUTION_REASON_BUILD_DISABLED, selection.m_ExecutionReason);
+        ASSERT_EQ(EXECUTION_RESULT_BUILD_DISABLED, selection.m_ExecutionResult);
         ASSERT_EQ(3u, OwnerMask(execution));
         ASSERT_FALSE(BindRenderExecutionOwner(execution));
         DeleteRenderExecution(execution);
@@ -131,7 +131,7 @@ TEST(RenderExecution, CreationWithoutExecutor)
     {
         ASSERT_EQ((HRenderExecution)0, execution);
         ASSERT_EQ(EXECUTION_MODE_INVALID, selection.m_ExecutionMode);
-        ASSERT_EQ(capabilities.m_ThreadsSupported ? EXECUTION_REASON_EXECUTOR_UNAVAILABLE : EXECUTION_REASON_THREADS_UNSUPPORTED, selection.m_ExecutionReason);
+        ASSERT_EQ(capabilities.m_ThreadsSupported ? EXECUTION_RESULT_EXECUTOR_UNAVAILABLE : EXECUTION_RESULT_THREADS_UNSUPPORTED, selection.m_ExecutionResult);
     }
 }
 
@@ -141,7 +141,7 @@ TEST(RenderExecution, CreationInvalidMode)
     ExecutionSelection selection;
     ASSERT_EQ((HRenderExecution)0, NewRenderExecution(EXECUTION_MODE_INVALID, true, &selection));
     ASSERT_EQ(EXECUTION_MODE_INVALID, selection.m_ExecutionMode);
-    ASSERT_EQ(EXECUTION_REASON_INVALID_MODE, selection.m_ExecutionReason);
+    ASSERT_EQ(EXECUTION_RESULT_INVALID_MODE, selection.m_ExecutionResult);
 }
 
 // Verify explicit inline creation binds both owners to the caller without a worker or subsequent binding.
@@ -245,7 +245,7 @@ TEST(RenderExecution, ThreadedOwnerLifecycle)
     {
         ASSERT_NE((HRenderExecution)0, execution);
         ASSERT_EQ(EXECUTION_MODE_INLINE, selection.m_ExecutionMode);
-        ASSERT_EQ(EXECUTION_REASON_BUILD_DISABLED, selection.m_ExecutionReason);
+        ASSERT_EQ(EXECUTION_RESULT_BUILD_DISABLED, selection.m_ExecutionResult);
         ASSERT_FALSE(BindRenderExecutionOwner(execution));
         DeleteRenderExecution(execution);
         return;
@@ -254,13 +254,13 @@ TEST(RenderExecution, ThreadedOwnerLifecycle)
     {
         ASSERT_EQ((HRenderExecution)0, execution);
         ASSERT_EQ(EXECUTION_MODE_INVALID, selection.m_ExecutionMode);
-        ASSERT_EQ(EXECUTION_REASON_THREADS_UNSUPPORTED, selection.m_ExecutionReason);
+        ASSERT_EQ(EXECUTION_RESULT_THREADS_UNSUPPORTED, selection.m_ExecutionResult);
         return;
     }
 
     ASSERT_NE((HRenderExecution)0, execution);
     ASSERT_EQ(EXECUTION_MODE_THREADED, selection.m_ExecutionMode);
-    ASSERT_EQ(EXECUTION_REASON_THREADED, selection.m_ExecutionReason);
+    ASSERT_EQ(EXECUTION_RESULT_THREADED, selection.m_ExecutionResult);
     ASSERT_EQ(1u, OwnerMask(execution));
     ASSERT_FALSE(BindRenderExecutionOwner(execution));
     ThreadedProbe probe = {};

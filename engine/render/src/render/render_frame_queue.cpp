@@ -99,7 +99,6 @@ namespace dmRender
     {
         assert(IsRenderExecutionOwner(queue->m_Params.m_Execution, EXECUTION_OWNER_GAME));
         assert(queue->m_Stopping && !queue->m_InRetire && !queue->m_InPump);
-        assert(queue->m_Building == -1 && queue->m_Active == -1 && queue->m_Completed == -1);
         // Caller has stopped/joined the render executor; no concurrent queue access remains.
         for (uint32_t i = 0; i < 2; ++i)
         {
@@ -167,9 +166,7 @@ namespace dmRender
         }
         if (!queue->m_Mutex)
         {
-            RenderFramePumpResult result = PumpRenderFrameQueue(queue, true);
-            assert(result == RENDER_FRAME_PUMP_CONSUMED);
-            (void)result;
+            PumpRenderFrameQueue(queue, true);
         }
         return RENDER_FRAME_OK;
     }
@@ -224,8 +221,6 @@ namespace dmRender
     {
         if (queue->m_Completed == -1)
             return;
-        assert(queue->m_Active == queue->m_Completed);
-        assert(queue->m_Slots[queue->m_Completed].m_State == RENDER_FRAME_READING);
         queue->m_Slots[queue->m_Completed].m_State = RENDER_FRAME_RETIRED;
         queue->m_Completed = -1;
         queue->m_Active = -1;

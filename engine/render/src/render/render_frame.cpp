@@ -22,13 +22,15 @@
 
 namespace dmRender
 {
-    // Storage-local lifecycle; the queue separately tracks ready/reading/retired ownership.
+    // Storage validity, separate from the queue's scheduling/ownership states. Normal
+    // capture goes Free -> Building -> Sealed -> Resetting -> Free. Cancellation or
+    // failed capture goes Building -> Resetting -> Free without exposing a reader view.
     enum RenderFrameStorageState
     {
-        RENDER_FRAME_STORAGE_FREE,
-        RENDER_FRAME_STORAGE_BUILDING,
-        RENDER_FRAME_STORAGE_SEALED,
-        RENDER_FRAME_STORAGE_RESETTING,
+        RENDER_FRAME_STORAGE_FREE,      // Empty reusable storage, before BeginRenderFrame.
+        RENDER_FRAME_STORAGE_BUILDING,  // Game-owner capture; errors stay sticky until reset.
+        RENDER_FRAME_STORAGE_SEALED,    // Immutable reader view; reset only after CPU readers finish.
+        RENDER_FRAME_STORAGE_RESETTING, // Releasing adopted references; prevents callback reentry.
     };
 
     // One adopted reference. The producer is responsible for retaining before insertion.

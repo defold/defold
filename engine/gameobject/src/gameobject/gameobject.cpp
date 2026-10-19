@@ -712,6 +712,7 @@ namespace dmGameObject
     static bool CreateComponentWorlds(Collection* collection, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc)
     {
         HRegister regist = collection->m_Register;
+
         // Close registration before invoking callbacks, even if attachment later fails.
         // Existing and newly allocated worlds must use one stable descriptor set.
         regist->m_ComponentRenderRegistrationClosed = true;
@@ -725,6 +726,7 @@ namespace dmGameObject
             }
             collection->m_ComponentRenderWorldCount = regist->m_ComponentTypeCount;
         }
+
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
             uint32_t max_components = GetMaxComponentInstances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
@@ -738,14 +740,14 @@ namespace dmGameObject
                 params.m_World = &collection->m_ComponentWorlds[i];
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
             }
+
             // The legacy world must also be unwound if its new bridge creation fails.
             // Keep legacy NewWorld return handling unchanged in this internal addition.
             collection->m_ComponentWorldsCreated = i + 1;
             const ComponentRenderCallbacks& callbacks = regist->m_ComponentRenderCallbacks[i];
             if (callbacks.m_CreateWorld)
             {
-                if (!callbacks.m_CreateWorld(callbacks.m_Context, i, max_instances, max_components,
-                    &collection->m_ComponentRenderWorlds[i]) || !collection->m_ComponentRenderWorlds[i])
+                if (!callbacks.m_CreateWorld(callbacks.m_Context, i, max_instances, max_components, &collection->m_ComponentRenderWorlds[i]) || !collection->m_ComponentRenderWorlds[i])
                 {
                     dmLogError("Failed to create render bridge world for component '%s'.", regist->m_ComponentTypes[i].m_Name);
                     return false;
@@ -1118,13 +1120,18 @@ namespace dmGameObject
 
     Result RegisterComponentRenderCallbacks(HRegister regist, uint32_t component_index, const ComponentRenderCallbacks& callbacks)
     {
-        if (!regist || component_index >= regist->m_ComponentTypeCount || !callbacks.m_CreateWorld ||
-            !callbacks.m_DeleteWorld || !callbacks.m_Extract)
+        if (!regist || component_index >= regist->m_ComponentTypeCount || !callbacks.m_CreateWorld || !callbacks.m_DeleteWorld || !callbacks.m_Extract)
+        {
             return RESULT_INVALID_OPERATION;
+        }
         if (regist->m_ComponentRenderRegistrationClosed)
+        {
             return RESULT_INVALID_OPERATION;
+        }
         if (regist->m_ComponentRenderCallbacks[component_index].m_CreateWorld)
+        {
             return RESULT_ALREADY_REGISTERED;
+        }
 
         regist->m_ComponentRenderCallbacks[component_index] = callbacks;
         regist->m_HasComponentRenderCallbacks = true;

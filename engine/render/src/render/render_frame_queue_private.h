@@ -22,7 +22,7 @@
 // Implementation/test layout only. Consumers use the opaque queue API.
 namespace dmRender
 {
-    // Fixed slot metadata protected by the queue mutex in threaded mode.
+    /** Fixed slot metadata protected by the queue mutex in threaded mode. */
     struct RenderFrameSlot
     {
         RenderFrameId    m_FrameId;
@@ -30,8 +30,10 @@ namespace dmRender
         RenderFrameState m_State;
     };
 
-    // One accepted Ready/Reading frame and one game-owned Building frame. No queue of
-    // replaceable snapshots: accepted frames may carry side effects and must be consumed.
+    /**
+     * One accepted Ready/Reading frame and one game-owned Building frame. No queue of
+     * replaceable snapshots: accepted frames may carry side effects and must be consumed.
+     */
     struct RenderFrameQueueContext
     {
         RenderFrameQueueParams                  m_Params;
