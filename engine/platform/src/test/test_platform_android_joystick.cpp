@@ -442,6 +442,60 @@ TEST_F(AndroidJoystickTest, NeutralMappingReplacesPendingTriggerDefaults)
     ASSERT_EQ(1.0f, values[3]);
 }
 
+// Verifies first zero endpoints reach inverted and normal triggers without exposing signed-axis startup placeholders.
+TEST_F(AndroidJoystickTest, ZeroEndpointsPreserveFirstTriggerPress)
+{
+    dmNativeJoy[0].AxisMin[2] = 0.0f;
+    dmNativeJoy[0].AxisRange[2] = 1.0f;
+    dmNativeJoy[0].AxisRange[4] = 1.0f;
+    dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
+    const float initial[] = { 0.0f, 0.0f, 1.0f, -1.0f, -1.0f, 0.0f };
+    dmPlatform::InitializeAndroidJoystickAxes(0, initial, 6);
+    float values[6] = {};
+    dmNativeOSGetJoystickPos(0, values, 6);
+    ASSERT_EQ(1.0f, values[2]);
+    ASSERT_EQ(-1.0f, values[4]);
+
+    for (int i = 0; i < 2; ++i)
+    {
+        SendMotion();
+        dmNativeOSGetJoystickPos(0, values, 6);
+        ASSERT_EQ(-1.0f, values[2]);
+        ASSERT_EQ(1.0f, values[4]);
+        ASSERT_EQ(-1.0f, values[3]);
+        dmPlatform::InitializeAndroidJoystickAxes(0, initial, 6);
+        dmNativeOSGetJoystickPos(0, values, 6);
+        ASSERT_EQ(-1.0f, values[2]);
+        ASSERT_EQ(1.0f, values[4]);
+    }
+
+    m_Event.m_Axes[AMOTION_EVENT_AXIS_RX] = 1.0f;
+    m_Event.m_Axes[AMOTION_EVENT_AXIS_Z] = -1.0f;
+    SendMotion();
+    dmNativeOSGetJoystickPos(0, values, 6);
+    ASSERT_EQ(1.0f, values[2]);
+    ASSERT_EQ(-1.0f, values[4]);
+}
+
+// Verifies zero endpoints received before mapping initialization survive defaults in legacy and device-only slots.
+TEST_F(AndroidJoystickTest, ZeroEndpointsBeforeMappingInitialization)
+{
+    dmNativeJoy[0].AxisMin[2] = 0.0f;
+    dmNativeJoy[0].AxisRange[2] = 1.0f;
+    dmNativeJoy[0].AxisRange[4] = 1.0f;
+    dmNativeJoy[0].Axis[NATIVE_ANDROID_GAMEPAD_NUMAXIS + 2] = 0.5f;
+    dmNativeJoy[0].Axis[2] = -0.5f;
+    SendMotion();
+    dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
+    const float initial[] = { 0.0f, 0.0f, 1.0f, -1.0f, -1.0f, 0.0f };
+    dmPlatform::InitializeAndroidJoystickAxes(0, initial, 6);
+    float values[6] = {};
+    dmNativeOSGetJoystickPos(0, values, 6);
+    ASSERT_EQ(-1.0f, values[2]);
+    ASSERT_EQ(1.0f, values[4]);
+    ASSERT_EQ(-1.0f, values[3]);
+}
+
 // Verifies SDL normalization uses the advertised motion range rather than assuming every axis is -1..1.
 TEST_F(AndroidJoystickTest, AxisNormalization)
 {
