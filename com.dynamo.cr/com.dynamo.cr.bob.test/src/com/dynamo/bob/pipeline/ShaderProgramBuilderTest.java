@@ -597,6 +597,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     public void testVectorFontShaderLanguages() throws Exception {
         Path fontDirectory = Path.of("../../engine/font/content/builtins/fonts");
         addFile("/builtins/fonts/font-vector-slug.glsl", Files.readAllBytes(fontDirectory.resolve("font-vector-slug.glsl")));
+        addFile("/builtins/fonts/font-vector-paint.glsl", Files.readAllBytes(fontDirectory.resolve("font-vector-paint.glsl")));
 
         ShaderDesc.Language[] languages = {
             ShaderDesc.Language.LANGUAGE_GLSL_SM330,
