@@ -110,7 +110,7 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
     for (uint32_t history = 0; history < 2; ++history)
         for (uint32_t columns = 0; columns < 2; ++columns)
         {
-            HDSContext store = DSCreateStore();
+            HDSContext store = DSCreateStore(0);
             ASSERT_EQ(DS_RESULT_OK, RegisterLifetimeTable(store, (DSResetPolicy)history));
             DSId ids[2];
             ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 7, ids, columns != 0));
@@ -126,7 +126,7 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             ASSERT_EQ(history ? 42.0 : 100.0, health);
             DSMemoryStats stats;
             GetDataMemoryStats(store, &stats);
-            ASSERT_EQ(history ? 0u : 2 * sizeof(LifetimeRow), FindTable(store, 1)->m_Owned->m_BaseRows.Size());
+            ASSERT_EQ(history == 0, FindTable(store, 1)->m_DefaultOffset != 0);
             if (history)
                 ASSERT_EQ(0u, stats.m_BaseRowBytes + stats.m_BaseCapacity);
 
@@ -162,7 +162,7 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, size, &size));
             HDSBlob blob;
             ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-            HDSContext      loaded = DSCreateStore();
+            HDSContext      loaded = DSCreateStore(0);
             HDSBlobInstance instance;
             ASSERT_EQ(DS_RESULT_OK, DSAddBlob(loaded, blob, 0, &instance));
             ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(loaded, &desc, &query));
@@ -203,7 +203,7 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
 // keeps the table alive. Reset preserves originals and releases replacements.
 TEST(DataLifetime, PayloadChurn)
 {
-    HDSContext store = DSCreateStore();
+    HDSContext store = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, RegisterLifetimeTable(store, DS_RESET_RETAIN));
     DSId sentinel;
     ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 1, &sentinel, false));
@@ -240,7 +240,7 @@ TEST(DataLifetime, PayloadChurn)
 // changes the answer. Disjoint group filters may write the same table field.
 TEST(DataLifetime, QueryCompatibilityCache)
 {
-    HDSContext    store = DSCreateStore();
+    HDSContext    store = DSCreateStore(0);
     uint64_t      tags[] = { 1, 2 };
     DSFieldDesc   field = { .m_Field = 1, .m_Type = DS_TYPE_NUMBER };
     DSTableDesc   table = { .m_Type = 1, .m_Tags = tags, .m_TagCount = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8 };

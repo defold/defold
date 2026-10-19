@@ -57,7 +57,8 @@ struct BlobLifetimeTask
 static ThreadFixture CreateFixture()
 {
     ThreadFixture fixture = {};
-    fixture.m_Store = DSCreateStore();
+    DSCreateParams params = { .m_PageSize = 1024, .m_RowChunkSize = 256 };
+    fixture.m_Store = DSCreateStore(&params);
     DSFieldDesc         light_fields[] = { { .m_Field = COLOR, .m_Type = DS_TYPE_VECTOR3, .m_Name = "color" }, { .m_Field = INTENSITY, .m_Type = DS_TYPE_NUMBER, .m_Offset = 16, .m_Name = "intensity" } };
     DSStructDesc        light = { light_fields, 2, 24 };
     DSFieldDesc         fields[] = { { HEALTH, DS_TYPE_NUMBER, 0, 0 }, { POSITION, DS_TYPE_VECTOR3, 8, 0 }, { .m_Field = LIGHT, .m_Type = DS_TYPE_STRUCT, .m_Offset = 24, .m_Struct = &light, .m_Name = "light" } };
@@ -155,9 +156,6 @@ TEST(DataThreaded, ConflictsIndependentFieldsAndRelease)
     uint32_t    health = DSQueryFindField(reader, &readable);
     ASSERT_EQ(50.0, *DSRowIterGetNumber(&row, health));
     DSQueryEnd(reader);
-    DSStoreLock(fixture.m_Store);
-    ASSERT_EQ(DS_RESULT_BUSY, TryFromWorker(reader));
-    DSStoreUnlock(fixture.m_Store);
     for (uint32_t q = 0; q < 4; ++q)
         ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(queries[q]));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(fixture.m_Store));
@@ -564,13 +562,13 @@ static void ReadBatches(void* context)
     }
 }
 
+// The caller schedules only readers and joins them before changing or releasing storage.
 TEST(DataThreaded, ConcurrentBatchReadersWithCallerSynchronization)
 {
     ThreadFixture    fixture = CreateFixture();
     BatchReader      readers[4] = {};
     dmThread::Thread threads[4];
     // The caller excludes structural changes and writes until all readers finish.
-    DSStoreLock(fixture.m_Store);
     for (uint32_t i = 0; i < 4; ++i)
     {
         readers[i].m_Fixture = &fixture;
@@ -581,7 +579,6 @@ TEST(DataThreaded, ConcurrentBatchReadersWithCallerSynchronization)
         dmThread::Join(threads[i]);
         ASSERT_EQ(0u, readers[i].m_Errors);
     }
-    DSStoreUnlock(fixture.m_Store);
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(fixture.m_Store));
 }
 
@@ -614,7 +611,7 @@ static void ReadStructRows(void* context)
 // Public container views must remain stable while separate jobs read child rows.
 TEST(DataThreaded, OwnedStructRowsRemainStableDuringQueryJobs)
 {
-    HDSContext  store = DSCreateStore();
+    HDSContext  store = DSCreateStore(0);
     DSFieldDesc field = { .m_Field = 10, .m_Type = DS_TYPE_STRUCT };
     DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8 };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
@@ -658,7 +655,7 @@ TEST(DataThreaded, OwnedStructRowsRemainStableDuringQueryJobs)
 static void ExerciseBlobLifetime(void* context)
 {
     BlobLifetimeTask* task = (BlobLifetimeTask*)context;
-    HDSContext        store = DSCreateStore();
+    HDSContext        store = DSCreateStore(0);
     {
         DM_MUTEX_SCOPED_LOCK(task->m_Mutex);
         ++*task->m_Ready;

@@ -19,6 +19,7 @@ set(DATA_DMSDK_HEADERS
 
 defold_add_library(datastore STATIC
   "${DATA_SRC_DIR}/data.cpp"
+  "${DATA_SRC_DIR}/data_storage.cpp"
   "${DATA_SRC_DIR}/data_query.cpp"
   "${DATA_SRC_DIR}/data_iter.cpp"
   "${DATA_SRC_DIR}/data_field.cpp"

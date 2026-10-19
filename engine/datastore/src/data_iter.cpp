@@ -17,11 +17,11 @@
 
 DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count)
 {
+    assert(query->m_ActiveSlot != UINT32_MAX);
     assert(first <= query->m_RowCount && count <= query->m_RowCount - first);
     DSIterator iterator = {
         .m_Query = query,
         .m_Remaining = count,
-        .m_IsRange = 1,
         .m_Flags = query->m_Flags
     };
     if (count)
@@ -42,7 +42,7 @@ DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count)
     return iterator;
 }
 
-static bool NextQueryRange(DSIterator* iterator)
+bool DSIterNext(DSIterator* iterator)
 {
     iterator->m_Count = 0;
     iterator->m_EndRow = iterator->m_StartRow;
@@ -64,17 +64,12 @@ static bool NextQueryRange(DSIterator* iterator)
     iterator->m_Rows = table->m_Rows.Begin() + iterator->m_StartRow;
     iterator->m_Fields = match.m_Fields;
     iterator->m_FieldOffsets = match.m_Fields ? GetQueryFieldOffsets(match.m_Fields, query->m_Fields.Size()) : 0;
-    iterator->m_Values = table->m_Values.Begin();
-    iterator->m_EndRow = iterator->m_StartRow + iterator->m_Count;
+    iterator->m_Values = GetRowBytes(table, iterator->m_StartRow);
     iterator->m_RowStride = table->m_RowStride;
     iterator->m_FieldCount = match.m_Fields ? query->m_Fields.Size() : table->m_FieldCount;
 
-    if (table->m_IsView)
-    {
-        iterator->m_Values += (size_t)table->m_Rows[iterator->m_StartRow].m_BaseIndex * table->m_RowStride;
-        iterator->m_StartRow = 0;
-        iterator->m_EndRow = count;
-    }
+    iterator->m_StartRow = 0;
+    iterator->m_EndRow = count;
 
     iterator->m_Remaining -= count;
     iterator->m_NextRow = 0;
@@ -83,75 +78,7 @@ static bool NextQueryRange(DSIterator* iterator)
 
 DSIterator DSQueryIter(HDSQuery query)
 {
-    assert(query->m_Store->m_LockCount);
-    DSIterator iterator = { .m_Query = query, .m_Flags = query->m_Flags };
-    return iterator;
-}
-
-bool DSIterNext(DSIterator* iterator)
-{
-    if (iterator->m_IsRange)
-        return NextQueryRange(iterator);
-
-    HDSQuery query = iterator->m_Query;
-    iterator->m_Count = 0;
-    iterator->m_EndRow = iterator->m_StartRow;
-    while (iterator->m_TableIndex < query->m_Tables.Size())
-    {
-        DSTable*   table = query->m_Tables[iterator->m_TableIndex].m_Table;
-        uint32_t   count = table->m_Rows.Size();
-        uint32_t   row = iterator->m_NextRow;
-        if (query->m_Groups.Empty())
-        {
-            iterator->m_StartRow = row;
-            iterator->m_Count = count - row;
-            iterator->m_NextRow = count;
-        }
-        else
-        {
-            while (row < count && !MatchesGroup(query, table->m_Rows[row].m_Group))
-                ++row;
-            iterator->m_StartRow = row;
-            while (row < count && MatchesGroup(query, table->m_Rows[row].m_Group))
-                ++row;
-            iterator->m_Count = row - iterator->m_StartRow;
-            iterator->m_NextRow = row;
-        }
-
-        if (table->m_IsView && iterator->m_Count)
-        {
-            uint32_t first = iterator->m_StartRow;
-            uint32_t end = first + 1;
-            while (end < iterator->m_NextRow && table->m_Rows[end].m_BaseIndex == table->m_Rows[first].m_BaseIndex + end - first)
-                ++end;
-            iterator->m_Count = end - first;
-            iterator->m_NextRow = end;
-        }
-        if (iterator->m_Count)
-        {
-            // The caller holds a structural lock while these storage pointers are borrowed.
-            // Writes and resets leave row identities, bindings and mutable row storage in place.
-            iterator->m_Table = table;
-            iterator->m_Rows = table->m_Rows.Begin() + iterator->m_StartRow;
-            iterator->m_Fields = query->m_Tables[iterator->m_TableIndex].m_Fields;
-            iterator->m_FieldOffsets = iterator->m_Fields ? GetQueryFieldOffsets(query->m_Tables[iterator->m_TableIndex].m_Fields, query->m_Fields.Size()) : 0;
-            iterator->m_Values = table->m_Values.Begin();
-            iterator->m_EndRow = iterator->m_StartRow + iterator->m_Count;
-            iterator->m_RowStride = table->m_RowStride;
-            iterator->m_FieldCount = iterator->m_Fields ? query->m_Fields.Size() : table->m_FieldCount;
-            if (table->m_IsView)
-            {
-                iterator->m_Values += (size_t)table->m_Rows[iterator->m_StartRow].m_BaseIndex * table->m_RowStride;
-                iterator->m_StartRow = 0;
-                iterator->m_EndRow = iterator->m_Count;
-            }
-            return true;
-        }
-
-        ++iterator->m_TableIndex;
-        iterator->m_NextRow = 0;
-    }
-    return false;
+    return DSQueryIterRange(query, 0, query->m_RowCount);
 }
 
 uint32_t DSIterGetCount(const DSIterator* iterator)
@@ -200,7 +127,7 @@ DSResult DSIterSetField(const DSIterator* iterator, uint32_t row, uint32_t field
 {
     if (row >= iterator->m_Count || !iterator->m_Fields || field >= iterator->m_FieldCount)
         return DS_RESULT_INVALID_ARGUMENT;
-    if (iterator->m_IsRange && iterator->m_Query->m_Fields[field].m_Access != DS_FIELD_MUTABLE)
+    if (iterator->m_Query->m_Fields[field].m_Access != DS_FIELD_MUTABLE)
         return DS_RESULT_INVALID_ARGUMENT;
     const DSQueryBinding& binding = ((const DSQueryBinding*)iterator->m_Fields)[field];
     return SetRowField((DSTable*)iterator->m_Table, &((DSRow*)iterator->m_Rows)[row], binding.m_Meta, value);

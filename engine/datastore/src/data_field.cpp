@@ -502,23 +502,28 @@ void InitializeBlobValues(DSTable* table, uint32_t start, uint32_t count)
     if (!table->m_RowStride || !count)
         return;
 
-    uint8_t* bytes = table->m_Values.Begin() + (size_t)start * table->m_RowStride;
-    memcpy(bytes, table->m_Blob + table->m_Offsets.m_Rows, (size_t)count * table->m_RowStride);
-
-    if (table->m_HasReferences)
+    for (uint32_t first = 0; first < count;)
     {
-        for (uint32_t i = 0; i < table->m_FieldCount; ++i)
+        uint32_t span = GetRowSpan(table, start + first, count - first);
+        uint8_t* bytes = GetRowBytes(table, start + first);
+        memcpy(bytes, table->m_Blob + table->m_Offsets.m_Rows + (size_t)first * table->m_RowStride, (size_t)span * table->m_RowStride);
+        if (table->m_HasReferences)
         {
-            DSFieldMeta meta = GetFieldMeta(table, i);
-            TagBlobReferences(table, meta, bytes + meta.m_Offset, count);
+            for (uint32_t i = 0; i < table->m_FieldCount; ++i)
+            {
+                DSFieldMeta meta = GetFieldMeta(table, i);
+                TagBlobReferences(table, meta, bytes + meta.m_Offset, span);
+            }
         }
+        first += span;
     }
 }
 
 static const uint8_t* GetDefaultRow(const DSTable* table, const DSRow* row)
 {
-    const uint8_t* base = table->m_Pool ? table->m_Blob + table->m_Offsets.m_Rows : table->m_Owned->m_BaseRows.Begin();
-    return base + (size_t)row->m_BaseIndex * table->m_RowStride;
+    if (table->m_Pool)
+        return table->m_Blob + table->m_Offsets.m_Rows + (size_t)row->m_BaseIndex * table->m_RowStride;
+    return GetNativeDefaultRow(table, row->m_BaseIndex);
 }
 
 void ReleaseReference(DSTable* table, DSValueType type, uint64_t reference)
@@ -1087,8 +1092,7 @@ static DSResult ResolveTypedField(HDSContext store, DSId id, uint64_t field, DST
     memcpy(&offset, metadata + offsetof(DSFileFieldMeta, m_ByteOffset), sizeof(offset));
 
     // Owned rows use the dense slot index; views resolve their external source index.
-    uint32_t       row = table->m_IsView ? table->m_Rows[slot->m_Row].m_BaseIndex : slot->m_Row;
-    const uint8_t* bytes = table->m_Values.Begin() + (size_t)row * table->m_RowStride + offset;
+    const uint8_t* bytes = GetRowBytes(table, slot->m_Row) + offset;
     *out_table = table;
     *out_bytes = bytes;
     return DS_RESULT_OK;

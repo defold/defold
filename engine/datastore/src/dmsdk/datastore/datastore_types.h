@@ -125,7 +125,7 @@ extern "C"
  * @name DSResult
  * @member DS_RESULT_OK Operation succeeded (0).
  * @member DS_RESULT_NOT_FOUND Table, row or field was not found (-1).
- * @member DS_RESULT_LOCKED An operation requires an unlocked store or no active query reservations (-3).
+ * @member DS_RESULT_LOCKED An operation requires no active query reservations (-3).
  * @member DS_RESULT_INVALID_ARGUMENT Invalid argument, value or count (-4).
  * @member DS_RESULT_ALREADY_EXISTS Table type or field name is duplicated (-5).
  * @member DS_RESULT_BUFFER_TOO_SMALL The output buffer is too small (-6).

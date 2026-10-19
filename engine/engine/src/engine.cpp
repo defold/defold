@@ -432,7 +432,7 @@ namespace dmEngine
     , m_MainCollectionResource(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
-    , m_DataStore(DSCreateStore())
+    , m_DataStore(DSCreateStore(0))
     , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_ScriptContext(0x0)

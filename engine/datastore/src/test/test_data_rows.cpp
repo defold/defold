@@ -64,7 +64,7 @@ static DSResult RegisterStorageRows(HDSContext store)
 // must keep every field and its defaults associated with the same row ID.
 TEST(DataRows, GrowthRangesRemovalAndReset)
 {
-    HDSContext store = DSCreateStore();
+    HDSContext store = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
     DSGroupId   group = 20;
     DSQueryItem fields[] = {
@@ -147,7 +147,7 @@ TEST(DataRows, GrowthRangesRemovalAndReset)
 // group range, preserve untouched fields and leave retained reset values intact.
 TEST(DataRows, NativeRowPointers)
 {
-    HDSContext store = DSCreateStore();
+    HDSContext store = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
     StorageRow input[] = {
         { .m_Position = { { 1, 2, 3 } }, .m_Health = 10, .m_Color = 11 },
@@ -201,7 +201,7 @@ TEST(DataRows, NativeRowPointers)
 // Both iterator entry points require the cached whole-row mutable flag.
 TEST(DataRows, NativeRowPointerFlags)
 {
-    HDSContext store = DSCreateStore();
+    HDSContext store = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
     StorageRow input[] = { { .m_Health = 10 }, { .m_Health = 20 } };
     ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 100, 0, 2, input, 0));
@@ -219,17 +219,8 @@ TEST(DataRows, NativeRowPointerFlags)
         ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &descriptions[i], &query));
         for (uint32_t mode = 0; mode < 2; ++mode)
         {
-            DSIterator it;
-            if (mode == 0)
-            {
-                ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
-                it = DSQueryIterRange(query, 1, 1);
-            }
-            else
-            {
-                DSStoreLock(store);
-                it = DSQueryIter(query);
-            }
+            ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
+            DSIterator it = mode == 0 ? DSQueryIterRange(query, 1, 1) : DSQueryIter(query);
             ASSERT_TRUE(DSIterNext(&it));
             DSRowIterator rows = DSIterRows(&it);
             ASSERT_TRUE(DSRowIterNext(&rows));
@@ -241,10 +232,7 @@ TEST(DataRows, NativeRowPointerFlags)
                 ASSERT_EQ(input[mode == 0 ? 1 : 0].m_Health, read->m_Health);
             if (write)
                 ASSERT_EQ((const void*)read, (const void*)write);
-            if (mode == 0)
-                DSQueryEnd(query);
-            else
-                DSStoreUnlock(store);
+            DSQueryEnd(query);
         }
         ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
     }
@@ -255,7 +243,7 @@ TEST(DataRows, NativeRowPointerFlags)
 // order, while field-only access and read/read reservations remain independent.
 TEST(DataRows, WholeRowReservations)
 {
-    HDSContext store = DSCreateStore();
+    HDSContext store = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
     StorageRow value = {};
     ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 100, 0, 1, &value, 0));
@@ -308,7 +296,7 @@ TEST(DataRows, WholeRowReservations)
 // refresh when a matching table is registered or removed after query creation.
 TEST(DataRows, WholeRowGroupsAndTableChanges)
 {
-    HDSContext store = DSCreateStore();
+    HDSContext store = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
     StorageRow value = {};
     DSGroupId  groups[] = { 10, 20 };
@@ -356,7 +344,7 @@ TEST(DataRows, WholeRowGroupsAndTableChanges)
 // ownership across reset and a version-1 blob roundtrip.
 TEST(DataRows, ReferencesInlineFieldsAndBlobRoundtrip)
 {
-    HDSContext  store = DSCreateStore();
+    HDSContext  store = DSCreateStore(0);
     DSFieldDesc light_fields[] = {
         { .m_Field = dmHashString64("color"), .m_Type = DS_TYPE_UINT32, .m_Offset = offsetof(StorageLight, m_Color), .m_Name = "color" },
         { .m_Field = dmHashString64("direction"), .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(StorageLight, m_Direction), .m_Name = "direction" },
@@ -411,7 +399,7 @@ TEST(DataRows, ReferencesInlineFieldsAndBlobRoundtrip)
     ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes.Begin(), size, &size));
     HDSBlob blob;
     ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes.Begin(), size, &blob));
-    HDSContext      loaded = DSCreateStore();
+    HDSContext      loaded = DSCreateStore(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, DSAddBlob(loaded, blob, 7, &instance));
     DSQueryItem query_field = { .m_Hash = dmHashString64("light.color"), .m_Type = DS_TYPE_UINT32, .m_Kind = DS_QUERY_ITEM_FIELD };
@@ -419,13 +407,13 @@ TEST(DataRows, ReferencesInlineFieldsAndBlobRoundtrip)
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(loaded, &desc, &query));
     uint32_t field = DSQueryFindField(query, &query_field);
-    DSStoreLock(loaded);
+    ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     DSIterator it = DSQueryIter(query);
     ASSERT_TRUE(DSIterNext(&it));
     DSRowIterator rows = DSIterRows(&it);
     ASSERT_TRUE(DSRowIterNext(&rows));
     ASSERT_EQ(UINT32_MAX, *DSRowIterGetUInt32(&rows, field));
-    DSStoreUnlock(loaded);
+    DSQueryEnd(query);
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
     ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(instance));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
@@ -436,7 +424,7 @@ TEST(DataRows, ReferencesInlineFieldsAndBlobRoundtrip)
 // Tables without fields must support row creation, reset and removal.
 TEST(DataRows, EmptyRows)
 {
-    HDSContext  store = DSCreateStore();
+    HDSContext  store = DSCreateStore(0);
     DSTableDesc table = { .m_Type = 1 };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
     DSId ids[2];
@@ -452,7 +440,7 @@ TEST(DataRows, EmptyRows)
 // retaining field handles after growth and when a range starts inside a table.
 TEST(DataRows, MixedTableQuery)
 {
-    HDSContext  store = DSCreateStore();
+    HDSContext  store = DSCreateStore(0);
     DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_FLOAT, .m_Offset = offsetof(StorageRow, m_Health) };
     DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(StorageRow) };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));

@@ -62,7 +62,7 @@ extern "C"
 /*# Borrowed value view
  *
  * Created by the view accessors. Copyable; owns no storage. Finish using views
- * and borrowed strings before a store mutation, row/batch advance, unlock or
+ * and borrowed strings before a store mutation, row/batch advance or
  * query end. Synchronize ID-based reads externally; query views use the current
  * reservation. The private representation is not a serialized/native row layout.
  *
@@ -86,7 +86,7 @@ extern "C"
  * Containers and strings require read-only access. No name lookup or allocation.
  *
  * @name DSRowIterGetView
- * @param iterator [type:const DSRowIterator*] Current row of a locked or reserved query.
+ * @param iterator [type:const DSRowIterator*] Current row of a reserved query.
  * @param field [type:uint32_t] Handle returned by DSQueryFindField.
  * @param out_view [type:DSValueView*] Receives a borrowed view.
  */

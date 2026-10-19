@@ -26,6 +26,7 @@ struct DSMemoryStats
     uint64_t m_Rows;             // Live component row count.
     uint64_t m_StructRows;       // Live exclusively owned child rows, including reset defaults.
     uint64_t m_StructRowBytes;   // Child row capacity; included in m_ValueBytes.
+    uint64_t m_PageSlackBytes;   // Unused backing-page bytes, including the one spare page.
     uint64_t m_ValueBytes;       // Mutable row capacity in bytes.
     uint64_t m_PayloadBlocks;    // Replacement arena block count.
     uint64_t m_PayloadUsed;      // Live replacement payload bytes, including allocation headers.

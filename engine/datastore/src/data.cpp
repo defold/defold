@@ -127,23 +127,22 @@ static void ReserveTableArray(DSTable* table, dmArray<T>& array, uint32_t count)
 static void ReserveRows(HDSContext store, DSTable* table, uint32_t count)
 {
     ReserveTableArray(table, table->m_Rows, table->m_Rows.Size() + count);
-    ReserveTableArray(table, table->m_Values, (table->m_Rows.Size() + count) * table->m_RowStride);
+    ReserveRowStorage(store, table, table->m_Rows.Size() + count);
     ReserveSlots(store, count);
 }
 
-static uint8_t* ReserveRowValues(HDSContext store, DSTable* table, uint32_t count, size_t payload_size)
+static void ReserveRowValues(HDSContext store, DSTable* table, uint32_t count, size_t payload_size)
 {
     if (payload_size)
         ReservePayloads(GetNativePayloads(table), payload_size);
     ReserveRows(store, table, count);
-    uint32_t first_row = table->m_Rows.Size();
-    table->m_Values.SetSize((first_row + count) * table->m_RowStride);
-    if (!table->m_RetainDefaults)
-        return table->m_RowStride ? table->m_Values.Begin() + (size_t)first_row * table->m_RowStride : 0;
-    uint32_t size = (first_row + count) * table->m_RowStride;
-    Reserve(table->m_Owned->m_BaseRows, size);
-    table->m_Owned->m_BaseRows.SetSize(size);
-    return table->m_RowStride ? table->m_Owned->m_BaseRows.Begin() + (size_t)first_row * table->m_RowStride : 0;
+}
+
+static uint8_t* GetNewRowValues(DSTable* table, uint32_t row)
+{
+    if (!table->m_RowStride)
+        return 0;
+    return table->m_RetainDefaults ? GetNativeDefaultRow(table, row) : GetRowBytes(table, row);
 }
 
 static void ReserveStore(HDSContext store, uint32_t table_count, uint32_t row_count)
@@ -220,6 +219,7 @@ static void DeleteTable(HDSContext store, DSTable* table)
         ReleaseSlot(store, table->m_Rows[i].m_Slot);
     }
 
+    TrimRowStorage(store, table, 0);
     DeleteStructStorage(table);
     DeletePayloads(&table->m_Payloads);
     bool packed = table->m_Pool != 0;
@@ -235,13 +235,23 @@ static void DeleteTable(HDSContext store, DSTable* table)
 
 static void DeleteBlobPool(DSBlobPool* pool);
 
-HDSContext  DSCreateStore(void)
+HDSContext  DSCreateStore(const DSCreateParams* params)
 {
+    uint32_t page_size = params && params->m_PageSize ? params->m_PageSize : 524288;
+    uint32_t chunk_size = params && params->m_RowChunkSize ? params->m_RowChunkSize : 262144;
+    if (chunk_size < 64 || (chunk_size & (chunk_size - 1)) ||
+        page_size < chunk_size || (page_size & (page_size - 1)))
+        return 0;
     dmLogOnceWarning("The datastore API is experimental and may change without notice.");
     HDSContext store = new DSStore;
+    store->m_PageSize = page_size;
+    store->m_RowChunkSize = chunk_size;
+    store->m_FreePage = UINT32_MAX;
+    store->m_FreePageSlot = UINT32_MAX;
+    store->m_SparePageCount = 0;
+    store->m_MaxSparePages = params ? params->m_MaxSparePages : 16;
     store->m_FreeSlotCount = 0;
     store->m_FreeSlot = INVALID_SLOT;
-    store->m_LockCount = 0;
     store->m_Pools = 0;
     store->m_Mutex = dmMutex::New();
     store->m_Revision = 1;
@@ -252,7 +262,7 @@ HDSContext  DSCreateStore(void)
 DSResult DSDestroyStore(HDSContext store)
 {
     dmMutex::Lock(store->m_Mutex);
-    if (store->m_LockCount || store->m_ActiveQueries.Size())
+    if (store->m_ActiveQueries.Size())
     {
         dmMutex::Unlock(store->m_Mutex);
         return DS_RESULT_LOCKED;
@@ -264,23 +274,9 @@ DSResult DSDestroyStore(HDSContext store)
         DeleteTable(store, store->m_Tables[i]);
     dmMutex::Unlock(store->m_Mutex);
     dmMutex::Delete(store->m_Mutex);
+    DeleteRowPages(store);
     delete store;
     return DS_RESULT_OK;
-}
-
-void DSStoreLock(HDSContext store)
-{
-    dmMutex::Lock(store->m_Mutex);
-    assert(!store->m_ActiveQueries.Size());
-    assert(store->m_LockCount != UINT32_MAX);
-    ++store->m_LockCount;
-}
-
-void DSStoreUnlock(HDSContext store)
-{
-    assert(store->m_LockCount);
-    --store->m_LockCount;
-    dmMutex::Unlock(store->m_Mutex);
 }
 
 static uint32_t FieldSize(const DSFieldDesc& field)
@@ -397,7 +393,7 @@ static DSTable* NewTable(HDSContext store, const DSTableDesc* desc, DSBlobPool* 
 
 static DSResult RegisterTable(HDSContext store, const DSTableDesc* desc)
 {
-    if (store->m_LockCount || store->m_ActiveQueries.Size())
+    if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
     if ((uint32_t)desc->m_ResetPolicy > DS_RESET_NONE || (desc->m_TagCount && !desc->m_Tags) || desc->m_TagCount > DATA_MAX_TAG_COUNT)
         return DS_RESULT_INVALID_ARGUMENT;
@@ -407,6 +403,8 @@ static DSResult RegisterTable(HDSContext store, const DSTableDesc* desc)
     DSResult   result = ValidateLayout(desc->m_Fields, desc->m_FieldCount, desc->m_RowStride, 0, &metadata_count, &alignment);
     if (result != DS_RESULT_OK)
         return result;
+    if (desc->m_ResetPolicy == DS_RESET_RETAIN && (uint64_t)desc->m_RowStride * 2 > SIZE_MAX)
+        return DS_RESULT_INVALID_ARGUMENT;
     if (FindTable(store, desc->m_Type))
         return DS_RESULT_ALREADY_EXISTS;
 
@@ -471,7 +469,7 @@ static bool ViewRowsOverlap(const DSTable* a, const DSTable* b)
 DSResult DSRegisterTableView(HDSContext store, const DSTableDesc* desc, void* values, uint32_t value_count, uint32_t row_count, const uint32_t* indices, DSId* out_ids)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
-    if (store->m_LockCount || store->m_ActiveQueries.Size())
+    if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
     if (!desc->m_RowStride ||
         (desc->m_FieldCount && !desc->m_Fields) ||
@@ -492,6 +490,7 @@ DSResult DSRegisterTableView(HDSContext store, const DSTableDesc* desc, void* va
     DSTable* table = FindTable(store, desc->m_Type);
     table->m_IsView = true;
     table->m_RetainDefaults = false;
+    table->m_DefaultOffset = 0;
     uint32_t bytes = value_count * desc->m_RowStride;
     table->m_Values.Set((uint8_t*)values, bytes, bytes, true);
     table->m_Rows.SetCapacity(row_count);
@@ -543,6 +542,7 @@ static DSTable* NewTable(HDSContext store, const DSTableDesc* desc, DSBlobPool* 
     table->m_IsView = false;
     table->m_RetainDefaults = pool || desc->m_ResetPolicy == DS_RESET_RETAIN;
     table->m_Pool = pool;
+    InitializeRowStorage(store, table);
     table->m_Payloads = 0;
     table->m_Structs = 0;
     if (!packed_table && desc->m_TagCount)
@@ -609,7 +609,7 @@ static void RemoveTable(HDSContext store, DSTable* table)
 DSResult DSUnregisterTable(HDSContext store, uint64_t type)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
-    if (store->m_LockCount || store->m_ActiveQueries.Size())
+    if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
     ++store->m_Revision;
     DSTable* table = FindTable(store, type);
@@ -627,14 +627,8 @@ static uint64_t AlignBlobStorage(uint64_t size)
 static DSBlobPool* NewBlobPool(HDSContext store, HDSBlob blob)
 {
     uint64_t       rows_offset = AlignBlobStorage(sizeof(DSBlobPool) + (uint64_t)blob->m_TableCount * sizeof(DSTable));
-    uint64_t       values_offset = rows_offset + (uint64_t)blob->m_RowCount * sizeof(DSRow);
-    uint64_t       page_offset = values_offset;
+    uint64_t       page_offset = rows_offset + (uint64_t)blob->m_RowCount * sizeof(DSRow);
     const uint8_t* file = blob->m_Data;
-    for (uint32_t t = 0; t < blob->m_TableCount; ++t)
-    {
-        const uint8_t* data = file + ReadDataInteger(file + DATA_TABLE_OFFSETS_OFFSET + t * 4, 4);
-        page_offset += AlignBlobStorage(ReadDataInteger(data + offsetof(DSTableHeader, m_RowCount), 4) * ReadDataInteger(data + offsetof(DSTableHeader, m_RowStride), 4));
-    }
 
     uint64_t stride = AlignBlobStorage(sizeof(DSBlobInstance) + (uint64_t)blob->m_RowCount * sizeof(uint32_t));
     uint32_t shift = 8; // Up to 256 registrations per page, bounded to 64 KiB unless one record is larger.
@@ -660,7 +654,6 @@ static DSBlobPool* NewBlobPool(HDSContext store, HDSBlob blob)
 
     ReserveStore(store, blob->m_TableCount, blob->m_RowCount);
     DSRow*   rows = (DSRow*)(storage + (size_t)rows_offset);
-    uint8_t* values = storage + (size_t)values_offset;
     uint32_t first_slot = 0;
     for (uint32_t t = 0; t < blob->m_TableCount; ++t)
     {
@@ -679,9 +672,6 @@ static DSBlobPool* NewBlobPool(HDSContext store, HDSBlob blob)
         first_slot += count;
         table->m_Rows.Set(rows, 0, count, true);
         rows += count;
-        uint32_t capacity = (uint32_t)AlignBlobStorage((uint64_t)count * desc.m_RowStride);
-        table->m_Values.Set(values, 0, capacity, true);
-        values += capacity;
     }
     return pool;
 }
@@ -727,7 +717,7 @@ static HDSBlobInstance NewBlobInstance(DSBlobPool* pool)
 DSResult DSAddBlob(HDSContext store, HDSBlob blob, DSGroupId group, HDSBlobInstance* out_instance)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
-    if (store->m_LockCount || store->m_ActiveQueries.Size())
+    if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
     ++store->m_Revision;
     if (blob->m_RowCount > UINT32_MAX / sizeof(DSSlot) - store->m_Slots.Size() ||
@@ -755,9 +745,8 @@ DSResult DSAddBlob(HDSContext store, HDSBlob blob, DSGroupId group, HDSBlobInsta
             continue;
         uint32_t   start = table->m_Rows.Size();
         ReserveTableArray(table, table->m_Rows, start + count);
-        ReserveTableArray(table, table->m_Values, (start + count) * table->m_RowStride);
+        ReserveRowStorage(store, table, start + count);
         table->m_Rows.SetSize(start + count);
-        table->m_Values.SetSize((start + count) * table->m_RowStride);
         size_t         record_bytes = (size_t)count * sizeof(DSRow);
         const uint8_t* records = table->m_Blob + table->m_Offsets.m_Rows - record_bytes;
         DSRow*         rows = table->m_Rows.Begin() + start;
@@ -804,7 +793,7 @@ DSResult DSRemoveBlob(HDSBlobInstance instance)
     DSBlobPool* pool = instance->m_Pool;
     HDSContext  store = pool->m_Store;
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
-    if (store->m_LockCount || store->m_ActiveQueries.Size())
+    if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
     ++store->m_Revision;
     const uint32_t* slots = GetInstanceSlots(instance);
@@ -832,10 +821,18 @@ DSResult DSAddRow(HDSContext store, uint64_t type, DSGroupId group, const DSValu
     return DSAddRows(store, type, &row, 1, out_id);
 }
 
-static void PublishRows(HDSContext store, DSTable* table, const DSRowDesc* rows, DSGroupId group, uint32_t count, DSId* out_ids, const uint8_t* data)
+static void PublishRows(HDSContext store, DSTable* table, const DSRowDesc* rows, DSGroupId group, uint32_t count, DSId* out_ids)
 {
     if (table->m_RetainDefaults && table->m_RowStride)
-        memcpy(table->m_Values.Begin() + (size_t)table->m_Rows.Size() * table->m_RowStride, data, (size_t)count * table->m_RowStride);
+    {
+        uint32_t row = table->m_Rows.Size();
+        for (uint32_t copied = 0; copied < count;)
+        {
+            uint32_t span = GetRowSpan(table, row + copied, count - copied);
+            memcpy(GetRowBytes(table, row + copied), GetNativeDefaultRow(table, row + copied), (size_t)span * table->m_RowStride);
+            copied += span;
+        }
+    }
     AddRowSlots(store, table, rows, group, count, out_ids);
 }
 
@@ -880,7 +877,7 @@ DSResult DSCreateRows(HDSContext store, uint64_t type, DSGroupId group, uint32_t
     if (!count)
         return DS_RESULT_OK;
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
-    if (store->m_LockCount || store->m_ActiveQueries.Size())
+    if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
     DSTable* table = FindTable(store, type);
     if (!table)
@@ -892,14 +889,20 @@ DSResult DSCreateRows(HDSContext store, uint64_t type, DSGroupId group, uint32_t
     if (result != DS_RESULT_OK)
         return result;
 
-    uint8_t* data = ReserveRowValues(store, table, count, payload_size);
-    size_t   bytes = (size_t)count * table->m_RowStride;
-    if (bytes)
-        memcpy(data, rows, bytes);
-    if (table->m_HasReferences)
-        StoreNativeReferences(table, count, data);
+    ReserveRowValues(store, table, count, payload_size);
+    for (uint32_t first = 0; first < count;)
+    {
+        uint32_t row = table->m_Rows.Size() + first;
+        uint32_t span = GetRowSpan(table, row, count - first);
+        uint8_t* data = GetNewRowValues(table, row);
+        if (table->m_RowStride)
+            memcpy(data, (const uint8_t*)rows + (size_t)first * table->m_RowStride, (size_t)span * table->m_RowStride);
+        if (table->m_HasReferences)
+            StoreNativeReferences(table, span, data);
+        first += span;
+    }
     ++store->m_Revision;
-    PublishRows(store, table, 0, group, count, out_ids, data);
+    PublishRows(store, table, 0, group, count, out_ids);
     return DS_RESULT_OK;
 }
 
@@ -934,7 +937,7 @@ DSResult DSCreateRowsSoA(HDSContext store, uint64_t type, DSGroupId group, uint3
     if (!count)
         return DS_RESULT_OK;
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
-    if (store->m_LockCount || store->m_ActiveQueries.Size())
+    if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
     DSTable* table = FindTable(store, type);
     if (!table)
@@ -975,48 +978,55 @@ DSResult DSCreateRowsSoA(HDSContext store, uint64_t type, DSGroupId group, uint3
         field_bytes += meta.m_Size;
     }
 
-    uint8_t* data = ReserveRowValues(store, table, count, payload_size);
+    ReserveRowValues(store, table, count, payload_size);
     uint32_t stride = table->m_RowStride;
-    // Registered fields do not overlap; clear padding only when the row has gaps.
-    if (field_bytes < stride)
-        memset(data, 0, (size_t)count * stride);
-    for (uint32_t f = 0; f < field_count; ++f)
+    for (uint32_t first = 0; first < count;)
     {
-        const DSColumnBinding& column = columns[f];
-        if (!column.m_Size)
-            continue;
-        uint8_t*       dst = data + column.m_Offset;
-        const uint8_t* src = column.m_Values;
-        // Dispatch common sizes once so each row uses native loads/stores.
-        switch (column.m_Size)
+        uint32_t row = table->m_Rows.Size() + first;
+        uint32_t span = GetRowSpan(table, row, count - first);
+        uint8_t* data = GetNewRowValues(table, row);
+        // Registered fields do not overlap; clear padding only when the row has gaps.
+        if (field_bytes < stride)
+            memset(data, 0, (size_t)span * stride);
+        for (uint32_t f = 0; f < field_count; ++f)
         {
-            case 1:
-                CopyColumn<1>(dst, src, stride, count);
-                break;
-            case 4:
-                CopyColumn<4>(dst, src, stride, count);
-                break;
-            case 8:
-                CopyColumn<8>(dst, src, stride, count);
-                break;
-            case 12:
-                CopyColumn<12>(dst, src, stride, count);
-                break;
-            case 16:
-                CopyColumn<16>(dst, src, stride, count);
-                break;
-            case 64:
-                CopyColumn<64>(dst, src, stride, count);
-                break;
-            default:
-                for (uint32_t r = 0; r < count; ++r)
-                    memcpy(dst + (size_t)r * stride, src + (size_t)r * column.m_Size, column.m_Size);
+            const DSColumnBinding& column = columns[f];
+            if (!column.m_Size)
+                continue;
+            uint8_t*       dst = data + column.m_Offset;
+            const uint8_t* src = column.m_Values + (size_t)first * column.m_Size;
+            // Dispatch common sizes once so each row uses native loads/stores.
+            switch (column.m_Size)
+            {
+                case 1:
+                    CopyColumn<1>(dst, src, stride, span);
+                    break;
+                case 4:
+                    CopyColumn<4>(dst, src, stride, span);
+                    break;
+                case 8:
+                    CopyColumn<8>(dst, src, stride, span);
+                    break;
+                case 12:
+                    CopyColumn<12>(dst, src, stride, span);
+                    break;
+                case 16:
+                    CopyColumn<16>(dst, src, stride, span);
+                    break;
+                case 64:
+                    CopyColumn<64>(dst, src, stride, span);
+                    break;
+                default:
+                    for (uint32_t r = 0; r < span; ++r)
+                        memcpy(dst + (size_t)r * stride, src + (size_t)r * column.m_Size, column.m_Size);
+            }
         }
+        if (table->m_HasReferences)
+            StoreNativeReferences(table, span, data);
+        first += span;
     }
-    if (table->m_HasReferences)
-        StoreNativeReferences(table, count, data);
     ++store->m_Revision;
-    PublishRows(store, table, 0, group, count, out_ids, data);
+    PublishRows(store, table, 0, group, count, out_ids);
     return DS_RESULT_OK;
 }
 
@@ -1025,7 +1035,7 @@ DSResult DSAddRows(HDSContext store, uint64_t type, const DSRowDesc* rows, uint3
     if (!count)
         return DS_RESULT_OK;
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
-    if (store->m_LockCount || store->m_ActiveQueries.Size())
+    if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
     ++store->m_Revision;
     DSTable* table = FindTable(store, type);
@@ -1034,25 +1044,32 @@ DSResult DSAddRows(HDSContext store, uint64_t type, const DSRowDesc* rows, uint3
     if (!rows || !CanCreateRows(store, table, count))
         return DS_RESULT_INVALID_ARGUMENT;
 
-    size_t     payload_size = 0;
-    DSResult   result = ValidateRowValues(table, rows, count, &payload_size);
+    size_t   payload_size = 0;
+    DSResult result = ValidateRowValues(table, rows, count, &payload_size);
     if (result != DS_RESULT_OK)
         return result;
 
-    uint8_t* data = ReserveRowValues(store, table, count, payload_size);
+    ReserveRowValues(store, table, count, payload_size);
     if (table->m_RowStride)
     {
-        memset(data, 0, (size_t)count * table->m_RowStride);
-        StoreRowValues(table, rows, count, data);
+        for (uint32_t first = 0; first < count;)
+        {
+            uint32_t row = table->m_Rows.Size() + first;
+            uint32_t span = GetRowSpan(table, row, count - first);
+            uint8_t* data = GetNewRowValues(table, row);
+            memset(data, 0, (size_t)span * table->m_RowStride);
+            StoreRowValues(table, rows + first, span, data);
+            first += span;
+        }
     }
-    PublishRows(store, table, rows, 0, count, out_ids, data);
+    PublishRows(store, table, rows, 0, count, out_ids);
     return DS_RESULT_OK;
 }
 
 DSResult DSRemoveRow(HDSContext store, DSId id)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
-    if (store->m_LockCount || store->m_ActiveQueries.Size())
+    if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
     ++store->m_Revision;
     DSSlot* slot = FindSlot(store, id);
@@ -1070,32 +1087,33 @@ DSResult DSRemoveRow(HDSContext store, DSId id)
         HDSBlobInstance instance = GetPoolInstance(table->m_Pool, removed.m_InstanceIndex);
         GetInstanceSlots(instance)[table->m_Offsets.m_FirstSlot + removed.m_BaseIndex] = INVALID_SLOT;
     }
-    store->m_Slots[table->m_Rows.Back().m_Slot].m_Row = row;
     uint32_t last = table->m_Rows.Size() - 1;
+    DSRow*   last_record = table->m_Rows.Begin() + last;
+    store->m_Slots.Begin()[last_record->m_Slot].m_Row = row;
     if (row != last && table->m_RowStride)
-        memcpy(table->m_Values.Begin() + (size_t)row * table->m_RowStride,
-               table->m_Values.Begin() + (size_t)last * table->m_RowStride,
-               table->m_RowStride);
-    table->m_Values.SetSize(last * table->m_RowStride);
+    {
+        const DSRowChunk* chunks = table->m_Chunks.Begin();
+        uint32_t          shift = table->m_ChunkShift, mask = table->m_ChunkMask;
+        uint32_t          stride = table->m_RowStride;
+        uint8_t*          target = chunks[row >> shift].m_Data + (size_t)(row & mask) * stride;
+        uint8_t*          source = chunks[last >> shift].m_Data + (size_t)(last & mask) * stride;
+        memcpy(target, source, table->m_RowStride);
+        if (table->m_DefaultOffset)
+            memcpy(target + table->m_DefaultOffset, source + table->m_DefaultOffset, table->m_RowStride);
+    }
     if (!table->m_Pool)
     {
-        if (table->m_RetainDefaults)
-        {
-            dmArray<uint8_t>& defaults = table->m_Owned->m_BaseRows;
-            if (row != last && table->m_RowStride)
-                memcpy(defaults.Begin() + (size_t)row * table->m_RowStride,
-                       defaults.Begin() + (size_t)last * table->m_RowStride,
-                       table->m_RowStride);
-            defaults.SetSize(last * table->m_RowStride);
-        }
-        table->m_Rows.Back().m_BaseIndex = row;
+        last_record->m_BaseIndex = row;
         if (!last)
         {
             DeletePayloads(&table->m_Owned->m_BaseValues);
             DeletePayloads(&table->m_Payloads);
         }
     }
-    table->m_Rows.EraseSwap(row);
+    table->m_Rows.Begin()[row] = *last_record;
+    table->m_Rows.SetSize(last);
+    if (!(last & table->m_ChunkMask))
+        TrimRowStorage(store, table, last);
     ReleaseSlot(store, (uint32_t)id);
     return DS_RESULT_OK;
 }

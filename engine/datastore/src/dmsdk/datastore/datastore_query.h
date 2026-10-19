@@ -213,7 +213,8 @@ extern "C"
  * string replacement and resets must happen outside reservations.
  * Each query supports one active reservation, shared by its jobs. The caller schedules
  * and synchronizes jobs, then calls DSQueryEnd once, even for an empty query.
- * Do not mix reservations with DSStoreLock or ID-based access.
+ * The scheduler owns this scope for both serial and parallel iteration.
+ * Do not bypass reservations with unrelated ID-based access.
  * Matching-table changes invalidate cached compatibility; row changes refresh ranges.
  * First use of a query pair or changed ranges may allocate; later begins reuse storage.
  *
@@ -244,9 +245,9 @@ extern "C"
  * are required. Fixed-size kinds support typed pointers; DSRowIterGetView also reads
  * containers, strings and nulls. Table and row iteration order is unspecified.
  * Pointer getters require this query's current row and matching typed handle, with
- * its store locked or reservation active. No kind, bounds or lifetime checks occur.
+ * its reservation active. No kind, bounds or lifetime checks occur.
  * Writable pointers require DS_FIELD_MUTABLE during reservations.
- * Borrowed pointers expire on row/batch advance, unlock, query end, or another
+ * Borrowed pointers expire on row/batch advance, query end, or another
  * mutating accessor/reset for the row/table. Never write through a read pointer.
  *
  * @name DSQueryFindField

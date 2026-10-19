@@ -6,11 +6,11 @@ uses dlib and has no dependency on game objects or third-party ECS libraries.
 
 The engine provides a shared `HDSContext` through `DATASTORE_CONTEXT_NAME`.
 Extensions borrow it and release their queries and tables before app finalization.
-Standalone callers use `DSCreateStore()` and `DSDestroyStore()`.
+Standalone callers use `DSCreateStore(0)` and `DSDestroyStore()`. Pass `DSCreateParams` to tune backing pages, row chunks and spare-page retention.
 
 - Register field layouts with `DSRegisterTable()`.
 - Add native rows with `DSCreateRows()`, or field arrays with `DSCreateRowsSoA()`.
-  Both copy input values into contiguous native rows.
+  Both copy input values into native rows stored in contiguous chunks.
 - Combine `DSTag("boid")` and `DSField("position", DS_TYPE_VECTOR3, 0)` in
   `DSQueryDesc.m_Items`; no item count is needed. Create queries once, bind fields
   with `DSQueryFindField()`, and iterate using typed row getters.

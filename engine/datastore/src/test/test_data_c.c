@@ -33,17 +33,31 @@ struct ReferenceEnemy
 
 int TestDataStoreLifecycleFromC(void)
 {
-    HDSContext store = DSCreateStore();
-    DSStoreLock(store);
+    DSCreateParams params = { .m_PageSize = 512 * 1024, .m_RowChunkSize = 64 * 1024 };
+    HDSContext     store = DSCreateStore(&params);
+    DSQueryDesc    desc = { 0 };
+    HDSQuery       query;
+    if (DSCreateQuery(store, &desc, &query) != DS_RESULT_OK)
+    {
+        DSDestroyStore(store);
+        return 1;
+    }
+    if (DSQueryTryBegin(query) != DS_RESULT_OK)
+    {
+        DSDestroyQuery(query);
+        DSDestroyStore(store);
+        return 1;
+    }
     DSResult locked = DSDestroyStore(store);
-    DSStoreUnlock(store);
+    DSQueryEnd(query);
+    DSDestroyQuery(query);
     DSResult destroyed = DSDestroyStore(store);
     return locked == DS_RESULT_LOCKED && destroyed == DS_RESULT_OK ? 0 : 1;
 }
 
 int TestDataQuerySetupFromC(void)
 {
-    HDSContext  store = DSCreateStore();
+    HDSContext  store = DSCreateStore(0);
     DSQueryDesc desc = {
         .m_Items = { DSTag("boid"),
                      DSField("position", DS_TYPE_VECTOR3, DS_FIELD_MUTABLE),
@@ -108,7 +122,7 @@ int TestDataFromC(HDSContext store)
     DSGroupId      group = 123;
     uint64_t       tag = 7;
     DSQueryItem    fields[] = {
-        { .m_Hash = 42, .m_Type = DS_TYPE_NUMBER, .m_Access = 0, .m_Kind = DS_QUERY_ITEM_FIELD },
+        { .m_Hash = 42, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
         { .m_Hash = 43, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD },
         { .m_Hash = 44, .m_Type = DS_TYPE_VECTOR4, .m_Kind = DS_QUERY_ITEM_FIELD },
         { .m_Hash = 45, .m_Type = DS_TYPE_MATRIX4, .m_Kind = DS_QUERY_ITEM_FIELD },
@@ -132,7 +146,11 @@ int TestDataFromC(HDSContext store)
     if (DSCreateQuery(store, &desc, &query) != DS_RESULT_OK)
         return 1;
     uint32_t number_field = DSQueryFindField(query, &fields[0]);
-    DSStoreLock(store);
+    if (DSQueryTryBegin(query) != DS_RESULT_OK)
+    {
+        DSDestroyQuery(query);
+        return 1;
+    }
     DSIterator    it = DSQueryIter(query);
     int           ok = DSIterNext(&it);
     DSRowIterator rows = DSIterRows(&it);
@@ -140,10 +158,13 @@ int TestDataFromC(HDSContext store)
     DSId   id = DSRowIterGetId(&rows);
     double number = 0;
     ok = ok && *DSRowIterGetNumber(&rows, number_field) == 17.0;
+    *DSRowIterGetNumberMut(&rows, number_field) = 29.0;
+    ok = ok && *DSRowIterGetNumber(&rows, number_field) == 29.0;
+    ok = ok && !DSRowIterNext(&rows) && !DSIterNext(&it);
+    DSQueryEnd(query);
     ok = ok && DSSetFieldNumber(store, id, 42, 23.0) == DS_RESULT_OK &&
     DSFieldGetNumber(store, id, 42, &number) == DS_RESULT_OK && number == 23.0;
-    *DSRowIterGetNumberMut(&rows, number_field) = 29.0;
-    ok = ok && DSFieldGetNumber(store, id, 42, &number) == DS_RESULT_OK && number == 29.0;
+    ok = ok && DSSetFieldNumber(store, id, 42, 29.0) == DS_RESULT_OK;
 
     DSVector3 vector3 = { .m_Values = { 1.0f, 0.5f, 0.25f } };
     DSVector3 out3;
@@ -175,9 +196,7 @@ int TestDataFromC(HDSContext store)
     DSSetFieldString(store, id, 48, "override") == DS_RESULT_OK &&
     DSFieldGetString(store, id, 48, &string) == DS_RESULT_OK && string[0] == 'o';
 
-    ok = ok && !DSRowIterNext(&rows) && !DSIterNext(&it);
     ok = ok && TestDataBatchFromC(store, id);
-    DSStoreUnlock(store);
     DSDestroyQuery(query);
     return ok ? 0 : 1;
 }
@@ -189,14 +208,18 @@ int TestInlineDataFromC(HDSContext store)
     HDSQuery    query;
     if (DSCreateQuery(store, &desc, &query) != DS_RESULT_OK)
         return 1;
-    DSStoreLock(store);
+    if (DSQueryTryBegin(query) != DS_RESULT_OK)
+    {
+        DSDestroyQuery(query);
+        return 1;
+    }
     DSIterator    it = DSQueryIter(query);
     int           ok = DSIterNext(&it);
     DSRowIterator rows = DSIterRows(&it);
     ok = ok && DSRowIterNext(&rows);
     uint32_t color_field = DSQueryFindField(query, &requested_field);
     ok = ok && DSRowIterGetVector3(&rows, color_field)->m_Values[2] == 3.0f;
-    DSStoreUnlock(store);
+    DSQueryEnd(query);
     DSDestroyQuery(query);
     return ok ? 0 : 1;
 }
@@ -211,6 +234,8 @@ int TestDataPointersFromC(HDSContext store, int write)
         { .m_Hash = 4, .m_Type = DS_TYPE_VECTOR4, .m_Kind = DS_QUERY_ITEM_FIELD },
         { .m_Hash = 2, .m_Type = DS_TYPE_BOOLEAN, .m_Kind = DS_QUERY_ITEM_FIELD }
     };
+    for (uint32_t i = 0; i < 5; ++i)
+        query_fields[i].m_Access = write ? DS_FIELD_MUTABLE : 0;
     DSQueryDesc desc = { .m_Items = { query_fields[0], query_fields[1], query_fields[2], query_fields[3], query_fields[4] } };
     HDSQuery    query;
     if (DSCreateQuery(store, &desc, &query) != DS_RESULT_OK)
@@ -228,7 +253,11 @@ int TestDataPointersFromC(HDSContext store, int write)
     ok = ok && DSQueryFindField(query, &wrong) == UINT32_MAX;
     wrong.m_Type = DS_TYPE_STRING;
     ok = ok && DSQueryFindField(query, &wrong) == UINT32_MAX;
-    DSStoreLock(store);
+    if (DSQueryTryBegin(query) != DS_RESULT_OK)
+    {
+        DSDestroyQuery(query);
+        return 1;
+    }
     DSIterator   it = DSQueryIter(query);
     uint32_t     count = 0;
     while (ok && DSIterNext(&it))
@@ -259,7 +288,7 @@ int TestDataPointersFromC(HDSContext store, int write)
         }
     }
     ok = ok && DSQueryFindField(query, &query_fields[0]) == fields[0] && count == 3;
-    DSStoreUnlock(store);
+    DSQueryEnd(query);
     if (DSQueryTryBegin(query) == DS_RESULT_OK)
     {
         DSIterator range = DSQueryIterRange(query, 0, DSQueryGetRowCount(query));
@@ -304,7 +333,7 @@ int TestDataNativeRowsFromC(void)
     DSId            ids[2], added[2];
     DSQueryItem     health = { .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc     query_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Flags = DS_ROW_MUTABLE, .m_Items = { health, { .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG } } };
-    HDSContext      store = DSCreateStore();
+    HDSContext      store = DSCreateStore(0);
     HDSQuery        query = NULL;
     int             active = 0;
     int             error = 0;
@@ -457,11 +486,10 @@ int TestDataSoARowsFromC(void)
     DSGroupId      group = 77;
     DSQueryItem    health = { .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc    query_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { health } };
-    HDSContext     store = DSCreateStore();
+    HDSContext     store = DSCreateStore(0);
     HDSQuery       query = NULL;
     int            error = 0;
     int            reserved = 0;
-    int            locked = 0;
 #define CHECK_SOA(condition) \
     do \
     { \
@@ -534,11 +562,6 @@ int TestDataSoARowsFromC(void)
     CHECK_SOA(DSCreateRowsSoA(store, 10, group, 2, 5, fields, ids) == DS_RESULT_LOCKED);
     DSQueryEnd(query);
     reserved = 0;
-    DSStoreLock(store);
-    locked = 1;
-    CHECK_SOA(DSCreateRowsSoA(store, 10, group, 2, 5, fields, ids) == DS_RESULT_LOCKED);
-    DSStoreUnlock(store);
-    locked = 0;
     DSId removed = ids[0];
     CHECK_SOA(DSRemoveRow(store, removed) == DS_RESULT_OK);
     CHECK_SOA(DSCreateRowsSoA(store, 10, 0, 2, 5, fields, ids) == DS_RESULT_OK);
@@ -566,8 +589,6 @@ int TestDataSoARowsFromC(void)
     CHECK_SOA(DSRegisterTable(store, &references) == DS_RESULT_OK);
     CHECK_SOA(DSCreateRowsSoA(store, 12, group, 2, 1, fields, ids) == DS_RESULT_INVALID_ARGUMENT);
 cleanup:
-    if (locked)
-        DSStoreUnlock(store);
     if (reserved)
         DSQueryEnd(query);
     if (query)

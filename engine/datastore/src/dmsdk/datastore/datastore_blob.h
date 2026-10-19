@@ -96,14 +96,14 @@ extern "C"
  * Registrations of the same loaded resource share metadata, defaults and capacity.
  * Strings and containers retain blob offsets. The caller keeps the immutable
  * buffer alive until all references and registrations are released.
- * Requires an unlocked store without active query reservations.
+ * Requires a store without active query reservations.
  *
  * @name DSAddBlob
  * @param store [type:HDSContext] Destination store.
  * @param blob [type:HDSBlob] Loaded resource to retain.
  * @param group [type:DSGroupId] Runtime game object group assigned to every added row.
  * @param out_instance [type:HDSBlobInstance*] Receives the registration handle on success; unchanged on error.
- * @return result [type:DSResult] OK, LOCKED while the store is locked or reserved, or INVALID_ARGUMENT if store capacity would be exceeded. Errors leave the store unchanged.
+ * @return result [type:DSResult] OK, LOCKED while query reservations are active, or INVALID_ARGUMENT if store capacity would be exceeded. Errors leave the store unchanged.
  */
 
 /*# Remove one instance's complete set of component tables
@@ -115,7 +115,7 @@ extern "C"
  *
  * @name DSRemoveBlob
  * @param instance [type:HDSBlobInstance] Registration to remove; must not be used after success.
- * @return result [type:DSResult] OK, or LOCKED while its store is locked or reserved (no changes).
+ * @return result [type:DSResult] OK, or LOCKED while its store has active query reservations (no changes).
  */
 
 /*# Reset a game object's grouped component registration

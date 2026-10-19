@@ -45,7 +45,7 @@ static DSResult CreateViewQuery(HDSContext store, uint64_t tag, uint64_t field, 
 // their logical IDs while returning pointers into the caller's original array.
 TEST(DataView, SparseRangesAndBorrowedPointers)
 {
-    HDSContext store = DSCreateStore();
+    HDSContext store = DSCreateStore(0);
     ViewRow    values[8] = {};
     uint32_t   indices[] = { 2, 3, 4, 0, 7 };
     DSId       ids[5];
@@ -85,7 +85,7 @@ TEST(DataView, SparseRangesAndBorrowedPointers)
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetVector3(store, ids[2], 1, &value));
     ASSERT_EQ(2.0f, value.m_Values[0]);
 
-    DSStoreLock(store);
+    ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     it = DSQueryIter(query);
     index = 0;
     while (DSIterNext(&it))
@@ -102,7 +102,7 @@ TEST(DataView, SparseRangesAndBorrowedPointers)
     ASSERT_EQ(5u, index);
     ASSERT_FALSE(DSIterNext(&it));
     ASSERT_EQ(0u, DSIterGetType(&it));
-    DSStoreUnlock(store);
+    DSQueryEnd(query);
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSResetRow(store, ids[0]));
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRemoveRow(store, ids[0]));
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateRows(store, 100, 0, 1, values, 0));
@@ -120,7 +120,7 @@ TEST(DataView, SparseRangesAndBorrowedPointers)
 // rows, disjoint fields and shared readers remain concurrently reservable.
 TEST(DataView, AliasedReservations)
 {
-    HDSContext     store = DSCreateStore();
+    HDSContext     store = DSCreateStore(0);
     ViewRow        values[4] = {};
     const uint32_t a[] = { 0, 1 }, b[] = { 2, 3 }, c[] = { 1, 1 };
     ASSERT_EQ(DS_RESULT_OK, RegisterView(store, 100, values, 4, 2, a, 0));
@@ -160,7 +160,7 @@ TEST(DataView, AliasedReservations)
 // selecting disjoint source rows may still reserve whole-row writes together.
 TEST(DataView, WholeRowAliasReservations)
 {
-    HDSContext store = DSCreateStore();
+    HDSContext store = DSCreateStore(0);
     ViewRow    values[4] = {};
     uint32_t   a[] = { 0, 1 }, b[] = { 2, 3 }, c[] = { 1, 2 };
     ASSERT_EQ(DS_RESULT_OK, RegisterView(store, 100, values, 4, 2, a, 0));
@@ -198,7 +198,7 @@ TEST(DataView, WholeRowAliasReservations)
 // must rematch a view after its owner changes population and re-registers it.
 TEST(DataView, EmptyAndReboundViews)
 {
-    HDSContext store = DSCreateStore();
+    HDSContext store = DSCreateStore(0);
     ViewRow    values[2] = {};
     uint32_t   invalid[] = { 2 };
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, RegisterView(store, 100, values, 2, 1, invalid, 0));

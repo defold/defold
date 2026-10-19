@@ -249,8 +249,8 @@ extern "C"
  * payload blocks are released, keeping at most one small spare per arena.
  * Booleans must be 0 or 1. Inputs, including padding, must be initialized, disjoint
  * from store storage and valid through the call. On error no rows are published
- * and output IDs remain unchanged. Nonempty batches require an unlocked,
- * unreserved store. An empty batch returns OK without accessing the store or arrays.
+ * and output IDs remain unchanged. Nonempty batches require a store without active
+ * query reservations. An empty batch returns OK without accessing the store or arrays.
  *
  * @name DSCreateRows
  * @param store [type:HDSContext] Destination store.
@@ -301,30 +301,30 @@ extern "C"
  *
  * Copies tags and field metadata. Fields have fixed kinds and non-overlapping byte offsets.
  * Duplicate type hashes and full-name field hashes (including inline members) are rejected. Successful
- * registration updates live queries. Requires an unlocked store without active query reservations.
+ * registration updates live queries. Requires a store without active query reservations.
  *
  * @name DSRegisterTable
  * @param store [type:HDSContext] Store handle.
  * @param desc [type:const DSTableDesc*] Table type, tags and shared field layout to copy.
- * @return result [type:DSResult] LOCKED while the store is locked or reserved; otherwise OK, ALREADY_EXISTS for a duplicate type/field name, or INVALID_ARGUMENT for invalid tags/count/layout.
+ * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK, ALREADY_EXISTS for a duplicate type/field name, or INVALID_ARGUMENT for invalid tags/count/layout.
  */
 
 /*# Unregister a table
  *
  * Removes an independently registered table and all its rows. Their IDs become stale, even if the type is
- * registered again. Updates live queries. Requires an unlocked store without active query reservations.
+ * registered again. Updates live queries. Requires a store without active query reservations.
  *
  * @name DSUnregisterTable
  * @param store [type:HDSContext] Store handle.
  * @param type [type:uint64_t] Table type hash.
- * @return result [type:DSResult] LOCKED while the store is locked or reserved; otherwise OK on success, or NOT_FOUND if the type is not registered.
+ * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK on success, or NOT_FOUND if the type is not registered.
  */
 
 /*# Remove a row
  *
  * Uses swap removal; other live IDs remain valid. The removed ID becomes stale.
- * Requires an unlocked store without active query reservations. To remove during traversal, collect DSIds in a
- * caller-owned reusable buffer and apply removals after the outermost unlock.
+ * Requires a store without active query reservations. To remove during traversal, collect DSIds in a
+ * caller-owned reusable buffer and apply removals after all query reservations finish.
  * Reclaims the retained default slot and owned dynamic child rows. String/list
  * payload chunks are recycled; empty blocks are freed, retaining one small spare
  * per arena. Borrowed blob payloads remain unchanged.
@@ -332,7 +332,7 @@ extern "C"
  * @name DSRemoveRow
  * @param store [type:HDSContext] Store handle.
  * @param id [type:DSId] ID of the row to remove.
- * @return result [type:DSResult] LOCKED while the store is locked or reserved; otherwise OK on success, NOT_FOUND for an invalid or stale ID, or INVALID_ARGUMENT for a borrowed view.
+ * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK on success, NOT_FOUND for an invalid or stale ID, or INVALID_ARGUMENT for a borrowed view.
  */
 
 /*# Reset one component row

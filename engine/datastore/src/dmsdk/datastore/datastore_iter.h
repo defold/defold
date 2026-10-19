@@ -42,7 +42,6 @@ extern "C"
         uint32_t        m_FieldCount;
         uint32_t        m_RangeIndex;
         uint32_t        m_Remaining;
-        uint8_t         m_IsRange;
         uint8_t         m_Flags;
     } DSIterator;
 
@@ -227,7 +226,7 @@ extern "C"
 /*# Query iterator
  *
  * Stack cursor; iterators and fixed-size field access allocate nothing.
- * Keep the query/store alive and the store locked or query reservation active.
+ * Keep the query/store alive and its query reservation active.
  * Do not copy active iterators. Parents must stay at the same address; stepping
  * one invalidates its children, including when exhausted. Lifetimes are not checked.
  * Batch and row order are unspecified.
@@ -239,7 +238,7 @@ extern "C"
 /*# Row iterator
  *
  * Traverses the current batch. [ref:DSIterator] lifetime rules apply.
- * Writes and resets preserve iteration; fixed-size writes preserve sibling fields and defaults.
+ * Fixed-size writes preserve sibling fields and defaults. Reset outside reservations.
  *
  * @struct
  * @name DSRowIterator
@@ -260,10 +259,11 @@ extern "C"
 
 /*# Start query iteration
  *
- * Requires DSStoreLock throughout traversal, including early exits.
+ * Traverses all rows in an active query reservation. The scheduler keeps access
+ * reserved until every iterator and job finishes, including early exits.
  *
  * @name DSQueryIter
- * @param query [type:HDSQuery] Query to traverse.
+ * @param query [type:HDSQuery] Query reserved for traversal.
  * @return iterator [type:DSIterator] Iterator with no current batch; advance using DSIterNext.
  */
 

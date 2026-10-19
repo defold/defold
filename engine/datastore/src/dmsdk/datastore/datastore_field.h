@@ -64,7 +64,7 @@ extern "C"
  *
  * Typed access by row ID and full field-name hash, including inline names such as
  * dmHashString64("light.color"). Types must match exactly.
- * Setters preserve metadata, iterators and reset defaults; failed writes change nothing.
+ * Setters preserve metadata and reset defaults; failed writes change nothing.
  * Reads and fixed-size writes do not allocate. Synchronize access externally;
  * do not overlap query reservations.
  *

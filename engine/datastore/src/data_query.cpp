@@ -372,7 +372,7 @@ static void RefreshQueryRanges(HDSQuery query)
             {
                 while (first < row)
                 {
-                    uint32_t end = row;
+                    uint32_t end = first + GetRowSpan(table, first, row - first);
                     if (table->m_IsView)
                     {
                         end = first + 1;
@@ -397,7 +397,7 @@ DSResult DSQueryTryBegin(HDSQuery query)
     HDSContext store = query->m_Store;
     if (!dmMutex::TryLock(store->m_Mutex))
         return DS_RESULT_BUSY;
-    if (store->m_LockCount || query->m_ActiveSlot != UINT32_MAX)
+    if (query->m_ActiveSlot != UINT32_MAX)
     {
         dmMutex::Unlock(store->m_Mutex);
         return DS_RESULT_BUSY;

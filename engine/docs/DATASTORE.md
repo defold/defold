@@ -300,7 +300,43 @@ Include `<dmsdk/datastore/datastore.h>`. The engine registers its `HDSContext` u
 `ContextRegistryGet(ExtensionParamsGetContextRegistry(params), DATASTORE_CONTEXT_NAME)`.
 It remains available through extension app finalization. Finish jobs and remove
 your queries and tables during cleanup; only the engine destroys this store.
-Standalone tools and tests can own a separate store with `DSCreateStore`.
+Standalone tools and tests can own a separate store with `DSCreateStore(0)`.
+To tune allocation, pass `DSCreateParams`:
+
+```cpp
+DSCreateParams params = {
+    .m_PageSize = 512 * 1024,
+    .m_RowChunkSize = 256 * 1024,
+    .m_MaxSparePages = 16
+};
+HDSContext store = DSCreateStore(&params);
+```
+
+These are the default settings for a null parameters pointer. Zero size fields
+select the default sizes; `m_MaxSparePages = 0` releases all empty pages.
+Backing pages are allocated lazily and shared by table value chunks. Each chunk
+contains a power-of-two number of native rows and, when retained, a parallel
+region of defaults. Oversized rows use dedicated allocations. Chunk size is a
+target including both regions; unused tail bytes are included in memory reports.
+
+A table's chunks form a dense directory. Swap-removal keeps all but the last
+chunk full, so insertion already knows the chunk and free-row count without a
+search. Empty chunks return to their page; available pages use an index-linked
+list and an exact free-chunk count. Fully empty pages are reused up to the spare
+limit, then freed. This trades retained memory for fewer allocations during
+repeated spawn/despawn waves.
+
+Queries return one contiguous span within a chunk. The hot row loop still uses
+`base + row * stride + field offset`; random ID access resolves one extra chunk
+pointer. Growth does not copy existing component values. Row identities, ID
+slots, dynamic child tables and small metadata arrays still grow geometrically.
+The file format remains linear and is independent of runtime chunk sizes.
+
+OS page size describes virtual-memory management, not the best query batch size.
+These backing allocations use the normal allocator, without OS page alignment or
+virtual-memory decommit calls. A row chunk may span several OS pages. Choose its
+size from scan, lookup, allocation and slack measurements, rather than making it
+machine-dependent.
 
 A **datastore** holds runtime tables, stable row IDs, resource registrations and
 queries for many game objects. A **table** groups rows with the same type, tags
@@ -311,8 +347,9 @@ row; it may also identify a wave or other collection of rows. Different groups
 share the same type table. Each row has a runtime `DSId`; loaded components also
 retain their prototype-local component name hash.
 
-`DSTable::m_Rows` uses the file's `DSRow` layout, while `m_Values` holds the
-separate dense component bytes. Groups and bookkeeping do not change a component's
+`DSTable::m_Rows` uses the file's `DSRow` layout, while `m_Chunks` holds the
+separate dense component bytes. Borrowed external tables keep their existing
+contiguous value storage. Groups and bookkeeping do not change a component's
 native struct layout or row stride. `DSTable` holds runtime storage and ownership,
 separate from the file's `DSTableHeader`. `DSValue`, `DSStruct` and `DSList`
 are temporary input or borrowed views; they are not serialized as C++ structs.
@@ -444,7 +481,8 @@ runtime tables and registration records connecting game objects to their rows.](
 `DSAddBlob(store, blob, group, &instance)` instantiates all component rows from
 the blob in one operation. For each table it bulk-copies the row-record array and
 the fixed-size value array into the resource's shared dense storage, then fills
-the records' runtime fields. Each table appends to its own destination arrays.
+the records' runtime fields. Value copies stop at chunk boundaries; metadata and
+row layout are unchanged. Each table appends to its own storage.
 Metadata and defaults remain in the blob; strings and dynamic containers initially
 reference its payloads. Pooled
 registration records and membership indices track the new rows. Capacity grows
@@ -635,10 +673,11 @@ wait for queries to end and apply pending additions/removals. To remove rows fou
 during a scan, collect their `DSId`s and remove them afterward. Removal uses IDs
 because dense row indices can change. Ending a query does not apply queued work.
 
-For single-threaded traversal, `DSStoreLock` + `DSQueryIter` remains available;
-unlock after traversal, including early exits. This guard holds the store mutex
-on the calling thread and allows value writes/reset while rejecting structural
-changes. Do not mix it with active query reservations.
+Serial and parallel traversal use the same reservation. The caller or engine
+scheduler begins access with `DSQueryTryBegin`, uses `DSQueryIter` for all matched
+rows or `DSQueryIterRange` for job ranges, and calls `DSQueryEnd` after every
+iterator and job finishes. Component callbacks receive admitted work; they do
+not lock the store. Resets and string/container replacement happen afterward.
 
 **Concurrency follow-up:** structural changes currently require every query in
 the store to finish, even when they affect unrelated tables. Investigate allowing
@@ -662,11 +701,12 @@ Serialization and generic construction values remain in the private [data.h](../
 
 | Implementation | Public header | Responsibility |
 | --- | --- | --- |
-| [data.cpp](../datastore/src/data.cpp) | [datastore.h](../datastore/src/dmsdk/datastore/datastore.h) | Store creation/destruction and locking. Native row lifecycle is declared in [datastore_table.h](../datastore/src/dmsdk/datastore/datastore_table.h); resource instances in [datastore_blob.h](../datastore/src/dmsdk/datastore/datastore_blob.h). |
+| [data.cpp](../datastore/src/data.cpp) | [datastore.h](../datastore/src/dmsdk/datastore/datastore.h) | Store creation/destruction. Native row lifecycle is declared in [datastore_table.h](../datastore/src/dmsdk/datastore/datastore_table.h); resource instances in [datastore_blob.h](../datastore/src/dmsdk/datastore/datastore_blob.h). |
 | [data_query.cpp](../datastore/src/data_query.cpp) | [datastore_query.h](../datastore/src/dmsdk/datastore/datastore_query.h) | Query matching, field bindings, cached ranges and access reservations. |
 | [data_iter.cpp](../datastore/src/data_iter.cpp) | [datastore_iter.h](../datastore/src/dmsdk/datastore/datastore_iter.h) | Batch, row and field traversal, including iterator value access. |
 | [data_field.cpp](../datastore/src/data_field.cpp) | [datastore_field.h](../datastore/src/dmsdk/datastore/datastore_field.h) | Value representation, construction validation, field get/set and reset. |
 | [data_container.cpp](../datastore/src/data_container.cpp) | [datastore_container.h](../datastore/src/dmsdk/datastore/datastore_container.h) | Borrowed reads of struct members and mixed list elements. |
+| [data_storage.cpp](../datastore/src/data_storage.cpp) | Internal | Value chunks, shared backing pages and empty-page reuse. |
 | [data_payload.cpp](../datastore/src/data_payload.cpp) | Internal | Block allocation, payload recycling and reclamation. |
 | [data_io.cpp](../datastore/src/data_io.cpp) | [datastore_blob.h](../datastore/src/dmsdk/datastore/datastore_blob.h) | Public blob loading and release; private serialization. |
 

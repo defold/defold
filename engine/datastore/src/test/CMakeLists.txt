@@ -1,6 +1,7 @@
 defold_add_executable(test_data
   "${CMAKE_CURRENT_LIST_DIR}/test_data.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/test_data_rows.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/test_data_pages.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/test_data_memory.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/test_data_lifetime.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/test_data_view.cpp"

@@ -303,20 +303,42 @@ struct DSOwnedTable
 {
     dmArray<uint64_t>      m_Tags;       // Owned table tag hashes.
     dmArray<DSFieldMeta>   m_Fields;     // Owned root and inline-member metadata.
-    dmArray<uint8_t>       m_BaseRows;   // Retained initial rows; empty when reset is disabled.
     DSPayloadBlock*        m_BaseValues; // Recyclable original payloads; empty when reset is disabled.
+};
+
+// Value chunks are suballocated from store pages. Oversized rows own a dedicated
+// allocation (m_Page == UINT32_MAX). Records remain in a separate dense array.
+struct DSRowChunk
+{
+    uint8_t* m_Data;   // Current rows, followed by optional retained default rows.
+    uint32_t m_Page;   // Index in DSStore::m_Pages; independent of table/chunk lifetime.
+    uint32_t m_Offset; // Byte offset of this chunk within its page.
+};
+
+// Pages with free chunks form an index-linked list. A free chunk stores the byte
+// offset of the next free chunk in its first uint32_t. Full pages leave the list.
+struct DSRowPage
+{
+    uint8_t* m_Data;      // Owned backing allocation; zero for a recycled page slot.
+    uint32_t m_FreeChunk; // First free chunk offset, or UINT32_MAX.
+    uint32_t m_FreeCount; // Number of reusable chunks.
+    uint32_t m_Next;      // Next available page, or next recycled page slot.
+    uint32_t m_Prev;      // Previous available page, or UINT32_MAX.
 };
 
 static const uint32_t DATA_FIELD_LOOKUP_SIZE = 16;
 
-// Owned tables use parallel dense identity/value arrays:
+// Row identities stay dense; values occupy fixed-capacity chunks in shared pages:
 // m_Rows   --> [ DSRow 0 ][ DSRow 1 ][ ... ]
-// m_Values --> [ position0 | health0 ][ position1 | health1 ][ ... ]
+// m_Chunks --> [ chunk 0* ][ chunk 1* ][ ... ][ partial tail* ]
+// page     --> [ current rows | retained defaults ][ another table's chunk ]
+// A row index selects chunk = row >> m_ChunkShift, local = row & m_ChunkMask.
+// Only the tail has unused rows. Swap removal keeps all earlier chunks full.
 // A borrowed view uses m_Rows[i].m_BaseIndex to select its external row:
 // view m_Rows --> [source 2][source 3][source 7]   m_Values --> caller-owned rows
 // Reset defaults are addressed by m_Rows[r].m_BaseIndex * m_RowStride:
 //   m_Blob + m_Offsets.m_Rows   (loaded defaults)
-//   m_Owned->m_BaseRows.Begin() (native/decoded defaults)
+//   chunk.m_Data + m_DefaultOffset (native/decoded defaults, indexed within chunk)
 //
 // Example PointLight value row from DATASTORE.md; offsets are bytes:
 //  0                       12        16                        24              32
@@ -338,7 +360,11 @@ struct DSTable
     dmArray<DSTable*>         m_ViewAliases;    // Borrowed views whose selected source rows overlap this view.
     uint32_t                  m_RowStride;      // Row bytes, including native alignment padding.
     dmArray<DSRow>            m_Rows;           // Dense row records; same layout as in the blob.
-    dmArray<uint8_t>          m_Values;         // Mutable rows, indexed in m_Rows order; borrowed for views.
+    dmArray<uint8_t>          m_Values;         // Borrowed external values for views; empty for owned tables.
+    dmArray<DSRowChunk>       m_Chunks;         // Dense value chunks; only the last can have free rows.
+    uint32_t                  m_ChunkShift;     // log2 rows per chunk; row index uses shift and mask.
+    uint32_t                  m_ChunkMask;      // Rows per chunk minus one.
+    uint32_t                  m_DefaultOffset;  // Retained defaults within a chunk; zero when none.
     DSBlobPool*               m_Pool;           // Owning resource pool; NULL for independently registered tables.
     const uint8_t*            m_Blob;           // Borrowed serialized resource bytes; NULL for independent tables.
     union
@@ -375,12 +401,18 @@ struct DSSlot
 
 struct DSStore
 {
+    dmArray<DSRowPage>       m_Pages;           // Owned backing pages and reusable descriptor slots.
+    uint32_t                 m_PageSize;        // Configured backing allocation bytes.
+    uint32_t                 m_RowChunkSize;    // Configured chunk allocation bytes.
+    uint32_t                 m_FreePage;        // First page with free chunks, or UINT32_MAX.
+    uint32_t                 m_FreePageSlot;    // First recycled page descriptor, or UINT32_MAX.
+    uint32_t                 m_SparePageCount;  // Empty pages currently available for reuse.
+    uint32_t                 m_MaxSparePages;   // Limit on retained empty pages; excess pages are freed.
     dmArray<DSTable*>        m_Tables;          // Owned runtime tables.
     dmArray<DSSlot>          m_Slots;           // Stable row ID slots and free-list links.
     dmArray<HDSQuery>        m_Queries;         // Borrowed live queries; callers destroy them before the store.
     uint32_t                 m_FreeSlotCount;   // Reusable slots; excludes retired generations.
     uint32_t                 m_FreeSlot;        // First unused row ID slot, or UINT32_MAX.
-    uint32_t                 m_LockCount;       // Nested structural locks on the owning thread.
     DSBlobPool*              m_Pools;           // Owned resource pools, linked by DSBlobPool::m_Next.
     dmMutex::HMutex          m_Mutex;           // Protects structural changes and query admission/release.
     dmObjectPool<HDSQuery>   m_ActiveQueries;   // Dense pool of currently reserved query handles.
@@ -477,15 +509,15 @@ struct DSBlob
 
 // Shared runtime tables for one loaded resource in this store. The first
 // registration page and initial table buffers follow this header in one allocation.
-// Later registrations reuse slots; dense row arrays grow geometrically.
+// Later registrations reuse slots; row records grow geometrically. Values use store pages.
 //
 // Initial allocation (alignment padding omitted):
-// [ DSBlobPool ][ DSTable x table count ][ DSRow buffers ][ value buffers ]
+// [ DSBlobPool ][ DSTable x table count ][ DSRow record buffers ]
 // [ first registration page: instance 0 | instance 1 | ... ]
 //   ^ m_FirstPage              (records are m_InstanceStride bytes apart)
 // m_Pages --> [ extra page 1* ][ extra page 2* ][ ... ]
 // m_Blob  --> DSBlob --> immutable caller-owned file bytes
-// Row/value arrays may move to larger allocations; registration records stay put.
+// Identity arrays may move to larger allocations; values and registration records stay put.
 struct DSBlobPool
 {
     HDSContext        m_Store;          // Borrowed destination store.
@@ -549,6 +581,10 @@ void                             ReleasePayload(void* bytes);
 void                             DeletePayloads(DSPayloadBlock** blocks);
 void                             ReleaseReference(DSTable* table, DSValueType type, uint64_t reference);
 DSTable*                         FindTable(HDSContext store, uint64_t type);
+void                             InitializeRowStorage(HDSContext store, DSTable* table);
+void                             ReserveRowStorage(HDSContext store, DSTable* table, uint32_t num_rows);
+void                             TrimRowStorage(HDSContext store, DSTable* table, uint32_t num_rows);
+void                             DeleteRowPages(HDSContext store);
 
 static inline DSPayloadBlock**   GetNativePayloads(DSTable* table)
 {
@@ -643,16 +679,36 @@ inline uint64_t GetTableTag(const DSTable* table, uint32_t index)
     return table->m_Pool ? ReadDataInteger(table->m_Blob + table->m_Offsets.m_Table + DATA_TABLE_HEADER_SIZE + index * 8, 8) : table->m_Owned->m_Tags[index];
 }
 
+static inline uint8_t* GetRowBytes(const DSTable* table, uint32_t row)
+{
+    if (table->m_IsView)
+        return (uint8_t*)table->m_Values.Begin() + (size_t)table->m_Rows[row].m_BaseIndex * table->m_RowStride;
+    if (!table->m_RowStride)
+        return 0;
+    return table->m_Chunks.Begin()[row >> table->m_ChunkShift].m_Data + (size_t)(row & table->m_ChunkMask) * table->m_RowStride;
+}
+
+static inline uint32_t GetRowSpan(const DSTable* table, uint32_t row, uint32_t count)
+{
+    if (table->m_IsView || !table->m_RowStride)
+        return count;
+    uint32_t available = table->m_ChunkMask + 1 - (row & table->m_ChunkMask);
+    return count < available ? count : available;
+}
+
+static inline uint8_t* GetNativeDefaultRow(const DSTable* table, uint32_t row)
+{
+    return GetRowBytes(table, row) + table->m_DefaultOffset;
+}
+
 static inline const uint8_t* GetFieldBytes(const DSTable* table, const DSRow* row, uint32_t offset)
 {
-    size_t index = table->m_IsView ? row->m_BaseIndex : (size_t)(row - table->m_Rows.Begin());
-    return table->m_Values.Begin() + index * table->m_RowStride + offset;
+    return GetRowBytes(table, (uint32_t)(row - table->m_Rows.Begin())) + offset;
 }
 
 static inline uint8_t* GetFieldBytes(DSTable* table, const DSRow* row, uint32_t offset)
 {
-    size_t index = table->m_IsView ? row->m_BaseIndex : (size_t)(row - table->m_Rows.Begin());
-    return table->m_Values.Begin() + index * table->m_RowStride + offset;
+    return GetRowBytes(table, (uint32_t)(row - table->m_Rows.Begin())) + offset;
 }
 
 template <typename T>
@@ -862,7 +918,7 @@ extern "C"
      *
      * Packs values in metadata order; the table reset policy controls retention of defaults.
      * Strings and containers are allocated in table-owned blocks. Empty rows are allowed.
-     * Requires an unlocked store. On error, the store is unchanged.
+     * Requires a store without active query reservations. On error, the store is unchanged.
      *
      * @param store [type:HDSContext] Store handle.
      * @param type [type:uint64_t] Independently registered table type hash.
@@ -872,7 +928,7 @@ extern "C"
      * @param value_count [type:uint32_t] Must equal the table field count; kinds must match.
      * @param out_id [type:DSId*] Optional output receiving the new store-local ID on success; unchanged on error.
      * @param component_id [type:uint64_t] Component name hash to save in a packed blob; defaults to zero for unnamed rows.
-     * @return result [type:DSResult] LOCKED while the store is locked; otherwise OK, NOT_FOUND for an unknown table, INVALID_ARGUMENT for invalid input/counts or mismatched kinds.
+     * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK, NOT_FOUND for an unknown table, INVALID_ARGUMENT for invalid input/counts or mismatched kinds.
      */
     DSResult DSAddRow(HDSContext store, uint64_t type, DSGroupId group, const DSValueType* types, const DSValueData* values, uint32_t value_count, DSId* out_id, uint64_t component_id = 0);
 
@@ -880,14 +936,14 @@ extern "C"
      *
      * Validates the entire batch before adding anything. Value arrays must match the shared metadata. Values and nested trees are
      * copied, with optional reset retention; output IDs are independent of input lifetimes. Successful
-     * insertion requires an unlocked store. Zero count returns OK without accessing the store or arrays.
+     * insertion requires no active query reservations. Zero count returns OK without accessing the store or arrays.
      *
      * @param store [type:HDSContext] Store handle.
      * @param type [type:uint64_t] Independently registered table type hash.
      * @param rows [type:const DSRowDesc*] Array of count row descriptors; may be NULL when count is zero.
      * @param count [type:uint32_t] Number of rows to insert.
      * @param out_ids [type:DSId*] Optional array receiving count IDs on success; unchanged on error.
-     * @return result [type:DSResult] LOCKED while the store is locked; otherwise OK, NOT_FOUND for an unknown table, INVALID_ARGUMENT for invalid input/counts or mismatched kinds.
+     * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK, NOT_FOUND for an unknown table, INVALID_ARGUMENT for invalid input/counts or mismatched kinds.
      */
     DSResult DSAddRows(HDSContext store, uint64_t type, const DSRowDesc* rows, uint32_t count, DSId* out_ids);
 
