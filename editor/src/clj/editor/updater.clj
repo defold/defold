@@ -357,11 +357,11 @@
 
 (defn channel-release-notes
   "Returns {:markdown <string>} for `version` of `channel`, or nil if the notes
-  can't be turned into markdown."
+  can't be fetched or turned into markdown."
   [channel version]
   (try
-    {:markdown (entry-markdown nil {:version version
-                                    :notes (fetch-version-notes! (system/defold-archive-domain) channel version)})}
+    (when-let [notes (fetch-version-notes! (system/defold-archive-domain) channel version)]
+      {:markdown (entry-markdown nil {:version version :notes notes})})
     (catch Exception e
       (log/warn :message "Failed to build channel release notes" :channel channel :exception e)
       nil)))
@@ -374,6 +374,13 @@
 
 (defn channel-download-in-progress? [updater]
   (some? (:channel-download @(:state-atom updater))))
+
+(defn newer-than-running?
+  "Returns true if `version` is newer than the running editor's version."
+  [version]
+  (let [current (system/defold-version)]
+    (or (nil? current)
+        (newer-version? version current))))
 
 (defn channel-offer
   "Returns {:channel <string> :version <string> :sha1 <string>} when a channel

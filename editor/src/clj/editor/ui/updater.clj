@@ -227,7 +227,7 @@
                   :default-button true
                   :result true}]})))
 
-(defn- start-channel-download! [^Stage stage updater localization channel-info]
+(defn- start-channel-download! [updater localization channel-info]
   (let [version (:version channel-info)
         download (updater/download-channel! updater channel-info)]
     (future
@@ -238,7 +238,7 @@
                     localization
                     {:title (localization/message "updater.try-channel-dialog.title")
                      :icon :icon/circle-check
-                     :owner stage
+                     :owner (ui/main-stage)
                      :header (localization/message "updater.channel-download-done-dialog.header" {"version" version})
                      :content (localization/message "updater.channel-download-done-dialog.detail" {"path" (.getPath file)})
                      :buttons [{:text (localization/message "dialog.button.close")
@@ -253,7 +253,7 @@
               localization
               {:title (localization/message "updater.try-channel-dialog.title")
                :icon :icon/triangle-error
-               :owner stage
+               :owner (ui/main-stage)
                :header (localization/message "updater.channel-download-failed-dialog.header" {"version" version})})))))))
 
 (defn try-channel!
@@ -265,12 +265,24 @@
     (future
       (let [channel "beta"
             info (get (updater/fetch-channel-infos!) channel)
-            release-notes (when info (updater/channel-release-notes channel (:version info)))]
+            newer (and info (updater/newer-than-running? (:version info)))
+            release-notes (when newer (updater/channel-release-notes channel (:version info)))]
         (ui/run-later
           (try
-            (if info
+            (cond
+              newer
               (when (confirm-try-channel! stage project localization (:version info) release-notes)
-                (start-channel-download! stage updater localization (assoc info :channel channel)))
+                (start-channel-download! updater localization (assoc info :channel channel)))
+
+              info
+              (dialogs/make-info-dialog
+                localization
+                {:title (localization/message "updater.up-to-date-dialog.title")
+                 :icon :icon/circle-info
+                 :owner stage
+                 :header (localization/message "updater.up-to-date-dialog.header")})
+
+              :else
               (dialogs/make-info-dialog
                 localization
                 {:title (localization/message "updater.check-failed-dialog.title")
