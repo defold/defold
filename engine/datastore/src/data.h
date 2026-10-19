@@ -399,25 +399,39 @@ struct DSSlot
     };
 };
 
+struct DSSystemRegistration
+{
+    DSSystemDesc m_Desc;            // Copied declaration; event nodes have no query/process. Query/context are borrowed.
+    char*        m_Names;           // Owned contiguous storage for all declaration strings.
+    uint32_t     m_DependencyStart; // First resolved index in DSStore::m_SystemDependencies.
+    uint8_t      m_DependencyCount; // Number of packed dependency names, at most DS_SYSTEM_MAX_DEPENDENCIES.
+    uint8_t      m_State;           // Pending, running or complete in the current schedule.
+};
+
 struct DSStore
 {
-    dmArray<DSRowPage>       m_Pages;           // Owned backing pages and reusable descriptor slots.
-    uint32_t                 m_PageSize;        // Configured backing allocation bytes.
-    uint32_t                 m_RowChunkSize;    // Configured chunk allocation bytes.
-    uint32_t                 m_FreePage;        // First page with free chunks, or UINT32_MAX.
-    uint32_t                 m_FreePageSlot;    // First recycled page descriptor, or UINT32_MAX.
-    uint32_t                 m_SparePageCount;  // Empty pages currently available for reuse.
-    uint32_t                 m_MaxSparePages;   // Limit on retained empty pages; excess pages are freed.
-    dmArray<DSTable*>        m_Tables;          // Owned runtime tables.
-    dmArray<DSSlot>          m_Slots;           // Stable row ID slots and free-list links.
-    dmArray<HDSQuery>        m_Queries;         // Borrowed live queries; callers destroy them before the store.
-    uint32_t                 m_FreeSlotCount;   // Reusable slots; excludes retired generations.
-    uint32_t                 m_FreeSlot;        // First unused row ID slot, or UINT32_MAX.
-    DSBlobPool*              m_Pools;           // Owned resource pools, linked by DSBlobPool::m_Next.
-    dmMutex::HMutex          m_Mutex;           // Protects structural changes and query admission/release.
-    dmObjectPool<HDSQuery>   m_ActiveQueries;   // Dense pool of currently reserved query handles.
-    uint64_t                 m_Revision;        // Structural revision used to refresh cached query ranges.
-    uint64_t                 m_NextTableSerial; // Next unique table registration number.
+    dmArray<DSRowPage>            m_Pages;              // Owned backing pages and reusable descriptor slots.
+    uint32_t                      m_PageSize;           // Configured backing allocation bytes.
+    uint32_t                      m_RowChunkSize;       // Configured chunk allocation bytes.
+    uint32_t                      m_FreePage;           // First page with free chunks, or UINT32_MAX.
+    uint32_t                      m_FreePageSlot;       // First recycled page descriptor, or UINT32_MAX.
+    uint32_t                      m_SparePageCount;     // Empty pages currently available for reuse.
+    uint32_t                      m_MaxSparePages;      // Limit on retained empty pages; excess pages are freed.
+    dmArray<DSTable*>             m_Tables;             // Owned runtime tables.
+    dmArray<DSSlot>               m_Slots;              // Stable row ID slots and free-list links.
+    dmArray<HDSQuery>             m_Queries;            // Borrowed live queries; callers destroy them before the store.
+    uint32_t                      m_FreeSlotCount;      // Reusable slots; excludes retired generations.
+    uint32_t                      m_FreeSlot;           // First unused row ID slot, or UINT32_MAX.
+    DSBlobPool*                   m_Pools;              // Owned resource pools, linked by DSBlobPool::m_Next.
+    dmMutex::HMutex               m_Mutex;              // Protects structural changes and query admission/release.
+    dmObjectPool<HDSQuery>        m_ActiveQueries;      // Dense pool of currently reserved query handles.
+    uint64_t                      m_Revision;           // Structural revision used to refresh cached query ranges.
+    uint64_t                      m_NextTableSerial;    // Next unique table registration number.
+    dmArray<DSSystemRegistration> m_Systems;            // Owned callback/event registrations; removal swaps the last entry.
+    dmArray<uint32_t>             m_SystemDependencies; // Resolved registration indices, rebuilt after registration changes.
+    HJobContext                   m_ScheduleJobs;       // Borrowed execution context for the current schedule; never owned by the store.
+    bool                          m_ScheduleDirty;      // Registration changes require dependency resolution and cycle detection.
+    bool                          m_ScheduleActive;     // Invocation open; published under m_Mutex for query/store lifetime checks.
 };
 
 // One requested field resolved for one matching table. Cached metadata

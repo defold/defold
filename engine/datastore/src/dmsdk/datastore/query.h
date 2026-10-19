@@ -198,7 +198,7 @@ extern "C"
  *
  * @name DSDestroyQuery
  * @param query [type:HDSQuery] Query whose store is still alive.
- * @return result [type:DSResult] OK, or LOCKED while query reservations are active.
+ * @return result [type:DSResult] OK, or LOCKED while query reservations are active or this query is registered in an active schedule.
  */
 
 /*# Reserve query access

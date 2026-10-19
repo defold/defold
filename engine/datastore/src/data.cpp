@@ -256,13 +256,16 @@ HDSContext  DSCreateStore(const DSCreateParams* params)
     store->m_Mutex = dmMutex::New();
     store->m_Revision = 1;
     store->m_NextTableSerial = 0;
+    store->m_ScheduleDirty = true;
+    store->m_ScheduleActive = false;
+    store->m_ScheduleJobs = 0;
     return store;
 }
 
 DSResult DSDestroyStore(HDSContext store)
 {
     dmMutex::Lock(store->m_Mutex);
-    if (store->m_ActiveQueries.Size())
+    if (store->m_ScheduleActive || store->m_ActiveQueries.Size())
     {
         dmMutex::Unlock(store->m_Mutex);
         return DS_RESULT_LOCKED;
@@ -272,6 +275,8 @@ DSResult DSDestroyStore(HDSContext store)
         DeleteBlobPool(store->m_Pools);
     for (uint32_t i = 0; i < store->m_Tables.Size(); ++i)
         DeleteTable(store, store->m_Tables[i]);
+    for (uint32_t i = 0; i < store->m_Systems.Size(); ++i)
+        free(store->m_Systems[i].m_Names);
     dmMutex::Unlock(store->m_Mutex);
     dmMutex::Delete(store->m_Mutex);
     DeleteRowPages(store);

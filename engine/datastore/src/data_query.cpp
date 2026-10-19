@@ -213,6 +213,13 @@ DSResult DSDestroyQuery(HDSQuery query)
     DM_MUTEX_SCOPED_LOCK(query->m_Store->m_Mutex);
     if (query->m_Store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
+    if (query->m_Store->m_ScheduleActive)
+    {
+        const dmArray<DSSystemRegistration>& systems = query->m_Store->m_Systems;
+        for (uint32_t i = 0; i < systems.Size(); ++i)
+            if (systems[i].m_Desc.m_Query == query)
+                return DS_RESULT_LOCKED;
+    }
     dmArray<HDSQuery>& queries = query->m_Store->m_Queries;
     for (uint32_t i = 0; i < queries.Size(); ++i)
     {

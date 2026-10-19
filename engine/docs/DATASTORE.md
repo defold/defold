@@ -620,9 +620,113 @@ including when exhausted. Parents must remain alive at the same address. There a
 per-row lifetime checks. Field handles last until query destruction; borrowed
 value pointers must also be reacquired after mutations affecting their storage.
 
+### Registering query callbacks
+
+[scheduler.h](../datastore/src/dmsdk/datastore/scheduler.h) registers a query,
+processing function and user context under a name in the existing `HDSContext`.
+The store owns the copied descriptor and dependency strings; queries and user
+contexts remain caller-owned. Unregister callbacks between schedules before releasing
+their queries, or finish callbacks, end the schedule and destroy queries at teardown.
+Destroying the store frees remaining registrations without invoking callbacks.
+
+```cpp
+DSSystemDesc desc = {
+    .m_Name = "game.boids.steer",
+    .m_DependsOn = { "game.boids.cells" },
+    .m_Query = boids_query,
+    .m_Process = SteerBoids,
+    .m_Context = boids_context,
+};
+DSResult result = DSRegisterFunction(store, &desc);
+```
+
+Between schedules, remove the registration by name:
+
+```cpp
+DSResult result = DSUnregisterFunction(store, "game.boids.steer");
+```
+
+This returns `DS_RESULT_NOT_FOUND` if the name is not registered. The query and
+user context remain caller-owned.
+
+The callback signature is `void SteerBoids(HDSQuery query, uint32_t first,
+uint32_t num_rows, void* context)`. The scheduler reserves the query and submits
+**one job per ready function**, covering the whole query, including an empty query.
+The callback uses `DSQueryIterRange`. Returning finishes its work; it must not
+leave child jobs running or retain iterators/pointers. Job completion releases the
+reservation and automatically submits newly unblocked functions.
+
+| Operation | Responsibility |
+| --- | --- |
+| `DSBeginSchedule(store, jobs)` | Borrow the caller's `HJobContext`, resolve dependencies, reset invocation state and submit ready functions. |
+| `DSSchedulerEvent(store, name)` | Signal the start of a stage and submit functions whose event/dependency/access requirements are satisfied. `BUSY` leaves the event unsignaled until its own prerequisites finish. |
+| `DSSchedulerUpdate(store)` | Pump job completion and retry access blocked by external reservations. Returns `OK` when all functions finished; `BUSY` while any await jobs, events or access. |
+| `DSEndSchedule(store)` | End the invocation. Returns `BUSY` while submitted jobs await completion; otherwise discards unsubmitted functions and unsignaled events. |
+
+Use one main thread for these operations and for pumping the borrowed job context.
+The datastore creates no threads and never destroys the context. With zero workers,
+`DSSchedulerUpdate` executes at most one queued job on the calling thread. With
+workers, jobs run there. The normal engine `JobSystemUpdate` also delivers the
+scheduler's completion callbacks, which automatically submit ready dependents.
+`DSSchedulerUpdate` may service other users of that shared context; do not call it
+recursively from a job or completion callback.
+
+Read/read access and disjoint writes may overlap. Overlapping read/write or
+write/write access waits through the query reservation checker, including
+external reservations. `m_DependsOn` imposes completion order even on read-only
+queries; access conflicts alone do not promise an order. Dependency indices are
+cached until registration changes; query conflicts follow current table matches.
+Every named prerequisite must be registered as a function or event.
+
+### Engine events
+
+Register engine milestones in the same graph. An entry event starts dependent
+work; a consumer boundary can depend on functions whose output it needs:
+
+```cpp
+DSEventDesc begin = { .m_Name = "engine.gameobject.update.begin" };
+DSEventDesc end = {
+    .m_Name = "engine.gameobject.update.end",
+    .m_DependsOn = { "game.boids.steer" },
+};
+DSRegisterEvent(store, &begin);
+DSRegisterEvent(store, &end);
+
+// The first Boids function depends on engine.gameobject.update.begin.
+DSResult result = DSBeginSchedule(store, jobs);
+
+// Start the stage: the scheduler submits ready functions to the job system.
+result = DSSchedulerEvent(store, "engine.gameobject.update.begin");
+
+// Service completion during the engine update. The scheduler handles job chaining.
+result = DSSchedulerUpdate(store);
+
+// BUSY: continue pumping and retry before entering dependent engine code.
+// OK: this boundary's prerequisites finished; the engine may proceed.
+result = DSSchedulerEvent(store, "engine.gameobject.update.end");
+
+// Finish once all submitted jobs have delivered their completion callbacks.
+result = DSEndSchedule(store);
+```
+
+Signaling queues jobs without waiting for them. Scheduler records and dependency
+indices are reused; submitting jobs may grow the borrowed job system's storage.
+Signal each event once per invocation; a duplicate signal is invalid.
+`DSBeginSchedule` resets all signals, so a previous frame cannot release this frame's
+work. `DSUnregisterEvent` removes an event between schedules. Names and dependencies
+are copied at registration and share the function namespace.
+
+Engine call sites are not wired yet; these names are examples. The host must wait
+for the relevant completion boundary before existing component code reads or writes
+the same transforms. Only registered query access is protected; raw engine accesses
+need explicit ordering. An entry dependency specifies the earliest start, not a
+completion deadline. Use a separate invocation for each fixed step or collection
+scope; only query that scope's rows.
+
 ### Parallel access and structural changes
 
-The library provides synchronization; the caller owns threads and jobs.
+The library provides synchronization; the caller owns the job context. Registered
+functions use scheduler-managed reservations; direct query users manage their own.
 `DSQueryTryBegin` holds the store mutex while checking conflicts, refreshing row
 ranges and recording an active reservation. It then releases the mutex, but the
 reservation remains active throughout iteration. Structural operations acquire
@@ -703,6 +807,7 @@ Serialization and generic construction values remain in the private [data.h](../
 | --- | --- | --- |
 | [data.cpp](../datastore/src/data.cpp) | [datastore.h](../datastore/src/dmsdk/datastore/datastore.h) | Store creation/destruction. Native row lifecycle is declared in [table.h](../datastore/src/dmsdk/datastore/table.h); resource instances in [blob.h](../datastore/src/dmsdk/datastore/blob.h). |
 | [data_query.cpp](../datastore/src/data_query.cpp) | [query.h](../datastore/src/dmsdk/datastore/query.h) | Query matching, field bindings, cached ranges and access reservations. |
+| [scheduler.cpp](../datastore/src/scheduler.cpp) | [scheduler.h](../datastore/src/dmsdk/datastore/scheduler.h) | Named query callback registrations and copied dependency declarations. |
 | [data_iter.cpp](../datastore/src/data_iter.cpp) | [iter.h](../datastore/src/dmsdk/datastore/iter.h) | Batch, row and field traversal, including iterator value access. |
 | [data_field.cpp](../datastore/src/data_field.cpp) | [field.h](../datastore/src/dmsdk/datastore/field.h) | Value representation, construction validation, field get/set and reset. |
 | [data_container.cpp](../datastore/src/data_container.cpp) | [container.h](../datastore/src/dmsdk/datastore/container.h) | Borrowed reads of struct members and mixed list elements. |

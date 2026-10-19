@@ -124,13 +124,13 @@ extern "C"
  * @enum
  * @name DSResult
  * @member DS_RESULT_OK Operation succeeded (0).
- * @member DS_RESULT_NOT_FOUND Table, row or field was not found (-1).
- * @member DS_RESULT_LOCKED An operation requires no active query reservations (-3).
+ * @member DS_RESULT_NOT_FOUND Table, row, field, system or event was not found (-1).
+ * @member DS_RESULT_LOCKED An operation requires query reservations or a schedule to finish (-3).
  * @member DS_RESULT_INVALID_ARGUMENT Invalid argument, value or count (-4).
- * @member DS_RESULT_ALREADY_EXISTS Table type or field name is duplicated (-5).
+ * @member DS_RESULT_ALREADY_EXISTS Table type, field name or function/event name is duplicated (-5).
  * @member DS_RESULT_BUFFER_TOO_SMALL The output buffer is too small (-6).
  * @member DS_RESULT_INVALID_FORMAT The serialized blob is malformed or has an unsupported version (-7).
- * @member DS_RESULT_BUSY Query already active, conflicting access, or store mutation in progress (-8).
+ * @member DS_RESULT_BUSY Unfinished schedule work, query already active, conflicting access, or store mutation in progress (-8).
  */
 
 /*# Value kinds

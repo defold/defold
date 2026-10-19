@@ -1,6 +1,6 @@
 # Datastore
 
-A C API for typed rows, field queries and caller-scheduled jobs. Include
+A C API for typed rows, field queries and job scheduling. Include
 `<dmsdk/datastore/datastore.h>` and link the `datastore` library. The library
 uses dlib and has no dependency on game objects or third-party ECS libraries.
 
@@ -14,7 +14,10 @@ Standalone callers use `DSCreateStore(0)` and `DSDestroyStore()`. Pass `DSCreate
 - Combine `DSTag("boid")` and `DSField("position", DS_TYPE_VECTOR3, 0)` in
   `DSQueryDesc.m_Items`; no item count is needed. Create queries once, bind fields
   with `DSQueryFindField()`, and iterate using typed row getters.
-- For jobs, reserve a query with `DSQueryTryBegin()`, split its rows with
+- Register query callbacks with `DSRegisterFunction()`. Begin a schedule with
+  a caller-owned `HJobContext` and signal engine stages with `DSSchedulerEvent()`.
+  The scheduler submits ready jobs and reserves their query access until completion.
+- For caller-dispatched jobs, reserve a query with `DSQueryTryBegin()`, split its rows with
   `DSQueryIterRange()`, join the jobs, then call `DSQueryEnd()`.
   Retry rejected reservations and structural changes at the next safe point.
 

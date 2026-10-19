@@ -17,7 +17,6 @@
 #include <dlib/thread.h>
 #include <dlib/condition_variable.h>
 #include <dlib/jobsystem.h>
-#include <dlib/time.h>
 #include "../data.h"
 #include <dlib/hash.h>
 
@@ -52,6 +51,22 @@ struct BlobLifetimeTask
     dmConditionVariable::HConditionVariable m_Condition;
     uint32_t*                               m_Ready;
     bool*                                   m_Start;
+};
+
+struct ScheduledJobGate
+{
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Condition;
+    uint32_t                                m_Started;
+    bool                                    m_Release;
+};
+
+struct ScheduledJobState
+{
+    ScheduledJobGate* m_Gate;
+    uint32_t          m_Field;
+    int32_atomic_t    m_Calls;
+    double            m_Values[12];
 };
 
 static ThreadFixture CreateFixture()
@@ -483,6 +498,119 @@ static void RangeDone(HJobContext, HJob, JobSystemStatus status, void* context, 
     ASSERT_EQ(JOBSYSTEM_STATUS_FINISHED, status);
     ASSERT_EQ(0, result);
     ++*(uint32_t*)context;
+}
+
+static void ReadScheduledHealth(HDSQuery query, uint32_t first, uint32_t count, void* context)
+{
+    ScheduledJobState* state = (ScheduledJobState*)context;
+    dmAtomicIncrement32(&state->m_Calls);
+    if (state->m_Gate)
+    {
+        ScheduledJobGate* gate = state->m_Gate;
+        DM_MUTEX_SCOPED_LOCK(gate->m_Mutex);
+        ++gate->m_Started;
+        dmConditionVariable::Broadcast(gate->m_Condition);
+        while (!gate->m_Release)
+            dmConditionVariable::Wait(gate->m_Condition, gate->m_Mutex);
+    }
+    DSIterator it = DSQueryIterRange(query, first, count);
+    uint32_t   index = first;
+    while (DSIterNext(&it))
+    {
+        DSRowIterator rows = DSIterRows(&it);
+        while (DSRowIterNext(&rows))
+            state->m_Values[index++] = *DSRowIterGetNumber(&rows, state->m_Field);
+    }
+}
+
+static void RegenerateScheduledHealth(HDSQuery query, uint32_t first, uint32_t count, void* context)
+{
+    ScheduledJobState* state = (ScheduledJobState*)context;
+    dmAtomicIncrement32(&state->m_Calls);
+    DSIterator it = DSQueryIterRange(query, first, count);
+    while (DSIterNext(&it))
+    {
+        DSRowIterator rows = DSIterRows(&it);
+        while (DSRowIterNext(&rows))
+            *DSRowIterGetNumberMut(&rows, state->m_Field) += 1;
+    }
+}
+
+// One event launches both readers on workers. Their reservations exclude the writer;
+// completion automatically launches it and its observer without per-job caller dispatch.
+TEST(DataThreaded, SchedulerAutomaticJobs)
+{
+    ThreadFixture     fixture = CreateFixture();
+    ScheduledJobGate  gate = { .m_Mutex = dmMutex::New(), .m_Condition = dmConditionVariable::New() };
+    ScheduledJobState states[4] = { { .m_Gate = &gate }, { .m_Gate = &gate } };
+    DSSystemDesc      systems[] = {
+        { .m_Name = "read_first", .m_DependsOn = { "engine.update.begin" }, .m_Process = ReadScheduledHealth, .m_Context = &states[0] },
+        { .m_Name = "read_second", .m_DependsOn = { "engine.update.begin" }, .m_Process = ReadScheduledHealth, .m_Context = &states[1] },
+        { .m_Name = "regenerate", .m_DependsOn = { "engine.update.begin" }, .m_Process = RegenerateScheduledHealth, .m_Context = &states[2] },
+        { .m_Name = "observe", .m_DependsOn = { "regenerate" }, .m_Process = ReadScheduledHealth, .m_Context = &states[3] }
+    };
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        uint32_t access = i == 2 ? DS_FIELD_MUTABLE : 0;
+        systems[i].m_Query = Query(fixture.m_Store, HEALTH, DS_TYPE_NUMBER, access);
+        DSQueryItem field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Access = access, .m_Kind = DS_QUERY_ITEM_FIELD };
+        states[i].m_Field = DSQueryFindField(systems[i].m_Query, &field);
+        ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(fixture.m_Store, &systems[i]));
+    }
+    DSEventDesc begin = { .m_Name = "engine.update.begin" };
+    DSEventDesc end = { .m_Name = "engine.update.end", .m_DependsOn = { "observe" } };
+    ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(fixture.m_Store, &begin));
+    ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(fixture.m_Store, &end));
+    JobSystemCreateParams params = { .m_ThreadNamePrefix = "ds-schedule", .m_ThreadCount = 4 };
+    HJobContext           jobs = JobSystemCreate(&params);
+    for (uint32_t frame = 0; frame < 20; ++frame)
+    {
+        gate.m_Started = 0;
+        gate.m_Release = false;
+        ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(fixture.m_Store, jobs));
+        ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerUpdate(fixture.m_Store));
+        ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerEvent(fixture.m_Store, end.m_Name));
+        ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(fixture.m_Store, begin.m_Name));
+        {
+            // Both readers must reach the gate before checking exclusion;
+            // slow worker startup must not change the result.
+            DM_MUTEX_SCOPED_LOCK(gate.m_Mutex);
+            while (gate.m_Started != 2)
+                dmConditionVariable::Wait(gate.m_Condition, gate.m_Mutex);
+        }
+        ASSERT_EQ((int32_t)frame, dmAtomicGet32(&states[2].m_Calls));
+        ASSERT_EQ((int32_t)frame, dmAtomicGet32(&states[3].m_Calls));
+        ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerUpdate(fixture.m_Store));
+        ASSERT_EQ(DS_RESULT_BUSY, DSEndSchedule(fixture.m_Store));
+        ASSERT_EQ(DS_RESULT_LOCKED, DSRemoveRow(fixture.m_Store, fixture.m_Ids[0]));
+        {
+            DM_MUTEX_SCOPED_LOCK(gate.m_Mutex);
+            gate.m_Release = true;
+            dmConditionVariable::Broadcast(gate.m_Condition);
+        }
+        DSResult result;
+        do
+        {
+            result = DSSchedulerUpdate(fixture.m_Store);
+        } while (result == DS_RESULT_BUSY);
+        ASSERT_EQ(DS_RESULT_OK, result);
+        ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(fixture.m_Store, end.m_Name));
+        ASSERT_EQ(DS_RESULT_OK, DSEndSchedule(fixture.m_Store));
+        for (uint32_t i = 0; i < 4; ++i)
+            ASSERT_EQ((int32_t)frame + 1, dmAtomicGet32(&states[i].m_Calls));
+        for (uint32_t r = 0; r < 12; ++r)
+        {
+            ASSERT_EQ(50.0 + frame, states[0].m_Values[r]);
+            ASSERT_EQ(50.0 + frame, states[1].m_Values[r]);
+            ASSERT_EQ(51.0 + frame, states[3].m_Values[r]);
+        }
+    }
+    JobSystemDestroy(jobs);
+    dmConditionVariable::Delete(gate.m_Condition);
+    dmMutex::Delete(gate.m_Mutex);
+    for (uint32_t i = 0; i < 4; ++i)
+        ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(systems[i].m_Query));
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(fixture.m_Store));
 }
 
 TEST(DataThreaded, JobRangesWithOneTwoFourEightWorkers)

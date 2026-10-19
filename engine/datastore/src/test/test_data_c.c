@@ -31,6 +31,53 @@ struct ReferenceEnemy
     struct ReferenceAttributes m_State;
 };
 
+static void CountScheduledRowsFromC(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+{
+    (void)query;
+    (void)first;
+    *(uint32_t*)context += num_rows;
+}
+
+int TestDataSchedulerFromC(void)
+{
+    HDSContext  store = DSCreateStore(0);
+    DSQueryDesc query_desc = { 0 };
+    HDSQuery    query;
+    if (DSCreateQuery(store, &query_desc, &query) != DS_RESULT_OK)
+    {
+        DSDestroyStore(store);
+        return 1;
+    }
+    uint32_t     count = 0;
+    DSSystemDesc desc = {
+        .m_Name = "game.count",
+        .m_DependsOn = { "engine.update.begin" },
+        .m_Query = query,
+        .m_Process = CountScheduledRowsFromC,
+        .m_Context = &count
+    };
+    DSEventDesc                  begin = { .m_Name = "engine.update.begin" };
+    DSEventDesc                  end = { .m_Name = "engine.update.end", .m_DependsOn = { "game.count" } };
+    struct JobSystemCreateParams params = { .m_ThreadNamePrefix = "ds-c", .m_ThreadCount = 0 };
+    HJobContext                  jobs = JobSystemCreate(&params);
+    int                          ok = DSRegisterFunction(store, &desc) == DS_RESULT_OK && count == 0;
+    ok = DSRegisterEvent(store, &begin) == DS_RESULT_OK && ok;
+    ok = DSRegisterEvent(store, &end) == DS_RESULT_OK && ok;
+    ok = DSBeginSchedule(store, jobs) == DS_RESULT_OK && ok;
+    ok = DSSchedulerEvent(store, end.m_Name) == DS_RESULT_BUSY && ok;
+    ok = DSSchedulerEvent(store, begin.m_Name) == DS_RESULT_OK && ok;
+    ok = DSEndSchedule(store) == DS_RESULT_BUSY && ok;
+    ok = DSSchedulerUpdate(store) == DS_RESULT_OK && ok;
+    ok = DSSchedulerEvent(store, end.m_Name) == DS_RESULT_OK && ok;
+    ok = DSEndSchedule(store) == DS_RESULT_OK && ok;
+    JobSystemDestroy(jobs);
+    ok = DSUnregisterEvent(store, end.m_Name) == DS_RESULT_OK && ok;
+    ok = DSUnregisterEvent(store, begin.m_Name) == DS_RESULT_OK && ok;
+    ok = DSUnregisterFunction(store, desc.m_Name) == DS_RESULT_OK && ok;
+    ok = DSDestroyQuery(query) == DS_RESULT_OK && ok;
+    return DSDestroyStore(store) == DS_RESULT_OK && ok ? 0 : 1;
+}
+
 int TestDataStoreLifecycleFromC(void)
 {
     DSCreateParams params = { .m_PageSize = 512 * 1024, .m_RowChunkSize = 64 * 1024 };

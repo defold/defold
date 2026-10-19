@@ -17,6 +17,7 @@
 
 #include <dmsdk/datastore/types.h>
 #include <dmsdk/datastore/query.h>
+#include <dmsdk/datastore/scheduler.h>
 #include <dmsdk/datastore/iter.h>
 #include <dmsdk/datastore/field.h>
 #include <dmsdk/datastore/container.h>
@@ -48,7 +49,7 @@ extern "C"
 
 /*# Data API
  *
- * Datastore lifetime. Includes the query, iterator and field APIs.
+ * Datastore lifetime. Includes the query, scheduler, iterator and field APIs.
  *
  * @document
  * @name DS
@@ -88,12 +89,13 @@ extern "C"
 
 /*# Destroy a store
  *
- * Frees the store and its tables/rows. Destroy queries and finish all access first.
- * Borrowed blob memory remains caller-owned.
+ * Frees the store, tables/rows and callback/event registrations. Finish callbacks and all
+ * access, end any schedule, then destroy queries. Borrowed blobs and callback contexts
+ * remain caller-owned; destruction does not invoke callbacks.
  *
  * @name DSDestroyStore
  * @param store [type:HDSContext] Store owned by the caller.
- * @return result [type:DSResult] OK, or LOCKED while reserved by queries; leaves the store intact on failure.
+ * @return result [type:DSResult] OK, or LOCKED during a schedule or query reservation; leaves the store intact on failure.
  */
 
 #endif // DMSDK_DATASTORE_H
