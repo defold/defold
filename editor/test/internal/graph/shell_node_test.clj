@@ -127,8 +127,8 @@
           (is (in/shell-node? (g/node-by-id (g/now) shell)))
           (is (not (contains? (g/cache) (gt/endpoint shell :result)))))))))
 
-;; A failed materialization's deletions must not remove user data for a node
-;; that is successfully recreated by a retry in the same evaluation-context.
+;; Failure after deletion tracking changes must restore the evaluation-context,
+;; preserving user data for a node recreated by a successful retry.
 (deftest failed-materialization-restores-deletion-tracking-test
   (with-clean-system
     (let [[shell child] (g/take-node-ids 2)
@@ -136,26 +136,32 @@
       (g/transact
         (g/add-node
           (g/construct-shell ShellTestNode {:_node-id shell}
-            (fn materialize-fn [self evaluation-context]
-              (if-not @fail
-                [(g/add-node (g/construct ShellTestNode :_node-id child :value 5))
-                 (g/set-property self :value 7)]
-                (g/callback
-                  (fn delete-child-and-fail []
-                    (it/transact-in-evaluation-context!
-                      evaluation-context
-                      (g/add-node (g/construct ShellTestNode :_node-id child)))
-                    (it/transact-in-evaluation-context! evaluation-context (g/delete-node child))
-                    (throw (ex-info "materialization failed" {})))))))))
-      (let [evaluation-context (g/make-evaluation-context)]
-        (is (thrown-with-msg? ExceptionInfo #"materialization failed"
-                              (g/materialize-node! shell evaluation-context)))
-        (reset! fail false)
-        (is (= 7 (g/node-value shell :result evaluation-context)))
-        (g/user-data! child :marker :retained)
-        (g/update-system-from-evaluation-context! evaluation-context)
-        (is (= :retained (g/user-data child :marker)))
-        (is (= 5 (g/node-value child :result)))))))
+            (fn materialize-fn [self _evaluation-context]
+              [(g/add-node (g/construct ShellTestNode :_node-id child :value 5))
+               (if @fail
+                 (g/delete-node child)
+                 (g/set-property self :value 7))]))))
+      (let [{:keys [nodes-deleted-atom] :as evaluation-context} (g/make-evaluation-context)
+            initial-nodes-deleted @nodes-deleted-atom]
+        ;; Atom watches run after the change. Remove this watch before throwing
+        ;; so rollback and the subsequent retry can complete normally.
+        (add-watch nodes-deleted-atom ::fail-after-deletion
+                   (fn fail-after-deletion [watch-key watched-atom _old-nodes-deleted nodes-deleted]
+                     (when (contains? nodes-deleted child)
+                       (remove-watch watched-atom watch-key)
+                       (throw (ex-info "materialization failed" {})))))
+        (try
+          (is (thrown-with-msg? ExceptionInfo #"materialization failed"
+                                (g/materialize-node! shell evaluation-context)))
+          (is (identical? initial-nodes-deleted @nodes-deleted-atom))
+          (reset! fail false)
+          (is (= 7 (g/node-value shell :result evaluation-context)))
+          (g/user-data! child :marker :retained)
+          (g/update-system-from-evaluation-context! evaluation-context)
+          (is (= :retained (g/user-data child :marker)))
+          (is (= 5 (g/node-value child :result)))
+          (finally
+            (remove-watch nodes-deleted-atom ::fail-after-deletion)))))))
 
 (deftest deferred-materialization-test
   (with-clean-system
@@ -293,8 +299,8 @@
         (g/update-system-from-evaluation-context! evaluation-context)
         (is (= "materialized" (g/node-value node-id :identity)))))))
 
-;; Failed materialization must restore evicted entries along with the basis,
-;; so subsequent reads can reuse the original cached values.
+;; Failure after cache eviction must restore the evaluation-context's cache
+;; alongside its basis, allowing subsequent reads to reuse cached values.
 (deftest failed-materialization-restores-evaluation-context-cache-test
   (with-clean-system
     (let [cached-node (g/make-node! ShellTestNode :value 7)
@@ -303,23 +309,30 @@
       (g/transact
         (g/add-node
           (g/construct-shell ShellTestNode {:_node-id shell}
-            (fn materialize-fn [_self evaluation-context]
-              (g/callback
-                (fn invalidate-cached-output []
-                  (it/transact-in-evaluation-context!
-                    evaluation-context
-                    (g/connect source :result cached-node :dependency))
-                  (is (= 11 (g/node-value cached-node :result evaluation-context)))
-                  (throw (ex-info "materialization failed" {}))))))))
+            (fn materialize-fn [_self _evaluation-context]
+              (g/connect source :result cached-node :dependency)))))
       (is (= 7 (g/node-value cached-node :result)))
       (let [trace (atom nil)
-            evaluation-context (g/make-evaluation-context {:tracer (g/make-tree-tracer trace)})]
-        (is (thrown-with-msg? ExceptionInfo #"materialization failed"
-                              (g/materialize-node! shell evaluation-context)))
-        (reset! trace nil)
-        (is (= 7 (g/node-value cached-node :result evaluation-context)))
-        (is (= :cache (:output-type @trace)))
-        (is (= 7 (g/node-value cached-node :result)))))))
+            {:keys [cache-atom] :as evaluation-context} (g/make-evaluation-context {:tracer (g/make-tree-tracer trace)})
+            initial-cache @cache-atom
+            cached-endpoint (gt/endpoint cached-node :result)]
+        ;; Fail only after the real transaction evicts the retained entry.
+        (add-watch cache-atom ::fail-after-cache-eviction
+                   (fn fail-after-cache-eviction [watch-key watched-atom old-cache new-cache]
+                     (when (and (contains? old-cache cached-endpoint)
+                                (not (contains? new-cache cached-endpoint)))
+                       (remove-watch watched-atom watch-key)
+                       (throw (ex-info "materialization failed" {})))))
+        (try
+          (is (thrown-with-msg? ExceptionInfo #"materialization failed"
+                                (g/materialize-node! shell evaluation-context)))
+          (is (identical? initial-cache @cache-atom))
+          (reset! trace nil)
+          (is (= 7 (g/node-value cached-node :result evaluation-context)))
+          (is (= :cache (:output-type @trace)))
+          (is (= 7 (g/node-value cached-node :result)))
+          (finally
+            (remove-watch cache-atom ::fail-after-cache-eviction)))))))
 
 (deftest materialization-replays-non-undoable-changes-test
   (with-clean-system
@@ -1221,7 +1234,46 @@
               (deliver release true)
               (future-cancel old-result))))))))
 
-;; Loaders may initialize new nodes, but cannot remove or replace pre-existing graph state.
+;; Reject transactions using the materialize-fn's evaluation-context before any
+;; steps run, including deferred callbacks that retain that evaluation-context
+;; and its earlier phase.
+(deftest materialization-rejects-transactions-while-producing-tx-data-test
+  (doseq [deferred [false true]]
+    (testing (str "Deferred transaction execution: " deferred)
+      (with-clean-system
+        (let [source (g/make-node! ShellTestNode :value 5)
+              [shell child] (g/take-node-ids 2)
+              executed (atom false)]
+          (g/transact
+            (g/add-node
+              (g/construct-shell ShellTestNode {:_node-id shell}
+                (fn materialize-fn [_self evaluation-context]
+                  (let [transact-fn
+                        (fn transact-during-tx-data-production []
+                          (it/transact-in-evaluation-context!
+                            evaluation-context
+                            [(g/callback (fn record-execution [] (reset! executed true)))
+                             (g/add-node (g/construct ShellTestNode :_node-id child))
+                             (g/set-property source :value 9)])
+                          nil)]
+                    (if deferred
+                      (g/callback transact-fn)
+                      (transact-fn)))))))
+          (let [evaluation-context (g/make-evaluation-context)
+                initial-basis @(:basis-ref evaluation-context)
+                error (try
+                        (g/materialize-node! shell evaluation-context)
+                        (catch ExceptionInfo exception exception))]
+            (is (= {:node-id shell
+                    :phase :producing-tx-data}
+                   (ex-data error)))
+            (is (not @executed))
+            (is (identical? initial-basis @(:basis-ref evaluation-context)))
+            (is (nil? (g/node-by-id @(:basis-ref evaluation-context) child)))
+            (is (= 5 (g/node-value source :result evaluation-context)))))))))
+
+;; Loaders may initialize new nodes, but cannot remove or replace pre-existing
+;; graph state.
 (deftest materialization-rejects-destructive-steps-test
   (doseq [action [:delete :disconnect :replace :graph-value :transfer-overrides]]
     (with-clean-system

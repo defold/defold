@@ -93,7 +93,7 @@
 ;; Executing transactions
 ;; ---------------------------------------------------------------------------
 
-(declare apply-evaluation-context)
+(declare apply-evaluation-context-changes!)
 
 (defn- realize-tx-impl
   [ctx undoable-changes tx-data evaluation-context]
@@ -110,7 +110,7 @@
             ;; before executing the step, without realizing later producers early.
             (let [ctx (if-not evaluation-context
                         ctx
-                        (apply-evaluation-context ctx evaluation-context))]
+                        (apply-evaluation-context-changes! ctx evaluation-context))]
               (cond
                 (nil? tx-step)
                 (pair ctx mutated-undoable-changes)
@@ -135,7 +135,7 @@
                         mutated-undoable-changes))))))]
     (pair (if-not evaluation-context
             ctx
-            (apply-evaluation-context ctx evaluation-context))
+            (apply-evaluation-context-changes! ctx evaluation-context))
           (or mutated-undoable-changes undoable-changes))))
 
 (defn realize-tx
@@ -154,7 +154,7 @@
      :node-id-generator (:node-id-generator ctx)
      :override-id-generator (:override-id-generator ctx)}))
 
-(defn- apply-evaluation-context [ctx evaluation-context]
+(defn- apply-evaluation-context-changes! [ctx evaluation-context]
   (let [changes-atom (:changes-atom evaluation-context)
         transaction-changes @changes-atom]
     (if (coll/empty? transaction-changes)
@@ -424,7 +424,7 @@
   [ctx undoable-changes root-id traverse-fn init-props-fn init-fn properties-by-node-id]
   (let [evaluation-context (make-evaluation-context ctx)
         _ (materialize-node! root-id evaluation-context)
-        ctx (apply-evaluation-context ctx evaluation-context)
+        ctx (apply-evaluation-context-changes! ctx evaluation-context)
         basis (:basis ctx)
         node-ids (ig/pre-traverse basis [root-id] traverse-fn)
         override-id (next-override-id ctx)
@@ -445,7 +445,7 @@
         [ctx undoable-changes] (realize-add-override ctx undoable-changes override-id root-id traverse-fn init-props-fn)
         evaluation-context (make-evaluation-context ctx)
         tx-data (init-fn evaluation-context original-node-id->override-node-id)]
-    (realize-tx-impl (apply-evaluation-context ctx evaluation-context) undoable-changes tx-data evaluation-context)))
+    (realize-tx-impl (apply-evaluation-context-changes! ctx evaluation-context) undoable-changes tx-data evaluation-context)))
 
 (defn- node-id->override-id [basis node-id]
   (->> node-id
@@ -587,7 +587,7 @@
 
 (defn- realize-transfer-overrides
   [{:keys [active-materialization] :as ctx} undoable-changes from-id->to-id]
-  (when (:post-prerequisites-basis active-materialization)
+  (when active-materialization
     (throw (ex-info "Materialization cannot transfer existing overrides."
                     {:node-id (:node-id active-materialization)
                      :from-id->to-id from-id->to-id})))
@@ -775,7 +775,7 @@
   [{:keys [active-materialization] :as ctx} undoable-changes node property-label old-value new-value]
   (let [basis (:basis ctx)
         node-id (gt/node-id node)
-        _ (when (and (:post-prerequisites-basis active-materialization)
+        _ (when (and active-materialization
                      (not= (:node-id active-materialization) node-id)
                      (ig/node-by-id-at (:post-prerequisites-basis active-materialization) node-id))
             (throw (ex-info "Materialization cannot modify an existing external node."
@@ -805,7 +805,7 @@
       (if-let [setter-fn (in/property-setter node-type property-label)]
         (let [[ctx undoable-changes] ctx+undoable-changes
               [evaluation-context setter-actions] (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value new-value)]
-          (realize-tx-impl (apply-evaluation-context ctx evaluation-context) undoable-changes setter-actions evaluation-context))
+          (realize-tx-impl (apply-evaluation-context-changes! ctx evaluation-context) undoable-changes setter-actions evaluation-context))
         ctx+undoable-changes)
       ctx+undoable-changes)))
 
@@ -819,7 +819,7 @@
             _ (materialize-node! node-id evaluation-context)
             node (ig/node-by-id-at @(:basis-ref evaluation-context) node-id)
             old-value (in/node-property-value node property-label evaluation-context)
-            ctx (apply-evaluation-context ctx evaluation-context)
+            ctx (apply-evaluation-context-changes! ctx evaluation-context)
             node (ig/node-by-id-at (:basis ctx) node-id)]
         (realize-set-property-impl ctx undoable-changes node property-label old-value new-value)))))
 
@@ -836,13 +836,13 @@
             new-value (if (:inject-evaluation-context opts)
                         (apply update-fn evaluation-context old-value args)
                         (apply update-fn old-value args))
-            ctx (apply-evaluation-context ctx evaluation-context)
+            ctx (apply-evaluation-context-changes! ctx evaluation-context)
             node (ig/node-by-id-at (:basis ctx) node-id)]
         (realize-set-property-impl ctx undoable-changes node property-label old-value new-value)))))
 
 (defn- realize-clear-property
   [{:keys [active-materialization] :as ctx} undoable-changes node-id property-label]
-  (when (and (:post-prerequisites-basis active-materialization)
+  (when (and active-materialization
              (ig/node-by-id-at (:post-prerequisites-basis active-materialization) node-id))
     (throw (ex-info "Materialization cannot clear a property of an existing node."
                     {:node-id (:node-id active-materialization)
@@ -863,10 +863,10 @@
             (perform-and-conj-change ctx undoable-changes change)
             (let [evaluation-context (make-evaluation-context ctx)
                   old-value (in/node-property-value node property-label evaluation-context)
-                  ctx (apply-evaluation-context ctx evaluation-context)
+                  ctx (apply-evaluation-context-changes! ctx evaluation-context)
                   [ctx undoable-changes] (perform-and-conj-change ctx undoable-changes change)
                   [evaluation-context setter-actions] (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value nil)]
-              (realize-tx-impl (apply-evaluation-context ctx evaluation-context) undoable-changes setter-actions evaluation-context))))
+              (realize-tx-impl (apply-evaluation-context-changes! ctx evaluation-context) undoable-changes setter-actions evaluation-context))))
         (pair ctx undoable-changes)))))
 
 (defn- realize-defaults
@@ -888,7 +888,7 @@
               (let [[ctx undoable-changes] ctx+undoable-changes
                     setter-fn (in/property-setter node-type property-label)
                     [evaluation-context setter-actions] (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value)]
-                (realize-tx-impl (apply-evaluation-context ctx evaluation-context) undoable-changes setter-actions evaluation-context))
+                (realize-tx-impl (apply-evaluation-context-changes! ctx evaluation-context) undoable-changes setter-actions evaluation-context))
               ctx+undoable-changes)))))))
 
 (defn- ctx-perform-add-nodes [ctx added-nodes introduced-node-id->pkid->override-node-id]
@@ -915,7 +915,7 @@
   (if (:inject-evaluation-context opts)
     (let [evaluation-context (make-evaluation-context ctx)]
       (apply fn evaluation-context args)
-      (apply-evaluation-context ctx evaluation-context))
+      (apply-evaluation-context-changes! ctx evaluation-context))
     (do
       (apply fn args)
       ctx)))
@@ -1112,7 +1112,7 @@
     (throw (UnsupportedOperationException. "Materializations are not undoable."))))
 
 (defn- realize-add-nodes [{:keys [active-materialization] :as ctx} undoable-changes added-nodes]
-  (when (and (:post-prerequisites-basis active-materialization)
+  (when (and active-materialization
              (coll/any? #(ig/node-by-id-at (:post-prerequisites-basis active-materialization) (gt/node-id %)) added-nodes))
     (throw (ex-info "Materialization cannot replace existing nodes."
                     {:node-id (:node-id active-materialization)
@@ -1121,7 +1121,7 @@
                    introduced-node-id->pkid->override-node-id]}
            (ig/basis-plan-add-nodes (:basis ctx) added-nodes)]
     (-> (perform-and-conj-change ctx undoable-changes
-                                 (if (:post-prerequisites-basis active-materialization)
+                                 (if active-materialization
                                    (->MaterializationAddNodesTXC added-nodes)
                                    (->AddNodesTXC added-nodes introduced-node-id->pkid->override-node-id)))
         (coll/reduce=> added-nodes
@@ -1203,7 +1203,7 @@
                    removed-node-id->pkid->override-node-id
                    removed-overrides-by-id]}
            (ig/basis-plan-delete-nodes (:basis ctx) deleted-node-ids)]
-    (let [change (if-not (:post-prerequisites-basis active-materialization)
+    (let [change (if-not active-materialization
                    (->DeleteNodesTXC deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id)
                    (let [node-ids (mapv gt/node-id deleted-nodes)]
                      (when (coll/any? #(ig/node-by-id-at (:post-prerequisites-basis active-materialization) %) node-ids)
@@ -1345,7 +1345,7 @@
 
 (defn- realize-update-graph-value
   [{:keys [active-materialization] :as ctx} undoable-changes graph-value-key update-fn args]
-  (when (:post-prerequisites-basis active-materialization)
+  (when active-materialization
     (throw (ex-info "Materialization cannot change graph values."
                     {:node-id (:node-id active-materialization)
                      :graph-value-key graph-value-key})))
@@ -1490,7 +1490,7 @@
   (if-let [{:keys [arc->source+target-pkids]}
            (ig/basis-plan-disconnect-arc (:basis ctx) arc)]
     (let [undoable (some? undoable-changes)
-          change (if-not (:post-prerequisites-basis active-materialization)
+          change (if-not active-materialization
                    (->DisconnectArcsTXC arc->source+target-pkids undoable)
                    (do
                      (when (ig/basis-plan-disconnect-arc (:post-prerequisites-basis active-materialization) arc)
@@ -1523,7 +1523,7 @@
               fast-path (and (nil? undoable-changes)
                              (:full-invalidation ctx))]
           (assert-type-compatible source-id source source-label target-id target target-label)
-          (if (:post-prerequisites-basis active-materialization)
+          (if active-materialization
             (let [old-arc (when (= :one (in/input-cardinality target-node-type target-label))
                             (first (ig/explicit-arcs-by-target basis target-id target-label)))]
               (if (= old-arc arc)
@@ -1621,7 +1621,7 @@
     (realize-tx ctx undoable-changes (apply tx-steps-fn args))
     (let [evaluation-context (make-evaluation-context ctx)
           tx-data (apply tx-steps-fn evaluation-context args)]
-      (realize-tx-impl (apply-evaluation-context ctx evaluation-context) undoable-changes tx-data evaluation-context))))
+      (realize-tx-impl (apply-evaluation-context-changes! ctx evaluation-context) undoable-changes tx-data evaluation-context))))
 
 (defonce/type ExpandTXS [tx-steps-fn args opts]
   TransactionStep
@@ -1854,7 +1854,12 @@
       finalize-update))
 
 (defn transact*
-  [ctx undoable-changes tx-data]
+  [{:keys [active-materialization] :as ctx} undoable-changes tx-data]
+  (when (and active-materialization
+             (not= :realizing-tx-data (:phase active-materialization)))
+    (throw (ex-info "Materialization can only execute transactions during the :realizing-tx-data phase."
+                    {:node-id (:node-id active-materialization)
+                     :phase (:phase active-materialization)})))
   (when *tx-debug*
     (println (txerrstr ctx "tx-data" tx-data)))
   (let [[ctx undoable-changes] (realize-tx ctx undoable-changes tx-data)
@@ -1969,7 +1974,7 @@
   call from a shell's materialize-fn, before returning its transaction steps."
   [node-id prerequisite-node-ids {:keys [active-materialization basis-ref] :as evaluation-context}]
   {:pre [(= node-id (:node-id active-materialization))
-         (nil? (:post-prerequisites-basis active-materialization))]}
+         (= :producing-tx-data (:phase active-materialization))]}
   (let [shared-materialization-registry-atom (:shared-materialization-registry-atom evaluation-context)
         prerequisite-node-ids (set prerequisite-node-ids)
         entry (get @shared-materialization-registry-atom node-id)]
@@ -1993,7 +1998,7 @@
                  (assoc-in shared-materialization-registry [node-id :prerequisite-shell-node-ids] prerequisite-node-ids))))
       (vreset! (:prerequisite-node-ids active-materialization) prerequisite-node-ids)
       (doseq [prerequisite-id prerequisite-node-ids]
-        (materialize-node! prerequisite-id (assoc-in evaluation-context [:active-materialization :materializing-prerequisites] true))
+        (materialize-node! prerequisite-id (assoc-in evaluation-context [:active-materialization :phase] :materializing-prerequisites))
         (let [node (ig/node-by-id-at @basis-ref prerequisite-id)]
           (when-let [errors (coll/not-empty (gt/get-property node @basis-ref :_output-jammers))]
             (throw (ex-info "A resource prerequisite could not be materialized."
@@ -2033,6 +2038,7 @@
         ;; transaction-contexts used for its materialization. Only explicitly
         ;; declared prerequisites may start another materialization.
         active-materialization {:node-id node-id
+                                :phase :producing-tx-data
                                 :prerequisite-node-ids (volatile! #{})}
         evaluation-context (assoc evaluation-context :active-materialization active-materialization)
         ;; The callback completes declared prerequisites before returning steps.
@@ -2059,7 +2065,9 @@
         previous-materialization-results @materialization-results-atom]
     (try
       (let [result (transact-in-evaluation-context!
-                     (assoc-in evaluation-context [:active-materialization :post-prerequisites-basis] previous-basis)
+                     (update evaluation-context :active-materialization assoc
+                             :phase :realizing-tx-data
+                             :post-prerequisites-basis previous-basis)
                      [(materialize-shell node-id) tx-data])
             materialize-info {:node-id node-id
                               :shell-node node
@@ -2092,7 +2100,8 @@
         shared-materialization-registry-atom (:shared-materialization-registry-atom evaluation-context)
         node (ig/node-by-id-at @basis-ref node-id)]
     (when (in/shell-node? node)
-      (when (and (:node-id active-materialization) (not (:materializing-prerequisites active-materialization)))
+      (when (and active-materialization
+                 (not= :materializing-prerequisites (:phase active-materialization)))
         (throw (ex-info "Undeclared nested materialization. Register the resource as a prerequisite."
                         {:ex-type :undeclared-materialization
                          :node-id (:node-id active-materialization)
