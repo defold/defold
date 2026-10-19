@@ -14,6 +14,7 @@
 
 #import "SceneDelegate.h"
 #import "AppDelegate.h"
+#import "AppDelegateProxy.h"
 #import "ViewController.h"
 
 #include "internal.h"
@@ -28,10 +29,98 @@ static int g_SceneDelegateCount = 0;
 static UIScene* g_ConnectedScene = nil;
 static BOOL g_SceneActive = NO;
 
+// UIKit queries this selector starting in iOS 27. Defold also queries extension
+// implementations on older iOS versions for the application and root controller.
+@protocol DefoldInterfaceOrientationDelegate <NSObject>
+- (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindowScene:(UIWindowScene*)scene;
+@end
+
 // Retain a snapshot so delegates may unregister/release themselves during delivery.
 static NSArray* GetSceneDelegates(void)
 {
     return [NSArray arrayWithObjects:g_SceneDelegates count:g_SceneDelegateCount];
+}
+
+static UIInterfaceOrientationMask GetOrientationMask(NSArray* orientations)
+{
+    UIInterfaceOrientationMask mask = 0;
+    for (NSString* orientation in orientations)
+    {
+        if ([@"UIInterfaceOrientationPortrait" isEqual:orientation])
+            mask |= UIInterfaceOrientationMaskPortrait;
+        else if ([@"UIInterfaceOrientationPortraitUpsideDown" isEqual:orientation])
+            mask |= UIInterfaceOrientationMaskPortraitUpsideDown;
+        else if ([@"UIInterfaceOrientationLandscapeLeft" isEqual:orientation])
+            mask |= UIInterfaceOrientationMaskLandscapeLeft;
+        else if ([@"UIInterfaceOrientationLandscapeRight" isEqual:orientation])
+            mask |= UIInterfaceOrientationMaskLandscapeRight;
+    }
+    return mask;
+}
+
+UIInterfaceOrientationMask dmNativeGetiOSDefaultInterfaceOrientations(NSDictionary* info, UIUserInterfaceIdiom idiom)
+{
+    const BOOL ipad = idiom == UIUserInterfaceIdiomPad;
+    UIInterfaceOrientationMask deviceMask = ipad ? UIInterfaceOrientationMaskAll : UIInterfaceOrientationMaskAllButUpsideDown;
+    NSString* keys[] = {
+        ipad ? @"DefoldSupportedInterfaceOrientations~ipad" : @"DefoldSupportedInterfaceOrientations",
+        @"DefoldSupportedInterfaceOrientations",
+        ipad ? @"UISupportedInterfaceOrientations~ipad" : @"UISupportedInterfaceOrientations",
+        @"UISupportedInterfaceOrientations"
+    };
+    for (unsigned int i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i)
+    {
+        NSArray* orientations = info[keys[i]];
+        if ([orientations isKindOfClass:[NSArray class]])
+        {
+            UIInterfaceOrientationMask mask = GetOrientationMask(orientations) & deviceMask;
+            if (mask)
+                return mask;
+        }
+    }
+    return deviceMask;
+}
+
+UIInterfaceOrientationMask dmNativeGetiOSSupportedInterfaceOrientations(UIWindowScene* scene, UIWindow* window)
+{
+    // Scene delegates may query the root controller's policy. Resolve nested
+    // queries from the game settings without dispatching to extensions again.
+    static BOOL queryingSceneDelegate = NO;
+    if (queryingSceneDelegate)
+        return dmNativeGetiOSDefaultInterfaceOrientations([NSBundle mainBundle].infoDictionary, [UIDevice currentDevice].userInterfaceIdiom);
+
+    if (!scene)
+        scene = (UIWindowScene*)g_ConnectedScene;
+    if (scene)
+    {
+        for (id<DefoldInterfaceOrientationDelegate> delegate in GetSceneDelegates())
+        {
+            if ([delegate respondsToSelector:@selector(supportedInterfaceOrientationsForWindowScene:)])
+            {
+                queryingSceneDelegate = YES;
+                UIInterfaceOrientationMask mask = [delegate supportedInterfaceOrientationsForWindowScene:scene];
+                queryingSceneDelegate = NO;
+                if (mask && !(mask & ~UIInterfaceOrientationMaskAll))
+                    return mask;
+                NSLog(@"Ignoring invalid interface orientation mask from scene delegate %@", delegate);
+            }
+        }
+    }
+    UIInterfaceOrientationMask legacyMask = dmNativeGetiOSLegacyInterfaceOrientations(window);
+    if (legacyMask)
+        return legacyMask;
+    return dmNativeGetiOSDefaultInterfaceOrientations([NSBundle mainBundle].infoDictionary, [UIDevice currentDevice].userInterfaceIdiom);
+}
+
+static void UpdateSupportedInterfaceOrientations(void)
+{
+    UIViewController* controller = g_ApplicationWindow.rootViewController;
+    if (!controller)
+        return;
+    if (@available(iOS 16.0, *))
+        [controller setNeedsUpdateOfSupportedInterfaceOrientations];
+    else
+        [UIViewController attemptRotationToDeviceOrientation];
 }
 
 static void SetSceneActive(BOOL active)
@@ -52,6 +141,11 @@ int dmNativeOSIsSceneActive(void)
 
 @synthesize window;
 @synthesize launchScreenView;
+
+- (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindowScene:(UIWindowScene*)scene
+{
+    return dmNativeGetiOSSupportedInterfaceOrientations(scene, self.window);
+}
 
 - (void)removeLaunchScreen
 {
@@ -242,7 +336,11 @@ void dmNativeRegisterUISceneDelegate(void* delegate)
     if (g_SceneDelegateCount == MAX_SCENE_DELEGATES)
         NSLog(@"Max UISceneDelegates reached (%d)", MAX_SCENE_DELEGATES);
     else
+    {
         g_SceneDelegates[g_SceneDelegateCount++] = (id<UISceneDelegate>)delegate;
+        if ([(id)delegate respondsToSelector:@selector(supportedInterfaceOrientationsForWindowScene:)])
+            UpdateSupportedInterfaceOrientations();
+    }
 }
 
 void dmNativeUnregisterUISceneDelegate(void* delegate)
@@ -255,6 +353,8 @@ void dmNativeUnregisterUISceneDelegate(void* delegate)
             --g_SceneDelegateCount;
             memmove(&g_SceneDelegates[i], &g_SceneDelegates[i + 1], (g_SceneDelegateCount - i) * sizeof(g_SceneDelegates[0]));
             g_SceneDelegates[g_SceneDelegateCount] = nil;
+            if ([(id)delegate respondsToSelector:@selector(supportedInterfaceOrientationsForWindowScene:)])
+                UpdateSupportedInterfaceOrientations();
             return;
         }
     }

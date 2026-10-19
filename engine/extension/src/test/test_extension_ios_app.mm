@@ -39,6 +39,81 @@ static unsigned int g_ReleasedObjects;
 @interface ReleaseObserver : NSObject
 @end
 
+@interface OrientationObserver : NSObject <UIWindowSceneDelegate>
+{
+@public
+    UIInterfaceOrientationMask m_Orientations;
+    UIWindowScene* m_LastScene;
+}
+@end
+
+@implementation OrientationObserver
+- (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindowScene:(UIWindowScene*)scene
+{
+    m_LastScene = scene;
+    return m_Orientations;
+}
+@end
+
+@interface RootPolicyOrientationObserver : NSObject <UIWindowSceneDelegate>
+{
+@public
+    unsigned int m_QueryCount;
+    BOOL m_Querying;
+}
+@end
+
+@implementation RootPolicyOrientationObserver
+- (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindowScene:(UIWindowScene*)scene
+{
+    ++m_QueryCount;
+    // Report reentry through the query count instead of overflowing the test's stack.
+    if (m_Querying)
+        return 0;
+    m_Querying = YES;
+    UIInterfaceOrientationMask mask = g_ApplicationDelegate.viewController.supportedInterfaceOrientations;
+    m_Querying = NO;
+    return mask;
+}
+@end
+
+@interface ApplicationOrientationObserver : NSObject <UIApplicationDelegate>
+{
+@public
+    UIInterfaceOrientationMask m_Orientations;
+    unsigned int m_QueryCount;
+    UIWindow* m_LastWindow;
+    BOOL m_UseRootPolicy;
+}
+@end
+
+@implementation ApplicationOrientationObserver
+- (UIInterfaceOrientationMask)application:(UIApplication*)application supportedInterfaceOrientationsForWindow:(UIWindow*)window
+{
+    ++m_QueryCount;
+    m_LastWindow = window;
+    if (m_UseRootPolicy)
+        return window.rootViewController.supportedInterfaceOrientations;
+    return m_Orientations;
+}
+@end
+
+@interface WindowOrientationObserver : ApplicationOrientationObserver
+{
+@public
+    UIWindow* m_PortraitWindow;
+}
+@end
+
+@implementation WindowOrientationObserver
+- (UIInterfaceOrientationMask)application:(UIApplication*)application supportedInterfaceOrientationsForWindow:(UIWindow*)window
+{
+    ++m_QueryCount;
+    m_LastWindow = window;
+    return window == m_PortraitWindow ? UIInterfaceOrientationMaskPortrait : UIInterfaceOrientationMaskLandscape;
+}
+@end
+
 @implementation ReleaseObserver
 - (void)dealloc
 {
@@ -146,6 +221,294 @@ public:
     }
 };
 
+static void CheckOrientationRequests(UIWindowScene* scene, UIInterfaceOrientationMask mask)
+{
+    if (@available(iOS 16.0, *))
+    {
+        UIInterfaceOrientationMask requests[] = {mask, UIInterfaceOrientationMaskPortrait, UIInterfaceOrientationMaskLandscape};
+        for (unsigned int i = 0; i < sizeof(requests) / sizeof(requests[0]); ++i)
+        {
+            UIInterfaceOrientationMask requested = requests[i];
+            BOOL supported = (mask & requested) != 0;
+            __block BOOL rejected = NO;
+            UIWindowSceneGeometryPreferencesIOS* preferences = [[[UIWindowSceneGeometryPreferencesIOS alloc] initWithInterfaceOrientations:requested] autorelease];
+            [scene requestGeometryUpdateWithPreferences:preferences errorHandler:^(NSError* error) {
+                rejected = YES;
+            }];
+            EXPECT_TRUE(WaitUntil(^BOOL {
+                return rejected || (requested & (1 << scene.effectiveGeometry.interfaceOrientation)) != 0;
+            }));
+            EXPECT_EQ(!supported, rejected);
+            EXPECT_NE(0U, mask & (1 << scene.effectiveGeometry.interfaceOrientation));
+        }
+    }
+    else
+    {
+        // Mark the test skipped instead of reporting untested geometry requests
+        // as passing. Returning from this helper lets callers clean up delegates
+        // and presented controllers; mask-only tests still run on iOS 15.
+        printf("Skipping programmatic orientation requests: requires iOS 16 or later.\n");
+        SKIP();
+    }
+}
+
+static void CheckFullscreenOrientationPolicy(UIWindowScene* scene, ViewController* controller, UIInterfaceOrientationMask mask)
+{
+    UIViewController* modal = [[[UIViewController alloc] init] autorelease];
+    modal.modalPresentationStyle = UIModalPresentationFullScreen;
+    __block BOOL presented = NO;
+    [controller presentViewController:modal animated:NO completion:^{ presented = YES; }];
+    EXPECT_TRUE(WaitUntil(^BOOL { return presented; }));
+    CheckOrientationRequests(scene, mask);
+    __block BOOL dismissed = NO;
+    [controller dismissViewControllerAnimated:NO completion:^{ dismissed = YES; }];
+    EXPECT_TRUE(WaitUntil(^BOOL { return dismissed; }));
+}
+
+static UIInterfaceOrientationMask GetExpectedBundleOrientations(void)
+{
+#if defined(DM_TEST_IOS_ORIENTATION_PORTRAIT)
+    return [UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad
+        ? UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown : UIInterfaceOrientationMaskPortrait;
+#elif defined(DM_TEST_IOS_ORIENTATION_LANDSCAPE)
+    return UIInterfaceOrientationMaskLandscape;
+#else
+    return [UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad
+        ? UIInterfaceOrientationMaskAll : UIInterfaceOrientationMaskAllButUpsideDown;
+#endif
+}
+
+static void CheckOrientationPolicy(UIWindowScene* scene, ViewController* controller, UIInterfaceOrientationMask mask, BOOL fullscreen)
+{
+    OrientationObserver* observer = [[OrientationObserver alloc] init];
+    observer->m_Orientations = mask;
+    dmPlatform::RegisteriOSSceneDelegate(observer);
+    EXPECT_EQ(mask, controller.supportedInterfaceOrientations);
+    EXPECT_EQ((void*)scene, (void*)observer->m_LastScene);
+    if (@available(iOS 27.0, *))
+        EXPECT_EQ(mask, [(id<UIWindowSceneDelegate>)scene.delegate supportedInterfaceOrientationsForWindowScene:scene]);
+    CheckOrientationRequests(scene, mask);
+    if (fullscreen)
+        CheckFullscreenOrientationPolicy(scene, controller, mask);
+    dmPlatform::UnregisteriOSSceneDelegate(observer);
+    EXPECT_EQ(GetExpectedBundleOrientations(), controller.supportedInterfaceOrientations);
+    [observer release];
+}
+
+// UIKit must apply the bundle's policy at launch, before any extension override
+// or geometry request. CMake runs default, portrait-only and landscape-only bundles.
+TEST_F(iOSSceneApplication, InitialOrientationPolicy)
+{
+    UIInterfaceOrientationMask mask = GetExpectedBundleOrientations();
+    EXPECT_EQ(mask, m_Controller.supportedInterfaceOrientations);
+    if (@available(iOS 27.0, *))
+        EXPECT_EQ(mask, [m_Delegate supportedInterfaceOrientationsForWindowScene:m_Scene]);
+    // The first engine update can precede UIKit's initial orientation transition.
+    EXPECT_TRUE(WaitUntil(^BOOL { return (mask & (1 << m_Scene.interfaceOrientation)) != 0; }));
+}
+
+// Landscape-only extension policy must reach both the iOS 27 scene callback and
+// the root controller used by older iOS, and permit an actual landscape rotation.
+TEST_F(iOSSceneApplication, LandscapeOrientationPolicy)
+{
+    CheckOrientationPolicy(m_Scene, m_Controller, UIInterfaceOrientationMaskLandscape, NO);
+}
+
+// Portrait-only policy must replace landscape on the same live scene, including
+// on older iOS versions that use the application delegate's orientation policy.
+TEST_F(iOSSceneApplication, PortraitOrientationPolicy)
+{
+    CheckOrientationPolicy(m_Scene, m_Controller, UIInterfaceOrientationMaskPortrait, NO);
+}
+
+// A plain full-screen modal must not let a landscape game rotate to portrait
+// when UIKit switches from querying the root controller to the presented one.
+TEST_F(iOSSceneApplication, LandscapePolicyDuringFullscreenPresentation)
+{
+    CheckOrientationPolicy(m_Scene, m_Controller, UIInterfaceOrientationMaskLandscape, YES);
+}
+
+// A portrait game must retain its orientation restriction while an extension's
+// full-screen controller, which also supports landscape, is presented.
+TEST_F(iOSSceneApplication, PortraitPolicyDuringFullscreenPresentation)
+{
+    CheckOrientationPolicy(m_Scene, m_Controller, UIInterfaceOrientationMaskPortrait, YES);
+}
+
+// App-wide enforcement must still allow both orientation families for dynamic
+// games, including while a full-screen native controller is presented.
+TEST_F(iOSSceneApplication, DynamicPolicyDuringFullscreenPresentation)
+{
+    CheckOrientationPolicy(m_Scene, m_Controller, UIInterfaceOrientationMaskAllButUpsideDown, YES);
+}
+
+// Without extension overrides, the bundle's policy must also constrain modals.
+// All three CMake bundle variants verify the policy through UIKit.
+TEST_F(iOSSceneApplication, BundlePolicyDuringFullscreenPresentation)
+{
+    UIInterfaceOrientationMask mask = GetExpectedBundleOrientations();
+    CheckOrientationRequests(m_Scene, mask);
+    CheckFullscreenOrientationPolicy(m_Scene, m_Controller, mask);
+}
+
+// Scene overrides must win over legacy application delegates through the proxy;
+// the last valid legacy result remains the fallback on iOS 27 and earlier.
+TEST_F(iOSSceneApplication, ApplicationOrientationPrecedence)
+{
+    UIApplication* application = [UIApplication sharedApplication];
+    ASSERT_TRUE([application.delegate respondsToSelector:@selector(application:supportedInterfaceOrientationsForWindow:)]);
+    UIWindow* window = (UIWindow*)dmPlatform::GetiOSUIWindow();
+    UIInterfaceOrientationMask fallback = GetExpectedBundleOrientations();
+    ApplicationOrientationObserver* first = [[ApplicationOrientationObserver alloc] init];
+    ApplicationOrientationObserver* second = [[ApplicationOrientationObserver alloc] init];
+    OrientationObserver* sceneObserver = [[OrientationObserver alloc] init];
+    first->m_Orientations = UIInterfaceOrientationMaskLandscape;
+    second->m_Orientations = UIInterfaceOrientationMaskPortrait;
+    sceneObserver->m_Orientations = UIInterfaceOrientationMaskLandscapeLeft;
+    dmPlatform::RegisteriOSApplicationDelegate(first);
+    dmPlatform::RegisteriOSApplicationDelegate(second);
+    dmPlatform::RegisteriOSSceneDelegate(sceneObserver);
+    EXPECT_EQ(UIInterfaceOrientationMaskLandscapeLeft, [application.delegate application:application supportedInterfaceOrientationsForWindow:window]);
+    EXPECT_EQ(UIInterfaceOrientationMaskLandscapeLeft, m_Controller.supportedInterfaceOrientations);
+    EXPECT_EQ(0U, first->m_QueryCount);
+    EXPECT_EQ(0U, second->m_QueryCount);
+    dmPlatform::UnregisteriOSSceneDelegate(sceneObserver);
+    EXPECT_EQ(UIInterfaceOrientationMaskPortrait, [application.delegate application:application supportedInterfaceOrientationsForWindow:window]);
+    EXPECT_EQ(UIInterfaceOrientationMaskPortrait, m_Controller.supportedInterfaceOrientations);
+    EXPECT_EQ((void*)window, (void*)second->m_LastWindow);
+    if (@available(iOS 27.0, *))
+        EXPECT_EQ(UIInterfaceOrientationMaskPortrait, [m_Delegate supportedInterfaceOrientationsForWindowScene:m_Scene]);
+    second->m_Orientations = (UIInterfaceOrientationMask)(UIInterfaceOrientationMaskPortrait | 1);
+    EXPECT_EQ(UIInterfaceOrientationMaskLandscape, [application.delegate application:application supportedInterfaceOrientationsForWindow:window]);
+    first->m_UseRootPolicy = YES;
+    EXPECT_EQ(fallback, [application.delegate application:application supportedInterfaceOrientationsForWindow:window]);
+    EXPECT_EQ(fallback, m_Controller.supportedInterfaceOrientations);
+    first->m_UseRootPolicy = NO;
+    first->m_Orientations = 0;
+    EXPECT_EQ(fallback, [application.delegate application:application supportedInterfaceOrientationsForWindow:window]);
+    dmPlatform::UnregisteriOSApplicationDelegate(second);
+    dmPlatform::UnregisteriOSApplicationDelegate(first);
+    EXPECT_EQ(fallback, [application.delegate application:application supportedInterfaceOrientationsForWindow:window]);
+    [sceneObserver release];
+    [second release];
+    [first release];
+}
+
+// Legacy extensions must still rotate the real scene and native modals on iOS 27,
+// even when their requested orientation differs from the bundle's fixed policy.
+TEST_F(iOSSceneApplication, LegacyOrientationDuringFullscreenPresentation)
+{
+    ApplicationOrientationObserver* observer = [[ApplicationOrientationObserver alloc] init];
+    observer->m_Orientations = (GetExpectedBundleOrientations() & UIInterfaceOrientationMaskPortrait) != 0
+        ? UIInterfaceOrientationMaskLandscape : UIInterfaceOrientationMaskPortrait;
+    dmPlatform::RegisteriOSApplicationDelegate(observer);
+    if (@available(iOS 16.0, *))
+        [m_Controller setNeedsUpdateOfSupportedInterfaceOrientations];
+    else
+        [UIViewController attemptRotationToDeviceOrientation];
+    EXPECT_EQ(observer->m_Orientations, m_Controller.supportedInterfaceOrientations);
+    CheckOrientationRequests(m_Scene, observer->m_Orientations);
+    CheckFullscreenOrientationPolicy(m_Scene, m_Controller, observer->m_Orientations);
+    EXPECT_GT(observer->m_QueryCount, 0U);
+    dmPlatform::UnregisteriOSApplicationDelegate(observer);
+    EXPECT_EQ(GetExpectedBundleOrientations(), m_Controller.supportedInterfaceOrientations);
+    [observer release];
+}
+
+// Scene delegates may read the root policy without reentering themselves or
+// consulting legacy overrides; repeated queries must still reach the delegate.
+TEST_F(iOSSceneApplication, SceneOrientationRootPolicy)
+{
+    UIApplication* application = [UIApplication sharedApplication];
+    UIWindow* window = (UIWindow*)dmPlatform::GetiOSUIWindow();
+    UIInterfaceOrientationMask fallback = GetExpectedBundleOrientations();
+    ApplicationOrientationObserver* legacy = [[ApplicationOrientationObserver alloc] init];
+    legacy->m_Orientations = fallback == UIInterfaceOrientationMaskLandscape ? UIInterfaceOrientationMaskPortrait : UIInterfaceOrientationMaskLandscape;
+    RootPolicyOrientationObserver* observer = [[RootPolicyOrientationObserver alloc] init];
+    dmPlatform::RegisteriOSApplicationDelegate(legacy);
+    dmPlatform::RegisteriOSSceneDelegate(observer);
+
+    for (unsigned int i = 0; i < 2; ++i)
+    {
+        observer->m_QueryCount = 0;
+        EXPECT_EQ(fallback, m_Controller.supportedInterfaceOrientations);
+        EXPECT_EQ(1U, observer->m_QueryCount);
+        observer->m_QueryCount = 0;
+        EXPECT_EQ(fallback, [application.delegate application:application supportedInterfaceOrientationsForWindow:window]);
+        EXPECT_EQ(1U, observer->m_QueryCount);
+        if (@available(iOS 27.0, *))
+        {
+            observer->m_QueryCount = 0;
+            EXPECT_EQ(fallback, [m_Delegate supportedInterfaceOrientationsForWindowScene:m_Scene]);
+            EXPECT_EQ(1U, observer->m_QueryCount);
+        }
+    }
+    EXPECT_EQ(0U, legacy->m_QueryCount);
+
+    dmPlatform::UnregisteriOSSceneDelegate(observer);
+    dmPlatform::UnregisteriOSApplicationDelegate(legacy);
+    [observer release];
+    [legacy release];
+}
+
+// Legacy orientation queries must preserve UIKit's window argument, including
+// secondary windows and nil, instead of substituting the game's window.
+TEST_F(iOSSceneApplication, ApplicationOrientationWindow)
+{
+    UIApplication* application = [UIApplication sharedApplication];
+    UIWindow* secondaryWindow = [[UIWindow alloc] initWithWindowScene:m_Scene];
+    WindowOrientationObserver* observer = [[WindowOrientationObserver alloc] init];
+    observer->m_PortraitWindow = secondaryWindow;
+    dmPlatform::RegisteriOSApplicationDelegate(observer);
+
+    UIWindow* windows[] = {(UIWindow*)dmPlatform::GetiOSUIWindow(), secondaryWindow, nil};
+    UIInterfaceOrientationMask masks[] = {UIInterfaceOrientationMaskLandscape, UIInterfaceOrientationMaskPortrait, UIInterfaceOrientationMaskLandscape};
+    for (unsigned int i = 0; i < sizeof(windows) / sizeof(windows[0]); ++i)
+    {
+        UIInterfaceOrientationMask mask = [application.delegate application:application supportedInterfaceOrientationsForWindow:windows[i]];
+        EXPECT_EQ(masks[i], mask);
+        EXPECT_EQ((void*)windows[i], (void*)observer->m_LastWindow);
+    }
+
+    dmPlatform::UnregisteriOSApplicationDelegate(observer);
+    [observer release];
+    [secondaryWindow release];
+}
+
+// A full-screen modal detaches the root view. Window-dependent legacy delegates
+// must still receive the game window when the root controller queries its policy.
+TEST_F(iOSSceneApplication, LegacyOrientationWindowDuringFullscreenPresentation)
+{
+    UIApplication* application = [UIApplication sharedApplication];
+    UIWindow* window = (UIWindow*)dmPlatform::GetiOSUIWindow();
+    WindowOrientationObserver* observer = [[WindowOrientationObserver alloc] init];
+    observer->m_PortraitWindow = window;
+    dmPlatform::RegisteriOSApplicationDelegate(observer);
+    EXPECT_EQ(UIInterfaceOrientationMaskPortrait, m_Controller.supportedInterfaceOrientations);
+
+    UIViewController* modal = [[[UIViewController alloc] init] autorelease];
+    modal.modalPresentationStyle = UIModalPresentationFullScreen;
+    __block BOOL presented = NO;
+    [m_Controller presentViewController:modal animated:NO completion:^{ presented = YES; }];
+    EXPECT_TRUE(WaitUntil(^BOOL { return presented; }));
+    EXPECT_EQ((void*)nil, (void*)m_Controller.viewIfLoaded.window);
+
+    EXPECT_EQ(UIInterfaceOrientationMaskPortrait, m_Controller.supportedInterfaceOrientations);
+    EXPECT_EQ((void*)window, (void*)observer->m_LastWindow);
+    EXPECT_EQ(UIInterfaceOrientationMaskPortrait, [application.delegate application:application supportedInterfaceOrientationsForWindow:window]);
+    if (@available(iOS 27.0, *))
+        EXPECT_EQ(UIInterfaceOrientationMaskPortrait, [m_Delegate supportedInterfaceOrientationsForWindowScene:m_Scene]);
+
+    __block BOOL dismissed = NO;
+    [m_Controller dismissViewControllerAnimated:NO completion:^{ dismissed = YES; }];
+    EXPECT_TRUE(WaitUntil(^BOOL { return dismissed; }));
+    EXPECT_EQ((void*)window, (void*)m_Controller.viewIfLoaded.window);
+    EXPECT_EQ(UIInterfaceOrientationMaskPortrait, m_Controller.supportedInterfaceOrientations);
+    dmPlatform::UnregisteriOSApplicationDelegate(observer);
+    EXPECT_EQ(GetExpectedBundleOrientations(), m_Controller.supportedInterfaceOrientations);
+    [observer release];
+}
+
 // Real UIKit startup must deliver each modern launch callback once, with nil
 // options, and never synthesize the legacy applicationDidFinishLaunching: callback.
 TEST_F(iOSSceneApplication, ApplicationLaunchWithoutLegacyBridge)
@@ -158,6 +521,30 @@ TEST_F(iOSSceneApplication, ApplicationLaunchWithoutLegacyBridge)
     ASSERT_EQ(0U, g_LegacyLaunchCount);
 }
 
+#if defined(DM_TEST_IOS_PRODUCTION_MANIFEST)
+// Use the production launch screen and full-screen setting to keep fixed iPad
+// games out of multitasking, while the broad iPhone mask avoids Duo letterboxing.
+TEST_F(iOSSceneApplication, ProductionManifestConfiguration)
+{
+    NSBundle* bundle = [NSBundle mainBundle];
+    // NSBundle resolves device-qualified keys; read the file to check both idioms.
+    NSDictionary* info = [NSDictionary dictionaryWithContentsOfFile:[bundle.bundlePath stringByAppendingPathComponent:@"Info.plist"]];
+    NSArray* phoneOrientations = @[@"UIInterfaceOrientationPortrait", @"UIInterfaceOrientationLandscapeLeft", @"UIInterfaceOrientationLandscapeRight"];
+    NSArray* padOrientations = @[@"UIInterfaceOrientationPortrait", @"UIInterfaceOrientationPortraitUpsideDown",
+                                 @"UIInterfaceOrientationLandscapeLeft", @"UIInterfaceOrientationLandscapeRight"];
+    EXPECT_TRUE([info[@"UIRequiresFullScreen"] boolValue]);
+    EXPECT_TRUE([info[@"UISupportedInterfaceOrientations"] isEqualToArray:phoneOrientations]);
+    EXPECT_TRUE([info[@"UISupportedInterfaceOrientations~ipad"] isEqualToArray:padOrientations]);
+    NSString* launchScreen = info[@"UILaunchStoryboardName"];
+    EXPECT_TRUE([launchScreen isEqualToString:@"LaunchScreen"]);
+    EXPECT_NE((void*)nil, (void*)[bundle pathForResource:launchScreen ofType:@"storyboardc"]);
+    NSArray* configurations = info[@"UIApplicationSceneManifest"][@"UISceneConfigurations"][@"UIWindowSceneSessionRoleApplication"];
+    ASSERT_EQ(1U, configurations.count);
+    EXPECT_TRUE([configurations[0][@"UISceneDelegateClassName"] isEqualToString:@"DefoldSceneDelegate"]);
+    EXPECT_TRUE([m_Scene.delegate isKindOfClass:[DefoldSceneDelegate class]]);
+    EXPECT_GT(g_UpdateCount, 0U);
+}
+#else
 // A manifest without UISceneConfigurations must start the engine through the
 // initial application delegate, before the launch callback installs its proxy.
 TEST_F(iOSSceneApplication, ProgrammaticSceneStartup)
@@ -174,6 +561,7 @@ TEST_F(iOSSceneApplication, ProgrammaticSceneStartup)
     ASSERT_EQ((void*)[DefoldSceneDelegate class], (void*)configuration.delegateClass);
     ASSERT_EQ(0U, g_ExtensionConfigurations);
 }
+#endif
 
 // An extension may use tag 999 after startup. Frame updates must not mistake
 // its view for the engine's launch placeholder and remove it from the window.

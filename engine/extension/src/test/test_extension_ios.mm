@@ -67,6 +67,22 @@ static int g_ReleasedSceneObservers;
 }
 @end
 
+@interface TestOrientationObserver : TestSceneObserver <UIWindowSceneDelegate>
+{
+@public
+    UIInterfaceOrientationMask m_Orientations;
+    UIWindowScene* m_LastScene;
+}
+@end
+
+@implementation TestOrientationObserver
+- (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindowScene:(UIWindowScene*)scene
+{
+    m_LastScene = scene;
+    return m_Orientations;
+}
+@end
+
 class iOSSceneDelegates : public jc_test_base_class
 {
 public:
@@ -90,6 +106,74 @@ public:
         [m_Pool drain];
     }
 };
+
+// Broad UIKit declarations must not override the game's portrait/landscape
+// policy, including upside-down portrait support on iPad and dynamic rotation.
+TEST_F(iOSSceneDelegates, GameOrientations)
+{
+    NSArray* all = @[@"UIInterfaceOrientationPortrait", @"UIInterfaceOrientationPortraitUpsideDown",
+                     @"UIInterfaceOrientationLandscapeLeft", @"UIInterfaceOrientationLandscapeRight"];
+    NSMutableDictionary* info = [NSMutableDictionary dictionaryWithObjectsAndKeys:
+        all, @"UISupportedInterfaceOrientations", all, @"UISupportedInterfaceOrientations~ipad", nil];
+    info[@"DefoldSupportedInterfaceOrientations"] = @[@"UIInterfaceOrientationLandscapeLeft", @"UIInterfaceOrientationLandscapeRight"];
+    EXPECT_EQ(UIInterfaceOrientationMaskLandscape, dmNativeGetiOSDefaultInterfaceOrientations(info, UIUserInterfaceIdiomPhone));
+    EXPECT_EQ(UIInterfaceOrientationMaskLandscape, dmNativeGetiOSDefaultInterfaceOrientations(info, UIUserInterfaceIdiomPad));
+    info[@"DefoldSupportedInterfaceOrientations"] = @[@"UIInterfaceOrientationPortrait", @"UIInterfaceOrientationPortraitUpsideDown"];
+    EXPECT_EQ(UIInterfaceOrientationMaskPortrait, dmNativeGetiOSDefaultInterfaceOrientations(info, UIUserInterfaceIdiomPhone));
+    EXPECT_EQ(UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown,
+              dmNativeGetiOSDefaultInterfaceOrientations(info, UIUserInterfaceIdiomPad));
+    info[@"DefoldSupportedInterfaceOrientations"] = all;
+    EXPECT_EQ(UIInterfaceOrientationMaskAllButUpsideDown, dmNativeGetiOSDefaultInterfaceOrientations(info, UIUserInterfaceIdiomPhone));
+    EXPECT_EQ(UIInterfaceOrientationMaskAll, dmNativeGetiOSDefaultInterfaceOrientations(info, UIUserInterfaceIdiomPad));
+}
+
+// Existing custom plists keep their orientation restrictions and iPad overrides
+// when the new Defold key is absent; missing or invalid arrays never return zero.
+TEST_F(iOSSceneDelegates, LegacyPlistOrientations)
+{
+    NSMutableDictionary* info = [NSMutableDictionary dictionaryWithObjectsAndKeys:
+        @[@"UIInterfaceOrientationPortrait"], @"UISupportedInterfaceOrientations",
+        @[@"UIInterfaceOrientationLandscapeLeft", @"UIInterfaceOrientationLandscapeRight"], @"UISupportedInterfaceOrientations~ipad", nil];
+    EXPECT_EQ(UIInterfaceOrientationMaskPortrait, dmNativeGetiOSDefaultInterfaceOrientations(info, UIUserInterfaceIdiomPhone));
+    EXPECT_EQ(UIInterfaceOrientationMaskLandscape, dmNativeGetiOSDefaultInterfaceOrientations(info, UIUserInterfaceIdiomPad));
+    info[@"DefoldSupportedInterfaceOrientations"] = @[@"invalid"];
+    EXPECT_EQ(UIInterfaceOrientationMaskLandscape, dmNativeGetiOSDefaultInterfaceOrientations(info, UIUserInterfaceIdiomPad));
+    info[@"DefoldSupportedInterfaceOrientations~ipad"] = @[@"UIInterfaceOrientationPortraitUpsideDown"];
+    EXPECT_EQ(UIInterfaceOrientationMaskPortraitUpsideDown, dmNativeGetiOSDefaultInterfaceOrientations(info, UIUserInterfaceIdiomPad));
+    EXPECT_EQ(UIInterfaceOrientationMaskPortrait, dmNativeGetiOSDefaultInterfaceOrientations(info, UIUserInterfaceIdiomPhone));
+    EXPECT_EQ(UIInterfaceOrientationMaskAllButUpsideDown, dmNativeGetiOSDefaultInterfaceOrientations(@{}, UIUserInterfaceIdiomPhone));
+    EXPECT_EQ(UIInterfaceOrientationMaskAll, dmNativeGetiOSDefaultInterfaceOrientations(@{}, UIUserInterfaceIdiomPad));
+}
+
+// Orientation overrides use registration order, ignore invalid masks, and fall
+// back to the bundle after unregistration instead of combining conflicting masks.
+TEST_F(iOSSceneDelegates, ExtensionOrientationPrecedence)
+{
+    TestSceneObserver* observer = [[TestSceneObserver alloc] init];
+    TestOrientationObserver* first = [[TestOrientationObserver alloc] init];
+    TestOrientationObserver* second = [[TestOrientationObserver alloc] init];
+    first->m_Orientations = UIInterfaceOrientationMaskLandscape;
+    second->m_Orientations = UIInterfaceOrientationMaskPortrait;
+    ExtensionRegisteriOSUISceneDelegate(observer);
+    ExtensionRegisteriOSUISceneDelegate(first);
+    dmExtension::RegisteriOSUISceneDelegate(second);
+    UIWindowScene* scene = (UIWindowScene*)m_Scene;
+    EXPECT_EQ(UIInterfaceOrientationMaskLandscape, dmNativeGetiOSSupportedInterfaceOrientations(scene, nil));
+    EXPECT_EQ((void*)scene, (void*)first->m_LastScene);
+    first->m_Orientations = 0;
+    EXPECT_EQ(UIInterfaceOrientationMaskPortrait, dmNativeGetiOSSupportedInterfaceOrientations(scene, nil));
+    first->m_Orientations = (UIInterfaceOrientationMask)(UIInterfaceOrientationMaskLandscape | 1);
+    EXPECT_EQ(UIInterfaceOrientationMaskPortrait, dmNativeGetiOSSupportedInterfaceOrientations(scene, nil));
+    ExtensionUnregisteriOSUISceneDelegate(first);
+    EXPECT_EQ(UIInterfaceOrientationMaskPortrait, dmNativeGetiOSSupportedInterfaceOrientations(scene, nil));
+    dmExtension::UnregisteriOSUISceneDelegate(second);
+    EXPECT_EQ(dmNativeGetiOSDefaultInterfaceOrientations([NSBundle mainBundle].infoDictionary, [UIDevice currentDevice].userInterfaceIdiom),
+              dmNativeGetiOSSupportedInterfaceOrientations(scene, nil));
+    ExtensionUnregisteriOSUISceneDelegate(observer);
+    [observer release];
+    [first release];
+    [second release];
+}
 
 // Both C and C++ registrations must reach the scene dispatcher; duplicate
 // registration must not deliver an event twice or leave a stale observer.
