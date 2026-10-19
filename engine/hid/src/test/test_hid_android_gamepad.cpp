@@ -166,7 +166,8 @@ TEST_F(AndroidGamepadTest, AutomaticAxes)
     // Brake and Gas are device-only axes, stored after the fixed legacy slots.
     dmNativeJoy[0].Axis[NATIVE_ANDROID_GAMEPAD_NUMAXIS + 4] = axes[4];
     dmNativeJoy[0].Axis[NATIVE_ANDROID_GAMEPAD_NUMAXIS + 5] = axes[5];
-    dmNativeJoy[0].HasAxisEvent = 1;
+    dmNativeJoy[0].AxisEventMask = ~(uint64_t)0;
+    dmNativeJoy[0].AxisInitialMask = 0;
     SelectAutomaticMapping();
     dmHID::Update(m_Context);
     ASSERT_EQ((uint32_t)dmHID::GAMEPAD_MAPPED_AXIS_COUNT, m_Gamepad->m_AxisCount);
@@ -262,7 +263,8 @@ TEST_F(AndroidGamepadTest, LegacyMapping)
     dmHID::SetGamepadMapping(m_Context, m_Gamepad, 0);
     dmNativeJoy[0].Button[3] = 1;
     dmNativeJoy[0].Axis[2] = 0.75f;
-    dmNativeJoy[0].HasAxisEvent = 1;
+    dmNativeJoy[0].AxisEventMask = ~(uint64_t)0;
+    dmNativeJoy[0].AxisInitialMask = 0;
     dmNativeJoy[0].Hats = 2;
     dmHID::Update(m_Context);
     ASSERT_TRUE(dmHID::GetGamepadButton(&m_Gamepad->m_Packet, 3));
@@ -309,7 +311,8 @@ TEST_F(AndroidGamepadTest, ReconnectTriggerActions)
 
         dmNativeJoy[0].State = 1;
         dmNativeJoy[0].LayoutLegacy = 1;
-        dmNativeJoy[0].HasAxisEvent = motion_received;
+        dmNativeJoy[0].AxisEventMask = motion_received ? ~(uint64_t)0 : 0;
+        dmNativeJoy[0].AxisInitialMask = 0;
         memset(dmNativeJoy[0].Axis, 0, sizeof(dmNativeJoy[0].Axis));
         if (motion_received)
         {
