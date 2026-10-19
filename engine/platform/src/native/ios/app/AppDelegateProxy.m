@@ -88,8 +88,7 @@ UIInterfaceOrientationMask dmNativeGetiOSLegacyInterfaceOrientations(UIWindow* w
 - (UIInterfaceOrientationMask)application:(UIApplication*)application supportedInterfaceOrientationsForWindow:(UIWindow*)window
 {
     // Keep the app-wide policy active while UIKit queries a full-screen modal.
-    // Generic forwarding would let legacy delegates overwrite scene overrides.
-    return dmNativeGetiOSSupportedInterfaceOrientations(window.windowScene, window);
+    return dmNativeGetiOSSupportedInterfaceOrientations(window);
 }
 
 - (void)forwardInvocation:(NSInvocation *)anInvocation {

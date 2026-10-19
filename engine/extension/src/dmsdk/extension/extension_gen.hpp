@@ -266,11 +266,29 @@ namespace dmExtension
      * The game window is created after application launch. Use scene connection to
      * access it, and scene connection options for cold-launch URLs and user activities.
      *
-     * application:supportedInterfaceOrientationsForWindow: is used when no scene
-     * delegate supplies a valid orientation mask, including on iOS 27 and later.
-     * The last valid legacy result in delegate dispatch order overrides the game's
-     * settings. Prefer supportedInterfaceOrientationsForWindowScene: on a registered
-     * scene delegate for new extensions.
+     * application:supportedInterfaceOrientationsForWindow: can override the game's
+     * orientation settings, including on iOS 27 and later. The last nonzero mask
+     * containing only valid UIInterfaceOrientationMask bits in delegate dispatch
+     * order is used. Invalid masks are ignored. The application, scene, and root
+     * view controller share this policy, including during full-screen presentations.
+     *
+     * The game's default mask comes from the DefoldSupportedInterfaceOrientations
+     * Info.plist array, with DefoldSupportedInterfaceOrientations~ipad taking
+     * precedence on iPad. If neither contains usable orientations, Defold falls back
+     * to UISupportedInterfaceOrientations~ipad on iPad, then
+     * UISupportedInterfaceOrientations. Arrays contain UIKit orientation names such
+     * as UIInterfaceOrientationPortrait. The default policy excludes upside-down
+     * portrait on iPhone. If no array is usable, all device-supported orientations
+     * are allowed. The built-in manifest keeps the UIKit arrays broad and uses the
+     * Defold array for the game's orientation settings.
+     *
+     * UIKit may ignore orientation restrictions, including on iPhone Duo's inner
+     * display. Games must still handle window size changes.
+     *
+     * Register before scene connection to affect the initial orientation.
+     * To update the policy after scene connection, call
+     * setNeedsUpdateOfSupportedInterfaceOrientations on the root view controller
+     * (iOS 16+) or attemptRotationToDeviceOrientation (iOS 15).
      * @name RegisteriOSUIApplicationDelegate
      * @language C++
      * @param delegate [type:void*] An id<UIApplicationDelegate>.
@@ -295,37 +313,8 @@ namespace dmExtension
      * observers receive scene connection/disconnection, activation/deactivation,
      * foreground/background, openURLContexts, continueUserActivity,
      * willContinueUserActivityWithType, didFailToContinueUserActivityWithType:error:
-     * and didUpdateUserActivity callbacks, plus the UIWindowSceneDelegate method
-     * supportedInterfaceOrientationsForWindowScene:. Other optional delegate methods
-     * are not forwarded. No legacy application lifecycle callbacks are synthesized.
-     *
-     * The first registered delegate returning a nonzero mask containing only valid
-     * UIInterfaceOrientationMask bits overrides the game's orientation settings.
-     * Invalid masks are ignored. The application, scene, and root view controller
-     * share this policy, including during full-screen native presentations. When
-     * no scene delegate supplies a valid mask, the last valid legacy
-     * application-delegate result is used before falling back to the game's settings.
-     * Defold queries this scene-delegate method on iOS 15 and later, although UIKit
-     * introduced it in iOS 27. Implementations must guard any use of newer UIKit APIs.
-     *
-     * The game's default mask comes from the DefoldSupportedInterfaceOrientations
-     * Info.plist array, with DefoldSupportedInterfaceOrientations~ipad taking
-     * precedence on iPad. If neither contains usable orientations, Defold falls back
-     * to UISupportedInterfaceOrientations~ipad on iPad, then
-     * UISupportedInterfaceOrientations. Arrays contain UIKit orientation names such
-     * as UIInterfaceOrientationPortrait. The default policy excludes upside-down
-     * portrait on iPhone. If no array is usable, all device-supported orientations
-     * are allowed. The built-in manifest keeps the UIKit arrays broad and uses the
-     * Defold array for the game's orientation settings.
-     *
-     * UIKit may ignore orientation restrictions, including on iPhone Duo's inner
-     * display. Games must still handle window size changes.
-     *
-     * Register before scene connection to affect the initial orientation.
-     * Registration and unregistration invalidate the orientation policy.
-     * After changing a delegate's return value,
-     * call setNeedsUpdateOfSupportedInterfaceOrientations on the root view controller
-     * (iOS 16+) or attemptRotationToDeviceOrientation (iOS 15).
+     * and didUpdateUserActivity callbacks. Other optional delegate methods are not
+     * forwarded. No legacy UIApplicationDelegate callbacks are synthesized.
      *
      * Register before UIApplicationMain (for example in a static constructor) to
      * receive the initial scene connection. Extension app-initialize is too late.
@@ -641,11 +630,29 @@ namespace dmExtension
  * The game window is created after application launch. Use scene connection to
  * access it, and scene connection options for cold-launch URLs and user activities.
  *
- * application:supportedInterfaceOrientationsForWindow: is used when no scene
- * delegate supplies a valid orientation mask, including on iOS 27 and later.
- * The last valid legacy result in delegate dispatch order overrides the game's
- * settings. Prefer supportedInterfaceOrientationsForWindowScene: on a registered
- * scene delegate for new extensions.
+ * application:supportedInterfaceOrientationsForWindow: can override the game's
+ * orientation settings, including on iOS 27 and later. The last nonzero mask
+ * containing only valid UIInterfaceOrientationMask bits in delegate dispatch
+ * order is used. Invalid masks are ignored. The application, scene, and root
+ * view controller share this policy, including during full-screen presentations.
+ *
+ * The game's default mask comes from the DefoldSupportedInterfaceOrientations
+ * Info.plist array, with DefoldSupportedInterfaceOrientations~ipad taking
+ * precedence on iPad. If neither contains usable orientations, Defold falls back
+ * to UISupportedInterfaceOrientations~ipad on iPad, then
+ * UISupportedInterfaceOrientations. Arrays contain UIKit orientation names such
+ * as UIInterfaceOrientationPortrait. The default policy excludes upside-down
+ * portrait on iPhone. If no array is usable, all device-supported orientations
+ * are allowed. The built-in manifest keeps the UIKit arrays broad and uses the
+ * Defold array for the game's orientation settings.
+ *
+ * UIKit may ignore orientation restrictions, including on iPhone Duo's inner
+ * display. Games must still handle window size changes.
+ *
+ * Register before scene connection to affect the initial orientation.
+ * To update the policy after scene connection, call
+ * setNeedsUpdateOfSupportedInterfaceOrientations on the root view controller
+ * (iOS 16+) or attemptRotationToDeviceOrientation (iOS 15).
  * @name ExtensionRegisteriOSUIApplicationDelegate
  * @language C
  * @param delegate [type:void*] An id<UIApplicationDelegate>.
@@ -668,37 +675,8 @@ namespace dmExtension
  * observers receive scene connection/disconnection, activation/deactivation,
  * foreground/background, openURLContexts, continueUserActivity,
  * willContinueUserActivityWithType, didFailToContinueUserActivityWithType:error:
- * and didUpdateUserActivity callbacks, plus the UIWindowSceneDelegate method
- * supportedInterfaceOrientationsForWindowScene:. Other optional delegate methods
- * are not forwarded. No legacy application lifecycle callbacks are synthesized.
- *
- * The first registered delegate returning a nonzero mask containing only valid
- * UIInterfaceOrientationMask bits overrides the game's orientation settings.
- * Invalid masks are ignored. The application, scene, and root view controller
- * share this policy, including during full-screen native presentations. When
- * no scene delegate supplies a valid mask, the last valid legacy
- * application-delegate result is used before falling back to the game's settings.
- * Defold queries this scene-delegate method on iOS 15 and later, although UIKit
- * introduced it in iOS 27. Implementations must guard any use of newer UIKit APIs.
- *
- * The game's default mask comes from the DefoldSupportedInterfaceOrientations
- * Info.plist array, with DefoldSupportedInterfaceOrientations~ipad taking
- * precedence on iPad. If neither contains usable orientations, Defold falls back
- * to UISupportedInterfaceOrientations~ipad on iPad, then
- * UISupportedInterfaceOrientations. Arrays contain UIKit orientation names such
- * as UIInterfaceOrientationPortrait. The default policy excludes upside-down
- * portrait on iPhone. If no array is usable, all device-supported orientations
- * are allowed. The built-in manifest keeps the UIKit arrays broad and uses the
- * Defold array for the game's orientation settings.
- *
- * UIKit may ignore orientation restrictions, including on iPhone Duo's inner
- * display. Games must still handle window size changes.
- *
- * Register before scene connection to affect the initial orientation.
- * Registration and unregistration invalidate the orientation policy.
- * After changing a delegate's return value,
- * call setNeedsUpdateOfSupportedInterfaceOrientations on the root view controller
- * (iOS 16+) or attemptRotationToDeviceOrientation (iOS 15).
+ * and didUpdateUserActivity callbacks. Other optional delegate methods are not
+ * forwarded. No legacy UIApplicationDelegate callbacks are synthesized.
  *
  * Register before UIApplicationMain (for example in a static constructor) to
  * receive the initial scene connection. Extension app-initialize is too late.

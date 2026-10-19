@@ -15,7 +15,7 @@
 #import <UIKit/UIKit.h>
 
 FOUNDATION_EXPORT UIInterfaceOrientationMask dmNativeGetiOSDefaultInterfaceOrientations(NSDictionary* info, UIUserInterfaceIdiom idiom);
-FOUNDATION_EXPORT UIInterfaceOrientationMask dmNativeGetiOSSupportedInterfaceOrientations(UIWindowScene* scene, UIWindow* window);
+FOUNDATION_EXPORT UIInterfaceOrientationMask dmNativeGetiOSSupportedInterfaceOrientations(UIWindow* window);
 
 @interface DefoldSceneDelegate : NSObject <UIWindowSceneDelegate>
 {

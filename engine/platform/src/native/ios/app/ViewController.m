@@ -34,7 +34,7 @@ static int g_view_type = NATIVE_NO_API;
     // A full-screen presentation detaches the root view from the game window.
     if (!window)
         window = g_ApplicationWindow;
-    return dmNativeGetiOSSupportedInterfaceOrientations(window.windowScene, window);
+    return dmNativeGetiOSSupportedInterfaceOrientations(window);
 }
 
 - (void)dealloc
