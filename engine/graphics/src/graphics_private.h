@@ -381,11 +381,14 @@ namespace dmGraphics
         BufferUsage m_Usage;
     };
 
+    struct VisibleInstanceProgram;
+
     struct Program
     {
         ProgramResourceBinding       m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         ShaderMeta                   m_ShaderMeta;
         dmArray<Uniform>             m_Uniforms;
+        VisibleInstanceProgram*      m_VisibleInstanceProgram;
         dmArray<UniformBufferLayout> m_UniformBufferLayouts;
         uint8_t                      m_MaxSet;
         uint8_t                      m_MaxBinding;

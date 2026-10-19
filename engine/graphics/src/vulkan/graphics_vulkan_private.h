@@ -234,6 +234,7 @@ namespace dmGraphics
     {
         VkSemaphore m_ImageAvailable;
         VkFence     m_SubmitFence;
+        uint64_t    m_SubmitSerial;
     };
 
     struct RenderPassAttachment

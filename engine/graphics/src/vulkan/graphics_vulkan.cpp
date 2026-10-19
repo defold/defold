@@ -64,6 +64,19 @@ namespace dmGraphics
 
     VulkanContext* g_VulkanContext = 0;
 
+    struct VulkanAsyncBufferReadback
+    {
+        VulkanAsyncBufferReadback()
+            : m_Buffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT)
+        {
+        }
+        VulkanContext* m_Context;
+        DeviceBuffer   m_Buffer;
+        uint64_t       m_SubmitSerial;
+        uint32_t       m_Size;
+        uint8_t        m_Frame;
+    };
+
     static VulkanTexture* VulkanNewTextureInternal(const TextureCreationParams& params);
     static void           VulkanDeleteTextureInternal(VulkanTexture* texture);
     static void           VulkanSetTextureInternal(VulkanContext* context, VulkanTexture* texture, const TextureParams& params);
@@ -302,6 +315,7 @@ namespace dmGraphics
 
         for(uint8_t i=0; i < frame_resource_count; i++)
         {
+            frame_resources_out[i].m_SubmitSerial = 0;
             if (vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frame_resources_out[i].m_ImageAvailable) != VK_SUCCESS ||
                 vkCreateFence(vk_device, &vk_create_fence_info, 0, &frame_resources_out[i].m_SubmitFence) != VK_SUCCESS)
             {
@@ -1934,6 +1948,7 @@ bail:
 
         // Only reset after a successful acquire. If we bail before submitting, the fence must stay signaled.
         vkResetFences(vk_device, 1, &currentFrame.m_SubmitFence);
+        ++currentFrame.m_SubmitSerial;
 
         // Flush per-swapchain-image resources to destroy
         if (context->m_MainResourcesToDestroy[frameInFlight]->Size() > 0)
@@ -2504,15 +2519,17 @@ bail:
     static HStorageBuffer VulkanNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+        DeviceBuffer*  buffer = new DeviceBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                                                VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+        VkResult       result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device, size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, buffer);
+        if (result != VK_SUCCESS)
+        {
+            DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &buffer->m_Handle);
+            delete buffer;
+            return 0;
+        }
         if (data)
             DeviceBufferUploadHelper(context, data, size, 0, buffer);
-        else
-        {
-            VkResult result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-                size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, buffer);
-            CHECK_VK_ERROR(result);
-        }
         return (HStorageBuffer) buffer;
     }
 
@@ -3373,6 +3390,12 @@ bail:
     static bool DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
     {
         PrepareProgramStorageBuffers(context, vk_command_buffer, STORAGE_BUFFER_GRAPHICS_STAGES);
+        for (uint32_t i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            DeviceBuffer* buffer = context->m_CurrentVertexBuffer[i];
+            if (buffer && context->m_CurrentVertexDeclaration[i] && (buffer->m_Usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT))
+                PrepareStorageBufferAccess(context, vk_command_buffer, buffer, VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+        }
         VulkanRenderTarget* current_rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         BeginRenderPass(context, context->m_CurrentRenderTarget);
 
@@ -3525,6 +3548,81 @@ bail:
         // but vkCmdDrawIndexed only operates with actual offset values into the index buffer
         uint32_t index_offset = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
         vkCmdDrawIndexed(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), index_offset, 0, 0);
+    }
+
+    static HAsyncBufferReadback VulkanRequestStorageBufferReadback(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        assert(context->m_FrameBegun);
+        SuspendRenderPass(context);
+        VulkanAsyncBufferReadback* request = new VulkanAsyncBufferReadback;
+        request->m_Context = context;
+        request->m_Size = size;
+        VkDevice device = context->m_LogicalDevice.m_Device;
+        VkResult result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, device, size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &request->m_Buffer);
+        CHECK_VK_ERROR(result);
+        result = request->m_Buffer.MapMemory(device);
+        CHECK_VK_ERROR(result);
+        request->m_Frame = context->m_CurrentFrameInFlight;
+        request->m_SubmitSerial = context->m_FrameResources[request->m_Frame].m_SubmitSerial;
+        TouchResource(context, &request->m_Buffer);
+        DeviceBuffer* source = (DeviceBuffer*)storage_buffer;
+        TouchResource(context, source);
+        VkCommandBuffer commands = context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
+        PrepareStorageBufferAccess(context, commands, source, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        VkBufferCopy copy = { offset, 0, size };
+        vkCmdCopyBuffer(commands, source->m_Handle.m_Buffer, request->m_Buffer.m_Handle.m_Buffer, 1, &copy);
+        VkBufferMemoryBarrier barrier = {};
+        barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+        barrier.srcQueueFamilyIndex = barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.buffer = request->m_Buffer.m_Handle.m_Buffer;
+        barrier.size = VK_WHOLE_SIZE;
+        vkCmdPipelineBarrier(commands, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 0, 0, 1, &barrier, 0, 0);
+        return (HAsyncBufferReadback)request;
+    }
+
+    static bool VulkanPollStorageBufferReadback(HAsyncBufferReadback handle, void* data)
+    {
+        VulkanAsyncBufferReadback* request = (VulkanAsyncBufferReadback*)handle;
+        FrameResource&             frame = request->m_Context->m_FrameResources[request->m_Frame];
+        // Reusing this frame slot first waits for its previous submission. A
+        // reset fence therefore cannot make an older completed snapshot pending.
+        if (frame.m_SubmitSerial == request->m_SubmitSerial &&
+            vkGetFenceStatus(request->m_Context->m_LogicalDevice.m_Device, frame.m_SubmitFence) != VK_SUCCESS)
+            return false;
+        memcpy(data, request->m_Buffer.m_MappedDataPtr, request->m_Size);
+        return true;
+    }
+
+    static void VulkanDeleteStorageBufferReadback(HAsyncBufferReadback handle)
+    {
+        VulkanAsyncBufferReadback* request = (VulkanAsyncBufferReadback*)handle;
+        DestroyResourceDeferred(request->m_Context, &request->m_Buffer);
+        delete request;
+    }
+
+    static HVertexBuffer VulkanGetStorageBufferVertexBuffer(HContext context, HStorageBuffer buffer)
+    {
+        return (HVertexBuffer)buffer;
+    }
+
+    static void VulkanDrawElementsIndirect(HContext _context, PrimitiveType primitive, Type index_type, HIndexBuffer indices, HStorageBuffer arguments, uint32_t offset)
+    {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
+        VulkanContext* context = (VulkanContext*)_context;
+        assert(context->m_FrameBegun);
+        uint8_t         frame = context->m_CurrentFrameInFlight;
+        VkCommandBuffer commands = context->m_MainCommandBuffers[frame];
+        DeviceBuffer*   buffer = (DeviceBuffer*)arguments;
+        PrepareStorageBufferAccess(context, commands, buffer, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
+        context->m_PipelineState.m_PrimtiveType = primitive;
+        if (!DrawSetup(context, commands, &context->m_MainScratchBuffers[frame], (DeviceBuffer*)indices, index_type))
+            return;
+        TouchResource(context, buffer);
+        vkCmdDrawIndexedIndirect(commands, buffer->m_Handle.m_Buffer, offset, 1, sizeof(VkDrawIndexedIndirectCommand));
     }
 
     static void VulkanDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
@@ -6297,6 +6395,11 @@ bail:
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Vulkan);
         DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Vulkan, SetSwapInterval);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Vulkan, GetStorageBufferVertexBuffer);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Vulkan, DrawElementsIndirect);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Vulkan, RequestStorageBufferReadback);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Vulkan, PollStorageBufferReadback);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Vulkan, DeleteStorageBufferReadback);
         return fn_table;
     }
 }
