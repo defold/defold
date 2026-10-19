@@ -30,11 +30,11 @@
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
            [java.io ByteArrayOutputStream File]
-           [java.nio.file Files CopyOption StandardCopyOption]
+           [java.nio.file CopyOption Files StandardCopyOption]
            [java.nio.file.attribute FileAttribute]
            [java.util Timer TimerTask]
            [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipFile]
-           [org.apache.commons.io FilenameUtils FileUtils]))
+           [org.apache.commons.io FileUtils FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -351,7 +351,7 @@
   (try
     (when-let [notes (fetch-version-notes! (system/defold-archive-domain) channel version)]
       {:markdown (entry-markdown nil {:version version
-                                       :notes (assoc notes :version (str version " " (string/capitalize channel)))})})
+                                      :notes (assoc notes :version (str version " " (string/capitalize channel)))})})
     (catch Exception e
       (log/warn :message "Failed to build channel release notes" :channel channel :exception e)
       nil)))

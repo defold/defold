@@ -14,8 +14,8 @@
 
 (ns editor.dialogs
   (:require [cljfx.api :as fx]
-            [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.composite :as fx.composite]
+            [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.fx.group :as fx.group]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.hyperlink :as fx.hyperlink]

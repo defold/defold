@@ -41,7 +41,7 @@
 
 (defn- test-urls-fixture [f]
   (with-redefs [updater/download-url
-                (fn [archive-domain sha1 channel ^Platform platform _extension]
+                (fn [_archive-domain sha1 channel ^Platform platform _extension]
                   (format "http://localhost:%s/archive/%s/%s/editor2/Defold-%s.zip"
                           test-port sha1 channel (.getPair platform)))
 
@@ -272,12 +272,12 @@
 
 (deftest check-channel-offer-test
   (let [beta {:version "1.14.0" :sha1 "B2"}
-        offer-after-check (fn [channel running-version beta-info supported]
+        offer-after-check (fn offer-after-check [channel running-version beta-info supported]
                             (let [updater (make-updater channel "S1" nil (make-temp-prefs))
                                   fetched (atom [])]
                               (with-redefs [system/defold-version (constantly running-version)
                                             updater/platform-supported? (constantly supported)
-                                            updater/fetch-channel-info! (fn [channel]
+                                            updater/fetch-channel-info! (fn fetch-channel-info! [channel]
                                                                           (swap! fetched conj channel)
                                                                           beta-info)]
                                 (#'updater/check-channel-offer! updater))
