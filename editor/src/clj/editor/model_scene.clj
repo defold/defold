@@ -640,7 +640,7 @@
         (make-renderable-models (:raw-models mesh-set) :raw-mesh-index :mesh-index mesh-set-request-id mesh-set mesh-material-index->material-name bone-id->world-transform)]
 
     (g/precluding-errors (into renderable-models initial-renderable-raw-models)
-      (let [renderable-model-by-mesh-index (coll/pair-map-by :mesh-index renderable-models)
+      (let [renderable-model-by-mesh-index (coll/pair-map-by :mesh-index identity renderable-models)
             renderable-raw-models
             (mapv (fn [renderable-raw-model]
                     (if (coll/not-empty (:renderable-meshes renderable-raw-model))
@@ -746,7 +746,7 @@
 
 (g/defnk produce-scene-data [_node-id renderable-mesh-set mesh-scene-infos]
   (let [{:keys [aabb renderable-models renderable-raw-models]} renderable-mesh-set
-        mesh-scene-info-by-index (coll/pair-map-by :mesh-index mesh-scene-infos)]
+        mesh-scene-info-by-index (coll/pair-map-by :mesh-index identity mesh-scene-infos)]
     {:aabb aabb
      :model-scenes (mapv #(make-model-scene _node-id % mesh-scene-info-by-index)
                          renderable-models)
@@ -938,7 +938,7 @@
 
         usable-material-scene-infos-by-material-name
         (->> usable-material-scene-infos
-             (coll/pair-map-by :name)
+             (coll/pair-map-by :name identity)
              (coll/not-empty))]
 
     (fn material-name->material-scene-info [^String material-name]

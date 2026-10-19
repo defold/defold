@@ -137,11 +137,11 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
     if((NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$") OR TARGET_PLATFORM STREQUAL "arm64_sim-ios")
       # Follow fontviewer: generate aligned embedded assets in the build directory.
       set(_graphics_capture_generated "${CMAKE_CURRENT_BINARY_DIR}/graphics_capture_generated")
-      set(_graphics_capture_shaders vp fp cube.fp vp.msl fp.msl cube.fp.msl vp.wgsl fp.wgsl cube.fp.wgsl texture.fp texture.fp.msl texture.fp.wgsl)
+      set(_graphics_capture_shaders vp fp cube.fp vp.msl fp.msl cube.fp.msl vp.wgsl fp.wgsl cube.fp.wgsl texture.fp texture.fp.msl texture.fp.wgsl mrt.fp mrt.fp.msl mrt.fp.wgsl)
       if("GraphicsAdapterVulkan" IN_LIST _graphics_app_symbols)
         find_program(_graphics_glslang NAMES glslang glslangValidator
           HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
-        foreach(_shader IN ITEMS vert frag cube.frag texture.frag)
+        foreach(_shader IN ITEMS vert frag cube.frag texture.frag mrt.frag)
           if(_shader STREQUAL "vert")
             set(_stage vert)
           else()

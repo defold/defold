@@ -201,7 +201,7 @@
   (update meta-info :settings #(concat % (make-meta-settings-for-unknown % settings))))
 
 (defn make-meta-settings-map [meta-settings]
-  (coll/pair-map-by :path meta-settings))
+  (coll/pair-map-by :path identity meta-settings))
 
 (def ^:private empty-meta-info
   {:settings []})

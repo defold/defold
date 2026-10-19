@@ -35,6 +35,7 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.notifications :as notifications]
+            [editor.outline :as outline]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -1217,17 +1218,23 @@
        (into {})))
 
 (defn- perform-selection [basis project all-selections]
-  (let [all-node-ids (->> all-selections
-                          vals
-                          (reduce into [])
-                          distinct
-                          vec)]
+  (let [all-node-ids (coll/into-> all-selections []
+                       (mapcat val)
+                       (map outline/selection-node-id)
+                       (distinct))]
     (concat
       (g/set-property project :all-selections all-selections)
       (for [arc (g/inputs basis project :all-selected-node-ids)]
         (g/disconnect (gt/source-id arc) (gt/source-label arc) project :all-selected-node-ids))
       (for [arc (g/inputs basis project :all-selected-node-properties)]
         (g/disconnect (gt/source-id arc) (gt/source-label arc) project :all-selected-node-properties))
+      (for [arc (g/inputs basis project :all-selected-node-outlines)
+            :when (not (contains? all-selections (gt/source-id arc)))]
+        (g/disconnect (gt/source-id arc) (gt/source-label arc) project :all-selected-node-outlines))
+      (for [[resource-node _selection] all-selections
+            :when (coll/not-any? #(= resource-node (gt/source-id %))
+                                 (g/inputs basis project :all-selected-node-outlines))]
+        (g/connect resource-node :node-outline project :all-selected-node-outlines))
       (for [node-id all-node-ids]
         (concat
           (g/connect node-id :_node-id project :all-selected-node-ids)
@@ -1429,21 +1436,19 @@
                   flaw (make-file-not-found-error node-id resource)]
               (g/mark-defective node-id flaw))))))
 
-    ;; invalidate outputs.
+    ;; Invalidate all outputs of changed stateless nodes
     (du/measuring process-metrics :invalidate-outputs
       (let [basis (g/now)]
         (du/if-metrics
           (doseq [node-id (:invalidate-outputs plan)]
             (du/measuring resource-metrics (resource/proj-path (resource-node/resource basis node-id)) :invalidate-outputs
-              (g/invalidate-outputs! (mapv (fn [arc]
-                                             (g/endpoint node-id (gt/source-label arc)))
-                                           (g/explicit-outputs basis node-id)))))
-          (g/invalidate-outputs! (into []
-                                       (mapcat (fn [node-id]
-                                                 (map (fn [arc]
-                                                        (g/endpoint node-id (gt/source-label arc)))
-                                                      (g/explicit-outputs basis node-id))))
-                                       (:invalidate-outputs plan))))))
+              (g/invalidate-outputs! (mapv #(g/endpoint node-id %)
+                                           (g/output-labels (g/node-type* basis node-id))))))
+          (g/invalidate-outputs!
+            (coll/into-> (:invalidate-outputs plan) []
+              (mapcat (fn [node-id]
+                        (mapv #(g/endpoint node-id %)
+                              (g/output-labels (g/node-type* basis node-id))))))))))
 
     ;; restore overridden properties.
     (du/measuring process-metrics :restore-overridden-properties
@@ -1633,6 +1638,7 @@
   (input editor-localization-bundle g/NodeID :cascade-delete)
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
+  (input all-selected-node-outlines g/Any :array :substitute gu/array-subst-remove-errors)
   (input resources g/Any)
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
   (input node-id+resources g/Any :array :cascade-delete)
@@ -1647,18 +1653,42 @@
   (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
   (input proj-path+meta-info-pairs g/Any :array :substitute gu/array-subst-remove-errors)
 
+  (output selected-outline-entries g/Any :cached
+          (g/fnk [all-selected-node-outlines]
+            (coll/into-> all-selected-node-outlines {}
+              (mapcat outline/selection-id->outline))))
+  (output outline-selection-by-resource-node g/Any :cached
+          (g/fnk [all-selected-node-ids selected-outline-entries all-selections]
+            (let [node-ids (set all-selected-node-ids)]
+              (coll/map-vals
+                (fn [selections]
+                  (coll/into-> selections []
+                    (filter (fn [selection]
+                              (if (outline/entry-selection? selection)
+                                (contains? selected-outline-entries selection)
+                                (contains? node-ids selection))))))
+                all-selections))))
   (output selected-node-ids-by-resource-node g/Any :cached
-          (g/fnk [all-selected-node-ids all-selections]
-            (let [selected-node-id-set (set all-selected-node-ids)]
-              (coll/map-vals
-                #(filterv selected-node-id-set %)
-                all-selections))))
+          (g/fnk [outline-selection-by-resource-node]
+            (coll/map-vals (fn [outline-selection]
+                             (coll/into-> outline-selection []
+                               (map outline/selection-node-id)
+                               (distinct)))
+                           outline-selection-by-resource-node)))
   (output selected-node-properties-by-resource-node g/Any :cached
-          (g/fnk [all-selected-node-properties all-selections]
-            (let [props (coll/pair-map-by :node-id all-selected-node-properties)]
+          (g/fnk [all-selected-node-properties selected-outline-entries outline-selection-by-resource-node]
+            (let [props (coll/pair-map-by :node-id identity all-selected-node-properties)]
               (coll/map-vals
-                #(into [] (keep props) %)
-                all-selections))))
+                (fn [selections]
+                  (coll/into-> selections []
+                    (keep (fn [selection]
+                            (let [node-id (outline/selection-node-id selection)
+                                  entry (selected-outline-entries selection)]
+                              (when-let [property-set (:properties entry (props node-id))]
+                                (assoc property-set
+                                  :node-id node-id
+                                  :selection-id selection)))))))
+                outline-selection-by-resource-node))))
   (output sub-selections-by-resource-node g/Any :cached
           (g/fnk [all-selected-node-ids all-sub-selections]
             (let [selected-node-id-set (set all-selected-node-ids)]

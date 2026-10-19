@@ -20,17 +20,18 @@ import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
 
 import com.dynamo.bob.Bob;
+import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.OggUtil;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
 @BuilderParams(name = "Ogg", inExts = ".ogg", outExt = ".oggc")
-public class OggBuilder extends CopyBuilder{
+public class OggBuilder extends Builder {
     private static Logger logger = Logger.getLogger(OggBuilder.class.getName());
     private static String oggzValidateExePath;
     private static boolean missingOggzValidateWarningShown;
@@ -40,12 +41,18 @@ public class OggBuilder extends CopyBuilder{
         oggzValidateExePath = Bob.getOptionalHostExeOnce("oggz-validate", oggzValidateExePath);
         boolean soundStreaming = project.option("sound-stream-enabled", "false").equals("true");
         // Streamed sounds must be readable directly from the archive.
-        return soundStreaming ? defaultTask(input, Task.OutputFlags.UNCOMPRESSED) : defaultTask(input);
+        Task.OutputFlags[] flags = soundStreaming ? new Task.OutputFlags[]{Task.OutputFlags.UNCOMPRESSED} : new Task.OutputFlags[0];
+        return Task.newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()), flags)
+                // Invalidate outputs from the previous byte-for-byte copy builder.
+                .addExtraCacheKey("strip-vorbis-metadata-v1")
+                .build();
     }
 
     @Override
     public void build(Task task) throws IOException, CompileExceptionError {
-        super.build(task);
         if (oggzValidateExePath == null) {
             if (!missingOggzValidateWarningShown) {
                 logger.warning("oggz-validate not found for host platform, skipping Ogg validation.");
@@ -71,6 +78,11 @@ public class OggBuilder extends CopyBuilder{
                 throw new CompileExceptionError(task.firstInput(), 0,
                         String.format("\nSound file validation failed. Make sure your `ogg` files are correct using `oggz-validate` https://www.xiph.org/oggz/\n%s", new String(result.stdOutErr)));
             }
+        }
+        try {
+            task.output(0).setContent(OggUtil.stripMetadata(task.firstInput().getContent()));
+        } catch (IOException e) {
+            throw new CompileExceptionError(task.firstInput(), 0, e.getMessage(), e);
         }
     }
 }

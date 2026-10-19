@@ -44,7 +44,8 @@ static void SetupDX12Context(const ContextParams& params, DX12Context* context)
         CONTEXT_FEATURE_INSTANCING,
         CONTEXT_FEATURE_3D_TEXTURES,
         CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX,
-        CONTEXT_FEATURE_BC_ARRAY_TEXTURES
+        CONTEXT_FEATURE_BC_ARRAY_TEXTURES,
+        CONTEXT_FEATURE_BACKBUFFER_READBACK
     };
 
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(features); ++i)
