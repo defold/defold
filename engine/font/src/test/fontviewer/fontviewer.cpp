@@ -3331,6 +3331,8 @@ static void Finalize(Viewer* viewer)
         dmPlatform::CloseWindow(viewer->m_Window);
         dmPlatform::DeleteWindow(viewer->m_Window);
     }
+    // Join the log thread before static message state and locks are destroyed.
+    dmLog::LogFinalize();
 }
 
 static void DrawNuklear(Viewer* viewer)
@@ -3910,6 +3912,7 @@ int             main(int argc, char** argv)
     if (!dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL))
     {
         dmLogError("Unable to install the OpenGL graphics adapter");
+        dmLog::LogFinalize();
         return 1;
     }
 
