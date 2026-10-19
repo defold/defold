@@ -23,9 +23,7 @@
 
 namespace dmRender
 {
-    // Adds color glyphs within the visible glyph budget to the shared numeric
-    // cache and uploads changes once per layout. Ordinary vector glyphs keep
-    // using the existing cache, but still consume the glyph budget.
+    // max_glyph_count includes ordinary vector glyphs as well as color glyphs.
     void PrepareVectorPaintGlyphs(HFontMap font_map, HTextLayout layout, uint32_t frame, uint32_t max_glyph_count);
     const FontVectorPaintGlyph* GetVectorPaintGlyph(HFontMap font_map, HFont font, uint32_t glyph);
 

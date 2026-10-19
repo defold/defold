@@ -47,8 +47,6 @@ static hb_bool_t GetGlyphExtents(hb_font_t* font, void* data, hb_codepoint_t gly
         !FontTrueTypeGetGlyphBox(true_type, glyph, &x0, &y0, &x1, &y1))
         return false;
 
-    // Shaping requests bounds through HarfBuzz even though it no longer
-    // decodes CFF. Honor the font scale used by the caller.
     int x_scale, y_scale;
     hb_font_get_scale(font, &x_scale, &y_scale);
     float upem = (float)hb_face_get_upem(hb_font_get_face(font));
@@ -73,7 +71,7 @@ FontHarfbuzz* FontHarfbuzzCreate(const void* data, uint32_t data_size, uint32_t 
     hb_ot_font_set_funcs(parent);
 
     // Delegate mapping, advances and OpenType metrics to the parent; only
-    // outline bounds come from our decoder. No HarfBuzz draw/paint functions.
+    // outline bounds come from our decoder.
     hb_font_t*       child = hb_font_create_sub_font(parent);
     hb_font_funcs_t* funcs = hb_font_funcs_create();
     hb_font_funcs_set_glyph_extents_func(funcs, GetGlyphExtents, 0, 0);

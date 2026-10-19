@@ -21,7 +21,6 @@
 #include "font_vector_slug.h"
 #include "text_layout.h"
 
-// CPU-side COLR/Slug cache shared by the runtime renderer and fontviewer.
 // Glyphs use font units. Fonts and the borrowed Slug data must outlive this cache.
 struct FontVectorPaintPath
 {
@@ -76,8 +75,7 @@ bool FontVectorPaintHasGlyph(HFont font, uint32_t glyph);
 // outline, or .notdef when it is empty. Output is cached, including fallback.
 // False means the bounded cache is full or the outline cannot be decoded.
 bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont font, uint32_t glyph, uint32_t* index, bool* has_color);
-// Packs one glyph into six clockwise vertices. Its layers are composed in the
-// fragment shader before text opacity is applied. Scale maps font units to pixels;
+// Packs one glyph into six clockwise vertices. Scale maps font units to pixels;
 // pixel_scale includes view zoom for antialiasing. Transform maps to the
 // caller's coordinate space; clip is in that same space.
 void FontVectorPaintPackGlyph(const FontVectorPaintGlyph& glyph, float scale, float pixel_scale, float x, float y, const dmVMath::Matrix4& transform, const dmVMath::Vector4& clip, const TextGlyphFaceColors& colors, FontVectorPaintVertex vertices[6]);

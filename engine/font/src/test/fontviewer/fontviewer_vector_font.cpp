@@ -122,7 +122,7 @@ static bool CreateProgram(FontViewerVectorFont* cache)
     slug.SetSize(slug.Capacity());
     memcpy(slug.Begin(), FONTVIEWER_SLUG, FONTVIEWER_SLUG_SIZE);
     slug[FONTVIEWER_SLUG_SIZE] = 0;
-    // Same lowering as the standalone vector image tests. Slug is unchanged.
+    // Standalone OpenGL requires a combined integer sampler.
     char* texture_type = strstr(slug.Begin(), "utexture2D");
     memcpy(texture_type, "usampler2D", 10);
     const char*   source = (const char*)FONTVIEWER_VECTOR_FP;

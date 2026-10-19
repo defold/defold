@@ -43,7 +43,6 @@ struct TextNamedStyleDecoration
 TextLayoutType FontCollectionGetLayoutType(HFontCollection coll);
 
 /** Allow COLR fonts in emoji selection for new full layouts (default true).
- * Raster renderers disable this to select a supplied monochrome fallback.
  * Existing layouts retain their selected fonts and must be recreated by the caller. */
 void FontCollectionSetColorEmojiEnabled(HFontCollection coll, bool enabled);
 

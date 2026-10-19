@@ -441,10 +441,9 @@ FontResult FontColrPaintGlyph(const FontColr* font, uint32_t glyph, const FontCo
     return Glyph(&paint, glyph, 0);
 }
 
-// The same bounded paint traversal supplies conservative layout bounds. Clip
-// rectangles and raw outline boxes are transformed before intersection; paints
+// Clip rectangles and raw outline boxes are transformed before intersection; paints
 // contribute only their current clip, so transforms below PaintGlyph cannot
-// move its outline. No curve atlas or graphics resources are needed.
+// move its outline.
 struct BoundsState
 {
     dmVMath::Matrix4 m_Transform;

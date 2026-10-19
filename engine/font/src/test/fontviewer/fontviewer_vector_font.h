@@ -19,8 +19,7 @@
 #include <text_layout.h>
 #include <dmsdk/graphics/graphics.h>
 
-// Fontviewer graphics adapter for the shared Slug outline and COLR paint cache. Borrows fonts until Clear/Destroy. Owns
-// Slug numeric textures and geometry; no glyph coverage is rasterized.
+// Borrows fonts until Clear/Destroy. Owns Slug numeric textures and geometry.
 struct FontViewerVectorFont;
 FontViewerVectorFont* FontViewerVectorFontCreate();
 void                  FontViewerVectorFontDestroy(FontViewerVectorFont* font);

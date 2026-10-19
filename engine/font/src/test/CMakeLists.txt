@@ -211,7 +211,6 @@ defold_target_link_libraries(benchmark_text_layout_null "${TARGET_PLATFORM}"
   font_richtext_null)
 defold_target_link_socket(benchmark_text_layout_null "${TARGET_PLATFORM}" PRIVATE)
 
-# Exercise the shared outline parser and its full-layout adapter.
 defold_add_executable(test_font_truetype
   "${FONT_TEST_ROOT}/test_font_truetype.cpp")
 font_configure_test(test_font_truetype font_skribidi)
@@ -373,7 +372,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
       WORKING_DIRECTORY "${FONT_ROOT}"
       ${_font_test_run_options})
     # Match the existing font graphics tests: local desktops and Linux CI
-    # with its configured display. PNG readback requires no external encoder.
+    # with its configured display.
     if(NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$")
       if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
         defold_add_to_run_tests(run_test_fontviewer_color RUN_GROUP font

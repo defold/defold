@@ -18,8 +18,7 @@
 #include <stdint.h>
 #include <dmsdk/font/font.h>
 
-// Borrowed COLR/CPAL table view. No HarfBuzz or graphics dependency. The source
-// tables must outlive the view and any synchronous paint traversal.
+// Borrowed COLR/CPAL tables must outlive the view and paint traversal.
 struct FontColr
 {
     const uint8_t* m_Data;
