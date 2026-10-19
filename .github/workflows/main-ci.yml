@@ -846,9 +846,9 @@ jobs:
       - *step_notify
 
   test-editor-windows:
-    needs: [build-bob]
+    needs: [build-bob, build-sdk]
     runs-on: windows-2025-vs2026
-    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
+    if: ${{ !cancelled() && needs.build-bob.result == 'success' && (needs.build-sdk.result == 'success' || (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))) }}
     timeout-minutes: 60
     defaults:
       run:
