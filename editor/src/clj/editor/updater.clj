@@ -38,8 +38,8 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- download-url [archive-domain sha1 channel ^Platform platform]
-  (format (get-in connection-properties [:updater :download-url-template]) archive-domain sha1 channel (.getPair platform)))
+(defn- download-url [archive-domain sha1 channel ^Platform platform extension]
+  (format (get-in connection-properties [:updater :download-url-template]) archive-domain sha1 channel (.getPair platform) extension))
 
 (defn- update-url [archive-domain channel]
   (format (get-in connection-properties [:updater :update-url-template]) archive-domain channel))
@@ -49,9 +49,6 @@
 
 (defn- release-notes-version-url [archive-domain channel version]
   (format (get-in connection-properties [:updater :release-notes-version-url-template]) archive-domain channel version))
-
-(defn- channel-download-url [archive-domain sha1 channel ^Platform platform extension]
-  (format (get-in connection-properties [:updater :channel-download-url-template]) archive-domain sha1 channel (.getPair platform) extension))
 
 (defn- channel-info-url [archive-domain channel]
   (format (get-in connection-properties [:updater :channel-info-url-template]) archive-domain channel))
@@ -468,7 +465,7 @@
   (let [{:keys [state-atom platform channel]} updater
         {:keys [current-download server-sha1]} @state-atom
         archive-domain (system/defold-archive-domain)
-        url (download-url archive-domain server-sha1 channel platform)
+        url (download-url archive-domain server-sha1 channel platform "zip")
         zip-file (create-temp-zip-file)
         cancelled-atom (atom false)
         track-progress! (fn [progress]
@@ -518,7 +515,7 @@
   the download failed"
   [updater {:keys [channel sha1]} ^File file]
   (let [{:keys [state-atom ^Platform platform]} updater
-        url (channel-download-url (system/defold-archive-domain) sha1 channel platform (channel-download-extension platform))
+        url (download-url (system/defold-archive-domain) sha1 channel platform (channel-download-extension platform))
         track-progress! (fn track-progress! [progress]
                           (swap! state-atom assoc-in [:channel-download :progress] progress))]
     (swap! state-atom assoc :channel-download {:channel channel
