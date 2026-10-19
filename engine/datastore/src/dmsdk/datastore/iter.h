@@ -17,7 +17,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <dmsdk/datastore/datastore_query.h>
+#include <dmsdk/datastore/query.h>
 
 #ifdef __cplusplus
 extern "C"

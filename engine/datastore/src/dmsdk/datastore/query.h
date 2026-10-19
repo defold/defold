@@ -15,7 +15,7 @@
 #ifndef DMSDK_DATASTORE_QUERY_H
 #define DMSDK_DATASTORE_QUERY_H
 
-#include <dmsdk/datastore/datastore_types.h>
+#include <dmsdk/datastore/types.h>
 #include <dmsdk/dlib/hash.h>
 
 #define DS_QUERY_MAX_ITEMS 32

@@ -15,7 +15,7 @@
 #ifndef DMSDK_DATASTORE_BLOB_H
 #define DMSDK_DATASTORE_BLOB_H
 
-#include <dmsdk/datastore/datastore_types.h>
+#include <dmsdk/datastore/types.h>
 
 #ifdef __cplusplus
 extern "C"

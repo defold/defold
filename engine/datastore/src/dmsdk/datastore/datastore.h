@@ -15,13 +15,13 @@
 #ifndef DMSDK_DATASTORE_H
 #define DMSDK_DATASTORE_H
 
-#include <dmsdk/datastore/datastore_types.h>
-#include <dmsdk/datastore/datastore_query.h>
-#include <dmsdk/datastore/datastore_iter.h>
-#include <dmsdk/datastore/datastore_field.h>
-#include <dmsdk/datastore/datastore_container.h>
-#include <dmsdk/datastore/datastore_table.h>
-#include <dmsdk/datastore/datastore_blob.h>
+#include <dmsdk/datastore/types.h>
+#include <dmsdk/datastore/query.h>
+#include <dmsdk/datastore/iter.h>
+#include <dmsdk/datastore/field.h>
+#include <dmsdk/datastore/container.h>
+#include <dmsdk/datastore/table.h>
+#include <dmsdk/datastore/blob.h>
 
 #define DATASTORE_CONTEXT_NAME "datastore"
 

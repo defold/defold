@@ -15,7 +15,7 @@
 #ifndef DMSDK_DATASTORE_CONTAINER_H
 #define DMSDK_DATASTORE_CONTAINER_H
 
-#include <dmsdk/datastore/datastore_iter.h>
+#include <dmsdk/datastore/iter.h>
 
 #ifdef __cplusplus
 extern "C"

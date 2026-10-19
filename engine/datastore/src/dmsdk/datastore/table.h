@@ -15,7 +15,7 @@
 #ifndef DMSDK_DATASTORE_TABLE_H
 #define DMSDK_DATASTORE_TABLE_H
 
-#include <dmsdk/datastore/datastore_types.h>
+#include <dmsdk/datastore/types.h>
 
 #ifdef __cplusplus
 extern "C"

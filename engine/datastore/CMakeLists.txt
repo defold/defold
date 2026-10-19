@@ -9,13 +9,13 @@ set(DATA_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(DATA_SRC_DIR "${DATA_ROOT}/src")
 set(DATA_DMSDK_HEADERS
   "${DATA_SRC_DIR}/dmsdk/datastore/datastore.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/datastore_types.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/datastore_query.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/datastore_iter.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/datastore_field.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/datastore_container.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/datastore_table.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/datastore_blob.h")
+  "${DATA_SRC_DIR}/dmsdk/datastore/types.h"
+  "${DATA_SRC_DIR}/dmsdk/datastore/query.h"
+  "${DATA_SRC_DIR}/dmsdk/datastore/iter.h"
+  "${DATA_SRC_DIR}/dmsdk/datastore/field.h"
+  "${DATA_SRC_DIR}/dmsdk/datastore/container.h"
+  "${DATA_SRC_DIR}/dmsdk/datastore/table.h"
+  "${DATA_SRC_DIR}/dmsdk/datastore/blob.h")
 
 defold_add_library(datastore STATIC
   "${DATA_SRC_DIR}/data.cpp"
