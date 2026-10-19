@@ -4383,19 +4383,19 @@
       (is (g/error-fatal? (g/node-value scene :build-targets))))))
 
 ;; Template edits must reject pending scene materializations without losing old
-;; snapshots. A newer context must rebuild the override tree and saved override
-;; mappings on demand, rather than reuse the obsolete shared result.
+;; snapshots. A newer evaluation-context must rebuild the override tree and
+;; saved override mappings on demand, rather than reuse the obsolete result.
 (deftest gui-template-materialization-source-snapshot-test
   (doseq [edit [:add :remove :rename]]
     (test-util/with-loaded-project
       (let [scene (project/get-resource-node project "/gui/scene.gui")
             template (project/get-resource-node project "/gui/sub_scene.gui")
-            old-context (g/make-evaluation-context)
-            other-old-context (g/make-evaluation-context)
+            old-evaluation-context (g/make-evaluation-context)
+            other-old-evaluation-context (g/make-evaluation-context)
             original-shell (g/node-by-id (g/now) scene)]
         (is (in/shell-node? original-shell))
-        (g/materialize-node! scene old-context)
-        (let [old-node-ids (g/node-value scene :node-ids old-context)
+        (g/materialize-node! scene old-evaluation-context)
+        (let [old-node-ids (g/node-value scene :node-ids old-evaluation-context)
               template-node-ids (g/node-value template :node-ids)
               box (template-node-ids "sub_box")
               added (case edit
@@ -4407,17 +4407,17 @@
                              nil)
                       :remove (do (g/transact (g/delete-node box)) nil)
                       :rename (do (g/transact (g/set-property box :id "renamed_during_materialization")) nil))]
-          (g/update-system-from-evaluation-context! old-context)
+          (g/update-system-from-evaluation-context! old-evaluation-context)
           (is (identical? original-shell (g/node-by-id (g/now) scene)))
           (is (not (contains? (g/cache) (g/endpoint scene :node-ids))))
-          (let [new-context (g/make-evaluation-context)]
-            (g/materialize-node! scene new-context)
-            (let [new-node-ids (g/node-value scene :node-ids new-context)]
+          (let [new-evaluation-context (g/make-evaluation-context)]
+            (g/materialize-node! scene new-evaluation-context)
+            (let [new-node-ids (g/node-value scene :node-ids new-evaluation-context)]
               (case edit
                 :add (do
                        (is (contains? new-node-ids "sub_scene/added_during_materialization"))
                        (is (not (contains? new-node-ids "added_during_materialization")))
-                       (is (= 1 (count (g/overrides @(:basis-ref new-context) added)))))
+                       (is (= 1 (count (g/overrides @(:basis-ref new-evaluation-context) added)))))
                 :remove (is (not (contains? new-node-ids "sub_scene/sub_box")))
                 :rename (do
                           (is (not (contains? new-node-ids "sub_scene/sub_box")))
@@ -4425,10 +4425,10 @@
                           ;; The saved "sub_box" override must not be applied
                           ;; to a differently named node during fresh loading.
                           (is (= (g/node-value box :manual-size)
-                                 (g/node-value (new-node-ids "sub_scene/renamed_during_materialization") :manual-size new-context)))))
-              (is (= old-node-ids (g/node-value scene :node-ids other-old-context)))
-              (g/update-system-from-evaluation-context! other-old-context)
+                                 (g/node-value (new-node-ids "sub_scene/renamed_during_materialization") :manual-size new-evaluation-context)))))
+              (is (= old-node-ids (g/node-value scene :node-ids other-old-evaluation-context)))
+              (g/update-system-from-evaluation-context! other-old-evaluation-context)
               (is (identical? original-shell (g/node-by-id (g/now) scene)))
-              (g/update-system-from-evaluation-context! new-context)
+              (g/update-system-from-evaluation-context! new-evaluation-context)
               (g/clear-system-cache!)
               (is (= new-node-ids (g/node-value scene :node-ids))))))))))

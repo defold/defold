@@ -112,7 +112,7 @@
             (is (= 7 (g/node-value source :result)))
             (is (= [11 11] (mapv #(g/node-value % :result) targets)))))))))
 
-;; The commit boundary rejects a context containing a raw transaction change,
+;; The commit boundary rejects an evaluation-context containing a raw change,
 ;; even when a full invalidation would otherwise discard the contribution.
 (deftest evaluation-context-rejects-non-materialization-changes-test
   (doseq [full-invalidation [false true]]
@@ -1318,12 +1318,12 @@
                          [(g/set-property self :value value)
                           (g/connect self :result collector :values)]))))
                  [a b] [7 11])])
-        (let [contexts [(g/make-evaluation-context) (g/make-evaluation-context)]]
-          (doseq [[node-id value context] (mapv vector [a b] [7 11] contexts)]
-            (g/materialize-node! node-id context)
-            (is (= value (g/node-value collector :total context))))
-          (doseq [context (if reverse-commit-order (rseq contexts) contexts)]
-            (g/update-system-from-evaluation-context! context))
+        (let [evaluation-contexts [(g/make-evaluation-context) (g/make-evaluation-context)]]
+          (doseq [[node-id value evaluation-context] (mapv vector [a b] [7 11] evaluation-contexts)]
+            (g/materialize-node! node-id evaluation-context)
+            (is (= value (g/node-value collector :total evaluation-context))))
+          (doseq [evaluation-context (if reverse-commit-order (rseq evaluation-contexts) evaluation-contexts)]
+            (g/update-system-from-evaluation-context! evaluation-context))
           (is (not (in/shell-node? (g/node-by-id (g/now) a))))
           (is (not (in/shell-node? (g/node-by-id (g/now) b))))
           (is (= 18 (g/node-value collector :total)))
@@ -1348,17 +1348,17 @@
                  [a b] [7 11])])
         (let [overridden (when override-target
                            (first (g/tx-nodes-added (g/transact (g/override target {})))))
-              first-context (g/make-evaluation-context)
-              second-context (g/make-evaluation-context)]
-          (g/materialize-node! a first-context)
-          (g/materialize-node! b second-context)
+              first-evaluation-context (g/make-evaluation-context)
+              second-evaluation-context (g/make-evaluation-context)]
+          (g/materialize-node! a first-evaluation-context)
+          (g/materialize-node! b second-evaluation-context)
           (if commit-to-system
             (do
-              (g/update-system-from-evaluation-context! first-context)
-              (g/update-system-from-evaluation-context! second-context))
+              (g/update-system-from-evaluation-context! first-evaluation-context)
+              (g/update-system-from-evaluation-context! second-evaluation-context))
             (do
-              (g/materialize-node! b first-context)
-              (g/update-system-from-evaluation-context! first-context)))
+              (g/materialize-node! b first-evaluation-context)
+              (g/update-system-from-evaluation-context! first-evaluation-context)))
           (is (= [[b :result]] (mapv (juxt :source-id :source-label) (g/inputs (g/now) target :dependency))))
           (is (coll/empty? (g/outputs (g/now) a :result)))
           (is (= 11 (g/node-value target :result)))
@@ -1390,34 +1390,35 @@
                  (g/set-property self :value (g/node-value prerequisite :result evaluation-context)))))])
         (when prerequisite-in-initial-basis
           (is (= 10 (g/node-value prerequisite :result))))
-        (let [first-context (g/make-evaluation-context)
-              old-context (g/make-evaluation-context)
-              last-old-context (g/make-evaluation-context)]
-          (is (= 10 (g/node-value parent :result first-context)))
+        (let [first-evaluation-context (g/make-evaluation-context)
+              old-evaluation-context (g/make-evaluation-context)
+              last-old-evaluation-context (g/make-evaluation-context)]
+          (is (= 10 (g/node-value parent :result first-evaluation-context)))
           (is (= 10 (g/node-value prerequisite :result)))
           (g/transact (g/set-property (if edit-child child prerequisite) :value 99))
-          (g/update-system-from-evaluation-context! first-context)
+          (g/update-system-from-evaluation-context! first-evaluation-context)
           (is (= 1 @calls))
           (is (in/shell-node? (g/node-by-id (g/now) parent)))
           (is (not (contains? (g/cache) (gt/endpoint parent :result))))
-          (is (= 10 (g/node-value parent :result old-context)))
+          (is (= 10 (g/node-value parent :result old-evaluation-context)))
           (is (= 1 @calls))
-          (g/update-system-from-evaluation-context! old-context)
+          (g/update-system-from-evaluation-context! old-evaluation-context)
           (is (in/shell-node? (g/node-by-id (g/now) parent)))
-          (let [new-context (g/make-evaluation-context)
+          (let [new-evaluation-context (g/make-evaluation-context)
                 expected (if edit-child 106 102)]
-            (is (= expected (g/node-value parent :result new-context)))
+            (is (= expected (g/node-value parent :result new-evaluation-context)))
             (is (= 2 @calls))
-            (is (= 10 (g/node-value parent :result last-old-context)))
+            (is (= 10 (g/node-value parent :result last-old-evaluation-context)))
             (is (= 2 @calls))
-            (g/update-system-from-evaluation-context! last-old-context)
+            (g/update-system-from-evaluation-context! last-old-evaluation-context)
             (is (in/shell-node? (g/node-by-id (g/now) parent)))
-            (g/update-system-from-evaluation-context! new-context)
+            (g/update-system-from-evaluation-context! new-evaluation-context)
             (is (= expected (g/node-value parent :result)))
             (is (= 2 @calls))))))))
 
 ;; A stale dependency must reject the entire pending chain. New demands rebuild
-;; both levels with new child ids while old contexts retain the original child.
+;; both levels with new child ids. Old evaluation-contexts retain the original
+;; child.
 (deftest stale-materialization-dependency-chain-test
   (with-clean-system
     (let [source (g/make-node! ShellTestNode :value 7)
@@ -1439,36 +1440,36 @@
                (g/materialize-prerequisites! self #{parent} evaluation-context)
                (swap! calls conj self)
                (g/set-property self :child (g/node-value parent :child evaluation-context)))))])
-      (let [first-context (g/make-evaluation-context)
-            old-context (g/make-evaluation-context)
-            old-child (g/node-value dependent :child first-context)]
+      (let [first-evaluation-context (g/make-evaluation-context)
+            old-evaluation-context (g/make-evaluation-context)
+            old-child (g/node-value dependent :child first-evaluation-context)]
         (g/transact (g/set-property source :value 99))
-        (g/update-system-from-evaluation-context! first-context)
+        (g/update-system-from-evaluation-context! first-evaluation-context)
         (doseq [node-id [parent dependent]]
           (is (in/shell-node? (g/node-by-id (g/now) node-id))))
         (is (nil? (g/node-by-id (g/now) old-child)))
-        (let [new-context (g/make-evaluation-context)
-              new-child (g/node-value dependent :child new-context)]
+        (let [new-evaluation-context (g/make-evaluation-context)
+              new-child (g/node-value dependent :child new-evaluation-context)]
           (is (not= old-child new-child))
-          (is (= 99 (g/node-value new-child :result new-context)))
-          (is (= old-child (g/node-value dependent :child old-context)))
-          (is (= 7 (g/node-value old-child :result old-context)))
+          (is (= 99 (g/node-value new-child :result new-evaluation-context)))
+          (is (= old-child (g/node-value dependent :child old-evaluation-context)))
+          (is (= 7 (g/node-value old-child :result old-evaluation-context)))
           (is (= {parent 2 dependent 2} (frequencies @calls)))
-          (g/update-system-from-evaluation-context! old-context)
-          (g/update-system-from-evaluation-context! new-context)
+          (g/update-system-from-evaluation-context! old-evaluation-context)
+          (g/update-system-from-evaluation-context! new-evaluation-context)
           (is (nil? (g/node-by-id (g/now) old-child)))
           (is (= new-child (g/node-value dependent :child)))
           (is (= 99 (g/node-value new-child :result))))))))
 
 ;; Concurrent demands after a prerequisite edit must share one new version,
-;; even when all contexts first encounter the obsolete shared version.
+;; even when all evaluation-contexts first encounter an obsolete version.
 (deftest simultaneous-evaluation-contexts-rematerialize-once-test
   (with-clean-system
     (let [source (g/make-node! ShellTestNode :value 7)
           shell (first (g/take-node-ids 1))
           calls (atom 0)
-          context-count 8
-          ready (CountDownLatch. context-count)
+          evaluation-context-count 8
+          ready (CountDownLatch. evaluation-context-count)
           start (promise)
           entered (promise)
           release (promise)]
@@ -1485,17 +1486,17 @@
                 [(g/add-node (g/construct ShellTestNode :_node-id child
                                :value (g/node-value source :result evaluation-context)))
                  (g/set-property self :child child)])))))
-      (let [old-context (g/make-evaluation-context)
-            old-child (g/node-value shell :child old-context)]
+      (let [old-evaluation-context (g/make-evaluation-context)
+            old-child (g/node-value shell :child old-evaluation-context)]
         (g/transact (g/set-property source :value 99))
-        (let [contexts (mapv (fn [_] (g/make-evaluation-context)) (range context-count))
-              results (mapv (fn [context]
+        (let [evaluation-contexts (mapv (fn [_] (g/make-evaluation-context)) (range evaluation-context-count))
+              results (mapv (fn [evaluation-context]
                               (future
                                 (.countDown ready)
                                 (when (= ::timeout (deref start 10000 ::timeout))
                                   (throw (ex-info "Timed out starting new materializations." {})))
-                                (g/node-value shell :child context)))
-                            contexts)]
+                                (g/node-value shell :child evaluation-context)))
+                            evaluation-contexts)]
           (try
             (is (.await ready 10 TimeUnit/SECONDS))
             (deliver start true)
@@ -1506,9 +1507,9 @@
               (is (g/node-id? child))
               (is (not= old-child child))
               (is (coll/every? #(= child %) children))
-              (doseq [context contexts]
-                (g/update-system-from-evaluation-context! context))
-              (g/update-system-from-evaluation-context! old-context)
+              (doseq [evaluation-context evaluation-contexts]
+                (g/update-system-from-evaluation-context! evaluation-context))
+              (g/update-system-from-evaluation-context! old-evaluation-context)
               (is (= child (g/node-value shell :child)))
               (is (= 99 (g/node-value child :result)))
               (is (= 2 @calls)))

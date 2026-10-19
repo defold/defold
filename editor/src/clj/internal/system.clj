@@ -22,7 +22,8 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.defonce :as defonce])
-  (:import [internal.transaction MaterializationTXC]
+  (:import [clojure.lang ExceptionInfo]
+           [internal.transaction MaterializationTXC]
            [java.util ConcurrentModificationException]
            [java.util.concurrent.atomic AtomicLong]))
 
@@ -212,12 +213,11 @@
               (:shared-materialization-registry-atom system)
               (:materialization-results system))
         pre-tx-basis (:basis ctx)
-        ctx (reduce (fn [ctx transaction-change]
-                      (-> ctx
-                          (change-fn transaction-change)
-                          (update :completed-action-count inc)))
-                    ctx
-                    transaction-changes)
+        ctx (coll/reduce-> transaction-changes ctx
+              (fn [ctx transaction-change]
+                (-> ctx
+                    (change-fn transaction-change)
+                    (update :completed-action-count inc))))
         {:keys [nodes-deleted outputs-modified] :as tx-result} (it/finalize-replayed-changes ctx)
         post-tx-basis (:basis tx-result)]
     (ensure-no-concurrent-modifications! system pre-tx-basis post-tx-basis)
@@ -379,7 +379,7 @@
   [system evaluation-context]
   {:pre [(some? system)]}
   ;; We assume here that the evaluation context was created from
-  ;; the system but they may have diverged, making some cache
+  ;; the system, but they may have diverged, making some cache
   ;; hits/misses invalid.
   ;; Any change making the hits/misses invalid will have caused an
   ;; invalidation which we track using an invalidate-counter
@@ -388,8 +388,8 @@
   ;; use.
   ;; If the evaluation context was created with an explicit basis
   ;; that differed from the system basis at the time, there is no
-  ;; initial-invalidate-counters to compare with, and we dont even try to
-  ;; update the cache.
+  ;; initial-invalidate-counters to compare with, and we don't
+  ;; even try to update the cache.
   (if-let [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
     (let [invalidate-counters (:invalidate-counters system)]
       (if (and (not (identical? initial-invalidate-counters invalidate-counters))
@@ -451,10 +451,11 @@
                 (assoc :invalidate-counters original-invalidate-counters)
                 (update-cache-from-evaluation-context evaluation-context)
                 (assoc :invalidate-counters invalidate-counters)))
-          (catch clojure.lang.ExceptionInfo error
+          (catch ExceptionInfo error
             (if (it/stale-materialization? error)
               ;; Keep the shell for a later demand. None of the pending graph
-              ;; changes or cache entries from this context can be installed.
+              ;; changes or cache entries from this evaluation-context can
+              ;; be installed.
               system
               (throw error))))))))
 

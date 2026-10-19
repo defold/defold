@@ -22,7 +22,7 @@
             [util.debug-util :as du]
             [util.defonce :as defonce]
             [util.eduction :as e])
-  (:import [clojure.lang ArityException]
+  (:import [clojure.lang ArityException ExceptionInfo]
            [internal.graph.types Arc]
            [internal.node ShellNode]
            [java.util.concurrent.atomic AtomicInteger]))
@@ -2054,8 +2054,9 @@
         (throw error)))))
 
 (defn- find-materialization-entry [entry node rejected-promises]
-  ;; Keep older versions available for contexts with older source snapshots.
-  ;; Rejecting a result in one context does not invalidate it for the others.
+  ;; Keep older versions for evaluation-contexts with older source snapshots.
+  ;; Rejecting a result in one evaluation-context does not invalidate it for
+  ;; other evaluation-contexts.
   (loop [entry entry]
     (when entry
       (if (and (identical? node (:shell-node entry))
@@ -2185,7 +2186,7 @@
                                    (perform-change change)
                                    (assoc :completed-action-count 1)
                                    finalize-replayed-changes)
-                               (catch clojure.lang.ExceptionInfo error
+                               (catch ExceptionInfo error
                                  (when-not (stale-materialization? error)
                                    (throw error))))]
                   (if result
