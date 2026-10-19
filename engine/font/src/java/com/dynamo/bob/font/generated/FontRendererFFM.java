@@ -265,6 +265,15 @@ public class FontRendererFFM extends FontRendererSymbols {
     public static int FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE() {
         return FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE;
     }
+    private static final int FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS = (int)15L;
+    /**
+     * {@snippet lang=c :
+     * enum FontcMarkupErrorType.FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS = 15
+     * }
+     */
+    public static int FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS() {
+        return FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS;
+    }
 
     private static class FontcCompileStyle {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
@@ -1882,6 +1891,67 @@ public class FontRendererFFM extends FontRendererSymbols {
                 traceDowncall("FontcGetVectorTextures", renderer, known_atlas_version, curves, bands);
             }
             return (int)mh$.invokeExact(renderer, known_atlas_version, curves, bands);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class FontcGetEffectTexture {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            FontRendererFFM.C_INT,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontcGetEffectTexture");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetEffectTexture(HFontRenderer renderer, FontcTexture *texture)
+     * }
+     */
+    public static FunctionDescriptor FontcGetEffectTexture$descriptor() {
+        return FontcGetEffectTexture.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetEffectTexture(HFontRenderer renderer, FontcTexture *texture)
+     * }
+     */
+    public static MethodHandle FontcGetEffectTexture$handle() {
+        return FontcGetEffectTexture.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetEffectTexture(HFontRenderer renderer, FontcTexture *texture)
+     * }
+     */
+    public static MemorySegment FontcGetEffectTexture$address() {
+        return FontcGetEffectTexture.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetEffectTexture(HFontRenderer renderer, FontcTexture *texture)
+     * }
+     */
+    public static int FontcGetEffectTexture(MemorySegment renderer, MemorySegment texture) {
+        var mh$ = FontcGetEffectTexture.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("FontcGetEffectTexture", renderer, texture);
+            }
+            return (int)mh$.invokeExact(renderer, texture);
         } catch (Error | RuntimeException ex) {
            throw ex;
         } catch (Throwable ex$) {

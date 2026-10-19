@@ -58,6 +58,92 @@ without linking the parser or style/effect implementation.
 Markup can be applied through both the legacy and full layout paths. The parser
 itself is independent and may be used without enabling `font_layout`.
 
+#### GPU color effects
+
+Built-in font materials use a shared `font_effects` RGBA8 data texture owned by
+the fontmap. Each 72-byte font vertex carries `effect`: selected effect UVs,
+signed record index, and a bounded animation phase. Gradients replace inherited
+face RGB and cap its alpha, matching markup color precedence. Gradient records
+and independent layout clocks do not split batches.
+
+The shared shader helper `font_effect_color(effect)` takes the packed effect
+vector explicitly: fit UVs in `xy`, metadata row in `z`, and animation phase in
+`w`. Calling shaders declare their own varying or supply a computed vector.
+The metadata sampler remains the shared `font_effects` uniform.
+
+The texture stores four colors, four 16-bit stop positions, and type parameters.
+The shader evaluates spatial constant color, linear, radial, and four-corner
+effects per fragment. Radial parameters contain the pivot and an inverse ellipse
+transform, including fit dimensions, rotation, and radii. Equal radii produce a
+circle in text-local space. The six parameters fit in the existing 64-byte record.
+Legacy directional/four-corner markup keeps its original fitting and vertex
+interpolation: negative record indices select `font_effect_vertex_color`, which
+evaluates animation and alpha caps in the vertex shader and clears the index
+before rasterization. Positive indices select fragment evaluation. Both paths
+use the same metadata texture.
+
+Explicit `type=color|linear|radial|four-corner` selects spatial fitting with
+`fit=glyph|span|block` (default: block). Glyph fitting uses unpadded glyph bounds;
+radial glyph fitting uses unpadded line bounds vertically, so glyphs
+share a Y center while keeping their individual X centers. Span bounds cover
+the tagged range, including its line breaks and nested color overrides; block
+bounds cover all visible glyphs after line alignment. Four-corner markup without
+a `type` also supports `fit=block`. Nested gradients use the innermost gradient.
+
+Color, linear, and radial types accept `color0` through `color3`, with one to
+four consecutive colors. The color type takes only `color0`. Stops are evenly
+spaced unless `stop0` through `stop3` override their positions in [0, 1]; positions
+must be nondecreasing. Four-corner uses `bl`, `br`, `tl`, and `tr`.
+
+Linear `angle` is in counterclockwise degrees: 0 runs bottom-to-top, 90 runs
+right-to-left, 180 runs top-to-bottom, and 270 runs left-to-right. Stop 0 is at
+the starting edge; the final stop is at the ending edge.
+Projection uses local distances, so a 45-degree axis stays at 45 degrees on a
+wide block. Radial `pivot-x` and `pivot-y` default to 0.5. Radial `radius` defaults
+to 0.5 times the longer fit dimension and supplies both ellipse radii. Positive
+`radius-x` and `radius-y` override their respective axes, regardless of attribute
+order. Both use the longer fit dimension, so equal values produce a circle.
+Radial `angle` defaults to 0 and rotates the ellipse counterclockwise around its
+pivot; at 0 degrees the radii follow the text's X/Y axes, and at 90 degrees those
+axes exchange directions. Rotation uses local text units, preserving the ellipse
+on rectangular fits. Component transforms can subsequently stretch the text.
+`hz` and `direction=forward|reverse` animate the sampled coordinate using the
+layout clock and mirrored wrapping. Static gradients clamp at their endpoints.
+
+For example, `<gradient type=linear fit=block angle=45 color0=#FF4050
+color1=#FFD23F color2=#35D07F color3=#468BFF>text</gradient>` uses four stops
+across the block. Separate tags around each line give independently fitted
+and angled span gradients. Named font styles preserve the same metadata.
+
+For a tilted ellipse, use `<gradient type=radial fit=block radius-x=0.5
+radius-y=0.25 angle=45 color0=#FFFF00 color1=#FF8000 color2=#FF0000
+color3=#8000FF>text</gradient>`. Existing radial markup that only specifies
+`radius` remains circular.
+
+The cache starts with 256 fixed-size records in a 16 KiB texture and doubles
+when all rows are in use. Allocated capacity is retained between frames. Row
+zero stores reciprocal texture height; vertices keep stable integer indices
+when the texture grows, without splitting batches. Records used during a frame
+remain pinned across its render passes; unused records can be reused later.
+Growth is limited by the graphics backend and a maximum of 16,384 rows. Reaching
+that limit logs an error before using approximate vertex colors for overflow.
+Changes upload before the corresponding draws. The editor keeps a texture
+snapshot with each cached vertex batch and grows its native metadata likewise.
+Both caches index records by content hash and compare complete records on hash
+collisions. Lookups avoid scanning all previously used effects; runtime eviction
+scans each pinned row at most once per frame.
+Materials without the effect sampler use CPU color evaluation at vertices for
+compatibility. This approximates spatial gradients: radial centers and stops
+inside a glyph require the built-in GPU shader for accurate rendering.
+
+Spatial bounds reuse layout storage. One glyph traversal accumulates block and
+line bounds and, when needed, a range tree keyed by source cluster. Span bounds
+query the authored range in that tree, including glyphs with overridden colors
+and reordered glyphs in shaped text.
+Adjacent glyphs sharing an effect and fit dimensions reuse its projection and
+resolved metadata record. Compiled fonts retain unpadded metrics so their
+fits match editor previews; old glyph banks retain their existing bounds.
+
 #### Underline and strikethrough
 
 The markup resolver records `<ul>` and `<strike>` as decoration flags and a
