@@ -264,7 +264,7 @@
              (updater/begin-manual-update-check! updater))
     (future
       (let [channel "beta"
-            info (get (updater/fetch-channel-infos!) channel)
+            info (updater/fetch-channel-info! channel)
             newer (and info (updater/newer-than-running? (:version info)))
             release-notes (when newer (updater/channel-release-notes channel (:version info)))]
         (ui/run-later

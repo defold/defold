@@ -819,6 +819,7 @@ progress.building = Building…
 progress.building-resource = Building {resource}
 progress.fetching = Fetching {uri}
 progress.downloading-update = Downloading update
+progress.downloading-beta = Downloading beta
 progress.extracting-update = Extracting update
 progress.waiting = Waiting
 progress.bundling = Bundling…

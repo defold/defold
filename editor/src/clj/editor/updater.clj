@@ -207,23 +207,16 @@
                         :skipped-sha1 (get (prefs/get prefs [:versioning :skipped-update-sha1s]) channel)
                         :server-sha1 editor-sha1})}))
 
-(def channels ["stable" "beta"])
-
 (defn installed-channel [updater]
   (:channel updater))
 
-(defn fetch-channel-infos!
-  "Returns a map of channel to {:version <string> :sha1 <string>} for every
-  channel whose info could be downloaded."
-  []
-  (let [archive-domain (system/defold-archive-domain)]
-    (into {}
-          (keep (fn [[channel info]]
-                  (when (and (string? (:version info)) (string? (:sha1 info)))
-                    [channel (select-keys info [:version :sha1])])))
-          (coll/pmapv (fn [channel]
-                        [channel (fetch-json! (channel-info-url archive-domain channel))])
-                      channels))))
+(defn fetch-channel-info!
+  "Returns {:version <string> :sha1 <string>} for `channel`, or nil if it
+  couldn't be downloaded."
+  [channel]
+  (let [info (fetch-json! (channel-info-url (system/defold-archive-domain) channel))]
+    (when (and (string? (:version info)) (string? (:sha1 info)))
+      (select-keys info [:version :sha1]))))
 
 (defn platform-supported? [updater]
   (contains? #{Platform/X86_64Linux
@@ -232,12 +225,19 @@
                Platform/X86_64Win32}
              (:platform updater)))
 
+(defn newer-than-running?
+  "Returns true if `version` is newer than the running editor's version."
+  [version]
+  (let [current (system/defold-version)]
+    (or (nil? current)
+        (newer-version? version current))))
+
 (defn- check-channel-offer! [updater]
   (when (and (platform-supported? updater)
              (= "stable" (installed-channel updater)))
-    (let [{stable "stable" beta "beta"} (fetch-channel-infos!)]
+    (when-some [beta (fetch-channel-info! "beta")]
       (swap! (:state-atom updater) assoc :channel-offer
-             (when (and stable beta (newer-version? (:version beta) (:version stable)))
+             (when (newer-than-running? (:version beta))
                (assoc beta :channel "beta"))))))
 
 (defn- download-progress [state]
@@ -375,13 +375,6 @@
 (defn channel-download-in-progress? [updater]
   (some? (:channel-download @(:state-atom updater))))
 
-(defn newer-than-running?
-  "Returns true if `version` is newer than the running editor's version."
-  [version]
-  (let [current (system/defold-version)]
-    (or (nil? current)
-        (newer-version? version current))))
-
 (defn channel-offer
   "Returns {:channel <string> :version <string> :sha1 <string>} when a channel
   with a newer version than the installed one is worth suggesting, or nil.
@@ -402,12 +395,12 @@
     (.deleteOnExit file)
     file))
 
-(defn- download! [url ^File zip-file track-download-progress! cancelled-atom]
-  (log/info :message "Downloading update" :url url :file (.getCanonicalPath zip-file))
+(defn- download! [url ^File zip-file progress-message-key track-download-progress! cancelled-atom]
+  (log/info :message "Downloading" :url url :file (.getCanonicalPath zip-file))
   (net/download! url zip-file
                  :progress-callback (fn [current total]
                                       (track-download-progress!
-                                        (progress/make (localization/message "progress.downloading-update") total current)))
+                                        (progress/make (localization/message progress-message-key) total current)))
                  :chunk-size (* 1024 1024)
                  :cancelled-derefable cancelled-atom
                  :read-timeout 10000
@@ -488,7 +481,7 @@
                                                :cancelled-derefable cancelled-atom})
     (future
       (try
-        (download! url zip-file track-download-progress! cancelled-atom)
+        (download! url zip-file "progress.downloading-update" track-download-progress! cancelled-atom)
         (if @cancelled-atom
           (do (.delete zip-file)
               false)
@@ -537,7 +530,7 @@
               part-file (.toFile (Files/createTempFile (.toPath (downloads-dir)) base-name ".part" (into-array FileAttribute [])))]
           (.deleteOnExit part-file)
           (try
-            (download! url part-file track-progress! (atom false))
+            (download! url part-file "progress.downloading-beta" track-progress! (atom false))
             (let [file (create-download-file base-name extension)]
               (Files/move (.toPath part-file) (.toPath file) (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))
               (log/info :message "Channel build downloaded" :channel channel :file (str file))
@@ -636,7 +629,6 @@
         archive-domain (system/defold-archive-domain)
         url (update-url archive-domain channel)]
     (try
-      (check-channel-offer! updater)
       (log/info :message "Checking for updates" :url url)
       (with-open [reader (io/reader url)]
         (let [update (json/read reader :key-fn keyword)
@@ -665,6 +657,7 @@
                        :release-notes-sha update-sha1
                        :release-notes-complete? (and (not (coll/empty? entries))
                                                      (coll/every? :notes entries)))))))
+        (check-channel-offer! updater)
         true)
       (catch Exception e
         ;; Disabled during tests to minimize log spam.
