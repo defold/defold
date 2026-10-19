@@ -227,9 +227,16 @@
                   :default-button true
                   :result true}]})))
 
-(defn- start-channel-download! [updater localization channel-info]
+(defn- choose-channel-download-file [^Stage stage updater localization channel-info]
+  (dialogs/make-save-file-dialog
+    (localization (localization/message "updater.channel-save-dialog.title" {"version" (:version channel-info)}))
+    [[(localization (localization/message "updater.channel-save-dialog.filter")) (str "*." (updater/channel-download-extension (:platform updater)))]]
+    (io/file (updater/downloads-dir) (updater/channel-download-file-name updater channel-info))
+    stage))
+
+(defn- start-channel-download! [updater localization channel-info file]
   (let [version (:version channel-info)
-        download (updater/download-channel! updater channel-info)]
+        download (updater/download-channel! updater channel-info file)]
     (future
       (let [^File file @download]
         (ui/run-later
@@ -257,7 +264,7 @@
                :header (localization/message "updater.channel-download-failed-dialog.header" {"version" version})})))))))
 
 (defn try-channel!
-  "Offers to download the beta editor into the user's Downloads folder for them
+  "Offers to download the beta editor to a location the user picks, for them
   to install. The current installation stays as it is."
   [stage project updater localization]
   (when (and (not (updater/channel-download-in-progress? updater))
@@ -272,7 +279,9 @@
             (cond
               newer
               (when (confirm-try-channel! stage project localization (:version info) release-notes)
-                (start-channel-download! updater localization (assoc info :channel channel)))
+                (let [channel-info (assoc info :channel channel)]
+                  (when-let [file (choose-channel-download-file stage updater localization channel-info)]
+                    (start-channel-download! updater localization channel-info file))))
 
               info
               (dialogs/make-info-dialog

@@ -235,7 +235,7 @@
 (defn- check-channel-offer! [updater]
   (when (and (platform-supported? updater)
              (= "stable" (installed-channel updater)))
-    (when-some [beta (fetch-channel-info! "beta")]
+    (when-let [beta (fetch-channel-info! "beta")]
       (swap! (:state-atom updater) assoc :channel-offer
              (when (newer-than-running? (:version beta))
                (assoc beta :channel "beta"))))))
@@ -491,50 +491,46 @@
           (swap! state-atom dissoc :current-download)
           false)))))
 
-(defn- downloads-dir
+(defn downloads-dir
   "Returns the user's Downloads folder, or the home folder if there is none."
   ^File []
   (let [home-dir (io/file (System/getProperty "user.home"))
         downloads-dir (io/file home-dir "Downloads")]
     (if (.isDirectory downloads-dir) downloads-dir home-dir)))
 
-(defn- create-download-file
-  "Creates a new, empty file named `base-name` + `extension` in the downloads
-  folder, numbering the name if it's taken."
-  ^File [base-name extension]
-  (let [dir (downloads-dir)]
-    (loop [n 0]
-      (let [file (io/file dir (str base-name (when (pos? n) (str " (" n ")")) "." extension))]
-        (if (.createNewFile file)
-          file
-          (recur (inc n)))))))
+(defn channel-download-extension [^Platform platform]
+  (if (= "macos" (.getOs platform)) "dmg" "zip"))
+
+(defn channel-download-file-name
+  "Returns the suggested file name for the `channel` build: the .dmg on macOS,
+  the .zip elsewhere."
+  [updater {:keys [channel version]}]
+  (let [^Platform platform (:platform updater)]
+    (str "Defold-" version "-" channel "-" (.getPair platform) "." (channel-download-extension platform))))
 
 (defn download-channel!
-  "Asynchronously downloads the `channel` build with `sha1` into the user's
-  Downloads folder: the .dmg on macOS, the .zip elsewhere. The current
+  "Asynchronously downloads the `channel` build with `sha1` to `file`,
+  replacing it if it exists: the .dmg on macOS, the .zip elsewhere. The current
   installation is left untouched.
 
   Returns future that eventually will contain the downloaded file, or nil if
   the download failed"
-  [updater {:keys [channel version sha1]}]
+  [updater {:keys [channel sha1]} ^File file]
   (let [{:keys [state-atom ^Platform platform]} updater
-        extension (if (= "macos" (.getOs platform)) "dmg" "zip")
-        url (channel-download-url (system/defold-archive-domain) sha1 channel platform extension)
+        url (channel-download-url (system/defold-archive-domain) sha1 channel platform (channel-download-extension platform))
         track-progress! (fn track-progress! [progress]
                           (swap! state-atom assoc-in [:channel-download :progress] progress))]
     (swap! state-atom assoc :channel-download {:channel channel
                                                :progress (progress/make localization/empty-message 1 0)})
     (future
       (try
-        (let [base-name (str "Defold-" version "-" channel "-" (.getPair platform))
-              part-file (.toFile (Files/createTempFile (.toPath (downloads-dir)) base-name ".part" (into-array FileAttribute [])))]
+        (let [part-file (.toFile (Files/createTempFile (.toPath (.getParentFile file)) (.getName file) ".part" (into-array FileAttribute [])))]
           (.deleteOnExit part-file)
           (try
             (download! url part-file "progress.downloading-beta" track-progress! (atom false))
-            (let [file (create-download-file base-name extension)]
-              (Files/move (.toPath part-file) (.toPath file) (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))
-              (log/info :message "Channel build downloaded" :channel channel :file (str file))
-              file)
+            (Files/move (.toPath part-file) (.toPath file) (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))
+            (log/info :message "Channel build downloaded" :channel channel :file (str file))
+            file
             (finally
               (.delete part-file))))
         (catch Exception e
