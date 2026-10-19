@@ -889,9 +889,12 @@ namespace dmShaderc
         uint32_t workgroup_size_z = 0;
 
         spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
-        spvc_variable_id dummy_sampler_id = 0;
-        spvc_compiler_build_dummy_sampler_for_combined_images(compiler->m_SPVCCompiler, &dummy_sampler_id);
-        spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
+        if (compiler->m_BaseCompiler.m_Language != SHADER_LANGUAGE_HLSL)
+        {
+            spvc_variable_id dummy_sampler_id = 0;
+            spvc_compiler_build_dummy_sampler_for_combined_images(compiler->m_SPVCCompiler, &dummy_sampler_id);
+            spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
+        }
 
         // SPIRV-Cross may leave synthetic combined samplers with an ID-based
         // name (for example, `_194`) after texture/sampler splitting. Give the

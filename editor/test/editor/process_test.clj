@@ -192,8 +192,8 @@
                 output (io/file directory "output.txt")]
             (spit input "redirected input" :encoding "UTF-8")
             (process-util/with-child-process {:windows-default-error-mode default-error-mode
-                                 :in (ProcessBuilder$Redirect/from input)
-                                 :out (ProcessBuilder$Redirect/to output)}
+                                              :in (ProcessBuilder$Redirect/from input)
+                                              :out (ProcessBuilder$Redirect/to output)}
               '(.transferTo System/in System/out) []
               (is (thrown? IOException (.write (process/in process) (int 65))))
               (is (nil? (process/capture! (process/out process))))

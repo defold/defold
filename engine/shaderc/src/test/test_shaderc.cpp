@@ -660,6 +660,65 @@ TEST(Shaderc, TestHLSLSimple)
     free(data);
 }
 
+// Verifies samplerless, separate and combined textures retain their HLSL names and
+// bindings, guarding against dummy-sampler remapping breaking integer texture loads.
+TEST(Shaderc, HLSLMixedSamplerlessTextures)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/samplerless_mixed.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::ShaderCompilerSPVC* source_compiler = dmShaderc::NewShaderCompilerSPVC(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+
+    dmShaderc::ShaderCompileResult* source = dmShaderc::CompileSPVC(context, source_compiler, options);
+    ASSERT_NE((void*) 0, source);
+    ASSERT_NE((void*) 0, source->m_Data.Begin());
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(source->m_Data, "Texture2D<float4> curve_texture : register(t3, space1)"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(source->m_Data, "SamplerState curve_texture_separated : register(s4, space1)"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(source->m_Data, "Texture2D<uint4> band_texture : register(t7, space1)"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(source->m_Data, "band_texture.Load("));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(source->m_Data, "Texture2D<float4> combined_texture : register(t9, space1)"));
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(source->m_Data, "combined_texture.Sample(_combined_texture_sampler,"));
+    ASSERT_EQ((const char*) 0, FindFirstOccurrence(source->m_Data, "SPIRV_Cross_DummySampler"));
+    dmShaderc::FreeShaderCompileResult(source);
+    dmShaderc::DeleteShaderCompilerSPVC(source_compiler);
+
+#if defined(_WIN32)
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_GT(result->m_Data.Size(), 4u);
+    ASSERT_EQ(0, memcmp(result->m_Data.Begin(), "DXBC", 4));
+    ASSERT_EQ(5u, result->m_HLSLResourceMappings.Size());
+    ASSERT_GT(result->m_HLSLRootSignature.Size(), 0u);
+    for (uint32_t i = 0; i < result->m_HLSLResourceMappings.Size(); ++i)
+    {
+        const dmShaderc::HLSLResourceMapping& mapping = result->m_HLSLResourceMappings[i];
+        ASSERT_EQ(1u, mapping.m_ShaderResourceSet);
+        if (mapping.m_NameHash == dmHashString64("curve_texture"))
+            ASSERT_EQ(3u, mapping.m_ShaderResourceBinding);
+        else if (mapping.m_NameHash == dmHashString64("curve_texture_separated"))
+            ASSERT_EQ(4u, mapping.m_ShaderResourceBinding);
+        else if (mapping.m_NameHash == dmHashString64("band_texture"))
+            ASSERT_EQ(7u, mapping.m_ShaderResourceBinding);
+        else
+        {
+            ASSERT_TRUE(mapping.m_NameHash == dmHashString64("combined_texture") ||
+                        mapping.m_NameHash == dmHashString64("_combined_texture_sampler"));
+            ASSERT_EQ(9u, mapping.m_ShaderResourceBinding);
+        }
+    }
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+#endif
+
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+}
+
 // Verifies storage-buffer bytecode and SRV/UAV root parameters preserve register spaces
 // and bindings, guarding against omitted buffers and malformed root signatures.
 TEST(Shaderc, HLSLStorageBufferRootSignature)

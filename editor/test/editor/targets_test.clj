@@ -147,15 +147,15 @@
      (with-open [reader# (io/reader (process/out ~'process))]
        (is (= "ready" (.readLine ^BufferedReader reader#))))
      (with-open [server# (http-server/start!
-                          (http-server/router-handler
-                            {"/post/@system/exit" {"POST" ~handler}})
-                          :host "127.0.0.1")]
+                           (http-server/router-handler
+                             {"/post/@system/exit" {"POST" ~handler}})
+                           :host "127.0.0.1")]
        (let [prefs# (prefs/global (fs/create-temp-file! "target-test" ".editor_settings"))
              ^Stage stage# (ui/run-now (doto (Stage.) (.setScene (Scene. (Group.)))))]
          (try
            (binding [ui/*main-stage* (atom stage#)]
              (let [~'target (targets/add-launched-target! prefs# 0
-                             {:process ~'process :url (http-server/local-url server#)})]
+                                                          {:process ~'process :url (http-server/local-url server#)})]
                (try
                  ~@body
                  (finally
