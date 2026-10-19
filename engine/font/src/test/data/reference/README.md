@@ -11,6 +11,11 @@ The report shows Actual, Reference and Difference, with H images enlarged 4x.
 
 Single-line tests use `ABCDEFGabcdefg 0123456789`. Full-layout English and Arabic paragraphs retain their frozen Lorem ipsum fixtures.
 
+The five `ttf_vector_multi_color*.png` references cover 😀 🍎 🚀 in full plain/rich
+layout, unsupported-flag fallback, and rich-text tint/underline behavior at 40 px.
+They use the same 98% foreground likeness threshold. Capture inputs and hashes
+are recorded in `color-emoji-provenance.json`.
+
 The `alignment/` references cover all nine pivots for issue #13339 using black
 `Example` text over a 200×100 white box. They use the editor's native TTF preview
 metrics for an offline font (legacy layout), while actual captures use Bob's

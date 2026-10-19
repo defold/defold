@@ -105,6 +105,29 @@ class ReportTest(unittest.TestCase):
         arabic = json.loads((report.DATA / "lorem.json").read_text(encoding="utf-8"))["arabic"]
         self.assertIn(json.dumps(arabic, ensure_ascii=False), generated.read_text(encoding="utf-8"))
 
+    # Frozen emoji references must reject lost colors, internal detail and placement,
+    # even when most of the capture is an unchanged black background.
+    def test_color_emoji_likeness_rejects_visual_changes(self):
+        for rich in (False, True):
+            configuration = 'full-rich' if rich else 'full-plain'
+            for case in report.cases(True, rich):
+                if not case['scenario'].startswith('color'):
+                    continue
+                reference = report.FONT_ROOT/'src/test/data/reference'/configuration/(case['id']+'.png')
+                with Image.open(reference) as image:
+                    expected = image.convert('RGB')
+                variants = {
+                    'monochrome': expected.convert('L').convert('RGB'),
+                    'silhouette': report.likeness.foreground_mask(expected, (0, 0, 0)).convert('RGB'),
+                    'shifted': ImageChops.offset(expected, 1, 0),
+                }
+                for name, actual in variants.items():
+                    with self.subTest(configuration=configuration, case=case['id'], change=name):
+                        actual.save(self.actual)
+                        result = report.compare_case(self.actual, reference, dict(case, background=[0, 0, 0]), self.root/'comparison')
+                        self.assertEqual('fail', result['status'], result['reason'])
+                        self.assertIn('Foreground likeness', result['reason'])
+
     def test_identical_and_reference_never_changes(self):
         # Comparing or reporting may copy a verified PNG, but must not rewrite it.
         self.image(self.actual)
