@@ -55,7 +55,6 @@ foreach(_render_test IN ITEMS
   test_render_execution
   test_render_frame
   test_render_frame_queue
-  test_render_component
   test_display_profiles
   test_render_programs
   test_render_script

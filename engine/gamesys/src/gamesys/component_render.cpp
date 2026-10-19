@@ -19,6 +19,7 @@
 #include <gameobject/component_render.h>
 
 #include "component_render.h"
+#include "component_render_state_private.h"
 
 namespace dmGameSystem
 {
@@ -30,10 +31,10 @@ namespace dmGameSystem
     {
         dmRender::RenderFrameLimits       m_Limits;
         uint64_t                          m_NextWorldId;
-        dmGameObject::HRegister           m_Register;
-        dmRender::HRenderExecution        m_Execution;
-        dmRender::HRenderComponentContext m_Manager;
-        dmRender::HRenderFrameQueue       m_Queue;
+        dmGameObject::HRegister            m_Register;
+        dmRender::HRenderExecution         m_Execution;
+        HComponentRenderStateContext      m_StateContext;
+        dmRender::HRenderFrameQueue        m_Queue;
         ComponentRenderTypeBinding*       m_Types;
     };
 
@@ -47,8 +48,8 @@ namespace dmGameSystem
     // Stack-only trampoline data, never retained by the renderer or by the frame.
     struct ComponentRenderCaptureContext
     {
-        ComponentRenderExtractParams m_Params;
-        ComponentRenderExtract       m_Extract;
+        ComponentRenderCaptureParams m_Params;
+        ComponentRenderCapture       m_Capture;
     };
 
     static bool CreateWorld(void* context, uint32_t component_index, uint32_t max_instances, uint32_t max_components, void** render_world)
@@ -66,32 +67,32 @@ namespace dmGameSystem
         info.m_ComponentIndex         = component_index;
         info.m_MaxInstances           = max_instances;
         info.m_MaxComponentInstances  = max_components;
-        *render_world                 = dmRender::NewRenderComponentWorld(owner->m_Manager, binding->m_Type.m_RenderCallbacks, binding->m_Type.m_RenderContext, &info, sizeof(info));
+        *render_world                 = NewComponentRenderWorld(owner->m_StateContext, binding->m_Type.m_RenderCallbacks, binding->m_Type.m_RenderContext, &info, sizeof(info));
         return *render_world != 0;
     }
 
     static void DeleteWorld(void* context, void* render_world)
     {
         (void)context;
-        dmRender::DeleteRenderComponentWorld((dmRender::HRenderComponentWorld)render_world);
+        DeleteComponentRenderWorld((HComponentRenderWorld)render_world);
     }
 
-    static dmRender::RenderFrameResult Capture(dmRender::HRenderFrame frame, void* context)
+    static dmRender::RenderFrameResult WriteInputs(dmRender::HRenderFrame frame, void* context)
     {
         ComponentRenderCaptureContext* capture = (ComponentRenderCaptureContext*)context;
         capture->m_Params.m_Frame = frame;
-        return capture->m_Extract(capture->m_Params);
+        return capture->m_Capture(capture->m_Params);
     }
 
-    static bool Extract(void* context, void* render_world, const dmGameObject::ComponentRenderExtractParams& params)
+    static bool CaptureWorld(void* context, void* render_world, const dmGameObject::ComponentRenderCaptureParams& params)
     {
         ComponentRenderTypeBinding* binding = (ComponentRenderTypeBinding*)context;
         ComponentRenderCaptureContext capture;
-        capture.m_Extract = binding->m_Type.m_Extract;
+        capture.m_Capture = binding->m_Type.m_Capture;
         capture.m_Params.m_Collection = params.m_Collection;
         capture.m_Params.m_World = params.m_World;
         capture.m_Params.m_Context = params.m_Context;
-        return dmRender::CaptureRenderComponent((dmRender::HRenderComponentWorld)render_world, (dmRender::HRenderFrame)params.m_Frame, Capture, &capture) == dmRender::RENDER_FRAME_OK;
+        return CaptureComponentRenderWorld((HComponentRenderWorld)render_world, (dmRender::HRenderFrame)params.m_Frame, WriteInputs, &capture) == dmRender::RENDER_FRAME_OK;
     }
 
     HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist,
@@ -109,9 +110,9 @@ namespace dmGameSystem
         context->m_Execution = execution;
         context->m_Limits = limits;
         context->m_NextWorldId = 1;
-        context->m_Manager = dmRender::NewRenderComponentContext(execution);
+        context->m_StateContext = NewComponentRenderStateContext(execution);
 
-        if (!context->m_Manager)
+        if (!context->m_StateContext)
         {
             free(context);
             return 0;
@@ -124,7 +125,7 @@ namespace dmGameSystem
         uint32_t component_index, const ComponentRenderType& type)
     {
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
-        if (!type.m_Extract || !type.m_RenderCallbacks.m_Initialize ||
+        if (!type.m_Capture || !type.m_RenderCallbacks.m_Initialize ||
             !type.m_RenderCallbacks.m_Consume || !type.m_RenderCallbacks.m_Destroy ||
             component_index >= dmGameObject::GetNumComponentTypes(context->m_Register))
         {
@@ -143,10 +144,10 @@ namespace dmGameSystem
             dmRender::RenderFrameQueueParams params = {};
             params.m_Execution = context->m_Execution;
             params.m_Limits = context->m_Limits;
-            params.m_Consume = dmRender::ConsumeRenderComponents;
-            params.m_ConsumeContext = context->m_Manager;
-            params.m_Service = dmRender::ServiceRenderComponents;
-            params.m_ServiceContext = context->m_Manager;
+            params.m_Consume = ConsumeComponentRenderFrame;
+            params.m_ConsumeContext = context->m_StateContext;
+            params.m_Service = ServiceComponentRenderState;
+            params.m_ServiceContext = context->m_StateContext;
             context->m_Queue = dmRender::NewRenderFrameQueue(params);
 
             if (!context->m_Queue)
@@ -155,7 +156,7 @@ namespace dmGameSystem
                 return dmGameObject::RESULT_UNKNOWN_ERROR;
             }
 
-            dmRender::SetRenderComponentQueue(context->m_Manager, context->m_Queue);
+            SetComponentRenderStateQueue(context->m_StateContext, context->m_Queue);
         }
 
         binding->m_Context = context;
@@ -164,7 +165,7 @@ namespace dmGameSystem
         callbacks.m_Context = binding;
         callbacks.m_CreateWorld = CreateWorld;
         callbacks.m_DeleteWorld = DeleteWorld;
-        callbacks.m_Extract = Extract;
+        callbacks.m_Capture = CaptureWorld;
         dmGameObject::Result result = dmGameObject::RegisterComponentRenderCallbacks(context->m_Register, component_index, callbacks);
 
         if (result != dmGameObject::RESULT_OK)
@@ -174,7 +175,7 @@ namespace dmGameSystem
             {
                 // This unpublished queue has never been exposed to an executor and has
                 // no frames or worlds. Failed registration must not allocate an idle pipeline.
-                dmRender::SetRenderComponentQueue(context->m_Manager, 0);
+                SetComponentRenderStateQueue(context->m_StateContext, 0);
                 dmRender::StopRenderFrameQueue(context->m_Queue);
                 dmRender::DeleteRenderFrameQueue(context->m_Queue);
                 context->m_Queue = 0;
@@ -196,7 +197,7 @@ namespace dmGameSystem
         {
             return dmGameObject::Render(collection);
         }
-        if (dmRender::GetRenderComponentResult(context->m_Manager) != dmRender::RENDER_FRAME_OK)
+        if (GetComponentRenderResult(context) != dmRender::RENDER_FRAME_OK)
         {
             return false;
         }
@@ -208,7 +209,7 @@ namespace dmGameSystem
             return false;
         }
 
-        if (!dmGameObject::ExtractRenderData(collection, ticket.m_Frame))
+        if (!dmGameObject::CaptureRenderData(collection, ticket.m_Frame))
         {
             dmRender::CancelRenderFrameCapture(context->m_Queue, ticket);
             return false;
@@ -220,7 +221,7 @@ namespace dmGameSystem
             dmRender::CancelRenderFrameCapture(context->m_Queue, ticket);
             return false;
         }
-        return dmRender::GetRenderComponentResult(context->m_Manager) == dmRender::RENDER_FRAME_OK;
+        return GetComponentRenderResult(context) == dmRender::RENDER_FRAME_OK;
     }
 
     void RetireComponentRenderFrames(HComponentRenderContext context)
@@ -240,9 +241,14 @@ namespace dmGameSystem
         return context->m_Queue;
     }
 
-    dmRender::HRenderComponentContext GetComponentRenderManager(HComponentRenderContext context)
+    dmRender::RenderFrameResult GetComponentRenderResult(HComponentRenderContext context)
     {
-        return context->m_Manager;
+        return GetComponentRenderStateResult(context->m_StateContext);
+    }
+
+    uint32_t GetComponentRenderWorldCount(HComponentRenderContext context)
+    {
+        return GetComponentRenderStateWorldCount(context->m_StateContext);
     }
 
     void DeleteComponentRenderContext(HComponentRenderContext context)
@@ -257,7 +263,7 @@ namespace dmGameSystem
             dmRender::PumpRenderFrameQueue(context->m_Queue, false);
         }
 
-        dmRender::DeleteRenderComponentContext(context->m_Manager);
+        DeleteComponentRenderStateContext(context->m_StateContext);
         if (context->m_Queue)
         {
             dmRender::DeleteRenderFrameQueue(context->m_Queue);

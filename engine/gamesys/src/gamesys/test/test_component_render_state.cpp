@@ -20,15 +20,16 @@
 
 #include <testmain/testmain.h>
 
-#include "render/render_component.h"
+#include "gamesys/component_render_state_private.h"
 
 using namespace dmRender;
+using namespace dmGameSystem;
 
 struct ComponentFixture
 {
-    HRenderExecution        m_Execution;
-    HRenderComponentContext m_Components;
-    HRenderFrameQueue       m_Queue;
+    HRenderExecution             m_Execution;
+    HComponentRenderStateContext m_Components;
+    HRenderFrameQueue             m_Queue;
 };
 
 struct ComponentProbe
@@ -142,54 +143,58 @@ static bool CreateComponentFixture(ComponentFixture* fixture, const RenderFrameL
     fixture->m_Execution = NewRenderExecution(EXECUTION_MODE_INLINE, false, &selection);
     if (!fixture->m_Execution)
         return false;
-    fixture->m_Components = NewRenderComponentContext(fixture->m_Execution);
+
+    fixture->m_Components = NewComponentRenderStateContext(fixture->m_Execution);
     if (!fixture->m_Components)
         return false;
+
     RenderFrameQueueParams params = {};
     params.m_Execution = fixture->m_Execution;
     params.m_Limits = limits;
-    params.m_Consume = ConsumeRenderComponents;
+    params.m_Consume = ConsumeComponentRenderFrame;
     params.m_ConsumeContext = fixture->m_Components;
-    params.m_Service = ServiceRenderComponents;
+    params.m_Service = ServiceComponentRenderState;
     params.m_ServiceContext = fixture->m_Components;
+
     fixture->m_Queue = NewRenderFrameQueue(params);
     if (!fixture->m_Queue)
         return false;
-    SetRenderComponentQueue(fixture->m_Components, fixture->m_Queue);
+
+    SetComponentRenderStateQueue(fixture->m_Components, fixture->m_Queue);
     return true;
 }
 
 static void DeleteComponentFixture(ComponentFixture* fixture)
 {
-    ASSERT_EQ(0u, GetRenderComponentWorldCount(fixture->m_Components));
+    ASSERT_EQ(0u, GetComponentRenderStateWorldCount(fixture->m_Components));
     StopRenderFrameQueue(fixture->m_Queue);
     ASSERT_EQ(RENDER_FRAME_PUMP_DRAINED, PumpRenderFrameQueue(fixture->m_Queue, true));
-    DeleteRenderComponentContext(fixture->m_Components);
+    DeleteComponentRenderStateContext(fixture->m_Components);
     DeleteRenderFrameQueue(fixture->m_Queue);
     DeleteRenderExecution(fixture->m_Execution);
 }
 
-static HRenderComponentWorld CreateComponentWorld(ComponentFixture* fixture, ComponentProbe* probe, uint32_t init_value)
+static HComponentRenderWorld CreateComponentWorld(ComponentFixture* fixture, ComponentProbe* probe, uint32_t init_value)
 {
     probe->m_Execution = fixture->m_Execution;
-    RenderComponentCallbacks callbacks = { InitializeComponent, ConsumeComponent, DestroyComponent };
-    return NewRenderComponentWorld(fixture->m_Components, callbacks, probe, &init_value, sizeof(init_value));
+    ComponentRenderCallbacks callbacks = { InitializeComponent, ConsumeComponent, DestroyComponent };
+    return NewComponentRenderWorld(fixture->m_Components, callbacks, probe, &init_value, sizeof(init_value));
 }
 
 // Verify initialization bytes, callback descriptors and producer payloads remain valid after their original storage is changed/freed.
-TEST(RenderComponent, CopiedInputsOutliveGameStorage)
+TEST(ComponentRenderState, CopiedInputsOutliveGameStorage)
 {
     ComponentFixture fixture;
     RenderFrameLimits limits = { 1024, 16, 16 };
     ASSERT_TRUE(CreateComponentFixture(&fixture, limits));
     ComponentProbe probe = {};
     probe.m_Execution = fixture.m_Execution;
-    RenderComponentCallbacks callbacks = { InitializeComponent, ConsumeComponent, DestroyComponent };
+    ComponentRenderCallbacks callbacks = { InitializeComponent, ConsumeComponent, DestroyComponent };
     uint32_t* init_data = (uint32_t*)malloc(sizeof(uint32_t));
     ASSERT_NE((uint32_t*)0, init_data);
     *init_data = 71;
-    HRenderComponentWorld world = NewRenderComponentWorld(fixture.m_Components, callbacks, &probe, init_data, sizeof(*init_data));
-    ASSERT_NE((HRenderComponentWorld)0, world);
+    HComponentRenderWorld world = NewComponentRenderWorld(fixture.m_Components, callbacks, &probe, init_data, sizeof(*init_data));
+    ASSERT_NE((HComponentRenderWorld)0, world);
     *init_data = 999;
     free(init_data);
     memset(&callbacks, 0, sizeof(callbacks));
@@ -200,12 +205,12 @@ TEST(RenderComponent, CopiedInputsOutliveGameStorage)
         producer->m_Values[i] = i + 10;
     RenderFrameTicket ticket;
     ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &ticket));
-    ASSERT_EQ(RENDER_FRAME_OK, CaptureRenderComponent(world, ticket.m_Frame, CaptureComponentValues, producer));
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(world, ticket.m_Frame, CaptureComponentValues, producer));
     ASSERT_EQ(1u, producer->m_Calls);
     memset(producer, 0xcd, sizeof(*producer));
     free(producer);
-    DeleteRenderComponentWorld(world);
-    ASSERT_EQ(1u, GetRenderComponentWorldCount(fixture.m_Components));
+    DeleteComponentRenderWorld(world);
+    ASSERT_EQ(1u, GetComponentRenderStateWorldCount(fixture.m_Components));
     ASSERT_EQ(0u, probe.m_Initialized);
     ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, ticket));
     ASSERT_EQ(1u, probe.m_Initialized);
@@ -217,68 +222,68 @@ TEST(RenderComponent, CopiedInputsOutliveGameStorage)
     ASSERT_EQ(0u, probe.m_Destroyed);
     ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
     ASSERT_EQ(1u, probe.m_Destroyed);
-    ASSERT_EQ(0u, GetRenderComponentWorldCount(fixture.m_Components));
-    ASSERT_EQ(RENDER_FRAME_OK, GetRenderComponentResult(fixture.m_Components));
+    ASSERT_EQ(0u, GetComponentRenderStateWorldCount(fixture.m_Components));
+    ASSERT_EQ(RENDER_FRAME_OK, GetComponentRenderStateResult(fixture.m_Components));
     ASSERT_FALSE(probe.m_WrongOwner);
     ASSERT_FALSE(probe.m_InvalidInput);
     DeleteComponentFixture(&fixture);
 }
 
 // Verify persistent renderer state initializes once across frames and survives CPU retirement while its game owner still exists.
-TEST(RenderComponent, PersistentWorldAcrossFrames)
+TEST(ComponentRenderState, PersistentWorldAcrossFrames)
 {
     ComponentFixture fixture;
     RenderFrameLimits limits = { 1024, 16, 16 };
     ASSERT_TRUE(CreateComponentFixture(&fixture, limits));
     ComponentProbe probe = {};
-    HRenderComponentWorld world = CreateComponentWorld(&fixture, &probe, 7);
-    ASSERT_NE((HRenderComponentWorld)0, world);
+    HComponentRenderWorld world = CreateComponentWorld(&fixture, &probe, 7);
+    ASSERT_NE((HComponentRenderWorld)0, world);
     ComponentProducer producer = { { 1, 2, 3, 4 }, 1, 0, RENDER_FRAME_OK };
     for (uint32_t i = 0; i < 4; ++i)
     {
         RenderFrameTicket ticket;
         ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &ticket));
-        ASSERT_EQ(RENDER_FRAME_OK, CaptureRenderComponent(world, ticket.m_Frame, CaptureComponentValues, &producer));
+        ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(world, ticket.m_Frame, CaptureComponentValues, &producer));
         ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, ticket));
         ASSERT_EQ(1u, probe.m_Initialized);
         ASSERT_EQ(i + 1, probe.m_Consumed);
         ASSERT_EQ(1u, RetireRenderFrames(fixture.m_Queue));
         ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
         ASSERT_EQ(0u, probe.m_Destroyed);
-        ASSERT_EQ(1u, GetRenderComponentWorldCount(fixture.m_Components));
+        ASSERT_EQ(1u, GetComponentRenderStateWorldCount(fixture.m_Components));
     }
     ASSERT_EQ((uint64_t)40, probe.m_Sum);
-    DeleteRenderComponentWorld(world);
+    DeleteComponentRenderWorld(world);
     ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
     ASSERT_EQ(1u, probe.m_Destroyed);
-    ASSERT_EQ(0u, GetRenderComponentWorldCount(fixture.m_Components));
+    ASSERT_EQ(0u, GetComponentRenderStateWorldCount(fixture.m_Components));
     ASSERT_FALSE(probe.m_WrongOwner);
     ASSERT_FALSE(probe.m_InvalidInput);
     DeleteComponentFixture(&fixture);
 }
 
 // Verify a closed world with no accepted render work is reaped by no-frame service without creating/destroying GPU state.
-TEST(RenderComponent, NeverRenderedWorld)
+TEST(ComponentRenderState, NeverRenderedWorld)
 {
     ComponentFixture fixture;
     RenderFrameLimits limits = { 0, 0, 0 };
     ASSERT_TRUE(CreateComponentFixture(&fixture, limits));
     ComponentProbe probe = {};
-    HRenderComponentWorld world = CreateComponentWorld(&fixture, &probe, 7);
-    ASSERT_NE((HRenderComponentWorld)0, world);
-    DeleteRenderComponentWorld(world);
-    ASSERT_EQ(1u, GetRenderComponentWorldCount(fixture.m_Components));
+    HComponentRenderWorld world = CreateComponentWorld(&fixture, &probe, 7);
+    ASSERT_NE((HComponentRenderWorld)0, world);
+    DeleteComponentRenderWorld(world);
+    ASSERT_EQ(1u, GetComponentRenderStateWorldCount(fixture.m_Components));
     ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
-    ASSERT_EQ(0u, GetRenderComponentWorldCount(fixture.m_Components));
+    ASSERT_EQ(0u, GetComponentRenderStateWorldCount(fixture.m_Components));
     ASSERT_EQ(0u, probe.m_Initialized);
     ASSERT_EQ(0u, probe.m_Consumed);
     ASSERT_EQ(0u, probe.m_Destroyed);
-    ASSERT_EQ(RENDER_FRAME_OK, GetRenderComponentResult(fixture.m_Components));
+    ASSERT_EQ(RENDER_FRAME_OK, GetComponentRenderStateResult(fixture.m_Components));
     DeleteComponentFixture(&fixture);
 }
 
 // Verify failed initialization cleans returned partial state once, never retries, and does not suppress another accepted world's work.
-TEST(RenderComponent, InitializationFailureCleanupAndContinuation)
+TEST(ComponentRenderState, InitializationFailureCleanupAndContinuation)
 {
     const bool partial_states[] = { false, true };
     for (uint32_t test = 0; test < 2; ++test)
@@ -290,29 +295,29 @@ TEST(RenderComponent, InitializationFailureCleanupAndContinuation)
         failed.m_InitializeResult = RENDER_FRAME_OUT_OF_MEMORY;
         failed.m_PartialState = partial_states[test];
         ComponentProbe healthy = {};
-        HRenderComponentWorld failed_world = CreateComponentWorld(&fixture, &failed, 11);
-        HRenderComponentWorld healthy_world = CreateComponentWorld(&fixture, &healthy, 12);
-        ASSERT_NE((HRenderComponentWorld)0, failed_world);
-        ASSERT_NE((HRenderComponentWorld)0, healthy_world);
+        HComponentRenderWorld failed_world = CreateComponentWorld(&fixture, &failed, 11);
+        HComponentRenderWorld healthy_world = CreateComponentWorld(&fixture, &healthy, 12);
+        ASSERT_NE((HComponentRenderWorld)0, failed_world);
+        ASSERT_NE((HComponentRenderWorld)0, healthy_world);
         ComponentProducer producer = { { 1, 2, 3, 4 }, 1, 0, RENDER_FRAME_OK };
         for (uint32_t i = 0; i < 2; ++i)
         {
             RenderFrameTicket ticket;
             ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &ticket));
-            ASSERT_EQ(RENDER_FRAME_OK, CaptureRenderComponent(failed_world, ticket.m_Frame, CaptureComponentValues, &producer));
-            ASSERT_EQ(RENDER_FRAME_OK, CaptureRenderComponent(healthy_world, ticket.m_Frame, CaptureComponentValues, &producer));
+            ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(failed_world, ticket.m_Frame, CaptureComponentValues, &producer));
+            ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(healthy_world, ticket.m_Frame, CaptureComponentValues, &producer));
             ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, ticket));
             ASSERT_EQ(1u, failed.m_Initialized);
             ASSERT_EQ(0u, failed.m_Consumed);
             ASSERT_EQ(partial_states[test] ? 1u : 0u, failed.m_Destroyed);
             ASSERT_EQ(i + 1, healthy.m_Consumed);
-            ASSERT_EQ(RENDER_FRAME_OUT_OF_MEMORY, GetRenderComponentResult(fixture.m_Components));
+            ASSERT_EQ(RENDER_FRAME_OUT_OF_MEMORY, GetComponentRenderStateResult(fixture.m_Components));
             ASSERT_EQ(1u, RetireRenderFrames(fixture.m_Queue));
         }
-        DeleteRenderComponentWorld(failed_world);
-        DeleteRenderComponentWorld(healthy_world);
+        DeleteComponentRenderWorld(failed_world);
+        DeleteComponentRenderWorld(healthy_world);
         ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
-        ASSERT_EQ(0u, GetRenderComponentWorldCount(fixture.m_Components));
+        ASSERT_EQ(0u, GetComponentRenderStateWorldCount(fixture.m_Components));
         ASSERT_EQ(partial_states[test] ? 1u : 0u, failed.m_Destroyed);
         ASSERT_EQ(1u, healthy.m_Destroyed);
         ASSERT_FALSE(failed.m_WrongOwner);
@@ -324,7 +329,7 @@ TEST(RenderComponent, InitializationFailureCleanupAndContinuation)
 }
 
 // Verify consume errors preserve other accepted entries and the first diagnostic, while dispatch spans exclude unrelated tables.
-TEST(RenderComponent, ConsumeErrorPreservesAcceptedWork)
+TEST(ComponentRenderState, ConsumeErrorPreservesAcceptedWork)
 {
     ComponentFixture fixture;
     RenderFrameLimits limits = { 1024, 16, 16 };
@@ -333,10 +338,10 @@ TEST(RenderComponent, ConsumeErrorPreservesAcceptedWork)
     ComponentProbe second = {};
     first.m_ConsumeResult = RENDER_FRAME_INVALID_STATE;
     second.m_ConsumeResult = RENDER_FRAME_OUT_OF_MEMORY;
-    HRenderComponentWorld first_world = CreateComponentWorld(&fixture, &first, 1);
-    HRenderComponentWorld second_world = CreateComponentWorld(&fixture, &second, 2);
-    ASSERT_NE((HRenderComponentWorld)0, first_world);
-    ASSERT_NE((HRenderComponentWorld)0, second_world);
+    HComponentRenderWorld first_world = CreateComponentWorld(&fixture, &first, 1);
+    HComponentRenderWorld second_world = CreateComponentWorld(&fixture, &second, 2);
+    ASSERT_NE((HComponentRenderWorld)0, first_world);
+    ASSERT_NE((HComponentRenderWorld)0, second_world);
     RenderFrameTicket ticket;
     ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &ticket));
     uint32_t unrelated = 999;
@@ -344,10 +349,10 @@ TEST(RenderComponent, ConsumeErrorPreservesAcceptedWork)
     ASSERT_EQ(RENDER_FRAME_OK, CopyRenderFrameTable(ticket.m_Frame, 456, 1, sizeof(unrelated), 4, &unrelated, &index));
     ComponentProducer one = { { 1, 2, 3, 4 }, 1, 0, RENDER_FRAME_OK };
     ComponentProducer two = { { 10, 20, 30, 40 }, 2, 0, RENDER_FRAME_OK };
-    ASSERT_EQ(RENDER_FRAME_OK, CaptureRenderComponent(first_world, ticket.m_Frame, CaptureComponentValues, &one));
-    ASSERT_EQ(RENDER_FRAME_OK, CaptureRenderComponent(second_world, ticket.m_Frame, CaptureComponentValues, &two));
-    DeleteRenderComponentWorld(first_world);
-    DeleteRenderComponentWorld(second_world);
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(first_world, ticket.m_Frame, CaptureComponentValues, &one));
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(second_world, ticket.m_Frame, CaptureComponentValues, &two));
+    DeleteComponentRenderWorld(first_world);
+    DeleteComponentRenderWorld(second_world);
     ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, ticket));
     ASSERT_EQ(1u, first.m_Consumed);
     ASSERT_EQ(1u, second.m_Consumed);
@@ -357,7 +362,7 @@ TEST(RenderComponent, ConsumeErrorPreservesAcceptedWork)
     ASSERT_EQ(2u, second.m_TableCount);
     ASSERT_EQ((uint64_t)10, first.m_Sum);
     ASSERT_EQ((uint64_t)200, second.m_Sum);
-    ASSERT_EQ(RENDER_FRAME_INVALID_STATE, GetRenderComponentResult(fixture.m_Components));
+    ASSERT_EQ(RENDER_FRAME_INVALID_STATE, GetComponentRenderStateResult(fixture.m_Components));
     ASSERT_EQ(1u, RetireRenderFrames(fixture.m_Queue));
     ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
     ASSERT_EQ(1u, first.m_Destroyed);
@@ -367,42 +372,42 @@ TEST(RenderComponent, ConsumeErrorPreservesAcceptedWork)
     DeleteComponentFixture(&fixture);
 }
 
-// Verify a callback error with no payload poisons the complete capture, including earlier successfully extracted components.
-TEST(RenderComponent, EmptyExtractionFailureRejectsWholeFrame)
+// Verify a callback error with no payload poisons the complete capture, including earlier successfully captured components.
+TEST(ComponentRenderState, EmptyCaptureFailureRejectsWholeFrame)
 {
     ComponentFixture fixture;
     RenderFrameLimits limits = { 1024, 16, 16 };
     ASSERT_TRUE(CreateComponentFixture(&fixture, limits));
     ComponentProbe first = {};
     ComponentProbe second = {};
-    HRenderComponentWorld first_world = CreateComponentWorld(&fixture, &first, 1);
-    HRenderComponentWorld second_world = CreateComponentWorld(&fixture, &second, 2);
-    ASSERT_NE((HRenderComponentWorld)0, first_world);
-    ASSERT_NE((HRenderComponentWorld)0, second_world);
+    HComponentRenderWorld first_world = CreateComponentWorld(&fixture, &first, 1);
+    HComponentRenderWorld second_world = CreateComponentWorld(&fixture, &second, 2);
+    ASSERT_NE((HComponentRenderWorld)0, first_world);
+    ASSERT_NE((HComponentRenderWorld)0, second_world);
     RenderFrameTicket ticket;
     ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &ticket));
     ComponentProducer one = { { 1, 2, 3, 4 }, 1, 0, RENDER_FRAME_OK };
     ComponentProducer failed = { { 0, 0, 0, 0 }, 0, 0, RENDER_FRAME_INVALID_ARGUMENT };
-    ASSERT_EQ(RENDER_FRAME_OK, CaptureRenderComponent(first_world, ticket.m_Frame, CaptureComponentValues, &one));
-    ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, CaptureRenderComponent(second_world, ticket.m_Frame, CaptureComponentValues, &failed));
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(first_world, ticket.m_Frame, CaptureComponentValues, &one));
+    ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, CaptureComponentRenderWorld(second_world, ticket.m_Frame, CaptureComponentValues, &failed));
     ASSERT_EQ(1u, failed.m_Calls);
     ASSERT_EQ(2u, GetRenderFrameStatistics(ticket.m_Frame).m_ReferenceCount);
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, PublishRenderFrame(fixture.m_Queue, ticket));
     ASSERT_EQ(0u, first.m_Initialized);
     ASSERT_EQ(0u, second.m_Initialized);
-    DeleteRenderComponentWorld(first_world);
-    DeleteRenderComponentWorld(second_world);
+    DeleteComponentRenderWorld(first_world);
+    DeleteComponentRenderWorld(second_world);
     ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, ticket));
     ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
-    ASSERT_EQ(0u, GetRenderComponentWorldCount(fixture.m_Components));
+    ASSERT_EQ(0u, GetComponentRenderStateWorldCount(fixture.m_Components));
     ASSERT_EQ(0u, first.m_Destroyed);
     ASSERT_EQ(0u, second.m_Destroyed);
-    ASSERT_EQ(RENDER_FRAME_OK, GetRenderComponentResult(fixture.m_Components));
+    ASSERT_EQ(RENDER_FRAME_OK, GetComponentRenderStateResult(fixture.m_Components));
     DeleteComponentFixture(&fixture);
 }
 
 // Verify arena, table and retained-reference overflow reject publication and cancellation never leaks a world record.
-TEST(RenderComponent, CaptureCapacityFailures)
+TEST(ComponentRenderState, CaptureCapacityFailures)
 {
     struct CapacityCase
     {
@@ -422,19 +427,19 @@ TEST(RenderComponent, CaptureCapacityFailures)
         ComponentFixture fixture;
         ASSERT_TRUE(CreateComponentFixture(&fixture, cases[i].m_Limits));
         ComponentProbe probe = {};
-        HRenderComponentWorld world = CreateComponentWorld(&fixture, &probe, 1);
-        ASSERT_NE((HRenderComponentWorld)0, world);
+        HComponentRenderWorld world = CreateComponentWorld(&fixture, &probe, 1);
+        ASSERT_NE((HComponentRenderWorld)0, world);
         ComponentProducer producer = { { 1, 2, 3, 4 }, 1, 0, RENDER_FRAME_OK };
         RenderFrameTicket ticket;
         ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &ticket));
-        ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, CaptureRenderComponent(world, ticket.m_Frame, CaptureComponentValues, &producer));
+        ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, CaptureComponentRenderWorld(world, ticket.m_Frame, CaptureComponentValues, &producer));
         ASSERT_EQ(cases[i].m_ProducerCalls, producer.m_Calls);
         ASSERT_EQ(cases[i].m_References, GetRenderFrameStatistics(ticket.m_Frame).m_ReferenceCount);
         ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, PublishRenderFrame(fixture.m_Queue, ticket));
-        DeleteRenderComponentWorld(world);
+        DeleteComponentRenderWorld(world);
         ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, ticket));
         ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
-        ASSERT_EQ(0u, GetRenderComponentWorldCount(fixture.m_Components));
+        ASSERT_EQ(0u, GetComponentRenderStateWorldCount(fixture.m_Components));
         ASSERT_EQ(0u, probe.m_Initialized);
         ASSERT_EQ(0u, probe.m_Destroyed);
         DeleteComponentFixture(&fixture);
@@ -461,7 +466,7 @@ static RenderFrameResult CaptureReferenceThenFail(HRenderFrame frame, void* cont
 }
 
 // Verify partial capture cleanup releases successfully adopted producer dependencies once while preserving failed-adoption ownership.
-TEST(RenderComponent, PartialCaptureReferenceCleanup)
+TEST(ComponentRenderState, PartialCaptureReferenceCleanup)
 {
     for (uint32_t capacity = 1; capacity <= 2; ++capacity)
     {
@@ -469,20 +474,20 @@ TEST(RenderComponent, PartialCaptureReferenceCleanup)
         RenderFrameLimits limits = { 128, 4, capacity };
         ASSERT_TRUE(CreateComponentFixture(&fixture, limits));
         ComponentProbe probe = {};
-        HRenderComponentWorld world = CreateComponentWorld(&fixture, &probe, 1);
-        ASSERT_NE((HRenderComponentWorld)0, world);
+        HComponentRenderWorld world = CreateComponentWorld(&fixture, &probe, 1);
+        ASSERT_NE((HComponentRenderWorld)0, world);
         ReferenceProducer producer = { 1, 0 };
         RenderFrameTicket ticket;
         ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &ticket));
         RenderFrameResult error = capacity == 1 ? RENDER_FRAME_CAPACITY_EXCEEDED : RENDER_FRAME_OUT_OF_MEMORY;
-        ASSERT_EQ(error, CaptureRenderComponent(world, ticket.m_Frame, CaptureReferenceThenFail, &producer));
+        ASSERT_EQ(error, CaptureComponentRenderWorld(world, ticket.m_Frame, CaptureReferenceThenFail, &producer));
         ASSERT_EQ(error, PublishRenderFrame(fixture.m_Queue, ticket));
-        DeleteRenderComponentWorld(world);
+        DeleteComponentRenderWorld(world);
         ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, ticket));
         ASSERT_EQ(capacity == 1 ? 0u : 1u, producer.m_Releases);
         ASSERT_EQ(0u, RetireRenderFrames(fixture.m_Queue));
         ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
-        ASSERT_EQ(0u, GetRenderComponentWorldCount(fixture.m_Components));
+        ASSERT_EQ(0u, GetComponentRenderStateWorldCount(fixture.m_Components));
         if (capacity == 1)
             ReleaseProducerResource(&producer, &producer.m_Resource);
         ASSERT_EQ(1u, producer.m_Releases);
@@ -491,21 +496,21 @@ TEST(RenderComponent, PartialCaptureReferenceCleanup)
     }
 }
 
-// Verify successful zero-table extraction and stateless initialization still execute one accepted callback and paired destruction.
-TEST(RenderComponent, EmptyPayloadAndNullState)
+// Verify successful zero-table capture and stateless initialization still execute one accepted callback and paired destruction.
+TEST(ComponentRenderState, EmptyPayloadAndNullState)
 {
     ComponentFixture fixture;
     RenderFrameLimits limits = { 64, 1, 1 };
     ASSERT_TRUE(CreateComponentFixture(&fixture, limits));
     ComponentProbe probe = {};
     probe.m_NullState = true;
-    HRenderComponentWorld world = CreateComponentWorld(&fixture, &probe, 1);
-    ASSERT_NE((HRenderComponentWorld)0, world);
+    HComponentRenderWorld world = CreateComponentWorld(&fixture, &probe, 1);
+    ASSERT_NE((HComponentRenderWorld)0, world);
     ComponentProducer producer = {};
     RenderFrameTicket ticket;
     ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &ticket));
-    ASSERT_EQ(RENDER_FRAME_OK, CaptureRenderComponent(world, ticket.m_Frame, CaptureComponentValues, &producer));
-    DeleteRenderComponentWorld(world);
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(world, ticket.m_Frame, CaptureComponentValues, &producer));
+    DeleteComponentRenderWorld(world);
     ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, ticket));
     ASSERT_EQ(1u, probe.m_Initialized);
     ASSERT_EQ(1u, probe.m_Consumed);
@@ -518,7 +523,7 @@ TEST(RenderComponent, EmptyPayloadAndNullState)
 }
 
 // Verify invalid callback registrations/init inputs create no record, and a missing producer poisons capture before any reference is adopted.
-TEST(RenderComponent, InvalidArguments)
+TEST(ComponentRenderState, InvalidArguments)
 {
     ComponentFixture fixture;
     RenderFrameLimits limits = { 128, 4, 4 };
@@ -526,25 +531,25 @@ TEST(RenderComponent, InvalidArguments)
     ComponentProbe probe = {};
     probe.m_Execution = fixture.m_Execution;
     uint32_t init = 1;
-    const RenderComponentCallbacks invalid[] = {
+    const ComponentRenderCallbacks invalid[] = {
         { 0, ConsumeComponent, DestroyComponent },
         { InitializeComponent, 0, DestroyComponent },
         { InitializeComponent, ConsumeComponent, 0 },
     };
     for (uint32_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
-        ASSERT_EQ((HRenderComponentWorld)0, NewRenderComponentWorld(fixture.m_Components, invalid[i], &probe, &init, sizeof(init)));
-    RenderComponentCallbacks callbacks = { InitializeComponent, ConsumeComponent, DestroyComponent };
-    ASSERT_EQ((HRenderComponentWorld)0, NewRenderComponentWorld(fixture.m_Components, callbacks, &probe, 0, sizeof(init)));
-    ASSERT_EQ(0u, GetRenderComponentWorldCount(fixture.m_Components));
-    HRenderComponentWorld world = CreateComponentWorld(&fixture, &probe, 1);
-    ASSERT_NE((HRenderComponentWorld)0, world);
+        ASSERT_EQ((HComponentRenderWorld)0, NewComponentRenderWorld(fixture.m_Components, invalid[i], &probe, &init, sizeof(init)));
+    ComponentRenderCallbacks callbacks = { InitializeComponent, ConsumeComponent, DestroyComponent };
+    ASSERT_EQ((HComponentRenderWorld)0, NewComponentRenderWorld(fixture.m_Components, callbacks, &probe, 0, sizeof(init)));
+    ASSERT_EQ(0u, GetComponentRenderStateWorldCount(fixture.m_Components));
+    HComponentRenderWorld world = CreateComponentWorld(&fixture, &probe, 1);
+    ASSERT_NE((HComponentRenderWorld)0, world);
     RenderFrameTicket ticket;
     ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &ticket));
-    ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, CaptureRenderComponent(world, ticket.m_Frame, 0, 0));
+    ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, CaptureComponentRenderWorld(world, ticket.m_Frame, 0, 0));
     ASSERT_EQ(0u, GetRenderFrameStatistics(ticket.m_Frame).m_ReferenceCount);
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, PublishRenderFrame(fixture.m_Queue, ticket));
     ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, ticket));
-    DeleteRenderComponentWorld(world);
+    DeleteComponentRenderWorld(world);
     ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
     DeleteComponentFixture(&fixture);
 }

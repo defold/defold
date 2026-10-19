@@ -20,11 +20,11 @@
 namespace dmGameObject
 {
     /**
-     * Game-owner inputs borrowed during extraction. The bridge copies render inputs
+     * Game-owner inputs borrowed during capture. The bridge copies render inputs
      * into m_Frame; renderer callbacks must not retain these mutable game pointers.
      * This interface is engine-internal, not part of the extension SDK.
      */
-    struct ComponentRenderExtractParams
+    struct ComponentRenderCaptureParams
     {
         void*       m_World;
         void*       m_Context;
@@ -59,7 +59,7 @@ namespace dmGameObject
      * @param params Borrowed game inputs and the current capture frame
      * @return True on success; false rejects the frame capture
      */
-    typedef bool (*ComponentRenderExtract)(void* context, void* render_world, const ComponentRenderExtractParams& params);
+    typedef bool (*ComponentRenderCapture)(void* context, void* render_world, const ComponentRenderCaptureParams& params);
 
     /**
      * Game-owner bridge callbacks, separate from the component's existing world hooks.
@@ -70,7 +70,7 @@ namespace dmGameObject
         void*                      m_Context;
         ComponentRenderCreateWorld m_CreateWorld;
         ComponentRenderDeleteWorld m_DeleteWorld;
-        ComponentRenderExtract     m_Extract;
+        ComponentRenderCapture     m_Capture;
     };
 
     /**
@@ -85,14 +85,14 @@ namespace dmGameObject
     Result RegisterComponentRenderCallbacks(HRegister regist, uint32_t component_index, const ComponentRenderCallbacks& callbacks);
 
     /**
-     * Extract on the game owner after final transforms and before destructive PostUpdate.
+     * Capture render inputs on the game owner after final transforms and before destructive PostUpdate.
      * Uses Render's existing ordering and enabled proxy traversal. Recursive Render calls
-     * inherit the frame; nested ExtractRenderData calls are rejected.
-     * @param collection Collection to render/extract
+     * inherit the frame; nested CaptureRenderData calls are rejected.
+     * @param collection Collection to render/capture
      * @param frame Non-null capture frame, valid throughout this synchronous call
      * @return True if the traversal succeeds
      */
-    bool ExtractRenderData(HCollection collection, void* frame);
+    bool CaptureRenderData(HCollection collection, void* frame);
 }
 
 #endif // DM_COMPONENT_RENDER_H

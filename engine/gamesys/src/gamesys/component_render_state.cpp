@@ -20,77 +20,77 @@
 #include <dlib/memory.h>
 #include <dlib/mutex.h>
 
-#include "render_component.h"
+#include "component_render_state_private.h"
 
-namespace dmRender
+namespace dmGameSystem
 {
     // The producer publishes zero-reference records to this reaper. Renderer state is
     // otherwise renderer-owned; only diagnostics cross owners through atomic counters.
-    struct RenderComponentContext
+    struct ComponentRenderStateContext
     {
-        HRenderExecution      m_Execution;
-        HRenderFrameQueue     m_Queue;
-        dmMutex::HMutex       m_ReaperMutex;
+        dmRender::HRenderExecution   m_Execution;
+        dmRender::HRenderFrameQueue  m_Queue;
+        dmMutex::HMutex             m_ReaperMutex;
         // Head of the m_Next-linked list awaiting render-owner destruction. The game
         // owner enqueues worlds after their last reference is released; the render
         // owner detaches the list under m_ReaperMutex and destroys it outside the lock.
-        HRenderComponentWorld m_Reaper;
-        int32_atomic_t        m_WorldCount;
-        int32_atomic_t        m_Result;
+        HComponentRenderWorld       m_Reaper;
+        int32_atomic_t              m_WorldCount;
+        int32_atomic_t              m_Result;
         // Use full bytes, not bitfields: game/render owners access these independently,
         // and bitfield updates could race through a shared read/modify/write byte.
-        uint8_t               m_HasWorlds;
-        uint8_t               m_InCapture;
-        uint8_t               m_InConsume;
-        uint8_t               m_InService;
+        uint8_t                     m_HasWorlds;
+        uint8_t                     m_InCapture;
+        uint8_t                     m_InConsume;
+        uint8_t                     m_InService;
     };
 
     // One lifetime record, independent of the mutable component world. References and
     // Closed are touched only by game; renderer touches only Initialized/State/InitResult.
     // Immutable callbacks/context/init bytes are published through the frame handoff.
-    struct RenderComponentWorld
+    struct ComponentRenderWorld
     {
-        RenderComponentCallbacks m_Callbacks;
-        HRenderComponentContext  m_Context;
-        void*                    m_RendererContext;
-        void*                    m_InitData;
-        void*                    m_State;
-        HRenderComponentWorld    m_Next;
-        uint32_t                 m_InitSize;
-        uint32_t                 m_References;
-        RenderFrameResult        m_InitResult;
+        ComponentRenderCallbacks     m_Callbacks;
+        HComponentRenderStateContext m_Context;
+        void*                        m_RendererContext;
+        void*                        m_InitData;
+        void*                        m_State;
+        HComponentRenderWorld        m_Next;
+        uint32_t                     m_InitSize;
+        uint32_t                     m_References;
+        dmRender::RenderFrameResult   m_InitResult;
         // Use full bytes, not bitfields: Closed is game-owned and Initialized is
         // render-owned, so concurrent updates must not read/modify/write the same byte.
-        uint8_t                  m_Closed;
-        uint8_t                  m_Initialized;
+        uint8_t                      m_Closed;
+        uint8_t                      m_Initialized;
     };
 
     // Internal dispatch packet in the immutable arena. The world pointer is protected by
     // a frame reference; producer pointers are never stored. Payload tables follow it.
-    struct RenderComponentDispatch
+    struct ComponentRenderDispatch
     {
-        HRenderComponentWorld m_World;
+        HComponentRenderWorld m_World;
         uint32_t              m_FirstTable;
         uint32_t              m_TableCount;
     };
 
-    static void RecordError(HRenderComponentContext context, RenderFrameResult result)
+    static void RecordError(HComponentRenderStateContext context, dmRender::RenderFrameResult result)
     {
-        if (result == RENDER_FRAME_OK)
+        if (result == dmRender::RENDER_FRAME_OK)
         {
             return;
         }
         if (context->m_ReaperMutex)
         {
-            dmAtomicCompareStore32(&context->m_Result, (int32_t)result, RENDER_FRAME_OK);
+            dmAtomicCompareStore32(&context->m_Result, (int32_t)result, dmRender::RENDER_FRAME_OK);
         }
-        else if (context->m_Result == RENDER_FRAME_OK)
+        else if (context->m_Result == dmRender::RENDER_FRAME_OK)
         {
             context->m_Result = result;
         }
     }
 
-    static void ChangeWorldCount(HRenderComponentContext context, int32_t change)
+    static void ChangeWorldCount(HComponentRenderStateContext context, int32_t change)
     {
         if (context->m_ReaperMutex)
             dmAtomicAdd32(&context->m_WorldCount, change);
@@ -98,15 +98,15 @@ namespace dmRender
             context->m_WorldCount += change;
     }
 
-    HRenderComponentContext NewRenderComponentContext(HRenderExecution execution)
+    HComponentRenderStateContext NewComponentRenderStateContext(dmRender::HRenderExecution execution)
     {
-        assert(IsRenderExecutionOwner(execution, EXECUTION_OWNER_GAME));
-        HRenderComponentContext context = (HRenderComponentContext)calloc(1, sizeof(RenderComponentContext));
+        assert(dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME));
+        HComponentRenderStateContext context = (HComponentRenderStateContext)calloc(1, sizeof(ComponentRenderStateContext));
         if (!context)
             return 0;
 
         context->m_Execution = execution;
-        if (GetRenderExecutionMode(execution) == EXECUTION_MODE_THREADED)
+        if (dmRender::GetRenderExecutionMode(execution) == dmRender::EXECUTION_MODE_THREADED)
         {
             context->m_ReaperMutex = dmMutex::New();
             if (!context->m_ReaperMutex)
@@ -118,38 +118,38 @@ namespace dmRender
         return context;
     }
 
-    void SetRenderComponentQueue(HRenderComponentContext context, HRenderFrameQueue queue)
+    void SetComponentRenderStateQueue(HComponentRenderStateContext context, dmRender::HRenderFrameQueue queue)
     {
-        assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME));
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
         assert(!context->m_HasWorlds);
         context->m_Queue = queue;
     }
 
-    uint32_t GetRenderComponentWorldCount(HRenderComponentContext context)
+    uint32_t GetComponentRenderStateWorldCount(HComponentRenderStateContext context)
     {
-        assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME));
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
         return (uint32_t)(context->m_ReaperMutex ? dmAtomicGet32(&context->m_WorldCount) : context->m_WorldCount);
     }
 
-    RenderFrameResult GetRenderComponentResult(HRenderComponentContext context)
+    dmRender::RenderFrameResult GetComponentRenderStateResult(HComponentRenderStateContext context)
     {
-        assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME));
-        return (RenderFrameResult)(context->m_ReaperMutex ? dmAtomicGet32(&context->m_Result) : context->m_Result);
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
+        return (dmRender::RenderFrameResult)(context->m_ReaperMutex ? dmAtomicGet32(&context->m_Result) : context->m_Result);
     }
 
-    HRenderComponentWorld NewRenderComponentWorld(HRenderComponentContext context, const RenderComponentCallbacks& callbacks,
+    HComponentRenderWorld NewComponentRenderWorld(HComponentRenderStateContext context, const ComponentRenderCallbacks& callbacks,
         void* renderer_context, const void* init_data, uint32_t init_size)
     {
-        assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME));
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
         assert(!context->m_InCapture);
 
         if (!callbacks.m_Initialize || !callbacks.m_Consume || !callbacks.m_Destroy ||
-            (init_size && !init_data) || GetRenderComponentWorldCount(context) == INT32_MAX)
+            (init_size && !init_data) || GetComponentRenderStateWorldCount(context) == INT32_MAX)
         {
             return 0;
         }
 
-        HRenderComponentWorld world = (HRenderComponentWorld)calloc(1, sizeof(RenderComponentWorld));
+        HComponentRenderWorld world = (HComponentRenderWorld)calloc(1, sizeof(ComponentRenderWorld));
         if (!world)
         {
             return 0;
@@ -177,8 +177,8 @@ namespace dmRender
 
     static void ReleaseWorldReference(void* context_ptr, void* resource)
     {
-        HRenderComponentContext context = (HRenderComponentContext)context_ptr;
-        HRenderComponentWorld world = (HRenderComponentWorld)resource;
+        HComponentRenderStateContext context = (HComponentRenderStateContext)context_ptr;
+        HComponentRenderWorld world = (HComponentRenderWorld)resource;
         assert(world->m_References);
         if (--world->m_References)
         {
@@ -196,91 +196,95 @@ namespace dmRender
         // publication, the later wake guarantees another service opportunity.
         if (context->m_Queue)
         {
-            RecordError(context, RequestRenderFrameService(context->m_Queue));
+            RecordError(context, dmRender::RequestRenderFrameService(context->m_Queue));
         }
     }
 
-    void DeleteRenderComponentWorld(HRenderComponentWorld world)
+    void DeleteComponentRenderWorld(HComponentRenderWorld world)
     {
-        HRenderComponentContext context = world->m_Context;
-        assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME));
+        HComponentRenderStateContext context = world->m_Context;
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
         assert(!context->m_InCapture && !world->m_Closed);
         world->m_Closed = true;
         ReleaseWorldReference(context, world);
     }
 
-    RenderFrameResult CaptureRenderComponent(HRenderComponentWorld world, HRenderFrame frame,
-        RenderComponentCapture capture, void* producer_context)
+    dmRender::RenderFrameResult CaptureComponentRenderWorld(HComponentRenderWorld world, dmRender::HRenderFrame frame,
+        ComponentRenderWriteInputs write_inputs, void* producer_context)
     {
-        HRenderComponentContext context = world->m_Context;
-        assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME));
+        HComponentRenderStateContext context = world->m_Context;
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
         assert(!context->m_InCapture);
 
         if (world->m_Closed)
         {
-            return FailRenderFrame(frame, RENDER_FRAME_INVALID_STATE);
+            return dmRender::FailRenderFrame(frame, dmRender::RENDER_FRAME_INVALID_STATE);
         }
-        if (!capture)
+        if (!write_inputs)
         {
-            return FailRenderFrame(frame, RENDER_FRAME_INVALID_ARGUMENT);
+            return dmRender::FailRenderFrame(frame, dmRender::RENDER_FRAME_INVALID_ARGUMENT);
         }
         if (world->m_References == UINT32_MAX)
         {
-            return FailRenderFrame(frame, RENDER_FRAME_CAPACITY_EXCEEDED);
+            return dmRender::FailRenderFrame(frame, dmRender::RENDER_FRAME_CAPACITY_EXCEEDED);
         }
 
         uint32_t dispatch_index;
         void* data;
-        RenderFrameResult result = AllocateRenderFrameTable(frame, UINT32_MAX, 1, sizeof(RenderComponentDispatch), 16, &dispatch_index, &data);
-        if (result != RENDER_FRAME_OK)
+        dmRender::RenderFrameResult result = dmRender::AllocateRenderFrameTable(frame, COMPONENT_RENDER_DISPATCH_TABLE_TYPE, 1, sizeof(ComponentRenderDispatch), 16, &dispatch_index, &data);
+        if (result != dmRender::RENDER_FRAME_OK)
         {
             return result;
         }
 
         ++world->m_References;
-        result = AddRenderFrameReference(frame, world, ReleaseWorldReference, context);
-        if (result != RENDER_FRAME_OK)
+        result = dmRender::AddRenderFrameReference(frame, world, ReleaseWorldReference, context);
+        if (result != dmRender::RENDER_FRAME_OK)
         {
             --world->m_References;
             return result;
         }
 
-        RenderComponentDispatch* dispatch = (RenderComponentDispatch*)data;
+        ComponentRenderDispatch* dispatch = (ComponentRenderDispatch*)data;
         dispatch->m_World = world;
         dispatch->m_FirstTable = dispatch_index + 1;
         dispatch->m_TableCount = 0;
         context->m_InCapture = true;
-        result = capture(frame, producer_context);
+        result = write_inputs(frame, producer_context);
         context->m_InCapture = false;
 
-        if (result != RENDER_FRAME_OK)
+        if (result != dmRender::RENDER_FRAME_OK)
         {
-            return FailRenderFrame(frame, result);
+            return dmRender::FailRenderFrame(frame, result);
         }
 
-        dispatch->m_TableCount = GetRenderFrameStatistics(frame).m_TableCount - dispatch->m_FirstTable;
-        return RENDER_FRAME_OK;
+        dispatch->m_TableCount = dmRender::GetRenderFrameStatistics(frame).m_TableCount - dispatch->m_FirstTable;
+        return dmRender::RENDER_FRAME_OK;
     }
 
-    void ConsumeRenderComponents(void* context_ptr, const RenderFrameView& frame)
+    void ConsumeComponentRenderFrame(void* context_ptr, const dmRender::RenderFrameView& frame)
     {
-        HRenderComponentContext context = (HRenderComponentContext)context_ptr;
-        assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_RENDER));
+        HComponentRenderStateContext context = (HComponentRenderStateContext)context_ptr;
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_RENDER));
         assert(!context->m_InConsume && !context->m_InService);
+
         context->m_InConsume = true;
         for (uint32_t i = 0; i < frame.m_Statistics.m_TableCount; ++i)
         {
-            const RenderFrameTable& table = frame.m_Tables[i];
-            if (table.m_Type != UINT32_MAX)
+            const dmRender::RenderFrameTable& table = frame.m_Tables[i];
+            if (table.m_Type != COMPONENT_RENDER_DISPATCH_TABLE_TYPE)
             {
                 continue;
             }
 
-            assert(table.m_Count == 1 && table.m_Stride == sizeof(RenderComponentDispatch));
-            const RenderComponentDispatch* dispatch = (const RenderComponentDispatch*)GetRenderFrameTableData(frame, i);
+            // CaptureComponentRenderWorld writes one dispatch record per captured world;
+            // component instances live in separate payload tables. A different count
+            // would require changing this consumer to process multiple dispatch records.
+            assert(table.m_Count == 1 && table.m_Stride == sizeof(ComponentRenderDispatch));
+            const ComponentRenderDispatch* dispatch = (const ComponentRenderDispatch*)dmRender::GetRenderFrameTableData(frame, i);
             assert(dispatch->m_FirstTable == i + 1 && dispatch->m_TableCount <= frame.m_Statistics.m_TableCount - i - 1);
 
-            HRenderComponentWorld world = dispatch->m_World;
+            HComponentRenderWorld world = dispatch->m_World;
             assert(world->m_Context == context);
 
             i += dispatch->m_TableCount;
@@ -290,7 +294,7 @@ namespace dmRender
                 world->m_InitResult = world->m_Callbacks.m_Initialize(world->m_RendererContext, world->m_InitData, world->m_InitSize, &world->m_State);
                 RecordError(context, world->m_InitResult);
 
-                if (world->m_InitResult != RENDER_FRAME_OK && world->m_State)
+                if (world->m_InitResult != dmRender::RENDER_FRAME_OK && world->m_State)
                 {
                     world->m_Callbacks.m_Destroy(world->m_RendererContext, world->m_State);
                     world->m_State = 0;
@@ -298,16 +302,16 @@ namespace dmRender
             }
             // Failed initialization is a surfaced fatal error, not a successful empty draw.
             // Never retry it; continue other accepted entries to preserve their side effects.
-            if (world->m_InitResult == RENDER_FRAME_OK)
+            if (world->m_InitResult == dmRender::RENDER_FRAME_OK)
                 RecordError(context, world->m_Callbacks.m_Consume(world->m_RendererContext, world->m_State, frame, dispatch->m_FirstTable, dispatch->m_TableCount));
         }
         context->m_InConsume = false;
     }
 
-    void ServiceRenderComponents(void* context_ptr)
+    void ServiceComponentRenderState(void* context_ptr)
     {
-        HRenderComponentContext context = (HRenderComponentContext)context_ptr;
-        assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_RENDER));
+        HComponentRenderStateContext context = (HComponentRenderStateContext)context_ptr;
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_RENDER));
         assert(!context->m_InConsume && !context->m_InService);
 
         if (context->m_ReaperMutex && !dmMutex::TryLock(context->m_ReaperMutex))
@@ -315,7 +319,7 @@ namespace dmRender
             return;
         }
 
-        HRenderComponentWorld world = context->m_Reaper;
+        HComponentRenderWorld world = context->m_Reaper;
         context->m_Reaper = 0;
         if (context->m_ReaperMutex)
         {
@@ -325,8 +329,8 @@ namespace dmRender
         context->m_InService = true;
         while (world)
         {
-            HRenderComponentWorld next = world->m_Next;
-            if (world->m_Initialized && world->m_InitResult == RENDER_FRAME_OK)
+            HComponentRenderWorld next = world->m_Next;
+            if (world->m_Initialized && world->m_InitResult == dmRender::RENDER_FRAME_OK)
             {
                 world->m_Callbacks.m_Destroy(world->m_RendererContext, world->m_State);
             }
@@ -338,10 +342,10 @@ namespace dmRender
         context->m_InService = false;
     }
 
-    void DeleteRenderComponentContext(HRenderComponentContext context)
+    void DeleteComponentRenderStateContext(HComponentRenderStateContext context)
     {
-        assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME));
-        assert(GetRenderComponentWorldCount(context) == 0);
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
+        assert(GetComponentRenderStateWorldCount(context) == 0);
 
         // All pumps have stopped/joined; no queue callback can still reach this context.
         assert(!context->m_InCapture && !context->m_InConsume && !context->m_InService);

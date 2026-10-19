@@ -16,12 +16,56 @@
 #define DM_GAMESYS_COMPONENT_RENDER_H
 
 #include <gameobject/gameobject.h>
-#include <render/render_component.h>
+#include <render/render_frame_queue.h>
 
 namespace dmGameSystem
 {
     struct ComponentRenderContext;
     typedef ComponentRenderContext* HComponentRenderContext;
+
+    /**
+     * Initialize component renderer state on first consumption, on the render owner.
+     * Return partial state through state if failure requires cleanup: Destroy is called
+     * once for non-null state on failure. Initialization is never retried.
+     * @param renderer_context Registered renderer-owned/read-safe context
+     * @param init_data Owned immutable copy of world initialization data
+     * @param init_size Size of init_data in bytes
+     * @param state Output renderer state; null is allowed on success
+     * @return RENDER_FRAME_OK on success, or a fatal initialization error
+     */
+    typedef dmRender::RenderFrameResult (*ComponentRenderInitialize)(void* renderer_context, const void* init_data, uint32_t init_size, void** state);
+
+    /**
+     * Consume published component inputs on the render owner, without accessing mutable game data.
+     * Finish all CPU readers before returning; do not retain borrowed frame pointers.
+     * @param renderer_context Registered renderer-owned/read-safe context
+     * @param state State returned by initialization
+     * @param frame Immutable view of the complete frame
+     * @param first_table First table belonging to this capture
+     * @param table_count Number of contiguous input tables for this capture
+     * @return RENDER_FRAME_OK on success, or a fatal consumption error
+     */
+    typedef dmRender::RenderFrameResult (*ComponentRenderConsume)(void* renderer_context, void* state, const dmRender::RenderFrameView& frame, uint32_t first_table, uint32_t table_count);
+
+    /**
+     * Destroy component renderer state on the render owner after its final frame reference is released.
+     * Also used to clean up partial initialization. CPU retirement does not imply GPU completion.
+     * @param renderer_context Registered renderer-owned/read-safe context
+     * @param state State returned by initialization
+     */
+    typedef void (*ComponentRenderDestroy)(void* renderer_context, void* state);
+
+    /**
+     * Component renderer callbacks copied on world creation; all are required. Callback code
+     * and renderer_context must outlive queued frames and deferred world destruction.
+     * These gamesys functions execute on the render owner, not necessarily the game thread.
+     */
+    struct ComponentRenderCallbacks
+    {
+        ComponentRenderInitialize m_Initialize;
+        ComponentRenderConsume    m_Consume;
+        ComponentRenderDestroy    m_Destroy;
+    };
 
     /**
      * Immutable initialization values copied for each component-world lifetime.
@@ -36,23 +80,26 @@ namespace dmGameSystem
     };
 
     /**
-     * Borrowed game-side extraction inputs. Copy values and retain dependencies into
+     * Borrowed game-side capture inputs. Copy values and retain dependencies into
      * m_Frame; renderer callbacks never receive this structure or its game pointers.
      */
-    struct ComponentRenderExtractParams
+    struct ComponentRenderCaptureParams
     {
         dmRender::HRenderFrame    m_Frame;
-        void*                     m_World;
-        void*                     m_Context;
+        void*                    m_World;
+        void*                    m_Context;
         dmGameObject::HCollection m_Collection;
     };
 
     /**
-     * Extract a component world's inputs on the game owner.
+     * Capture a snapshot of a component world's render inputs on the game owner.
+     * Copy values and retain dependencies into the frame for later consumption by the
+     * render owner. UINT32_MAX is reserved by gamesys for dispatch tables; use other
+     * values for component input table types.
      * @param params Borrowed game state and building frame
      * @return RENDER_FRAME_OK on success; any error rejects the complete frame capture
      */
-    typedef dmRender::RenderFrameResult (*ComponentRenderExtract)(const ComponentRenderExtractParams& params);
+    typedef dmRender::RenderFrameResult (*ComponentRenderCapture)(const ComponentRenderCaptureParams& params);
 
     /**
      * Internal component opt-in, not an SDK interface. m_RenderContext must be
@@ -61,9 +108,9 @@ namespace dmGameSystem
      */
     struct ComponentRenderType
     {
-        dmRender::RenderComponentCallbacks m_RenderCallbacks;
-        ComponentRenderExtract             m_Extract;
-        void*                              m_RenderContext;
+        ComponentRenderCallbacks m_RenderCallbacks;
+        ComponentRenderCapture   m_Capture;
+        void*                    m_RenderContext;
     };
 
     /**
@@ -81,16 +128,16 @@ namespace dmGameSystem
      * The first successful registration allocates frame storage; failure releases provisional storage.
      * @param context Component rendering bridge
      * @param component_index Actual component registration index
-     * @param type Extraction callback, renderer callbacks and renderer context
+     * @param type Render-input capture callback, renderer callbacks and renderer context
      * @return RESULT_OK, or a game-object registration/allocation error
      */
-    dmGameObject::Result    RegisterComponentRenderType(HComponentRenderContext context, uint32_t component_index, const ComponentRenderType& type);
+    dmGameObject::Result RegisterComponentRenderType(HComponentRenderContext context, uint32_t component_index, const ComponentRenderType& type);
 
     /**
      * Run existing render traversal plus capture/consume for opted-in components, inline only.
      * With no registered render types, calls the existing game-object Render path.
      * @param context Component rendering bridge with inline execution
-     * @param collection Root collection to render/extract
+     * @param collection Root collection to render/capture
      * @return True on success; false on traversal, capture or renderer failure
      */
     bool RenderComponentsInline(HComponentRenderContext context, dmGameObject::HCollection collection);
@@ -114,14 +161,22 @@ namespace dmGameSystem
      * @param context Component rendering bridge
      * @return Frame queue, or null when no component has opted in
      */
-    dmRender::HRenderFrameQueue       GetComponentRenderQueue(HComponentRenderContext context);
+    dmRender::HRenderFrameQueue GetComponentRenderQueue(HComponentRenderContext context);
 
     /**
-     * Get the manager responsible for independent renderer-world lifetimes.
+     * Read the first component renderer initialization, consumption or service-wake error
+     * on the game owner. The error remains set until context deletion.
      * @param context Component rendering bridge
-     * @return Component lifetime manager
+     * @return RENDER_FRAME_OK if no error has occurred, otherwise the first error
      */
-    dmRender::HRenderComponentContext GetComponentRenderManager(HComponentRenderContext context);
+    dmRender::RenderFrameResult GetComponentRenderResult(HComponentRenderContext context);
+
+    /**
+     * Read the number of component renderer-world records on the game owner.
+     * @param context Component rendering bridge
+     * @return Count including closed worlds awaiting render-owner destruction
+     */
+    uint32_t GetComponentRenderWorldCount(HComponentRenderContext context);
 
     /**
      * Delete the bridge on the game owner after all collections are destroyed.

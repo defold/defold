@@ -1120,15 +1120,11 @@ namespace dmGameObject
 
     Result RegisterComponentRenderCallbacks(HRegister regist, uint32_t component_index, const ComponentRenderCallbacks& callbacks)
     {
-        if (!regist || component_index >= regist->m_ComponentTypeCount || !callbacks.m_CreateWorld || !callbacks.m_DeleteWorld || !callbacks.m_Extract)
+        if (!regist || component_index >= regist->m_ComponentTypeCount || !callbacks.m_CreateWorld || !callbacks.m_DeleteWorld || !callbacks.m_Capture || regist->m_ComponentRenderRegistrationClosed)
         {
             return RESULT_INVALID_OPERATION;
         }
-        if (regist->m_ComponentRenderRegistrationClosed)
-        {
-            return RESULT_INVALID_OPERATION;
-        }
-        if (regist->m_ComponentRenderCallbacks[component_index].m_CreateWorld)
+        else if (regist->m_ComponentRenderCallbacks[component_index].m_CreateWorld)
         {
             return RESULT_ALREADY_REGISTERED;
         }
@@ -3386,7 +3382,7 @@ namespace dmGameObject
         return collection ? Update(collection, update_context) : false;
     }
 
-    bool ExtractRenderData(HCollection hcollection, void* frame)
+    bool CaptureRenderData(HCollection hcollection, void* frame)
     {
         Collection* collection = GetCollectionFromHandle(hcollection);
         if (!collection || !frame)
@@ -3394,7 +3390,7 @@ namespace dmGameObject
         HRegister regist = collection->m_Register;
         if (regist->m_RenderCaptureFrame)
         {
-            dmLogError("Nested render data extraction is not supported; recursive collections must use Render().");
+            dmLogError("Nested render data capture is not supported; recursive collections must use Render().");
             return false;
         }
 
@@ -3417,7 +3413,7 @@ namespace dmGameObject
 
         void* frame = collection->m_Register->m_RenderCaptureFrame;
         // Update normally resolves transforms, but PreRender or another game-side
-        // caller can change them before extraction. Capture the final hierarchy.
+        // caller can change them before capture. Capture the final hierarchy.
         if (frame && collection->m_DirtyTransforms)
             UpdateTransforms(collection);
 
@@ -3428,7 +3424,7 @@ namespace dmGameObject
             uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
             const ComponentRenderCallbacks& callbacks = collection->m_Register->m_ComponentRenderCallbacks[update_index];
-            if (callbacks.m_Extract)
+            if (callbacks.m_Capture)
             {
                 if (!frame)
                 {
@@ -3437,12 +3433,12 @@ namespace dmGameObject
                     continue;
                 }
                 DM_PROFILE_DYN(component_type->m_Name, 0);
-                ComponentRenderExtractParams params;
+                ComponentRenderCaptureParams params;
                 params.m_Collection = hcollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
                 params.m_Context = component_type->m_Context;
                 params.m_Frame = frame;
-                if (!callbacks.m_Extract(callbacks.m_Context, collection->m_ComponentRenderWorlds[update_index], params))
+                if (!callbacks.m_Capture(callbacks.m_Context, collection->m_ComponentRenderWorlds[update_index], params))
                     ret = false;
             }
             else if (component_type->m_RenderFunction)

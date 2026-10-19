@@ -2183,10 +2183,10 @@ bail:
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    // Extract opted-in component inputs after final transforms/PreRender,
+                    // Capture opted-in component inputs after final transforms/PreRender,
                     // before destructive PostUpdate. Legacy types retain their render path.
                     if (!dmGameSystem::RenderComponentsInline(engine->m_ComponentRenderContext, GetMainCollection(engine)))
-                        dmLogError("Component rendering or extraction failed.");
+                        dmLogError("Component rendering or render-input capture failed.");
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -2223,7 +2223,7 @@ bail:
                 dmGameObject::PostUpdate(engine->m_Register);
                 // World deletion may enqueue renderer cleanup even on a non-drawing frame.
                 dmGameSystem::ServiceComponentRenderContext(engine->m_ComponentRenderContext);
-                dmRender::RenderFrameResult component_render_result = dmRender::GetRenderComponentResult(dmGameSystem::GetComponentRenderManager(engine->m_ComponentRenderContext));
+                dmRender::RenderFrameResult component_render_result = dmGameSystem::GetComponentRenderResult(engine->m_ComponentRenderContext);
 
                 if (component_render_result != dmRender::RENDER_FRAME_OK)
                 {
