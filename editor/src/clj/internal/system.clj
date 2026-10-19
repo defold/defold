@@ -22,7 +22,8 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.defonce :as defonce])
-  (:import [java.util ConcurrentModificationException]
+  (:import [internal.transaction MaterializationTXC]
+           [java.util ConcurrentModificationException]
            [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
@@ -163,7 +164,6 @@
       (update :cache c/cache-invalidate outputs-modified)
       (update :user-data remove-deleted-user-data (coll/keys nodes-deleted))
       (update :materialization-results #(reduce dissoc % (coll/keys nodes-deleted)))
-      (update :materialization-invalidate-counters #(reduce dissoc % (coll/keys nodes-deleted)))
       (update :invalidate-counters bump-invalidate-counters outputs-modified)))
 
 (defn- ensure-no-concurrent-modifications!
@@ -189,19 +189,15 @@
       (assert-system-thread! system)
       (assoc system :graph (update post-tx-basis :tx-id util/safe-inc)))))
 
-(defn merge-materialization-results [system materialization-results outputs-modified]
+(defn merge-materialization-results [system materialization-results]
   (if (identical? (:materialization-results system) materialization-results)
     system
-    (let [invalidate-counters (select-keys (:invalidate-counters system) outputs-modified)]
-      (reduce-kv (fn [system node-id materialize-info]
-                   (if (or (identical? materialize-info (get (:materialization-results system) node-id))
-                           (nil? (ig/node-by-id-at (basis system) node-id)))
-                     system
-                     (-> system
-                         (assoc-in [:materialization-results node-id] materialize-info)
-                         (assoc-in [:materialization-invalidate-counters node-id] invalidate-counters))))
-                 system
-                 materialization-results))))
+    (coll/reduce-kv-> materialization-results system
+      (fn [system node-id materialize-info]
+        (if (or (identical? materialize-info (get (:materialization-results system) node-id))
+                (nil? (ig/node-by-id-at (basis system) node-id)))
+          system
+          (assoc-in system [:materialization-results node-id] materialize-info))))))
 
 (defn- replay-changes
   [system transaction-changes change-fn]
@@ -222,13 +218,13 @@
                           (update :completed-action-count inc)))
                     ctx
                     transaction-changes)
-        {:keys [nodes-deleted outputs-modified] :as tx-result} (it/finalize-applied-changes ctx)
+        {:keys [nodes-deleted outputs-modified] :as tx-result} (it/finalize-replayed-changes ctx)
         post-tx-basis (:basis tx-result)]
     (ensure-no-concurrent-modifications! system pre-tx-basis post-tx-basis)
     (-> system
         (commit-basis pre-tx-basis post-tx-basis)
         (commit-transaction-effects outputs-modified nodes-deleted)
-        (merge-materialization-results (:materialization-results tx-result) outputs-modified))))
+        (merge-materialization-results (:materialization-results tx-result)))))
 
 (defn undo-action
   [system undo-key]
@@ -299,8 +295,7 @@
    :invalidate-counters {}
    :user-data {}
    :shared-materialization-registry-atom (atom {})
-   :materialization-results {}
-   :materialization-invalidate-counters {}})
+   :materialization-results {}})
 
 (defn- register-undoable-changes
   [system undo-key label sequence-label undoable-changes]
@@ -326,8 +321,7 @@
                                      (system-cache system)
                                      (:invalidate-counters system)
                                      (:materialization-results system))
-      (assoc :initial-materialization-invalidate-counters (:materialization-invalidate-counters system)
-             :shared-materialization-registry-atom (:shared-materialization-registry-atom system)
+      (assoc :shared-materialization-registry-atom (:shared-materialization-registry-atom system)
              :node-id-generator (node-id-generator system)
              :override-id-generator (override-id-generator system))))
 
@@ -344,7 +338,6 @@
   ;; we're using the system basis & cache.
   [system {options-basis :basis options-cache :cache :as options}]
   (let [options (assoc options
-                  :initial-materialization-invalidate-counters (:materialization-invalidate-counters system)
                   :shared-materialization-registry-atom (:shared-materialization-registry-atom system)
                   :materialization-results (:materialization-results system)
                   :node-id-generator (node-id-generator system)
@@ -424,74 +417,46 @@
                 (update :cache c/cache-encache safe-cache-misses @(:basis-ref evaluation-context))))))))
     system))
 
-(defn- materialization-invalidate-counters [system evaluation-context]
-  ;; Account for canonical materializations already installed by a competing
-  ;; evaluation-context. Later edits still have larger counters and remain
-  ;; conflicts.
-  (let [{:keys [changes-atom initial-invalidate-counters initial-materialization-results materialization-results-atom]} evaluation-context]
-    (cond-> initial-invalidate-counters
-      (coll/not-empty @changes-atom)
-      (coll/reduce-kv=> @materialization-results-atom
-        (fn [invalidate-counters node-id materialize-info]
-          (if (and (not (identical? materialize-info (get initial-materialization-results node-id)))
-                   (identical? materialize-info (get (:materialization-results system) node-id)))
-            (coll/merge-with max invalidate-counters (get (:materialization-invalidate-counters system) node-id))
-            invalidate-counters))))))
-
 (defn update-system-from-evaluation-context
   [system {:keys [initial-basis initial-invalidate-counters] :as evaluation-context}]
-  (let [original-invalidate-counters (:invalidate-counters system)]
+  (let [changes @(:changes-atom evaluation-context)
+        original-invalidate-counters (:invalidate-counters system)]
+    (assert (coll/every? #(instance? MaterializationTXC %) changes)
+            "Evaluation contexts can only accumulate materializations.")
     (if (or (nil? initial-invalidate-counters)
             (full-invalidation-since? initial-invalidate-counters original-invalidate-counters))
       system
-      (let [changes @(:changes-atom evaluation-context)
-            has-changes (not (coll/empty? changes))
+      (let [has-changes (not (coll/empty? changes))
             current-basis (basis system)
             basis-unchanged (identical? initial-basis current-basis)
-            materialization-results @(:materialization-results-atom evaluation-context)
-            invalidated-endpoints @(:invalidated-endpoints-atom evaluation-context)
-
-            expected-invalidate-counters
-            (if basis-unchanged
-              initial-invalidate-counters
-              (materialization-invalidate-counters system evaluation-context))]
-
-        (if (and has-changes
-                 (or (coll/any?
-                       #(endpoint-invalidated-since? % expected-invalidate-counters original-invalidate-counters)
-                       invalidated-endpoints)
-                     (and (not basis-unchanged)
-                          (coll/any?
-                            (fn [[node-id materialize-info]]
-                              (when-not (identical? materialize-info (get (:materialization-results system) node-id))
-                                (and (ig/node-by-id-at initial-basis node-id)
-                                     (not (identical? (:shell-node materialize-info) (ig/node-by-id-at current-basis node-id))))))
-                            materialization-results))))
-          system
+            invalidated-endpoints @(:invalidated-endpoints-atom evaluation-context)]
+        (try
           (let [system (cond
                          (not has-changes)
                          system
 
                          basis-unchanged
-                         ;; The evaluation-context already finalized the basis.
-                         ;; Reuse it and commit the accumulated effects.
                          (-> system
                              (commit-basis initial-basis @(:basis-ref evaluation-context))
                              (commit-transaction-effects invalidated-endpoints @(:nodes-deleted-atom evaluation-context))
-                             (merge-materialization-results materialization-results invalidated-endpoints))
+                             (merge-materialization-results @(:materialization-results-atom evaluation-context)))
 
                          :else
                          (replay-changes system changes it/perform-change))
                 invalidate-counters (:invalidate-counters system)]
-            ;; Our own materializations already invalidated the
-            ;; evaluation-context's cache. Compare against the original counters
-            ;; for cache entries: replay compatibility with a shared
-            ;; materialization does not prove that the evaluation-context saw
-            ;; every other materialization or edit committed alongside it.
+            ;; Compare cache entries against the system before our replay.
+            ;; Independent contributions may be compatible while their cached
+            ;; downstream values no longer describe the merged graph.
             (-> system
                 (assoc :invalidate-counters original-invalidate-counters)
                 (update-cache-from-evaluation-context evaluation-context)
-                (assoc :invalidate-counters invalidate-counters))))))))
+                (assoc :invalidate-counters invalidate-counters)))
+          (catch clojure.lang.ExceptionInfo error
+            (if (it/stale-materialization? error)
+              ;; Keep the shell for a later demand. None of the pending graph
+              ;; changes or cache entries from this context can be installed.
+              system
+              (throw error))))))))
 
 (defn user-data [system node-id key]
   (get-in system [:user-data node-id key]))
@@ -520,5 +485,4 @@
    :user-data (:user-data system)
    :invalidate-counters (:invalidate-counters system)
    :shared-materialization-registry-atom (atom {})
-   :materialization-results (:materialization-results system)
-   :materialization-invalidate-counters (:materialization-invalidate-counters system)})
+   :materialization-results (:materialization-results system)})

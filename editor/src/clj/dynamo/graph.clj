@@ -312,8 +312,7 @@
     (assoc (it/new-transaction-context basis node-id-generator override-id-generator tx-data-context metrics-collector full-invalidation
                                        (:shared-materialization-registry-atom system)
                                        (:materialization-results system))
-      :initial-invalidate-counters (:invalidate-counters system)
-      :initial-materialization-invalidate-counters (:materialization-invalidate-counters system))))
+      :initial-invalidate-counters (:invalidate-counters system))))
 
 (defn commit-tx-result!
   [tx-result transact-opts pre-tx-basis]
@@ -325,10 +324,7 @@
              (fn [system]
                (-> system
                    (is/merge-basis pre-tx-basis basis outputs-modified nodes-deleted undo-key label sequence-label undoable-changes (:full-invalidation transact-opts))
-                   ;; Ordinary transactions can include edits beyond
-                   ;; materialization. Do not exempt their invalidations from
-                   ;; conflict checking.
-                   (is/merge-materialization-results (:materialization-results tx-result) #{}))))))
+                   (is/merge-materialization-results (:materialization-results tx-result)))))))
   nil)
 
 (defn transact
@@ -427,9 +423,11 @@
   materialize-fn receives the node-id and evaluation-context and returns the
   transaction steps that populate it. It must materialize its prerequisites via
   materialize-prerequisites! before returning steps. These steps can initialize
-  this node, create substructure and add connections, but cannot alter existing
-  external state. Materialization replaces the shell with a regular node and
-  runs its default setters before applying the returned steps."
+  this node, create substructure and connect to existing nodes. Array inputs
+  retain independent contributions; single inputs use the last connection.
+  Other existing external state cannot be altered. Materialization replaces
+  the shell with a regular node and runs its default setters before applying
+  the returned steps."
   [node-type properties materialize-fn]
   (in/construct-shell node-type properties materialize-fn))
 
@@ -447,7 +445,9 @@
 
 (defn materialize-prerequisites!
   "Registers and materializes a shell's direct prerequisites. Call from its
-  materialize-fn before producing its own transaction steps."
+  materialize-fn before producing its own transaction steps. Their properties,
+  incoming connections, and owned substructure must still match when replaying
+  the materialization into another evaluation-context or the system."
   [node-id prerequisite-node-ids evaluation-context]
   (it/materialize-prerequisites! node-id prerequisite-node-ids evaluation-context))
 
@@ -1232,13 +1232,14 @@
   "Commits materializations and cache entries that remain valid in the system.
   Reuses the evaluated basis when the system basis is unchanged; otherwise
   re-performs the realized TransactionChanges on the system. Does not rerun
-  the materialize-fn or property setters. Call on the system mutation thread
-  after evaluation has finished, with exclusive ownership of the
-  evaluation-context. Background evaluations must hand off their
-  evaluation-context to that thread before calling this function. Closes the
-  evaluation-context and all evaluation-contexts sharing its state. They must be
-  discarded after this call, even if their changes were incompatible with the
-  system."
+  the materialize-fn or property setters. Stale prerequisites reject the pending
+  changes and cache entries; a later evaluation can materialize the shell again.
+  Call on the system mutation thread after evaluation has finished, with
+  exclusive ownership of the evaluation-context. Background evaluations must
+  hand off their evaluation-context to that thread before calling this function.
+  Closes the evaluation-context and all evaluation-contexts sharing its state.
+  They must be discarded after this call, even if their changes were incompatible
+  with the system."
   [{:keys [basis-ref] :as evaluation-context}]
   (assert @basis-ref "Evaluation context is closed.")
   (swap! *the-system* is/update-system-from-evaluation-context evaluation-context)

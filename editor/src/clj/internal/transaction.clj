@@ -149,7 +149,6 @@
      :shared-materialization-registry-atom (:shared-materialization-registry-atom ctx)
      :materialization-results (:materialization-results ctx)
      :initial-invalidate-counters (:initial-invalidate-counters ctx)
-     :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters ctx)
      :tx-data-context-atom (:tx-data-context-atom ctx)
      :node-id-generator (:node-id-generator ctx)
      :override-id-generator (:override-id-generator ctx)}))
@@ -1477,11 +1476,26 @@
   (revert [_ _ctx]
     (throw (UnsupportedOperationException. "Materializations are not undoable."))))
 
-(defonce/type AppendArcTXC [arc]
+(defonce/type MaterializationConnectArcTXC [arc]
   TransactionChange
   (perform [_ ctx]
-    (let [target-node-type (gt/node-type (ig/node-by-id-at (:basis ctx) (gt/target-id arc)))]
-      (ctx-perform-append-arc ctx arc target-node-type)))
+    (let [basis (:basis ctx)
+          target-id (gt/target-id arc)
+          target-label (gt/target-label arc)
+          target-node-type (some-> (ig/node-by-id-at basis target-id) gt/node-type)]
+      (if-not (and target-node-type (ig/node-by-id-at basis (gt/source-id arc)))
+        ctx
+        (if (= :many (in/input-cardinality target-node-type target-label))
+          (ctx-perform-append-arc ctx arc target-node-type)
+          (let [old-arc (first (ig/explicit-arcs-by-target basis target-id target-label))]
+            (if (= old-arc arc)
+              ctx
+              (let [{:keys [old-source-arc-pkids new-source-arc-pkids]} (ig/basis-plan-replace-arc basis old-arc arc)
+                    deleted-override-node-ids (when old-arc
+                                                (override-node-ids-removed-by-disconnect ctx old-arc))]
+                (-> ctx
+                    (ctx-perform-replace-arc old-arc old-source-arc-pkids arc new-source-arc-pkids false)
+                    (perform-change (->MaterializationDeleteNodesTXC deleted-override-node-ids))))))))))
   (revert [_ _ctx]
     (throw (UnsupportedOperationException. "Materializations are not undoable."))))
 
@@ -1524,14 +1538,7 @@
                              (:full-invalidation ctx))]
           (assert-type-compatible source-id source source-label target-id target target-label)
           (if active-materialization
-            (let [old-arc (when (= :one (in/input-cardinality target-node-type target-label))
-                            (first (ig/explicit-arcs-by-target basis target-id target-label)))]
-              (if (= old-arc arc)
-                (pair ctx undoable-changes)
-                (let [[ctx undoable-changes] (if-not old-arc
-                                               (pair ctx undoable-changes)
-                                               (realize-disconnect ctx undoable-changes old-arc))]
-                  (perform-and-conj-change ctx undoable-changes (->AppendArcTXC arc)))))
+            (perform-and-conj-change ctx undoable-changes (->MaterializationConnectArcTXC arc))
             (case (in/input-cardinality target-node-type target-label)
               :one
               (if fast-path
@@ -1853,6 +1860,12 @@
       trace-dependencies
       finalize-update))
 
+(defn finalize-replayed-changes [ctx]
+  ;; Replacing a connection can change the substructure of existing overrides
+  ;; in the destination, independently of the recorded materialization.
+  (let [[ctx] (realize-update-overrides ctx nil)]
+    (finalize-applied-changes ctx)))
+
 (defn transact*
   [{:keys [active-materialization] :as ctx} undoable-changes tx-data]
   (when (and active-materialization
@@ -1894,17 +1907,46 @@
 (defn materialize-shell [node-id]
   [(->MaterializeShellTXS node-id)])
 
-(defn- perform-materialization [ctx {:keys [node-id shell-node changes dependencies] :as materialize-info}]
+(defn- capture-prerequisite-source-state [basis materialization-results prerequisite-node-ids]
+  ;; Follow owned substructure and override originals, never reverse override
+  ;; registrations or outgoing connections to consumers. These can grow when
+  ;; independent materializations use the same prerequisite.
+  (let [prerequisite-node-ids (ig/pre-traverse basis prerequisite-node-ids
+                                               (fn prerequisite-dependencies [_basis node-id]
+                                                 (:prerequisite-shell-node-ids (get materialization-results node-id))))
+        source-node-ids (ig/pre-traverse basis prerequisite-node-ids
+                                         (fn prerequisite-sources [basis node-id]
+                                           (when-let [node (ig/node-by-id-at basis node-id)]
+                                             (into (if-let [original (gt/original node)] [original] [])
+                                                   (comp (mapcat #(ig/arcs-by-target basis node-id %))
+                                                         (map gt/source-id))
+                                                   (in/cascade-deletes (gt/node-type node))))))]
+    (coll/into-> source-node-ids {}
+      (map (fn [node-id]
+             (pair node-id
+                   [(ig/node-by-id-at basis node-id)
+                    (vec (ig/explicit-arcs-by-target basis node-id))]))))))
+
+(defn stale-materialization? [error]
+  (= ::stale-materialization (:ex-type (ex-data error))))
+
+(defn- perform-materialization [ctx {:keys [node-id shell-node changes dependencies prerequisite-shell-node-ids prerequisite-source-state] :as materialize-info}]
   (if (and (identical? materialize-info (get (:materialization-results ctx) node-id))
            (not (in/shell-node? (ig/node-by-id-at (:basis ctx) node-id))))
     ctx
     (do
       (when-not (identical? shell-node (ig/node-by-id-at (:basis ctx) node-id))
         (throw (ex-info "The shell was replaced before its materialization could be applied."
-                        {:node-id node-id})))
+                        {:ex-type ::stale-materialization
+                         :node-id node-id})))
       (let [ctx (coll/reduce-kv-> dependencies ctx
                   (fn [ctx _node-id dependency]
                     (perform-materialization ctx dependency)))]
+        (when-not (= prerequisite-source-state
+                     (capture-prerequisite-source-state (:basis ctx) (:materialization-results ctx) prerequisite-shell-node-ids))
+          (throw (ex-info "The prerequisites changed before the materialization could be applied."
+                          {:ex-type ::stale-materialization
+                           :node-id node-id})))
         (assoc-in (reduce perform-change ctx changes)
                   [:materialization-results node-id] materialize-info)))))
 
@@ -1926,15 +1968,14 @@
       (assoc :active-materialization (:active-materialization evaluation-context)
              :tx-data-context-atom (:tx-data-context-atom evaluation-context)
              :initial-invalidate-counters (:initial-invalidate-counters evaluation-context)
-             :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters evaluation-context)
              :realized-changes [])))
 
-(defn- apply-evaluation-transaction-result! [evaluation-context result]
+(defn- apply-materialization-result! [evaluation-context change result]
   (let [{:keys [basis-ref changes-atom invalidated-endpoints-atom materialization-results-atom nodes-deleted-atom]} evaluation-context
-        {:keys [basis realized-changes outputs-modified materialization-results nodes-deleted]} result]
+        {:keys [basis outputs-modified materialization-results nodes-deleted]} result]
     (reset! basis-ref basis)
     (reset! materialization-results-atom materialization-results)
-    (swap! changes-atom into realized-changes)
+    (swap! changes-atom conj change)
     (swap! nodes-deleted-atom into nodes-deleted)
     (swap! invalidated-endpoints-atom into outputs-modified)
     (when-let [cache-atom (:cache-atom evaluation-context)]
@@ -1943,11 +1984,6 @@
     (when-let [local-temp-atom (:local-temp-atom evaluation-context)]
       (swap! local-temp-atom #(reduce dissoc % outputs-modified))))
   result)
-
-(defn transact-in-evaluation-context! [evaluation-context tx-data]
-  (apply-evaluation-transaction-result!
-    evaluation-context
-    (transact* (evaluation-transaction-context evaluation-context) nil tx-data)))
 
 (defn- prerequisite-path [shared-materialization-registry start-id target-id]
   (loop [pending [[start-id]]
@@ -2017,7 +2053,17 @@
                    (assoc-in shared-materialization-registry [node-id :prerequisite-shell-node-ids] #{}))))
         (throw error)))))
 
-(defn- claim-materialization! [shared-materialization-registry-atom node]
+(defn- find-materialization-entry [entry node rejected-promises]
+  ;; Keep older versions available for contexts with older source snapshots.
+  ;; Rejecting a result in one context does not invalidate it for the others.
+  (loop [entry entry]
+    (when entry
+      (if (and (identical? node (:shell-node entry))
+               (not (contains? rejected-promises (:promise entry))))
+        entry
+        (recur (:previous-entry entry))))))
+
+(defn- claim-materialization! [shared-materialization-registry-atom node rejected-promises]
   (let [node-id (gt/node-id node)
         candidate {:shell-node node
                    :promise (promise)
@@ -2025,15 +2071,16 @@
         shared-materialization-registry
         (swap! shared-materialization-registry-atom
                (fn [shared-materialization-registry]
-                 (if (identical? node (:shell-node (get shared-materialization-registry node-id)))
+                 (if (find-materialization-entry (get shared-materialization-registry node-id) node rejected-promises)
                    shared-materialization-registry
-                   (assoc shared-materialization-registry node-id candidate))))
-        entry (get shared-materialization-registry node-id)]
-    (pair entry (identical? candidate entry))))
+                   (assoc shared-materialization-registry node-id
+                          (assoc candidate :previous-entry (get shared-materialization-registry node-id))))))
+        entry (find-materialization-entry (get shared-materialization-registry node-id) node rejected-promises)]
+    (pair entry (identical? (:promise candidate) (:promise entry)))))
 
 (defn- realize-materialization! [node evaluation-context]
   (let [node-id (gt/node-id node)
-        {:keys [basis-ref changes-atom materialization-results-atom]} evaluation-context
+        {:keys [basis-ref materialization-results-atom]} evaluation-context
         ;; Each owner gets its own state, scoped to the evaluation-contexts and
         ;; transaction-contexts used for its materialization. Only explicitly
         ;; declared prerequisites may start another materialization.
@@ -2061,21 +2108,25 @@
                                         :tx-data-context-atom])
         previous-evaluation-context-atom-values (mapv deref evaluation-context-atoms)
         previous-basis @basis-ref
-        previous-changes @changes-atom
         previous-materialization-results @materialization-results-atom]
     (try
-      (let [result (transact-in-evaluation-context!
-                     (update evaluation-context :active-materialization assoc
-                             :phase :realizing-tx-data
-                             :post-prerequisites-basis previous-basis)
+      (let [result (transact*
+                     (evaluation-transaction-context
+                       (update evaluation-context :active-materialization assoc
+                               :phase :realizing-tx-data
+                               :post-prerequisites-basis previous-basis))
+                     nil
                      [(materialize-shell node-id) tx-data])
             materialize-info {:node-id node-id
                               :shell-node node
                               :changes (:realized-changes result)
                               :prerequisite-shell-node-ids prerequisite-shell-node-ids
+                              :prerequisite-source-state (capture-prerequisite-source-state previous-basis previous-materialization-results prerequisite-shell-node-ids)
                               :dependencies (select-keys previous-materialization-results prerequisite-shell-node-ids)}]
-        (reset! changes-atom (conj previous-changes (->MaterializationTXC materialize-info)))
-        (swap! materialization-results-atom assoc node-id materialize-info)
+        (apply-materialization-result!
+          evaluation-context
+          (->MaterializationTXC materialize-info)
+          (assoc-in result [:materialization-results node-id] materialize-info))
         materialize-info)
       (catch Throwable error
         (coll/reduce-kv-> evaluation-context-atoms nil
@@ -2106,32 +2157,40 @@
                         {:ex-type :undeclared-materialization
                          :node-id (:node-id active-materialization)
                          :prerequisite-node-id node-id})))
-      (let [[entry owner] (claim-materialization! shared-materialization-registry-atom node)
-            result-promise (:promise entry)]
-        (if owner
-          (try
-            (let [materialize-info (realize-materialization! node evaluation-context)]
-              (deliver result-promise {:materialize-info materialize-info}))
-            (catch Throwable error
-              ;; Settle the original promise even if a newer shell has replaced
-              ;; its registry entry. Future calls may retry.
-              (deliver result-promise {:error error})
-              (swap! shared-materialization-registry-atom
-                     (fn [shared-materialization-registry]
-                       (if-not (identical? result-promise (get-in shared-materialization-registry [node-id :promise]))
-                         shared-materialization-registry
-                         (dissoc shared-materialization-registry node-id))))
-              (throw error)))
-          (let [{:keys [error materialize-info]} @result-promise]
-            (if error
-              (throw error)
-              (let [change (->MaterializationTXC materialize-info)]
-                (apply-evaluation-transaction-result!
-                  evaluation-context
-                  (-> (evaluation-transaction-context evaluation-context)
-                      (perform-change change)
-                      (assoc :completed-action-count 1 :realized-changes [change])
-                      finalize-applied-changes))))))))))
+      (loop [rejected-promises #{}]
+        (let [[entry owner] (claim-materialization! shared-materialization-registry-atom node rejected-promises)
+              result-promise (:promise entry)]
+          (if owner
+            (try
+              (let [materialize-info (realize-materialization! node evaluation-context)]
+                (deliver result-promise {:materialize-info materialize-info}))
+              (catch Throwable error
+                ;; Settle this promise even if a newer shell replaced its
+                ;; registry entry. Future calls may retry.
+                (deliver result-promise {:error error})
+                (swap! shared-materialization-registry-atom
+                       (fn [shared-materialization-registry]
+                         (if-not (identical? result-promise (get-in shared-materialization-registry [node-id :promise]))
+                           shared-materialization-registry
+                           (if-let [previous-entry (:previous-entry entry)]
+                             (assoc shared-materialization-registry node-id previous-entry)
+                             (dissoc shared-materialization-registry node-id)))))
+                (throw error)))
+            (let [{:keys [error materialize-info]} @result-promise]
+              (if error
+                (throw error)
+                (let [change (->MaterializationTXC materialize-info)
+                      result (try
+                               (-> (evaluation-transaction-context evaluation-context)
+                                   (perform-change change)
+                                   (assoc :completed-action-count 1)
+                                   finalize-replayed-changes)
+                               (catch clojure.lang.ExceptionInfo error
+                                 (when-not (stale-materialization? error)
+                                   (throw error))))]
+                  (if result
+                    (apply-materialization-result! evaluation-context change result)
+                    (recur (conj rejected-promises result-promise))))))))))))
 
 (extend-type ShellNode
   gt/Materializable

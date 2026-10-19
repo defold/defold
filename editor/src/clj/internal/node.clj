@@ -528,7 +528,7 @@
 (defn- validate-evaluation-context-options [options]
   ;; :dry-run means no production functions will be called, useful speedup when tracing dependencies
   ;; :no-local-temp disables the non deterministic local caching of non :cached outputs, useful for stable results when debugging dependencies
-  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context-atom :node-id-generator :override-id-generator :shared-materialization-registry-atom :active-materialization :materialization-results :initial-materialization-invalidate-counters} (coll/keys options)) (str (coll/keys options)))
+  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context-atom :node-id-generator :override-id-generator :shared-materialization-registry-atom :active-materialization :materialization-results} (coll/keys options)) (str (coll/keys options)))
   (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
 
 (defn default-evaluation-context
