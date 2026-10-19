@@ -283,10 +283,10 @@
               info
               (dialogs/make-info-dialog
                 localization
-                {:title (localization/message "updater.up-to-date-dialog.title")
+                {:title (localization/message "updater.try-channel-dialog.title")
                  :icon :icon/circle-info
                  :owner stage
-                 :header (localization/message "updater.up-to-date-dialog.header")})
+                 :header (localization/message "updater.no-newer-channel-dialog.header")})
 
               :else
               (dialogs/make-info-dialog

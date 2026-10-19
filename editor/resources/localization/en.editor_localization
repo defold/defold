@@ -113,6 +113,7 @@ updater.button.channel-offer = Defold {version} {channel} is out. Try it
 updater.try-channel-dialog.title = Try the Beta
 updater.try-channel-dialog.header = Try Defold {version} beta?
 updater.try-channel-dialog.button.download = Download Beta
+updater.no-newer-channel-dialog.header = There is no Beta version available at this time
 updater.channel-save-dialog.title = Save Defold {version} Beta
 updater.channel-save-dialog.filter = Defold Editor
 updater.channel-download-done-dialog.header = Defold {version} beta is downloaded
