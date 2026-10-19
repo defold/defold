@@ -270,6 +270,34 @@
     (swap! (:state-atom updater) dissoc :channel-download)
     (is (= offer (updater/channel-offer updater)))))
 
+(deftest check-channel-offer-test
+  (let [beta {:version "1.14.0" :sha1 "B2"}
+        offer-after-check (fn [channel running-version beta-info supported]
+                            (let [updater (make-updater channel "S1" nil (make-temp-prefs))
+                                  fetched (atom [])]
+                              (with-redefs [system/defold-version (constantly running-version)
+                                            updater/platform-supported? (constantly supported)
+                                            updater/fetch-channel-info! (fn [channel]
+                                                                          (swap! fetched conj channel)
+                                                                          beta-info)]
+                                (#'updater/check-channel-offer! updater))
+                              {:offer (:channel-offer @(:state-atom updater))
+                               :fetched @fetched}))]
+    (testing "Offers a newer beta on stable"
+      (is (= {:offer (assoc beta :channel "beta") :fetched ["beta"]}
+             (offer-after-check "stable" "1.13.2" beta true))))
+    (testing "No offer when the beta is not newer"
+      (is (nil? (:offer (offer-after-check "stable" "1.14.0" beta true))))
+      (is (nil? (:offer (offer-after-check "stable" "1.15.0" beta true)))))
+    (testing "Dev builds have no version, so any beta is newer"
+      (is (some? (:offer (offer-after-check "stable" nil beta true)))))
+    (testing "No offer when the beta info can't be fetched"
+      (is (nil? (:offer (offer-after-check "stable" "1.13.2" nil true)))))
+    (testing "Never checks outside stable or on unsupported platforms"
+      (is (= {:offer nil :fetched []} (offer-after-check "beta" "1.13.2" beta true)))
+      (is (= {:offer nil :fetched []} (offer-after-check "alpha" "1.13.2" beta true)))
+      (is (= {:offer nil :fetched []} (offer-after-check "stable" "1.13.2" beta false))))))
+
 (deftest client-has-update-after-check-when-update-appears-on-server
   (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
     (with-open [_ (start-update-server! "test" "1")]
