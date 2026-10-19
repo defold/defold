@@ -127,6 +127,9 @@ void glfwAndroidInitializeJoystickAxes(int joy, const float* axes, int num_axes)
         uint64_t axis_bit = (uint64_t)1 << axis;
         if (_glfwJoy[joy].AxisEventMask & axis_bit)
             continue;
+        // Neutral axes start centered on connection; avoid resetting valid zero-valued input.
+        if (axes[i] == 0.0f && !(_glfwJoy[joy].AxisInitialMask & axis_bit))
+            continue;
         _glfwJoy[joy].Axis[axis] = _glfwJoy[joy].AxisMin[i] + (axes[i] + 1.0f) * 0.5f * _glfwJoy[joy].AxisRange[i];
         if (axes[i] != 0.0f)
             _glfwJoy[joy].AxisInitialMask |= axis_bit;
@@ -151,15 +154,15 @@ static void glfwAndroidDisconnectJoystick(const int joystickIndex)
 // Update joystick axis
 //========================================================================
 
-static void glfwAndroidUpdateAxisValue(int joy, int axis, float value)
+static void glfwAndroidUpdateAxisValue(int joy, int axis, float value, int zero_is_endpoint)
 {
     uint64_t axis_bit = (uint64_t)1 << axis;
-    // Android supplies zero for untouched axes when another axis starts moving.
-    // Preserve mapping defaults until this axis has reported a nonzero sample.
-    if (value == 0.0f && (_glfwJoy[joy].AxisInitialMask & axis_bit))
+    // Keep signed-axis startup zero placeholders from replacing mapping defaults.
+    // A zero endpoint must be accepted, including a fully pressed inverted trigger.
+    if (value == 0.0f && !zero_is_endpoint && (_glfwJoy[joy].AxisInitialMask & axis_bit))
         return;
     _glfwJoy[joy].Axis[axis] = value;
-    if (value != 0.0f)
+    if (value != 0.0f || zero_is_endpoint)
     {
         _glfwJoy[joy].AxisEventMask |= axis_bit;
         _glfwJoy[joy].AxisInitialMask &= ~axis_bit;
@@ -171,13 +174,22 @@ static void glfwAndroidUpdateAxis(const AInputEvent* event)
     const int32_t joystickIndex = glfwAndroidFindJoystick(AInputEvent_getDeviceId(event));
     if (joystickIndex >= 0)
     {
-        for (int i = 0; i < GLFW_ANDROID_GAMEPAD_NUMAXIS; ++i)
-            glfwAndroidUpdateAxisValue(joystickIndex, i, AMotionEvent_getAxisValue(event, ANDROID_LEGACY_AXES[i], 0));
+        unsigned int updated_legacy_axes = 0;
         for (int i = 0; i < _glfwJoy[joystickIndex].NumAxes; ++i)
         {
-            int axis = glfwAndroidDeviceAxisIndex(joystickIndex, i);
-            if (axis >= GLFW_ANDROID_GAMEPAD_NUMAXIS)
-                glfwAndroidUpdateAxisValue(joystickIndex, axis, AMotionEvent_getAxisValue(event, _glfwJoy[joystickIndex].AxisIds[i], 0));
+            int   axis = glfwAndroidDeviceAxisIndex(joystickIndex, i);
+            float min = _glfwJoy[joystickIndex].AxisMin[i];
+            float max = min + _glfwJoy[joystickIndex].AxisRange[i];
+            int   zero_is_endpoint = min == 0.0f || max == 0.0f;
+            glfwAndroidUpdateAxisValue(joystickIndex, axis, AMotionEvent_getAxisValue(event, _glfwJoy[joystickIndex].AxisIds[i], 0), zero_is_endpoint);
+            if (axis < GLFW_ANDROID_GAMEPAD_NUMAXIS)
+                updated_legacy_axes |= 1U << axis;
+        }
+        // Preserve fixed legacy slots for axes absent from the advertised ranges.
+        for (int i = 0; i < GLFW_ANDROID_GAMEPAD_NUMAXIS; ++i)
+        {
+            if (!(updated_legacy_axes & (1U << i)))
+                glfwAndroidUpdateAxisValue(joystickIndex, i, AMotionEvent_getAxisValue(event, ANDROID_LEGACY_AXES[i], 0), 0);
         }
     }
 }

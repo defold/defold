@@ -276,7 +276,7 @@ GLFWGLOBAL struct {
     unsigned char Button[GLFW_ANDROID_GAMEPAD_NUMBUTTONS + 3];
     unsigned char Hats;
     int           LayoutLegacy;
-    // Keep mapping defaults separate from axes that have reported a nonzero sample.
+    // Keep mapping defaults separate from observed axis values.
     uint64_t      AxisEventMask;
     uint64_t      AxisInitialMask;
     int           AxisIds[GLFW_ANDROID_GAMEPAD_MAX_AXES];
