@@ -1159,11 +1159,11 @@ namespace dmEngine
         if (!engine->m_RenderExecution)
         {
             dmLogError("Render execution: %s (%s)", dmRender::GetExecutionModeName(execution_selection.m_ExecutionMode),
-                dmRender::GetExecutionReasonString(execution_selection.m_ExecutionReason));
+                dmRender::GetExecutionResultString(execution_selection.m_ExecutionResult));
             return false;
         }
         dmLogInfo("Render execution: %s (%s)", dmRender::GetExecutionModeName(execution_selection.m_ExecutionMode),
-            dmRender::GetExecutionReasonString(execution_selection.m_ExecutionReason));
+            dmRender::GetExecutionResultString(execution_selection.m_ExecutionResult));
 
         dmBuffer::NewContext();
 
@@ -1654,8 +1654,8 @@ namespace dmEngine
             // Internal foundation budget; no buffers are allocated until a component opts
             // in. Component migration will size these limits for real captured workloads.
             dmRender::RenderFrameLimits limits = { 256 * 1024, 1024, 1024 };
-            engine->m_ComponentRenderContext = dmGameSystem::NewComponentRenderContext(
-                engine->m_Register, engine->m_RenderExecution, limits);
+            engine->m_ComponentRenderContext = dmGameSystem::NewComponentRenderContext(engine->m_Register, engine->m_RenderExecution, limits);
+
             if (!engine->m_ComponentRenderContext)
                 goto bail;
         }
@@ -2203,8 +2203,8 @@ bail:
                 dmGameObject::PostUpdate(engine->m_Register);
                 // World deletion may enqueue renderer cleanup even on a non-drawing frame.
                 dmGameSystem::ServiceComponentRenderContext(engine->m_ComponentRenderContext);
-                dmRender::RenderFrameResult component_render_result = dmRender::GetRenderComponentResult(
-                    dmGameSystem::GetComponentRenderManager(engine->m_ComponentRenderContext));
+                dmRender::RenderFrameResult component_render_result = dmRender::GetRenderComponentResult(dmGameSystem::GetComponentRenderManager(engine->m_ComponentRenderContext));
+
                 if (component_render_result != dmRender::RENDER_FRAME_OK)
                 {
                     dmLogError("Component renderer failed (%d); stopping the engine.", component_render_result);

@@ -69,30 +69,30 @@ namespace dmRender
         if (mode != EXECUTION_MODE_INLINE && mode != EXECUTION_MODE_THREADED)
         {
             selection.m_ExecutionMode = EXECUTION_MODE_INVALID;
-            selection.m_ExecutionReason = EXECUTION_REASON_INVALID_MODE;
+            selection.m_ExecutionResult = EXECUTION_RESULT_INVALID_MODE;
         }
         else if (!capabilities.m_BuildEnabled)
         {
-            selection.m_ExecutionReason = EXECUTION_REASON_BUILD_DISABLED;
+            selection.m_ExecutionResult = EXECUTION_RESULT_BUILD_DISABLED;
         }
         else if (mode == EXECUTION_MODE_INLINE)
         {
-            selection.m_ExecutionReason = EXECUTION_REASON_INLINE;
+            selection.m_ExecutionResult = EXECUTION_RESULT_INLINE;
         }
         else if (!capabilities.m_ThreadsSupported)
         {
             selection.m_ExecutionMode = EXECUTION_MODE_INVALID;
-            selection.m_ExecutionReason = EXECUTION_REASON_THREADS_UNSUPPORTED;
+            selection.m_ExecutionResult = EXECUTION_RESULT_THREADS_UNSUPPORTED;
         }
         else if (!capabilities.m_ExecutorAvailable)
         {
             selection.m_ExecutionMode = EXECUTION_MODE_INVALID;
-            selection.m_ExecutionReason = EXECUTION_REASON_EXECUTOR_UNAVAILABLE;
+            selection.m_ExecutionResult = EXECUTION_RESULT_EXECUTOR_UNAVAILABLE;
         }
         else
         {
             selection.m_ExecutionMode = EXECUTION_MODE_THREADED;
-            selection.m_ExecutionReason = EXECUTION_REASON_THREADED;
+            selection.m_ExecutionResult = EXECUTION_RESULT_THREADED;
         }
         return selection;
     }
@@ -107,16 +107,16 @@ namespace dmRender
         }
     }
 
-    const char* GetExecutionReasonString(ExecutionReason reason)
+    const char* GetExecutionResultString(ExecutionResult result)
     {
-        switch (reason)
+        switch (result)
         {
-            case EXECUTION_REASON_INLINE:               return "inline mode";
-            case EXECUTION_REASON_BUILD_DISABLED:       return "threaded rendering excluded by build";
-            case EXECUTION_REASON_THREADED:             return "threaded mode";
-            case EXECUTION_REASON_THREADS_UNSUPPORTED:  return "platform thread support unavailable";
-            case EXECUTION_REASON_EXECUTOR_UNAVAILABLE: return "threaded executor unavailable";
-            default:                                    return "invalid execution mode";
+            case EXECUTION_RESULT_INLINE:               return "inline mode";
+            case EXECUTION_RESULT_BUILD_DISABLED:       return "threaded rendering excluded by build";
+            case EXECUTION_RESULT_THREADED:             return "threaded mode";
+            case EXECUTION_RESULT_THREADS_UNSUPPORTED:  return "platform thread support unavailable";
+            case EXECUTION_RESULT_EXECUTOR_UNAVAILABLE: return "threaded executor unavailable";
+            default:                                   return "invalid execution mode";
         }
     }
 

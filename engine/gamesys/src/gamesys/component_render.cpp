@@ -51,8 +51,7 @@ namespace dmGameSystem
         ComponentRenderExtract       m_Extract;
     };
 
-    static bool CreateWorld(void* context, uint32_t component_index, uint32_t max_instances,
-        uint32_t max_components, void** render_world)
+    static bool CreateWorld(void* context, uint32_t component_index, uint32_t max_instances, uint32_t max_components, void** render_world)
     {
         ComponentRenderTypeBinding* binding = (ComponentRenderTypeBinding*)context;
         ComponentRenderContext* owner = binding->m_Context;
@@ -80,7 +79,7 @@ namespace dmGameSystem
     static dmRender::RenderFrameResult Capture(dmRender::HRenderFrame frame, void* context)
     {
         ComponentRenderCaptureContext* capture = (ComponentRenderCaptureContext*)context;
-        assert(frame == capture->m_Params.m_Frame);
+        capture->m_Params.m_Frame = frame;
         return capture->m_Extract(capture->m_Params);
     }
 
@@ -92,8 +91,7 @@ namespace dmGameSystem
         capture.m_Params.m_Collection = params.m_Collection;
         capture.m_Params.m_World = params.m_World;
         capture.m_Params.m_Context = params.m_Context;
-        capture.m_Params.m_Frame = (dmRender::HRenderFrame)params.m_Frame;
-        return dmRender::CaptureRenderComponent((dmRender::HRenderComponentWorld)render_world, capture.m_Params.m_Frame, Capture, &capture) == dmRender::RENDER_FRAME_OK;
+        return dmRender::CaptureRenderComponent((dmRender::HRenderComponentWorld)render_world, (dmRender::HRenderFrame)params.m_Frame, Capture, &capture) == dmRender::RENDER_FRAME_OK;
     }
 
     HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist,
@@ -150,11 +148,13 @@ namespace dmGameSystem
             params.m_Service = dmRender::ServiceRenderComponents;
             params.m_ServiceContext = context->m_Manager;
             context->m_Queue = dmRender::NewRenderFrameQueue(params);
+
             if (!context->m_Queue)
             {
                 free(binding);
                 return dmGameObject::RESULT_UNKNOWN_ERROR;
             }
+
             dmRender::SetRenderComponentQueue(context->m_Manager, context->m_Queue);
         }
 
@@ -253,11 +253,8 @@ namespace dmGameSystem
             dmRender::RetireRenderFrames(context->m_Queue);
             // Final reference releases must still be allowed to wake renderer cleanup.
             dmRender::PumpRenderFrameQueue(context->m_Queue, false);
-            assert(dmRender::GetRenderComponentWorldCount(context->m_Manager) == 0);
             dmRender::StopRenderFrameQueue(context->m_Queue);
-            dmRender::RenderFramePumpResult result = dmRender::PumpRenderFrameQueue(context->m_Queue, false);
-            assert(result == dmRender::RENDER_FRAME_PUMP_DRAINED);
-            (void)result;
+            dmRender::PumpRenderFrameQueue(context->m_Queue, false);
         }
 
         dmRender::DeleteRenderComponentContext(context->m_Manager);

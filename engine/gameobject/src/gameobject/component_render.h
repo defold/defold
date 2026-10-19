@@ -19,41 +19,79 @@
 
 namespace dmGameObject
 {
-    // Game-owner capture inputs, borrowed only for the duration of Extract. The bridge
-    // copies immutable render inputs into m_Frame; none of these game pointers may be
-    // retained by render-owner callbacks. This header is internal, not an extension SDK.
+    /**
+     * Game-owner inputs borrowed during extraction. The bridge copies render inputs
+     * into m_Frame; renderer callbacks must not retain these mutable game pointers.
+     * This interface is engine-internal, not part of the extension SDK.
+     */
     struct ComponentRenderExtractParams
     {
-        void* m_World;
-        void* m_Context;
-        void* m_Frame;
+        void*       m_World;
+        void*       m_Context;
+        void*       m_Frame;
         HCollection m_Collection;
     };
 
-    // Game-owner bridge callbacks, separate from the component's existing world hooks.
-    // CreateWorld returns an opaque lifetime handle, not renderer-owned mutable state.
-    // On failure it cleans up its partial work and leaves *render_world null. DeleteWorld
-    // drops the game's ownership; the bridge keeps accepted frames and render state alive
-    // until their own completion. The callback context outlives all worlds using it.
+    /**
+     * Create a game-side lifetime handle after the component's game world is created.
+     * This does not initialize renderer-owned mutable state.
+     * @param context Registered bridge context
+     * @param component_index Actual component registration index
+     * @param max_instances Collection instance capacity
+     * @param max_components Capacity for this component type
+     * @param render_world Output lifetime handle; leave null and clean up partial work on failure
+     * @return True on success
+     */
+    typedef bool (*ComponentRenderCreateWorld)(void* context, uint32_t component_index, uint32_t max_instances, uint32_t max_components, void** render_world);
+
+    /**
+     * Release the game's ownership without waiting for accepted frames to finish.
+     * The bridge keeps renderer state alive until all outstanding references are released.
+     * @param context Registered bridge context
+     * @param render_world Lifetime handle returned by ComponentRenderCreateWorld
+     */
+    typedef void (*ComponentRenderDeleteWorld)(void* context, void* render_world);
+
+    /**
+     * Capture owned render inputs on the game owner.
+     * @param context Registered bridge context
+     * @param render_world Lifetime handle associated with this component world
+     * @param params Borrowed game inputs and the current capture frame
+     * @return True on success; false rejects the frame capture
+     */
+    typedef bool (*ComponentRenderExtract)(void* context, void* render_world, const ComponentRenderExtractParams& params);
+
+    /**
+     * Game-owner bridge callbacks, separate from the component's existing world hooks.
+     * All callbacks are required. The context must outlive all worlds using it.
+     */
     struct ComponentRenderCallbacks
     {
-        void* m_Context;
-        bool (*m_CreateWorld)(void* context, uint32_t component_index, uint32_t max_instances,
-            uint32_t max_components, void** render_world);
-        void (*m_DeleteWorld)(void* context, void* render_world);
-        bool (*m_Extract)(void* context, void* render_world, const ComponentRenderExtractParams& params);
+        void*                      m_Context;
+        ComponentRenderCreateWorld m_CreateWorld;
+        ComponentRenderDeleteWorld m_DeleteWorld;
+        ComponentRenderExtract     m_Extract;
     };
 
-    // Register against the actual registration-array index, before any collection starts
-    // creating worlds. All callbacks are required; duplicate and late registration fail.
-    // No ComponentType layout or public extension registration API is changed.
-    Result RegisterComponentRenderCallbacks(HRegister regist, uint32_t component_index,
-        const ComponentRenderCallbacks& callbacks);
+    /**
+     * Register bridge callbacks before any collection starts creating worlds.
+     * Does not change ComponentType or the public extension registration API.
+     * @param regist Component register
+     * @param component_index Actual registration-array index, not the resource type index
+     * @param callbacks Required bridge callbacks and their context
+     * @return RESULT_OK, RESULT_ALREADY_REGISTERED for duplicates, or RESULT_INVALID_OPERATION
+     *         for invalid callbacks/index or registration after world creation has begun
+     */
+    Result RegisterComponentRenderCallbacks(HRegister regist, uint32_t component_index, const ComponentRenderCallbacks& callbacks);
 
-    // Game owner, at the normal render boundary after final transforms and before
-    // destructive PostUpdate. Uses Render's existing ordering and enabled proxy traversal.
-    // frame must be non-null and remain valid throughout this synchronous capture; recursive
-    // Render calls inherit it. Nested ExtractRenderData calls are rejected.
+    /**
+     * Extract on the game owner after final transforms and before destructive PostUpdate.
+     * Uses Render's existing ordering and enabled proxy traversal. Recursive Render calls
+     * inherit the frame; nested ExtractRenderData calls are rejected.
+     * @param collection Collection to render/extract
+     * @param frame Non-null capture frame, valid throughout this synchronous call
+     * @return True if the traversal succeeds
+     */
     bool ExtractRenderData(HCollection collection, void* frame);
 }
 

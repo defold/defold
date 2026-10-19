@@ -15,9 +15,12 @@
 #ifndef DM_RENDER_FRAME_BENCHMARK_H
 #define DM_RENDER_FRAME_BENCHMARK_H
 
-// Explicit opt-in microbenchmark, never part of the default test run. Reports fixed
-// allocation costs and capture/copy/consume/retirement phases; it is not qualification
-// against the engine's inline regression budget. Returns nonzero on capture/checksum errors.
+/**
+ * Run the explicit opt-in microbenchmark, never part of the default test run.
+ * Reports fixed allocation costs and capture/copy/consume/retirement phases;
+ * this is not qualification against the engine's inline regression budget.
+ * @return Zero on success, nonzero on capture/checksum errors
+ */
 int RunRenderFrameBenchmark();
 
 #endif // DM_RENDER_FRAME_BENCHMARK_H
