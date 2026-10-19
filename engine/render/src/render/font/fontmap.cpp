@@ -35,6 +35,7 @@
 namespace dmRender
 {
     static const dmhash_t CURVE_TEXTURE_HASH = dmHashString64("curve_texture");
+    static const dmhash_t PAINT_TEXTURE_HASH = dmHashString64("paint_texture");
     static const uint32_t VECTOR_SLUG_TEXTURE_HEIGHT = 8;
     static const uint32_t VECTOR_SLUG_BANDS = 8;
 
@@ -497,7 +498,7 @@ namespace dmRender
             ResetVectorCache(font_map);
         font_map->m_IsVector = vector ? 1 : 0;
         if (font_map->m_FontCollection)
-            FontCollectionSetColorEmojiEnabled(font_map->m_FontCollection, vector);
+            FontCollectionSetColorEmojiEnabled(font_map->m_FontCollection, vector && GetMaterialSamplerUnit(material, PAINT_TEXTURE_HASH) != INVALID_SAMPLER_UNIT);
         return true;
     }
 
@@ -1129,6 +1130,9 @@ namespace dmRender
 
     void PrepareVectorPaintGlyphs(HFontMap font_map, HTextLayout layout, uint32_t frame, uint32_t max_glyph_count)
     {
+        // Existing curve/band-only materials cannot consume color vertices.
+        if (GetMaterialSamplerUnit(font_map->m_Material, PAINT_TEXTURE_HASH) == INVALID_SAMPLER_UNIT)
+            return;
         FontVectorPaintCache* cache = font_map->m_VectorPaint;
         uint32_t              previous_count = cache->m_Glyphs.Size();
         TextGlyph*            glyphs = TextLayoutGetGlyphs(layout);

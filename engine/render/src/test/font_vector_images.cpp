@@ -256,14 +256,19 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
 
     if (color)
     {
-        // Production material changes must select a supplied monochrome emoji
-        // fallback for raster output, then restore COLR selection for Vector.
+        // Raster and curve/band-only materials select a supplied monochrome
+        // emoji fallback; only materials with paint_texture select COLR.
         HFont mono = FontLoadFromPath("src/test/data/NotoEmoji-Regular.ttf");
         ASSERT_NE((HFont)0, mono);
         ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, mono));
-        for (uint32_t pass = 0; pass < 2; ++pass)
+        dmRender::HMaterial outline_material = dmRender::NewMaterial(render, program);
+        for (uint32_t i = 0; i < 3; ++i)
+            ASSERT_TRUE(dmRender::SetMaterialSampler(outline_material, dmHashString64(samplers[i]), i, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1));
+        ASSERT_EQ(dmRender::INVALID_SAMPLER_UNIT, dmRender::GetMaterialSamplerUnit(outline_material, dmHashString64("paint_texture")));
+        dmRender::HMaterial materials[] = { 0, material, outline_material, material };
+        for (uint32_t pass = 0; pass < DM_ARRAY_SIZE(materials); ++pass)
         {
-            ASSERT_TRUE(dmRender::SetFontMapMaterial(map, pass ? material : 0));
+            ASSERT_TRUE(dmRender::SetFontMapMaterial(map, materials[pass]));
             TextLayoutSettings selection = {};
             selection.m_Size = 32;
             selection.m_Leading = 1;
@@ -271,9 +276,10 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
             HTextLayout selected = 0;
             ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, &emoji, 1, &selection, &selected));
             ASSERT_EQ(1u, TextLayoutGetGlyphCount(selected));
-            ASSERT_EQ(pass ? font : mono, TextLayoutGetGlyphs(selected)[0].m_Font);
+            ASSERT_EQ(materials[pass] == material ? font : mono, TextLayoutGetGlyphs(selected)[0].m_Font);
             TextLayoutRelease(selected);
         }
+        dmRender::DeleteMaterial(render, outline_material);
         FontCollectionRemoveFont(collection, mono);
         FontDestroy(mono);
     }
