@@ -24,17 +24,18 @@
 
 namespace dmGameSystem
 {
-    // The producer publishes zero-reference records to this reaper. Renderer state is
-    // otherwise renderer-owned; only diagnostics cross owners through atomic counters.
+    // The producer queues zero-reference worlds for render-owner destruction. Renderer
+    // state is otherwise renderer-owned; diagnostics cross owners through atomic counters.
     struct ComponentRenderStateContext
     {
-        dmRender::HRenderExecution   m_Execution;
-        dmRender::HRenderFrameQueue  m_Queue;
-        dmMutex::HMutex             m_ReaperMutex;
+        dmRender::HRenderExecution  m_Execution;
+        dmRender::HRenderFrameQueue m_Queue;
+        dmMutex::HMutex             m_WorldsPendingDestroyMutex;
         // Head of the m_Next-linked list awaiting render-owner destruction. The game
         // owner enqueues worlds after their last reference is released; the render
-        // owner detaches the list under m_ReaperMutex and destroys it outside the lock.
-        HComponentRenderWorld       m_Reaper;
+        // owner detaches the list under m_WorldsPendingDestroyMutex and destroys the
+        // worlds outside the lock.
+        HComponentRenderWorld       m_WorldsPendingDestroy;
         int32_atomic_t              m_WorldCount;
         int32_atomic_t              m_Result;
         // Use full bytes, not bitfields: game/render owners access these independently,
@@ -58,7 +59,7 @@ namespace dmGameSystem
         HComponentRenderWorld        m_Next;
         uint32_t                     m_InitSize;
         uint32_t                     m_References;
-        dmRender::RenderFrameResult   m_InitResult;
+        dmRender::RenderFrameResult  m_InitResult;
         // Use full bytes, not bitfields: Closed is game-owned and Initialized is
         // render-owned, so concurrent updates must not read/modify/write the same byte.
         uint8_t                      m_Closed;
@@ -80,7 +81,7 @@ namespace dmGameSystem
         {
             return;
         }
-        if (context->m_ReaperMutex)
+        if (context->m_WorldsPendingDestroyMutex)
         {
             dmAtomicCompareStore32(&context->m_Result, (int32_t)result, dmRender::RENDER_FRAME_OK);
         }
@@ -92,7 +93,7 @@ namespace dmGameSystem
 
     static void ChangeWorldCount(HComponentRenderStateContext context, int32_t change)
     {
-        if (context->m_ReaperMutex)
+        if (context->m_WorldsPendingDestroyMutex)
             dmAtomicAdd32(&context->m_WorldCount, change);
         else
             context->m_WorldCount += change;
@@ -108,8 +109,8 @@ namespace dmGameSystem
         context->m_Execution = execution;
         if (dmRender::GetRenderExecutionMode(execution) == dmRender::EXECUTION_MODE_THREADED)
         {
-            context->m_ReaperMutex = dmMutex::New();
-            if (!context->m_ReaperMutex)
+            context->m_WorldsPendingDestroyMutex = dmMutex::New();
+            if (!context->m_WorldsPendingDestroyMutex)
             {
                 free(context);
                 return 0;
@@ -128,13 +129,13 @@ namespace dmGameSystem
     uint32_t GetComponentRenderStateWorldCount(HComponentRenderStateContext context)
     {
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
-        return (uint32_t)(context->m_ReaperMutex ? dmAtomicGet32(&context->m_WorldCount) : context->m_WorldCount);
+        return (uint32_t)(context->m_WorldsPendingDestroyMutex ? dmAtomicGet32(&context->m_WorldCount) : context->m_WorldCount);
     }
 
     dmRender::RenderFrameResult GetComponentRenderStateResult(HComponentRenderStateContext context)
     {
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
-        return (dmRender::RenderFrameResult)(context->m_ReaperMutex ? dmAtomicGet32(&context->m_Result) : context->m_Result);
+        return (dmRender::RenderFrameResult)(context->m_WorldsPendingDestroyMutex ? dmAtomicGet32(&context->m_Result) : context->m_Result);
     }
 
     HComponentRenderWorld NewComponentRenderWorld(HComponentRenderStateContext context, const ComponentRenderCallbacks& callbacks,
@@ -187,13 +188,13 @@ namespace dmGameSystem
 
         assert(world->m_Closed);
         {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_ReaperMutex);
-            world->m_Next = context->m_Reaper;
-            context->m_Reaper = world;
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_WorldsPendingDestroyMutex);
+            world->m_Next = context->m_WorldsPendingDestroy;
+            context->m_WorldsPendingDestroy = world;
         }
 
-        // Wake after releasing the reaper lock. If the renderer's TryLock raced this
-        // publication, the later wake guarantees another service opportunity.
+        // Wake after releasing the pending-destruction lock. If the renderer's TryLock
+        // raced this publication, the later wake guarantees another service opportunity.
         if (context->m_Queue)
         {
             RecordError(context, dmRender::RequestRenderFrameService(context->m_Queue));
@@ -314,16 +315,16 @@ namespace dmGameSystem
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_RENDER));
         assert(!context->m_InConsume && !context->m_InService);
 
-        if (context->m_ReaperMutex && !dmMutex::TryLock(context->m_ReaperMutex))
+        if (context->m_WorldsPendingDestroyMutex && !dmMutex::TryLock(context->m_WorldsPendingDestroyMutex))
         {
             return;
         }
 
-        HComponentRenderWorld world = context->m_Reaper;
-        context->m_Reaper = 0;
-        if (context->m_ReaperMutex)
+        HComponentRenderWorld world = context->m_WorldsPendingDestroy;
+        context->m_WorldsPendingDestroy = 0;
+        if (context->m_WorldsPendingDestroyMutex)
         {
-            dmMutex::Unlock(context->m_ReaperMutex);
+            dmMutex::Unlock(context->m_WorldsPendingDestroyMutex);
         }
 
         context->m_InService = true;
@@ -349,9 +350,9 @@ namespace dmGameSystem
 
         // All pumps have stopped/joined; no queue callback can still reach this context.
         assert(!context->m_InCapture && !context->m_InConsume && !context->m_InService);
-        if (context->m_ReaperMutex)
+        if (context->m_WorldsPendingDestroyMutex)
         {
-            dmMutex::Delete(context->m_ReaperMutex);
+            dmMutex::Delete(context->m_WorldsPendingDestroyMutex);
         }
         free(context);
     }

@@ -31,13 +31,16 @@ namespace dmGameSystem
     {
         dmRender::RenderFrameLimits       m_Limits;
         uint64_t                          m_NextWorldId;
-        dmGameObject::HRegister            m_Register;
-        dmRender::HRenderExecution         m_Execution;
+        dmGameObject::HRegister           m_Register;
+        dmRender::HRenderExecution        m_Execution;
         HComponentRenderStateContext      m_StateContext;
-        dmRender::HRenderFrameQueue        m_Queue;
+        dmRender::HRenderFrameQueue       m_Queue;
         ComponentRenderTypeBinding*       m_Types;
     };
 
+    // One game-side binding per registered component type. Passed as the context to
+    // gameobject's bridge callbacks so they can reach the type's capture/render callbacks
+    // and owning ComponentRenderContext. Kept in m_Types until context teardown.
     struct ComponentRenderTypeBinding
     {
         ComponentRenderType         m_Type;

@@ -116,7 +116,7 @@ namespace dmRender
             case EXECUTION_RESULT_THREADED:             return "threaded mode";
             case EXECUTION_RESULT_THREADS_UNSUPPORTED:  return "platform thread support unavailable";
             case EXECUTION_RESULT_EXECUTOR_UNAVAILABLE: return "threaded executor unavailable";
-            default:                                   return "invalid execution mode";
+            default:                                    return "invalid execution mode";
         }
     }
 
