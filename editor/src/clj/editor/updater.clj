@@ -525,7 +525,7 @@
                                                :progress (progress/make localization/empty-message 1 0)})
     (future
       (try
-        (let [part-file (.toFile (Files/createTempFile (.toPath (.getParentFile file)) (.getName file) ".part" (into-array FileAttribute [])))]
+        (let [part-file (io/file (.getParentFile file) (str (.getName file) ".part"))]
           (.deleteOnExit part-file)
           (try
             (download! url part-file "progress.downloading-beta" track-progress! (atom false))
