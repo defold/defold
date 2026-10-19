@@ -85,6 +85,9 @@ public class Fontc {
         int width;
         float advance;
         float leftBearing;
+        float unpaddedWidth;
+        float unpaddedAscent;
+        float unpaddedDescent;
         float layoutWidth;
         float layoutLeftBearing;
         int ascent;
@@ -336,6 +339,9 @@ public class Fontc {
             Glyph glyph = new Glyph();
             glyph.character = codePoint;
             glyph.advance = generated == null ? metrics.advance : generated.advance;
+            glyph.unpaddedWidth = metrics.unpaddedWidth;
+            glyph.unpaddedAscent = metrics.unpaddedAscent;
+            glyph.unpaddedDescent = metrics.unpaddedDescent;
             glyph.layoutWidth = metrics.layoutWidth;
             glyph.layoutLeftBearing = metrics.layoutLeftBearing;
             glyph.leftBearing = generated == null ? metrics.leftBearing : generated.leftBearing;
@@ -358,7 +364,7 @@ public class Fontc {
         FontRenderer.Layout metrics = renderer.measure("", false, 0.0f, 1.0f, 0.0f);
         glyphBankBuilder.setMaxAscent(metrics.maxAscent).setMaxDescent(metrics.maxDescent)
             .setMaxAdvance(maxAdvance).setMaxWidth(maxWidth).setMaxHeight(metrics.maxAscent + metrics.maxDescent)
-            .setHasLayoutMetrics(true);
+            .setHasLayoutMetrics(true).setHasUnpaddedMetrics(true);
     }
 
     private byte[] makeCellBytes(Glyph glyph, DecodedImage bitmapImage, int channels) {
@@ -539,6 +545,8 @@ public class Fontc {
                 .setOutlineAscent(glyph.outlineAscent).setOutlineDescent(glyph.outlineDescent);
             if (glyphBankBuilder.getHasLayoutMetrics())
                 output.setLayoutWidth(glyph.layoutWidth).setLayoutLeftBearing(glyph.layoutLeftBearing);
+            if (glyphBankBuilder.getHasUnpaddedMetrics())
+                output.setUnpaddedWidth(glyph.unpaddedWidth).setUnpaddedAscent(glyph.unpaddedAscent).setUnpaddedDescent(glyph.unpaddedDescent);
             if (preview)
                 output.setX(i % columns * cellWidth).setY(i / columns * cellHeight);
             glyphBankBuilder.addGlyphs(output);

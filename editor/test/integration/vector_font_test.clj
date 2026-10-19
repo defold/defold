@@ -183,6 +183,49 @@
                   ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
                   (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))))
 
+  ;; Vector gradients retain all four stops in preview pixels and picking.
+  (deftest vector-gradient-preview-and-picking
+    (test-util/with-loaded-project
+      (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
+            label-node (project/get-resource-node project "/label/test.label")]
+        (g/transact
+          {:undoable false}
+          [(g/set-property font-node :characters "I")
+           (g/set-property font-node :outline-alpha 0.0)
+           (g/set-property font-node :shadow-alpha 0.0)
+           (g/set-property label-node :font (workspace/find-resource workspace "/fonts/vector_implicit_dynamic.font"))
+           (g/set-property label-node :material (workspace/find-resource workspace "/builtins/fonts/font-vector.material"))
+           (g/set-property label-node :font-size 80.0)])
+        (let [[go-node view] (test-util/open-scene-view! project app-view "/fonts/vector_preview.go" 512 256)
+              component-node (:node-id (test-util/outline go-node [0]))]
+          (try
+            (doseq [type ["linear" "radial"]]
+              (g/set-property! label-node :text
+                (str "<gradient type=" type " fit=glyph color0=#ff0000 color1=#00ff00 color2=#0000ff color3=#ffff00>III</gradient>"))
+              (let [image (g/valid-node-value view :frame)]
+                (is (pos? (count (image-points image
+                                               (fn [rgb]
+                                                 (and (> (bit-and 255 (bit-shift-right rgb 16)) 100)
+                                                      (> (bit-and 255 (bit-shift-right rgb 8)) 100)
+                                                      (< (bit-and 255 rgb) 40)))))) type)
+                (doseq [shift [16 8 0]]
+                  (let [points (image-points image
+                                             (fn [rgb]
+                                               (let [channel (bit-and 255 (bit-shift-right rgb shift))
+                                                     others (- (+ (bit-and 255 rgb)
+                                                                  (bit-and 255 (bit-shift-right rgb 8))
+                                                                  (bit-and 255 (bit-shift-right rgb 16))) channel)]
+                                                 (> channel (+ others 32)))))]
+                    (is (pos? (count points)) (str type " channel " shift))
+                    (when-not (coll/empty? points)
+                      (let [[x y] (first points)]
+                        (test-util/mouse-click! view 5 5)
+                        (test-util/mouse-click! view x y)
+                        (is (test-util/selected? app-view component-node))))))))
+            (finally
+              ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
+              (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))
+
   ;; GUI vector text respects clipping during both drawing and selection.
   (deftest vector-gui-preview-clipping-and-picking
     (test-util/with-loaded-project
@@ -315,12 +358,12 @@
                 transfers (volatile! [])]
             (record-numeric-texture-transfers! drawable transfers)
             (gl/with-drawable-as-current drawable
-              (is (= (* 6 (count entries)) (count (font/request-vertex-buffer gl ::batch font-data entries))))
+              (is (= (* 6 (count entries)) (count (:vertex-buffer (font/request-render-data gl ::batch font-data entries nil (g/valid-node-value font-node :material-shader))))))
               (is (= {[GL3/GL_RGBA GL3/GL_HALF_FLOAT] 1
                       [GL3/GL_RED_INTEGER GL3/GL_UNSIGNED_INT] 1}
                      (frequencies (mapv #(subvec % 0 2) @transfers))))
               (let [initial-transfers @transfers]
-                (is (= (* 6 (count entries)) (count (font/request-vertex-buffer gl ::batch font-data entries))))
+                (is (= (* 6 (count entries)) (count (:vertex-buffer (font/request-render-data gl ::batch font-data entries nil (g/valid-node-value font-node :material-shader))))))
                 (is (= initial-transfers @transfers)))))
           (finally
             ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
@@ -356,7 +399,7 @@
               (try
                 (gl/with-drawable-as-current (g/node-value view :drawable)
                   (let [initial-render-args (get (g/valid-node-value view :pass->render-args) pass/transparent)
-                        initial-buffer (font/request-vertex-buffer gl ::zoom font-data [entry] initial-render-args)
+                        initial-buffer (:vertex-buffer (font/request-render-data gl ::zoom font-data [entry] initial-render-args (g/valid-node-value font-node :material-shader)))
                         initial-version (vtx/version initial-buffer)]
                     (is (pos? (count initial-buffer)))
                     (is (instance? Matrix4d (:view-proj initial-render-args)))
@@ -366,7 +409,7 @@
                             (update :fov-x / zoom)
                             (update :fov-y / zoom)))
                       (let [render-args (get (g/valid-node-value view :pass->render-args) pass/transparent)
-                            buffer (font/request-vertex-buffer gl ::zoom font-data [entry] render-args)]
+                            buffer (:vertex-buffer (font/request-render-data gl ::zoom font-data [entry] render-args (g/valid-node-value font-node :material-shader)))]
                         (is (= (= 1.0 zoom) (= (:view-proj initial-render-args) (:view-proj render-args))))
                         (is (identical? initial-buffer buffer))
                         (is (= initial-version (vtx/version buffer)))))))
@@ -437,7 +480,7 @@
         (let [custom-material (workspace/find-resource workspace "/fonts/custom-vector.material")
               fragment-node (project/get-resource-node project "/fonts/custom-vector.fp")
               original-lines (test-util/code-editor-lines fragment-node)
-              green-lines (mapv #(string/replace % "var_color.rgb * var_color.a" "vec3(0.0, 1.0, 0.0) * var_color.a") original-lines)]
+              green-lines (mapv #(string/replace % "face_color.rgb * face_color.a" "vec3(0.0, 1.0, 0.0) * face_color.a") original-lines)]
           (g/transact
             [(g/set-property font-node :characters "O")
              (g/set-property font-node :material custom-material)
