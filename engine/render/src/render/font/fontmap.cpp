@@ -1431,7 +1431,7 @@ namespace dmRender
         {
             FontVectorPaintCache* paint = font_map->m_VectorPaint;
             size += sizeof(*paint) + paint->m_Paths.Capacity() * sizeof(FontVectorPaintPath) +
-                    paint->m_Layers.Capacity() * sizeof(FontVectorPaintLayer) + paint->m_Glyphs.Capacity() * sizeof(FontVectorPaintGlyph) +
+                    paint->m_LayerScratch.Capacity() * sizeof(FontVectorPaintLayer) + paint->m_Glyphs.Capacity() * sizeof(FontVectorPaintGlyph) +
                     paint->m_Paints.Capacity() * sizeof(Vector4);
         }
         if (font_map->m_VectorSdfTexture)

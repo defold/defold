@@ -38,7 +38,6 @@ struct PaintContext
     dmArray<Matrix4>      m_Transforms;
     dmArray<PaintClip>    m_Clips;
     dmArray<uint32_t>     m_Composites;
-    uint32_t              m_FirstLayer;
     bool                  m_Failed;
 };
 
@@ -108,7 +107,6 @@ static uint32_t AddPath(PaintContext* context, uint32_t glyph_index)
         return ~0u;
     }
     FontVectorPaintPath path;
-    path.m_Font = context->m_Font;
     path.m_Glyph = glyph_index;
     const FontGlyphOutline& outline = glyph.m_Outline;
     path.m_Bounds = Vector4(outline.m_LeftBearing, -outline.m_Descent, outline.m_LeftBearing + outline.m_Width, outline.m_Ascent);
@@ -165,7 +163,7 @@ static bool PushComposite(void* data)
     PaintContext* context = (PaintContext*)data;
     uint32_t      first = context->m_Composites.Empty() ? ~0u : context->m_Composites.Back();
     if (first == ~0u && CurrentClip(context).m_Path != ~0u)
-        first = context->m_Cache->m_Layers.Size();
+        first = context->m_Cache->m_LayerScratch.Size();
     Append(context->m_Composites, first);
     return true;
 }
@@ -178,8 +176,8 @@ static void PopComposite(void* data)
     // Nested source-over composites share the outer group's coverage. Separate
     // PaintGlyph nodes and ordinary layer lists retain their individual coverage.
     if (first != ~0u && (context->m_Composites.Empty() || context->m_Composites.Back() != first) &&
-        context->m_Cache->m_Layers.Size() > first)
-        context->m_Cache->m_Layers.Back().m_CompositeCount = context->m_Cache->m_Layers.Size() - first;
+        context->m_Cache->m_LayerScratch.Size() > first)
+        context->m_Cache->m_LayerScratch.Back().m_CompositeCount = context->m_Cache->m_LayerScratch.Size() - first;
 }
 
 static float SRGBToLinear(float color)
@@ -213,7 +211,7 @@ static bool AddPaint(PaintContext* context, uint32_t type, uint32_t stops, uint3
         return false;
     // Reserve the glyph header and layer records before adding paint data, so
     // overflow rolls back the whole graph through the existing failure path.
-    uint32_t records = 1 + (cache->m_Layers.Size() - context->m_FirstLayer + 1) * 6;
+    uint32_t records = 1 + (cache->m_LayerScratch.Size() + 1) * 6;
     if (3 + stops * 2 + records > cache->m_Slug->m_MaxTexels - cache->m_Paints.Size())
     {
         cache->m_Slug->m_Overflow = true;
@@ -227,7 +225,7 @@ static bool AddPaint(PaintContext* context, uint32_t type, uint32_t stops, uint3
     layer.m_Transform = clip.m_Transform;
     layer.m_PaintTransform = inverse(paint_transform) * clip.m_Transform;
     layer.m_Clip = clip.m_Rect;
-    Append(cache->m_Layers, layer);
+    Append(cache->m_LayerScratch, layer);
     Append(cache->m_Paints, Vector4((float)type, (float)stops, (float)extend, 0));
     Append(cache->m_Paints, p0);
     Append(cache->m_Paints, p1);
@@ -275,7 +273,7 @@ static const FontColrCallbacks COLR_CALLBACKS = {
 void FontVectorPaintClear(FontVectorPaintCache* cache)
 {
     cache->m_Paths.SetSize(0);
-    cache->m_Layers.SetSize(0);
+    cache->m_LayerScratch.SetSize(0);
     cache->m_Glyphs.SetSize(0);
     cache->m_Paints.SetSize(0);
     cache->m_PathLookup.Clear();
@@ -303,7 +301,7 @@ static void EncodeGlyph(FontVectorPaintCache* cache, FontVectorPaintGlyph* glyph
     Append(cache->m_Paints, Vector4((float)glyph->m_LayerCount, 0, 0, 0));
     for (uint32_t i = 0; i < glyph->m_LayerCount; ++i)
     {
-        const FontVectorPaintLayer& layer = cache->m_Layers[glyph->m_FirstLayer + i];
+        const FontVectorPaintLayer& layer = cache->m_LayerScratch[i];
         const FontVectorPaintPath&  path = cache->m_Paths[layer.m_Path];
         Matrix4                    inverse_transform = inverse(layer.m_Transform);
         float                      width = path.m_Bounds.getZ() - path.m_Bounds.getX();
@@ -348,14 +346,11 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
         return true;
     }
     FontVectorPaintGlyph glyph = {};
-    glyph.m_Font = source;
     glyph.m_Glyph = glyph_index;
-    glyph.m_FirstLayer = cache->m_Layers.Size();
     PaintContext context;
     context.m_Cache = cache;
     context.m_Font = source;
     context.m_Failed = false;
-    context.m_FirstLayer = glyph.m_FirstLayer;
     Append(context.m_Transforms, Matrix4::identity());
     PaintClip clip = { ~0u, Matrix4::identity(), Vector4(-FLT_MAX, -FLT_MAX, FLT_MAX, FLT_MAX) };
     Append(context.m_Clips, clip);
@@ -369,7 +364,7 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
     {
         // Discard the whole partial graph before falling back. It must never
         // leave colored layers behind a replacement or poison unrelated text.
-        cache->m_Layers.SetSize(glyph.m_FirstLayer);
+        cache->m_LayerScratch.SetSize(0);
         cache->m_Paints.SetSize(first_paint);
         for (uint32_t i = first_path; i < cache->m_Paths.Size(); ++i)
             cache->m_PathLookup.Erase(GlyphKey(source, cache->m_Paths[i].m_Glyph));
@@ -403,8 +398,9 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
         if (*has_color)
             dmLogWarning("Unsupported COLR paint in glyph %u of %s; using an outline fallback", glyph.m_Glyph, FontGetPath(source));
     }
-    glyph.m_LayerCount = cache->m_Layers.Size() - glyph.m_FirstLayer;
+    glyph.m_LayerCount = cache->m_LayerScratch.Size();
     EncodeGlyph(cache, &glyph);
+    cache->m_LayerScratch.SetSize(0);
     Append(cache->m_Glyphs, glyph);
     *index = cache->m_Glyphs.Size() - 1;
     Put(cache->m_GlyphLookup, key, *index);

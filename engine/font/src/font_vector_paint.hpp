@@ -25,7 +25,6 @@
 // Glyphs use font units. Fonts and the borrowed Slug data must outlive this cache.
 struct FontVectorPaintPath
 {
-    HFont               m_Font;
     uint32_t            m_Glyph;
     FontVectorSlugGlyph m_Slug;
     dmVMath::Vector4    m_Bounds;
@@ -43,9 +42,7 @@ struct FontVectorPaintLayer
 
 struct FontVectorPaintGlyph
 {
-    HFont            m_Font;
     uint32_t         m_Glyph;
-    uint32_t         m_FirstLayer;
     uint32_t         m_LayerCount;
     uint32_t         m_Paint; // Header followed by six texels per layer in m_Paints.
     dmVMath::Vector4 m_Bounds;
@@ -64,7 +61,7 @@ struct FontVectorPaintCache
 {
     FontVectorSlugData*           m_Slug;
     dmArray<FontVectorPaintPath>  m_Paths;
-    dmArray<FontVectorPaintLayer> m_Layers;
+    dmArray<FontVectorPaintLayer> m_LayerScratch; // Reused for one glyph; empty between calls.
     dmArray<FontVectorPaintGlyph> m_Glyphs;
     dmArray<dmVMath::Vector4>     m_Paints;
     dmHashTable64<uint32_t>       m_PathLookup;

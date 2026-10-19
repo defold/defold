@@ -129,21 +129,26 @@ TEST(FontVector, ColorPaintCacheFallbackAndReuse)
         else
         {
             ASSERT_EQ(1u, glyph.m_LayerCount);
-            const FontVectorPaintLayer& layer = cache.m_Layers[glyph.m_FirstLayer];
-            ASSERT_EQ(0u, cache.m_Paths[layer.m_Path].m_Glyph);
-            ASSERT_EQ(0.0f, cache.m_Paints[layer.m_Paint].getX()); // Solid fallback, no partial graph.
+            bool notdef = false;
+            for (uint32_t p = 0; p < cache.m_Paths.Size(); ++p)
+                if (cache.m_Paths[p].m_Glyph == 0)
+                    notdef = cache.m_Paths[p].m_Slug.m_BandTexel == (uint32_t)cache.m_Paints[glyph.m_Paint + 1].getW();
+            ASSERT_TRUE(notdef);
+            uint32_t paint = (uint32_t)cache.m_Paints[glyph.m_Paint + 2].getW();
+            ASSERT_EQ(0.0f, cache.m_Paints[paint].getX()); // Solid fallback, no partial graph.
         }
-        uint32_t curves = data.m_Curves.Size(), layers = cache.m_Layers.Size(), paints = cache.m_Paints.Size();
+        ASSERT_EQ(0u, cache.m_LayerScratch.Size());
+        uint32_t curves = data.m_Curves.Size(), paints = cache.m_Paints.Size();
         uint32_t again;
         ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, glyphs[i], &again, &color));
         ASSERT_EQ(index, again);
         ASSERT_EQ(curves, data.m_Curves.Size());
-        ASSERT_EQ(layers, cache.m_Layers.Size());
+        ASSERT_EQ(0u, cache.m_LayerScratch.Size());
         ASSERT_EQ(paints, cache.m_Paints.Size());
     }
     // Atlas exhaustion must preserve previously submitted glyphs and metadata.
     uint32_t curves = data.m_Curves.Size(), bands = data.m_Bands.Size();
-    uint32_t layers = cache.m_Layers.Size(), paths = cache.m_Paths.Size();
+    uint32_t paths = cache.m_Paths.Size();
     uint32_t count = data.m_CurveCount, index;
     bool     color;
     data.m_MaxTexels = bands;
@@ -151,12 +156,47 @@ TEST(FontVector, ColorPaintCacheFallbackAndReuse)
     ASSERT_TRUE(data.m_Overflow);
     ASSERT_EQ(curves, data.m_Curves.Size());
     ASSERT_EQ(bands, data.m_Bands.Size());
-    ASSERT_EQ(layers, cache.m_Layers.Size());
+    ASSERT_EQ(0u, cache.m_LayerScratch.Size());
     ASSERT_EQ(paths, cache.m_Paths.Size());
     ASSERT_EQ(count, data.m_CurveCount);
     FontVectorPaintClear(&cache);
     ASSERT_EQ(0u, cache.m_GlyphLookup.Size());
     ASSERT_EQ(0u, cache.m_PathLookup.Size());
+    FontDestroy(font);
+}
+
+// Encoding many distinct glyphs must reuse one layer buffer without growing it
+// with the total layer count or changing previously encoded paint records.
+TEST(FontVector, ColorPaintScratchReuse)
+{
+    char  path[512];
+    HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/NotoColorEmoji-Regular.ttf"));
+    ASSERT_NE((HFont)0, font);
+    FontVectorSlugData   data;
+    FontVectorPaintCache cache;
+    cache.m_Slug = &data;
+    cache.m_LayerScratch.SetCapacity(64);
+    dmArray<dmVMath::Vector4> original;
+    uint32_t                  layers = 0;
+    for (uint32_t codepoint = 0x1f600; codepoint < 0x1f640; ++codepoint)
+    {
+        uint32_t index;
+        bool     color;
+        ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, FontGetGlyphIndex(font, codepoint), &index, &color));
+        ASSERT_TRUE(color);
+        ASSERT_LE(cache.m_Glyphs[index].m_LayerCount, 64u);
+        layers += cache.m_Glyphs[index].m_LayerCount;
+        ASSERT_EQ(0u, cache.m_LayerScratch.Size());
+        ASSERT_EQ(64u, cache.m_LayerScratch.Capacity());
+        ASSERT_GE(cache.m_Paints.Size(), original.Size());
+        if (!original.Empty())
+            ASSERT_EQ(0, memcmp(original.Begin(), cache.m_Paints.Begin(), original.Size() * sizeof(dmVMath::Vector4)));
+        original.SetCapacity(cache.m_Paints.Size());
+        original.SetSize(cache.m_Paints.Size());
+        memcpy(original.Begin(), cache.m_Paints.Begin(), original.Size() * sizeof(dmVMath::Vector4));
+    }
+    ASSERT_EQ(64u, cache.m_Glyphs.Size());
+    ASSERT_GT(layers, cache.m_LayerScratch.Capacity());
     FontDestroy(font);
 }
 
@@ -200,14 +240,18 @@ TEST(FontVector, ColorGlyphQuadAndCompositionRecords)
     }
     // Reuse the paths but leave room only for paint nodes, without another
     // composition header/layer table. The original glyph must remain intact.
-    uint32_t paints = cache.m_Paints.Size();
-    uint32_t layers = cache.m_Layers.Size();
+    uint32_t                  paints = cache.m_Paints.Size();
+    dmArray<dmVMath::Vector4> original;
+    original.SetCapacity(paints);
+    original.SetSize(paints);
+    memcpy(original.Begin(), cache.m_Paints.Begin(), paints * sizeof(dmVMath::Vector4));
     cache.m_GlyphLookup.Clear();
     data.m_MaxTexels = paints + glyph.m_Paint;
     ASSERT_FALSE(FontVectorPaintAddGlyph(&cache, font, glyph.m_Glyph, &index, &color));
     ASSERT_TRUE(data.m_Overflow);
     ASSERT_EQ(paints, cache.m_Paints.Size());
-    ASSERT_EQ(layers, cache.m_Layers.Size());
+    ASSERT_EQ(0u, cache.m_LayerScratch.Size());
+    ASSERT_EQ(0, memcmp(original.Begin(), cache.m_Paints.Begin(), paints * sizeof(dmVMath::Vector4)));
     ASSERT_EQ(1u, cache.m_Glyphs.Size());
     FontDestroy(font);
 }
@@ -263,15 +307,13 @@ TEST(FontVector, SharedClipCompositeRecords)
         ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, FontGetGlyphIndex(font, 'J' + i), &index, &color));
         ASSERT_TRUE(color);
         const FontVectorPaintGlyph& glyph = cache.m_Glyphs[index];
-        const FontVectorPaintLayer& last = cache.m_Layers[glyph.m_FirstLayer + glyph.m_LayerCount - 1];
-        ASSERT_EQ(counts[i], last.m_CompositeCount);
         ASSERT_EQ((float)counts[i], cache.m_Paints[glyph.m_Paint + 1 + (glyph.m_LayerCount - 1) * 6 + 3].getW());
         ASSERT_EQ(counts[i] > 1, cache.m_Paints[glyph.m_Paint + 1 + (glyph.m_LayerCount - 1) * 6 + 1].getW() < 0);
         ASSERT_EQ(glyph.m_Paint + 1 + glyph.m_LayerCount * 6, cache.m_Paints.Size());
         if (i == 2 || i == 3)
         {
             ASSERT_EQ(2u, glyph.m_LayerCount);
-            ASSERT_EQ(1u, cache.m_Layers[glyph.m_FirstLayer].m_CompositeCount);
+            ASSERT_EQ(1.0f, cache.m_Paints[glyph.m_Paint + 4].getW());
         }
     }
     FontDestroy(font);
