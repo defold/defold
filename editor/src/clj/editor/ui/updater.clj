@@ -200,9 +200,7 @@
 (defn- confirm-try-channel! [^Stage stage project localization version release-notes]
   (if release-notes
     (show-release-notes-dialog!
-      project localization
-      (str "_" (localization (localization/message "updater.try-channel-dialog.detail")) "_\n\n---\n\n"
-           (:markdown release-notes))
+      project localization (:markdown release-notes)
       (localization/message "updater.try-channel-dialog.title")
       (localization/message "updater.try-channel-dialog.header" {"version" version})
       [{:text (localization/message "updater.release-notes-dialog.button.later")
@@ -217,8 +215,6 @@
        :icon :icon/circle-question
        :owner stage
        :header (localization/message "updater.try-channel-dialog.header" {"version" version})
-       :content {:text (localization/message "updater.try-channel-dialog.detail")
-                 :wrap-text true}
        :buttons [{:text (localization/message "updater.release-notes-dialog.button.later")
                   :cancel-button true
                   :result false}
@@ -247,7 +243,8 @@
                      :icon :icon/circle-check
                      :owner (ui/main-stage)
                      :header (localization/message "updater.channel-download-done-dialog.header" {"version" version})
-                     :content (localization/message "updater.channel-download-done-dialog.detail" {"path" (.getPath file)})
+                     :content {:text (localization/message "updater.channel-download-done-dialog.detail" {"path" (.getPath file)})
+                               :wrap-text true}
                      :buttons [{:text (localization/message "dialog.button.close")
                                 :cancel-button true
                                 :result false}

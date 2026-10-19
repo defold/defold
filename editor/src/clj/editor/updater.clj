@@ -361,7 +361,8 @@
   [channel version]
   (try
     (when-let [notes (fetch-version-notes! (system/defold-archive-domain) channel version)]
-      {:markdown (entry-markdown nil {:version version :notes notes})})
+      {:markdown (entry-markdown nil {:version version
+                                       :notes (assoc notes :version (str version " " (string/capitalize channel)))})})
     (catch Exception e
       (log/warn :message "Failed to build channel release notes" :channel channel :exception e)
       nil)))
