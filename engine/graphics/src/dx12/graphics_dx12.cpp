@@ -2428,7 +2428,10 @@ namespace dmGraphics
             state_before_copy = D3D12_RESOURCE_STATE_COMMON;
         }
 
-        DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, device_buffer->m_Capacity, data, state_before_copy, DM_DX12_RESOURCE_STATE_BUFFER_READ, true);
+        // Null data reserves storage; callers such as particles populate it with sub-updates.
+        // Its contents are undefined, so uploading zeros only wastes CPU and GPU bandwidth.
+        if (data)
+            DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, device_buffer->m_Capacity, data, state_before_copy, DM_DX12_RESOURCE_STATE_BUFFER_READ, true);
         device_buffer->m_DataSize = data_size;
         device_buffer->m_Base.m_Size = data_size;
     }
