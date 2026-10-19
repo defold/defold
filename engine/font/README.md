@@ -36,7 +36,9 @@ surrounding text. This includes some flags in the bundled font.
 
 Dynamic Vector fonts in game Label/GUI rendering use the same paint cache in
 `src/font_vector_paint.cpp` and gradient shader in `font-vector-paint.glsl`.
-COLR fonts are registered for emoji selection by the full-layout engine. Color
+Full-layout collections register both color and outline fonts for emoji selection.
+The font-map material enables COLR emoji for Vector; SDF and Bitmap select a
+supplied monochrome fallback. Changing this policy affects newly created layouts. Color
 paint data is uploaded only when glyphs are added. The cache shares the existing
 bounded Slug atlas; it does not invalidate geometry already submitted in a frame.
 Prebaked font banks and editor previews continue to use their existing monochrome

@@ -254,6 +254,30 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     ASSERT_TRUE(dmRender::SetFontMapMaterial(map, material));
     ASSERT_TRUE(dmRender::GetFontMapIsVector(map));
 
+    if (color)
+    {
+        // Production material changes must select a supplied monochrome emoji
+        // fallback for raster output, then restore COLR selection for Vector.
+        HFont mono = FontLoadFromPath("src/test/data/NotoEmoji-Regular.ttf");
+        ASSERT_NE((HFont)0, mono);
+        ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, mono));
+        for (uint32_t pass = 0; pass < 2; ++pass)
+        {
+            ASSERT_TRUE(dmRender::SetFontMapMaterial(map, pass ? material : 0));
+            TextLayoutSettings selection = {};
+            selection.m_Size = 32;
+            selection.m_Leading = 1;
+            uint32_t    emoji = 0x1f600;
+            HTextLayout selected = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, &emoji, 1, &selection, &selected));
+            ASSERT_EQ(1u, TextLayoutGetGlyphCount(selected));
+            ASSERT_EQ(pass ? font : mono, TextLayoutGetGlyphs(selected)[0].m_Font);
+            TextLayoutRelease(selected);
+        }
+        FontCollectionRemoveFont(collection, mono);
+        FontDestroy(mono);
+    }
+
     TextLayoutSettings settings = {};
     settings.m_Size = c.m_Size;
     settings.m_Width = rtl_wrapped ? 100 : g_Capture_vector.m_LayoutWidth;

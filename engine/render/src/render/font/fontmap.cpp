@@ -25,6 +25,7 @@
 #include <dlib/zlib.h>
 
 #include <font/text_layout.h>
+#include <font/fontcollection.h>
 
 #include <algorithm> // std::sort
 #include <math.h>
@@ -322,6 +323,8 @@ namespace dmRender
     static bool SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
     {
         font_map->m_FontCollection = params.m_FontCollection;
+        if (font_map->m_FontCollection)
+            FontCollectionSetColorEmojiEnabled(font_map->m_FontCollection, false);
         font_map->m_NameHash = params.m_NameHash;
         font_map->m_Size = params.m_Size;
         font_map->m_ShadowX = params.m_ShadowX;
@@ -493,6 +496,8 @@ namespace dmRender
         if (font_map->m_IsVector || vector)
             ResetVectorCache(font_map);
         font_map->m_IsVector = vector ? 1 : 0;
+        if (font_map->m_FontCollection)
+            FontCollectionSetColorEmojiEnabled(font_map->m_FontCollection, vector);
         return true;
     }
 

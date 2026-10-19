@@ -1860,6 +1860,7 @@ static bool LoadFonts(Viewer* viewer)
     {
         return false;
     }
+    FontCollectionSetColorEmojiEnabled(viewer->m_Collection, viewer->m_Properties.m_RenderMode == FONT_VIEWER_RENDER_VECTOR);
 
     if (viewer->m_FontPaths.Empty())
     {
@@ -1894,8 +1895,7 @@ static bool LoadFonts(Viewer* viewer)
 
     for (uint32_t i = 0; i < viewer->m_Fonts.Size(); ++i)
     {
-        const uint8_t family = i + 1 == viewer->m_Fonts.Size() ? SKB_FONT_FAMILY_EMOJI : SKB_FONT_FAMILY_DEFAULT;
-        if (!viewer->m_Fonts[i] || FontCollectionAddFontForFamily(viewer->m_Collection, viewer->m_Fonts[i], family) != FONT_RESULT_OK)
+        if (!viewer->m_Fonts[i] || FontCollectionAddFont(viewer->m_Collection, viewer->m_Fonts[i]) != FONT_RESULT_OK)
         {
             dmLogError("Unable to load font %u", i + 1);
 
@@ -1910,12 +1910,13 @@ static bool LoadFonts(Viewer* viewer)
 
 static bool UpdateEmojiFont(Viewer* viewer)
 {
+    FontCollectionSetColorEmojiEnabled(viewer->m_Collection, viewer->m_Properties.m_RenderMode == FONT_VIEWER_RENDER_VECTOR);
     HFont  emoji_font = viewer->m_EmojiFonts[viewer->m_Properties.m_RenderMode == FONT_VIEWER_RENDER_VECTOR];
     HFont& current = viewer->m_Fonts[viewer->m_Fonts.Size() - 1];
     if (current == emoji_font)
         return true;
     FontCollectionRemoveFont(viewer->m_Collection, current);
-    if (FontCollectionAddFontForFamily(viewer->m_Collection, emoji_font, SKB_FONT_FAMILY_EMOJI) != FONT_RESULT_OK)
+    if (FontCollectionAddFont(viewer->m_Collection, emoji_font) != FONT_RESULT_OK)
         return false;
     current = emoji_font;
     UpdateLoadedFontText(viewer);
