@@ -19,8 +19,74 @@
 
 #include "../platform_window_ios.h"
 #include "../platform_app.h"
+#import "../native/ios/app/ViewController.h"
 
 #import <UIKit/UIKit.h>
+
+typedef void (^TransitionBlock)(id<UIViewControllerTransitionCoordinatorContext>);
+
+@interface TestTransitionCoordinator : NSObject <UIViewControllerTransitionCoordinator>
+@property (nonatomic, copy) TransitionBlock completion;
+@property (nonatomic, readonly, getter=isAnimated) BOOL animated;
+@property (nonatomic, readonly) UIModalPresentationStyle presentationStyle;
+@property (nonatomic, readonly) BOOL initiallyInteractive;
+@property (nonatomic, readonly) BOOL isInterruptible;
+@property (nonatomic, readonly, getter=isInteractive) BOOL interactive;
+@property (nonatomic, readonly, getter=isCancelled) BOOL cancelled;
+@property (nonatomic, readonly) NSTimeInterval transitionDuration;
+@property (nonatomic, readonly) CGFloat percentComplete;
+@property (nonatomic, readonly) CGFloat completionVelocity;
+@property (nonatomic, readonly) UIViewAnimationCurve completionCurve;
+@property (nonatomic, readonly) UIView* containerView;
+@property (nonatomic, readonly) CGAffineTransform targetTransform;
+- (void)completeTransition;
+@end
+
+@implementation TestTransitionCoordinator
+- (BOOL)animateAlongsideTransition:(TransitionBlock)animation completion:(TransitionBlock)completion
+{
+    self.completion = completion;
+    return YES;
+}
+
+- (BOOL)animateAlongsideTransitionInView:(UIView*)view animation:(TransitionBlock)animation completion:(TransitionBlock)completion
+{
+    return [self animateAlongsideTransition:animation completion:completion];
+}
+
+- (UIViewController*)viewControllerForKey:(UITransitionContextViewControllerKey)key
+{
+    return nil;
+}
+
+- (UIView*)viewForKey:(UITransitionContextViewKey)key
+{
+    return nil;
+}
+
+- (void)notifyWhenInteractionEndsUsingBlock:(TransitionBlock)handler
+{
+}
+
+- (void)notifyWhenInteractionChangesUsingBlock:(TransitionBlock)handler
+{
+}
+
+- (void)completeTransition
+{
+    if (self.completion)
+    {
+        self.completion(self);
+        self.completion = nil;
+    }
+}
+
+- (void)dealloc
+{
+    self.completion = nil;
+    [super dealloc];
+}
+@end
 
 struct ResizeData
 {
@@ -70,6 +136,60 @@ TEST(dmPlatform, SafeAreaNotificationWithoutResize)
     ASSERT_EQ(height, data.m_Height);
     WindowPollEvents(window);
     ASSERT_EQ(1u, data.m_Count);
+    WindowDelete(window);
+}
+
+// Verifies completed transitions notify during polling even when size and insets
+// stay unchanged, guarding against missing events on 180-degree landscape rotations.
+TEST(dmPlatform, TransitionNotificationWithoutResizeOrInsetChange)
+{
+    HWindow window = WindowNew();
+    ResizeData data = {};
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_Title = "TransitionTest";
+    params.m_Width = 1920;
+    params.m_Height = 1080;
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_METAL;
+    params.m_ResizeCallback = OnWindowResize;
+    params.m_ResizeCallbackUserData = &data;
+    ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(window, &params));
+
+    UIWindow* native_window = (UIWindow*)dmPlatform::GetiOSUIWindow();
+    ViewController* controller = (ViewController*)native_window.rootViewController;
+    UIView* view = (UIView*)dmPlatform::GetiOSUIView();
+    UIEdgeInsets insets = view.safeAreaInsets;
+    uint32_t width = WindowGetWidth(window);
+    uint32_t height = WindowGetHeight(window);
+    WindowPollEvents(window);
+    data.m_Count = 0;
+
+    TestTransitionCoordinator* coordinator = [[TestTransitionCoordinator alloc] init];
+    [controller viewWillTransitionToSize:controller.view.bounds.size withTransitionCoordinator:coordinator];
+    WindowPollEvents(window);
+    EXPECT_EQ(0u, data.m_Count);
+
+    [coordinator completeTransition];
+    EXPECT_EQ(0u, data.m_Count);
+    WindowPollEvents(window);
+    EXPECT_EQ(1u, data.m_Count);
+    EXPECT_EQ(width, data.m_Width);
+    EXPECT_EQ(height, data.m_Height);
+    EXPECT_TRUE(UIEdgeInsetsEqualToEdgeInsets(insets, view.safeAreaInsets));
+    WindowPollEvents(window);
+    EXPECT_EQ(1u, data.m_Count);
+
+    // An inset notification in the same poll must coalesce with the transition.
+    [controller viewWillTransitionToSize:controller.view.bounds.size withTransitionCoordinator:coordinator];
+    [coordinator completeTransition];
+    [view safeAreaInsetsDidChange];
+    EXPECT_EQ(1u, data.m_Count);
+    WindowPollEvents(window);
+    EXPECT_EQ(2u, data.m_Count);
+    WindowPollEvents(window);
+    EXPECT_EQ(2u, data.m_Count);
+
+    [coordinator release];
     WindowDelete(window);
 }
 

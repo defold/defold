@@ -88,6 +88,16 @@ static int g_view_type = NATIVE_NO_API;
     }
 }
 
+- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
+{
+    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+    [coordinator animateAlongsideTransition:nil completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+        // A 180-degree rotation can move reserved regions without changing size or insets.
+        // Notify during event polling after UIKit has finished updating the geometry.
+        self.baseView.safeAreaChanged = YES;
+    }];
+}
+
 - (BOOL)shouldUpdateViewFrame
 {
     UIDevice *device = [UIDevice currentDevice];
