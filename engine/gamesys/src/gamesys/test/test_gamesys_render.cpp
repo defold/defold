@@ -2140,7 +2140,7 @@ TEST_F(ModelTest, ComponentPoolGrowthAndReuse)
     dmGameObject::HCollection collection = dmGameObject::NewCollection("model_pool", m_Factory, m_Register, population + 256, 0);
     ASSERT_NE((dmGameObject::HCollection)0, collection);
     ASSERT_TRUE(dmGameObject::Init(collection));
-    dmGameObject::HInstance instances[population];
+    dmGameObject::HInstance  instances[population];
     dmGameObject::HComponent components[population];
     for (uint32_t i = 0; i < population; ++i)
     {
@@ -2149,7 +2149,7 @@ TEST_F(ModelTest, ComponentPoolGrowthAndReuse)
         const char* prototype = i == 0 ? "/model/script_model_anim.goc" : "/model/static_vertex_attributes.goc";
         instances[i] = Spawn(m_Factory, collection, prototype, dmHashString64(id));
         ASSERT_NE((dmGameObject::HInstance)0, instances[i]);
-        uint32_t type;
+        uint32_t                      type;
         dmGameObject::HComponentWorld world;
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instances[i], dmHashString64(i == 0 ? "fox" : "model"), &type, &components[i], &world));
     }
@@ -2162,8 +2162,8 @@ TEST_F(ModelTest, ComponentPoolGrowthAndReuse)
         dmSnPrintf(id, sizeof(id), "/replacement_%u", i);
         instances[i] = Spawn(m_Factory, collection, "/model/static_vertex_attributes.goc", dmHashString64(id));
         ASSERT_NE((dmGameObject::HInstance)0, instances[i]);
-        uint32_t type;
-        dmGameObject::HComponent component;
+        uint32_t                      type;
+        dmGameObject::HComponent      component;
         dmGameObject::HComponentWorld world;
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instances[i], dmHashString64("model"), &type, &component, &world));
         bool reused = false;
@@ -2173,8 +2173,8 @@ TEST_F(ModelTest, ComponentPoolGrowthAndReuse)
     }
     for (uint32_t i = 0; i < population; i += 2)
     {
-        uint32_t type;
-        dmGameObject::HComponent component;
+        uint32_t                      type;
+        dmGameObject::HComponent      component;
         dmGameObject::HComponentWorld world;
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instances[i], dmHashString64(i == 0 ? "fox" : "model"), &type, &component, &world));
         ASSERT_EQ(components[i], component);

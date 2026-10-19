@@ -100,8 +100,6 @@ namespace dmGameSystem
     struct MeshRenderItem
     {
         dmVMath::Matrix4            m_World;
-        dmVMath::Vector3            m_AabbMin;
-        dmVMath::Vector3            m_AabbMax;
         struct ModelComponent*      m_Component;
         ModelResourceBuffers*       m_Buffers;
         dmRigDDF::Model*            m_Model;    // Used for world space materials
@@ -116,6 +114,7 @@ namespace dmGameSystem
         uint16_t                    m_AttributeRenderDataIndex;
         uint16_t                    m_DynamicVertexAttributeIndex;
         uint8_t                     m_LocalTransformIsIdentity : 1;
+        uint8_t                     m_RigidBoneParented : 1;
         uint8_t                     m_PerInstanceCustomAttributes  : 1;
         uint8_t                     m_DynamicVertexAttributesDirty : 1;
         uint8_t                     m_Enabled                      : 1;
@@ -123,32 +122,32 @@ namespace dmGameSystem
 
     struct ModelComponent
     {
-        dmGameObject::HInstance     m_Instance;
-        dmTransform::Transform      m_Transform;
-        Matrix4                     m_World;
-        ModelResource*              m_Resource;
-        dmRig::HRigInstance         m_RigInstance;
-        FModelAnimationCallback     m_Callback;
-        void*                       m_CallbackContext;
-        HComponentRenderConstants   m_RenderConstants;
-        TextureResource*            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        MaterialResource*           m_Material; // Override material
+        // Keep the state read by the component and transform update passes together.
+        dmGameObject::HInstance              m_Instance;
+        uint8_t                              m_Enabled : 1;
+        uint8_t                              m_DoRender : 1;
+        uint8_t                              m_AddedToUpdate : 1;
+        uint8_t                              m_ReHash : 1;
+        uint8_t                              m_RequiresBindPoseCaching : 1;
+        uint8_t                              m_BlendWeightsOverrideActive : 1;
+        uint8_t                              m_TransformIsIdentity : 1;
+        uint8_t                              m_RenderItemsDirty : 1;
+        HComponentRenderConstants            m_RenderConstants;
+        dmArray<MeshAttributeRenderData>     m_MeshAttributeRenderDatas;
+        dmArray<MeshRenderItem>              m_RenderItems;
+        ModelResource*                       m_Resource;
+        Matrix4                              m_World;
+        dmRig::HRigInstance                  m_RigInstance;
 
+        FModelAnimationCallback              m_Callback;
+        void*                                m_CallbackContext;
+        MaterialResource*                    m_Material; // Override material
+        dmTransform::Transform               m_Transform;
+        TextureResource*                     m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         /// Node instances corresponding to the bones
-        dmArray<dmGameObject::HInstance> m_NodeInstances;
-        dmArray<MeshRenderItem>          m_RenderItems;
-        dmArray<MeshAttributeRenderData> m_MeshAttributeRenderDatas;
+        dmArray<dmGameObject::HInstance>     m_NodeInstances;
         /// Script morph weights - applied in ApplyMorphToRenderObject.
-        dmArray<float>                   m_BlendWeightsOverride;
-        uint16_t                         m_ComponentIndex;
-        uint8_t                          m_Enabled : 1;
-        uint8_t                          m_DoRender : 1;
-        uint8_t                          m_AddedToUpdate : 1;
-        uint8_t                          m_ReHash : 1;
-        uint8_t                          m_RequiresBindPoseCaching : 1;
-        uint8_t                          m_BlendWeightsOverrideActive : 1;
-        uint8_t                          m_TransformIsIdentity : 1;
-        uint8_t                          m_RenderItemsDirty : 1;
+        dmArray<float>                       m_BlendWeightsOverride;
     };
 
     struct ModelSkinnedAnimationData
@@ -428,13 +427,6 @@ namespace dmGameSystem
     static inline bool IsRenderItemSkinned(ModelComponent* component, const MeshRenderItem* render_item)
     {
         return component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED;
-    }
-
-    // True for a static mesh hung under a bone: world = bone_pose × node local. Skinned meshes omit the bone here since GPU skinning handles it.
-    // Otherwise static meshes parented under a bone would be transformed twice.
-    static inline bool IsRigidBoneParentedRenderItem(const MeshRenderItem& item)
-    {
-        return item.m_BoneIndex != dmRig::INVALID_BONE_INDEX && item.m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_STATIC;
     }
 
     static bool IsIdentityTransform(const dmTransform::Transform& transform)
@@ -1196,8 +1188,6 @@ namespace dmGameSystem
             item.m_MorphModelId = resource->m_Meshes[i].m_MorphModelId;
             item.m_RenderConstants = 0;
             item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
-            item.m_AabbMin = item.m_Mesh->m_AabbMin;
-            item.m_AabbMax = item.m_Mesh->m_AabbMax;
             item.m_Enabled = 1;
             item.m_BoneIndex = dmRig::INVALID_BONE_INDEX;
             item.m_AttributeRenderDataIndex = ATTRIBUTE_RENDER_DATA_INDEX_UNUSED;
@@ -1214,6 +1204,10 @@ namespace dmGameSystem
                 }
             }
 
+            // True for a static mesh hung under a bone: world = bone_pose × node local. Skinned meshes omit the bone here since GPU skinning handles it.
+            // Otherwise static meshes parented under a bone would be transformed twice.
+            item.m_RigidBoneParented = item.m_BoneIndex != dmRig::INVALID_BONE_INDEX && item.m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_STATIC;
+
             dmRender::HMaterial material = GetComponentMaterial(component, component->m_Resource, item.m_MaterialIndex);
 
             if (HasCustomVertexAttributes(material))
@@ -1225,7 +1219,7 @@ namespace dmGameSystem
             component->m_RenderItems.Push(item);
             MeshRenderItem& render_item = component->m_RenderItems[i];
             render_item.m_RenderItem = dmRender::NewRenderItem(world->m_RenderContext, world->m_RenderDispatch, (uintptr_t)&render_item);
-            dmRender::SetBoundingOBB(world->m_RenderContext, render_item.m_RenderItem, render_item.m_AabbMin, render_item.m_AabbMax);
+            dmRender::SetBoundingOBB(world->m_RenderContext, render_item.m_RenderItem, render_item.m_Mesh->m_AabbMin, render_item.m_Mesh->m_AabbMax);
             SetRenderItemMaterial(world, &render_item, material);
             dmRender::Enable(world->m_RenderContext, render_item.m_RenderItem, component->m_DoRender && render_item.m_Enabled);
         }
@@ -1294,7 +1288,7 @@ namespace dmGameSystem
         uint32_t chunk_index = index / MODEL_COMPONENT_CHUNK_SIZE;
         if (chunk_index == world->m_ComponentChunks.Size())
         {
-            uint32_t count = dmMath::Min(MODEL_COMPONENT_CHUNK_SIZE, world->m_Components.Capacity() - chunk_index * MODEL_COMPONENT_CHUNK_SIZE);
+            uint32_t        count = dmMath::Min(MODEL_COMPONENT_CHUNK_SIZE, world->m_Components.Capacity() - chunk_index * MODEL_COMPONENT_CHUNK_SIZE);
             ModelComponent* chunk;
             if (dmMemory::AlignedMalloc((void**)&chunk, 128, count * sizeof(ModelComponent)) != dmMemory::RESULT_OK)
             {
@@ -1312,7 +1306,6 @@ namespace dmGameSystem
         ModelResource* resource = (ModelResource*)params.m_Resource;
         component->m_Resource = resource;
 
-        component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
@@ -2261,7 +2254,7 @@ namespace dmGameSystem
                 dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(c->m_RigInstance);
 
                 dmVMath::Matrix4 model_matrix;
-                if (IsRigidBoneParentedRenderItem(*render_item))
+                if (render_item->m_RigidBoneParented)
                 {
                     dmRig::BonePose bone_pose = pose[render_item->m_BoneIndex];
                     model_matrix = dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(render_item->m_Model->m_Local);
@@ -2461,7 +2454,7 @@ namespace dmGameSystem
             // For skinned models: bone hierarchy is applied in the vertex shader, not via bone_pose here.
             // For rigid meshes parented to a bone: apply bone_pose.m_World * node.local.
             // For non-skinned models without bone parent: m_Local contains node.world (flattened hierarchy).
-            if (IsRigidBoneParentedRenderItem(item))
+            if (item.m_RigidBoneParented)
             {
                 dmRig::BonePose bone_pose = (*pose)[item.m_BoneIndex];
                 mesh_world = component_world * (dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(model->m_Local));
@@ -3190,16 +3183,16 @@ namespace dmGameSystem
 
         dmVMath::Vector3 first_mesh_position = component->m_RenderItems[0].m_Model->m_Local.GetTranslation();
 
-        *out_min = first_mesh_position + component->m_RenderItems[0].m_AabbMin;
-        *out_max = first_mesh_position + component->m_RenderItems[0].m_AabbMax;
+        *out_min = first_mesh_position + component->m_RenderItems[0].m_Mesh->m_AabbMin;
+        *out_max = first_mesh_position + component->m_RenderItems[0].m_Mesh->m_AabbMax;
 
         for (uint32_t idx = 1; idx < mesh_count; ++idx)
         {
             const MeshRenderItem& item = component->m_RenderItems[idx];
             dmVMath::Vector3 mesh_position = component->m_RenderItems[idx].m_Model->m_Local.GetTranslation();
 
-            dmVMath::Vector3 transformed_min = mesh_position + item.m_AabbMin;
-            dmVMath::Vector3 transformed_max = mesh_position + item.m_AabbMax;
+            dmVMath::Vector3      transformed_min = mesh_position + item.m_Mesh->m_AabbMin;
+            dmVMath::Vector3      transformed_max = mesh_position + item.m_Mesh->m_AabbMax;
 
             for (uint32_t elem_idx = 0; elem_idx < 3; ++elem_idx)
             {
@@ -3216,8 +3209,8 @@ namespace dmGameSystem
             return;
         }
         MeshRenderItem& item = component->m_RenderItems[mesh_idx];
-        *out_min = item.m_AabbMin;
-        *out_max = item.m_AabbMax;
+        *out_min = item.m_Mesh->m_AabbMin;
+        *out_max = item.m_Mesh->m_AabbMax;
         *out_mesh_id = item.m_Model->m_Id;
     }
 
