@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="932" viewBox="0 0 1100 932" role="img" aria-labelledby="title desc">
+<!--
+Copyright 2020-2026 The Defold Foundation
+Copyright 2014-2020 King
+Copyright 2009-2014 Ragnar Svensson, Christian Murray
+Licensed under the Defold License version 1.0 (the "License"); you may not use
+this file except in compliance with the License.
+
+You may obtain a copy of the License, together with FAQs at
+https://www.defold.com/license
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+<title id="title">LightRig: a list of two lights</title>
+<desc id="desc">Serialized layout for CreateLightRigExample. The eight-byte value row references a 152-byte list container. The list has a 24-byte header and index area, followed by two 64-byte dynamic Light containers at local offsets 24 and 88. Each Light has names, kinds and references to color at byte 40 and intensity at byte 56. All stored references are absolute blob offsets; byte columns are relative to their containing row or container. The separate row record is omitted.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#237c76"/></marker>
+<marker id="expand" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker>
+</defs>
+<style>
+text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px; }
+.title { font-size: 26px; font-weight: 700; }
+.label { font-size: 19px; font-weight: 700; }
+.small { font-size: 16px; fill: #52657a; }
+.mono { font-family: Menlo, Consolas, monospace; font-size: 16px; }
+.reference { fill: none; stroke: #237c76; stroke-width: 2; marker-end: url(#arrow); }
+.expansion { fill: none; stroke: #52657a; stroke-width: 1.8; stroke-dasharray: 5 4; marker-end: url(#expand); }
+</style>
+<rect width="1100" height="932" rx="12" fill="#f5f8fc"/>
+<text x="32" y="42" class="title">LightRig: a list of two lights</text>
+<text x="32" y="72" class="small">File layout · byte columns are local offsets · arrows follow blob-relative offsets</text>
+<rect x="32" y="112" width="488" height="140" rx="7" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="50" y="140" class="label">LightRig · 8-byte value row</text>
+<text x="500" y="140" class="small" text-anchor="end">Byte</text>
+<text x="50" y="184" class="mono">uint64_t lights;</text>
+<text x="500" y="184" class="mono" text-anchor="end">0</text>
+<text x="50" y="224" class="small">One reference slot; list length does not change the row.</text>
+<path d="M 520 180 H 580" class="reference"/>
+<rect x="580" y="112" width="488" height="242" rx="7" fill="#fff1da" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="598" y="140" class="label">List · 152 bytes including both Lights</text>
+<text x="1048" y="140" class="small" text-anchor="end">Byte</text>
+<text x="598" y="174" class="mono">uint32_t m_ByteSize = 152;</text>
+<text x="1048" y="174" class="mono" text-anchor="end">0</text>
+<text x="598" y="200" class="mono">uint32_t m_Count = 2;</text>
+<text x="1048" y="200" class="mono" text-anchor="end">4</text>
+<text x="598" y="226" class="mono">uint32_t kinds[2];</text>
+<text x="1048" y="226" class="mono" text-anchor="end">8</text>
+<text x="598" y="252" class="mono">uint32_t · offsets[0]</text>
+<text x="1048" y="252" class="mono" text-anchor="end">16</text>
+<text x="598" y="278" class="mono">uint32_t · offsets[1]</text>
+<text x="1048" y="278" class="mono" text-anchor="end">20</text>
+<text x="598" y="320" class="small">kinds: DATA_TYPE_STRUCT, DATA_TYPE_STRUCT</text>
+<text x="50" y="298" class="small">Light payloads follow the list’s 24-byte index area.</text>
+<text x="50" y="326" class="small">Each Light carries its own member metadata.</text>
+<path d="M 1068 252 H 1080 V 382 H 276 V 432" class="reference"/>
+<path d="M 1068 278 H 1092 V 404 H 824 V 432" class="reference"/>
+<rect x="32" y="432" width="488" height="396" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="50" y="460" class="label">Light 0 · list start + 24</text>
+<text x="500" y="460" class="small" text-anchor="end">Byte</text>
+<text x="50" y="494" class="mono">uint32_t m_ByteSize = 64;</text>
+<text x="500" y="494" class="mono" text-anchor="end">0</text>
+<text x="50" y="520" class="mono">uint32_t m_Count = 2;</text>
+<text x="500" y="520" class="mono" text-anchor="end">4</text>
+<text x="50" y="546" class="mono">uint64_t names[2];</text>
+<text x="500" y="546" class="mono" text-anchor="end">8</text>
+<text x="50" y="572" class="mono">uint32_t kinds[2];</text>
+<text x="500" y="572" class="mono" text-anchor="end">24</text>
+<text x="50" y="598" class="mono">uint32_t · offsets[0]</text>
+<text x="500" y="598" class="mono" text-anchor="end">32</text>
+<text x="50" y="624" class="mono">uint32_t · offsets[1]</text>
+<text x="500" y="624" class="mono" text-anchor="end">36</text>
+<text x="50" y="650" class="mono">float color[3];</text>
+<text x="500" y="650" class="mono" text-anchor="end">40</text>
+<text x="50" y="676" class="mono">uint8_t padding[4];</text>
+<text x="500" y="676" class="mono" text-anchor="end">52</text>
+<text x="50" y="702" class="mono">double intensity;</text>
+<text x="500" y="702" class="mono" text-anchor="end">56</text>
+<text x="50" y="738" class="small">names: hash(&quot;color&quot;), hash(&quot;intensity&quot;)</text>
+<text x="50" y="764" class="small">kinds: DATA_TYPE_VECTOR3, DATA_TYPE_NUMBER</text>
+<text x="50" y="804" class="small">color = (1.0, 0.8, 0.6); intensity = 1.0</text>
+<path d="M 32 598 H 16 V 650 H 32" class="reference"/>
+<path d="M 32 624 H 4 V 702 H 32" class="reference"/>
+<rect x="580" y="432" width="488" height="396" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="598" y="460" class="label">Light 1 · list start + 88</text>
+<text x="1048" y="460" class="small" text-anchor="end">Byte</text>
+<text x="598" y="494" class="mono">uint32_t m_ByteSize = 64;</text>
+<text x="1048" y="494" class="mono" text-anchor="end">0</text>
+<text x="598" y="520" class="mono">uint32_t m_Count = 2;</text>
+<text x="1048" y="520" class="mono" text-anchor="end">4</text>
+<text x="598" y="546" class="mono">uint64_t names[2];</text>
+<text x="1048" y="546" class="mono" text-anchor="end">8</text>
+<text x="598" y="572" class="mono">uint32_t kinds[2];</text>
+<text x="1048" y="572" class="mono" text-anchor="end">24</text>
+<text x="598" y="598" class="mono">uint32_t · offsets[0]</text>
+<text x="1048" y="598" class="mono" text-anchor="end">32</text>
+<text x="598" y="624" class="mono">uint32_t · offsets[1]</text>
+<text x="1048" y="624" class="mono" text-anchor="end">36</text>
+<text x="598" y="650" class="mono">float color[3];</text>
+<text x="1048" y="650" class="mono" text-anchor="end">40</text>
+<text x="598" y="676" class="mono">uint8_t padding[4];</text>
+<text x="1048" y="676" class="mono" text-anchor="end">52</text>
+<text x="598" y="702" class="mono">double intensity;</text>
+<text x="1048" y="702" class="mono" text-anchor="end">56</text>
+<text x="598" y="738" class="small">names: hash(&quot;color&quot;), hash(&quot;intensity&quot;)</text>
+<text x="598" y="764" class="small">kinds: DATA_TYPE_VECTOR3, DATA_TYPE_NUMBER</text>
+<text x="598" y="804" class="small">color = (0.6, 0.8, 1.0); intensity = 2.0</text>
+<path d="M 580 598 H 564 V 650 H 580" class="reference"/>
+<path d="M 580 624 H 552 V 702 H 580" class="reference"/>
+<text x="32" y="868" class="small">The Light payloads are dynamic containers, with metadata before the values; they are not native Light rows.</text>
+<text x="32" y="896" class="small">The separate 32-byte DataRow record is omitted. The component value-row stride remains eight bytes.</text>
+</svg>

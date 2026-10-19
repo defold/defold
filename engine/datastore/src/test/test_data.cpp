@@ -947,15 +947,18 @@ TEST(Data, AlignedMathReadsPreserveFloatBits)
     delete[] bytes;
 }
 
+// Row records and value rows use separate arrays; runtime group/slot indices
+// must not leak into a blob, including when serializing an instantiated blob.
 TEST(Data, BinaryGoldenSharedMetadata)
 {
     // Two eight-byte rows share one 32-byte metadata entry.
     // clang-format off
     const uint8_t DM_ALIGNED(8) expected[] = {
-        'D','M','D','T',1,0,0,0, 1,0,0,0,112,0,0,0, 24,0,0,0,0,0,0,0,
+        'D','F','D','S',1,0,0,0, 1,0,0,0,160,0,0,0, 24,0,0,0,0,0,0,0,
         1,0,0,0,0,0,0,0, 0,0,1,0,2,0,0,0, 8,0,0,0,1,0,0,0,
         10,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,8,0,0,0, 10,0,0,0,0,0,0,0,
-        7,0,0,0,0,0,0,0, 8,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0, 7,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0, 8,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
         0,0,0,0,0,0,0xf8,0x3f, 0,0,0,0,0,0,0,0xc0
     };
     // clang-format on
@@ -983,8 +986,8 @@ TEST(Data, BinaryGoldenSharedMetadata)
     ASSERT_EQ(0, memcmp(expected, bytes, size));
     HDataStore        loaded = DataCreateStore();
     HDataBlobInstance instance;
-    ASSERT_EQ(DATA_RESULT_OK, Load(loaded, expected, sizeof(expected), &instance));
-    ASSERT_EQ((uintptr_t)(expected + 96), (uintptr_t)(GetInstanceTable(instance, 0)->m_Blob + GetInstanceTable(instance, 0)->m_Offsets.m_Rows));
+    ASSERT_EQ(DATA_RESULT_OK, Load(loaded, expected, sizeof(expected), &instance, 300));
+    ASSERT_EQ((uintptr_t)(expected + 144), (uintptr_t)(GetInstanceTable(instance, 0)->m_Blob + GetInstanceTable(instance, 0)->m_Offsets.m_Rows));
     ASSERT_EQ(DATA_RESULT_OK, DataWriteBlob(loaded, bytes, size, &size));
     ASSERT_EQ(0, memcmp(expected, bytes, size));
     ASSERT_EQ(DATA_RESULT_OK, DataDestroyStore(loaded));
@@ -1030,6 +1033,18 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
         ASSERT_TRUE(table->m_Pool != 0);
         ASSERT_EQ((uintptr_t)bytes, (uintptr_t)table->m_Blob);
         ASSERT_EQ((uintptr_t)0, (uintptr_t)table->m_Payloads);
+        uint32_t       source_count = table->m_Rows.Size() / 2;
+        const DataRow* records = (const DataRow*)(bytes + table->m_Offsets.m_Rows) - source_count;
+        for (uint32_t r = 0; r < table->m_Rows.Size(); ++r)
+        {
+            const DataRow& row = table->m_Rows[r];
+            ASSERT_EQ((DataGroupId)(r < source_count ? 100 : 200), row.m_Group);
+            ASSERT_EQ(records[r % source_count].m_ComponentId, row.m_ComponentId);
+            ASSERT_EQ(r % source_count, row.m_BaseIndex);
+            ASSERT_EQ(r < source_count ? first->m_Index : second->m_Index, row.m_InstanceIndex);
+            ASSERT_EQ(r, store->m_Slots[row.m_Slot].m_Row);
+            ASSERT_EQ((uintptr_t)table, (uintptr_t)store->m_Slots[row.m_Slot].m_Table);
+        }
     }
     DataId ids[2][3] = {};
     DataStoreLock(store);
@@ -1424,7 +1439,7 @@ TEST(Data, NestedValidationAndDepth)
     ASSERT_EQ(DATA_RESULT_OK, DataLoadBlob(bytes, size, &blob));
     DataDestroyBlob(blob);
     // Last number becomes an empty list, which would add a 65th container.
-    uint32_t container = (uint32_t)ReadDataInteger(bytes + 24 + DATA_TABLE_HEADER_SIZE + DATA_FIELD_META_SIZE + 8, 8);
+    uint32_t container = (uint32_t)ReadDataInteger(bytes + 24 + DATA_TABLE_HEADER_SIZE + DATA_FIELD_META_SIZE + sizeof(DataRow), 8);
     for (uint32_t i = 1; i < DATA_MAX_NESTING; ++i)
         container = (uint32_t)ReadDataInteger(bytes + container + 12, 4);
     WriteDataInteger(bytes + container + 8, DATA_TYPE_LIST, 4);
@@ -1460,8 +1475,9 @@ TEST(Data, MalformedBlobDirectoryLayoutAndValues)
         ASSERT_EQ((uintptr_t)sentinel, (uintptr_t)output);
     }
     uint32_t second = (uint32_t)ReadDataInteger(bytes + 20, 4);
-    // First table starts at 24, metadata at 48, row bytes at 152.
-    const uint32_t corrupt[] = { 0, 4, 8, 12, 16, 20, 32, 34, 36, 40, 44, 46, 56, 60, 64, 66, 68, 88, 92, 96, 98, 100, 120, 124, 128, 130, 132, 152, 160, 168 };
+    // First table starts at 24, metadata at 48, row record at 144, values at 176.
+    // The record's group, slot, base/instance indices and reserved bytes must be zero.
+    const uint32_t corrupt[] = { 0, 4, 8, 12, 16, 20, 32, 34, 36, 40, 44, 46, 56, 60, 64, 66, 68, 88, 92, 96, 98, 100, 120, 124, 128, 130, 132, 144, 160, 164, 168, 172, 176, 184, 192 };
     for (uint32_t i = 0; i < sizeof(corrupt) / sizeof(corrupt[0]); ++i)
     {
         bytes[corrupt[i]] = 0xff;
@@ -1480,7 +1496,7 @@ TEST(Data, MalformedBlobDirectoryLayoutAndValues)
     WriteDataInteger(bytes + 92, 0, 4); // String overlaps boolean in every row.
     ASSERT_EQ(DATA_RESULT_INVALID_FORMAT, DataLoadBlob(bytes, size, &output));
     memcpy(bytes, saved, size);
-    uint32_t nested = (uint32_t)ReadDataInteger(bytes + 168, 8);
+    uint32_t nested = (uint32_t)ReadDataInteger(bytes + 192, 8);
     bytes[nested + 8] = 99;
     ASSERT_EQ(DATA_RESULT_INVALID_FORMAT, DataLoadBlob(bytes, size, &output));
     memcpy(bytes, saved, size);

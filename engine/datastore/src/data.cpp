@@ -17,6 +17,7 @@
 #include <string.h>
 #include <new>
 #include <dlib/hash.h>
+#include <dlib/log.h>
 #include "data.h"
 
 // Resolved once per input column, never per row. Values are copied directly into
@@ -151,7 +152,7 @@ static void ReserveStore(HDataStore store, uint32_t table_count, uint32_t row_co
     ReserveSlots(store, row_count);
 }
 
-static DataId AddSlot(HDataStore store, DataTable* table, DataRow row)
+static uint32_t AllocateSlot(HDataStore store, DataTable* table, uint32_t row)
 {
     uint32_t index = store->m_FreeSlot;
     if (index == INVALID_SLOT)
@@ -168,10 +169,8 @@ static DataId AddSlot(HDataStore store, DataTable* table, DataRow row)
 
     DataSlot* slot = &store->m_Slots[index];
     slot->m_Table = table;
-    slot->m_Row = table->m_Rows.Size();
-    row.m_Slot = index;
-    table->m_Rows.Push(row);
-    return MakeId(store, index);
+    slot->m_Row = row;
+    return index;
 }
 
 // Capacity is reserved for the whole batch. Publish array sizes once after
@@ -238,6 +237,7 @@ static void DeleteBlobPool(DataBlobPool* pool);
 
 HDataStore  DataCreateStore(void)
 {
+    dmLogOnceWarning("The datastore API is experimental and may change without notice.");
     HDataStore store = new DataStore;
     store->m_FreeSlotCount = 0;
     store->m_FreeSlot = INVALID_SLOT;
@@ -495,13 +495,14 @@ DataResult DataRegisterTableView(HDataStore store, const DataTableDesc* desc, vo
     uint32_t bytes = value_count * desc->m_RowStride;
     table->m_Values.Set((uint8_t*)values, bytes, bytes, true);
     table->m_Rows.SetCapacity(row_count);
+    table->m_Rows.SetSize(row_count);
     ReserveSlots(store, row_count);
     for (uint32_t i = 0; i < row_count; ++i)
     {
-        DataRow row = { .m_BaseIndex = indices ? indices[i] : i };
-        DataId  id = AddSlot(store, table, row);
+        DataRow row = { .m_Slot = AllocateSlot(store, table, i), .m_BaseIndex = indices ? indices[i] : i };
+        table->m_Rows[i] = row;
         if (out_ids)
-            out_ids[i] = id;
+            out_ids[i] = MakeId(store, row.m_Slot);
     }
     for (uint32_t i = 0; i < store->m_Tables.Size(); ++i)
     {
@@ -672,8 +673,8 @@ static DataBlobPool* NewBlobPool(HDataStore store, HDataBlob blob)
         };
         uint32_t       count = (uint32_t)ReadDataInteger(data + offsetof(DataTableHeader, m_RowCount), 4);
         DataTable*     table = NewTable(store, &desc, pool, data, new (GetPoolTable(pool, t)) DataTable);
-        const uint8_t* components = data + DATA_TABLE_HEADER_SIZE + desc.m_TagCount * 8 + table->m_MetadataCount * DATA_FIELD_META_SIZE;
-        table->m_Offsets.m_Rows = (uint32_t)(components + (size_t)count * 8 - file);
+        const uint8_t* records = data + DATA_TABLE_HEADER_SIZE + desc.m_TagCount * 8 + table->m_MetadataCount * DATA_FIELD_META_SIZE;
+        table->m_Offsets.m_Rows = (uint32_t)(records + (size_t)count * sizeof(DataRow) - file);
         table->m_Offsets.m_FirstSlot = first_slot;
         first_slot += count;
         table->m_Rows.Set(rows, 0, count, true);
@@ -750,19 +751,25 @@ DataResult DataAddBlob(HDataStore store, HDataBlob blob, DataGroupId group, HDat
     {
         DataTable* table = GetPoolTable(pool, t);
         uint32_t   count = (uint32_t)ReadDataInteger(table->m_Blob + table->m_Offsets.m_Table + offsetof(DataTableHeader, m_RowCount), 4);
+        if (!count)
+            continue;
         uint32_t   start = table->m_Rows.Size();
         ReserveTableArray(table, table->m_Rows, start + count);
         ReserveTableArray(table, table->m_Values, (start + count) * table->m_RowStride);
+        table->m_Rows.SetSize(start + count);
         table->m_Values.SetSize((start + count) * table->m_RowStride);
+        size_t         record_bytes = (size_t)count * sizeof(DataRow);
+        const uint8_t* records = table->m_Blob + table->m_Offsets.m_Rows - record_bytes;
+        DataRow*       rows = table->m_Rows.Begin() + start;
+        memcpy(rows, records, record_bytes);
         InitializeBlobValues(table, start, count);
         for (uint32_t r = 0; r < count; ++r)
         {
-            DataRow row = {
-                .m_Group = group,
-                .m_InstanceIndex = instance->m_Index,
-                .m_BaseIndex = r
-            };
-            slots[table->m_Offsets.m_FirstSlot + r] = (uint32_t)AddSlot(store, table, row);
+            rows[r].m_Group = group;
+            rows[r].m_Slot = AllocateSlot(store, table, start + r);
+            rows[r].m_BaseIndex = r;
+            rows[r].m_InstanceIndex = instance->m_Index;
+            slots[table->m_Offsets.m_FirstSlot + r] = rows[r].m_Slot;
         }
     }
 
@@ -1093,17 +1100,8 @@ DataResult DataRemoveRow(HDataStore store, DataId id)
     return DATA_RESULT_OK;
 }
 
-uint64_t GetRowComponentId(const DataTable* table, const DataRow* row)
-{
-    if (!table->m_Pool)
-        return row->m_ComponentId;
-    const uint8_t* data = table->m_Blob + table->m_Offsets.m_Table;
-    const uint8_t* components = data + DATA_TABLE_HEADER_SIZE + (size_t)table->m_TagCount * 8 + (size_t)table->m_MetadataCount * DATA_FIELD_META_SIZE;
-    return ReadDataInteger(components + (size_t)row->m_BaseIndex * 8, 8);
-}
-
 uint64_t DataGetComponentId(HDataStore store, DataId id)
 {
     DataSlot* slot = FindSlot(store, id);
-    return slot ? GetRowComponentId(slot->m_Table, &slot->m_Table->m_Rows[slot->m_Row]) : 0;
+    return slot ? slot->m_Table->m_Rows[slot->m_Row].m_ComponentId : 0;
 }

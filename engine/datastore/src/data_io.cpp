@@ -25,6 +25,7 @@ DM_STATIC_ASSERT(sizeof(DataFileHeader) == 8 && offsetof(DataFileHeader, m_Versi
 DM_STATIC_ASSERT(sizeof(DataFileDirectory) == 8 && offsetof(DataFileDirectory, m_StringsOffset) == 4, Invalid_data_file_directory);
 DM_STATIC_ASSERT(sizeof(DataTableHeader) == 24 && offsetof(DataTableHeader, m_TagCount) == 8 && offsetof(DataTableHeader, m_Reserved) == 22, Invalid_data_table_header);
 DM_STATIC_ASSERT(sizeof(DataFileFieldMeta) == 32 && offsetof(DataFileFieldMeta, m_Kind) == 8 && offsetof(DataFileFieldMeta, m_ByteSize) == 20, Invalid_data_file_field_meta);
+DM_STATIC_ASSERT(sizeof(DataRow) == 32 && offsetof(DataRow, m_Group) == 0 && offsetof(DataRow, m_ComponentId) == 8 && offsetof(DataRow, m_Slot) == 16 && offsetof(DataRow, m_BaseIndex) == 20 && offsetof(DataRow, m_InstanceIndex) == 24 && offsetof(DataRow, m_Reserved) == 28, Invalid_data_row);
 DM_STATIC_ASSERT(sizeof(DataFileContainerHeader) == 8 && offsetof(DataFileContainerHeader, m_Count) == 4, Invalid_data_file_container_header);
 static const uint32_t INVALID_STRING = UINT32_MAX;
 
@@ -272,7 +273,7 @@ DataResult DataWriteBlob(HDataStore store, void* buffer, uint32_t buffer_size, u
         const DataTable* table = store->m_Tables[t];
         uint32_t         rows = table->m_Rows.Size();
         string_offset = Align8(string_offset + DATA_TABLE_HEADER_SIZE + (uint64_t)table->m_TagCount * 8 +
-                               (uint64_t)table->m_MetadataCount * DATA_FIELD_META_SIZE + (uint64_t)rows * 8 + (uint64_t)rows * table->m_RowStride);
+                               (uint64_t)table->m_MetadataCount * DATA_FIELD_META_SIZE + (uint64_t)rows * sizeof(DataRow) + (uint64_t)rows * table->m_RowStride);
         for (uint32_t r = 0; r < rows; ++r)
         {
             for (uint32_t i = 0; i < table->m_FieldCount; ++i)
@@ -298,7 +299,7 @@ DataResult DataWriteBlob(HDataStore store, void* buffer, uint32_t buffer_size, u
 
     uint8_t* file = (uint8_t*)buffer;
     memset(file, 0, (size_t)size);
-    memcpy(file + offsetof(DataFileHeader, m_Magic), "DMDT", 4);
+    memcpy(file + offsetof(DataFileHeader, m_Magic), "DFDS", 4);
     WriteDataInteger(file + offsetof(DataFileHeader, m_Version), DATA_FILE_VERSION, 4);
     WriteDataInteger(file + sizeof(DataFileHeader) + offsetof(DataFileDirectory, m_TableCount), tables, 4);
     WriteDataInteger(file + sizeof(DataFileHeader) + offsetof(DataFileDirectory, m_StringsOffset), string_offset, 4);
@@ -336,10 +337,11 @@ DataResult DataWriteBlob(HDataStore store, void* buffer, uint32_t buffer_size, u
         }
 
         data += table->m_MetadataCount * DATA_FIELD_META_SIZE;
+        // Keep runtime fields zero in the shared row-record layout.
         for (uint32_t r = 0; r < rows; ++r)
-            WriteDataInteger(data + r * 8, GetRowComponentId(table, &table->m_Rows[r]), 8);
+            WriteDataInteger(data + (size_t)r * sizeof(DataRow) + offsetof(DataRow, m_ComponentId), table->m_Rows[r].m_ComponentId, 8);
 
-        data += rows * 8;
+        data += (size_t)rows * sizeof(DataRow);
         offset = (uint32_t)Align8((uint64_t)(data - file) + (uint64_t)rows * table->m_RowStride);
         for (uint32_t r = 0; r < rows; ++r)
         {
@@ -487,7 +489,7 @@ static bool ValidateField(const uint8_t* file, uint32_t size, const uint8_t* met
 
 static bool ValidateBlob(const uint8_t* file, uint32_t size, uint32_t* out_rows)
 {
-    if (!file || (uintptr_t)file % 8 || size < DATA_TABLE_OFFSETS_OFFSET || memcmp(file + offsetof(DataFileHeader, m_Magic), "DMDT", 4) || ReadDataInteger(file + offsetof(DataFileHeader, m_Version), 4) != DATA_FILE_VERSION)
+    if (!file || (uintptr_t)file % 8 || size < DATA_TABLE_OFFSETS_OFFSET || memcmp(file + offsetof(DataFileHeader, m_Magic), "DFDS", 4) || ReadDataInteger(file + offsetof(DataFileHeader, m_Version), 4) != DATA_FILE_VERSION)
         return false;
 
     uint32_t tables = (uint32_t)ReadDataInteger(file + sizeof(DataFileHeader) + offsetof(DataFileDirectory, m_TableCount), 4);
@@ -511,7 +513,8 @@ static bool ValidateBlob(const uint8_t* file, uint32_t size, uint32_t* out_rows)
         uint32_t       stride = (uint32_t)ReadDataInteger(table + offsetof(DataTableHeader, m_RowStride), 4);
         uint32_t       metadata_count = (uint32_t)ReadDataInteger(table + offsetof(DataTableHeader, m_MetadataCount), 2);
         total_rows += rows;
-        uint64_t rows_start = cursor + DATA_TABLE_HEADER_SIZE + (uint64_t)tags * 8 + (uint64_t)metadata_count * DATA_FIELD_META_SIZE + (uint64_t)rows * 8;
+        uint64_t records_start = cursor + DATA_TABLE_HEADER_SIZE + (uint64_t)tags * 8 + (uint64_t)metadata_count * DATA_FIELD_META_SIZE;
+        uint64_t rows_start = records_start + (uint64_t)rows * sizeof(DataRow);
         uint64_t values_end = Align8(rows_start + (uint64_t)rows * stride);
         if (field_count > metadata_count ||
             ReadDataInteger(table + offsetof(DataTableHeader, m_Reserved), 2) ||
@@ -528,6 +531,9 @@ static bool ValidateBlob(const uint8_t* file, uint32_t size, uint32_t* out_rows)
         cursor = values_end;
         for (uint32_t r = 0; r < rows; ++r)
         {
+            const DataRow* record = (const DataRow*)(file + records_start + (size_t)r * sizeof(DataRow));
+            if (record->m_Group || record->m_Slot || record->m_BaseIndex || record->m_InstanceIndex || record->m_Reserved)
+                return false;
             const uint8_t* row = file + rows_start + (uint64_t)r * stride;
             for (uint32_t i = 0; i < field_count; ++i)
             {

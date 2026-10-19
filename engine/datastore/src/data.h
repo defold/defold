@@ -29,10 +29,10 @@
 #include <dmsdk/datastore/datastore.h>
 
 // File format, version 1. Integers are little-endian; references are blob offsets.
-// Variable arrays follow these fixed headers. Runtime structures below are separate.
+// Variable arrays follow these fixed headers. DataRow is shared with runtime storage.
 struct DataFileHeader
 {
-    char     m_Magic[4]; // FOURCC "DMDT".
+    char     m_Magic[4]; // FOURCC "DFDS" (Defold DataStore).
     uint32_t m_Version;  // Format version: DATA_FILE_VERSION.
 };
 
@@ -43,13 +43,13 @@ struct DataFileDirectory
     uint32_t m_StringsOffset; // Blob offset of the shared NUL-terminated string area.
 };
 
-// Followed by tags, metadata, component name hashes, fixed-stride rows and payloads.
+// Followed by tags, metadata, row records, fixed-stride values and payloads.
 //
 // Blob table offset --> [ DataTableHeader                        ]
 //                       [ uint64_t tags[m_TagCount]              ]
 //                       [ DataFileFieldMeta[m_MetadataCount]     ]
-//                       [ uint64_t component IDs[m_RowCount]     ]
-//                       [ row bytes[m_RowCount * m_RowStride]    ]
+//                       [ DataRow records[m_RowCount]            ]
+//                       [ value bytes[m_RowCount * m_RowStride]  ]
 //                       [ alignment padding and dynamic payloads ]
 // Each fixed row spans m_RowStride bytes. String offsets refer to the blob's
 // shared string area, after all tables. Fixed rows store values, with their
@@ -59,7 +59,7 @@ struct DataTableHeader
     uint64_t m_TypeHash;      // Table's data type name hash.
     uint16_t m_TagCount;      // Number of following uint64_t tag hashes.
     uint16_t m_FieldCount;    // Root entries at the start of the metadata array.
-    uint32_t m_RowCount;      // Component name count and number of value rows.
+    uint32_t m_RowCount;      // Number of row records and value rows.
     uint32_t m_RowStride;     // Bytes per row, including alignment padding.
     uint16_t m_MetadataCount; // Total metadata entries, including inline struct members.
     uint16_t m_Reserved;      // Zero.
@@ -74,6 +74,28 @@ struct DataFileFieldMeta
     uint16_t m_ChildCount;     // Number of immediate inline members.
     uint32_t m_ByteSize;       // Field size; includes trailing padding for inline structs.
     uint64_t m_MemberNameHash; // Local member name hash for structured input/views.
+};
+
+// The same row-record layout is used in files and DataTable::m_Rows. Values live
+// in a separate array: records[i] describes values[i * m_RowStride].
+// Files store the component name hash and zero all runtime fields. Instantiation
+// copies each table's record array, then fills group, slot and source indices.
+//
+// Byte:   0         8             16      20           24               28          32
+//         +---------+-------------+-------+------------+----------------+-----------+
+//         | m_Group | ComponentId | Slot  | BaseIndex  | InstanceIndex  | Reserved  |
+//         | uint64  | uint64      | uint32| uint32     | uint32         | uint32    |
+//         +---------+-------------+-------+------------+----------------+-----------+
+// Swap removal moves records and values together. Packed source indices stay
+// unchanged; owned default rows move with their current values.
+struct DataRow
+{
+    DataGroupId m_Group;         // Caller group (e.g. game object handle); zero in files.
+    uint64_t    m_ComponentId;   // Prototype-local component name hash; retained in files.
+    uint32_t    m_Slot;          // Runtime stable ID slot in DataStore::m_Slots; zero in files.
+    uint32_t    m_BaseIndex;     // Runtime source/default/view row index; zero in files.
+    uint32_t    m_InstanceIndex; // Runtime registration slot in the blob pool; zero otherwise.
+    uint32_t    m_Reserved;      // Zero; keeps the record size a multiple of eight bytes.
 };
 
 // Dynamic structs/lists: optional uint64_t names (structs only), uint32_t kinds,
@@ -243,30 +265,6 @@ struct DataRowDesc
     uint64_t             m_ComponentId; // Prototype-local component name hash.
 };
 
-// Row identity, source row and pooled registration indices. Mutable values follow
-// the current row order; swap removal moves these bytes and preserves registration membership.
-//
-// DataRow byte offsets (identity only; field values are in DataTable::m_Values):
-//  0                   8                 16                 20                      24
-//  +-------------------+-----------------+------------------+-----------------------+
-//  | m_Group: uint64_t | union (8 bytes) | m_Slot: uint32_t | m_BaseIndex: uint32_t |
-//  +-------------------+-----------------+------------------+-----------------------+
-//                      |                 |                  +--> reset source row
-//                      |                 +--> DataStore::m_Slots
-//                      +--> m_ComponentId (uint64_t) or m_InstanceIndex (uint32_t)
-// Packed m_BaseIndex stays unchanged on swap removal; owned defaults move with the row.
-struct DataRow
-{
-    DataGroupId m_Group; // Caller-defined group shared by any number of rows.
-    union
-    {
-        uint64_t m_ComponentId;   // Prototype-local name for independently added rows.
-        uint32_t m_InstanceIndex; // Packed rows: registration slot in the resource pool.
-    };
-    uint32_t m_Slot;      // Stable ID slot in DataStore::m_Slots.
-    uint32_t m_BaseIndex; // Packed source row index, or the current dense index for owned defaults.
-};
-
 static const uint32_t DATA_MAX_NESTING = 64;
 // One allocation in a query binding arena. Payload follows the header at an
 // eight-byte boundary. Used bytes include padding; capacity excludes the header.
@@ -339,7 +337,7 @@ struct DataTable
     bool                      m_RetainDefaults; // Native rows retain initial values; blobs always have resource defaults.
     dmArray<DataTable*>       m_ViewAliases;    // Borrowed views whose selected source rows overlap this view.
     uint32_t                  m_RowStride;      // Row bytes, including native alignment padding.
-    dmArray<DataRow>          m_Rows;           // Dense runtime row identities.
+    dmArray<DataRow>          m_Rows;           // Dense row records; same layout as in the blob.
     dmArray<uint8_t>          m_Values;         // Mutable rows, indexed in m_Rows order; borrowed for views.
     DataBlobPool*             m_Pool;           // Owning resource pool; NULL for independently registered tables.
     const uint8_t*            m_Blob;           // Borrowed serialized resource bytes; NULL for independent tables.
@@ -564,7 +562,6 @@ void UnmatchTable(HDataQuery query, DataTable* table);
 // Value layout, construction and access shared by storage, iteration and I/O.
 uint32_t      DataTypeSize(DataValueType type);
 uint32_t      DataTypeAlignment(DataValueType type);
-uint64_t      GetRowComponentId(const DataTable* table, const DataRow* row);
 DataValue     ReadRowValue(const DataTable* table, const DataRow* row, uint32_t field_index);
 DataValue     GetChildValue(DataValueType type, const DataValueData* value, uint32_t index);
 uint64_t      GetChildName(const DataStruct* object, uint32_t index);
@@ -924,8 +921,9 @@ extern "C"
 
     /** Serialize all tables as one packed component-data blob
      *
-     * Writes type/tag metadata, component IDs and current value trees. Runtime group
-     * IDs, row IDs and reset history are not saved. The header is FOURCC "DMDT" and
+     * Writes type/tag metadata, row records and current value trees. Row records
+     * retain component IDs; groups and runtime indices are written as zero.
+     * Row IDs and reset history are not saved. The header is FOURCC "DFDS" and
      * uint32 version 1. Fixed rows preserve the validated C-compatible layout,
      * including member and trailing padding. One directory addresses every table; all tables and nested
      * values share one packed string area. All offsets are relative to the blob start.

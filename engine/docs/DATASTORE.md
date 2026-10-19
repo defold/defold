@@ -2,69 +2,34 @@
 
 ## File Format
 
-A blob contains multiple component tables and one shared string area. Version 1
-starts with an **eight-byte `DataFileHeader`**: FOURCC `DMDT`, followed by a
-little-endian uint32 version. `DataFileDirectory` contains the table count and
-string-area offset; an array of uint32 table offsets follows it. References are
-blob-relative offsets; runtime pointers, group IDs and row IDs are not saved.
+A blob contains a header, a directory, component tables and one shared string
+area. The eight-byte header is FOURCC **`DFDS`** (Defold DataStore) followed by
+uint32 version **1**. The directory locates each table and the string area.
 
-Each table stores its type hash, tags, field metadata, component name hashes,
-fixed-stride byte rows and any dynamic payloads. **Metadata is shared by all rows
-in a table**: a field has a full-name hash, kind and absolute row byte offset; an inline struct
-also identifies its child metadata and size. Rows contain only values and
-alignment padding. Serialization saves current values as the next load's defaults.
-The fixed layouts are declared in the private [data.h](../datastore/src/data.h):
-`DataTableHeader` describes each table, and `DataFileFieldMeta` describes each
-field. These occupy 24 and 32 bytes respectively. Field metadata also retains
-the local member hash for constructing or reading nested values. Counts and indices into metadata use uint16:
-a type allows at most 65,535 metadata entries including nested members, and a
-table allows at most 65,535 tags. Row counts, byte sizes and offsets remain uint32.
-The reader and writer use these structs' sizes and member offsets.
+Each table stores shared field metadata, a **row-record array**, and a separate
+**component value array**. Metadata holds field-name hashes, kinds and byte offsets;
+value rows hold values and alignment padding. Record `i` describes value row `i`.
+Strings and dynamic containers use blob-relative offsets. Serialization saves
+current values as the next load's defaults.
 
-![File overview at left; struct layouts at right show byte offsets, field names
-and types for the header, directory, table header, field metadata and a
-PointLight row. Solid arrows show offset and index references; dashed arrows show
-layout expansion and sizes. Offsets are relative to each struct.](images/datastore-binary.svg)
+`DataRow` has the same 32-byte layout on disk and at runtime. Its `m_Group` field
+is present in the file as **zero**, along with zeroed runtime slot and source
+indices; the component name hash is preserved. Instantiation bulk-copies each
+table's record array and value array separately, then fills the records' group,
+stable-ID slot, source row and registration index. A group may be a game-object
+handle. No live handles or pointers are written to disk.
 
-### Example: PointLight and SpotLight
+![Generic blob layout and one expanded table. Solid arrows follow blob offsets;
+dashed arrows expand the table, row record, field metadata and dynamic container.](images/datastore-binary.svg)
 
-Both types contain a **`Light light`** member with `color` and `intensity`.
-PointLight adds `range`; SpotLight adds `range`, `inner_cone_angle` and
-`outer_cone_angle`. Light is embedded directly in each row, with no separate
-pointer, row ID or lifetime.
+The fixed layouts shown in the schematic are declared in the private
+[data.h](../datastore/src/data.h).
 
-The fields and defaults come from the existing [point-light](../../editor/resources/templates/template.point_light)
-and [spot-light](../../editor/resources/templates/template.spot_light) templates.
-Those templates are currently flat and represent color as a list. This example
-shows the intended composition and explicit conversion of color to Vector3;
-the producer conversion is not implemented yet.
+### Value storage
 
-| Layout | Members and byte offsets | Size / alignment |
-| --- | --- | --- |
-| Light | `color: Vector3` at 0; `intensity: Number` at 16 | 24 / 8 bytes |
-| PointLight | `light: Light` at 0; `range: Number` at 24 | 32 / 8 bytes |
-| SpotLight | `light: Light` at 0; `range: Number` at 24; `inner_cone_angle: Number` at 32; `outer_cone_angle: Number` at 40 | 48 / 8 bytes |
-
-![PointLight and SpotLight embed the same Light layout. Their metadata describes
-the members once; every row contains its own color, intensity and other values.](images/datastore-composition.svg)
-
-A producer can reuse one `DataStructDesc` for Light. Each containing
-table compiles its own metadata, shared by that table's rows. `light.color` is
-at `offset(light) + offset(color)`; its offset can differ between containing
-types. The producer supplies local text names for inline parents and members in
-`DataFieldDesc::m_Name`; registration hashes each complete name, such as
-`light.color`, and stores its absolute row offset. Registration and loading reject
-duplicate full-name hashes across the layout, including inline members.
-Text names are not retained.
-Embedding Light does not make SpotLight a standalone Light component or
-assign it a tag. There is no full schema system beyond these layouts.
-
-### Value layout and alignment
-
-Member offsets are **bytes**, not float indices. Align each member, align an
-inline struct to its most-aligned member, and pad its size accordingly. Apply
-this recursively, including trailing padding in the row stride. The producer
-uses target-compatible `offsetof`/`sizeof` or equivalent offsets and sizes.
+Align each member to its type and an inline struct to its most-aligned member.
+Include trailing padding in the row stride. The producer uses target-compatible
+`offsetof`/`sizeof` or equivalent offsets and sizes.
 
 | Value | Stored bytes | Alignment |
 | --- | --- | --- |
@@ -75,20 +40,258 @@ uses target-compatible `offsetof`/`sizeof` or equivalent offsets and sizes.
 | String / dynamic struct / list reference | 8 (blob offset) | 8 |
 | Declared inline struct | Its members and padding | Maximum member alignment |
 
-Matrices are column-major. The caller's blob buffer and table row starts must be
-eight-byte aligned. Loading validates layouts and rejects unaligned buffers or
-unsupported versions. Aligned scalar/math bytes permit native typed pointer
-access on the engine's little-endian targets. Set changes a value, never its
-declared kind.
+Matrices are column-major. Blob buffers and the start of each table's row array
+must be eight-byte aligned. Subsequent rows follow the row stride and their
+members' alignment requirements. Loading validates layouts, alignment and version.
+Scalar/math fields permit native typed pointer access on the engine's little-endian
+targets. Set changes a value, never its declared kind.
+
+**Matching a C/C++ struct:** member offsets and row size match exactly when the
+metadata comes from that native struct: use `offsetof(Type, member)` for
+`DataFieldDesc.m_Offset`, `sizeof(NestedType)` for `DataStructDesc.m_Size`, and
+`sizeof(RowType)` for `DataTableDesc.m_RowStride`. Use plain structs and the
+corresponding SDK types: `double` for Number, `float` for Float, `uint32_t` for
+UInt32, `uint8_t` for Boolean, and `DataVector3`/`DataVector4`/`DataMatrix4` for
+math values. Registration preserves those offsets and sizes after validation.
+
+The file records this layout; loading does not compare it with a separately
+declared C/C++ struct or rearrange it for another ABI. A producer and consumer
+must agree on types, offsets and stride. Custom packing or SIMD types do not
+automatically match: `DataVector3` is 12 bytes with four-byte alignment, and
+stronger alignment such as 16 bytes is not guaranteed by the format. The Light
+example below shows how matching value rows can be read as native structs.
 
 The recursive kinds in [data_ddf.proto](../gamesys/proto/gamesys/data_ddf.proto)
-remain supported, including null. Declared structs live inline; lists and structs
-without a fixed member layout use dynamic payloads. A `DataFileContainerHeader`
-stores the payload size and child count, followed by struct member names (structs
-only), child kinds, offsets and payloads. Their children may differ between rows,
-with a maximum of 64 container levels including enclosing inline structs. Equal strings share bytes in
-the blob's final string area. String/container accessors resolve offsets rather
-than treating reference slots as native pointers.
+remain supported, including null. Declared structs live inline. Lists and structs
+without a fixed layout use dynamic payloads: `DataFileContainerHeader`, member
+name hashes (structs only), child kinds, blob offsets and child payloads. Children
+can differ between rows, with at most 64 container levels including enclosing
+inline structs. Equal strings share bytes in the final string area. Accessors
+resolve string/container offsets; reference slots are not native pointers.
+Consequently, a blob row containing references cannot be read as a C struct
+containing pointers; `DataReference` is a native input descriptor, and stored
+references are read through the typed API.
+
+## Example: PointLight and SpotLight
+
+```cpp
+#include <dmsdk/datastore/datastore.h>
+
+struct Light
+{
+    DataVector3 color;     // Byte 0; four padding bytes follow.
+    double      intensity; // Byte 16.
+}; // 24 bytes
+
+struct PointLight
+{
+    Light  light; // Byte 0.
+    double range; // Byte 24.
+}; // 32 bytes
+
+struct SpotLight
+{
+    Light  light;            // Byte 0.
+    double range;            // Byte 24.
+    double inner_cone_angle; // Byte 32.
+    double outer_cone_angle; // Byte 40.
+}; // 48 bytes
+```
+
+![Separate PointLight and SpotLight row example, drawn at the same byte scale.
+Both embed the Light fields at the same offsets. Padding and template values
+are shown explicitly.](images/datastore-composition.svg)
+
+Both types embed a **`Light light`** member containing `color` and `intensity`.
+PointLight adds `range`; SpotLight also adds `inner_cone_angle` and
+`outer_cone_angle`. Range and cone angles use Number (`double`). Light occupies
+24 bytes inside each row, with no separate pointer, row ID or lifetime. PointLight
+rows are 32 bytes; SpotLight rows are 48.
+
+Here `pointlight_rows` and `spotlight_rows` point to the respective value arrays
+in a validated blob whose types, offsets, stride and alignment match these structs.
+They point to the first value row, not the file header.
+
+```cpp
+const PointLight* point_lights = (const PointLight*)pointlight_rows;
+const SpotLight*  spot_lights = (const SpotLight*)spotlight_rows;
+
+DataVector3       color = point_lights[0].light.color;
+double            intensity = spot_lights[0].light.intensity;
+```
+
+This illustrates the file's value layout. Runtime queries expose typed field
+pointers through the public iterator API.
+
+For example, the `intensity` field description uses `offsetof(Light, intensity)`;
+the inline Light description uses `sizeof(Light)`; the PointLight table uses
+`sizeof(PointLight)` as its row stride. The numbers in the schematic are the
+resulting layout, not offsets to hard-code in registration.
+
+The values come from the existing [point-light](../../editor/resources/templates/template.point_light)
+and [spot-light](../../editor/resources/templates/template.spot_light) templates.
+Those templates are currently flat and represent color as a list. This example
+shows the intended composition and conversion to Vector3; the producer
+conversion is not implemented yet.
+
+A producer can reuse one `DataStructDesc` for Light. Each containing table stores
+its own metadata, shared by all its rows. For these layouts, the metadata for
+`light.color` contains its full-name hash, `DATA_TYPE_VECTOR3` and byte offset 0;
+`light.intensity` has `DATA_TYPE_NUMBER` and byte offset 16. Another containing
+type can place Light at a different offset.
+
+The producer supplies local text names in `DataFieldDesc::m_Name`. Registration
+hashes complete names such as `light.color` and stores absolute row offsets;
+text names are not retained. Registration and loading reject duplicate full-name
+hashes. Embedding Light does not make SpotLight a standalone Light component or
+assign it a tag. There is no full schema system beyond these layouts.
+
+## Examples: light lists and references
+
+```cpp
+struct LightRig
+{
+    DataReference lights; // List input; eight-byte reference slot.
+};
+
+struct ReferencedPointLight
+{
+    DataReference light; // Dynamic Light input; eight-byte reference slot.
+    double        range;
+};
+```
+
+These native input structs reuse the `Light` definition above. `LightRig` holds
+a variable-length list; `ReferencedPointLight` holds one Light outside its own
+row. `DataReference` supplies pointers during creation. In the file, each slot
+contains a **uint64 blob offset**, and the referenced payload is in the same blob.
+Neither row contains a native `Light*` or `Light[]` when stored.
+
+Both creation examples use this native Light layout. The functions each register
+their example table once and add one row to an existing store.
+
+```cpp
+#include <stddef.h>
+#include <dmsdk/dlib/hash.h>
+
+static const DataFieldDesc g_LightFields[] = {
+    { .m_Field = dmHashString64("color"), .m_Type = DATA_TYPE_VECTOR3, .m_Offset = offsetof(Light, color) },
+    { .m_Field = dmHashString64("intensity"), .m_Type = DATA_TYPE_NUMBER, .m_Offset = offsetof(Light, intensity) }
+};
+
+static const DataStructDesc g_LightLayout = {
+    .m_Fields = g_LightFields,
+    .m_FieldCount = 2,
+    .m_Size = sizeof(Light)
+};
+```
+
+### A struct containing a list of lights
+
+![LightRig's eight-byte value row points to a list container holding two Light
+structs. Typed fields, local byte offsets, padding and blob-offset references are
+shown for the list and each Light.](images/datastore-light-list.svg)
+
+```cpp
+DataResult CreateLightRigExample(HDataStore store, DataGroupId group, DataId* out_id)
+{
+    DataFieldDesc field = {
+        .m_Field = dmHashString64("lights"),
+        .m_Type = DATA_TYPE_LIST,
+        .m_Offset = offsetof(LightRig, lights)
+    };
+    DataTableDesc table = {
+        .m_Type = dmHashString64("LightRig"),
+        .m_Fields = &field,
+        .m_FieldCount = 1,
+        .m_RowStride = sizeof(LightRig)
+    };
+    DataResult result = DataRegisterTable(store, &table);
+    if (result != DATA_RESULT_OK)
+        return result;
+
+    Light lights[] = {
+        { .color = { { 1.0f, 0.8f, 0.6f } }, .intensity = 1.0 },
+        { .color = { { 0.6f, 0.8f, 1.0f } }, .intensity = 2.0 }
+    };
+    DataStructInput inputs[] = {
+        { .m_Layout = &g_LightLayout, .m_Values = &lights[0] },
+        { .m_Layout = &g_LightLayout, .m_Values = &lights[1] }
+    };
+    DataReference elements[] = {
+        { .m_Struct = &inputs[0] },
+        { .m_Struct = &inputs[1] }
+    };
+    DataListInput list = {
+        .m_Type = DATA_TYPE_STRUCT,
+        .m_Count = 2,
+        .m_Values = elements
+    };
+    LightRig row = { .lights = { .m_List = &list } };
+    return DataCreateRows(store, table.m_Type, group, 1, &row, out_id);
+}
+```
+
+For STRUCT elements, `DataListInput.m_Values` points to `DataReference[]`, each
+describing a native struct through `DataStructInput`. It does not point directly
+to `Light[]`. This example gives every element the same layout; the API also
+supports different struct layouts and mixed element kinds.
+
+The list payload contains a header, one kind and one offset per element, then
+the element payloads. Each Light element is a dynamic struct container with its
+own member hashes, kinds and offsets. These elements are not fixed-stride Light
+rows, even though the input structs are. They remain packed containers at runtime.
+
+### A referenced Light
+
+![ReferencedPointLight's sixteen-byte value row holds a Light reference and
+an inline range. The reference points to a dynamic struct container containing
+member hashes, kinds, offsets, color and intensity.](images/datastore-light-reference.svg)
+
+```cpp
+DataResult CreateReferencedLightExample(HDataStore store, DataGroupId group, DataId* out_id)
+{
+    DataFieldDesc fields[] = {
+        { .m_Field = dmHashString64("light"), .m_Type = DATA_TYPE_STRUCT, .m_Offset = offsetof(ReferencedPointLight, light), .m_Struct = 0 },
+        { .m_Field = dmHashString64("range"), .m_Type = DATA_TYPE_NUMBER, .m_Offset = offsetof(ReferencedPointLight, range) }
+    };
+    DataTableDesc table = {
+        .m_Type = dmHashString64("ReferencedPointLight"),
+        .m_Fields = fields,
+        .m_FieldCount = 2,
+        .m_RowStride = sizeof(ReferencedPointLight)
+    };
+    DataResult result = DataRegisterTable(store, &table);
+    if (result != DATA_RESULT_OK)
+        return result;
+
+    Light                light = { .color = { { 1.0f, 1.0f, 1.0f } }, .intensity = 1.0 };
+    DataStructInput      input = { .m_Layout = &g_LightLayout, .m_Values = &light };
+    ReferencedPointLight row = {
+        .light = { .m_Struct = &input },
+        .range = 10.0
+    };
+    return DataCreateRows(store, table.m_Type, group, 1, &row, out_id);
+}
+```
+
+`DATA_TYPE_STRUCT` with `m_Struct = 0` declares a dynamic reference. Setting
+`m_Struct = &g_LightLayout` would instead declare inline storage and require an
+actual `Light` member, as in the earlier PointLight example.
+
+On disk, the referenced Light uses a dynamic struct container. A loaded instance
+initially reads that container from the immutable blob. Native creation, as above,
+stores the Light in an owned child-table row; replacing a loaded struct does the
+same. Child rows can share layout metadata, but each child value belongs to one
+parent. They have no public `DataId` and are not independently queried components.
+
+**Ownership:** both functions copy all input values before returning. Their stack
+arrays, descriptors and Light values may go out of scope. Passing the same input
+to two parents creates independent copies, not shared mutable references. The
+parent owns its copied data. Reading uses `DataFieldGetView`, then
+`DataViewGetElement` for a list and `DataViewGetField` for a struct member; typed
+view getters retrieve the values. These dynamic members are not fixed query
+fields such as the inline `light.color`.
 
 ## Runtime Format
 
@@ -108,9 +311,11 @@ row; it may also identify a wave or other collection of rows. Different groups
 share the same type table. Each row has a runtime `DataId`; loaded components also
 retain their prototype-local component name hash.
 
-`DataTable` holds runtime storage and ownership, separate from the file's
-`DataTableHeader`. `DataValue`, `DataStruct` and `DataList` are temporary input or
-borrowed views; they are not serialized as C++ structs.
+`DataTable::m_Rows` uses the file's `DataRow` layout, while `m_Values` holds the
+separate dense component bytes. Groups and bookkeeping do not change a component's
+native struct layout or row stride. `DataTable` holds runtime storage and ownership,
+separate from the file's `DataTableHeader`. `DataValue`, `DataStruct` and `DataList`
+are temporary input or borrowed views; they are not serialized as C++ structs.
 Decoded insertion checks kinds and nested member names before adding any rows.
 Nested scalar members use shared metadata directly; only structs, lists and
 strings enter recursive validation or payload storage. Member order may vary.
@@ -237,9 +442,11 @@ runtime tables and registration records connecting game objects to their rows.](
 ### Adding and removing game objects
 
 `DataAddBlob(store, blob, group, &instance)` instantiates all component rows from
-the blob in one operation. It copies their fixed-size value bytes into the
-resource's shared dense tables once. Metadata and defaults remain in the blob;
-strings and dynamic containers initially reference its payloads. Pooled
+the blob in one operation. For each table it bulk-copies the row-record array and
+the fixed-size value array into the resource's shared dense storage, then fills
+the records' runtime fields. Each table appends to its own destination arrays.
+Metadata and defaults remain in the blob; strings and dynamic containers initially
+reference its payloads. Pooled
 registration records and membership indices track the new rows. Capacity grows
 as needed and is reused by later registrations.
 Each runtime table records whether its rows contain references. Numeric-only
