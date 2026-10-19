@@ -127,6 +127,9 @@ void dmNativeAndroidInitializeJoystickAxes(int joy, const float* axes, int num_a
         uint64_t axis_bit = (uint64_t)1 << axis;
         if (dmNativeJoy[joy].AxisEventMask & axis_bit)
             continue;
+        // Neutral axes start centered on connection; avoid resetting valid zero-valued input.
+        if (axes[i] == 0.0f && !(dmNativeJoy[joy].AxisInitialMask & axis_bit))
+            continue;
         dmNativeJoy[joy].Axis[axis] = dmNativeJoy[joy].AxisMin[i] + (axes[i] + 1.0f) * 0.5f * dmNativeJoy[joy].AxisRange[i];
         if (axes[i] != 0.0f)
             dmNativeJoy[joy].AxisInitialMask |= axis_bit;
