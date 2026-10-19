@@ -13,6 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include "font_colr.h"
+#include <dlib/vmath.h>
+#include <float.h>
 #include <dmsdk/dlib/array.h>
 #include <math.h>
 #include <string.h>
@@ -161,18 +163,6 @@ static FontResult ClipBox(const FontColr* font, uint32_t glyph, const uint8_t** 
         }
     }
     return FONT_RESULT_OK;
-}
-
-bool FontColrGetGlyphBox(const FontColr* font, uint32_t glyph, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
-{
-    const uint8_t* box;
-    if (!FindGlyph(font, glyph, true) || ClipBox(font, glyph, &box) != FONT_RESULT_OK || !box)
-        return false;
-    *x0 = S16(box + 1);
-    *y0 = S16(box + 3);
-    *x1 = S16(box + 5);
-    *y1 = S16(box + 7);
-    return true;
 }
 
 struct PaintContext
@@ -449,4 +439,132 @@ FontResult FontColrPaintGlyph(const FontColr* font, uint32_t glyph, const FontCo
 {
     PaintContext paint = { font, callbacks, context, 100000 };
     return Glyph(&paint, glyph, 0);
+}
+
+// The same bounded paint traversal supplies conservative layout bounds. Clip
+// rectangles and raw outline boxes are transformed before intersection; paints
+// contribute only their current clip, so transforms below PaintGlyph cannot
+// move its outline. No curve atlas or graphics resources are needed.
+struct BoundsState
+{
+    dmVMath::Matrix4 m_Transform;
+    dmVMath::Vector4 m_Clip;
+};
+
+struct BoundsContext
+{
+    FontColrGlyphBoxCallback m_GetBox;
+    void*                    m_Context;
+    dmArray<BoundsState>     m_Stack;
+    dmVMath::Vector4         m_Bounds;
+};
+
+static void PushBounds(BoundsContext* c, const BoundsState& state)
+{
+    if (c->m_Stack.Full())
+        c->m_Stack.OffsetCapacity(16);
+    c->m_Stack.Push(state);
+}
+
+static bool BoundsTransform(void* context, const float m[6])
+{
+    BoundsContext* c = (BoundsContext*)context;
+    BoundsState    state = c->m_Stack.Back();
+    using dmVMath::Vector4;
+    state.m_Transform = state.m_Transform * dmVMath::Matrix4(Vector4(m[0], m[1], 0, 0), Vector4(m[2], m[3], 0, 0), Vector4(0, 0, 1, 0), Vector4(m[4], m[5], 0, 1));
+    PushBounds(c, state);
+    return true;
+}
+
+static void BoundsPop(void* context)
+{
+    ((BoundsContext*)context)->m_Stack.Pop();
+}
+
+static bool BoundsRectangle(void* context, float x0, float y0, float x1, float y1)
+{
+    BoundsContext* c = (BoundsContext*)context;
+    BoundsState    state = c->m_Stack.Back();
+    using dmVMath::Vector4;
+    Vector4 bounds(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        Vector4 p = state.m_Transform * Vector4(i & 1 ? x1 : x0, i & 2 ? y1 : y0, 0, 1);
+        bounds = Vector4(fminf(bounds.getX(), p.getX()), fminf(bounds.getY(), p.getY()), fmaxf(bounds.getZ(), p.getX()), fmaxf(bounds.getW(), p.getY()));
+    }
+    state.m_Clip = Vector4(fmaxf(state.m_Clip.getX(), bounds.getX()), fmaxf(state.m_Clip.getY(), bounds.getY()), fminf(state.m_Clip.getZ(), bounds.getZ()), fminf(state.m_Clip.getW(), bounds.getW()));
+    PushBounds(c, state);
+    return true;
+}
+
+static bool BoundsGlyph(void* context, uint32_t glyph)
+{
+    BoundsContext* c = (BoundsContext*)context;
+    int32_t        x0, y0, x1, y1;
+    if (c->m_GetBox(c->m_Context, glyph, &x0, &y0, &x1, &y1))
+        return BoundsRectangle(context, x0, y0, x1, y1);
+    BoundsState state = c->m_Stack.Back();
+    state.m_Clip = dmVMath::Vector4(0, 0, 0, 0);
+    PushBounds(c, state);
+    return true;
+}
+
+static bool BoundsComposite(void*)
+{
+    return true;
+}
+static void BoundsEndComposite(void*) {}
+
+static bool BoundsPaint(void* context, const FontColrPaint* paint)
+{
+    BoundsContext*          c = (BoundsContext*)context;
+    const dmVMath::Vector4& clip = c->m_Stack.Back().m_Clip;
+    if (clip.getX() >= clip.getZ() || clip.getY() >= clip.getW())
+        return true;
+    for (uint32_t i = 0; i < paint->m_StopCount; ++i)
+    {
+        if (paint->m_Stops[i].m_Color[3] > 0)
+        {
+            const dmVMath::Vector4& b = c->m_Bounds;
+            c->m_Bounds = dmVMath::Vector4(fminf(b.getX(), clip.getX()), fminf(b.getY(), clip.getY()), fmaxf(b.getZ(), clip.getZ()), fmaxf(b.getW(), clip.getW()));
+            break;
+        }
+    }
+    return true;
+}
+
+bool FontColrGetGlyphBox(const FontColr* font, uint32_t glyph, FontColrGlyphBoxCallback get_box, void* context, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
+{
+    const uint8_t* record = FindGlyph(font, glyph, true);
+    if (!record && !FindGlyph(font, glyph, false))
+        return false;
+    const uint8_t* box = 0;
+    if (record && ClipBox(font, glyph, &box) != FONT_RESULT_OK)
+        return false;
+    if (box)
+    {
+        *x0 = S16(box + 1);
+        *y0 = S16(box + 3);
+        *x1 = S16(box + 5);
+        *y1 = S16(box + 7);
+        return true;
+    }
+    BoundsContext c;
+    c.m_GetBox = get_box;
+    c.m_Context = context;
+    c.m_Bounds = dmVMath::Vector4(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);
+    BoundsState initial = { dmVMath::Matrix4::identity(), dmVMath::Vector4(-FLT_MAX, -FLT_MAX, FLT_MAX, FLT_MAX) };
+    PushBounds(&c, initial);
+    const FontColrCallbacks callbacks = { BoundsTransform, BoundsPop, BoundsGlyph, BoundsRectangle, BoundsPop, BoundsComposite, BoundsEndComposite, BoundsPaint };
+    if (FontColrPaintGlyph(font, glyph, &callbacks, &c) != FONT_RESULT_OK || c.m_Bounds.getX() >= c.m_Bounds.getZ() || c.m_Bounds.getY() >= c.m_Bounds.getW())
+        return false;
+    // Extreme/malformed transforms must not overflow the integer metrics API.
+    for (uint32_t i = 0; i < 4; ++i)
+        if (!isfinite(c.m_Bounds[i]) || c.m_Bounds[i] < -2147483648.0 || c.m_Bounds[i] >= 2147483648.0)
+            return false;
+    *x0 = (int32_t)floorf(c.m_Bounds.getX());
+    *y0 = (int32_t)floorf(c.m_Bounds.getY());
+    *x1 = (int32_t)ceilf(c.m_Bounds.getZ());
+    *y1 = (int32_t)ceilf(c.m_Bounds.getW());
+    return true;
 }

@@ -17,26 +17,110 @@
 #include <dlib/testutil.h>
 #include <math.h>
 #include <float.h>
+#include <dlib/memory.h>
+#include <string.h>
 #include <dmsdk/font/font.h>
+#include <dmsdk/font/fontcollection.h>
 #include "../font.h"
 #include "../font_vector_slug.h"
 #include "../font_vector_paint.hpp"
 #include "../render/glyph_gen.h"
 
+static uint32_t ReadFontU32(const uint8_t* p)
+{
+    return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3];
+}
+
+static uint8_t* FindFontTable(uint8_t* data, const char* tag)
+{
+    uint32_t count = (uint32_t)data[4] << 8 | data[5];
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        uint8_t* record = data + 12 + i * 16;
+        if (memcmp(record, tag, 4) == 0)
+            return data + ReadFontU32(record + 8);
+    }
+    return 0;
+}
+
+// Both layout libraries must measure paint outlines when the base glyph is
+// empty, for COLRv0 as well as COLRv1 without its optional ClipList.
+TEST(FontVector, ColorBoundsWithoutBaseOutline)
+{
+    char path[512];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/color-test.ttf");
+    for (uint32_t version = 0; version < 3; ++version)
+    {
+        uint32_t size;
+        uint8_t* data = dmTestUtil::ReadFile(path, &size);
+        ASSERT_NE((uint8_t*)0, data);
+        uint8_t* loca = FindFontTable(data, "loca");
+        uint8_t* colr = FindFontTable(data, "COLR");
+        ASSERT_NE((uint8_t*)0, loca);
+        ASSERT_NE((uint8_t*)0, colr);
+        memcpy(loca + 4, loca + 8, 4); // Glyph A has no raw outline.
+        if (version == 0)
+        {
+            const uint8_t v0[] = { 0, 0, 0, 1, 0, 0, 0, 14, 0, 0, 0, 20, 0, 1, 0, 1, 0, 0, 0, 1, 0, 3, 0, 1 };
+            memcpy(colr, v0, sizeof(v0)); // A paints C's square outline.
+        }
+        else if (version == 1)
+            memset(colr + 22, 0, 4); // Optional ClipList.
+        else
+        {
+            uint8_t* base = colr + ReadFontU32(colr + 14);
+            uint8_t* paint = base + ReadFontU32(base + 6);
+            paint[0] = 11;
+            paint[1] = 0;
+            paint[2] = 2; // A paints B, whose clip halves its width.
+        }
+        HFont font = FontLoadFromMemory("clipless.ttf", data, size, false);
+        ASSERT_NE((HFont)0, font);
+        HFontCollection collection = FontCollectionCreate();
+        ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, font));
+        TextLayoutSettings settings = {};
+        settings.m_Size = 32;
+        settings.m_Leading = 1;
+        uint32_t    text = 'A';
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, &text, 1, &settings, &layout));
+        ASSERT_EQ(1u, TextLayoutGetGlyphCount(layout));
+        const TextGlyph& glyph = TextLayoutGetGlyphs(layout)[0];
+        // Legacy layout includes its default three font-unit padding per side.
+        float width = version == 2 ? 500.0f : 1000.0f;
+        float padding = FontGetLayoutType(font) == TEXT_LAYOUT_TYPE_LEGACY ? 6.0f : 0.0f;
+        ASSERT_NEAR((width + padding) * .032f, glyph.m_Width, .0001f);
+        ASSERT_NEAR((1000.0f + padding) * .032f, glyph.m_Height, .0001f);
+        FontVectorSlugData   slug;
+        FontVectorPaintCache cache;
+        cache.m_Slug = &slug;
+        uint32_t index;
+        bool     color;
+        ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, glyph.m_GlyphIndex, &index, &color));
+        ASSERT_TRUE(color);
+        ASSERT_EQ(width, cache.m_Glyphs[index].m_Bounds.getZ());
+        ASSERT_EQ(1000.0f, cache.m_Glyphs[index].m_Bounds.getW());
+        TextLayoutRelease(layout);
+        FontCollectionDestroy(collection);
+        FontDestroy(font);
+        dmMemory::AlignedFree(data);
+    }
+}
+
 // Color paint caches reuse complete graphs and roll back unsupported or overflowing glyphs.
 TEST(FontVector, ColorPaintCacheFallbackAndReuse)
 {
-    char path[512];
+    char  path[512];
     HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/NotoColorEmoji-Regular.ttf"));
     ASSERT_NE((HFont)0, font);
-    FontVectorSlugData data;
+    FontVectorSlugData   data;
     FontVectorPaintCache cache;
     cache.m_Slug = &data;
     const uint32_t glyphs[] = { FontGetGlyphIndex(font, 0x1f600), 2017, 2688 };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(glyphs); ++i)
     {
         uint32_t index;
-        bool color;
+        bool     color;
         ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, glyphs[i], &index, &color));
         ASSERT_TRUE(color);
         const FontVectorPaintGlyph& glyph = cache.m_Glyphs[index];
@@ -61,7 +145,7 @@ TEST(FontVector, ColorPaintCacheFallbackAndReuse)
     uint32_t curves = data.m_Curves.Size(), bands = data.m_Bands.Size();
     uint32_t layers = cache.m_Layers.Size(), paths = cache.m_Paths.Size();
     uint32_t count = data.m_CurveCount, index;
-    bool color;
+    bool     color;
     data.m_MaxTexels = bands;
     ASSERT_FALSE(FontVectorPaintAddGlyph(&cache, font, FontGetGlyphIndex(font, 0x1f680), &index, &color));
     ASSERT_TRUE(data.m_Overflow);

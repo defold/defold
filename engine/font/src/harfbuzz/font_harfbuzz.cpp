@@ -33,12 +33,17 @@ static void DestroyTrueType(void* data)
     FontTrueTypeDestroy((FontTrueType*)data);
 }
 
+static bool GetOutlineBox(void* data, uint32_t glyph, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
+{
+    return FontTrueTypeGetGlyphBox((FontTrueType*)data, glyph, x0, y0, x1, y1);
+}
+
 static hb_bool_t GetGlyphExtents(hb_font_t* font, void* data, hb_codepoint_t glyph, hb_glyph_extents_t* extents, void*)
 {
     int32_t       x0, y0, x1, y1;
     FontTrueType* true_type = (FontTrueType*)data;
     // Shaping uses the color glyph's extents; PaintGlyph uses only its raw outline.
-    if (!FontColrGetGlyphBox(FontTrueTypeGetColr(true_type), glyph, &x0, &y0, &x1, &y1) &&
+    if (!FontColrGetGlyphBox(FontTrueTypeGetColr(true_type), glyph, GetOutlineBox, true_type, &x0, &y0, &x1, &y1) &&
         !FontTrueTypeGetGlyphBox(true_type, glyph, &x0, &y0, &x1, &y1))
         return false;
 

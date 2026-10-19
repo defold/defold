@@ -348,6 +348,11 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
     return FONT_RESULT_OK;
 }
 
+static bool GetOutlineBox(void* data, uint32_t glyph, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
+{
+    return FontImplGetGlyphBox((FontImpl*)data, glyph, x0, y0, x1, y1);
+}
+
 FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, const FontSDFParams* image_params, FontGlyph* glyph)
 {
     TTFFont* font = ToFont(hfont);
@@ -369,7 +374,7 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
     // Metrics-only requests also serve legacy layout. Drawing a PaintGlyph or
     // rasterizing an outline must ignore the glyph's independent COLR bounds.
     bool color_bounds = !options->m_GenerateOutline && !options->m_GenerateImage &&
-                        FontColrGetGlyphBox(FontImplGetColr(font->m_Font), glyph_index, &x0, &y0, &x1, &y1);
+                        FontColrGetGlyphBox(FontImplGetColr(font->m_Font), glyph_index, GetOutlineBox, font->m_Font, &x0, &y0, &x1, &y1);
     if (!bounds_from_outline && !color_bounds)
         FontImplGetGlyphBox(font->m_Font, glyph_index, &x0, &y0, &x1, &y1);
 

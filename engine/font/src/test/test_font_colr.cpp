@@ -452,6 +452,56 @@ TEST(FontColr, StaticTransformFormats)
     }
 }
 
+static bool GetOutlineBox(void* data, uint32_t glyph, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
+{
+    return FontTrueTypeGetGlyphBox((FontTrueType*)data, glyph, x0, y0, x1, y1);
+}
+
+static bool FixtureBox(void*, uint32_t glyph, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
+{
+    if (glyph != 3 && glyph != 4)
+        return false;
+    *x0 = glyph == 3 ? -10 : 200;
+    *y0 = glyph == 3 ? -20 : 10;
+    *x1 = glyph == 3 ? 100 : 300;
+    *y1 = glyph == 3 ? 200 : 60;
+    return true;
+}
+
+// Bounds without a ClipList must union v0 layers and transform v1 outline
+// clips, while transforms inside PaintGlyph affect only its paint.
+TEST(FontColr, BoundsWithoutClipList)
+{
+    FontColr font;
+    ASSERT_TRUE(FontColrInitialize(&font, V0, sizeof(V0), CPAL, sizeof(CPAL)));
+    int32_t x0, y0, x1, y1;
+    ASSERT_TRUE(FontColrGetGlyphBox(&font, 42, FixtureBox, 0, &x0, &y0, &x1, &y1));
+    ASSERT_EQ(-10, x0);
+    ASSERT_EQ(-20, y0);
+    ASSERT_EQ(300, x1);
+    ASSERT_EQ(200, y1);
+    const uint8_t graph[] = {
+        18, 0, 0, 12, 32, 0, 96, 0, 0, 100, 0, 200, // Scale around (100,200).
+        10, 0, 0, 6, 0, 3,                         // Outline 3.
+        14, 0, 0, 8, 0, 100, 0, 100,              // Paint-only translation.
+        2, 0, 0, 64, 0
+    };
+    dmArray<uint8_t> bytes;
+    V1(bytes, graph, sizeof(graph));
+    ASSERT_TRUE(FontColrInitialize(&font, bytes.Begin(), bytes.Size(), CPAL, sizeof(CPAL)));
+    ASSERT_TRUE(FontColrGetGlyphBox(&font, 42, FixtureBox, 0, &x0, &y0, &x1, &y1));
+    ASSERT_EQ(45, x0);
+    ASSERT_EQ(-130, y0);
+    ASSERT_EQ(100, x1);
+    ASSERT_EQ(200, y1);
+    bytes[bytes.Size() - 2] = 0; // Transparent paint has no ink bounds.
+    ASSERT_FALSE(FontColrGetGlyphBox(&font, 42, FixtureBox, 0, &x0, &y0, &x1, &y1));
+    bytes[44] = 11;
+    bytes[45] = 0;
+    bytes[46] = 42; // Cyclic PaintColrGlyph.
+    ASSERT_FALSE(FontColrGetGlyphBox(&font, 42, FixtureBox, 0, &x0, &y0, &x1, &y1));
+}
+
 // The real emoji fixture retains its supported glyph set, layers and bounds.
 TEST(FontColr, NotoEmojiLayersAndBounds)
 {
@@ -479,7 +529,7 @@ TEST(FontColr, NotoEmojiLayersAndBounds)
         FontFreeGlyphOutline(&outline);
     }
     int32_t x0, y0, x1, y1;
-    ASSERT_TRUE(FontColrGetGlyphBox(colr, glyph, &x0, &y0, &x1, &y1));
+    ASSERT_TRUE(FontColrGetGlyphBox(colr, glyph, GetOutlineBox, font, &x0, &y0, &x1, &y1));
     ASSERT_EQ((float)x0, c.m_Box[0]);
     ASSERT_EQ((float)y0, c.m_Box[1]);
     ASSERT_EQ((float)x1, c.m_Box[2]);

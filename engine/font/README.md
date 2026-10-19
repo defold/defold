@@ -70,6 +70,8 @@ Both legacy and full-layout engines use `src/truetype/font_truetype.cpp` for
 glyf, CFF1 and CFF2 outlines at default variation coordinates. Full layout still
 uses HarfBuzz for shaping, mapping and OpenType metrics. The adapter supplies
 our glyph bounds to HarfBuzz, including COLRv1 clip boxes for color glyphs.
+When a clip box is absent, COLRv0/v1 bounds come from the transformed paint
+outlines, including nested clipping.
 
 The external build keeps `HB_NO_DRAW`, `HB_NO_PAINT`, `HB_NO_CFF` and `HB_NO_VAR`.
 A small build-time patch preserves default-axis style metadata (`fvar`) for

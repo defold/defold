@@ -77,8 +77,11 @@ struct FontColrCallbacks
 // the view. Paint records are checked during traversal, with bounded work/depth.
 bool FontColrInitialize(FontColr* font, const void* colr, uint32_t colr_size, const void* cpal, uint32_t cpal_size);
 bool FontColrHasGlyph(const FontColr* font, uint32_t glyph);
-// Reads the optional COLRv1 clip box, in font units. False means no static box.
-bool FontColrGetGlyphBox(const FontColr* font, uint32_t glyph, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1);
+// Returns raw outline bounds in font units, excluding the glyph's COLR graph.
+typedef bool (*FontColrGlyphBoxCallback)(void* context, uint32_t glyph, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1);
+// Reads a static clip box or bounds the transformed/clipped paint outlines.
+// False means no finite bounds or an unsupported/malformed graph.
+bool FontColrGetGlyphBox(const FontColr* font, uint32_t glyph, FontColrGlyphBoxCallback get_box, void* context, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1);
 // Walks COLRv0 layers or non-variable COLRv1 solids, linear/radial gradients,
 // transforms, clips and source-over compositions. Other paints return
 // FONT_RESULT_NOT_SUPPORTED; malformed offsets/cycles return FONT_RESULT_ERROR.
