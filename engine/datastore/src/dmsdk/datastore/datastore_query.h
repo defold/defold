@@ -16,43 +16,73 @@
 #define DMSDK_DATASTORE_QUERY_H
 
 #include <dmsdk/datastore/datastore_types.h>
+#include <dmsdk/dlib/hash.h>
+
+#define DS_QUERY_MAX_ITEMS 32
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-    typedef enum DataAccess
+    typedef enum DSAccess
     {
-        DATA_ACCESS_READ = 0,
-        DATA_ACCESS_READ_WRITE = 1,
-    } DataAccess;
+        DS_FIELD_MUTABLE = 1,
+    } DSAccess;
 
-    typedef struct DataQueryField
+    typedef enum DSQueryFlags
     {
-        uint64_t      m_Field;
-        DataValueType m_Type;
-        DataAccess    m_Access;
-    } DataQueryField;
+        DS_ROW_MUTABLE = 2,
+    } DSQueryFlags;
 
-    typedef struct DataQueryDesc
+    typedef enum DSQueryItemKind
     {
-        const DataGroupId*    m_GroupIds;
-        uint32_t              m_GroupIdCount;
-        const uint64_t*       m_AllTags;
-        uint32_t              m_AllTagCount;
-        const DataQueryField* m_Fields;
-        uint32_t              m_FieldCount;
-    } DataQueryDesc;
+        DS_QUERY_ITEM_NONE = 0,
+        DS_QUERY_ITEM_FIELD = 1,
+        DS_QUERY_ITEM_TAG = 2,
+    } DSQueryItemKind;
 
-    DataResult DataCreateQuery(HDataStore store, const DataQueryDesc* desc, HDataQuery* out_query);
-    DataResult DataDestroyQuery(HDataQuery query);
+    typedef struct DSQueryItem
+    {
+        uint64_t        m_Hash;
+        DSValueType     m_Type;
+        uint32_t        m_Access;
+        DSQueryItemKind m_Kind;
+    } DSQueryItem;
 
-    DataResult DataQueryTryBegin(HDataQuery query);
-    uint32_t   DataQueryGetRowCount(HDataQuery query);
-    void       DataQueryEnd(HDataQuery query);
+    typedef struct DSQueryDesc
+    {
+        const DSGroupId* m_GroupIds;
+        uint32_t         m_GroupIdCount;
+        uint32_t         m_Flags;
+        DSQueryItem      m_Items[DS_QUERY_MAX_ITEMS];
+    } DSQueryDesc;
 
-    uint32_t   DataQueryFindField(HDataQuery query, const DataQueryField* field);
+    static inline DSQueryItem DSTag(const char* name);
+    static inline DSQueryItem DSField(const char* name, DSValueType type, uint32_t access);
+
+    DSResult                  DSCreateQuery(HDSContext store, const DSQueryDesc* desc, HDSQuery* out_query);
+    DSResult                  DSDestroyQuery(HDSQuery query);
+
+    DSResult                  DSQueryTryBegin(HDSQuery query);
+    uint32_t                  DSQueryGetRowCount(HDSQuery query);
+    void                      DSQueryEnd(HDSQuery query);
+
+    uint32_t                  DSQueryFindField(HDSQuery query, const DSQueryItem* field);
+
+    // Inline implementations
+
+    static inline DSQueryItem DSTag(const char* name)
+    {
+        DSQueryItem tag = { .m_Hash = dmHashString64(name), .m_Kind = DS_QUERY_ITEM_TAG };
+        return tag;
+    }
+
+    static inline DSQueryItem DSField(const char* name, DSValueType type, uint32_t access)
+    {
+        DSQueryItem field = { .m_Hash = dmHashString64(name), .m_Type = type, .m_Access = access, .m_Kind = DS_QUERY_ITEM_FIELD };
+        return field;
+    }
 
 #ifdef __cplusplus
 }
@@ -65,44 +95,89 @@ extern "C"
  * Query filters, field bindings and concurrent access reservations.
  *
  * @document
- * @name DataQuery
+ * @name DSQuery
  * @language C
  */
 
-/*# Query access mode
- *
- * @enum
- * @name DataAccess
- * @member DATA_ACCESS_READ Shared read access (0), the default.
- * @member DATA_ACCESS_READ_WRITE Exclusive read/write access (1).
+/*# Maximum items in a query descriptor
+ * @constant
+ * @name DS_QUERY_MAX_ITEMS
  */
 
-/*# Required query field
+/*# Query access flags
  *
- * Matches a full-name hash and exact kind. For an inline member use, for example,
- * dmHashString64("light.color"). Dynamic containers cannot bind members. Zero-initialize.
+ * Pass zero for shared read access, the default.
+ *
+ * @enum
+ * @name DSAccess
+ * @member DS_FIELD_MUTABLE Exclusive read/write access (1).
+ */
+
+/*# Query flags
+ *
+ * Zero keeps field-level access and disables whole-row pointers.
+ * Field reads are the default; individual writes require DS_FIELD_MUTABLE.
+ *
+ * @enum
+ * @name DSQueryFlags
+ * @member DS_ROW_MUTABLE Exclusive read/write access to the entire row; reference slots must not be overwritten (2).
+ */
+
+/*# Query item kinds
+ *
+ * @enum
+ * @name DSQueryItemKind
+ * @member DS_QUERY_ITEM_NONE Unused entry; ends the item list (0).
+ * @member DS_QUERY_ITEM_FIELD Required field with an exact value kind (1).
+ * @member DS_QUERY_ITEM_TAG Required table tag (2).
+ */
+
+/*# Required query tag or field
+ *
+ * Construct with [ref:DSTag] or [ref:DSField], or initialize the kind and hash directly.
+ * Field names may include inline members, such as "light.color"; dynamic members cannot bind.
  *
  * @struct
- * @name DataQueryField
- * @member m_Field [type:uint64_t] Full field name hash, including dot-separated inline member names.
- * @member m_Type [type:DataValueType] Exact value kind.
- * @member m_Access [type:DataAccess] Reserved access; defaults to read. Writes require fixed-size fields.
+ * @name DSQueryItem
+ * @member m_Hash [type:uint64_t] Tag hash or full field name hash; zero is valid.
+ * @member m_Type [type:DSValueType] Exact value kind for field items; ignored for tags.
+ * @member m_Access [type:uint32_t] Field access: zero for shared reads, or DS_FIELD_MUTABLE for fixed-size read/write access. Ignored for tags.
+ * @member m_Kind [type:DSQueryItemKind] Tag, field, or unused item.
+ */
+
+/*# Describe a required table tag
+ *
+ * Hashes the name immediately; the returned item does not retain the string.
+ *
+ * @name DSTag
+ * @param name [type:const char*] NUL-terminated tag name.
+ * @return item [type:DSQueryItem] Tag item for query creation.
+ */
+
+/*# Describe a query field by name
+ *
+ * Hashes the name immediately; the returned descriptor does not retain the string.
+ *
+ * @name DSField
+ * @param name [type:const char*] NUL-terminated full name, such as "light.color".
+ * @param type [type:DSValueType] Required value kind.
+ * @param access [type:uint32_t] Zero for shared reads, or DS_FIELD_MUTABLE for read/write access.
+ * @return field [type:DSQueryItem] Field item for query creation or binding.
  */
 
 /*# Query filter descriptor
  *
  * Requires all tags and fields in one table, and matches any listed group.
- * Empty filters impose no restriction. Bind requested fields with DataQueryFindField.
- * Zero-initialize; filter arrays are copied during creation.
+ * Empty filters impose no restriction. Bind requested fields with DSQueryFindField.
+ * Zero-initialize. Items end at the first DS_QUERY_ITEM_NONE or the array capacity.
+ * Filters are copied during creation; group IDs use an explicit count because zero is valid.
  *
  * @struct
- * @name DataQueryDesc
- * @member m_GroupIds [type:const DataGroupId*] Group IDs; optional when count is zero.
+ * @name DSQueryDesc
+ * @member m_GroupIds [type:const DSGroupId*] Group IDs; optional when count is zero.
  * @member m_GroupIdCount [type:uint32_t] Group count; zero matches all.
- * @member m_AllTags [type:const uint64_t*] Required tags; optional when count is zero.
- * @member m_AllTagCount [type:uint32_t] Tag count; zero matches all.
- * @member m_Fields [type:const DataQueryField*] Required fields; optional when count is zero.
- * @member m_FieldCount [type:uint32_t] Field count; zero matches all.
+ * @member m_Flags [type:uint32_t] DSQueryFlags bits; zero keeps field-level access and disables native row pointers.
+ * @member m_Items [type:DSQueryItem[DS_QUERY_MAX_ITEMS]] Required tags and fields, in any order.
  */
 
 /*# Create a reusable live query
@@ -110,20 +185,20 @@ extern "C"
  * Copies filters and tracks matching tables, including later registrations.
  * Destroy the query before its store.
  *
- * @name DataCreateQuery
- * @param store [type:HDataStore] Store handle.
- * @param desc [type:const DataQueryDesc*] Filters to copy.
- * @param out_query [type:HDataQuery*] Receives the owned query on success.
- * @return result [type:DataResult] OK, INVALID_ARGUMENT for invalid filters/access, or LOCKED during query reservations.
+ * @name DSCreateQuery
+ * @param store [type:HDSContext] Store handle.
+ * @param desc [type:const DSQueryDesc*] Filters to copy.
+ * @param out_query [type:HDSQuery*] Receives the owned query on success.
+ * @return result [type:DSResult] OK, INVALID_ARGUMENT for invalid items/access or excessive group count, or LOCKED during query reservations.
  */
 
 /*# Destroy a query
  *
  * Frees the query. Finish using its iterators first.
  *
- * @name DataDestroyQuery
- * @param query [type:HDataQuery] Query whose store is still alive.
- * @return result [type:DataResult] OK, or LOCKED while query reservations are active.
+ * @name DSDestroyQuery
+ * @param query [type:HDSQuery] Query whose store is still alive.
+ * @return result [type:DSResult] OK, or LOCKED while query reservations are active.
  */
 
 /*# Reserve query access
@@ -131,24 +206,26 @@ extern "C"
  * Thread-safe, nonblocking reservation that keeps rows and bindings stable.
  * Overlapping fields on the same table allow read/read access; writes conflict.
  * Disjoint group filters permit concurrent writes to the same table. Aliased external
- * views remain conservative. Empty field filters reserve whole-row reads.
- * Writes require fixed-size fields with DATA_ACCESS_READ_WRITE;
+ * views remain conservative. Without fields or whole-row flags, only row identities are read.
+ * DS_ROW_MUTABLE conflicts with any reader or writer of overlapping row values.
+ * Field filters still select matching tables.
+ * Field writes require DS_FIELD_MUTABLE, or DS_ROW_MUTABLE for native row access;
  * string replacement and resets must happen outside reservations.
  * Each query supports one active reservation, shared by its jobs. The caller schedules
- * and synchronizes jobs, then calls DataQueryEnd once, even for an empty query.
- * Do not mix reservations with DataStoreLock or ID-based access.
+ * and synchronizes jobs, then calls DSQueryEnd once, even for an empty query.
+ * Do not mix reservations with DSStoreLock or ID-based access.
  * Matching-table changes invalidate cached compatibility; row changes refresh ranges.
  * First use of a query pair or changed ranges may allocate; later begins reuse storage.
  *
- * @name DataQueryTryBegin
- * @param query [type:HDataQuery] Query to reserve.
- * @return result [type:DataResult] OK, or BUSY without acquiring access if already active or unavailable.
+ * @name DSQueryTryBegin
+ * @param query [type:HDSQuery] Query to reserve.
+ * @return result [type:DSResult] OK, or BUSY without acquiring access if already active or unavailable.
  */
 
 /*# Count reserved rows
  *
- * @name DataQueryGetRowCount
- * @param query [type:HDataQuery] Query with an active reservation.
+ * @name DSQueryGetRowCount
+ * @param query [type:HDSQuery] Query with an active reservation.
  * @return count [type:uint32_t] Reserved matching row count.
  */
 
@@ -156,26 +233,26 @@ extern "C"
  *
  * Thread-safe release. The caller must join all jobs and finish using iterators and pointers first.
  *
- * @name DataQueryEnd
- * @param query [type:HDataQuery] Query with a successful begin to release once.
+ * @name DSQueryEnd
+ * @param query [type:HDSQuery] Query with a successful begin to release once.
  */
 
 /*# Find a query field for direct pointer access
  *
  * Binds a requested full-name hash, kind and access to a handle valid until query destruction.
  * The handle is neither a byte offset nor a query descriptor index. No lock or matching rows
- * are required. Fixed-size kinds support typed pointers; DataRowIterGetView also reads
+ * are required. Fixed-size kinds support typed pointers; DSRowIterGetView also reads
  * containers, strings and nulls. Table and row iteration order is unspecified.
  * Pointer getters require this query's current row and matching typed handle, with
  * its store locked or reservation active. No kind, bounds or lifetime checks occur.
- * Writable pointers require DATA_ACCESS_READ_WRITE during reservations.
+ * Writable pointers require DS_FIELD_MUTABLE during reservations.
  * Borrowed pointers expire on row/batch advance, unlock, query end, or another
  * mutating accessor/reset for the row/table. Never write through a read pointer.
  *
- * @name DataQueryFindField
- * @param query [type:HDataQuery] Query to bind.
- * @param field [type:const DataQueryField*] Full-name hash, kind and access to match; borrowed for this call. Access must not exceed the query declaration.
- * @return field [type:uint32_t] Field handle, or UINT32_MAX if absent, incompatible or unsupported.
+ * @name DSQueryFindField
+ * @param query [type:HDSQuery] Query to bind.
+ * @param field [type:const DSQueryItem*] Field item to match; borrowed for this call. Access must not exceed the query declaration.
+ * @return field [type:uint32_t] Field handle, or UINT32_MAX for a non-field item or an absent, incompatible or unsupported field.
  */
 
 #endif // DMSDK_DATASTORE_QUERY_H

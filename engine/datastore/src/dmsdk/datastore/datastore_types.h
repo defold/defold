@@ -22,52 +22,52 @@ extern "C"
 {
 #endif
 
-    typedef struct DataStore* HDataStore;
-    typedef struct DataQuery* HDataQuery;
-    typedef uint64_t          DataId;
-    typedef uint64_t          DataGroupId;
+    typedef struct DSStore* HDSContext;
+    typedef struct DSQuery* HDSQuery;
+    typedef uint64_t        DSId;
+    typedef uint64_t        DSGroupId;
 
-    typedef enum DataResult
+    typedef enum DSResult
     {
-        DATA_RESULT_OK = 0,
-        DATA_RESULT_NOT_FOUND = -1,
-        DATA_RESULT_LOCKED = -3,
-        DATA_RESULT_INVALID_ARGUMENT = -4,
-        DATA_RESULT_ALREADY_EXISTS = -5,
-        DATA_RESULT_BUFFER_TOO_SMALL = -6,
-        DATA_RESULT_INVALID_FORMAT = -7,
-        DATA_RESULT_BUSY = -8,
-    } DataResult;
+        DS_RESULT_OK = 0,
+        DS_RESULT_NOT_FOUND = -1,
+        DS_RESULT_LOCKED = -3,
+        DS_RESULT_INVALID_ARGUMENT = -4,
+        DS_RESULT_ALREADY_EXISTS = -5,
+        DS_RESULT_BUFFER_TOO_SMALL = -6,
+        DS_RESULT_INVALID_FORMAT = -7,
+        DS_RESULT_BUSY = -8,
+    } DSResult;
 
-    typedef enum DataValueType
+    typedef enum DSValueType
     {
-        DATA_TYPE_NUMBER = 0,
-        DATA_TYPE_BOOLEAN = 1,
-        DATA_TYPE_STRING = 2,
-        DATA_TYPE_NULL = 3,
-        DATA_TYPE_STRUCT = 4,
-        DATA_TYPE_LIST = 5,
-        DATA_TYPE_VECTOR3 = 6,
-        DATA_TYPE_VECTOR4 = 7,
-        DATA_TYPE_MATRIX4 = 8,
-        DATA_TYPE_FLOAT = 9,
-        DATA_TYPE_UINT32 = 10,
-    } DataValueType;
+        DS_TYPE_NUMBER = 0,
+        DS_TYPE_BOOLEAN = 1,
+        DS_TYPE_STRING = 2,
+        DS_TYPE_NULL = 3,
+        DS_TYPE_STRUCT = 4,
+        DS_TYPE_LIST = 5,
+        DS_TYPE_VECTOR3 = 6,
+        DS_TYPE_VECTOR4 = 7,
+        DS_TYPE_MATRIX4 = 8,
+        DS_TYPE_FLOAT = 9,
+        DS_TYPE_UINT32 = 10,
+    } DSValueType;
 
-    typedef struct DataVector3
+    typedef struct DSVector3
     {
         float m_Values[3];
-    } DataVector3;
+    } DSVector3;
 
-    typedef struct DataVector4
+    typedef struct DSVector4
     {
         float m_Values[4];
-    } DataVector4;
+    } DSVector4;
 
-    typedef struct DataMatrix4
+    typedef struct DSMatrix4
     {
         float m_Values[16];
-    } DataMatrix4;
+    } DSMatrix4;
 
 #ifdef __cplusplus
 }
@@ -80,16 +80,16 @@ extern "C"
  * Handles, identifiers, results and value types.
  *
  * @document
- * @name DataTypes
+ * @name DSTypes
  * @language C
  */
 
 /*# Store handle
  *
- * Owned when created with [ref:DataCreateStore]; engine-supplied handles are borrowed.
+ * Owned when created with [ref:DSCreateStore]; engine-supplied handles are borrowed.
  *
  * @typedef
- * @name HDataStore
+ * @name HDSContext
  */
 
 /*# Query handle
@@ -97,7 +97,7 @@ extern "C"
  * Owns a live query. Destroy after its iterators finish, before its store shuts down.
  *
  * @typedef
- * @name HDataQuery
+ * @name HDSQuery
  */
 
 /*# Row identifier
@@ -106,7 +106,7 @@ extern "C"
  * IDs survive row moves but are not serialized.
  *
  * @typedef
- * @name DataId
+ * @name DSId
  */
 
 /*# Logical group identifier
@@ -114,7 +114,7 @@ extern "C"
  * Caller-defined group shared by any number of rows; zero is valid.
  *
  * @typedef
- * @name DataGroupId
+ * @name DSGroupId
  */
 
 /*# Operation results
@@ -122,15 +122,15 @@ extern "C"
  * Output arguments remain unchanged on error unless stated otherwise.
  *
  * @enum
- * @name DataResult
- * @member DATA_RESULT_OK Operation succeeded (0).
- * @member DATA_RESULT_NOT_FOUND Table, row or field was not found (-1).
- * @member DATA_RESULT_LOCKED An operation requires an unlocked store or no active query reservations (-3).
- * @member DATA_RESULT_INVALID_ARGUMENT Invalid argument, value or count (-4).
- * @member DATA_RESULT_ALREADY_EXISTS Table type or field name is duplicated (-5).
- * @member DATA_RESULT_BUFFER_TOO_SMALL The output buffer is too small (-6).
- * @member DATA_RESULT_INVALID_FORMAT The serialized blob is malformed or has an unsupported version (-7).
- * @member DATA_RESULT_BUSY Query already active, conflicting access, or store mutation in progress (-8).
+ * @name DSResult
+ * @member DS_RESULT_OK Operation succeeded (0).
+ * @member DS_RESULT_NOT_FOUND Table, row or field was not found (-1).
+ * @member DS_RESULT_LOCKED An operation requires an unlocked store or no active query reservations (-3).
+ * @member DS_RESULT_INVALID_ARGUMENT Invalid argument, value or count (-4).
+ * @member DS_RESULT_ALREADY_EXISTS Table type or field name is duplicated (-5).
+ * @member DS_RESULT_BUFFER_TOO_SMALL The output buffer is too small (-6).
+ * @member DS_RESULT_INVALID_FORMAT The serialized blob is malformed or has an unsupported version (-7).
+ * @member DS_RESULT_BUSY Query already active, conflicting access, or store mutation in progress (-8).
  */
 
 /*# Value kinds
@@ -138,38 +138,38 @@ extern "C"
  * Declared field kinds. Structs and lists may nest.
  *
  * @enum
- * @name DataValueType
- * @member DATA_TYPE_NUMBER Double-precision number (0).
- * @member DATA_TYPE_BOOLEAN Boolean encoded as zero or one (1).
- * @member DATA_TYPE_STRING NUL-terminated string (2).
- * @member DATA_TYPE_NULL Null value with no payload (3).
- * @member DATA_TYPE_STRUCT Named fields (4).
- * @member DATA_TYPE_LIST Ordered values (5).
- * @member DATA_TYPE_VECTOR3 Three float32 components (6).
- * @member DATA_TYPE_VECTOR4 Four float32 components (7).
- * @member DATA_TYPE_MATRIX4 Sixteen float32 components in column-major order (8).
- * @member DATA_TYPE_FLOAT Single-precision number, stored as float.
- * @member DATA_TYPE_UINT32 Unsigned 32-bit integer.
+ * @name DSValueType
+ * @member DS_TYPE_NUMBER Double-precision number (0).
+ * @member DS_TYPE_BOOLEAN Boolean encoded as zero or one (1).
+ * @member DS_TYPE_STRING NUL-terminated string (2).
+ * @member DS_TYPE_NULL Null value with no payload (3).
+ * @member DS_TYPE_STRUCT Named fields (4).
+ * @member DS_TYPE_LIST Ordered values (5).
+ * @member DS_TYPE_VECTOR3 Three float32 components (6).
+ * @member DS_TYPE_VECTOR4 Four float32 components (7).
+ * @member DS_TYPE_MATRIX4 Sixteen float32 components in column-major order (8).
+ * @member DS_TYPE_FLOAT Single-precision number, stored as float.
+ * @member DS_TYPE_UINT32 Unsigned 32-bit integer.
  */
 
 /*# Vector3 value
  *
  * @struct
- * @name DataVector3
+ * @name DSVector3
  * @member m_Values [type:float[3]] X, Y and Z components.
  */
 
 /*# Vector4 value
  *
  * @struct
- * @name DataVector4
+ * @name DSVector4
  * @member m_Values [type:float[4]] X, Y, Z and W components.
  */
 
 /*# Matrix4 value
  *
  * @struct
- * @name DataMatrix4
+ * @name DSMatrix4
  * @member m_Values [type:float[16]] Column-major components; element at row r, column c is m_Values[c * 4 + r].
  */
 

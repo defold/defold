@@ -15,17 +15,18 @@
 #include <assert.h>
 #include "data.h"
 
-DataIterator DataQueryIterRange(HDataQuery query, uint32_t first, uint32_t count)
+DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count)
 {
     assert(first <= query->m_RowCount && count <= query->m_RowCount - first);
-    DataIterator iterator = {
+    DSIterator iterator = {
         .m_Query = query,
         .m_Remaining = count,
-        .m_IsRange = 1
+        .m_IsRange = 1,
+        .m_Flags = query->m_Flags
     };
     if (count)
     {
-        const dmArray<DataQueryRange>& ranges = query->m_Ranges;
+        const dmArray<DSQueryRange>&   ranges = query->m_Ranges;
         uint32_t                       low = 0, high = ranges.Size();
         while (low < high)
         {
@@ -41,17 +42,17 @@ DataIterator DataQueryIterRange(HDataQuery query, uint32_t first, uint32_t count
     return iterator;
 }
 
-static bool NextQueryRange(DataIterator* iterator)
+static bool NextQueryRange(DSIterator* iterator)
 {
     iterator->m_Count = 0;
     iterator->m_EndRow = iterator->m_StartRow;
     if (!iterator->m_Remaining)
         return false;
 
-    HDataQuery            query = iterator->m_Query;
-    const DataQueryRange& range = query->m_Ranges[iterator->m_RangeIndex++];
-    const DataQueryTable& match = query->m_Tables[range.m_TableIndex];
-    DataTable*            table = match.m_Table;
+    HDSQuery              query = iterator->m_Query;
+    const DSQueryRange&   range = query->m_Ranges[iterator->m_RangeIndex++];
+    const DSQueryTable&   match = query->m_Tables[range.m_TableIndex];
+    DSTable*              table = match.m_Table;
     uint32_t              count = range.m_Count - iterator->m_NextRow;
     if (count > iterator->m_Remaining)
         count = iterator->m_Remaining;
@@ -80,24 +81,24 @@ static bool NextQueryRange(DataIterator* iterator)
     return true;
 }
 
-DataIterator DataQueryIter(HDataQuery query)
+DSIterator DSQueryIter(HDSQuery query)
 {
     assert(query->m_Store->m_LockCount);
-    DataIterator iterator = { .m_Query = query };
+    DSIterator iterator = { .m_Query = query, .m_Flags = query->m_Flags };
     return iterator;
 }
 
-bool DataIterNext(DataIterator* iterator)
+bool DSIterNext(DSIterator* iterator)
 {
     if (iterator->m_IsRange)
         return NextQueryRange(iterator);
 
-    HDataQuery query = iterator->m_Query;
+    HDSQuery query = iterator->m_Query;
     iterator->m_Count = 0;
     iterator->m_EndRow = iterator->m_StartRow;
     while (iterator->m_TableIndex < query->m_Tables.Size())
     {
-        DataTable* table = query->m_Tables[iterator->m_TableIndex].m_Table;
+        DSTable*   table = query->m_Tables[iterator->m_TableIndex].m_Table;
         uint32_t   count = table->m_Rows.Size();
         uint32_t   row = iterator->m_NextRow;
         if (query->m_Groups.Empty())
@@ -153,64 +154,64 @@ bool DataIterNext(DataIterator* iterator)
     return false;
 }
 
-uint32_t DataIterGetCount(const DataIterator* iterator)
+uint32_t DSIterGetCount(const DSIterator* iterator)
 {
     return iterator->m_Count;
 }
 
-uint64_t DataIterGetType(const DataIterator* iterator)
+uint64_t DSIterGetType(const DSIterator* iterator)
 {
-    return DataIterGetCount(iterator) ? ((const DataTable*)iterator->m_Table)->m_Type : 0;
+    return DSIterGetCount(iterator) ? ((const DSTable*)iterator->m_Table)->m_Type : 0;
 }
 
-DataId DataIterGetId(const DataIterator* iterator, uint32_t row)
+DSId DSIterGetId(const DSIterator* iterator, uint32_t row)
 {
-    if (row >= DataIterGetCount(iterator))
+    if (row >= DSIterGetCount(iterator))
         return 0;
-    return MakeId(iterator->m_Query->m_Store, ((const DataRow*)iterator->m_Rows)[row].m_Slot);
+    return MakeId(iterator->m_Query->m_Store, ((const DSRow*)iterator->m_Rows)[row].m_Slot);
 }
 
-DataGroupId DataIterGetGroupId(const DataIterator* iterator, uint32_t row)
+DSGroupId DSIterGetGroupId(const DSIterator* iterator, uint32_t row)
 {
-    if (row >= DataIterGetCount(iterator))
+    if (row >= DSIterGetCount(iterator))
         return 0;
-    return ((const DataRow*)iterator->m_Rows)[row].m_Group;
+    return ((const DSRow*)iterator->m_Rows)[row].m_Group;
 }
 
-DataResult DataIterGetFieldByHash(const DataIterator* iterator, uint32_t row, uint64_t field, DataValue* out_value)
+DSResult DSIterGetFieldByHash(const DSIterator* iterator, uint32_t row, uint64_t field, DSValue* out_value)
 {
     if (row >= iterator->m_Count)
-        return DATA_RESULT_INVALID_ARGUMENT;
-    DataTable* table = (DataTable*)iterator->m_Table;
-    uint32_t   index = (uint32_t)((const DataRow*)iterator->m_Rows - table->m_Rows.Begin()) + row;
+        return DS_RESULT_INVALID_ARGUMENT;
+    DSTable* table = (DSTable*)iterator->m_Table;
+    uint32_t index = (uint32_t)((const DSRow*)iterator->m_Rows - table->m_Rows.Begin()) + row;
     return ReadField(table, index, field, out_value);
 }
 
-DataResult DataIterGetField(const DataIterator* iterator, uint32_t row, uint32_t field, DataValue* out_value)
+DSResult DSIterGetField(const DSIterator* iterator, uint32_t row, uint32_t field, DSValue* out_value)
 {
     if (row >= iterator->m_Count || !iterator->m_Fields || field >= iterator->m_FieldCount)
-        return DATA_RESULT_INVALID_ARGUMENT;
-    const DataQueryBinding& binding = ((const DataQueryBinding*)iterator->m_Fields)[field];
-    *out_value = ReadBoundValue((const DataTable*)iterator->m_Table, &((const DataRow*)iterator->m_Rows)[row], binding.m_Meta);
-    return DATA_RESULT_OK;
+        return DS_RESULT_INVALID_ARGUMENT;
+    const DSQueryBinding& binding = ((const DSQueryBinding*)iterator->m_Fields)[field];
+    *out_value = ReadBoundValue((const DSTable*)iterator->m_Table, &((const DSRow*)iterator->m_Rows)[row], binding.m_Meta);
+    return DS_RESULT_OK;
 }
 
-DataResult DataIterSetField(const DataIterator* iterator, uint32_t row, uint32_t field, const DataValue* value)
+DSResult DSIterSetField(const DSIterator* iterator, uint32_t row, uint32_t field, const DSValue* value)
 {
     if (row >= iterator->m_Count || !iterator->m_Fields || field >= iterator->m_FieldCount)
-        return DATA_RESULT_INVALID_ARGUMENT;
-    if (iterator->m_IsRange && iterator->m_Query->m_Fields[field].m_Access != DATA_ACCESS_READ_WRITE)
-        return DATA_RESULT_INVALID_ARGUMENT;
-    const DataQueryBinding& binding = ((const DataQueryBinding*)iterator->m_Fields)[field];
-    return SetRowField((DataTable*)iterator->m_Table, &((DataRow*)iterator->m_Rows)[row], binding.m_Meta, value);
+        return DS_RESULT_INVALID_ARGUMENT;
+    if (iterator->m_IsRange && iterator->m_Query->m_Fields[field].m_Access != DS_FIELD_MUTABLE)
+        return DS_RESULT_INVALID_ARGUMENT;
+    const DSQueryBinding& binding = ((const DSQueryBinding*)iterator->m_Fields)[field];
+    return SetRowField((DSTable*)iterator->m_Table, &((DSRow*)iterator->m_Rows)[row], binding.m_Meta, value);
 }
 
-DataId DataRowIterGetId(const DataRowIterator* iterator)
+DSId DSRowIterGetId(const DSRowIterator* iterator)
 {
-    return DataIterGetId(iterator->m_Parent, iterator->m_Index - iterator->m_Parent->m_StartRow);
+    return DSIterGetId(iterator->m_Parent, iterator->m_Index - iterator->m_Parent->m_StartRow);
 }
 
-DataGroupId DataRowIterGetGroupId(const DataRowIterator* iterator)
+DSGroupId DSRowIterGetGroupId(const DSRowIterator* iterator)
 {
-    return DataIterGetGroupId(iterator->m_Parent, iterator->m_Index - iterator->m_Parent->m_StartRow);
+    return DSIterGetGroupId(iterator->m_Parent, iterator->m_Index - iterator->m_Parent->m_StartRow);
 }

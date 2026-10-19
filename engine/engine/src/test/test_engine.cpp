@@ -52,8 +52,8 @@ typedef void (*PostRun)(dmEngine::HEngine engine, void* context);
 
 struct DatastoreContextTest
 {
-    HDataStore m_Store;
-    DataId     m_Row;
+    HDSContext m_Store;
+    DSId       m_Row;
     bool       m_Enabled;
     bool       m_AppInitialize;
     bool       m_Initialize;
@@ -216,25 +216,25 @@ static ExtensionResult DatastoreAppInitialize(ExtensionAppParams* params)
         return EXTENSION_RESULT_OK;
 
     HContextRegistry contexts = ExtensionAppParamsGetContextRegistry(params);
-    HDataStore       store = (HDataStore)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
+    HDSContext       store = (HDSContext)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
     g_DatastoreContextTest.m_Store = store;
     if (!store)
         return EXTENSION_RESULT_INIT_ERROR;
 
-    DataFieldDesc field = { .m_Field = dmHashString64("health"), .m_Type = DATA_TYPE_NUMBER };
-    DataTableDesc table = { .m_Type = dmHashString64("context_test"), .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double) };
+    DSFieldDesc   field = { .m_Field = dmHashString64("health"), .m_Type = DS_TYPE_NUMBER };
+    DSTableDesc   table = { .m_Type = dmHashString64("context_test"), .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double) };
     double        health = 100.0;
-    g_DatastoreContextTest.m_AppInitialize = DataRegisterTable(store, &table) == DATA_RESULT_OK &&
-    DataCreateRows(store, table.m_Type, 0, 1, &health, &g_DatastoreContextTest.m_Row) == DATA_RESULT_OK;
+    g_DatastoreContextTest.m_AppInitialize = DSRegisterTable(store, &table) == DS_RESULT_OK &&
+    DSCreateRows(store, table.m_Type, 0, 1, &health, &g_DatastoreContextTest.m_Row) == DS_RESULT_OK;
     return g_DatastoreContextTest.m_AppInitialize ? EXTENSION_RESULT_OK : EXTENSION_RESULT_INIT_ERROR;
 }
 
 static bool CheckDatastoreContext(HContextRegistry contexts)
 {
-    HDataStore store = (HDataStore)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
+    HDSContext store = (HDSContext)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
     double     health = 0.0;
     return store && store == g_DatastoreContextTest.m_Store &&
-    DataFieldGetNumber(store, g_DatastoreContextTest.m_Row, dmHashString64("health"), &health) == DATA_RESULT_OK && health == 100.0;
+    DSFieldGetNumber(store, g_DatastoreContextTest.m_Row, dmHashString64("health"), &health) == DS_RESULT_OK && health == 100.0;
 }
 
 static ExtensionResult DatastoreInitialize(ExtensionParams* params)
@@ -256,7 +256,7 @@ static ExtensionResult DatastoreAppFinalize(ExtensionAppParams* params)
     if (g_DatastoreContextTest.m_Enabled)
     {
         g_DatastoreContextTest.m_AppFinalize = CheckDatastoreContext(ExtensionAppParamsGetContextRegistry(params)) &&
-        DataUnregisterTable(g_DatastoreContextTest.m_Store, dmHashString64("context_test")) == DATA_RESULT_OK;
+        DSUnregisterTable(g_DatastoreContextTest.m_Store, dmHashString64("context_test")) == DS_RESULT_OK;
     }
     return EXTENSION_RESULT_OK;
 }

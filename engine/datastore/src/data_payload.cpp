@@ -15,14 +15,14 @@
 #include "data.h"
 
 static const size_t        PAYLOAD_BLOCK_SIZE = 4096;
-static const size_t        PAYLOAD_BLOCK_HEADER_SIZE = (sizeof(DataPayloadBlock) + 7) & ~(size_t)7;
+static const size_t        PAYLOAD_BLOCK_HEADER_SIZE = (sizeof(DSPayloadBlock) + 7) & ~(size_t)7;
 
-static DataPayloadHeader** FreeLink(DataPayloadHeader* chunk)
+static DSPayloadHeader**   FreeLink(DSPayloadHeader* chunk)
 {
-    return (DataPayloadHeader**)(chunk + 1);
+    return (DSPayloadHeader**)(chunk + 1);
 }
 
-static void DeletePayloadBlock(DataPayloadBlock* block)
+static void DeletePayloadBlock(DSPayloadBlock* block)
 {
     if (block->m_Previous)
         block->m_Previous->m_Next = block->m_Next;
@@ -33,12 +33,12 @@ static void DeletePayloadBlock(DataPayloadBlock* block)
     delete[] (uint8_t*)block;
 }
 
-static DataPayloadBlock* NewPayloadBlock(DataPayloadBlock** blocks, size_t size)
+static DSPayloadBlock* NewPayloadBlock(DSPayloadBlock** blocks, size_t size)
 {
     if (*blocks && !(*blocks)->m_LiveSize)
         DeletePayloadBlock(*blocks);
     size_t            capacity = size > PAYLOAD_BLOCK_SIZE ? size : PAYLOAD_BLOCK_SIZE;
-    DataPayloadBlock* block = (DataPayloadBlock*)new uint8_t[PAYLOAD_BLOCK_HEADER_SIZE + capacity];
+    DSPayloadBlock*   block = (DSPayloadBlock*)new uint8_t[PAYLOAD_BLOCK_HEADER_SIZE + capacity];
     *block = { .m_Next = *blocks, .m_Owner = blocks, .m_Capacity = capacity };
     if (*blocks)
         (*blocks)->m_Previous = block;
@@ -46,10 +46,10 @@ static DataPayloadBlock* NewPayloadBlock(DataPayloadBlock** blocks, size_t size)
     return block;
 }
 
-void ReservePayloads(DataPayloadBlock** blocks, size_t size)
+void ReservePayloads(DSPayloadBlock** blocks, size_t size)
 {
     size_t available = 0;
-    for (DataPayloadBlock* block = *blocks; block; block = block->m_Next)
+    for (DSPayloadBlock* block = *blocks; block; block = block->m_Next)
     {
         available += block->m_Capacity - block->m_LiveSize;
         if (available >= size)
@@ -58,42 +58,42 @@ void ReservePayloads(DataPayloadBlock** blocks, size_t size)
     NewPayloadBlock(blocks, size);
 }
 
-void* AllocatePayload(DataPayloadBlock** blocks, size_t size)
+void* AllocatePayload(DSPayloadBlock** blocks, size_t size)
 {
     size = (size + 7) & ~(size_t)7;
-    size_t bytes = sizeof(DataPayloadHeader) + size;
-    for (DataPayloadBlock* block = *blocks; block; block = block->m_Next)
+    size_t bytes = sizeof(DSPayloadHeader) + size;
+    for (DSPayloadBlock* block = *blocks; block; block = block->m_Next)
     {
         // A freed chunk keeps its next link in the old payload, adding no live
         // per-value pointers beyond the allocation header.
-        for (DataPayloadHeader** link = &block->m_Free; *link; link = FreeLink(*link))
+        for (DSPayloadHeader** link = &block->m_Free; *link; link = FreeLink(*link))
         {
-            DataPayloadHeader* chunk = *link;
+            DSPayloadHeader* chunk = *link;
             if (chunk->m_Size < size)
                 continue;
             *link = *FreeLink(chunk);
-            if (chunk->m_Size - size >= sizeof(DataPayloadHeader) + 8)
+            if (chunk->m_Size - size >= sizeof(DSPayloadHeader) + 8)
             {
-                DataPayloadHeader* remainder = (DataPayloadHeader*)((uint8_t*)(chunk + 1) + size);
-                *remainder = { .m_Block = block, .m_Size = chunk->m_Size - size - sizeof(DataPayloadHeader) };
+                DSPayloadHeader* remainder = (DSPayloadHeader*)((uint8_t*)(chunk + 1) + size);
+                *remainder = { .m_Block = block, .m_Size = chunk->m_Size - size - sizeof(DSPayloadHeader) };
                 *FreeLink(remainder) = *link;
                 *link = remainder;
                 chunk->m_Size = size;
             }
-            block->m_LiveSize += sizeof(DataPayloadHeader) + chunk->m_Size;
+            block->m_LiveSize += sizeof(DSPayloadHeader) + chunk->m_Size;
             return chunk + 1;
         }
         if (bytes <= block->m_Capacity - block->m_Size)
         {
-            DataPayloadHeader* chunk = (DataPayloadHeader*)((uint8_t*)block + PAYLOAD_BLOCK_HEADER_SIZE + block->m_Size);
+            DSPayloadHeader* chunk = (DSPayloadHeader*)((uint8_t*)block + PAYLOAD_BLOCK_HEADER_SIZE + block->m_Size);
             *chunk = { .m_Block = block, .m_Size = size };
             block->m_Size += bytes;
             block->m_LiveSize += bytes;
             return chunk + 1;
         }
     }
-    DataPayloadBlock*  block = NewPayloadBlock(blocks, bytes);
-    DataPayloadHeader* chunk = (DataPayloadHeader*)((uint8_t*)block + PAYLOAD_BLOCK_HEADER_SIZE);
+    DSPayloadBlock*  block = NewPayloadBlock(blocks, bytes);
+    DSPayloadHeader* chunk = (DSPayloadHeader*)((uint8_t*)block + PAYLOAD_BLOCK_HEADER_SIZE);
     *chunk = { .m_Block = block, .m_Size = size };
     block->m_Size = block->m_LiveSize = bytes;
     return chunk + 1;
@@ -101,9 +101,9 @@ void* AllocatePayload(DataPayloadBlock** blocks, size_t size)
 
 void ReleasePayload(void* bytes)
 {
-    DataPayloadHeader* chunk = (DataPayloadHeader*)bytes - 1;
-    DataPayloadBlock*  block = chunk->m_Block;
-    block->m_LiveSize -= sizeof(DataPayloadHeader) + chunk->m_Size;
+    DSPayloadHeader* chunk = (DSPayloadHeader*)bytes - 1;
+    DSPayloadBlock*  block = chunk->m_Block;
+    block->m_LiveSize -= sizeof(DSPayloadHeader) + chunk->m_Size;
     if (block->m_LiveSize)
     {
         *FreeLink(chunk) = block->m_Free;
@@ -118,7 +118,7 @@ void ReleasePayload(void* bytes)
         DeletePayloadBlock(block);
 }
 
-void DeletePayloads(DataPayloadBlock** blocks)
+void DeletePayloads(DSPayloadBlock** blocks)
 {
     while (*blocks)
         DeletePayloadBlock(*blocks);

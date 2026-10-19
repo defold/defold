@@ -22,37 +22,37 @@ extern "C"
 {
 #endif
 
-    DataResult DataFieldGetNumber(HDataStore store, DataId id, uint64_t field, double* out_value);
-    DataResult DataFieldGetNumberBatch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, double* out_values);
-    DataResult DataSetFieldNumber(HDataStore store, DataId id, uint64_t field, double value);
+    DSResult DSFieldGetNumber(HDSContext store, DSId id, uint64_t field, double* out_value);
+    DSResult DSFieldGetNumberBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, double* out_values);
+    DSResult DSSetFieldNumber(HDSContext store, DSId id, uint64_t field, double value);
 
-    DataResult DataFieldGetFloat(HDataStore store, DataId id, uint64_t field, float* out_value);
-    DataResult DataFieldGetFloatBatch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, float* out_values);
-    DataResult DataSetFieldFloat(HDataStore store, DataId id, uint64_t field, float value);
+    DSResult DSFieldGetFloat(HDSContext store, DSId id, uint64_t field, float* out_value);
+    DSResult DSFieldGetFloatBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, float* out_values);
+    DSResult DSSetFieldFloat(HDSContext store, DSId id, uint64_t field, float value);
 
-    DataResult DataFieldGetUInt32(HDataStore store, DataId id, uint64_t field, uint32_t* out_value);
-    DataResult DataFieldGetUInt32Batch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, uint32_t* out_values);
-    DataResult DataSetFieldUInt32(HDataStore store, DataId id, uint64_t field, uint32_t value);
+    DSResult DSFieldGetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t* out_value);
+    DSResult DSFieldGetUInt32Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint32_t* out_values);
+    DSResult DSSetFieldUInt32(HDSContext store, DSId id, uint64_t field, uint32_t value);
 
-    DataResult DataFieldGetBoolean(HDataStore store, DataId id, uint64_t field, uint8_t* out_value);
-    DataResult DataFieldGetBooleanBatch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, uint8_t* out_values);
-    DataResult DataSetFieldBoolean(HDataStore store, DataId id, uint64_t field, uint8_t value);
+    DSResult DSFieldGetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t* out_value);
+    DSResult DSFieldGetBooleanBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint8_t* out_values);
+    DSResult DSSetFieldBoolean(HDSContext store, DSId id, uint64_t field, uint8_t value);
 
-    DataResult DataFieldGetString(HDataStore store, DataId id, uint64_t field, const char** out_value);
-    DataResult DataFieldGetStringBatch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, const char** out_values);
-    DataResult DataSetFieldString(HDataStore store, DataId id, uint64_t field, const char* value);
+    DSResult DSFieldGetString(HDSContext store, DSId id, uint64_t field, const char** out_value);
+    DSResult DSFieldGetStringBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, const char** out_values);
+    DSResult DSSetFieldString(HDSContext store, DSId id, uint64_t field, const char* value);
 
-    DataResult DataFieldGetVector3(HDataStore store, DataId id, uint64_t field, DataVector3* out_value);
-    DataResult DataFieldGetVector3Batch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, DataVector3* out_values);
-    DataResult DataSetFieldVector3(HDataStore store, DataId id, uint64_t field, const DataVector3* value);
+    DSResult DSFieldGetVector3(HDSContext store, DSId id, uint64_t field, DSVector3* out_value);
+    DSResult DSFieldGetVector3Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector3* out_values);
+    DSResult DSSetFieldVector3(HDSContext store, DSId id, uint64_t field, const DSVector3* value);
 
-    DataResult DataFieldGetVector4(HDataStore store, DataId id, uint64_t field, DataVector4* out_value);
-    DataResult DataFieldGetVector4Batch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, DataVector4* out_values);
-    DataResult DataSetFieldVector4(HDataStore store, DataId id, uint64_t field, const DataVector4* value);
+    DSResult DSFieldGetVector4(HDSContext store, DSId id, uint64_t field, DSVector4* out_value);
+    DSResult DSFieldGetVector4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector4* out_values);
+    DSResult DSSetFieldVector4(HDSContext store, DSId id, uint64_t field, const DSVector4* value);
 
-    DataResult DataFieldGetMatrix4(HDataStore store, DataId id, uint64_t field, DataMatrix4* out_value);
-    DataResult DataFieldGetMatrix4Batch(HDataStore store, uint32_t count, const DataId* ids, uint64_t field, DataMatrix4* out_values);
-    DataResult DataSetFieldMatrix4(HDataStore store, DataId id, uint64_t field, const DataMatrix4* value);
+    DSResult DSFieldGetMatrix4(HDSContext store, DSId id, uint64_t field, DSMatrix4* out_value);
+    DSResult DSFieldGetMatrix4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSMatrix4* out_values);
+    DSResult DSSetFieldMatrix4(HDSContext store, DSId id, uint64_t field, const DSMatrix4* value);
 
 #ifdef __cplusplus
 }
@@ -69,7 +69,7 @@ extern "C"
  * do not overlap query reservations.
  *
  * @document
- * @name DataField
+ * @name DSField
  * @language C
  */
 
@@ -77,291 +77,291 @@ extern "C"
  *
  * Reads IDs in input order without allocation. Stops at the first error; outputs
  * may be partially written on failure; use them only after OK. Synchronize as
- * for DataFieldGetNumber. Input/output arrays must not overlap and must contain
+ * for DSFieldGetNumber. Input/output arrays must not overlap and must contain
  * count entries. Zero count accesses nothing.
  *
- * @name DataFieldGetNumberBatch
- * @param store [type:HDataStore] Store handle.
+ * @name DSFieldGetNumberBatch
+ * @param store [type:HDSContext] Store handle.
  * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
+ * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
  * @param out_values [type:double*] Receives the values on success.
- * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Number field
  *
- * @name DataFieldGetNumber
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSFieldGetNumber
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
  * @param out_value [type:double*] Receives the value on success.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Write a Number field
  *
- * @name DataSetFieldNumber
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSSetFieldNumber
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
  * @param value [type:double] Replacement value.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
  */
 
 /*# Read Boolean fields by row ID
  *
  * Reads IDs in input order without allocation. Stops at the first error; outputs
  * may be partially written on failure; use them only after OK. Synchronize as
- * for DataFieldGetBoolean. Input/output arrays must not overlap and must contain
+ * for DSFieldGetBoolean. Input/output arrays must not overlap and must contain
  * count entries. Zero count accesses nothing.
  *
- * @name DataFieldGetBooleanBatch
- * @param store [type:HDataStore] Store handle.
+ * @name DSFieldGetBooleanBatch
+ * @param store [type:HDSContext] Store handle.
  * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
+ * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
  * @param out_values [type:uint8_t*] Receives the values on success.
- * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Boolean field
  *
- * @name DataFieldGetBoolean
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSFieldGetBoolean
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
  * @param out_value [type:uint8_t*] Receives the value on success.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Write a Boolean field
  *
- * @name DataSetFieldBoolean
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSSetFieldBoolean
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
  * @param value [type:uint8_t] Zero or one.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
  */
 
 /*# Read String fields by row ID
  *
  * Reads IDs in input order without allocation. Stops at the first error; outputs
  * may be partially written on failure; use them only after OK. Synchronize as
- * for DataFieldGetString. Input/output arrays must not overlap and must contain
+ * for DSFieldGetString. Input/output arrays must not overlap and must contain
  * count entries. Zero count accesses nothing.
  * Returned strings are borrowed; finish using them before a store write or reset.
  *
- * @name DataFieldGetStringBatch
- * @param store [type:HDataStore] Store handle.
+ * @name DSFieldGetStringBatch
+ * @param store [type:HDSContext] Store handle.
  * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
+ * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
  * @param out_values [type:const char**] Receives the values on success.
- * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a String field
  *
- * @name DataFieldGetString
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSFieldGetString
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
  * @param out_value [type:const char**] Borrowed string; copy before a store write, reset or iterator step.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Write a String field
  *
  * Copies the NUL-terminated string into owned storage; self-assignment is supported.
  *
- * @name DataSetFieldString
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSSetFieldString
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
  * @param value [type:const char*] Value to copy; pointer not retained.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
  */
 
 /*# Read Vector3 fields by row ID
  *
  * Reads IDs in input order without allocation. Stops at the first error; outputs
  * may be partially written on failure; use them only after OK. Synchronize as
- * for DataFieldGetVector3. Input/output arrays must not overlap and must contain
+ * for DSFieldGetVector3. Input/output arrays must not overlap and must contain
  * count entries. Zero count accesses nothing.
  *
- * @name DataFieldGetVector3Batch
- * @param store [type:HDataStore] Store handle.
+ * @name DSFieldGetVector3Batch
+ * @param store [type:HDSContext] Store handle.
  * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
+ * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
- * @param out_values [type:DataVector3*] Receives the values on success.
- * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ * @param out_values [type:DSVector3*] Receives the values on success.
+ * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Vector3 field
  *
- * @name DataFieldGetVector3
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSFieldGetVector3
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
- * @param out_value [type:DataVector3*] Receives the value on success.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @param out_value [type:DSVector3*] Receives the value on success.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Write a Vector3 field
  *
- * @name DataSetFieldVector3
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSSetFieldVector3
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
- * @param value [type:const DataVector3*] Value to copy; pointer not retained.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ * @param value [type:const DSVector3*] Value to copy; pointer not retained.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
  */
 
 /*# Read Vector4 fields by row ID
  *
  * Reads IDs in input order without allocation. Stops at the first error; outputs
  * may be partially written on failure; use them only after OK. Synchronize as
- * for DataFieldGetVector4. Input/output arrays must not overlap and must contain
+ * for DSFieldGetVector4. Input/output arrays must not overlap and must contain
  * count entries. Zero count accesses nothing.
  *
- * @name DataFieldGetVector4Batch
- * @param store [type:HDataStore] Store handle.
+ * @name DSFieldGetVector4Batch
+ * @param store [type:HDSContext] Store handle.
  * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
+ * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
- * @param out_values [type:DataVector4*] Receives the values on success.
- * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ * @param out_values [type:DSVector4*] Receives the values on success.
+ * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Vector4 field
  *
- * @name DataFieldGetVector4
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSFieldGetVector4
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
- * @param out_value [type:DataVector4*] Receives the value on success.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @param out_value [type:DSVector4*] Receives the value on success.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Write a Vector4 field
  *
- * @name DataSetFieldVector4
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSSetFieldVector4
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
- * @param value [type:const DataVector4*] Value to copy; pointer not retained.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ * @param value [type:const DSVector4*] Value to copy; pointer not retained.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
  */
 
 /*# Read Matrix4 fields by row ID
  *
  * Reads IDs in input order without allocation. Stops at the first error; outputs
  * may be partially written on failure; use them only after OK. Synchronize as
- * for DataFieldGetMatrix4. Input/output arrays must not overlap and must contain
+ * for DSFieldGetMatrix4. Input/output arrays must not overlap and must contain
  * count entries. Zero count accesses nothing.
  *
- * @name DataFieldGetMatrix4Batch
- * @param store [type:HDataStore] Store handle.
+ * @name DSFieldGetMatrix4Batch
+ * @param store [type:HDSContext] Store handle.
  * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
+ * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
- * @param out_values [type:DataMatrix4*] Receives the values on success.
- * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ * @param out_values [type:DSMatrix4*] Receives the values on success.
+ * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Matrix4 field
  *
- * @name DataFieldGetMatrix4
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSFieldGetMatrix4
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
- * @param out_value [type:DataMatrix4*] Receives the value on success.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @param out_value [type:DSMatrix4*] Receives the value on success.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Write a Matrix4 field
  *
- * @name DataSetFieldMatrix4
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSSetFieldMatrix4
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
- * @param value [type:const DataMatrix4*] Value to copy; pointer not retained.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ * @param value [type:const DSMatrix4*] Value to copy; pointer not retained.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
  */
 
 /*# Read Float fields by row ID
  *
  * Reads IDs in input order without allocation. Stops at the first error; outputs
  * may be partially written on failure; use them only after OK. Synchronize as
- * for DataFieldGetFloat. Input/output arrays must not overlap and must contain
+ * for DSFieldGetFloat. Input/output arrays must not overlap and must contain
  * count entries. Zero count accesses nothing.
  *
- * @name DataFieldGetFloatBatch
- * @param store [type:HDataStore] Store handle.
+ * @name DSFieldGetFloatBatch
+ * @param store [type:HDSContext] Store handle.
  * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
+ * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
  * @param out_values [type:float*] Receives the values on success.
- * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read UInt32 fields by row ID
  *
  * Reads IDs in input order without allocation. Stops at the first error; outputs
  * may be partially written on failure; use them only after OK. Synchronize as
- * for DataFieldGetUInt32. Input/output arrays must not overlap and must contain
+ * for DSFieldGetUInt32. Input/output arrays must not overlap and must contain
  * count entries. Zero count accesses nothing.
  *
- * @name DataFieldGetUInt32Batch
- * @param store [type:HDataStore] Store handle.
+ * @name DSFieldGetUInt32Batch
+ * @param store [type:HDSContext] Store handle.
  * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DataId*] Row IDs in requested order; duplicates are allowed.
+ * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
  * @param out_values [type:uint32_t*] Receives the values on success.
- * @return result [type:DataResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Float field
  *
- * @name DataFieldGetFloat
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSFieldGetFloat
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
  * @param out_value [type:float*] Receives the value on success.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a UInt32 field
  *
- * @name DataFieldGetUInt32
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSFieldGetUInt32
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
  * @param out_value [type:uint32_t*] Receives the value on success.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Write a Float field
  *
- * @name DataSetFieldFloat
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSSetFieldFloat
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
  * @param value [type:float] Replacement value.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
  */
 
 /*# Write a UInt32 field
  *
- * @name DataSetFieldUInt32
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSSetFieldUInt32
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
  * @param value [type:uint32_t] Replacement value.
- * @return result [type:DataResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
  */
 
 #endif // DMSDK_DATASTORE_FIELD_H

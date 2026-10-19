@@ -16,7 +16,7 @@ specific language governing permissions and limitations under the License. -->
 <style>text{font-family:Arial,Helvetica,sans-serif;fill:#172b42;font-size:17px}.title{font-size:24px;font-weight:700}.label{font-size:18px;font-weight:700}.small{font-size:15px;fill:#52657a}.mono{font-family:Menlo,Consolas,monospace;font-size:15px}.arrow{fill:none;stroke:#52657a;stroke-width:1.8;marker-end:url(#arrow)}</style>
 <rect width="1080" height="484" rx="12" fill="#f5f8fc"/>
 <text x="28" y="40" class="title">Owned dynamic structs: shared metadata, separate child rows</text>
-<text x="28" y="72" class="small">Runtime storage within one component table. Child rows have no public DataId.</text>
+<text x="28" y="72" class="small">Runtime storage within one component table. Child rows have no public DSId.</text>
 <rect x="28" y="108" width="360" height="245" rx="8" fill="#fff" stroke="#b7c9dc"/>
 <text x="48" y="139" class="label">Enemy component rows</text>
 <rect x="48" y="159" width="320" height="70" rx="5" fill="#e4efff"/>

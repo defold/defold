@@ -4,17 +4,18 @@ A C API for typed rows, field queries and caller-scheduled jobs. Include
 `<dmsdk/datastore/datastore.h>` and link the `datastore` library. The library
 uses dlib and has no dependency on game objects or third-party ECS libraries.
 
-The engine provides a shared `HDataStore` through `DATASTORE_CONTEXT_NAME`.
+The engine provides a shared `HDSContext` through `DATASTORE_CONTEXT_NAME`.
 Extensions borrow it and release their queries and tables before app finalization.
-Standalone callers use `DataCreateStore()` and `DataDestroyStore()`.
+Standalone callers use `DSCreateStore()` and `DSDestroyStore()`.
 
-- Register field layouts with `DataRegisterTable()`.
-- Add native rows with `DataCreateRows()`, or field arrays with `DataCreateRowsSoA()`.
+- Register field layouts with `DSRegisterTable()`.
+- Add native rows with `DSCreateRows()`, or field arrays with `DSCreateRowsSoA()`.
   Both copy input values into contiguous native rows.
-- Create queries once, bind fields with `DataQueryFindField()`, and iterate using
-  typed row getters.
-- For jobs, reserve a query with `DataQueryTryBegin()`, split its rows with
-  `DataQueryIterRange()`, join the jobs, then call `DataQueryEnd()`.
+- Combine `DSTag("boid")` and `DSField("position", DS_TYPE_VECTOR3, 0)` in
+  `DSQueryDesc.m_Items`; no item count is needed. Create queries once, bind fields
+  with `DSQueryFindField()`, and iterate using typed row getters.
+- For jobs, reserve a query with `DSQueryTryBegin()`, split its rows with
+  `DSQueryIterRange()`, join the jobs, then call `DSQueryEnd()`.
   Retry rejected reservations and structural changes at the next safe point.
 
 See [DATASTORE.md](../docs/DATASTORE.md) for the file format, layouts, ownership

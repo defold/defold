@@ -19,7 +19,7 @@
 
 // Test snapshot for ownership and allocation lifetime checks. Payload used/capacity bytes include chunk
 // headers and alignment, excluding block headers. Sampling walks tables, rows and blocks.
-struct DataMemoryStats
+struct DSMemoryStats
 {
     uint64_t m_Tables;           // Live runtime table count.
     uint64_t m_Instances;        // Live blob registration count.
@@ -43,6 +43,6 @@ struct DataMemoryStats
     uint64_t m_TotalBytes;       // Retained store memory; excludes borrowed resource blobs.
 };
 
-void GetDataMemoryStats(HDataStore store, DataMemoryStats* out_stats);
+void GetDataMemoryStats(HDSContext store, DSMemoryStats* out_stats);
 
 #endif

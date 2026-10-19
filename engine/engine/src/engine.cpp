@@ -432,7 +432,7 @@ namespace dmEngine
     , m_MainCollectionResource(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
-    , m_DataStore(DataCreateStore())
+    , m_DataStore(DSCreateStore())
     , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_ScriptContext(0x0)
@@ -612,7 +612,7 @@ namespace dmEngine
 #endif
 
         ContextRegistrySet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME, 0);
-        DataDestroyStore(engine->m_DataStore);
+        DSDestroyStore(engine->m_DataStore);
 
         ContextRegistryDestroy(engine->m_ContextRegistry);
         engine->m_ContextRegistry = 0;

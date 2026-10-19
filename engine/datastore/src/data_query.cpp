@@ -19,24 +19,24 @@
 
 // Resolve names during table matching and retain the field metadata/byte offset.
 // Dynamic containers do not expose fixed member offsets.
-static bool ResolveQueryField(const DataTable* table, const DataQueryFieldInfo& field, DataQueryBinding* binding)
+static bool ResolveQueryField(const DSTable* table, const DSQueryFieldInfo& field, DSQueryBinding* binding)
 {
     return ResolveField(table, field.m_Field, field.m_Type, &binding->m_Meta);
 }
 
-static DataQueryBinding* AllocateQueryFields(HDataQuery query)
+static DSQueryBinding* AllocateQueryFields(HDSQuery query)
 {
     if (query->m_FreeFields)
     {
-        DataQueryBinding* fields = query->m_FreeFields;
+        DSQueryBinding* fields = query->m_FreeFields;
         memcpy(&query->m_FreeFields, (const void*)fields, sizeof(query->m_FreeFields));
         return fields;
     }
-    size_t size = query->m_Fields.Size() * (sizeof(DataQueryBinding) + sizeof(uint32_t));
-    return (DataQueryBinding*)AllocateData(&query->m_Bindings, size, query->m_Bindings ? 4096 : 256);
+    size_t size = query->m_Fields.Size() * (sizeof(DSQueryBinding) + sizeof(uint32_t));
+    return (DSQueryBinding*)AllocateData(&query->m_Bindings, size, query->m_Bindings ? 4096 : 256);
 }
 
-static void ReleaseQueryFields(HDataQuery query, DataQueryBinding* fields)
+static void ReleaseQueryFields(HDSQuery query, DSQueryBinding* fields)
 {
     if (!fields)
         return;
@@ -47,7 +47,7 @@ static void ReleaseQueryFields(HDataQuery query, DataQueryBinding* fields)
 
 // Registration serials keep matching independent of allocation addresses. Avoid comparing
 // every table against every other table when queries first check compatibility.
-static uint32_t FindQueryTable(HDataQuery query, const DataTable* table)
+static uint32_t FindQueryTable(HDSQuery query, const DSTable* table)
 {
     uint32_t low = 0, high = query->m_Tables.Size();
     while (low < high)
@@ -63,11 +63,11 @@ static uint32_t FindQueryTable(HDataQuery query, const DataTable* table)
 
 static int CompareGroups(const void* a, const void* b)
 {
-    DataGroupId av = *(const DataGroupId*)a, bv = *(const DataGroupId*)b;
+    DSGroupId av = *(const DSGroupId*)a, bv = *(const DSGroupId*)b;
     return (av > bv) - (av < bv);
 }
 
-void MatchTable(HDataQuery query, DataTable* table)
+void MatchTable(HDSQuery query, DSTable* table)
 {
     for (uint32_t i = 0; i < query->m_Tags.Size(); ++i)
     {
@@ -81,12 +81,12 @@ void MatchTable(HDataQuery query, DataTable* table)
     // Reject before allocating bindings. Layouts are immutable for a table's lifetime.
     for (uint32_t i = 0; i < query->m_Fields.Size(); ++i)
     {
-        DataQueryBinding binding;
+        DSQueryBinding binding;
         if (!ResolveQueryField(table, query->m_Fields[i], &binding))
             return;
     }
 
-    DataQueryTable match = { .m_Table = table };
+    DSQueryTable match = { .m_Table = table };
     if (query->m_Fields.Size())
         match.m_Fields = AllocateQueryFields(query);
     for (uint32_t i = 0; i < query->m_Fields.Size(); ++i)
@@ -105,9 +105,9 @@ void MatchTable(HDataQuery query, DataTable* table)
     query->m_Conflicts.SetSize(0);
 }
 
-void UnmatchTable(HDataQuery query, DataTable* table)
+void UnmatchTable(HDSQuery query, DSTable* table)
 {
-    dmArray<DataQueryTable>& tables = query->m_Tables;
+    dmArray<DSQueryTable>&   tables = query->m_Tables;
     uint32_t                 index = FindQueryTable(query, table);
     if (index == tables.Size() || tables[index].m_Table != table)
         return;
@@ -119,62 +119,77 @@ void UnmatchTable(HDataQuery query, DataTable* table)
     query->m_Conflicts.SetSize(0);
 }
 
-static bool SupportsConcurrentWrite(DataValueType type)
+static bool SupportsConcurrentWrite(DSValueType type)
 {
-    return type == DATA_TYPE_NUMBER || type == DATA_TYPE_BOOLEAN ||
-    (type >= DATA_TYPE_VECTOR3 && type <= DATA_TYPE_UINT32);
+    return type == DS_TYPE_NUMBER || type == DS_TYPE_BOOLEAN ||
+    (type >= DS_TYPE_VECTOR3 && type <= DS_TYPE_UINT32);
 }
 
-DataResult DataCreateQuery(HDataStore store, const DataQueryDesc* desc, HDataQuery* out_query)
+DSResult DSCreateQuery(HDSContext store, const DSQueryDesc* desc, HDSQuery* out_query)
 {
-    DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
-    if (store->m_ActiveQueries.Size())
-        return DATA_RESULT_LOCKED;
-    if (desc->m_GroupIdCount > UINT32_MAX / sizeof(DataGroupId) || desc->m_AllTagCount > UINT32_MAX / sizeof(uint64_t) ||
-        desc->m_FieldCount > UINT32_MAX / (sizeof(DataQueryBinding) + sizeof(uint32_t)))
-        return DATA_RESULT_INVALID_ARGUMENT;
+    if ((desc->m_Flags & ~DS_ROW_MUTABLE) || desc->m_GroupIdCount > UINT32_MAX / sizeof(DSGroupId))
+        return DS_RESULT_INVALID_ARGUMENT;
 
-    for (uint32_t i = 0; i < desc->m_FieldCount; ++i)
+    uint32_t item_count = 0, field_count = 0, tag_count = 0;
+    while (item_count < DS_QUERY_MAX_ITEMS && desc->m_Items[item_count].m_Kind != DS_QUERY_ITEM_NONE)
     {
-        const DataQueryField& field = desc->m_Fields[i];
-        if ((uint32_t)field.m_Type > DATA_TYPE_UINT32 || (uint32_t)field.m_Access > DATA_ACCESS_READ_WRITE ||
-            (field.m_Access == DATA_ACCESS_READ_WRITE && !SupportsConcurrentWrite(field.m_Type)))
-            return DATA_RESULT_INVALID_ARGUMENT;
+        const DSQueryItem& item = desc->m_Items[item_count];
+        if (item.m_Kind == DS_QUERY_ITEM_FIELD)
+        {
+            if ((uint32_t)item.m_Type > DS_TYPE_UINT32 || item.m_Access > DS_FIELD_MUTABLE ||
+                (item.m_Access == DS_FIELD_MUTABLE && !SupportsConcurrentWrite(item.m_Type)))
+                return DS_RESULT_INVALID_ARGUMENT;
+            ++field_count;
+        }
+        else if (item.m_Kind == DS_QUERY_ITEM_TAG)
+        {
+            ++tag_count;
+        }
+        else
+        {
+            return DS_RESULT_INVALID_ARGUMENT;
+        }
+        ++item_count;
     }
 
-    HDataQuery query = new DataQuery;
+    DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
+    if (store->m_ActiveQueries.Size())
+        return DS_RESULT_LOCKED;
+
+    HDSQuery query = new DSQuery;
     query->m_Store = store;
     query->m_Bindings = 0;
     query->m_FreeFields = 0;
     query->m_Revision = 0;
     query->m_MatchRevision = 0;
-    query->m_HasWrites = false;
+    query->m_Flags = desc->m_Flags;
+    query->m_HasWrites = (query->m_Flags & DS_ROW_MUTABLE) != 0;
     query->m_RowCount = 0;
     query->m_ActiveSlot = UINT32_MAX;
     if (desc->m_GroupIdCount)
     {
         query->m_Groups.SetCapacity(desc->m_GroupIdCount);
         query->m_Groups.PushArray(desc->m_GroupIds, desc->m_GroupIdCount);
-        qsort(query->m_Groups.Begin(), query->m_Groups.Size(), sizeof(DataGroupId), CompareGroups);
+        qsort(query->m_Groups.Begin(), query->m_Groups.Size(), sizeof(DSGroupId), CompareGroups);
     }
-    if (desc->m_AllTagCount)
+    query->m_Tags.SetCapacity(tag_count);
+    query->m_Fields.SetCapacity(field_count);
+    for (uint32_t i = 0; i < item_count; ++i)
     {
-        query->m_Tags.SetCapacity(desc->m_AllTagCount);
-        query->m_Tags.PushArray(desc->m_AllTags, desc->m_AllTagCount);
-    }
-    if (desc->m_FieldCount)
-    {
-        query->m_Fields.SetCapacity(desc->m_FieldCount);
-        for (uint32_t i = 0; i < desc->m_FieldCount; ++i)
+        const DSQueryItem& item = desc->m_Items[i];
+        if (item.m_Kind == DS_QUERY_ITEM_TAG)
         {
-            const DataQueryField& input = desc->m_Fields[i];
-            DataQueryFieldInfo    field = {
-                   .m_Field = input.m_Field,
-                   .m_Type = input.m_Type,
-                   .m_Access = (uint8_t)input.m_Access
+            query->m_Tags.Push(item.m_Hash);
+        }
+        else
+        {
+            DSQueryFieldInfo field = {
+                .m_Field = item.m_Hash,
+                .m_Type = item.m_Type,
+                .m_Access = (uint8_t)item.m_Access
             };
             query->m_Fields.Push(field);
-            query->m_HasWrites |= field.m_Access == DATA_ACCESS_READ_WRITE;
+            query->m_HasWrites |= field.m_Access == DS_FIELD_MUTABLE;
         }
     }
 
@@ -190,15 +205,15 @@ DataResult DataCreateQuery(HDataStore store, const DataQueryDesc* desc, HDataQue
         store->m_ActiveQueries.SetCapacity(store->m_Queries.Capacity());
     store->m_Queries.Push(query);
     *out_query = query;
-    return DATA_RESULT_OK;
+    return DS_RESULT_OK;
 }
 
-DataResult DataDestroyQuery(HDataQuery query)
+DSResult DSDestroyQuery(HDSQuery query)
 {
     DM_MUTEX_SCOPED_LOCK(query->m_Store->m_Mutex);
     if (query->m_Store->m_ActiveQueries.Size())
-        return DATA_RESULT_LOCKED;
-    dmArray<HDataQuery>& queries = query->m_Store->m_Queries;
+        return DS_RESULT_LOCKED;
+    dmArray<HDSQuery>& queries = query->m_Store->m_Queries;
     for (uint32_t i = 0; i < queries.Size(); ++i)
     {
         if (queries[i] == query)
@@ -210,7 +225,7 @@ DataResult DataDestroyQuery(HDataQuery query)
 
     for (uint32_t i = 0; i < queries.Size(); ++i)
     {
-        dmArray<DataQueryConflict>& cached = queries[i]->m_Conflicts;
+        dmArray<DSQueryConflict>& cached = queries[i]->m_Conflicts;
         for (uint32_t j = 0; j < cached.Size(); ++j)
         {
             if (cached[j].m_Query == query)
@@ -222,17 +237,17 @@ DataResult DataDestroyQuery(HDataQuery query)
     }
     DeleteBlocks(&query->m_Bindings);
     delete query;
-    return DATA_RESULT_OK;
+    return DS_RESULT_OK;
 }
 
-static bool GroupsOverlap(HDataQuery a, HDataQuery b)
+static bool GroupsOverlap(HDSQuery a, HDSQuery b)
 {
     if (a->m_Groups.Empty() || b->m_Groups.Empty())
         return true;
     uint32_t ai = 0, bi = 0;
     while (ai < a->m_Groups.Size() && bi < b->m_Groups.Size())
     {
-        DataGroupId ag = a->m_Groups[ai], bg = b->m_Groups[bi];
+        DSGroupId ag = a->m_Groups[ai], bg = b->m_Groups[bi];
         if (ag == bg)
             return true;
         if (ag < bg)
@@ -243,22 +258,27 @@ static bool GroupsOverlap(HDataQuery a, HDataQuery b)
     return false;
 }
 
-static bool FieldsConflict(HDataQuery a, const DataQueryTable& at, HDataQuery b, const DataQueryTable& bt)
+static bool FieldsConflict(HDSQuery a, const DSQueryTable& at, HDSQuery b, const DSQueryTable& bt)
 {
-    // A tag-only query reads the complete row. Aliased views with different
-    // strides/bases cannot use row-relative offsets to prove independent access.
-    if (a->m_Fields.Empty() || b->m_Fields.Empty())
+    // Identity-only queries do not read value bytes. Structural reservations
+    // already keep their row records stable.
+    if ((!a->m_Flags && a->m_Fields.Empty()) || (!b->m_Flags && b->m_Fields.Empty()))
+        return false;
+    // Row access covers fields omitted from the query filter.
+    if ((a->m_Flags & DS_ROW_MUTABLE) || (b->m_Flags & DS_ROW_MUTABLE))
         return true;
+    // Aliased views with different strides/bases cannot use row-relative offsets
+    // to prove independent access.
     if (at.m_Table != bt.m_Table &&
         (at.m_Table->m_Values.Begin() != bt.m_Table->m_Values.Begin() || at.m_Table->m_RowStride != bt.m_Table->m_RowStride))
         return true;
     for (uint32_t af = 0; af < a->m_Fields.Size(); ++af)
     {
-        const DataFieldMeta& am = at.m_Fields[af].m_Meta;
+        const DSFieldMeta& am = at.m_Fields[af].m_Meta;
         for (uint32_t bf = 0; bf < b->m_Fields.Size(); ++bf)
         {
-            const DataFieldMeta& bm = bt.m_Fields[bf].m_Meta;
-            if ((a->m_Fields[af].m_Access == DATA_ACCESS_READ_WRITE || b->m_Fields[bf].m_Access == DATA_ACCESS_READ_WRITE) &&
+            const DSFieldMeta& bm = bt.m_Fields[bf].m_Meta;
+            if ((a->m_Fields[af].m_Access == DS_FIELD_MUTABLE || b->m_Fields[bf].m_Access == DS_FIELD_MUTABLE) &&
                 am.m_Size && bm.m_Size && am.m_Offset < bm.m_Offset + bm.m_Size && bm.m_Offset < am.m_Offset + am.m_Size)
                 return true;
         }
@@ -266,7 +286,7 @@ static bool FieldsConflict(HDataQuery a, const DataQueryTable& at, HDataQuery b,
     return false;
 }
 
-static bool QueriesConflict(HDataQuery a, HDataQuery b)
+static bool QueriesConflict(HDSQuery a, HDSQuery b)
 {
     if (!a->m_HasWrites && !b->m_HasWrites)
         return false;
@@ -274,8 +294,8 @@ static bool QueriesConflict(HDataQuery a, HDataQuery b)
     uint32_t ai = 0, bi = 0;
     while (ai < a->m_Tables.Size() && bi < b->m_Tables.Size())
     {
-        const DataQueryTable& at = a->m_Tables[ai];
-        const DataQueryTable& bt = b->m_Tables[bi];
+        const DSQueryTable& at = a->m_Tables[ai];
+        const DSQueryTable& bt = b->m_Tables[bi];
         if (at.m_Table == bt.m_Table)
         {
             if (groups_overlap && FieldsConflict(a, at, b, bt))
@@ -291,8 +311,8 @@ static bool QueriesConflict(HDataQuery a, HDataQuery b)
     // Distinct views may alias external memory despite different table/group IDs.
     for (uint32_t i = 0; i < a->m_Tables.Size(); ++i)
     {
-        const DataQueryTable& at = a->m_Tables[i];
-        const dmArray<DataTable*>& aliases = at.m_Table->m_ViewAliases;
+        const DSQueryTable&      at = a->m_Tables[i];
+        const dmArray<DSTable*>& aliases = at.m_Table->m_ViewAliases;
         for (uint32_t v = 0; v < aliases.Size(); ++v)
         {
             uint32_t index = FindQueryTable(b, aliases[v]);
@@ -304,13 +324,13 @@ static bool QueriesConflict(HDataQuery a, HDataQuery b)
     return false;
 }
 
-static bool CachedQueriesConflict(HDataQuery a, HDataQuery b)
+static bool CachedQueriesConflict(HDSQuery a, HDSQuery b)
 {
     if (!a->m_HasWrites && !b->m_HasWrites)
         return false;
     for (uint32_t i = 0; i < a->m_Conflicts.Size(); ++i)
     {
-        DataQueryConflict& cached = a->m_Conflicts[i];
+        DSQueryConflict& cached = a->m_Conflicts[i];
         if (cached.m_Query != b)
             continue;
         if (cached.m_Revision != b->m_MatchRevision)
@@ -320,13 +340,13 @@ static bool CachedQueriesConflict(HDataQuery a, HDataQuery b)
         }
         return cached.m_Conflict;
     }
-    DataQueryConflict cached = { .m_Query = b, .m_Revision = b->m_MatchRevision, .m_Conflict = QueriesConflict(a, b) };
+    DSQueryConflict cached = { .m_Query = b, .m_Revision = b->m_MatchRevision, .m_Conflict = QueriesConflict(a, b) };
     Reserve(a->m_Conflicts, a->m_Conflicts.Size() + 1);
     a->m_Conflicts.Push(cached);
     return cached.m_Conflict;
 }
 
-static void RefreshQueryRanges(HDataQuery query)
+static void RefreshQueryRanges(HDSQuery query)
 {
     if (query->m_Revision == query->m_Store->m_Revision)
         return;
@@ -335,7 +355,7 @@ static void RefreshQueryRanges(HDataQuery query)
     query->m_RowCount = 0;
     for (uint32_t t = 0; t < query->m_Tables.Size(); ++t)
     {
-        const DataTable* table = query->m_Tables[t].m_Table;
+        const DSTable*   table = query->m_Tables[t].m_Table;
         uint32_t         count = table->m_Rows.Size();
         uint32_t         row = 0;
         while (row < count)
@@ -359,7 +379,7 @@ static void RefreshQueryRanges(HDataQuery query)
                         while (end < row && table->m_Rows[end].m_BaseIndex == table->m_Rows[first].m_BaseIndex + end - first)
                             ++end;
                     }
-                    DataQueryRange range = { .m_TableIndex = t, .m_Start = first, .m_Count = end - first, .m_First = query->m_RowCount };
+                    DSQueryRange range = { .m_TableIndex = t, .m_Start = first, .m_Count = end - first, .m_First = query->m_RowCount };
                     Reserve(query->m_Ranges, query->m_Ranges.Size() + 1);
                     query->m_Ranges.Push(range);
                     query->m_RowCount += range.m_Count;
@@ -372,24 +392,24 @@ static void RefreshQueryRanges(HDataQuery query)
     query->m_Revision = query->m_Store->m_Revision;
 }
 
-DataResult DataQueryTryBegin(HDataQuery query)
+DSResult DSQueryTryBegin(HDSQuery query)
 {
-    HDataStore store = query->m_Store;
+    HDSContext store = query->m_Store;
     if (!dmMutex::TryLock(store->m_Mutex))
-        return DATA_RESULT_BUSY;
+        return DS_RESULT_BUSY;
     if (store->m_LockCount || query->m_ActiveSlot != UINT32_MAX)
     {
         dmMutex::Unlock(store->m_Mutex);
-        return DATA_RESULT_BUSY;
+        return DS_RESULT_BUSY;
     }
 
-    const dmArray<HDataQuery>& active = store->m_ActiveQueries.GetRawObjects();
+    const dmArray<HDSQuery>& active = store->m_ActiveQueries.GetRawObjects();
     for (uint32_t i = 0; i < active.Size(); ++i)
     {
         if (CachedQueriesConflict(query, active[i]))
         {
             dmMutex::Unlock(store->m_Mutex);
-            return DATA_RESULT_BUSY;
+            return DS_RESULT_BUSY;
         }
     }
 
@@ -397,30 +417,32 @@ DataResult DataQueryTryBegin(HDataQuery query)
     query->m_ActiveSlot = store->m_ActiveQueries.Alloc();
     store->m_ActiveQueries.Set(query->m_ActiveSlot, query);
     dmMutex::Unlock(store->m_Mutex);
-    return DATA_RESULT_OK;
+    return DS_RESULT_OK;
 }
 
-uint32_t DataQueryGetRowCount(HDataQuery query)
+uint32_t DSQueryGetRowCount(HDSQuery query)
 {
     return query->m_RowCount;
 }
 
-void DataQueryEnd(HDataQuery query)
+void DSQueryEnd(HDSQuery query)
 {
-    HDataStore store = query->m_Store;
+    HDSContext store = query->m_Store;
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     store->m_ActiveQueries.Free(query->m_ActiveSlot, false);
     query->m_ActiveSlot = UINT32_MAX;
 }
 
-uint32_t DataQueryFindField(HDataQuery query, const DataQueryField* field)
+uint32_t DSQueryFindField(HDSQuery query, const DSQueryItem* field)
 {
-    const dmArray<DataQueryFieldInfo>& fields = query->m_Fields;
+    if (field->m_Kind != DS_QUERY_ITEM_FIELD)
+        return UINT32_MAX;
+    const dmArray<DSQueryFieldInfo>& fields = query->m_Fields;
     for (uint32_t i = 0; i < fields.Size(); ++i)
     {
-        const DataQueryFieldInfo& candidate = fields[i];
+        const DSQueryFieldInfo& candidate = fields[i];
         if ((uint32_t)field->m_Access <= (uint32_t)candidate.m_Access &&
-            candidate.m_Field == field->m_Field && candidate.m_Type == field->m_Type)
+            candidate.m_Field == field->m_Hash && candidate.m_Type == field->m_Type)
             return i;
     }
     return UINT32_MAX;

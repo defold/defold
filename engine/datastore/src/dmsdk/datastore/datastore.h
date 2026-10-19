@@ -30,11 +30,11 @@ extern "C"
 {
 #endif
 
-    HDataStore DataCreateStore(void);
-    DataResult DataDestroyStore(HDataStore store);
+    HDSContext DSCreateStore(void);
+    DSResult   DSDestroyStore(HDSContext store);
 
-    void       DataStoreLock(HDataStore store);
-    void       DataStoreUnlock(HDataStore store);
+    void       DSStoreLock(HDSContext store);
+    void       DSStoreUnlock(HDSContext store);
 
 #ifdef __cplusplus
 }
@@ -47,13 +47,13 @@ extern "C"
  * Datastore lifetime and locking. Includes the query, iterator and field APIs.
  *
  * @document
- * @name Data
+ * @name DS
  * @language C
  */
 
 /*# Engine datastore context
  *
- * Registry name for the engine-owned [type:HDataStore], available from extension
+ * Registry name for the engine-owned [type:HDSContext], available from extension
  * app initialization through app finalization. Borrow the store; do not destroy
  * it. Finish jobs and release your queries and tables before finalization ends.
  *
@@ -63,10 +63,10 @@ extern "C"
 
 /*# Create an empty store
  *
- * The caller owns the store and releases it with [ref:DataDestroyStore].
+ * The caller owns the store and releases it with [ref:DSDestroyStore].
  *
- * @name DataCreateStore
- * @return store [type:HDataStore] New store.
+ * @name DSCreateStore
+ * @return store [type:HDSContext] New store.
  */
 
 /*# Destroy a store
@@ -74,9 +74,9 @@ extern "C"
  * Frees the store and its tables/rows. Destroy queries and finish all access first.
  * Borrowed blob memory remains caller-owned.
  *
- * @name DataDestroyStore
- * @param store [type:HDataStore] Store owned by the caller.
- * @return result [type:DataResult] OK, or LOCKED while locked or reserved by queries; leaves the store intact on failure.
+ * @name DSDestroyStore
+ * @param store [type:HDSContext] Store owned by the caller.
+ * @return result [type:DSResult] OK, or LOCKED while locked or reserved by queries; leaves the store intact on failure.
  */
 
 /*# Lock store structure
@@ -85,16 +85,16 @@ extern "C"
  * Structural changes return LOCKED. Locks nest and must be unlocked on the same
  * thread after iteration. Use query reservations separately for concurrent jobs.
  *
- * @name DataStoreLock
- * @param store [type:HDataStore] Store to lock.
+ * @name DSStoreLock
+ * @param store [type:HDSContext] Store to lock.
  */
 
 /*# Unlock store structure
  *
  * Releases one lock. Finish iteration before the outermost unlock.
  *
- * @name DataStoreUnlock
- * @param store [type:HDataStore] Store locked by this thread.
+ * @name DSStoreUnlock
+ * @param store [type:HDSContext] Store locked by this thread.
  */
 
 #endif // DMSDK_DATASTORE_H

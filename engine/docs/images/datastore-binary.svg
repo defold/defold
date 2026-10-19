@@ -31,14 +31,14 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px
 <text x="64" y="112" class="label">Blob order</text>
 <text x="580" y="112" class="label">One table, expanded</text>
 <rect x="64" y="132" width="350" height="96" rx="7" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
-<text x="82" y="160" class="label">DataFileHeader · 8 bytes</text>
+<text x="82" y="160" class="label">DSFileHeader · 8 bytes</text>
 <text x="394" y="160" class="small" text-anchor="end">Byte</text>
 <text x="82" y="187" class="mono">char m_Magic[4]; // DFDS</text>
 <text x="82" y="212" class="mono">uint32_t m_Version; // 1</text>
 <text x="394" y="187" class="mono" text-anchor="end">0</text>
 <text x="394" y="212" class="mono" text-anchor="end">4</text>
 <rect x="64" y="240" width="350" height="96" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
-<text x="82" y="268" class="label">DataFileDirectory · 8 bytes</text>
+<text x="82" y="268" class="label">DSFileDirectory · 8 bytes</text>
 <text x="394" y="268" class="small" text-anchor="end">Byte</text>
 <text x="82" y="295" class="mono">uint32_t m_TableCount;</text>
 <text x="82" y="320" class="mono">uint32_t m_StringsOffset;</text>
@@ -61,7 +61,7 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px
 <path d="M 64 320 H 24 V 644 H 64" class="reference"/>
 <path d="M 414 477 H 502 V 166 H 580" class="expansion"/>
 <rect x="580" y="132" width="488" height="220" rx="0" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
-<text x="598" y="158" class="label">DataTableHeader · 24 bytes</text>
+<text x="598" y="158" class="label">DSTableHeader · 24 bytes</text>
 <text x="1048" y="158" class="small" text-anchor="end">Byte</text>
 <text x="598" y="185" class="mono">uint64_t m_TypeHash;</text>
 <text x="1048" y="185" class="mono" text-anchor="end">0</text>
@@ -82,10 +82,10 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px
 <text x="598" y="403" class="mono">uint64_t tags[m_TagCount];</text>
 <rect x="580" y="410" width="488" height="68" rx="0" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="598" y="436" class="label">Shared field metadata</text>
-<text x="598" y="461" class="mono">DataFileFieldMeta fields[m_MetadataCount];</text>
+<text x="598" y="461" class="mono">DSFileFieldMeta fields[m_MetadataCount];</text>
 <rect x="580" y="478" width="488" height="58" rx="0" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="598" y="504" class="label">Row records</text>
-<text x="598" y="529" class="mono">DataRow records[m_RowCount];</text>
+<text x="598" y="529" class="mono">DSRow records[m_RowCount];</text>
 <rect x="580" y="536" width="488" height="68" rx="0" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="598" y="562" class="label">Component values: row 0  |  row 1  |  …</text>
 <text x="598" y="587" class="mono">uint8_t values[m_RowCount][m_RowStride];</text>
@@ -101,7 +101,7 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px
 <text x="64" y="780" class="label">Shared file / runtime row record</text>
 <text x="580" y="780" class="label">One metadata entry</text>
 <rect x="64" y="800" width="480" height="330" rx="7" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
-<text x="82" y="828" class="label">DataRow · 32 bytes</text>
+<text x="82" y="828" class="label">DSRow · 32 bytes</text>
 <text x="524" y="828" class="small" text-anchor="end">Byte</text>
 <text x="82" y="862" class="mono">uint64_t m_Group;</text>
 <text x="524" y="862" class="mono" text-anchor="end">0</text>
@@ -120,7 +120,7 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px
 <text x="82" y="1070" class="small">Slot = stable ID slot; BaseIndex = source/default row;</text>
 <text x="82" y="1096" class="small">InstanceIndex = blob registration. Reserved stays zero.</text>
 <rect x="580" y="800" width="488" height="330" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
-<text x="598" y="828" class="label">DataFileFieldMeta · 32 bytes</text>
+<text x="598" y="828" class="label">DSFileFieldMeta · 32 bytes</text>
 <text x="1048" y="828" class="small" text-anchor="end">Byte</text>
 <text x="598" y="862" class="mono">uint64_t m_NameHash;</text>
 <text x="1048" y="862" class="mono" text-anchor="end">0</text>
@@ -142,7 +142,7 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px
 <text x="64" y="1172" class="label">One dynamic container</text>
 <text x="580" y="1172" class="label">Followed by m_Count entries in each array</text>
 <rect x="64" y="1192" width="480" height="206" rx="7" fill="#fff1da" stroke="#c3d0dd" stroke-width="1.5"/>
-<text x="82" y="1220" class="label">DataFileContainerHeader · 8 bytes</text>
+<text x="82" y="1220" class="label">DSFileContainerHeader · 8 bytes</text>
 <text x="524" y="1220" class="small" text-anchor="end">Byte</text>
 <text x="82" y="1254" class="mono">uint32_t m_ByteSize;</text>
 <text x="82" y="1278" class="mono">uint32_t m_Count;</text>

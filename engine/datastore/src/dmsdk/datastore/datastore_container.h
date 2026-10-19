@@ -22,26 +22,26 @@ extern "C"
 {
 #endif
 
-    typedef struct DataValueView
+    typedef struct DSValueView
     {
         // private
         uint64_t m_Storage[9];
-    } DataValueView;
+    } DSValueView;
 
-    DataResult    DataFieldGetView(HDataStore store, DataId id, uint64_t field, DataValueView* out_view);
-    void          DataRowIterGetView(const DataRowIterator* iterator, uint32_t field, DataValueView* out_view);
-    DataValueType DataViewGetType(const DataValueView* view);
-    DataResult    DataViewGetCount(const DataValueView* view, uint32_t* out_count);
-    DataResult    DataViewGetField(const DataValueView* view, uint64_t field, DataValueView* out_view);
-    DataResult    DataViewGetElement(const DataValueView* view, uint32_t index, DataValueView* out_view);
-    DataResult    DataViewGetNumber(const DataValueView* view, double* out_value);
-    DataResult    DataViewGetFloat(const DataValueView* view, float* out_value);
-    DataResult    DataViewGetUInt32(const DataValueView* view, uint32_t* out_value);
-    DataResult    DataViewGetBoolean(const DataValueView* view, uint8_t* out_value);
-    DataResult    DataViewGetString(const DataValueView* view, const char** out_value);
-    DataResult    DataViewGetVector3(const DataValueView* view, DataVector3* out_value);
-    DataResult    DataViewGetVector4(const DataValueView* view, DataVector4* out_value);
-    DataResult    DataViewGetMatrix4(const DataValueView* view, DataMatrix4* out_value);
+    DSResult    DSFieldGetView(HDSContext store, DSId id, uint64_t field, DSValueView* out_view);
+    void        DSRowIterGetView(const DSRowIterator* iterator, uint32_t field, DSValueView* out_view);
+    DSValueType DSViewGetType(const DSValueView* view);
+    DSResult    DSViewGetCount(const DSValueView* view, uint32_t* out_count);
+    DSResult    DSViewGetField(const DSValueView* view, uint64_t field, DSValueView* out_view);
+    DSResult    DSViewGetElement(const DSValueView* view, uint32_t index, DSValueView* out_view);
+    DSResult    DSViewGetNumber(const DSValueView* view, double* out_value);
+    DSResult    DSViewGetFloat(const DSValueView* view, float* out_value);
+    DSResult    DSViewGetUInt32(const DSValueView* view, uint32_t* out_value);
+    DSResult    DSViewGetBoolean(const DSValueView* view, uint8_t* out_value);
+    DSResult    DSViewGetString(const DSValueView* view, const char** out_value);
+    DSResult    DSViewGetVector3(const DSValueView* view, DSVector3* out_value);
+    DSResult    DSViewGetVector4(const DSValueView* view, DSVector4* out_value);
+    DSResult    DSViewGetMatrix4(const DSValueView* view, DSMatrix4* out_value);
 
 #ifdef __cplusplus
 }
@@ -55,7 +55,7 @@ extern "C"
  * Views allocate nothing. Use typed row getters for fixed fields in hot loops.
  *
  * @document
- * @name DataContainer
+ * @name DSContainer
  * @language C
  */
 
@@ -67,17 +67,17 @@ extern "C"
  * reservation. The private representation is not a serialized/native row layout.
  *
  * @struct
- * @name DataValueView
+ * @name DSValueView
  */
 
 /*# Read a field as a view
  *
- * @name DataFieldGetView
- * @param store [type:HDataStore] Store handle.
- * @param id [type:DataId] Row ID.
+ * @name DSFieldGetView
+ * @param store [type:HDSContext] Store handle.
+ * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Full field-name hash.
- * @param out_view [type:DataValueView*] Receives a borrowed view on success.
- * @return result [type:DataResult] OK, or NOT_FOUND for an absent row/field.
+ * @param out_view [type:DSValueView*] Receives a borrowed view on success.
+ * @return result [type:DSResult] OK, or NOT_FOUND for an absent row/field.
  */
 
 /*# Read a bound query field as a view
@@ -85,125 +85,125 @@ extern "C"
  * Uses the same valid-row and matching-handle contract as typed pointer getters.
  * Containers and strings require read-only access. No name lookup or allocation.
  *
- * @name DataRowIterGetView
- * @param iterator [type:const DataRowIterator*] Current row of a locked or reserved query.
- * @param field [type:uint32_t] Handle returned by DataQueryFindField.
- * @param out_view [type:DataValueView*] Receives a borrowed view.
+ * @name DSRowIterGetView
+ * @param iterator [type:const DSRowIterator*] Current row of a locked or reserved query.
+ * @param field [type:uint32_t] Handle returned by DSQueryFindField.
+ * @param out_view [type:DSValueView*] Receives a borrowed view.
  */
 
 /*# Read a view's kind
  *
- * @name DataViewGetType
- * @param view [type:const DataValueView*] Valid view.
- * @return type [type:DataValueType] Value kind, including NULL for a null element.
+ * @name DSViewGetType
+ * @param view [type:const DSValueView*] Valid view.
+ * @return type [type:DSValueType] Value kind, including NULL for a null element.
  */
 
 /*# Count container entries
  *
- * @name DataViewGetCount
- * @param view [type:const DataValueView*] Struct or list view.
+ * @name DSViewGetCount
+ * @param view [type:const DSValueView*] Struct or list view.
  * @param out_count [type:uint32_t*] Receives the immediate member/element count.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for a non-container.
+ * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a non-container.
  */
 
 /*# Read a struct member
  *
  * Uses a local member hash; repeat for further nesting. No member enumeration.
  *
- * @name DataViewGetField
- * @param view [type:const DataValueView*] Struct view, including an inline struct.
+ * @name DSViewGetField
+ * @param view [type:const DSValueView*] Struct view, including an inline struct.
  * @param field [type:uint64_t] Local member-name hash.
- * @param out_view [type:DataValueView*] Receives the member view; may alias view.
- * @return result [type:DataResult] OK, NOT_FOUND, or INVALID_ARGUMENT for a non-struct.
+ * @param out_view [type:DSValueView*] Receives the member view; may alias view.
+ * @return result [type:DSResult] OK, NOT_FOUND, or INVALID_ARGUMENT for a non-struct.
  */
 
 /*# Read a list element
  *
- * @name DataViewGetElement
- * @param view [type:const DataValueView*] List view.
+ * @name DSViewGetElement
+ * @param view [type:const DSValueView*] List view.
  * @param index [type:uint32_t] Zero-based element index.
- * @param out_view [type:DataValueView*] Receives the element view; may alias view.
- * @return result [type:DataResult] OK, NOT_FOUND outside the list, or INVALID_ARGUMENT for a non-list.
+ * @param out_view [type:DSValueView*] Receives the element view; may alias view.
+ * @return result [type:DSResult] OK, NOT_FOUND outside the list, or INVALID_ARGUMENT for a non-list.
  */
 
 /*# Read a Number view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DataViewGetNumber
- * @param view [type:const DataValueView*] Valid view.
+ * @name DSViewGetNumber
+ * @param view [type:const DSValueView*] Valid view.
  * @param out_value [type:double*] Receives the value on success.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Float view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DataViewGetFloat
- * @param view [type:const DataValueView*] Valid view.
+ * @name DSViewGetFloat
+ * @param view [type:const DSValueView*] Valid view.
  * @param out_value [type:float*] Receives the value on success.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a UInt32 view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DataViewGetUInt32
- * @param view [type:const DataValueView*] Valid view.
+ * @name DSViewGetUInt32
+ * @param view [type:const DSValueView*] Valid view.
  * @param out_value [type:uint32_t*] Receives the value on success.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Boolean view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DataViewGetBoolean
- * @param view [type:const DataValueView*] Valid view.
+ * @name DSViewGetBoolean
+ * @param view [type:const DSValueView*] Valid view.
  * @param out_value [type:uint8_t*] Receives the value on success.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a String view
  *
  * Borrows the NUL-terminated string until the view expires. Errors leave the output unchanged.
  *
- * @name DataViewGetString
- * @param view [type:const DataValueView*] Valid view.
+ * @name DSViewGetString
+ * @param view [type:const DSValueView*] Valid view.
  * @param out_value [type:const char**] Receives the value on success.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Vector3 view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DataViewGetVector3
- * @param view [type:const DataValueView*] Valid view.
- * @param out_value [type:DataVector3*] Receives the value on success.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @name DSViewGetVector3
+ * @param view [type:const DSValueView*] Valid view.
+ * @param out_value [type:DSVector3*] Receives the value on success.
+ * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Vector4 view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DataViewGetVector4
- * @param view [type:const DataValueView*] Valid view.
- * @param out_value [type:DataVector4*] Receives the value on success.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @name DSViewGetVector4
+ * @param view [type:const DSValueView*] Valid view.
+ * @param out_value [type:DSVector4*] Receives the value on success.
+ * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 /*# Read a Matrix4 view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DataViewGetMatrix4
- * @param view [type:const DataValueView*] Valid view.
- * @param out_value [type:DataMatrix4*] Receives the value on success.
- * @return result [type:DataResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @name DSViewGetMatrix4
+ * @param view [type:const DSValueView*] Valid view.
+ * @param out_value [type:DSMatrix4*] Receives the value on success.
+ * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
 
 #endif // DMSDK_DATASTORE_CONTAINER_H

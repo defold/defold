@@ -129,7 +129,7 @@ namespace dmEngine
         float                                       m_MouseSensitivity;
 
         HJobContext                                 m_JobThreadContext;
-        HDataStore                                  m_DataStore;
+        HDSContext                                  m_DataStore;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;

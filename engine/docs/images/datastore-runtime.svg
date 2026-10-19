@@ -20,14 +20,14 @@ specific language governing permissions and limitations under the License. -->
 <rect width="1080" height="664" rx="12" fill="#f5f8fc"/>
 <text x="28" y="40" class="title">New game objects append rows to the existing tables</text>
 <rect x="28" y="72" width="1024" height="79" rx="7" fill="#fff1da" stroke="#c3d0dd" stroke-width="1.5"/>
-<text x="48" y="101" class="label">1. Load once: DataLoadBlob(buffer, size, &amp;blob)</text>
+<text x="48" y="101" class="label">1. Load once: DSLoadBlob(buffer, size, &amp;blob)</text>
 <text x="48" y="132" class="small">The caller keeps the immutable buffer alive. Loading adds no runtime rows.</text>
 <path d="M 252 151 V 190" class="arrow"/>
 <path d="M 818 151 V 190" class="arrow"/>
 <text x="444" y="179" class="small">same loaded blob</text>
 <rect x="28" y="198" width="448" height="298" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="48" y="228" class="label">2. Register game object A</text>
-<text x="48" y="257" class="mono">DataAddBlob(store, blob, A, &amp;a)</text>
+<text x="48" y="257" class="mono">DSAddBlob(store, blob, A, &amp;a)</text>
 <text x="48" y="285" class="small">Copy A’s two component rows once.</text>
 <text x="48" y="324" class="label">PointLight table</text>
 <rect x="48" y="339" width="408" height="42" rx="4" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
@@ -39,7 +39,7 @@ specific language governing permissions and limitations under the License. -->
 <text x="498" y="327" class="small">append</text>
 <rect x="584" y="198" width="468" height="298" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="604" y="228" class="label">3. Register game object B</text>
-<text x="604" y="257" class="mono">DataAddBlob(store, blob, B, &amp;b)</text>
+<text x="604" y="257" class="mono">DSAddBlob(store, blob, B, &amp;b)</text>
 <text x="604" y="285" class="small">Reuse the tables; copy only B’s rows.</text>
 <text x="604" y="324" class="label">PointLight table</text>
 <rect x="604" y="339" width="202" height="42" rx="4" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
@@ -53,6 +53,6 @@ specific language governing permissions and limitations under the License. -->
 <text x="919" y="456" class="mono" text-anchor="middle">B’s new row</text>
 <rect x="28" y="528" width="1024" height="88" rx="7" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="48" y="558" class="label">Update in place · reset from the blob · remove by registration</text>
-<text x="48" y="588">Each component has a DataId; each game object’s registration groups its rows for reset/removal.</text>
+<text x="48" y="588">Each component has a DSId; each game object’s registration groups its rows for reset/removal.</text>
 <text x="28" y="646" class="small">New rows get the supplied group and stable IDs. Shared capacity grows only when needed.</text>
 </svg>

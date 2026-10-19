@@ -17,17 +17,17 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <dmsdk/datastore/datastore_types.h>
+#include <dmsdk/datastore/datastore_query.h>
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-    typedef struct DataIterator
+    typedef struct DSIterator
     {
         // private
-        HDataQuery      m_Query;
+        HDSQuery        m_Query;
         uint32_t        m_TableIndex;
         uint32_t        m_NextRow;
         uint32_t        m_StartRow;
@@ -43,65 +43,68 @@ extern "C"
         uint32_t        m_RangeIndex;
         uint32_t        m_Remaining;
         uint8_t         m_IsRange;
-    } DataIterator;
+        uint8_t         m_Flags;
+    } DSIterator;
 
-    typedef struct DataRowIterator
+    typedef struct DSRowIterator
     {
         // private
-        const DataIterator* m_Parent;
+        const DSIterator*   m_Parent;
         uint32_t            m_Index;
         uint32_t            m_NextRow;
-    } DataRowIterator;
+    } DSRowIterator;
 
     // Query batches
-    DataIterator DataQueryIterRange(HDataQuery query, uint32_t first, uint32_t count);
-    DataIterator DataQueryIter(HDataQuery query);
-    bool         DataIterNext(DataIterator* iterator);
-    uint64_t     DataIterGetType(const DataIterator* iterator);
+    DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count);
+    DSIterator DSQueryIter(HDSQuery query);
+    bool       DSIterNext(DSIterator* iterator);
+    uint64_t   DSIterGetType(const DSIterator* iterator);
 
     // Rows
-    static inline DataRowIterator DataIterRows(const DataIterator* iterator);
-    static inline bool            DataRowIterNext(DataRowIterator* iterator);
-    DataId                        DataRowIterGetId(const DataRowIterator* iterator);
-    DataGroupId                   DataRowIterGetGroupId(const DataRowIterator* iterator);
+    static inline DSRowIterator DSIterRows(const DSIterator* iterator);
+    static inline bool          DSRowIterNext(DSRowIterator* iterator);
+    DSId                        DSRowIterGetId(const DSRowIterator* iterator);
+    DSGroupId                   DSRowIterGetGroupId(const DSRowIterator* iterator);
+    static inline const void*   DSRowIterGetData(const DSRowIterator* iterator);
+    static inline void*         DSRowIterGetDataMut(const DSRowIterator* iterator);
 
     // Field pointers
-    static inline const double*      DataRowIterGetNumber(const DataRowIterator* iterator, uint32_t field);
-    static inline double*            DataRowIterGetNumberMut(const DataRowIterator* iterator, uint32_t field);
+    static inline const double*    DSRowIterGetNumber(const DSRowIterator* iterator, uint32_t field);
+    static inline double*          DSRowIterGetNumberMut(const DSRowIterator* iterator, uint32_t field);
 
-    static inline const float*       DataRowIterGetFloat(const DataRowIterator* iterator, uint32_t field);
-    static inline float*             DataRowIterGetFloatMut(const DataRowIterator* iterator, uint32_t field);
+    static inline const float*     DSRowIterGetFloat(const DSRowIterator* iterator, uint32_t field);
+    static inline float*           DSRowIterGetFloatMut(const DSRowIterator* iterator, uint32_t field);
 
-    static inline const uint32_t*    DataRowIterGetUInt32(const DataRowIterator* iterator, uint32_t field);
-    static inline uint32_t*          DataRowIterGetUInt32Mut(const DataRowIterator* iterator, uint32_t field);
+    static inline const uint32_t*  DSRowIterGetUInt32(const DSRowIterator* iterator, uint32_t field);
+    static inline uint32_t*        DSRowIterGetUInt32Mut(const DSRowIterator* iterator, uint32_t field);
 
-    static inline const uint8_t*     DataRowIterGetBoolean(const DataRowIterator* iterator, uint32_t field);
-    static inline uint8_t*           DataRowIterGetBooleanMut(const DataRowIterator* iterator, uint32_t field);
+    static inline const uint8_t*   DSRowIterGetBoolean(const DSRowIterator* iterator, uint32_t field);
+    static inline uint8_t*         DSRowIterGetBooleanMut(const DSRowIterator* iterator, uint32_t field);
 
-    static inline const DataVector3* DataRowIterGetVector3(const DataRowIterator* iterator, uint32_t field);
-    static inline DataVector3*       DataRowIterGetVector3Mut(const DataRowIterator* iterator, uint32_t field);
+    static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, uint32_t field);
+    static inline DSVector3*       DSRowIterGetVector3Mut(const DSRowIterator* iterator, uint32_t field);
 
-    static inline const DataVector4* DataRowIterGetVector4(const DataRowIterator* iterator, uint32_t field);
-    static inline DataVector4*       DataRowIterGetVector4Mut(const DataRowIterator* iterator, uint32_t field);
+    static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, uint32_t field);
+    static inline DSVector4*       DSRowIterGetVector4Mut(const DSRowIterator* iterator, uint32_t field);
 
-    static inline const DataMatrix4* DataRowIterGetMatrix4(const DataRowIterator* iterator, uint32_t field);
-    static inline DataMatrix4*       DataRowIterGetMatrix4Mut(const DataRowIterator* iterator, uint32_t field);
+    static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, uint32_t field);
+    static inline DSMatrix4*       DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, uint32_t field);
 
     // Inline implementations
 
     // private
     // Address calculation for the public pointer wrappers. Validated field handles and current
     // row indices are caller obligations; no repeated checks occur here.
-    static inline const void*     DataFieldGetPointerInternal(const DataIterator* batch, uint32_t row, uint32_t field);
-    static inline void*           DataFieldGetPointerMutInternal(const DataIterator* batch, uint32_t row, uint32_t field);
+    static inline const void*   DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, uint32_t field);
+    static inline void*         DSFieldGetPointerMutInternal(const DSIterator* batch, uint32_t row, uint32_t field);
 
-    static inline DataRowIterator DataIterRows(const DataIterator* iterator)
+    static inline DSRowIterator DSIterRows(const DSIterator* iterator)
     {
-        DataRowIterator rows = { .m_Parent = iterator, .m_Index = UINT32_MAX, .m_NextRow = iterator->m_StartRow };
+        DSRowIterator rows = { .m_Parent = iterator, .m_Index = UINT32_MAX, .m_NextRow = iterator->m_StartRow };
         return rows;
     }
 
-    static inline bool DataRowIterNext(DataRowIterator* iterator)
+    static inline bool DSRowIterNext(DSRowIterator* iterator)
     {
         if (iterator->m_NextRow >= iterator->m_Parent->m_EndRow)
         {
@@ -112,84 +115,98 @@ extern "C"
         return true;
     }
 
-    static inline const void* DataFieldGetPointerInternal(const DataIterator* batch, uint32_t row, uint32_t field)
+    static inline const void* DSRowIterGetData(const DSRowIterator* iterator)
+    {
+        if (!(iterator->m_Parent->m_Flags & DS_ROW_MUTABLE))
+            return 0;
+        return iterator->m_Parent->m_Values + (size_t)iterator->m_Index * iterator->m_Parent->m_RowStride;
+    }
+
+    static inline void* DSRowIterGetDataMut(const DSRowIterator* iterator)
+    {
+        if (!(iterator->m_Parent->m_Flags & DS_ROW_MUTABLE))
+            return 0;
+        return iterator->m_Parent->m_Values + (size_t)iterator->m_Index * iterator->m_Parent->m_RowStride;
+    }
+
+    static inline const void* DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, uint32_t field)
     {
         return batch->m_Values + (size_t)row * batch->m_RowStride + batch->m_FieldOffsets[field];
     }
 
-    static inline void* DataFieldGetPointerMutInternal(const DataIterator* batch, uint32_t row, uint32_t field)
+    static inline void* DSFieldGetPointerMutInternal(const DSIterator* batch, uint32_t row, uint32_t field)
     {
         return batch->m_Values + (size_t)row * batch->m_RowStride + batch->m_FieldOffsets[field];
     }
 
-    static inline const double* DataRowIterGetNumber(const DataRowIterator* iterator, uint32_t field)
+    static inline const double* DSRowIterGetNumber(const DSRowIterator* iterator, uint32_t field)
     {
-        return (const double*)DataFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (const double*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline double* DataRowIterGetNumberMut(const DataRowIterator* iterator, uint32_t field)
+    static inline double* DSRowIterGetNumberMut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (double*)DataFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (double*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const float* DataRowIterGetFloat(const DataRowIterator* iterator, uint32_t field)
+    static inline const float* DSRowIterGetFloat(const DSRowIterator* iterator, uint32_t field)
     {
-        return (const float*)DataFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (const float*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline float* DataRowIterGetFloatMut(const DataRowIterator* iterator, uint32_t field)
+    static inline float* DSRowIterGetFloatMut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (float*)DataFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (float*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const uint32_t* DataRowIterGetUInt32(const DataRowIterator* iterator, uint32_t field)
+    static inline const uint32_t* DSRowIterGetUInt32(const DSRowIterator* iterator, uint32_t field)
     {
-        return (const uint32_t*)DataFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (const uint32_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline uint32_t* DataRowIterGetUInt32Mut(const DataRowIterator* iterator, uint32_t field)
+    static inline uint32_t* DSRowIterGetUInt32Mut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (uint32_t*)DataFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (uint32_t*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const uint8_t* DataRowIterGetBoolean(const DataRowIterator* iterator, uint32_t field)
+    static inline const uint8_t* DSRowIterGetBoolean(const DSRowIterator* iterator, uint32_t field)
     {
-        return (const uint8_t*)DataFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (const uint8_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline uint8_t* DataRowIterGetBooleanMut(const DataRowIterator* iterator, uint32_t field)
+    static inline uint8_t* DSRowIterGetBooleanMut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (uint8_t*)DataFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (uint8_t*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const DataVector3* DataRowIterGetVector3(const DataRowIterator* iterator, uint32_t field)
+    static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, uint32_t field)
     {
-        return (const DataVector3*)DataFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (const DSVector3*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline DataVector3* DataRowIterGetVector3Mut(const DataRowIterator* iterator, uint32_t field)
+    static inline DSVector3* DSRowIterGetVector3Mut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (DataVector3*)DataFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (DSVector3*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const DataVector4* DataRowIterGetVector4(const DataRowIterator* iterator, uint32_t field)
+    static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, uint32_t field)
     {
-        return (const DataVector4*)DataFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (const DSVector4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline DataVector4* DataRowIterGetVector4Mut(const DataRowIterator* iterator, uint32_t field)
+    static inline DSVector4* DSRowIterGetVector4Mut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (DataVector4*)DataFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (DSVector4*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const DataMatrix4* DataRowIterGetMatrix4(const DataRowIterator* iterator, uint32_t field)
+    static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, uint32_t field)
     {
-        return (const DataMatrix4*)DataFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (const DSMatrix4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline DataMatrix4* DataRowIterGetMatrix4Mut(const DataRowIterator* iterator, uint32_t field)
+    static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (DataMatrix4*)DataFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (DSMatrix4*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
 #ifdef __cplusplus
@@ -203,7 +220,7 @@ extern "C"
  * Batch and row iteration with typed field pointers.
  *
  * @document
- * @name DataIter
+ * @name DSIter
  * @language C
  */
 
@@ -216,16 +233,16 @@ extern "C"
  * Batch and row order are unspecified.
  *
  * @struct
- * @name DataIterator
+ * @name DSIterator
  */
 
 /*# Row iterator
  *
- * Traverses the current batch. [ref:DataIterator] lifetime rules apply.
+ * Traverses the current batch. [ref:DSIterator] lifetime rules apply.
  * Writes and resets preserve iteration; fixed-size writes preserve sibling fields and defaults.
  *
  * @struct
- * @name DataRowIterator
+ * @name DSRowIterator
  */
 
 /*# Iterate a reserved row range
@@ -234,35 +251,35 @@ extern "C"
  * Each job owns its cursor; ranges must be in bounds and disjoint when writing.
  * Keep the reservation active until all iterators and borrowed pointers finish.
  *
- * @name DataQueryIterRange
- * @param query [type:HDataQuery] Query reserved for these jobs.
+ * @name DSQueryIterRange
+ * @param query [type:HDSQuery] Query reserved for these jobs.
  * @param first [type:uint32_t] Index in the reserved matching rows.
  * @param count [type:uint32_t] Row count; zero is allowed.
- * @return iterator [type:DataIterator] Cursor to advance with DataIterNext.
+ * @return iterator [type:DSIterator] Cursor to advance with DSIterNext.
  */
 
 /*# Start query iteration
  *
- * Requires DataStoreLock throughout traversal, including early exits.
+ * Requires DSStoreLock throughout traversal, including early exits.
  *
- * @name DataQueryIter
- * @param query [type:HDataQuery] Query to traverse.
- * @return iterator [type:DataIterator] Iterator with no current batch; advance using DataIterNext.
+ * @name DSQueryIter
+ * @param query [type:HDSQuery] Query to traverse.
+ * @return iterator [type:DSIterator] Iterator with no current batch; advance using DSIterNext.
  */
 
 /*# Advance to the next batch
  *
  * Selects a nonempty contiguous batch. Invalidates child iterators, including when exhausted.
  *
- * @name DataIterNext
- * @param iterator [type:DataIterator*] Iterator to advance.
+ * @name DSIterNext
+ * @param iterator [type:DSIterator*] Iterator to advance.
  * @return has_batch [type:bool] True for a new batch, or false when exhausted.
  */
 
 /*# Get the current table type
  *
- * @name DataIterGetType
- * @param iterator [type:const DataIterator*] Batch iterator.
+ * @name DSIterGetType
+ * @param iterator [type:const DSIterator*] Batch iterator.
  * @return type [type:uint64_t] Table type hash, or zero without a valid current batch. Zero may also be a valid type hash.
  */
 
@@ -270,171 +287,199 @@ extern "C"
  *
  * Borrows the current batch; empty when no batch is selected.
  *
- * @name DataIterRows
- * @param iterator [type:const DataIterator*] Parent query iterator to borrow.
- * @return rows [type:DataRowIterator] Iterator with no current row; advance using DataRowIterNext.
+ * @name DSIterRows
+ * @param iterator [type:const DSIterator*] Parent query iterator to borrow.
+ * @return rows [type:DSRowIterator] Iterator with no current row; advance using DSRowIterNext.
  */
 
 /*# Advance to the next row
  *
  * Invalidates borrowed field pointers; clears the current row when exhausted.
  *
- * @name DataRowIterNext
- * @param iterator [type:DataRowIterator*] Row iterator.
+ * @name DSRowIterNext
+ * @param iterator [type:DSRowIterator*] Row iterator.
  * @return has_row [type:bool] True for a new row, or false when exhausted.
  */
 
 /*# Get the current row ID
  *
- * @name DataRowIterGetId
- * @param iterator [type:const DataRowIterator*] Row iterator.
- * @return id [type:DataId] Store-local row ID, or zero without a valid current row.
+ * @name DSRowIterGetId
+ * @param iterator [type:const DSRowIterator*] Row iterator.
+ * @return id [type:DSId] Store-local row ID, or zero without a valid current row.
  */
 
 /*# Get the current row group
  *
- * @name DataRowIterGetGroupId
- * @param iterator [type:const DataRowIterator*] Row iterator.
- * @return group [type:DataGroupId] Current group, or zero without a valid row. Zero may also be a valid group.
+ * @name DSRowIterGetGroupId
+ * @param iterator [type:const DSRowIterator*] Row iterator.
+ * @return group [type:DSGroupId] Current group, or zero without a valid row. Zero may also be a valid group.
+ */
+
+/*# Borrow the native row bytes
+ *
+ * Requires a nonzero row stride. Cast only to the registered C layout,
+ * including its member offsets and size.
+ * Use DSIterGetType to distinguish layouts in queries matching multiple types.
+ * Returns zero unless the query flags include DS_ROW_MUTABLE.
+ * Otherwise reads any field; permissions are cached in the iterator.
+ * Reference slots are internal handles, not native pointers; use container accessors for them.
+ * The pointer follows DSIterator lifetime rules. No layout checks occur.
+ *
+ * @name DSRowIterGetData
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @return row [type:const void*] Borrowed read-only row start, or zero without whole-row access.
+ */
+
+/*# Borrow writable native row bytes
+ *
+ * Uses the layout and lifetime rules of DSRowIterGetData. Returns zero unless
+ * the query flags include DS_ROW_MUTABLE, which reserves reads and writes of the entire row.
+ * Never overwrite reference slots or whole rows containing references.
+ * Boolean writes must be zero or one. The access flag is cached in the iterator;
+ * this getter does not access the query or store.
+ *
+ * @name DSRowIterGetDataMut
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @return row [type:void*] Borrowed row start for fixed-size field writes, or zero without DS_ROW_MUTABLE.
  */
 
 /*# Borrow a read-only Number field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
  *
- * @name DataRowIterGetNumber
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Number handle from DataQueryFindField.
+ * @name DSRowIterGetNumber
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] Number handle from DSQueryFindField.
  * @return value [type:const double*] Borrowed read-only value.
  */
 
 /*# Borrow a writable Number field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
  *
- * @name DataRowIterGetNumberMut
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Number handle from DataQueryFindField.
+ * @name DSRowIterGetNumberMut
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] Number handle from DSQueryFindField.
  * @return value [type:double*] Borrowed writable value.
  */
 
 /*# Borrow a read-only Boolean field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
  *
- * @name DataRowIterGetBoolean
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Boolean handle from DataQueryFindField.
+ * @name DSRowIterGetBoolean
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] Boolean handle from DSQueryFindField.
  * @return value [type:const uint8_t*] Borrowed read-only value.
  */
 
 /*# Borrow a writable Boolean field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField]. Write only zero or one.
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField]. Write only zero or one.
  *
- * @name DataRowIterGetBooleanMut
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Boolean handle from DataQueryFindField.
+ * @name DSRowIterGetBooleanMut
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] Boolean handle from DSQueryFindField.
  * @return value [type:uint8_t*] Borrowed writable value.
  */
 
 /*# Borrow a read-only Vector3 field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
  *
- * @name DataRowIterGetVector3
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Vector3 handle from DataQueryFindField.
- * @return value [type:const DataVector3*] Borrowed read-only value.
+ * @name DSRowIterGetVector3
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] Vector3 handle from DSQueryFindField.
+ * @return value [type:const DSVector3*] Borrowed read-only value.
  */
 
 /*# Borrow a writable Vector3 field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
  *
- * @name DataRowIterGetVector3Mut
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Vector3 handle from DataQueryFindField.
- * @return value [type:DataVector3*] Borrowed writable value.
+ * @name DSRowIterGetVector3Mut
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] Vector3 handle from DSQueryFindField.
+ * @return value [type:DSVector3*] Borrowed writable value.
  */
 
 /*# Borrow a read-only Vector4 field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
  *
- * @name DataRowIterGetVector4
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Vector4 handle from DataQueryFindField.
- * @return value [type:const DataVector4*] Borrowed read-only value.
+ * @name DSRowIterGetVector4
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] Vector4 handle from DSQueryFindField.
+ * @return value [type:const DSVector4*] Borrowed read-only value.
  */
 
 /*# Borrow a writable Vector4 field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
  *
- * @name DataRowIterGetVector4Mut
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Vector4 handle from DataQueryFindField.
- * @return value [type:DataVector4*] Borrowed writable value.
+ * @name DSRowIterGetVector4Mut
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] Vector4 handle from DSQueryFindField.
+ * @return value [type:DSVector4*] Borrowed writable value.
  */
 
 /*# Borrow a read-only Matrix4 field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
  *
- * @name DataRowIterGetMatrix4
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Matrix4 handle from DataQueryFindField.
- * @return value [type:const DataMatrix4*] Borrowed read-only value.
+ * @name DSRowIterGetMatrix4
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] Matrix4 handle from DSQueryFindField.
+ * @return value [type:const DSMatrix4*] Borrowed read-only value.
  */
 
 /*# Borrow a writable Matrix4 field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
  *
- * @name DataRowIterGetMatrix4Mut
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Matrix4 handle from DataQueryFindField.
- * @return value [type:DataMatrix4*] Borrowed writable value.
+ * @name DSRowIterGetMatrix4Mut
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] Matrix4 handle from DSQueryFindField.
+ * @return value [type:DSMatrix4*] Borrowed writable value.
  */
 
 /*# Borrow a read-only Float field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
  *
- * @name DataRowIterGetFloat
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Float handle from DataQueryFindField.
+ * @name DSRowIterGetFloat
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] Float handle from DSQueryFindField.
  * @return value [type:const float*] Borrowed read-only value.
  */
 
 /*# Borrow a read-only UInt32 field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
  *
- * @name DataRowIterGetUInt32
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] UInt32 handle from DataQueryFindField.
+ * @name DSRowIterGetUInt32
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] UInt32 handle from DSQueryFindField.
  * @return value [type:const uint32_t*] Borrowed read-only value.
  */
 
 /*# Borrow a writable Float field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
  *
- * @name DataRowIterGetFloatMut
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Float handle from DataQueryFindField.
+ * @name DSRowIterGetFloatMut
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] Float handle from DSQueryFindField.
  * @return value [type:float*] Borrowed writable value.
  */
 
 /*# Borrow a writable UInt32 field
  *
- * Uses the handle and pointer lifetime rules of [ref:DataQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
  *
- * @name DataRowIterGetUInt32Mut
- * @param iterator [type:const DataRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] UInt32 handle from DataQueryFindField.
+ * @name DSRowIterGetUInt32Mut
+ * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @param field [type:uint32_t] UInt32 handle from DSQueryFindField.
  * @return value [type:uint32_t*] Borrowed writable value.
  */
 

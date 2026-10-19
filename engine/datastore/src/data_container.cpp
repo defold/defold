@@ -15,148 +15,148 @@
 #include <dlib/static_assert.h>
 #include "data.h"
 
-DM_STATIC_ASSERT(sizeof(DataValue) <= sizeof(DataValueView), Invalid_value_view_storage);
+DM_STATIC_ASSERT(sizeof(DSValue) <= sizeof(DSValueView), Invalid_value_view_storage);
 
 // Keep construction values private. Public views carry their borrowed result
 // without exposing a tagged value union or allocating an intermediate tree.
-static void WriteView(const DataValue& value, DataValueView* out_view)
+static void WriteView(const DSValue& value, DSValueView* out_view)
 {
     memcpy(out_view->m_Storage, &value, sizeof(value));
 }
 
-static DataValue ReadView(const DataValueView* view)
+static DSValue ReadView(const DSValueView* view)
 {
-    DataValue value;
+    DSValue value;
     memcpy(&value, view->m_Storage, sizeof(value));
     return value;
 }
 
-DataResult DataFieldGetView(HDataStore store, DataId id, uint64_t field, DataValueView* out_view)
+DSResult DSFieldGetView(HDSContext store, DSId id, uint64_t field, DSValueView* out_view)
 {
-    DataValue  value;
-    DataResult result = DataFieldGet(store, id, field, &value);
-    if (result == DATA_RESULT_OK)
+    DSValue  value;
+    DSResult result = DSFieldGet(store, id, field, &value);
+    if (result == DS_RESULT_OK)
         WriteView(value, out_view);
     return result;
 }
 
-void DataRowIterGetView(const DataRowIterator* iterator, uint32_t field, DataValueView* out_view)
+void DSRowIterGetView(const DSRowIterator* iterator, uint32_t field, DSValueView* out_view)
 {
-    const DataIterator*     batch = iterator->m_Parent;
-    const DataQueryBinding& binding = ((const DataQueryBinding*)batch->m_Fields)[field];
-    const DataRow*          row = (const DataRow*)batch->m_Rows + iterator->m_Index - batch->m_StartRow;
-    WriteView(ReadBoundValue((const DataTable*)batch->m_Table, row, binding.m_Meta), out_view);
+    const DSIterator*     batch = iterator->m_Parent;
+    const DSQueryBinding& binding = ((const DSQueryBinding*)batch->m_Fields)[field];
+    const DSRow*          row = (const DSRow*)batch->m_Rows + iterator->m_Index - batch->m_StartRow;
+    WriteView(ReadBoundValue((const DSTable*)batch->m_Table, row, binding.m_Meta), out_view);
 }
 
-DataValueType DataViewGetType(const DataValueView* view)
+DSValueType DSViewGetType(const DSValueView* view)
 {
     return ReadView(view).m_Type;
 }
 
-DataResult DataViewGetCount(const DataValueView* view, uint32_t* out_count)
+DSResult DSViewGetCount(const DSValueView* view, uint32_t* out_count)
 {
-    DataValue value = ReadView(view);
-    if (value.m_Type == DATA_TYPE_STRUCT)
+    DSValue value = ReadView(view);
+    if (value.m_Type == DS_TYPE_STRUCT)
         *out_count = value.m_Value.m_Struct.m_Count;
-    else if (value.m_Type == DATA_TYPE_LIST)
+    else if (value.m_Type == DS_TYPE_LIST)
         *out_count = value.m_Value.m_List.m_Count;
     else
-        return DATA_RESULT_INVALID_ARGUMENT;
-    return DATA_RESULT_OK;
+        return DS_RESULT_INVALID_ARGUMENT;
+    return DS_RESULT_OK;
 }
 
-DataResult DataViewGetField(const DataValueView* view, uint64_t field, DataValueView* out_view)
+DSResult DSViewGetField(const DSValueView* view, uint64_t field, DSValueView* out_view)
 {
-    DataValue value = ReadView(view);
-    if (value.m_Type != DATA_TYPE_STRUCT)
-        return DATA_RESULT_INVALID_ARGUMENT;
-    DataValue  child;
-    DataResult result = DataGetStructField(&value.m_Value.m_Struct, field, &child);
-    if (result == DATA_RESULT_OK)
+    DSValue value = ReadView(view);
+    if (value.m_Type != DS_TYPE_STRUCT)
+        return DS_RESULT_INVALID_ARGUMENT;
+    DSValue  child;
+    DSResult result = DSGetStructField(&value.m_Value.m_Struct, field, &child);
+    if (result == DS_RESULT_OK)
         WriteView(child, out_view);
     return result;
 }
 
-DataResult DataViewGetElement(const DataValueView* view, uint32_t index, DataValueView* out_view)
+DSResult DSViewGetElement(const DSValueView* view, uint32_t index, DSValueView* out_view)
 {
-    DataValue value = ReadView(view);
-    if (value.m_Type != DATA_TYPE_LIST)
-        return DATA_RESULT_INVALID_ARGUMENT;
-    DataValue  child;
-    DataResult result = DataGetListValue(&value.m_Value.m_List, index, &child);
-    if (result == DATA_RESULT_OK)
+    DSValue value = ReadView(view);
+    if (value.m_Type != DS_TYPE_LIST)
+        return DS_RESULT_INVALID_ARGUMENT;
+    DSValue  child;
+    DSResult result = DSGetListValue(&value.m_Value.m_List, index, &child);
+    if (result == DS_RESULT_OK)
         WriteView(child, out_view);
     return result;
 }
 
-DataResult DataViewGetNumber(const DataValueView* view, double* out_value)
+DSResult DSViewGetNumber(const DSValueView* view, double* out_value)
 {
-    DataValue value = ReadView(view);
-    if (value.m_Type != DATA_TYPE_NUMBER)
-        return DATA_RESULT_INVALID_ARGUMENT;
+    DSValue value = ReadView(view);
+    if (value.m_Type != DS_TYPE_NUMBER)
+        return DS_RESULT_INVALID_ARGUMENT;
     *out_value = value.m_Value.m_Number;
-    return DATA_RESULT_OK;
+    return DS_RESULT_OK;
 }
 
-DataResult DataViewGetFloat(const DataValueView* view, float* out_value)
+DSResult DSViewGetFloat(const DSValueView* view, float* out_value)
 {
-    DataValue value = ReadView(view);
-    if (value.m_Type != DATA_TYPE_FLOAT)
-        return DATA_RESULT_INVALID_ARGUMENT;
+    DSValue value = ReadView(view);
+    if (value.m_Type != DS_TYPE_FLOAT)
+        return DS_RESULT_INVALID_ARGUMENT;
     *out_value = value.m_Value.m_Float;
-    return DATA_RESULT_OK;
+    return DS_RESULT_OK;
 }
 
-DataResult DataViewGetUInt32(const DataValueView* view, uint32_t* out_value)
+DSResult DSViewGetUInt32(const DSValueView* view, uint32_t* out_value)
 {
-    DataValue value = ReadView(view);
-    if (value.m_Type != DATA_TYPE_UINT32)
-        return DATA_RESULT_INVALID_ARGUMENT;
+    DSValue value = ReadView(view);
+    if (value.m_Type != DS_TYPE_UINT32)
+        return DS_RESULT_INVALID_ARGUMENT;
     *out_value = value.m_Value.m_UInt32;
-    return DATA_RESULT_OK;
+    return DS_RESULT_OK;
 }
 
-DataResult DataViewGetBoolean(const DataValueView* view, uint8_t* out_value)
+DSResult DSViewGetBoolean(const DSValueView* view, uint8_t* out_value)
 {
-    DataValue value = ReadView(view);
-    if (value.m_Type != DATA_TYPE_BOOLEAN)
-        return DATA_RESULT_INVALID_ARGUMENT;
+    DSValue value = ReadView(view);
+    if (value.m_Type != DS_TYPE_BOOLEAN)
+        return DS_RESULT_INVALID_ARGUMENT;
     *out_value = value.m_Value.m_Boolean;
-    return DATA_RESULT_OK;
+    return DS_RESULT_OK;
 }
 
-DataResult DataViewGetString(const DataValueView* view, const char** out_value)
+DSResult DSViewGetString(const DSValueView* view, const char** out_value)
 {
-    DataValue value = ReadView(view);
-    if (value.m_Type != DATA_TYPE_STRING)
-        return DATA_RESULT_INVALID_ARGUMENT;
+    DSValue value = ReadView(view);
+    if (value.m_Type != DS_TYPE_STRING)
+        return DS_RESULT_INVALID_ARGUMENT;
     *out_value = value.m_Value.m_String;
-    return DATA_RESULT_OK;
+    return DS_RESULT_OK;
 }
 
-DataResult DataViewGetVector3(const DataValueView* view, DataVector3* out_value)
+DSResult DSViewGetVector3(const DSValueView* view, DSVector3* out_value)
 {
-    DataValue value = ReadView(view);
-    if (value.m_Type != DATA_TYPE_VECTOR3)
-        return DATA_RESULT_INVALID_ARGUMENT;
+    DSValue value = ReadView(view);
+    if (value.m_Type != DS_TYPE_VECTOR3)
+        return DS_RESULT_INVALID_ARGUMENT;
     memcpy(out_value, value.m_Value.m_Vector3, sizeof(*out_value));
-    return DATA_RESULT_OK;
+    return DS_RESULT_OK;
 }
 
-DataResult DataViewGetVector4(const DataValueView* view, DataVector4* out_value)
+DSResult DSViewGetVector4(const DSValueView* view, DSVector4* out_value)
 {
-    DataValue value = ReadView(view);
-    if (value.m_Type != DATA_TYPE_VECTOR4)
-        return DATA_RESULT_INVALID_ARGUMENT;
+    DSValue value = ReadView(view);
+    if (value.m_Type != DS_TYPE_VECTOR4)
+        return DS_RESULT_INVALID_ARGUMENT;
     memcpy(out_value, value.m_Value.m_Vector4, sizeof(*out_value));
-    return DATA_RESULT_OK;
+    return DS_RESULT_OK;
 }
 
-DataResult DataViewGetMatrix4(const DataValueView* view, DataMatrix4* out_value)
+DSResult DSViewGetMatrix4(const DSValueView* view, DSMatrix4* out_value)
 {
-    DataValue value = ReadView(view);
-    if (value.m_Type != DATA_TYPE_MATRIX4)
-        return DATA_RESULT_INVALID_ARGUMENT;
+    DSValue value = ReadView(view);
+    if (value.m_Type != DS_TYPE_MATRIX4)
+        return DS_RESULT_INVALID_ARGUMENT;
     memcpy(out_value, value.m_Value.m_Matrix4, sizeof(*out_value));
-    return DATA_RESULT_OK;
+    return DS_RESULT_OK;
 }

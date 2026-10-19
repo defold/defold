@@ -52,7 +52,7 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px
 <text x="1048" y="252" class="mono" text-anchor="end">16</text>
 <text x="598" y="278" class="mono">uint32_t · offsets[1]</text>
 <text x="1048" y="278" class="mono" text-anchor="end">20</text>
-<text x="598" y="320" class="small">kinds: DATA_TYPE_STRUCT, DATA_TYPE_STRUCT</text>
+<text x="598" y="320" class="small">kinds: DS_TYPE_STRUCT, DS_TYPE_STRUCT</text>
 <text x="50" y="298" class="small">Light payloads follow the list’s 24-byte index area.</text>
 <text x="50" y="326" class="small">Each Light carries its own member metadata.</text>
 <path d="M 1068 252 H 1080 V 382 H 276 V 432" class="reference"/>
@@ -79,7 +79,7 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px
 <text x="50" y="702" class="mono">double intensity;</text>
 <text x="500" y="702" class="mono" text-anchor="end">56</text>
 <text x="50" y="738" class="small">names: hash(&quot;color&quot;), hash(&quot;intensity&quot;)</text>
-<text x="50" y="764" class="small">kinds: DATA_TYPE_VECTOR3, DATA_TYPE_NUMBER</text>
+<text x="50" y="764" class="small">kinds: DS_TYPE_VECTOR3, DS_TYPE_NUMBER</text>
 <text x="50" y="804" class="small">color = (1.0, 0.8, 0.6); intensity = 1.0</text>
 <path d="M 32 598 H 16 V 650 H 32" class="reference"/>
 <path d="M 32 624 H 4 V 702 H 32" class="reference"/>
@@ -105,10 +105,10 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px
 <text x="598" y="702" class="mono">double intensity;</text>
 <text x="1048" y="702" class="mono" text-anchor="end">56</text>
 <text x="598" y="738" class="small">names: hash(&quot;color&quot;), hash(&quot;intensity&quot;)</text>
-<text x="598" y="764" class="small">kinds: DATA_TYPE_VECTOR3, DATA_TYPE_NUMBER</text>
+<text x="598" y="764" class="small">kinds: DS_TYPE_VECTOR3, DS_TYPE_NUMBER</text>
 <text x="598" y="804" class="small">color = (0.6, 0.8, 1.0); intensity = 2.0</text>
 <path d="M 580 598 H 564 V 650 H 580" class="reference"/>
 <path d="M 580 624 H 552 V 702 H 580" class="reference"/>
 <text x="32" y="868" class="small">The Light payloads are dynamic containers, with metadata before the values; they are not native Light rows.</text>
-<text x="32" y="896" class="small">The separate 32-byte DataRow record is omitted. The component value-row stride remains eight bytes.</text>
+<text x="32" y="896" class="small">The separate 32-byte DSRow record is omitted. The component value-row stride remains eight bytes.</text>
 </svg>

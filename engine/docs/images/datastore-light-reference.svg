@@ -63,7 +63,7 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px
 <text x="598" y="382" class="mono">double intensity;</text>
 <text x="1048" y="382" class="mono" text-anchor="end">56</text>
 <text x="598" y="418" class="small">names: hash(&quot;color&quot;), hash(&quot;intensity&quot;)</text>
-<text x="598" y="444" class="small">kinds: DATA_TYPE_VECTOR3, DATA_TYPE_NUMBER</text>
+<text x="598" y="444" class="small">kinds: DS_TYPE_VECTOR3, DS_TYPE_NUMBER</text>
 <text x="598" y="484" class="small">color = (1.0, 1.0, 1.0); intensity = 1.0</text>
 <path d="M 580 278 H 564 V 330 H 580" class="reference"/>
 <path d="M 580 304 H 552 V 382 H 580" class="reference"/>
@@ -71,6 +71,6 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px
 <text x="50" y="348" class="small">The Light payload is in the same blob.</text>
 <text x="50" y="394" class="small">Its metadata precedes the member values.</text>
 <text x="50" y="422" class="small">This payload cannot be cast to the native Light struct.</text>
-<text x="32" y="554" class="small">The separate 32-byte DataRow record is omitted. The component value-row stride remains sixteen bytes.</text>
+<text x="32" y="554" class="small">The separate 32-byte DSRow record is omitted. The component value-row stride remains sixteen bytes.</text>
 <text x="32" y="582" class="small">Native input pointers are copied during creation; serialization writes the current values and blob offsets.</text>
 </svg>
