@@ -229,14 +229,6 @@
     (or (nil? current)
         (newer-version? version current))))
 
-(defn- check-channel-offer! [updater]
-  (when (and (platform-supported? updater)
-             (= "stable" (installed-channel updater)))
-    (when-let [beta (fetch-channel-info! "beta")]
-      (swap! (:state-atom updater) assoc :channel-offer
-             (when (newer-than-running? (:version beta))
-               (assoc beta :channel "beta"))))))
-
 (defn- download-progress [state]
   (or (-> state :current-download :progress)
       (-> state :channel-download :progress)))
@@ -374,10 +366,8 @@
   (some? (:channel-download @(:state-atom updater))))
 
 (defn channel-offer
-  "Returns {:channel <string> :version <string> :sha1 <string>} when a channel
-  with a newer version than the installed one is worth suggesting, or nil.
-  Hidden while an update for the installed channel is pending or a download is
-  running, so only one link shows at a time."
+  "Returns the newer channel to suggest, or nil while an update or download is
+  pending."
   [updater]
   (let [{:keys [channel-offer downloaded-sha1]} @(:state-atom updater)]
     (when (and channel-offer
@@ -613,6 +603,14 @@
                          true)]
       (doseq [^File file backup-files]
         (.delete file)))))
+
+(defn- check-channel-offer! [updater]
+  (when (and (platform-supported? updater)
+             (= "stable" (installed-channel updater)))
+    (when-let [beta (fetch-channel-info! "beta")]
+      (swap! (:state-atom updater) assoc :channel-offer
+             (when (newer-than-running? (:version beta))
+               (assoc beta :channel "beta"))))))
 
 (defn check!
   "Checks for updates immediately. Returns true if the check completed (even

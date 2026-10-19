@@ -264,7 +264,8 @@
   "Offers to download the beta editor to a location the user picks, for them
   to install. The current installation stays as it is."
   [stage project updater localization]
-  (when (and (not (updater/channel-download-in-progress? updater))
+  (when (and (not (updater/download-in-progress? updater))
+             (not (updater/channel-download-in-progress? updater))
              (updater/begin-manual-update-check! updater))
     (future
       (let [channel "beta"

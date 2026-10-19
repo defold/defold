@@ -2913,6 +2913,7 @@
          (updater/platform-supported? updater)
          (= "stable" (updater/installed-channel updater))
          (not (updater/manual-update-check-in-progress? updater))
+         (not (updater/download-in-progress? updater))
          (not (updater/channel-download-in-progress? updater))))
   (run [updater project main-stage localization]
     (ui.updater/try-channel! main-stage project updater localization)))
