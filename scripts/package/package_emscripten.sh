@@ -4,8 +4,8 @@ set -e
 
 VERSION=4.0.6
 URL=https://github.com/emscripten-core/emsdk/archive/${VERSION}.tar.gz
-PLATFORM=`uname`
-PLATFORM="$(tr [A-Z] [a-z] <<< "$PLATFORM")"
+PLATFORM=$(uname | tr '[:upper:]' '[:lower:]')
+EMSDK_CMD=./emsdk
 
 PWD=`pwd`
 
@@ -14,9 +14,15 @@ if [ "${ARCH}" == 'i386' ]; then
 	ARCH='x86_64'
 fi
 
-if [ "${PLATFORM}" == 'darwin' ]; then
-	PLATFORM='macos'
-fi
+case "${PLATFORM}" in
+	darwin)
+		PLATFORM='macos'
+		;;
+	mingw*|msys*|cygwin*)
+		PLATFORM='win32'
+		EMSDK_CMD=./emsdk.bat
+		;;
+esac
 
 TARGET_PATH=${PWD}/local_sdks
 TMP=${TARGET_PATH}/_tmpdir
@@ -39,7 +45,7 @@ fi
 cd emsdk-${VERSION}
 
 if [ ! -d "upstream" ]; then
-	./emsdk install latest
+	"${EMSDK_CMD}" install "${VERSION}"
 fi
 
 cd ..

@@ -254,59 +254,109 @@ TEST_P(ArchiveProviderZip, ReadFile)
     }
 }
 
-TEST_P(ArchiveProviderZip, ReadFilePartial)
+static void CheckPartialReads(dmResourceProvider::HArchive archive, const char* path, bool extra_file)
 {
-    if (GetParam().m_Compressed)
+    dmhash_t path_hash = dmHashString64(path);
+    uint32_t expected_file_size;
+    const uint8_t* expected_file = GetRawFile(path, &expected_file_size, extra_file);
+    ASSERT_NE((uint8_t*)0, expected_file);
+
+    uint32_t file_size;
+    dmResourceProvider::Result result = dmResourceProvider::GetFileSize(archive, path_hash, path, &file_size);
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+    ASSERT_EQ(expected_file_size, file_size);
+
+    // Read across chunk boundaries, including a final chunk smaller than the request.
+    uint32_t chunk_size = dmMath::Max(1u, file_size / 5 + 1);
+    uint32_t buffer_size = file_size + chunk_size;
+    uint8_t* buffer = new uint8_t[buffer_size];
+    uint32_t offset = 0;
+    while (offset < file_size)
     {
-        printf("Skipping comparing comrpessed archive\n");
-        return;
+        uint32_t nread;
+        result = dmResourceProvider::ReadFilePartial(archive, path_hash, path, offset, chunk_size, &buffer[offset], &nread);
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+        ASSERT_EQ(dmMath::Min(chunk_size, file_size - offset), nread);
+        offset += nread;
+    }
+    ASSERT_ARRAY_EQ_LEN(expected_file, buffer, file_size);
+
+    // A single oversized request must stop at the resource's end, without including its header.
+    memset(buffer, 0xAB, buffer_size);
+    uint32_t nread;
+    result = dmResourceProvider::ReadFilePartial(archive, path_hash, path, 0, buffer_size, buffer, &nread);
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+    ASSERT_EQ(file_size, nread);
+    ASSERT_ARRAY_EQ_LEN(expected_file, buffer, file_size);
+    ASSERT_EQ(0xAB, buffer[file_size]);
+
+    // Empty reads and offsets at or beyond EOF must leave the destination untouched.
+    uint8_t sentinel = 0xAB;
+    nread = 1;
+    result = dmResourceProvider::ReadFilePartial(archive, path_hash, path, 0, 0, &sentinel, &nread);
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+    ASSERT_EQ(0U, nread);
+    ASSERT_EQ(0xAB, sentinel);
+
+    uint32_t eof_offsets[] = {file_size, file_size + 1, 0xFFFFFFFFU};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(eof_offsets); ++i)
+    {
+        nread = 1;
+        result = dmResourceProvider::ReadFilePartial(archive, path_hash, path, eof_offsets[i], 1, &sentinel, &nread);
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+        ASSERT_EQ(0U, nread);
+        ASSERT_EQ(0xAB, sentinel);
     }
 
-    uint32_t header_size = 16;//sizeof(dmResourceArchive::LiveUpdateResource);
+    delete[] buffer;
+    dmMemory::AlignedFree((void*)expected_file);
+}
 
+// Verifies #10320: partial reads return resource bytes without the Live Update header, including at EOF.
+TEST_P(ArchiveProviderZip, ReadFilePartial)
+{
+    if (!GetParam().m_Compressed)
+        CheckPartialReads(m_Archive, "/archive_data/liveupdate.file7.adc", false);
+}
+
+// Verifies ordinary ZIP entries keep their original offsets and obey the same partial-read boundaries.
+TEST_P(ArchiveProviderZip, ReadFilePartialExtraFiles)
+{
+    if (GetParam().m_ExtraFiles)
+    {
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(EXTRA_FILE_PATHS); ++i)
+            CheckPartialReads(m_Archive, EXTRA_FILE_PATHS[i], true);
+    }
+}
+
+// Verifies compressed and encrypted resources fail explicitly instead of exposing packed bytes to streaming decoders.
+TEST_P(ArchiveProviderZip, ReadFilePartialPackedResources)
+{
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(FILE_PATHS); ++i)
     {
         const char* path = FILE_PATHS[i];
-        dmhash_t path_hash = dmHashString64(path);
-
-        if (strstr(path, ".scriptc") != 0)
-        {
-            // Since the scripts are encrypted, we'll just skip the test for now,
-            // as the raw resource won't compare with the raw (encrypted) bytes we get from the archive.
-            printf("Skipping encrypted file: %s\n", path);
+        if (!GetParam().m_Compressed && strstr(path, ".scriptc") == 0)
             continue;
-        }
 
-        uint32_t expected_file_size;
-        uint8_t* expected_file = GetRawFile(path, &expected_file_size, false);
-        ASSERT_NE((uint8_t*)0, expected_file);
-
-        dmResourceProvider::Result result;
-
-        // Try to get chunk size non multiple of the file size
-        uint32_t total_size = expected_file_size + header_size;
-        uint8_t* buffer = new uint8_t[total_size];
-        uint32_t offset = 0;
-        uint32_t chunk_size = dmMath::Max(1u, total_size / 5 + 1);
-
-        while (offset < total_size)
-        {
-            uint32_t nread;
-            result = dmResourceProvider::ReadFilePartial(m_Archive, path_hash, path, offset, chunk_size, &buffer[offset], &nread);
-            ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
-            ASSERT_GE(chunk_size, nread);
-            ASSERT_NE(0u, nread);
-            offset += nread;
-        }
-
-        ASSERT_EQ(total_size, offset);
-
-        // since we don't want to compare the live update header, we'll skip that
-        ASSERT_ARRAY_EQ_LEN(expected_file, &buffer[header_size], expected_file_size);
-
-        delete[] buffer;
-        dmMemory::AlignedFree((void*)expected_file);
+        uint8_t buffer = 0xAB;
+        uint32_t nread = 1;
+        dmResourceProvider::Result result = dmResourceProvider::ReadFilePartial(m_Archive, dmHashString64(path), path, 0, 1, &buffer, &nread);
+        ASSERT_EQ(dmResourceProvider::RESULT_NOT_SUPPORTED, result);
+        ASSERT_EQ(0U, nread);
+        ASSERT_EQ(0xAB, buffer);
     }
+}
+
+// Verifies missing ZIP resources report no bytes read so mount lookup can continue safely.
+TEST_P(ArchiveProviderZip, ReadFilePartialMissing)
+{
+    const char* path = "/archive_data/missing.adc";
+    uint8_t buffer = 0xAB;
+    uint32_t nread = 1;
+    dmResourceProvider::Result result = dmResourceProvider::ReadFilePartial(m_Archive, dmHashString64(path), path, 0, 1, &buffer, &nread);
+    ASSERT_EQ(dmResourceProvider::RESULT_NOT_FOUND, result);
+    ASSERT_EQ(0U, nread);
+    ASSERT_EQ(0xAB, buffer);
 }
 
 #define FSPREFIX ""

@@ -90,13 +90,22 @@
         platform-profile (or (coll/first-where #(= :os-id-generic (:os %)) platforms)
                              (first platforms))
         texture-format (first (:formats platform-profile))]
-    (when (and platform-profile texture-format)
+    (when (and platform-profile (or texture-format (:keep-ktx2-format platform-profile)))
       {:name      "editor"
        :platforms [{:os                :os-id-generic
-                    :formats           [(update texture-format :format texture-format->editor-format)]
+                    :formats           (cond-> []
+                                         texture-format
+                                         (conj (update texture-format :format texture-format->editor-format)))
+                    :keep-ktx2-format  (:keep-ktx2-format platform-profile false)
                     :mipmaps           (:mipmaps platform-profile)
                     :max-texture-size  (:max-texture-size platform-profile)
                     :premultiply-alpha (:premultiply-alpha platform-profile)}]})))
+
+(defn make-ktx2-texture-image
+  ^TextureGenerator$GenerateResult [^bytes data texture-profile compress preview]
+  (let [texture-profile (if preview (make-preview-profile texture-profile) texture-profile)
+        ^Graphics$TextureProfile profile (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))]
+    (TextureGenerator/generate data profile (boolean compress))))
 
 ;; SDK api (DEPRECATE 2-arity version with the next release of extension-texturepacker).
 (defn make-preview-texture-image

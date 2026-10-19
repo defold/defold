@@ -14,13 +14,16 @@
 
 (ns editor.buffer
   (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.buffers :as buffers]
             [editor.code.lang.json :as json]
             [editor.code.resource :as r]
             [editor.localization :as localization]
-            [editor.pipeline :as pipeline]
+            [editor.protobuf :as protobuf]
+            [editor.workspace :as workspace]
             [util.murmur :as murmur])
-  (:import [com.dynamo.gamesys.proto BufferProto$BufferDesc]))
+  (:import [com.dynamo.bob.pipeline BufferBuilder]
+           [com.dynamo.gamesys.proto BufferProto$BufferDesc]))
 
 (def ^:private buffer-icon "icons/32/Icons_61-Buffer.png")
 
@@ -89,9 +92,24 @@
                                   :type (type->pb-value-type v)
                                   v))))
 
+(defn- build-buffer
+  [resource _dep-resources {:keys [streams digest-ignored/node-id]}]
+  (try
+    {:resource resource
+     :content (->> {:streams (mapv json-stream->pb-stream streams)}
+                   (protobuf/map->pb BufferProto$BufferDesc)
+                   (BufferBuilder/buildBuffer))}
+    (catch IllegalArgumentException error
+      (g/->error node-id :build-targets :fatal streams (.getMessage error)))))
+
 (g/defnk produce-build-targets [_node-id streams resource]
-  (let [pb-map {:streams (mapv json-stream->pb-stream streams)}]
-    [(pipeline/make-protobuf-build-target _node-id resource BufferProto$BufferDesc pb-map)]))
+  [(bt/with-content-hash
+     {:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-buffer
+      :user-data {:streams streams
+                  :format-version BufferBuilder/FORMAT_VERSION
+                  :digest-ignored/node-id _node-id}})])
 
 (g/defnk produce-streams [_node-id lines]
   (let [streams (try
@@ -110,7 +128,7 @@
 (g/defnode BufferNode
   (inherits r/CodeEditorResourceNode)
 
-  (output build-targets g/Any produce-build-targets)
+  (output build-targets g/Any :cached produce-build-targets)
   (output streams g/Any :cached produce-streams)
   (output stream-ids g/Any produce-stream-ids))
 
@@ -123,5 +141,4 @@
     :view-types [:code :default]
     :view-opts {:code {:grammar json/grammar}}
     :node-type BufferNode
-    :built-pb-class BufferProto$BufferDesc
     :lazy-loaded true))

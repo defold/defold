@@ -17,7 +17,7 @@ Avoid introducing multiple arities to functions. Prefer updating call sites with
 
 ## Anonymous `(fn ...)` names
 
-Name functions that are stored or invoked later for clearer stack traces. Small inline transformations may remain unnamed.
+Name functions that are stored or invoked later for clearer stack traces. Small inline transformations and `#(...)` may remain unnamed.
 
 ## Grouping and spacing
 
@@ -47,6 +47,10 @@ Prefer `if-let`/`when-let` over `if-some`/`when-some`. Latter can be used only w
 ## Linting
 
 Use `clj-kondo` to find and fix lint issues in your changes.
+
+## Formatting
+
+Format every touched file with `lein cljfmt fix ...`
 
 ## Editor recovery
 

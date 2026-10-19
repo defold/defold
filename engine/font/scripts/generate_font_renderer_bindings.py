@@ -56,6 +56,7 @@ FUNCTIONS = (
     "FontcHash",
     "FontcBeginBatch",
     "FontcGenerateTexture",
+    "FontcGetVectorTextures",
     "FontcFreeTexture",
     "FontcGetVertexBufferSize",
     "FontcGetVertices",

@@ -428,7 +428,7 @@
   ;; attribute-buffers will be assigned to attributes that share the same
   ;; semantic-type.
   (let [shader-attribute-reflection-infos-by-name-key
-        (coll/pair-map-by :name-key shader-attribute-reflection-infos)
+        (coll/pair-map-by :name-key identity shader-attribute-reflection-infos)
 
         decorated-material-attribute-infos
         (e/keep (fn [{:keys [name-key] :as material-attribute-info}]
@@ -630,7 +630,8 @@
   (dissoc current-property-value name-key))
 
 (defn- attribute-key->property-key-raw [attribute-key material-index]
-  (keyword (str "attribute_" material-index "_" (name attribute-key))))
+  ;; Use kebab-case property keys so editor extensions can resolve their Lua names.
+  (keyword (str "attribute-" material-index "-" (name attribute-key))))
 
 (def attribute-key->property-key (memoize attribute-key->property-key-raw))
 

@@ -2,6 +2,7 @@
   "single_line": {"width": 640, "height": 100, "origin_x": 20, "origin_top": 20, "layout_width": 3000},
   "english": {"width": 640, "height": 920, "origin_x": 20, "origin_top": 20, "layout_width": 600},
   "arabic": {"width": 640, "height": 1820, "origin_x": 20, "origin_top": 20, "layout_width": 600},
+  "vector": {"width": 704, "height": 180, "origin_x": 32, "origin_top": 32, "layout_width": 3000},
   "ttf_edge_half": {"width": 120, "height": 128, "origin_x": 8, "origin_top": -16, "layout_width": 3000},
   "ttf_edge_one": {"width": 192, "height": 208, "origin_x": -8, "origin_top": -48, "layout_width": 3000},
   "ttf_edge_two": {"width": 336, "height": 376, "origin_x": -32, "origin_top": -120, "layout_width": 3000},

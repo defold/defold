@@ -1,26 +1,37 @@
-{:lint-as {util.task/scope clojure.core/do
+{:lint-as {util.fn/defn-cached clojure.core/defn
+           util.task/scope clojure.core/do
            util.task/fork clojure.core/do
            util.task/with-open clojure.core/with-open}
  :config-in-call {util.task/scope {:linters {:redundant-do {:level :off}}}
                   util.task/fork {:linters {:redundant-do {:level :off}}}}
  :hooks {:analyze-call {clojure.core/boolean hooks.clojure-core/boolean
                         clojure.core/bounded-count hooks.clojure-core/bounded-count
+                        clojure.core/declare hooks.docstrings/declare-call
+                        clojure.core/def hooks.docstrings/def-call
+                        clojure.core/definline hooks.docstrings/declaration
+                        clojure.core/defmacro hooks.docstrings/declaration
+                        clojure.core/defmulti hooks.docstrings/declaration
                         clojure.core/defn hooks.clojure-core/defn-call
                         clojure.core/defn- hooks.clojure-core/defn-call
+                        clojure.core/defonce hooks.docstrings/metadata
                         clojure.core/definterface hooks.clojure-core/definterface
                         clojure.core/defprotocol hooks.clojure-core/defprotocol
                         clojure.core/defrecord hooks.clojure-core/defrecord
+                        clojure.core/defstruct hooks.docstrings/metadata
                         clojure.core/deftype hooks.clojure-core/deftype
                         clojure.core/empty? hooks.clojure-core/empty?
                         clojure.core/every? hooks.clojure-core/every?
                         clojure.core/fn hooks.clojure-core/fn-call
                         clojure.core/fn* hooks.clojure-core/fn-call
+                        clojure.core/into hooks.clojure-core/into
                         clojure.core/keys hooks.clojure-core/keys
                         clojure.core/map hooks.clojure-core/map
                         clojure.core.cache/defcache hooks.clojure-core-cache/defcache
+                        clojure.core/not hooks.clojure-core/not-call
                         clojure.core/not-any? hooks.clojure-core/not-any?
                         clojure.core/not-empty hooks.clojure-core/not-empty
                         clojure.core/not-every? hooks.clojure-core/not-every?
+                        clojure.core/ns hooks.docstrings/declaration
                         clojure.core/some hooks.clojure-core/some
                         clojure.core/vals hooks.clojure-core/vals
                         clojure.string/join hooks.clojure-string/join
@@ -84,15 +95,23 @@
                         util.defonce/protocol hooks.util-defonce/protocol
                         util.defonce/record hooks.util-defonce/record
                         util.defonce/type hooks.util-defonce/type
+                        util.fn/defn-cached hooks.docstrings/declaration
                         util.fn/defamong hooks.util-fn/defamong}}
  :linters {:defold/defn-return-type-hint-placement {:level :warning}
            :defold/deprecated-make-nodes-graph-id {:level :warning}
+           :defold/docstring-line-length {:level :warning
+                                          :max-line-length 80}
+           :defold/prefer-coll-into-> {:level :warning}
            :defold/prefer-coll-join-to-string {:level :warning}
            :defold/prefer-defonce {:level :warning}
            :defold/prefer-util-coll {:level :warning}
            :deprecated-var {:exclude {internal.graph.types/node-id->graph-id
                                       {:namespaces [dynamo.graph]}}}
-           :discouraged-var {dynamo.graph/node-id->graph-id
+           :discouraged-var {clojure.core/with-redefs
+                             {:message "Avoid redefining Vars; exercise the real code instead."}
+                             clojure.core/with-redefs-fn
+                             {:message "Avoid redefining Vars; exercise the real code instead."}
+                             dynamo.graph/node-id->graph-id
                              {:message "node-id->graph-id is deprecated."}
                              editor.defold-project/get-project
                              {:arities #{2}
