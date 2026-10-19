@@ -142,8 +142,8 @@ static bool CreateProgram(FontViewerVectorFont* cache)
     dmGraphics::ShaderDescBuilder shaders;
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, (const char*)FONTVIEWER_VECTOR_VP, FONTVIEWER_VECTOR_VP_SIZE);
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment.Begin(), fragment.Size() - 1);
-    const char*                          attributes[] = { "position", "color", "clip", "font_position", "paint" };
-    const uint32_t                       components[] = { 4, 4, 4, 2, 1 };
+    const char*                                attributes[] = { "position", "color", "clip", "font_position", "paint" };
+    const uint32_t                             components[] = { 4, 4, 4, 2, 1 };
     const dmGraphics::ShaderDesc::ShaderDataType types[] = {
         dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4,
         dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC2,

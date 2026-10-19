@@ -1122,7 +1122,7 @@ namespace dmRender
 
     const FontVectorPaintGlyph* GetVectorPaintGlyph(HFontMap font_map, HFont font, uint32_t glyph)
     {
-        uint64_t key[2] = { (uint64_t)(uintptr_t)font, glyph };
+        uint64_t  key[2] = { (uint64_t)(uintptr_t)font, glyph };
         uint32_t* index = font_map->m_VectorPaint->m_GlyphLookup.Get(dmHashBuffer64(key, sizeof(key)));
         return index ? &font_map->m_VectorPaint->m_Glyphs[*index] : 0;
     }
@@ -1130,9 +1130,9 @@ namespace dmRender
     void PrepareVectorPaintGlyphs(HFontMap font_map, HTextLayout layout, uint32_t frame, uint32_t max_glyph_count)
     {
         FontVectorPaintCache* cache = font_map->m_VectorPaint;
-        uint32_t previous_count = cache->m_Glyphs.Size();
-        TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
-        uint32_t glyph_slot = 0;
+        uint32_t              previous_count = cache->m_Glyphs.Size();
+        TextGlyph*            glyphs = TextLayoutGetGlyphs(layout);
+        uint32_t              glyph_slot = 0;
         for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout) && glyph_slot < max_glyph_count; ++i)
         {
             const TextGlyph& glyph = glyphs[i];
@@ -1142,7 +1142,7 @@ namespace dmRender
             if (!FontVectorPaintHasGlyph(glyph.m_Font, glyph.m_GlyphIndex))
                 continue;
             uint32_t index;
-            bool has_color;
+            bool     has_color;
             if (!FontVectorPaintAddGlyph(cache, glyph.m_Font, glyph.m_GlyphIndex, &index, &has_color) && cache->m_Slug->m_Overflow)
             {
                 font_map->m_SlugResetPending = true;
@@ -1153,7 +1153,7 @@ namespace dmRender
         if (cache->m_Glyphs.Size() == previous_count)
             return;
         FontVectorSlugData* data = cache->m_Slug;
-        const uint32_t atlas_height = data->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH;
+        const uint32_t      atlas_height = data->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH;
         UpdateVectorTexture(font_map, font_map->m_Texture, dmGraphics::TEXTURE_FORMAT_RGBA16F,
             FONT_VECTOR_SLUG_WIDTH, atlas_height, data->m_Curves.Begin(), data->m_Curves.Capacity() * sizeof(uint16_t));
         UpdateVectorTexture(font_map, font_map->m_VectorBandTexture, dmGraphics::TEXTURE_FORMAT_R32UI,

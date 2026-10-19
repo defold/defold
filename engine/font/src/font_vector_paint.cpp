@@ -305,11 +305,11 @@ static void EncodeGlyph(FontVectorPaintCache* cache, FontVectorPaintGlyph* glyph
     {
         const FontVectorPaintLayer& layer = cache->m_Layers[glyph->m_FirstLayer + i];
         const FontVectorPaintPath&  path = cache->m_Paths[layer.m_Path];
-        Matrix4                     inverse_transform = inverse(layer.m_Transform);
-        float                       width = path.m_Bounds.getZ() - path.m_Bounds.getX();
-        float                       height = path.m_Bounds.getW() - path.m_Bounds.getY();
-        Matrix4 uv = Matrix4::scale(dmVMath::Vector3(1.0f / width, 1.0f / height, 1)) *
-                     Matrix4::translation(dmVMath::Vector3(-path.m_Bounds.getX(), -path.m_Bounds.getY(), 0)) * inverse_transform;
+        Matrix4                    inverse_transform = inverse(layer.m_Transform);
+        float                      width = path.m_Bounds.getZ() - path.m_Bounds.getX();
+        float                      height = path.m_Bounds.getW() - path.m_Bounds.getY();
+        Matrix4                    uv = Matrix4::scale(dmVMath::Vector3(1.0f / width, 1.0f / height, 1)) *
+                                        Matrix4::translation(dmVMath::Vector3(-path.m_Bounds.getX(), -path.m_Bounds.getY(), 0)) * inverse_transform;
         Matrix4 paint = layer.m_PaintTransform * inverse_transform;
         Append(cache->m_Paints, PaintRow(uv, 0, (float)path.m_Slug.m_BandTexel));
         // A negative paint index marks a shared composite. Ordinary layers can
@@ -351,7 +351,7 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
     glyph.m_Font = source;
     glyph.m_Glyph = glyph_index;
     glyph.m_FirstLayer = cache->m_Layers.Size();
-    PaintContext         context;
+    PaintContext context;
     context.m_Cache = cache;
     context.m_Font = source;
     context.m_Failed = false;
@@ -413,8 +413,8 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
 
 void FontVectorPaintPackGlyph(const FontVectorPaintGlyph& glyph, float scale, float pixel_scale, float x, float y, const Matrix4& transform, const Vector4& clip, const TextGlyphFaceColors& colors, FontVectorPaintVertex vertices[6])
 {
-    static const uint32_t       corners[] = { 0, 2, 1, 1, 2, 3 };
-    const float*                rgba[] = { colors.m_BottomLeft, colors.m_BottomRight, colors.m_TopLeft, colors.m_TopRight };
+    static const uint32_t corners[] = { 0, 2, 1, 1, 2, 3 };
+    const float*          rgba[] = { colors.m_BottomLeft, colors.m_BottomRight, colors.m_TopLeft, colors.m_TopRight };
     if (!glyph.m_LayerCount || glyph.m_Bounds.getX() >= glyph.m_Bounds.getZ() || glyph.m_Bounds.getY() >= glyph.m_Bounds.getW())
     {
         memset(vertices, 0, 6 * sizeof(*vertices));

@@ -279,7 +279,7 @@ struct Viewer
     HFontCollection                m_Collection;
     FontViewerVectorFont*          m_VectorFont;
     dmArray<HFont>                 m_Fonts;
-    HFont                         m_EmojiFonts[2];
+    HFont                          m_EmojiFonts[2];
     dmArray<char>                  m_LoadedFontText;
     uint64_t                       m_LoadedFontDataSize;
     dmArray<const char*>           m_FontPaths;
@@ -2625,7 +2625,7 @@ static bool BuildFontData(Viewer* viewer)
 static bool CreateGraphicsResources(Viewer* viewer)
 {
     dmGraphics::ShaderDescBuilder shaders;
-    const bool bitmap = viewer->m_Properties.m_RenderMode == FONT_VIEWER_RENDER_BITMAP;
+    const bool                    bitmap = viewer->m_Properties.m_RenderMode == FONT_VIEWER_RENDER_BITMAP;
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
                       (const char*)(bitmap ? FONTVIEWER_FONT_BITMAP_VP : FONTVIEWER_FONT_DF_VP), bitmap ? FONTVIEWER_FONT_BITMAP_VP_SIZE : FONTVIEWER_FONT_DF_VP_SIZE);
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,

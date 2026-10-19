@@ -135,7 +135,7 @@ struct VectorImageResources
 static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext context, VectorImageResources& resources)
 {
     const bool  baked = strstr(c.m_Source, "_bank") != 0;
-    const bool color = strstr(c.m_Name, "_color") != 0;
+    const bool  color = strstr(c.m_Name, "_color") != 0;
     const bool  depth_overlap = strstr(c.m_Name, "_depth_overlap") != 0;
     const bool  decorations = strstr(c.m_Name, "_decorations") != 0;
     const bool  atlas_growth = strstr(c.m_Name, "_atlas_growth") != 0;

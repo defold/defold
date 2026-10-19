@@ -295,7 +295,7 @@ struct FontTrueTypePrivate
 
 struct FontTrueType
 {
-    FontColr                    m_Colr;               // Borrowed color tables and palette zero.
+    FontColr                     m_Colr;               // Borrowed color tables and palette zero.
     const uint8_t*               m_FontData;           // Borrowed complete SFNT or TTC data.
     const uint8_t*               m_Data;               // Borrowed CFF/CFF2 table data; null for glyf.
     uint32_t                     m_DataSize;           // Size of m_Data in bytes.
