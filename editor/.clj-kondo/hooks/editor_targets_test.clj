@@ -12,13 +12,12 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns hooks.editor-windows-process-test
-  (:require [clj-kondo.hooks-api :as api]))
+(ns hooks.editor-targets-test
+  (:require [hooks.integration-test-util :as test-util]))
 
-(defn with-child-process [{:keys [node]}]
-  (let [[_ options form arguments & body] (:children node)]
-    {:node (api/list-node
-             (list* (api/token-node 'let)
-                    (api/vector-node [(api/token-node 'process)
-                                      (api/vector-node [options form arguments])])
-                    body))}))
+(defn with-launched-target [{:keys [node]}]
+  (let [[_ handler & body] (:children node)
+        forms (into [handler] body)]
+    {:node (test-util/let-node
+             (test-util/implicit-binding-nodes {'process nil 'target nil} forms)
+             forms)}))

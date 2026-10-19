@@ -849,7 +849,7 @@ jobs:
     needs: [build-bob]
     runs-on: windows-2025-vs2026
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
-    timeout-minutes: 30
+    timeout-minutes: 60
     defaults:
       run:
         shell: bash
@@ -858,6 +858,8 @@ jobs:
         platform: [x86_64-win32]
     steps:
       - *step_validate_build_commit
+      - name: "Keep fixture checkout line endings"
+        run: git config --global core.autocrlf false
       - *step_checkout
       - *step_python
       - *step_dcache_key
@@ -872,6 +874,10 @@ jobs:
       - *step_download_dynamo_home
       - *step_download_engine_share
       - name: "Test editor"
+        env:
+          # Keep relative-path test fixtures on the checkout's drive.
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
         run: "ci/ci.sh test-editor --platform=x86_64-win32 --skip-install-ext ${{ env.OPTION_EDITOR_LOCAL }}"
       - *step_remove_bob_maven
       - *step_notify

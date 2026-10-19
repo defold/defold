@@ -270,7 +270,8 @@
 
 (deftest output-overrides-route-to-the-current-suspending-execution
   (test-support/with-clean-system
-    (let [default-out (StringWriter.)
+    (let [line-separator (System/lineSeparator)
+          default-out (StringWriter.)
           default-err (StringWriter.)
           override-out (StringWriter.)
           override-err (StringWriter.)
@@ -297,9 +298,9 @@
            (rt/bind rt)
            (rt/invoke-suspending-1 rt)
            (deref))
-      (is (= "default before\ndefault after\n" (.toString default-out)))
+      (is (= (str "default before" line-separator "default after" line-separator) (.toString default-out)))
       (is (= "default err before\ndefault err after\n" (.toString default-err)))
-      (is (= "override\noverride after\n" (.toString override-out)))
+      (is (= (str "override" line-separator "override after" line-separator) (.toString override-out)))
       (is (= "override err\noverride err after\n" (.toString override-err))))))
 
 (deftest suspending-lua-failure-test
@@ -1307,16 +1308,16 @@ zip.pack('mixed.zip', {{'foo', '9', level = 9}, {'foo', '1', level = 1}, {'foo',
 Archive path is a directory:
 zip.pack('foo', {'game.project'}) => error: Output path is a directory: foo
 Source path does not exist:
-zip.pack('error.zip', {'does-not-exist.txt'}) => error: Source path does not exist: " root "/does-not-exist.txt
+zip.pack('error.zip', {'does-not-exist.txt'}) => error: Source path does not exist: " (path/of root "does-not-exist.txt") "
 Target path is absolute:
 zip.pack('error.zip', {'" (System/getenv "HOME") "'}) => error: Target path must be relative: " (System/getenv "HOME") "
 Target path is a relative path above root:
-zip.pack('error.zip', {{'game.project', '../../game.project'}}) => error: Target path is above archive root: ../../game.project
-zip.pack('error.zip', {{'game.project', 'foo/bar/../../../../game.project'}}) => error: Target path is above archive root: ../../game.project
+zip.pack('error.zip', {{'game.project', '../../game.project'}}) => error: Target path is above archive root: " (path/of "../../game.project") "
+zip.pack('error.zip', {{'game.project', 'foo/bar/../../../../game.project'}}) => error: Target path is above archive root: " (path/of "../../game.project") "
 Testing zip.unpack...
 zip.unpack('script.zip', 'build', {'script.sh'}) => ok
 Default conflict resolution is error:
-zip.unpack('script.zip', 'build', {'script.sh'}) => error: Path already exists: " root "/build/script.sh
+zip.unpack('script.zip', 'build', {'script.sh'}) => error: Path already exists: " (path/of root "build/script.sh") "
 Overwrite option:
 zip.unpack('script.zip', 'build', {on_conflict = 'overwrite'}, {'script.sh'}) => ok
 Skip:
@@ -1327,15 +1328,15 @@ zip.unpack('multiple.zip', 'build/skip', {on_conflict = 'skip'}) => ok
 build/skip/foo exists: true
 build/skip/bar exists: true
 Overwrite can't replace directory with a file:
-zip.unpack('script.zip', 'build/dir_conflict', {on_conflict = 'overwrite'}) => error: Can't overwrite directory: " root "/build/dir_conflict/script.sh
+zip.unpack('script.zip', 'build/dir_conflict', {on_conflict = 'overwrite'}) => error: Can't overwrite directory: " (path/of root "build/dir_conflict/script.sh") "
 Partial unpack:
 zip.unpack('multiple.zip', 'build/subset', {'settings.ini'}) => ok
 build/subset/settings.ini exists: true
 build/subset/bar exists: false
 build/subset/foo exists: false
 Archive validation:
-zip.unpack('does-not-exist.zip') => error: Archive path does not exist: " root "/does-not-exist.zip
-zip.unpack('foo') => error: Archive path is a directory: " root "/foo
+zip.unpack('does-not-exist.zip') => error: Archive path does not exist: " (path/of root "does-not-exist.zip") "
+zip.unpack('foo') => error: Archive path is a directory: " (path/of root "foo") "
 Paths validation:
 zip.unpack('script.zip', 'build', {on_conflict = 'skip'}, {'foo/../../../bar'}) => error: Invalid argument:
 - \"foo/../../../bar\" is above root
@@ -1543,6 +1544,7 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
 (deftest eval-route-test
   (test-util/with-loaded-project
     (let [token "test-token"
+          line-separator (System/lineSeparator)
           handler (web-server/make-dynamic-handler (ext.server/routes project token))
           displayed-output (atom [])]
       (with-open [server (http-server/start! handler)]
@@ -1574,7 +1576,7 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
             (let [{:keys [status headers body]} (eval-lua! "print('hello')\nio.stderr:write('err\\n')\nreturn 1, 'x', true")]
               (is (= 200 status))
               (is (= "text/plain; charset=utf-8" (get headers "content-type")))
-              (is (= "hello\nerr\n=> 1\n=> x\n=> true\n" body))))
+              (is (= (str "hello" line-separator "err\n=> 1\n=> x\n=> true\n") body))))
           (testing "Return with no values."
             (let [{:keys [status body]} (eval-lua! "return")]
               (is (= 200 status))
@@ -1590,7 +1592,7 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
           (testing "Runtime errors include previous output."
             (let [{:keys [status body]} (eval-lua! "print('before')\nerror('boom')")]
               (is (= 422 status))
-              (is (string/starts-with? body "before\n"))
+              (is (string/starts-with? body (str "before" line-separator)))
               (is (string/includes? body "boom"))))
           (testing "Suspending editor functions retain output capture."
             (let [{:keys [status body]} (eval-lua! "return editor.execute('git', 'status', {out = 'capture'})")]
@@ -1600,7 +1602,7 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
             (reset! displayed-output [])
             (let [{:keys [status body]} (eval-lua! "print('captured')")]
               (is (= 200 status))
-              (is (= "captured\n" body))
+              (is (= (str "captured" line-separator) body))
               (is (= [] @displayed-output)))))))))
 
 (deftest property-availability-test
