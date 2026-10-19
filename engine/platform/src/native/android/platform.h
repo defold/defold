@@ -215,7 +215,9 @@ NativeGLOBAL struct {
     unsigned char Button[NATIVE_ANDROID_GAMEPAD_NUMBUTTONS + 3];
     unsigned char Hats;
     int           LayoutLegacy;
-    int           HasAxisEvent;
+    // Keep mapping defaults separate from axes that have reported a nonzero sample.
+    uint64_t      AxisEventMask;
+    uint64_t      AxisInitialMask;
     int           AxisIds[NATIVE_ANDROID_GAMEPAD_MAX_AXES];
     float         AxisMin[NATIVE_ANDROID_GAMEPAD_MAX_AXES];
     float         AxisRange[NATIVE_ANDROID_GAMEPAD_MAX_AXES];

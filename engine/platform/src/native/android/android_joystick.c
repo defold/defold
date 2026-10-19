@@ -86,7 +86,8 @@ static int32_t dmNativeAndroidConnectJoystick(int32_t deviceId, const char* devi
             dmNativeJoy[joystickIndex].LayoutLegacy = 1;
             dmNativeJoy[joystickIndex].NumAxes = axisCount;
             dmNativeJoy[joystickIndex].NumButtons = 0;
-            dmNativeJoy[joystickIndex].HasAxisEvent = 0;
+            dmNativeJoy[joystickIndex].AxisEventMask = 0;
+            dmNativeJoy[joystickIndex].AxisInitialMask = 0;
             for (int i = 0; i < axisCount; ++i)
             {
                 dmNativeJoy[joystickIndex].AxisIds[i] = (int)axes[i * 3];
@@ -117,15 +118,20 @@ void dmNativeAndroidSetJoystickLayoutLegacy(int joy, int legacy)
 
 void dmNativeAndroidInitializeJoystickAxes(int joy, const float* axes, int num_axes)
 {
-    if (dmNativeJoy[joy].HasAxisEvent)
-        return;
     if (num_axes > dmNativeJoy[joy].NumAxes)
         num_axes = dmNativeJoy[joy].NumAxes;
     // Mapping values are normalized; the shared state keeps physical device values.
     for (int i = 0; i < num_axes; ++i)
     {
         int axis = dmNativeAndroidDeviceAxisIndex(joy, i);
+        uint64_t axis_bit = (uint64_t)1 << axis;
+        if (dmNativeJoy[joy].AxisEventMask & axis_bit)
+            continue;
         dmNativeJoy[joy].Axis[axis] = dmNativeJoy[joy].AxisMin[i] + (axes[i] + 1.0f) * 0.5f * dmNativeJoy[joy].AxisRange[i];
+        if (axes[i] != 0.0f)
+            dmNativeJoy[joy].AxisInitialMask |= axis_bit;
+        else
+            dmNativeJoy[joy].AxisInitialMask &= ~axis_bit;
     }
 }
 
@@ -145,20 +151,34 @@ static void dmNativeAndroidDisconnectJoystick(const int joystickIndex)
 // Update joystick axis
 //========================================================================
 
+static void dmNativeAndroidUpdateAxisValue(int joy, int axis, float value)
+{
+    uint64_t axis_bit = (uint64_t)1 << axis;
+    // Android supplies zero for untouched axes when another axis starts moving.
+    // Preserve mapping defaults until this axis has reported a nonzero sample.
+    if (value == 0.0f && (dmNativeJoy[joy].AxisInitialMask & axis_bit))
+        return;
+    dmNativeJoy[joy].Axis[axis] = value;
+    if (value != 0.0f)
+    {
+        dmNativeJoy[joy].AxisEventMask |= axis_bit;
+        dmNativeJoy[joy].AxisInitialMask &= ~axis_bit;
+    }
+}
+
 static void dmNativeAndroidUpdateAxis(const AInputEvent* event)
 {
     const int32_t joystickIndex = dmNativeAndroidFindJoystick(AInputEvent_getDeviceId(event));
     if (joystickIndex >= 0)
     {
         for (int i = 0; i < NATIVE_ANDROID_GAMEPAD_NUMAXIS; ++i)
-            dmNativeJoy[joystickIndex].Axis[i] = AMotionEvent_getAxisValue(event, ANDROID_LEGACY_AXES[i], 0);
+            dmNativeAndroidUpdateAxisValue(joystickIndex, i, AMotionEvent_getAxisValue(event, ANDROID_LEGACY_AXES[i], 0));
         for (int i = 0; i < dmNativeJoy[joystickIndex].NumAxes; ++i)
         {
             int axis = dmNativeAndroidDeviceAxisIndex(joystickIndex, i);
             if (axis >= NATIVE_ANDROID_GAMEPAD_NUMAXIS)
-                dmNativeJoy[joystickIndex].Axis[axis] = AMotionEvent_getAxisValue(event, dmNativeJoy[joystickIndex].AxisIds[i], 0);
+                dmNativeAndroidUpdateAxisValue(joystickIndex, axis, AMotionEvent_getAxisValue(event, dmNativeJoy[joystickIndex].AxisIds[i], 0));
         }
-        dmNativeJoy[joystickIndex].HasAxisEvent = 1;
     }
 }
 
@@ -619,7 +639,7 @@ int dmNativeOSGetJoystickPos( int joy, float *pos, int numaxes )
         if (dmNativeJoy[joy].LayoutLegacy)
         {
             // Mapping initialization must not seed the legacy axes before actual motion.
-            pos[i] = dmNativeJoy[joy].HasAxisEvent || i >= 6 ? dmNativeJoy[joy].Axis[i] : 0.0f;
+            pos[i] = (dmNativeJoy[joy].AxisEventMask & ((uint64_t)1 << i)) || i >= 6 ? dmNativeJoy[joy].Axis[i] : 0.0f;
         }
         else
         {

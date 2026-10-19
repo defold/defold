@@ -332,6 +332,58 @@ TEST_F(AndroidJoystickTest, InitialAxisValues)
     ASSERT_EQ(0.0f, values[3]);
 }
 
+// Verifies stick motion cannot replace untouched triggers with Android's initial zero placeholders.
+TEST_F(AndroidJoystickTest, StickMotionPreservesInitialTriggers)
+{
+    const float initial[] = { 0.0f, 0.0f, -1.0f, -1.0f, 0.0f, 0.0f };
+    dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
+    dmPlatform::InitializeAndroidJoystickAxes(0, initial, 6);
+    m_Event.m_Axes[AMOTION_EVENT_AXIS_Y] = -1.0f;
+    SendMotion();
+    float values[6] = {};
+    dmNativeOSGetJoystickPos(0, values, 6);
+    ASSERT_EQ(-1.0f, values[1]);
+    ASSERT_EQ(-1.0f, values[2]);
+    ASSERT_EQ(-1.0f, values[3]);
+
+    m_Event.m_Axes[AMOTION_EVENT_AXIS_RX] = -0.75f;
+    SendMotion();
+    dmNativeOSGetJoystickPos(0, values, 6);
+    ASSERT_EQ(-0.75f, values[2]);
+    ASSERT_EQ(-1.0f, values[3]);
+    m_Event.m_Axes[AMOTION_EVENT_AXIS_RX] = 0.0f;
+    SendMotion();
+    dmNativeOSGetJoystickPos(0, values, 6);
+    ASSERT_EQ(0.0f, values[2]);
+    ASSERT_EQ(-1.0f, values[3]);
+
+    dmPlatform::InitializeAndroidJoystickAxes(0, initial, 6);
+    dmNativeOSGetJoystickPos(0, values, 6);
+    ASSERT_EQ(0.0f, values[2]);
+    ASSERT_EQ(-1.0f, values[3]);
+
+    dmPlatform::SetAndroidJoystickLayoutLegacy(0, true);
+    dmNativeOSGetJoystickPos(0, values, 6);
+    ASSERT_EQ(-1.0f, values[1]);
+    ASSERT_EQ(0.0f, values[2]);
+    ASSERT_EQ(0.0f, values[3]);
+}
+
+// Verifies trigger initialization still applies after another axis moves, without resetting that axis.
+TEST_F(AndroidJoystickTest, MappingAfterStickMotionInitializesTriggers)
+{
+    m_Event.m_Axes[AMOTION_EVENT_AXIS_Y] = -1.0f;
+    SendMotion();
+    const float initial[] = { 0.0f, 0.0f, -1.0f, -1.0f, 0.0f, 0.0f };
+    dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
+    dmPlatform::InitializeAndroidJoystickAxes(0, initial, 6);
+    float values[6] = {};
+    dmNativeOSGetJoystickPos(0, values, 6);
+    ASSERT_EQ(-1.0f, values[1]);
+    ASSERT_EQ(-1.0f, values[2]);
+    ASSERT_EQ(-1.0f, values[3]);
+}
+
 // Verifies SDL normalization uses the advertised motion range rather than assuming every axis is -1..1.
 TEST_F(AndroidJoystickTest, AxisNormalization)
 {
