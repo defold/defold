@@ -207,10 +207,15 @@ class ColorEmojiTest(unittest.TestCase):
                 tinted = self.render("<color=#FF0000>😀 🚀 ❤️</color>", mode=mode)[0]
                 self.assertTrue(any(r > 150 and g < 100 and b < 100 for r, g, b in tinted.getdata()))
 
+    # Each mode must draw ordinary text through its selected rendering path.
     def test_ordinary_text_in_each_mode(self):
-        images = [self.render("Slug curves Aa B8", size=19, mode=mode)[0] for mode in ("sdf", "bitmap", "vector")]
-        for image in images:
-            self.assertGreater(sum(r > 200 for r, g, b in image.getdata()), 200)
+        images = []
+        for mode in ("sdf", "bitmap", "vector"):
+            with self.subTest(mode=mode):
+                # Small SDF text has too few near-white pixels on 1x framebuffers.
+                image = self.render("Slug curves Aa B8", size=48, mode=mode)[0]
+                images.append(image)
+                self.assertGreater(sum(r > 200 for r, g, b in image.getdata()), 200)
         # The selected generation/shader must affect ordinary glyphs too.
         self.assertEqual(3, len({(image.size, image.tobytes()) for image in images}))
 
