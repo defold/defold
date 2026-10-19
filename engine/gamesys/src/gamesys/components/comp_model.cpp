@@ -183,6 +183,8 @@ namespace dmGameSystem
         dmArray<uint8_t>*                m_VertexBufferData;
         uint32_t*                        m_VertexBufferDispatchCounts;
         uint32_t                         m_InstanceBufferDispatchCount;
+        dmArray<dmRender::HGpuRenderBatch> m_GpuBatches;
+        uint32_t                         m_GpuBatchDispatchCount;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
         dmArray<HComponentRenderConstants> m_ScratchConstantBuffers;
@@ -275,6 +277,7 @@ namespace dmGameSystem
         world->m_MaxBatchIndex             = 0;
         world->m_InstanceBufferLocalSpace  = dmRender::NewBufferedRenderBuffer(context->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         world->m_InstanceBufferDispatchCount = 0;
+        world->m_GpuBatchDispatchCount = 0;
 
         dmGraphics::TextureCreationParams tp;
         world->m_SkinnedAnimationData.m_BindPoseCacheTexture = dmGraphics::NewTexture(graphics_context, tp);
@@ -361,6 +364,8 @@ namespace dmGameSystem
         }
 
         dmRender::DeleteBufferedRenderBuffer(context->m_RenderContext, world->m_InstanceBufferLocalSpace);
+        for (uint32_t i = 0; i < world->m_GpuBatches.Size(); ++i)
+            dmRender::DeleteGpuRenderBatch(context->m_RenderContext, world->m_GpuBatches[i]);
 
         for (int i = 0; i < world->m_ScratchConstantBuffers.Size(); ++i)
         {
@@ -667,6 +672,8 @@ namespace dmGameSystem
         }
     }
 
+    static bool CanRenderGpuIndirect(ModelWorld* world, ModelComponent* component, MeshRenderItem* item, dmRender::HMaterial material);
+
     static void SetRenderItemMaterial(ModelWorld* world, MeshRenderItem* render_item, dmRender::HMaterial material)
     {
         dmRender::SetMaterial(world->m_RenderContext, render_item->m_RenderItem, material);
@@ -674,6 +681,8 @@ namespace dmGameSystem
         // a component decision, including render-script material overrides.
         bool instanced = dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
         dmRender::SetOrder(world->m_RenderContext, render_item->m_RenderItem, instanced ? dmRender::RENDER_ORDER_BEFORE_WORLD : dmRender::RENDER_ORDER_WORLD, 0);
+        if (dmRender::IsGpuIndirectSupported(world->m_RenderContext))
+            dmRender::SetRenderItemGpuDriven(world->m_RenderContext, render_item->m_RenderItem, CanRenderGpuIndirect(world, render_item->m_Component, render_item, material));
     }
 
     static void ReHash(ModelWorld* world, ModelComponent* component)
@@ -1653,18 +1662,49 @@ namespace dmGameSystem
         return true;
     }
 
+    static bool CanRenderGpuIndirect(ModelWorld* world, ModelComponent* component, MeshRenderItem* item, dmRender::HMaterial material)
+    {
+        if (!dmRender::IsGpuIndirectSupported(world->m_RenderContext) || !item->m_Buffers->m_IndexBuffer ||
+            item->m_MorphTargetTexture || IsRenderItemSkinned(component, item) ||
+            item->m_DynamicVertexAttributeIndex != INVALID_DYNAMIC_ATTRIBUTE_INDEX ||
+            dmRender::GetMaterialVertexSpace(material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
+            return false;
+        dmGraphics::HVertexDeclaration instance_declaration = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+        if (!instance_declaration)
+            return false;
+        dmGraphics::VertexAttributeInfos infos;
+        FillMaterialAttributeInfos(material, instance_declaration, &infos);
+        InstanceTransformLayout layout;
+        return GetInstanceTransformLayout(infos, &layout) && CanShareVertexData(infos);
+    }
+
+    static dmRender::HGpuRenderBatch GetGpuBatch(ModelWorld* world)
+    {
+        // Separate each submission within a draw. Reusing a buffer for two render
+        // objects before Draw() would overwrite the first object's GPU results.
+        uint32_t index = world->m_GpuBatchDispatchCount++;
+        if (index == world->m_GpuBatches.Size())
+        {
+            if (world->m_GpuBatches.Full())
+                world->m_GpuBatches.OffsetCapacity(16);
+            world->m_GpuBatches.Push(dmRender::NewGpuRenderBatch(world->m_RenderContext));
+        }
+        return world->m_GpuBatches[index];
+    }
+
     static void RenderBatchLocalVSInstanced(ModelWorld* world, dmRender::HRenderContext render_context,
         dmRender::HMaterial render_context_material, uint32_t material_index,
         ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, dmGraphics::HVertexDeclaration inst_decl)
     {
         DM_PROFILE("VSInstanced");
 
-        if (dmRender::GetBufferIndex(render_context, world->m_InstanceBufferLocalSpace) < world->m_InstanceBufferDispatchCount)
+        MeshRenderItem* render_item = (MeshRenderItem*)buf[*begin].m_UserData;
+        const bool      gpu_driven = dmRender::IsRenderItemGpuDriven(render_context, render_item->m_RenderItem);
+        if (!gpu_driven && dmRender::GetBufferIndex(render_context, world->m_InstanceBufferLocalSpace) < world->m_InstanceBufferDispatchCount)
         {
             dmRender::AddRenderBuffer(render_context, world->m_InstanceBufferLocalSpace);
         }
 
-        MeshRenderItem* render_item           = (MeshRenderItem*) buf[*begin].m_UserData;
         uint32_t instance_count               = end - begin;
         uint32_t instance_stride              = dmGraphics::GetVertexDeclarationStride(inst_decl);
         MeshAttributeRenderData* attribute_rd = 0;
@@ -1696,7 +1736,7 @@ namespace dmGameSystem
             }
         }
 
-        if (world->m_InstanceBufferDataLocalSpace.Remaining() < required_instance_buffer_memory)
+        if (!gpu_driven && world->m_InstanceBufferDataLocalSpace.Remaining() < required_instance_buffer_memory)
         {
             world->m_InstanceBufferDataLocalSpace.OffsetCapacity(required_instance_buffer_memory - world->m_InstanceBufferDataLocalSpace.Remaining());
         }
@@ -1738,7 +1778,9 @@ namespace dmGameSystem
         bool                     has_shared_attribute_data = false;
         bool                     shared_attributes_bound = false;
 
-        for (uint32_t* i = begin; i != end; i++)
+        // GPU instancing shares the immutable vertex data; prepare it once.
+        uint32_t* prepare_end = gpu_driven ? begin + 1 : end;
+        for (uint32_t* i = begin; i != prepare_end; i++)
         {
             MeshRenderItem* instance_render_item = (MeshRenderItem*)buf[*i].m_UserData;
             ModelComponent* instance_component = instance_render_item->m_Component;
@@ -1829,6 +1871,8 @@ namespace dmGameSystem
                 }
                 shared_attributes_bound = share_vertex_data;
 
+                if (gpu_driven)
+                    continue;
                 if (use_transform_layout)
                 {
                     if (transform_layout.m_WorldOffset >= 0)
@@ -1844,6 +1888,10 @@ namespace dmGameSystem
                 {
                     instance_write_ptr = WriteMeshAttributes(world, render_context, instance_render_item, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attribute_infos, instance_write_ptr, 1);
                 }
+            }
+            else if (gpu_driven)
+            {
+                continue;
             }
             else if (IsRenderItemSkinned(instance_component, render_item))
             {
@@ -1907,9 +1955,17 @@ namespace dmGameSystem
 
         ApplyMorphToRenderObject(world, &ro, render_material, component, render_item, component->m_Instance);
 
-        dmRender::AddToRender(render_context, &ro);
-
-        world->m_InstanceBufferDataLocalSpace.SetSize(instance_write_ptr - world->m_InstanceBufferDataLocalSpace.Begin());
+        if (gpu_driven)
+        {
+            dmRender::HGpuRenderBatch batch = GetGpuBatch(world);
+            uint32_t                  stride = dmGraphics::GetVertexDeclarationStride(ro.m_VertexDeclarations[VX_DECL_INSTANCE_BUFFER]);
+            dmRender::AddToRenderGpuBatch(render_context, &ro, batch, begin, instance_count, stride, transform_layout.m_WorldOffset, transform_layout.m_NormalOffset);
+        }
+        else
+        {
+            dmRender::AddToRender(render_context, &ro);
+            world->m_InstanceBufferDataLocalSpace.SetSize(instance_write_ptr - world->m_InstanceBufferDataLocalSpace.Begin());
+        }
 
         // Update statistics for the render item
         if (render_item->m_Buffers->m_LastUsedFrame != world->m_CurrentFrameTick)
@@ -2649,6 +2705,7 @@ namespace dmGameSystem
         dmRender::TrimBuffer(context->m_RenderContext, world->m_InstanceBufferLocalSpace);
         dmRender::RewindBuffer(context->m_RenderContext, world->m_InstanceBufferLocalSpace);
         world->m_InstanceBufferDispatchCount = 0;
+        world->m_GpuBatchDispatchCount = 0;
 
         world->m_ScratchConstantBuffersCount = 0;
         world->m_MaxBatchIndex = 0;
@@ -2679,6 +2736,7 @@ namespace dmGameSystem
                 world->m_StatisticsVertexDataSize = 0;
 
                 world->m_InstanceBufferDataLocalSpace.SetSize(0);
+                world->m_GpuBatchDispatchCount = 0;
                 world->m_RenderObjects.SetSize(0);
                 world->m_VertexBufferIndex = 0;
                 world->m_VertexBufferVertexCount = 0;
@@ -3012,6 +3070,8 @@ namespace dmGameSystem
             res = SetMaterialAttribute(world->m_DynamicVertexAttributePool, dynamic_attribute_index_ptr, material, params.m_PropertyId, params.m_Value, CompModelGetMaterialAttributeCallback, component, &attribute);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
+                if (render_item)
+                    dmRender::SetRenderItemGpuDriven(world->m_RenderContext, render_item->m_RenderItem, false);
                 // Mark the render item as dirty if the overridden attribute is not an instanced attribute
                 // For instanced attributes, we will copy the data anyway so this just makes sure we don't
                 // copy the base vertex data when we don't need to.

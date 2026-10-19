@@ -215,6 +215,24 @@ add_custom_command(
   COMMENT "Building engine debug shader"
   VERBATIM)
 
+set(ENGINE_CULLING_INSTANCES_SPC "${CMAKE_CURRENT_BINARY_DIR}/content/materials/culling_instances.spc")
+add_custom_command(
+  OUTPUT "${ENGINE_CULLING_INSTANCES_SPC}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/content/materials"
+  COMMAND "${CMAKE_COMMAND}" -E env ${ENGINE_SHADER_ENV}
+    "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST} -cp "${ENGINE_BOB_CLASSPATH}"
+    com.dynamo.bob.pipeline.ShaderProgramBuilder
+    "${ENGINE_CONTENT_DIR}/materials/culling_instances.cp"
+    "${ENGINE_CULLING_INSTANCES_SPC}" "${TARGET_PLATFORM}" "${ENGINE_CONTENT_DIR}"
+  DEPENDS "${ENGINE_CONTENT_DIR}/materials/culling_instances.cp" "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS}
+  COMMENT "Building engine instance compaction shader"
+  VERBATIM)
+add_custom_target(engine_culling_instances_shader DEPENDS "${ENGINE_CULLING_INSTANCES_SPC}")
+defold_embed_to_header(
+  INPUT "${ENGINE_CULLING_INSTANCES_SPC}"
+  OUTPUT_HEADER "${CMAKE_CURRENT_BINARY_DIR}/content/materials/culling_instances.spc.embed.h"
+  OUTPUT_CPP "${CMAKE_CURRENT_BINARY_DIR}/content/materials/culling_instances.spc.embed.cpp")
+
 defold_embed_to_header(
   INPUT "${ENGINE_CONTENT_DIR}/profiler.html"
   OUTPUT_HEADER "${CMAKE_CURRENT_BINARY_DIR}/content/profiler.html.embed.h"
@@ -242,6 +260,7 @@ defold_embed_to_header(
 
 set(ENGINE_PROFILER_EMBED_CPP "${CMAKE_CURRENT_BINARY_DIR}/content/profiler.html.embed.cpp")
 set(ENGINE_EMBED_CPP
+  "${CMAKE_CURRENT_BINARY_DIR}/content/materials/culling_instances.spc.embed.cpp"
   "${CMAKE_CURRENT_BINARY_DIR}/content/materials/debug.spc.embed.cpp"
   "${CMAKE_CURRENT_BINARY_DIR}/content/builtins/connect/game.project.embed.cpp"
   "${CMAKE_CURRENT_BINARY_DIR}/content/builtins.arci.embed.cpp"

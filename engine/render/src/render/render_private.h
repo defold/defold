@@ -27,6 +27,7 @@
 #include <dlib/index_pool.h>
 
 #include "render.h"
+#include <dmsdk/dlib/intersection.h>
 
 extern "C"
 {
@@ -318,6 +319,8 @@ namespace dmRender
         // Initially true; also set when the pending-edit queue overflows. Transform,
         // bounds and camera changes do not require rebuilding this membership/tag cache.
         bool m_RebuildCache;
+        // Context-unique revision of GPU batch membership and ordering in this world.
+        uint64_t m_GpuBatchRevision;
     };
 
     struct MaterialTagList
@@ -388,6 +391,9 @@ namespace dmRender
     };
 
     static const dmhash_t FRUSTUM_HASH_UNINITIALIZED = 0;
+    // GPU candidates have no CPU visibility result. Retain their classification
+    // in the hot render-list entry so batching need not fetch persistent bounds.
+    static const uint32_t FRUSTUM_HASH_GPU_CULLING = 0xffffffffu;
 
     enum BoundingVolumeType
     {
@@ -403,6 +409,7 @@ namespace dmRender
         // Sphere: center xyz and radius squared. Boxes: min xyz and max xyz.
         float    m_Bounds[6];
         uint32_t m_Generation;
+        uint32_t m_GpuSlot;
         union
         {
             uint32_t m_NextFree;     // Deleted slot
@@ -412,12 +419,133 @@ namespace dmRender
         uint32_t m_Alive : 1;
         uint32_t m_Enabled : 1;
         uint32_t m_BoundingVolumeType : 2;
-        uint32_t : 4;
+        uint32_t m_GpuBoundsDirty : 1;
+        uint32_t m_GpuWorldDirty : 1;
+        uint32_t m_GpuDriven : 1;
+        uint32_t : 1;
     };
+
+    // Scalar SSBO layout: eight four-byte words per item. Sphere/AABB data is
+    // world-space; OBB center/extents are local and reuse the world buffer.
+    struct GpuCullingBounds
+    {
+        uint32_t m_Type;
+        float    m_Data[7];
+    };
+
+    struct GpuCullingContext
+    {
+        dmGraphics::HStorageBuffer m_BoundsBuffer;
+        dmArray<GpuCullingBounds>  m_Bounds;
+        // Dirty queues retain renderer slots until upload so moves/reuse resolve current ownership.
+        dmArray<uint32_t> m_DirtySlots;
+    };
+
+    struct GpuRenderListSource
+    {
+        const uint32_t*     m_Indices;
+        uint32_t            m_Count;
+        uint32_t            m_TagListKey;
+        HRenderItemDispatch m_Dispatch;
+        HRenderListDispatch m_FrameDispatch;
+        uint64_t            m_Revision;
+    };
+
+    struct GpuRenderListBatch
+    {
+        uint32_t            m_Begin;
+        uint32_t            m_End;
+        HRenderListDispatch m_Dispatch;
+    };
+
+    // One cache per draw position. Only draws consisting entirely of eligible,
+    // depth-independent GPU instances can reuse the sorted candidates and batches.
+    struct GpuRenderListCache
+    {
+        dmArray<GpuRenderListSource> m_Sources;
+        dmArray<uint32_t>            m_Indices;
+        dmArray<GpuRenderListBatch>  m_Batches;
+        uint64_t                     m_Generation;
+        SortOrder                    m_SortOrder;
+        bool                         m_Eligible;
+        bool                         m_Prepared;
+    };
+
+    struct GpuRenderBatch
+    {
+        // Membership uses renderer slots; the GPU buffer stores dense model slots.
+        dmArray<uint32_t>                m_Slots;
+        dmGraphics::HVertexBuffer        m_FallbackBuffer;
+        dmGraphics::HStorageBuffer       m_SlotBuffer;
+        dmGraphics::HStorageBuffer       m_InstanceBuffer;
+        dmGraphics::HProgram             m_VisibleInstanceProgram;
+        dmGraphics::HStorageBuffer       m_ArgumentBuffer;
+        dmGraphics::HAsyncBufferReadback m_Readback;
+        uint32_t                         m_ReadbackCandidates;
+        uint32_t                         m_ReadbackFrame;
+        uint32_t                         m_StatisticsFrame;
+        uint32_t                         m_StatisticsCandidates;
+        uint32_t                         m_StatisticsVisible;
+        dmIntersection::Frustum          m_Frustum;
+        dmVMath::Matrix4                 m_View;
+        uint64_t                         m_Revision;
+        uint64_t                         m_SlotRevision;
+        // Borrows the renderer's immutable candidate list during this draw.
+        const GpuRenderListCache* m_ListCache;
+        const uint32_t*           m_CachedSlots;
+        uint64_t                  m_ListGeneration;
+        uint32_t                  m_Stride;
+        int32_t                   m_WorldOffset;
+        int32_t                   m_NormalOffset;
+        uint32_t                  m_IndexCount;
+        uint32_t                  m_FirstIndex;
+        uint8_t                   m_Computed;
+        uint8_t                   m_StatisticsDirty;
+    };
+
+    struct GpuIndirectContext
+    {
+        dmGraphics::HProgram         m_Program;
+        dmGraphics::HStorageBuffer   m_WorldBuffer;
+        dmGraphics::HUniformLocation m_PlanesLocation;
+        dmGraphics::HUniformLocation m_ParamsLocation;
+        dmGraphics::HUniformLocation m_InstanceParamsLocation;
+        dmGraphics::HUniformLocation m_ViewLocation;
+        dmArray<dmVMath::Matrix4>    m_Worlds;
+        // Dense GPU slot -> renderer slot. Items retain the reverse mapping.
+        dmArray<uint32_t>            m_RenderSlots;
+        dmArray<uint32_t>            m_UploadSlots;
+        dmArray<uint32_t>            m_DirtyWorldSlots;
+        dmArray<HGpuRenderBatch>     m_RenderBatches;
+        dmArray<GpuRenderListCache*> m_DrawCaches;
+        dmArray<GpuRenderListSource> m_DrawSources;
+        GpuRenderListCache*          m_DrawCache;
+        dmIntersection::Frustum      m_Frustum;
+        uint64_t                     m_Revision;
+        uint64_t                     m_SlotRevision;
+        uint64_t                     m_BatchRevision;
+        uint32_t                     m_DrawCursor;
+        uint32_t                     m_Frame;
+        uint8_t                      m_DrawEnabled;
+        uint8_t                      m_StatisticsEnabled;
+    };
+
+    // Borrows the parent program's companion for a world-instance material.
+    dmGraphics::HProgram GetMaterialVisibleInstanceProgram(HMaterial material);
+
+    bool                 TestRenderItemBoundingVolume(const dmIntersection::Frustum& frustum, const PersistentRenderItem& item);
+
+    // Persistent GPU inputs used only by eligible model draws.
+    void InitializeGpuIndirect(HRenderContext context, const RenderContextParams& params);
+    void FinalizeGpuIndirect(HRenderContext context);
+    void MarkGpuWorldDirty(HRenderContext context, uint32_t slot);
+    void MarkGpuBoundsDirty(HRenderContext context, uint32_t slot);
 
     struct RenderContext
     {
         DebugRenderer               m_DebugRenderer;
+        GpuCullingContext           m_GpuCulling;
+        GpuIndirectContext          m_GpuIndirect;
         TextContext                 m_TextContext;
         dmScript::HContext          m_ScriptContext;
         RenderScriptContext         m_RenderScriptContext;
