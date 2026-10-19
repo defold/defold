@@ -1,0 +1,10 @@
+#version 140
+in highp vec4 position;
+in highp mat4 custom_world;
+uniform Constants { highp mat4 view_proj; lowp vec4 tint; };
+out lowp vec4 color;
+void main()
+{
+    gl_Position = view_proj * custom_world * position;
+    color = tint;
+}
