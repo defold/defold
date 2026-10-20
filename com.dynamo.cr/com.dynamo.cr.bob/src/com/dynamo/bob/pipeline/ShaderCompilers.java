@@ -83,7 +83,7 @@ public class ShaderCompilers {
             adapters.add(GraphicsAdapter.OPENGLES);
         } else if (platform.matchesOS(OS.OS_ID_SWITCH)) {
             adapters.add(GraphicsAdapter.VULKAN);
-        } else if (platform.matchesOS(OS.OS_ID_XBOX)) {
+        } else if (platform == Platform.X86_64Win32 || platform.matchesOS(OS.OS_ID_XBOX)) {
             adapters.add(GraphicsAdapter.DX12);
         } else if (usesGlesShaderLanguages(platform)) {
             adapters.add(GraphicsAdapter.OPENGLES);

@@ -79,6 +79,11 @@ When invoking `scripts/build.py`, pass `--with-asan`, `--with-hwasan`, `--with-u
 matching `WITH_*` cache options, such as `WITH_ASAN=ON`. The graphics toggles
 such as `--with-vulkan` continue to map to `WITH_VULKAN`.
 
+Windows (`x86_64-win32`) links DX12 by default. Pass `--with-opengl` or
+`--with-vulkan` (`WITH_OPENGL=ON` or `WITH_VULKAN=ON`) to include additional
+adapters. `--with-dx12` remains accepted for compatibility. App manifest
+graphics selections control bundled adapters and shader formats; DX12 uses HLSL 5.1.
+
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
 include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;
 pass `--with-metal` (or `WITH_METAL=ON`) to include Metal on those devices.

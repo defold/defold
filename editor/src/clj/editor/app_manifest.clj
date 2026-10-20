@@ -20,7 +20,8 @@
             [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.resource-io :as resource-io]
-            [editor.yaml :as yaml])
+            [editor.yaml :as yaml]
+            [util.coll :as coll])
   (:import [com.dynamo.bob.util AppManifestMigration]))
 
 (def macos #{:x86_64-osx :arm64-osx})
@@ -581,37 +582,49 @@
    [:open-gl-vulkan-dx12 "OpenGL & Vulkan & DX12"]])
 
 (def graphics-setting-windows
-  (let [vulkan (into [] cat
-                     [(exclude-libs-toggles windows ["platform"])
-                      (libs-toggles windows ["platform_vulkan" "graphics_vulkan" "vulkan"])
-                      (generic-contains-toggles windows :symbols ["GraphicsAdapterVulkan"])])
+  (let [vulkan (coll/into-> [(exclude-libs-toggles windows ["platform"])
+                             (libs-toggles windows ["platform_vulkan" "graphics_vulkan" "vulkan"])
+                             (generic-contains-toggles windows :symbols ["GraphicsAdapterVulkan"])]
+                 []
+                 cat)
 
-        dx12 (into [] cat
-                   [(libs-toggles windows ["graphics_dx12"])
-                    ;; Extender runs on a case-sensitive host. Preserve the SDK filename case
-                    ;; while accepting names written by earlier editors.
-                    (into []
-                          (mapcat (fn [platform]
-                                    (mapv (fn [[library legacy-library]]
-                                            (contains-toggle platform :libs (str library ".lib")
-                                                             [(str library ".lib") library
-                                                              (str legacy-library ".lib") legacy-library]))
-                                          [["d3d12" "D3D12"] ["dxgi" "DXGI"] ["d3dcompiler" "d3dcompiler"]])))
-                          windows)
-                    (generic-contains-toggles windows :symbols ["GraphicsAdapterDX12"])])
+        legacy-dx12 (coll/into-> [(libs-toggles windows ["graphics_dx12"])
+                                  ;; Clear current and legacy SDK names.
+                                  (coll/into-> windows []
+                                    (mapcat (fn [platform]
+                                              (mapv (fn [[library legacy-library]]
+                                                      (contains-toggle platform :libs (str library ".lib")
+                                                                       [(str library ".lib") library
+                                                                        (str legacy-library ".lib") legacy-library]))
+                                                    [["d3d12" "D3D12"] ["dxgi" "DXGI"] ["d3dcompiler" "d3dcompiler"]]))))
+                                  (generic-contains-toggles windows :symbols ["GraphicsAdapterDX12"])]
+                      []
+                      cat)
 
-        exclude-open-gl (into [] cat
-                              [(exclude-libs-toggles windows ["graphics"])
-                               (generic-contains-toggles windows :excludeSymbols ["GraphicsAdapterOpenGL"])])]
-    ;; Match supersets before subsets. OpenGL is supplied by engine defaults.
-    (make-choice-setting
-      :vulkan-dx12 (into [] cat [vulkan dx12 exclude-open-gl])
-      :open-gl-vulkan-dx12 (into vulkan dx12)
-      :vulkan (into vulkan exclude-open-gl)
-      :dx12 (into dx12 exclude-open-gl)
-      :open-gl-vulkan vulkan
-      :open-gl-dx12 dx12
-      :open-gl)))
+        open-gl (coll/into-> [(libs-toggles windows ["graphics"])
+                              (generic-contains-toggles windows :symbols ["GraphicsAdapterOpenGL"])]
+                  []
+                  cat)
+
+        exclude-dx12 (coll/into-> [(exclude-libs-toggles windows ["graphics_dx12"])
+                                   (generic-contains-toggles windows :excludeSymbols ["GraphicsAdapterDX12"])]
+                       []
+                       cat)]
+    (assoc
+      ;; Match supersets before subsets. DX12 is supplied by engine defaults.
+      (make-choice-setting
+        :open-gl-vulkan (coll/into-> [open-gl vulkan exclude-dx12] [] cat)
+        :open-gl-vulkan-dx12 (into open-gl vulkan)
+        :open-gl (into open-gl exclude-dx12)
+        :vulkan (into vulkan exclude-dx12)
+        :open-gl-dx12 open-gl
+        :vulkan-dx12 vulkan
+        :dx12)
+      :cleanup-toggles (coll/into-> [legacy-dx12
+                                     (exclude-libs-toggles windows ["graphics"])
+                                     (generic-contains-toggles windows :excludeSymbols ["GraphicsAdapterOpenGL"])]
+                         []
+                         cat))))
 
 (def open-gl-android-toggles
   (concat

@@ -369,7 +369,7 @@
                                                          :symbols ["CustomExtension"]}}
                                 :arm64-ios {:context {:libs ["custom_ios"]}}}}
                    app-manifest/graphics-setting :vulkan)]
-    (is (= :open-gl (app-manifest/get-setting-value {} setting)))
+    (is (= :dx12 (app-manifest/get-setting-value {} setting)))
     (is (= (set (keys selections)) (into #{} (map first) app-manifest/windows-graphics-choice-options)))
 
     (doseq [from (keys selections)
@@ -386,18 +386,18 @@
           (is (= to (app-manifest/get-setting-value manifest setting)))
 
           (doseq [[backend library symbol] [[:vulkan "graphics_vulkan" "GraphicsAdapterVulkan"]
-                                            [:dx12 "graphics_dx12" "GraphicsAdapterDX12"]]]
+                                            [:open-gl "graphics" "GraphicsAdapterOpenGL"]]]
             (is (= (contains? backends backend) (contains? libs library)))
             (is (= (contains? backends backend) (contains? symbols symbol))))
 
           (doseq [library ["d3d12.lib" "dxgi.lib" "d3dcompiler.lib"]]
-            (is (= (contains? backends :dx12) (contains? libs library))))
+            (is (not (contains? libs library))))
 
           (doseq [library ["platform_vulkan" "vulkan-1"]]
             (is (= (contains? backends :vulkan) (contains? libs library))))
           (is (= (contains? backends :vulkan) (contains? excluded "platform")))
-          (is (= (not (contains? backends :open-gl)) (contains? excluded "graphics")))
-          (is (= (not (contains? backends :open-gl)) (contains? excluded-symbols "GraphicsAdapterOpenGL")))
+          (is (= (not (contains? backends :dx12)) (contains? excluded "graphics_dx12")))
+          (is (= (not (contains? backends :dx12)) (contains? excluded-symbols "GraphicsAdapterDX12")))
           (is (contains? libs "custom"))
           (is (contains? symbols "CustomExtension"))
           (is (= (dissoc (:platforms original) :x86_64-win32)
@@ -411,7 +411,7 @@
 (deftest windows-graphics-legacy-library-names-test
   (doseq [libs [["libgraphics_vulkan.lib" "platform_vulkan.lib" "vulkan-1.lib"]
                 ["graphics_vulkan" "platform_vulkan" "vulkan-1"]]
-          [excluded selection] [[[] :open-gl-vulkan] [["libgraphics"] :vulkan]]]
+          [excluded selection] [[[] :vulkan-dx12] [["libgraphics"] :vulkan-dx12]]]
     (let [legacy {:platforms {:x86_64-win32
                               {:context {:libs libs
                                          :excludeLibs (conj excluded "platform")
@@ -422,12 +422,12 @@
           context (get-in dx12 [:platforms :x86_64-win32 :context])]
       (is (= selection (app-manifest/get-setting-value legacy setting)))
       (is (= :dx12 (app-manifest/get-setting-value dx12 setting)))
-      (is (= #{"graphics_dx12" "d3d12.lib" "dxgi.lib" "d3dcompiler.lib"} (set (:libs context))))
-      (is (= ["graphics"] (:excludeLibs context)))
-      (is (= ["GraphicsAdapterDX12"] (:symbols context))))))
+      (is (= #{} (set (:libs context))))
+      (is (= [] (:excludeLibs context)))
+      (is (= [] (:symbols context))))))
 
-;; Verifies legacy DX12 system library names normalize to lowercase SDK filenames with
-;; .lib suffixes, guarding against linker failures on case-sensitive build hosts.
+;; Verifies redundant legacy DX12 libraries are removed on backend selection,
+;; since these libraries are now supplied by engine defaults.
 (deftest windows-dx12-system-library-names-test
   (let [setting app-manifest/graphics-setting-windows
         sdk-libs ["d3d12.lib" "dxgi.lib" "d3dcompiler.lib"]
@@ -441,18 +441,18 @@
                                              :symbols ["GraphicsAdapterDX12"]}}}}
             normalized (app-manifest/set-setting-value manifest setting :open-gl-dx12)
             cleared (app-manifest/set-setting-value manifest setting :open-gl)]
-        (is (= :open-gl-dx12 (app-manifest/get-setting-value manifest setting)))
-        (is (= (into #{"custom" "graphics_dx12"} sdk-libs)
+        (is (= :dx12 (app-manifest/get-setting-value manifest setting)))
+        (is (= #{"custom" "graphics"}
                (set (get-in normalized [:platforms :x86_64-win32 :context :libs]))))
-        (is (= ["custom"] (get-in cleared [:platforms :x86_64-win32 :context :libs])))))))
+        (is (= #{"custom" "graphics"} (set (get-in cleared [:platforms :x86_64-win32 :context :libs]))))))))
 
-;; Verifies existing manifests retain their Windows backend selection and all new choices
+;; Verifies existing manifests pick up Windows defaults and all new choices
 ;; survive serialization, guarding against editor load/save compatibility regressions.
 (deftest windows-graphics-compatibility-test
   (test-util/with-loaded-project
-    (doseq [[filename selection] [["default.appmanifest" :open-gl]
-                                  ["vulkan.appmanifest" :vulkan]
-                                  ["vulkan_and_opengl.appmanifest" :open-gl-vulkan]]]
+    (doseq [[filename selection] [["default.appmanifest" :dx12]
+                                  ["vulkan.appmanifest" :vulkan-dx12]
+                                  ["vulkan_and_opengl.appmanifest" :vulkan-dx12]]]
       (let [node (test-util/resource-node project (str "/app_manifest/" filename))]
         (is (= selection (g/node-value node :graphics-windows)))))
 

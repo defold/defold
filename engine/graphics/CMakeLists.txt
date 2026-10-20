@@ -204,7 +204,7 @@ set(GRAPHICS_BUILD_WEBGPU ${GRAPHICS_PLATFORM_SUPPORTS_WEBGPU})
 set(GRAPHICS_BUILD_VULKAN ${GRAPHICS_PLATFORM_SUPPORTS_VULKAN})
 set(GRAPHICS_BUILD_METAL ${GRAPHICS_PLATFORM_SUPPORTS_METAL})
 # Build supported backends for the SDK, independently of default engine selection.
-# WITH_DX12 still controls linking DX12 into the standard engine.
+# DX12 is linked by default on Windows.
 set(GRAPHICS_BUILD_DX12 ${GRAPHICS_PLATFORM_SUPPORTS_DX12})
 
 file(GLOB GRAPHICS_OPENGL_SOURCES CONFIGURE_DEPENDS "${GRAPHICS_SRC_DIR}/*.cpp" "${GRAPHICS_SRC_DIR}/opengl/*.cpp")
