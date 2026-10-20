@@ -2,9 +2,6 @@
 main_collection = /checked.collectionc
 render = /checked.renderc
 
-[script]
-shared_state = 1
-
 [display]
 width = 800
 height = 600
@@ -53,8 +50,9 @@ iap_provider = Amazon
 gcm_sender_id = com.defold.save-data-project
 fcm_application_id = com.defold.save-data-project
 manifest = /builtins/manifests/android/AndroidManifest.xml
-proguard = /builtins/manifests/android/dmengine.pro
+r8_keep_rules = /builtins/manifests/android/dmengine.keep
 extract_native_libs = 1
+vkquality_database = /builtins/manifests/android/vkqualitydata.vkq
 
 [project]
 title = Save Data Project
@@ -81,7 +79,7 @@ repeat_interval = 0.1
 gamepads = /checked.gamepadsc
 gamepad_database = /referenced/gamecontrollerdb.txt
 gamepad_deadzone = 0.35
-use_accelerometer = 0
+use_accelerometer = 1
 
 [html5]
 heap_size = 128
@@ -92,6 +90,7 @@ archive_location_prefix = archive_prefix
 archive_location_suffix = archive_suffix
 engine_arguments = --verify-graphics-calls=false
 wasm_streaming = 1
+verify_downloaded_file_size = 0
 show_fullscreen_button = 0
 show_made_with_defold = 0
 show_console_banner = 0
@@ -215,6 +214,7 @@ max_font_batches = 128
 max_debug_vertices = 8192
 texture_profiles = /checked.texture_profiles
 verify_graphics_calls = 0
+webgl_version_hint = 1
 opengl_version_hint = 33
 opengl_core_profile_hint = 1
 memory_size = 512
@@ -298,3 +298,4 @@ glsl_es_default_precision_int = mediump
 
 [font]
 runtime_generation = 1
+

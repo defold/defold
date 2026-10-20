@@ -90,9 +90,11 @@
     identity
     (let [limit (long limit)]
       (fn [v]
-        (if (> (count v) limit)
-          (subvec v (- (count v) limit))
-          v)))))
+        (if (<= (count v) limit)
+          v
+          ;; Copy the retained entries so the backing vector can release dropped
+          ;; entries.
+          (into [] (subvec v (- (count v) limit))))))))
 
 (defn paper-tape
   ([limit]

@@ -1,18 +1,4 @@
 #!/usr/bin/env python
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 import sys
 import subprocess
 import platform
@@ -20,7 +6,7 @@ import os
 import base64
 import re
 from argparse import ArgumentParser
-from ci_helper import is_platform_supported, is_platform_private, is_repo_private
+from ci_helper import is_platform_supported, is_platform_private, is_repo_private, should_build_private_platform
 
 # The platforms we deploy our editor on
 PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos')
@@ -143,20 +129,6 @@ def install_linux(args):
     call("update-alternatives --display clang")
     call("update-alternatives --display clang++")
 
-    # Legacy ncurses 5 libraries needed when building wasm-web.
-    # Ubuntu 24.04/Noble runners no longer provide these package names in apt.
-    if platform.machine() in ('aarch64', 'arm64'):
-        ncurses_url = "http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses"
-        libtinfo_deb = "libtinfo5_6.3-2_arm64.deb"
-        libncurses_deb = "libncurses5_6.3-2_arm64.deb"
-    else:
-        ncurses_url = "http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses"
-        libtinfo_deb = "libtinfo5_6.3-2ubuntu0.2_amd64.deb"
-        libncurses_deb = "libncurses5_6.3-2ubuntu0.2_amd64.deb"
-
-    call(f"wget {ncurses_url}/{libtinfo_deb} {ncurses_url}/{libncurses_deb}")
-    call(f"sudo apt install -y ./{libtinfo_deb} ./{libncurses_deb}")
-
     clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
     clang_version = 20
     clang_path = "/usr/bin"
@@ -206,14 +178,20 @@ def install_linux(args):
         "libxrandr-dev",
         "libopenal-dev",
         "libgl1-mesa-dev",
+        "libgl1-mesa-dri",
+        "mesa-vulkan-drivers",
         "libglw1-mesa-dev",
         "openssl",
         "tofrodos",
         "tree",
         "valgrind",
         "uuid-dev",
-        "xvfb"
+        "xvfb",
+        "xauth"
     ]
+    # LuaJIT's VM generator needs a 32-bit host toolchain for armv7 cross-builds.
+    if args.platform == 'armv7-android':
+        packages.extend(["libc6-dev-i386", "gcc-multilib"])
     aptget(" ".join(packages))
 
 
@@ -264,30 +242,42 @@ def create_gcloud_options(gcloud_service_key):
         opts.append('--gcloud-certfile=%s' % gcloud_certfile)
     return opts
 
-def build_engine(channel, platform, args):
-
-    install_sdk = 'install_sdk'
+def sdk_commands(platform):
     # for some platforms, we use the locally installed platform sdk
     if platform in ('x86_64-macos',
                     'arm64-macos',
                     'arm64-ios',
-                    'x86_64-ios',
+                    'arm64_sim-ios',
                     'wasm-web',
                     'wasm_pthread-web',
                     'arm64-linux',
                     'x86_64-linux',
                     'armv7-android',
-                    'arm64-android'):
-        install_sdk = ''
+                    'arm64-android',
+                    'x86_64-android'):
+        return []
+    return ['install_sdk']
 
-    cmd_args = ('"%s" scripts/build.py distclean %s install_ext check_sdk' % (sys.executable, install_sdk)).split()
+
+def prepare_ext(platform):
+    commands = ['distclean'] + sdk_commands(platform) + ['install_ext_packages']
+    call('"%s" scripts/build.py %s --platform=%s' % (sys.executable, ' '.join(commands), platform))
+    call('"%s" ci/ext_cache.py prepare --platform=%s' % (sys.executable, platform))
+
+
+def build_engine(channel, platform, args):
+    cmd_args = ('"%s" scripts/build.py' % sys.executable).split()
+    if not args.skip_install_ext:
+        cmd_args.extend(['distclean'] + sdk_commands(platform) + ['install_ext'])
 
     cmd_opts = []
-    waf_opts = []
+    build_opts = []
 
     cmd_opts.append('--platform=%s' % platform)
     # ccache isn't needed on CI
     cmd_opts.append('--disable-ccache')
+    if platform in ('x86_64-linux', 'arm64-linux'):
+        build_opts.append('--with-vulkan')
     if args.verbose:
         cmd_opts.append('--verbose')
 
@@ -308,29 +298,29 @@ def build_engine(channel, platform, args):
     if args.skip_tests:
         cmd_opts.append('--skip-tests')
     if args.skip_build_tests:
-        waf_opts.append('--skip-build-tests')
+        build_opts.append('--skip-build-tests')
     if args.codesign and args.gcloud_service_key:
         cmd_opts.extend(create_gcloud_options(args.gcloud_service_key))
 
     if args.with_valgrind:
-        waf_opts.append('--with-valgrind')
+        build_opts.append('--with-valgrind')
     if args.with_asan:
-        waf_opts.append('--with-asan')
+        build_opts.append('--with-asan')
     if args.with_ubsan:
-        waf_opts.append('--with-ubsan')
+        build_opts.append('--with-ubsan')
     if args.with_tsan:
-        waf_opts.append('--with-tsan')
+        build_opts.append('--with-tsan')
     if args.with_vanilla_lua:
-        waf_opts.append('--use-vanilla-lua')
+        build_opts.append('--use-vanilla-lua')
 
-    if platform == 'x86_64-linux':
+    if platform == 'x86_64-linux' and args.archive:
         cmd_args.append('build_sdk_headers') # gather headers after a successful build
 
     cmd = ' '.join(cmd_args + cmd_opts)
 
-    # Add arguments to waf after a double-dash
-    if waf_opts:
-        cmd += ' -- ' + ' '.join(waf_opts)
+    # Add build arguments after a double-dash
+    if build_opts:
+        cmd += ' -- ' + ' '.join(build_opts)
 
     call(cmd)
 
@@ -338,7 +328,12 @@ def build_editor2(channel, platform, args):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor build: %s" % platform)
 
-    cmd_args = ('"%s" scripts/build.py distclean install_ext build_editor2' % sys.executable).split()
+    cmd_args = ('"%s" scripts/build.py' % sys.executable).split()
+    if not args.skip_install_ext:
+        if not args.skip_distclean:
+            cmd_args.append('distclean')
+        cmd_args.append('install_ext')
+    cmd_args.append('build_editor2')
     cmd_opts = []
     cmd_opts.append('--channel=%s' % channel)
     cmd_opts.append('--platform=%s' % platform)
@@ -365,7 +360,12 @@ def test_editor(channel, platform, args):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor tests: %s" % platform)
 
-    cmd_args = ('"%s" scripts/build.py distclean install_ext test_editor2' % sys.executable).split()
+    cmd_args = ('"%s" scripts/build.py' % sys.executable).split()
+    if not args.skip_install_ext:
+        if not args.skip_distclean:
+            cmd_args.append('distclean')
+        cmd_args.append('install_ext')
+    cmd_args.append('test_editor2')
     cmd_opts = []
     cmd_opts.append('--channel=%s' % channel)
     cmd_opts.append('--platform=%s' % platform)
@@ -413,7 +413,18 @@ def install_ext(platform = None):
 
 
 def build_bob(channel, branch, args):
-    cmd_args = ('"%s" scripts/build.py install_ext sync_archive build_bob archive_bob' % sys.executable).split()
+    # sync_archive downloads the engine binaries this sha1 archived to S3 and archive_bob
+    # uploads the resulting jar. With --skip-archive neither runs and build_bob falls back
+    # to the artifacts already in $DYNAMO_HOME, which is how a build without S3 credentials
+    # (an external contribution, or a local build) gets a bob.jar.
+    build_cmds = [] if args.skip_install_ext else ['install_ext']
+    if not args.skip_archive:
+        build_cmds.append('sync_archive')
+    build_cmds.append('build_bob')
+    if not args.skip_archive:
+        build_cmds.append('archive_bob')
+
+    cmd_args = ('"%s" scripts/build.py %s' % (sys.executable, ' '.join(build_cmds))).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
     if args.skip_tests:
@@ -422,8 +433,9 @@ def build_bob(channel, branch, args):
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
-def test_bob(channel):
-    call('"%s" scripts/build.py install_ext --channel=%s' % (sys.executable, channel))
+def test_bob(channel, args):
+    if not args.skip_install_ext:
+        call('"%s" scripts/build.py install_ext --channel=%s' % (sys.executable, channel))
     call('"%s" scripts/build.py test_bob --channel=%s' % (sys.executable, channel))
 
 
@@ -491,19 +503,22 @@ def gen_release_notes(channel):
     elif not notes_json_exists:
         print("::warning::No release notes generated for %s on '%s' - shipping without them" % (version, channel))
 
-def build_sdk(channel, platform=None):
+def build_sdk(channel, platforms=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
-    if platform:
-        cmd_opts.append("--platform=%s" % platform)
+    if platforms:
+        platforms = ','.join(platform.strip() for platform in platforms.split(','))
+        cmd_opts.append("--platforms=%s" % platforms)
 
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
 
-def smoke_test():
-    call('"%s" scripts/build.py distclean install_ext smoke_test' % sys.executable)
+def smoke_test(args):
+    commands = [] if args.skip_install_ext else ['distclean', 'install_ext']
+    commands.append('smoke_test')
+    call('"%s" scripts/build.py %s' % (sys.executable, ' '.join(commands)))
 
 
 
@@ -549,14 +564,17 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (prepare-ext, build-ext, clean-engine, engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
+    parser.add_argument("--platforms", dest="platforms", help="Comma-separated platforms to include in the combined SDK")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
     parser.add_argument("--with-tsan", dest="with_tsan", action='store_true', help="")
     parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
     parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
+    parser.add_argument("--skip-archive", dest="skip_archive", action='store_true', help="Build bob without reading from or writing to the S3 archive")
+    parser.add_argument("--skip-distclean", dest="skip_distclean", action='store_true', help="Keep DYNAMO_HOME when building or testing the editor, so that engine artifacts placed there are used")
     parser.add_argument("--skip-tests", dest="skip_tests", action='store_true', help="")
     parser.add_argument("--skip-build-tests", dest="skip_build_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
@@ -565,7 +583,7 @@ def main(argv):
     parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
     parser.add_argument("--channel", dest="channel", help="Override the release channel derived from the branch")
-    parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
+    parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Use prepared external dependencies without reinstalling them or cleaning DYNAMO_HOME")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
     parser.add_argument("--gcloud-service-key", dest="gcloud_service_key", help="String containing Google Cloud service account key")
@@ -582,6 +600,12 @@ def main(argv):
 
     if args.commands == ["should-build-platform"]:
         print("true" if platform and is_platform_supported(platform) else "false")
+        return
+
+    if args.commands == ["should-build-private-platform"]:
+        branch = get_branch()
+        repository = os.environ.get('GITHUB_REPOSITORY', '')
+        print("true" if should_build_private_platform(branch, repository) else "false")
         return
 
     if platform and not is_platform_supported(platform):
@@ -619,7 +643,17 @@ def main(argv):
 
     # execute commands
     for command in args.commands:
-        if command == "engine":
+        if command == "prepare-ext":
+            if not platform:
+                raise Exception("No --platform specified.")
+            prepare_ext(platform)
+        elif command == "build-ext":
+            if not platform:
+                raise Exception("No --platform specified.")
+            call('"%s" ci/ext_cache.py build --platform=%s' % (sys.executable, platform))
+        elif command == "clean-engine":
+            call('"%s" scripts/build.py clean' % sys.executable)
+        elif command == "engine":
             if not platform:
                 raise Exception("No --platform specified.")
             build_engine(channel, platform, args)
@@ -638,11 +672,11 @@ def main(argv):
         elif command == "bob":
             build_bob(channel, branch, args)
         elif command == "test-bob":
-            test_bob(channel)
+            test_bob(channel, args)
         elif command == "sdk":
-            build_sdk(channel, platform)
+            build_sdk(channel, args.platforms or platform)
         elif command == "smoke":
-            smoke_test()
+            smoke_test(args)
         elif command == "install":
             install(args)
         elif command == "install_ext":

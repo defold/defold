@@ -57,6 +57,46 @@ embedded_collision_shape {
     count: 1
     id: "sphere"
   }
+  shapes {
+    shape_type: TYPE_HULL
+    position {
+      x: 0.1
+      y: 0.2
+      z: 0.3
+    }
+    rotation {
+      x: 8.7722944E-4
+      y: 0.0017476063
+      z: 0.0026164628
+      w: 0.99999464
+    }
+    index: 0
+    count: 0
+    id: "hull"
+    mesh_scene: "/referenced/mesh_selection.gltf"
+    mesh_name: "LooseMesh"
+    mesh_index: 2
+  }
+  shapes {
+    shape_type: TYPE_MESH
+    position {
+      x: 0.1
+      y: 0.2
+      z: 0.3
+    }
+    rotation {
+      x: 8.7722944E-4
+      y: 0.0017476063
+      z: 0.0026164628
+      w: 0.99999464
+    }
+    index: 0
+    count: 0
+    id: "mesh"
+    mesh_scene: "/referenced/mesh_selection.gltf"
+    mesh_name: "LooseMesh"
+    mesh_index: 2
+  }
   data: 5.5
   data: 6.0
   data: 6.5

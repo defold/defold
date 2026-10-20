@@ -13,11 +13,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [any? bounded-count empty? every? mapcat merge merge-with not-any? not-empty not-every? some update-vals])
+  (:refer-clojure :exclude [any? bounded-count empty? every? keys mapcat merge merge-with not-any? not-empty not-every? some sort sort-by update-vals vals])
+  (:require [util.task :as task])
   (:import [clojure.core Eduction Vec]
-           [clojure.lang Cons Cycle IEditableCollection LazilyPersistentVector LazySeq MapEntry Repeat Var]
-           [java.util ArrayList Arrays List]
-           [java.util.concurrent Semaphore StructuredTaskScope StructuredTaskScope$FailedException StructuredTaskScope$Joiner]
+           [clojure.lang Cons Counted Cycle IEditableCollection IReduceInit LazilyPersistentVector LazySeq MapEntry Repeat]
+           [java.util ArrayList Arrays Collection Comparator List]
+           [java.util.concurrent Semaphore]
            [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
@@ -185,19 +186,43 @@
   (or (nil? value)
       (instance? Comparable value)))
 
+(defn keys
+  "Returns a counted IReduceInit over the map's keys, in the same order as (seq map)."
+  [map]
+  (reify
+    Counted
+    (count [_] (count map))
+
+    IReduceInit
+    (reduce [_ f init]
+      (reduce-kv (fn [result key _]
+                   (f result key))
+                 init
+                 map))))
+
+(defn vals
+  "Returns a counted IReduceInit over the map's values, in the same order as (seq map)."
+  [map]
+  (reify
+    Counted
+    (count [_] (count map))
+
+    IReduceInit
+    (reduce [_ f init]
+      (reduce-kv (fn [result _ value]
+                   (f result value))
+                 init
+                 map))))
+
 (defn key-set
   "Returns an unordered set with all keys from the supplied map."
-  [coll]
-  (into #{}
-        (map key)
-        coll))
+  [map]
+  (into #{} (keys map)))
 
 (defn sorted-key-set
   "Returns a sorted set with all keys from the supplied map."
-  [coll]
-  (into (sorted-set)
-        (map key)
-        coll))
+  [map]
+  (into (sorted-set) (keys map)))
 
 (defn list-or-cons?
   "Returns true if the specified value is either a IPersistentList or a
@@ -422,10 +447,10 @@
           init (if (record? coll)
                  coll
                  (cond-> (empty coll)
-                         use-transient transient))]
+                   use-transient transient))]
       (with-meta (cond-> (reduce-kv rf init coll)
-                         use-transient persistent!)
-                 (meta coll)))))
+                   use-transient persistent!)
+        (meta coll)))))
 
 (defn update-vals-kv
   "Like core.update-vals, but calls f with both the key and the value of each
@@ -445,10 +470,10 @@
           init (if (record? coll)
                  coll
                  (cond-> (empty coll)
-                         use-transient transient))]
+                   use-transient transient))]
       (with-meta (cond-> (reduce-kv rf init coll)
-                         use-transient persistent!)
-                 (meta coll)))))
+                   use-transient persistent!)
+        (meta coll)))))
 
 (defn map-vals
   "Applies f to all values in the supplied associative collection. Returns a new
@@ -477,23 +502,27 @@
    (update-vals-kv coll f)))
 
 (defn pair-map-by
-  "Returns a hash-map where the keys are the result of applying the supplied
-  key-fn to each item in the input sequence and the values are the items
-  themselves. Returns a stateless transducer if no input sequence is
-  provided. Optionally, a value-fn can be supplied to transform the values."
+  "Returns a stateless transducer that produces pairs using key-fn and
+  value-fn. With only key-fn, the values are the items themselves. A seqable
+  or IReduceInit second argument supplies the collection; otherwise it
+  supplies value-fn. With a collection argument, returns a hash-map.
+
+  The two-argument collection form is deprecated. Use the three-argument
+  form with identity as value-fn instead."
   ([key-fn]
    {:pre [(ifn? key-fn)]}
    (map (pair-fn key-fn)))
+  ;; TODO: Remove the deprecated collection dispatch after 2027-10-15.
   ([key-fn value-fn-or-coll]
-   (if (fn? value-fn-or-coll)
-     (map (pair-fn key-fn value-fn-or-coll))
-     (into {}
-           (map (pair-fn key-fn))
-           value-fn-or-coll)))
+   (if (or (seqable? value-fn-or-coll) (instance? IReduceInit value-fn-or-coll))
+     (pair-map-by key-fn identity value-fn-or-coll)
+     (map (pair-fn key-fn value-fn-or-coll))))
   ([key-fn value-fn coll]
-   (into {}
-         (map (pair-fn key-fn value-fn))
-         coll)))
+   (persistent!
+     (reduce (fn [result item]
+               (assoc! result (key-fn item) (value-fn item)))
+             (transient {})
+             coll))))
 
 (defn merge
   "Like core.merge, but makes use of transients for efficiency, and ignores
@@ -767,8 +796,8 @@
                            (assoc-fn accumulated-by-key key accumulated)))
                        (cond-> coll use-transient transient)
                        pairs)
-               use-transient (-> (persistent!)
-                                 (with-meta (meta coll))))))))
+         use-transient (-> (persistent!)
+                           (with-meta (meta coll))))))))
 
 (defn mapcat-indexed
   "Returns the result of applying concat to the result of applying map-indexed
@@ -1080,6 +1109,7 @@
   not confuse with clojure.core/any?, which takes a single argument and always
   returns true."
   [pred coll]
+  #_{:clj-kondo/ignore [:defold/prefer-util-coll]}
   (boolean (some pred coll)))
 
 (defn not-any?
@@ -1151,6 +1181,61 @@
     (let [array-manager-id (System/identityHashCode (.am coll))]
       (primitive-types-by-array-manager-id array-manager-id))))
 
+(defn sort
+  "Returns a stable, eagerly-sorted, counted IReduceInit over the items in coll.
+
+  Sorting and input-mutation semantics match core.sort. Unlike core.sort, the
+  result is reducible but not seqable; consume it using reduce, into, mapv, or
+  an eduction."
+  ([coll]
+   (sort compare coll))
+  ([^Comparator comparator coll]
+   (let [^objects items (cond
+                          (and coll
+                               (.isArray (class coll))
+                               (not (.isPrimitive (.getComponentType (class coll)))))
+                          coll
+
+                          (instance? Collection coll)
+                          (.toArray ^Collection coll)
+
+                          :else
+                          (let [items (ArrayList.)]
+                            (reduce (fn [^ArrayList items item]
+                                      (.add items item)
+                                      items)
+                                    items
+                                    coll)
+                            (.toArray items)))]
+     (Arrays/sort items comparator)
+     (reify
+       Counted
+       (count [_] (alength items))
+
+       IReduceInit
+       (reduce [_ f init]
+         (loop [index 0
+                result init]
+           (if (= index (alength items))
+             result
+             (let [result (f result (aget items index))]
+               (if (reduced? result)
+                 @result
+                 (recur (inc index) result))))))))))
+
+(defn sort-by
+  "Returns a stable, eagerly-sorted reducible ordered by (key-fn item).
+
+  Supports the same arities and comparator semantics as core.sort-by. Accepts
+  reducible inputs. Returns an IReduceInit that is not seqable; consume it using
+  reduce, into, mapv, or an eduction."
+  ([key-fn coll]
+   (sort-by key-fn compare coll))
+  ([key-fn ^Comparator comparator coll]
+   (sort (fn compare-keys [a b]
+           (.compare comparator (key-fn a) (key-fn b)))
+         coll)))
+
 (defn filterv->
   "Like core.filterv, but takes the input sequence as the first argument and
   supplies any arguments following the predicate function to it after the item
@@ -1185,28 +1270,22 @@
      (case item-count
        0 []
        1 [(f (items 0))]
-       (let [binding-frame (Var/cloneThreadBindingFrame)
-             results (object-array item-count)
+       (let [results (object-array item-count)
              next-index (AtomicInteger. 0)
              worker-count (min item-count (default-parallelism))]
-         (with-open [scope (StructuredTaskScope/open (StructuredTaskScope$Joiner/awaitAllSuccessfulOrThrow))]
+         (task/scope :all-successful
            (dotimes [_ worker-count]
-             (.fork
-               scope
-               ^Runnable
-               (fn []
-                 (do
-                   (Var/resetThreadBindingFrame binding-frame)
-                   (loop []
-                     (when-not (.isInterrupted (Thread/currentThread))
-                       (let [index (.getAndIncrement next-index)]
-                         (when (< index item-count)
-                           (aset results index (f (items index)))
-                           (recur)))))))))
-           (try
-             (.join scope)
-             (catch StructuredTaskScope$FailedException e (throw (.getCause e))))
-           (LazilyPersistentVector/createOwning results))))))
+             (task/fork
+               (loop []
+                 (when-not (.isInterrupted (Thread/currentThread))
+                   (let [index (.getAndIncrement next-index)]
+                     (when (< index item-count)
+                       (aset results index (f (items index)))
+                       (recur)))))))
+           ;; Keep dotimes in statement position to avoid a compiler-generated
+           ;; function.
+           nil)
+         (LazilyPersistentVector/createOwning results)))))
   ([f coll & colls]
    (pmapv #(apply f %) (apply mapv vector coll colls))))
 
@@ -1225,26 +1304,21 @@
   [children-fn build-fn root]
   (let [budget (Semaphore. (default-parallelism))]
     (letfn [(parallel-child-results [child-nodes]
-              (let [binding-frame (Var/cloneThreadBindingFrame)
-                    child-count (count child-nodes)
+              (let [child-count (count child-nodes)
                     results (object-array child-count)]
-                (with-open [scope (StructuredTaskScope/open (StructuredTaskScope$Joiner/awaitAllSuccessfulOrThrow))]
+                (task/scope :all-successful
                   (dotimes [index child-count]
                     (let [child-node (child-nodes index)]
                       (if (.tryAcquire budget)
-                        (.fork scope
-                               ^Runnable
-                               (fn []
-                                 (try
-                                   (Var/resetThreadBindingFrame binding-frame)
-                                   (aset results index (visit child-node))
-                                   (finally
-                                     (.release budget)))))
+                        (task/fork
+                          (try
+                            (aset results index (visit child-node))
+                            (finally
+                              (.release budget))))
                         (aset results index (visit child-node)))))
-                  (try
-                    (.join scope)
-                    (catch StructuredTaskScope$FailedException e
-                      (throw (.getCause e)))))
+                  ;; Keep dotimes in statement position to avoid a
+                  ;; compiler-generated function.
+                  nil)
                 (LazilyPersistentVector/createOwning results)))
             (visit [node]
               (let [child-nodes (vec (or (children-fn node) []))

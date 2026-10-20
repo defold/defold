@@ -71,6 +71,9 @@ namespace dmPlatform
             return;
         }
 
+        // The video mode already has the size needed to cover the monitor.
+        // Do not scale the borderless window dimensions a second time.
+        glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_FALSE);
         glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
         glfwGetMonitorPos(monitor, &mode_params->m_X, &mode_params->m_Y);
         mode_params->m_WindowedFullscreen = true;

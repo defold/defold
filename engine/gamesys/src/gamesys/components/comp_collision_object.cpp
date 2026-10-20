@@ -374,32 +374,58 @@ namespace dmGameSystem
 
         // We want to avoid serializing the message, for performance
         uint32_t msg_size = 0;
-        if (desc->m_NameHash == dmPhysicsDDF::CollisionEvent::m_DDFDescriptor->m_NameHash)
-            msg_size = sizeof(dmPhysicsDDF::CollisionEvent);
-        else if (desc->m_NameHash == dmPhysicsDDF::ContactPointEvent::m_DDFDescriptor->m_NameHash)
-            msg_size = sizeof(dmPhysicsDDF::ContactPointEvent);
-        else if (desc->m_NameHash == dmPhysicsDDF::TriggerEvent::m_DDFDescriptor->m_NameHash)
-            msg_size = sizeof(dmPhysicsDDF::TriggerEvent);
-        else if (desc->m_NameHash == dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_NameHash)
-            msg_size = sizeof(dmPhysicsDDF::RayCastResponse);
-        else if (desc->m_NameHash == dmPhysicsDDF::RayCastMissed::m_DDFDescriptor->m_NameHash)
-            msg_size = sizeof(dmPhysicsDDF::RayCastMissed);
-
-        if (world->m_MessageData.Remaining() < msg_size)
+        PhysicsMessageType msg_type;
+        if (desc == dmPhysicsDDF::CollisionEvent::m_DDFDescriptor)
         {
-            world->m_MessageData.OffsetCapacity( 2 * 1024 );
+            msg_size = sizeof(dmPhysicsDDF::CollisionEvent);
+            msg_type = PHYSICS_MESSAGE_TYPE_COLLISION;
+        }
+        else if (desc == dmPhysicsDDF::ContactPointEvent::m_DDFDescriptor)
+        {
+            msg_size = sizeof(dmPhysicsDDF::ContactPointEvent);
+            msg_type = PHYSICS_MESSAGE_TYPE_CONTACT_POINT;
+        }
+        else if (desc == dmPhysicsDDF::TriggerEvent::m_DDFDescriptor)
+        {
+            msg_size = sizeof(dmPhysicsDDF::TriggerEvent);
+            msg_type = PHYSICS_MESSAGE_TYPE_TRIGGER;
+        }
+        else if (desc == dmPhysicsDDF::RayCastResponse::m_DDFDescriptor)
+        {
+            msg_size = sizeof(dmPhysicsDDF::RayCastResponse);
+            msg_type = PHYSICS_MESSAGE_TYPE_RAY_CAST_RESPONSE;
+        }
+        else if (desc == dmPhysicsDDF::RayCastMissed::m_DDFDescriptor)
+        {
+            msg_size = sizeof(dmPhysicsDDF::RayCastMissed);
+            msg_type = PHYSICS_MESSAGE_TYPE_RAY_CAST_MISSED;
+        }
+        else
+        {
+            assert(false);
+            return;
+        }
+
+        const uint32_t message_alignment = 16;
+        const uint32_t aligned_offset = (world->m_MessageData.Size() + message_alignment - 1) & ~(message_alignment - 1);
+
+        if (world->m_MessageData.Capacity() < aligned_offset + msg_size)
+        {
+            const uint32_t required_capacity = aligned_offset + msg_size;
+            const uint32_t grown_capacity = dmMath::Max(2U * 1024U, world->m_MessageData.Capacity() * 2U);
+            world->m_MessageData.SetCapacity(dmMath::Max(required_capacity, grown_capacity));
         }
 
         if (world->m_MessageInfos.Full())
         {
-            world->m_MessageInfos.OffsetCapacity(64);
+            world->m_MessageInfos.SetCapacity(dmMath::Max(64U, world->m_MessageInfos.Capacity() * 2U));
         }
 
         PhysicsMessage msg;
-        msg.m_Descriptor = desc;
-        msg.m_Offset     = world->m_MessageData.Size();
-        msg.m_Size       = msg_size;
+        msg.m_Offset = aligned_offset;
+        msg.m_Type   = msg_type;
 
+        world->m_MessageData.SetSize(aligned_offset);
         world->m_MessageData.PushArray((uint8_t*)data, msg_size);
         world->m_MessageInfos.Push(msg);
     }

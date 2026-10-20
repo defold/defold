@@ -29,7 +29,7 @@
 
 (def pb-def {:ext "display_profiles"
              :label (localization/message "resource.type.display-profiles")
-             :view-types [:cljfx-form-view :text]
+             :view-types [:form :text]
              :icon "icons/32/Icons_50-Display-profiles.png"
              :icon-class :property
              :category (localization/message "resource.category.project_settings")
@@ -59,19 +59,18 @@
                                :qualifiers qualifiers}))
   (output pb-msg g/Any produce-profile-pb-msg)
   (output profile-data g/Any (g/fnk [_node-id pb-msg]
-                                    (assoc pb-msg :node-id _node-id))))
+                               (assoc pb-msg :node-id _node-id))))
 
 (defn- add-profile [node-id name qualifiers]
-  (g/make-nodes (g/node-id->graph-id node-id)
-                [profile [ProfileNode
+  (g/make-nodes [profile [ProfileNode
                           :name name
                           :qualifiers (mapv #(update % :device-models text-util/join-comma-separated-string)
                                             qualifiers)]]
-                (for [[from to] [[:_node-id :nodes]
-                                 [:pb-msg :profile-msgs]
-                                 [:form-values :profile-form-values]
-                                 [:profile-data :profile-data]]]
-                  (g/connect profile from node-id to))))
+    (for [[from to] [[:_node-id :nodes]
+                     [:pb-msg :profile-msgs]
+                     [:form-values :profile-form-values]
+                     [:profile-data :profile-data]]]
+      (g/connect profile from node-id to))))
 
 (defn- add-profile! [node-id name qualifiers]
   (g/transact (add-profile node-id name qualifiers)))
@@ -143,8 +142,8 @@
                                        :auto-layout-selection (boolean auto-layout-selection))))
   (input profile-form-values g/Any :array)
   (output form-values g/Any (g/fnk [profile-form-values auto-layout-selection]
-                                   {[:profiles] profile-form-values
-                                    [:auto-layout-selection] (boolean auto-layout-selection)}))
+                              {[:profiles] profile-form-values
+                               [:auto-layout-selection] (boolean auto-layout-selection)}))
   (output form-data-desc g/Any :cached produce-form-data-desc)
   (output form-data g/Any :cached produce-form-data)
 
@@ -152,7 +151,7 @@
   (output profile-data g/Any (gu/passthrough profile-data))
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-display-profiles [_project self _resource display-profiles]
+(defn load-display-profiles [_load-opts {self :node-id display-profiles :source-value}]
   {:pre [(map? display-profiles)]} ; Render$DisplayProfiles in map format.
   ;; Inject any missing defaults into the stripped pb-map for form-view editing.
   (let [with-defaults (protobuf/inject-defaults Render$DisplayProfiles display-profiles)

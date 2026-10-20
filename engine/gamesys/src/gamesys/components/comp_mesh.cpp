@@ -54,6 +54,8 @@ namespace dmGameSystem
     using namespace dmVMath;
     using namespace dmGameSystemDDF;
 
+    static const char* MESH_MAX_COUNT_KEY = "mesh.max_count";
+
     struct MeshComponent
     {
         dmGameObject::HInstance         m_Instance;
@@ -376,8 +378,8 @@ namespace dmGameSystem
 
         if (world->m_Components.Full())
         {
-            ShowFullBufferError("Mesh", "mesh.max_count", world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            ShowFullBufferError("Mesh", MESH_MAX_COUNT_KEY, world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         uint32_t index = world->m_Components.Alloc();
         MeshComponent* component = new MeshComponent;
@@ -765,6 +767,9 @@ namespace dmGameSystem
     {
         DM_PROFILE("RenderBatchLocal");
 
+        // Accumulate locally to avoid profiler locks for every mesh.
+        uint32_t vertex_count = 0;
+        uint32_t vertex_data_size = 0;
         for (uint32_t *i=begin;i!=end;i++)
         {
             dmRender::RenderObject& ro = *world->m_RenderObjects.End();
@@ -776,8 +781,8 @@ namespace dmGameSystem
             VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(br->m_NameHash);
             assert(info != 0);
 
-            DM_PROPERTY_ADD_U32(rmtp_MeshVertexCount, br->m_ElementCount);
-            DM_PROPERTY_ADD_U32(rmtp_MeshVertexSize, br->m_Stride * br->m_ElementCount);
+            vertex_count += br->m_ElementCount;
+            vertex_data_size += br->m_Stride * br->m_ElementCount;
 
             dmGraphics::HVertexDeclaration vert_decl = GetVertexDeclaration(component);
 
@@ -786,6 +791,8 @@ namespace dmGameSystem
             FillRenderObject(ro, mr->m_PrimitiveType, material, mesh_resource_textures, component_textures, vert_decl, info->m_VertexBuffer, 0, br->m_ElementCount, component->m_World, component->m_RenderConstants);
             dmRender::AddToRender(render_context, &ro);
         }
+        DM_PROPERTY_ADD_U32(rmtp_MeshVertexCount, vertex_count);
+        DM_PROPERTY_ADD_U32(rmtp_MeshVertexSize, vertex_data_size);
     }
 
     static void RenderBatch(MeshWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
@@ -901,6 +908,7 @@ namespace dmGameSystem
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
+        uint32_t num_enabled = 0;
         for (uint32_t i = 0; i < count; ++i)
         {
             MeshComponent& component = *components[i];
@@ -909,7 +917,7 @@ namespace dmGameSystem
                 continue;
             }
 
-            DM_PROPERTY_ADD_U32(rmtp_Mesh, 1);
+            ++num_enabled;
             const Vector4 trans = component.m_World.getCol(3);
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
             write_ptr->m_UserData = (uintptr_t) &component;
@@ -920,6 +928,7 @@ namespace dmGameSystem
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
         }
+        DM_PROPERTY_ADD_U32(rmtp_Mesh, num_enabled);
 
         dmRender::RenderListSubmit(render_context, render_list, write_ptr);
 
@@ -1162,7 +1171,7 @@ namespace dmGameSystem
         HContextRegistry context_registry = dmGameObject::ComponentGetContextRegistry(ctx);
         mesh_context->m_Factory = ctx->m_Factory;
         mesh_context->m_RenderContext = (dmRender::HRenderContext) ContextRegistryGet(context_registry, RENDER_CONTEXT_NAME);
-        mesh_context->m_MaxMeshCount = dmConfigFile::GetInt(ctx->m_Config, "mesh.max_count", 128);
+        mesh_context->m_MaxMeshCount = dmConfigFile::GetInt(ctx->m_Config, MESH_MAX_COUNT_KEY, 128);
 
         ComponentTypeSetPrio(type, 725);
 

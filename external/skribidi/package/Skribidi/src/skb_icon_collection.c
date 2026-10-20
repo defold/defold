@@ -74,6 +74,38 @@ skb_vec2_t skb_icon_collection_calc_proportional_scale(const skb_icon_collection
 	};
 }
 
+skb_vec2_t skb_icon_collection_calc_proportional_size(const skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle, float width, float height)
+{
+	assert(icon_collection);
+	skb_icon_t* icon = skb__get_icon_by_handle(icon_collection, icon_handle);
+
+	if (!icon)
+		return (skb_vec2_t) {0};
+
+	if (width <= 0 && height <= 0) {
+		// Auto width and height, use the icon size.
+		return (skb_vec2_t) {
+			.x = icon->view.width,
+			.y = icon->view.height,
+		};
+	}
+	if (width <= 0) {
+		// Auto width
+		const float scale = icon->view.height > 0.f ? height / icon->view.height : 0.f;
+		return (skb_vec2_t) { icon->view.width * scale, height };
+	}
+	if (height <= 0) {
+		// Auto height
+		const float scale = icon->view.width > 0.f ? width / icon->view.width : 0.f;
+		return (skb_vec2_t) { width, icon->view.height * scale };
+	}
+
+	return (skb_vec2_t) {
+		.x = width,
+		.y = height,
+	};
+}
+
 
 skb_vec2_t skb_icon_collection_get_icon_size(const skb_icon_collection_t* icon_collection, skb_icon_handle_t icon_handle)
 {
@@ -92,6 +124,12 @@ const skb_icon_t* skb_icon_collection_get_icon(const skb_icon_collection_t* icon
 	return skb__get_icon_by_handle(icon_collection, icon_handle);
 }
 
+uint32_t skb_icon_collection_get_id(const skb_icon_collection_t* icon_collection)
+{
+	assert(icon_collection);
+	return icon_collection->id;
+}
+
 static void skb__icon_shape_destroy(skb_icon_shape_t* shape)
 {
 	for (int32_t i = 0; i < shape->children_count; i++)
@@ -100,20 +138,58 @@ static void skb__icon_shape_destroy(skb_icon_shape_t* shape)
 	skb_free(shape->children);
 }
 
-static void skb__icon_create(skb_icon_t* icon)
+static skb_icon_t* skb__icon_create(skb_icon_collection_t* icon_collection)
 {
-	memset(icon, 0, sizeof(skb_icon_t));
+	// Try to find free slot.
+	int32_t icon_idx = SKB_INVALID_INDEX;
+	uint32_t generation = 1;
+	if (icon_collection->icons_free_list != SKB_INVALID_INDEX) {
+		// Pop from freelist if available.
+		icon_idx = icon_collection->icons_free_list;
+		icon_collection->icons_free_list = icon_collection->icons[icon_idx].next_free;
+		generation = icon_collection->icons[icon_idx].generation;
+	} else {
+		SKB_ARRAY_RESERVE(icon_collection->icons, icon_collection->icons_count+1);
+		icon_idx = icon_collection->icons_count++;
+		memset(&icon_collection->icons[icon_idx], 0, sizeof(skb_icon_t));
+	}
+	assert(icon_idx != SKB_INVALID_INDEX);
+
+	skb_icon_t* icon = &icon_collection->icons[icon_idx];
+
+	icon->generation = generation;
+	icon->next_free = SKB_INVALID_INDEX;
+	icon->handle = skb__make_icon_handle(icon_idx, generation);
 
 	// Init root shape.
 	icon->root.gradient_idx = SKB_INVALID_INDEX;
 	icon->root.opacity = 1.f;
+
+	return icon;
 }
 
-static void skb__icon_destroy(skb_icon_t* icon)
+static void skb__icon_destroy(skb_icon_collection_t* icon_collection, skb_icon_t* icon)
 {
 	if (!icon) return;
+
+	const int32_t icon_idx = (int32_t)(icon - icon_collection->icons);
+	assert(icon_idx >= 0 && icon_idx < icon_collection->icons_count);
+	const uint32_t generation = icon->generation;
+
 	skb_free(icon->name);
+
+	for (int32_t i = 0; i < icon->gradients_count; i++)
+		skb_free(icon->gradients[i].stops);
+	skb_free(icon->gradients);
 	skb__icon_shape_destroy(&icon->root);
+	memset(icon, 0, sizeof(skb_icon_t));
+
+	// Increate generation so that we can catch stale use.
+	icon->generation = generation + 1;
+
+	// Return to freelist
+	icon->next_free = icon_collection->icons_free_list;
+	icon_collection->icons_free_list = icon_idx;
 }
 
 void skb__add_path_command(skb_icon_shape_t* shape, skb_icon_path_command_t cmd)
@@ -129,29 +205,11 @@ skb_icon_handle_t skb_icon_collection_add_icon(skb_icon_collection_t* icon_colle
 	if (skb_hash_table_find(icon_collection->icons_lookup, hash, NULL))
 		return (skb_icon_handle_t)0;
 
-	// Try to find free slot.
-	int32_t icon_idx = SKB_INVALID_INDEX;
-	uint32_t generation = 1;
-	if (icon_collection->empty_icons_count > 0 ) {
-		// Using linear search as we dont expect to have that many fonts loaded.
-		for (int32_t i = 0; i < icon_collection->icons_count; i++) {
-			if (icon_collection->icons[i].hash == 0) {
-				icon_idx = i;
-				icon_collection->empty_icons_count--;
-				generation = icon_collection->icons[i].generation;
-				break;
-			}
-		}
-	} else {
-		SKB_ARRAY_RESERVE(icon_collection->icons, icon_collection->icons_count+1);
-		icon_idx = icon_collection->icons_count++;
-	}
-	assert(icon_idx != SKB_INVALID_INDEX);
+	skb_icon_t* icon = skb__icon_create(icon_collection);
+	assert(icon);
 
-	skb_icon_t* icon = &icon_collection->icons[icon_idx];
-	skb__icon_create(icon);
 	icon->is_color = true;
-	icon->hash = skb_hash64_append_str(skb_hash64_empty(), name);
+	icon->hash = hash;
 
 	int32_t name_len = strlen(name);
 	icon->name = skb_malloc(name_len+1);
@@ -164,10 +222,9 @@ skb_icon_handle_t skb_icon_collection_add_icon(skb_icon_collection_t* icon_colle
 			.height = height,
 		};
 
+	const int32_t icon_idx = (int32_t)(icon - icon_collection->icons);
+	assert(icon_idx >= 0 && icon_idx < icon_collection->icons_count);
 	skb_hash_table_add(icon_collection->icons_lookup, icon->hash, icon_idx);
-
-	icon->generation = generation;
-	icon->handle = skb__make_icon_handle(icon_idx, generation);
 
 	return icon->handle;
 }
@@ -181,14 +238,7 @@ bool skb_icon_collection_remove_icon(skb_icon_collection_t* icon_collection, skb
 	// Remove from lookup
 	skb_hash_table_remove(icon_collection->icons_lookup, icon->hash);
 
-	uint32_t generation = icon->generation + 1;
-
-	skb__icon_destroy(icon);
-	memset(icon, 0, sizeof(skb_icon_t));
-
-	icon->generation = generation;
-
-	icon_collection->empty_icons_count++;
+	skb__icon_destroy(icon_collection, icon);
 
 	return true;
 
@@ -222,7 +272,7 @@ static void skb__picosvg_push_shape(skb__picosvg_parser_t* svg)
 {
 	skb_icon_shape_t* parent_shape = svg->current_shape[svg->current_shape_idx];
 	skb_icon_shape_t* shape = skb_icon_shape_add_child(parent_shape);
-	if (svg->current_shape_idx < 32) {
+	if ((svg->current_shape_idx + 1) < 32) {
 		svg->current_shape_idx++;
 		svg->current_shape[svg->current_shape_idx] = shape;
 	}
@@ -1280,6 +1330,7 @@ skb_icon_collection_t* skb_icon_collection_create(void)
 	result->icons_lookup = skb_hash_table_create();
 
 	result->id = ++id;
+	result->icons_free_list = SKB_INVALID_INDEX;
 
 	return result;
 }
@@ -1288,7 +1339,8 @@ void skb_icon_collection_destroy(skb_icon_collection_t* icon_collection)
 {
 	if (!icon_collection) return;
 	for (int32_t i = 0; i < icon_collection->icons_count; i++)
-		skb__icon_destroy(&icon_collection->icons[i]);
+		skb__icon_destroy(icon_collection, &icon_collection->icons[i]);
+	skb_free(icon_collection->icons);
 	skb_hash_table_destroy(icon_collection->icons_lookup);
 	skb_free(icon_collection);
 }

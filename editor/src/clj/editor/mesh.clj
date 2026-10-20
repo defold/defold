@@ -38,13 +38,14 @@
             [editor.resource-node :as resource-node]
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders]
             [editor.texture-util :as texture-util]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
-           [com.jogamp.opengl GL2]
+           [com.jogamp.opengl GL3]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
            [editor.graphics.types ElementType]
@@ -60,26 +61,7 @@
 (def ^:private position-stream-message (properties/label-message :mesh :position-stream))
 (def ^:private vertices-message (properties/label-message :mesh :vertices))
 
-(shader/defshader model-id-vertex-shader
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (uniform mat4 world_view_proj)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_Position (* world_view_proj position))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader model-id-fragment-shader
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (uniform vec4 id)
-  (defn void main []
-    (setq vec4 color (texture2D texture_sampler var_texcoord0.xy))
-    (if (> color.a 0.05)
-      (setq gl_FragColor id)
-      (discard))))
-
-(def id-shader (shader/make-shader ::model-id-shader model-id-vertex-shader model-id-fragment-shader {"id" :id "world_view_proj" :world-view-proj}))
+(def id-shader shaders/selection-uniform-local-space)
 
 (g/defnk produce-save-value [primitive-type position-stream normal-stream material vertices textures]
   (protobuf/make-map-without-defaults MeshProto$MeshDesc
@@ -108,7 +90,7 @@
 
 (defn- res-fields->resources [pb-msg deps-by-source fields]
   (->> (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) fields)
-    (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]))))
+       (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]))))
 
 (defn- prop-stream-id-error-message [stream-id stream-ids vertex-space prop-message]
   (when (seq stream-ids)
@@ -144,7 +126,7 @@
             dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
             dep-resources (into (res-fields->resources pb-msg deps-by-source [:material :vertices])
-                            (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
+                                (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
@@ -166,7 +148,7 @@
                 samplers
                 gpu-texture-generators)))
 
-(defn- request-vb! [^GL2 gl node-id user-data world-transform]
+(defn- request-vb! [^GL3 gl node-id user-data world-transform]
   (let [request-id [node-id (:vertex-attributes user-data) (:vertex-count user-data)]
         world-transform-clj (math/vecmath->clj world-transform)
         data (-> user-data
@@ -184,11 +166,11 @@
 (defn- gl-primitive-type
   ^long [primitive-type]
   (case primitive-type
-    :primitive-triangles GL2/GL_TRIANGLES
-    :primitive-triangle-strip GL2/GL_TRIANGLE_STRIP
-    :primitive-lines GL2/GL_LINES))
+    :primitive-triangles GL3/GL_TRIANGLES
+    :primitive-triangle-strip GL3/GL_TRIANGLE_STRIP
+    :primitive-lines GL3/GL_LINES))
 
-(defn- render-scene-opaque [^GL2 gl render-args renderables _renderable-count]
+(defn- render-scene-opaque [^GL3 gl render-args renderables _renderable-count]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         gl-primitive-type (gl-primitive-type (:primitive-type user-data))
@@ -208,9 +190,9 @@
         (gl/bind gl texture render-args)
         (shader/set-samplers-by-name shader gl name (:texture-units texture)))
       (light/bind-preview-lights-for-shader! gl shader render-args)
-      (.glBlendFunc gl GL2/GL_ONE GL2/GL_ONE_MINUS_SRC_ALPHA)
-      (gl/gl-enable gl GL2/GL_CULL_FACE)
-      (gl/gl-cull-face gl GL2/GL_BACK)
+      (.glBlendFunc gl GL3/GL_ONE GL3/GL_ONE_MINUS_SRC_ALPHA)
+      (gl/gl-enable gl GL3/GL_CULL_FACE)
+      (gl/gl-cull-face gl GL3/GL_BACK)
       (doseq [renderable renderables
               :let [node-id (:node-id renderable)
                     user-data (:user-data renderable)
@@ -218,12 +200,12 @@
                     vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
         (gl/with-gl-bindings gl render-args [vertex-binding]
           (gl/gl-draw-arrays gl gl-primitive-type 0 (count vb))))
-      (gl/gl-disable gl GL2/GL_CULL_FACE)
-      (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA)
+      (gl/gl-disable gl GL3/GL_CULL_FACE)
+      (.glBlendFunc gl GL3/GL_SRC_ALPHA GL3/GL_ONE_MINUS_SRC_ALPHA)
       (doseq [[_name texture] textures]
         (gl/unbind gl texture render-args)))))
 
-(defn- render-scene-opaque-selection [^GL2 gl render-args renderables _renderable-count]
+(defn- render-scene-opaque-selection [^GL3 gl render-args renderables _renderable-count]
   (assert (= 1 (count renderables)))
   (let [renderable (first renderables)
         node-id (:node-id renderable)
@@ -236,18 +218,18 @@
                                                           (:view render-args)
                                                           (:projection render-args)
                                                           (:texture render-args)))
-        render-args (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))]
+        render-args (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform renderable))]
     (gl/with-gl-bindings gl render-args [id-shader]
       (doseq [[name texture] textures]
         (gl/bind gl texture render-args)
         (shader/set-samplers-by-name id-shader gl name (:texture-units texture)))
-      (gl/gl-enable gl GL2/GL_CULL_FACE)
-      (gl/gl-cull-face gl GL2/GL_BACK)
+      (gl/gl-enable gl GL3/GL_CULL_FACE)
+      (gl/gl-cull-face gl GL3/GL_BACK)
       (let [vb (request-vb! gl node-id user-data world-transform)
             vertex-binding (vtx/use-with [node-id ::mesh-selection] vb id-shader)]
         (gl/with-gl-bindings gl render-args [vertex-binding]
           (gl/gl-draw-arrays gl gl-primitive-type 0 (count vb))))
-      (gl/gl-disable gl GL2/GL_CULL_FACE)
+      (gl/gl-disable gl GL3/GL_CULL_FACE)
       (doseq [[_name texture] textures]
         (gl/unbind gl texture render-args)))))
 
@@ -256,7 +238,7 @@
           (buffer/stream-data->array nil type (count data)))
         array-streams))
 
-(defn- render-scene [^GL2 gl render-args renderables rcount]
+(defn- render-scene [^GL3 gl render-args renderables rcount]
   ;; TODO(instancing): Update rendering to use AttributeBufferBindings. Share scene representation with ModelSceneNode?
   (let [pass (:pass render-args)]
     (condp = pass
@@ -422,7 +404,7 @@
                                             [:shader :shader]
                                             [:vertex-space :vertex-space])))
             (dynamic error (g/fnk [_node-id material]
-                                  (prop-resource-error :fatal _node-id :material material material-message)))
+                             (prop-resource-error :fatal _node-id :material material material-message)))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "material"})))
 
@@ -442,7 +424,7 @@
   (property textures resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough texture-resources))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [project (project/get-project (:basis evaluation-context) self)
+                   (let [project (project/get-project (:basis evaluation-context))
                          connections [[:resource :texture-resources]
                                       [:build-targets :dep-build-targets]
                                       [:gpu-texture-generator :gpu-texture-generators]]]
@@ -493,29 +475,28 @@
   (output scene g/Any :cached produce-scene)
   (output aabb AABB :cached produce-aabb)
   (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties textures samplers]
-                                                  (let [resource-type (get-in _declared-properties [:properties :material :type])
-                                                        prop-entry {:node-id _node-id
-                                                                    :type resource-type
-                                                                    :edit-type {:type resource/Resource
-                                                                                :ext (conj image/exts "cubemap" "render_target")}}
-                                                        keys (map :name samplers)
-                                                        p (->> keys
-                                                               (map-indexed (fn [i s]
-                                                                              [(keyword (format "texture%d" i))
-                                                                               (-> prop-entry
-                                                                                   (assoc :value (get textures i)
-                                                                                          :label s)
-                                                                                   (assoc-in [:edit-type :set-fn]
-                                                                                             (fn [_evaluation-context self _old-value new-value]
-                                                                                               (g/update-property self :textures vset i new-value))))])))]
-                                                    (-> _declared-properties
-                                                        (update :properties into p)
-                                                        (update :display-order into (map first p)))))))
+                                             (let [resource-type (get-in _declared-properties [:properties :material :type])
+                                                   prop-entry {:node-id _node-id
+                                                               :type resource-type
+                                                               :edit-type {:type resource/Resource
+                                                                           :ext (conj image/exts "ktx2" "cubemap" "render_target")}}
+                                                   keys (map :name samplers)
+                                                   p (->> keys
+                                                          (map-indexed (fn [i s]
+                                                                         [(keyword (format "texture%d" i))
+                                                                          (-> prop-entry
+                                                                              (assoc :value (get textures i)
+                                                                                     :label s)
+                                                                              (assoc-in [:edit-type :set-fn]
+                                                                                        (fn [_evaluation-context self _old-value new-value]
+                                                                                          (g/update-property self :textures vset i new-value))))])))]
+                                               (-> _declared-properties
+                                                   (update :properties into p)
+                                                   (update :display-order into (map first p)))))))
 
-(defn- load-mesh [_project self resource pb]
+(defn- load-mesh [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id pb :source-value}]
   {:pre [(map? pb)]} ; MeshProto$MeshDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)
         resolve-resources #(mapv resolve-resource %)]
     (gu/set-properties-from-pb-map self MeshProto$MeshDesc pb
       primitive-type :primitive-type
@@ -626,7 +607,7 @@
   (let [vertex-description (graphics.types/make-vertex-description vertex-attributes)]
     (vtx/make-vertex-buffer vertex-description :static vertex-count)))
 
-(defn- update-vb! [^GL2 _gl ^VertexBuffer vb data]
+(defn- update-vb! [^GL3 _gl ^VertexBuffer vb data]
   (let [data' (update data :world-transform
                       (fn [world-transform]
                         (doto (Matrix4d.)
@@ -636,11 +617,11 @@
         (populate-vb! data')
         (vtx/flip!))))
 
-(defn- make-vb [^GL2 gl data]
+(defn- make-vb [^GL3 gl data]
   (let [{:keys [vertex-attributes vertex-count]} data
         vb (make-vb-from-vertex-attributes vertex-attributes vertex-count)]
     (update-vb! gl vb data)))
 
-(defn- destroy-vbs! [^GL2 _gl _vbs _])
+(defn- destroy-vbs! [^GL3 _gl _vbs _])
 
 (scene-cache/register-object-cache! ::vb make-vb update-vb! destroy-vbs!)

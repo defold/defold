@@ -14,16 +14,18 @@
 
 package com.dynamo.bob.test;
 
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.matchers.JUnitMatchers.hasItem;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -66,6 +68,40 @@ public class JBobTest {
 
     @BuilderParams(name = "InCopyBuilderMulti", inExts = ".in2", outExt = ".out")
     public static class InCopyBuilderMulti extends InCopyBuilder {}
+
+    @BuilderParams(name = "OutputFlags", inExts = ".outputflags", outExt = ".flagsc", isCacheble = true)
+    public static class OutputFlagsBuilder extends Builder {
+        @Override
+        public Task create(IResource input) {
+            return Task.newBuilder(this)
+                    .setName(params.name())
+                    .addInput(input)
+                    .addOutput(input.changeExt(".uncompressed"), Task.OutputFlags.UNCOMPRESSED)
+                    .addOutput(input.changeExt(".encrypted"), Task.OutputFlags.ENCRYPTED)
+                    .addOutput(input.changeExt(".both"), Task.OutputFlags.UNCOMPRESSED, Task.OutputFlags.ENCRYPTED)
+                    .addOutput(input.changeExt(".plain"))
+                    .build();
+        }
+
+        @Override
+        public void build(Task task) throws IOException, CompileExceptionError {
+            if (project.hasOption("fail-output-build")) {
+                throw new CompileExceptionError(task.firstInput(), 0, "Builder must not run");
+            }
+            for (IResource output : task.getOutputs()) {
+                output.setContent(task.firstInput().getContent());
+            }
+        }
+    }
+
+    @BuilderParams(name = "ConstructorException", inExts = ".in_constructor_error", outExt = ".out")
+    public static class ConstructorExceptionBuilder extends CopyBuilder {
+        static final CompileExceptionError ERROR = new CompileExceptionError("Failed to construct builder");
+
+        public ConstructorExceptionBuilder() throws CompileExceptionError {
+            throw ERROR;
+        }
+    }
 
     @BuilderParams(name = "CBuilder", inExts = ".c", outExt = ".o")
     public static class CBuilder extends CopyBuilder {
@@ -215,8 +251,8 @@ public class JBobTest {
             @Override
             public java.util.Enumeration<URL> getResources(String name) throws IOException {
                 return Collections.enumeration(Arrays.asList(
-                        new URL("jar:" + validJarPath.toUri().toURL() + "!/" + name),
-                        new URL("jar:" + missingJarPath.toUri().toURL() + "!/" + name)));
+                        URI.create("jar:" + validJarPath.toUri() + "!/" + name).toURL(),
+                        URI.create("jar:" + missingJarPath.toUri() + "!/" + name).toURL()));
             }
         };
 
@@ -244,12 +280,64 @@ public class JBobTest {
     @Test
     public void testCopy() throws Exception {
         fileSystem.addFile("test.in", "test data".getBytes());
-        project.setInputs(Arrays.asList("test.in"));
+        project.setInputs(List.of("test.in"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
         IResource testOut = fileSystem.get(ResourceUtil.minifyPath("test.out")).output();
         assertNotNull(testOut);
         assertThat(new String(testOut.getContent()), is("test data"));
+    }
+
+    private Task buildFlaggedOutputs(TaskResult.Result expectedResult) throws Exception {
+        List<TaskResult> results = build();
+        assertThat(results.size(), is(1));
+        TaskResult result = results.get(0);
+        assertThat(result.toString(), result.getResult(), is(expectedResult));
+        Task task = result.getTask();
+        List<Set<Task.OutputFlags>> expectedFlags = List.of(
+                Set.of(Task.OutputFlags.UNCOMPRESSED),
+                Set.of(Task.OutputFlags.ENCRYPTED),
+                Set.of(Task.OutputFlags.UNCOMPRESSED, Task.OutputFlags.ENCRYPTED),
+                Set.of());
+        assertThat(task.getOutputs().size(), is(expectedFlags.size()));
+        for (int i = 0; i < expectedFlags.size(); ++i) {
+            IResource output = task.output(i);
+            assertThat(task.getOutputFlags(output), is(expectedFlags.get(i)));
+            assertThat(project.getOutputFlags(output.getAbsPath()), is(expectedFlags.get(i)));
+            assertThat(new String(output.getContent(), StandardCharsets.UTF_8), is("test data"));
+        }
+        return task;
+    }
+
+    // Verifies that rebuilding unchanged outputs preserves each output's archive flags when compilation is skipped.
+    @Test
+    public void testOutputFlagsForSkippedTasks() throws Exception {
+        fileSystem.addFile("test.outputflags", "test data".getBytes(StandardCharsets.UTF_8));
+        project.setInputs(List.of("test.outputflags"));
+        buildFlaggedOutputs(TaskResult.Result.SUCCESS);
+
+        project.setOption("fail-output-build", "true");
+        buildFlaggedOutputs(TaskResult.Result.SKIPPED);
+    }
+
+    // Verifies that restoring cached outputs preserves archive flags without invoking the builder.
+    @Test
+    public void testOutputFlagsForCachedTasks() throws Exception {
+        Path cacheDirectory = Files.createTempDirectory("bob-output-flags-cache");
+        try {
+            project.setOption("resource-cache-local", cacheDirectory.toString());
+            fileSystem.addFile("test.outputflags", "test data".getBytes(StandardCharsets.UTF_8));
+            project.setInputs(List.of("test.outputflags"));
+            Task task = buildFlaggedOutputs(TaskResult.Result.SUCCESS);
+            for (IResource output : task.getOutputs()) {
+                output.remove();
+            }
+
+            project.setOption("fail-output-build", "true");
+            buildFlaggedOutputs(TaskResult.Result.SUCCESS);
+        } finally {
+            FileUtils.deleteDirectory(cacheDirectory.toFile());
+        }
     }
 
     @Test(expected=CompileExceptionError.class)
@@ -263,7 +351,7 @@ public class JBobTest {
     @Test
     public void testAbsPath() throws Exception {
         fileSystem.addFile("/root/test.in", "test data".getBytes());
-        project.setInputs(Arrays.asList("/root/test.in"));
+        project.setInputs(List.of("/root/test.in"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
         IResource testOut = fileSystem.get(ResourceUtil.minifyPath("/root/test.out")).output();
@@ -349,7 +437,7 @@ public class JBobTest {
     @Test
     public void testChangeInput() throws Exception {
         fileSystem.addFile("test.in", "test data".getBytes());
-        project.setInputs(Arrays.asList("test.in"));
+        project.setInputs(List.of("test.in"));
         List<TaskResult> result;
 
         // build
@@ -373,7 +461,7 @@ public class JBobTest {
     @Test
     public void testRemoveOutput() throws Exception {
         fileSystem.addFile("test.in", "test data".getBytes());
-        project.setInputs(Arrays.asList("test.in"));
+        project.setInputs(List.of("test.in"));
         List<TaskResult> result;
 
         // build
@@ -391,7 +479,7 @@ public class JBobTest {
     @Test
     public void testRemoveGeneratedOutput() throws Exception {
         fileSystem.addFile("test.dynamic", "1\n2\n".getBytes());
-        project.setInputs(Arrays.asList("test.dynamic"));
+        project.setInputs(List.of("test.dynamic"));
 
         // build
         List<TaskResult> result = build();
@@ -416,7 +504,7 @@ public class JBobTest {
     @Test
     public void testCompileError() throws Exception {
         fileSystem.addFile("test.in_err", "test data_err".getBytes());
-        project.setInputs(Arrays.asList("test.in_err"));
+        project.setInputs(List.of("test.in_err"));
         List<TaskResult> result;
 
         // build
@@ -433,15 +521,26 @@ public class JBobTest {
     @Test(expected=CompileExceptionError.class)
     public void testCreateError() throws Exception {
         fileSystem.addFile("test.in_ce", "test".getBytes());
-        project.setInputs(Arrays.asList("test.in_ce"));
+        project.setInputs(List.of("test.in_ce"));
         // build
         build();
     }
 
     @Test
+    public void testConstructorCompileError() throws Exception {
+        fileSystem.addFile("test.in_constructor_error", "test".getBytes());
+        try {
+            project.createTask(project.getResource("test.in_constructor_error"), ConstructorExceptionBuilder.class);
+            fail("Expected the builder constructor to fail");
+        } catch (CompileExceptionError e) {
+            assertSame(ConstructorExceptionBuilder.ERROR, e);
+        }
+    }
+
+    @Test
     public void testMissingOutput() throws Exception {
         fileSystem.addFile("test.nooutput", "test data".getBytes());
-        project.setInputs(Arrays.asList("test.nooutput"));
+        project.setInputs(List.of("test.nooutput"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
         assertFalse(result.get(0).isOk());
@@ -455,20 +554,20 @@ public class JBobTest {
     @Test
     public void testDynamic() throws Exception {
         fileSystem.addFile("test.dynamic", "1\n2\n".getBytes());
-        project.setInputs(Arrays.asList("test.dynamic"));
+        project.setInputs(List.of("test.dynamic"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(3));
         assertThat(getResourceString(ResourceUtil.minifyPath("test_0.numberc")), is("10"));
         assertThat(getResourceString(ResourceUtil.minifyPath("test_1.numberc")), is("20"));
-        assertThat(result.get(1).getTask().getProductOf(), is((Task) result.get(0).getTask()));
-        assertThat(result.get(2).getTask().getProductOf(), is((Task) result.get(0).getTask()));
+        assertThat(result.get(1).getTask().getProductOf(), is(result.get(0).getTask()));
+        assertThat(result.get(2).getTask().getProductOf(), is(result.get(0).getTask()));
     }
 
 
     @Test
     public void testChangeOptions() throws Exception {
         fileSystem.addFile("test.c", "f();".getBytes());
-        project.setInputs(Arrays.asList("test.c"));
+        project.setInputs(List.of("test.c"));
         List<TaskResult> result;
 
         // build
@@ -491,7 +590,7 @@ public class JBobTest {
     @Test
     public void testCompileErrorOutputCreated() throws Exception {
         fileSystem.addFile("test.foeao", "test".getBytes());
-        project.setInputs(Arrays.asList("test.foeao"));
+        project.setInputs(List.of("test.foeao"));
         List<TaskResult> result;
 
         // build

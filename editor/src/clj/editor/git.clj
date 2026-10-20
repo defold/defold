@@ -86,9 +86,9 @@
 
 (defn- find-original-for-renamed [ustatus file]
   (->> ustatus
-    (filter (fn [e] (= file (:new-path e))))
-    (map :old-path)
-    (first)))
+       (filter (fn [e] (= file (:new-path e))))
+       (map :old-path)
+       (first)))
 
 ;; =================================================================================
 
@@ -358,8 +358,8 @@
 
 (defn selection-diff-data [git selection]
   (let [change (first selection)
-        old-path (or (:old-path change) (:new-path change) )
-        new-path (or (:new-path change) (:old-path change) )
+        old-path (or (:old-path change) (:new-path change))
+        new-path (or (:new-path change) (:old-path change))
         old (String. ^bytes (show-file git old-path))
         new (slurp (file git new-path))
         binary? (not-every? text-util/text-char? new)]

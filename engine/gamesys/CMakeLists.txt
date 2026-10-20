@@ -21,13 +21,32 @@ set(GAMESYS_DEPENDENCIES
     dlib
     font
     gameobject
+    input
+    render
+    resource
+    script
+    sound
+    $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+set(GAMESYS_GUI_DEPENDENCIES
+    ddf
+    dlib
+    font
+    gameobject
     gui
     input
     particle
     render
     resource
     script
-    sound
+    $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+set(GAMESYS_PARTICLE_DEPENDENCIES
+    ddf
+    dlib
+    gameobject
+    particle
+    render
+    resource
+    script
     $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 set(GAMESYS_MODEL_DEPENDENCIES
     gameobject
@@ -53,6 +72,12 @@ set(GAMESYS_RIG_NULL_DEPENDENCIES
     rig
     $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 set(SCRIPT_BOX2D_DEPENDENCIES
+    gameobject
+    gui
+    input
+    script
+    $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+set(SCRIPT_BULLET3D_DEPENDENCIES
     gameobject
     gui
     input
@@ -134,11 +159,10 @@ set(GAMESYS_PROTO_PY_DIR "${GS_PROTO_PY_DIR}" CACHE INTERNAL "Generated gamesys 
 # ========= gamesys (main) =========
 
 # Mirror ant_glob patterns from wscript:
-#   ['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp', 'fontgen/*.cpp']
+#   ['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp']
 file(GLOB GS_TOP_LEVEL
     "${GS_SRC_DIR}/*.cpp"
-    "${GS_SRC_DIR}/scripts/*.cpp"
-    "${GS_SRC_DIR}/fontgen/*.cpp")
+    "${GS_SRC_DIR}/scripts/*.cpp")
 file(GLOB_RECURSE GS_RESOURCES "${GS_SRC_DIR}/resources/*.cpp")
 file(GLOB_RECURSE GS_COMPONENTS "${GS_SRC_DIR}/components/*.cpp")
 set(GS_SOURCES ${GS_TOP_LEVEL} ${GS_RESOURCES} ${GS_COMPONENTS})
@@ -148,8 +172,14 @@ set(GS_SOURCES ${GS_TOP_LEVEL} ${GS_RESOURCES} ${GS_COMPONENTS})
 list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_model\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_model_pbr\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_model_null\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_gui\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/res_model\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/res_model_null\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/res_gui\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/res_gui_script\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_particlefx\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/res_particlefx\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/script_particlefx\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/res_rig_scene\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/res_rig_scene_null\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/script_model\\.cpp$")
@@ -161,9 +191,9 @@ list(FILTER GS_SOURCES EXCLUDE REGEX "/script_model\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/scripts/box2d/")
 
 # Choose platform-specific window script
-if (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
+if (TARGET_PLATFORM MATCHES "arm64-ios|arm64_sim-ios")
     list(APPEND GS_SOURCES "${GS_SRC_DIR}/scripts/window/script_window_ios.mm")
-elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
+elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android|x86_64-android")
     list(APPEND GS_SOURCES "${GS_SRC_DIR}/scripts/window/script_window_android.cpp")
 else()
     list(APPEND GS_SOURCES "${GS_SRC_DIR}/scripts/window/script_window_null.cpp")
@@ -185,6 +215,7 @@ target_include_directories(gamesys PUBLIC
     "${CMAKE_CURRENT_BINARY_DIR}")
 foreach(_gamesys_dependency IN ITEMS
     gamesys_proto_headers
+    font_glyphbank_ddf_header
     graphics_proto_header
     input_proto_headers
     particle_proto_headers
@@ -194,6 +225,43 @@ foreach(_gamesys_dependency IN ITEMS
   endif()
 endforeach()
 defold_target_link_libraries(gamesys "${TARGET_PLATFORM}" SCOPE PUBLIC ${GAMESYS_DEPENDENCIES})
+
+# ========= gamesys_gui =========
+defold_add_library(gamesys_gui STATIC
+    "${GS_SRC_DIR}/resources/res_gui.cpp"
+    "${GS_SRC_DIR}/resources/res_gui_script.cpp"
+    "${GS_SRC_DIR}/components/comp_gui.cpp")
+target_include_directories(gamesys_gui PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}" "${GS_ROOT}/proto" "${CMAKE_CURRENT_BINARY_DIR}")
+foreach(_gamesys_gui_dependency IN ITEMS
+    gamesys_proto_headers
+    graphics_proto_header
+    input_proto_headers
+    particle_proto_headers
+    render_proto_headers)
+  if(TARGET ${_gamesys_gui_dependency})
+    add_dependencies(gamesys_gui ${_gamesys_gui_dependency})
+  endif()
+endforeach()
+defold_target_link_libraries(gamesys_gui "${TARGET_PLATFORM}" SCOPE PUBLIC ${GAMESYS_GUI_DEPENDENCIES})
+set_target_properties(gamesys_gui PROPERTIES DEFOLD_SDK_HEADERS_TARGET gamesys_sdk_headers)
+
+# ========= gamesys_particle =========
+defold_add_library(gamesys_particle STATIC
+    "${GS_SRC_DIR}/resources/res_particlefx.cpp"
+    "${GS_SRC_DIR}/components/comp_particlefx.cpp"
+    "${GS_SRC_DIR}/scripts/script_particlefx.cpp")
+target_include_directories(gamesys_particle PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}" "${GS_ROOT}/proto" "${CMAKE_CURRENT_BINARY_DIR}")
+foreach(_gamesys_particle_dependency IN ITEMS
+    gamesys_proto_headers
+    graphics_proto_header
+    particle_proto_headers
+    render_proto_headers)
+  if(TARGET ${_gamesys_particle_dependency})
+    add_dependencies(gamesys_particle ${_gamesys_particle_dependency})
+  endif()
+endforeach()
+defold_target_link_libraries(gamesys_particle "${TARGET_PLATFORM}" SCOPE PUBLIC ${GAMESYS_PARTICLE_DEPENDENCIES})
+set_target_properties(gamesys_particle PROPERTIES DEFOLD_SDK_HEADERS_TARGET gamesys_sdk_headers)
 
 # ========= gamesys_model =========
 set(GS_MODEL_PROTO "${GS_PROTO_DIR}/model_ddf.proto")
@@ -305,13 +373,39 @@ endif()
 defold_target_link_libraries(script_box2d_defold "${TARGET_PLATFORM}" SCOPE PUBLIC ${SCRIPT_BOX2D_DEPENDENCIES})
 set_target_properties(script_box2d_defold PROPERTIES DEFOLD_SDK_HEADERS_TARGET gamesys_sdk_headers)
 
-foreach(_target IN ITEMS gamesys gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold)
+# ========= script_bullet3d =========
+defold_add_library(script_bullet3d STATIC
+    "${GS_SRC_DIR}/scripts/bullet3d/script_bullet3d.cpp"
+    "${GS_SRC_DIR}/scripts/bullet3d/script_bullet3d_collision_object.cpp"
+    "${GS_SRC_DIR}/scripts/bullet3d/script_bullet3d_constraint.cpp"
+    "${GS_SRC_DIR}/scripts/bullet3d/script_bullet3d_rigid_body.cpp"
+    "${GS_SRC_DIR}/scripts/bullet3d/script_bullet3d_shape.cpp"
+    "${GS_SRC_DIR}/scripts/bullet3d/script_bullet3d_world.cpp")
+target_include_directories(script_bullet3d PUBLIC
+    "${GS_SRC_DIR}"
+    "${GS_DMSDK_SRC_DIR}"
+    "${CMAKE_CURRENT_BINARY_DIR}")
+add_dependencies(script_bullet3d gamesys_proto_headers)
+if(TARGET graphics_proto_header)
+    add_dependencies(script_bullet3d graphics_proto_header)
+endif()
+if(TARGET particle_proto_headers)
+    add_dependencies(script_bullet3d particle_proto_headers)
+endif()
+if(TARGET input_proto_headers)
+    add_dependencies(script_bullet3d input_proto_headers)
+endif()
+defold_target_link_libraries(script_bullet3d "${TARGET_PLATFORM}" SCOPE PUBLIC ${SCRIPT_BULLET3D_DEPENDENCIES})
+defold_target_link_bullet3d(script_bullet3d "${TARGET_PLATFORM}" SCOPE PUBLIC)
+set_target_properties(script_bullet3d PROPERTIES DEFOLD_SDK_HEADERS_TARGET gamesys_sdk_headers)
+
+foreach(_target IN ITEMS gamesys gamesys_gui gamesys_particle gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold script_bullet3d)
     add_dependencies(${_target} gamesys_proto_cpp)
     target_include_directories(${_target} PUBLIC "${GS_GENERATED_INCLUDE_DIR}")
 endforeach()
 
 # ========= Android Java (optional) =========
-if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
+if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android|x86_64-android")
     find_package(Java 21 COMPONENTS Development QUIET)
     if(Java_JAVAC_EXECUTABLE AND Java_JAR_EXECUTABLE)
         file(GLOB_RECURSE GS_JAVA_SRC "${GS_ROOT}/src/java/*.java")
@@ -327,15 +421,14 @@ if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
 endif()
 
 # ========= Install =========
-defold_install_targets(TARGETS gamesys gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold
+defold_install_targets(TARGETS gamesys gamesys_gui gamesys_particle gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold script_bullet3d
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
 set(GAMESYS_PUBLIC_HEADERS
     "${GS_SRC_DIR}/gamesys.h"
-    "${GS_SRC_DIR}/components/comp_gui.h"
-    "${GS_SRC_DIR}/fontgen/fontgen.h")
+    "${GS_SRC_DIR}/components/comp_gui.h")
 file(GLOB_RECURSE GAMESYS_DMSDK_HEADERS CONFIGURE_DEPENDS
     "${GS_ROOT}/src/dmsdk/*.h"
     "${GS_ROOT}/src/dmsdk/*.hpp")
@@ -379,7 +472,6 @@ add_custom_target(gamesys_sdk_headers
 
 install(FILES "${GS_SRC_DIR}/gamesys.h" DESTINATION include/gamesys)
 install(FILES "${GS_SRC_DIR}/components/comp_gui.h" DESTINATION include/gamesys/components)
-install(FILES "${GS_SRC_DIR}/fontgen/fontgen.h" DESTINATION include/gamesys/fontgen)
 install(FILES ${GS_PROTO_HEADERS} "${GS_MODEL_HEADER}" DESTINATION include/gamesys)
 install(FILES "${GS_HTTP_PROTO_HEADER}" DESTINATION include/dlib)
 install(FILES "${GS_HTTP_PROTO}" DESTINATION share/proto/dlib)
@@ -389,7 +481,6 @@ install(DIRECTORY "${GS_ROOT}/src/dmsdk/"
         PATTERN "*.h"
         PATTERN "*.hpp")
 install(FILES ${_ALL_PROTO_FILES} DESTINATION share/proto/gamesys)
-install(FILES "${GS_ROOT}/src/waf_gamesys.py" DESTINATION lib/python)
 install(FILES ${GS_PROTO_PY} DESTINATION lib/python)
 
 # ========= Tests =========

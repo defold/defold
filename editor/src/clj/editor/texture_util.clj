@@ -145,8 +145,8 @@
       (g/precluding-errors texture-request-datas texture-request-datas))
 
     ;; This is a single content-generator. In this situation we expect it to
-    ;; return a BufferedImage, an ErrorValue, or a sequence of values that may
-    ;; be a mix of BufferedImages or ErrorValues.
+    ;; return a BufferedImage, HDR bytes, an ErrorValue, or a sequence of values
+    ;; that may be a mix of BufferedImages or ErrorValues.
     (let [content (call-generator content-generatable)
           data-version (java/combine-hashes
                          (hash (:sha1 content-generatable))
@@ -155,11 +155,8 @@
         (g/error-value? content)
         content
 
-        (instance? BufferedImage content)
-        (let [texture-image (tex-gen/make-preview-texture-image content texture-profile flip-y)]
-          [(texture/texture-image->texture-request-data texture-image data-version)])
-
-        (bytes? content)
+        (or (instance? BufferedImage content)
+            (bytes? content))
         (let [texture-image (tex-gen/make-preview-texture-image content texture-profile flip-y)]
           [(texture/texture-image->texture-request-data texture-image data-version)])
 
@@ -278,6 +275,14 @@
   [{:keys [request-id texture-request-datas-by-side-kw-delay]}]
   (let [texture-request-datas-by-side-kw (force texture-request-datas-by-side-kw-delay)]
     (make-cubemap-gpu-texture request-id texture-request-datas-by-side-kw)))
+
+(def placeholder-cubemap-gpu-texture-generator
+  {:f cubemap-gpu-texture-gen-fn
+   :args {:request-id ::placeholder-cubemap-gpu-texture
+          :texture-request-datas-by-side-kw-delay
+          (delay
+            (zipmap [:px :nx :py :ny :pz :nz]
+                    (repeat (first texture/placeholder-texture-request-datas))))}})
 
 (defn cubemap-gpu-texture-generator?
   [value]

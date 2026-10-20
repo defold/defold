@@ -76,16 +76,24 @@
     (localization/message "error.unspecified-property" {"property" name})))
 
 (defn prop-resource-not-exists? [v name]
-  (and v
-       (not (resource/exists? v))
-       (if-some [symlink-target-path (some-> (path/symlink-target v) path/absolute)]
-         (localization/message "error.property-resource-is-a-broken-symlink"
-                               {"property" name
-                                "resource" (resource/resource->proj-path v)
-                                "path" symlink-target-path})
-         (localization/message "error.property-resource-not-found"
-                               {"property" name
-                                "resource" (resource/resource->proj-path v)}))))
+  (cond
+    (nil? v)
+    nil
+
+    (not (resource/exists? v))
+    (if-some [symlink-target-path (some-> (path/symlink-target v) path/absolute)]
+      (localization/message "error.property-resource-is-a-broken-symlink"
+                            {"property" name
+                             "resource" (resource/resource->proj-path v)
+                             "path" symlink-target-path})
+      (localization/message "error.property-resource-not-found"
+                            {"property" name
+                             "resource" (resource/resource->proj-path v)}))
+
+    (= :folder (resource/source-type v))
+    (localization/message "error.property-resource-is-a-folder"
+                          {"property" name
+                           "resource" (resource/resource->proj-path v)})))
 
 (defn prop-resource-missing? [v name]
   (or (prop-nil? v name)
@@ -144,6 +152,15 @@
   ([severity _node-id prop-kw f prop-value & args]
    (when-let [msg (apply f prop-value args)]
      (g/->error _node-id prop-kw severity prop-value msg {}))))
+
+(defn setting-error
+  [severity node-id setting-path f setting-value & args]
+  (let [setting-label (coll/join-to-string "." setting-path)]
+    (when-let [error-message (apply f setting-value setting-label args)]
+      (g/map->error
+        {:_node-id node-id
+         :severity severity
+         :message error-message}))))
 
 (defn keyword->name [kw]
   (-> kw

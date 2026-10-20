@@ -55,6 +55,17 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #define GL_BGRA GL_BGRA_EXT
+#ifndef GL_SHADER_STORAGE_BUFFER
+// Android uses GLES2 headers, but loads GLES 3.1 entry points at runtime.
+// These enums must be available when compiling the runtime-gated SSBO path.
+#define GL_SHADER_STORAGE_BUFFER              0x90D2
+#endif
+#ifndef GL_MAX_SHADER_STORAGE_BLOCK_SIZE
+#define GL_MAX_SHADER_STORAGE_BLOCK_SIZE      0x90DE
+#endif
+#ifndef GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS
+#define GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS 0x90DD
+#endif
 #elif defined (__EMSCRIPTEN__)
 #include <GL/gl.h>
 #include <GL/glext.h>
@@ -98,6 +109,24 @@
 #define DMGRAPHICS_SAMPLER_2D_ARRAY                         (0x8DC1)
 #endif
 
+#ifdef GL_UNSIGNED_INT_SAMPLER_2D
+#define DMGRAPHICS_UNSIGNED_INT_SAMPLER_2D                  (GL_UNSIGNED_INT_SAMPLER_2D)
+#else
+#define DMGRAPHICS_UNSIGNED_INT_SAMPLER_2D                  (0x8DD2)
+#endif
+
+#ifdef GL_R32UI
+#define DMGRAPHICS_TEXTURE_FORMAT_R32UI                     (GL_R32UI)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_R32UI                     (0x8236)
+#endif
+
+#ifdef GL_RED_INTEGER
+#define DMGRAPHICS_TEXTURE_FORMAT_RED_INTEGER               (GL_RED_INTEGER)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RED_INTEGER               (0x8D94)
+#endif
+
 // Texture images
 #ifdef GL_IMAGE_2D
     #define DMGRAPHICS_IMAGE_2D                         (GL_IMAGE_2D)
@@ -118,12 +147,32 @@
     #define DMGRAPHICS_IMAGE_3D (0x904E)
 #endif
 
+#ifdef GL_TEXTURE_WRAP_R
+    #define DMGRAPHICS_TEXTURE_WRAP_R (GL_TEXTURE_WRAP_R)
+#else
+    #define DMGRAPHICS_TEXTURE_WRAP_R (0x8072)
+#endif
+
 // Barrier bits
 #ifdef GL_SHADER_IMAGE_ACCESS_BARRIER_BIT
     #define DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS       (GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 #else
     #define DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS       (0x00000020)
 #endif
+
+#ifdef GL_TEXTURE_FETCH_BARRIER_BIT
+    #define DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH              (GL_TEXTURE_FETCH_BARRIER_BIT)
+#else
+    #define DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH              (0x00000008)
+#endif
+
+#ifdef GL_SHADER_STORAGE_BARRIER_BIT
+    #define DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE             (GL_SHADER_STORAGE_BARRIER_BIT)
+#else
+    #define DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE             (0x00002000)
+#endif
+
+#define DMGRAPHICS_BARRIER_BIT_BUFFER_UPDATE (0x00000200)
 
 // GL_READ_WRITE
 #ifdef GL_READ_WRITE
@@ -596,6 +645,46 @@
 
 #ifndef GL_UNIFORM_BLOCK_INDEX
 #define GL_UNIFORM_BLOCK_INDEX                           0x8A3A
+#endif
+
+#ifndef GL_READ_BUFFER
+#define GL_READ_BUFFER                                   0x0C02
+#endif
+
+#ifndef GL_READ_FRAMEBUFFER
+#define GL_READ_FRAMEBUFFER                              0x8CA8
+#endif
+
+#ifndef GL_DRAW_FRAMEBUFFER
+#define GL_DRAW_FRAMEBUFFER                              0x8CA9
+#endif
+
+#ifndef GL_MAX_SAMPLES
+#define GL_MAX_SAMPLES                                   0x8D57
+#endif
+
+#ifndef GL_R8
+#define GL_R8                                            0x8229
+#endif
+
+#ifndef GL_RG8
+#define GL_RG8                                           0x822B
+#endif
+
+#ifndef GL_RGB8
+#define GL_RGB8                                          0x8051
+#endif
+
+#ifndef GL_RGBA8
+#define GL_RGBA8                                         0x8058
+#endif
+
+#ifndef GL_RGB565
+#define GL_RGB565                                        0x8D62
+#endif
+
+#ifndef GL_RGBA4
+#define GL_RGBA4                                         0x8056
 #endif
 
 #endif // DMGRAPHICS_OPENGL_DEFINES_H

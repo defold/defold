@@ -24,8 +24,6 @@
 #include "gamesys_private.h"
 
 #include "scripts/script_label.h"
-#include "scripts/script_particlefx.h"
-#include "scripts/script_tilemap.h"
 #include "scripts/script_physics.h"
 #include "scripts/script_sound.h"
 #include "scripts/script_sprite.h"
@@ -36,8 +34,6 @@
 #include "scripts/script_collectionproxy.h"
 #include "scripts/script_buffer.h"
 #include "scripts/script_sys_gamesys.h"
-#include "components/comp_gui.h"
-
 #include <dmsdk/gamesys/script.h>
 #include <gameobject/script.h>
 
@@ -48,21 +44,8 @@ extern "C"
 }
 
 namespace dmScript {
-    static inline dmGameObject::HInstance GetGOInstance(lua_State* L)
-    {
+    dmGameObject::HGameObject CheckGOInstance(lua_State* L) {
         dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
-        if (instance == 0) {
-            dmGui::HScene scene = dmGui::GetSceneFromLua(L);
-            if (scene != 0) {
-                instance = (dmGameObject::HInstance)dmGameSystem::GuiGetUserDataCallback(scene);
-            }
-        }
-        return instance;
-    }
-
-    dmGameObject::HInstance CheckGOInstance(lua_State* L) {
-        dmGameObject::HInstance instance = GetGOInstance(L);
-        // No instance for render scripts, ignored
         if (instance == 0) {
             luaL_error(L, "no instance could be found in the current script environment");
         }
@@ -71,13 +54,12 @@ namespace dmScript {
 
     // Inspired by the internal function dmGameObject::ResolveInstance
     // Modified to support both gameobject/gui scripts
-    dmGameObject::HInstance CheckGOInstance(lua_State* L, int instance_arg)
+    dmGameObject::HGameObject CheckGOInstance(lua_State* L, int instance_arg)
     {
-        dmGameObject::HInstance instance = GetGOInstance(L);
+        dmGameObject::HInstance instance = CheckGOInstance(L);
 
         if (!lua_isnil(L, instance_arg)) {
             dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
-
             dmMessage::URL receiver;
             dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
             if (receiver.m_Socket != dmGameObject::GetMessageSocket(collection))
@@ -97,15 +79,13 @@ namespace dmScript {
 
     dmGameObject::HCollection CheckCollection(lua_State* L)
     {
-        dmGameObject::HInstance instance = GetGOInstance(L);
-        if (!instance)
-            luaL_error(L, "Script context doesn't have a game object set");
-        return instance ? dmGameObject::GetCollection(instance) : 0;
+        dmGameObject::HInstance instance = CheckGOInstance(L);
+        return dmGameObject::GetCollection(instance);
     }
 
     void GetComponentFromLua(lua_State* L, int index, const char* component_type, dmGameObject::HComponentWorld* out_world, dmGameObject::HComponent* component, dmMessage::URL* url)
     {
-        dmGameObject::HInstance instance = CheckGOInstance(L, index);
+        dmGameObject::HInstance instance = CheckGOInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
         dmGameObject::GetComponentFromLua(L, index, collection, component_type, component, url, out_world);
     }
@@ -235,6 +215,9 @@ namespace dmGameSystem
         lua_pushinteger(L, (lua_Integer) info.m_VWrap);
         lua_setfield(L, -2, "v_wrap");
 
+        lua_pushinteger(L, (lua_Integer) info.m_WWrap);
+        lua_setfield(L, -2, "w_wrap");
+
         lua_pushinteger(L, (lua_Integer) info.m_MinFilter);
         lua_setfield(L, -2, "min_filter");
 
@@ -279,7 +262,8 @@ namespace dmGameSystem
 
             lua_setfield(L, -2, "value");
         }
-        else if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
+        else if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER ||
+                 type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR)
         {
             uint32_t num_values;
             dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
@@ -375,7 +359,7 @@ namespace dmGameSystem
         PushVertexAttributeValue(L, attribute->m_VectorType, values);
     }
 
-    void GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
+    void GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureWrap* w_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
     {
         // parse u_wrap
         {
@@ -393,6 +377,16 @@ namespace dmGameSystem
             if (!lua_isnil(L, -1))
             {
                 *v_wrap = (dmGraphics::TextureWrap) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse w_wrap
+        {
+            lua_getfield(L, -1, "w_wrap");
+            if (!lua_isnil(L, -1))
+            {
+                *w_wrap = (dmGraphics::TextureWrap) lua_tointeger(L, -1);
             }
             lua_pop(L, 1);
         }
@@ -497,11 +491,7 @@ namespace dmGameSystem
                     }
                     lua_pop(L, 1);
 
-                    if (scratch_values->Capacity() < count)
-                    {
-                        scratch_values->SetCapacity(count);
-                    }
-                    scratch_values->SetSize(count);
+                    scratch_values->EnsureSize(count);
 
                     dmVMath::Vector4* write_ptr = scratch_values->Begin();
 
@@ -522,12 +512,7 @@ namespace dmGameSystem
                         count = 4;
                     }
 
-                    if (scratch_values->Capacity() < count)
-                    {
-                        scratch_values->SetCapacity(count);
-                    }
-
-                    scratch_values->SetSize(count);
+                    scratch_values->EnsureSize(count);
 
                     FillConstantsFromLua(L, -1, scratch_values->Begin());
                 }
@@ -552,8 +537,6 @@ namespace dmGameSystem
 
         ScriptBufferRegister(context);
         ScriptLabelRegister(context);
-        ScriptParticleFXRegister(context);
-        ScriptTileMapRegister(context);
         ScriptPhysicsRegister(context);
         ScriptFactoryRegister(context);
         ScriptCollectionFactoryRegister(context);

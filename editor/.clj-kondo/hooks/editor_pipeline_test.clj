@@ -16,7 +16,8 @@
   (:require [hooks.integration-test-util :as test-util]))
 
 (def implicit-clean-system-bindings
-  '#{project workspace})
+  '{project 0
+    workspace 0})
 
 (defn with-clean-system [{:keys [node]}]
   (let [[_ & body] (:children node)]

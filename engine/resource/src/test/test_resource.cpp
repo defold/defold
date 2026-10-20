@@ -912,6 +912,38 @@ TEST_P(GetResourceTest, PreloadGetManyRefs)
     dmResource::DeletePreloader(pr);
 }
 
+TEST_P(GetResourceTest, PreloadPathCacheFull)
+{
+    // Normal paths exhaust the name cache. Noncanonical paths use two entries
+    // and exhaust it while inserting the canonical name instead. Both early
+    // returns must release the scoped lock exactly once: Darwin's os_unfair_lock
+    // aborts on the double unlock that the old spinlock implementation tolerated.
+    const char* prefixes[] = { "/", "/./" };
+    for (uint32_t p = 0; p < 2; ++p)
+    {
+        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, m_ResourceName);
+        ResourcePreloadHintInfo info;
+        info.m_Preloader = pr;
+        info.m_Parent = 0;
+        bool full = false;
+        for (uint32_t i = 0; i < 4096; ++i)
+        {
+            char path[64];
+            dmSnPrintf(path, sizeof(path), "%smissing_%u.foo", prefixes[p], i);
+            if (!dmResource::PreloadHint(&info, path))
+            {
+                full = true;
+                break;
+            }
+        }
+        ASSERT_TRUE(full);
+        // Re-enter the same lock after failure and confirm existing cache entries
+        // remain usable when no new entries can be added.
+        ASSERT_TRUE(dmResource::PreloadHint(&info, m_ResourceName));
+        dmResource::DeletePreloader(pr);
+    }
+}
+
 
 TEST_P(GetResourceTest, PreloadGetAbort)
 {
@@ -1006,6 +1038,58 @@ dmResource::Result AdResourceDestroy(const dmResource::ResourceDestroyParams* pa
 {
     free(ResourceDescriptorGetResource(params->m_Resource));
     return dmResource::RESULT_OK;
+}
+
+// Verifies that creation stores distinct resource versions, guarding against
+// assigning the version after copying the descriptor into the resource map.
+TEST_F(ResourceTest, CreatedResourcesHaveDistinctVersions)
+{
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "adc", 0, 0, AdResourceCreate, 0, AdResourceDestroy, 0));
+
+    char data[] = "test";
+    void* first_resource = 0;
+    void* second_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, "/version_first.adc", data, sizeof(data), &first_resource));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, "/version_second.adc", data, sizeof(data), &second_resource));
+
+    uint16_t first_version = dmResource::GetVersion(factory, first_resource);
+    uint16_t second_version = dmResource::GetVersion(factory, second_resource);
+    dmResource::Release(factory, first_resource);
+    dmResource::Release(factory, second_resource);
+
+    ASSERT_NE(dmResource::RESOURCE_VERSION_INVALID, first_version);
+    ASSERT_NE(dmResource::RESOURCE_VERSION_INVALID, second_version);
+    ASSERT_NE(first_version, second_version);
+}
+
+static dmResource::Result VersionResourceCreate(const dmResource::ResourceCreateParams* params)
+{
+    ResourceDescriptorSetResource(params->m_Resource, params->m_Context);
+    return dmResource::RESULT_OK;
+}
+
+// Verifies that reusing a resource's path and address changes its version,
+// preventing stale handles from matching a later resource's identity.
+TEST_F(ResourceTest, RecreatedResourceAtSameAddressHasNewVersion)
+{
+    int resource_storage = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "version", &resource_storage, 0, VersionResourceCreate, 0, DummyDestroy, 0));
+
+    const char* path = "/recreated.version";
+    char data[] = "test";
+    void* first_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, path, data, sizeof(data), &first_resource));
+    uint16_t first_version = dmResource::GetVersion(factory, first_resource);
+    dmResource::Release(factory, first_resource);
+
+    void* recreated_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, path, data, sizeof(data), &recreated_resource));
+    uint16_t recreated_version = dmResource::GetVersion(factory, recreated_resource);
+    dmResource::Release(factory, recreated_resource);
+
+    ASSERT_EQ(first_resource, recreated_resource);
+    ASSERT_NE(dmResource::RESOURCE_VERSION_INVALID, recreated_version);
+    ASSERT_NE(first_version, recreated_version);
 }
 
 TEST(dmResource, Builtins)
@@ -1161,6 +1245,17 @@ static void ResourceReloadedHttpCallback(const dmResource::ResourceReloadedParam
     }
 }
 
+static dmThread::Thread SendReload(ReloadedContext* context)
+{
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+    SendReloadThread(context);
+    return 0;
+#else
+    return dmThread::New(&SendReloadThread, 0x8000, context, "reload");
+#endif
+}
+
+// Verify queued reloads and missing-resource callbacks, including on single-thread web builds.
 TEST(RecreateTest, RecreateTestHttp)
 {
     dmResource::NewFactoryParams params;
@@ -1205,7 +1300,7 @@ TEST(RecreateTest, RecreateTestHttp)
     state.m_Reloaded = &send_reload_done;
     dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedHttpCallback, &state);
 
-    dmThread::Thread send_thread = dmThread::New(&SendReloadThread, 0x8000, 0, "reload");
+    dmThread::Thread send_thread = SendReload(0);
 
     uint64_t t_start = dmTime::GetMonotonicTime();
     do
@@ -1221,7 +1316,8 @@ TEST(RecreateTest, RecreateTestHttp)
         }
     } while (!dmAtomicGet32(&send_reload_done));
 
-    dmThread::Join(send_thread);
+    if (send_thread)
+        dmThread::Join(send_thread);
 
     ASSERT_EQ(456, *resource);
 
@@ -1230,7 +1326,7 @@ TEST(RecreateTest, RecreateTestHttp)
     dmSys::Unlink(host_name);
 
     send_reload_done = 0;
-    send_thread = dmThread::New(&SendReloadThread, 0x8000, (void*)&state, "reload");
+    send_thread = SendReload(&state);
 
     do
     {
@@ -1238,7 +1334,8 @@ TEST(RecreateTest, RecreateTestHttp)
         dmResource::UpdateFactory(factory);
     } while (!dmAtomicGet32(&send_reload_done));
 
-    dmThread::Join(send_thread);
+    if (send_thread)
+        dmThread::Join(send_thread);
 
     dmResource::Result rr = dmResource::ReloadResource(factory, resource_name, 0);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, rr);

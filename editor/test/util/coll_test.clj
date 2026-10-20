@@ -14,13 +14,15 @@
 
 (ns util.coll-test
   (:require [clojure.core :as core]
+            [clojure.data.int-map :as int-map]
             [clojure.test :refer :all]
+            [internal.util :as iutil]
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.fn :as fn])
   (:import [clojure.lang ExceptionInfo IPersistentVector PersistentArrayMap PersistentHashMap PersistentHashSet PersistentTreeMap PersistentTreeSet]
            [java.util Hashtable]
-           [java.util.concurrent CountDownLatch TimeUnit]))
+           [java.util.concurrent CountDownLatch Semaphore]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -30,6 +32,113 @@
 (defonce/record PairAB [a b])
 
 (def ^:dynamic *pmapv-binding-test-value* nil)
+
+;; Verifies map views preserve reduction semantics and support empty checks
+;; without creating sequences.
+(deftest keys-and-vals-test
+  (testing "Match core keys and vals semantics."
+    (doseq [make-map [(constantly nil)
+                      (constantly {})
+                      #(array-map :a 1 :b 2)
+                      #(hash-map :a 1 :b 2)
+                      #(sorted-map :b 2 :a 1)
+                      #(int-map/int-map 1 :a 2 :b)
+                      #(Hashtable. {1 :a 2 :b})]]
+      (let [core-map (make-map)
+            coll-map (make-map)]
+        (is (counted? (coll/keys coll-map)))
+        (is (counted? (coll/vals coll-map)))
+        (is (= (count coll-map) (count (coll/keys coll-map))))
+        (is (= (count coll-map) (count (coll/vals coll-map))))
+        (is (= (zero? (count coll-map)) (coll/empty? (coll/keys coll-map))))
+        (is (= (zero? (count coll-map)) (coll/empty? (coll/vals coll-map))))
+        (is (= (into [] (core/keys core-map))
+               (into [] (coll/keys coll-map))))
+        (is (= (into [] (core/vals core-map))
+               (into [] (coll/vals coll-map)))))))
+
+  (testing "Return reducibles that support early termination."
+    (is (instance? clojure.lang.IReduceInit (coll/keys {})))
+    (is (instance? clojure.lang.IReduceInit (coll/vals {})))
+    (is (= :a (reduce iutil/first-rf nil (coll/keys (array-map :a 1 :b 2)))))
+    (is (= 1 (reduce iutil/first-rf nil (coll/vals (array-map :a 1 :b 2)))))))
+
+;; Verifies eager sorting preserves core semantics and exposes its stored size
+;; without traversal.
+(deftest sort-test
+  (testing "Returns an eagerly-sorted reducible."
+    (is (= [] (into [] (coll/sort nil))))
+    (is (= [1 2 3] (into [] (coll/sort [3 1 2]))))
+    (is (instance? clojure.lang.IReduceInit (coll/sort [3 1 2]))))
+
+  (testing "Accepts a comparator."
+    (is (= [3 2 1] (into [] (coll/sort > [1 3 2])))))
+
+  (testing "Accepts reducible inputs."
+    (is (= [2 4 6]
+           (into [] (coll/sort (eduction (map #(* 2 ^long %)) [3 1 2]))))))
+
+  (testing "Supports early termination."
+    (is (= 1 (reduce iutil/first-rf nil (coll/sort [3 1 2])))))
+
+  (testing "Matches core.sort result and input-mutation semantics."
+    (doseq [[description comparator make-input]
+            [["nil" compare (constantly nil)]
+             ["string" compare (constantly "cab")]
+             ["vector" compare #(vector 3 1 2)]
+             ["list" compare #(list 3 1 2)]
+             ["eduction" compare #(eduction (map identity) [3 1 2])]
+             ["custom comparator" > #(vector 3 1 2)]
+             ["object array" compare #(object-array [3 1 2])]
+             ["boolean array" compare #(boolean-array [true false true])]
+             ["byte array" compare #(byte-array [(byte 3) (byte 1) (byte 2)])]
+             ["char array" compare #(char-array [\c \a \b])]
+             ["short array" compare #(short-array [(short 3) (short 1) (short 2)])]
+             ["int array" compare #(int-array [3 1 2])]
+             ["long array" compare #(long-array [3 1 2])]
+             ["float array" compare #(float-array [3.0 1.0 2.0])]
+             ["double array" compare #(double-array [3.0 1.0 2.0])]]]
+      (testing description
+        (let [core-input (make-input)
+              coll-input (make-input)
+              core-result (into [] (core/sort comparator core-input))
+              coll-result (coll/sort comparator coll-input)]
+          (is (counted? coll-result))
+          (is (= (count core-result) (count coll-result)))
+          (is (= (zero? (count core-result)) (coll/empty? coll-result)))
+          (is (= core-result (into [] coll-result)))
+          (is (= (into [] core-input)
+                 (into [] coll-input)))))))
+
+  (testing "Is stable."
+    (let [items [{:key 1 :value :first}
+                 {:key 2 :value :middle}
+                 {:key 1 :value :last}]]
+      (is (= [{:key 1 :value :first}
+              {:key 1 :value :last}
+              {:key 2 :value :middle}]
+             (into [] (coll/sort #(compare (:key %1) (:key %2)) items)))))))
+
+;; Verify projected ordering, stability, and reducible consumption. Guard
+;; against changing sort-by semantics when replacing sequence-based sorting.
+(deftest sort-by-test
+  (testing "Sorts by projected keys and preserves equal-key order."
+    (let [items [{:key 2 :value :middle}
+                 {:key 1 :value :first}
+                 {:key 1 :value :last}]]
+      (is (= [{:key 1 :value :first}
+              {:key 1 :value :last}
+              {:key 2 :value :middle}]
+             (into [] (coll/sort-by :key items))))))
+
+  (testing "Accepts numeric, boolean, and Java comparators over projected keys."
+    (doseq [comparator [coll/descending-order > (java.util.Comparator/reverseOrder)]]
+      (is (= ["bbb" "cc" "a"]
+             (into [] (coll/sort-by count comparator ["a" "bbb" "cc"]))))))
+
+  (testing "Accepts reducible inputs."
+    (is (= ["a" "cc" "bbb"]
+           (into [] (coll/sort-by count (eduction (map str) ["bbb" "a" "cc"])))))))
 
 (defn- java-map
   ^Hashtable [& key-vals]
@@ -98,7 +207,7 @@
             (let [transformed-coll (coll/transform-> coll
                                      (take 1))]
               (is (= (class coll) (class transformed-coll)))
-              (is (= 1 (bounded-count 2 transformed-coll)))
+              (is (= 1 (coll/bounded-count 2 transformed-coll)))
               (is (= (first coll) (first transformed-coll)))
               (is (identical? (meta coll) (meta transformed-coll)))))))
 
@@ -109,7 +218,7 @@
                                      (take 1)
                                      (mapcat (juxt identity identity identity))
                                      (drop 2))]
-              (is (= 1 (bounded-count 2 transformed-coll)))
+              (is (= 1 (coll/bounded-count 2 transformed-coll)))
               (is (= (first coll) (first transformed-coll)))
               (is (identical? (meta coll) (meta transformed-coll)))))))))
 
@@ -146,7 +255,7 @@
                                             [(key entry)
                                              (inc (long (val entry)))]))
                                      (drop 2))]
-              (is (= 1 (bounded-count 2 transformed-coll)))
+              (is (= 1 (coll/bounded-count 2 transformed-coll)))
               (is (= (map inc (vals coll)) (vals transformed-coll)))
               (is (identical? (meta coll) (meta transformed-coll))))))))))
 
@@ -313,11 +422,11 @@
 
 (deftest empty-with-meta-test
   (letfn [(check! [coll]
-            (is (not (core/empty? coll)) "Tested collections should have items to ensure emptiness is tested.")
+            (is (not (coll/empty? coll)) "Tested collections should have items to ensure emptiness is tested.")
             (let [original-meta {:version "original"}
                   coll-with-meta (with-meta coll original-meta)
                   empty-coll (coll/empty-with-meta coll-with-meta)]
-              (is (core/empty? empty-coll))
+              (is (coll/empty? empty-coll))
               (is (identical? original-meta (meta empty-coll)))))]
     (check! [1])
     (check! (vector-of :long 1))
@@ -449,7 +558,7 @@
       (is (= {'one :one 'two :two} result))))
 
   (testing "Applies key-fn on input sequence"
-    (let [result (coll/pair-map-by keyword ["one" "two"])]
+    (let [result (coll/pair-map-by keyword identity ["one" "two"])]
       (is (map? result))
       (is (= {:one "one" :two "two"} result))))
 
@@ -1043,8 +1152,8 @@
       (doseq [map-fn [array-map hash-map sorted-map]]
         (let [original-map (with-meta (map-fn :a 1
                                               :m (with-meta (map-fn :a 11)
-                                                            original-meta))
-                                      original-meta)
+                                                   original-meta))
+                             original-meta)
               merged-map (coll/deep-merge original-map
                                           {:a 2 :m {:a 22}})]
           (is (= {:a 2
@@ -1094,7 +1203,7 @@
       (doseq [empty-coll ['() [] #{} (sorted-set) (vector-of :long)]]
         (let [coll (with-meta (into empty-coll
                                     (range 5))
-                              {:meta-key "meta-value"})
+                     {:meta-key "meta-value"})
               [odds evens] (coll/separate-by odd? coll)]
           (is (identical? (meta coll) (meta odds)))
           (is (identical? (meta coll) (meta evens))))))
@@ -1104,7 +1213,7 @@
         (let [coll (with-meta (into empty-coll
                                     (map (juxt identity identity))
                                     (range 5))
-                              {:meta-key "meta-value"})
+                     {:meta-key "meta-value"})
               [odds evens] (coll/separate-by (comp odd? key) coll)]
           (is (identical? (meta coll) (meta odds)))
           (is (identical? (meta coll) (meta evens))))))))
@@ -1177,7 +1286,7 @@
             original-map (with-meta (into target-coll
                                           {:a 1
                                            :b 2})
-                                    original-meta)
+                           original-meta)
             altered-map (coll/update-vals original-map inc)]
         (is (= {:a 2 :b 3} altered-map))
         (is (identical? original-meta (meta altered-map))))))
@@ -1207,7 +1316,7 @@
             original-map (with-meta (into target-coll
                                           {:a 1
                                            :b 2})
-                                    original-meta)
+                           original-meta)
             altered-map (coll/update-vals-kv original-map
                                              (fn [k ^long v]
                                                (case k
@@ -1245,7 +1354,7 @@
             original-map (with-meta (into target-coll
                                           {:a 1
                                            :b 2})
-                                    original-meta)
+                           original-meta)
             altered-map (coll/map-vals inc original-map)]
         (is (= {:a 2 :b 3} altered-map))
         (is (identical? original-meta (meta altered-map))))))
@@ -1276,7 +1385,7 @@
             original-map (with-meta (into target-coll
                                           {:a 1
                                            :b 2})
-                                    original-meta)
+                           original-meta)
             altered-map (coll/map-vals-kv (fn [k ^long v]
                                             (case k
                                               :b (+ 10 v)
@@ -1389,7 +1498,7 @@
                                        [:> index value]]))
                [:a :b]))))
 
-(defrecord SearchTestRecord [name])
+(defonce/record SearchTestRecord [name])
 
 (deftest search-test
   (testing "Traverses maps and seqs."
@@ -1622,8 +1731,8 @@
           nested-meta {:nested-meta-key "nested-meta-value"}
           original-map (with-meta {:a (with-meta {:b 1
                                                   :c 2}
-                                                 nested-meta)}
-                                  original-meta)
+                                        nested-meta)}
+                         original-meta)
           altered-map (coll/removing-assoc-in original-map [:a :b] nil)]
       (is (= {:a {:c 2}} altered-map))
       (is (identical? original-meta (meta altered-map)))
@@ -1763,8 +1872,8 @@
           nested-meta {:nested-meta-key "nested-meta-value"}
           original-map (with-meta {:a (with-meta {:b 1
                                                   :c 2}
-                                                 nested-meta)}
-                                  original-meta)
+                                        nested-meta)}
+                         original-meta)
           altered-map (coll/removing-update-in original-map [:a :b] (constantly nil))]
       (is (= {:a {:c 2}} altered-map))
       (is (identical? original-meta (meta altered-map)))
@@ -2049,7 +2158,6 @@
               [{:type :wanted :index 1}]
               {:key {:type :wanted :index 2}}]))))
 
-
   (testing "As transducer."
     (is (= [{:type :wanted :index 0}
             {:type :wanted :index 1}
@@ -2093,6 +2201,7 @@
       (is (= 0 (coll/first-index-where pred (range 10))))
       (is (= 1 (count (fn/call-logger-calls pred)))))))
 
+#_{:clj-kondo/ignore [:defold/prefer-util-coll]}
 (deftest some-test
   (testing "some behavior"
     (are [pred coll ret] (= ret (some pred coll) (coll/some pred coll))
@@ -2101,6 +2210,7 @@
       #(= % 100) (range 50) nil
       #(= % 100) [] nil)))
 
+#_{:clj-kondo/ignore [:defold/prefer-util-coll]}
 (deftest any?-test
   (testing "any? behavior"
     (are [pred coll ret] (= ret (boolean (some pred coll)) (coll/any? pred coll))
@@ -2111,6 +2221,7 @@
       odd? [2 4 6] false
       odd? [2 4 5 6] true)))
 
+#_{:clj-kondo/ignore [:defold/prefer-util-coll]}
 (deftest not-any?-test
   (testing "not-any? behavior"
     (are [pred coll ret] (= ret (not-any? pred coll) (coll/not-any? pred coll))
@@ -2121,6 +2232,7 @@
       odd? [2 4 6] true
       odd? [2 4 5 6] false)))
 
+#_{:clj-kondo/ignore [:defold/prefer-util-coll]}
 (deftest every?-test
   (testing "every? behavior"
     (are [pred coll ret] (= ret (every? pred coll) (coll/every? pred coll))
@@ -2131,6 +2243,7 @@
       even? [2 4 6] true
       even? [2 4 5 6] false)))
 
+#_{:clj-kondo/ignore [:defold/prefer-util-coll]}
 (deftest not-every?-test
   (testing "not-every? behavior"
     (are [pred coll ret] (= ret (not-every? pred coll) (coll/not-every? pred coll))
@@ -2183,11 +2296,14 @@
            (coll/pmapv + [1 2 3] [10 20]))))
 
   (testing "Preserves order."
-    (is (= (range 32)
-           (coll/pmapv (fn [^long value]
-                         (Thread/sleep ^long (- 31 value))
-                         value)
-                       (range 32)))))
+    (let [second-thread (promise)]
+      (is (= [0 1]
+             (coll/pmapv (fn [value]
+                           (if (zero? (long value))
+                             (.join ^Thread @second-thread)
+                             (deliver second-thread (Thread/currentThread)))
+                           value)
+                         [0 1])))))
 
   (testing "Propagates thread bindings."
     (binding [*pmapv-binding-test-value* :bound]
@@ -2209,8 +2325,7 @@
   (testing "Cancels remaining tasks on failure."
     (let [task-count 4
           all-started (CountDownLatch. task-count)
-          cancellation-count (atom 0)
-          completed-values (atom [])]
+          cancellation-count (atom 0)]
       (is (thrown-with-msg?
             ExceptionInfo
             #"boom"
@@ -2218,22 +2333,13 @@
                           (.countDown all-started)
                           (if (zero? value)
                             (do
-                              (when-not (.await all-started 1 TimeUnit/SECONDS)
-                                (throw (ex-info "timed out waiting for tasks to start" {})))
+                              (.await all-started)
                               (throw (ex-info "boom" {})))
                             (try
-                              (Thread/sleep 10000)
-                              (swap! completed-values conj value)
-                              :completed
+                              (.await (CountDownLatch. 1))
                               (catch InterruptedException _
-                                (swap! cancellation-count inc)
-                                :interrupted))))
+                                (swap! cancellation-count inc)))))
                         (range task-count))))
-      (is (= true (.await all-started 1 TimeUnit/SECONDS)))
-      (dotimes [_ 100]
-        (when (< ^long @cancellation-count (dec task-count))
-          (Thread/sleep 10)))
-      (is (empty? @completed-values))
       (is (= (dec task-count) @cancellation-count)))))
 
 (deftest ptree-test
@@ -2250,15 +2356,18 @@
                          tree)))))
 
   (testing "Preserves child order."
-    (is (= (vec (range 32))
-           (coll/ptree :children
-                       (fn [node children]
-                         (if-let [value (:value node)]
-                           (do
-                             (Thread/sleep ^long (- 31 (long value)))
-                             value)
-                           children))
-                       {:children (mapv (fn [value] {:value value}) (range 32))}))))
+    (let [second-thread (promise)]
+      (is (= [0 1]
+             (coll/ptree :children
+                         (fn [node children]
+                           (if-let [value (:value node)]
+                             (do
+                               (if (zero? (long value))
+                                 (.join ^Thread @second-thread)
+                                 (deliver second-thread (Thread/currentThread)))
+                               value)
+                             children))
+                         {:children [{:value 0} {:value 1}]})))))
 
   (testing "Propagates thread bindings."
     (binding [*pmapv-binding-test-value* :bound]
@@ -2270,15 +2379,72 @@
                              children))
                          {:children (mapv (fn [value] {:value value}) (range 4))})))))
 
-  (testing "Rethrows task failure."
-    (is (thrown-with-msg?
-          ExceptionInfo
-          #"boom 2"
-          (coll/ptree :children
-                      (fn [node children]
-                        (if-let [value (:value node)]
-                          (if (= 2 value)
-                            (throw (ex-info (str "boom " value) {:value value}))
-                            value)
-                          children))
-                      {:children (mapv (fn [value] {:value value}) (range 4))})))))
+  (testing "Preserves original failures in inline and parallel visits."
+    (doseq [child-count [1 4]]
+      (let [exception (ex-info "build failed" {})
+            outcome (try
+                      (coll/ptree :children
+                                  (fn [_ _] (throw exception))
+                                  {:children (vec (repeat child-count {}))})
+                      (catch Throwable exception exception))]
+        (is (identical? exception outcome)))))
+
+  (testing "Preserves a builder failure after exhausting the parallelism budget."
+    (let [exception (ex-info "inline build failed" {})
+          outcome (try
+                    (coll/ptree
+                      (fn [{:keys [parent blocked]}]
+                        (when-not (or blocked (identical? parent (Thread/currentThread)))
+                          [{:parent (Thread/currentThread) :blocked true}
+                           {:parent (Thread/currentThread)}]))
+                      (fn [{:keys [parent blocked]} _]
+                        (if (identical? parent (Thread/currentThread))
+                          (throw exception)
+                          (when blocked
+                            (.await (CountDownLatch. 1)))))
+                      {})
+                    (catch Throwable exception exception))]
+      (is (identical? exception outcome))))
+
+  (testing "A builder failure waits for a cancelled sibling's cleanup."
+    (let [exception (ex-info "build failed" {})
+          started (CountDownLatch. 1)
+          cancelled (CountDownLatch. 1)
+          release (Semaphore. 0)
+          child (promise)
+          finished (atom false)
+          outcome
+          (future
+            (try
+              (coll/ptree
+                :children
+                (fn [node children]
+                  (case (:value node)
+                    :blocked
+                    (do
+                      (deliver child (Thread/currentThread))
+                      (.countDown started)
+                      (try
+                        (.await (CountDownLatch. 1))
+                        (finally
+                          (.countDown cancelled)
+                          (.acquireUninterruptibly release)
+                          (reset! finished true))))
+
+                    :fail
+                    (do
+                      (.await started)
+                      (throw exception))
+
+                    children))
+                {:children [{:value :blocked} {:value :fail}]})
+              (catch Throwable exception [exception @finished])))]
+      (try
+        (.await cancelled)
+        (finally
+          (.release release)
+          (.interrupt ^Thread @child)
+          (.join ^Thread @child)))
+      (let [[error cleanup-finished] @outcome]
+        (is (identical? exception error))
+        (is cleanup-finished)))))

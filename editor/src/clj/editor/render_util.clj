@@ -27,11 +27,91 @@
             [util.array :as array]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [com.jogamp.opengl GL2]
+  (:import [com.jogamp.opengl GL3]
            [javax.vecmath Matrix4d Point3d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+;; -----------------------------------------------------------------------------
+;; streamed-color-geometry
+;; -----------------------------------------------------------------------------
+
+(def ^:private streamed-color-geometry-shader shaders/basic-color-straight-alpha-local-space)
+
+(defn- quad->triangles
+  "Expands four ordered quad vertices into two triangles while preserving the quad's winding."
+  [[p0 p1 p2 p3 :as positions]]
+  {:pre [(= 4 (count positions))]}
+  [p0 p1 p2
+   p2 p3 p0])
+
+(defn- quad->line-segments
+  "Expands four ordered quad vertices into four independent line segments."
+  [[p0 p1 p2 p3 :as positions]]
+  {:pre [(= 4 (count positions))]}
+  [p0 p1
+   p1 p2
+   p2 p3
+   p3 p0])
+
+(defmacro emit-quad!
+  "Threads a vertex buffer through four vertex-emission forms, expanding the
+  quad into two triangles while preserving its winding."
+  [vertex-buffer v0 v1 v2 v3]
+  `(-> ~vertex-buffer
+       ~@(quad->triangles [v0 v1 v2 v3])))
+
+(defmacro emit-quad-outline!
+  "Threads a vertex buffer through four vertex-emission forms, expanding the
+  quad into four independent line segments."
+  [vertex-buffer v0 v1 v2 v3]
+  `(-> ~vertex-buffer
+       ~@(quad->line-segments [v0 v1 v2 v3])))
+
+(defn- make-color-geometry-vertex-buffer
+  [color positions]
+  (let [vertex-description (shaders/vertex-description streamed-color-geometry-shader)
+        vertex-buffer (vtx/make-vertex-buffer vertex-description :stream (count positions))
+        byte-buffer (vtx/buf vertex-buffer)
+        float-buffer (.asFloatBuffer byte-buffer)
+        [cr cg cb] color
+        ca (if (= 3 (count color)) 1.0 (nth color 3))]
+    (doseq [position positions]
+      (let [[x y] position
+            z (if (= 2 (count position)) 0.0 (nth position 2))]
+        (.put float-buffer (float x))
+        (.put float-buffer (float y))
+        (.put float-buffer (float z))
+        (.put float-buffer (float cr))
+        (.put float-buffer (float cg))
+        (.put float-buffer (float cb))
+        (.put float-buffer (float ca))))
+    (.position byte-buffer (* (.position float-buffer) Float/BYTES))
+    (vtx/flip! vertex-buffer)))
+
+(defn- render-color-geometry!
+  "Streams local-space positions with a uniform per-vertex color and draws them
+  using the shared straight-alpha color shader. Positions may contain two or
+  three components, and colors may contain three or four components."
+  [^GL3 gl render-args request-id primitive-type color positions]
+  {:pre [(every? #(<= 2 (count %) 3) positions)
+         (<= 3 (count color) 4)]}
+  (when-not (coll/empty? positions)
+    (let [vertex-buffer (make-color-geometry-vertex-buffer color positions)
+          vertex-binding (vtx/use-with request-id vertex-buffer streamed-color-geometry-shader)]
+      (gl/with-gl-bindings gl render-args [streamed-color-geometry-shader vertex-binding]
+        (gl/gl-draw-arrays gl primitive-type 0 (count vertex-buffer))))))
+
+(defn render-color-quad!
+  "Streams and draws four ordered local-space corners as two triangles."
+  [^GL3 gl render-args request-id color positions]
+  (render-color-geometry! gl render-args request-id GL3/GL_TRIANGLES color (quad->triangles positions)))
+
+(defn render-color-line-loop!
+  "Streams and draws local-space positions as a closed line loop."
+  [^GL3 gl render-args request-id color positions]
+  (render-color-geometry! gl render-args request-id GL3/GL_LINE_LOOP color positions))
 
 ;; -----------------------------------------------------------------------------
 ;; aabb-outline
@@ -98,12 +178,12 @@
     (vtx/flip! vertex-buffer)))
 
 (defn- render-aabb-outline
-  [^GL2 gl render-args renderables _renderable-count]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [vertex-description (shaders/vertex-description aabb-outline-shader)
         vertex-buffer (make-aabb-outline-vertex-buffer vertex-description renderables)
         vertex-binding (vtx/use-with ::aabb-outline vertex-buffer aabb-outline-shader)]
     (gl/with-gl-bindings gl render-args [aabb-outline-shader vertex-binding]
-      (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vertex-buffer)))))
+      (gl/gl-draw-arrays gl GL3/GL_LINES 0 (count vertex-buffer)))))
 
 (defn- make-aabb-outline-renderable-raw
   [tags]
@@ -124,7 +204,6 @@
 ;; -----------------------------------------------------------------------------
 
 (def ^:private textured-quad-shader shaders/basic-texture-paged-world-space)
-(def ^:private tone-mapped-textured-quad-shader shaders/basic-texture-paged-tone-mapped-world-space)
 
 (defn- make-textured-quad-vertex-buffer
   [vertex-description renderables]
@@ -162,7 +241,7 @@
     (vtx/flip! vertex-buffer)))
 
 (defn- render-textured-quad
-  [^GL2 gl render-args renderables _renderable-count]
+  [^GL3 gl render-args renderables _renderable-count]
   (let [first-renderable (first renderables)
         user-data (:user-data first-renderable)
         textured-quad-shader (:shader user-data)
@@ -172,7 +251,7 @@
         vertex-binding (vtx/use-with ::textured-quad vertex-buffer textured-quad-shader)]
     (gl/with-gl-bindings gl render-args [textured-quad-shader vertex-binding gpu-texture]
       (shader/set-samplers-by-index textured-quad-shader gl 0 (:texture-units gpu-texture))
-      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vertex-buffer)))))
+      (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vertex-buffer)))))
 
 (defn- make-textured-quad-renderable
   [shader tags x y width height gpu-texture page-index]
@@ -226,4 +305,4 @@
 
 (defn make-outlined-tone-mapped-textured-quad-scene
   [tags pose-or-transform width height gpu-texture page-index]
-  (make-outlined-textured-quad-scene-impl tone-mapped-textured-quad-shader tags pose-or-transform width height gpu-texture page-index))
+  (make-outlined-textured-quad-scene-impl shaders/basic-texture-paged-tone-mapped-world-space tags pose-or-transform width height gpu-texture page-index))

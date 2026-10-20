@@ -3,6 +3,14 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
 #include <string.h>
 
@@ -31,7 +39,6 @@ namespace dmGameSystem
     struct B2DLuaJoint
     {
         b2JointId                 m_Joint;
-        dmGameObject::HCollection m_Collection;
     };
 
     static dmHashTable64<uint8_t> g_JointIds;
@@ -172,19 +179,18 @@ namespace dmGameSystem
         *collide_connected = GetBoolField(L, table_index, "collide_connected", *collide_connected);
     }
 
-    void PushJoint(lua_State* L, b2JointId joint_id, dmGameObject::HCollection collection)
+    void PushJoint(lua_State* L, b2JointId joint_id)
     {
         B2DLuaJoint* luajoint = (B2DLuaJoint*)lua_newuserdata(L, sizeof(B2DLuaJoint));
         luajoint->m_Joint = joint_id;
-        luajoint->m_Collection = collection;
         luaL_getmetatable(L, BOX2D_TYPE_NAME_JOINT);
         lua_setmetatable(L, -2);
     }
 
-    static void PushCreatedJoint(lua_State* L, b2JointId joint_id, dmGameObject::HCollection collection)
+    static void PushCreatedJoint(lua_State* L, b2JointId joint_id)
     {
         TrackJoint(joint_id);
-        PushJoint(L, joint_id, collection);
+        PushJoint(L, joint_id);
     }
 
     static B2DLuaJoint* CheckJointInternal(lua_State* L, int index)
@@ -275,20 +281,18 @@ namespace dmGameSystem
     static int Joint_GetBodyA(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        B2DLuaJoint* luajoint = CheckJointInternal(L, 1);
         b2JointId joint = CheckJoint(L, 1);
         b2BodyId body = b2Joint_GetBodyA(joint);
-        PushBody(L, &body, luajoint->m_Collection, 0);
+        PushBody(L, &body, GetBodyInstance(body));
         return 1;
     }
 
     static int Joint_GetBodyB(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        B2DLuaJoint* luajoint = CheckJointInternal(L, 1);
         b2JointId joint = CheckJoint(L, 1);
         b2BodyId body = b2Joint_GetBodyB(joint);
-        PushBody(L, &body, luajoint->m_Collection, 0);
+        PushBody(L, &body, GetBodyInstance(body));
         return 1;
     }
 
@@ -978,7 +982,6 @@ namespace dmGameSystem
     static int Joint_CreateDistance(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1001,14 +1004,13 @@ namespace dmGameSystem
         def.motorSpeed = GetNumberField(L, def_index, "motor_speed", def.motorSpeed) * GetPhysicsScale();
 
         b2JointId joint = b2CreateDistanceJoint(world, &def);
-        PushCreatedJoint(L, joint, collection);
+        PushCreatedJoint(L, joint);
         return 1;
     }
 
     static int Joint_CreateMouse(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1024,14 +1026,13 @@ namespace dmGameSystem
         def.maxForce = GetNumberField(L, def_index, "max_force", def.maxForce) * GetPhysicsScale();
         def.collideConnected = GetBoolField(L, def_index, "collide_connected", def.collideConnected);
 
-        PushCreatedJoint(L, b2CreateMouseJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreateMouseJoint(world, &def));
         return 1;
     }
 
     static int Joint_CreatePrismatic(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1054,14 +1055,13 @@ namespace dmGameSystem
         def.maxMotorForce = GetNumberField(L, def_index, "max_motor_force", def.maxMotorForce) * GetPhysicsScale();
         def.motorSpeed = GetNumberField(L, def_index, "motor_speed", def.motorSpeed) * GetPhysicsScale();
 
-        PushCreatedJoint(L, b2CreatePrismaticJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreatePrismaticJoint(world, &def));
         return 1;
     }
 
     static int Joint_CreateRevolute(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1083,14 +1083,13 @@ namespace dmGameSystem
         def.maxMotorTorque = GetNumberField(L, def_index, "max_motor_torque", def.maxMotorTorque) * GetPhysicsScale();
         def.motorSpeed = GetNumberField(L, def_index, "motor_speed", def.motorSpeed);
 
-        PushCreatedJoint(L, b2CreateRevoluteJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreateRevoluteJoint(world, &def));
         return 1;
     }
 
     static int Joint_CreateWeld(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1109,14 +1108,13 @@ namespace dmGameSystem
         def.linearDampingRatio = GetNumberField(L, def_index, "linear_damping_ratio", damping);
         def.angularDampingRatio = GetNumberField(L, def_index, "angular_damping_ratio", damping);
 
-        PushCreatedJoint(L, b2CreateWeldJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreateWeldJoint(world, &def));
         return 1;
     }
 
     static int Joint_CreateWheel(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1138,14 +1136,13 @@ namespace dmGameSystem
         def.maxMotorTorque = GetNumberField(L, def_index, "max_motor_torque", def.maxMotorTorque) * GetPhysicsScale();
         def.motorSpeed = GetNumberField(L, def_index, "motor_speed", def.motorSpeed);
 
-        PushCreatedJoint(L, b2CreateWheelJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreateWheelJoint(world, &def));
         return 1;
     }
 
     static int Joint_CreateMotor(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1162,14 +1159,13 @@ namespace dmGameSystem
         def.correctionFactor = GetNumberField(L, def_index, "correction_factor", def.correctionFactor);
         def.collideConnected = GetBoolField(L, def_index, "collide_connected", def.collideConnected);
 
-        PushCreatedJoint(L, b2CreateMotorJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreateMotorJoint(world, &def));
         return 1;
     }
 
     static int Joint_CreateFilter(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body_a = 0;
         b2BodyId* body_b = 0;
         b2WorldId world = b2_nullWorldId;
@@ -1179,7 +1175,7 @@ namespace dmGameSystem
         def.bodyIdA = *body_a;
         def.bodyIdB = *body_b;
 
-        PushCreatedJoint(L, b2CreateFilterJoint(world, &def), collection);
+        PushCreatedJoint(L, b2CreateFilterJoint(world, &def));
         return 1;
     }
 
@@ -1345,49 +1341,26 @@ namespace dmGameSystem
  */
 
 /*# Box2D joint
+ *
+ * An opaque handle connecting two [type:b2Body] values. Create one with a
+ * function such as [ref:b2d.joint.create_distance], use the functions in
+ * `b2d.joint` to inspect or configure it, and release it with
+ * [ref:b2d.joint.destroy]. Use [ref:b2d.joint.is_valid] before retaining a
+ * handle across body or world destruction.
+ *
  * @typedef
  * @name b2Joint
- * @param value [type:userdata]
- */
-
-/*# Distance joint type.
- * @name b2d.joint.JOINT_TYPE_DISTANCE
- * @constant
- */
-
-/*# Filter joint type.
- * @name b2d.joint.JOINT_TYPE_FILTER
- * @constant
- */
-
-/*# Motor joint type.
- * @name b2d.joint.JOINT_TYPE_MOTOR
- * @constant
- */
-
-/*# Mouse joint type.
- * @name b2d.joint.JOINT_TYPE_MOUSE
- * @constant
- */
-
-/*# Prismatic joint type.
- * @name b2d.joint.JOINT_TYPE_PRISMATIC
- * @constant
- */
-
-/*# Revolute joint type.
- * @name b2d.joint.JOINT_TYPE_REVOLUTE
- * @constant
- */
-
-/*# Weld joint type.
- * @name b2d.joint.JOINT_TYPE_WELD
- * @constant
- */
-
-/*# Wheel joint type.
- * @name b2d.joint.JOINT_TYPE_WHEEL
- * @constant
+ * @param value [type:userdata] Box2D joint handle
+ * @examples
+ *
+ * ```lua
+ * local body_a = b2d.get_body("#collisionobject_a")
+ * local body_b = b2d.get_body("#collisionobject_b")
+ * local joint = b2d.joint.create_distance(body_a, body_b)
+ * if b2d.joint.is_valid(joint) then
+ *     print(b2d.joint.get_type(joint))
+ * end
+ * ```
  */
 
 /*# Destroy a joint created by `b2d.joint`.
@@ -1410,7 +1383,7 @@ namespace dmGameSystem
 /*# Get the joint type.
  * @name b2d.joint.get_type
  * @param joint [type: b2Joint] joint
- * @return type [type: number] one of the `JOINT_TYPE_*` constants
+ * @return type [type:b2d.joint.JOINT_TYPE] one of the `JOINT_TYPE_*` constants
  */
 
 /*# Get the first body connected to a joint.
@@ -1844,7 +1817,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_distance
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `length`, `min_length`, `max_length`, `enable_spring`, `hertz` or `frequency`, `damping_ratio`, `enable_limit`, `enable_motor`, `max_motor_force`, `motor_speed`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.distance_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1852,7 +1825,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_mouse
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `target`, `hertz` or `frequency`, `damping_ratio`, `max_force`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.mouse_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1860,7 +1833,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_prismatic
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `local_axis_a`, `reference_angle`, `enable_spring`, `hertz` or `frequency`, `damping_ratio`, `enable_limit`, `lower_translation`, `upper_translation`, `enable_motor`, `max_motor_force`, `motor_speed`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.prismatic_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1868,7 +1841,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_revolute
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `reference_angle`, `enable_spring`, `hertz` or `frequency`, `damping_ratio`, `enable_limit`, `lower_angle`, `upper_angle`, `enable_motor`, `max_motor_torque`, `motor_speed`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.revolute_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1876,7 +1849,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_weld
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `reference_angle`, `linear_hertz`, `angular_hertz`, `linear_damping_ratio`, `angular_damping_ratio`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.weld_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1884,7 +1857,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_wheel
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `local_anchor_a`, `local_anchor_b`, `local_axis_a`, `enable_spring`, `hertz` or `frequency`, `damping_ratio`, `enable_limit`, `lower_translation`, `upper_translation`, `enable_motor`, `max_motor_torque`, `motor_speed`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.wheel_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1892,7 +1865,7 @@ namespace dmGameSystem
  * @name b2d.joint.create_motor
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition with `linear_offset`, `angular_offset`, `max_force`, `max_torque`, `correction_factor`, and `collide_connected`
+ * @param [definition] [type:b2d.joint.motor_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1900,6 +1873,6 @@ namespace dmGameSystem
  * @name b2d.joint.create_filter
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
- * @param definition [type: table] optional definition table
+ * @param [definition] [type:b2d.joint.filter_definition] optional definition table
  * @return joint [type: b2Joint] created joint
  */

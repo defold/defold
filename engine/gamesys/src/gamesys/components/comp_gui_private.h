@@ -28,10 +28,21 @@
 namespace dmGameSystem
 {
     struct CompGuiContext;
+    struct FontResource;
     struct GuiSceneResource;
     struct MaterialResource;
 
     typedef const dmGuiDDF::NodeDesc* HNodeDDF;
+
+    struct GuiLayoutObjectTarget
+    {
+        // HTextLayout borrows the font collection. The resource generation guards
+        // collection access after a font recreation.
+        HTextLayout   m_Layout;
+        FontResource* m_FontResource;
+        uint64_t      m_ObjectId;
+        uint32_t      m_FontVersion;
+    };
 
     struct GuiComponent
     {
@@ -40,11 +51,15 @@ namespace dmGameSystem
         dmGui::HScene           m_Scene;
         dmGameObject::HInstance m_Instance;
         MaterialResource*       m_Material;
+        GuiLayoutObjectTarget   m_HoveredLayoutObject;
+        GuiLayoutObjectTarget   m_PressedLayoutObject;
+        dmhash_t                m_PendingPreviousLayout;
         uint16_t                m_ComponentIndex;
         uint8_t                 m_Enabled       : 1;
         uint8_t                 m_AddedToUpdate : 1;
         uint8_t                 m_Initialized   : 1;
-        uint8_t                 m_Padding       : 5;
+        uint8_t                 m_LayoutChangedPending : 1;
+        uint8_t                 m_Padding       : 4;
         dmArray<void*>          m_ResourcePropertyPointers;
         dmHashTable64<HNodeDDF> m_DefaultNodeDescs;
     };

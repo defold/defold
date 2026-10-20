@@ -25,8 +25,8 @@
             :name name
             :display-string name
             :insert {:type :plaintext :value name}}
-           doc
-           (assoc :doc {:type :markdown :value doc}))))
+     doc
+     (assoc :doc {:type :markdown :value doc}))))
 
 (def just-a-variable
   "

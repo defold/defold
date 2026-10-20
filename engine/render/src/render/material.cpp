@@ -255,6 +255,7 @@ namespace dmRender
 
         m->m_MaterialAttributes.SetCapacity(num_program_attributes);
         m->m_MaterialAttributes.SetSize(num_program_attributes);
+        memset(m->m_MaterialAttributes.Begin(), 0, sizeof(MaterialAttribute) * num_program_attributes);
         m->m_VertexAttributeInfos.SetCapacity(num_program_attributes);
         m->m_VertexAttributeInfos.SetSize(num_program_attributes);
 
@@ -680,7 +681,12 @@ namespace dmRender
 
     bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
     {
-        return SetProgramSampler(material->m_Samplers, material->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, min_filter, mag_filter, max_anisotropy);
+        return SetMaterialSampler(material, name_hash, unit, u_wrap, v_wrap, u_wrap, min_filter, mag_filter, max_anisotropy);
+    }
+
+    bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    {
+        return SetProgramSampler(material->m_Samplers, material->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, w_wrap, min_filter, mag_filter, max_anisotropy);
     }
 
     dmGraphics::HVertexDeclaration GetVertexDeclaration(HMaterial material)

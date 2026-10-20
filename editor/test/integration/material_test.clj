@@ -13,8 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.material-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.form :as form]
+            [editor.material]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
@@ -28,16 +31,59 @@
 
 (deftest load-material-render-data
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/materials/test.material")
-          samplers (g/node-value node-id :samplers)]
+    (let [node-id (test-util/resource-node project "/materials/test_samplers.material")
+          samplers (g/node-value node-id :samplers)
+          sampler (first samplers)]
       (is (some? (g/node-value node-id :shader)))
-      (is (= 1 (count samplers))))))
+      (is (= 1 (count samplers)))
+      (is (= :wrap-mode-repeat (:wrap-w sampler)))
+      (is (not (contains? (first (:samplers (g/node-value node-id :save-value))) :wrap-w)))
+      (prop! node-id :samplers [(assoc sampler :wrap-w :wrap-mode-clamp-to-edge)])
+      (is (= :wrap-mode-clamp-to-edge
+             (get-in (g/node-value node-id :save-value) [:samplers 0 :wrap-w]))))))
 
 (deftest missing-material-constant-value
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/materials/test_missing_constant_value.material")]
       (is (= protobuf/vector4-zero (get-in (g/node-value node-id :fragment-constants) [0 :value])))
       (is (= [protobuf/vector4-zero] (get-in (g/node-value node-id :save-value) [:fragment-constants 0 :value]))))))
+
+(deftest matrix4-material-constant-value
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/materials/test_matrix4_constant.material")
+          fragment-constants (g/node-value node-id :fragment-constants)
+          saved-constants (:fragment-constants (g/node-value node-id :save-value))]
+      (is (= (mapv float (range 1.0 17.0))
+             (:value (first fragment-constants))))
+      (is (= (mapv float (repeat 16 0.0))
+             (:value (second fragment-constants))))
+      (is (= [[1.0 2.0 3.0 4.0]
+              [5.0 6.0 7.0 8.0]
+              [9.0 10.0 11.0 12.0]
+              [13.0 14.0 15.0 16.0]]
+             (mapv #(mapv double %) (:value (first saved-constants)))))
+      (is (= 4 (count (:value (second saved-constants)))))
+      (is (= (into (mapv float [1.0 2.0 3.0 4.0])
+                   (repeat 12 protobuf/float-zero))
+             (:value (nth fragment-constants 2))))
+      (is (= 4 (count (:value (nth saved-constants 2)))))
+      (is (not (g/error? (g/node-value node-id :shader)))))))
+
+(deftest matrix4-material-constant-type-switch
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/materials/test_matrix4_constant.material")
+          set-constant-type! (fn [constant-type]
+                               (let [constants (assoc-in (g/node-value node-id :fragment-constants)
+                                                         [0 :type] constant-type)]
+                                 (g/transact {:undoable false}
+                                   (form/set-value (:form-ops (g/node-value node-id :form-data))
+                                                   [:fragment-constants]
+                                                   constants))))]
+      (set-constant-type! :constant-type-user)
+      (is (= 4 (count (:value (first (g/node-value node-id :fragment-constants))))))
+
+      (set-constant-type! :constant-type-user-matrix4)
+      (is (= 16 (count (:value (first (g/node-value node-id :fragment-constants)))))))))
 
 (deftest material-pbr-parameters
   ;; Test that all exposed PBR parameters are found, and that they are true
@@ -63,6 +109,11 @@
     (let [node-id-material-1 (test-util/resource-node project "/materials/test_combined_shader_1.material")
           node-id-material-2 (test-util/resource-node project "/materials/test_combined_shader_2.material")
           node-id-material-3 (test-util/resource-node project "/materials/test_combined_shader_3.material")
+          node-id-material-with-uniforms (test-util/resource-node project "/materials/test.material")
+          shader-material-1 (g/node-value node-id-material-1 :shader)
+          shader-material-2 (g/node-value node-id-material-2 :shader)
+          shader-material-3 (g/node-value node-id-material-3 :shader)
+          shader-material-with-uniforms (g/node-value node-id-material-with-uniforms :shader)
           build-targets-material-1 (g/node-value node-id-material-1 :build-targets)
           build-targets-material-2 (g/node-value node-id-material-2 :build-targets)
           build-targets-material-3 (g/node-value node-id-material-3 :build-targets)
@@ -75,6 +126,17 @@
       (is (= (g/node-value node-id-material-1 :fragment-program)
              (g/node-value node-id-material-2 :fragment-program)
              (g/node-value node-id-material-3 :fragment-program)))
+      (is (= (:request-data shader-material-1)
+             (:request-data shader-material-2)
+             (:request-data shader-material-3)
+             (:request-data shader-material-with-uniforms)))
+      ;; Each material needs its own mutable OpenGL uniform state.
+      (is (distinct? (:request-id shader-material-1)
+                     (:request-id shader-material-2)
+                     (:request-id shader-material-3)
+                     (:request-id shader-material-with-uniforms)))
+      (is (not= (:uniforms shader-material-1)
+                (:uniforms shader-material-with-uniforms)))
       ;; Check that the material content is different between the three materials
       (is (not (= (get-in build-targets-material-1 [0 :content-hash])
                   (get-in build-targets-material-2 [0 :content-hash])
@@ -104,3 +166,20 @@
         (test-util/with-prop [node-id :fragment-program v]
           (is (g/error? (g/node-value node-id :shader)))
           (is (g/error? (g/node-value node-id :build-targets))))))))
+
+;; Vector shader builds require an explicit compatibility choice and track
+;; changes to that setting.
+(deftest vector-shader-requires-explicit-gles2-exclusion
+  (test-util/with-loaded-project
+    (let [settings (test-util/resource-node project "/game.project")
+          material (test-util/resource-node project "/builtins/fonts/font-vector.material")]
+      (doseq [exclude [false true false]]
+        (test-util/set-setting! settings ["shader" "exclude_gles_sm100"] exclude)
+        (let [error (test-util/build-error! material)]
+          (if exclude
+            (is (nil? error))
+            (do
+              (is (g/error-fatal? error))
+              (is (string/includes? (test-util/localization (g/error-message error)) "shader.exclude_gles_sm100"))
+              (is (string/includes? (test-util/localization (g/error-message error)) "OpenGL ES 2.0 / WebGL 1.0")))))
+        (is (= exclude (test-util/get-setting settings ["shader" "exclude_gles_sm100"])))))))

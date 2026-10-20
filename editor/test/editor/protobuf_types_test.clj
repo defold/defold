@@ -15,27 +15,95 @@
 (ns editor.protobuf-types-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.cljfx-form-view :as cljfx-form-view]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
-            [editor.progress :as progress]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [with-clean-system]]))
+            [support.test-support :refer [with-clean-system]]
+            [util.coll :as coll])
+  (:import [com.dynamo.graphics.proto Graphics$TextureProfiles]
+           [javafx.scene Node]
+           [javafx.scene.control Label ListView ScrollPane]
+           [javafx.scene.layout AnchorPane]))
 
 (def ^:private project-path "test/resources/all_types_project")
 
+;; Keep KTX2 Format leaves Formats editable for other image types.
+;; The flag survives serialization, and clearing it restores clean state.
+(deftest keep-ktx2-format-profile-edit
+  (test-util/with-loaded-project project-path
+    (let [node (test-util/resource-node project "/test.texture_profiles")
+          {:keys [sections form-ops]} (g/node-value node :form-data)
+          profiles-field (coll/first-where #(= [:profiles] (:path %)) (:fields (first sections)))
+          platforms-field (first (get-in profiles-field [:panel-form :sections 0 :fields]))
+          field (coll/first-where #(= [:keep-ktx2-format] (:path %))
+                                  (get-in platforms-field [:panel-form :sections 0 :fields]))
+          path [:profiles 0 :platforms 0 :keep-ktx2-format]
+          original-formats (get-in (g/node-value node :save-value) [:profiles 0 :platforms 0 :formats])
+          parent (AnchorPane.)
+          view-node (cljfx-form-view/make-form-view-node! parent node nil nil nil test-util/localization)
+
+          check-formats-editable!
+          (fn check-formats-editable! []
+            (let [rendered (promise)]
+              (g/node-value view-node :form-view)
+              (ui/run-later (deliver rendered true))
+              @rendered)
+            (let [content (.getContent ^ScrollPane (.lookup parent "ScrollPane"))
+                  ^ListView formats-list (coll/first-where
+                                           #(= [[0 :texture-format-rgba]] (vec (.getItems ^ListView %)))
+                                           (.lookupAll content ".list-view"))]
+              (is (some? formats-list))
+              (when formats-list
+                (is (false? (.isDisabled formats-list))))
+              (is (coll/any? #(= "Formats" (.getText ^Label %))
+                             (.lookupAll content ".label")))
+              (doseq [^Node checkbox (.lookupAll content ".check-box")]
+                (is (false? (.isDisabled checkbox)))))
+            (is (= original-formats (get-in (g/node-value node :save-value) [:profiles 0 :platforms 0 :formats]))))]
+
+      (is (= :boolean (:type field)))
+      (is (false? (:default field)))
+      (is (= "texture-profiles.profiles.platforms.keep-ktx2-format" (:localization-key field)))
+      (is (false? (g/node-value node :dirty)))
+      (check-formats-editable!)
+      (g/transact ((:set form-ops) (:user-data form-ops) path true))
+      (check-formats-editable!)
+      (is (true? (g/node-value node :dirty)))
+      (is (true? (get-in (->> (g/node-value node :save-value)
+                              (protobuf/map->pb Graphics$TextureProfiles)
+                              .toByteArray
+                              (protobuf/bytes->map-with-defaults Graphics$TextureProfiles))
+                         path)))
+      (g/transact ((:set form-ops) (:user-data form-ops)
+                                   [:profiles 0 :platforms 0 :formats 0 :format] :texture-format-rgb))
+      (is (= :texture-format-rgb
+             (get-in (g/node-value node :save-value) [:profiles 0 :platforms 0 :formats 0 :format])))
+      (g/transact
+        [((:set form-ops) (:user-data form-ops) [:profiles 0 :platforms 0 :formats] original-formats)
+         ((:clear form-ops) (:user-data form-ops) path)])
+      (check-formats-editable!)
+      (is (false? (g/node-value node :dirty))))))
+
 (deftest test-load
   (with-clean-system
-    (is (let [workspace (test-util/setup-workspace! world project-path)
+    (is (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)]
           true))))
 
-(def expected-dependencies
+(def ^:private expected-dependencies
   {"/test.animationset" ["/test2.animationset"]
    "/test.atlas" ["/builtins/graphics/particle_blob.png"]
    "/test.camera" []
    "/test.collection" []
+   "/test.compute" ["/test.cp"]
+   "/test.cp" []
    "/test_embedded_gos.collection" ["/test.collection"
                                     "/main.collection"
                                     "/test.tilemap"
@@ -62,10 +130,13 @@
                                                           "/test.tilemap"
                                                           "/test.wav"]
    "/test.collectionfactory" ["/test.collection"]
-   "/test.collectionproxy" ["/test.collection"]   
+   "/test.collectionproxy" ["/test.collection"]
    "/test.collisionobject" ["/test.tilemap"]
    "/test.cubemap" ["/builtins/graphics/particle_blob.png"]
    "/test.gltf" []
+   "/test.gltf/meshes/Cube.001_0" []
+   "/test.gltf/materials/default_0.material" ["/builtins/materials/gltf.fp"
+                                              "/builtins/materials/gltf.vp"]
    "/test.display_profiles" []
    "/test.factory" ["/test2.go"]
    "/test.font" ["/builtins/fonts/vera_mo_bd.ttf"
@@ -133,46 +204,119 @@
    "/test2.animationset" []
    "/test2.gui" ["/test.material"]})
 
+(def ^:private expected-editor-dependencies
+  {"/test.animationset" []
+   "/test.atlas" []
+   "/test.camera" []
+   "/test.collection" []
+   "/test.collectionfactory" []
+   "/test.collectionproxy" []
+   "/test.collisionobject" []
+   "/test.compute" []
+   "/test.cp" []
+   "/test.cubemap" []
+   "/test.display_profiles" []
+   "/test.factory" []
+   "/test.font" ["/builtins/fonts/font-vector.fp"
+                 "/builtins/fonts/font-vector.vp"]
+   "/test.fp" []
+   "/test.gamepads" []
+   "/test.gltf" ["/test.gltf/materials/default_0.material"]
+   "/test.gltf/meshes/Cube.001_0" ["/test.gltf"]
+   "/test.gltf/materials/default_0.material" []
+   "/test.go" []
+   "/test.gui" ["/builtins/fonts/default.font"]
+   "/test.gui_script" []
+   "/test.input_binding" []
+   "/test.json" []
+   "/test.label" []
+   "/test.lua" []
+   "/test.material" []
+   "/test.model" []
+   "/test.particlefx" []
+   "/test.render" []
+   "/test.render_script" []
+   "/test.script" []
+   "/test.sound" []
+   "/test.sprite" []
+   "/test.texture_profiles" []
+   "/test.tilemap" []
+   "/test.tilesource" []
+   "/test.vp" []
+   "/test.wav" []
+   "/test2.animationset" []
+   "/test2.go" []
+   "/test2.gui" ["/builtins/fonts/default.font"]
+   "/test_embedded_components.go" []
+   "/test_embedded_gos.collection" []
+   "/test_embedded_gos_referenced_components.collection" []})
+
 (defn fallback-dependencies-fn [resource-type]
-  (when (#{"vp" "fp" "lua" "script" "gui_script" "wav" "json" "render_script" "gltf" "glb"} (:ext resource-type))
+  (when (#{"cp"
+           "fp"
+           "glb"
+           "gltf"
+           "gui_script"
+           "json"
+           "lua"
+           "render_script"
+           "script"
+           "vp"
+           "wav"}
+         (:ext resource-type))
     (constantly [])))
 
 (deftest dependencies
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world project-path)
+    (let [workspace (test-util/setup-workspace! project-path)
           project (test-util/setup-project! workspace)
-          resource-nodes (g/node-value project :nodes-by-resource-path)]
+          resource-nodes (g/node-value project :nodes-by-resource-path)
+          basis (g/now)]
       (doseq [[resource-path node-id] resource-nodes
               :when (.startsWith resource-path "/test")]
-        (let [resource (g/node-value node-id :resource)
+        (let [resource (resource-node/resource basis node-id)
               resource-type (resource/resource-type resource)
               dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
-              source-value (g/node-value node-id :source-value)]
+              save-value (g/node-value node-id :save-value)
+              expected-dependencies (expected-dependencies resource-path)
+              expected-editor-dependencies (expected-editor-dependencies resource-path)]
           (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
-          (is (some? (expected-dependencies resource-path)) resource-path)
-          (is (= (sort (expected-dependencies resource-path))
-                 (sort (dependencies-fn source-value))) resource-path))))))
+          (is (some? expected-dependencies) resource-path)
+          (is (some? expected-editor-dependencies) resource-path)
+          (is (= (sort expected-dependencies)
+                 (sort (dependencies-fn
+                         (workspace/make-read-opts basis workspace :include-editor-dependencies false)
+                         resource
+                         save-value)))
+              resource-path)
+          (is (= (sort (set (concat expected-dependencies expected-editor-dependencies)))
+                 (sort (dependencies-fn
+                         (workspace/make-read-opts basis workspace :include-editor-dependencies true)
+                         resource
+                         save-value)))
+              resource-path))))))
 
 (deftest load-order-sanity
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world project-path)
-          proj-graph (g/make-graph! :volatility 1)
-          extensions (extensions/make proj-graph)
-          project (project/make-project proj-graph workspace extensions)]
-      (let [node-id+resource-pairs
-            (project/make-node-id+resource-pairs proj-graph (g/node-value project :resources))
+    (let [workspace (test-util/setup-workspace! project-path)
+          extensions (extensions/make)
+          project (project/make-project workspace extensions)
 
-            node-load-infos
-            (project/read-nodes node-id+resource-pairs)
+          node-id+resource-pairs
+          (project/make-node-id+resource-pairs (g/node-value project :resources))
 
-            load-order
-            (into {}
-                  (map-indexed (fn [node-index {:keys [resource]}]
-                                 [(resource/proj-path resource) node-index]))
-                  node-load-infos)]
-        (doseq [[resource-path dependencies] expected-dependencies
-                dependency dependencies]
-          (is (< (load-order dependency) (load-order resource-path)) (format "%s before %s" dependency resource-path)))))))
+          node-load-infos
+          (project/read-nodes node-id+resource-pairs)
+
+          load-order
+          (into {}
+                (map-indexed (fn [node-index {:keys [resource]}]
+                               [(resource/proj-path resource) node-index]))
+                node-load-infos)]
+
+      (doseq [[resource-path dependencies] (coll/merge-with into expected-dependencies expected-editor-dependencies)
+              dependency (distinct dependencies)]
+        (is (< (load-order dependency) (load-order resource-path)) (format "%s before %s" dependency resource-path))))))
 
 (def non-broken-dependencies
   {"/broken_embedded_gos.collection" [] ; embedded instance broken, so no dependencies
@@ -191,9 +335,10 @@
 (deftest broken-embedded-data-gives-no-dependencies
   (log/without-logging ; skip warnings about <<<<<<<< in game.project, BORK in go/collection
     (with-clean-system
-      (let [workspace (test-util/setup-workspace! world "test/resources/broken_project")
+      (let [workspace (test-util/setup-workspace! "test/resources/broken_project")
             project (test-util/setup-project! workspace)
-            resource-nodes (g/node-value project :nodes-by-resource-path)]
+            resource-nodes (g/node-value project :nodes-by-resource-path)
+            basis (g/now)]
         (let [broken-go (resource-nodes "/broken_embedded_components.go")
               broken-collection (resource-nodes "/broken_embedded_gos.collection")]
           (doseq [node-id [broken-go broken-collection]]
@@ -204,5 +349,8 @@
                   source-value (g/node-value node-id :source-value)]
               (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
               (is (= (sort (non-broken-dependencies resource-path))
-                     (sort (dependencies-fn source-value)))
+                     (sort (dependencies-fn
+                             (workspace/make-read-opts basis workspace :include-editor-dependencies false)
+                             resource
+                             source-value)))
                   resource-path))))))))

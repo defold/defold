@@ -15,17 +15,29 @@
 
 #include "fontmap.h"
 #include "fontmap_private.h"
+#include <font/internal/glyph_gen.h>
 #include "font_renderer_private.h"
-#include "font_renderer_api.h"
 
 #include <dlib/math.h>
 #include <dlib/mutex.h>
+#include <dlib/profile.h>
 #include <dlib/zlib.h>
 
+#include <font/text_layout.h>
+
 #include <algorithm> // std::sort
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
 
 namespace dmRender
 {
+    static const dmhash_t CURVE_TEXTURE_HASH = dmHashString64("curve_texture");
+    static const uint32_t VECTOR_SLUG_TEXTURE_HEIGHT = 8;
+    static const uint32_t VECTOR_SLUG_BANDS = 8;
+
+    static void ResetVectorCache(HFontMap font_map);
+
     FontMapParams::FontMapParams()
     : m_FontCollection(0)
     , m_NameHash(0)
@@ -34,19 +46,27 @@ namespace dmRender
     , m_Size(0.0f)
     , m_ShadowX(0.0f)
     , m_ShadowY(0.0f)
+    , m_ShadowBlur(0.0f)
+    , m_OutlineWidth(0.0f)
     , m_MaxAscent(0.0f)
     , m_MaxDescent(0.0f)
     , m_SdfSpread(1.0f)
     , m_SdfOutline(0)
     , m_SdfShadow(0)
+    , m_Alpha(1.0f)
+    , m_OutlineAlpha(0.0f)
+    , m_ShadowAlpha(0.0f)
     , m_CacheWidth(0)
     , m_CacheHeight(0)
     , m_CacheCellWidth(0)
     , m_CacheCellHeight(0)
+    , m_CacheCellMaxAscent(0)
     , m_GlyphChannels(1)
     , m_CacheCellPadding(0)
     , m_LayerMask(FACE)
+    , m_VectorBitmapEffects(false)
     , m_IsMonospaced(false)
+    , m_IsDynamic(false)
     , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
     {
     }
@@ -79,7 +99,7 @@ namespace dmRender
     }
 
     static void SetupCache(HFontMap font_map, uint32_t texture_width, uint32_t texture_height,
-                                             uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent)
+                                             uint32_t cell_width, uint32_t cell_height, int32_t max_ascent)
     {
         if (font_map->m_Cache)
         {
@@ -104,7 +124,7 @@ namespace dmRender
         memset(font_map->m_CacheIndices, 0, sizeof(uint16_t) * font_map->m_CacheCellCount);
 
         font_map->m_Cache = (CacheGlyph*)malloc(sizeof(CacheGlyph) * font_map->m_CacheCellCount);
-        memset(font_map->m_Cache, 0, sizeof(CacheGlyph*) * font_map->m_CacheCellCount);
+        memset(font_map->m_Cache, 0, sizeof(CacheGlyph) * font_map->m_CacheCellCount);
         for (uint32_t i = 0; i < font_map->m_CacheCellCount; ++i)
         {
             font_map->m_CacheIndices[i] = i;
@@ -165,6 +185,121 @@ namespace dmRender
         ClearTexture(font_map, width, height);
     }
 
+    static void RecreateTextureWithData(dmGraphics::HContext graphics_context,
+                                        dmGraphics::HTexture* texture,
+                                        uint32_t width,
+                                        uint32_t height,
+                                        dmGraphics::TextureFormat format,
+                                        dmGraphics::TextureFilter min_filter,
+                                        dmGraphics::TextureFilter mag_filter,
+                                        const void* data,
+                                        uint32_t data_size)
+    {
+        dmGraphics::TextureCreationParams tex_create_params;
+        tex_create_params.m_Width = width;
+        tex_create_params.m_Height = height;
+        tex_create_params.m_OriginalWidth = width;
+        tex_create_params.m_OriginalHeight = height;
+
+        if (*texture)
+        {
+            dmGraphics::DeleteTexture(graphics_context, *texture);
+        }
+
+        *texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
+
+        dmGraphics::TextureParams tex_params;
+        tex_params.m_Format = format;
+        tex_params.m_Width = width;
+        tex_params.m_Height = height;
+        tex_params.m_Depth = 1;
+        tex_params.m_MinFilter = min_filter;
+        tex_params.m_MagFilter = mag_filter;
+        tex_params.m_DataSize = data_size;
+        tex_params.m_Data = data;
+
+        dmGraphics::SetTexture(graphics_context, *texture, tex_params);
+    }
+
+    static bool HasVectorEffects(HFontMap font_map)
+    {
+        return font_map->m_VectorBitmapEffects &&
+               (font_map->m_LayerMask & (FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW)) != 0;
+    }
+
+    static void RecreateVectorSdfTexture(HFontMap font_map)
+    {
+        uint32_t width = HasVectorEffects(font_map) ? font_map->m_CacheWidth : 1;
+        uint32_t height = HasVectorEffects(font_map) ? font_map->m_CacheHeight : 1;
+        uint32_t channels = 3;
+        dmGraphics::TextureFormat format = dmGraphics::TEXTURE_FORMAT_RGB;
+        uint32_t data_size = width * height * channels;
+        uint8_t* data = (uint8_t*)calloc(data_size, 1);
+
+        RecreateTextureWithData(font_map->m_GraphicsContext,
+                                &font_map->m_VectorSdfTexture,
+                                width,
+                                height,
+                                format,
+                                dmGraphics::TEXTURE_FILTER_LINEAR,
+                                dmGraphics::TEXTURE_FILTER_LINEAR,
+                                data,
+                                data_size);
+        free(data);
+    }
+
+    static void DestroySlugData(HFontMap font_map)
+    {
+        delete font_map->m_SlugData;
+        font_map->m_SlugData = 0;
+        font_map->m_SlugResetPending = false;
+        if (font_map->m_VectorBandTexture)
+            dmGraphics::DeleteTexture(font_map->m_GraphicsContext, font_map->m_VectorBandTexture);
+        font_map->m_VectorBandTexture = 0;
+    }
+
+    static void ResizeSlugTextures(HFontMap font_map, uint32_t height)
+    {
+        FontVectorSlugData* data = font_map->m_SlugData;
+        data->m_MaxTexels = FONT_VECTOR_SLUG_WIDTH * height;
+        // Resize only between frames, while no queued vertices use the atlas.
+        // Size remains the append cursor; capacity includes the zeroed tail.
+        data->m_Curves.SetCapacity(data->m_MaxTexels * 4);
+        data->m_Bands.SetCapacity(data->m_MaxTexels);
+        memset(data->m_Curves.Begin(), 0, data->m_Curves.Capacity() * sizeof(uint16_t));
+        memset(data->m_Bands.Begin(), 0, data->m_Bands.Capacity() * sizeof(uint32_t));
+        RecreateTextureWithData(font_map->m_GraphicsContext, &font_map->m_Texture,
+            FONT_VECTOR_SLUG_WIDTH, height, dmGraphics::TEXTURE_FORMAT_RGBA16F,
+            dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST,
+            data->m_Curves.Begin(), data->m_Curves.Capacity() * sizeof(uint16_t));
+        RecreateTextureWithData(font_map->m_GraphicsContext, &font_map->m_VectorBandTexture,
+            FONT_VECTOR_SLUG_WIDTH, height, dmGraphics::TEXTURE_FORMAT_R32UI,
+            dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST,
+            data->m_Bands.Begin(), data->m_Bands.Capacity() * sizeof(uint32_t));
+    }
+
+    static bool CreateVectorTextures(HFontMap font_map)
+    {
+        DestroySlugData(font_map);
+        font_map->m_SlugData = new FontVectorSlugData;
+        ResizeSlugTextures(font_map, VECTOR_SLUG_TEXTURE_HEIGHT);
+        RecreateVectorSdfTexture(font_map);
+        return true;
+    }
+
+    static void RestoreLegacyTexture(HFontMap font_map)
+    {
+        DestroySlugData(font_map);
+
+        if (font_map->m_VectorSdfTexture)
+        {
+            dmGraphics::DeleteTexture(font_map->m_GraphicsContext, font_map->m_VectorSdfTexture);
+            font_map->m_VectorSdfTexture = 0;
+        }
+
+        RecreateTexture(font_map, font_map->m_GraphicsContext, font_map->m_CacheWidth, font_map->m_CacheHeight);
+    }
+
     /**
      * Update the font map with the specified parameters. The parameters are consumed and should not be read after this call.
      * @param font_map Font map handle
@@ -178,6 +313,8 @@ namespace dmRender
         font_map->m_Size = params.m_Size;
         font_map->m_ShadowX = params.m_ShadowX;
         font_map->m_ShadowY = params.m_ShadowY;
+        font_map->m_ShadowBlur = params.m_ShadowBlur;
+        font_map->m_OutlineWidth = params.m_OutlineWidth;
         font_map->m_MaxAscent = params.m_MaxAscent;
         font_map->m_MaxDescent = params.m_MaxDescent;
         font_map->m_SdfSpread = params.m_SdfSpread;
@@ -189,6 +326,7 @@ namespace dmRender
         font_map->m_LayerMask = params.m_LayerMask;
         font_map->m_IsMonospaced = params.m_IsMonospaced;
         font_map->m_IsDynamic = params.m_IsDynamic;
+        font_map->m_VectorBitmapEffects = params.m_VectorBitmapEffects;
         font_map->m_Padding = params.m_Padding;
 
         font_map->m_OnGlyphCacheMiss = params.m_OnGlyphCacheMiss;
@@ -201,14 +339,17 @@ namespace dmRender
         font_map->m_CacheMaxWidth = params.m_CacheMaxWidth;
         font_map->m_CacheMaxHeight = params.m_CacheMaxHeight;
 
-        uint16_t cell_width = dmMath::Max(8U, params.m_CacheCellWidth);
-        uint16_t cell_height = dmMath::Max(8U, params.m_CacheCellHeight);
-
         font_map->m_CacheCellPadding = params.m_CacheCellPadding;
         font_map->m_CacheChannels = params.m_GlyphChannels;
 
-        SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight,
-                                cell_width, cell_height, params.m_CacheCellMaxAscent);
+        // Leave the cell dimensions at zero until the first bitmap supplies metrics.
+        if (params.m_CacheCellHeight != 0)
+        {
+            uint16_t cell_width = dmMath::Max(8U, params.m_CacheCellWidth);
+            uint16_t cell_height = dmMath::Max(8U, params.m_CacheCellHeight);
+            SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight,
+                                    cell_width, cell_height, params.m_CacheCellMaxAscent);
+        }
 
         switch (font_map->m_CacheChannels)
         {
@@ -241,6 +382,7 @@ namespace dmRender
         }
 
         font_map->m_GraphicsContext = graphics_context;
+        font_map->m_IsVector = 0;
         RecreateTexture(font_map, font_map->m_GraphicsContext, font_map->m_CacheWidth, font_map->m_CacheHeight);
         return true;
     }
@@ -258,14 +400,14 @@ namespace dmRender
         return font_map;
     }
 
-    static void SetFontMapCacheSize(HFontMap font_map, uint16_t cell_width, uint16_t cell_height, uint16_t max_ascent)
+    static void SetFontMapCacheSize(HFontMap font_map, uint16_t cell_width, uint16_t cell_height, int32_t max_ascent)
     {
         font_map->m_IsCacheSizeDirty = 1;
 
         SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight,
                             cell_width, cell_height, max_ascent);
     }
-    static void GetFontMapCacheSize(HFontMap font_map, uint16_t* cell_width, uint16_t* cell_height, uint16_t* max_ascent)
+    static void GetFontMapCacheSize(HFontMap font_map, uint16_t* cell_width, uint16_t* cell_height, int32_t* max_ascent)
     {
         *cell_width = font_map->m_CacheCellWidth;
         *cell_height = font_map->m_CacheCellHeight;
@@ -274,7 +416,10 @@ namespace dmRender
 
     void DeleteFontMap(HFontMap font_map)
     {
-        FontCollectionDestroy(font_map->m_FontCollection);
+        if (font_map->m_FontCollection)
+        {
+            FontCollectionDestroy(font_map->m_FontCollection);
+        }
         dmMutex::Delete(font_map->m_Mutex);
         delete font_map;
     }
@@ -297,16 +442,57 @@ namespace dmRender
         return font_map->m_Texture;
     }
 
-    void SetFontMapMaterial(HFontMap font_map, HMaterial material)
+    bool SetFontMapMaterial(HFontMap font_map, HMaterial material)
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+        bool vector = false;
+        bool slug = false;
+        if (material)
+        {
+            slug = GetMaterialSamplerUnit(material, dmHashString64("band_texture")) != INVALID_SAMPLER_UNIT;
+            vector = GetMaterialSamplerUnit(material, CURVE_TEXTURE_HASH) != INVALID_SAMPLER_UNIT;
+            if (slug != vector)
+            {
+                dmLogError("Vector fonts require curve_texture and band_texture");
+                return false;
+            }
+        }
+
+        if (slug && (!dmGraphics::IsTextureFormatSupported(font_map->m_GraphicsContext, dmGraphics::TEXTURE_FORMAT_RGBA16F) ||
+                     !dmGraphics::IsTextureFormatSupported(font_map->m_GraphicsContext, dmGraphics::TEXTURE_FORMAT_R32UI)))
+        {
+            dmLogError("Slug fonts require RGBA16F curves and R32UI bands");
+            return false;
+        }
         font_map->m_Material = material;
+        if (vector)
+        {
+            if (!CreateVectorTextures(font_map))
+            {
+                return false;
+            }
+        }
+        else if (font_map->m_IsVector)
+        {
+            RestoreLegacyTexture(font_map);
+        }
+
+        if (font_map->m_IsVector || vector)
+            ResetVectorCache(font_map);
+        font_map->m_IsVector = vector ? 1 : 0;
+        return true;
     }
 
     HMaterial GetFontMapMaterial(HFontMap font_map)
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
         return font_map->m_Material;
+    }
+
+    bool GetFontMapIsVector(HFontMap font_map)
+    {
+        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+        return font_map->m_IsVector != 0;
     }
 
     float GetFontMapSize(dmRender::HFontMap font_map)
@@ -327,8 +513,25 @@ namespace dmRender
 
     void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics)
     {
+        DM_PROFILE(__FUNCTION__);
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
-        GetTextMetrics(font_map->m_FontRenderBackend, font_map, text, settings, metrics);
+
+        dmArray<uint32_t> codepoints;
+        TextToCodePoints(text, codepoints);
+
+        settings->m_Size = font_map->m_Size;
+
+        HTextLayout layout = 0;
+        TextResult  result = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), settings, &layout);
+        if (result == TEXT_RESULT_OK)
+        {
+            TextLayoutGetBounds(layout, &metrics->m_Width, &metrics->m_Height);
+            metrics->m_LineCount = TextLayoutGetLineCount(layout);
+            metrics->m_MaxAscent = font_map->m_MaxAscent;
+            metrics->m_MaxDescent = font_map->m_MaxDescent;
+        }
+
+        TextLayoutRelease(layout);
     }
 
     void GetTextMetrics(HFontMap font_map, HTextLayout layout, TextMetrics* metrics)
@@ -389,8 +592,63 @@ namespace dmRender
         FontResult r;
         FontType type = FontGetType(font);
 
-        if (type == FONT_TYPE_STBTTF)
+        if (type == FONT_TYPE_TTF || type == FONT_TYPE_OTF)
         {
+            if (font_map->m_IsVector)
+            {
+                FontGlyphOptions glyph_options;
+                // Generate effects at the authored .font size. Screen
+                // transforms only affect sampling; they never resize the atlas.
+                glyph_options.m_Scale = FontGetScaleFromSize(font, font_map->m_Size);
+                glyph_options.m_GenerateOutline = true;
+
+                FontGlyph temp;
+                if (font_map->m_VectorBitmapEffects)
+                {
+                    FontGlyphGenParams params;
+                    params.m_Scale = glyph_options.m_Scale;
+                    params.m_SdfPadding = font_map->m_SdfSpread;
+                    params.m_OutlineWidth = font_map->m_OutlineWidth;
+                    params.m_ShadowBlur = font_map->m_ShadowBlur;
+                    params.m_HasOutline = font_map->m_OutlineWidth > 0 && font_map->m_OutlineAlpha > 0;
+                    params.m_HasShadow = (font_map->m_LayerMask & FONT_RENDER_LAYER_SHADOW) != 0;
+                    r = FontGenerateVectorGlyph(font, glyph_index, &params, &temp);
+                }
+                else
+                    r = FontGetGlyphByIndex(font, glyph_index, &glyph_options, &temp);
+                if (FONT_RESULT_OK != r)
+                {
+                    return r;
+                }
+
+                FontGlyph* out = new FontGlyph;
+                *out = temp;
+
+                temp.m_Outline.m_Commands = 0;
+                temp.m_Outline.m_CommandCount = 0;
+                temp.m_Outline.m_Flags = 0;
+                if (HasVectorEffects(font_map))
+                {
+                    temp.m_Bitmap.m_Data = 0;
+                    temp.m_Bitmap.m_DataSize = 0;
+                    temp.m_Bitmap.m_Channels = 0;
+                    temp.m_Bitmap.m_Flags = 0;
+                }
+                FontFreeGlyph(font, &temp);
+
+                if (!HasVectorEffects(font_map))
+                {
+                    out->m_Bitmap.m_Data = 0;
+                    out->m_Bitmap.m_DataSize = 0;
+                    out->m_Bitmap.m_Channels = 0;
+                    out->m_Bitmap.m_Flags = 0;
+                }
+
+                *glyph = out;
+                AddGlyph(font_map, key, *glyph);
+                return r;
+            }
+
             // Since generating the SDF takes a long time (several milliseconds)
             // we simply opt out of creating that data just-in-time
             r = HandleCacheMiss(font_map, font, glyph_index, key, glyph);
@@ -456,20 +714,35 @@ namespace dmRender
         font_map->m_Glyphs.Put(key, glyph);
 
 
-        uint16_t prev_width, prev_height, prev_ascent;
+        uint16_t prev_width, prev_height;
+        int32_t prev_ascent;
         dmRender::GetFontMapCacheSize(font_map, &prev_width, &prev_height, &prev_ascent);
 
         uint16_t bitmap_width   = (uint16_t)glyph->m_Bitmap.m_Width;
         uint16_t bitmap_height  = (uint16_t)glyph->m_Bitmap.m_Height;
-        uint16_t ascent         = (uint16_t)glyph->m_Ascent;
-        bool dirty = bitmap_width > prev_width ||
-                      bitmap_height > prev_height ||
-                      ascent > prev_ascent;
+        int32_t  ascent         = (int32_t)glyph->m_Ascent;
+        if (bitmap_width == 0 || bitmap_height == 0)
+            return;
+
+        // An empty cache has no baseline yet; its first bitmap may have a negative ascent.
+        uint16_t cell_width = dmMath::Max((uint16_t)8, dmMath::Max(bitmap_width, prev_width));
+        int32_t max_ascent = prev_height == 0 ? ascent : dmMath::Max(ascent, prev_ascent);
+        // Moving the baseline down also moves every previously added bitmap down.
+        int64_t cell_height = prev_height == 0 ? 8 : (int64_t)prev_height + max_ascent - prev_ascent;
+        cell_height = dmMath::Max(cell_height, (int64_t)max_ascent - ascent + bitmap_height);
+        if (cell_height > UINT16_MAX)
+        {
+            dmLogWarning("Font cache cell height exceeds the supported maximum for glyph %u.", glyph_index);
+            return;
+        }
+        bool dirty = cell_width != prev_width ||
+                      cell_height != prev_height ||
+                      max_ascent != prev_ascent;
         if (dirty)
         {
-            font_map->m_CacheCellWidth      = dmMath::Max(bitmap_width, prev_width);
-            font_map->m_CacheCellHeight     = dmMath::Max(bitmap_height, prev_height);
-            font_map->m_CacheCellMaxAscent  = dmMath::Max(ascent, prev_ascent);
+            font_map->m_CacheCellWidth      = cell_width;
+            font_map->m_CacheCellHeight     = (uint16_t)cell_height;
+            font_map->m_CacheCellMaxAscent  = max_ascent;
             dmRender::SetFontMapCacheSize(font_map, font_map->m_CacheCellWidth, font_map->m_CacheCellHeight, font_map->m_CacheCellMaxAscent);
         }
     }
@@ -540,7 +813,7 @@ namespace dmRender
     }
 
     static void ResetCache(HFontMap font_map, dmGraphics::HContext graphics_context, bool recreate_texture,
-                            uint16_t cell_width, uint16_t cell_height, uint16_t max_ascent)
+                            uint16_t cell_width, uint16_t cell_height, int32_t max_ascent)
     {
         if (font_map->m_IsCacheSizeTooSmall)
         {
@@ -588,13 +861,47 @@ namespace dmRender
 
         if (update_cache)
         {
+            if (font_map->m_IsVector)
+            {
+                if (font_map->m_IsCacheSizeTooSmall)
+                {
+                    GetNextCacheSize(font_map, &font_map->m_CacheWidth, &font_map->m_CacheHeight);
+                    font_map->m_IsCacheSizeTooSmall = 0;
+                }
+
+                font_map->m_CacheWidth = dmMath::Max(font_map->m_CacheWidth, font_map->m_CacheCellWidth);
+                font_map->m_CacheHeight = dmMath::Max(font_map->m_CacheHeight, font_map->m_CacheCellHeight);
+                if (!IsPowerOfTwo(font_map->m_CacheWidth))
+                    font_map->m_CacheWidth = NextPowerOfTwo(font_map->m_CacheWidth);
+                if (!IsPowerOfTwo(font_map->m_CacheHeight))
+                    font_map->m_CacheHeight = NextPowerOfTwo(font_map->m_CacheHeight);
+
+                SetupCache(font_map,
+                           font_map->m_CacheWidth,
+                           font_map->m_CacheHeight,
+                           font_map->m_CacheCellWidth,
+                           font_map->m_CacheCellHeight,
+                           font_map->m_CacheCellMaxAscent);
+                ResetVectorCache(font_map);
+                font_map->m_IsCacheSizeDirty = 0;
+                return;
+            }
+
             ResetCache(font_map, font_map->m_GraphicsContext, texture_too_small,
                         font_map->m_CacheCellWidth, font_map->m_CacheCellHeight, font_map->m_CacheCellMaxAscent);
             font_map->m_IsCacheSizeDirty = 0;
         }
     }
 
-    static void UpdateGlyphTexture(HFontMap font_map, FontGlyph* g, int32_t x, int32_t y, int offset_y)
+    void PrepareVectorCache(HFontMap font_map, uint32_t frame)
+    {
+        UpdateCacheTexture(font_map);
+        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+        if (font_map->m_SlugResetPending && frame != font_map->m_SlugOverflowFrame)
+            ResetVectorCache(font_map);
+    }
+
+    static void UpdateGlyphTexture(HFontMap font_map, FontGlyph* g, int32_t x, int32_t y, int32_t offset_y)
     {
         uint32_t glyph_image_width      = g->m_Bitmap.m_Width;
         uint32_t glyph_image_height     = g->m_Bitmap.m_Height;
@@ -684,6 +991,148 @@ namespace dmRender
         dmGraphics::SetTexture(font_map->m_GraphicsContext, font_map->m_Texture, tex_params);
     }
 
+    static bool UpdateVectorSdfGlyphTexture(HFontMap font_map, FontGlyph* glyph, int32_t x, int32_t y)
+    {
+        if (!font_map->m_VectorSdfTexture || !glyph->m_Bitmap.m_Data)
+        {
+            return false;
+        }
+
+        uint32_t width = glyph->m_Bitmap.m_Width;
+        uint32_t height = glyph->m_Bitmap.m_Height;
+        uint32_t channels = glyph->m_Bitmap.m_Channels;
+        const uint8_t* source = glyph->m_Bitmap.m_Data;
+        uint8_t* unpacked = font_map->m_CellTempData;
+
+        if ((glyph->m_Bitmap.m_Flags & FONT_GLYPH_COMPRESSION_DEFLATE) != 0)
+        {
+            FontGlyphInflaterContext inflate_context;
+            inflate_context.m_Output = unpacked;
+            inflate_context.m_Cursor = 0;
+            dmZlib::Result result = dmZlib::InflateBuffer(glyph->m_Bitmap.m_Data,
+                                                          glyph->m_Bitmap.m_DataSize,
+                                                          &inflate_context,
+                                                          FontGlyphInflater);
+            if (result != dmZlib::RESULT_OK)
+            {
+                dmLogError("Failed to decompress vector SDF glyph %u in font %s: %d",
+                           glyph->m_GlyphIndex,
+                           dmHashReverseSafe64(font_map->m_NameHash),
+                           result);
+                return false;
+            }
+            delta_decode(unpacked, inflate_context.m_Cursor);
+            source = unpacked;
+        }
+
+        const uint32_t output_channels = 3;
+        if (channels != output_channels)
+        {
+            dmLogError("Vector bitmap effects require RGB glyph data; rebuild the font");
+            return false;
+        }
+
+        dmGraphics::TextureParams tex_params;
+        memset(&tex_params, 0, sizeof(tex_params));
+        tex_params.m_SubUpdate = true;
+        tex_params.m_MipMap = 0;
+        tex_params.m_Format = output_channels == 3
+            ? dmGraphics::TEXTURE_FORMAT_RGB
+            : dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+        tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+        tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+        tex_params.m_Width = width;
+        tex_params.m_Height = height;
+        tex_params.m_Depth = 1;
+        tex_params.m_X = x;
+        tex_params.m_Y = y;
+        tex_params.m_Data = source;
+        tex_params.m_DataSize = width * height * output_channels;
+        dmGraphics::SetTexture(font_map->m_GraphicsContext, font_map->m_VectorSdfTexture, tex_params);
+        return true;
+    }
+
+    static void UpdateVectorTexture(HFontMap font_map,
+                                    dmGraphics::HTexture texture,
+                                    dmGraphics::TextureFormat format,
+                                    uint32_t width,
+                                    uint32_t height,
+                                    const void* data,
+                                    uint32_t data_size)
+    {
+        dmGraphics::TextureParams tex_params;
+        memset(&tex_params, 0, sizeof(tex_params));
+        tex_params.m_Format = format;
+        tex_params.m_Width = width;
+        tex_params.m_Height = height;
+        tex_params.m_Depth = 1;
+        tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+        tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+        tex_params.m_Data = data;
+        tex_params.m_DataSize = data_size;
+        dmGraphics::SetTexture(font_map->m_GraphicsContext, texture, tex_params);
+    }
+
+    static void ResetVectorCache(HFontMap font_map)
+    {
+        font_map->m_GlyphCache.Clear();
+        font_map->m_CacheCursor = 0;
+
+        for (uint32_t i = 0; i < font_map->m_CacheCellCount; ++i)
+        {
+            CacheGlyph* glyph = &font_map->m_Cache[i];
+            glyph->m_Glyph = 0;
+            glyph->m_Frame = 0;
+            glyph->m_GlyphKey = 0;
+            glyph->m_VectorCurveTexel = 0;
+            glyph->m_VectorCurveCount = 0;
+            glyph->m_VectorSdfCached = 0;
+            memset(glyph->m_VectorBanding, 0, sizeof(glyph->m_VectorBanding));
+        }
+
+        if (font_map->m_SlugData)
+        {
+            FontVectorSlugBegin(font_map->m_SlugData);
+            const uint32_t height = font_map->m_SlugData->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH;
+            if (font_map->m_SlugResetPending && height < FONT_VECTOR_SLUG_MAX_HEIGHT)
+                ResizeSlugTextures(font_map, dmMath::Min(height * 2, FONT_VECTOR_SLUG_MAX_HEIGHT));
+            font_map->m_SlugResetPending = false;
+        }
+        RecreateVectorSdfTexture(font_map);
+    }
+
+    static bool EncodeSlugGlyph(HFontMap font_map, CacheGlyph* cache_glyph, const FontGlyph& source)
+    {
+        FontVectorSlugData* data = font_map->m_SlugData;
+        FontVectorSlugGlyph glyph;
+        if (!FontVectorSlugAddFontGlyph(data, source, VECTOR_SLUG_BANDS, &glyph))
+        {
+            if (!data->m_Overflow)
+                return false;
+            // Do not invalidate glyphs already submitted in this frame.
+            font_map->m_SlugResetPending = true;
+            font_map->m_SlugOverflowFrame = cache_glyph->m_Frame;
+            dmLogWarning("Slug font atlas is full; deferring cache growth/reset to the next frame");
+            return false;
+        }
+        if (!glyph.m_CurveCount)
+            return false;
+        cache_glyph->m_VectorCurveTexel = glyph.m_BandTexel;
+        cache_glyph->m_VectorCurveCount = glyph.m_CurveCount;
+        memcpy(cache_glyph->m_VectorBanding, glyph.m_BandTransform, sizeof(glyph.m_BandTransform));
+        const uint32_t height = data->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH;
+        UpdateVectorTexture(font_map, font_map->m_Texture, dmGraphics::TEXTURE_FORMAT_RGBA16F,
+            FONT_VECTOR_SLUG_WIDTH, height, data->m_Curves.Begin(), data->m_Curves.Capacity() * sizeof(uint16_t));
+        UpdateVectorTexture(font_map, font_map->m_VectorBandTexture, dmGraphics::TEXTURE_FORMAT_R32UI,
+            FONT_VECTOR_SLUG_WIDTH, height, data->m_Bands.Begin(), data->m_Bands.Capacity() * sizeof(uint32_t));
+        return true;
+    }
+
+    static bool EncodeGlyphOutlineToVectorCache(HFontMap font_map, CacheGlyph* cache_glyph, FontGlyph* glyph)
+    {
+        return EncodeSlugGlyph(font_map, cache_glyph, *glyph);
+    }
+
     struct CompareCacheGlyphPred
     {
         CacheGlyph* m_Glyphs;
@@ -751,6 +1200,34 @@ namespace dmRender
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
 
+        if (font_map->m_IsVector)
+        {
+            // Synchronous Vector generation has no AddGlyphByIndex callback to
+            // initialize an empty cache or grow cells for newly requested glyphs.
+            uint16_t width = dmMath::Max((uint16_t)8, (uint16_t)glyph->m_Bitmap.m_Width);
+            uint16_t height = dmMath::Max((uint16_t)8, (uint16_t)glyph->m_Bitmap.m_Height);
+            if (width > font_map->m_CacheCellWidth || height > font_map->m_CacheCellHeight)
+            {
+                font_map->m_CacheCellWidth = dmMath::Max(width, font_map->m_CacheCellWidth);
+                font_map->m_CacheCellHeight = dmMath::Max(height, font_map->m_CacheCellHeight);
+                font_map->m_IsCacheSizeDirty = 1;
+            }
+            // Keep the current atlas intact until the next render dispatch.
+            if (font_map->m_IsCacheSizeDirty)
+                return 0;
+        }
+
+        if (font_map->m_CacheCellCount == 0)
+            return 0;
+
+        // Fitting inside the texture is not enough: never overwrite another cache cell.
+        if (g_offset_y < 0 || glyph->m_Bitmap.m_Width > font_map->m_CacheCellWidth ||
+            (int64_t)g_offset_y + glyph->m_Bitmap.m_Height > font_map->m_CacheCellHeight)
+        {
+            dmLogWarning("Glyph %u does not fit inside its font cache cell (%u x %u).", glyph->m_GlyphIndex, font_map->m_CacheCellWidth, font_map->m_CacheCellHeight);
+            return 0;
+        }
+
         // Since accessing glyphs will update their timestamps, we need to sort them when
         // we need to allocate a new glyph, so that we pick the oldest one
         SortCache(font_map);
@@ -784,13 +1261,63 @@ namespace dmRender
             font_map->m_GlyphCache.Erase(cache_glyph->m_GlyphKey);
         }
 
-        // If the blit would write outside of the texture, then we try to resize it
-        uint32_t glyph_image_width  = glyph->m_Bitmap.m_Width;
-        uint32_t glyph_image_height = glyph->m_Bitmap.m_Height;
-        if ( (cache_glyph->m_X + glyph_image_width) > font_map->m_CacheWidth ||
-             (cache_glyph->m_Y + glyph_image_height + g_offset_y) > font_map->m_CacheHeight)
+        if (font_map->m_IsVector)
         {
-            bool can_resize = CanCacheTextureGrow(font_map);
+            uint32_t glyph_image_width = glyph->m_Bitmap.m_Width;
+            uint32_t glyph_image_height = glyph->m_Bitmap.m_Height;
+            cache_glyph->m_Glyph = glyph;
+            cache_glyph->m_GlyphKey = glyph_key;
+            cache_glyph->m_Frame = frame;
+            cache_glyph->m_VectorSdfCached = 0;
+
+            if (!EncodeGlyphOutlineToVectorCache(font_map, cache_glyph, glyph))
+            {
+                cache_glyph->m_Glyph = 0;
+                cache_glyph->m_GlyphKey = 0;
+                cache_glyph->m_Frame = 0;
+                return 0;
+            }
+
+            if (HasVectorEffects(font_map))
+            {
+                if ((cache_glyph->m_X + glyph_image_width) > font_map->m_CacheWidth ||
+                    (cache_glyph->m_Y + glyph_image_height) > font_map->m_CacheHeight)
+                {
+                    cache_glyph->m_Glyph = 0;
+                    cache_glyph->m_GlyphKey = 0;
+                    cache_glyph->m_Frame = 0;
+                    font_map->m_IsCacheSizeDirty = 1;
+                    font_map->m_IsCacheSizeTooSmall = 1;
+                    return 0;
+                }
+                cache_glyph->m_VectorSdfCached =
+                    UpdateVectorSdfGlyphTexture(font_map, glyph, cache_glyph->m_X, cache_glyph->m_Y) ? 1 : 0;
+                if (!cache_glyph->m_VectorSdfCached)
+                {
+                    dmLogError("Failed to cache the runtime SDF shadow for glyph %u in %s",
+                               glyph->m_GlyphIndex,
+                               dmHashReverseSafe64(font_map->m_NameHash));
+                    cache_glyph->m_Glyph = 0;
+                    cache_glyph->m_GlyphKey = 0;
+                    cache_glyph->m_Frame = 0;
+                    return 0;
+                }
+            }
+
+            font_map->m_GlyphCache.Put(glyph_key, cache_glyph);
+            return cache_glyph;
+        }
+
+        // If the blit would write outside of the texture, then we try to resize it
+        int32_t  glyph_image_width  = glyph->m_Bitmap.m_Width;
+        int32_t  glyph_image_height = glyph->m_Bitmap.m_Height;
+        int32_t  glyph_x            = cache_glyph->m_X;
+        int32_t  glyph_y            = cache_glyph->m_Y + g_offset_y;
+        if (glyph_x < 0 || glyph_y < 0 ||
+            glyph_x + glyph_image_width > font_map->m_CacheWidth ||
+            glyph_y + glyph_image_height > font_map->m_CacheHeight)
+        {
+            bool can_resize = glyph_x >= 0 && glyph_y >= 0 && CanCacheTextureGrow(font_map);
             if (can_resize)
             {
                 font_map->m_IsCacheSizeDirty = 1;
@@ -826,7 +1353,19 @@ namespace dmRender
         // The cache size
         size += font_map->m_CacheCellCount*( (sizeof(CacheGlyph) * sizeof(uint32_t)) );
         // The texture size
-        size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_Texture);
+        if (font_map->m_Texture)
+            size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_Texture);
+        if (font_map->m_VectorBandTexture)
+            size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_VectorBandTexture);
+        if (font_map->m_SlugData)
+            size += sizeof(FontVectorSlugData) + font_map->m_SlugData->m_Curves.Capacity() * sizeof(uint16_t) + font_map->m_SlugData->m_Bands.Capacity() * sizeof(uint32_t);
+        if (font_map->m_VectorSdfTexture)
+            size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_VectorSdfTexture);
+        size += font_map->m_DecorationVertices.Capacity() * sizeof(FontGlyphVertex);
+        if (font_map->m_EffectCache)
+        {
+            size += FontGetEffectCacheResourceSize(font_map->m_EffectCache);
+        }
         return size;
     }
 

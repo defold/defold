@@ -150,15 +150,7 @@ namespace dmGameSystem
         world->m_ConstantBuffers.SetSize(max_emitter_count);
         memset(world->m_ConstantBuffers.Begin(), 0, sizeof(dmRender::HNamedConstantBuffer)*max_emitter_count);
 
-        // position   : 3
-        // color      : 4
-        // texcoord0  : 2
-        // page_index : 1
-        const uint32_t particle_buffer_count = dmMath::Min(ctx->m_MaxParticleBufferCount, ctx->m_MaxParticleCount);
-        const uint32_t default_vx_size       = sizeof(float) * (3 + 4 + 2 + 1);
-        const uint32_t buffer_size           = particle_buffer_count * VERTEX_COUNT * default_vx_size;
-        world->m_VertexBufferData.SetCapacity(buffer_size);
-        world->m_VertexBufferData.SetSize(buffer_size);
+        // Allocate the CPU scratch buffer from the actual material stride in RenderBatch.
         world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(ctx->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         world->m_VertexBufferSize = 0;
 
@@ -200,7 +192,7 @@ namespace dmGameSystem
         if (world->m_PrototypeIndices.Remaining() == 0)
         {
             ShowFullBufferError("ParticleFx", dmParticle::MAX_INSTANCE_COUNT_KEY, world->m_PrototypeIndices.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         uint32_t index = world->m_PrototypeIndices.Pop();
         ParticleFXComponentPrototype* prototype = &world->m_Prototypes[index];
@@ -369,7 +361,9 @@ namespace dmGameSystem
         const uint32_t max_gpu_size = pfx_world->m_VertexBufferSize;
         const uint32_t max_cpu_size = dmMath::Min(max_cpu_count, max_gpu_count) * VERTEX_COUNT * vx_stride;
 
-        // Each batch uses the scratch data exclusively (i.e. no mixed vertex formats)
+        // Batches reuse this buffer one at a time. Allocate lazily for the material
+        // stride and retain the largest capacity encountered; smaller strides do not
+        // shrink it or repeatedly reallocate when materials alternate.
         dmArray<uint8_t>& vertex_buffer = pfx_world->m_VertexBufferData;
         if (vertex_buffer.Capacity() < max_cpu_size)
         {
@@ -1198,9 +1192,49 @@ namespace dmGameSystem
         return dmParticle::FETCH_RESOURCES_OK;
     }
 
+    static dmGameObject::Result CompParticleFXTypeCreate(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::HComponentType type)
+    {
+        ParticleFXContext* particlefx_context = new ParticleFXContext;
+        HContextRegistry context_registry = dmGameObject::ComponentGetContextRegistry(ctx);
+        particlefx_context->m_Factory = ctx->m_Factory;
+        particlefx_context->m_RenderContext = (dmRender::HRenderContext) ContextRegistryGet(context_registry, RENDER_CONTEXT_NAME);
+        particlefx_context->m_MaxParticleFXCount = dmConfigFile::GetInt(ctx->m_Config, dmParticle::MAX_INSTANCE_COUNT_KEY, 64);
+        particlefx_context->m_MaxEmitterCount = dmConfigFile::GetInt(ctx->m_Config, dmParticle::MAX_EMITTER_COUNT_KEY, 64);
+        particlefx_context->m_MaxParticleCount = dmConfigFile::GetInt(ctx->m_Config, dmParticle::MAX_PARTICLE_GPU_COUNT_KEY, 1024);
+        particlefx_context->m_MaxParticleBufferCount = dmConfigFile::GetInt(ctx->m_Config, dmParticle::MAX_PARTICLE_CPU_COUNT_KEY, 1024);
+        particlefx_context->m_Debug = false;
+
+        dmGameObject::ComponentTypeSetPrio(type, 800);
+        dmGameObject::ComponentTypeSetContext(type, particlefx_context);
+        dmGameObject::ComponentTypeSetHasUserData(type, true);
+        dmGameObject::ComponentTypeSetReadsTransforms(type, true);
+        dmGameObject::ComponentTypeSetNewWorldFn(type, CompParticleFXNewWorld);
+        dmGameObject::ComponentTypeSetDeleteWorldFn(type, CompParticleFXDeleteWorld);
+        dmGameObject::ComponentTypeSetCreateFn(type, CompParticleFXCreate);
+        dmGameObject::ComponentTypeSetDestroyFn(type, CompParticleFXDestroy);
+        dmGameObject::ComponentTypeSetAddToUpdateFn(type, CompParticleFXAddToUpdate);
+        dmGameObject::ComponentTypeSetGetFn(type, CompParticleFXGetComponent);
+        dmGameObject::ComponentTypeSetUpdateFn(type, CompParticleFXUpdate);
+        dmGameObject::ComponentTypeSetRenderFn(type, CompParticleFXRender);
+        dmGameObject::ComponentTypeSetOnMessageFn(type, CompParticleFXOnMessage);
+        dmGameObject::ComponentTypeSetOnReloadFn(type, CompParticleFXOnReload);
+        dmGameObject::ComponentTypeSetGetPropertyFn(type, CompParticleFXGetProperty);
+        dmGameObject::ComponentTypeSetSetPropertyFn(type, CompParticleFXSetProperty);
+        return dmGameObject::RESULT_OK;
+    }
+
+    static dmGameObject::Result CompParticleFXTypeDestroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::HComponentType type)
+    {
+        ParticleFXContext* particlefx_context = (ParticleFXContext*) dmGameObject::ComponentTypeGetContext(type);
+        delete particlefx_context;
+        return dmGameObject::RESULT_OK;
+    }
+
     void GetParticleFXWorldRenderBuffers(void* pfx_world, dmRender::HBufferedRenderBuffer* vx_buffer)
     {
         ParticleFXWorld* world = (ParticleFXWorld*) pfx_world;
         *vx_buffer = world->m_VertexBuffer;
     }
 }
+
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeParticleFX, "particlefxc", dmGameSystem::CompParticleFXTypeCreate, dmGameSystem::CompParticleFXTypeDestroy);

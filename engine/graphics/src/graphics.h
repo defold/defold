@@ -107,7 +107,12 @@ namespace dmGraphics
         CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
         // GL_MIN/GL_MAX blend equations require GLES3+ or EXT_blend_minmax.
         CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX = 8,
-        MAX_CONTEXT_FEATURE_COUNT              = 9,
+        // BC (S3TC/RGTC/BPTC) for 2D array / 3D textures. WebGL2 forbids these
+        // compressed families on array/3D targets while allowing them on 2D.
+        CONTEXT_FEATURE_BC_ARRAY_TEXTURES      = 9,
+        // Availability for the current surface; query after BeginFrame.
+        CONTEXT_FEATURE_BACKBUFFER_READBACK    = 10,
+        MAX_CONTEXT_FEATURE_COUNT              = 11,
     };
 
     // Binding family for shader resources in a program.
@@ -146,6 +151,7 @@ namespace dmGraphics
         // Per-stage binding limits
         uint32_t    m_MaxSamplersPerStage;
         uint32_t    m_MaxTexturesPerStage;
+        uint32_t    m_MaxStorageBuffersPerStage;
         uint32_t    m_MaxVertexAttributes;
         uint32_t    m_MaxVertexBuffers;
 
@@ -440,7 +446,7 @@ namespace dmGraphics
     bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
 
-    bool                 ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf);
+    bool                 ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
 
     // Attributes
     uint32_t         GetAttributeCount(HProgram prog);
@@ -487,6 +493,8 @@ namespace dmGraphics
     bool        GetAstcTextureFormat(const void* mem, uint32_t memsize, dmGraphics::TextureFormat* out);
 
     uint32_t    GetTextureFormatBitsPerPixel(TextureFormat format);
+    // Size in bytes of a single image slice, compressed or not
+    uint32_t    GetTextureFormatDataSize(TextureFormat format, uint32_t width, uint32_t height);
     uint8_t     GetTexturePageCount(HTexture texture);
 
     // Calculating mipmap info helpers

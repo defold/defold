@@ -611,10 +611,7 @@ Result LoadResourceToBufferWithOffset(HFactory factory, const char* path, const 
             is_streaming = true;
         }
 
-        if (buffer->Capacity() < bytes_to_read) {
-            buffer->SetCapacity(bytes_to_read);
-        }
-        buffer->SetSize(bytes_to_read);
+        buffer->EnsureSize(bytes_to_read);
 
         // Only actually read the resource if we requested any bytes
         uint32_t nread = 0;
@@ -1040,6 +1037,7 @@ Result InsertResource(HFactory factory, const char* path, uint64_t canonical_pat
     assert(descriptor->m_Resource);
     assert(descriptor->m_ReferenceCount == 1);
 
+    descriptor->m_Version = IncreaseVersion(factory);
     factory->m_Resources->Put(canonical_path_hash, *descriptor);
     factory->m_ResourceToHash->Put((uintptr_t) descriptor->m_Resource, canonical_path_hash);
     if (factory->m_ResourceHashToFilename)
@@ -1048,8 +1046,6 @@ Result InsertResource(HFactory factory, const char* path, uint64_t canonical_pat
         GetCanonicalPath(path, canonical_path, sizeof(canonical_path));
         factory->m_ResourceHashToFilename->Put(canonical_path_hash, strdup(canonical_path));
     }
-
-    descriptor->m_Version = IncreaseVersion(factory);
 
     return RESULT_OK;
 }
@@ -1644,6 +1640,7 @@ const char* ResultToString(Result r)
         DM_RESOURCE_RESULT_TO_STRING_CASE(VERSION_MISMATCH);
         DM_RESOURCE_RESULT_TO_STRING_CASE(SIGNATURE_MISMATCH);
         DM_RESOURCE_RESULT_TO_STRING_CASE(UNKNOWN_ERROR);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(TOO_MANY_COMPONENTS);
         default: break;
     }
     #undef DM_RESOURCE_RESULT_TO_STRING_CASE

@@ -23,7 +23,7 @@ nodes {
     z: 0.0
   }
   type: TYPE_TEXT
-  text: "<text>"
+  text: "-text-"
   font: "test"
   id: "text"
   inherit_alpha: true

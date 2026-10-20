@@ -1,0 +1,17 @@
+attribute vec4 position;
+attribute vec2 texcoord0;
+attribute vec4 saturation;
+attribute vec4 tint;
+attribute vec4 transparency;
+attribute vec4 highlight;
+attribute vec4 dissolve;
+
+varying vec2 var_uv;
+varying vec3 var_normal;
+
+void main()
+{
+    gl_Position = position + saturation + tint + transparency + highlight + dissolve;
+    var_uv = texcoord0;
+    var_normal = saturation.xyz + tint.xyz + transparency.xyz + highlight.xyz + dissolve.xyz;
+}

@@ -78,6 +78,14 @@ namespace dmCrypt
 
     bool Base64Decode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len)
     {
+        // Zero base64 characters decode into zero bytes. It has to be handled here, since the
+        // "*dst_len == 0" size query convention below cannot represent an empty result.
+        if (src_len == 0)
+        {
+            *dst_len = 0;
+            return true;
+        }
+
         @autoreleasepool
         {
             uint32_t padding_needed = (4 - (src_len % 4)) % 4;
@@ -95,7 +103,7 @@ namespace dmCrypt
                 data = [NSData dataWithBytes:src length:src_len];
             }
 
-            NSData* decoded = [[NSData alloc] initWithBase64EncodedData:data options:NSDataBase64DecodingIgnoreUnknownCharacters];
+            NSData* decoded = [[[NSData alloc] initWithBase64EncodedData:data options:NSDataBase64DecodingIgnoreUnknownCharacters] autorelease];
             if (decoded == nil)
             {
                 *dst_len = 0xFFFFFFFF;

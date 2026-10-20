@@ -1,0 +1,22 @@
+type: COLLISION_OBJECT_TYPE_STATIC
+mass: 0.0
+friction: 0.5
+restitution: 0.0
+group: "default"
+mask: "default"
+embedded_collision_shape {
+  shapes {
+    shape_type: TYPE_MESH
+    position {
+    }
+    rotation {
+      w: 1.0
+    }
+    index: 0
+    count: 0
+    id: "ground"
+    mesh_scene: "/mesh/quad.gltf"
+    mesh_name: "Plane_001Mesh"
+    mesh_index: 0
+  }
+}

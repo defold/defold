@@ -1,0 +1,218 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#include <stdint.h>
+#include <string.h>
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
+#include <dlib/dstrings.h>
+
+#include "fontc.h"
+
+static void AssertSourceString(const FontcMarkupData& data, FontcMarkupString string, const char* expected)
+{
+    ASSERT_EQ(strlen(expected), string.m_Length);
+    ASSERT_EQ(0, memcmp(data.m_Source + string.m_Offset, expected, string.m_Length));
+}
+
+TEST(FontcMarkupApi, ParseAndGetData)
+{
+    const char expected_source[] = "<link id=\"<shadow blur=9>\"><outline size=1><shadow blur=2>A&amp;</shadow></outline></link>";
+    char       source[sizeof(expected_source)];
+    memcpy(source, expected_source, sizeof(source));
+
+    HFontcMarkup     markup = 0;
+    FontcMarkupError error = {};
+    ASSERT_EQ(FONT_RENDERER_RESULT_OK, FontcParseMarkup(source, sizeof(source) - 1, &markup, &error));
+    ASSERT_NE((HFontcMarkup)0, markup);
+    ASSERT_EQ(FONTC_MARKUP_ERROR_NONE, error.m_Type);
+
+    source[0] = '?';
+    FontcMarkupData data = {};
+    ASSERT_EQ(FONT_RENDERER_RESULT_OK, FontcGetMarkupData(markup, &data));
+    ASSERT_EQ(sizeof(expected_source) - 1, data.m_SourceLength);
+    ASSERT_EQ(0, memcmp(expected_source, data.m_Source, data.m_SourceLength));
+    ASSERT_EQ('\0', data.m_Source[data.m_SourceLength]);
+
+    ASSERT_EQ(2u, data.m_TextLength);
+    ASSERT_EQ((uint32_t)'A', data.m_Text[0]);
+    ASSERT_EQ((uint32_t)'&', data.m_Text[1]);
+
+    ASSERT_EQ(4u, data.m_NodeCount);
+    ASSERT_EQ(0xffffu, data.m_Nodes[0].m_Parent);
+    ASSERT_EQ(0u, data.m_Nodes[0].m_Tag.m_Length);
+    AssertSourceString(data, data.m_Nodes[1].m_Tag, "link");
+    ASSERT_EQ(0u, data.m_Nodes[1].m_Parent);
+    ASSERT_EQ(0u, data.m_Nodes[1].m_AttributeIndex);
+    ASSERT_EQ(1u, data.m_Nodes[1].m_AttributeCount);
+    AssertSourceString(data, data.m_Nodes[2].m_Tag, "outline");
+    ASSERT_EQ(1u, data.m_Nodes[2].m_Parent);
+    ASSERT_EQ(1u, data.m_Nodes[2].m_AttributeIndex);
+    ASSERT_EQ(1u, data.m_Nodes[2].m_AttributeCount);
+    AssertSourceString(data, data.m_Nodes[3].m_Tag, "shadow");
+    ASSERT_EQ(2u, data.m_Nodes[3].m_Parent);
+    ASSERT_EQ(2u, data.m_Nodes[3].m_AttributeIndex);
+    ASSERT_EQ(1u, data.m_Nodes[3].m_AttributeCount);
+
+    ASSERT_EQ(3u, data.m_AttributeCount);
+    AssertSourceString(data, data.m_Attributes[0].m_Name, "id");
+    AssertSourceString(data, data.m_Attributes[0].m_Value, "<shadow blur=9>");
+    AssertSourceString(data, data.m_Attributes[1].m_Name, "size");
+    AssertSourceString(data, data.m_Attributes[1].m_Value, "1");
+    AssertSourceString(data, data.m_Attributes[2].m_Name, "blur");
+    AssertSourceString(data, data.m_Attributes[2].m_Value, "2");
+
+    ASSERT_EQ(1u, data.m_SpanCount);
+    ASSERT_EQ(0u, data.m_Spans[0].m_TextOffset);
+    ASSERT_EQ(2u, data.m_Spans[0].m_TextLength);
+    ASSERT_EQ(3u, data.m_Spans[0].m_NodeIndex);
+
+    FontcMarkupData second_view = {};
+    ASSERT_EQ(FONT_RENDERER_RESULT_OK, FontcGetMarkupData(markup, &second_view));
+    ASSERT_EQ(data.m_Source, second_view.m_Source);
+    ASSERT_EQ(data.m_Text, second_view.m_Text);
+    ASSERT_EQ(data.m_Nodes, second_view.m_Nodes);
+    ASSERT_EQ(data.m_Attributes, second_view.m_Attributes);
+    ASSERT_EQ(data.m_Spans, second_view.m_Spans);
+
+    FontcDestroyMarkup(markup);
+}
+
+TEST(FontcMarkupApi, ReportsStructuredParseError)
+{
+    const char       source[] = "<outline>Text</shadow>";
+    HFontcMarkup     markup = (HFontcMarkup)(uintptr_t)1;
+    FontcMarkupError error = {};
+
+    ASSERT_EQ(FONT_RENDERER_RESULT_TEXT_ERROR, FontcParseMarkup(source, sizeof(source) - 1, &markup, &error));
+    ASSERT_EQ((HFontcMarkup)0, markup);
+    ASSERT_EQ(FONTC_MARKUP_ERROR_MISMATCHED_CLOSING_TAG, error.m_Type);
+    ASSERT_EQ(13u, error.m_ByteOffset);
+}
+
+TEST(FontcMarkupApi, ValidatesArgumentsAndAcceptsEmptyInput)
+{
+    HFontcMarkup     markup = 0;
+    FontcMarkupError error = {};
+    FontcMarkupData  data = {};
+
+    ASSERT_EQ(FONT_RENDERER_RESULT_INVALID_ARGUMENT, FontcParseMarkup(0, 1, &markup, &error));
+    ASSERT_EQ(FONT_RENDERER_RESULT_INVALID_ARGUMENT, FontcParseMarkup("", 0, 0, &error));
+    ASSERT_EQ(FONT_RENDERER_RESULT_INVALID_ARGUMENT, FontcParseMarkup("", 0, &markup, 0));
+    ASSERT_EQ(FONT_RENDERER_RESULT_INVALID_ARGUMENT, FontcGetMarkupData(0, &data));
+    ASSERT_EQ(FONT_RENDERER_RESULT_OK, FontcParseMarkup(0, 0, &markup, &error));
+    ASSERT_EQ(FONTC_MARKUP_ERROR_NONE, error.m_Type);
+    ASSERT_EQ(FONT_RENDERER_RESULT_INVALID_ARGUMENT, FontcGetMarkupData(markup, 0));
+    ASSERT_EQ(FONT_RENDERER_RESULT_OK, FontcGetMarkupData(markup, &data));
+    ASSERT_EQ(0u, data.m_SourceLength);
+    ASSERT_EQ(0u, data.m_TextLength);
+    ASSERT_EQ(1u, data.m_NodeCount);
+    ASSERT_EQ(0u, data.m_AttributeCount);
+    ASSERT_EQ(0u, data.m_SpanCount);
+
+    FontcDestroyMarkup(markup);
+    FontcDestroyMarkup(0);
+}
+
+// Effect warnings retain the parsed text and source location; named styles reject the same invalid value.
+TEST(FontcMarkupApi, ReportsGradientValueDiagnostics)
+{
+    const struct
+    {
+        const char*          m_Attributes;
+        const char*          m_InvalidValue;
+        FontcMarkupErrorType m_Type;
+    } cases[] = {
+        { "radius-x=0", "0", FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS },
+        { "radius-y=-1", "-1", FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS },
+        { "radius=0 radius-x=1 radius-y=1", "0", FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS },
+        { "angle=invalid", "invalid", FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE },
+        { "stop0=0.8 stop1=0.2", "0.2", FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE },
+        { "stop0=1 color2=#00ff00", 0, FONTC_MARKUP_ERROR_INVALID_TAG }
+    };
+    for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        char source[256];
+        dmSnPrintf(source, sizeof(source), "<gradient type=radial color0=#ff0000 color1=#0000ff %s>", cases[i].m_Attributes);
+        const uint32_t   offset = cases[i].m_InvalidValue ? (uint32_t)(strstr(strstr(source, cases[i].m_Attributes), cases[i].m_InvalidValue) - source) : 0;
+        FontcStyleData   style = {};
+        FontcMarkupError error = {};
+        ASSERT_EQ(FONT_RENDERER_RESULT_TEXT_ERROR, FontcCompileStyle(source, strlen(source), &style, &error));
+        ASSERT_EQ(cases[i].m_Type, error.m_Type);
+        ASSERT_EQ(offset, error.m_ByteOffset);
+        ASSERT_EQ((FontcStyleEffect*)0, style.m_Effects);
+
+        dmStrlCat(source, "A</gradient>", sizeof(source));
+        HFontcMarkup markup = 0;
+        ASSERT_EQ(FONT_RENDERER_RESULT_OK, FontcParseMarkup(source, strlen(source), &markup, &error));
+        ASSERT_EQ(cases[i].m_Type, error.m_Type);
+        ASSERT_EQ(offset, error.m_ByteOffset);
+        FontcMarkupData data;
+        ASSERT_EQ(FONT_RENDERER_RESULT_OK, FontcGetMarkupData(markup, &data));
+        ASSERT_EQ(1u, data.m_TextLength);
+        ASSERT_EQ((uint32_t)'A', data.m_Text[0]);
+        FontcDestroyMarkup(markup);
+    }
+}
+
+// Java reads and writes the packed words directly; verify the compiler's bit field ABI.
+TEST(FontcMarkupApi, PackedFieldsMatchJavaLayout)
+{
+    for (uint16_t bits = 0; bits < 2048; ++bits)
+    {
+        FontcStyleEffect effect = {};
+        effect.m_Type = bits & 3;
+        effect.m_Fit = (bits >> 2) & 3;
+        effect.m_GradientMode = (bits >> 4) & 3;
+        effect.m_ColorType = (bits >> 6) & 3;
+        effect.m_StopCount = (bits >> 8) & 7;
+        ASSERT_EQ(bits, effect.m_Bits);
+
+        FontcStyleEffect decoded = {};
+        decoded.m_Bits = bits;
+        ASSERT_EQ(effect.m_Type, decoded.m_Type);
+        ASSERT_EQ(effect.m_Fit, decoded.m_Fit);
+        ASSERT_EQ(effect.m_GradientMode, decoded.m_GradientMode);
+        ASSERT_EQ(effect.m_ColorType, decoded.m_ColorType);
+        ASSERT_EQ(effect.m_StopCount, decoded.m_StopCount);
+    }
+
+    for (uint8_t bits = 0; bits < 128; ++bits)
+    {
+        FontcProperties properties = {};
+        properties.m_LineBreak = bits & 1;
+        properties.m_Align = (bits >> 1) & 3;
+        properties.m_VerticalAlign = (bits >> 3) & 3;
+        properties.m_UseBaseStyle = (bits >> 5) & 1;
+        properties.m_UseGPUEffects = (bits >> 6) & 1;
+        ASSERT_EQ(bits, properties.m_Bits);
+
+        FontcProperties decoded = {};
+        decoded.m_Bits = bits;
+        ASSERT_EQ(properties.m_LineBreak, decoded.m_LineBreak);
+        ASSERT_EQ(properties.m_Align, decoded.m_Align);
+        ASSERT_EQ(properties.m_VerticalAlign, decoded.m_VerticalAlign);
+        ASSERT_EQ(properties.m_UseBaseStyle, decoded.m_UseBaseStyle);
+        ASSERT_EQ(properties.m_UseGPUEffects, decoded.m_UseGPUEffects);
+    }
+}
+
+int main(int argc, char** argv)
+{
+    jc_test_init(&argc, argv);
+
+    return jc_test_run_all();
+}

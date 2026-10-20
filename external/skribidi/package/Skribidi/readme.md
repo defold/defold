@@ -24,8 +24,8 @@ Text rendering is hard, text editing is hard too, font selection is hard, text a
 Everything text related is hard, and messy, and full of nuances.
 
 If you wanted to have bidirection text display and input for you project, there are not many options.
-There are a lot of great projects that cover parts of the text stack, but there's still huge amount
-of work left piece things together. A lot of the wisdom is scattered all over old browser bugs,
+There are a lot of great projects that cover parts of the text stack, but there's still a huge amount
+of work left to piece things together. A lot of the wisdom is scattered all over old browser bugs,
 blogs that might not exists anymore, or bits of code scattered all over the world.
 
 Many text stacks are part of larger projects, like browsers or game engines,
@@ -34,7 +34,7 @@ or have licenses that are not permissive, or require huge dependecies.
 Skribidi tries to solve the text stack for UIs without dragging in large dependencies.
 Text layout, text input, and font rasterization, with features that you'd expect to build an UI.
 
-Skribidi leans heavity on [Harfbuzz](https://github.com/harfbuzz/harfbuzz) for text shaping and accessing font data,
+Skribidi leans heavily on [Harfbuzz](https://github.com/harfbuzz/harfbuzz) for text shaping and accessing font data,
 [SheenBidi](https://github.com/Tehreer/SheenBidi) for bidirectional segmentation,
 [libunibreak](https://github.com/adah1972/libunibreak) for grapheme and linebreak detection,
 and [budouxc](https://github.com/memononen/budouxc) for East Asian word boundary detection.
@@ -48,17 +48,28 @@ Skribidi just got started. There are bugs and the API is very likely to change.
 - Ensure CMake is in the user `PATH`
 - `mkdir build`
 - `cd build`
-- `cmake ..`
-- Build
+- Generate the build files:
+    - `cmake ..`
+- Compile:
 	- *Windows*: Open and build `build/skribidi.sln`
 	- *Linux*: use `cmake --build . -j$(nproc)`
 	- *macOS*: use `cmake --build . -j$(sysctl -n hw.ncpu)`
 
 When running the example or test, the working directory should be the build binary directory (`/build/bin`). On Windows, the example data direction is copied there and on Linux or macOS there's a symlink for the data directory.
 
+When generating the build files, you can provide options to using the `-D` flag (for example `cmake .. -D SKRIBIDI_UNIT_TESTS=OFF`). Skribidi provides a number of options:
+
+- **`BUILD_SHARED_LIBS`** determines whether Skribidi and it's dependencies are built as a static library or as a shared library. This is disabled by default, producing a static library.
+
+- **`SKRIBIDI_LIBRARY_TYPE`** is the library type to build only Skribidi as and doesn't effect Skribidi's dependencies. It must be a valid CMake library type. Set it to `STATIC` to build as a static library, `SHARED` to build as a shared library, or `OBJECT` to build as a CMake object library.
+
+- **`SKRIBIDI_EXAMPLE`** determines whether the examples are built along with the library. Disabled by default when Skribidi is build as a subproject of a larger CMake project.
+
+- **`SKRIBIDI_UNIT_TESTS`** determines whether the unit tests are build along with the library. Disabled by default when Skribidi is build as a subproject of a larger CMake project.
+
 ## Dependencies
 The project uses CMake, but you dont need to. If you handle dependecies yourself you can just add the
-`include` and `src` to your project and you're good to go. The CMake is used to fetch the right deps
+`include` and `src` to your project and you're good to go. If you are using Skdribidi as a shared library, you must define `SKB_DLL`, otherwise it must not be defined. The CMake is used to fetch the right deps
 and to build the examples and tests, making development simpler.
 
 - [Harfbuzz](https://github.com/harfbuzz/harfbuzz) - 11.0.0

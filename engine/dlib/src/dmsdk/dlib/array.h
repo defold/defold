@@ -281,6 +281,16 @@ public:
      */
     void SetSize(uint32_t size);
 
+    /*# allocate and set size
+     *
+     * Set size of the array, allocate if necessary
+     * @note May grow but not shrink capacity
+     *
+     * @name EnsureSize
+     * @param size [type:uint32_t] size of the array
+     */
+    void EnsureSize(uint32_t size);
+
     /*# Set user-allocated memory
      *
      * user-allocated array with initial size and capacity
@@ -512,6 +522,16 @@ void dmArray<T>::SetSize(uint32_t size)
 {
     assert(size <= Capacity());
     m_End = m_Front + size;
+}
+
+template <typename T>
+void dmArray<T>::EnsureSize(uint32_t size)
+{
+    if (Capacity() < size)
+    {
+        SetCapacity(size);
+    }
+    SetSize(size);
 }
 
 template <typename T>

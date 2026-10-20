@@ -13,17 +13,18 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns hooks.clojure-core
-  (:refer-clojure :exclude [boolean bounded-count definterface defprotocol defrecord deftype empty? every? map not-any? not-empty not-every? some])
-  (:require [clj-kondo.hooks-api :as api]))
+  (:refer-clojure :exclude [boolean bounded-count definterface defprotocol defrecord deftype empty? every? into keys map not-any? not-empty not-every? some vals])
+  (:require [clj-kondo.hooks-api :as api]
+            [hooks.docstrings :as docstrings]))
 
 (defn- warn-prefer-util-coll! [node function-name]
   (let [warning-node (or (first (:children node)) node)]
     (api/reg-finding!
       (assoc (meta warning-node)
-             :message (format "Use util.coll/%s instead of clojure.core/%s."
-                              function-name
-                              function-name)
-             :type :defold/prefer-util-coll))))
+        :message (format "Use util.coll/%s instead of clojure.core/%s."
+                         function-name
+                         function-name)
+        :type :defold/prefer-util-coll))))
 
 (defn- returnable-tail-expr? [arg expr]
   (or (= arg expr)
@@ -70,9 +71,9 @@
 (defn- warn-prefer-coll-some! [node replacement]
   (api/reg-finding!
     (assoc (meta node)
-           :message (format "Use util.coll/%s instead of clojure.core/some."
-                            replacement)
-           :type :defold/prefer-util-coll)))
+      :message (format "Use util.coll/%s instead of clojure.core/some."
+                       replacement)
+      :type :defold/prefer-util-coll)))
 
 (defn- some-call-node? [node]
   (when (= :list (:tag node))
@@ -84,8 +85,8 @@
 (defn- warn-prefer-coll-any! [node]
   (api/reg-finding!
     (assoc (meta node)
-           :message "Use util.coll/any? instead of boolean-wrapped some."
-           :type :defold/prefer-util-coll)))
+      :message "Use util.coll/any? instead of boolean-wrapped some."
+      :type :defold/prefer-util-coll)))
 
 (defn- compare-function-replacement [function-sexpr]
   (when (and (seq? function-sexpr)
@@ -110,15 +111,15 @@
 (defn- warn-prefer-coll-order! [node replacement]
   (api/reg-finding!
     (assoc (meta node)
-           :message (format "Use util.coll/%s instead of an inline compare function."
-                            replacement)
-           :type :defold/prefer-util-coll)))
+      :message (format "Use util.coll/%s instead of an inline compare function."
+                       replacement)
+      :type :defold/prefer-util-coll)))
 
 (defn- warn-defn-return-type-hint-placement! [finding-meta]
   (api/reg-finding!
     (assoc finding-meta
-           :message "Put defn return type hint and argument vector on the next line."
-           :type :defold/defn-return-type-hint-placement)))
+      :message "Put defn return type hint and argument vector on the next line."
+      :type :defold/defn-return-type-hint-placement)))
 
 (defn- single-arity-arg-vector-node [children]
   (loop [previous-node nil
@@ -143,35 +144,41 @@
     (when-not (:defold/defonce (meta form-node))
       (api/reg-finding!
         (assoc (meta form-node)
-               :message (format "Use util.defonce/%s instead of clojure.core/%s."
-                                defonce-form
-                                core-form)
-               :type :defold/prefer-defonce))))
+          :message (format "Use util.defonce/%s instead of clojure.core/%s."
+                           defonce-form
+                           core-form)
+          :type :defold/prefer-defonce))))
   {:node node})
 
-(defn defprotocol [{:keys [node]}]
+(defn defprotocol [{:keys [node] :as context}]
+  (docstrings/protocol context)
   (warn-prefer-defonce! node "protocol" "defprotocol"))
 
-(defn definterface [{:keys [node]}]
+(defn definterface [{:keys [node] :as context}]
+  (docstrings/protocol context)
   (warn-prefer-defonce! node "interface" "definterface"))
 
-(defn defrecord [{:keys [node]}]
+(defn defrecord [{:keys [node] :as context}]
+  (docstrings/metadata context)
   (warn-prefer-defonce! node "record" "defrecord"))
 
-(defn deftype [{:keys [node]}]
+(defn deftype [{:keys [node] :as context}]
+  (docstrings/metadata context)
   (warn-prefer-defonce! node "type" "deftype"))
 
-(defn defn-call [{:keys [node]}]
+(defn defn-call [{:keys [node] :as context}]
+  (docstrings/declaration context)
   (let [[_defn-node & tail-nodes] (:children node)
         [previous-node arg-vector-node] (single-arity-arg-vector-node tail-nodes)]
     (when (and previous-node
                arg-vector-node
+               (:meta arg-vector-node)
                (= (:row (meta previous-node)) (:row (meta arg-vector-node)))
                (< (inc (:end-col (meta previous-node)))
                   (:col (meta arg-vector-node))))
       (warn-defn-return-type-hint-placement!
         (assoc (meta arg-vector-node)
-               :col (inc (:end-col (meta previous-node))))))
+          :col (inc (:end-col (meta previous-node))))))
     {:node node}))
 
 (defn fn-call [{:keys [node]}]
@@ -187,6 +194,18 @@
 
 (defn every? [{:keys [node]}]
   (warn-prefer-util-coll! node "every?")
+  {:node node})
+
+(defn into [{:keys [node]}]
+  (when (= 4 (count (:children node)))
+    (api/reg-finding!
+      (assoc (meta (first (:children node)))
+        :message "Use util.coll/into-> for three-argument into."
+        :type :defold/prefer-coll-into->)))
+  {:node node})
+
+(defn keys [{:keys [node]}]
+  (warn-prefer-util-coll! node "keys")
   {:node node})
 
 (defn- map-fn-node [map-node arity]
@@ -214,6 +233,19 @@
                 coll-nodes))
        node)}))
 
+(defn not-call [{:keys [node]}]
+  (let [[not-node expr-node] (:children node)
+        call-symbol (when (= :list (:tag expr-node))
+                      (some-> expr-node :children first api/sexpr))]
+    (when (and (symbol? call-symbol)
+               (= {:ns 'util.coll :name 'any?}
+                  (select-keys (api/resolve {:name call-symbol :call true}) [:ns :name])))
+      (api/reg-finding!
+        (assoc (meta not-node)
+          :message "Use util.coll/not-any? instead of negated util.coll/any?."
+          :type :defold/prefer-util-coll)))
+    {:node node}))
+
 (defn not-any? [{:keys [node]}]
   (warn-prefer-util-coll! node "not-any?")
   {:node node})
@@ -233,3 +265,7 @@
                       "some")]
     (warn-prefer-coll-some! some-node replacement)
     {:node node}))
+
+(defn vals [{:keys [node]}]
+  (warn-prefer-util-coll! node "vals")
+  {:node node})

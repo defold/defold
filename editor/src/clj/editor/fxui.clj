@@ -36,6 +36,7 @@
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.svg-path :as fx.svg-path]
+            [cljfx.fx.tab-pane :as fx.tab-pane]
             [cljfx.fx.text-area :as fx.text-area]
             [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.toggle-button :as fx.toggle-button]
@@ -106,11 +107,11 @@
       (create [_ descs opts]
         (assert (= len (count descs)))
         (with-meta (mapv #(fx.lifecycle/create %1 %2 opts) lifecycles descs)
-                   tuple-lifecycle-instance-meta))
+          tuple-lifecycle-instance-meta))
       (advance [_ components descs opts]
         (assert (= len (count descs)))
         (with-meta (mapv #(fx.lifecycle/advance %1 %2 %3 opts) lifecycles components descs)
-                   tuple-lifecycle-instance-meta))
+          tuple-lifecycle-instance-meta))
       (delete [_ components opts]
         (mapv #(fx.lifecycle/delete %1 %2 opts) lifecycles components)))))
 
@@ -140,6 +141,13 @@
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created focus-when-on-scene!
    :desc desc})
+
+(defn tab-pane
+  "TabPane initialized with the Defold tab command context and key handling."
+  [props]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created ui/init-tab-pane!
+   :desc (assoc props :fx/type fx.tab-pane/lifecycle)})
 
 (def ^{:arglists '([props])} slider
   "Slider component with a guard for JavaFX SliderSkin drag events that did not start on the thumb."
@@ -301,9 +309,9 @@
     (fx.mutator/setter #(.setCellFactory ^ListView %1 %2))
     (fx.lifecycle/detached-prop-map fx.list-cell/props)
     :coerce
-    #(let [props-vol (volatile! {})]
-       (reify Callback
-         (call [_ _]
+    #(reify Callback
+       (call [_ _]
+         (let [props-vol (volatile! {})]
            (proxy [ListCell] []
              (updateItem [item empty]
                (let [^ListCell this this
@@ -729,11 +737,13 @@
                                   (partition-all 2)
                                   (map-indexed
                                     (fn [row [label input]]
-                                      [(assoc label :grid-pane/column 0
-                                                    :grid-pane/row row
-                                                    :grid-pane/halignment :right)
-                                       (assoc input :grid-pane/column 1
-                                                    :grid-pane/row row)]))
+                                      [(assoc label
+                                         :grid-pane/column 0
+                                         :grid-pane/row row
+                                         :grid-pane/halignment :right)
+                                       (assoc input
+                                         :grid-pane/column 1
+                                         :grid-pane/row row)]))
                                   cat)
                                 children)))))
 
@@ -1212,8 +1222,8 @@
                                                  (vreset! prev-y-vol y)
                                                  (when (<= 1.0 (abs max-delta))
                                                    (f (cond-> max-delta
-                                                              (.isShiftDown e) (* 10.0)
-                                                              (.isControlDown e) (* 0.1)))))))
+                                                        (.isShiftDown e) (* 10.0)
+                                                        (.isControlDown e) (* 0.1)))))))
             ^EventHandler on-mouse-released (fn [^MouseEvent e]
                                               (when @f-vol
                                                 (vreset! f-vol nil)
@@ -1371,8 +1381,8 @@
                prop-value-field-text edit
                prop-select-all-text-on-click true)
         (cond-> hover-overlay
-                (-> (dissoc :hover-overlay)
-                    (assoc prop-hover-overlay hover-overlay)))
+          (-> (dissoc :hover-overlay)
+              (assoc prop-hover-overlay hover-overlay)))
         (dissoc :state :swap-state :on-value-changed :on-invalid-value :to-value :text :component :commit-on-enter))))
 
 (defn- stringify-value [f v]
@@ -1392,9 +1402,10 @@
 (defn- make-value-field [component commit-on-enter props]
   {:fx/type fx/ext-state
    :initial-state {:value (:value props)}
-   :desc (assoc props :fx/type value-field-impl-stringify-step
-                      :component component
-                      :commit-on-enter commit-on-enter)})
+   :desc (assoc props
+           :fx/type value-field-impl-stringify-step
+           :component component
+           :commit-on-enter commit-on-enter)})
 
 (defn value-field
   "Text field with value commit/reset semantics
@@ -1455,6 +1466,20 @@
         (Color. (.getRed c) (.getGreen c) (.getBlue c) 1.0)
         c))
     (catch IllegalArgumentException _)))
+
+(defn- clamp-unit
+  ^double [n]
+  (min 1.0 (max 0.0 (double n))))
+
+(defn vec->color
+  "Converts an [r g b] or [r g b a] vector to a Color, clamping each component
+  to the 0.0 .. 1.0 range that Color requires. Values outside that range occur
+  in the wild, and Color's constructor throws on them."
+  ^Color [[r g b a]]
+  (Color. (clamp-unit r)
+          (clamp-unit g)
+          (clamp-unit b)
+          (clamp-unit (or a 1.0))))
 
 (def ^:private on-color-dropper-mouse-pressed MouseEvent/.consume)
 
@@ -1534,10 +1559,10 @@
                              :style-class "ext-color-picker-icon"
                              :on-shown handle-color-picker-shown
                              :on-hidden handle-color-picker-hidden}
-                            value (assoc :value value)
-                            on-value-changed (assoc :on-value-changed on-value-changed)
-                            prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
-                                         :on-custom-colors-changed #(prefs/set! prefs saved-colors-prefs-path (mapv color->web-string %))))])
+                      value (assoc :value value)
+                      on-value-changed (assoc :on-value-changed on-value-changed)
+                      prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
+                                   :on-custom-colors-changed #(prefs/set! prefs saved-colors-prefs-path (mapv color->web-string %))))])
        resolve-input-color)})
 
 (def ^:private ext-with-expanded-scroll-pane-content-props
@@ -1551,8 +1576,8 @@
                              (Bindings/createDoubleBinding
                                (fn []
                                  (cond-> (.getHeight scroll-pane)
-                                         (.isVisible scroll-bar)
-                                         (- (.getHeight scroll-bar))))
+                                   (.isVisible scroll-bar)
+                                   (- (.getHeight scroll-bar))))
                                (into-array
                                  Observable
                                  [(.heightProperty scroll-pane)
@@ -1632,7 +1657,7 @@
                     :message message
                     :child component
                     :object object}
-                   ui/child-instance-meta)))
+          ui/child-instance-meta)))
     (advance [_ component {:keys [localization message desc object-fn]} opts]
       (let [component (update component :child #(fx.lifecycle/advance fx.lifecycle/dynamic % desc opts))
             object (cond-> (fx.component/instance component) object-fn object-fn)

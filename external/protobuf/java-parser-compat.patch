@@ -1,0 +1,11 @@
+--- a/src/google/protobuf/compiler/java/full/message.cc
++++ b/src/google/protobuf/compiler/java/full/message.cc
+@@ -1181,7 +1181,7 @@
+ void ImmutableMessageGenerator::GenerateParser(io::Printer* printer) {
+   printer->Print(
+-      "private static final com.google.protobuf.Parser<$classname$>\n"
++      "@java.lang.Deprecated public static final com.google.protobuf.Parser<$classname$>\n"
+       "    PARSER = new com.google.protobuf.AbstractParser<$classname$>() {\n"
+       "  @java.lang.Override\n"
+       "  public $classname$ parsePartialFrom(\n"
+       "      com.google.protobuf.CodedInputStream input,\n"

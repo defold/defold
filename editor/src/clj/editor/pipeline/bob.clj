@@ -33,6 +33,7 @@
             [util.http-server :as http-server]
             [util.path :as path])
   (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType Progress Progress$Reporter TaskResult]
+           [com.dynamo.bob.bundle BundleHelper]
            [com.dynamo.bob.logging LogHelper]
            [java.io File OutputStream PrintStream PrintWriter]
            [java.nio.charset StandardCharsets]
@@ -60,11 +61,6 @@
   (let [proj-settings (project/settings project)]
     (get proj-settings ["project" "title"] "Unnamed")))
 
-(defonce ^:private build-in-progress-atom (atom false))
-
-(defn build-in-progress? []
-  @build-in-progress-atom)
-
 (defn- PrintStream-on ^PrintStream [fn]
   (-> fn
       (PrintWriter-on nil)
@@ -78,7 +74,7 @@
     arg-value))
 
 (def ^:private long-option->option-config
-  (coll/pair-map-by #(.-longOpt ^Bob$CommandLineOption %) (Bob/getCommandLineOptions)))
+  (coll/pair-map-by #(.-longOpt ^Bob$CommandLineOption %) identity (Bob/getCommandLineOptions)))
 
 (defn- long-option? [x]
   (contains? long-option->option-config x))
@@ -169,7 +165,6 @@
          (ifn? render-progress!)
          (or (nil? log-output-stream) (instance? OutputStream log-output-stream))
          (ifn? task-cancelled?)]}
-  (reset! build-in-progress-atom true)
   (let [;; bob might notify the progress tracker AFTER it's done!
         render-progress! (progress/until-done render-progress!)
         provided-evaluation-context (some? evaluation-context)
@@ -187,10 +182,10 @@
                   build-err (PrintStream-on #(doto log-stream-writer (.print %) .flush))]
         (let [workspace (project/workspace project evaluation-context)
               options (cond-> options
-                              (not (contains? options "root"))
-                              (assoc "root" ".")
-                              (not (contains? options "verbose"))
-                              (assoc "verbose" true))
+                        (not (contains? options "root"))
+                        (assoc "root" ".")
+                        (not (contains? options "verbose"))
+                        (assoc "verbose" true))
               [cli-options internal-options] (parse-options (.toPath (workspace/project-directory basis workspace)) options)
               cli-args (-> [] (into cli-options) (into commands))]
           (log/info :bob-command (string/join " " (into ["java" "-jar" "bob.jar"] (map quote-arg-if-needed) cli-args)))
@@ -211,7 +206,6 @@
       (catch Exception e
         {:exception e})
       (finally
-        (reset! build-in-progress-atom false)
         (System/setOut prev-out)
         (System/setErr prev-err)
         (LogHelper/setVerboseLogging false)
@@ -260,7 +254,7 @@
                 (if (= "" path-str)
                   (http-server/redirect "/html5/index.html")
                   (let [resource-path (-> output-path
-                                          (.resolve ^String (project-title project))
+                                          (.resolve (BundleHelper/projectNameToBinaryName (project-title project)))
                                           (.resolve ^String path-str)
                                           (.normalize))]
                     (if (and (.startsWith resource-path output-path)

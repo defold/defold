@@ -53,6 +53,14 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Factory status values
+     * @enum
+     * @name factory.STATUS
+     * @member factory.STATUS_LOADED The factory resources are loaded.
+     * @member factory.STATUS_LOADING The factory resources are loading.
+     * @member factory.STATUS_UNLOADED The factory resources are unloaded.
+     */
+
     /*# Get factory status
      *
      * This returns status of the factory.
@@ -62,27 +70,7 @@ namespace dmGameSystem
      *
      * @name factory.get_status
      * @param [url] [type:string|hash|url] the factory component to get status from
-     * @return status [type:constant] status of the factory component
-     *
-     * - `factory.STATUS_UNLOADED`
-     * - `factory.STATUS_LOADING`
-     * - `factory.STATUS_LOADED`
-     *
-     */
-    /*# unloaded
-     *
-     * @name factory.STATUS_UNLOADED
-     * @constant
-     */
-    /*# loading
-     *
-     * @name factory.STATUS_LOADING
-     * @constant
-     */
-    /*# loaded
-     *
-     * @name factory.STATUS_LOADED
-     * @constant
+     * @return status [type:factory.STATUS] status of the factory component
      */
     static int FactoryComp_GetStatus(lua_State* L)
     {
@@ -138,10 +126,10 @@ namespace dmGameSystem
      *
      * @name factory.load
      * @param [url] [type:string|hash|url] the factory component to load
-     * @param [complete_function] [type:function(self, url, result)] function to call when resources are loaded.
+     * @param [complete_function] [type:fun(self:script_instance, url:url, result:boolean)] function to call when resources are loaded.
      *
      * `self`
-     * : [type:object] The current object.
+     * : [type:script_instance] The current script instance.
      *
      * `url`
      * : [type:url] url of the factory component
@@ -212,7 +200,7 @@ namespace dmGameSystem
      * @param url [type:string|hash|url] the factory that should create a game object.
      * @param [position] [type:vector3] the position of the new game object, the position of the game object calling `factory.create()` is used by default, or if the value is `nil`.
      * @param [rotation] [type:quaternion] the rotation of the new game object, the rotation of the game object calling `factory.create()` is used by default, or if the value is `nil`.
-     * @param [properties] [type:table] the properties defined in a script attached to the new game object.
+     * @param [properties] [type:table<string|hash, any>] the properties defined in a script attached to the new game object.
      * @param [scale] [type:number|vector3] the scale of the new game object (must be greater than 0), the scale of the game object containing the factory is used by default, or if the value is `nil`
      * @return id [type:hash] the global id of the spawned game object
      * @examples

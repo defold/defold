@@ -107,6 +107,22 @@
     -fx-min-width: 2px;
     -fx-background-color: -df-component-light;
   }
+  &-table-cell {
+    -fx-padding: 6px 10px;
+    -fx-border-color: transparent transparent -df-component-light transparent;
+    -fx-border-width: 0 0 1px 0;
+  }
+  &-table-cell.md-table-header-cell {
+    -fx-background-color: -df-component-dark;
+    -fx-border-color: transparent transparent -df-component-lighter transparent;
+    -fx-border-width: 0 0 2px 0;
+  }
+  &-table-row-even {
+    -fx-background-color: -df-background-lightish;
+  }
+  &-table-row-odd {
+    -fx-background-color: transparent;
+  }
   &-root {
     -fx-padding: 6px 8px;
     -fx-font-size: 13.5px;

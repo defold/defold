@@ -18,10 +18,15 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.buffers :as buffers]
+            [editor.build :as build]
             [editor.defold-project :as project]
             [editor.editor-extensions.graph :as ext-graph]
             [editor.editor-extensions.runtime :as rt]
+            [editor.gl :as gl]
             [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
             [editor.graph-util :as gu]
             [editor.gui :as gui]
             [editor.handler :as handler]
@@ -32,15 +37,204 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types]
+            [internal.graph.types :as gt]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.node :as in]
+            [support.gl-support :as gl-support]
             [support.test-support :as test-support]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc]
+           [com.jogamp.opengl GL3]
            [java.io StringReader]))
+
+;; Verifies non-text GUI rendering samples the actual texture even when the
+;; sampler is named font_effects. A nonzero texture unit exposes binding errors
+;; that the default sampler value of zero would otherwise hide.
+(deftest render-tris-preserves-custom-texture-sampler-test
+  (gl-support/with-offscreen-gl
+    (let [test-shader (shader/classpath-shader
+                        {:coordinate-space :coordinate-space-world
+                         :uniforms {"font_effects" nil}}
+                        "shaders/font-effects/position.vp"
+                        "shaders/font-effects/font-effects.fp")
+          pixel (buffers/wrap-byte-array (byte-array [(unchecked-byte 255) 64 0 (unchecked-byte 255)]) :byte-order/native)
+          gpu-texture (texture/make-gpu-texture
+                        ::custom-texture
+                        [(texture/make-texture-request-data pixel 0 :rgba 1 1 false)]
+                        (vector-of :int 3)
+                        {:min-filter gl/nearest :mag-filter gl/nearest})
+          rendered-pixel (buffers/new-byte-buffer 4 :byte-order/native)]
+      (.glViewport gl 0 0 16 16)
+      (.glDisable gl GL3/GL_DITHER)
+      (gl/gl-clear gl 0.0 0.0 0.0 1.0)
+      (gui/render-tris gl {:pass pass/transparent}
+                       [{:world-transform math/identity-mat4
+                         :user-data {:geom-data [[-1.0 -1.0 0.0] [3.0 -1.0 0.0] [-1.0 3.0 0.0]]
+                                     :uv-data [[0.0 0.0] [1.0 0.0] [0.0 1.0]]
+                                     :color [1.0 1.0 1.0 1.0]
+                                     :page-index 0
+                                     :blend-mode :blend-mode-alpha
+                                     :material-shader test-shader
+                                     :gpu-texture gpu-texture}}]
+                       1)
+      (.glReadPixels gl 8 8 1 1 GL3/GL_RGBA GL3/GL_UNSIGNED_BYTE rendered-pixel)
+      (is (= [255 64 0 255]
+             (mapv #(Byte/toUnsignedInt (.get rendered-pixel ^int %)) (range 4))))
+      (is (= GL3/GL_NO_ERROR (.glGetError gl))))))
+
+(defn- gui-scene-dependencies [workspace read-opts scene-desc]
+  (let [resource (workspace/make-memory-resource workspace :editable "gui" scene-desc)]
+    (vec
+      (sort
+        (gui/gui-scene-dependencies
+          read-opts
+          resource
+          scene-desc)))))
+
+(deftest gui-scene-editor-dependencies-test
+  (test-util/with-loaded-project "test/resources/empty_project"
+    (let [basis (g/now)
+          read-opts (workspace/make-read-opts basis workspace :include-editor-dependencies true)
+          gui-scene-dependencies (partial gui-scene-dependencies workspace read-opts)]
+      (testing "Empty scene depends on default resources needed by the editor."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {})))))))
+
+(deftest gui-scene-dependencies-test
+  (test-util/with-loaded-project "test/resources/empty_project"
+    (let [basis (g/now)
+          read-opts (workspace/make-read-opts basis workspace :include-editor-dependencies false)
+          gui-scene-dependencies (partial gui-scene-dependencies workspace read-opts)]
+      (testing "Empty scene."
+        (is (= ["/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {}))))
+
+      (testing "Script specified."
+        (is (= ["/builtins/materials/gui.material"
+                "/specified.gui_script"]
+               (gui-scene-dependencies
+                 {:script "/specified.gui_script"}))))
+
+      (testing "Default material specified."
+        (is (= ["/specified.material"]
+               (gui-scene-dependencies
+                 {:material "/specified.material"}))))
+
+      (testing "Declared font."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.font"]
+               (gui-scene-dependencies
+                 {:fonts [{:name "declared"
+                           :font "/declared.font"}]}))))
+
+      (testing "Declared material."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.material"]
+               (gui-scene-dependencies
+                 {:materials [{:name "declared"
+                               :material "/declared.material"}]}))))
+
+      (testing "Declared particlefx."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.particlefx"]
+               (gui-scene-dependencies
+                 {:particlefxs [{:name "declared"
+                                 :particlefx "/declared.particlefx"}]}))))
+
+      (testing "Declared resource."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.resource"]
+               (gui-scene-dependencies
+                 {:resources [{:name "declared"
+                               :path "/declared.resource"}]}))))
+
+      (testing "Declared spine scene (legacy)."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.spinescene"]
+               (gui-scene-dependencies
+                 {:spine-scenes [{:name "declared"
+                                  :spine-scene "/declared.spinescene"}]}))))
+
+      (testing "Declared texture."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.atlas"]
+               (gui-scene-dependencies
+                 {:textures [{:name "declared"
+                              :texture "/declared.atlas"}]}))))
+
+      (testing "Shape node without dependencies."
+        (is (= ["/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-pie}]}))))
+
+      (testing "Template node."
+        (is (= ["/builtins/materials/gui.material"
+                "/template.gui"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-template
+                           :template "/template.gui"}]}))))
+
+      (testing "Text node brings in the default font when font is unspecified."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-text}]}))))
+
+      (testing "Text node does not bring in the default font when font is specified."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.font"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-text
+                           :font "declared"}]
+                  :fonts [{:name "declared"
+                           :font "/declared.font"}]}))))
+
+      (testing "Template-overridden text node does not bring in the default font when font is not overridden."
+        (is (= ["/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-text
+                           :template-node-child true
+                           :overridden-fields [(gui/prop-key->pb-field-index :text)]}]}))))
+
+      (testing "Template-overridden text node brings in the default font when font is overridden."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-text
+                           :template-node-child true
+                           :overridden-fields [(gui/prop-key->pb-field-index :font)]}]}))))
+
+      (testing "Layout-overridden text node does not bring in the default font when font is not overridden."
+        (is (= ["/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:layouts [{:nodes [{:type :type-text
+                                      :overridden-fields [(gui/prop-key->pb-field-index :text)]}]}]}))))
+
+      (testing "Layout-overridden text node brings in the default font when font is overridden."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:layouts [{:nodes [{:type :type-text
+                                      :overridden-fields [(gui/prop-key->pb-field-index :font)]}]}]}))))
+
+      (testing "Default font is not reported multiple times."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:fonts [{:name "default"
+                           :font "/builtins/fonts/default.font"}]
+                  :nodes [{:type :type-text}
+                          {:type :type-text
+                           :template-node-child true
+                           :overridden-fields [(gui/prop-key->pb-field-index :font)]}]
+                  :layouts [{:nodes [{:type :type-text
+                                      :overridden-fields [(gui/prop-key->pb-field-index :font)]}]}]})))))))
 
 (defn- prop [node-id label]
   (test-util/prop node-id label))
@@ -55,6 +249,17 @@
                       (map (fn [node-id] [(g/valid-node-value node-id :id) node-id]))
                       (into {}))]
     (id->node id)))
+
+(deftest invalid-markup-is-gui-text-property-warning-test
+  (test-util/with-loaded-project
+    (let [scene (project/get-resource-node project "/editor1/test.gui")
+          text-node (gui-node scene "text")]
+      (test-util/with-prop [text-node :text "valid\n<color>bad</size>"]
+        (let [property-error (test-util/prop-error text-node :text)]
+          (is (g/error-warning? property-error))
+          (is (g/error-warning? (g/node-value text-node :markup-error)))
+          (is (not (g/error? (g/node-value text-node :text-layout))))
+          (is (not (g/error? (g/node-value text-node :own-build-errors)))))))))
 
 (defn- gui-resources-node [resources-node-outline-key scene]
   (->> (g/node-value scene :node-outline)
@@ -195,8 +400,8 @@
                      :label name
                      :icon "icons/32/Icons_01-Folder-closed.png"
                      :outline-error? (g/error-fatal? build-errors)}
-                    (resource/resource? test-gui-resource-resource)
-                    (assoc :link test-gui-resource-resource :outline-show-link? true))))
+              (resource/resource? test-gui-resource-resource)
+              (assoc :link test-gui-resource-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name test-gui-resource]
                          {:name name
                           :path (resource/resource->proj-path test-gui-resource)}))
@@ -270,7 +475,7 @@
 (deftest load-gui
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/logic/main.gui")
-          _gui-node (ffirst (g/sources-of node-id :child-outlines))]
+          _gui-node (some-> (first (g/inputs (g/now) node-id :child-outlines)) gt/source-id)]
       (is (some? _gui-node)))))
 
 (deftest custom-gui-extension-registration
@@ -459,7 +664,9 @@
         (is (not (contains? saved-node :custom-type)))
         (is (str/includes? source "custom_type_name: \"TestCustom\""))
         (is (not (str/includes? source "custom_type:")))))
-    (let [gui-resource-type (get (workspace/get-resource-type-map workspace :editable) "gui")
+    (let [basis (g/now)
+          read-opts (workspace/make-read-opts basis workspace)
+          gui-resource-type (get (workspace/get-resource-type-map workspace :editable) "gui")
           mismatched-node {:type :type-custom
                            :custom-type-name "TestCustom"
                            :custom-type (inc (murmur/hash32 "TestCustom"))
@@ -474,15 +681,16 @@
              (-> (with-open [reader (StringReader.
                                       (format "nodes { type: TYPE_CUSTOM custom_type: %d id: \"custom\" }"
                                               (murmur/hash32 "TestCustom")))]
-                   ((:read-fn gui-resource-type) reader))
+                   ((:read-fn gui-resource-type) read-opts nil reader))
                  (get-in [:nodes 0])
                  (select-keys [:type :custom-type-name :custom-type :id]))))
       (is (thrown-with-msg?
             IllegalStateException
             #"custom_type_name 'TestCustom' resolves to custom_type"
-            (#'gui/sanitize-scene workspace {:nodes [mismatched-node]})))
-      (let [sanitized-node (-> (#'gui/sanitize-scene
-                                 workspace
+            (#'gui/sanitize-gui-scene read-opts nil {:nodes [mismatched-node]})))
+      (let [sanitized-node (-> (#'gui/sanitize-gui-scene
+                                 read-opts
+                                 nil
                                  {:nodes [{:type :type-custom
                                            :custom-type-name "TestCustom"
                                            :id "custom"
@@ -492,7 +700,7 @@
                                :nodes
                                first)]
         (is (not (contains? sanitized-node :custom-properties))))
-      (let [sanitized-node (-> (#'gui/sanitize-scene workspace {:nodes [boxed-node-with-stale-custom-type-name]})
+      (let [sanitized-node (-> (#'gui/sanitize-gui-scene read-opts nil {:nodes [boxed-node-with-stale-custom-type-name]})
                                :nodes
                                first)]
         (is (= {:type :type-box
@@ -1154,9 +1362,51 @@
       (g/transact
         (gui/add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource name)))))
 
+;; Invalid vector sizes must block GUI builds in every layout, using each
+;; layout's effective font.
+(deftest vector-font-size-validation-blocks-build
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/fonts/vector_preview.gui")
+          text-node (gui-node scene "text")]
+      (test-util/set-setting! (test-util/resource-node project "/game.project") ["shader" "exclude_gles_sm100"] true)
+      (add-font! scene "sdf" (workspace/find-resource workspace "/builtins/fonts/default.font"))
+      (doseq [size [0.0 -1.0]]
+        (prop! text-node :font-size size)
+        (is (g/error-fatal? (test-util/prop-error text-node :font-size)))
+        (is (true? (g/error-fatal? (build/resolve-node-dependencies scene project)))))
+      (prop! text-node :font-size 32.0)
+      (is (nil? (test-util/prop-error text-node :font-size)))
+      (is (not (g/error? (build/resolve-node-dependencies scene project))))
+
+      (testing "Invalid sizes in inactive layouts still block builds."
+        (add-layout! project app-view scene "Landscape")
+        (with-visible-layout! scene "Landscape"
+          (prop! text-node :font-size 0.0)
+          (is (g/error-fatal? (test-util/prop-error text-node :font-size))))
+        (is (= 32.0 (prop text-node :font-size)))
+        (is (nil? (test-util/prop-error text-node :font-size)))
+        (is (true? (g/error-fatal? (build/resolve-node-dependencies scene project)))))
+
+      (testing "A layout using an SDF font ignores its hidden size."
+        (with-visible-layout! scene "Landscape"
+          (prop! text-node :font "sdf")
+          (is (nil? (test-util/prop-error text-node :font-size))))
+        (is (not (g/error? (build/resolve-node-dependencies scene project)))))
+
+      (testing "A vector font override validates size even when the base uses an SDF font."
+        (prop! text-node :font "sdf")
+        (prop! text-node :font-size 0.0)
+        (with-visible-layout! scene "Landscape"
+          (prop! text-node :font "vector"))
+        (is (nil? (test-util/prop-error text-node :font-size)))
+        (is (true? (g/error-fatal? (build/resolve-node-dependencies scene project))))
+        (with-visible-layout! scene "Landscape"
+          (prop! text-node :font-size 32.0))
+        (is (not (g/error? (build/resolve-node-dependencies scene project))))))))
+
 (deftest introduce-missing-referenced-gui-resource
   (test-util/with-loaded-project
-    (let [[workspace project _app-view] (test-util/setup! world)
+    (let [[workspace project _app-view] (test-util/setup!)
           make-restore-point! #(test-util/make-system-reverter)
           scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
           shapes {:box (gui-node scene "box")
@@ -1206,7 +1456,7 @@
 
 (deftest introduce-missing-referenced-gui-resource-in-template
   (test-util/with-loaded-project
-    (let [[workspace project _app-view] (test-util/setup! world)
+    (let [[workspace project _app-view] (test-util/setup!)
           make-restore-point! #(test-util/make-system-reverter)
           template-scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
           template-shapes {:box (gui-node template-scene "box")
@@ -1310,7 +1560,7 @@
   ;; │   └── text2
   ;; └── box2
   (test-util/with-loaded-project
-    (let [[workspace project _] (test-util/setup! world)
+    (let [[workspace project _] (test-util/setup!)
           scene (project/get-resource-node project "/gui/reorder.gui")
           id-map (scene-gui-node-map scene)]
 
@@ -1325,8 +1575,6 @@
       (move-child-node! (id-map "box1") -1)
       (check-order scene < "box1" "box2")
 
-
-
       ;; move up text2
       (move-child-node! (id-map "text2") -1)
       (check-order scene < "text2" "text1")
@@ -1335,8 +1583,6 @@
       (move-child-node! (id-map "text1") -1)
       (check-order scene < "text1" "text2")
 
-
-
       ;; move down box1
       (move-child-node! (id-map "box1") 1)
       (check-order scene < "box2" "box1")
@@ -1344,7 +1590,6 @@
       ;; move down box2 (restore order)
       (move-child-node! (id-map "box2") 1)
       (check-order scene < "box1" "box2")
-
 
       ;; move down text1
       (move-child-node! (id-map "text1") 1)
@@ -1360,7 +1605,7 @@
           scene (project/get-resource-node project "/gui/reorder.gui")
           id-map (scene-gui-node-map scene)
           layouts (g/node-feeding-into scene :layout-names)
-          [landscape portrait] (map first (g/sources-of layouts :names))]
+          [landscape portrait] (map gt/source-id (g/inputs (g/now) layouts :names))]
 
       ;; sanity
       (is (= "Landscape" (g/node-value landscape :name)))
@@ -1543,8 +1788,8 @@
 (defn- saved-node-desc-resource-field-values [node-desc]
   (let [spine-scene (saved-node-desc-custom-property-value node-desc "spine_scene" :string)]
     (cond-> (select-keys node-desc [:font :layer :material :particlefx :texture])
-            spine-scene
-            (assoc :spine-scene spine-scene))))
+      spine-scene
+      (assoc :spine-scene spine-scene))))
 
 (deftest custom-gui-custom-properties-test
   (test-util/with-scratch-project "test/resources/empty_project"
@@ -4168,3 +4413,50 @@
              (-> (project/get-resource-node project "/importing.gui")
                  (make-built-layout->node->field->value)
                  (round-layout->node->field->value)))))))
+
+(deftest selected-font-style-layout-and-template-overrides
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [scene (test-util/resource-node project "/gui/resources/button.gui")
+          node (gui-node scene "text")]
+      (is (= "default" (g/node-value node :style)))
+      (test-util/prop! node :style "link")
+      (is (= "link" (:style (g/node-value node :text-layout))))
+      (with-visible-layout! scene "Landscape"
+        (test-util/prop! node :style "")
+        (is (= "" (:style (g/node-value node :text-layout)))))
+      (is (= "link" (g/node-value node :style)))
+      (is (= "" (get-in (g/node-value node :layout->prop->override) ["Landscape" :style])))
+      (test-util/with-prop [node :style "missing"]
+        (is (g/error-fatal? (test-util/prop-error node :style))))
+      (let [saved (g/node-value scene :save-value)
+            text (coll/first-where #(= "text" (:id %)) (:nodes saved))
+            landscape (coll/first-where #(= "Landscape" (:name %)) (:layouts saved))
+            override (coll/first-where #(= "text" (:id %)) (:nodes landscape))]
+        (is (= "link" (:style text)))
+        (is (= "" (:style override)))
+        (is (contains? (set (:overridden-fields override)) 51))))))
+
+(deftest selected-font-style-template-override
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [button (test-util/resource-node project "/gui/template_layout/button.gui")
+          panel (test-util/resource-node project "/gui/template_layout/panel_button.gui")
+          text (gui-node button "text")
+          template-text (gui-node panel "button/text")]
+      (test-util/prop! text :style "link")
+      (is (= "link" (g/node-value template-text :style)))
+      (test-util/prop! template-text :style "")
+      (is (= "" (g/node-value template-text :style)))
+      (let [saved (coll/first-where #(= "button/text" (:id %)) (:nodes (g/node-value panel :save-value)))]
+        (is (= "" (:style saved)))
+        (is (contains? (set (:overridden-fields saved)) 51)))
+      (test-util/prop! text :style "default")
+      (is (= "" (g/node-value template-text :style))))))
+
+(deftest missing-style-in-hidden-layout-is-build-error
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [scene (test-util/resource-node project "/gui/resources/button.gui")
+          node (gui-node scene "text")]
+      (with-visible-layout! scene "Landscape"
+        (test-util/prop! node :style "missing"))
+      (is (= "default" (g/node-value node :style)))
+      (is (g/error-fatal? (g/node-value scene :build-targets))))))

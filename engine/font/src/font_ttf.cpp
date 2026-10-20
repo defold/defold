@@ -1,4 +1,6 @@
-// Copyright 2021 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -11,32 +13,50 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/dlib/log.h>
+#include <dmsdk/dlib/array.h>
 
+#include <math.h>
 #include <stdlib.h> // free
 
-// Making sure we can guarantuee the functions
-#define STBTT_malloc(x,u)  ((void)(u),malloc(x))
-#define STBTT_free(x,u)    ((void)(u),free(x))
-
-#define STB_TRUETYPE_IMPLEMENTATION
-#define STBTT_STATIC
-#include "external/stb_truetype.h"
-
 #include "font_private.h"
+#include "font_ttf.h"
+#include "font_outline.h"
+#include "font_sdf.h"
 
 #if defined(FONT_USE_HARFBUZZ)
-    #include <harfbuzz/hb.h>
+    #include "harfbuzz/font_harfbuzz.h"
+
+    typedef FontHarfbuzz FontImpl;
+    #define FontImplCreate               FontHarfbuzzCreate
+    #define FontImplDestroy              FontHarfbuzzDestroy
+    #define FontImplGetScaleFromSize     FontHarfbuzzGetScaleFromSize
+    #define FontImplGetGlyphIndex        FontHarfbuzzGetGlyphIndex
+    #define FontImplGetGlyphOutline      FontHarfbuzzGetGlyphOutline
+    #define FontImplGetGlyphHMetrics     FontHarfbuzzGetGlyphHMetrics
+    #define FontImplGetGlyphBox          FontHarfbuzzGetGlyphBox
+    #define FontImplGetOutlineType       FontHarfbuzzGetOutlineType
+    #define FontImplGetVerticalMetrics   FontHarfbuzzGetVerticalMetrics
+
+#else
+    #include "truetype/font_truetype.h"
+
+    typedef FontTrueType FontImpl;
+    #define FontImplCreate               FontTrueTypeCreate
+    #define FontImplDestroy              FontTrueTypeDestroy
+    #define FontImplGetScaleFromSize     FontTrueTypeGetScaleFromSize
+    #define FontImplGetGlyphIndex        FontTrueTypeGetGlyphIndex
+    #define FontImplGetGlyphOutline      FontTrueTypeGetGlyphOutline
+    #define FontImplGetGlyphHMetrics     FontTrueTypeGetGlyphHMetrics
+    #define FontImplGetGlyphBox          FontTrueTypeGetGlyphBox
+    #define FontImplGetOutlineType       FontTrueTypeGetOutlineType
+    #define FontImplGetVerticalMetrics   FontTrueTypeGetVerticalMetrics
 #endif
 
 struct TTFFont
 {
     Font            m_Base;
 
-    stbtt_fontinfo  m_Font;
-
-#if defined(FONT_USE_HARFBUZZ)
-    hb_font_t*      m_HBFont;
-#endif
+    FontImpl*       m_Font;
 
     const char*     m_Path;
     const void*     m_Data;
@@ -46,6 +66,7 @@ struct TTFFont
     int             m_Descent;
     int             m_LineGap;
     uint32_t        m_Allocated:1;
+    uint32_t        m_HasGlyfOutlines:1;
 };
 
 static inline TTFFont* ToFont(HFont hfont)
@@ -57,9 +78,7 @@ static void FontDestroyTTF(HFont hfont)
 {
     TTFFont* font = ToFont(hfont);
 
-#if defined(FONT_USE_HARFBUZZ)
-    hb_font_destroy(font->m_HBFont);
-#endif
+    FontImplDestroy(font->m_Font);
 
     if (font->m_Allocated)
     {
@@ -78,7 +97,7 @@ uint32_t GetResourceSizeTTF(HFont hfont)
 static float GetScaleFromSizeTTF(HFont hfont, uint32_t size)
 {
     TTFFont* font = ToFont(hfont);
-    return stbtt_ScaleForMappingEmToPixels(&font->m_Font, (int)size);
+    return FontImplGetScaleFromSize(font->m_Font, size);
 }
 
 static float GetAscentTTF(HFont hfont, float scale)
@@ -102,84 +121,361 @@ static float GetLineGapTTF(HFont hfont, float scale)
 static FontResult FreeGlyphTTF(HFont hfont, FontGlyph* glyph)
 {
     (void)hfont;
-    stbtt_FreeSDF(glyph->m_Bitmap.m_Data, 0);
+    FontSDFFree(&glyph->m_Bitmap);
+
+    free(glyph->m_Outline.m_Commands);
+    glyph->m_Outline.m_Commands = 0;
+    glyph->m_Outline.m_CommandCount = 0;
+    glyph->m_Outline.m_Flags = 0;
     return FONT_RESULT_OK;
 }
 
 static uint32_t GetGlyphIndexTTF(HFont hfont, uint32_t codepoint)
 {
     TTFFont* font = ToFont(hfont);
-    stbtt_fontinfo* info = &font->m_Font;
-    return (uint32_t)stbtt_FindGlyphIndex(info, (int)codepoint);
+    return FontImplGetGlyphIndex(font->m_Font, codepoint);
 }
 
-static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, FontGlyph* glyph)
+static FontResult GetGlyphOutlineTTF(HFont hfont, uint32_t glyph_index, FontOutline* outline)
+{
+    FontResult result = FontImplGetGlyphOutline(ToFont(hfont)->m_Font, glyph_index, outline);
+    if (result != FONT_RESULT_OK)
+        return result;
+
+    result = FontOutlineMakeYMonotonic(outline);
+    if (result != FONT_RESULT_OK)
+        FontFreeGlyphOutline(outline);
+
+    return result;
+}
+
+struct OutlineBuildContext
+{
+    dmArray<FontCurveCommand> m_Commands;
+    bool                      m_Unsupported;
+
+    OutlineBuildContext()
+    : m_Unsupported(false)
+    {
+    }
+};
+
+static void EnsureOutlineCapacity(OutlineBuildContext* ctx)
+{
+    if (ctx->m_Commands.Full())
+    {
+        ctx->m_Commands.OffsetCapacity(16);
+    }
+}
+
+static void PushOutlineCommand(OutlineBuildContext* ctx, const FontCurveCommand& command)
+{
+    EnsureOutlineCapacity(ctx);
+    ctx->m_Commands.Push(command);
+}
+
+static void OutlineMoveTo(OutlineBuildContext* ctx, float scale, float to_x, float to_y)
+{
+    FontCurveCommand command;
+    memset(&command, 0, sizeof(command));
+    command.m_Type = FONT_CURVE_MOVE_TO;
+    command.m_Points[0].m_X = to_x * scale;
+    command.m_Points[0].m_Y = to_y * scale;
+    PushOutlineCommand(ctx, command);
+}
+
+static void OutlineLineTo(OutlineBuildContext* ctx, float scale, float to_x, float to_y)
+{
+    FontCurveCommand command;
+    memset(&command, 0, sizeof(command));
+    command.m_Type = FONT_CURVE_LINE_TO;
+    command.m_Points[0].m_X = to_x * scale;
+    command.m_Points[0].m_Y = to_y * scale;
+    PushOutlineCommand(ctx, command);
+}
+
+static void OutlineQuadraticTo(OutlineBuildContext* ctx, float scale,
+                               float control_x, float control_y,
+                               float to_x, float to_y)
+{
+    FontCurveCommand command;
+    memset(&command, 0, sizeof(command));
+    command.m_Type = FONT_CURVE_QUADRATIC_TO;
+    command.m_Points[0].m_X = control_x * scale;
+    command.m_Points[0].m_Y = control_y * scale;
+    command.m_Points[1].m_X = to_x * scale;
+    command.m_Points[1].m_Y = to_y * scale;
+    PushOutlineCommand(ctx, command);
+}
+
+static void OutlineClosePath(OutlineBuildContext* ctx)
+{
+    FontCurveCommand command;
+    memset(&command, 0, sizeof(command));
+    command.m_Type = FONT_CURVE_CLOSE;
+    PushOutlineCommand(ctx, command);
+}
+
+static FontOutlinePoint OutlineMidpoint(const FontOutlinePoint& a, const FontOutlinePoint& b)
+{
+    FontOutlinePoint point = { (a.m_X + b.m_X) * 0.5f, (a.m_Y + b.m_Y) * 0.5f };
+    return point;
+}
+
+static bool OutlineCubicTo(OutlineBuildContext* ctx, float scale, float tolerance_squared,
+                           const FontOutlinePoint& p0, const FontOutlinePoint& p1,
+                           const FontOutlinePoint& p2, const FontOutlinePoint& p3, uint32_t depth)
+{
+    // Degree reduction followed by degree elevation bounds the error by the
+    // largest control-point difference. Subdivide until that bound is small
+    // in font units, keeping the approximation independent of bitmap size.
+    const float error_x = (3.0f * (p1.m_X - p2.m_X) - p0.m_X + p3.m_X) / 6.0f;
+    const float error_y = (3.0f * (p1.m_Y - p2.m_Y) - p0.m_Y + p3.m_Y) / 6.0f;
+    if (error_x * error_x + error_y * error_y <= tolerance_squared)
+    {
+        const float control_x = (3.0f * (p1.m_X + p2.m_X) - p0.m_X - p3.m_X) * 0.25f;
+        const float control_y = (3.0f * (p1.m_Y + p2.m_Y) - p0.m_Y - p3.m_Y) * 0.25f;
+        OutlineQuadraticTo(ctx, scale, control_x, control_y, p3.m_X, p3.m_Y);
+        return true;
+    }
+    if (depth == 16)
+        return false;
+
+    const FontOutlinePoint p01 = OutlineMidpoint(p0, p1);
+    const FontOutlinePoint p12 = OutlineMidpoint(p1, p2);
+    const FontOutlinePoint p23 = OutlineMidpoint(p2, p3);
+    const FontOutlinePoint p012 = OutlineMidpoint(p01, p12);
+    const FontOutlinePoint p123 = OutlineMidpoint(p12, p23);
+    const FontOutlinePoint middle = OutlineMidpoint(p012, p123);
+    return OutlineCubicTo(ctx, scale, tolerance_squared, p0, p01, p012, middle, depth + 1) &&
+           OutlineCubicTo(ctx, scale, tolerance_squared, middle, p123, p23, p3, depth + 1);
+}
+
+static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, float scale, FontGlyph* glyph)
+{
+
+    FontOutline outline = {};
+    FontResult result = FontImplGetGlyphOutline(font->m_Font, glyph_index, &outline);
+    if (result != FONT_RESULT_OK)
+        return result;
+
+    result = FontOutlineMakeYMonotonic(&outline);
+    if (result != FONT_RESULT_OK)
+    {
+        FontFreeGlyphOutline(&outline);
+        return result;
+    }
+
+    OutlineBuildContext ctx;
+    ctx.m_Commands.SetCapacity(32);
+    ctx.m_Commands.SetSize(0);
+    FontOutlinePoint current = {};
+    FontOutlinePoint start = {};
+    const float tolerance = 1.0f / (4096.0f * FontImplGetScaleFromSize(font->m_Font, 1));
+
+    for (uint32_t i = 0; i < outline.m_CommandCount; ++i)
+    {
+        const FontOutlineCommand& command = outline.m_Commands[i];
+        switch (command.m_Type)
+        {
+            case FONT_OUTLINE_MOVE_TO:
+            {
+                OutlineMoveTo(&ctx, scale, command.m_Points[0].m_X, command.m_Points[0].m_Y);
+                current = start = command.m_Points[0];
+                break;
+            }
+            case FONT_OUTLINE_LINE_TO:
+            {
+                OutlineLineTo(&ctx, scale, command.m_Points[0].m_X, command.m_Points[0].m_Y);
+                current = command.m_Points[0];
+                break;
+            }
+            case FONT_OUTLINE_QUADRATIC_TO:
+            {
+                OutlineQuadraticTo(&ctx, scale,
+                                   command.m_Points[0].m_X, command.m_Points[0].m_Y,
+                                   command.m_Points[1].m_X, command.m_Points[1].m_Y);
+                current = command.m_Points[1];
+                break;
+            }
+            case FONT_OUTLINE_CUBIC_TO:
+            {
+                if (!OutlineCubicTo(&ctx, scale, tolerance * tolerance, current,
+                                    command.m_Points[0], command.m_Points[1], command.m_Points[2], 0))
+                    ctx.m_Unsupported = true;
+                current = command.m_Points[2];
+                break;
+            }
+            case FONT_OUTLINE_CLOSE:
+            {
+                OutlineClosePath(&ctx);
+                current = start;
+                break;
+            }
+            default:
+            {
+                break;
+            }
+        }
+    }
+
+    FontFreeGlyphOutline(&outline);
+
+    if (ctx.m_Unsupported)
+    {
+        return FONT_RESULT_NOT_SUPPORTED;
+    }
+
+    if (ctx.m_Commands.Size() == 0)
+    {
+        return FONT_RESULT_OK;
+    }
+
+    uint32_t data_size = ctx.m_Commands.Size() * sizeof(FontCurveCommand);
+    FontCurveCommand* commands = (FontCurveCommand*)malloc(data_size);
+    if (!commands)
+    {
+        return FONT_RESULT_ERROR;
+    }
+
+    memcpy(commands, ctx.m_Commands.Begin(), data_size);
+    glyph->m_Outline.m_Commands = commands;
+    glyph->m_Outline.m_CommandCount = ctx.m_Commands.Size();
+    glyph->m_Outline.m_Flags = 0;
+    return FONT_RESULT_OK;
+}
+
+FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, const FontSDFParams* image_params, FontGlyph* glyph)
 {
     TTFFont* font = ToFont(hfont);
 
     memset(glyph, 0, sizeof(*glyph));
     glyph->m_GlyphIndex = glyph_index;
 
-    stbtt_fontinfo* info = &font->m_Font;
-
-    int advx = 0, lsb = 0;
-    stbtt_GetGlyphHMetrics(info, glyph_index, &advx, &lsb);
-
-    int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
-    stbtt_GetGlyphBox(info, glyph_index, &x0, &y0, &x1, &y1);
+    int advx = 0;
+    int lsb = 0;
+    int x0 = 0;
+    int y0 = 0;
+    int x1 = 0;
+    int y1 = 0;
+    // A glyf header provides bounds without decoding or traversing an outline.
+    // CFF has no stored per-glyph box, so reuse the outline that image
+    // generation already needs instead of interpreting its CharString twice.
+    bool bounds_from_outline = options->m_GenerateImage && !font->m_HasGlyfOutlines;
+    FontImplGetGlyphHMetrics(font->m_Font, glyph_index, &advx, &lsb);
+    if (!bounds_from_outline)
+        FontImplGetGlyphBox(font->m_Font, glyph_index, &x0, &y0, &x1, &y1);
 
     float scale = options->m_Scale;
-    float padding = options->m_StbttSDFPadding;
+    float padding = options->m_UseUnpaddedBounds && !options->m_GenerateImage ? 0.0f : options->m_StbttSDFPadding;
     int on_edge_value = options->m_StbttSDFOnEdgeValue;
 
-    int ascent = 0;
-    int descent = 0;
-    int srcw = 0;
+    float ascent = y1 * scale;
+    float descent = -y0 * scale;
     int srch = 0;
     int offsetx = 0;
     int offsety = 0;
 
     if (options->m_GenerateImage)
     {
-        float pixel_dist_scale = (float)on_edge_value/padding;
+        FontOutline outline = {};
+        FontResult outline_result = GetGlyphOutlineTTF(hfont, glyph_index, &outline);
+        if (outline_result != FONT_RESULT_OK)
+            return outline_result;
 
-        glyph->m_Bitmap.m_Data = stbtt_GetGlyphSDF(info, scale, glyph_index, (int)padding, on_edge_value, pixel_dist_scale,
-                                                   &srcw, &srch, &offsetx, &offsety);
+        if (bounds_from_outline)
+        {
+            float fx0, fy0, fx1, fy1;
+            if (FontGetOutlineBounds(&outline, &fx0, &fy0, &fx1, &fy1))
+            {
+                x0 = (int32_t)floorf(fx0);
+                y0 = (int32_t)floorf(fy0);
+                x1 = (int32_t)ceilf(fx1);
+                y1 = (int32_t)ceilf(fy1);
+            }
+        }
+
+        FontSDFParams sdf_params = {};
+        sdf_params.m_Scale = scale;
+        sdf_params.m_Spread = padding;
+        sdf_params.m_OnEdgeValue = on_edge_value;
+        if (image_params)
+            sdf_params = *image_params;
+        FontResult result = FontSDFGenerate(&outline, &sdf_params, &glyph->m_Bitmap, &offsetx, &offsety);
+        if (result != FONT_RESULT_OK)
+        {
+            FontFreeGlyphOutline(&outline);
+            return result;
+        }
 
         if (glyph->m_Bitmap.m_Data)
         {
-            glyph->m_Bitmap.m_Flags = FONT_GLYPH_BM_FLAG_COMPRESSION_NONE;
-            glyph->m_Bitmap.m_Width = srcw;
-            glyph->m_Bitmap.m_Height = srch;
-            glyph->m_Bitmap.m_Channels = 1;
-            glyph->m_Bitmap.m_DataSize = srcw * srch * 1;
-
-            // We don't call stbtt_FreeSDF(src, 0);
-            // But instead let the user call FreeGlyphTTF()
-
+            srch = glyph->m_Bitmap.m_Height;
             ascent = -offsety;
             descent = srch - ascent;
         }
+
+        FontFreeGlyphOutline(&outline);
+    }
+
+    bool has_sdf_image = options->m_GenerateImage && glyph->m_Bitmap.m_Data;
+
+    if (options->m_GenerateOutline)
+    {
+        glyph->m_Outline.m_Width = (x1 - x0) * scale;
+        glyph->m_Outline.m_Height = (y1 - y0) * scale;
+        glyph->m_Outline.m_LeftBearing = x0 * scale;
+        glyph->m_Outline.m_Ascent = y1 * scale;
+        glyph->m_Outline.m_Descent = -y0 * scale;
     }
 
     // The dimensions of the visible area
-    if (x0 != x1 && y0 != y1)
+    if ((!options->m_GenerateOutline || options->m_GenerateImage) && x0 != x1 && y0 != y1)
     {
-        // Only modify non empty glyphs (from stbtt_GetGlyphSDF())
+        // Preserve legacy layout bounds while keeping analytical outlines unpadded.
         x0 -= padding;
         y0 -= padding;
         x1 += padding;
         y1 += padding;
     }
 
-    glyph->m_Width = (x1 - x0) * scale;
-    glyph->m_Height = (y1 - y0) * scale;
     glyph->m_Advance = advx*scale;
-    glyph->m_LeftBearing = lsb*scale;
     glyph->m_Ascent = ascent;
     glyph->m_Descent = descent;
 
+    // Preserve the sampled image bounds and origin; advances remain floating point.
+    if (has_sdf_image)
+    {
+        glyph->m_Width = (float)glyph->m_Bitmap.m_Width;
+        glyph->m_Height = (float)srch;
+        glyph->m_LeftBearing = (float)offsetx;
+    }
+    else
+    {
+        glyph->m_Width = (x1 - x0) * scale;
+        glyph->m_Height = (y1 - y0) * scale;
+        glyph->m_LeftBearing = (options->m_GenerateOutline && !options->m_GenerateImage) ? x0 * scale : lsb * scale;
+    }
+
+    if (options->m_GenerateOutline)
+    {
+        FontResult outline_result = GenerateGlyphOutlineTTF(font, glyph_index, scale, glyph);
+        if (outline_result != FONT_RESULT_OK)
+        {
+            if (glyph->m_Bitmap.m_Data)
+            {
+                FontSDFFree(&glyph->m_Bitmap);
+            }
+            return outline_result;
+        }
+    }
+
     return FONT_RESULT_OK;
+}
+
+static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, FontGlyph* glyph)
+{
+    return FontGetGlyphTTF(hfont, glyph_index, options, 0, glyph);
 }
 
 static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buffer_size, bool allocate);
@@ -188,29 +484,6 @@ HFont FontLoadFromMemoryTTF(const char* path, const void* buffer, uint32_t buffe
 {
     return LoadTTFInternal(path, buffer, buffer_size, allocate);
 }
-
-#if defined(FONT_USE_HARFBUZZ)
-static int LoadHBFont(TTFFont* font, void* buffer, uint32_t buffer_size)
-{
-    hb_blob_t* blob = 0;
-    hb_face_t* face = 0;
-    int result = 0;
-
-    blob = hb_blob_create((const char*)buffer, buffer_size, HB_MEMORY_MODE_READONLY, 0, 0);
-    if (!blob) goto cleanup;
-
-    face = hb_face_create(blob, 0);
-    if (!face) goto cleanup;
-
-    font->m_HBFont = hb_font_create(face);
-    result = font->m_HBFont != 0;
-
-cleanup:
-    hb_face_destroy(face);
-    hb_blob_destroy(blob);
-    return result;
-}
-#endif
 
 static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buffer_size, bool allocate)
 {
@@ -241,41 +514,83 @@ static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buff
         font->m_DataSize= buffer_size;
     }
 
-#if defined(FONT_USE_HARFBUZZ)
-    if (!LoadHBFont(font, (void*)font->m_Data, font->m_DataSize))
-    {
-        dmLogError("Failed to create Harfbuzz font from '%s'", path);
-        FontDestroyTTF((HFont)font);
-        delete font;
-        return 0;
-    }
-#endif
-
-    int index = stbtt_GetFontOffsetForIndex((const unsigned char*)font->m_Data,0);
-    int result = stbtt_InitFont(&font->m_Font, (const unsigned char*)font->m_Data, index);
-    if (!result)
+    font->m_Font = FontImplCreate(font->m_Data, font->m_DataSize, 0);
+    if (!font->m_Font)
     {
         dmLogError("Failed to load font from '%s'", path);
         FontDestroyTTF((HFont)font);
-        delete font;
         return 0;
     }
 
-    stbtt_GetFontVMetrics(&font->m_Font, &font->m_Ascent, &font->m_Descent, &font->m_LineGap);
+    font->m_HasGlyfOutlines = FontImplGetOutlineType(font->m_Font) == FONT_OUTLINE_TYPE_GLYF;
+    bool has_vertical_metrics = FontImplGetVerticalMetrics(font->m_Font, &font->m_Ascent, &font->m_Descent, &font->m_LineGap);
+    if (!has_vertical_metrics)
+    {
+        dmLogError("Failed to load font metrics from '%s'", path);
+        FontDestroyTTF((HFont)font);
+        return 0;
+    }
+
     return (HFont)font;
+}
+
+bool FontGetGlyphBoxTTF(HFont hfont, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
+{
+    return FontImplGetGlyphBox(ToFont(hfont)->m_Font, glyph_index, x0, y0, x1, y1);
 }
 
 #if defined(FONT_USE_HARFBUZZ)
 hb_font_t* FontGetHarfbuzzFontFromTTF(HFont hfont)
 {
-    TTFFont* font = ToFont(hfont);
-    return font->m_HBFont;
+    return FontHarfbuzzGetFont(ToFont(hfont)->m_Font);
 }
 #endif
 
-bool FontGetGlyphBoxTTF(HFont hfont, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
+FontResult FontGetGlyphSDFMetricsTTF(HFont hfont, uint32_t glyph_index, float scale, float padding, FontGlyph* glyph)
 {
+    if (!hfont || !glyph || glyph_index == 0 || scale <= 0.0f || padding <= 0.0f)
+        return FONT_RESULT_ERROR;
+
     TTFFont* font = ToFont(hfont);
-    x0 = y0 = x1 = y1 = 0;
-    return stbtt_GetGlyphBox(&font->m_Font, glyph_index, x0, y0, x1, y1);
+    memset(glyph, 0, sizeof(*glyph));
+
+    int advance = 0;
+    int left_bearing = 0;
+    FontImplGetGlyphHMetrics(font->m_Font, glyph_index, &advance, &left_bearing);
+
+    int x0 = 0;
+    int y0 = 0;
+    int x1 = 0;
+    int y1 = 0;
+    int font_x0 = 0;
+    int font_y0 = 0;
+    int font_x1 = 0;
+    int font_y1 = 0;
+    if (FontImplGetGlyphBox(font->m_Font, glyph_index, &font_x0, &font_y0, &font_x1, &font_y1))
+    {
+        // Match stbtt_GetGlyphBitmapBoxSubpixel(): convert the font's
+        // y-up coordinates to the bitmap's y-down pixel coordinates.
+        x0 = (int)floorf(font_x0 * scale);
+        y0 = (int)floorf(-font_y1 * scale);
+        x1 = (int)ceilf(font_x1 * scale);
+        y1 = (int)ceilf(-font_y0 * scale);
+    }
+
+    if (x0 != x1 && y0 != y1)
+    {
+        const int sdf_padding = (int)padding;
+        x0 -= sdf_padding;
+        y0 -= sdf_padding;
+        x1 += sdf_padding;
+        y1 += sdf_padding;
+    }
+
+    glyph->m_GlyphIndex = glyph_index;
+    glyph->m_Width = (float)(x1 - x0);
+    glyph->m_Height = (float)(y1 - y0);
+    glyph->m_Advance = advance * scale;
+    glyph->m_LeftBearing = x0;
+    glyph->m_Ascent = -y0;
+    glyph->m_Descent = y1;
+    return FONT_RESULT_OK;
 }

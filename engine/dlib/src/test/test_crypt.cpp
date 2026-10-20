@@ -168,6 +168,24 @@ TEST(dmCrypt, Base64Encode)
 }
 
 
+TEST(dmCrypt, Base64EncodeEmpty)
+{
+    uint8_t dst[64];
+    memset(dst, 0xff, sizeof(dst));
+
+    uint32_t dst_len = 0;
+    bool result;
+    result = dmCrypt::Base64Encode((const uint8_t*)"", 0, 0, &dst_len);
+    ASSERT_EQ(false, result);
+    ASSERT_EQ((uint32_t)1, dst_len); // room for the terminating null
+
+    result = dmCrypt::Base64Encode((const uint8_t*)"", 0, dst, &dst_len);
+    ASSERT_EQ(true, result);
+    ASSERT_EQ((uint32_t)0, dst_len);
+    ASSERT_EQ(0, dst[0]);
+}
+
+
 TEST(dmCrypt, Base64Decode)
 {
     const char* source = "TG9yZW0gSXBzdW0=";
@@ -185,6 +203,29 @@ TEST(dmCrypt, Base64Decode)
     ASSERT_EQ(true, result);
     ASSERT_EQ(strlen(expected), dst_len);
     ASSERT_ARRAY_EQ_LEN(expected, (const char*)dst, dst_len);
+}
+
+TEST(dmCrypt, Base64DecodeEmpty)
+{
+    uint8_t dst[64];
+
+    // Step 1: size query, as documented in dmsdk/dlib/crypt.h
+    uint32_t dst_len = 0;
+    bool result;
+    result = dmCrypt::Base64Decode((const uint8_t*)"", 0, 0, &dst_len);
+    ASSERT_EQ(true, result);
+    ASSERT_EQ((uint32_t)0, dst_len);
+
+    // Step 2: decode into a buffer sized from the query
+    result = dmCrypt::Base64Decode((const uint8_t*)"", 0, dst, &dst_len);
+    ASSERT_EQ(true, result);
+    ASSERT_EQ((uint32_t)0, dst_len);
+
+    // ... and into an oversized buffer
+    dst_len = sizeof(dst);
+    result = dmCrypt::Base64Decode((const uint8_t*)"", 0, dst, &dst_len);
+    ASSERT_EQ(true, result);
+    ASSERT_EQ((uint32_t)0, dst_len);
 }
 
 TEST(dmCrypt, Base64DecodeNoPadding)

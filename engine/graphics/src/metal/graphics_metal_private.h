@@ -38,7 +38,15 @@ namespace dmGraphics
     const static uint8_t  MAX_FRAMES_IN_FLIGHT       = 2; // Keep two frames in flight for better CPU/GPU overlap
     const static uint16_t MAX_ENCODER_RESOURCE_CACHE = 256;
     const static uint8_t  MAX_VERTEX_BUFFER_SLOTS    = MAX_BINDINGS_PER_SET_COUNT + MAX_VERTEX_BUFFERS;
+    // Minimum constant buffer offset alignment: https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
+    // Simulator requirements: https://developer.apple.com/documentation/metal/developing-metal-apps-that-run-in-simulator#Constant-buffer-limitations
+#if defined(IOS_SIMULATOR)
     const static uint32_t UNIFORM_BUFFER_ALIGNMENT   = 256;
+#elif defined(DM_PLATFORM_MACOS) && defined(__x86_64__)
+    const static uint32_t UNIFORM_BUFFER_ALIGNMENT   = 32;
+#else
+    const static uint32_t UNIFORM_BUFFER_ALIGNMENT   = 4;
+#endif
     const static uint32_t STORAGE_BUFFER_ALIGNMENT   = 16;
 
     enum MetalResourceType
@@ -94,6 +102,14 @@ namespace dmGraphics
         MetalDeviceBuffer m_DeviceBuffer;
     };
 
+    struct MetalStorageBuffer
+    {
+        StorageBuffer     m_Base;
+        MetalDeviceBuffer m_DeviceBuffer;
+        uint64_t          m_LastRenderPass;
+        uint8_t           m_RenderPassAccess;
+    };
+
     struct MetalConstantScratchBuffer
     {
         MetalDeviceBuffer m_DeviceBuffer;
@@ -120,7 +136,7 @@ namespace dmGraphics
 
         void                        Initialize(const MetalContext* context, uint32_t size_per_buffer);
         void                        AddBuffer(const MetalContext* context);
-        MetalConstantScratchBuffer* Allocate(const MetalContext* context, uint32_t size);
+        MetalConstantScratchBuffer* Allocate(const MetalContext* context, uint32_t size, uint32_t alignment);
         MetalArgumentBinding        Bind(const MetalContext* context, MTL::ArgumentEncoder* encode);
 
         inline MetalConstantScratchBuffer* Get() { return &m_ScratchBufferPool[m_ScratchBufferIndex]; }
@@ -143,6 +159,7 @@ namespace dmGraphics
         TextureFilter      m_MagFilter;
         TextureWrap        m_AddressModeU;
         TextureWrap        m_AddressModeV;
+        TextureWrap        m_AddressModeW;
         float              m_MaxAnisotropy;
         float              m_MinLod;
         float              m_MaxLod;
@@ -168,12 +185,15 @@ namespace dmGraphics
         MetalRenderTarget(const uint32_t rtId)
         : m_DepthClearValue(1.0f)
         , m_StencilClearValue(0)
+        , m_Width(0)
+        , m_Height(0)
         , m_Id(rtId)
         , m_Destroyed(0)
         , m_IsBound(0)
         , m_HasPendingClearColor(0)
         , m_HasPendingClearDepth(0)
         , m_HasPendingClearStencil(0)
+        , m_ResumePass(0)
         , m_ColorAttachmentCount(0)
         {
             memset(&m_Base, 0, sizeof(m_Base));
@@ -205,12 +225,15 @@ namespace dmGraphics
         MTL::PixelFormat      m_ColorFormat[MAX_BUFFER_COLOR_ATTACHMENTS];
         MTL::PixelFormat      m_DepthStencilFormat;
 
+        uint16_t       m_Width;
+        uint16_t       m_Height;
         const uint16_t m_Id;
         uint32_t       m_Destroyed            : 1;
         uint32_t       m_IsBound              : 1;
         uint32_t       m_HasPendingClearColor : 1;
         uint32_t       m_HasPendingClearDepth : 1;
         uint32_t       m_HasPendingClearStencil : 1;
+        uint32_t       m_ResumePass : 1;
         uint32_t       m_ColorAttachmentCount : 4;
     };
 
@@ -233,10 +256,11 @@ namespace dmGraphics
         MetalShaderModule*    m_VertexModule;
         MetalShaderModule*    m_FragmentModule;
         MetalShaderModule*    m_ComputeModule;
-        MTL::ArgumentEncoder* m_ArgumentEncoders[MAX_SET_COUNT];
-        MetalArgumentBinding  m_ArgumentBufferBindings[MAX_SET_COUNT];
+        // SPIRV-Cross packs each stage independently, including shared descriptor sets.
+        MTL::ArgumentEncoder* m_ArgumentEncoders[3][MAX_SET_COUNT];
+        MetalArgumentBinding  m_ArgumentBufferBindings[3][MAX_SET_COUNT];
 
-        uint32_t              m_ResourceToMslIndex[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        uint32_t              m_ResourceToMslIndex[3][MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         uint32_t              m_WorkGroupSize[3]; // x,y,z
         uint8_t*              m_UniformData;
         uint64_t              m_Hash;
@@ -268,10 +292,11 @@ namespace dmGraphics
             uint32_t         m_ColorWriteMaskBits;
             MTL::PixelFormat m_ColorFormats[MAX_BUFFER_COLOR_ATTACHMENTS];
             MTL::PixelFormat m_DepthStencilFormat;
+            // MetalGetSupportedSampleCounts admits values through 64.
+            uint8_t          m_SampleCount;
             uint8_t          m_ClearColor   : 1;
             uint8_t          m_ClearDepth   : 1;
             uint8_t          m_ClearStencil : 1;
-            uint8_t          m_SampleCount  : 4;
         };
 
         struct ClearShader
@@ -316,13 +341,14 @@ namespace dmGraphics
         HJobContext                        m_JobContext;
         SetTextureAsyncState               m_SetTextureAsyncState;
         int32_atomic_t                     m_DeleteContextRequested;
+        int32_atomic_t                     m_PendingAsyncTextureJobs;
         dispatch_semaphore_t               m_FrameBoundarySemaphore;
 
         // Per-frame render state
         MetalDeviceBuffer*                 m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         uint32_t                           m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
-        MetalStorageBufferBinding          m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
+        MetalStorageBufferBinding          m_CurrentStorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         MetalUniformBuffer*                m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         MetalProgram*                      m_CurrentProgram;
         MetalPipeline*                     m_CurrentPipeline;
@@ -338,6 +364,7 @@ namespace dmGraphics
         MTL::Resource*                     m_ComputeUsedResources[MAX_ENCODER_RESOURCE_CACHE];
         MTL::ResourceUsage                 m_ComputeUsedResourceUsage[MAX_ENCODER_RESOURCE_CACHE];
         uint16_t                           m_RenderUsedResourceCount;
+        uint64_t                           m_RenderPassSerial;
         uint16_t                           m_ComputeUsedResourceCount;
 
         MetalTexture*                      m_DefaultTexture2D;
@@ -352,6 +379,7 @@ namespace dmGraphics
         uint32_t                           m_NumFramesInFlight       : 2;
         uint32_t                           m_RenderTargetBound       : 1;
         uint32_t                           m_MainRTBegunThisFrame    : 1;
+        uint32_t                           m_MainMSAAColorNeedsResolve : 1;
         uint32_t                           m_ViewportChanged         : 1;
         uint32_t                           m_ScissorChanged          : 1;
         uint32_t                           m_CullFaceChanged         : 1;
@@ -361,6 +389,7 @@ namespace dmGraphics
         // See OpenGL backend: separate flag for ASTC array textures
         uint32_t                           m_ASTCArrayTextureSupport : 1;
         uint32_t                           m_AsyncProcessingSupport  : 1;
+        uint32_t                           m_CombinedMSAAStoreAndResolveSupport : 1;
     };
 }
 

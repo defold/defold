@@ -241,10 +241,10 @@ namespace dmPlatform
         else
         {
             uint32_t major = 3, minor = 3;
-            if (!OpenGLGetVersion(params.m_OpenGLVersionHint, &major, &minor))
+            if (!OpenGLGetVersion(params.m_GraphicsApiVersionHint, &major, &minor))
             {
                 dmLogWarning("OpenGL version hint %d is not supported. Using default version (%d.%d)",
-                    params.m_OpenGLVersionHint, major, minor);
+                    params.m_GraphicsApiVersionHint, major, minor);
             }
 
             bool use_highest_version = major == 0 && minor == 0;
@@ -278,6 +278,10 @@ namespace dmPlatform
         }
 
         wnd->m_SwapIntervalSupported = 1;
+
+#if defined(DM_PLATFORM_MACOS)
+        SetOpenGLWindowColorSpaceNative(wnd);
+#endif
 
         glfwMakeContextCurrent(wnd->m_Window);
 
@@ -343,6 +347,7 @@ namespace dmPlatform
             case WINDOW_GRAPHICS_API_DIRECTX:
             case WINDOW_GRAPHICS_API_VULKAN:
             case WINDOW_GRAPHICS_API_METAL:
+            case WINDOW_GRAPHICS_API_WEBGPU:
                 res = OpenWindowNoApi(window, params);
                 break;
             default: assert(0);
@@ -593,6 +598,16 @@ namespace dmPlatform
     int32_t GetMouseButton(HWindow window, int32_t button)
     {
         return glfwGetMouseButton(window->m_Window, button);
+    }
+
+    bool IsMouseLeftButtonFromTouch(HWindow window)
+    {
+        return false;
+    }
+
+    bool IsMousePositionFromTouch(HWindow window)
+    {
+        return false;
     }
 
     void GetMousePosition(HWindow window, int32_t* x, int32_t* y)

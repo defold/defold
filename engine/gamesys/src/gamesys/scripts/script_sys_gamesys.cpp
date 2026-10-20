@@ -14,6 +14,7 @@
 
 #include <dlib/opaque_handle_container.h>
 #include <dlib/jobsystem.h>
+#include <dlib/time.h>
 
 #include <resource/resource.h>
 
@@ -41,6 +42,21 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Asynchronous request status values
+     * @enum
+     * @name sys.REQUEST_STATUS
+     * @member sys.REQUEST_STATUS_ERROR_IO_ERROR An I/O error occurred.
+     * @member sys.REQUEST_STATUS_ERROR_NOT_FOUND The requested resource was not found.
+     * @member sys.REQUEST_STATUS_FINISHED The request completed successfully.
+     */
+
+    /*# Asynchronous buffer-load result
+     * @struct
+     * @name sys.load_buffer_result
+     * @member status [type:sys.REQUEST_STATUS] Request status.
+     * @member buffer? [type:buffer_data] Loaded payload for a successful request.
+     */
+
     enum RequestStatus
     {
         REQUEST_STATUS_ERROR_IO_ERROR  = -2,
@@ -52,6 +68,7 @@ namespace dmGameSystem
     struct LuaRequest
     {
         dmScript::LuaCallbackInfo* m_CallbackInfo;
+        HJob                       m_Job;
         HOpaqueHandle              m_Handle;
         dmBuffer::HBuffer          m_Payload;
         dmResource::LoadBufferType m_LoadBuffer;
@@ -173,19 +190,22 @@ namespace dmGameSystem
     // Called from the main thread
     static void LoadBufferCompleteCallback(HJobContext, HJob hjob, JobSystemStatus status, void* context, void* data, int result)
     {
-        if (((dmResource::Result) result) == dmResource::RESULT_OK)
+        if ((status == JOBSYSTEM_STATUS_FINISHED) && ((dmResource::Result) result) == dmResource::RESULT_OK)
         {
             DM_MUTEX_SCOPED_LOCK(g_SysModule.m_LoadRequestsMutex);
             HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) context;
             LuaRequest* request          = g_SysModule.m_LoadRequests.Get(request_handle);
-            request->m_Status            = REQUEST_STATUS_FINISHED;
-            dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
-            dmBuffer::Create(request->m_LoadBuffer.Size(), streams_decl, 1, &request->m_Payload);
+            if (request)
+            {
+                request->m_Status            = REQUEST_STATUS_FINISHED;
+                dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
+                dmBuffer::Create(request->m_LoadBuffer.Size(), streams_decl, 1, &request->m_Payload);
 
-            uint8_t* buffer_data     = 0;
-            uint32_t buffer_datasize = 0;
-            dmBuffer::GetBytes(request->m_Payload, (void**) &buffer_data, &buffer_datasize);
-            memcpy(buffer_data, request->m_LoadBuffer.Begin(), request->m_LoadBuffer.Size());
+                uint8_t* buffer_data     = 0;
+                uint32_t buffer_datasize = 0;
+                dmBuffer::GetBytes(request->m_Payload, (void**) &buffer_data, &buffer_datasize);
+                memcpy(buffer_data, request->m_LoadBuffer.Begin(), request->m_LoadBuffer.Size());
+            }
         }
     }
 
@@ -198,8 +218,8 @@ namespace dmGameSystem
         job.m_Context = (void*) (uintptr_t) request->m_Handle;
         job.m_Data = 0;
 
-        HJob hjob = JobSystemCreateJob(g_SysModule.m_JobContext, &job);
-        JobSystemPushJob(g_SysModule.m_JobContext, hjob);
+        request->m_Job = JobSystemCreateJob(g_SysModule.m_JobContext, &job);
+        JobSystemPushJob(g_SysModule.m_JobContext, request->m_Job);
     }
 
     /*# loads a buffer from a resource or disk path
@@ -218,7 +238,7 @@ namespace dmGameSystem
      *
      * @name sys.load_buffer
      * @param path [type:string] the path to load the buffer from
-     * @return buffer [type:buffer] the buffer with data
+     * @return buffer [type:buffer_data] the buffer with data
      * @examples
      *
      * Load binary data from a custom project resource:
@@ -282,32 +302,21 @@ namespace dmGameSystem
      * For example "main/data/,assets/level_data.json".
      *
      * Note that issuing multiple requests of the same resource will yield
-     * individual buffers per request. There is no implic caching of the buffers
+     * individual buffers per request. There is no implicit caching of the buffers
      * based on request path.
      *
      * @name sys.load_buffer_async
      * @param path [type:string] the path to load the buffer from
-     * @param status_callback [type:function(self, request_id, result)] A status callback that will be invoked when a request has been handled, or an error occured. The result is a table containing:
-     *
-     * `status`
-     * : [type:number] The status of the request, supported values are:
-     *
-     * - `resource.REQUEST_STATUS_FINISHED`
-     * - `resource.REQUEST_STATUS_ERROR_IO_ERROR`
-     * - `resource.REQUEST_STATUS_ERROR_NOT_FOUND`
-     *
-     * `buffer`
-     * : [type:buffer] If the request was successfull, this will contain the request payload in a buffer object, and nil otherwise. Make sure to check the status before doing anything with the buffer value!
-     *
-     * @return handle [type:number] a handle to the request
+     * @param status_callback [type:fun(self:script_instance, request_id:integer, result:sys.load_buffer_result)] callback invoked when the request completes or fails
+     * @return handle [type:integer] a handle to the request
      * @examples
      *
      * Load binary data from a custom project resource and update a texture resource:
      *
      * ```lua
      * function my_callback(self, request_id, result)
-     *   if result.status == resource.REQUEST_STATUS_FINISHED then
-     *      resource.set_texture("/my_texture", { ... }, result.buf)
+     *   if result.status == sys.REQUEST_STATUS_FINISHED then
+     *      resource.set_texture("/my_texture", { ... }, result.buffer)
      *   end
      * end
      *
@@ -320,18 +329,16 @@ namespace dmGameSystem
      * function my_callback(self, request_id, result)
      *   if result.status ~= sys.REQUEST_STATUS_FINISHED then
      *     -- uh oh! File could not be found, do something graceful
-     *   elseif request_id == self.first_asset then
+     *   elseif request_id == self.first_request then
      *     -- result.buffer contains data from my_level_asset.bin
-     *   elif request_id == self.second_asset then
+     *   elseif request_id == self.second_request then
      *     -- result.buffer contains data from 'my_level.bin'
      *   end
      * end
      *
      * function init(self)
-     *   self.first_asset = hash("folder_next_to_binary/my_level_asset.bin")
-     *   self.second_asset = hash("/some_absolute_path/my_level.bin")
-     *   self.first_request = sys.load_buffer_async(self.first_asset, my_callback)
-     *   self.second_request = sys.load_buffer_async(self.second_asset, my_callback)
+     *   self.first_request = sys.load_buffer_async("folder_next_to_binary/my_level_asset.bin", my_callback)
+     *   self.second_request = sys.load_buffer_async("/some_absolute_path/my_level.bin", my_callback)
      * end
      * ```
      */
@@ -389,21 +396,6 @@ namespace dmGameSystem
         {0, 0}
     };
 
-    /*# an asyncronous request has finished successfully
-     * @name sys.REQUEST_STATUS_FINISHED
-     * @constant
-     */
-
-    /*# an asyncronous request is unable to read the resource
-     * @name sys.REQUEST_STATUS_ERROR_IO_ERROR
-     * @constant
-     */
-
-    /*# an asyncronous request is unable to locate the resource
-     * @name sys.REQUEST_STATUS_ERROR_NOT_FOUND
-     * @constant
-     */
-
     void ScriptSysGameSysRegister(const ScriptLibContext& context)
     {
         lua_State* L = context.m_LuaState;
@@ -457,24 +449,49 @@ namespace dmGameSystem
 
     void ScriptSysGameSysFinalize(const ScriptLibContext& context)
     {
-        if (g_SysModule.m_LoadRequestsMutex)
-            dmMutex::Delete(g_SysModule.m_LoadRequestsMutex);
-
+        // A load job may still be using its request when the engine is rebooted.
+        // Cancel all jobs before waiting so queued jobs cannot start while an
+        // in-flight job is finishing.
         for (int i = 0; i < g_SysModule.m_LoadRequests.Capacity(); ++i)
         {
             LuaRequest* request = g_SysModule.m_LoadRequests.GetByIndex(i);
             if (request)
             {
+                JobSystemCancelJob(g_SysModule.m_JobContext, request->m_Job);
+            }
+        }
+
+        // Wait for jobs that were already in flight before deleting their requests.
+        for (int i = 0; i < g_SysModule.m_LoadRequests.Capacity(); ++i)
+        {
+            LuaRequest* request = g_SysModule.m_LoadRequests.GetByIndex(i);
+            if (request)
+            {
+                JobSystemResult result = JobSystemCancelJob(g_SysModule.m_JobContext, request->m_Job);
+                while (result == JOBSYSTEM_RESULT_PENDING)
+                {
+                    dmTime::Sleep(1000);
+                    result = JobSystemCancelJob(g_SysModule.m_JobContext, request->m_Job);
+                }
+
                 if (dmBuffer::IsBufferValid(request->m_Payload))
                 {
                     dmBuffer::Destroy(request->m_Payload);
                 }
                 dmScript::DestroyCallback(request->m_CallbackInfo);
+                g_SysModule.m_LoadRequests.Release(request->m_Handle);
+                free(request->m_Path);
                 delete request;
             }
         }
 
+        if (g_SysModule.m_LoadRequestsMutex)
+        {
+            dmMutex::Delete(g_SysModule.m_LoadRequestsMutex);
+        }
+
         g_SysModule.m_Factory           = 0;
+        g_SysModule.m_JobContext        = 0;
         g_SysModule.m_LoadRequestsMutex = 0;
     }
 

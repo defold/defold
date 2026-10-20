@@ -70,7 +70,7 @@
               ext)
         extract-path (io/file packages-path "dart-sass" version)]
     (when-not (.exists extract-path)
-      (extract (http-cache/download url) extract-path ext))
+      (extract (http-cache/download url false) extract-path ext))
     (str (io/file extract-path
                   "dart-sass"
                   (str "sass"
@@ -82,6 +82,8 @@
   (let [{:keys [target-path sass]} project
         {:keys [src output-directory]} sass
         packages-path (io/file target-path "packages")
+        ;; ci/cache_key.py reads the version in this call. If the function name or
+        ;; argument structure changes, check and update that script as needed.
         executable-path (get-dart-sass-executable-path "1.62.1" packages-path)
         _ (println (format "sass: %s -> %s" src output-directory))
         exit (-> (ProcessBuilder. ^List (concat

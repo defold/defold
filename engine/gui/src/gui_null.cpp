@@ -34,6 +34,10 @@ namespace dmGui
         return 0;
     }
 
+    void LuaPushNode(lua_State* L, HScene scene, HNode node)
+    {
+    }
+
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         return 0;
@@ -43,6 +47,14 @@ namespace dmGui
     {
     }
 
+    bool GetNodeTypeName(lua_State* L, int index, char* buffer, uint32_t buffer_size)
+    {
+        return false;
+    }
+
+    void SetScriptInstanceMetaData(dmScript::HContext, const char*, void*)
+    {
+    }
 
     // gui_null.cpp
     const dmhash_t DEFAULT_LAYER = dmHashString64("");
@@ -56,6 +68,14 @@ namespace dmGui
     HContext NewContext(const NewContextParams* params)
     {
         return 0;
+    }
+
+    void SetContextCallbacks(HContext,
+                             GetURLCallback,
+                             GetUserDataCallback,
+                             ResolvePathCallback,
+                             GetTextMetricsCallback)
+    {
     }
 
     void DeleteContext(HContext context, dmScript::HContext script_context)
@@ -559,6 +579,15 @@ namespace dmGui
         return 0.0f;
     }
 
+    void SetNodeFontSize(HScene scene, HNode node, float font_size)
+    {
+    }
+
+    float GetNodeFontSize(HScene scene, HNode node)
+    {
+        return 0.0f;
+    }
+
     HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
     {
         return 0;
@@ -625,6 +654,11 @@ namespace dmGui
     }
 
     dmhash_t GetNodeLayerId(HScene scene, HNode node)
+    {
+        return 0;
+    }
+
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node)
     {
         return 0;
     }
@@ -720,6 +754,10 @@ namespace dmGui
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
     {
         return RESULT_OK;
+    }
+
+    void PrepareNodeTextLayout(HScene scene, HNode node)
+    {
     }
 
     void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)
@@ -893,6 +931,11 @@ namespace dmGui
     }
 
     bool PickNode(HScene scene, HNode node, float x, float y)
+    {
+        return false;
+    }
+
+    bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, Point3* position)
     {
         return false;
     }

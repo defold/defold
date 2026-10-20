@@ -1,3 +1,4 @@
+sample_count: 4
 color_attachments {
   width: 128
   height: 128

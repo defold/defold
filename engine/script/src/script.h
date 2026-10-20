@@ -16,6 +16,7 @@
 #define DM_SCRIPT_H
 
 #include <stdint.h>
+#include "script_extension.h"
 #include <dmsdk/script/script.h>
 #include <dmsdk/graphics/graphics.h>
 
@@ -41,6 +42,9 @@ namespace dmLuaDDF
 
 namespace dmScript
 {
+    // Push the hash for a dmHID::InputSource stored in an input action bitfield.
+    void PushInputSource(lua_State* L, uint32_t source);
+
     typedef struct ScriptWorld* HScriptWorld;
     typedef struct ScriptExtension* HScriptExtension;
 
@@ -120,31 +124,10 @@ namespace dmScript
     void GetGlobal(lua_State* L, uint32_t name_hash);
 
     /**
-     * Use a ScriptExtension to hook into various callbacks of the script lifetime
-     *
-     * For callbacks you do not care for, set them to 0x0
+     * Push the stored instance or nil without invoking __index. Internal lookup
+     * for debugger inspection; the public GetInstance keeps normal Lua lookup.
      */
-    struct ScriptExtension
-    {
-        // Called when the context has completed Initialize(HContext context)
-        void (*Initialize)(HContext context);
-        // Called one each game frame
-        void (*Update)(HContext context);
-        // Called just before the context completes Finalize(HContext context)
-        void (*Finalize)(HContext context);
-        // Called when a new "world" has been created (a Collection, GUI Scene etc)
-        void (*NewScriptWorld)(HScriptWorld script_world);
-        // Called just before deleting the script world
-        void (*DeleteScriptWorld)(HScriptWorld script_world);
-        // Called once a frame for the world, dt is local time delta (affected by slo-mo etc)
-        void (*UpdateScriptWorld)(HScriptWorld script_world, float dt);
-        // Called once a frame for the world, dt is local time delta (affected by slo-mo etc)
-        void (*FixedUpdateScriptWorld)(HScriptWorld script_world, float dt);
-        // Called when a script instance has been created
-        void (*InitializeScriptInstance)(HScriptWorld script_world);
-        // Called just before a script instance is deleted
-        void (*FinalizeScriptInstance)(HScriptWorld script_world);
-    };
+    void GetInstanceRaw(lua_State* L);
 
     /**
      * Callback used to resolve paths.
@@ -518,22 +501,15 @@ namespace dmScript
     uint32_t GenerateUniqueScriptId();
 
     /**
-     * Retrieve the Lua traceback from the current context
+     * Write the current Lua traceback to a bounded character buffer. Elided and
+     * truncated frames are identified explicitly in the resulting string.
      * @param lua context
-     * @param infostring determines what fields are valid in the entry (passed to lua_getinfo())
-     * @param cbk the callback which receives calls for each debug entry in the callstack
-     * @param ctx the user data to be passed to the callback
+     * @param header the text written before the traceback entries
+     * @param buffer the buffer to write the traceback to
+     * @param buffer_size the size of the buffer. A non-empty buffer is always
+     *                    null-terminated.
      */
-    void GetLuaTraceback(lua_State* L, const char* infostring, void (*cbk)(lua_State* L, lua_Debug* entry, void* ctx), void* ctx);
-
-    /**
-     * Write a Lua traceback entry to a character buffer
-     * @param entry the Lua traceback entry to write
-     * @param buffer the buffer to write entry to
-     * @param buffer_size the size of the buffer
-     * @return number of bytes written
-     */
-    uint32_t WriteLuaTracebackEntry(lua_Debug* entry, char* buffer, uint32_t buffer_size);
+    void WriteLuaTraceback(lua_State* L, const char* header, char* buffer, uint32_t buffer_size);
 
     /**
      * Retrieve config file handle from the context

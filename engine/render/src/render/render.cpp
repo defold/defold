@@ -141,6 +141,7 @@ namespace dmRender
         context->m_RenderObjects.SetSize(0);
 
         context->m_GraphicsContext = graphics_context;
+        context->m_ConstantBufferCloneCursor = 0;
 
         context->m_SystemFontMap = params.m_SystemFontMap;
 
@@ -216,6 +217,8 @@ namespace dmRender
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
         FinalizeLightData(render_context);
+        for (uint32_t i = 0; i < render_context->m_ConstantBufferClones.Size(); ++i)
+            DeleteNamedConstantBuffer(render_context->m_ConstantBufferClones[i]);
         dmMessage::DeleteSocket(render_context->m_Socket);
         delete render_context;
 
@@ -229,10 +232,29 @@ namespace dmRender
 
     void RenderListBegin(HRenderContext render_context)
     {
+        render_context->m_ConstantBufferCloneCursor = 0;
         render_context->m_RenderList.SetSize(0);
         render_context->m_RenderListSortIndices.SetSize(0);
         render_context->m_RenderListDispatch.SetSize(0);
         render_context->m_RenderListRanges.SetSize(0);
+    }
+
+    HNamedConstantBuffer PushRenderConstants(HRenderContext render_context, HNamedConstantBuffer constant_buffer)
+    {
+        if (!constant_buffer)
+            return 0;
+
+        uint32_t clone_index = render_context->m_ConstantBufferCloneCursor++;
+        if (clone_index == render_context->m_ConstantBufferClones.Size())
+        {
+            if (render_context->m_ConstantBufferClones.Full())
+                render_context->m_ConstantBufferClones.OffsetCapacity(16);
+            render_context->m_ConstantBufferClones.Push(NewNamedConstantBuffer());
+        }
+
+        HNamedConstantBuffer clone = render_context->m_ConstantBufferClones[clone_index];
+        CopyNamedConstantBuffer(clone, constant_buffer);
+        return clone;
     }
 
     HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data)
@@ -379,10 +401,18 @@ namespace dmRender
         UpdateRenderContextMatrices(render_context, render_context->m_View, projection);
     }
 
-    void SetFrameTime(HRenderContext render_context, float time, float dt)
+    void BeginFrame(HRenderContext render_context, float time, float dt)
     {
         render_context->m_Time = time;
         render_context->m_Dt = dt;
+
+        // A frame may contain several render lists, so reset light submissions at
+        // the frame boundary and preserve them across all lists in the frame.
+        if (!render_context->m_LightBufferSubmitted.Empty())
+        {
+            memset(render_context->m_LightBufferSubmitted.Begin(), 0, render_context->m_LightBufferSubmitted.Size());
+        }
+        InvalidateLightBuffer(render_context);
     }
 
     Result AddToRender(HRenderContext context, RenderObject* ro)
@@ -717,6 +747,20 @@ namespace dmRender
         FindRenderListRanges(first, high - first, size - (high - rangefirst), entries, comp, ctx, callback);
     }
 
+    template <typename Compare>
+    static void StableSortRenderListIndices(uint32_t* indices, uint32_t count, const Compare& compare)
+    {
+        // Already sorted lists need neither stable_sort's scratch allocation nor data movement.
+        for (uint32_t i = 1; i < count; ++i)
+        {
+            if (compare(indices[i], indices[i - 1]))
+            {
+                std::stable_sort(indices, indices + count, compare);
+                return;
+            }
+        }
+    }
+
     static void SortRenderList(HRenderContext context)
     {
         DM_PROFILE("SortRenderList");
@@ -728,7 +772,7 @@ namespace dmRender
         {
             RenderListEntrySorter sort;
             sort.m_Base = context->m_RenderList.Begin();
-            std::stable_sort(context->m_RenderListSortIndices.Begin(), context->m_RenderListSortIndices.End(), sort);
+            StableSortRenderListIndices(context->m_RenderListSortIndices.Begin(), context->m_RenderListSortIndices.Size(), sort);
         }
         // Now find the ranges of tag masks
         {
@@ -1018,7 +1062,7 @@ namespace dmRender
                 DM_PROFILE("DrawRenderList_SORT");
                 RenderListSorter sort;
                 sort.values = context->m_RenderListSortValues.Begin();
-                std::stable_sort(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.End(), sort);
+                StableSortRenderListIndices(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.Size(), sort);
             }
         }
 

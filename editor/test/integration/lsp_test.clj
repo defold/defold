@@ -15,21 +15,28 @@
 (ns integration.lsp-test
   (:require [clojure.core.async :as a :refer [<! >!]]
             [clojure.data.json :as json]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
             [editor.code.data :as data]
             [editor.defold-project :as project]
+            [editor.fs :as fs]
             [editor.lsp :as lsp]
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
+            [editor.lsp.project :as lsp.project]
             [editor.lsp.server :as lsp.server]
+            [editor.prefs :as prefs]
+            [editor.system :as system]
             [editor.ui :as ui]
+            [editor.util :as util]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.async-support :as async-support]
             [support.test-support :as test-support]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.path :as path])
   (:import [java.io PipedInputStream PipedOutputStream]))
 
 (set! *warn-on-reflection* true)
@@ -66,7 +73,9 @@
      (try
        ~@forms
        (finally
-         (await-lsp (lsp/get-node-lsp ~'project))))))
+         (let [lsp# (lsp/get-lsp)]
+           (await-lsp lsp#
+             (lsp/set-servers! lsp# #{})))))))
 
 (defn- set-servers! [lsp new-servers]
   (await-lsp lsp
@@ -96,9 +105,9 @@
   (await-lsp lsp
     (workspace/resource-sync! workspace)))
 
-(defn- handler-run! [command lsp project]
+(defn- handler-run! [command lsp]
   (await-lsp lsp
-    (test-util/handler-run command [{:name :global :env {:project-graph (project/graph project)}}] {})))
+    (test-util/handler-run command [{:name :global :env {}}] {})))
 
 (def ^:private undo! (partial handler-run! :edit.undo))
 
@@ -126,6 +135,18 @@
   (await-lsp lsp
     (let [ret (promise)]
       (lsp/rename lsp prepared-range new-name ret)
+      @ret)))
+
+(defn- format-document [lsp resource indent-type]
+  (await-lsp lsp
+    (let [ret (promise)]
+      (lsp/format-document! lsp resource indent-type ret)
+      @ret)))
+
+(defn- format-ranges [lsp resource cursor-ranges indent-type]
+  (await-lsp lsp
+    (let [ret (promise)]
+      (lsp/format-ranges! lsp resource cursor-ranges indent-type ret)
       @ret)))
 
 (defn- await-until [pred]
@@ -161,8 +182,8 @@
             notify-client! (fn notify-client! [method params]
                              (let [message (cond-> {:jsonrpc "2.0"
                                                     :method method}
-                                                   params
-                                                   (assoc :params params))]
+                                             params
+                                             (assoc :params params))]
                                (a/put! base-sink (json/write-str message))))]
         (lsp.jsonrpc/make (fn get-request-method [method]
                             (when-let [f (request-handlers method)]
@@ -194,6 +215,24 @@
 
 (def ^:private foo-json-lines ["{\"asd\": 1}"])
 
+(deftest lua-language-server-only-trusts-bundled-plugin-test
+  (let [trust-action {:title "Trust and load this plugin\n"}
+        reject-action {:title "Don't load this plugin\n"}
+        bundled-plugin-path (str (path/of "/defold"
+                                          "shared"
+                                          "lua-language-server"
+                                          "plugin.lua"))
+        request {:actions [trust-action reject-action]
+                 :message (str "The current settings try to load the plugin at this location:"
+                               bundled-plugin-path
+                               "\n\nNote that malicious plugin may harm your computer\n")}
+        handler #'lsp.server/lua-language-server-show-message-request-handler]
+    (with-redefs [system/defold-unpack-path (constantly "/defold")]
+      (is (= trust-action (handler request)))
+      (is (= trust-action (handler (assoc request :actions [reject-action trust-action]))))
+      (is (nil? (handler (assoc request :actions [reject-action]))))
+      (is (nil? (handler (update request :message string/replace bundled-plugin-path "/tmp/plugin.lua")))))))
+
 (deftest lsp-server-test
   (testing "Initialize + open text document -> should publish diagnostics"
     (with-scratch-project "test/resources/lsp_project"
@@ -201,7 +240,8 @@
             out (a/chan 10)]
         (lsp.server/make
           project
-          (make-test-server-launcher default-handlers)
+          {:languages #{"json"}
+           :launcher (make-test-server-launcher default-handlers)}
           in out
           :on-publish-diagnostics #(apply vector :on-publish-diagnostics %&)
           :on-initialized #(vector :on-initialized %))
@@ -213,7 +253,9 @@
                   :find-references false
                   :document-symbol false
                   :hover false
-                  :rename false}]
+                  :rename false
+                  :formatting false
+                  :range-formatting false}]
                 [:on-publish-diagnostics
                  (test-util/resource workspace "/foo.json")
                  {:items [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
@@ -225,6 +267,217 @@
                    (a/close! in)
                    (<! (a/reduce conj [] out))))))))))
 
+(deftest project-completions-test
+  (with-scratch-project "test/resources/project_lsp_completion_project"
+    (let [lsp (lsp/get-lsp)
+          completion-result!
+          (fn [proj-path line-prefix]
+            (let [resource (test-util/resource workspace proj-path)
+                  lines (g/node-value (project/get-resource-node project resource) :lines)
+                  row (coll/first-index-where #(string/starts-with? % line-prefix) lines)]
+              (assert row (str "Line prefix not found in " proj-path ": " line-prefix))
+              (await-lsp lsp
+                (let [ret (promise)]
+                  (lsp/request-completions!
+                    lsp
+                    resource
+                    (data/->Cursor row (count line-prefix))
+                    {:trigger-kind :invoked}
+                    ret)
+                  @ret))))
+
+          completion-items!
+          (fn [proj-path line-prefix]
+            (:items (completion-result! proj-path line-prefix)))
+
+          completion-labels!
+          (fn [proj-path line-prefix]
+            (coll/into-> (completion-items! proj-path line-prefix) #{}
+              (map :display-string)))
+
+          main-urls #{"/enemy"
+                      "/enemy#enemy-controller"
+                      "/enemy#enemy-visual"
+                      "/level/boss"
+                      "/level/boss#boss-controller"
+                      "/level/boss#boss-visual"
+                      "/level/decoy-id"
+                      "/level/decoy-id#decoy-component"
+                      "/player"
+                      "/player#controller"
+                      "/player#player-visual"
+                      "/readonly"
+                      "/readonly#readonly-controller"}
+          other-urls #{"/other-player"
+                       "/other-player#controller"
+                       "/other-player#player-visual"
+                       "/spectator"
+                       "/spectator#spectator-component"}
+          level-urls #{"/boss"
+                       "/boss#boss-controller"
+                       "/boss#boss-visual"
+                       "/decoy-id"
+                       "/decoy-id#decoy-component"}
+          player-urls (coll/into-> other-urls main-urls)
+          shared-module-urls (coll/into-> level-urls player-urls)]
+      (set-servers! lsp #{(lsp.project/language-server project)})
+
+      (testing "Component ids in scripts"
+        (is (false? (:complete (completion-result! "/scripts/player.script" "local hash_double = \"#"))))
+        (is (= #{"controller" "player-visual"}
+               (completion-labels! "/scripts/player.script" "local hash_double = \"#")))
+        (is (= #{"controller" "player-visual"}
+               (completion-labels! "/scripts/player.script" "local hash_single = '#")))
+        (is (= ["controller" "player-visual"]
+               (mapv :display-string
+                     (completion-items! "/scripts/player.script" "local hash_double = \"#"))))
+        (let [completion (coll/first-where
+                           #(= "player-visual" (:display-string %))
+                           (completion-items! "/scripts/player.script" "local hash_partial = \"#player-v"))]
+          (is (= {:value "player-visual"
+                  :cursor-range (data/->CursorRange (data/->Cursor 19 23) (data/->Cursor 19 31))
+                  :type :plaintext}
+                 (:insert completion))))
+        (is (= #{"controller" "player-visual"}
+               (completion-labels! "/scripts/player.script" "local hash_punctuation = \"#player."))))
+
+      (testing "Absolute urls in scripts"
+        (is (= player-urls
+               (completion-labels! "/scripts/player.script" "local path_double = \"/pla")))
+        (is (= player-urls
+               (completion-labels! "/scripts/player.script" "local path_single = '/pla")))
+        (is (= (coll/into-> (coll/sort util/natural-order player-urls) [])
+               (mapv :display-string
+                     (completion-items! "/scripts/player.script" "local path_double = \"/pla"))))
+        (let [completion (coll/first-where
+                           #(= "/player" (:display-string %))
+                           (completion-items! "/scripts/player.script" "local path_double = \"/pla"))]
+          (is (= {:value "/player"
+                  :cursor-range (data/->CursorRange (data/->Cursor 4 21) (data/->Cursor 4 25))
+                  :type :plaintext}
+                 (:insert completion)))))
+
+      (testing "Socket urls in scripts"
+        (let [socket-urls (coll/into-> player-urls #{}
+                            (map #(str "world:" %)))]
+          (is (= socket-urls
+                 (completion-labels! "/scripts/player.script" "local socket_double = \"world:/pla")))
+          (is (= socket-urls
+                 (completion-labels! "/scripts/player.script" "local socket_single = 'world:/pla")))
+          (is (= socket-urls
+                 (completion-labels! "/scripts/player.script" "local socket_empty_double = \"world:")))
+          (is (= socket-urls
+                 (completion-labels! "/scripts/player.script" "local socket_empty_single = 'world:")))
+          (is (= (coll/into-> (coll/sort util/natural-order socket-urls) [])
+                 (mapv :display-string
+                       (completion-items! "/scripts/player.script" "local socket_double = \"world:/pla"))))
+          (is (= (coll/into-> player-urls #{}
+                   (map #(str "1-world.:" %)))
+                 (completion-labels! "/scripts/player.script" "local socket_punctuation = \"1-world.:"))))
+        (let [completion (coll/first-where
+                           #(= "world:/player" (:display-string %))
+                           (completion-items! "/scripts/player.script" "local socket_double = \"world:/pla"))]
+          (is (= {:value "world:/player"
+                  :cursor-range (data/->CursorRange (data/->Cursor 6 23) (data/->Cursor 6 33))
+                  :type :plaintext}
+                 (:insert completion))))
+        (let [completion (coll/first-where
+                           #(= "world:/player" (:display-string %))
+                           (completion-items! "/scripts/player.script" "local socket_empty_double = \"world:"))]
+          (is (= {:value "world:/player"
+                  :cursor-range (data/->CursorRange (data/->Cursor 8 29) (data/->Cursor 8 35))
+                  :type :plaintext}
+                 (:insert completion)))))
+
+      (testing "Direct and transitive Lua module contexts"
+        (is (= player-urls
+               (completion-labels! "/modules/direct.lua" "local path_double = \"/pla")))
+        (is (= shared-module-urls
+               (completion-labels! "/modules/shared.lua" "local path_double = \"/")))
+        (is (= #{"boss-controller" "boss-visual" "controller" "enemy-controller" "enemy-visual" "player-visual"}
+               (completion-labels! "/modules/shared.lua" "local hash_single = '#")))
+        (is (= #{}
+               (completion-labels! "/modules/unrequired.lua" "local path = \"/"))))
+
+      (testing "Require calls"
+        (is (= #{}
+               (completion-labels! "/scripts/player.script" "local require_double = require(\"/pla")))
+        (is (= #{}
+               (completion-labels! "/scripts/player.script" "local require_single = require '/pla")))
+        (is (= #{}
+               (completion-labels! "/modules/direct.lua" "local require_double = require(\"/pla")))
+        (is (= #{}
+               (completion-labels! "/scripts/player.script" "local require_global = _G.require(\"/pla")))
+        (is (= #{}
+               (completion-labels! "/scripts/player.script" "local require_global_no_parens = _G.require '/pla")))
+        (is (= #{}
+               (completion-labels! "/scripts/player.script" "local divide_after_string = \"5\"/")))
+        (is (= #{}
+               (completion-labels! "/scripts/player.script" "local escaped_quote = \"\\\"/pla"))))
+
+      (testing "Other Lua-backed resource types"
+        (is (= #{}
+               (completion-labels! "/scripts/ignored.gui_script" "local path = \"/pla")))
+        (is (= #{}
+               (completion-labels! "/scripts/ignored.render_script" "local path = \"/pla"))))
+
+      (testing "Stale request position"
+        (doseq [cursor [(data/->Cursor 0 1000)
+                        (data/->Cursor 1000 0)]]
+          (let [ret (promise)]
+            (lsp/request-completions!
+              lsp
+              (test-util/resource workspace "/scripts/player.script")
+              cursor
+              {:trigger-kind :trigger-character
+               :trigger-character "/"}
+              ret)
+            (is (= {:complete false
+                    :items []}
+                   @ret)))))
+
+      (testing "Live require edits"
+        (let [direct-script-node-id (project/get-resource-node project "/modules/direct.lua")]
+          (edit-file! lsp direct-script-node-id
+                      ["local shared = require(\"modules.unrequired\")"
+                       "local path_double = \"/pla\""])
+          (is (= (coll/into-> level-urls main-urls)
+                 (completion-labels! "/modules/shared.lua" "local path_double = \"/")))
+          (is (= player-urls
+                 (completion-labels! "/modules/unrequired.lua" "local path = \"/")))
+
+          (edit-file! lsp direct-script-node-id
+                      ["local shared = require(\"modules.shared\")"
+                       "local path_double = \"/pla\""])
+          (is (= shared-module-urls
+                 (completion-labels! "/modules/shared.lua" "local path_double = \"/")))))
+
+      (testing "Broken unrelated collection does not prevent URL completion"
+        (test-util/write-file-resource! workspace "/broken.collection"
+          {:name "broken"
+           :collection-instances [{:id "missing"
+                                   :collection "/does-not-exist.collection"}]})
+        (resource-sync! lsp workspace)
+        (is (= player-urls
+               (completion-labels! "/scripts/player.script" "local path_double = \"/pla"))))
+
+      (testing "Broken nested collection preserves valid sibling URL completions"
+        (test-util/write-file-resource! workspace "/main/main.collection"
+          {:name "main"
+           :instances [{:id "exclusive"
+                        :prototype "/objects/player.go"}]
+           :collection-instances [{:id "missing"
+                                   :collection "/does-not-exist.collection"}]})
+        (resource-sync! lsp workspace)
+        (let [completion-labels (completion-labels! "/scripts/player.script" "local path_double = \"/pla")]
+          (is (contains? completion-labels "/exclusive"))
+          (is (contains? completion-labels "/exclusive#controller")))
+        (let [build-targets (g/node-value (project/get-resource-node project "/main/main.collection") :build-targets)]
+          (is (g/error? build-targets))
+          (is (coll/any? #(= :file-not-found (get-in % [:user-data :type]))
+                         (coll/into-> [build-targets] []
+                           (coll/tree-xf :causes :causes)))))))))
+
 (g/defnode LSPViewNode
   (property diagnostics g/Any (default []))
   (property document-symbols g/Any (default []))
@@ -235,11 +488,81 @@
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (g/make-node (g/node-id->graph-id app-view) LSPViewNode)))))
+        (g/make-node LSPViewNode)))))
+
+(deftest project-completion-trigger-characters-test
+  (with-scratch-project "test/resources/project_lsp_completion_project"
+    (let [lsp (lsp/get-lsp)
+          view-node (make-lsp-view-node! app-view)
+          resource (test-util/resource workspace "/scripts/player.script")]
+      (set-servers! lsp #{(lsp.project/language-server project)})
+      (open-view! lsp view-node resource (g/node-value (project/get-resource-node project resource) :lines))
+      (is (await= #{"#" "/" ":"} (g/node-value view-node :completion-trigger-characters)))
+      (close-view! lsp view-node))))
+
+;; Verifies that the Lua server preference stops and restarts both servers for open files while preserving project completions.
+(deftest lua-language-server-preference-test
+  (with-scratch-project "test/resources/project_lsp_completion_project"
+    (let [lsp (lsp/get-lsp)
+          preferences (prefs/make :scopes {:global (fs/create-temp-file! "lsp-preferences" ".editor_settings")
+                                           :project (fs/create-temp-file! "lsp-project-preferences" ".editor_settings")}
+                                  :schemas [:default])
+          events (a/chan 10)
+          make-lua-server (fn [extension]
+                            {:languages #{"lua"}
+                             :extensions #{extension}
+                             :launcher (make-test-server-launcher
+                                         {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental
+                                                                                   :hoverProvider true}})
+                                          "initialized" (constantly nil)
+                                          "textDocument/didOpen" (fn [_ _] (a/put! events [:opened extension]))
+                                          "textDocument/hover" (fn [_ _] {:contents {:kind :markdown :value extension}})
+                                          "shutdown" (fn [_ _] (a/put! events [:shutdown extension]) nil)
+                                          "exit" (constantly nil)})})
+          game-resource (test-util/resource workspace "/scripts/player.script")
+          game-lines (g/node-value (project/get-resource-node project game-resource) :lines)
+          editor-node (test-util/make-code-resource-node! project "/test.editor_script" "return {}")
+          editor-resource (g/node-value editor-node :resource)
+          game-view (make-lsp-view-node! app-view)
+          editor-view (make-lsp-view-node! app-view)]
+      (open-view! lsp game-view game-resource game-lines)
+      (open-view! lsp editor-view editor-resource (g/node-value editor-node :lines))
+      (ui/run-now
+        (await-lsp lsp
+          (project/update-language-servers!
+            project preferences
+            {:project-language-server (lsp.project/language-server project)
+             :lua-language-servers #{(make-lua-server "script") (make-lua-server "editor_script")}})))
+
+      (doseq [enabled [true false true]]
+        (testing (str "Lua language servers enabled: " enabled)
+          (prefs/set! preferences [:code :enable-lua-language-server] enabled)
+          (ui/run-now
+            (await-lsp lsp
+              (project/update-language-servers! project preferences {})))
+          (is (= (if enabled
+                   #{[:opened "script"] [:opened "editor_script"]}
+                   #{[:shutdown "script"] [:shutdown "editor_script"]})
+                 (async-support/eventually
+                   (a/go (set [(<! events) (<! events)])))))
+          (is (= (if enabled ["script"] [])
+                 (mapv (comp :value :content) (hover! lsp game-resource (data/->Cursor 0 0)))))
+          (is (= (if enabled ["editor_script"] [])
+                 (mapv (comp :value :content) (hover! lsp editor-resource (data/->Cursor 0 0)))))
+          (is (= #{"controller" "player-visual"}
+                 (await-lsp lsp
+                   (let [result (promise)]
+                     (lsp/request-completions!
+                       lsp game-resource
+                       (data/->Cursor 2 (count "local hash_double = \"#"))
+                       {:trigger-kind :invoked} result)
+                     (into #{} (map :display-string) (:items @result))))))))
+      (close-view! lsp game-view)
+      (close-view! lsp editor-view))))
 
 (deftest start-open-order-test
   (with-scratch-project "test/resources/lsp_project"
-    (let [lsp (lsp/get-node-lsp project)]
+    (let [lsp (lsp/get-lsp)]
       (testing "Start server + open resource -> should receive diagnostics"
         (let [;; set servers
               _ (set-servers! lsp #{{:languages #{"json"}
@@ -275,7 +598,7 @@
                            "shutdown" (constantly nil)
                            "exit" (constantly nil)})]
       (with-scratch-project "test/resources/lsp_project"
-        (let [lsp (lsp/get-node-lsp project)
+        (let [lsp (lsp/get-lsp)
               _ (set-servers!
                   lsp
                   #{{:languages #{"json"}
@@ -313,11 +636,11 @@
   (testing "Modifying resources without any views should make the language servers open the document anyway"
     (with-scratch-project "test/resources/lsp_project"
       (let [server-opened-docs (atom #{})
-            lsp (lsp/get-node-lsp project)
+            lsp (lsp/get-lsp)
             foo-resource (test-util/resource workspace "/foo.json")
             initial-source (slurp foo-resource)
             foo-node (test-util/resource-node project "/foo.json")
-            _ (g/set-graph-value! (project/graph project) ::the-graph ::test)
+            _ (g/set-graph-value! ::the-graph ::test)
             _ (set-servers!
                 lsp
                 #{{:languages #{"json"}
@@ -341,17 +664,17 @@
             _ (is (await= #{} @server-opened-docs))
 
             ;; undo => dirty again
-            _ (undo! lsp project)
+            _ (undo! lsp)
             _ (is (await= #{(lsp.server/resource-uri foo-resource)}
                           @server-opened-docs))
 
             ;; redo => clean again
-            _ (redo! lsp project)
+            _ (redo! lsp)
             _ (is (await= #{} @server-opened-docs))]))))
 
 (deftest open-close-test
   (with-scratch-project "test/resources/lsp_project"
-    (let [lsp (lsp/get-node-lsp project)
+    (let [lsp (lsp/get-lsp)
           server-opened-docs (atom #{})
           handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
                     "initialized" (constantly nil)
@@ -394,7 +717,7 @@
 (deftest resource-changes-test
   (testing "Modify lines -> notify open, rename file -> close + open modified"
     (with-scratch-project "test/resources/lsp_project"
-      (let [lsp (lsp/get-node-lsp project)
+      (let [lsp (lsp/get-lsp)
             server-opened-docs (atom {})
             handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
                       "initialized" (constantly nil)
@@ -427,7 +750,7 @@
         (rename-file! lsp [bar-resource] "foo"))))
   (testing "Open view -> notify open, change on disk + resource sync -> notify changed"
     (with-scratch-project "test/resources/lsp_project"
-      (let [lsp (lsp/get-node-lsp project)
+      (let [lsp (lsp/get-lsp)
             change-notifications (atom [])
             server-opened-docs (atom #{})
             handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
@@ -464,7 +787,7 @@
         (close-view! lsp view-node))))
   (testing "Modify lines -> notify open; delete file + sync -> notify closed"
     (with-scratch-project "test/resources/lsp_project"
-      (let [lsp (lsp/get-node-lsp project)
+      (let [lsp (lsp/get-lsp)
             server-opened-docs (atom #{})
             handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
                       "initialized" (constantly nil)
@@ -497,7 +820,7 @@
       (let [workspace-lint-exit-promise (promise)
             document-lint-exit-promise (promise)
             no-lint-exit-promise (promise)
-            lsp (lsp/get-node-lsp project)
+            lsp (lsp/get-lsp)
             _ (set-servers!
                 lsp
                 #{;; full workspace lint
@@ -561,7 +884,7 @@
     (with-scratch-project "test/resources/lsp_project"
       (let [working-exit-promise (promise)
             broken-exit-promise (promise)
-            lsp (lsp/get-node-lsp project)
+            lsp (lsp/get-lsp)
             _ (set-servers!
                 lsp
                 #{;; working lint
@@ -603,7 +926,7 @@
   (testing "the LSP client only waits up to a timeout"
     (with-scratch-project "test/resources/lsp_project"
       (let [exit-promise (promise)
-            lsp (lsp/get-node-lsp project)
+            lsp (lsp/get-lsp)
             _ (set-servers!
                 lsp
                 #{{:languages #{"json"}
@@ -629,7 +952,7 @@
   (with-scratch-project "test/resources/lsp_project"
     (let [unmatched-promise (promise)
           matched-promise (promise)
-          lsp (lsp/get-node-lsp project)
+          lsp (lsp/get-lsp)
           _ (set-servers! lsp #{;; this server should NOT be asked for hovers
                                 {:languages #{"json"}
                                  :launcher (make-test-server-launcher
@@ -662,7 +985,7 @@
 (deftest content-modified-errors-are-retried-test
   (with-scratch-project "test/resources/lsp_project"
     (let [hover-requests (atom 0)
-          lsp (lsp/get-node-lsp project)
+          lsp (lsp/get-lsp)
           _ (set-servers! lsp #{{:languages #{"json"}
                                  :launcher (make-test-server-launcher
                                              {"initialize" (constantly {:capabilities {:hoverProvider true}})
@@ -684,7 +1007,7 @@
 
 (deftest rename-test
   (with-scratch-project "test/resources/lsp_project"
-    (let [lsp (lsp/get-node-lsp project)
+    (let [lsp (lsp/get-lsp)
           _ (set-servers! lsp #{{:languages #{"json"}
                                  :launcher (make-test-server-launcher
                                              {"initialize" (constantly {:capabilities {:renameProvider {:prepareProvider true}}})
@@ -697,12 +1020,118 @@
                                                                                                                :end (update position :character inc)}
                                                                                                        :newText newName}]}})
                                               "shutdown" (constantly nil)
-                                              "exit" (constantly nil)})}})]
-      (let [resource (test-util/resource workspace "/foo.json")
-            rename-region (await-value=
-                            #code/range[[0 0] [0 1]]
-                            #(prepare-rename lsp resource (data/->Cursor 0 0)))]
-        (is (= #code/range[[0 0] [0 1]] rename-region))
-        (is (await= {resource [[#code/range [[0 0] [0 1]] ["foo"]]]}
-                    (rename lsp rename-region "foo")))
-        (set-servers! lsp #{})))))
+                                              "exit" (constantly nil)})}})
+          resource (test-util/resource workspace "/foo.json")
+          rename-region (await-value=
+                          #code/range[[0 0] [0 1]]
+                          #(prepare-rename lsp resource (data/->Cursor 0 0)))]
+      (is (= #code/range[[0 0] [0 1]] rename-region))
+      (is (await= {resource [[#code/range [[0 0] [0 1]] ["foo"]]]}
+                  (rename lsp rename-region "foo")))
+      (set-servers! lsp #{}))))
+
+(deftest format-document-test
+  (with-scratch-project "test/resources/lsp_project"
+    (let [lsp (lsp/get-lsp)
+          resource (test-util/resource workspace "/foo.json")
+          requested-options (atom nil)
+          make-formatting-server (fn [formatting-handler]
+                                   #{{:languages #{"json"}
+                                      :launcher (make-test-server-launcher
+                                                  {"initialize" (constantly {:capabilities {:documentFormattingProvider true}})
+                                                   "initialized" (constantly nil)
+                                                   "textDocument/formatting" formatting-handler
+                                                   "shutdown" (constantly nil)
+                                                   "exit" (constantly nil)})}})]
+      (testing "the whole-document reply is converted to an editor edit"
+        (set-servers! lsp (make-formatting-server
+                            (fn [{:keys [options]} _]
+                              (reset! requested-options options)
+                              [{:range {:start {:line 0 :character 0}
+                                        :end {:line 1 :character 0}}
+                                :newText "{\n  \"asd\": 1\n}\n"}])))
+        (is (= {:edits [[#code/range [[0 0] [1 0]] ["{" "  \"asd\": 1" "}" ""]]]}
+               (format-document lsp resource :two-spaces)))
+        (testing "using the editor's indentation settings"
+          (is (= {:tabSize 2 :insertSpaces true} @requested-options))
+          (format-document lsp resource :tabs)
+          (is (= {:tabSize 4 :insertSpaces false} @requested-options))
+          (format-document lsp resource :four-spaces)
+          (is (= {:tabSize 4 :insertSpaces true} @requested-options))))
+
+      (testing "a null reply means the document is already formatted"
+        (set-servers! lsp (make-formatting-server (constantly nil)))
+        (is (= {:edits []} (format-document lsp resource :two-spaces))))
+
+      (testing "a server without formatting support is not asked"
+        (set-servers! lsp #{{:languages #{"json"}
+                             :launcher (make-test-server-launcher
+                                         {"initialize" (constantly {:capabilities {}})
+                                          "initialized" (constantly nil)
+                                          "shutdown" (constantly nil)
+                                          "exit" (constantly nil)})}})
+        (is (nil? (format-document lsp resource :two-spaces))))
+
+      (set-servers! lsp #{}))))
+
+(deftest format-ranges-test
+  (with-scratch-project "test/resources/lsp_project"
+    (let [lsp (lsp/get-lsp)
+          resource (test-util/resource workspace "/foo.json")
+          cursor-ranges [#code/range [[0 0] [0 10]]]
+          make-formatting-server (fn [range-formatting-handler]
+                                   {:languages #{"json"}
+                                    :launcher (make-test-server-launcher
+                                                {"initialize" (constantly {:capabilities {:documentRangeFormattingProvider true}})
+                                                 "initialized" (constantly nil)
+                                                 "textDocument/rangeFormatting" range-formatting-handler
+                                                 "shutdown" (constantly nil)
+                                                 "exit" (constantly nil)})})
+          echo-server (fn [new-text]
+                        (make-formatting-server
+                          (fn [{:keys [range]} _]
+                            [{:range range :newText new-text}])))]
+      (testing "the reply is tagged with the range it answers"
+        (set-servers! lsp #{(echo-server "a")})
+        (is (= [{:requested-cursor-range #code/range [[0 0] [0 10]]
+                 :edits [[#code/range [[0 0] [0 10]] ["a"]]]}]
+               (format-ranges lsp resource cursor-ranges :two-spaces))))
+
+      (testing "only one server's reply is used per range"
+        (set-servers! lsp #{(echo-server "a") (echo-server "b")})
+        (let [responses (format-ranges lsp resource cursor-ranges :two-spaces)
+              {:keys [requested-cursor-range edits]} (first responses)]
+          (is (= 1 (count responses)))
+          (is (= #code/range [[0 0] [0 10]] requested-cursor-range))
+          ;; whichever server won, its reply is used whole
+          (is (contains? #{["a"] ["b"]} (second (first edits))))))
+
+      (testing "every range is answered by the same server"
+        ;; a wins the first range but fails the second one, so keeping the first
+        ;; reply per range would pair a's first range with b's second one. Only
+        ;; b answered both, and its replies are the coherent ones.
+        (let [multiple-cursor-ranges [#code/range [[0 0] [0 10]]
+                                      #code/range [[1 0] [1 10]]]
+              a-answered-first-range (promise)
+              first-range? (fn [range] (zero? (long (get-in range [:start :line]))))]
+          (set-servers! lsp #{(make-formatting-server
+                                (fn [{:keys [range]} _]
+                                  (if (first-range? range)
+                                    [{:range range :newText "a"}]
+                                    ;; Requests are answered in order, so the
+                                    ;; first range is on its way by now
+                                    (do (deliver a-answered-first-range true)
+                                        (throw (ex-info "cannot format range" {}))))))
+                              (make-formatting-server
+                                (fn [{:keys [range]} _]
+                                  (when (first-range? range)
+                                    ;; Let a answer the first range first, or
+                                    ;; there is no mixed reply to rule out.
+                                    ;; Time out rather than hang the suite.
+                                    (deref a-answered-first-range 5000 nil))
+                                  [{:range range :newText "b"}]))})
+          (let [responses (format-ranges lsp resource multiple-cursor-ranges :two-spaces)]
+            (is (= multiple-cursor-ranges (mapv :requested-cursor-range responses)))
+            (is (= [["b"] ["b"]] (mapv #(-> % :edits first second) responses))))))
+
+      (set-servers! lsp #{}))))

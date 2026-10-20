@@ -17,6 +17,8 @@
 
 #include <string.h>
 #include <stdlib.h> // free
+#include <stdint.h>
+#include <stdio.h>
 
 #include <dmsdk/dlib/sys.h>
 
@@ -67,9 +69,10 @@ namespace dmSys
         char m_ApiVersion[32];
         /// ISO 639 language code
         char m_Language[8];
-        /// ISO 639 device language code and optional dash (–) followed by an ISO 15924 script code. Reflects UI language and typically same as m_Language.
+        /// ISO 639 language code and optional, explicitly reported ISO 15924 script code.
+        /// Reflects UI language and is typically the same as m_Language.
         char m_DeviceLanguage[16];
-        ///  ISO 3166 country code
+        /// ISO 3166-1 alpha-2 country code or UN M.49 numeric region code
         char m_Territory[8];
         /// Offset to GMT in minutes
         int  m_GmtOffset;
@@ -162,6 +165,22 @@ namespace dmSys
      * @return RESULT_OK on success
      */
     Result IterateTree(const char* path, bool recursive, bool call_before, void* ctx, void (*callback)(void* ctx, const char* path, bool isdir));
+
+    /**
+     * Open a file for binary reading using the platform's large-file API.
+     * The returned file handle must be closed with fclose().
+     * @param path path to the file
+     * @return file handle, or 0 on failure
+     */
+    FILE* FileOpen64(const char* path);
+
+    /**
+     * Seek to an absolute offset using the platform's large-file API.
+     * @param file file handle
+     * @param offset absolute byte offset
+     * @return 0 on success, non-zero on failure
+     */
+    int FileSeek64(FILE* file, uint64_t offset);
 
     /**
      * Given a path, resolves the path to the path that is first found, given the current file mounts

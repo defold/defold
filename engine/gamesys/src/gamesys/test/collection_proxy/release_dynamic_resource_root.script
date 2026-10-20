@@ -1,0 +1,19 @@
+issue_13002_proxy_unloaded = false
+
+function init(self)
+    msg.post("#collectionproxy", "load")
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("proxy_loaded") then
+        msg.post("#collectionproxy", "init")
+        msg.post("#collectionproxy", "enable")
+    elseif message_id == hash("dynamic_resource_created") then
+        -- The resource belongs to the proxy collection, but resource.release()
+        -- removes its bookkeeping entry from this calling collection.
+        resource.release(message.resource)
+        msg.post("#collectionproxy", "unload")
+    elseif message_id == hash("proxy_unloaded") then
+        issue_13002_proxy_unloaded = true
+    end
+end

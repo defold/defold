@@ -31,7 +31,6 @@ namespace dmInput
     struct KeyboardBinding
     {
         dmHID::HKeyboard      m_Keyboard;
-        dmHID::KeyboardPacket m_PreviousPacket;
         dmHID::KeyboardPacket m_Packet;
         dmArray<KeyTrigger> m_Triggers;
     };
@@ -99,8 +98,7 @@ namespace dmInput
 
     struct AccelerationBinding
     {
-        dmHID::AccelerationPacket m_PreviousPacket;
-        dmHID::AccelerationPacket m_Packet;
+        Action m_Action;
     };
 
     struct Binding

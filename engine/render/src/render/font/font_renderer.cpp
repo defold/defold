@@ -13,15 +13,14 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>                 // for assert
-#include <string.h>                 // for memcpy
 #include <float.h>                  // for FLT_MAX
+#include <stdint.h>                 // for UINT32_MAX, uint64_t
+#include <string.h>                 // for memcpy
 
-#include <dlib/memory.h>            // for dmMemory
-#include <dlib/hashtable.h>         // for dmHashTable32
 #include <dlib/log.h>               // for dmLogError, dmLogOnceError, dmLog...
+#include <dlib/memory.h>            // for dmMemory
 #include <dlib/profile.h>           // for DM_PROFILE, DM_PROPERTY_*
 #include <dlib/math.h>              // for dmMath::Max
-#include <dlib/zlib.h>              // for InflateBuffer
 #include <dmsdk/dlib/intersection.h>// for dmIntersection
 
 #include <graphics/graphics.h>      // for TextureParams, TextureFilter, Tex...
@@ -31,10 +30,14 @@
 #include "fontmap_private.h"
 #include "font_renderer_private.h"  // for FontMap, RenderLayerMask
 
-#include "font_renderer.h"       // for FontGlyphCompression
-#include "font_renderer_api.h"   // for the font renderer backend api
+#include "font_renderer.h"          // for FontGlyphCompression
+#include "default/font_default_vertex.h"
 
 #include <dmsdk/font/text_layout.h>
+#include <font/font.h>
+#include <font_render.h>
+#include <font/render/glyph_vertex.h>
+#include <font/render/layout_vertex.h>
 #include <font/text_layout.h>
 
 DM_PROPERTY_EXTERN(rmtp_Render);
@@ -44,6 +47,47 @@ DM_PROPERTY_U32(rmtp_FontVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of v
 namespace dmRender
 {
     using namespace dmVMath;
+
+    static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
+    static const dmhash_t FONT_EFFECTS_HASH = dmHashString64("font_effects");
+
+    static CacheGlyph* GetDecorationCacheGlyph(HFontMap font_map, uint32_t frame)
+    {
+        static uint8_t decoration_pixels[4][4] = {
+            { 255, 0, 0, 0 }, { 255, 255, 0, 0 }, { 255, 255, 255, 0 }, { 255, 255, 255, 255 }
+        };
+        static FontGlyph decoration_glyphs[4] = {};
+        const uint32_t channel_index = dmMath::Clamp((uint32_t)font_map->m_CacheChannels, 1U, 4U) - 1;
+        FontGlyph& glyph = decoration_glyphs[channel_index];
+
+        if (glyph.m_Bitmap.m_Data == 0)
+        {
+            glyph.m_Bitmap.m_Data = decoration_pixels[channel_index];
+            glyph.m_Bitmap.m_DataSize = channel_index + 1;
+            glyph.m_Bitmap.m_Width = 1;
+            glyph.m_Bitmap.m_Height = 1;
+            glyph.m_Bitmap.m_Channels = channel_index + 1;
+            glyph.m_Width = glyph.m_Height = glyph.m_Advance = glyph.m_Ascent = 1.0f;
+        }
+
+        const uint64_t key = 0xfffffffffffffff0ULL | (channel_index + 1);
+        CacheGlyph* cached = GetFromCache(font_map, key, frame);
+
+        return cached ? cached : AddGlyphToCache(font_map, frame, key, &glyph, 0);
+    }
+
+    static uint32_t GetDecorationQuadCount(HTextLayout layout)
+    {
+        const TextDecoration* decorations = TextLayoutGetDecorations(layout);
+        uint32_t count = 0;
+
+        for (uint32_t i = 0; i < TextLayoutGetDecorationCount(layout); ++i)
+        {
+            count += FontGetDecorationQuadCount(layout, decorations[i]);
+        }
+
+        return count;
+    }
 
     static void ReleaseTextEntries(TextContext& text_context)
     {
@@ -60,32 +104,31 @@ namespace dmRender
 
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters, uint32_t max_batches)
     {
-        // TODO: Why does the vertex need to be 16-byte aligned?
-        //DM_STATIC_ASSERT(GetFontVertexSize() % 16 == 0, Invalid_Struct_Size);
-
         DM_STATIC_ASSERT( MAX_FONT_RENDER_CONSTANTS == MAX_TEXT_RENDER_CONSTANTS, Constant_Arrays_Must_Have_Same_Size );
 
         TextContext& text_context = render_context->m_TextContext;
 
-        text_context.m_FontRenderBackend = CreateFontRenderBackend();
-
-        text_context.m_MaxVertexCount = max_characters * 6; // 6 vertices per character
-        uint32_t buffer_size = GetFontVertexSize(text_context.m_FontRenderBackend) * text_context.m_MaxVertexCount;
-        text_context.m_ClientBuffer = 0x0;
+        const uint32_t vertex_size = sizeof(FontDefaultVertex);
+        const uint64_t requested_vertex_count = (uint64_t)max_characters * 6;
+        const uint32_t max_vertex_count = UINT32_MAX / vertex_size;
+        text_context.m_MaxVertexCount = requested_vertex_count <= max_vertex_count ? (uint32_t)requested_vertex_count : max_vertex_count;
+        const uint32_t buffer_size = vertex_size * text_context.m_MaxVertexCount;
+        text_context.m_ClientBuffer = 0;
         text_context.m_VertexIndex = 0;
         text_context.m_VerticesFlushed = 0;
         text_context.m_Frame = 0;
         text_context.m_PreviousFrame = ~0;
         text_context.m_TextEntriesFlushed = 0;
 
-        dmMemory::Result r = dmMemory::AlignedMalloc((void**)&text_context.m_ClientBuffer, 16, buffer_size);
-        if (r != dmMemory::RESULT_OK) {
-            dmLogError("Could not allocate text vertex buffer of size %u (%d).", buffer_size, r);
+        dmMemory::Result result = dmMemory::AlignedMalloc(&text_context.m_ClientBuffer, 16, buffer_size);
+        if (result != dmMemory::RESULT_OK)
+        {
+            dmLogError("Could not allocate text vertex buffer of size %u (%d).", buffer_size, result);
             return;
         }
 
-        text_context.m_VertexDecl = CreateVertexDeclaration(text_context.m_FontRenderBackend, render_context->m_GraphicsContext);
-        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        text_context.m_VertexDecl = CreateFontVertexDeclaration(render_context->m_GraphicsContext);
+        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         text_context.m_ConstantBuffers.SetCapacity(max_batches); // 1:1 index mapping with render object
         text_context.m_RenderObjects.SetCapacity(max_batches);
@@ -121,8 +164,6 @@ namespace dmRender
         dmMemory::AlignedFree(text_context.m_ClientBuffer);
         dmGraphics::DeleteVertexBuffer(text_context.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
-
-        DestroyFontRenderBackend(text_context.m_FontRenderBackend);
     }
 
     void ClearTextEntries(HRenderContext render_context)
@@ -148,6 +189,7 @@ namespace dmRender
     , m_Height(0)
     , m_Leading(1.0f)
     , m_Tracking(0.0f)
+    , m_FontSize(0.0f)
     , m_LineBreak(false)
     , m_Align(TEXT_ALIGN_LEFT)
     , m_VAlign(TEXT_VALIGN_TOP)
@@ -157,6 +199,10 @@ namespace dmRender
     }
 
     static dmhash_t g_TextureSizeRecipHash = dmHashString64("texture_size_recip");
+    static dmhash_t g_ViewportHash = dmHashString64("viewport");
+    static dmhash_t g_CurveTextureHash = dmHashString64("curve_texture");
+    static dmhash_t g_CurveTextureSizeHash = dmHashString64("curve_texture_size");
+    static dmhash_t g_TextureSamplerHash = dmHashString64("texture_sampler");
 
     static float CalcSdfScale(const Matrix4& view_proj, float half_w, float half_h, const Matrix4& world_transform)
     {
@@ -209,13 +255,15 @@ namespace dmRender
         return dmMath::Max(local_scale, min_sdf_scale);
     }
 
-    static dmVMath::Point3 CalcCenterPoint(HFontMap font_map, const TextEntry& te, const TextMetrics& metrics) {
+    static dmVMath::Point3 CalcCenterPoint(const TextEntry& te, const TextMetrics& metrics)
+    {
         float x_offset = OffsetX(te.m_Align, te.m_Width);
-        float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, metrics.m_LineCount);
+        float layout_y = OffsetLayoutY(te.m_VAlign, te.m_Height, metrics.m_Height);
 
         // find X,Y local coordinate of text center
         float center_x = x_offset; // start from the X position of the pivot point
-        switch (te.m_Align) {
+        switch (te.m_Align)
+        {
             case TEXT_ALIGN_LEFT:
                 center_x += metrics.m_Width/2; // move halfway to the right since we're aligning left
             break;
@@ -224,7 +272,7 @@ namespace dmRender
             break;
             // nothing to do for TEXT_ALIGN_CENTER. Pivot is already at the center of the text X-wise
         }
-        float center_y = y_offset + font_map->m_MaxAscent - metrics.m_Height/2; // 'y_offset' to move to the baseline of first letter in text. +'MaAscent' to get to the top of the text. -layout_height to get to the center.
+        float center_y = layout_y + metrics.m_Height * 0.5f;
 
         dmVMath::Point3 center_point(center_x, center_y, 0); // fix at Z 0
         return center_point;
@@ -238,7 +286,8 @@ namespace dmRender
         HTextLayout text_layout = params.m_TextLayout;
         const char* text = params.m_Text ? params.m_Text : "";
 
-        if (text_context->m_TextEntries.Full()) {
+        if (text_context->m_TextEntries.Full())
+        {
             dmLogWarning("Out of text-render entries: %u", text_context->m_TextEntries.Capacity());
             return;
         }
@@ -251,10 +300,12 @@ namespace dmRender
             dmHashInit64(&key_state, false);
             dmHashUpdateBuffer64(&key_state, &font_map, sizeof(font_map));
             dmHashUpdateBuffer64(&key_state, &params.m_RenderOrder, sizeof(params.m_RenderOrder));
-            if (params.m_StencilTestParamsSet) {
+            if (params.m_StencilTestParamsSet)
+            {
                 dmHashUpdateBuffer64(&key_state, &params.m_StencilTestParams, sizeof(params.m_StencilTestParams));
             }
-            if (material) {
+            if (material)
+            {
                 dmHashUpdateBuffer64(&key_state, &material, sizeof(material));
             }
             batch_key = dmHashFinal64(&key_state);
@@ -265,7 +316,8 @@ namespace dmRender
         {
             uint32_t text_len = strlen(text);
             offset = text_context->m_TextBuffer.Size();
-            if (text_context->m_TextBuffer.Capacity() < (offset + text_len + 1)) {
+            if (text_context->m_TextBuffer.Capacity() < (offset + text_len + 1))
+            {
                 dmLogWarning("Out of text-render buffer %u. Modify the graphics.max_characters in game.project.", text_context->m_TextBuffer.Capacity());
                 return;
             }
@@ -290,13 +342,16 @@ namespace dmRender
         te.m_Tail = -1;
 
         te.m_FaceColor = dmGraphics::PackRGBA(Vector4(params.m_FaceColor.getXYZ(), params.m_FaceColor.getW() * font_map->m_Alpha));
-        te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(params.m_OutlineColor.getXYZ(), params.m_OutlineColor.getW() * font_map->m_OutlineAlpha));
-        te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(params.m_ShadowColor.getXYZ(), params.m_ShadowColor.getW() * font_map->m_ShadowAlpha));
+        te.m_OutlineAlpha = params.m_OutlineColor.getW() * (text_layout && text_layout->m_UseRichText ? 1.0f : font_map->m_OutlineAlpha);
+        te.m_ShadowAlpha = params.m_ShadowColor.getW();
+        te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(params.m_OutlineColor.getXYZ(), 1.0f));
+        te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(params.m_ShadowColor.getXYZ(), 1.0f));
         te.m_RenderOrder = params.m_RenderOrder;
         te.m_Width = params.m_Width;
         te.m_Height = params.m_Height;
         te.m_Leading = params.m_Leading;
         te.m_Tracking = params.m_Tracking;
+        te.m_FontSize = params.m_FontSize > 0.0f ? params.m_FontSize : GetFontMapSize(font_map);
         te.m_LineBreak = params.m_LineBreak;
         te.m_Align = params.m_Align;
         te.m_VAlign = params.m_VAlign;
@@ -305,12 +360,12 @@ namespace dmRender
         te.m_SourceBlendFactor = params.m_SourceBlendFactor;
         te.m_DestinationBlendFactor = params.m_DestinationBlendFactor;
 
-        TextLayoutSettings settings;
+        TextLayoutSettings settings = {};
         settings.m_Width = params.m_Width;
         settings.m_LineBreak = params.m_LineBreak;
         settings.m_Leading = params.m_Leading;
         settings.m_Tracking = params.m_Tracking;
-        settings.m_Size = dmRender::GetFontMapSize(font_map);
+        settings.m_Size = te.m_FontSize;
         // legacy options for glyph bank fonts
         settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
         settings.m_Padding = dmRender::GetFontMapPadding(font_map);
@@ -323,12 +378,12 @@ namespace dmRender
         }
         else
         {
-            GetTextMetrics(text_context->m_FontRenderBackend, font_map, text, &settings, &metrics);
+            GetTextMetrics(font_map, text, &settings, &metrics);
         }
 
         // find center and radius for frustum culling
         // TODO: Calculate proper AABB
-        dmVMath::Point3 centerpoint_local = CalcCenterPoint(font_map, te, metrics);
+        dmVMath::Point3 centerpoint_local = CalcCenterPoint(te, metrics);
         dmVMath::Point3 cornerpoint_local(centerpoint_local.getX() + metrics.m_Width/2, centerpoint_local.getY() + metrics.m_Height/2, centerpoint_local.getZ());
         dmVMath::Vector4 centerpoint_world = te.m_Transform * centerpoint_local; // transform to world coordinates
         dmVMath::Vector4 cornerpoint_world = te.m_Transform * cornerpoint_local;
@@ -336,12 +391,170 @@ namespace dmRender
         te.m_FrustumCullingRadiusSq = dmVMath::LengthSqr(cornerpoint_world - centerpoint_world);
         te.m_FrustumCullingCenter = dmVMath::Point3(centerpoint_world.getXYZ());
 
-
         assert( params.m_NumRenderConstants <= dmRender::MAX_FONT_RENDER_CONSTANTS );
         te.m_NumRenderConstants = params.m_NumRenderConstants;
         memcpy( te.m_RenderConstants, params.m_RenderConstants, params.m_NumRenderConstants * sizeof(dmRender::HConstant));
 
         text_context->m_TextEntries.Push(te);
+    }
+
+    struct LayoutGlyphContext
+    {
+        HFontMap m_FontMap;
+        uint32_t m_Frame;
+    };
+
+    static bool ResolveLayoutGlyph(void* context, const TextGlyph& text_glyph, FontLayoutCachedGlyph* output)
+    {
+        LayoutGlyphContext* glyph_context = (LayoutGlyphContext*)context;
+        uint32_t glyph_index = text_glyph.m_GlyphIndex;
+        FontGlyph* glyph = 0;
+        FontResult result = dmRender::GetOrCreateGlyphByIndex(glyph_context->m_FontMap, text_glyph.m_Font, glyph_index, &glyph);
+
+        if (result != FONT_RESULT_OK)
+        {
+            glyph_index = FontGetGlyphIndex(text_glyph.m_Font, FALLBACK_CODEPOINT);
+            result = dmRender::GetOrCreateGlyphByIndex(glyph_context->m_FontMap, text_glyph.m_Font, glyph_index, &glyph);
+        }
+
+        if (result != FONT_RESULT_OK || !glyph || glyph->m_Bitmap.m_Width == 0)
+        {
+            output->m_Glyph = 0;
+            output->m_CellX = 0;
+            output->m_CellY = 0;
+
+            return true;
+        }
+
+        const uint64_t glyph_key = dmRender::MakeGlyphIndexKey(text_glyph.m_Font, glyph_index);
+        CacheGlyph* cached = GetFromCache(glyph_context->m_FontMap, glyph_key, glyph_context->m_Frame);
+
+        if (!cached)
+        {
+            const int32_t cell_offset_y = glyph_context->m_FontMap->m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
+            cached = AddGlyphToCache(glyph_context->m_FontMap, glyph_context->m_Frame, glyph_key, glyph, cell_offset_y);
+        }
+
+        output->m_Glyph = glyph;
+        output->m_CellX = cached ? cached->m_X : 0;
+        output->m_CellY = cached ? cached->m_Y : 0;
+
+        return true;
+    }
+
+    static uint32_t ResolveLayoutEffect(void* context, const FontEffectRecord& record)
+    {
+        LayoutGlyphContext* glyph_context = (LayoutGlyphContext*)context;
+        return FontCacheEffect(glyph_context->m_FontMap->m_EffectCache, record, glyph_context->m_Frame);
+    }
+
+    static uint32_t CreateFontVertexDataFromTextLayout(HFontMap font_map, uint32_t frame, HTextLayout layout, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, FontGlyphVertex* vertices, uint32_t max_vertices)
+    {
+        assert(layout->m_FontCollection == GetFontCollection(font_map));
+        TextLayoutRefreshObjectStyles(layout);
+
+        const Vector4 face_color = dmGraphics::UnpackRGBA(te.m_FaceColor);
+        LayoutGlyphContext glyph_context = { font_map, frame };
+        CacheGlyph* decoration_cache = GetDecorationQuadCount(layout) > 0 ? GetDecorationCacheGlyph(font_map, frame) : 0;
+
+        FontLayoutVertexConfig config = {};
+        config.m_Layout = layout;
+        config.m_ResolveGlyph = ResolveLayoutGlyph;
+        config.m_ResolveGlyphContext = &glyph_context;
+        if (te.m_Material && GetMaterialSamplerUnit(te.m_Material, FONT_EFFECTS_HASH) != INVALID_SAMPLER_UNIT)
+        {
+            if (!font_map->m_EffectCache)
+            {
+                font_map->m_EffectCache = FontCreateEffectCache(font_map->m_GraphicsContext);
+            }
+            config.m_ResolveEffect = ResolveLayoutEffect;
+            config.m_ResolveEffectContext = &glyph_context;
+        }
+        config.m_Transform = te.m_Transform;
+        config.m_OutlineColor = dmGraphics::UnpackRGBA(te.m_OutlineColor);
+        config.m_ShadowColor = dmGraphics::UnpackRGBA(te.m_ShadowColor);
+        config.m_OutlineColor.setW(te.m_OutlineAlpha);
+        config.m_ShadowColor.setW(te.m_ShadowAlpha);
+        config.m_FaceColor[0] = face_color.getX();
+        config.m_FaceColor[1] = face_color.getY();
+        config.m_FaceColor[2] = face_color.getZ();
+        config.m_FaceColor[3] = face_color.getW();
+        config.m_Width = te.m_Width;
+        config.m_Height = te.m_Height;
+        config.m_RecipAtlasWidth = recip_w;
+        config.m_RecipAtlasHeight = recip_h;
+        config.m_DecorationU = decoration_cache ? (decoration_cache->m_X + 0.5f) * recip_w : 0.0f;
+        config.m_DecorationV = decoration_cache ? (decoration_cache->m_Y + 0.5f) * recip_h : 0.0f;
+        config.m_SdfEdge = 0.75f;
+        config.m_SdfOutline = font_map->m_SdfOutline;
+        config.m_SdfSmoothing = FONT_SDF_DISTANCE_SCALE / (font_map->m_SdfSpread * sdf_scale);
+        config.m_SdfShadow = font_map->m_SdfShadow;
+        config.m_SdfSpread = font_map->m_SdfSpread;
+        config.m_OutlineWidth = font_map->m_OutlineWidth;
+        config.m_ShadowX = font_map->m_ShadowX;
+        config.m_ShadowY = font_map->m_ShadowY;
+        config.m_ShadowBlur = font_map->m_ShadowBlur;
+        config.m_BaseShadowAlpha = font_map->m_ShadowAlpha;
+        config.m_MonospacePadding = font_map->m_IsMonospaced ? font_map->m_Padding : 0.0f;
+        config.m_CacheCellMaxAscent = font_map->m_CacheCellMaxAscent;
+        config.m_CacheCellPadding = font_map->m_CacheCellPadding;
+        config.m_MaxVertexCount = max_vertices;
+        config.m_Align = te.m_Align;
+        config.m_VerticalAlign = te.m_VAlign;
+        config.m_BaseLayerMask = font_map->m_LayerMask;
+        config.m_MetricsFromTtf = font_map->m_IsDynamic;
+        config.m_IsSdf = font_map->m_IsSdf;
+        // Authored BMFont atlases are RGBA and use a shader without separate outline or shadow layers.
+        config.m_IsBMFont = !font_map->m_IsSdf && font_map->m_CacheChannels == 4;
+        config.m_ShadowUsesFaceCoverage = !font_map->m_IsSdf && !config.m_IsBMFont && font_map->m_CacheChannels == 1;
+        config.m_ShadowIncludesOutline = !font_map->m_IsSdf && !config.m_IsBMFont &&
+                                         font_map->m_CacheChannels == 3 && font_map->m_OutlineWidth > 0.0f &&
+                                         font_map->m_OutlineAlpha > 0.0f &&
+                                         (font_map->m_ShadowAlpha > 0.0f || font_map->m_ShadowBlur > 0.0f);
+        config.m_RenderDecorations = decoration_cache != 0;
+        config.m_RenderObjectOutlines = false;
+        config.m_ResolveGlyphsForMetrics = false;
+
+        FontLayoutVertexMetrics metrics;
+
+        if (!FontGetLayoutVertexMetrics(config, &metrics))
+        {
+            dmLogError("Encountered invalid layer mask when rendering font!");
+
+            return 0;
+        }
+        if (metrics.m_Truncated)
+        {
+            dmLogWarning("Character buffer exceeded (size: %u), increase the \"graphics.max_characters\" property in your game.project file.", max_vertices / 6);
+        }
+
+        return FontCreateLayoutVertices(config, metrics, vertices, max_vertices);
+    }
+
+    uint32_t CreateFontVertexData(HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, FontGlyphVertex* vertices, uint32_t max_vertices)
+    {
+        DM_PROFILE(__FUNCTION__);
+        if (te.m_TextLayout)
+            return CreateFontVertexDataFromTextLayout(font_map, frame, te.m_TextLayout, te, sdf_scale, recip_w, recip_h, vertices, max_vertices);
+
+        dmArray<uint32_t> codepoints;
+        TextToCodePoints(text, codepoints);
+        TextLayoutSettings layout_settings = {};
+        layout_settings.m_Size = dmRender::GetFontMapSize(font_map);
+        layout_settings.m_LineBreak = te.m_LineBreak;
+        layout_settings.m_Width = te.m_Width;
+        layout_settings.m_Tracking = te.m_Tracking;
+        layout_settings.m_Leading = te.m_Leading;
+        layout_settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+        layout_settings.m_Padding = dmRender::GetFontMapPadding(font_map);
+
+        HTextLayout layout = 0;
+        const TextResult result = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), &layout_settings, &layout);
+        if (result != TEXT_RESULT_OK)
+            return 0;
+        const uint32_t vertex_count = CreateFontVertexDataFromTextLayout(font_map, frame, layout, te, sdf_scale, recip_w, recip_h, vertices, max_vertices);
+        TextLayoutRelease(layout);
+        return vertex_count;
     }
 
     static void CreateFontRenderBatch(HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
@@ -352,6 +565,15 @@ namespace dmRender
         const TextEntry& first_te = *(TextEntry*) buf[*begin].m_UserData;
 
         HFontMap font_map = first_te.m_FontMap;
+        if (!font_map->m_IsVector)
+            UpdateCacheTexture(font_map);
+        HMaterial material = first_te.m_Material;
+        if (!material)
+        {
+            dmLogError("Cannot render font batch without a material.");
+            return;
+        }
+
         float im_recip = 1.0f;
         float ih_recip = 1.0f;
         float cache_cell_width_ratio  = 0.0;
@@ -370,10 +592,11 @@ namespace dmRender
             cache_cell_height_ratio = ((float) font_map->m_CacheCellHeight) / cache_height;
         }
 
-        uint32_t vertex_stride = GetFontVertexSize(text_context.m_FontRenderBackend);
+        const uint32_t vertex_stride = sizeof(FontDefaultVertex);
         uint8_t* vertices = (uint8_t*)text_context.m_ClientBuffer;
 
-        if (text_context.m_RenderObjectIndex >= text_context.m_RenderObjects.Size()) {
+        if (text_context.m_RenderObjectIndex >= text_context.m_RenderObjects.Size())
+        {
             dmLogWarning("Fontrenderer: Render object count reached limit (%d). Increase the capacity with graphics.max_font_batches", text_context.m_RenderObjectIndex);
             return;
         }
@@ -385,22 +608,68 @@ namespace dmRender
         ro->m_SourceBlendFactor = first_te.m_SourceBlendFactor;
         ro->m_DestinationBlendFactor = first_te.m_DestinationBlendFactor;
         ro->m_SetBlendFactors = 1;
-        ro->m_Material = first_te.m_Material;
-        ro->m_Textures[0] = font_map->m_Texture;
+        ro->m_Material = material;
+        memset(ro->m_Textures, 0, sizeof(ro->m_Textures));
+        uint32_t curve_unit = dmRender::GetMaterialSamplerUnit(material, g_CurveTextureHash);
+        uint32_t band_unit = dmRender::GetMaterialSamplerUnit(material, dmHashString64("band_texture"));
+        if (band_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_IsVector)
+            ro->m_Textures[band_unit] = font_map->m_VectorBandTexture;
+        uint32_t bitmap_unit = dmRender::GetMaterialSamplerUnit(material, dmHashString64("effect_bitmap"));
+        if (bitmap_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_VectorBitmapEffects)
+            ro->m_Textures[bitmap_unit] = font_map->m_VectorSdfTexture;
+        uint32_t texture_unit = dmRender::GetMaterialSamplerUnit(material, g_TextureSamplerHash);
+        if (curve_unit != dmRender::INVALID_SAMPLER_UNIT)
+            ro->m_Textures[curve_unit] = font_map->m_Texture;
+        else if (texture_unit != dmRender::INVALID_SAMPLER_UNIT)
+            ro->m_Textures[texture_unit] = font_map->m_Texture;
+        else
+            ro->m_Textures[0] = font_map->m_Texture;
+        const uint32_t effect_unit = GetMaterialSamplerUnit(material, FONT_EFFECTS_HASH);
+        if (effect_unit != INVALID_SAMPLER_UNIT)
+        {
+            if (!font_map->m_EffectCache)
+            {
+                font_map->m_EffectCache = FontCreateEffectCache(font_map->m_GraphicsContext);
+            }
+            ro->m_Textures[effect_unit] = FontGetEffectTexture(font_map->m_EffectCache);
+        }
+        ro->m_VertexBuffer = text_context.m_VertexBuffer;
+        ro->m_VertexDeclaration = text_context.m_VertexDecl;
+        ro->m_VertexBufferOffsets[0] = 0;
         ro->m_VertexStart = text_context.m_VertexIndex;
         ro->m_StencilTestParams = first_te.m_StencilTestParams;
         ro->m_SetStencilTest = first_te.m_StencilTestParamsSet;
 
         Vector4 texture_size_recip(im_recip, ih_recip, cache_cell_width_ratio, cache_cell_height_ratio);
+        Vector4 curve_texture_size(0.0f, 0.0f, 0.0f, 0.0f);
+        Vector4 viewport(0.0f, 0.0f, 0.0f, 0.0f);
+
+        dmGraphics::HContext gc = GetGraphicsContext(render_context);
+        if (curve_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_Texture)
+        {
+            float width = (float)dmGraphics::GetTextureWidth(gc, font_map->m_Texture);
+            float height = (float)dmGraphics::GetTextureHeight(gc, font_map->m_Texture);
+            curve_texture_size = Vector4(width, height, 1.0f / width, 1.0f / height);
+        }
+        int32_t vp_x = 0;
+        int32_t vp_y = 0;
+        uint32_t vp_w = 0;
+        uint32_t vp_h = 0;
+        dmGraphics::GetViewport(gc, &vp_x, &vp_y, &vp_w, &vp_h);
+        (void)vp_x;
+        (void)vp_y;
+        if (vp_w != 0 && vp_h != 0)
+        {
+            viewport = Vector4((float)vp_w, (float)vp_h, 1.0f / (float)vp_w, 1.0f / (float)vp_h);
+        }
 
         dmRender::ClearNamedConstantBuffer(constants_buffer);
         dmRender::SetNamedConstants(constants_buffer, (HConstant*)first_te.m_RenderConstants, first_te.m_NumRenderConstants);
         dmRender::SetNamedConstant(constants_buffer, g_TextureSizeRecipHash, &texture_size_recip, 1);
+        dmRender::SetNamedConstant(constants_buffer, g_ViewportHash, &viewport, 1);
+        dmRender::SetNamedConstant(constants_buffer, g_CurveTextureSizeHash, &curve_texture_size, 1);
 
         ro->m_ConstantBuffer = constants_buffer;
-
-        // The cache size may have changed, and we need to update the font map glyph texture
-        UpdateCacheTexture(font_map);
 
         bool calc_sdf_scale = font_map->m_IsSdf;
         Matrix4 sdf_view_proj;
@@ -408,15 +677,6 @@ namespace dmRender
         float sdf_half_h = 0.0f;
         if (calc_sdf_scale)
         {
-            dmGraphics::HContext gc = GetGraphicsContext(render_context);
-            int32_t vp_x = 0;
-            int32_t vp_y = 0;
-            uint32_t vp_w = 0;
-            uint32_t vp_h = 0;
-            dmGraphics::GetViewport(gc, &vp_x, &vp_y, &vp_w, &vp_h);
-            (void)vp_x;
-            (void)vp_y;
-
             if (vp_w == 0 || vp_h == 0)
             {
                 calc_sdf_scale = false;
@@ -439,13 +699,23 @@ namespace dmRender
             {
                 sdf_scale = CalcSdfScale(sdf_view_proj, sdf_half_w, sdf_half_h, te.m_Transform);
             }
-            uint32_t num_vertices = CreateFontVertexData(text_context.m_FontRenderBackend, font_map, text_context.m_Frame, text, te, sdf_scale, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
+            uint32_t num_vertices = CreateFontVertexData(font_map, text_context.m_Frame, text, te, sdf_scale, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
             text_context.m_VertexIndex += num_vertices;
         }
 
+        if (effect_unit != INVALID_SAMPLER_UNIT)
+        {
+            FontUploadEffects(font_map->m_EffectCache);
+        }
         ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
-
-        dmRender::AddToRender(render_context, ro);
+        if (ro->m_VertexCount > 0)
+        {
+            dmRender::AddToRender(render_context, ro);
+        }
+        else
+        {
+            text_context.m_RenderObjectIndex--;
+        }
     }
 
     static void FontRenderListDispatch(dmRender::RenderListDispatchParams const &params)
@@ -456,16 +726,23 @@ namespace dmRender
         switch (params.m_Operation)
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
+                // Vector glyphs are generated synchronously while making vertices.
+                // Apply pending growth and overflow resets before any batch captures texture handles.
+                for (uint32_t i = 0; i < text_context.m_TextEntries.Size(); ++i)
+                {
+                    HFontMap font_map = text_context.m_TextEntries[i].m_FontMap;
+                    if (font_map->m_IsVector)
+                        PrepareVectorCache(font_map, text_context.m_Frame);
+                }
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
                 if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
                 {
-                    uint32_t vertex_size = GetFontVertexSize(text_context.m_FontRenderBackend);
-                    uint32_t buffer_size = vertex_size * text_context.m_VertexIndex;
+                    const uint32_t vertex_size = sizeof(FontDefaultVertex);
+                    const uint32_t num_vertices = text_context.m_VertexIndex - text_context.m_VerticesFlushed;
+                    const uint32_t byte_count = text_context.m_VertexIndex * vertex_size;
                     dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-                    dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-
-                    uint32_t num_vertices = text_context.m_VertexIndex - text_context.m_VerticesFlushed;
+                    dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, byte_count, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
                     text_context.m_VerticesFlushed = text_context.m_VertexIndex;
 
                     DM_PROPERTY_ADD_U32(rmtp_FontCharacterCount, num_vertices / 6);
@@ -520,7 +797,8 @@ namespace dmRender
 
             uint32_t count = text_context.m_TextEntries.Size() - text_context.m_TextEntriesFlushed;
 
-            if (count > 0) {
+            if (count > 0)
+            {
                 dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
                 dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &FontRenderListDispatch, &RenderListFrustumCulling, render_context);
                 dmRender::RenderListEntry* write_ptr = render_list;
@@ -546,4 +824,4 @@ namespace dmRender
         text_context.m_TextEntriesFlushed = text_context.m_TextEntries.Size();
     }
 
-}
+} // namespace dmRender

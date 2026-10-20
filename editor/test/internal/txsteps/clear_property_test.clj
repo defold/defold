@@ -25,8 +25,7 @@
 
 (deftest basic-property-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          original-node-id (first (g/take-node-ids graph-id 1))
+    (let [original-node-id (first (g/take-node-ids 1))
 
           original-props
           {:basic-property :original-basic-property-value
@@ -92,8 +91,7 @@
 
 (deftest effecting-property-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          original-node-id (first (g/take-node-ids graph-id 1))
+    (let [original-node-id (first (g/take-node-ids 1))
 
           original-props
           {:basic-property :original-basic-property-value
@@ -209,16 +207,13 @@
 
 (deftest override-invalidation-identical-value-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [consumer-node-id
+    (let [[consumer-node-id
            original-node-id
            override-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
-                [consumer-node-id helpers/OverriddenPropertiesConsumer
-                 original-node-id [helpers/PropertyTestNode :basic-property :initial-property-value]]
+              (g/make-nodes [consumer-node-id helpers/OverriddenPropertiesConsumer
+                             original-node-id [helpers/PropertyTestNode :basic-property :initial-property-value]]
                 (g/override original-node-id {}
                   (fn [_evaluation-context id-lookup]
                     (let [override-node-id (id-lookup original-node-id)]
@@ -252,14 +247,11 @@
 
 (deftest effecting-property-nil-value-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [_original-node-id
+    (let [[_original-node-id
            override-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
-                [original-node-id helpers/PropertyTestNode]
+              (g/make-nodes [original-node-id helpers/PropertyTestNode]
                 (g/override original-node-id helpers/effect-log-node-override-opts))))]
 
       (testing "Ensure the property has a nil default value so the test itself is correct."

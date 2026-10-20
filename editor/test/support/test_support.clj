@@ -36,8 +36,7 @@
   (let [configuration (if (map? (first forms)) (first forms) {:cache-size 1000})
         forms (if (map? (first forms)) (next forms)  forms)]
     `(let [system# (is/make-system ~configuration)
-           ~'cache (is/system-cache system#)
-           ~'world (first (keys (is/graphs system#)))]
+           ~'cache (is/system-cache system#)]
        (binding [g/*the-system* (atom system#)]
          ~@forms))))
 
@@ -110,17 +109,12 @@
 
 (defn graph-remove-node
   [graph node-id]
-  (let [basis (ig/multigraph-basis [graph])
-
-        {:keys [deleted-nodes
+  (let [{:keys [deleted-nodes
                 removed-arc->source+target-pkids
                 removed-node-id->pkid->override-node-id
                 removed-overrides-by-id]}
-        (ig/basis-plan-delete-nodes basis [node-id])
-
-        basis (ig/basis-perform-delete-nodes basis deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id)]
-
-    (first (:graphs basis))))
+        (ig/basis-plan-delete-nodes graph [node-id])]
+    (ig/basis-perform-delete-nodes graph deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id)))
 
 (defmacro with-post-ec
   "Given a symbol that resolves to a function, returns a fn that executes that

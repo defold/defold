@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics;
@@ -37,15 +38,19 @@ public class ShaderProgramBuilderEditor {
 
         ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
         options.defines.add("EDITOR");
+        options.glslEmitUboAsPlainUniforms = true;
         options.glslEsDefaultFloatPrecision = floatPrecision;
         options.glslEsDefaultIntPrecision = intPrecision;
 
         ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourcePath, shaderDescs, options);
         try {
-            Shaderc.ShaderCompileResult result = pipeline.crossCompile(shaderType, shaderLanguage);
+            Shaderc.ShaderCompileResult result = pipeline.crossCompile(shaderType, shaderLanguage, null, false);
 
             String compiledSource = new String(result.data);
-            ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(compiledSource, maxPageCount);
+            // SM330 supports array textures, but editor previews still upload atlas pages as
+            // separate 2D textures. Keep the fallback until texture allocation, layer uploads,
+            // and sampler binding are migrated together to real array textures.
+            ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(compiledSource, maxPageCount, shaderLanguage);
             SPIRVReflector reflector = pipeline.getReflectionData(shaderType);
 
             // If the variant transformation didn't do anything, we pass the original source but without array samplers
@@ -76,6 +81,30 @@ public class ShaderProgramBuilderEditor {
     static public ShaderProgramBuilder.ShaderDescBuildResult makeShaderDescWithVariants(
             String resourceOutputPath, ShaderCompilePipeline.ShaderModuleDesc[] shaderDescs,
             Graphics.ShaderDesc.Language[] shaderLanguages, int maxPageCount, Shaderc.ShaderPrecision floatPrecision, Shaderc.ShaderPrecision intPrecision) throws IOException, CompileExceptionError {
+
+        if (Arrays.asList(shaderLanguages).contains(Graphics.ShaderDesc.Language.LANGUAGE_HLSL_51)) {
+            // DX12 needs stage IO remapping and a merged root signature, including
+            // recompilation with that signature. Share Bob's runtime compiler path.
+            IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+            compileOptions.shaderAdapters = "";
+            compileOptions.maxPageCount = maxPageCount;
+            compileOptions.glslEsDefaultFloatPrecision = floatPrecision;
+            compileOptions.glslEsDefaultIntPrecision = intPrecision;
+            for (Graphics.ShaderDesc.Language language : shaderLanguages) {
+                if (isCompatibleLanguage(shaderDescs[0].type, language)) {
+                    compileOptions.forceIncludeShaderLanguages.add(language);
+                }
+            }
+            try {
+                return buildResultsToShaderDescBuildResults(
+                    ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64Win32).compile(
+                        new ArrayList<>(Arrays.asList(shaderDescs)), resourceOutputPath, compileOptions));
+            } catch (CompileExceptionError e) {
+                ShaderProgramBuilder.ShaderDescBuildResult result = new ShaderProgramBuilder.ShaderDescBuildResult();
+                result.buildWarnings = new String[] { e.getMessage() };
+                return result;
+            }
+        }
 
         ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
         options.glslEsDefaultFloatPrecision = floatPrecision;
@@ -110,7 +139,7 @@ public class ShaderProgramBuilderEditor {
                     Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
                     byte[] source;
                     try {
-                        result = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                        result = pipeline.crossCompile(shaderModule.type, shaderLanguage, null, false);
                         source = result.data;
                     } catch (CompileExceptionError e) {
                         shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(new String[]{e.getMessage()}));
@@ -120,7 +149,7 @@ public class ShaderProgramBuilderEditor {
                     boolean variantTextureArray = false;
 
                     if (ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage)) {
-                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(source), maxPageCount);
+                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(source), maxPageCount, shaderLanguage);
                         if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
                             source = variantCompileResult.source.getBytes();
                             variantTextureArray = true;
@@ -141,6 +170,7 @@ public class ShaderProgramBuilderEditor {
             }
 
             ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
+            compileResult.setShaderSourcePaths(shaderModuleDescsArrayList);
 
             for(Graphics.ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
                 SPIRVReflector reflector = pipeline.getReflectionData(type);

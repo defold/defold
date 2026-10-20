@@ -23,7 +23,7 @@ Run each measured sample in a fresh Leiningen REPL from the Editor project root.
    (require 'load-project)
    ```
 
-5. Allow up to 10 minutes for the load to finish. Stream or poll the output while it runs; each completed phase emits a performance record. The sample is complete when the `total` performance record appears and the REPL prompt returns.
+5. Allow up to 20 minutes for the load to finish. Stream or poll the output while it runs; each completed phase emits a performance record. The sample is complete when the `total` performance record appears and the REPL prompt returns.
 6. Capture the complete phase output, including the total elapsed time, elapsed time excluding GC, allocation, and heap figures.
 7. Exit the REPL and repeat until there are three successful samples. Start a new JVM for every sample; do not evaluate the `require` twice in one REPL, because the loaded namespace retains state and the second evaluation is not a valid sample.
 

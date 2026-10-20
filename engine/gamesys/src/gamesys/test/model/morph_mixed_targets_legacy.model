@@ -1,0 +1,3 @@
+name: "morph_mixed_targets_legacy"
+mesh: "/model/morph_mixed_targets.gltf"
+material: "/model/morph_instanced_legacy.material"

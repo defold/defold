@@ -44,7 +44,8 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.http-server.types :as http-server.types])
   (:import [editor.code.data Cursor CursorRange LayoutInfo Rect]
            [java.io BufferedReader IOException]
            [java.util.concurrent ArrayBlockingQueue]
@@ -321,7 +322,7 @@
     :add (let [new-state (swap! state #(-> %
                                            (assoc :text "")
                                            (cond-> (not (string/blank? (:text %)))
-                                                   (update :filters conj [(:text %) true]))))]
+                                             (update :filters conj [(:text %) true]))))]
            (save-filters! prefs (:filters new-state)))
     :select (let [new-state (swap! state assoc-in [:filters (:index e) 1] (:fx/event e))]
               (save-filters! prefs (:filters new-state)))))
@@ -375,30 +376,32 @@
   (.setValue find-term-property (or term-text "")))
 
 (defn- find-next! [view-node]
-  (view/set-properties! view-node :selection
-                        (data/find-next (view/get-property view-node :lines)
-                                        (view/get-property view-node :cursor-ranges)
-                                        (view/get-property view-node :layout)
-                                        (split-lines (.getValue find-term-property))
-                                        false
-                                        false
-                                        true)))
+  (when-let [tx-data (view/set-properties view-node :selection
+                                          (data/find-next (view/get-property view-node :lines)
+                                                          (view/get-property view-node :cursor-ranges)
+                                                          (view/get-property view-node :layout)
+                                                          (split-lines (.getValue find-term-property))
+                                                          false
+                                                          false
+                                                          true))]
+    (g/transact {:undoable false} tx-data)))
 
 (defn- find-prev! [view-node]
-  (view/set-properties! view-node :selection
-                        (data/find-prev (view/get-property view-node :lines)
-                                        (view/get-property view-node :cursor-ranges)
-                                        (view/get-property view-node :layout)
-                                        (split-lines (.getValue find-term-property))
-                                        false
-                                        false
-                                        true)))
+  (when-let [tx-data (view/set-properties view-node :selection
+                                          (data/find-prev (view/get-property view-node :lines)
+                                                          (view/get-property view-node :cursor-ranges)
+                                                          (view/get-property view-node :layout)
+                                                          (split-lines (.getValue find-term-property))
+                                                          false
+                                                          false
+                                                          true))]
+    (g/transact {:undoable false} tx-data)))
 
 (handler/defhandler :edit.find :console-view
   (run [term-field view-node]
-       (when-some [selected-text (view/non-empty-single-selection-text view-node)]
-         (set-find-term! selected-text))
-       (focus-term-field! term-field)))
+    (when-some [selected-text (view/non-empty-single-selection-text view-node)]
+      (set-find-term! selected-text))
+    (focus-term-field! term-field)))
 
 (handler/defhandler :code.find-next :console-view
   (run [view-node] (find-next! view-node)))
@@ -444,6 +447,10 @@
   (property regions r/Regions (default []) (dynamic visible (g/constantly false)))
   (output lines types/Lines (gu/passthrough modified-lines))
   (output request-response g/Any :cached produce-request-response))
+
+(g/defnode ConsoleView
+  (inherits view/CodeEditorView)
+  (input console-node g/NodeID :cascade-delete))
 
 (defn- gutter-metrics []
   [44.0 0.0])
@@ -539,12 +546,30 @@
     {:undoable false}
     (concat
       (g/connect console-node :_node-id view-node :resource-node)
+      (g/connect console-node :_node-id view-node :console-node)
       (g/connect console-node :indent-type view-node :indent-type)
       (g/connect console-node :cursor-ranges view-node :cursor-ranges)
       (g/connect console-node :invalidated-rows view-node :invalidated-rows)
       (g/connect console-node :lines view-node :lines)
       (g/connect console-node :regions view-node :regions)))
   view-node)
+
+(defn- handle-mouse-moved! [view-node ^MouseEvent event]
+  (.consume event)
+  (view/set-properties!
+    view-node :selection
+    (g/with-auto-evaluation-context evaluation-context
+      (let [layout (view/get-property view-node :layout evaluation-context)]
+        (data/mouse-moved (view/get-property view-node :lines evaluation-context)
+                          (view/get-property view-node :cursor-ranges evaluation-context)
+                          (view/get-property view-node :visible-regions evaluation-context)
+                          layout
+                          (view/get-property view-node :minimap-layout evaluation-context)
+                          (view/get-property view-node :gesture-start evaluation-context)
+                          (view/get-property view-node :hovered-element evaluation-context)
+                          (.getX event)
+                          (.getY event)))))
+  (view/refresh-mouse-cursor! view-node event))
 
 (def ^:const line-sub-regions-pattern #"(?<=^|\s|[<\"'`])(\/[^\s>\"'`:]+)(?::?)(\d+)?")
 (def ^:private ^:const line-sub-regions-pattern-partial #"([^\s<>:]+):(\d+)")
@@ -644,8 +669,8 @@
               :lines lines'
               :regions regions')
 
-            (empty? clean-lines)
-            (assoc :invalidated-row 0))))
+      (empty? clean-lines)
+      (assoc :invalidated-row 0))))
 
 (defn- append-entries [props entries resource-map resource-suffix-map-delay on-region-click!]
   (assert (map? props))
@@ -674,13 +699,14 @@
                  props (append-entries {:lines (if clear [""] prev-lines)
                                         :regions (if clear [] prev-regions)}
                                        entries resource-map resource-suffix-map-delay on-region-click!)]
-        (view/set-properties!
-          view-node nil
-          (cond-> (assoc props :document-width document-width)
-                  was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
-                  clear (assoc :cursor-ranges [data/document-start-cursor-range])
-                  clear (assoc :invalidated-row 0)
-                  clear (data/frame-cursor prev-layout))))))
+        (when-let [tx-data (view/set-properties
+                             view-node nil
+                             (cond-> (assoc props :document-width document-width)
+                               was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
+                               clear (assoc :cursor-ranges [data/document-start-cursor-range])
+                               clear (assoc :invalidated-row 0)
+                               clear (data/frame-cursor prev-layout)))]
+          (g/transact {:undoable false} tx-data)))))
   (view/repaint-view! view-node elapsed-time {:cursor-visible false :editable false}))
 
 (def ^:private console-grammar
@@ -729,7 +755,7 @@
 
 (def ^:private resource->menu-item (comp ui/string->menu-item resource/proj-path))
 
-(defn make-console! [graph workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn prefs localization]
+(defn make-console! [workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn prefs localization]
   (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
         canvas (Canvas. (.getWidth canvas-pane) (.getHeight canvas-pane))
 
@@ -737,17 +763,17 @@
         (g/tx-nodes-added
           (g/transact
             {:undoable false}
-            [(g/make-node graph ConsoleNode)
-             (g/make-node graph view/CodeEditorView
-                          :canvas canvas
-                          :canvas-width (.getWidth canvas)
-                          :canvas-height (.getHeight canvas)
-                          :color-scheme console-color-scheme
-                          :grammar console-grammar
-                          :gutter-view (ConsoleGutterView.)
-                          :highlighted-find-term (.getValue find-term-property)
-                          :line-height-factor 1.2
-                          :resize-reference :bottom)]))
+            [(g/make-node ConsoleNode)
+             (g/make-node ConsoleView
+               :canvas canvas
+               :canvas-width (.getWidth canvas)
+               :canvas-height (.getHeight canvas)
+               :color-scheme console-color-scheme
+               :grammar console-grammar
+               :gutter-view (ConsoleGutterView.)
+               :highlighted-find-term (.getValue find-term-property)
+               :line-height-factor 1.2
+               :resize-reference :bottom)]))
 
         view-node (setup-view! console-node view-node)
         tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node prefs localization)
@@ -792,9 +818,9 @@
     (doto canvas
       (.setFocusTraversable true)
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (view/handle-key-pressed! view-node prefs event false)))
-      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (view/handle-mouse-moved! view-node prefs event)))
+      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (view/handle-mouse-pressed! view-node event)))
-      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (view/handle-mouse-moved! view-node prefs event)))
+      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (view/handle-mouse-released! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (view/handle-mouse-exited! view-node event)))
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (view/handle-scroll! view-node false event))))
@@ -829,7 +855,7 @@
     200
     {"content-type" "text/plain; charset=utf-8"}
     (reify
-      http-server/ConnectionWrite
+      http-server.types/ConnectionWrite
       (connection-write! [_ output-stream]
         (let [writer (io/writer output-stream :encoding "UTF-8")
               queue (ArrayBlockingQueue. 1024)

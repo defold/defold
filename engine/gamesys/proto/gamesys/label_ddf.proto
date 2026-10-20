@@ -1,3 +1,17 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 syntax = "proto2";
 package dmGameSystemDDF;
 
@@ -53,6 +67,9 @@ message LabelDesc
     optional string         text        = 11;
     required string         font        = 12 [(resource)=true];
     required string         material    = 13 [(resource)=true];
+    optional string         style       = 14 [default = "default"];
+    optional uint64         style_hash  = 15; // Compiled from style; zero means no base style.
+    optional float          font_size   = 16 [default = 16.0];
 }
 
 
@@ -61,4 +78,47 @@ message SetText
     required string text  = 1;
 }
 
+/*# Sent to the owning game object when the pointer enters an interactive rich-text object.
+ *
+ * @message
+ * @name text_object_hovered
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectHovered
+{
+    required uint64 id = 1;
+    required uint64 type = 2;
+    optional string src = 3;
+}
 
+/*# Sent to the owning game object when the pointer leaves an interactive rich-text object.
+ *
+ * @message
+ * @name text_object_unhovered
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectUnhovered
+{
+    required uint64 id = 1;
+    required uint64 type = 2;
+    optional string src = 3;
+}
+
+/*# Sent to the owning game object when an interactive rich-text object is clicked.
+ *
+ * @message
+ * @name text_object_clicked
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectClicked
+{
+    required uint64 id = 1;
+    required uint64 type = 2;
+    optional string src = 3;
+}

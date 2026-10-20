@@ -148,19 +148,6 @@ static FILE* TestOpenLargeFileForWrite(const char* path)
 #endif
 }
 
-static int TestSeekFile64(FILE* file, uint64_t offset)
-{
-#if defined(_WIN32)
-    return _fseeki64(file, (int64_t)offset, SEEK_SET);
-#elif defined(__ANDROID__)
-    return lseek64(fileno(file), (off64_t)offset, SEEK_SET) < 0 ? -1 : 0;
-#elif defined(__linux__)
-    return fseeko64(file, (off64_t)offset, SEEK_SET);
-#else
-    return fseeko(file, (off_t)offset, SEEK_SET);
-#endif
-}
-
 static bool TestMarkFileSparse(FILE* file)
 {
 #if defined(_WIN32)
@@ -235,7 +222,7 @@ static bool WriteLargeOffsetArchiveData(const char* resource_path, uint64_t reso
     }
 
     bool ok = TestMarkFileSparse(file);
-    ok = ok && TestSeekFile64(file, resource_offset) == 0;
+    ok = ok && dmSys::FileSeek64(file, resource_offset) == 0;
     ok = ok && fwrite(payload, 1, payload_size, file) == payload_size;
     fclose(file);
     return ok;

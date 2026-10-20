@@ -53,6 +53,21 @@ namespace dmCrypt
 
     bool Base64Encode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len)
     {
+        // mbedtls short circuits an empty input to a zero length output, skipping the terminating
+        // null it writes for every other input length. Handle it here to keep the behaviour the
+        // same for all input lengths (and across the platform implementations).
+        if (src_len == 0)
+        {
+            if (*dst_len == 0)
+            {
+                *dst_len = 1; // room for the terminating null
+                return false;
+            }
+            dst[0] = 0;
+            *dst_len = 0;
+            return true;
+        }
+
         size_t out_len = 0;
         int r = mbedtls_base64_encode(dst, *dst_len, &out_len, src, src_len);
         if (r != 0)
@@ -73,6 +88,14 @@ namespace dmCrypt
 
     bool Base64Decode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len)
     {
+        // Zero base64 characters decode into zero bytes. It has to be handled here, since the
+        // "*dst_len == 0" size query convention below cannot represent an empty result.
+        if (src_len == 0)
+        {
+            *dst_len = 0;
+            return true;
+        }
+
         size_t out_len = 0;
 
         uint32_t padding_needed = (4 - (src_len % 4)) % 4;

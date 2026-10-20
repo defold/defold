@@ -20,14 +20,17 @@ file(GLOB_RECURSE EXTENSION_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${EXTENSION_SRC_DIR}/dmsdk/*.hpp")
 
 set(EXTENSION_SOURCES "${EXTENSION_SRC_DIR}/extension.cpp")
-if(TARGET_PLATFORM MATCHES "^(arm64-ios|x86_64-ios)$")
+if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
   list(APPEND EXTENSION_SOURCES "${EXTENSION_SRC_DIR}/extension_ios.cpp")
 endif()
-if(TARGET_PLATFORM MATCHES "^arm.*android$")
+if(TARGET_PLATFORM MATCHES "android$")
   list(APPEND EXTENSION_SOURCES "${EXTENSION_SRC_DIR}/extension_android.cpp")
 endif()
 
 defold_add_library(extension STATIC ${EXTENSION_SOURCES})
+if(TARGET_PLATFORM_OS MATCHES "^(ios|android)$" AND TARGET platform_sdk_headers)
+  add_dependencies(extension platform_sdk_headers)
+endif()
 target_include_directories(extension PUBLIC
   "${EXTENSION_SRC_DIR}"
   "${EXTENSION_ROOT}")

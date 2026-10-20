@@ -1,0 +1,14 @@
+prewarm_stale_callback_count = 0
+prewarm_replacement_callback_count = 0
+
+function init(self)
+    if go.get_id() == hash("/first") then
+        font.prewarm_text("/font/dyn_glyph_bank_test_1.fontc", "First instance", function(self, request_id, result, errmsg)
+            prewarm_stale_callback_count = prewarm_stale_callback_count + 1
+        end)
+    else
+        font.prewarm_text("/font/dyn_glyph_bank_test_1.fontc", "Replacement instance", function(self, request_id, result, errmsg)
+            prewarm_replacement_callback_count = prewarm_replacement_callback_count + 1
+        end)
+    end
+end

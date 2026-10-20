@@ -23,8 +23,10 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,6 +55,18 @@ import com.dynamo.rig.proto.Rig;
 public class ModelUtilTest {
 
     static double EPSILON = 0.0001;
+
+    private static Modelimporter.Transform identityImporterTransform() {
+        Modelimporter.Transform transform = new Modelimporter.Transform();
+        transform.translation = new Modelimporter.Vector3();
+        transform.rotation = new Modelimporter.Quat();
+        transform.rotation.w = 1.0f;
+        transform.scale = new Modelimporter.Vector3();
+        transform.scale.x = 1.0f;
+        transform.scale.y = 1.0f;
+        transform.scale.z = 1.0f;
+        return transform;
+    }
 
     private void assertVtx(List<Float> pos, int i, double xe, double ye, double ze) {
         float x = pos.get(i * 3 + 0);
@@ -274,6 +288,64 @@ public class ModelUtilTest {
     }
 
     @Test
+    public void testLoadDracoSharedAccessors() throws Exception {
+        Modelimporter.Scene scene = loadScene("draco_shared.gltf");
+        assertEquals(1, scene.models.length);
+        assertEquals(2, scene.models[0].meshes.length);
+        Modelimporter.Mesh triangles = scene.models[0].meshes[0];
+        Modelimporter.Mesh strip = scene.models[0].meshes[1];
+        assertEquals(4, triangles.vertexCount);
+        assertEquals(4, strip.vertexCount);
+        assertEquals(6, triangles.indices.length);
+        assertEquals(4, strip.indices.length);
+        assertEquals(Modelimporter.PrimitiveType.PRIMITIVE_TYPE_TRIANGLES, triangles.primitiveType);
+        assertEquals(Modelimporter.PrimitiveType.PRIMITIVE_TYPE_TRIANGLE_STRIP, strip.primitiveType);
+        assertEquals(0.0f, triangles.positions[0], EPSILON);
+        assertEquals(10.0f, strip.positions[0], EPSILON);
+        assertEquals(128.0f / 255.0f, triangles.colors[1], EPSILON);
+    }
+
+    @Test
+    public void testLoadMeshoptWithoutFallbackBuffers() throws Exception {
+        String json;
+        try (InputStream stream = getClass().getResourceAsStream("box_meshopt.gltf")) {
+            json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        for (String extension : List.of("EXT_meshopt_compression", "KHR_meshopt_compression")) {
+            byte[] content = json.replace("EXT_meshopt_compression", extension).getBytes(StandardCharsets.UTF_8);
+            Modelimporter.Scene scene = ModelUtil.loadScene(content, "box_meshopt.gltf", null, (path, uri) -> {
+                throw new AssertionError("Embedded data and omitted fallbacks must not be resolved: " + uri);
+            });
+            assertEquals(1, scene.models.length);
+            assertEquals(24, scene.models[0].meshes[0].vertexCount);
+            assertEquals(72, scene.models[0].meshes[0].positions.length);
+            assertEquals(36, scene.models[0].meshes[0].indices.length);
+            assertEquals(-0.5f, scene.models[0].meshes[0].aabb.min.x, EPSILON);
+            assertEquals(0.5f, scene.models[0].meshes[0].aabb.max.x, EPSILON);
+            assertEquals(2, scene.buffers.length);
+            assertEquals(0, scene.buffers[1].buffer.length);
+        }
+    }
+
+    @Test
+    public void testLoadMeshoptMissingCompressedSourceFails() throws Exception {
+        String json;
+        try (InputStream stream = getClass().getResourceAsStream("box_meshopt.gltf")) {
+            json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        byte[] content = json.replaceFirst("data:[^\"]+", "missing.bin").getBytes(StandardCharsets.UTF_8);
+        try {
+            ModelUtil.loadScene(content, "box_meshopt.gltf", null, (path, uri) -> {
+                assertEquals("missing.bin", uri);
+                return null;
+            });
+            fail("Expected the missing compressed source to fail import");
+        } catch (ModelImporterJni.ModelException expected) {
+            assertTrue(expected.getMessage().contains("Missing external buffer data"));
+        }
+    }
+
+    @Test
     public void testPackMorphTargetTextureLayout() throws Exception {
         ModelUtil.PackedMorphTargetTexture texture = ModelUtil.packMorphTargetTexture(createMorphTextureTestMesh(), 4, 4);
         assertNotNull(texture);
@@ -323,10 +395,116 @@ public class ModelUtilTest {
         TextureImage textureImage = texture.toGenerateResult().textureImage;
         assertEquals(TextureImage.Type.TYPE_2D_ARRAY, textureImage.getType());
         assertEquals(6, textureImage.getCount());
-        assertEquals(1, textureImage.getAlternatives(0).getDepth());
-        assertEquals(1, textureImage.getAlternatives(0).getOriginalDepth());
+        TextureImage.Image image = textureImage.getAlternatives(0);
+        assertEquals(1, image.getDepth());
+        assertEquals(1, image.getOriginalDepth());
+        assertEquals(texture.data.length / texture.layerCount, image.getMipMapSize(0));
+        assertEquals(texture.layerCount, image.getMipMapSizeCompressedCount());
+        for (int i = 0; i < texture.layerCount; ++i) {
+            assertEquals(texture.data.length / texture.layerCount, image.getMipMapSizeCompressed(i));
+        }
+        assertEquals(texture.data.length, image.getDataSize());
         assertEquals(2, mesh.getMorphTargetCount());
         assertEquals(2, mesh.getMorphBaseWeightsCount());
+    }
+
+    @Test
+    public void testEquivalentSourceMeshesShareMorphTargetTexture() throws Exception {
+        Modelimporter.Mesh sceneSourceMesh = createMorphTextureTestMesh();
+        Modelimporter.Mesh rawSourceMesh = createMorphTextureTestMesh();
+        ModelUtil.MorphTargetTextureCollector textures = ModelUtil.createMorphTargetTextureCollector();
+
+        Rig.Mesh sceneMesh = ModelUtil.loadMesh(sceneSourceMesh, 4, 4, textures);
+        Rig.Mesh rawMesh = ModelUtil.loadMesh(rawSourceMesh, 4, 4, textures);
+
+        assertEquals(sceneMesh.getMorphTargetTexture(), rawMesh.getMorphTargetTexture());
+        assertEquals(1, textures.getTextures().size());
+    }
+
+    @Test
+    public void testGeneratedRawMeshMorphTexturesAreNotCounted() {
+        Modelimporter.Model sceneModel = new Modelimporter.Model();
+        sceneModel.name = "Named";
+        sceneModel.meshes = new Modelimporter.Mesh[] { createMorphTextureTestMesh() };
+
+        Modelimporter.Model namedModel = new Modelimporter.Model();
+        namedModel.name = "Named";
+        namedModel.meshes = new Modelimporter.Mesh[] { createMorphTextureTestMesh() };
+
+        Modelimporter.Model generatedNameModel = new Modelimporter.Model();
+        generatedNameModel.name = "model1";
+        generatedNameModel.nameIsGenerated = true;
+        generatedNameModel.meshes = new Modelimporter.Mesh[] { createMorphTextureTestMesh() };
+
+        Modelimporter.Scene scene = new Modelimporter.Scene();
+        Modelimporter.Node modelNode = new Modelimporter.Node();
+        modelNode.model = sceneModel;
+        modelNode.children = new Modelimporter.Node[0];
+        scene.rootNodes = new Modelimporter.Node[] { modelNode };
+        scene.models = new Modelimporter.Model[] { namedModel, generatedNameModel };
+
+        assertEquals(1, ModelUtil.getNumMorphTargetTextures(scene));
+    }
+
+    @Test
+    public void testGeneratedNamesAreNotAddedToRawModels() throws Exception {
+        Modelimporter.Model namedModel = new Modelimporter.Model();
+        namedModel.name = "Named";
+        namedModel.meshes = new Modelimporter.Mesh[0];
+
+        Modelimporter.Model generatedNameModel = new Modelimporter.Model();
+        generatedNameModel.name = "model1";
+        generatedNameModel.nameIsGenerated = true;
+        generatedNameModel.index = 1;
+        generatedNameModel.meshes = new Modelimporter.Mesh[0];
+
+        Modelimporter.Scene scene = new Modelimporter.Scene();
+        scene.rootNodes = new Modelimporter.Node[0];
+        scene.models = new Modelimporter.Model[] { namedModel, generatedNameModel };
+        scene.skins = new Modelimporter.Skin[0];
+        scene.materials = new Modelimporter.Material[0];
+
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        ModelUtil.loadModels(scene, meshSetBuilder, 0, 0, null);
+
+        assertEquals(1, meshSetBuilder.getRawModelsCount());
+        assertEquals(0, meshSetBuilder.getRawModels(0).getMeshIndex());
+    }
+
+    @Test
+    public void testInstantiatedNamedModelsReuseSceneGeometry() throws Exception {
+        Modelimporter.Model namedModel = new Modelimporter.Model();
+        namedModel.name = "Named";
+        namedModel.meshes = new Modelimporter.Mesh[0];
+
+        Modelimporter.Node modelNode = new Modelimporter.Node();
+        modelNode.name = "Node";
+        modelNode.model = namedModel;
+        modelNode.local = identityImporterTransform();
+        modelNode.world = identityImporterTransform();
+        modelNode.children = new Modelimporter.Node[0];
+
+        Modelimporter.Scene scene = new Modelimporter.Scene();
+        scene.rootNodes = new Modelimporter.Node[] { modelNode };
+        scene.models = new Modelimporter.Model[] { namedModel };
+        scene.skins = new Modelimporter.Skin[0];
+        scene.materials = new Modelimporter.Material[0];
+
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        ModelUtil.loadModels(scene, meshSetBuilder, 0, 0, null);
+
+        assertEquals(1, meshSetBuilder.getModelsCount());
+        assertEquals(1, meshSetBuilder.getRawModelsCount());
+        assertEquals(0, meshSetBuilder.getModels(0).getMeshIndex());
+        assertEquals(0, meshSetBuilder.getRawModels(0).getMeshIndex());
+        assertEquals(0, meshSetBuilder.getRawModels(0).getMeshesCount());
+
+        Rig.MeshSet.Builder forcedRawMeshSetBuilder = Rig.MeshSet.newBuilder();
+        ModelUtil.loadModels(scene, forcedRawMeshSetBuilder, 0, 0, null, Collections.singleton(0));
+
+        assertEquals(1, forcedRawMeshSetBuilder.getModelsCount());
+        assertEquals(1, forcedRawMeshSetBuilder.getRawModelsCount());
+        assertEquals(0, forcedRawMeshSetBuilder.getRawModels(0).getMeshIndex());
     }
 
     private Modelimporter.Scene loadBuiltScene(String path,

@@ -1,0 +1,14 @@
+name: "attribute_stride_scalar"
+tags: "tile"
+vertex_program: "/sprite/attribute_stride_scalar.vp"
+fragment_program: "/sprite/attribute_stride.fp"
+vertex_space: VERTEX_SPACE_WORLD
+attributes {
+  name: "crash_attr"
+  semantic_type: SEMANTIC_TYPE_NONE
+  data_type: TYPE_FLOAT
+  vector_type: VECTOR_TYPE_SCALAR
+  double_values {
+    v: 1.0
+  }
+}

@@ -18,15 +18,17 @@
 #include <dlib/math.h>
 #include <dlib/array.h>
 
-#include  <glfw/glfw_native.h>
+#include <platform/platform_window_ios.h>
 
 #include "../graphics_vulkan_defines.h"
 #include "../../graphics.h"
 
 namespace dmGraphics
 {
-    VkResult CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
+    VkResult CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI, void** nativeWindowOut)
     {
+        if (nativeWindowOut)
+            *nativeWindowOut = 0;
         VkIOSSurfaceCreateInfoMVK sci;
         PFN_vkCreateIOSSurfaceMVK vkCreateIOSSurfaceMVK;
 
@@ -40,7 +42,7 @@ namespace dmGraphics
 
         memset(&sci, 0, sizeof(sci));
         sci.sType = VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK;
-        sci.pView = glfwGetiOSUIView();
+        sci.pView = dmPlatform::GetiOSUIView();
 
         return vkCreateIOSSurfaceMVK(vkInstance, &sci, 0, vkSurfaceOut);
     }

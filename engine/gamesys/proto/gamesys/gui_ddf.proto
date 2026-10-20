@@ -1,3 +1,17 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 syntax = "proto2";
 package dmGuiDDF;
 
@@ -193,6 +207,8 @@ message NodeDesc
 
     optional string    custom_type_name  = 49;
     repeated Property  custom_properties = 50;
+    optional string    style             = 51 [default = "default"];
+    optional float     font_size          = 52 [default = 16.0];
 }
 
 message SceneDesc
@@ -273,6 +289,10 @@ message SceneDesc
  * This message is broadcast to every GUI component when a layout change has been initiated
  * on device.
  *
+ * Layout changes before or during `init()` are applied immediately, but their notifications
+ * are coalesced and delivered after `init()` completes successfully. If the final layout
+ * matches the layout before these changes, no notification is sent.
+ *
  * @message
  * @name layout_changed
  * @param id [type:hash] the id of the layout the engine is changing to
@@ -292,4 +312,49 @@ message LayoutChanged
 {
     required uint64 id = 1;
     required uint64 previous_id = 2;
+}
+
+/*# Sent to the GUI script when the pointer enters an interactive rich-text object.
+ *
+ * @message
+ * @name text_object_hovered
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectHovered
+{
+    required uint64 id = 1;
+    required uint64 type = 2;
+    optional string src = 3;
+}
+
+/*# Sent to the GUI script when the pointer leaves an interactive rich-text object.
+ *
+ * @message
+ * @name text_object_unhovered
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectUnhovered
+{
+    required uint64 id = 1;
+    required uint64 type = 2;
+    optional string src = 3;
+}
+
+/*# Sent to the GUI script when an interactive rich-text object is clicked.
+ *
+ * @message
+ * @name text_object_clicked
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectClicked
+{
+    required uint64 id = 1;
+    required uint64 type = 2;
+    optional string src = 3;
 }

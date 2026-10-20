@@ -1,0 +1,10 @@
+[project]
+title = Dependencies Metadata Project
+dependencies_metadata = 1
+dependencies#0 = {{defold.extension.test-dependency.url}}
+
+[bootstrap]
+main_collection = /main.collectionc
+
+[input]
+game_binding = /builtins/input/all.input_bindingc

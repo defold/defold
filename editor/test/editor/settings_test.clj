@@ -14,9 +14,25 @@
 
 (ns editor.settings-test
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
+            [dynamo.graph :as g]
+            [editor.settings :as settings]
             [editor.settings-core :as settings-core]
             [integration.test-util :as test-util]))
+
+;; The retired project-wide font setting must explain the per-font replacement
+;; without blocking builds.
+(deftest runtime-font-generation-setting-is-deprecated
+  (with-open [reader (io/reader (io/resource "com/dynamo/bob/meta.properties"))]
+    (let [meta-setting (settings-core/get-meta-setting (:settings (settings-core/load-meta-properties reader))
+                                                       ["font" "runtime_generation"])]
+      (is (nil? (settings/get-setting-error nil meta-setting :value)))
+      (doseq [value [false true]]
+        (let [error (settings/get-setting-error value meta-setting :value)]
+          (is (= :warning (:severity error)))
+          (is (string/includes? (test-util/localization (g/error-message error)) "runtime: true"))
+          (is (nil? (settings/get-setting-build-error value meta-setting :build-targets))))))))
 
 (deftest merge-meta-infos-prefers-known-settings
   (let [known-setting {:path ["section" "key"]
@@ -34,6 +50,26 @@
            (settings-core/merge-meta-infos
              {:settings [known-setting]}
              {:settings [unknown-setting]})))))
+
+(deftest merge-meta-infos-preserves-default-setting-values
+  (let [path ["section" "key"]
+        meta-settings
+        (:settings
+          (reduce
+            settings-core/merge-meta-infos
+            [{:settings [{:path path
+                          :type :string
+                          :default "first"}]}
+             {:settings [{:path path
+                          :type :string
+                          :default "second"}]}
+             {:settings [{:path path
+                          :type :string
+                          :default "third"}]}]))]
+    (is (= "first"
+           (settings-core/get-default-setting meta-settings path)))
+    (is (= ["first" "second" "third"]
+           (settings-core/get-default-setting-values meta-settings path)))))
 
 (deftest get-setting-or-default-preserves-present-nil-value
   (let [root (io/file ".")

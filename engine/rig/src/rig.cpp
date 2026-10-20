@@ -45,6 +45,7 @@ namespace dmRig
     {
         dmObjectPool<HRigInstance>      m_Instances;
         PoseMatrixCache                 m_PoseMatrixCache;
+        uint32_t                        m_NumUpdateInstances; // Instances with skeleton, animation or morph data.
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).
         dmArray<dmVMath::Matrix4>       m_ScratchPoseMatrixBuffer;
@@ -72,6 +73,7 @@ namespace dmRig
         }
 
         context->m_Instances.SetCapacity(params.m_MaxRigInstanceCount);
+        context->m_NumUpdateInstances = 0;
         context->m_ScratchPoseMatrixBuffer.SetCapacity(0);
 
         ResetPoseMatrixCache(&context->m_PoseMatrixCache);
@@ -83,15 +85,6 @@ namespace dmRig
     void DeleteContext(HRigContext context)
     {
         delete context;
-    }
-
-    template <typename T>
-    static inline void EnsureSize(T& array, uint32_t size)
-    {
-        if (array.Capacity() < size) {
-            array.OffsetCapacity(size - array.Capacity());
-        }
-        array.SetSize(size);
     }
 
     static const dmRigDDF::RigAnimation* FindAnimation(const dmRigDDF::AnimationSet* anim_set, dmhash_t animation_id)
@@ -889,6 +882,9 @@ namespace dmRig
     {
         DM_PROFILE("RigUpdate");
 
+        if (context->m_NumUpdateInstances == 0)
+            return RESULT_OK;
+
         Animate(context, dt);
 
         return PostUpdate(context);
@@ -1415,6 +1411,10 @@ namespace dmRig
 
     void ResetPoseMatrixCache(HRigContext context)
     {
+        // Instances only acquire cache indices when entries are added.
+        if (context->m_PoseMatrixCache.m_CacheEntryOffsets.Size() == 0)
+            return;
+
         ResetPoseMatrixCache(&context->m_PoseMatrixCache);
 
         const dmArray<RigInstance*>& instances = context->m_Instances.GetRawObjects();
@@ -1507,7 +1507,7 @@ namespace dmRig
         {
             if (bone_count)
             {
-                EnsureSize(pose_matrices, bone_count);
+                pose_matrices.EnsureSize(bone_count);
                 PoseToMatrix(instance->m_Pose, pose_matrices.Begin());
 
                 // Premultiply pose matrices with the bind pose inverse so they
@@ -1522,12 +1522,12 @@ namespace dmRig
 
             if (meta_datas.m_HasAttributeWorldPosition)
             {
-                EnsureSize(positions_world, vertex_count);
+                positions_world.EnsureSize(vertex_count);
                 positions_buffer_world = (float*) positions_world.Begin();
             }
             if (meta_datas.m_HasAttributeLocalPosition)
             {
-                EnsureSize(positions_local, vertex_count);
+                positions_local.EnsureSize(vertex_count);
                 positions_buffer_local = (float*) positions_local.Begin();
             }
 
@@ -1535,8 +1535,8 @@ namespace dmRig
         }
         if (meta_datas.m_HasAttributeNormal && mesh->m_Normals.m_Count)
         {
-            EnsureSize(normals, vertex_count);
-            EnsureSize(tangents, vertex_count);
+            normals.EnsureSize(vertex_count);
+            tangents.EnsureSize(vertex_count);
             normals_buffer  = (float*) normals.Begin();
             tangents_buffer = (float*) tangents.Begin();
 
@@ -1567,7 +1567,7 @@ namespace dmRig
         uint32_t bone_count = GetBoneCount(instance);
         if (bone_count)
         {
-            EnsureSize(pose_matrices, bone_count);
+            pose_matrices.EnsureSize(bone_count);
             PoseToMatrix(instance->m_Pose, pose_matrices.Begin());
 
             // Premultiply pose matrices with the bind pose inverse so they
@@ -1591,9 +1591,9 @@ namespace dmRig
         uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
 
         // Bump scratch buffers capacity to handle current vertex count
-        EnsureSize(positions_world, vertex_count);
-        EnsureSize(normals, vertex_count);
-        EnsureSize(tangents, vertex_count);
+        positions_world.EnsureSize(vertex_count);
+        normals.EnsureSize(vertex_count);
+        tangents.EnsureSize(vertex_count);
 
         float* positions_world_buffer = (float*)positions_world.Begin();
         float* normals_buffer = (float*)normals.Begin();
@@ -1739,6 +1739,7 @@ namespace dmRig
     static void DestroyInstance(HRigContext context, uint32_t index)
     {
         RigInstance* instance = context->m_Instances.Get(index);
+        context->m_NumUpdateInstances -= instance->m_RequiresUpdate;
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         instance->m_Pose.SetCapacity(0);
         instance->m_IKTargets.SetCapacity(0);
@@ -1779,6 +1780,11 @@ namespace dmRig
         instance->m_AnimationSet       = params.m_AnimationSet;
 
         InitMorphSlots(instance);
+        // Static models can have empty skeleton and animation resources.
+        instance->m_RequiresUpdate = (instance->m_Skeleton && instance->m_Skeleton->m_Bones.m_Count) ||
+        (instance->m_AnimationSet && instance->m_AnimationSet->m_Animations.m_Count) ||
+        !instance->m_MorphSlots.Empty();
+        context->m_NumUpdateInstances += instance->m_RequiresUpdate;
 
         instance->m_PoseMatrixCacheIndex = INVALID_POSE_MATRIX_CACHE_ENTRY;
 

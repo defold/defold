@@ -18,29 +18,21 @@
 #include <string.h>
 #include <time.h>
 
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
 #include <dmsdk/dlib/http.h>
 #include <dlib/http/http_internal.h>
 
 #if defined(_WIN32)
-#include <io.h>
 #include <windows.h>
-#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
-#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
-#endif
 #else
 #include <unistd.h>
 #endif
 
-#define TEST_COLOR_RESET "\033[0m"
-#define TEST_COLOR_RED "\033[31m"
-#define TEST_COLOR_GREEN "\033[32m"
-#define TEST_COLOR_CYAN "\033[36m"
-
 typedef volatile int32_t TestAtomic32;
 
-static int               g_TestColorOutput = 0;
-
-static void              TestAtomicStore32(TestAtomic32* ptr, int32_t value)
+static void TestAtomicStore32(TestAtomic32* ptr, int32_t value)
 {
 #if defined(_WIN32)
     InterlockedExchange((volatile long*)ptr, (long)value);
@@ -58,159 +50,13 @@ static int32_t TestAtomicGet32(TestAtomic32* ptr)
 #endif
 }
 
-#if defined(_WIN32)
-static int TestEnableVirtualTerminalProcessing(void)
-{
-    HANDLE stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
-    DWORD  mode = 0;
-
-    if (stdout_handle == INVALID_HANDLE_VALUE)
-    {
-        return 0;
-    }
-
-    if (!GetConsoleMode(stdout_handle, &mode))
-    {
-        return 0;
-    }
-
-    if (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-    {
-        return 1;
-    }
-
-    return SetConsoleMode(stdout_handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0;
-}
-#endif
-
-static int TestStdoutSupportsColor(void)
-{
-    const char* no_color = getenv("NO_COLOR");
-    if (no_color && no_color[0] != 0)
-    {
-        return 0;
-    }
-
-#if defined(_WIN32)
-    if (_isatty(_fileno(stdout)) == 0)
-    {
-        return 0;
-    }
-
-    return TestEnableVirtualTerminalProcessing();
-#else
-    const char* term = getenv("TERM");
-    return isatty(STDOUT_FILENO) && term && strcmp(term, "dumb") != 0;
-#endif
-}
-
-static void PrintTestStatus(const char* color, const char* tag, const char* name)
-{
-    if (g_TestColorOutput)
-    {
-        printf("%s%s%s %s\n", color, tag, TEST_COLOR_RESET, name);
-    }
-    else
-    {
-        printf("%s %s\n", tag, name);
-    }
-    fflush(stdout);
-}
-
-static void PrintTestFailed(const char* name, int result)
-{
-    if (g_TestColorOutput)
-    {
-        fprintf(stderr, "%s[  FAILED  ]%s %s: %d\n", TEST_COLOR_RED, TEST_COLOR_RESET, name, result);
-    }
-    else
-    {
-        fprintf(stderr, "[  FAILED  ] %s: %d\n", name, result);
-    }
-}
-
-#define TEST_CHECK(_EXPR) \
-    do \
-    { \
-        if (!(_EXPR)) \
-        { \
-            fprintf(stderr, "TEST_CHECK failed at line %s:%d: %s\n", __FILE__, __LINE__, #_EXPR); \
-            return __LINE__; \
-        } \
-    } while (0)
-#define TEST_CHECK_EQ(_EXPECTED, _ACTUAL) \
-    do \
-    { \
-        int expected = (int)(_EXPECTED); \
-        int actual = (int)(_ACTUAL); \
-        if (actual != expected) \
-        { \
-            fprintf(stderr, "TEST_CHECK_EQ failed at line %s:%d: expected %s == %d, got %s == %d\n", __FILE__, __LINE__, #_EXPECTED, expected, #_ACTUAL, actual); \
-            return __LINE__; \
-        } \
-    } while (0)
-#define TEST_CHECK_EQ_U32(_EXPECTED, _ACTUAL) \
-    do \
-    { \
-        uint32_t expected = (uint32_t)(_EXPECTED); \
-        uint32_t actual = (uint32_t)(_ACTUAL); \
-        if (actual != expected) \
-        { \
-            fprintf(stderr, "TEST_CHECK_EQ_U32 failed at line %s:%d: expected %s == %u, got %s == %u\n", __FILE__, __LINE__, #_EXPECTED, expected, #_ACTUAL, actual); \
-            return __LINE__; \
-        } \
-    } while (0)
-#define TEST_CHECK_GT_U32(_ACTUAL, _MINIMUM) \
-    do \
-    { \
-        uint32_t actual = (uint32_t)(_ACTUAL); \
-        uint32_t minimum = (uint32_t)(_MINIMUM); \
-        if (actual <= minimum) \
-        { \
-            fprintf(stderr, "TEST_CHECK_GT_U32 failed at line %s:%d: expected %s == %u > %s == %u\n", __FILE__, __LINE__, #_ACTUAL, actual, #_MINIMUM, minimum); \
-            return __LINE__; \
-        } \
-    } while (0)
-#define TEST_CHECK_NE_U32(_UNEXPECTED, _ACTUAL) \
-    do \
-    { \
-        uint32_t unexpected = (uint32_t)(_UNEXPECTED); \
-        uint32_t actual = (uint32_t)(_ACTUAL); \
-        if (actual == unexpected) \
-        { \
-            fprintf(stderr, "TEST_CHECK_NE_U32 failed at line %s:%d: expected %s != %u, got %s == %u\n", __FILE__, __LINE__, #_UNEXPECTED, unexpected, #_ACTUAL, actual); \
-            return __LINE__; \
-        } \
-    } while (0)
-#define TEST_CHECK_STREQ(_EXPECTED, _ACTUAL) \
-    do \
-    { \
-        const char* expected = (_EXPECTED); \
-        const char* actual = (_ACTUAL); \
-        if (strcmp(expected, actual) != 0) \
-        { \
-            fprintf(stderr, "TEST_CHECK_STREQ failed at line %s:%d: expected %s == '%s', got %s == '%s'\n", __FILE__, __LINE__, #_EXPECTED, expected, #_ACTUAL, actual); \
-            return __LINE__; \
-        } \
-    } while (0)
-#define RUN_TEST(_NAME, _CALL) \
-    do \
-    { \
-        PrintTestStatus(TEST_COLOR_CYAN, "[ RUN      ]", (_NAME)); \
-        result = (_CALL); \
-        if (result != 0) \
-        { \
-            PrintTestFailed((_NAME), result); \
-            return result; \
-        } \
-        PrintTestStatus(TEST_COLOR_GREEN, "[       OK ]", (_NAME)); \
-    } while (0)
-
 typedef struct HttpTestServerConfig
 {
     char m_ServerIP[128];
     int  m_ServerPort;
 } HttpTestServerConfig;
+
+static HttpTestServerConfig g_ServerConfig;
 
 typedef struct HttpTestResponse
 {
@@ -234,6 +80,44 @@ typedef struct HttpTestResponse
     uint32_t     m_CancelOnDataEvent;
     TestAtomic32 m_Complete;
 } HttpTestResponse;
+
+typedef struct Http
+{
+    HttpService*     m_Service;
+    HttpRequest*     m_Request;
+    // Callback data must remain alive until teardown joins the service threads.
+    HttpTestResponse m_Response;
+} Http;
+
+JC_TEST_FIXTURE_SETUP(Http)
+{
+    Http* self = jc_test_fixture;
+    self->m_Response.m_StatusCode = -1;
+    self->m_Response.m_HeaderStatusCode = -1;
+    self->m_Response.m_Result = HTTP_RESULT_UNKNOWN;
+
+    ASSERT_EQ(HTTP_RESULT_OK, HttpNewServiceInternal(1, &self->m_Service));
+    ASSERT_TRUE(self->m_Service != 0);
+    ASSERT_EQ(HTTP_RESULT_OK, HttpNewRequest(&self->m_Request));
+    ASSERT_TRUE(self->m_Request != 0);
+}
+
+JC_TEST_FIXTURE_TEARDOWN(Http)
+{
+    HttpDeleteServiceInternal(jc_test_fixture->m_Service);
+    HttpDeleteRequest(jc_test_fixture->m_Request);
+}
+
+static HttpResult PushRequest(Http* self, HttpRequestHandle* request_handle)
+{
+    HttpResult result = HttpPushRequest(self->m_Service, self->m_Request, request_handle);
+    if (result == HTTP_RESULT_OK)
+    {
+        // The service owns successfully submitted requests.
+        self->m_Request = 0;
+    }
+    return result;
+}
 
 static void TestSleep(uint32_t milliseconds)
 {
@@ -467,410 +351,249 @@ static int WaitForComplete(HttpTestResponse* response, uint32_t timeout_seconds)
     return 0;
 }
 
-static int TestRequestConfiguration(void)
+TEST_F(Http, RequestConfiguration)
 {
-    HttpRequest* request = 0;
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewRequest(&request));
-    TEST_CHECK(request != 0);
+    HttpRequest* request = jc_test_fixture->m_Request;
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetMethod(request, "GET"));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetURL(request, "https://example.com/items"));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpAddHeader(request, "Accept: application/json"));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetRequestBody(request, "request-body", 12));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponsePath(request, "/tmp/response.bin"));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetProxy(request, "http://127.0.0.1:8080"));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetIgnoreCache(request, 1));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetChunkedTransfer(request, 0));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetReportProgress(request, 1));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetBasicAuth(request, "user", "password"));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetBearerAuth(request, "token"));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetTimeout(request, 1000));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, 0));
-
-    HttpDeleteRequest(request);
-    return 0;
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetMethod(request, "GET"));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, "https://example.com/items"));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpAddHeader(request, "Accept: application/json"));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetRequestBody(request, "request-body", 12));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponsePath(request, "/tmp/response.bin"));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetProxy(request, "http://127.0.0.1:8080"));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetIgnoreCache(request, 1));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetChunkedTransfer(request, 0));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetReportProgress(request, 1));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetBasicAuth(request, "user", "password"));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetBearerAuth(request, "token"));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetTimeout(request, 1000));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, 0));
 }
 
-static int TestPostSendsData(const HttpTestServerConfig* server_config)
+TEST_F(Http, PostSendsData)
 {
-    HttpService*      service = 0;
-    HttpRequest*      request = 0;
+    HttpRequest*      request = jc_test_fixture->m_Request;
     HttpRequestHandle request_handle;
-    HttpTestResponse  response;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
     char              url[256];
-    int               result;
     const char*       body = "abc";
 
     memset(&request_handle, 0, sizeof(request_handle));
-    memset(&response, 0, sizeof(response));
-    response.m_StatusCode = -1;
-    response.m_Result = HTTP_RESULT_UNKNOWN;
 
-    snprintf(url, sizeof(url), "http://%s:%d/post", server_config->m_ServerIP, server_config->m_ServerPort);
+    snprintf(url, sizeof(url), "http://%s:%d/post", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewServiceInternal(1, &service));
-    TEST_CHECK(service != 0);
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetMethod(request, "POST"));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetRequestBody(request, body, (uint32_t)strlen(body)));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_NE(HTTP_REQUEST_HANDLE_INVALID, request_handle);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewRequest(&request));
-    TEST_CHECK(request != 0);
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetMethod(request, "POST"));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetRequestBody(request, body, (uint32_t)strlen(body)));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, &response));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpPushRequest(service, request, &request_handle));
-    TEST_CHECK_NE_U32(HTTP_REQUEST_HANDLE_INVALID, request_handle);
+    ASSERT_EQ(0, WaitForComplete(response, 10));
 
-    result = WaitForComplete(&response, 10);
-    if (result != 0)
-    {
-        HttpDeleteServiceInternal(service);
-        return result;
-    }
-
-    HttpDeleteServiceInternal(service);
-
-    TEST_CHECK_EQ(HTTP_RESULT_OK, response.m_Result);
-    TEST_CHECK_EQ(200, response.m_StatusCode);
-    TEST_CHECK_EQ(294, strtol(response.m_Data, 0, 10));
-    return 0;
+    ASSERT_EQ(HTTP_RESULT_OK, response->m_Result);
+    ASSERT_EQ(200, response->m_StatusCode);
+    ASSERT_EQ(294, strtol(response->m_Data, 0, 10));
 }
 
-static int TestProgressEvents(const HttpTestServerConfig* server_config)
+TEST_F(Http, ProgressEvents)
 {
-    HttpService*      service = 0;
-    HttpRequest*      request = 0;
+    HttpRequest*      request = jc_test_fixture->m_Request;
     HttpRequestHandle request_handle;
-    HttpTestResponse  response;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
     char              url[256];
-    int               result;
     const uint32_t    response_size = 1024;
 
     memset(&request_handle, 0, sizeof(request_handle));
-    memset(&response, 0, sizeof(response));
-    response.m_StatusCode = -1;
-    response.m_Result = HTTP_RESULT_UNKNOWN;
 
-    snprintf(url, sizeof(url), "http://%s:%d/arb/%u", server_config->m_ServerIP, server_config->m_ServerPort, response_size);
+    snprintf(url, sizeof(url), "http://%s:%d/arb/%u", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort, response_size);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewServiceInternal(1, &service));
-    TEST_CHECK(service != 0);
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetReportProgress(request, 1));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_NE(HTTP_REQUEST_HANDLE_INVALID, request_handle);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewRequest(&request));
-    TEST_CHECK(request != 0);
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetReportProgress(request, 1));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, &response));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpPushRequest(service, request, &request_handle));
-    TEST_CHECK_NE_U32(HTTP_REQUEST_HANDLE_INVALID, request_handle);
+    ASSERT_EQ(0, WaitForComplete(response, 10));
 
-    result = WaitForComplete(&response, 10);
-    if (result != 0)
-    {
-        HttpDeleteServiceInternal(service);
-        return result;
-    }
-
-    HttpDeleteServiceInternal(service);
-
-    TEST_CHECK_EQ(HTTP_RESULT_OK, response.m_Result);
-    TEST_CHECK_EQ(200, response.m_StatusCode);
-    TEST_CHECK_GT_U32(response.m_ProgressEventCount, 0);
-    TEST_CHECK_EQ_U32(response_size, response.m_BytesReceived);
-    TEST_CHECK_EQ(response_size, response.m_BytesTotal);
-    return 0;
+    ASSERT_EQ(HTTP_RESULT_OK, response->m_Result);
+    ASSERT_EQ(200, response->m_StatusCode);
+    ASSERT_GT(response->m_ProgressEventCount, 0);
+    ASSERT_EQ(response_size, response->m_BytesReceived);
+    ASSERT_EQ(response_size, response->m_BytesTotal);
 }
 
-static int TestGetReturnsData(const HttpTestServerConfig* server_config)
+TEST_F(Http, GetReturnsData)
 {
-    HttpService*      service = 0;
-    HttpRequest*      request = 0;
+    HttpService*      service = jc_test_fixture->m_Service;
+    HttpRequest*      request = jc_test_fixture->m_Request;
     HttpRequestHandle request_handle;
-    HttpTestResponse  response;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
     char              url[256];
-    int               result;
 
     memset(&request_handle, 0, sizeof(request_handle));
-    memset(&response, 0, sizeof(response));
-    response.m_StatusCode = -1;
-    response.m_Result = HTTP_RESULT_UNKNOWN;
 
-    snprintf(url, sizeof(url), "http://%s:%d/echo/Hello", server_config->m_ServerIP, server_config->m_ServerPort);
+    snprintf(url, sizeof(url), "http://%s:%d/echo/Hello", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewServiceInternal(1, &service));
-    TEST_CHECK(service != 0);
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpAddHeader(request, "Accept: text/plain"));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_NE(HTTP_REQUEST_HANDLE_INVALID, request_handle);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewRequest(&request));
-    TEST_CHECK(request != 0);
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpAddHeader(request, "Accept: text/plain"));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, &response));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpPushRequest(service, request, &request_handle));
-    TEST_CHECK_NE_U32(HTTP_REQUEST_HANDLE_INVALID, request_handle);
+    ASSERT_EQ(0, WaitForComplete(response, 10));
+    ASSERT_EQ(HTTP_RESULT_INVAL, HttpCancelRequest(service, request_handle));
 
-    result = WaitForComplete(&response, 10);
-    if (result != 0)
-    {
-        HttpDeleteServiceInternal(service);
-        return result;
-    }
-
-    TEST_CHECK_EQ(HTTP_RESULT_INVAL, HttpCancelRequest(service, request_handle));
-
-    HttpDeleteServiceInternal(service);
-
-    TEST_CHECK_EQ(HTTP_RESULT_OK, response.m_Result);
-    TEST_CHECK_EQ(200, response.m_StatusCode);
-    TEST_CHECK_STREQ("Hello", response.m_Data);
-    TEST_CHECK_EQ_U32(5, response.m_TotalDataSize);
-    return 0;
+    ASSERT_EQ(HTTP_RESULT_OK, response->m_Result);
+    ASSERT_EQ(200, response->m_StatusCode);
+    ASSERT_STREQ("Hello", response->m_Data);
+    ASSERT_EQ(5, response->m_TotalDataSize);
 }
 
-static int TestAddReturnsData(const HttpTestServerConfig* server_config)
+TEST_F(Http, AddReturnsData)
 {
-    HttpService*      service = 0;
-    HttpRequest*      request = 0;
+    HttpRequest*      request = jc_test_fixture->m_Request;
     HttpRequestHandle request_handle;
-    HttpTestResponse  response;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
     char              url[256];
-    int               result;
 
     memset(&request_handle, 0, sizeof(request_handle));
-    memset(&response, 0, sizeof(response));
-    response.m_StatusCode = -1;
-    response.m_Result = HTTP_RESULT_UNKNOWN;
 
-    snprintf(url, sizeof(url), "http://%s:%d/add/10/20", server_config->m_ServerIP, server_config->m_ServerPort);
+    snprintf(url, sizeof(url), "http://%s:%d/add/10/20", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewServiceInternal(1, &service));
-    TEST_CHECK(service != 0);
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpAddHeader(request, "X-Scale: 3"));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_NE(HTTP_REQUEST_HANDLE_INVALID, request_handle);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewRequest(&request));
-    TEST_CHECK(request != 0);
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpAddHeader(request, "X-Scale: 3"));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, &response));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpPushRequest(service, request, &request_handle));
-    TEST_CHECK_NE_U32(HTTP_REQUEST_HANDLE_INVALID, request_handle);
+    ASSERT_EQ(0, WaitForComplete(response, 10));
 
-    result = WaitForComplete(&response, 10);
-    if (result != 0)
-    {
-        HttpDeleteServiceInternal(service);
-        return result;
-    }
-
-    HttpDeleteServiceInternal(service);
-
-    TEST_CHECK_EQ(HTTP_RESULT_OK, response.m_Result);
-    TEST_CHECK_EQ(200, response.m_StatusCode);
-    TEST_CHECK_EQ(90, strtol(response.m_Data, 0, 10));
-    TEST_CHECK_EQ_U32(response.m_DataEventCount, response.m_CompleteDataEventCount);
-    return 0;
+    ASSERT_EQ(HTTP_RESULT_OK, response->m_Result);
+    ASSERT_EQ(200, response->m_StatusCode);
+    ASSERT_EQ(90, strtol(response->m_Data, 0, 10));
+    ASSERT_EQ(response->m_DataEventCount, response->m_CompleteDataEventCount);
 }
 
-static int TestResponseHeaders(const HttpTestServerConfig* server_config)
+TEST_F(Http, ResponseHeaders)
 {
-    HttpService*      service = 0;
-    HttpRequest*      request = 0;
+    HttpRequest*      request = jc_test_fixture->m_Request;
     HttpRequestHandle request_handle;
-    HttpTestResponse  response;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
     char              url[256];
-    int               result;
     const uint32_t    response_size = 123;
 
     memset(&request_handle, 0, sizeof(request_handle));
-    memset(&response, 0, sizeof(response));
-    response.m_StatusCode = -1;
-    response.m_HeaderStatusCode = -1;
-    response.m_Result = HTTP_RESULT_UNKNOWN;
 
-    snprintf(url, sizeof(url), "http://%s:%d/arb/%u", server_config->m_ServerIP, server_config->m_ServerPort, response_size);
+    snprintf(url, sizeof(url), "http://%s:%d/arb/%u", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort, response_size);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewServiceInternal(1, &service));
-    TEST_CHECK(service != 0);
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_NE(HTTP_REQUEST_HANDLE_INVALID, request_handle);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewRequest(&request));
-    TEST_CHECK(request != 0);
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, &response));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpPushRequest(service, request, &request_handle));
-    TEST_CHECK_NE_U32(HTTP_REQUEST_HANDLE_INVALID, request_handle);
+    ASSERT_EQ(0, WaitForComplete(response, 10));
 
-    result = WaitForComplete(&response, 10);
-    if (result != 0)
-    {
-        HttpDeleteServiceInternal(service);
-        return result;
-    }
-
-    HttpDeleteServiceInternal(service);
-
-    TEST_CHECK_EQ(HTTP_RESULT_OK, response.m_Result);
-    TEST_CHECK_EQ(200, response.m_StatusCode);
-    TEST_CHECK_EQ(200, response.m_HeaderStatusCode);
-    TEST_CHECK_EQ_U32(response_size, response.m_TotalDataSize);
-    TEST_CHECK_GT_U32(response.m_HeaderEventCount, 0);
-    TEST_CHECK_EQ_U32(response.m_HeaderEventCount, response.m_HeaderBeforeDataEventCount);
-    TEST_CHECK_EQ_U32(response.m_HeaderEventCount, response.m_CompleteHeaderEventCount);
-    TEST_CHECK_EQ_U32(1, response.m_HasContentLengthHeader);
-    TEST_CHECK_EQ_U32(response_size, response.m_ContentLengthHeaderValue);
-    return 0;
+    ASSERT_EQ(HTTP_RESULT_OK, response->m_Result);
+    ASSERT_EQ(200, response->m_StatusCode);
+    ASSERT_EQ(200, response->m_HeaderStatusCode);
+    ASSERT_EQ(response_size, response->m_TotalDataSize);
+    ASSERT_GT(response->m_HeaderEventCount, 0);
+    ASSERT_EQ(response->m_HeaderEventCount, response->m_HeaderBeforeDataEventCount);
+    ASSERT_EQ(response->m_HeaderEventCount, response->m_CompleteHeaderEventCount);
+    ASSERT_EQ(1, response->m_HasContentLengthHeader);
+    ASSERT_EQ(response_size, response->m_ContentLengthHeaderValue);
 }
 
-static int TestLargeResponseStreamsChunks(const HttpTestServerConfig* server_config)
+TEST_F(Http, LargeResponseStreamsChunks)
 {
-    HttpService*      service = 0;
-    HttpRequest*      request = 0;
+    HttpRequest*      request = jc_test_fixture->m_Request;
     HttpRequestHandle request_handle;
-    HttpTestResponse  response;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
     char              url[256];
-    int               result;
     const uint32_t    response_size = 128 * 1024;
 
     memset(&request_handle, 0, sizeof(request_handle));
-    memset(&response, 0, sizeof(response));
-    response.m_StatusCode = -1;
-    response.m_Result = HTTP_RESULT_UNKNOWN;
 
-    snprintf(url, sizeof(url), "http://%s:%d/arb/%u", server_config->m_ServerIP, server_config->m_ServerPort, response_size);
+    snprintf(url, sizeof(url), "http://%s:%d/arb/%u", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort, response_size);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewServiceInternal(1, &service));
-    TEST_CHECK(service != 0);
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_NE(HTTP_REQUEST_HANDLE_INVALID, request_handle);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewRequest(&request));
-    TEST_CHECK(request != 0);
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, &response));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpPushRequest(service, request, &request_handle));
-    TEST_CHECK_NE_U32(HTTP_REQUEST_HANDLE_INVALID, request_handle);
+    ASSERT_EQ(0, WaitForComplete(response, 10));
 
-    result = WaitForComplete(&response, 10);
-    if (result != 0)
-    {
-        HttpDeleteServiceInternal(service);
-        return result;
-    }
-
-    HttpDeleteServiceInternal(service);
-
-    TEST_CHECK_EQ(HTTP_RESULT_OK, response.m_Result);
-    TEST_CHECK_EQ(200, response.m_StatusCode);
-    TEST_CHECK_EQ_U32(response_size, response.m_TotalDataSize);
-    TEST_CHECK_GT_U32(response.m_DataEventCount, 1);
-    TEST_CHECK_EQ_U32(response.m_DataEventCount, response.m_CompleteDataEventCount);
-    return 0;
+    ASSERT_EQ(HTTP_RESULT_OK, response->m_Result);
+    ASSERT_EQ(200, response->m_StatusCode);
+    ASSERT_EQ(response_size, response->m_TotalDataSize);
+    ASSERT_GT(response->m_DataEventCount, 1);
+    ASSERT_EQ(response->m_DataEventCount, response->m_CompleteDataEventCount);
 }
 
-static int TestPushRequiresURL(void)
+TEST_F(Http, PushRequiresURL)
 {
-    HttpService*      service = 0;
-    HttpRequest*      request = 0;
+    HttpService*      service = jc_test_fixture->m_Service;
     HttpRequestHandle request_handle;
 
     memset(&request_handle, 0, sizeof(request_handle));
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewServiceInternal(1, &service));
-    TEST_CHECK(service != 0);
-
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewRequest(&request));
-    TEST_CHECK(request != 0);
-    TEST_CHECK_EQ(HTTP_RESULT_INVAL, HttpPushRequest(service, request, &request_handle));
-    TEST_CHECK_EQ_U32(HTTP_REQUEST_HANDLE_INVALID, request_handle);
-    TEST_CHECK_EQ(HTTP_RESULT_INVAL, HttpCancelRequest(service, request_handle));
-
-    HttpDeleteRequest(request);
-    HttpDeleteServiceInternal(service);
-    return 0;
+    ASSERT_EQ(HTTP_RESULT_INVAL, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_EQ(HTTP_REQUEST_HANDLE_INVALID, request_handle);
+    ASSERT_EQ(HTTP_RESULT_INVAL, HttpCancelRequest(service, request_handle));
 }
 
-static int TestCancelRequest(const HttpTestServerConfig* server_config)
+TEST_F(Http, CancelRequest)
 {
-    HttpService*      service = 0;
-    HttpRequest*      request = 0;
+    HttpService*      service = jc_test_fixture->m_Service;
+    HttpRequest*      request = jc_test_fixture->m_Request;
     HttpRequestHandle request_handle;
-    HttpTestResponse  response;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
     char              url[256];
-    int               result;
 
     memset(&request_handle, 0, sizeof(request_handle));
-    memset(&response, 0, sizeof(response));
-    response.m_StatusCode = -1;
-    response.m_Result = HTTP_RESULT_UNKNOWN;
 
-    snprintf(url, sizeof(url), "http://%s:%d/sleep/1000", server_config->m_ServerIP, server_config->m_ServerPort);
+    snprintf(url, sizeof(url), "http://%s:%d/sleep/1000", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewServiceInternal(1, &service));
-    TEST_CHECK(service != 0);
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_NE(HTTP_REQUEST_HANDLE_INVALID, request_handle);
+    ASSERT_EQ(HTTP_RESULT_OK, HttpCancelRequest(service, request_handle));
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewRequest(&request));
-    TEST_CHECK(request != 0);
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, &response));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpPushRequest(service, request, &request_handle));
-    TEST_CHECK_NE_U32(HTTP_REQUEST_HANDLE_INVALID, request_handle);
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpCancelRequest(service, request_handle));
+    ASSERT_EQ(0, WaitForComplete(response, 10));
 
-    result = WaitForComplete(&response, 10);
-    if (result != 0)
-    {
-        HttpDeleteServiceInternal(service);
-        return result;
-    }
-
-    HttpDeleteServiceInternal(service);
-
-    TEST_CHECK_EQ(HTTP_RESULT_INVAL, response.m_Result);
-    return 0;
+    ASSERT_EQ(HTTP_RESULT_INVAL, response->m_Result);
 }
 
-static int TestCancelFromCallback(const HttpTestServerConfig* server_config)
+TEST_F(Http, CancelFromCallback)
 {
-    HttpService*      service = 0;
-    HttpRequest*      request = 0;
+    HttpRequest*      request = jc_test_fixture->m_Request;
     HttpRequestHandle request_handle;
-    HttpTestResponse  response;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
     char              url[256];
-    int               result;
     const uint32_t    response_size = 128 * 1024;
 
     memset(&request_handle, 0, sizeof(request_handle));
-    memset(&response, 0, sizeof(response));
-    response.m_StatusCode = -1;
-    response.m_Result = HTTP_RESULT_UNKNOWN;
-    response.m_CancelOnDataEvent = 1;
+    response->m_CancelOnDataEvent = 1;
 
-    snprintf(url, sizeof(url), "http://%s:%d/arb/%u", server_config->m_ServerIP, server_config->m_ServerPort, response_size);
+    snprintf(url, sizeof(url), "http://%s:%d/arb/%u", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort, response_size);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewServiceInternal(1, &service));
-    TEST_CHECK(service != 0);
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_NE(HTTP_REQUEST_HANDLE_INVALID, request_handle);
 
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpNewRequest(&request));
-    TEST_CHECK(request != 0);
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, &response));
-    TEST_CHECK_EQ(HTTP_RESULT_OK, HttpPushRequest(service, request, &request_handle));
-    TEST_CHECK_NE_U32(HTTP_REQUEST_HANDLE_INVALID, request_handle);
+    ASSERT_EQ(0, WaitForComplete(response, 10));
 
-    result = WaitForComplete(&response, 10);
-    if (result != 0)
-    {
-        HttpDeleteServiceInternal(service);
-        return result;
-    }
-
-    HttpDeleteServiceInternal(service);
-
-    TEST_CHECK_GT_U32(response.m_DataEventCount, 0);
-    TEST_CHECK_EQ(HTTP_RESULT_INVAL, response.m_Result);
-    TEST_CHECK_EQ_U32(response.m_DataEventCount, response.m_CompleteDataEventCount);
-    return 0;
+    ASSERT_GT(response->m_DataEventCount, 0);
+    ASSERT_EQ(HTTP_RESULT_INVAL, response->m_Result);
+    ASSERT_EQ(response->m_DataEventCount, response->m_CompleteDataEventCount);
 }
 
 int main(int argc, char** argv)
 {
-    HttpTestServerConfig server_config;
-    char                 server_status[192];
-    int                  result;
+    jc_test_init(&argc, argv);
 
     if (argc < 2)
     {
@@ -878,28 +601,11 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    result = ReadServerConfig(argv[1], &server_config);
+    int result = ReadServerConfig(argv[1], &g_ServerConfig);
     if (result != 0)
     {
         return result;
     }
 
-    g_TestColorOutput = TestStdoutSupportsColor();
-    snprintf(server_status, sizeof(server_status), "test server %s:%d", server_config.m_ServerIP, server_config.m_ServerPort);
-    PrintTestStatus(TEST_COLOR_CYAN, "[ HTTP     ]", server_status);
-
-    RUN_TEST("TestRequestConfiguration", TestRequestConfiguration());
-    RUN_TEST("TestGetReturnsData", TestGetReturnsData(&server_config));
-    RUN_TEST("TestPostSendsData", TestPostSendsData(&server_config));
-    RUN_TEST("TestAddReturnsData", TestAddReturnsData(&server_config));
-    RUN_TEST("TestResponseHeaders", TestResponseHeaders(&server_config));
-    RUN_TEST("TestProgressEvents", TestProgressEvents(&server_config));
-    RUN_TEST("TestPushRequiresURL", TestPushRequiresURL());
-    RUN_TEST("TestLargeResponseStreamsChunks", TestLargeResponseStreamsChunks(&server_config));
-    RUN_TEST("TestCancelRequest", TestCancelRequest(&server_config));
-    RUN_TEST("TestCancelFromCallback", TestCancelFromCallback(&server_config));
-
-    PrintTestStatus(TEST_COLOR_GREEN, "[  PASSED  ]", "test_http");
-
-    return 0;
+    return jc_test_run_all();
 }
