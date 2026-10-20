@@ -25,10 +25,10 @@
             [editor.doc :as doc]
             [editor.engine-profiler :as engine-profiler]
             [editor.fs :as fs]
+            [editor.gl :as gl]
             [editor.handler :as handler]
             [editor.hot-reload :as hot-reload]
             [editor.http-server.prefs :as http-server.prefs]
-            [editor.os :as os]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -336,6 +336,23 @@
               (is (= [{:message "Bob failed" :severity "error"}]
                      (:issues response))))))))))
 
+(when (gl/supported?)
+  ;; Verifies the preview endpoint renders a PNG at the requested dimensions.
+  (deftest web-server-preview-test
+    (test-util/with-loaded-project
+      (with-open [server (http-server/start!
+                           (web-server/make-dynamic-handler
+                             (scene/routes project app-view)))]
+        (let [{:keys [status headers body]}
+              @(http/request
+                 (str (http-server/local-url server) "/preview/collection/components/test.gui?width=32&height=32")
+                 :as :byte-array)]
+          (is (= 200 status))
+          (is (= "image/png" (get headers "content-type")))
+          (let [image (ImageIO/read (ByteArrayInputStream. body))]
+            (is (= 32 (.getWidth image)))
+            (is (= 32 (.getHeight image)))))))))
+
 (deftest web-server-test
   (test-util/with-loaded-project
     (let [root (doto (Region.)
@@ -398,16 +415,6 @@
                     (is (= {"type" "boolean" "default" true} (get focus-parameter "schema")))))))
             (let [{:keys [status]} @(http/request (str url "/command/run?focus=invalid") :method "POST")]
               (is (= 400 status)))
-            ;; Hosted Windows CI cannot create the preview's OpenGL context.
-            (when-not (os/is-win32?)
-              (let [{:keys [status headers body]} @(http/request
-                                                     (str url "/preview/collection/components/test.gui?width=32&height=32")
-                                                     :as :byte-array)]
-                (is (= 200 status))
-                (is (= "image/png" (get headers "content-type")))
-                (let [image (ImageIO/read (ByteArrayInputStream. body))]
-                  (is (= 32 (.getWidth image)))
-                  (is (= 32 (.getHeight image))))))
             (let [{:keys [status headers body]} @(http/request (str url "/ref?environment=runtime&language=Lua&q=go.property") :as :string)
                   json-body (json/read-str body :key-fn keyword)]
               (is (= 200 status))

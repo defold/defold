@@ -24,11 +24,11 @@
             [editor.colors :as colors]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gltf :as gltf]
             [editor.handler :as handler]
             [editor.model-scene :as model-scene]
-            [editor.os :as os]
             [editor.outline :as outline]
             [editor.outline-view :as outline-view]
             [editor.pipeline.tex-gen :as tex-gen]
@@ -580,9 +580,8 @@
 
 ;; Authored mips expose read-only metadata and support Outline/scene selection.
 ;; Decorative borders must inherit the selection to highlight the selected mip.
-(deftest ktx2-mip-preview-and-selection
-  ;; Hosted Windows CI cannot create the OpenGL context used by this test.
-  (when-not (os/is-win32?)
+(when (gl/supported?)
+  (deftest ktx2-mip-preview-and-selection
     (with-ktx2-project
       (fn [_project-path _workspace project]
         (let [app-view (test-util/setup-app-view! project)]

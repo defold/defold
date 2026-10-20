@@ -24,11 +24,11 @@
             [editor.defold-project :as project]
             [editor.font :as font]
             [editor.form :as form]
+            [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.input :as input]
-            [editor.os :as os]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -111,8 +111,7 @@
     (is (zero? (double (.-baseShadowAlpha rich-properties))))
     (is (zero? (double (aget ^floats (.-outlineColor legacy-properties) 3))))))
 
-;; Hosted Windows CI cannot create the OpenGL 3.3 contexts used by these tests.
-(when-not (os/is-win32?)
+(when (gl/supported?)
 
   ;; Verifies cache ownership and invalidation with native text generation:
   ;; cached batches retain effect textures, vertex rebuilds reset effects, and
@@ -1125,9 +1124,8 @@
           (is (= ["(default)" "notice" "link:hover" "link:active"]
                  (mapv (comp test-util/localization :label) (get-in (g/node-value reloaded :node-outline) [:children 0 :children])))))))))
 
-(deftest opening-font-view-dispatches-input
-  ;; Hosted Windows CI cannot create the OpenGL context used by this test.
-  (when-not (os/is-win32?)
+(when (gl/supported?)
+  (deftest opening-font-view-dispatches-input
     (test-util/with-loaded-project
       (let [[_node view] (test-util/open-scene-view! project app-view "/editor1/test.font" 320 240
                                                      (get-in (workspace/get-resource-type workspace "font") [:view-opts :scene]))

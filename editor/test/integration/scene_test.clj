@@ -18,9 +18,9 @@
             [editor.app-view :as app-view]
             [editor.camera :as camera]
             [editor.geom :as geom]
+            [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.math :as math]
-            [editor.os :as os]
             [editor.scene :as scene]
             [editor.system :as system]
             [editor.types :as types]
@@ -76,9 +76,8 @@
             renderables   (g/node-value view :all-renderables)]
         (is (reduce fn/and (map #(contains? renderables %) [pass/transparent pass/selection])))))))
 
-(deftest scene-selection
-  ;; Hosted Windows CI cannot create the OpenGL context used by this test.
-  (when-not (os/is-win32?)
+(when (gl/supported?)
+  (deftest scene-selection
     (testing "Scene selection"
       (test-util/with-loaded-project
         (let [path          "/logic/atlas_sprite.collection"
@@ -104,8 +103,8 @@
             (test-util/mouse-click! view 32 32 modifiers)
             (is (test-util/selected? app-view resource-node))))))))
 
-(deftest scene-multi-selection
-  (when-not (os/is-win32?)
+(when (gl/supported?)
+  (deftest scene-multi-selection
     (testing "Scene multi selection"
       (test-util/with-loaded-project
         (let [path          "/logic/two_atlas_sprites.collection"
@@ -128,8 +127,8 @@
   ^Vector3d [node]
   (doto (Vector3d.) (math/clj->vecmath (g/node-value node :scale))))
 
-(deftest transform-tools
-  (when-not (os/is-win32?)
+(when (gl/supported?)
+  (deftest transform-tools
     (testing "Transform tools and manipulator interactions"
       (test-util/with-loaded-project
         (let [path "/logic/atlas_sprite.collection"
@@ -165,8 +164,8 @@
        prop-kw
        :value))
 
-(deftest displayed-node-properties-preview-overrides
-  (when-not (os/is-win32?)
+(when (gl/supported?)
+  (deftest displayed-node-properties-preview-overrides
     (testing "Scene view shows preview overrides in displayed node properties during drag."
       (test-util/with-loaded-project
         (let [path "/logic/atlas_sprite.collection"
@@ -205,8 +204,8 @@
           (g/set-property tool-controller :preview-overrides nil))
         (is (= initial-position (g/node-value go-node :position)))))))
 
-(deftest delete-undo-delete-selection
-  (when-not (os/is-win32?)
+(when (gl/supported?)
+  (deftest delete-undo-delete-selection
     (testing "Scene generation"
       (test-util/with-loaded-project
         (let [path          "/logic/atlas_sprite.collection"
@@ -232,8 +231,8 @@
           (test-util/mouse-click! view 32 32)
           (is (test-util/selected? app-view resource-node)))))))
 
-(deftest transform-tools-empty-go
-  (when-not (os/is-win32?)
+(when (gl/supported?)
+  (deftest transform-tools-empty-go
     (testing "Transform tools and manipulator interactions"
       (test-util/with-loaded-project
         (let [path          "/collection/empty_go.collection"
@@ -249,8 +248,8 @@
           (test-util/mouse-drag! view 64 64 100 64)
           (is (not= 0.0 (.x (pos go-node)))))))))
 
-(deftest transform-tools-preserve-types
-  (when-not (os/is-win32?)
+(when (gl/supported?)
+  (deftest transform-tools-preserve-types
     (testing "Transform tools and manipulator interactions"
       (test-util/with-loaded-project
         (let [path "/logic/atlas_sprite.collection"

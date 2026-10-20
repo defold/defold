@@ -32,7 +32,6 @@
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.math :as math]
-            [editor.os :as os]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -51,8 +50,7 @@
            [com.jogamp.opengl GL3]
            [java.io StringReader]))
 
-;; Hosted Windows CI cannot create the OpenGL 3.3 contexts used by these tests.
-(when-not (os/is-win32?)
+(when (gl/supported?)
 
   ;; Verifies non-text GUI rendering samples the actual texture even when the
   ;; sampler is named font_effects. A nonzero texture unit exposes binding

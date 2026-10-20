@@ -22,7 +22,6 @@
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.vertex2 :as vtx]
-            [editor.os :as os]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -91,8 +90,7 @@
           (test-util/prop! node :font-size 32.0)
           (is (= (* 2.0 width) (:width (g/valid-node-value node :text-layout)))))))))
 
-;; Hosted Windows CI cannot create the OpenGL contexts used by these tests.
-(when-not (os/is-win32?)
+(when (gl/supported?)
 
   ;; Rendering fixed pixel markup must match plain text at that size without
   ;; reuploading the atlases.

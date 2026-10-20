@@ -18,10 +18,10 @@
             [editor.app-view :as app-view]
             [editor.camera :as camera]
             [editor.curve-view :as curve-view]
+            [editor.gl :as gl]
             [editor.input :as input]
             [editor.mouse-binding :as mouse-binding]
             [editor.mouse-binding-test :refer [with-mouse-bindings]]
-            [editor.os :as os]
             [editor.scene :as scene]
             [editor.scene-selection :as selection]
             [editor.tile-map :as tile-map]
@@ -464,9 +464,8 @@
         (is (not= initial-camera (g/node-value view :camera))
             "Camera should have panned via the overridden binding.")))))
 
-(deftest right-click-over-object-selects-it
-  ;; Hosted Windows CI cannot create the OpenGL context used by this test.
-  (when-not (os/is-win32?)
+(when (gl/supported?)
+  (deftest right-click-over-object-selects-it
     ;; Right-clicking an object must select it (so the context menu acts on
     ;; the clicked object), even though right-click also resolves to a camera movement
     ;; (pan) here. The CameraController has to propagate the secondary press instead of
@@ -512,8 +511,8 @@
             (is (= [anchor 64.0 64.0] @shown)
                 "The queued menu should show at the click position on the next refresh.")))))))
 
-(deftest empty-camera-binding-override-disables-default-pan
-  (when-not (os/is-win32?)
+(when (gl/supported?)
+  (deftest empty-camera-binding-override-disables-default-pan
     (test-util/with-loaded-project
       (with-mouse-bindings
         (mouse-binding/register!

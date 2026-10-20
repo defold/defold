@@ -20,7 +20,7 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
-            [editor.os :as os]
+            [editor.gl :as gl]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -35,9 +35,8 @@
       (let [root (g/node-value workspace :resource-tree)]
         (is (= (resource/proj-path root) "/"))))))
 
-(deftest asset-browser-search
-  ;; Hosted Windows CI cannot create the OpenGL context used by this test.
-  (when-not (os/is-win32?)
+(when (gl/supported?)
+  (deftest asset-browser-search
     (testing "Searching for a resource produces a hit and renders a preview"
       (let [queries ["**/atlas.atlas" "**/env.cubemap"
                      "**/atlas.sprite" "**/atlas_sprite.go" "**/atlas_sprite.collection"]]

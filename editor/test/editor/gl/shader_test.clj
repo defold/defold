@@ -16,12 +16,10 @@
   (:require [clojure.test :refer :all]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
-            [editor.os :as os]
             [support.gl-support :as gl-support])
   (:import [com.jogamp.opengl GL3]))
 
-;; Hosted Windows CI cannot create the OpenGL 3.3 contexts used by these tests.
-(when-not (os/is-win32?)
+(when (gl/supported?)
 
   ;; Verifies material opt-in against compiled shader reflection, including
   ;; unused samplers and transpiled array slices, without opening a window.
