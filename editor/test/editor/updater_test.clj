@@ -19,6 +19,7 @@
             [editor.prefs :as prefs]
             [editor.system :as system]
             [editor.updater :as updater]
+            [support.test-support :as test-support]
             [util.http-server :as http-server])
   (:import [ch.qos.logback.classic Level Logger]
            [com.dynamo.bob Platform]
@@ -49,6 +50,10 @@
                 (fn [archive-domain channel]
                   (format "http://localhost:%s/editor2/channels/%s/update-v4.json"
                           test-port channel))
+
+                updater/channel-info-url
+                (fn [_archive-domain channel]
+                  (format "http://localhost:%s/%s/info.json" test-port channel))
 
                 updater/release-notes-manifest-url
                 (fn [_archive-domain channel]
@@ -228,6 +233,8 @@
       (is (true? (updater/can-download-update? updater)))
       (is (false? @(updater/download-and-extract! updater))))))
 
+;; Verifies downloads replace the chosen file without clobbering an existing
+;; .part sibling.
 (deftest download-channel-saves-to-chosen-file
   (with-open [_ (start-update-server! "beta" "B2")]
     (let [updater (make-updater "stable" "S1" nil (make-temp-prefs))
@@ -235,25 +242,38 @@
           channel-info {:channel "beta" :version "2.0" :sha1 "B2"}
           extension (if (= "macos" (.getOs (Platform/getHostPlatform))) "dmg" "zip")
           file-name (str "Defold-2.0-beta-" (.getPair (Platform/getHostPlatform)) "." extension)
-          target (io/file dir "chosen.bin")]
+          target (io/file dir "chosen.bin")
+          sibling (io/file dir "chosen.bin.part")]
       (try
+        (spit sibling "existing sibling")
         (is (= file-name (updater/channel-download-file-name updater channel-info)))
         (is (= target @(updater/download-channel! updater channel-info target)))
         (is (pos? (.length target)))
         (is (= target @(updater/download-channel! updater channel-info target)))
-        (is (= #{"chosen.bin"} (list-files dir)))
+        (is (= #{"chosen.bin" "chosen.bin.part"} (list-files dir)))
+        (is (= "existing sibling" (slurp sibling)))
         (is (pos? (.length target)))
         (is (false? (updater/channel-download-in-progress? updater)))
         (finally
           (fs/delete-directory! dir))))))
 
+;; Verifies failed downloads clean up temporary files and preserve existing
+;; destination and sibling files.
 (deftest download-channel-fails-cleanly-when-file-is-missing
   (with-open [_ (start-update-server! "beta" "B2")]
     (let [updater (make-updater "stable" "S1" nil (make-temp-prefs))
-          dir (fs/create-temp-directory! "updater-test-downloads")]
+          dir (fs/create-temp-directory! "updater-test-downloads")
+          target (io/file dir "chosen.bin")
+          sibling (io/file dir "chosen.bin.part")]
       (try
-        (is (nil? @(updater/download-channel! updater {:channel "beta" :version "2.0" :sha1 "B3"} (io/file dir "chosen.bin"))))
+        (is (nil? @(updater/download-channel! updater {:channel "beta" :version "2.0" :sha1 "B3"} target)))
         (is (= #{} (list-files dir)))
+        (spit target "existing download")
+        (spit sibling "existing sibling")
+        (is (nil? @(updater/download-channel! updater {:channel "beta" :version "2.0" :sha1 "B3"} target)))
+        (is (= #{"chosen.bin" "chosen.bin.part"} (list-files dir)))
+        (is (= "existing download" (slurp target)))
+        (is (= "existing sibling" (slurp sibling)))
         (is (false? (updater/channel-download-in-progress? updater)))
         (finally
           (fs/delete-directory! dir))))))
@@ -270,33 +290,49 @@
     (swap! (:state-atom updater) dissoc :channel-download)
     (is (= offer (updater/channel-offer updater)))))
 
+;; Verifies public update checks discover beta offers through HTTP metadata and
+;; respect version, channel, and platform restrictions.
 (deftest check-channel-offer-test
   (let [beta {:version "1.14.0" :sha1 "B2"}
-        offer-after-check (fn offer-after-check [channel running-version beta-info supported]
-                            (let [updater (make-updater channel "S1" nil (make-temp-prefs))
-                                  fetched (atom [])]
-                              (with-redefs [system/defold-version (constantly running-version)
-                                            updater/platform-supported? (constantly supported)
-                                            updater/fetch-channel-info! (fn fetch-channel-info! [channel]
-                                                                          (swap! fetched conj channel)
-                                                                          beta-info)]
-                                (#'updater/check-channel-offer! updater))
-                              {:offer (:channel-offer @(:state-atom updater))
-                               :fetched @fetched}))]
+        host-platform (Platform/getHostPlatform)
+        offer-after-check (fn offer-after-check [channel running-version beta-info platform]
+                            (test-support/with-cleared-system-properties! ["defold.version"]
+                              (when running-version
+                                (System/setProperty "defold.version" running-version))
+                              (let [updater (assoc (make-updater channel "S1" nil (make-temp-prefs)) :platform platform)
+                                    requests (atom [])
+                                    resources (cond-> (make-handler-resources channel "S1")
+                                                beta-info (assoc "/beta/info.json" (http-server/json-response beta-info)))]
+                                (with-open [_ (http-server/start!
+                                                (fn handle-request [request]
+                                                  (swap! requests conj (:path request))
+                                                  (get resources (:path request) http-server/not-found))
+                                                :port test-port)]
+                                  (is (true? (updater/check! updater)))
+                                  {:offer (updater/channel-offer updater)
+                                   :requests @requests}))))]
     (testing "Offers a newer beta on stable"
-      (is (= {:offer (assoc beta :channel "beta") :fetched ["beta"]}
-             (offer-after-check "stable" "1.13.2" beta true))))
+      (is (= {:offer (assoc beta :channel "beta")
+              :requests ["/editor2/channels/stable/update-v4.json" "/beta/info.json"]}
+             (offer-after-check "stable" "1.13.2" beta host-platform))))
     (testing "No offer when the beta is not newer"
-      (is (nil? (:offer (offer-after-check "stable" "1.14.0" beta true))))
-      (is (nil? (:offer (offer-after-check "stable" "1.15.0" beta true)))))
+      (is (nil? (:offer (offer-after-check "stable" "1.14.0" beta host-platform))))
+      (is (nil? (:offer (offer-after-check "stable" "1.15.0" beta host-platform)))))
     (testing "Dev builds have no version, so any beta is newer"
-      (is (some? (:offer (offer-after-check "stable" nil beta true)))))
+      (is (= (assoc beta :channel "beta")
+             (:offer (offer-after-check "stable" nil beta host-platform)))))
     (testing "No offer when the beta info can't be fetched"
-      (is (nil? (:offer (offer-after-check "stable" "1.13.2" nil true)))))
+      (is (nil? (:offer (offer-after-check "stable" "1.13.2" nil host-platform)))))
+    (testing "No offer when the beta metadata is malformed"
+      (is (nil? (:offer (offer-after-check "stable" "1.13.2" {:version "1.14.0"} host-platform))))
+      (is (nil? (:offer (offer-after-check "stable" "1.13.2" {:version 114 :sha1 "B2"} host-platform)))))
     (testing "Never checks outside stable or on unsupported platforms"
-      (is (= {:offer nil :fetched []} (offer-after-check "beta" "1.13.2" beta true)))
-      (is (= {:offer nil :fetched []} (offer-after-check "alpha" "1.13.2" beta true)))
-      (is (= {:offer nil :fetched []} (offer-after-check "stable" "1.13.2" beta false))))))
+      (is (= {:offer nil :requests ["/editor2/channels/beta/update-v4.json"]}
+             (offer-after-check "beta" "1.13.2" beta host-platform)))
+      (is (= {:offer nil :requests ["/editor2/channels/alpha/update-v4.json"]}
+             (offer-after-check "alpha" "1.13.2" beta host-platform)))
+      (is (= {:offer nil :requests ["/editor2/channels/stable/update-v4.json"]}
+             (offer-after-check "stable" "1.13.2" beta Platform/WasmWeb))))))
 
 (deftest client-has-update-after-check-when-update-appears-on-server
   (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]

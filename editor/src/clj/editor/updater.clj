@@ -26,11 +26,12 @@
             [service.log :as log]
             [util.coll :as coll]
             [util.eduction :as e]
-            [util.net :as net])
+            [util.net :as net]
+            [util.path :as path])
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
            [java.io ByteArrayOutputStream File]
-           [java.nio.file CopyOption Files StandardCopyOption]
+           [java.nio.file CopyOption Files Path StandardCopyOption]
            [java.nio.file.attribute FileAttribute]
            [java.util Timer TimerTask]
            [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipFile]
@@ -516,15 +517,12 @@
                                                :progress (progress/make localization/empty-message 1 0)})
     (future
       (try
-        (let [part-file (io/file (.getParentFile file) (str (.getName file) ".part"))]
-          (.deleteOnExit part-file)
-          (try
-            (download! url part-file "progress.downloading-beta" track-progress! (atom false))
-            (Files/move (.toPath part-file) (.toPath file) (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))
-            (log/info :message "Channel build downloaded" :channel channel :file (str file))
-            file
-            (finally
-              (.delete part-file))))
+        (path/atomic-replace!
+          file
+          (fn download-to-temp-path! [^Path temp-path]
+            (download! url (.toFile temp-path) "progress.downloading-beta" track-progress! (atom false))))
+        (log/info :message "Channel build downloaded" :channel channel :file (str file))
+        file
         (catch Exception e
           (log/info :message "Channel download failed" :channel channel :exception e)
           nil)
