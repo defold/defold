@@ -397,7 +397,7 @@ static HProgram LoadMaterialProgram(HContext context, const char* root, const ch
     return program;
 }
 
-static HRenderTarget NewCaptureTarget(HContext context, uint32_t width, uint32_t height, TextureFormat format = TEXTURE_FORMAT_RGBA16F)
+static HRenderTarget NewCaptureTarget(HContext context, uint32_t width, uint32_t height, TextureFormat format = TEXTURE_FORMAT_RGBA16F, bool depth = false)
 {
     RenderTargetCreationParams params;
     params.m_ColorBufferCreationParams[0].m_Width = params.m_ColorBufferParams[0].m_Width = width;
@@ -406,18 +406,29 @@ static HRenderTarget NewCaptureTarget(HContext context, uint32_t width, uint32_t
     params.m_ColorBufferParams[0].m_MinFilter = params.m_ColorBufferParams[0].m_MagFilter = TEXTURE_FILTER_LINEAR;
     params.m_ColorBufferParams[0].m_UWrap = params.m_ColorBufferParams[0].m_VWrap = TEXTURE_WRAP_CLAMP_TO_EDGE;
     params.m_ColorBufferStoreOps[0] = ATTACHMENT_OP_STORE;
-    return NewRenderTarget(context, BUFFER_TYPE_COLOR0_BIT, params);
+    uint32_t buffers = BUFFER_TYPE_COLOR0_BIT;
+    if (depth)
+    {
+        params.m_ColorBufferLoadOps[0] = ATTACHMENT_OP_LOAD;
+        params.m_DepthTexture = true;
+        params.m_DepthBufferCreationParams.m_Width = params.m_DepthBufferParams.m_Width = width;
+        params.m_DepthBufferCreationParams.m_Height = params.m_DepthBufferParams.m_Height = height;
+        params.m_DepthBufferParams.m_Format = TEXTURE_FORMAT_DEPTH;
+        params.m_DepthBufferParams.m_MinFilter = params.m_DepthBufferParams.m_MagFilter = TEXTURE_FILTER_NEAREST;
+        buffers |= BUFFER_TYPE_DEPTH_BIT;
+    }
+    return NewRenderTarget(context, buffers, params);
 }
 
 // Production capture, reduction and atlas shaders must preserve coverage and HDR
 // radiance. Uncovered pixels use the prefiltered environment, guarding dark rough tiles.
-static bool RunTransmissionFilterProbes(HContext context, HProgram program, HVertexDeclaration declaration, HTexture fallback, uint32_t scene_unit, uint32_t blur_unit, uint32_t environment_unit, uint32_t brdf_unit, const char* root, float opacity)
+static bool RunTransmissionFilterProbes(HContext context, HProgram program, HVertexDeclaration declaration, HTexture fallback, uint32_t scene_unit, uint32_t blur_unit, uint32_t environment_unit, uint32_t brdf_unit, const char* root, float opacity, uint32_t depth_unit)
 {
     HProgram filter = LoadMaterialProgram(context, root, "transmission_downsample");
     if (!filter)
         return false;
     const uint32_t width = 8, height = 8;
-    HRenderTarget  scene = NewCaptureTarget(context, width, height);
+    HRenderTarget  scene = NewCaptureTarget(context, width, height, TEXTURE_FORMAT_RGBA16F, true);
     HRenderTarget  target = NewCaptureTarget(context, width, height, TEXTURE_FORMAT_RGBA);
     HRenderTarget  levels[3];
     for (uint32_t i = 0; i < 3; ++i)
@@ -540,6 +551,85 @@ static bool RunTransmissionFilterProbes(HContext context, HProgram program, HVer
         printf("%s: %s (%u,%u,%u,%u)\n", name, passed ? "PASS" : "FAIL", pixels[center + 2], pixels[center + 1], pixels[center], pixels[center + 3]);
         success &= passed;
     }
+    // A nearby backdrop fills the rough lobe even when most of the camera
+    // capture is empty. Farther backdrops must still blur into the environment.
+    struct DepthProbe
+    {
+        const char* m_Name;
+        float       m_BackgroundZ;
+        float       m_Scale;
+        float       m_Roughness;
+        float       m_Ior;
+        bool        m_Perspective;
+        bool        m_GlRange;
+        bool        m_Mean;
+    };
+    const DepthProbe depth_probes[] = {
+        { "depth_near_orthographic", -1.125f, 1, 1, 1.5f, false, false, false },
+        { "depth_far_orthographic", -9, 1, 1, 1.5f, false, false, true },
+        { "depth_near_perspective", -1.125f, 1, 1, 1.5f, true, false, false },
+        { "depth_far_perspective", -9, 1, 1, 1.5f, true, false, true },
+        { "depth_scaled_perspective", -2.25f, 2, 1, 1.5f, true, false, false },
+        { "depth_near_gl_range", -1.125f, 1, 1, 1.5f, true, true, false },
+        { "depth_far_gl_range", -9, 1, 1, 1.5f, true, true, true },
+        { "depth_ior_one", -9, 1, 1, 1, true, false, false },
+        { "depth_smooth", -9, 1, 0, 1.5f, true, false, false },
+        { "depth_zero_gap", -1, 1, 1, 1.5f, true, false, false },
+    };
+    EnableTexture(context, depth_unit, 0, GetRenderTargetTexture(context, scene, BUFFER_TYPE_DEPTH_BIT));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(depth_probes); ++i)
+    {
+        const DepthProbe& p = depth_probes[i];
+        dmVMath::Matrix4  projection = dmVMath::Matrix4::scale(dmVMath::Vector3(1, 1, -0.1f));
+        if (p.m_Perspective)
+        {
+            projection = dmVMath::Matrix4::perspective(1.57079632679f, 1, 0.1f, 100);
+            if (!p.m_GlRange)
+            {
+                // Match the renderer's zero-to-one projection for Metal/Vulkan.
+                projection = dmVMath::Matrix4::translation(dmVMath::Vector3(0, 0, 0.5f)) *
+                dmVMath::Matrix4::scale(dmVMath::Vector3(1, 1, 0.5f)) * projection;
+            }
+        }
+        dmVMath::Vector4 clip = projection * dmVMath::Vector4(0, 0, p.m_BackgroundZ, 1);
+        float            depth = (float)clip.getZ() / (float)clip.getW();
+        if (p.m_GlRange)
+            depth = depth * 0.5f + 0.5f;
+        SetRenderTarget(context, scene, RenderTargetBindingParams());
+        SetDepthMask(context, true);
+        Clear(context, BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, depth, 0);
+        SetRenderTarget(context, target, RenderTargetBindingParams());
+        SetVector(context, program, "transmission_params", dmVMath::Vector4(1, 0, 1, p.m_GlRange ? 2 : 1));
+        SetVector(context, program, "pbrMetallicRoughness.metallicAndRoughnessFactor", dmVMath::Vector4(0, p.m_Roughness, 0, 0));
+        SetVector(context, program, "pbrIor.ior", dmVMath::Vector4(p.m_Ior, 0, 0, 0));
+        SetMatrix(context, program, "mtx_worldview", dmVMath::Matrix4::scale(dmVMath::Vector3(p.m_Scale)));
+        SetMatrix(context, program, "mtx_projection", projection);
+        // The vertex shader always needs this backend's depth range. Only the
+        // fragment reconstruction is authored in GL range for the two GL probes.
+        dmVMath::Matrix4 vertex_projection = projection;
+        if (p.m_GlRange)
+            vertex_projection = dmVMath::Matrix4::translation(dmVMath::Vector3(0, 0, 0.5f)) *
+            dmVMath::Matrix4::scale(dmVMath::Vector3(1, 1, 0.5f)) * projection;
+        SetMatrix(context, program, "mtx_proj", vertex_projection);
+        Draw(context, PRIMITIVE_TRIANGLES, 0, 3, 1);
+        ReadPixels(context, 0, 0, width, height, pixels, sizeof(pixels));
+        bool passed = true;
+        for (uint32_t c = 0; c < 3; ++c)
+        {
+            float background = p.m_Mean ? mean[c] : geometry_color[c] * opacity + environment_color[c] * (1 - opacity);
+            float expected = background * (p.m_Ior == 1 ? 1.0f : 0.96f) * 0.125f;
+            passed &= abs((int)pixels[center + 2 - c] - EncodeSrgb(expected)) <= 1;
+        }
+        char name[128];
+        dmSnPrintf(name, sizeof(name), "%s%s", p.m_Name, opacity < 1 ? "_blend" : "");
+        SaveCapture(name, pixels, width, height);
+        printf("%s: %s (%u,%u,%u,%u)\n", name, passed ? "PASS" : "FAIL", pixels[center + 2], pixels[center + 1], pixels[center], pixels[center + 3]);
+        success &= passed;
+    }
+    SetMatrix(context, program, "mtx_worldview", dmVMath::Matrix4::identity());
+    SetMatrix(context, program, "mtx_proj", dmVMath::Matrix4::scale(dmVMath::Vector3(1, 1, -0.1f)));
+    SetMatrix(context, program, "mtx_projection", dmVMath::Matrix4::scale(dmVMath::Vector3(1, 1, -0.1f)));
+    DisableTexture(context, depth_unit, 0);
     DisableTexture(context, scene_unit, 0);
     DisableTexture(context, blur_unit, 0);
     SetRenderTarget(context, 0, RenderTargetBindingParams());
@@ -626,6 +716,7 @@ static bool RunProbes(HContext context, HProgram program, bool ibl, const char* 
     uint32_t textures = 0;
     uint32_t scene_unit = 0;
     uint32_t blur_unit = 0;
+    uint32_t depth_unit = 0;
     uint32_t environment_unit = 0;
     uint32_t brdf_unit = 0;
     for (uint32_t i = 0; i < GetUniformCount(program); ++i)
@@ -637,6 +728,8 @@ static bool RunProbes(HContext context, HProgram program, bool ibl, const char* 
         bool scene_color = strstr(uniform.m_Name, "tex_scene_color") != 0;
         if (scene_color)
             scene_unit = textures;
+        if (strstr(uniform.m_Name, "tex_scene_depth"))
+            depth_unit = textures;
         if (strstr(uniform.m_Name, "tex_scene_blur"))
             blur_unit = textures;
         if (strstr(uniform.m_Name, "tex_ibl_specular"))
@@ -753,8 +846,8 @@ static bool RunProbes(HContext context, HProgram program, bool ibl, const char* 
     }
     else
     {
-        success &= RunTransmissionFilterProbes(context, program, declaration, texture, scene_unit, blur_unit, environment_unit, brdf_unit, project_root, 1.0f);
-        success &= RunTransmissionFilterProbes(context, program, declaration, texture, scene_unit, blur_unit, environment_unit, brdf_unit, project_root, 0.5f);
+        success &= RunTransmissionFilterProbes(context, program, declaration, texture, scene_unit, blur_unit, environment_unit, brdf_unit, project_root, 1.0f, depth_unit);
+        success &= RunTransmissionFilterProbes(context, program, declaration, texture, scene_unit, blur_unit, environment_unit, brdf_unit, project_root, 0.5f, depth_unit);
     }
     DisableVertexDeclaration(context, declaration);
     DisableVertexBuffer(context, buffer);
