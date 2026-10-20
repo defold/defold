@@ -40,9 +40,9 @@
   ;; TODO: WGSL support (:language-wgsl)
   ;; TODO(question): Does the order matter?
   (cond-> [:language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv :language-msl-22]
-    ;; Local editor builds include all host backends. HLSL bytecode compilation
-    ;; requires Windows; bundled builds select languages through Bob instead.
-    (os/is-win32?) (conj :language-hlsl-51)))
+    ;; Local editor builds include the host backends. Bundled builds select
+    ;; languages through Bob instead.
+    (os/is-win32?) (conj :language-hlsl-60)))
 
 (defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" pb-default-shader-languages
   (pb-shader-languages default-shader-languages))

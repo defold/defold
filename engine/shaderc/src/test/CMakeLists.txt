@@ -70,3 +70,16 @@ target_include_directories(test_shaderc_dxc PRIVATE "${SHADERC_SRC_DIR}" ${SHADE
 defold_target_link_libraries(test_shaderc_dxc "${TARGET_PLATFORM}" shaderc)
 shaderc_stage_dxc(test_shaderc_dxc)
 defold_register_test_target(test_shaderc_dxc ON "${SHADERC_ROOT}")
+
+if(WIN32)
+  target_link_libraries(test_shaderc PRIVATE d3d12.lib)
+endif()
+
+defold_add_executable(test_shaderc_rootsig "${SHADERC_TEST_DIR}/test_shaderc_rootsig.cpp")
+target_include_directories(test_shaderc_rootsig PRIVATE "${SHADERC_SRC_DIR}" ${SHADERC_EXTRA_INCLUDES})
+defold_target_link_libraries(test_shaderc_rootsig "${TARGET_PLATFORM}" shaderc)
+shaderc_stage_dxc(test_shaderc_rootsig)
+defold_register_test_target(test_shaderc_rootsig ON "${SHADERC_ROOT}")
+if(WIN32)
+  target_link_libraries(test_shaderc_rootsig PRIVATE d3d12.lib)
+endif()

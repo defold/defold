@@ -95,6 +95,8 @@ if(SHADERC_IS_DESKTOP)
     "${SHADERC_SRC_DIR}/shaderc.cpp"
     "${SHADERC_SRC_DIR}/shaderc_spirv.cpp"
     "${SHADERC_SRC_DIR}/shaderc_dxc.cpp"
+    "${SHADERC_SRC_DIR}/shaderc_rootsig.cpp"
+    "${SHADERC_SRC_DIR}/shaderc_hlsl.cpp"
     "${SHADERC_SRC_DIR}/shaderc_spvc.cpp")
 
   set(SHADERC_DEFINES)
@@ -128,11 +130,9 @@ if(SHADERC_IS_DESKTOP)
   endfunction()
   install(FILES "${_dxc_runtime}" DESTINATION lib/${TARGET_PLATFORM})
   install(FILES "${_dxc_runtime}" DESTINATION bin/${TARGET_PLATFORM})
+  list(APPEND SHADERC_DEFINES DM_BINARY_HLSL_SUPPORTED)
   if(TARGET_PLATFORM MATCHES "win32$")
-    list(APPEND SHADERC_DEFINES DM_BINARY_HLSL_SUPPORTED)
-    list(APPEND SHADERC_CORE_SOURCES "${SHADERC_SRC_DIR}/shaderc_hlsl.cpp")
     list(APPEND SHADERC_EXTRA_INCLUDES "${DEFOLD_EXT_INCLUDE_DIR}/directx")
-    list(APPEND SHADERC_EXTRA_LIBS uuid.lib D3D12.lib DXGI.lib)
   endif()
 
   defold_add_library(shaderc STATIC ${SHADERC_CORE_SOURCES})

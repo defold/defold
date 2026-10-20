@@ -234,7 +234,7 @@ public class ShaderCompilers {
                     case WEBGPU -> shaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
                     case DX12 -> {
                         if (platform.isWindows() || platform.matchesOS(OS.OS_ID_XBOX)) {
-                            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_51);
+                            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_60);
                         }
                     }
                 }
@@ -262,8 +262,7 @@ public class ShaderCompilers {
 
         private static boolean shaderLanguageRequiresSplitTextureSamplers(ShaderDesc.Language shaderLanguage) {
             return shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL ||
-                   shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
-                   shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50;
+                   shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60;
         }
 
         public ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions compileOptions) throws IOException, CompileExceptionError {
@@ -279,8 +278,7 @@ public class ShaderCompilers {
             // Used for tests, merge in potentially unsupported languages here.
             shaderLanguages.addAll(compileOptions.forceIncludeShaderLanguages);
 
-            boolean hasHlslTarget = shaderLanguages.contains(ShaderDesc.Language.LANGUAGE_HLSL_50) ||
-                                    shaderLanguages.contains(ShaderDesc.Language.LANGUAGE_HLSL_51);
+            boolean hasHlslTarget = shaderLanguages.contains(ShaderDesc.Language.LANGUAGE_HLSL_60);
             boolean hasWgslTarget = shaderLanguages.contains(ShaderDesc.Language.LANGUAGE_WGSL);
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
@@ -298,8 +296,7 @@ public class ShaderCompilers {
 
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
                 opts.splitTextureSamplers |= shaderLanguageRequiresSplitTextureSamplers(shaderLanguage) &&
-                                             shaderLanguage != ShaderDesc.Language.LANGUAGE_HLSL_51 &&
-                                             shaderLanguage != ShaderDesc.Language.LANGUAGE_HLSL_50;
+                                             shaderLanguage != ShaderDesc.Language.LANGUAGE_HLSL_60;
             }
 
             ShaderCompilePipeline pipeline = null;
@@ -314,7 +311,7 @@ public class ShaderCompilers {
 
                 boolean arrayTextureFallbackRequired = ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage);
 
-                boolean create_hlsl_root_signature = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51;
+                boolean create_hlsl_root_signature = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60;
                 List<Shaderc.ShaderCompileResult> compiled_shaders = new ArrayList<>();
                 List<ShaderDesc.ShaderType> compiled_shader_types = new ArrayList<>();
                 List<Boolean> compiled_shader_variant_flags = new ArrayList<>();

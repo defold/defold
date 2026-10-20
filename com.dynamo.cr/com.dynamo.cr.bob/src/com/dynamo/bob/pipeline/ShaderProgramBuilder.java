@@ -98,6 +98,8 @@ public class ShaderProgramBuilder extends Builder {
     public Task create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
+                // Bump when shader compiler semantics or generated binary formats change.
+                .addExtraCacheKey("shader-pipeline-sm6-dxc-v1")
                 .addInput(input);
 
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.ModuleBundle.load(input);
@@ -165,7 +167,7 @@ public class ShaderProgramBuilder extends Builder {
         compileOptions.glslEsDefaultIntPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_int", "highp"));
 
         if (getOutputHlslFlag()) {
-            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL_51);
+            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL_60);
         }
         if (getOutputSpirvFlag()) {
             addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);
@@ -683,7 +685,7 @@ public class ShaderProgramBuilder extends Builder {
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                 if (Platform.getHostPlatform().isWindows()) {
-                    compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_51);
+                    compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_60);
                 }
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);

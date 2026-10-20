@@ -44,6 +44,53 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
+    // New shader tasks must not reuse pre-SM6 output, even with identical source and options.
+    @Test
+    public void testSM6InvalidatesShaderTaskCache() throws Exception {
+        var input = getProject().getResource("/sm6-cache.shbundle");
+        input.setContent(new ShaderProgramBuilderBundle.ModuleBundle().toByteArray());
+        ShaderProgramBuilder builder = new ShaderProgramBuilder();
+        builder.setProject(getProject());
+        com.dynamo.bob.Task current = builder.create(input);
+        com.dynamo.bob.Task legacy = com.dynamo.bob.Task.newBuilder(builder)
+            .setName(current.getName()).addInput(input).addOutput(input.changeExt(".spc")).build();
+        assertFalse(Arrays.equals(legacy.calculateSignature(), current.calculateSignature()));
+        ShaderProgramBuilder repeat = new ShaderProgramBuilder();
+        repeat.setProject(getProject());
+        assertTrue(Arrays.equals(current.calculateSignature(), repeat.create(input).calculateSignature()));
+    }
+
+    // The SM6 identifier must carry DXIL, never reuse either retired SM5 wire ID.
+    @Test
+    public void testSM6ShaderLanguageAndBytecode() throws Exception {
+        assertEquals(null, ShaderDesc.Language.forNumber(9));
+        assertEquals(null, ShaderDesc.Language.forNumber(10));
+        ShaderDesc shader = compileShaderForPlatform(Platform.X86_64Win32, "dx12", "sm6-language");
+        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_HLSL_60);
+        assertTrue(shader.getHlslRootSignature().size() > 0);
+        for (ShaderDesc.Shader stage : shader.getShadersList()) {
+            java.nio.ByteBuffer data = stage.getSource().asReadOnlyByteBuffer().order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            boolean dxil = false;
+            for (int part = 0; part < data.getInt(28); ++part) {
+                int offset = data.getInt(32 + part * 4);
+                if (data.getInt(offset) == 0x4c495844) { // DXIL
+                    assertEquals(6, (data.getShort(offset + 8) >> 4) & 15);
+                    dxil = true;
+                }
+            }
+            assertTrue("Expected SM6 DXIL", dxil);
+        }
+    }
+
+    // Xbox's shared language selection uses SM6; the bolt-on supplies its final platform compiler.
+    @Test
+    public void testSM6XboxLanguageSelection() throws Exception {
+        ShaderDesc shader = compileShaderWithCompiler(
+            ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64XBone), "dx12", "sm6-xbox");
+        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_HLSL_60);
+        assertFalse(shader.getHlslRootSignature().isEmpty());
+    }
+
     @Before
     public void setup() {
         addTestFiles();
@@ -646,7 +693,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Language.LANGUAGE_GLSL_SM330,
             ShaderDesc.Language.LANGUAGE_GLES_SM300,
             ShaderDesc.Language.LANGUAGE_SPIRV,
-            ShaderDesc.Language.LANGUAGE_HLSL_50,
+            ShaderDesc.Language.LANGUAGE_HLSL_60,
             ShaderDesc.Language.LANGUAGE_MSL_22,
             ShaderDesc.Language.LANGUAGE_WGSL
         };

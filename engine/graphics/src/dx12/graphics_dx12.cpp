@@ -3851,7 +3851,7 @@ namespace dmGraphics
             program->m_ComputeModule = new DX12ShaderModule();
             memset(program->m_ComputeModule, 0, sizeof(DX12ShaderModule));
 
-            HRESULT hr = CreateShaderModule(context, "cs_5_1", ddf_cp->m_Source.m_Data, ddf_cp->m_Source.m_Count, program->m_ComputeModule);
+            HRESULT hr = CreateShaderModule(context, "cs_6_0", ddf_cp->m_Source.m_Data, ddf_cp->m_Source.m_Count, program->m_ComputeModule);
             if (FAILED(hr))
             {
                 if (error_buffer && error_buffer_size)
@@ -3897,7 +3897,7 @@ namespace dmGraphics
             memset(program->m_VertexModule, 0, sizeof(DX12ShaderModule));
             memset(program->m_FragmentModule, 0, sizeof(DX12ShaderModule));
 
-            HRESULT hr = CreateShaderModule(context, "vs_5_1", ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count, program->m_VertexModule);
+            HRESULT hr = CreateShaderModule(context, "vs_6_0", ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count, program->m_VertexModule);
             if (FAILED(hr))
             {
                 if (error_buffer && error_buffer_size)
@@ -3907,7 +3907,7 @@ namespace dmGraphics
                 return 0;
             }
 
-            hr = CreateShaderModule(context, "ps_5_1", ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count, program->m_FragmentModule);
+            hr = CreateShaderModule(context, "ps_6_0", ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count, program->m_FragmentModule);
             if (FAILED(hr))
             {
                 if (error_buffer && error_buffer_size)
@@ -3983,12 +3983,12 @@ namespace dmGraphics
 
     static bool DX12IsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
     {
-        return language == ShaderDesc::LANGUAGE_HLSL_51 || language == ShaderDesc::LANGUAGE_HLSL_50;
+        return language == ShaderDesc::LANGUAGE_HLSL_60;
     }
 
     static ShaderDesc::Language DX12GetProgramLanguage(HProgram program)
     {
-        return ShaderDesc::LANGUAGE_HLSL_51;
+        return ShaderDesc::LANGUAGE_HLSL_60;
     }
 
     static void DX12EnableProgram(HContext context, HProgram program)

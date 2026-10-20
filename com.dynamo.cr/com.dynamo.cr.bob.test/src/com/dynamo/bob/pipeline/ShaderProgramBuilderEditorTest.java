@@ -192,7 +192,7 @@ public class ShaderProgramBuilderEditorTest {
             ShaderDesc.Language.LANGUAGE_GLSL_SM430,
             ShaderDesc.Language.LANGUAGE_SPIRV,
             ShaderDesc.Language.LANGUAGE_MSL_22,
-            ShaderDesc.Language.LANGUAGE_HLSL_51
+            ShaderDesc.Language.LANGUAGE_HLSL_60
         };
         ShaderProgramBuilder.ShaderDescBuildResult result = ShaderProgramBuilderEditor.makeShaderDescWithVariants(
             "/dx12.spc", modules, languages, 0,
@@ -202,7 +202,7 @@ public class ShaderProgramBuilderEditorTest {
         int hlslCount = 0;
         int spirvCount = 0;
         for (ShaderDesc.Shader shader : result.shaderDesc.getShadersList()) {
-            if (shader.getLanguage() == ShaderDesc.Language.LANGUAGE_HLSL_51) {
+            if (shader.getLanguage() == ShaderDesc.Language.LANGUAGE_HLSL_60) {
                 ++hlslCount;
                 assertTrue(shader.getSource().size() > 4);
                 assertEquals("DXBC", shader.getSource().substring(0, 4).toStringUtf8());
