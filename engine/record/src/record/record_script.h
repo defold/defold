@@ -20,6 +20,7 @@ struct lua_State;
 namespace dmRecord
 {
     void InitializeScript(lua_State* L, void* native_window);
+    // Dispatch callbacks after the host has called dmRecord::Update().
     void UpdateScript();
     // Discard callbacks and join capture before Lua, sound and window teardown.
     void FinalizeScript();

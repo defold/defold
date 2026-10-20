@@ -103,6 +103,14 @@ class LinuxRecordingTest : public jc_test_base_class
         do
         {
             dmRecord::GetStatus(&status);
+            if (!status.m_Pending)
+            {
+                bool was_active = status.m_Active;
+                dmRecord::Update();
+                dmRecord::GetStatus(&status);
+                if (was_active && !status.m_Pending && !status.m_Active)
+                    dmRecord::Update();
+            }
         } while (status.m_Pending && dmTime::GetMonotonicTime() < deadline);
         EXPECT_FALSE(status.m_Pending);
         return status;

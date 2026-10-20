@@ -152,12 +152,6 @@ namespace dmRecord
 
     static StatusListener g_StatusListener = {OnStatus, 0};
 
-    void UpdateService()
-    {
-        Status status;
-        GetStatus(&status);
-    }
-
     // All response strings originate in bounded status/platform buffers.
     static void EscapeJson(const char* source, char* output)
     {
@@ -199,8 +193,6 @@ namespace dmRecord
 
     static void SendStatus(dmWebServer::Request* request, int code, const Status* status)
     {
-        if (!status->m_Pending)
-            UpdateService();
         char file_json[512] = "null";
         if (g_CurrentFile && g_CurrentFile->m_OperationId == status->m_Id)
         {
@@ -517,7 +509,6 @@ namespace dmRecord
             Error(request, 410, "stale_instance", "recording service restarted; obtain capabilities and reacquire recording receipts");
             return;
         }
-        UpdateService();
         if (file)
         {
             FileRequest(request, path + 17);

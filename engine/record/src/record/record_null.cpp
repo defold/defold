@@ -38,6 +38,8 @@ namespace dmRecord
         return "video recording requires a supported desktop debug runtime with a window";
     }
 
+    void Update() {}
+
     void GetStatus(Status* status)
     {
         memset(status, 0, sizeof(*status));

@@ -267,8 +267,6 @@ namespace dmRecord
 
     void UpdateScript()
     {
-        Status status;
-        GetStatus(&status);
         if (!g_Callback)
             return;
         if (!dmScript::IsCallbackValid(g_Callback))

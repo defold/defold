@@ -188,13 +188,21 @@ protected:
         return true;
     }
 
-    void Complete()
+    void Complete(bool update = true)
     {
         dmRecord::Status status;
         uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
         do
         {
             dmRecord::GetStatus(&status);
+            if (update && !status.m_Pending)
+            {
+                bool was_active = status.m_Active;
+                dmRecord::Update();
+                dmRecord::GetStatus(&status);
+                if (was_active && !status.m_Pending && !status.m_Active)
+                    dmRecord::Update();
+            }
         } while (status.m_Pending && dmTime::GetMonotonicTime() < deadline);
         ASSERT_FALSE(status.m_Pending);
     }
@@ -216,6 +224,25 @@ TEST_F(RecordScriptTest, StartStop)
     dmRecord::UpdateScript();
     dmRecord::UpdateScript();
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_STOPPED)"));
+}
+
+// Lua callback dispatch must consume core notifications without independently polling or stopping capture.
+TEST_F(RecordScriptTest, DispatchDoesNotAdvanceRecording)
+{
+    ASSERT_TRUE(Run("assert(recorder.start({path='capture.mp4'}, callback))"));
+    Complete(false);
+    g_Resized = true;
+    dmRecord::UpdateScript();
+    dmRecord::UpdateScript();
+    ASSERT_TRUE(Run("assert(#events == 0)"));
+    dmRecord::Status status;
+    dmRecord::GetStatus(&status);
+    ASSERT_TRUE(status.m_Active);
+    ASSERT_FALSE(status.m_Pending);
+    dmRecord::Update();
+    Complete();
+    dmRecord::UpdateScript();
+    ASSERT_TRUE(Run("assert(#events == 2 and events[1] == recorder.EVENT_STARTED and events[2] == recorder.EVENT_STOPPED)"));
 }
 
 // Paths from the Windows host code page reach native capture as UTF-8 and return to Lua unchanged.
@@ -372,15 +399,16 @@ TEST_F(RecordScriptTest, StopFailure)
 TEST_F(RecordScriptTest, ExternalReplacement)
 {
     ASSERT_TRUE(Run("assert(recorder.start({path='lua.mp4'}, callback))"));
-    Complete();
+    Complete(false);
     dmRecord::Status status;
     ASSERT_TRUE(dmRecord::Stop(&status));
-    Complete();
+    Complete(false);
     dmRecord::StartParams params;
     params.m_Window = (void*)1;
     params.m_Path = "http.mp4";
     ASSERT_TRUE(dmRecord::Start(&params, &status));
-    Complete();
+    Complete(false);
+    dmRecord::Update();
     dmRecord::UpdateScript();
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_STOPPED); "
                    "assert(results[2].path == 'lua.mp4'); assert(recorder.stop())"));
@@ -449,8 +477,8 @@ TEST_F(RecordScriptTest, Resize)
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_STOPPED)"));
 }
 
-// A resize before the first status poll must preserve STARTED before the automatic STOPPED event.
-TEST_F(RecordScriptTest, ResizeBeforeFirstStatusPoll)
+// A resize before the first update must preserve STARTED before the automatic STOPPED event.
+TEST_F(RecordScriptTest, ResizeBeforeFirstUpdate)
 {
     ASSERT_TRUE(Run("assert(recorder.start({path='capture.mp4'}, callback))"));
     g_Resized = true;

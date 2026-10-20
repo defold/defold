@@ -23,6 +23,7 @@ TEST(RecordNull, Unsupported)
     ASSERT_FALSE(dmRecord::IsAudioSupported());
     ASSERT_STREQ("unsupported", dmRecord::GetBackendName());
     dmRecord::Status status;
+    dmRecord::Update();
     dmRecord::GetStatus(&status);
     ASSERT_FALSE(status.m_Supported);
     ASSERT_FALSE(status.m_Pending);

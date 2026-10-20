@@ -23,8 +23,9 @@ namespace dmRecord
 
     // Adds /recording and its OpenAPI Paths Object to the existing engine server.
     // The optional UTF-8 directory is for embedders/tests; the default is application storage.
+    // The host advances the shared recorder with dmRecord::Update() once per frame.
     bool RegisterService(dmWebServer::HServer server, GetNativeWindow get_window, const char* directory = 0);
-    void UpdateService();
+
     // Call on ENGINE_DELETE, before sound/render/window teardown. Safe to repeat.
     void FinalizeService();
 } // namespace dmRecord

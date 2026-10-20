@@ -84,6 +84,10 @@ struct RecordingBackend
     uint32_t                                m_WindowPrepares;
     uint32_t                                m_WindowRestores;
     uint32_t                                m_EarlyRestores;
+    uint32_t                                m_StatusQueries;
+    uint32_t                                m_WindowQueries;
+    uint32_t                                m_SupportQueries;
+    uint32_t                                m_Notifications;
     bool                                    m_AllowStart;
     bool                                    m_AllowStop;
     bool                                    m_FailStart;
@@ -96,10 +100,17 @@ struct RecordingBackend
 };
 static RecordingBackend g_Backend;
 
+static void OnStatus(const Status*)
+{
+    ++g_Backend.m_Notifications;
+}
+static StatusListener g_Listener = {OnStatus, 0};
+
 namespace dmRecord
 {
     bool IsSupported()
     {
+        ++g_Backend.m_SupportQueries;
         return !g_Backend.m_Unsupported;
     }
     bool IsAudioSupported()
@@ -113,6 +124,7 @@ namespace dmRecord
 
     bool GetWindow(void*, Window* window)
     {
+        ++g_Backend.m_WindowQueries;
         memset(window, 0, sizeof(*window));
         window->m_Handle = 1;
         window->m_Width = g_Backend.m_WindowWidth;
@@ -145,6 +157,7 @@ namespace dmRecord
     void GetNativeStatus(Status* status)
     {
         dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        ++g_Backend.m_StatusQueries;
         *status = g_Backend.m_Status;
     }
 
@@ -226,12 +239,14 @@ class RecordingAsyncTest : public jc_test_base_class
         g_Backend.m_Status.m_Supported = true;
         g_Backend.m_WindowWidth = 320;
         g_Backend.m_WindowHeight = 240;
+        AddStatusListener(&g_Listener);
     }
 
     void TearDown()
     {
         AllowOperations();
         Finalize();
+        RemoveStatusListener(&g_Listener);
         ASSERT_EQ(g_Backend.m_WindowPrepares, g_Backend.m_WindowRestores);
         ASSERT_FALSE(g_Backend.m_WindowPrepared);
         ASSERT_EQ(0u, g_Backend.m_EarlyRestores);
@@ -264,7 +279,7 @@ class RecordingAsyncTest : public jc_test_base_class
             dmConditionVariable::Wait(g_Backend.m_Condition, g_Backend.m_Mutex);
     }
 
-    static Status WaitForCompletion()
+    static Status WaitForCompletion(bool update = true)
     {
         Status   status;
         uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
@@ -272,6 +287,16 @@ class RecordingAsyncTest : public jc_test_base_class
         do
         {
             GetStatus(&status);
+            if (update && !status.m_Pending)
+            {
+                bool was_active = status.m_Active;
+                Update();
+                GetStatus(&status);
+                // An automatic stop can finish before this read. Consume its
+                // terminal receipt before checking cleanup or observers.
+                if (was_active && !status.m_Pending && !status.m_Active)
+                    Update();
+            }
         } while (status.m_Pending && dmTime::GetMonotonicTime() < deadline);
         return status;
     }
@@ -343,6 +368,56 @@ TEST_F(RecordingAsyncTest, StartStopSameThread)
     ASSERT_FALSE(reset.m_Active);
     ASSERT_FALSE(reset.m_Finalized);
     ASSERT_STREQ("", reset.m_Path);
+}
+
+// Status reads must not poll native capture, notify observers, stop on resize or restore windows.
+TEST_F(RecordingAsyncTest, GetStatusDoesNotAdvanceRecording)
+{
+    Status status;
+    ASSERT_TRUE(Start(&status));
+    status = WaitForCompletion(false);
+    ASSERT_TRUE(status.m_Active);
+    uint32_t notifications = g_Backend.m_Notifications;
+    uint32_t support_queries = g_Backend.m_SupportQueries;
+    uint32_t window_queries = g_Backend.m_WindowQueries;
+    g_Backend.m_WindowWidth = 640;
+    g_Backend.m_AllowStop = false;
+    for (uint32_t i = 0; i < 10; ++i)
+    {
+        GetStatus(&status);
+        ASSERT_TRUE(status.m_Active);
+        ASSERT_FALSE(status.m_Pending);
+    }
+    ASSERT_EQ(0u, g_Backend.m_StatusQueries);
+    ASSERT_EQ(notifications, g_Backend.m_Notifications);
+    ASSERT_EQ(support_queries, g_Backend.m_SupportQueries);
+    ASSERT_EQ(window_queries, g_Backend.m_WindowQueries);
+
+    Update();
+    GetStatus(&status);
+    ASSERT_TRUE(status.m_Pending);
+    ASSERT_TRUE(status.m_Stopping);
+    ASSERT_EQ(1u, g_Backend.m_StatusQueries);
+    ASSERT_EQ(notifications + 1, g_Backend.m_Notifications);
+    WaitForOperation(true);
+    AllowOperations();
+    status = WaitForCompletion(false);
+    ASSERT_FALSE(status.m_Pending);
+    ASSERT_FALSE(status.m_Active);
+    ASSERT_TRUE(status.m_Finalized);
+    ASSERT_TRUE(g_Backend.m_WindowPrepared);
+    for (uint32_t i = 0; i < 10; ++i)
+        GetStatus(&status);
+    ASSERT_EQ(0u, g_Backend.m_WindowRestores);
+    ASSERT_EQ(notifications + 1, g_Backend.m_Notifications);
+    ASSERT_EQ(1u, g_Backend.m_StatusQueries);
+
+    Update();
+    ASSERT_FALSE(g_Backend.m_WindowPrepared);
+    ASSERT_EQ(1u, g_Backend.m_WindowRestores);
+    ASSERT_EQ(notifications + 2, g_Backend.m_Notifications);
+    GetStatus(&status);
+    ASSERT_EQ(notifications + 2, g_Backend.m_Notifications);
 }
 
 // A content-size change finalizes on the owning worker and retains the original video dimensions.
@@ -510,6 +585,7 @@ TEST_F(RecordingAsyncTest, FailedCaptureRestoresWindow)
         g_Backend.m_AllowStop = false;
         dmStrlCpy(g_Backend.m_Status.m_Failure, "capture failed", sizeof(g_Backend.m_Status.m_Failure));
     }
+    Update();
     GetStatus(&status);
     ASSERT_TRUE(status.m_Pending);
     ASSERT_TRUE(status.m_Stopping);

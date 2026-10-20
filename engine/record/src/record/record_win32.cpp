@@ -1096,18 +1096,28 @@ namespace dmRecord
 
     static WindowsRecorder* g_Recorder = 0;
 
-    bool                    IsSupported()
+    static INIT_ONCE g_CaptureSupportOnce = INIT_ONCE_STATIC_INIT;
+    static bool g_CaptureSupported;
+
+    static BOOL CALLBACK CheckCaptureSupport(PINIT_ONCE, PVOID, PVOID*)
     {
         if (!RecorderApisAvailable())
-            return false;
+            return TRUE;
         HRESULT initialized = RoInitialize(RO_INIT_MULTITHREADED);
         bool    uninitialize = SUCCEEDED(initialized);
-        bool    supported = false;
         if (SUCCEEDED(initialized) || initialized == RPC_E_CHANGED_MODE)
-            supported = GraphicsCaptureSupported();
+            g_CaptureSupported = GraphicsCaptureSupported();
         if (uninitialize)
             RoUninitialize();
-        return supported;
+        return TRUE;
+    }
+
+    bool IsSupported()
+    {
+        // OS capture capabilities are shared by all callers. Status reads must
+        // not repeatedly initialize WinRT and query the same activation factories.
+        InitOnceExecuteOnce(&g_CaptureSupportOnce, CheckCaptureSupport, 0, 0);
+        return g_CaptureSupported;
     }
 
     bool IsAudioSupported()

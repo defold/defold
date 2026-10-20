@@ -227,7 +227,7 @@ static void TestHandler(void*, dmWebServer::Request* request)
     else if (!strcmp(request->m_Resource, "/test/replace-recording"))
     {
         // A non-HTTP caller stops the service recording and immediately starts
-        // its own, before another UpdateService can consume the old receipt.
+        // its own, before another Update can consume the old receipt.
         dmRecord::Status status;
         bool stopped = dmRecord::Stop(&status);
         uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
@@ -327,7 +327,7 @@ int main(int argc, char** argv)
     while (!g_Quit)
     {
         dmWebServer::Update(g_Server);
-        dmRecord::UpdateService();
+        dmRecord::Update();
     }
     EngineDelete();
     FinalizeExtensions();

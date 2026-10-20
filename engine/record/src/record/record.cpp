@@ -52,6 +52,15 @@ namespace dmRecord
         }
     }
 
+    static void PublishCompletedStatus(const Status* status)
+    {
+        if (status->m_Pending)
+            return;
+        if (!status->m_Active)
+            RestorePreparedWindow();
+        NotifyStatus(status);
+    }
+
     static void               RecordingWorker(void* arg)
     {
         RecordingOperation* operation = (RecordingOperation*)arg;
@@ -101,40 +110,46 @@ namespace dmRecord
                 dmStrlCpy(status->m_Failure, GetUnsupportedReason(), sizeof(status->m_Failure));
             return;
         }
+        dmMutex::ScopedLock lock(g_Recording.m_Mutex);
+        *status = g_Recording.m_Status;
+    }
+
+    void Update()
+    {
+        if (!g_Recording.m_Mutex)
+            return;
+        Status status;
+        GetStatus(&status);
+        // Preserve a completed start before native polling can replace it with
+        // an automatic stop or an asynchronous capture failure.
+        PublishCompletedStatus(&status);
+        if (!status.m_Pending && status.m_Active)
         {
-            dmMutex::ScopedLock lock(g_Recording.m_Mutex);
-            *status = g_Recording.m_Status;
-        }
-        if (!status->m_Pending && status->m_Active)
-        {
-            // Preserve a completed start before polling can replace it with an
-            // automatic stop or an asynchronous capture failure.
-            NotifyStatus(status);
             Status current;
             GetNativeStatus(&current);
-            current.m_Id = status->m_Id;
+            current.m_Id = status.m_Id;
             Window window = {};
             if (current.m_Active && GetWindow(g_Recording.m_NativeWindow, &window) &&
                 (window.m_Width != g_Recording.m_Window.m_Width ||
                  window.m_Height != g_Recording.m_Window.m_Height ||
                  window.m_Scale != g_Recording.m_Window.m_Scale))
                 current.m_Stopping = true;
-            dmMutex::ScopedLock lock(g_Recording.m_Mutex);
-            if (current.m_Active && (current.m_Stopping || current.m_Failure[0]))
             {
-                // Finalize on the same worker that owns the native recorder.
-                dmLogWarning("Stopping video recording: %s", current.m_Failure[0] ? current.m_Failure : "window size changed");
-                current.m_Stopping = true;
-                current.m_Pending = true;
-                g_Recording.m_Request = RECORDING_REQUEST_STOP;
-                dmConditionVariable::Signal(g_Recording.m_Condition);
+                dmMutex::ScopedLock lock(g_Recording.m_Mutex);
+                if (current.m_Active && (current.m_Stopping || current.m_Failure[0]))
+                {
+                    // Finalize on the same worker that owns the native recorder.
+                    dmLogWarning("Stopping video recording: %s", current.m_Failure[0] ? current.m_Failure : "capture ended or window size changed");
+                    current.m_Stopping = true;
+                    current.m_Pending = true;
+                    g_Recording.m_Request = RECORDING_REQUEST_STOP;
+                    dmConditionVariable::Signal(g_Recording.m_Condition);
+                }
+                g_Recording.m_Status = current;
             }
-            g_Recording.m_Status = current;
-            *status = current;
+            if (!current.m_Active)
+                PublishCompletedStatus(&current);
         }
-        if (!status->m_Pending && !status->m_Active)
-            RestorePreparedWindow();
-        NotifyStatus(status);
     }
 
     static bool Fail(Status* status, const char* message)
@@ -159,6 +174,9 @@ namespace dmRecord
         Window window = {};
         if (!params->m_Window)
             return Fail(status, "recording window is unavailable");
+        // A caller may replace a completed operation before the next Update.
+        // Preserve its receipt and restore its window before preparing another.
+        PublishCompletedStatus(status);
         if (!PrepareWindow(params->m_Window, &window))
         {
             RestoreWindow();
@@ -208,6 +226,8 @@ namespace dmRecord
         GetStatus(status);
         if (status->m_Pending || !status->m_Active)
             return Fail(status, "no active recording is ready to stop");
+        // Preserve STARTED even if the caller stops before the next Update.
+        PublishCompletedStatus(status);
         dmMutex::ScopedLock lock(g_Recording.m_Mutex);
         g_Recording.m_Status.m_Pending = true;
         g_Recording.m_Status.m_Stopping = true;

@@ -67,6 +67,7 @@
 #include <profiler/profiler.h>
 #include <platform/window.hpp>
 #include <script/sys_ddf.h>
+#include <record/record.h>
 #include <record/record_script.h>
 #if defined(DM_PLATFORM_LINUX)
     #include <record/record_private.h>
@@ -2089,6 +2090,7 @@ bail:
                     dmScript::Update(engine->m_ScriptContext);
                     extension_params.SetLuaContext(engine->m_ScriptContext);
                     dmExtension::Update(extension_params);
+                    dmRecord::Update();
                     dmRecord::UpdateScript();
                 }
 

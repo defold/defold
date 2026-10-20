@@ -51,12 +51,6 @@ namespace dmRecord
         return dmExtension::RESULT_OK;
     }
 
-    static dmExtension::Result Update(dmExtension::Params*)
-    {
-        UpdateService();
-        return dmExtension::RESULT_OK;
-    }
-
     static dmExtension::Result FinalizeExtension(dmExtension::Params*)
     {
         // Fallback for hosts that finalize without an engine-delete event.
@@ -79,4 +73,4 @@ namespace dmRecord
     }
 } // namespace dmRecord
 
-DM_DECLARE_EXTENSION(EngineRecord, "Record", dmRecord::AppInitialize, dmRecord::AppFinalize, dmRecord::Initialize, dmRecord::Update, dmRecord::OnEvent, dmRecord::FinalizeExtension)
+DM_DECLARE_EXTENSION(EngineRecord, "Record", dmRecord::AppInitialize, dmRecord::AppFinalize, dmRecord::Initialize, 0, dmRecord::OnEvent, dmRecord::FinalizeExtension)

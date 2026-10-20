@@ -55,12 +55,16 @@ namespace dmRecord
     const char* GetBackendName();
     const char* GetMinimumPlatformVersion();
     const char* GetUnsupportedReason();
-    // Polling also requests finalization when the native content size changes
-    // and restores temporary window decorations after the worker finishes.
+    // Advance native state once per frame on the main thread, before dispatching
+    // script callbacks. Handles automatic stops, window restoration and observers.
+    void        Update();
+    // Copy the latest worker/update snapshot without advancing the recording,
+    // changing the window or notifying observers.
     void        GetStatus(Status* status);
 
-    // True means the operation was accepted. Poll GetStatus() until m_Pending
-    // clears, then inspect m_Failure and m_Active / m_Finalized for the result.
+    // True means the operation was accepted. Keep calling Update() each frame
+    // and read GetStatus() until m_Pending clears, then inspect m_Failure and
+    // m_Active / m_Finalized for the result.
     // Start assigns a new ID; Stop retains it. IDs are not reused after Finalize().
     bool Start(const StartParams* params, Status* status);
     bool Stop(Status* status);

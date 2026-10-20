@@ -19,13 +19,17 @@ web-server registries. The handler registers its own Paths Object with
 Headless debug engines register the service with `record_null`. Release engines
 omit `record_service` and native capture dependencies.
 
-`record.h` exposes capabilities, `Start`, `Stop`, `GetStatus`, and `Finalize`.
+`record.h` exposes capabilities, `Start`, `Stop`, `Update`, `GetStatus`, and `Finalize`.
 There is one recording per process. Public calls run on the main thread; startup,
 stop and native teardown run on a single persistent worker. `Start` copies its
 options and snapshots the supplied native window on the main thread. A successful
-start/stop return means accepted; poll `m_Pending` and then inspect the result.
-The engine polls recording state during script updates and finalizes capture
-before script, sound, render and window teardown. Linux reads the backbuffer
+start/stop return means accepted; read `m_Pending` and then inspect the result.
+The host calls `Update` once per frame to poll native state, schedule automatic
+stops, restore the window and notify observers. `GetStatus` only copies the latest
+snapshot; HTTP requests and Lua callback dispatch do not advance capture.
+Explicit start/stop commands preserve completed receipts before replacing them.
+The engine calls `Update` before dispatching recording callbacks and finalizes
+capture before script, sound, render and window teardown. Linux reads the backbuffer
 after post-render extension callbacks and before `Flip`, independently of HTTP.
 The service also handles `ENGINE_DELETE`; repeated finalization is safe.
 The C++ caller owns its output path; the HTTP service owns and cleans up its
@@ -205,8 +209,8 @@ cmake --build engine/build/arm64-macos --target run_test_record run_test_record_
 ```
 
 The lifecycle suite uses controlled completion signals to cover repeated capture,
-failed startup, thread ownership and shutdown during startup/stop. The service
-suite uses a real HTTP server and a controlled recorder, without automation,
+failed startup, thread ownership, read-only status queries and shutdown during
+startup/stop. The service suite uses a real HTTP server and a controlled recorder, without automation,
 graphics, Lua or capture permissions. It covers discovery, schema validation,
 receipts, download/checksum/delete, unsupported capabilities and reboot cleanup.
 It also checks audio defaults and explicit opt-in/opt-out, stale identities
