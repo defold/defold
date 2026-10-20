@@ -32,6 +32,7 @@
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.os :as os]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -50,40 +51,43 @@
            [com.jogamp.opengl GL3]
            [java.io StringReader]))
 
-;; Verifies non-text GUI rendering samples the actual texture even when the
-;; sampler is named font_effects. A nonzero texture unit exposes binding errors
-;; that the default sampler value of zero would otherwise hide.
-(deftest render-tris-preserves-custom-texture-sampler-test
-  (gl-support/with-offscreen-gl
-    (let [test-shader (shader/classpath-shader
-                        {:coordinate-space :coordinate-space-world
-                         :uniforms {"font_effects" nil}}
-                        "shaders/font-effects/position.vp"
-                        "shaders/font-effects/font-effects.fp")
-          pixel (buffers/wrap-byte-array (byte-array [(unchecked-byte 255) 64 0 (unchecked-byte 255)]) :byte-order/native)
-          gpu-texture (texture/make-gpu-texture
-                        ::custom-texture
-                        [(texture/make-texture-request-data pixel 0 :rgba 1 1 false)]
-                        (vector-of :int 3)
-                        {:min-filter gl/nearest :mag-filter gl/nearest})
-          rendered-pixel (buffers/new-byte-buffer 4 :byte-order/native)]
-      (.glViewport gl 0 0 16 16)
-      (.glDisable gl GL3/GL_DITHER)
-      (gl/gl-clear gl 0.0 0.0 0.0 1.0)
-      (gui/render-tris gl {:pass pass/transparent}
-                       [{:world-transform math/identity-mat4
-                         :user-data {:geom-data [[-1.0 -1.0 0.0] [3.0 -1.0 0.0] [-1.0 3.0 0.0]]
-                                     :uv-data [[0.0 0.0] [1.0 0.0] [0.0 1.0]]
-                                     :color [1.0 1.0 1.0 1.0]
-                                     :page-index 0
-                                     :blend-mode :blend-mode-alpha
-                                     :material-shader test-shader
-                                     :gpu-texture gpu-texture}}]
-                       1)
-      (.glReadPixels gl 8 8 1 1 GL3/GL_RGBA GL3/GL_UNSIGNED_BYTE rendered-pixel)
-      (is (= [255 64 0 255]
-             (mapv #(Byte/toUnsignedInt (.get rendered-pixel ^int %)) (range 4))))
-      (is (= GL3/GL_NO_ERROR (.glGetError gl))))))
+;; Hosted Windows CI cannot create the OpenGL 3.3 contexts used by these tests.
+(when-not (os/is-win32?)
+
+  ;; Verifies non-text GUI rendering samples the actual texture even when the
+  ;; sampler is named font_effects. A nonzero texture unit exposes binding
+  ;; errors that the default sampler value of zero would otherwise hide.
+  (deftest render-tris-preserves-custom-texture-sampler-test
+    (gl-support/with-offscreen-gl
+      (let [test-shader (shader/classpath-shader
+                          {:coordinate-space :coordinate-space-world
+                           :uniforms {"font_effects" nil}}
+                          "shaders/font-effects/position.vp"
+                          "shaders/font-effects/font-effects.fp")
+            pixel (buffers/wrap-byte-array (byte-array [(unchecked-byte 255) 64 0 (unchecked-byte 255)]) :byte-order/native)
+            gpu-texture (texture/make-gpu-texture
+                          ::custom-texture
+                          [(texture/make-texture-request-data pixel 0 :rgba 1 1 false)]
+                          (vector-of :int 3)
+                          {:min-filter gl/nearest :mag-filter gl/nearest})
+            rendered-pixel (buffers/new-byte-buffer 4 :byte-order/native)]
+        (.glViewport gl 0 0 16 16)
+        (.glDisable gl GL3/GL_DITHER)
+        (gl/gl-clear gl 0.0 0.0 0.0 1.0)
+        (gui/render-tris gl {:pass pass/transparent}
+                         [{:world-transform math/identity-mat4
+                           :user-data {:geom-data [[-1.0 -1.0 0.0] [3.0 -1.0 0.0] [-1.0 3.0 0.0]]
+                                       :uv-data [[0.0 0.0] [1.0 0.0] [0.0 1.0]]
+                                       :color [1.0 1.0 1.0 1.0]
+                                       :page-index 0
+                                       :blend-mode :blend-mode-alpha
+                                       :material-shader test-shader
+                                       :gpu-texture gpu-texture}}]
+                         1)
+        (.glReadPixels gl 8 8 1 1 GL3/GL_RGBA GL3/GL_UNSIGNED_BYTE rendered-pixel)
+        (is (= [255 64 0 255]
+               (mapv #(Byte/toUnsignedInt (.get rendered-pixel ^int %)) (range 4))))
+        (is (= GL3/GL_NO_ERROR (.glGetError gl)))))))
 
 (defn- gui-scene-dependencies [workspace read-opts scene-desc]
   (let [resource (workspace/make-memory-resource workspace :editable "gui" scene-desc)]
