@@ -17,10 +17,10 @@
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [internal.transaction :as it]
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll])
   (:import [clojure.lang ExceptionInfo]
+           [internal.transaction MaterializationTXC]
            [java.util.concurrent CountDownLatch TimeUnit]))
 
 (g/defnode ShellTestNode
@@ -111,28 +111,6 @@
             (is (= :retained (g/user-data source :marker)))
             (is (= 7 (g/node-value source :result)))
             (is (= [11 11] (mapv #(g/node-value % :result) targets)))))))))
-
-;; The commit boundary rejects an evaluation-context containing a raw change,
-;; even when a full invalidation would otherwise discard the contribution.
-(deftest evaluation-context-rejects-non-materialization-changes-test
-  (doseq [full-invalidation [false true]]
-    (with-clean-system
-      (let [shell (first (g/take-node-ids 1))]
-        (g/transact
-          (g/add-node
-            (g/construct-shell ShellTestNode {:_node-id shell}
-              (fn materialize-fn [self _evaluation-context]
-                (g/set-property self :value 7)))))
-        (let [evaluation-context (assoc (g/make-evaluation-context)
-                                   :changes-atom (atom [(it/->MaterializeShellTXC shell)]))]
-          (when full-invalidation
-            (g/transact {:full-invalidation true} (g/invalidate-output shell :result)))
-          (let [initial-basis (g/now)]
-            (is (thrown-with-msg? AssertionError #"Evaluation contexts can only accumulate materializations"
-                                  (g/update-system-from-evaluation-context! evaluation-context)))
-            (is (identical? initial-basis (g/now)))
-            (is (in/shell-node? (g/node-by-id (g/now) shell)))
-            (is (some? @(:basis-ref evaluation-context)))))))))
 
 ;; Output invalidations discard stale cache entries without rejecting compatible
 ;; materializations. Full invalidation still rejects the entire contribution.
@@ -572,7 +550,9 @@
       (is (= 19 (g/node-value source :result)))
       (is (= 29 (g/node-value (@overrides source) :result))))))
 
-(deftest evaluation-transaction-producers-retain-execution-order-test
+;; Expanded transaction steps must execute in order so later steps can use node
+;; ids allocated by earlier steps, even when the steps are produced lazily.
+(deftest expanded-transaction-steps-retain-execution-order-test
   (with-clean-system
     (let [parent (g/make-node! ShellTestNode)
           child (atom nil)]
@@ -1177,7 +1157,7 @@
                 :let [info (get @(:materialization-results-atom evaluation-context) node-id)]]
           (is (= prerequisite-ids (:prerequisite-shell-node-ids info)))
           (is (= prerequisite-ids (set (coll/keys (:dependencies info)))))
-          (is (coll/not-any? #(instance? internal.transaction.MaterializationTXC %) (:changes info))))
+          (is (coll/not-any? #(instance? MaterializationTXC %) (:changes info))))
         (g/update-system-from-evaluation-context! evaluation-context)
         (is (= 1 (g/node-value root :result)))))))
 

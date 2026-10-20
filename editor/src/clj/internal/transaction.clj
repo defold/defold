@@ -93,7 +93,7 @@
 ;; Executing transactions
 ;; ---------------------------------------------------------------------------
 
-(declare apply-evaluation-context-changes!)
+(declare ^:private apply-evaluation-context-changes!)
 
 (defn- realize-tx-impl
   [ctx undoable-changes tx-data evaluation-context]
@@ -152,22 +152,6 @@
      :tx-data-context-atom (:tx-data-context-atom ctx)
      :node-id-generator (:node-id-generator ctx)
      :override-id-generator (:override-id-generator ctx)}))
-
-(defn- apply-evaluation-context-changes! [ctx evaluation-context]
-  (let [changes-atom (:changes-atom evaluation-context)
-        transaction-changes @changes-atom]
-    (if (coll/empty? transaction-changes)
-      ctx
-      (let [ctx (coll/reduce-> transaction-changes ctx
-                  (fn [ctx change]
-                    (-> ctx
-                        (perform-change change)
-                        (update :completed-action-count inc)
-                        (cond->
-                          (:realized-changes ctx)
-                          (update :realized-changes conj change)))))]
-        (reset! changes-atom [])
-        ctx))))
 
 (defn- mark-input-activated
   [ctx node-id input-label]
@@ -1956,6 +1940,24 @@
     (perform-materialization ctx materialize-info))
   (revert [_ _ctx]
     (throw (UnsupportedOperationException. "Materializations are not undoable."))))
+
+(defn- apply-evaluation-context-changes! [ctx evaluation-context]
+  (let [changes-atom (:changes-atom evaluation-context)
+        transaction-changes @changes-atom]
+    (assert (coll/every? #(instance? MaterializationTXC %) transaction-changes)
+            "Evaluation-contexts can only accumulate materializations.")
+    (if (coll/empty? transaction-changes)
+      ctx
+      (let [ctx (coll/reduce-> transaction-changes ctx
+                  (fn [ctx change]
+                    (-> ctx
+                        (perform-change change)
+                        (update :completed-action-count inc)
+                        (cond->
+                          (:realized-changes ctx)
+                          (update :realized-changes conj change)))))]
+        (reset! changes-atom [])
+        ctx))))
 
 (defn- evaluation-transaction-context [{:keys [basis-ref materialization-results-atom] :as evaluation-context}]
   (-> (new-transaction-context
