@@ -25,10 +25,22 @@
 extern "C" {
     extern void dmNativeAndroidSetInputMethod(int);
     extern void dmNativeAndroidSetFullscreenParameters(int, int);
+    extern void dmNativeAndroidSetJoystickLayoutLegacy(int, int);
+    extern void dmNativeAndroidInitializeJoystickAxes(int, const float*, int);
 }
 
 namespace dmPlatform
 {
+    void SetAndroidJoystickLayoutLegacy(uint32_t joystick_index, bool legacy)
+    {
+        dmNativeAndroidSetJoystickLayoutLegacy(joystick_index, legacy);
+    }
+
+    void InitializeAndroidJoystickAxes(uint32_t joystick_index, const float* axes, uint32_t num_axes)
+    {
+        dmNativeAndroidInitializeJoystickAxes(joystick_index, axes, num_axes);
+    }
+
     extern "C" int dmNativeAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* bottom);
 
     int32_t AndroidVerifySurface(HWindow window)

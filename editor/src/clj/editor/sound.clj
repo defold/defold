@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.graph-util :as gu]
@@ -32,6 +33,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.bob Platform]
+           [com.dynamo.bob.util OggUtil]
            [com.dynamo.gamesys.proto Sound$SoundDesc]))
 
 (set! *warn-on-reflection* true)
@@ -71,10 +73,20 @@
         (finally
           (fs/delete! temp-file {:fail :silently}))))))
 
+(defn- build-ogg [build-resource _dep-resources _user-data]
+  {:resource build-resource
+   :content (OggUtil/stripMetadata (resource/resource->bytes (:resource build-resource)))})
+
 (g/defnk produce-source-build-targets [_node-id resource]
   (try
     (or (validate-if-ogg _node-id resource)
-        [(pipeline/make-source-bytes-build-target _node-id resource)])
+        [(if-not (= "ogg" (resource/ext resource))
+           (pipeline/make-source-bytes-build-target _node-id resource)
+           (bt/with-content-hash
+             {:node-id _node-id
+              :resource (workspace/make-build-resource resource)
+              :build-fn build-ogg
+              :user-data {:source-hash (resource/resource->path-inclusive-sha1-hex resource)}}))])
     (catch Exception _
       (g/->error _node-id :resource :fatal resource
                  (localization/message "error.sound.could-not-read-audio-file"

@@ -407,6 +407,15 @@
     (throw (IllegalArgumentException. "At least one shader-path must be supplied."))
     (read-shader :classpath-shader shader-paths opts classpath-shader-path->source)))
 
+(defn has-configured-sampler?
+  "Returns true if a sampler is active in the shader and configured by the material."
+  [^ShaderLifecycle shader-lifecycle gl sampler-name]
+  (let [{:keys [sampler-name->uniform-names]}
+        (scene-cache/request-object! ::shader (.-request-id shader-lifecycle) gl (.-request-data shader-lifecycle))]
+    (boolean
+      (when-let [uniform-names (sampler-name->uniform-names sampler-name)]
+        (coll/every? #(contains? (.-uniforms shader-lifecycle) %) uniform-names)))))
+
 (defn is-using-array-samplers? [^ShaderLifecycle shader-lifecycle]
   (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)
         array-sampler-name->uniform-names (.-array-sampler-name->uniform-names request-data)]

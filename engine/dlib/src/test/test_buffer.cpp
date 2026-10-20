@@ -117,6 +117,14 @@ protected:
     }
 };
 
+// Reject allocation sizes that overflow before allocating or writing guard bytes.
+TEST_F(BufferTest, AllocationOverflow)
+{
+    dmBuffer::StreamDeclaration stream = {dmHashString64("value"), dmBuffer::VALUE_TYPE_UINT32, 1};
+    dmBuffer::HBuffer buffer;
+    ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, dmBuffer::Create(UINT32_MAX, &stream, 1, &buffer));
+}
+
 TEST(BufferTest, CalcStructSize)
 {
     {

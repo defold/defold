@@ -103,6 +103,8 @@ namespace dmGraphics
         m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_16BPP;
         m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
         m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA32F;
+        m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA16F;
+        m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R32UI;
 
         // Synthetic limits for the null adapter — these are not queried from any
         // hardware, just generous defaults that roughly mirror Vulkan / D3D12
@@ -544,6 +546,8 @@ namespace dmGraphics
         vb->m_Buffer = new char[size];
         vb->m_Copy = 0x0;
         vb->m_Base.m_Size = size;
+        vb->m_DataSetCount = 0;
+        vb->m_DataSetBytes = 0;
         if (size > 0 && data != 0x0)
             memcpy(vb->m_Buffer, data, size);
         return (uintptr_t)vb;
@@ -563,6 +567,8 @@ namespace dmGraphics
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
         assert(vb->m_Copy == 0x0);
+        ++vb->m_DataSetCount;
+        vb->m_DataSetBytes += size;
         delete [] vb->m_Buffer;
         vb->m_Buffer = new char[size];
         vb->m_Base.m_Size = size;
@@ -635,7 +641,9 @@ namespace dmGraphics
 
     static HVertexDeclaration NullNewVertexDeclarationStride(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
-        return NewVertexDeclaration(context, stream_declaration);
+        HVertexDeclaration vertex_declaration = NewVertexDeclaration(context, stream_declaration);
+        vertex_declaration->m_Stride = stride;
+        return vertex_declaration;
     }
 
     static HVertexDeclaration NullNewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)

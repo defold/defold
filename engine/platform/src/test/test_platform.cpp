@@ -18,6 +18,7 @@
 
 #include <dlib/log.h>
 #include "../window.h"
+#include "../platform_app.h"
 
 #if defined(ANDROID)
 #include "../platform_window_android.h"
@@ -147,6 +148,7 @@ namespace
     }
 }
 
+// Verifies the null backend provides the Android interface without linking the real window backend.
 TEST(AndroidPlatform, LinkPlatformWindowAndroidSymbols)
 {
     ReferenceAndroidSymbol(&dmPlatform::AndroidVerifySurface);
@@ -163,7 +165,21 @@ TEST(AndroidPlatform, LinkPlatformWindowAndroidSymbols)
     ReferenceAndroidSymbol(&dmPlatform::GetSafeAreaAndroid);
     ReferenceAndroidSymbol(&dmPlatform::SetAndroidInputMethod);
     ReferenceAndroidSymbol(&dmPlatform::SetAndroidFullscreenParameters);
+    ReferenceAndroidSymbol(&dmPlatform::SetAndroidJoystickLayoutLegacy);
+    ReferenceAndroidSymbol(&dmPlatform::InitializeAndroidJoystickAxes);
     SKIP();
+}
+#endif
+
+#if defined(DM_PLATFORM_IOS)
+// Verifies platform_null provides the iOS delegate registration functions used by
+// dmExtension::RegisteriOSUI*Delegate, guarding against headless iOS link failures.
+TEST(iOSPlatform, NullPlatformDelegateRegistration)
+{
+    dmPlatform::RegisteriOSApplicationDelegate(0);
+    dmPlatform::UnregisteriOSApplicationDelegate(0);
+    dmPlatform::RegisteriOSSceneDelegate(0);
+    dmPlatform::UnregisteriOSSceneDelegate(0);
 }
 #endif
 
