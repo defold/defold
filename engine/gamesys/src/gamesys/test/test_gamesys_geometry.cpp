@@ -24,7 +24,15 @@ static const float EPSILON = 0.00001f;
 // Verifies fractional dimensions, pivot offsets, and all asymmetric border flips.
 TEST(Slice9Geometry, Positions)
 {
-    Slice9Params params = {32.5f, 24.25f, {2, 3, 4, 5}, 0.75f, 0.25f, false, false};
+    Slice9Params params = {};
+    params.m_Width = 32.5f;
+    params.m_Height = 24.25f;
+    params.m_Slice9[0] = 2;
+    params.m_Slice9[1] = 3;
+    params.m_Slice9[2] = 4;
+    params.m_Slice9[3] = 5;
+    params.m_PivotX = 0.75f;
+    params.m_PivotY = 0.25f;
     const float expected_x[2][4] = {
         {-24.375f, -22.375f, 4.125f, 8.125f},
         {-24.375f, -20.375f, 6.125f, 8.125f}
@@ -50,7 +58,15 @@ TEST(Slice9Geometry, Positions)
 // Verifies atlas pixel margins and logical flips for both packed orientations.
 TEST(Slice9Geometry, TexCoords)
 {
-    Slice9Params params = {32, 24, {2, 3, 4, 5}, 0.5f, 0.5f, false, false};
+    Slice9Params params = {};
+    params.m_Width = 32;
+    params.m_Height = 24;
+    params.m_Slice9[0] = 2;
+    params.m_Slice9[1] = 3;
+    params.m_Slice9[2] = 4;
+    params.m_Slice9[3] = 5;
+    params.m_PivotX = 0.5f;
+    params.m_PivotY = 0.5f;
     const float tex_coords[2][8] = {
         {0.125f, 0.25f, 0.125f, 0.75f, 0.625f, 0.75f, 0.625f, 0.25f},
         {0.125f, 0.75f, 0.625f, 0.75f, 0.625f, 0.25f, 0.125f, 0.25f}
@@ -85,7 +101,13 @@ TEST(Slice9Geometry, TexCoords)
 // Verifies the untextured UV fallback uses bottom/top margins and honors flips.
 TEST(Slice9Geometry, UnitTexture)
 {
-    Slice9Params params = {32, 16, {2, 3, 4, 5}, 0, 0, false, false};
+    Slice9Params params = {};
+    params.m_Width = 32;
+    params.m_Height = 16;
+    params.m_Slice9[0] = 2;
+    params.m_Slice9[1] = 3;
+    params.m_Slice9[2] = 4;
+    params.m_Slice9[3] = 5;
     const float tc[8] = {0, 0, 0, 1, 1, 1, 1, 0};
     const float expected_u[4] = {0, 0.0625f, 0.875f, 1};
     const float expected_v[4] = {0, 0.3125f, 0.8125f, 1};
@@ -111,7 +133,13 @@ TEST(Slice9Geometry, SmallDimensions)
     const float tc[8] = {0, 0, 0, 1, 1, 1, 1, 0};
     for (uint32_t d = 0; d < sizeof(dimensions) / sizeof(dimensions[0]); ++d)
     {
-        Slice9Params params = {dimensions[d], dimensions[d], {2, 3, 4, 5}, 0, 0, false, false};
+        Slice9Params params = {};
+        params.m_Width = dimensions[d];
+        params.m_Height = dimensions[d];
+        params.m_Slice9[0] = 2;
+        params.m_Slice9[1] = 3;
+        params.m_Slice9[2] = 4;
+        params.m_Slice9[3] = 5;
         float positions[SLICE9_VERTEX_COUNT * 2];
         float uvs[SLICE9_VERTEX_COUNT * 2];
         GenerateSlice9Positions(params, positions);
@@ -129,7 +157,13 @@ TEST(Slice9Geometry, SmallDimensions)
 // Verifies dimensions above the threshold retain their fractional subdivisions.
 TEST(Slice9Geometry, AboveSmallDimensionThreshold)
 {
-    const Slice9Params params = {0.002f, 0.002f, {0.0005f, 0.0005f, 0.0005f, 0.0005f}, 0, 0, false, false};
+    Slice9Params params = {};
+    params.m_Width = 0.002f;
+    params.m_Height = 0.002f;
+    params.m_Slice9[0] = 0.0005f;
+    params.m_Slice9[1] = 0.0005f;
+    params.m_Slice9[2] = 0.0005f;
+    params.m_Slice9[3] = 0.0005f;
     float positions[SLICE9_VERTEX_COUNT * 2];
     GenerateSlice9Positions(params, positions);
     ASSERT_NEAR(0.25f, positions[2], EPSILON);
@@ -141,10 +175,13 @@ TEST(Slice9Geometry, AboveSmallDimensionThreshold)
 // Verifies oversized margins remain unclamped and zero margins retain the fixed grid.
 TEST(Slice9Geometry, DegenerateAndOverlappingCells)
 {
-    const Slice9Params params[] = {
-        {8, 8, {0, 0, 0, 0}, 0, 0, false, false},
-        {8, 8, {12, 10, 10, 12}, 0, 0, false, false}
-    };
+    Slice9Params params[2] = {};
+    params[0].m_Width = params[1].m_Width = 8;
+    params[0].m_Height = params[1].m_Height = 8;
+    params[1].m_Slice9[0] = 12;
+    params[1].m_Slice9[1] = 10;
+    params[1].m_Slice9[2] = 10;
+    params[1].m_Slice9[3] = 12;
     const float expected[2][4] = {{0, 0, 1, 1}, {0, 1.5f, -0.25f, 1}};
     for (uint32_t p = 0; p < 2; ++p)
     {
