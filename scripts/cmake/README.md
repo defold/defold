@@ -107,9 +107,7 @@ sets it to `OFF`, including on subsequent builds in the same directory. Direct
 CMake configuration remains available. This is a development gate, not a released engine feature.
 The build define alone selects inline (off) or threaded (on) startup; there is no
 runtime selector yet. Enabled builds currently reject startup because the threaded
-executor and component/resource migration are not available. See the
-[render execution contract](../../engine/docs/RENDER_EXECUTION.md) for startup
-selection and diagnostics. This option
+executor and component/resource migration are not available. This option
 does not enable Emscripten pthreads or select a different web binary.
 
 ## Invocation

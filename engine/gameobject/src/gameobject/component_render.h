@@ -40,7 +40,7 @@ namespace dmGameObject
      * @param max_instances Collection instance capacity
      * @param max_components Capacity for this component type
      * @param render_world Output lifetime handle; leave null and clean up partial work on failure
-     * @return True on success
+     * @return True on success with a non-null lifetime handle, false on failure
      */
     typedef bool (*ComponentRenderCreateWorld)(void* context, uint32_t component_index, uint32_t max_instances, uint32_t max_components, void** render_world);
 

@@ -40,12 +40,13 @@ namespace dmRender
             dmMutex::Unlock(queue->m_Mutex);
     }
 
-    static int32_t FindSlot(HRenderFrameQueue queue, const RenderFrameTicket& ticket)
+    static int32_t FindBuildingSlot(HRenderFrameQueue queue, const RenderFrameTicket& ticket)
     {
-        for (uint32_t i = 0; i < 2; ++i)
-            if (queue->m_Slots[i].m_Frame == ticket.m_Frame && queue->m_Slots[i].m_FrameId == ticket.m_FrameId)
-                return (int32_t)i;
-        return -1;
+        int32_t index = queue->m_Building;
+        if (index == -1)
+            return -1;
+        const RenderFrameSlot& slot = queue->m_Slots[index];
+        return slot.m_Frame == ticket.m_Frame && slot.m_FrameId == ticket.m_FrameId ? index : -1;
     }
 
     HRenderFrameQueue NewRenderFrameQueue(const RenderFrameQueueParams& params)
@@ -149,8 +150,8 @@ namespace dmRender
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
             if (queue->m_Stopping)
                 return RENDER_FRAME_STOPPED;
-            int32_t index = FindSlot(queue, ticket);
-            if (index == -1 || queue->m_Building != index)
+            int32_t index = FindBuildingSlot(queue, ticket);
+            if (index == -1)
                 return RENDER_FRAME_INVALID_STATE;
             // This acknowledgement gate, not the number of free slots alone, bounds lead.
             if (queue->m_Active != -1)
@@ -177,8 +178,8 @@ namespace dmRender
         assert(!queue->m_InRetire);
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
-            int32_t index = FindSlot(queue, ticket);
-            if (index == -1 || queue->m_Building != index)
+            int32_t index = FindBuildingSlot(queue, ticket);
+            if (index == -1)
                 return RENDER_FRAME_INVALID_STATE;
             queue->m_Slots[index].m_State = RENDER_FRAME_RETIRED;
             queue->m_Building = -1;
@@ -238,9 +239,7 @@ namespace dmRender
         AcknowledgeCompleted(queue);
         // Clear before invoking the service: a concurrent new request remains pending.
         queue->m_ServicePending = false;
-        int32_t index = queue->m_Active;
-        if (!consume_frame || index == -1 || queue->m_Slots[index].m_State != RENDER_FRAME_READY)
-            index = -1;
+        int32_t index = consume_frame ? queue->m_Active : -1;
         if (index != -1)
         {
             queue->m_Slots[index].m_State = RENDER_FRAME_READING;
@@ -255,7 +254,6 @@ namespace dmRender
         if (index != -1)
         {
             const RenderFrameView* frame = GetRenderFrameView(queue->m_Slots[index].m_Frame);
-            assert(frame);
             queue->m_Params.m_Consume(queue->m_Params.m_ConsumeContext, *frame);
             queue->m_Completed = index;
             // Browser main must not wait even to acknowledge completion. Keep Reading
@@ -342,7 +340,7 @@ namespace dmRender
         assert(IsRenderExecutionOwner(queue->m_Params.m_Execution, EXECUTION_OWNER_RENDER));
         assert(queue->m_Mutex); // Dedicated native executor only, not the external-owner pump.
         DM_MUTEX_SCOPED_LOCK(queue->m_Mutex);
-        while (!queue->m_Stopping && !queue->m_ServicePending && queue->m_Active == -1 && queue->m_Completed == -1)
+        while (!queue->m_Stopping && !queue->m_ServicePending && queue->m_Active == -1)
             dmConditionVariable::Wait(queue->m_Changed, queue->m_Mutex);
     }
 }

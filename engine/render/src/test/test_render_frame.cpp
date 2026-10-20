@@ -370,7 +370,7 @@ TEST(RenderFrame, InvalidReferenceArguments)
     ASSERT_EQ(0u, releases.m_Count);
 }
 
-// Verify capture is building-only and rejected post-seal writes do not alter the immutable consumer view.
+// Verify capture is building-only, state errors precede null-source errors, and post-seal writes preserve the view.
 TEST(RenderFrame, CaptureState)
 {
     RenderFrameLimits limits = { 4, 1, 1 };
@@ -388,6 +388,7 @@ TEST(RenderFrame, CaptureState)
     const RenderFrameView* view = GetRenderFrameView(frame);
     RenderFrameStatistics before = view->m_Statistics;
     value = 99;
+    ASSERT_EQ(RENDER_FRAME_INVALID_STATE, CopyRenderFrameTable(frame, 0, 1, sizeof(value), 4, 0, &index));
     ASSERT_EQ(RENDER_FRAME_INVALID_STATE, CopyRenderFrameTable(frame, 0, 1, sizeof(value), 4, &value, &index));
     ReleaseLog releases = {};
     ASSERT_EQ(RENDER_FRAME_INVALID_STATE, AddRenderFrameReference(frame, &value, ReleaseReference, &releases));

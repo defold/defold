@@ -747,7 +747,7 @@ namespace dmGameObject
             const ComponentRenderCallbacks& callbacks = regist->m_ComponentRenderCallbacks[i];
             if (callbacks.m_CreateWorld)
             {
-                if (!callbacks.m_CreateWorld(callbacks.m_Context, i, max_instances, max_components, &collection->m_ComponentRenderWorlds[i]) || !collection->m_ComponentRenderWorlds[i])
+                if (!callbacks.m_CreateWorld(callbacks.m_Context, i, max_instances, max_components, &collection->m_ComponentRenderWorlds[i]))
                 {
                     dmLogError("Failed to create render bridge world for component '%s'.", regist->m_ComponentTypes[i].m_Name);
                     return false;

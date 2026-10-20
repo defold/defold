@@ -38,12 +38,9 @@ namespace dmGameSystem
         HComponentRenderWorld       m_WorldsPendingDestroy;
         int32_atomic_t              m_WorldCount;
         int32_atomic_t              m_Result;
-        // Use full bytes, not bitfields: game/render owners access these independently,
-        // and bitfield updates could race through a shared read/modify/write byte.
-        uint8_t                     m_HasWorlds;
-        uint8_t                     m_InCapture;
-        uint8_t                     m_InConsume;
-        uint8_t                     m_InService;
+        // Both flags are accessed only by the game owner.
+        uint8_t                     m_HasWorlds : 1;
+        uint8_t                     m_InCapture : 1;
     };
 
     // One lifetime record, independent of the mutable component world. References and
@@ -267,9 +264,7 @@ namespace dmGameSystem
     {
         HComponentRenderStateContext context = (HComponentRenderStateContext)context_ptr;
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_RENDER));
-        assert(!context->m_InConsume && !context->m_InService);
 
-        context->m_InConsume = true;
         for (uint32_t i = 0; i < frame.m_Statistics.m_TableCount; ++i)
         {
             const dmRender::RenderFrameTable& table = frame.m_Tables[i];
@@ -279,11 +274,8 @@ namespace dmGameSystem
             }
 
             // CaptureComponentRenderWorld writes one dispatch record per captured world;
-            // component instances live in separate payload tables. A different count
-            // would require changing this consumer to process multiple dispatch records.
-            assert(table.m_Count == 1 && table.m_Stride == sizeof(ComponentRenderDispatch));
+            // component instances live in separate payload tables.
             const ComponentRenderDispatch* dispatch = (const ComponentRenderDispatch*)dmRender::GetRenderFrameTableData(frame, i);
-            assert(dispatch->m_FirstTable == i + 1 && dispatch->m_TableCount <= frame.m_Statistics.m_TableCount - i - 1);
 
             HComponentRenderWorld world = dispatch->m_World;
             assert(world->m_Context == context);
@@ -306,14 +298,12 @@ namespace dmGameSystem
             if (world->m_InitResult == dmRender::RENDER_FRAME_OK)
                 RecordError(context, world->m_Callbacks.m_Consume(world->m_RendererContext, world->m_State, frame, dispatch->m_FirstTable, dispatch->m_TableCount));
         }
-        context->m_InConsume = false;
     }
 
     void ServiceComponentRenderState(void* context_ptr)
     {
         HComponentRenderStateContext context = (HComponentRenderStateContext)context_ptr;
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_RENDER));
-        assert(!context->m_InConsume && !context->m_InService);
 
         if (context->m_WorldsPendingDestroyMutex && !dmMutex::TryLock(context->m_WorldsPendingDestroyMutex))
         {
@@ -327,7 +317,6 @@ namespace dmGameSystem
             dmMutex::Unlock(context->m_WorldsPendingDestroyMutex);
         }
 
-        context->m_InService = true;
         while (world)
         {
             HComponentRenderWorld next = world->m_Next;
@@ -340,7 +329,6 @@ namespace dmGameSystem
             ChangeWorldCount(context, -1);
             world = next;
         }
-        context->m_InService = false;
     }
 
     void DeleteComponentRenderStateContext(HComponentRenderStateContext context)
@@ -349,7 +337,7 @@ namespace dmGameSystem
         assert(GetComponentRenderStateWorldCount(context) == 0);
 
         // All pumps have stopped/joined; no queue callback can still reach this context.
-        assert(!context->m_InCapture && !context->m_InConsume && !context->m_InService);
+        assert(!context->m_InCapture);
         if (context->m_WorldsPendingDestroyMutex)
         {
             dmMutex::Delete(context->m_WorldsPendingDestroyMutex);

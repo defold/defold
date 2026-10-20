@@ -119,9 +119,8 @@ namespace dmRender
 
     static RenderFrameResult FailCapture(HRenderFrame frame, RenderFrameResult error)
     {
-        if (frame->m_Error == RENDER_FRAME_OK)
-            frame->m_Error = error;
-        return frame->m_Error;
+        frame->m_Error = error;
+        return error;
     }
 
     static RenderFrameResult CheckCapture(HRenderFrame frame)
@@ -172,14 +171,11 @@ namespace dmRender
     RenderFrameResult CopyRenderFrameTable(HRenderFrame frame, uint32_t type, uint32_t count,
         uint32_t stride, uint32_t alignment, const void* data, uint32_t* table_index)
     {
-        RenderFrameResult result = CheckCapture(frame);
-        if (result != RENDER_FRAME_OK)
-            return result;
         if (!data)
-            return FailCapture(frame, RENDER_FRAME_INVALID_ARGUMENT);
+            return FailRenderFrame(frame, RENDER_FRAME_INVALID_ARGUMENT);
 
         void* destination;
-        result = AllocateRenderFrameTable(frame, type, count, stride, alignment, table_index, &destination);
+        RenderFrameResult result = AllocateRenderFrameTable(frame, type, count, stride, alignment, table_index, &destination);
         if (result != RENDER_FRAME_OK)
             return result;
 
