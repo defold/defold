@@ -471,7 +471,7 @@ protected:
                 const BYTE* pixel = data + y * abs(stride) + x * 4;
                 for (uint32_t c = 0; c < 3; ++c)
                     valid = valid && abs((int)pixel[c] - expected[i][c]) < 25;
-                if (!valid && !expected_phases)
+                if (!valid)
                     printf("%s: incorrect client corner %u: BGR=(%u,%u,%u)\n",
                         m_Recording.m_Path, i, pixel[0], pixel[1], pixel[2]);
             }
