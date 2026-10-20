@@ -1706,6 +1706,9 @@ class Configuration(object):
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
                 lib_path = join(dynamo_home, 'lib', self.target_platform, lib_name)
                 self.upload_to_archive(lib_path, '%s/%s' % (full_archive_path, lib_name))
+            dxc_name = format_lib('dxcompiler', self.target_platform)
+            self.upload_to_archive(join(dynamo_home, 'lib', self.target_platform, dxc_name),
+                                   '%s/%s' % (full_archive_path, dxc_name))
 
         sdkpath, sdk_sig_path = self._package_platform_sdk(self.target_platform)
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % full_archive_path)

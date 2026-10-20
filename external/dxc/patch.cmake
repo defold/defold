@@ -1,0 +1,16 @@
+# Upstream forces SPIR-V on for Unix even with ENABLE_SPIRV_CODEGEN=OFF.
+# Defold only needs DXIL here and already has a separate SPIR-V toolchain.
+set(path "${DXC_SOURCE_DIR}/CMakeLists.txt")
+file(READ "${path}" source)
+set(original "# Enable SPIR-V CodeGen for Linux by default.\nif(NOT WIN32)\n  set(ENABLE_SPIRV_CODEGEN ON)\nendif()")
+set(replacement "# Defold: honor ENABLE_SPIRV_CODEGEN on every host.")
+string(FIND "${source}" "${original}" found)
+if(found EQUAL -1)
+  string(FIND "${source}" "${replacement}" patched)
+  if(patched EQUAL -1)
+    message(FATAL_ERROR "DXC SPIR-V patch no longer matches the pinned source")
+  endif()
+else()
+  string(REPLACE "${original}" "${replacement}" source "${source}")
+  file(WRITE "${path}" "${source}")
+endif()

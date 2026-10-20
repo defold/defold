@@ -20,7 +20,7 @@
 
 #include <d3d12shader.h>
 #include <d3d12.h>
-#include <d3dcompiler.h>
+#include "shaderc_dxc.h"
 
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/log.h>
@@ -1115,39 +1115,14 @@ namespace dmShaderc
         return true;
     }
 
-    static uint32_t GetD3DCompileFlags(const ShaderCompilerOptions* options)
+    static bool CompileShaderDXC(const void* source, uint32_t source_size, const char* entry_point, const char* profile, IDxcBlob** out_shader_blob, IDxcBlobUtf8** out_error_blob, ID3D12ShaderReflection** out_reflection, const char* error_prefix)
     {
-        uint32_t compile_flags = D3DCOMPILE_ENABLE_STRICTNESS;
-        // SPIRV-Cross can generate harmless flow-control warnings for shader model 5.x HLSL.
-        // Keep strict validation, but do not reject generated HLSL solely because D3DCompile
-        // decided to unroll a statically small loop.
-        if (!options || options->m_Version < 50)
-        {
-            compile_flags |= D3DCOMPILE_WARNINGS_ARE_ERRORS;
-        }
-        return compile_flags;
-    }
-
-    static bool CompileShaderD3DCompiler(const ShaderCompilerOptions* options, const void* source, uint32_t source_size, const char* entry_point, const char* profile, ID3DBlob** out_shader_blob, ID3DBlob** out_error_blob, const char* error_prefix)
-    {
-        HRESULT hr = D3DCompile(
-            source,
-            source_size,
-            NULL,
-            NULL,
-            NULL,
-            entry_point,
-            profile,
-            GetD3DCompileFlags(options),
-            0,
-            out_shader_blob,
-            out_error_blob);
-
+        HRESULT hr = CompileDXC(source, source_size, entry_point, profile, out_shader_blob, out_error_blob, out_reflection);
         if (FAILED(hr))
         {
-            if (out_error_blob && *out_error_blob)
+            if (*out_error_blob && (*out_error_blob)->GetStringLength())
             {
-                dmLogError("%s:\n%s", error_prefix, (char*) (*out_error_blob)->GetBufferPointer());
+                dmLogError("%s:\n%s", error_prefix, (*out_error_blob)->GetStringPointer());
             }
             else
             {
@@ -1251,21 +1226,14 @@ namespace dmShaderc
         return success;
     }
 
-    static bool CreateReflectionData(const ShaderCompilerOptions* options, const void* source, uint32_t source_size, const char* entry_point, const char* reflection_profile, ID3DBlob** out_shader_blob, ID3DBlob** out_error_blob, ID3D12ShaderReflection** out_reflection, D3D12_SHADER_DESC* out_shader_desc)
+    static bool CreateReflectionData(const void* source, uint32_t source_size, const char* entry_point, const char* reflection_profile, IDxcBlob** out_shader_blob, IDxcBlobUtf8** out_error_blob, ID3D12ShaderReflection** out_reflection, D3D12_SHADER_DESC* out_shader_desc)
     {
-        if (!CompileShaderD3DCompiler(options, source, source_size, entry_point, reflection_profile, out_shader_blob, out_error_blob, "Shader compile error"))
+        if (!CompileShaderDXC(source, source_size, entry_point, reflection_profile, out_shader_blob, out_error_blob, out_reflection, "Shader compile error"))
         {
             return false;
         }
 
-        HRESULT hr = D3DReflect((*out_shader_blob)->GetBufferPointer(), (*out_shader_blob)->GetBufferSize(), __uuidof(ID3D12ShaderReflection), (void**) out_reflection);
-        if (FAILED(hr))
-        {
-            dmLogError("Failed to get shader reflection");
-            return false;
-        }
-
-        hr = (*out_reflection)->GetDesc(out_shader_desc);
+        HRESULT hr = (*out_reflection)->GetDesc(out_shader_desc);
         if (FAILED(hr))
         {
             dmLogError("Failed to get shader description.");
@@ -1275,7 +1243,7 @@ namespace dmShaderc
         return true;
     }
 
-    static bool CreateRootSignature(const ShaderCompilerOptions* options, const char* source, const char* entry_point, const char* reflection_profile, ShaderStage stage, ID3D12ShaderReflection* reflection, const D3D12_SHADER_DESC* shader_desc, dmArray<char>& inout_binary_source, dmArray<uint8_t>& out_root_signature, ID3DBlob** inout_shader_blob, ID3DBlob** inout_error_blob)
+    static bool CreateRootSignature(const ShaderCompilerOptions* options, const char* source, const char* entry_point, const char* reflection_profile, ShaderStage stage, ID3D12ShaderReflection* reflection, const D3D12_SHADER_DESC* shader_desc, dmArray<char>& inout_binary_source, dmArray<uint8_t>& out_root_signature, IDxcBlob** inout_shader_blob, IDxcBlobUtf8** inout_error_blob)
     {
         dmArray<char> root_signature_text;
         if (!IsNullOrEmpty(options->m_RootSignatureOverride))
@@ -1327,7 +1295,7 @@ namespace dmShaderc
         }
 
         // Root signature extraction stays in-process so Java/C++ can keep using the same merge path.
-        if (!CompileShaderD3DCompiler(options, injected_source.Begin(), injected_source.Size(), entry_point, reflection_profile, inout_shader_blob, inout_error_blob, "Failed to compile HLSL source with injected root signature"))
+        if (!CompileShaderDXC(injected_source.Begin(), injected_source.Size(), entry_point, reflection_profile, inout_shader_blob, inout_error_blob, NULL, "Failed to compile HLSL source with injected root signature"))
         {
             return false;
         }
@@ -1341,8 +1309,8 @@ namespace dmShaderc
             return true;
         }
 
-        ID3DBlob* root_signature_blob = NULL;
-        HRESULT hr = D3DGetBlobPart((*inout_shader_blob)->GetBufferPointer(), (*inout_shader_blob)->GetBufferSize(), D3D_BLOB_ROOT_SIGNATURE, 0, &root_signature_blob);
+        IDxcBlob* root_signature_blob = NULL;
+        HRESULT hr = GetDXCRootSignature(*inout_shader_blob, &root_signature_blob);
         if (FAILED(hr))
         {
             dmLogError("Failed to extract hlsl root signature");
@@ -1424,8 +1392,8 @@ namespace dmShaderc
     ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions* options, ShaderCompileResult* raw_hlsl)
     {
         DM_TRACE_LINE();
-        ID3DBlob* shader_blob = NULL;
-        ID3DBlob* error_blob = NULL;
+        IDxcBlob* shader_blob = NULL;
+        IDxcBlobUtf8* error_blob = NULL;
         ID3D12ShaderReflection* reflection = NULL;
         char* src_data = 0;
         bool success = false;
@@ -1437,24 +1405,15 @@ namespace dmShaderc
         dmArray<char> prepared_hlsl_source;
         dmArray<CombinedSampler> combined_samplers;
 
-        const int version = options->m_Version;
-        assert(version == 50 || version == 51 || version >= 60);
+        // Legacy language identifiers still reach this boundary until Bob is updated.
+        // All binary output now uses SM6; there is no SM5 compiler path.
+        const int version = options->m_Version < 60 ? 60 : options->m_Version;
 
         const bool use_external_compiler = !IsNullOrEmpty(options->m_ExternalCompilerPath) && !IsNullOrEmpty(options->m_ExternalCompilerArgs);
-        if (version >= 60 && !use_external_compiler)
-        {
-            dmLogError("HLSL shader model %d requires an external compiler (DXC/FXC) configured from Java options.", version);
-            goto cleanup;
-        }
-
         const char* entry_point = options->m_EntryPoint ? options->m_EntryPoint : "main";
 
         char profile[32];
         BuildShaderProfile(context->m_Stage, version, profile);
-
-        int reflection_version = version >= 60 ? 51 : version;
-        char reflection_profile[32];
-        BuildShaderProfile(context->m_Stage, reflection_version, reflection_profile);
 
         prepared_hlsl_source.SetCapacity(raw_hlsl->m_Data.Size() + 1);
         prepared_hlsl_source.SetSize(raw_hlsl->m_Data.Size() + 1);
@@ -1466,8 +1425,8 @@ namespace dmShaderc
 
         const uint32_t prepared_hlsl_source_size = prepared_hlsl_source.Size() > 0 ? prepared_hlsl_source.Size() - 1 : 0;
         D3D12_SHADER_DESC shaderDesc;
-        // Step 1: Reflection pass with D3DCompiler to build deterministic resource mappings.
-        if (!CreateReflectionData(options, prepared_hlsl_source.Begin(), prepared_hlsl_source_size, entry_point, reflection_profile, &shader_blob, &error_blob, &reflection, &shaderDesc))
+        // Step 1: Reflection pass with DXC to build deterministic resource mappings.
+        if (!CreateReflectionData(prepared_hlsl_source.Begin(), prepared_hlsl_source_size, entry_point, profile, &shader_blob, &error_blob, &reflection, &shaderDesc))
         {
             goto cleanup;
         }
@@ -1491,16 +1450,13 @@ namespace dmShaderc
         binary_source.SetSize(prepared_hlsl_source_size);
         memcpy(binary_source.Begin(), prepared_hlsl_source.Begin(), prepared_hlsl_source_size);
 
-        // Step 2: Create root signature and inject it into the source for SM5.1+.
-        if (version > 50)
+        // Step 2: Create root signature and inject it into the source for SM6.
+        if (!CreateRootSignature(options, src_data, entry_point, profile, context->m_Stage, reflection, &shaderDesc, binary_source, root_signature_data, &shader_blob, &error_blob))
         {
-            if (!CreateRootSignature(options, (const char*) src_data, entry_point, reflection_profile, context->m_Stage, reflection, &shaderDesc, binary_source, root_signature_data, &shader_blob, &error_blob))
-            {
-                goto cleanup;
-            }
+            goto cleanup;
         }
 
-        // Step 3: Compile final shader blob using either external toolchain or D3DCompiler fallback.
+        // Step 3: Compile final shader blob using the platform toolchain or DXC.
         if (use_external_compiler)
         {
             if (!CompileShaderToolPath(options, binary_source, profile, context->m_Stage, version, output_blob))
@@ -1508,20 +1464,12 @@ namespace dmShaderc
                 goto cleanup;
             }
         }
-        else if (version > 50)
+        else
         {
             uint32_t shader_size = shader_blob->GetBufferSize();
             output_blob.SetCapacity(shader_size);
             output_blob.SetSize(shader_size);
             memcpy(output_blob.Begin(), shader_blob->GetBufferPointer(), shader_size);
-        }
-        else
-        {
-            // Backwards-compatible path: keep shipping HLSL source when no external toolchain is configured.
-            uint32_t data_size = prepared_hlsl_source_size;
-            output_blob.SetCapacity(data_size);
-            output_blob.SetSize(data_size);
-            memcpy(output_blob.Begin(), prepared_hlsl_source.Begin(), data_size);
         }
 
         result = (ShaderCompileResult*) malloc(sizeof(ShaderCompileResult));
@@ -1953,19 +1901,17 @@ namespace dmShaderc
             return false;
         }
 
-        ID3DBlob* patched_blob = 0;
-        HRESULT hr = D3DSetBlobPart(
+        IDxcBlob* patched_blob = 0;
+        HRESULT hr = SetDXCRootSignature(
             inout_shader_blob.Begin(),
             inout_shader_blob.Size(),
-            D3D_BLOB_ROOT_SIGNATURE,
-            0,
             merged_root_signature.Begin(),
             merged_root_signature.Size(),
             &patched_blob);
 
         if (FAILED(hr))
         {
-            dmSnPrintf(out_error, 256, "D3DSetBlobPart failed (HRESULT 0x%08X)", (unsigned int) hr);
+            dmSnPrintf(out_error, 256, "DXC root signature attachment failed (HRESULT 0x%08X)", (unsigned int) hr);
             return false;
         }
 

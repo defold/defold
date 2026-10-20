@@ -63,3 +63,10 @@ if(NOT CMAKE_CROSSCOMPILING)
   defold_register_sequential_test_command(shaderc_standalone
     COMMAND ${_shaderc_cli_tests} DEPENDS shaderc_standalone)
 endif()
+
+shaderc_stage_dxc(test_shaderc)
+defold_add_executable(test_shaderc_dxc "${SHADERC_TEST_DIR}/test_shaderc_dxc.cpp")
+target_include_directories(test_shaderc_dxc PRIVATE "${SHADERC_SRC_DIR}" ${SHADERC_EXTRA_INCLUDES})
+defold_target_link_libraries(test_shaderc_dxc "${TARGET_PLATFORM}" shaderc)
+shaderc_stage_dxc(test_shaderc_dxc)
+defold_register_test_target(test_shaderc_dxc ON "${SHADERC_ROOT}")
