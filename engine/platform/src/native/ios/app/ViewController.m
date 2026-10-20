@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #import "ViewController.h"
+#import "SceneDelegate.h"
 #include "native.h"
 #include "internal.h"
 
@@ -20,11 +21,21 @@
 #import "EAGLView.h"
 
 extern int g_IsReboot;
+extern UIWindow* g_ApplicationWindow;
 static int g_view_type = NATIVE_NO_API;
 
 @implementation ViewController
 
 @synthesize baseView;
+
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations
+{
+    UIWindow* window = self.viewIfLoaded.window;
+    // A full-screen presentation detaches the root view from the game window.
+    if (!window)
+        window = g_ApplicationWindow;
+    return dmNativeGetiOSSupportedInterfaceOrientations(window);
+}
 
 - (void)dealloc
 {

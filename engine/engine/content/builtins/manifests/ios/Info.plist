@@ -60,19 +60,19 @@
         <key>DTCompiler</key>
         <string>com.apple.compilers.llvm.clang.1_0</string>
         <key>DTPlatformBuild</key>
-        <string>24A94403</string>
+        <string>24A94232</string>
         <key>DTPlatformName</key>
         <string>iphoneos</string>
         <key>DTPlatformVersion</key>
         <string>27.1</string>
         <key>DTSDKBuild</key>
-        <string>24A94403</string>
+        <string>24A94232</string>
         <key>DTSDKName</key>
         <string>iphoneos27.1</string>
         <key>DTXcode</key>
         <string>2710</string>
         <key>DTXcodeBuild</key>
-        <string>27A9269</string>
+        <string>27A9275</string>
         <key>UIFileSharingEnabled</key>
         <{{project.write_log}}/>
         <key>LSRequiresIPhoneOS</key>
@@ -98,10 +98,21 @@
             <string>{{.}}</string>{{/application-localizations}}
         </array>
         <key>UISupportedInterfaceOrientations</key>
-        <array> {{#orientation-support}}
-                <string>UIInterfaceOrientation{{.}}</string>{{/orientation-support}}
+        <array>
+                <string>UIInterfaceOrientationPortrait</string>
+                <string>UIInterfaceOrientationLandscapeLeft</string>
+                <string>UIInterfaceOrientationLandscapeRight</string>
         </array>
         <key>UISupportedInterfaceOrientations~ipad</key>
+        <array>
+                <string>UIInterfaceOrientationPortrait</string>
+                <string>UIInterfaceOrientationPortraitUpsideDown</string>
+                <string>UIInterfaceOrientationLandscapeLeft</string>
+                <string>UIInterfaceOrientationLandscapeRight</string>
+        </array>
+        <!-- Set the runtime orientation policy without selecting iPhone Duo's letterboxed compatibility mode.
+             UIKit ignores orientation restrictions on the inner display; games must handle resizing. -->
+        <key>DefoldSupportedInterfaceOrientations</key>
         <array> {{#orientation-support}}
                 <string>UIInterfaceOrientation{{.}}</string>{{/orientation-support}}
         </array>
@@ -128,6 +139,8 @@
         <key>UILaunchStoryboardName</key>
         <string>{{launch-screen}}</string>
 
+        <!-- Preserve fixed orientations on iPadOS versions that opt these games out of multitasking.
+             iPhone Duo still resizes when switching between its displays. -->
         <key>UIRequiresFullScreen</key>
         <true/>
         <key>UIApplicationSupportsIndirectInputEvents</key>
