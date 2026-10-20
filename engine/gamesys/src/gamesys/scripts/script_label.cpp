@@ -19,6 +19,7 @@
 #include <render/font/fontmap.h>
 #include <render/render.h>
 #include <script/script.h>
+#include <script/text_curve.hpp>
 #include <dmsdk/gamesys/script.h>
 
 #include "script_label.h"
@@ -232,9 +233,40 @@ static const dmhash_t TAG_SPRITE = dmHashString64("sprite");
  * ```
  */
 
+/*# [type:number] label arc radius
+ *
+ * Signed radius of the first text baseline in local units, default 100.
+ * The arc is centered on the component origin. Later lines retain their layout baseline spacing.
+ *
+ * @name arc_radius
+ * @property
+ * @examples
+ * ```lua
+ * go.set("#label", "arc_radius", 200)
+ * local radius = go.get("#label", "arc_radius")
+ * ```
+ */
+
+/*# [type:number] label arc angle
+ *
+ * Angular span of the text block, between 0 and 360 degrees, inclusive.
+ * 360 forms a full circle. Defaults to 0, which selects ordinary textbox layout. Arc layout ignores size. When
+ * line_break is enabled, text wraps at the arc length (absolute radius times the absolute
+ * angle in radians). Explicit newlines and glyph-cluster size are preserved.
+ *
+ * @name arc_angle
+ * @property
+ * @examples
+ * ```lua
+ * go.set("#label", "arc_angle", 360)
+ * local angle = go.get("#label", "arc_angle")
+ * ```
+ */
+
 /*# [type:boolean] label line break
  *
  * The line break of the label.
+ * In arc layout, automatic wrapping uses the arc length instead of size.x.
  * This value is used to adjust the vertical spacing of characters in the text.
  * The type of the property is boolean.
  *
@@ -373,6 +405,40 @@ static int GetText(lua_State* L)
     return 1;
 }
 
+/*# sets a text curve
+ * Maps each glyph cluster onto an ordered cubic Bezier chain in local space.
+ * All text lines use the same curve, offset by their baseline distance along up.
+ * Each knot has position, optional in_handle/out_handle offsets, roll_degrees
+ * (default zero), and positive uniform scale (default one).
+ * Only the first knot accepts up, the initial direction to transport along the
+ * curve. It defaults to {0, 1, 0}; its length does not affect scale. Vectors can
+ * be vector3 values or {x, y, z} tables. Handles default to zero offsets.
+ * A curve overrides arc and size. Line Break wraps at the curve's length.
+ * Open endpoints extrapolate their tangents. Passing nil restores arc/textbox mapping.
+ * @name label.set_curve
+ * @param url [type:string|hash|url] label component
+ * @param knots [type:table|nil] ordered array of at least two knots, or nil to clear
+ * @param [options] [type:table] optional table with closed (boolean, default false)
+ * @examples
+ * ```lua
+ * label.set_curve("#label", {
+ *     {position = {0, 0, 0}, out_handle = {80, 80, 0}, up = {0, 1, 0}},
+ *     {position = {240, 0, 0}, in_handle = {-80, -80, 0}, roll_degrees = 30, scale = 1.2},
+ * })
+ * ```
+ */
+static int SetCurve(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+    CheckGoInstance(L);
+    dmGameSystem::LabelComponent* component = 0;
+    dmScript::GetComponentFromLua(L, 1, LABEL_EXT, 0, (dmGameObject::HComponent*)&component, 0);
+    HFontTextCurve curve = dmScript::CheckTextCurve(L, 2, 3);
+    dmGameSystem::CompLabelSetCurve(component, curve);
+    FontTextCurveRelease(curve);
+    return 0;
+}
+
 static const char* GetLayoutObjectTagName(dmhash_t tag)
 {
     return tag == TAG_SPRITE ? "sprite" : "link";
@@ -386,8 +452,9 @@ static const char* GetLayoutObjectTagName(dmhash_t tag)
  * @member id [type:hash] the object's `id` attribute, or its generated layout object id
  * @member text_offset [type:integer] zero-based UTF-32 offset in the visible text
  * @member text_length [type:integer] visible UTF-32 text length covered by the object
- * @member x [type:number] unscaled lower-left x-coordinate relative to the label's pivot
- * @member y [type:number] unscaled lower-left y-coordinate relative to the label's pivot
+ * @member x [type:number] local lower-left x-coordinate after arc/curve mapping
+ * @member y [type:number] local lower-left y-coordinate after arc/curve mapping
+ * @member z [type:number] local lower-left z-coordinate after curve mapping; zero for flat text and arcs
  * @member width [type:number] resolved object width
  * @member height [type:number] resolved object height
  * @member attributes [type:table<string, string>] markup attributes keyed by name
@@ -397,9 +464,10 @@ static const char* GetLayoutObjectTagName(dmhash_t tag)
  *
  * Returns the sprites and links found in the label's current layout.
  * Each entry contains `type`, `id`, the zero-based UTF-32 `text_offset`,
- * `text_length`, resolved `x`, `y`, `width`
+ * `text_length`, resolved `x`, `y`, `z`, `width`
  * and `height`, and an `attributes` table. The position is the lower-left
- * object corner relative to the label's pivot, before applying scale and rotation.
+ * object corner after arc/curve mapping, before applying component scale and rotation.
+ * Flat text coordinates remain relative to the label's pivot. Width and height are layout dimensions.
  * Inline resource rendering is not part of this MVP; sprites use their explicit
  * dimensions or a one-em square fallback.
  *
@@ -437,7 +505,7 @@ static int GetLayoutObjects(lua_State* L)
     for (uint32_t i = 0; i < object_count; ++i)
     {
         const TextLayoutObject& object = objects[i];
-        lua_createtable(L, 0, 9);
+        lua_createtable(L, 0, 10);
         lua_pushstring(L, GetLayoutObjectTagName(object.m_Tag));
         lua_setfield(L, -2, "type");
         dmScript::PushHash(L, object.m_Id);
@@ -450,13 +518,14 @@ static int GetLayoutObjects(lua_State* L)
         lua_setfield(L, -2, "width");
         lua_pushnumber(L, object.m_Height);
         lua_setfield(L, -2, "height");
-        float x = 0.0f;
-        float y = 0.0f;
-        dmGameSystem::CompLabelGetLayoutObjectPosition(component, layout, &object, &x, &y);
-        lua_pushnumber(L, x);
+        dmVMath::Point3 position(0.0f, 0.0f, 0.0f);
+        dmGameSystem::CompLabelGetLayoutObjectPosition(component, layout, &object, &position);
+        lua_pushnumber(L, position.getX());
         lua_setfield(L, -2, "x");
-        lua_pushnumber(L, y);
+        lua_pushnumber(L, position.getY());
         lua_setfield(L, -2, "y");
+        lua_pushnumber(L, position.getZ());
+        lua_setfield(L, -2, "z");
         lua_createtable(L, 0, object.m_AttributeCount);
 
         for (uint32_t j = 0; j < object.m_AttributeCount; ++j)
@@ -485,6 +554,7 @@ static int GetLayoutObjects(lua_State* L)
 
 static const luaL_reg Module_methods[] = {
     { "set_text", SetText },
+    { "set_curve", SetCurve },
     { "get_text", GetText },
     { "get_layout_objects", GetLayoutObjects },
     { 0, 0 }

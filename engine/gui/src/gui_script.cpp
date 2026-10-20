@@ -24,6 +24,7 @@
 #include <font/text_layout.h>
 
 #include <script/script.h>
+#include <script/text_curve.hpp>
 #include <gameobject/script.h>
 #include <gameobject/gameobject_props_lua.h>
 #include <gameobject/gameobject_script_util.h>
@@ -193,6 +194,8 @@ namespace dmGui
      * @member gui.PROP_SIZE size property
      * @member gui.PROP_SLICE9 slice9 property
      * @member gui.PROP_TRACKING tracking property
+     * @member gui.PROP_ARC_RADIUS circular text radius property
+     * @member gui.PROP_ARC_ANGLE circular text sweep property
      */
 
     /*# GUI results
@@ -926,6 +929,8 @@ namespace dmGui
      * - `"inner_radius"` (pie)
      * - `"leading"` (text)
      * - `"tracking"` (text)
+     * - `"arc_radius"` (text)
+     * - `"arc_angle"` (text)
      * - `"slice9"` (slice9)
      *
      * The value returned will either be a vmath.vector4 or a single number, i.e getting the "position"
@@ -1061,7 +1066,15 @@ namespace dmGui
      * - `"inner_radius"` (pie)
      * - `"leading"` (text)
      * - `"tracking"` (text)
+     * - `"arc_radius"` (text)
+     * - `"arc_angle"` (text)
      * - `"slice9"` (slice9)
+     *
+     * For text nodes, `arc_radius` is the finite signed radius of the first baseline in local units (default 100),
+     * centered on the node origin. Later lines retain their baseline spacing. `arc_angle` is the angular span
+     * in degrees, from 0 to 360 (default 0). Zero selects textbox layout; 360 forms a full circle.
+     * Arc layout ignores node size. Line Break wraps at the absolute radius times the angle in radians;
+     * explicit newlines are preserved. Both properties also support gui.animate.
      *
      * The value to set must either be a vmath.vector4, vmath.vector3, vmath.quat or a single number and depends on the property name you want to set.
      * I.e when setting the "position" property, you need to use a vmath.vector4 and when setting a single component of the property,
@@ -1289,6 +1302,14 @@ namespace dmGui
 
             Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
             float new_element_value = (float) lua_tonumber(L, 3);
+            if (pd->m_Property == PROPERTY_TEXT_PARAMS && pd->m_Component >= 2)
+            {
+                Result result = pd->m_Component == 2 ? SetNodeTextArcRadius(scene, hnode, new_element_value)
+                                                     : SetNodeTextArcAngle(scene, hnode, new_element_value);
+                if (result != RESULT_OK)
+                    return DM_LUA_ERROR("Invalid value for '%s'", dmHashReverseSafe64(property_hash));
+                return 0;
+            }
             current_value.setElem(pd->m_Component, new_element_value);
             dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
             return 0;
@@ -1559,6 +1580,14 @@ namespace dmGui
             to = *dmScript::CheckVector4(L, 3);
         }
 
+        PropDesc* arc_property = GetPropertyDesc(property_hash);
+        if (arc_property && arc_property->m_Property == PROPERTY_TEXT_PARAMS && arc_property->m_Component >= 2)
+        {
+            const float value = to.getElem(arc_property->m_Component);
+            if (!isfinite(value) || (arc_property->m_Component == 3 && (value < 0.0f || value > 360.0f)))
+                return DM_LUA_ERROR("Invalid animation target for '%s'", dmHashReverseSafe64(property_hash));
+        }
+
         dmEasing::Curve curve;
         if (lua_isnumber(L, 4))
         {
@@ -1639,6 +1668,8 @@ namespace dmGui
      * - `"inner_radius"` (pie)
      * - `"leading"` (text)
      * - `"tracking"` (text)
+     * - `"arc_radius"` (text)
+     * - `"arc_angle"` (text)
      * - `"slice9"` (slice9)
      *
      * @examples
@@ -1816,8 +1847,9 @@ namespace dmGui
      * @member id [type:hash] the object's `id` attribute, or its generated layout object id
      * @member text_offset [type:integer] zero-based UTF-32 offset in the visible text
      * @member text_length [type:integer] visible UTF-32 text length covered by the object
-     * @member x [type:number] unscaled lower-left x-coordinate relative to the text node's pivot
-     * @member y [type:number] unscaled lower-left y-coordinate relative to the text node's pivot
+     * @member x [type:number] local lower-left x-coordinate after arc/curve mapping
+     * @member y [type:number] local lower-left y-coordinate after arc/curve mapping
+     * @member z [type:number] local lower-left z-coordinate after curve mapping; zero for flat text and arcs
      * @member width [type:number] resolved object width
      * @member height [type:number] resolved object height
      * @member attributes [type:table<string, string>] markup attributes keyed by name
@@ -1825,8 +1857,9 @@ namespace dmGui
 
     /*# gets the markup objects for a text node
      * Returns the sprites and links found in the text node's current layout.
-     * Each object's `x` and `y` identify its lower-left corner relative to the
-     * text node's pivot, before applying the node's scale and rotation.
+     * Each object's `x`, `y` and `z` identify its lower-left corner relative to the
+     * text node's origin after arc/curve mapping, before applying the node's scale and rotation.
+     * Flat text coordinates remain relative to the node's pivot. Width and height are layout dimensions.
      *
      * @name gui.get_layout_objects
      * @param node [type:node] text node to inspect
@@ -1847,14 +1880,14 @@ namespace dmGui
         const TextLayoutObject* objects = layout ? TextLayoutGetObjects(layout) : 0;
         const TextLayoutObjectAttribute* attributes = layout ? TextLayoutGetObjectAttributes(layout) : 0;
         const char* source = layout ? TextLayoutGetObjectSource(layout) : "";
-        const float width = GetNodeProperty(scene, node, PROPERTY_SIZE).getX();
+        const float width = GetNodeTextSize(scene, node).getX();
         const dmVMath::Vector4 pivot_delta = CalcPivotDelta(GetNodePivot(scene, node), dmVMath::Vector4(1.0f, 1.0f, 0.0f, 1.0f));
         lua_createtable(L, object_count, 0);
 
         for (uint32_t i = 0; i < object_count; ++i)
         {
             const TextLayoutObject& object = objects[i];
-            lua_createtable(L, 0, 9);
+            lua_createtable(L, 0, 10);
             lua_pushstring(L, GetLayoutObjectTagName(object.m_Tag));
             lua_setfield(L, -2, "type");
             dmScript::PushHash(L, object.m_Id);
@@ -1867,13 +1900,14 @@ namespace dmGui
             lua_setfield(L, -2, "width");
             lua_pushnumber(L, object.m_Height);
             lua_setfield(L, -2, "height");
-            float x = 0.0f;
-            float y = 0.0f;
-            TextLayoutGetObjectPositionLocal(layout, &object, width, -pivot_delta.getX(), -pivot_delta.getY(), &x, &y);
-            lua_pushnumber(L, x);
+            Point3 position(0.0f, 0.0f, 0.0f);
+            TextLayoutGetObjectPositionLocal(layout, &object, width, -pivot_delta.getX(), -pivot_delta.getY(), GetNodeTextArcRadius(scene, node), GetNodeTextArcAngle(scene, node), GetNodeTextCurve(scene, node), &position);
+            lua_pushnumber(L, position.getX());
             lua_setfield(L, -2, "x");
-            lua_pushnumber(L, y);
+            lua_pushnumber(L, position.getY());
             lua_setfield(L, -2, "y");
+            lua_pushnumber(L, position.getZ());
+            lua_setfield(L, -2, "z");
             lua_createtable(L, 0, object.m_AttributeCount);
 
             for (uint32_t j = 0; j < object.m_AttributeCount; ++j)
@@ -3480,6 +3514,33 @@ namespace dmGui
         return 1;
     }
 
+    /*# sets a text curve
+     * Maps all lines of a text node onto the same cubic Bezier chain in local space.
+     * Their baseline offsets follow the curve's up direction. Knots use position,
+     * optional in_handle/out_handle offsets, roll_degrees (default zero), and
+     * positive uniform scale (default one). Only the first knot accepts up: the
+     * initial direction to transport, default {0, 1, 0}. Its length does not set
+     * scale. Vectors accept vector3 or {x, y, z} tables. Handles default to zero.
+     * A curve overrides arc and size; Line Break wraps at its length.
+     * Open endpoints extrapolate their tangents. Pass nil to clear the curve.
+     * @name gui.set_curve
+     * @param node [type:node] text node
+     * @param knots [type:table|nil] ordered array of at least two knots, or nil to clear
+     * @param [options] [type:table] optional table with closed (boolean, default false)
+     */
+    static int LuaSetCurve(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        HNode node;
+        InternalNode* internal = LuaCheckNodeInternal(L, 1, &node);
+        if (internal->m_Node.m_NodeType != NODE_TYPE_TEXT)
+            return DM_LUA_ERROR("gui.set_curve requires a text node");
+        HFontTextCurve curve = dmScript::CheckTextCurve(L, 2, 3);
+        SetNodeTextCurve(GuiScriptInstance_Check(L), node, curve);
+        FontTextCurveRelease(curve);
+        return 0;
+    }
+
     /*# sets the tracking of the text node
      * Sets the tracking value of a text node. This value is used to
      * adjust the vertical spacing of characters in the text.
@@ -3532,6 +3593,8 @@ namespace dmGui
     /*# determines if the node is pickable by the supplied coordinates
      * Tests whether a coordinate is within the bounding box of a
      * node.
+     * Text with an arc or a curve uses its projected glyph-cluster bounds,
+     * including whitespace, instead of the stored rectangular size.
      *
      * @name gui.pick_node
      * @param node [type:node] node to be tested for picking
@@ -5117,6 +5180,7 @@ namespace dmGui
         {"get_leading",     LuaGetLeading},
         {"set_tracking",    LuaSetTracking},
         {"get_tracking",    LuaGetTracking},
+        {"set_curve",       LuaSetCurve},
         {"set_size",        LuaSetSize},
         {"get_size",        LuaGetSize},
         {"get_flipbook_cursor", LuaGetFlipbookCursor},
@@ -5229,6 +5293,8 @@ namespace dmGui
         SETPROP(fill_angle, FILL_ANGLE)
         SETPROP(inner_radius, INNER_RADIUS)
         SETPROP(leading, LEADING)
+        SETPROP(arc_radius, ARC_RADIUS)
+        SETPROP(arc_angle, ARC_ANGLE)
         SETPROP(tracking, TRACKING)
         SETPROP(slice9, SLICE9)
 

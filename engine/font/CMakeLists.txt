@@ -30,14 +30,16 @@ set(FONT_PUBLIC_HEADERS
   "${FONT_SRC_DIR}/fontcollection.h"
   "${FONT_SRC_DIR}/markup.h"
   "${FONT_SRC_DIR}/font_effect.h"
-  "${FONT_SRC_DIR}/text_layout.h")
+  "${FONT_SRC_DIR}/text_layout.h"
+  "${FONT_SRC_DIR}/text_curve.hpp")
 set(FONT_RENDER_PUBLIC_HEADERS
   "${FONT_RENDER_SRC_DIR}/font_render.h")
 set(FONT_INTERNAL_HEADERS
   "${FONT_RENDER_SRC_DIR}/glyph_gen.h")
 set(FONT_RENDER_VERTEX_HEADERS
   "${FONT_RENDER_SRC_DIR}/glyph_vertex.h"
-  "${FONT_RENDER_SRC_DIR}/layout_vertex.h")
+  "${FONT_RENDER_SRC_DIR}/layout_vertex.h"
+  "${FONT_RENDER_SRC_DIR}/text_arc.hpp")
 set(FONT_DEPENDENCIES dlib)
 set(FONT_RENDER_DEPENDENCIES
   dlib
@@ -333,6 +335,7 @@ install(FILES
   "${FONT_SRC_DIR}/markup.h"
   "${FONT_SRC_DIR}/font_effect.h"
   "${FONT_SRC_DIR}/text_layout.h"
+  "${FONT_SRC_DIR}/text_curve.hpp"
   DESTINATION include/font)
 install(FILES ${FONT_RENDER_PUBLIC_HEADERS} DESTINATION include/font)
 install(FILES ${FONT_INTERNAL_HEADERS} DESTINATION include/font/internal)

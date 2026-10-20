@@ -14,6 +14,7 @@
 
 #include "text_layout.h"
 #include "fontcollection.h"
+#include "render/text_arc.hpp"
 #include <assert.h>
 #include <math.h>
 #include <stdlib.h>
@@ -163,10 +164,25 @@ static uint32_t GetDecorationIndex(HTextLayout layout, const TextDecoration& dec
     return (uint32_t)(&decoration - decorations);
 }
 
-void TextLayoutInitializeDecorationGeometry(HTextLayout layout)
+void TextLayoutInitializeDecorationGeometry(HTextLayout layout, bool force_glyph_segments)
 {
     const uint32_t decoration_count = layout->m_Decorations.Size();
     uint32_t       segment_count = 0;
+
+    if (force_glyph_segments)
+    {
+        bool needs_geometry = false;
+        for (uint32_t i = 0; i < decoration_count; ++i)
+        {
+            if (layout->m_Decorations[i].m_GlyphCount > 1 && layout->m_DecorationGeometryOffsets[i] == UINT32_MAX)
+            {
+                needs_geometry = true;
+                break;
+            }
+        }
+        if (!needs_geometry)
+            return;
+    }
 
     layout->m_DecorationGeometryOffsets.EnsureSize(decoration_count);
 
@@ -174,7 +190,7 @@ void TextLayoutInitializeDecorationGeometry(HTextLayout layout)
     {
         const TextDecoration& decoration = layout->m_Decorations[i];
 
-        if (DecorationRequiresGlyphSegments(layout, decoration))
+        if (force_glyph_segments || DecorationRequiresGlyphSegments(layout, decoration))
         {
             layout->m_DecorationGeometryOffsets[i] = segment_count;
             segment_count += decoration.m_GlyphCount;
@@ -304,7 +320,7 @@ const TextLayoutObject* TextLayoutGetObjects(HTextLayout layout)
     return layout->m_Objects.Begin();
 }
 
-static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* object, float paragraph_x, float paragraph_top, float paragraph_width, bool pivot_relative, float pivot_x, float pivot_y, float* x, float* y)
+static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* object, float paragraph_x, float paragraph_top, float paragraph_width, bool pivot_relative, float pivot_x, float pivot_y, float* x, float* y, uint32_t* object_line, uint32_t* object_glyph)
 {
     if (!layout || !object || !x || !y)
     {
@@ -323,6 +339,10 @@ static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* obj
         {
             continue;
         }
+        if (object_line)
+            *object_line = line_index;
+        if (object_glyph)
+            *object_glyph = UINT32_MAX;
 
         const bool right_to_left = paragraph.m_Direction == TEXT_DIRECTION_RTL;
         float line_x = paragraph_x + (right_to_left ? paragraph_width - line.m_Width : 0.0f);
@@ -377,6 +397,8 @@ static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* obj
                 object_x = line_x + glyph.m_X - first_x;
                 nearest_cluster = glyph.m_Cluster;
                 found_glyph = true;
+                if (object_glyph)
+                    *object_glyph = i;
             }
         }
 
@@ -396,12 +418,48 @@ static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* obj
 
 uint8_t TextLayoutGetObjectPosition(HTextLayout layout, const TextLayoutObject* object, float paragraph_x, float paragraph_top, float paragraph_width, float* x, float* y)
 {
-    return GetObjectPosition(layout, object, paragraph_x, paragraph_top, paragraph_width, false, 0.0f, 0.0f, x, y);
+    return GetObjectPosition(layout, object, paragraph_x, paragraph_top, paragraph_width, false, 0.0f, 0.0f, x, y, 0, 0);
 }
 
 uint8_t TextLayoutGetObjectPositionLocal(HTextLayout layout, const TextLayoutObject* object, float width, float pivot_x, float pivot_y, float* x, float* y)
 {
-    return GetObjectPosition(layout, object, 0.0f, 0.0f, width, true, pivot_x, pivot_y, x, y);
+    return GetObjectPosition(layout, object, 0.0f, 0.0f, width, true, pivot_x, pivot_y, x, y, 0, 0);
+}
+
+uint8_t TextLayoutGetObjectPositionLocal(HTextLayout layout, const TextLayoutObject* object, float width, float pivot_x, float pivot_y, float arc_radius, float arc_angle, HFontTextCurve curve, dmVMath::Point3* position)
+{
+    if (!position)
+        return 0;
+    float    x, y;
+    uint32_t line_index, glyph_index;
+    if (!GetObjectPosition(layout, object, 0.0f, 0.0f, width, true, pivot_x, pivot_y, &x, &y, &line_index, &glyph_index))
+        return 0;
+    *position = dmVMath::Point3(x, y, 0.0f);
+    if (!curve && arc_angle == 0.0f)
+        return 1;
+
+    // Curved rendering anchors the path at the node origin, without the
+    // textbox's horizontal pivot translation. Alignment still positions lines.
+    x += pivot_x * width;
+    float           pivot = x;
+    const TextLine& line = layout->m_Lines[line_index];
+    if (glyph_index != UINT32_MAX)
+    {
+        const TextGlyph* glyphs = layout->m_Glyphs.Begin();
+        pivot = FontGetTextClusterPivot(glyphs, line, glyph_index, x, glyphs[glyph_index].m_X, 0);
+    }
+    const float      layout_y = -pivot_y * layout->m_Height;
+    dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
+    if (curve)
+        transform = FontTextCurveGetTransform(curve, pivot, layout_y + layout->m_Lines[0].m_Baseline);
+    else
+    {
+        FontTextArc arc;
+        if (FontPrepareTextArc(layout, width, 0.0f, (uint32_t)(pivot_x * 2), (uint32_t)((1.0f - pivot_y) * 2), layout->m_MonospacePadding, arc_radius, arc_angle, &arc))
+            transform = FontGetTextArcTransform(arc, pivot, layout_y + line.m_Baseline);
+    }
+    *position = dmVMath::Point3((transform * dmVMath::Point3(x, y, 0.0f)).getXYZ());
+    return 1;
 }
 
 const TextLayoutObjectAttribute* TextLayoutGetObjectAttributes(HTextLayout layout)
@@ -987,7 +1045,7 @@ bool TextLayoutRefreshObjectStyles(HTextLayout layout)
     if (changed)
     {
         RefreshDecorations(layout);
-        TextLayoutInitializeDecorationGeometry(layout);
+        TextLayoutInitializeDecorationGeometry(layout, false);
     }
 
     return changed;
@@ -1229,6 +1287,25 @@ static void ExpandObjectBounds(TextLayoutObjectBounds* bounds, float min_x, floa
     bounds->m_MaxY = fmaxf(bounds->m_MaxY, max_y);
 }
 
+static void ExpandGlyphHitBounds(TextLayoutObjectBounds* bounds, const TextGlyph& glyph, float x, float y, float baseline, float font_size)
+{
+    if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
+    {
+        const float bottom = baseline - glyph.m_Height * 0.2f;
+        ExpandObjectBounds(bounds, x, bottom, x + glyph.m_Width, bottom + glyph.m_Height);
+        return;
+    }
+
+    // Use layout metrics so whitespace is interactive and hover effects
+    // cannot displace the bounds that triggered the style transition.
+    const float glyph_size = font_size * glyph.m_RenderScale;
+    const float scale = FontGetScaleFromSize(glyph.m_Font, glyph_size);
+    const float ascent = FontGetAscent(glyph.m_Font, scale);
+    const float descent = fabsf(FontGetDescent(glyph.m_Font, scale));
+    const float width = fmaxf(glyph.m_Width, glyph_size * 0.35f);
+    ExpandObjectBounds(bounds, x + fminf(0.0f, glyph.m_Advance), y - descent, x + fmaxf(width, glyph.m_Advance), y + ascent);
+}
+
 static void TextLayoutUpdateObjectBounds(HTextLayout layout, const TextLayoutHitTestParams& params)
 {
     const TextLayoutHitTestParams& cached = layout->m_ObjectBoundsParams;
@@ -1289,22 +1366,8 @@ static void TextLayoutUpdateObjectBounds(HTextLayout layout, const TextLayoutHit
 
             TextLayoutObjectBounds* bounds = &layout->m_ObjectBounds[object_index];
             const float             x = line_x + glyph.m_X - first_x;
-            if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
-            {
-                const float y = line_y - glyph.m_Height * 0.2f;
-                ExpandObjectBounds(bounds, x, y, x + glyph.m_Width, y + glyph.m_Height);
-                continue;
-            }
-
-            // Use layout metrics so whitespace is interactive and hover effects
-            // cannot displace the bounds that triggered the style transition.
-            const float glyph_size = params.m_FontSize * glyph.m_RenderScale;
-            const float scale = FontGetScaleFromSize(glyph.m_Font, glyph_size);
-            const float ascent = FontGetAscent(glyph.m_Font, scale);
-            const float descent = fabsf(FontGetDescent(glyph.m_Font, scale));
-            const float y = line_y + glyph.m_Y - first_y;
-            const float width = fmaxf(glyph.m_Width, glyph_size * 0.35f);
-            ExpandObjectBounds(bounds, x + fminf(0.0f, glyph.m_Advance), y - descent, x + fmaxf(width, glyph.m_Advance), y + ascent);
+            const float             y = line_y + glyph.m_Y - first_y;
+            ExpandGlyphHitBounds(bounds, glyph, x, y, line_y, params.m_FontSize);
         }
     }
 
@@ -1318,6 +1381,95 @@ static void TextLayoutUpdateObjectBounds(HTextLayout layout, const TextLayoutHit
     }
 }
 
+static bool HitTestProjectedBounds(const TextLayoutObjectBounds& bounds, const dmVMath::Matrix4& transform, float x, float y)
+{
+    const dmVMath::Vector4 origin = transform * dmVMath::Point3(bounds.m_MinX, bounds.m_MinY, 0.0f);
+    const dmVMath::Vector4 right = transform.getCol0() * (bounds.m_MaxX - bounds.m_MinX);
+    const dmVMath::Vector4 up = transform.getCol1() * (bounds.m_MaxY - bounds.m_MinY);
+    const float            determinant = right.getX() * up.getY() - right.getY() * up.getX();
+    if (determinant == 0.0f)
+        return false;
+    const float dx = x - origin.getX();
+    const float dy = y - origin.getY();
+    const float u = (dx * up.getY() - dy * up.getX()) / determinant;
+    const float v = (right.getX() * dy - right.getY() * dx) / determinant;
+    return u >= 0.0f && u <= 1.0f && v >= 0.0f && v <= 1.0f;
+}
+
+// Picking uses the same rigid cluster frames as rendering. Projecting their
+// bounds also handles signed radii, overlapping paths and depth without a global inverse.
+static uint32_t HitTestLayoutClusters(HTextLayout layout, const TextLayoutHitTestParams& params, bool objects_only)
+{
+    const TextGlyph*       glyphs = TextLayoutGetGlyphs(layout);
+    const TextLine*        lines = TextLayoutGetLines(layout);
+    const TextParagraph*   paragraphs = TextLayoutGetParagraphs(layout);
+    const float            layout_y = TextLayoutOffsetY(params.m_VAlign, params.m_Height, layout->m_Height);
+    const dmVMath::Matrix4 transform = params.m_Transform ? *params.m_Transform : dmVMath::Matrix4::identity();
+    FontTextArc            arc;
+    const bool             use_arc = !params.m_Curve && FontPrepareTextArc(layout, params.m_Width, params.m_Height, params.m_Align, params.m_VAlign, params.m_MonospacePadding, params.m_ArcRadius, params.m_ArcAngle, &arc);
+    uint32_t               hit_object = UINT32_MAX;
+    for (uint32_t line_index = 0; line_index < layout->m_Lines.Size(); ++line_index)
+    {
+        const TextLine& line = lines[line_index];
+        if (line.m_Length == 0)
+            continue;
+        const float    first_x = TextLayoutGetLineOriginX(layout, line_index);
+        const float    first_y = glyphs[line.m_Index].m_Y;
+        const uint32_t align = TextLayoutResolveAlign(params.m_Align, paragraphs[line.m_ParagraphIndex].m_Direction);
+        const float    line_x = TextLayoutOffsetX(align, params.m_Width) - TextLayoutOffsetX(align, line.m_Width) - params.m_MonospacePadding * 0.5f;
+        const float    baseline = layout_y + line.m_Baseline;
+        for (uint32_t start = line.m_Index; start < line.m_Index + line.m_Length;)
+        {
+            uint32_t               end = start;
+            float                  min_x = INFINITY;
+            float                  max_x = -INFINITY;
+            TextLayoutObjectBounds bounds;
+            bounds.m_MinX = bounds.m_MinY = INFINITY;
+            bounds.m_MaxX = bounds.m_MaxY = -INFINITY;
+            do
+            {
+                const TextGlyph& glyph = glyphs[end];
+                min_x = fminf(min_x, glyph.m_X);
+                max_x = fmaxf(max_x, glyph.m_X + glyph.m_Width);
+                ExpandGlyphHitBounds(&bounds, glyph, line_x + glyph.m_X - first_x, baseline + glyph.m_Y - first_y, baseline, params.m_FontSize);
+                ++end;
+            } while (end < line.m_Index + line.m_Length && glyphs[end].m_Cluster == glyphs[start].m_Cluster);
+            const float      pivot = line_x + (min_x + max_x) * 0.5f - first_x;
+            dmVMath::Matrix4 cluster_transform = transform;
+            if (params.m_Curve)
+                cluster_transform = transform * FontTextCurveGetTransform(params.m_Curve, pivot, layout_y + lines[0].m_Baseline);
+            else if (use_arc)
+                cluster_transform = transform * FontGetTextArcTransform(arc, pivot, baseline);
+            if (HitTestProjectedBounds(bounds, cluster_transform, params.m_X, params.m_Y))
+            {
+                if (!objects_only)
+                    return start;
+                const uint32_t cluster = glyphs[start].m_Cluster;
+                for (uint32_t i = layout->m_Objects.Size(); i-- > 0;)
+                {
+                    const TextLayoutObject& object = layout->m_Objects[i];
+                    if ((params.m_Tag == 0 || object.m_Tag == params.m_Tag) &&
+                        cluster >= object.m_TextOffset && cluster < object.m_TextOffset + object.m_TextLength)
+                    {
+                        hit_object = hit_object == UINT32_MAX ? i : dmMath::Max(hit_object, i);
+                        break;
+                    }
+                }
+            }
+            start = end;
+        }
+    }
+    return hit_object;
+}
+
+bool TextLayoutHitTestText(HTextLayout layout, const TextLayoutHitTestParams& params)
+{
+    if (!layout)
+        return false;
+    TextLayoutRefreshObjectStyles(layout);
+    return HitTestLayoutClusters(layout, params, false) != UINT32_MAX;
+}
+
 uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestParams& params)
 {
     if (!layout || layout->m_Objects.Empty())
@@ -1326,6 +1478,8 @@ uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestPara
     }
 
     TextLayoutRefreshObjectStyles(layout);
+    if (params.m_Curve || params.m_ArcAngle != 0.0f)
+        return HitTestLayoutClusters(layout, params, true);
     TextLayoutUpdateObjectBounds(layout, params);
 
     for (uint32_t i = layout->m_Objects.Size(); i-- > 0;)

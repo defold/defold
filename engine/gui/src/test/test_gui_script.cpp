@@ -1353,6 +1353,118 @@ TEST_F(dmGuiScriptTest, TestVisibilityApi)
     dmGui::DeleteScript(script);
 }
 
+// Runtime curves are copied from Lua, retained by cloned/reset nodes, reject
+// invalid inputs without replacing the mapping, and restore arc mode when cleared.
+TEST_F(dmGuiScriptTest, TextCurve)
+{
+    dmGui::HScript script = NewScript(m_Context);
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 8;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+    const char* source =
+        "function init(self)\n"
+        "  local n = gui.new_text_node(vmath.vector3(), 'One\\nTwo\\nThree')\n"
+        "  local knots = {{position=vmath.vector3(), out_handle={30,0,0}, up={0,7,0}}, {position={100,0,0}, in_handle={-30,0,0}, scale=2, roll_degrees=30}}\n"
+        "  gui.set(n, 'arc_angle', 120)\n"
+        "  gui.set_curve(n, knots)\n"
+        "  local reads = 0\n"
+        "  local first = setmetatable({}, {__index=function(t, key) if key == 'position' then reads=reads+1 return {0,0,0} end end})\n"
+        "  gui.set_curve(n, {first, knots[2]})\n"
+        "  assert(reads == 1)\n"
+        "  knots[2].position[1] = 1000\n"
+        "  assert(not pcall(gui.set_curve, n, {}))\n"
+        "  assert(not pcall(gui.set_curve, n, {{position={0,0,0}}, {position={100,0,0}, up={0,1,0}}}))\n"
+        "  assert(not pcall(gui.set_curve, n, {{position={0,0,0}, up={0,0,0}}, {position={100,0,0}}}))\n"
+        "  for _, scale in ipairs({0, -1, math.huge, 'invalid'}) do\n"
+        "    assert(not pcall(gui.set_curve, n, {{position={0,0,0}}, {position={100,0,0}, scale=scale}}))\n"
+        "  end\n"
+        "  assert(not pcall(gui.set_curve, n, {{position='bad'}, {position={100,0,0}}}))\n"
+        "  assert(not pcall(gui.set_curve, n, knots, {closed=1}))\n"
+        "  local box = gui.new_box_node(vmath.vector3(), vmath.vector3(10))\n"
+        "  assert(not pcall(gui.set_curve, box, knots))\n"
+        "  local clone = gui.clone(n)\n"
+        "  gui.set_id(clone, 'curve')\n"
+        "  gui.set_curve(n, nil)\n"
+        "  assert(gui.get(n, 'arc_angle') == 120)\n"
+        "  gui.delete_node(n)\n"
+        "end\n";
+    ASSERT_EQ(dmGui::RESULT_OK, SetScript(script, LuaSourceFromStr(source)));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(scene));
+    dmGui::HNode node = dmGui::GetNodeById(scene, "curve");
+    HFontTextCurve curve = dmGui::GetNodeTextCurve(scene, node);
+    ASSERT_NE((HFontTextCurve)0, curve);
+    ASSERT_NEAR(100.0f, dmGui::GetNodeTextSize(scene, node).getX(), 0.001f);
+    dmGui::SetNodeResetPoint(scene, node);
+    dmGui::SetNodeTextCurve(scene, node, 0);
+    ASSERT_EQ((HFontTextCurve)0, dmGui::GetNodeTextCurve(scene, node));
+    dmGui::ResetNodes(scene);
+    ASSERT_EQ(curve, dmGui::GetNodeTextCurve(scene, node));
+    ASSERT_NEAR(100.0f, FontTextCurveGetLength(curve), 0.001f);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(scene, 0));
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+// GUI text arc properties support generic Lua access, clone/reset,
+// animation, inclusive circle endpoints, and invalid value rejection.
+TEST_F(dmGuiScriptTest, TextArcProperties)
+{
+    dmGui::HScript script = NewScript(m_Context);
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 8;
+    params.m_MaxAnimations = 8;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+    const char* source =
+        "function init(self)\n"
+        "  local n = gui.new_text_node(vmath.vector3(), 'Arc')\n"
+        "  gui.set_id(n, 'arc')\n"
+        "  assert(gui.get(n, 'arc_radius') == 100 and gui.get(n, 'arc_angle') == 0)\n"
+        "  gui.set(n, gui.PROP_ARC_RADIUS, 200)\n"
+        "  assert(gui.get(n, gui.PROP_ARC_RADIUS) == 200)\n"
+        "  for _, angle in ipairs({360, 0, 120}) do\n"
+        "    gui.set(n, 'arc_angle', angle)\n"
+        "    assert(gui.get(n, 'arc_angle') == angle)\n"
+        "    gui.set(n, gui.PROP_ARC_ANGLE, angle)\n"
+        "    assert(gui.get(n, gui.PROP_ARC_ANGLE) == angle)\n"
+        "  end\n"
+        "  gui.set(n, gui.PROP_ARC_RADIUS, -100)\n"
+        "  assert(gui.get(n, 'arc_radius') == -100)\n"
+        "  gui.set(n, 'arc_radius', -200)\n"
+        "  assert(gui.get(n, 'arc_radius') == -200)\n"
+        "  assert(not pcall(gui.set, n, 'arc_radius', math.huge))\n"
+        "  assert(not pcall(gui.set, n, 'arc_angle', 361))\n"
+        "  assert(not pcall(gui.set, n, 'arc_angle', -1))\n"
+        "  assert(not pcall(gui.set, n, 'arc_angle', 'invalid'))\n"
+        "  assert(not pcall(gui.animate, n, 'arc_angle', 361, gui.EASING_LINEAR, 1))\n"
+        "  assert(not pcall(gui.animate, n, 'arc_angle', -1, gui.EASING_LINEAR, 1))\n"
+        "  assert(not pcall(gui.animate, n, 'arc_radius', math.huge, gui.EASING_LINEAR, 1))\n"
+        "  local clone = gui.clone(n)\n"
+        "  assert(gui.get(clone, 'arc_radius') == -200 and gui.get(clone, 'arc_angle') == 120)\n"
+        "  gui.animate(n, 'arc_radius', -240, gui.EASING_LINEAR, 1)\n"
+        "  gui.animate(n, 'arc_angle', 360, gui.EASING_LINEAR, 1)\n"
+        "end\n";
+    ASSERT_EQ(dmGui::RESULT_OK, SetScript(script, LuaSourceFromStr(source)));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(scene));
+    dmGui::HNode node = dmGui::GetNodeById(scene, "arc");
+    ASSERT_NE((dmGui::HNode)0, node);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(scene, 0.5f));
+    ASSERT_NEAR(-220.0f, dmGui::GetNodeTextArcRadius(scene, node), 0.001f);
+    ASSERT_NEAR(240.0f, dmGui::GetNodeTextArcAngle(scene, node), 0.001f);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(scene, 0.5f));
+    ASSERT_EQ(-240.0f, dmGui::GetNodeTextArcRadius(scene, node));
+    ASSERT_EQ(360.0f, dmGui::GetNodeTextArcAngle(scene, node));
+    dmGui::SetNodeResetPoint(scene, node);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, 300.0f));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcAngle(scene, node, 0.0f));
+    dmGui::ResetNodes(scene);
+    ASSERT_EQ(-240.0f, dmGui::GetNodeTextArcRadius(scene, node));
+    ASSERT_EQ(360.0f, dmGui::GetNodeTextArcAngle(scene, node));
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
 TEST_F(dmGuiScriptTest, TestGuiGetSet)
 {
     dmHashEnableReverseHash(true);

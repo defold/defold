@@ -1095,7 +1095,7 @@ static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collectio
     else
     {
         TextLayoutInitializeObjectStyles(layout);
-        TextLayoutInitializeDecorationGeometry(layout);
+        TextLayoutInitializeDecorationGeometry(layout, false);
     }
 
     *outlayout = layout;
