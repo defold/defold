@@ -37,6 +37,11 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  *     float m_LeftBearing;
  *     float m_Ascent;
  *     float m_Descent;
+ *     float m_LayoutWidth;
+ *     float m_LayoutLeftBearing;
+ *     float m_UnpaddedWidth;
+ *     float m_UnpaddedAscent;
+ *     float m_UnpaddedDescent;
  * }
  * }
  */
@@ -54,7 +59,12 @@ public class FontcGlyphMetrics {
         FontRendererFFM.C_FLOAT.withName("m_Advance"),
         FontRendererFFM.C_FLOAT.withName("m_LeftBearing"),
         FontRendererFFM.C_FLOAT.withName("m_Ascent"),
-        FontRendererFFM.C_FLOAT.withName("m_Descent")
+        FontRendererFFM.C_FLOAT.withName("m_Descent"),
+        FontRendererFFM.C_FLOAT.withName("m_LayoutWidth"),
+        FontRendererFFM.C_FLOAT.withName("m_LayoutLeftBearing"),
+        FontRendererFFM.C_FLOAT.withName("m_UnpaddedWidth"),
+        FontRendererFFM.C_FLOAT.withName("m_UnpaddedAscent"),
+        FontRendererFFM.C_FLOAT.withName("m_UnpaddedDescent")
     ).withName("FontcGlyphMetrics");
 
     /**
@@ -414,6 +424,226 @@ public class FontcGlyphMetrics {
      */
     public static void m_Descent(MemorySegment struct, float fieldValue) {
         struct.set(m_Descent$LAYOUT, m_Descent$OFFSET, fieldValue);
+    }
+
+    private static final OfFloat m_LayoutWidth$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_LayoutWidth"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_LayoutWidth
+     * }
+     */
+    public static final OfFloat m_LayoutWidth$layout() {
+        return m_LayoutWidth$LAYOUT;
+    }
+
+    private static final long m_LayoutWidth$OFFSET = $LAYOUT.byteOffset(groupElement("m_LayoutWidth"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_LayoutWidth
+     * }
+     */
+    public static final long m_LayoutWidth$offset() {
+        return m_LayoutWidth$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_LayoutWidth
+     * }
+     */
+    public static float m_LayoutWidth(MemorySegment struct) {
+        return struct.get(m_LayoutWidth$LAYOUT, m_LayoutWidth$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_LayoutWidth
+     * }
+     */
+    public static void m_LayoutWidth(MemorySegment struct, float fieldValue) {
+        struct.set(m_LayoutWidth$LAYOUT, m_LayoutWidth$OFFSET, fieldValue);
+    }
+
+    private static final OfFloat m_LayoutLeftBearing$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_LayoutLeftBearing"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_LayoutLeftBearing
+     * }
+     */
+    public static final OfFloat m_LayoutLeftBearing$layout() {
+        return m_LayoutLeftBearing$LAYOUT;
+    }
+
+    private static final long m_LayoutLeftBearing$OFFSET = $LAYOUT.byteOffset(groupElement("m_LayoutLeftBearing"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_LayoutLeftBearing
+     * }
+     */
+    public static final long m_LayoutLeftBearing$offset() {
+        return m_LayoutLeftBearing$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_LayoutLeftBearing
+     * }
+     */
+    public static float m_LayoutLeftBearing(MemorySegment struct) {
+        return struct.get(m_LayoutLeftBearing$LAYOUT, m_LayoutLeftBearing$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_LayoutLeftBearing
+     * }
+     */
+    public static void m_LayoutLeftBearing(MemorySegment struct, float fieldValue) {
+        struct.set(m_LayoutLeftBearing$LAYOUT, m_LayoutLeftBearing$OFFSET, fieldValue);
+    }
+
+    private static final OfFloat m_UnpaddedWidth$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_UnpaddedWidth"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_UnpaddedWidth
+     * }
+     */
+    public static final OfFloat m_UnpaddedWidth$layout() {
+        return m_UnpaddedWidth$LAYOUT;
+    }
+
+    private static final long m_UnpaddedWidth$OFFSET = $LAYOUT.byteOffset(groupElement("m_UnpaddedWidth"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_UnpaddedWidth
+     * }
+     */
+    public static final long m_UnpaddedWidth$offset() {
+        return m_UnpaddedWidth$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_UnpaddedWidth
+     * }
+     */
+    public static float m_UnpaddedWidth(MemorySegment struct) {
+        return struct.get(m_UnpaddedWidth$LAYOUT, m_UnpaddedWidth$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_UnpaddedWidth
+     * }
+     */
+    public static void m_UnpaddedWidth(MemorySegment struct, float fieldValue) {
+        struct.set(m_UnpaddedWidth$LAYOUT, m_UnpaddedWidth$OFFSET, fieldValue);
+    }
+
+    private static final OfFloat m_UnpaddedAscent$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_UnpaddedAscent"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_UnpaddedAscent
+     * }
+     */
+    public static final OfFloat m_UnpaddedAscent$layout() {
+        return m_UnpaddedAscent$LAYOUT;
+    }
+
+    private static final long m_UnpaddedAscent$OFFSET = $LAYOUT.byteOffset(groupElement("m_UnpaddedAscent"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_UnpaddedAscent
+     * }
+     */
+    public static final long m_UnpaddedAscent$offset() {
+        return m_UnpaddedAscent$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_UnpaddedAscent
+     * }
+     */
+    public static float m_UnpaddedAscent(MemorySegment struct) {
+        return struct.get(m_UnpaddedAscent$LAYOUT, m_UnpaddedAscent$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_UnpaddedAscent
+     * }
+     */
+    public static void m_UnpaddedAscent(MemorySegment struct, float fieldValue) {
+        struct.set(m_UnpaddedAscent$LAYOUT, m_UnpaddedAscent$OFFSET, fieldValue);
+    }
+
+    private static final OfFloat m_UnpaddedDescent$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_UnpaddedDescent"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_UnpaddedDescent
+     * }
+     */
+    public static final OfFloat m_UnpaddedDescent$layout() {
+        return m_UnpaddedDescent$LAYOUT;
+    }
+
+    private static final long m_UnpaddedDescent$OFFSET = $LAYOUT.byteOffset(groupElement("m_UnpaddedDescent"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_UnpaddedDescent
+     * }
+     */
+    public static final long m_UnpaddedDescent$offset() {
+        return m_UnpaddedDescent$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_UnpaddedDescent
+     * }
+     */
+    public static float m_UnpaddedDescent(MemorySegment struct) {
+        return struct.get(m_UnpaddedDescent$LAYOUT, m_UnpaddedDescent$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_UnpaddedDescent
+     * }
+     */
+    public static void m_UnpaddedDescent(MemorySegment struct, float fieldValue) {
+        struct.set(m_UnpaddedDescent$LAYOUT, m_UnpaddedDescent$OFFSET, fieldValue);
     }
 
     /**

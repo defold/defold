@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <dmsdk/dlib/configfile.h>
+#include <dmsdk/gameobject/res_collection.h>
 #include <dlib/hashtable.h>
 #include <dlib/jobsystem.h>
 #include <dlib/message.h>
@@ -60,7 +61,7 @@ namespace dmEngine
         }
 
         //`RunResult::EXIT` value (as `run_action` in `AppDelegate.m` `ShutdownEngine()`)
-        // compares with GLFW_APP_RUN_EXIT, that's why `RunResult` should have the same values as `glfwAppRunAction`
+        // compares with dmPlatform::APP_RUN_EXIT, that's why `RunResult` should have the same values as `dmPlatform::AppRunAction`
         enum Action
         {
             NONE,
@@ -118,7 +119,7 @@ namespace dmEngine
         bool                                        m_Alive;
 
         dmGameObject::HRegister                     m_Register;
-        dmGameObject::HCollection                   m_MainCollection;
+        dmGameObject::CollectionResource*           m_MainCollectionResource;
         dmArray<dmGameObject::InputAction>          m_InputBuffer;
         dmHashTable64<void*>                        m_ResourceTypeContexts;
 
@@ -174,6 +175,9 @@ namespace dmEngine
         uint32_t                                    m_ClearColor;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
+        uint32_t                                    m_PendingWindowResizeWidth;
+        uint32_t                                    m_PendingWindowResizeHeight;
+        bool                                        m_HasPendingWindowResize;
         float                                       m_MaxTimeStep;
 
         float                                       m_ThrottleCooldownMax;
@@ -191,6 +195,8 @@ namespace dmEngine
     void Delete(HEngine engine);
     bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size);
     bool Init(HEngine engine, int argc, char *argv[]);
+    void OnWindowResize(void* user_data, uint32_t width, uint32_t height);
+    void FlushPendingWindowResize(HEngine engine);
     void Step(HEngine engine);
 
     void ReloadResources(HEngine engine, const char* extension);

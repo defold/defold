@@ -1037,6 +1037,7 @@ Result InsertResource(HFactory factory, const char* path, uint64_t canonical_pat
     assert(descriptor->m_Resource);
     assert(descriptor->m_ReferenceCount == 1);
 
+    descriptor->m_Version = IncreaseVersion(factory);
     factory->m_Resources->Put(canonical_path_hash, *descriptor);
     factory->m_ResourceToHash->Put((uintptr_t) descriptor->m_Resource, canonical_path_hash);
     if (factory->m_ResourceHashToFilename)
@@ -1045,8 +1046,6 @@ Result InsertResource(HFactory factory, const char* path, uint64_t canonical_pat
         GetCanonicalPath(path, canonical_path, sizeof(canonical_path));
         factory->m_ResourceHashToFilename->Put(canonical_path_hash, strdup(canonical_path));
     }
-
-    descriptor->m_Version = IncreaseVersion(factory);
 
     return RESULT_OK;
 }

@@ -26,48 +26,140 @@
  */
 namespace dmTexc
 {
+    struct Ktx2Texture;
+    void InitBasisU();
+    struct Ktx2Info
+    {
+        uint32_t m_Width;
+        uint32_t m_Height;
+        uint32_t m_LevelCount;
+        uint32_t m_Channels;
+        uint32_t m_VkFormat;
+        uint32_t m_Supercompression;
+        bool m_Srgb;
+        bool m_Premultiplied;
+        // Flips needed to normalize the encoded orientation to top-left.
+        bool m_FlipX;
+        bool m_FlipY;
+        bool m_CanRepack;
+    };
+
+    // The texture owns a copy of the encoded input. Returned mip buffers belong to the caller.
+    Ktx2Texture* LoadKtx2(const uint8_t* data, uint32_t size, Ktx2Info* info, const char** error);
+    void DestroyKtx2(Ktx2Texture* texture);
+    // RGBA8 with channel swizzle applied, retaining source orientation and premultiplication.
+    bool DecodeKtx2Mip(Ktx2Texture* texture, uint32_t level, dmArray<uint8_t>& pixels, const char** error);
+    // Single-mip Basis payloads for ETC1S/UASTC, native blocks for BC7.
+    bool RepackKtx2Mip(Ktx2Texture* texture, uint32_t level, dmArray<uint8_t>& bytes, const char** error);
+    bool EncodeKtx2Mip(Ktx2Texture* texture, uint32_t width, uint32_t height, const uint8_t* pixels, uint32_t size, dmArray<uint8_t>& bytes, const char** error);
+
     static const uint32_t COMPRESSION_ENABLED_PIXELCOUNT_THRESHOLD = 64; // do not compress mips with less than this pixelcount
 
-    Image* ResizeBasis(Image* image, uint32_t width, uint32_t height);
+    Image* Resize(Image* image, uint32_t width, uint32_t height, bool srgb, bool premultiplied);
+    Image* ResizeBasis(Image* image, uint32_t width, uint32_t height, bool srgb, bool premultiplied);
+    Image*                ResizeRGBA8888(Image* image, uint32_t width, uint32_t height);
 
-    uint16_t RGB888ToRGB565(uint8_t red, uint8_t green, uint8_t blue);
-    uint16_t RGBA8888ToRGBA4444(uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha);
+    uint16_t              RGB888ToRGB565(uint8_t red, uint8_t green, uint8_t blue);
+    uint16_t              RGBA8888ToRGBA4444(uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha);
 
-    void RGB565ToRGB888(const uint16_t* data, uint32_t width, uint32_t height, uint8_t* color_rgb);
+    void                  RGB565ToRGB888(const uint16_t* data, uint32_t width, uint32_t height, uint8_t* color_rgb);
 
-    void RGBA4444ToRGBA8888(const uint16_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba);
+    void                  RGBA4444ToRGBA8888(const uint16_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba);
 
-    void L8ToRGB888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgb);
+    void                  L8ToRGB888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgb);
 
-    void L8A8ToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba);
+    void                  L8A8ToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba);
 
+    typedef void (*PreMultiplyAlphaFn)(uint8_t*, uint32_t, uint32_t);
+    typedef bool (*ResizeRGBA8Fn)(const uint8_t*, uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t);
+    typedef void (*ConvertPreviewFn)(const uint8_t*, uint8_t*, uint32_t, uint32_t);
+    typedef void (*ResizeRGBA32FPixelsFn)(const float*, uint32_t, uint32_t, float*, uint32_t, uint32_t);
+
+    namespace Scalar
+    {
+        void PreMultiplyAlpha(uint8_t*, uint32_t, uint32_t);
+        void ConvertPreview(const uint8_t*, uint8_t*, uint32_t, uint32_t);
+        // Caller owns non-overlapping RGBA buffers; dimensions must be positive.
+        bool ResizeRGBA8(const uint8_t*, uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t);
+        void ResizeRGBA32FPixels(const float*, uint32_t, uint32_t, float*, uint32_t, uint32_t);
+    } // namespace Scalar
+
+    namespace SSE3
+    {
+        void PreMultiplyAlpha(uint8_t*, uint32_t, uint32_t);
+        void ConvertPreview(const uint8_t*, uint8_t*, uint32_t, uint32_t);
+        // Caller owns non-overlapping RGBA buffers; dimensions must be positive.
+        bool ResizeRGBA8(const uint8_t*, uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t);
+        void ResizeRGBA32FPixels(const float*, uint32_t, uint32_t, float*, uint32_t, uint32_t);
+    } // namespace SSE3
+
+    namespace SSE42
+    {
+        void PreMultiplyAlpha(uint8_t*, uint32_t, uint32_t);
+        void ConvertPreview(const uint8_t*, uint8_t*, uint32_t, uint32_t);
+        // Caller owns non-overlapping RGBA buffers; dimensions must be positive.
+        bool ResizeRGBA8(const uint8_t*, uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t);
+        void ResizeRGBA32FPixels(const float*, uint32_t, uint32_t, float*, uint32_t, uint32_t);
+    } // namespace SSE42
+
+    namespace AVX2
+    {
+        void PreMultiplyAlpha(uint8_t*, uint32_t, uint32_t);
+        void ConvertPreview(const uint8_t*, uint8_t*, uint32_t, uint32_t);
+        // Caller owns non-overlapping RGBA buffers; dimensions must be positive.
+        bool ResizeRGBA8(const uint8_t*, uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t);
+        void ResizeRGBA32FPixels(const float*, uint32_t, uint32_t, float*, uint32_t, uint32_t);
+    } // namespace AVX2
+
+    namespace AVX512
+    {
+        void PreMultiplyAlpha(uint8_t*, uint32_t, uint32_t);
+        void ConvertPreview(const uint8_t*, uint8_t*, uint32_t, uint32_t);
+        // Caller owns non-overlapping RGBA buffers; dimensions must be positive.
+        bool ResizeRGBA8(const uint8_t*, uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t);
+        void ResizeRGBA32FPixels(const float*, uint32_t, uint32_t, float*, uint32_t, uint32_t);
+    } // namespace AVX512
+
+    namespace NEON
+    {
+        void PreMultiplyAlpha(uint8_t*, uint32_t, uint32_t);
+        void ConvertPreview(const uint8_t*, uint8_t*, uint32_t, uint32_t);
+        // Caller owns non-overlapping RGBA buffers; dimensions must be positive.
+        bool ResizeRGBA8(const uint8_t*, uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t);
+        void ResizeRGBA32FPixels(const float*, uint32_t, uint32_t, float*, uint32_t, uint32_t);
+        void RGBA8888ToRGB888(const uint8_t*, uint32_t, uint8_t*);
+        void RGBA8888ToRGB565(const uint8_t*, uint32_t, uint16_t*);
+        void RGBA8888ToRGBA4444(const uint8_t*, uint32_t, uint16_t*);
+        void FlipImageX(uint8_t*, uint32_t, uint32_t, uint32_t);
+        void FloatToHalf(const float*, uint32_t, uint16_t*);
+        void DitherRGBx565(uint8_t*, uint32_t, uint32_t);
+    } // namespace NEON
+
+    // Caller owns valid buffers, which may be identical or non-overlapping.
+    void ABGR8888ToRGBA8888(const uint8_t*, uint32_t, uint32_t, uint8_t*);
     void PreMultiplyAlpha(uint8_t* data, uint32_t width, uint32_t height);
-    void FlipImageX_RGBA8888(uint32_t* data, uint32_t width, uint32_t height);
-    void FlipImageY_RGBA8888(uint32_t* data, uint32_t width, uint32_t height);
-    void FlipImageX_RGBA32F(float* data, uint32_t width, uint32_t height);
-    void FlipImageY_RGBA32F(float* data, uint32_t width, uint32_t height);
-    Image* ResizeRGBA32F(Image* image, uint32_t width, uint32_t height);
+    // Caller owns non-overlapping RGBA8 buffers; false means invalid size or allocation failure.
+    bool     ResizeRGBA8(const uint8_t*, uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t);
+    void     FlipImageX_RGBA8888(uint32_t* data, uint32_t width, uint32_t height);
+    void     FlipImageY_RGBA8888(uint32_t* data, uint32_t width, uint32_t height);
+    void     FlipImageX_RGBA32F(float* data, uint32_t width, uint32_t height);
+    void     FlipImageY_RGBA32F(float* data, uint32_t width, uint32_t height);
+    Image*   ResizeRGBA32F(Image* image, uint32_t width, uint32_t height);
 
     uint32_t GetDataSize(PixelFormat pf, uint32_t width, uint32_t height);
-    bool ConvertToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, PixelFormat pf, uint8_t* out);
-    void ConvertRGBA8888ToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data);
-    bool ConvertRGBA32FToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data);
-    void ConvertPremultiplyAndFlip_ABGR8888ToRGBA8888(const uint8_t* input_data, uint8_t* output_data, uint32_t width, uint32_t height);
-
-    uint32_t    GetDataSize(PixelFormat pf, uint32_t width, uint32_t height);
-    bool        ConvertToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, PixelFormat pf, uint8_t* out);
-    void        ConvertRGBA8888ToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data);
-    bool        ConvertRGBA32FToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data);
-    void        ConvertPremultiplyAndFlip_ABGR8888ToRGBA8888(const uint8_t* input_data, uint8_t* output_data, uint32_t width, uint32_t height);
+    bool     ConvertToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, PixelFormat pf, uint8_t* out);
+    void     ConvertRGBA8888ToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data);
+    bool     ConvertRGBA32FToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data);
+    void     ConvertPremultiplyAndFlip_ABGR8888ToRGBA8888(const uint8_t* input_data, uint8_t* output_data, uint32_t width, uint32_t height);
 
     // Dithers an image where the target format is RGBA4444
     // Input/output image is RGBA8888
-    void        DitherRGBA4444(uint8_t* data, uint32_t width, uint32_t height);
+    void DitherRGBA4444(uint8_t* data, uint32_t width, uint32_t height);
     // Dithers an image where the target format is RGB565
     // Input/output image is RGBA8888
-    void        DitherRGBx565(uint8_t* data, uint32_t width, uint32_t height);
+    void DitherRGBx565(uint8_t* data, uint32_t width, uint32_t height);
 
-    void        DebugPrint(uint8_t* p, uint32_t width, uint32_t height, uint32_t num_channels);
-}
+    void DebugPrint(uint8_t* p, uint32_t width, uint32_t height, uint32_t num_channels);
+} // namespace dmTexc
 
 #endif // DM_TEXC_PRIVATE_H

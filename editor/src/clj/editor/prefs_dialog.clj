@@ -76,6 +76,7 @@
                 [:code :font :name]
                 [:code :zoom-on-scroll]
                 [:code :hover]
+                [:code :enable-lua-language-server]
                 [:code :auto-closing-parens]
                 [:code :format-on-save]]}
        {:pattern (localization/message "prefs.tab.extensions")

@@ -42,6 +42,13 @@ namespace dmShaderc
         SHADER_STAGE_COMPUTE  = 4,
     };
 
+    enum ShaderResourceAccess
+    {
+        SHADER_RESOURCE_ACCESS_NONE  = 0,
+        SHADER_RESOURCE_ACCESS_READ  = 1,
+        SHADER_RESOURCE_ACCESS_WRITE = 2,
+    };
+
     enum BaseType
     {
         BASE_TYPE_UNKNOWN,
@@ -156,6 +163,7 @@ namespace dmShaderc
         , m_No420PackExtension(true)
         , m_GlslEmitUboAsPlainUniforms(false)
         , m_GlslEs(false)
+        , m_HLSLMoveSVPositionToFront(false)
         , m_ExternalCompilerPath(0)
         , m_ExternalCompilerArgs(0)
         , m_RootSignatureOverride(0)
@@ -170,6 +178,7 @@ namespace dmShaderc
         uint8_t         m_No420PackExtension         : 1;
         uint8_t         m_GlslEmitUboAsPlainUniforms : 1;
         uint8_t         m_GlslEs                     : 1;
+        uint8_t         m_HLSLMoveSVPositionToFront  : 1;
 
         // Optional external compiler invocation driven from Java.
         // If both fields are set, shaderc will invoke this tool for final blob generation.
@@ -224,6 +233,7 @@ namespace dmShaderc
         uint8_t      m_Binding;
         uint8_t      m_Set;
         uint8_t      m_StageFlags;
+        uint8_t      m_AccessFlags;
     };
 
     struct ShaderReflection
@@ -240,6 +250,8 @@ namespace dmShaderc
     {
         const char* m_Name;
         uint64_t    m_NameHash;
+        // Index in m_HLSLRootSignature; remapped when stage signatures are merged.
+        uint32_t    m_RootParameterIndex;
 
         // These point to a resource from one of the ShaderReflection list
         uint8_t     m_ShaderResourceSet;
@@ -300,6 +312,7 @@ namespace dmShaderc
     // Reflection
     extern "C" DM_DLLEXPORT const ShaderReflection* GetReflection(HShaderContext context);
     extern "C" DM_DLLEXPORT void                    SetResourceStageFlags(HShaderContext context, uint64_t name_hash, uint8_t stage_flags);
+    extern "C" DM_DLLEXPORT void                    SetResourceAccessFlags(HShaderContext context, uint64_t name_hash, uint8_t access_flags);
 
     // Compilers
     extern "C" DM_DLLEXPORT HShaderCompiler         NewShaderCompiler(HShaderContext context, ShaderLanguage language);

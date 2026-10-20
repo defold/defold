@@ -89,6 +89,7 @@ public class ShadercJni {
     public static native void SetResourceBinding(long context, long compiler, long nameHash, int binding);
     public static native void SetResourceSet(long context, long compiler, long nameHash, int set);
     public static native void SetResourceStageFlags(long context, long nameHash, int stageFlags);
+    public static native void SetResourceAccessFlags(long context, long nameHash, int accessFlags);
 
     public static native Shaderc.ShaderCompileResult Compile(long context, long compiler, Shaderc.ShaderCompilerOptions options);
     public static native Shaderc.HLSLRootSignature   HLSLMergeRootSignatures(Shaderc.ShaderCompileResult[] shaders);

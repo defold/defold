@@ -360,6 +360,7 @@ defold_feature_enabled(font_layout ENGINE_WITH_FONT_LAYOUT)
 defold_feature_enabled(simd ENGINE_WITH_SIMD)
 
 defold_get_gamesys_libraries(ENGINE_GAMESYS_LIBS)
+defold_get_font_gen_library(ENGINE_FONT_GEN_LIB)
 defold_get_font_libraries(ENGINE_FONT_LIBS)
 
 set(ENGINE_SOUND_LIBS sound decoder_wav decoder_ogg)
@@ -411,6 +412,12 @@ endif()
 list(APPEND ENGINE_EXPORTED_SYMBOLS ${ENGINE_GRAPHICS_SYMBOLS})
 
 set(ENGINE_PROFILE_LIBS profile profilerext)
+set(ENGINE_DEBUGGER_LIBS)
+set(ENGINE_DEBUGGER_SYMBOLS)
+if(NOT TARGET_PLATFORM MATCHES "web$")
+  set(ENGINE_DEBUGGER_LIBS debugger)
+  set(ENGINE_DEBUGGER_SYMBOLS LuaDebugger)
+endif()
 set(ENGINE_PROFILE_SYMBOLS ProfilerExt ProfilerBasic)
 if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
   list(APPEND ENGINE_PROFILE_LIBS profiler_remotery)
@@ -438,6 +445,8 @@ function(engine_configure_executable target variant engine_lib engine_service_li
   target_compile_definitions(${target} PRIVATE _XBOX)
   if(variant STREQUAL "release")
     target_compile_definitions(${target} PRIVATE DM_RELEASE=1)
+  else()
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_DEBUGGER_LIBS})
   endif()
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
     ${engine_lib}
@@ -445,6 +454,7 @@ function(engine_configure_executable target variant engine_lib engine_service_li
     ${profile_libs}
     ${ENGINE_EXECUTABLE_PREFIX_DEPENDENCIES}
     ${ENGINE_GAMESYS_LIBS}
+    ${ENGINE_FONT_GEN_LIB}
     ${ENGINE_EXECUTABLE_SUFFIX_DEPENDENCIES}
     ${ENGINE_EXTRA_LIBS})
   defold_get_physics_libraries(_engine_physics_libs)
@@ -457,7 +467,7 @@ function(engine_configure_executable target variant engine_lib engine_service_li
     defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
       ${ENGINE_NULL_GRAPHICS_EXECUTABLE_DEPENDENCIES})
     if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
-      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" dmglfw EGL GLESv1_CM GLESv2)
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" platform EGL GLESv1_CM GLESv2)
     endif()
   else()
     if(variant STREQUAL "release")
@@ -501,6 +511,7 @@ function(engine_add_binary target)
 endfunction()
 
 set(ENGINE_DMENGINE_SYMBOLS
+  ${ENGINE_DEBUGGER_SYMBOLS}
   ${ENGINE_EXPORTED_SYMBOLS}
   ${ENGINE_PROFILE_SYMBOLS}
   ${ENGINE_RESOURCE_SYMBOLS}
@@ -533,8 +544,10 @@ endif()
 defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 
 set(ENGINE_HEADLESS_SYMBOLS
+  ${ENGINE_DEBUGGER_SYMBOLS}
   LiveUpdateExt
   ScriptTypesExt
+  ScriptFont
   ScriptLibParticleFX
   ScriptLibTileMap
   GraphicsAdapterNull
@@ -556,7 +569,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
     SUFFIX ".so")
 
   set(ENGINE_ANDROID_JARS_INSTALL_CODE "
-      \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/glfw_android.jar\"
+      \"\${CMAKE_INSTALL_PREFIX}/share/java/platform_android.jar\"
       \"\${CMAKE_INSTALL_PREFIX}/share/java/gamesys_android.jar\"
       \"\${CMAKE_INSTALL_PREFIX}/share/java/sound_android.jar\"")
 

@@ -1,6 +1,3 @@
-# Copyright 2020-2026 The Defold Foundation
-# Licensed under the Defold License version 1.0
-
 import hashlib
 import io
 import tarfile

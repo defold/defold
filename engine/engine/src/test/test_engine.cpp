@@ -26,13 +26,18 @@
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <script/sys_ddf.h>
+#include <render/render_ddf.h>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
 #include "../engine_private.h"
 
-#if defined(DM_PLATFORM_IOS)
+#if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
 #include <stdlib.h>
+#endif
+
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/emscripten.h>
 #endif
 
 extern "C" void dmExportedSymbols();
@@ -100,7 +105,8 @@ static void TestEngineGetResult(dmEngine::HEngine engine, int* run_action, int* 
     g_ExitCode = *exit_code;
 }
 
-#if defined(DM_PLATFORM_IOS)
+#if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
+// Unit tests drive lifecycle callbacks synchronously instead of yielding to the app event loop.
 static int RunTestEngineLoop(const dmEngine::RunLoopParams* params)
 {
     if (params->m_AppCreate)
@@ -184,7 +190,7 @@ static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void
     params.m_EngineDestroy = (dmEngine::EngineDestroy)TestEngineDestroy;
     params.m_EngineUpdate = (dmEngine::EngineUpdate)TestEngineUpdate;
     params.m_EngineGetResult = (dmEngine::EngineGetResult)TestEngineGetResult;
-#if defined(DM_PLATFORM_IOS)
+#if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
     return RunTestEngineLoop(&params);
 #else
     return dmEngine::RunLoop(&params);
@@ -210,6 +216,31 @@ TEST_F(EngineTest, TextInputActionFromHid)
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/text_input/text_input.collectionc", "--config=input.game_binding=/text_input/text_input.input_bindingc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, PreRunTextInput, 0, 0));
 }
+
+#if defined(__EMSCRIPTEN__)
+// Startup must print the console banner without browser globals, as required by Node 20 in CI.
+TEST_F(EngineTest, ConsoleBannerWithoutNavigator)
+{
+    int navigator_removed = EM_ASM_INT({
+        Module.testNavigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+        delete globalThis.navigator;
+        return typeof navigator === 'undefined';
+    });
+
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=html5.show_console_banner=1", "--config=bootstrap.main_collection=/text_input/text_input.collectionc", "--config=input.game_binding=/text_input/text_input.input_bindingc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    int result = Launch(DM_ARRAY_SIZE(argv), (char**)argv, PreRunTextInput, 0, 0);
+
+    EM_ASM({
+        if (Module.testNavigatorDescriptor) {
+            Object.defineProperty(globalThis, 'navigator', Module.testNavigatorDescriptor);
+        }
+        delete Module.testNavigatorDescriptor;
+    });
+    ASSERT_EQ(1, navigator_removed);
+    ASSERT_EQ(0, result);
+}
+#endif
 
 TEST_F(EngineTest, ProjectFail)
 {
@@ -321,6 +352,64 @@ TEST_F(EngineTest, RenderScript)
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/render_script/main.collectionc", "--config=bootstrap.render=/render_script/default.renderc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunFrameCount, &frame_count));
     ASSERT_EQ(frame_count, 1u);
+}
+
+struct WindowResizeMessages
+{
+    uint32_t m_Count;
+    uint32_t m_Width;
+    uint32_t m_Height;
+};
+
+static void CollectWindowResize(dmMessage::Message* message, void* user_data)
+{
+    if (message->m_Id != dmRenderDDF::WindowResized::m_DDFDescriptor->m_NameHash)
+        return;
+
+    WindowResizeMessages* messages = (WindowResizeMessages*) user_data;
+    dmRenderDDF::WindowResized* resized = (dmRenderDDF::WindowResized*) message->m_Data;
+    ++messages->m_Count;
+    messages->m_Width = resized->m_Width;
+    messages->m_Height = resized->m_Height;
+}
+
+// Coalesce early resize events and deliver the latest size once @render exists.
+TEST_F(EngineTest, WindowResizeBeforeRenderContext)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    dmEngine::OnWindowResize(engine, 64, 32);
+    dmEngine::OnWindowResize(engine, 128, 96);
+    ASSERT_TRUE(engine->m_HasPendingWindowResize);
+    ASSERT_EQ(128u, engine->m_PendingWindowResizeWidth);
+    ASSERT_EQ(96u, engine->m_PendingWindowResizeHeight);
+    ASSERT_NEAR(1.0f / 128, engine->m_InvPhysicalWidth, 0.00001f);
+    ASSERT_NEAR(1.0f / 96, engine->m_InvPhysicalHeight, 0.00001f);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {"dmengine", "--config=dmengine.unload_builtins=0", project_path};
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    ASSERT_FALSE(engine->m_HasPendingWindowResize);
+
+    dmMessage::HSocket socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &socket));
+    WindowResizeMessages messages = {};
+    dmMessage::Dispatch(socket, CollectWindowResize, &messages);
+    ASSERT_EQ(1u, messages.m_Count);
+    ASSERT_EQ(engine->m_PendingWindowResizeWidth, messages.m_Width);
+    ASSERT_EQ(engine->m_PendingWindowResizeHeight, messages.m_Height);
+
+    dmEngine::FlushPendingWindowResize(engine);
+    ASSERT_EQ(0u, dmMessage::Dispatch(socket, CollectWindowResize, &messages));
+    dmEngine::OnWindowResize(engine, 256, 192);
+    dmMessage::Dispatch(socket, CollectWindowResize, &messages);
+    ASSERT_EQ(2u, messages.m_Count);
+    ASSERT_EQ(256u, messages.m_Width);
+    ASSERT_EQ(192u, messages.m_Height);
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
 }
 
 TEST_F(EngineTest, SetEngineThrottle)

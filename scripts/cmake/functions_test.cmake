@@ -2,6 +2,21 @@ defold_log("functions_test.cmake:")
 
 set(_DEFOLD_BUN_MIN_VERSION "1.3.13")
 
+function(_defold_configure_wasm_test target)
+  set(_pre_js "${DEFOLD_SDK_ROOT}/share/web-pre.js")
+  if(NOT EXISTS "${_pre_js}")
+    if(NOT DEFINED DEFOLD_HOME)
+      get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+    endif()
+    set(_pre_js "${DEFOLD_HOME}/share/web-pre.js")
+  endif()
+  if(EXISTS "${_pre_js}")
+    target_link_options(${target} PRIVATE "SHELL:--pre-js \"${_pre_js}\"" "-lnodefs.js")
+  else()
+    message(FATAL_ERROR "Missing pre-js file for web test '${target}'. Checked '${DEFOLD_SDK_ROOT}/share/web-pre.js' and '${DEFOLD_HOME}/share/web-pre.js'")
+  endif()
+endfunction()
+
 set(DEFOLD_TEST_JOBS 2 CACHE STRING "Maximum concurrent native test commands")
 if(NOT DEFOLD_TEST_JOBS MATCHES "^[1-9][0-9]*$")
   message(FATAL_ERROR "DEFOLD_TEST_JOBS must be a positive integer")
@@ -113,6 +128,8 @@ endfunction()
 # Usage:
 #   defold_register_test_target(<target> [run_flag] [run_workdir]
 #                               [CONFIGFILE <configfile>]
+#                               [IOS_INFO_PLIST <plist>]
+#                               [IOS_BUNDLE_RESOURCES <path> ...]
 #                               [RUN_GROUP <resource-group>] [RUN_PRIORITY <integer>]
 #                               [RUNTIME_DEPENDS <target> ...]
 #                               [STAGE_FILES <source> <target> ...])
@@ -120,6 +137,10 @@ endfunction()
 #               adds it to global run_tests
 #   - run_workdir: optional working directory for executing the test
 #   - CONFIGFILE: optional config file path relative to run_workdir
+#   - IOS_INFO_PLIST: optional complete test app Info.plist, used by both Xcode
+#                     and device/simulator runners. The runners supply bundle identity.
+#   - IOS_BUNDLE_RESOURCES: files/directories copied to the app bundle root before
+#                           signing, for example a compiled launch storyboard.
 #   - RUN_GROUP: independently runnable resource group (default shared).
 #                Native Ninja tests in the same group remain serialized.
 #   - RUN_PRIORITY: higher values start first when their resource group is free.
@@ -476,9 +497,27 @@ function(_defold_configure_ios_xcode_test_app target_name run_dir_norm configfil
     BUNDLE_ID "${_bundle_id}"
     SHORT_VERSION "1.0"
     BUNDLE_VERSION "1")
+  get_target_property(_info_plist ${target_name} DEFOLD_TEST_IOS_INFO_PLIST)
+  if(_info_plist)
+    set_property(TARGET ${target_name} PROPERTY MACOSX_BUNDLE_INFO_PLIST "${_info_plist}")
+  else()
+    set_property(TARGET ${target_name} PROPERTY XCODE_ATTRIBUTE_INFOPLIST_KEY_UIRequiresFullScreen "YES")
+  endif()
   set_target_properties(${target_name} PROPERTIES
-    XCODE_ATTRIBUTE_INFOPLIST_KEY_UIRequiresFullScreen "YES"
     XCODE_ATTRIBUTE_INFOPLIST_KEY_NSLocalNetworkUsageDescription "Defold iOS tests connect to the local test server running on the build host.")
+
+  get_target_property(_bundle_resources ${target_name} DEFOLD_TEST_IOS_BUNDLE_RESOURCES)
+  if(_bundle_resources)
+    foreach(_resource IN LISTS _bundle_resources)
+      get_filename_component(_resource_name "${_resource}" NAME)
+      add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND "${CMAKE_COMMAND}"
+          "-DDEFOLD_IOS_STAGE_SOURCE=${_resource}"
+          "-DDEFOLD_IOS_STAGE_BUNDLE_DESTINATION=${_resource_name}"
+          -P "${DEFOLD_HOME}/scripts/cmake/functions_ios.cmake"
+        VERBATIM)
+    endforeach()
+  endif()
 
   _defold_stage_ios_xcode_test_app(${target_name} "${run_dir_norm}" "${configfile}" ${ARGN})
 endfunction()
@@ -544,6 +583,16 @@ function(_defold_add_ios_run_target run_target target_name run_dir_norm configfi
   if(configfile)
     list(APPEND _config_args --config "${configfile}")
   endif()
+  get_target_property(_info_plist ${target_name} DEFOLD_TEST_IOS_INFO_PLIST)
+  if(_info_plist)
+    list(APPEND _config_args --info-plist "${_info_plist}")
+  endif()
+  get_target_property(_bundle_resources ${target_name} DEFOLD_TEST_IOS_BUNDLE_RESOURCES)
+  if(_bundle_resources)
+    foreach(_resource IN LISTS _bundle_resources)
+      list(APPEND _config_args --bundle-resource "${_resource}")
+    endforeach()
+  endif()
 
   _defold_build_stage_file_args(_stage_args ${_stage_files})
 
@@ -597,7 +646,7 @@ function(defold_register_test_target target_name)
 
   add_dependencies(build_tests ${target_name})
 
-  set(_known_keywords CONFIGFILE RUN_GROUP RUN_PRIORITY RUNTIME_DEPENDS STAGE_FILES)
+  set(_known_keywords CONFIGFILE IOS_INFO_PLIST IOS_BUNDLE_RESOURCES RUN_GROUP RUN_PRIORITY RUNTIME_DEPENDS STAGE_FILES)
   set(_legacy_args "")
   set(_keyword_args "")
   set(_in_keyword_args FALSE)
@@ -619,7 +668,16 @@ function(defold_register_test_target target_name)
     message(FATAL_ERROR "defold_register_test_target: expected at most [run_flag] [run_workdir] before keyword arguments")
   endif()
 
-  cmake_parse_arguments(DEFOLD_TEST "" "CONFIGFILE;RUN_GROUP;RUN_PRIORITY" "RUNTIME_DEPENDS;STAGE_FILES" ${_keyword_args})
+  cmake_parse_arguments(DEFOLD_TEST "" "CONFIGFILE;IOS_INFO_PLIST;RUN_GROUP;RUN_PRIORITY" "IOS_BUNDLE_RESOURCES;RUNTIME_DEPENDS;STAGE_FILES" ${_keyword_args})
+
+  if(DEFOLD_TEST_IOS_INFO_PLIST)
+    get_filename_component(_info_plist "${DEFOLD_TEST_IOS_INFO_PLIST}" ABSOLUTE)
+    set_property(TARGET ${target_name} PROPERTY DEFOLD_TEST_IOS_INFO_PLIST "${_info_plist}")
+  endif()
+  foreach(_resource IN LISTS DEFOLD_TEST_IOS_BUNDLE_RESOURCES)
+    get_filename_component(_resource "${_resource}" ABSOLUTE)
+    set_property(TARGET ${target_name} APPEND PROPERTY DEFOLD_TEST_IOS_BUNDLE_RESOURCES "${_resource}")
+  endforeach()
 
   set_property(TARGET ${target_name} PROPERTY DEFOLD_TEST_RUNTIME_DEPENDENCIES "${DEFOLD_TEST_RUNTIME_DEPENDS}")
   if(DEFOLD_TEST_RUNTIME_DEPENDS)
@@ -701,18 +759,7 @@ function(defold_register_test_target target_name)
     set(_run_target "run_${target_name}")
     if(NOT TARGET ${_run_target})
       if(TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web")
-        set(_pre_js "${DEFOLD_SDK_ROOT}/share/web-pre.js")
-        if(NOT EXISTS "${_pre_js}")
-          if(NOT DEFINED DEFOLD_HOME)
-            get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
-          endif()
-          set(_pre_js "${DEFOLD_HOME}/share/web-pre.js")
-        endif()
-        if(EXISTS "${_pre_js}")
-          target_link_options(${target_name} PRIVATE "--pre-js" "${_pre_js}" "-lnodefs.js")
-        else()
-          message(FATAL_ERROR "defold_register_test_target: missing pre-js file for web test '${target_name}'. Checked '${DEFOLD_SDK_ROOT}/share/web-pre.js' and '${DEFOLD_HOME}/share/web-pre.js'")
-        endif()
+        _defold_configure_wasm_test(${target_name})
       endif()
       set(_run_exe "$<TARGET_FILE:${target_name}>")
       set(_run_args "")

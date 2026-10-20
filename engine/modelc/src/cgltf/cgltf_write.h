@@ -3,6 +3,10 @@
  *
  * Version: 1.12
  *
+ * DEFOLD: This copy writes Draco attributes as unique IDs to match the local
+ * cgltf.h representation. The change is marked below; the upstream base
+ * version above is unchanged.
+ *
  * Website: https://github.com/jkuhlmann/cgltf
  *
  * Distributed under the MIT License, see notice at the end of this file.
@@ -458,8 +462,9 @@ static void cgltf_write_primitive(cgltf_write_context* context, const cgltf_prim
 			cgltf_write_line(context, "\"attributes\": {");
 			for (cgltf_size i = 0; i < prim->draco_mesh_compression.attributes_count; ++i)
 			{
-				const cgltf_attribute* attr = prim->draco_mesh_compression.attributes + i;
-				CGLTF_WRITE_IDXPROP(attr->name, attr->data, context->data->accessors);
+				/* DEFOLD: Write Draco unique IDs directly, without accessor-index conversion. */
+				const cgltf_draco_attribute* attr = prim->draco_mesh_compression.attributes + i;
+				cgltf_write_sizeprop(context, attr->name, attr->unique_id, (cgltf_size)-1);
 			}
 			cgltf_write_line(context, "}");
 			cgltf_write_line(context, "}");

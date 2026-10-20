@@ -16,6 +16,7 @@
 #define DM_TEXT_LAYOUT_H
 
 #include "markup.h"
+#include "font_effect.h"
 
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/font/text_layout.h>
@@ -77,6 +78,7 @@ enum TextEffectFit
     TEXT_EFFECT_FIT_GLYPH,
     TEXT_EFFECT_FIT_SPAN,
     TEXT_EFFECT_FIT_TEXT,
+    TEXT_EFFECT_FIT_BLOCK,
 };
 
 enum TextGradientMode
@@ -84,14 +86,27 @@ enum TextGradientMode
     TEXT_GRADIENT_MODE_HORIZONTAL,
     TEXT_GRADIENT_MODE_VERTICAL,
     TEXT_GRADIENT_MODE_QUAD,
+    TEXT_GRADIENT_MODE_SPATIAL,
+};
+
+struct TextGradientCorners
+{
+    float m_BottomLeft[4];
+    float m_BottomRight[4];
+    float m_TopLeft[4];
+    float m_TopRight[4];
 };
 
 struct TextGradientEffect
 {
-    float   m_BottomLeft[4];
-    float   m_BottomRight[4];
-    float   m_TopLeft[4];
-    float   m_TopRight[4];
+    union
+    {
+        TextGradientCorners m_Corners;
+        // Authored parameters: linear angle in degrees; radial pivot x/y, radius x/y
+        // relative to the longer fit dimension, and counterclockwise angle in degrees.
+        // Resolved to projection/ellipse transform at draw time.
+        FontColorEffect m_Color;
+    };
     float   m_Hz;
     uint8_t m_Fit;
     uint8_t m_Mode;
@@ -193,6 +208,15 @@ struct TextLayoutObjectBounds
     uint16_t m_Parent;
 };
 
+// Scratch bounds reused by vertex generation: effects, lines, block, then a source-cluster range tree.
+struct TextGradientBounds
+{
+    float m_MinX;
+    float m_MinY;
+    float m_MaxX;
+    float m_MaxY;
+};
+
 struct TextLayout
 {
     FTextLayoutDestroy m_Destroy;
@@ -201,11 +225,14 @@ struct TextLayout
     // TODO: Make these C arrays?
     dmArray<TextGlyph>                 m_Glyphs;
     dmArray<TextLine>                  m_Lines;
+    // Full layout alignment origins exclude wrapped trailing whitespace without changing shaped glyph positions.
+    dmArray<float>                     m_LineOrigins;
     dmArray<TextParagraph>             m_Paragraphs;
     dmArray<TextRenderStyle>           m_Styles;
     // Properties authored above the base style, indexed alongside m_Styles.
     dmArray<uint32_t>                  m_StyleOverrideFlags;
     dmArray<TextEffect>                m_Effects;
+    dmArray<TextGradientBounds>        m_GradientBounds;
     dmArray<uint16_t>                  m_SpanEffects;
     dmArray<TextResolvedSpan>          m_ResolvedSpans;
     dmArray<TextDecorationSource>      m_DecorationSources;
@@ -238,6 +265,7 @@ struct TextLayout
     // Bounds of the entire layout
     float                    m_Width;
     float                    m_Height;
+    float                    m_MonospacePadding; // Legacy rendering inset, captured from the layout settings.
     double                   m_ElapsedTime;
     FTextLayoutReleaseObject m_ReleaseObject;
     void*                    m_ObjectContext;
@@ -261,8 +289,14 @@ TextResult TextLayoutSkribidiCreateMarkup(HFontCollection collection, HMarkup ma
 
 TextResult TextLayoutCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout);
 
+// Returns the shaped x coordinate to subtract when aligning a line's glyphs, decorations, and objects.
+float TextLayoutGetLineOriginX(HTextLayout layout, uint32_t line_index);
+
 // Resolves generic markup nodes into renderer-facing styles, effects, and objects.
 bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, ResolvedMarkup* resolved);
+
+// Validates effect values for tooling without a font or layout. Reports the first invalid effect.
+bool TextLayoutValidateMarkupEffects(HMarkup markup, MarkupError* error);
 
 struct TextNamedStyleDecoration;
 // Compiles an opening-tag fragment into one named style and its effects.
@@ -284,6 +318,12 @@ const TextDecorationGeometry* TextLayoutGetDecorationGeometry(HTextLayout layout
 
 // Releases resources acquired for the layout's sprite objects.
 void TextLayoutReleaseObjects(HTextLayout layout);
+
+// Resolves an object's lower-left corner in unscaled local coordinates relative to the text box pivot.
+// The object is borrowed from layout. Pivot fractions are measured from the box's lower-left corner:
+// NW is (0, 1), center is (0.5, 0.5). Width is the text box width used by rendering.
+// Includes the layout's legacy monospaced padding inset.
+uint8_t TextLayoutGetObjectPositionLocal(HTextLayout layout, const TextLayoutObject* object, float width, float pivot_x, float pivot_y, float* x, float* y);
 
 // Captures base glyph styles and applies named layout-object styles.
 void TextLayoutInitializeObjectStyles(HTextLayout layout);
@@ -323,7 +363,8 @@ uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestPara
 void TextLayoutGetGlyphFaceColors(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphFaceColors* colors);
 
 // Resolves all static style and animated-effect data needed for vertex generation.
-void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data);
+// GPU renderers resolve gradients separately; static tint and position effects remain CPU-side.
+void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data, bool apply_gradients);
 
 // Reports whether the layout needs an outline vertex layer.
 bool TextLayoutHasMarkupOutline(HTextLayout layout);

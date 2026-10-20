@@ -26,7 +26,7 @@
             [internal.graph.types :as gt]
             [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc]
-           [com.jogamp.opengl GL2]))
+           [com.jogamp.opengl GL3]))
 
 (defn- outline-seq
   [outline]
@@ -201,8 +201,8 @@
 (deftest mesh-source-shape-preview
   (test-util/with-loaded-project
     (doseq [[path primitive-type passes triangles?]
-            [["/collision_object/hull_shape.collisionobject" GL2/GL_POINTS [pass/outline pass/selection] false]
-             ["/collision_object/mesh_shape.collisionobject" GL2/GL_TRIANGLES [pass/transparent pass/selection] true]]]
+            [["/collision_object/hull_shape.collisionobject" GL3/GL_POINTS [pass/outline pass/selection] false]
+             ["/collision_object/mesh_shape.collisionobject" GL3/GL_TRIANGLES [pass/transparent pass/selection] true]]]
       (let [collision-object (test-util/resource-node project path)
             shape-node-id (:node-id (test-util/outline collision-object [0]))
             selected-renderable (g/node-value shape-node-id :selected-collision-mesh-renderable)
@@ -247,8 +247,8 @@
         outline-renderable (get-in scene [:children 0 :renderable])
         fill-geometry (get-in fill-renderable [:user-data :geometry])
         outline-geometry (get-in outline-renderable [:user-data :geometry])]
-    (is (= GL2/GL_TRIANGLE_FAN (:primitive-type fill-geometry)))
-    (is (= GL2/GL_LINE_LOOP (:primitive-type outline-geometry)))
+    (is (= GL3/GL_TRIANGLE_FAN (:primitive-type fill-geometry)))
+    (is (= GL3/GL_LINE_LOOP (:primitive-type outline-geometry)))
     (is (identical? (:vbuf fill-geometry) (:vbuf outline-geometry)))
     (is (= [pass/transparent pass/selection] (:passes fill-renderable)))
     (is (= [pass/outline] (:passes outline-renderable)))))

@@ -185,8 +185,9 @@
          :tile-height 8
          :convex-hulls (exactly nil) ; TODO(save-value-cleanup): Weird semantics. Skip testing convex hulls for now.
          :animations {:id "animation_id"
-                      :start-tile 1
-                      :end-tile 1}}
+                      :start-tile (exactly nil)
+                      :end-tile (exactly nil)
+                      :frames (required 1)}}
 
         vertex-attribute
         {:name "attribute_name"
@@ -254,7 +255,7 @@
      "font"
      {:font "/builtins/fonts/vera_mo_bd.ttf"
       :material "/builtins/fonts/font.material"
-      :size 10
+      :size (required 10) ; Bitmap fonts require a positive size, including at depth zero.
       :styles {:name "style_name"}}
 
      "go"
