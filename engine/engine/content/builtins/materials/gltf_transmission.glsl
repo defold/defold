@@ -9,6 +9,7 @@ uniform pbr_transmission_uniforms
 {
     highp mat4 mtx_projection;
     // X enables transmission only while an opaque scene capture is bound.
+    // Y writes linear radiance when rendering into an HDR scene capture.
     vec4 transmission_params;
 };
 

@@ -58,6 +58,7 @@ struct Probe
     float       m_Roughness;
     float       m_Environment;
     bool        m_DisableCapture;
+    bool        m_LinearOutput;
 };
 
 static bool ReadFile(const char* path, dmArray<uint8_t>& bytes)
@@ -122,7 +123,7 @@ static HTexture NewIblTexture(HContext context, TextureType type, uint32_t size,
         upload.m_Depth = upload.m_LayerCount = 1;
         upload.m_MipMap = level;
         upload.m_Data = data.Begin();
-        upload.m_DataSize = size * size * 4 * sizeof(float); // One face's stride for cubemaps.
+        upload.m_DataSize = (size_t)size * size * 4 * sizeof(float); // One face's stride for cubemaps.
         upload.m_MinFilter = mip_count > 1 ? TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR : TEXTURE_FILTER_LINEAR;
         upload.m_MagFilter = TEXTURE_FILTER_LINEAR;
         upload.m_UWrap = upload.m_VWrap = TEXTURE_WRAP_CLAMP_TO_EDGE;
@@ -375,9 +376,189 @@ static bool RunRefractionProbes(HContext context, HProgram program, HVertexBuffe
     return success;
 }
 
+static HProgram LoadMaterialProgram(HContext context, const char* root, const char* name)
+{
+    char             path[2048];
+    dmArray<uint8_t> bytes;
+    dmSnPrintf(path, sizeof(path), "%s/material/%s.materialc", root, name);
+    dmRenderDDF::MaterialDesc* material;
+    if (!ReadFile(path, bytes) || dmDDF::LoadMessage(bytes.Begin(), bytes.Size(), &material) != dmDDF::RESULT_OK)
+        return 0;
+    dmSnPrintf(path, sizeof(path), "%s%s", root, material->m_Program);
+    dmDDF::FreeMessage(material);
+    ShaderDesc* shader;
+    if (!ReadFile(path, bytes) || dmDDF::LoadMessage(bytes.Begin(), bytes.Size(), &shader) != dmDDF::RESULT_OK)
+        return 0;
+    char     error[1024] = {};
+    HProgram program = NewProgram(context, shader, error, sizeof(error));
+    dmDDF::FreeMessage(shader);
+    if (!program)
+        dmLogError("Cannot create %s program: %s", name, error);
+    return program;
+}
+
+static HRenderTarget NewCaptureTarget(HContext context, uint32_t width, uint32_t height, TextureFormat format = TEXTURE_FORMAT_RGBA16F)
+{
+    RenderTargetCreationParams params;
+    params.m_ColorBufferCreationParams[0].m_Width = params.m_ColorBufferParams[0].m_Width = width;
+    params.m_ColorBufferCreationParams[0].m_Height = params.m_ColorBufferParams[0].m_Height = height;
+    params.m_ColorBufferParams[0].m_Format = format;
+    params.m_ColorBufferParams[0].m_MinFilter = params.m_ColorBufferParams[0].m_MagFilter = TEXTURE_FILTER_LINEAR;
+    params.m_ColorBufferParams[0].m_UWrap = params.m_ColorBufferParams[0].m_VWrap = TEXTURE_WRAP_CLAMP_TO_EDGE;
+    params.m_ColorBufferStoreOps[0] = ATTACHMENT_OP_STORE;
+    return NewRenderTarget(context, BUFFER_TYPE_COLOR0_BIT, params);
+}
+
+// Production capture, reduction and atlas shaders must preserve coverage and HDR
+// radiance. Uncovered pixels use the prefiltered environment, guarding dark rough tiles.
+static bool RunTransmissionFilterProbes(HContext context, HProgram program, HVertexDeclaration declaration, HTexture fallback, uint32_t scene_unit, uint32_t blur_unit, uint32_t environment_unit, uint32_t brdf_unit, const char* root, float opacity)
+{
+    HProgram filter = LoadMaterialProgram(context, root, "transmission_downsample");
+    if (!filter)
+        return false;
+    const uint32_t width = 8, height = 8;
+    HRenderTarget  scene = NewCaptureTarget(context, width, height);
+    HRenderTarget  target = NewCaptureTarget(context, width, height, TEXTURE_FORMAT_RGBA);
+    HRenderTarget  levels[3];
+    for (uint32_t i = 0; i < 3; ++i)
+        levels[i] = NewCaptureTarget(context, width >> (i + 1), height >> (i + 1));
+    HRenderTarget atlas = NewCaptureTarget(context, 4, 7);
+    const float   environment_color[] = { 4.0f, 2.0f, 0.5f, 1 };
+    const float   geometry_color[] = { 8.0f, 4.0f, 2.0f };
+    HTexture      cube = NewIblTexture(context, TEXTURE_TYPE_CUBE_MAP, 1, environment_color, 1);
+    const float   zero_brdf[] = { 0, 0, 0, 0 };
+    HTexture      no_fresnel = NewIblTexture(context, TEXTURE_TYPE_2D, 1, zero_brdf, 1);
+    EnableTexture(context, environment_unit, 0, cube);
+    EnableTexture(context, brdf_unit, 0, no_fresnel);
+    SetRenderTarget(context, scene, RenderTargetBindingParams());
+    SetViewport(context, 0, 0, width, height);
+    Clear(context, BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 0, 1, 0);
+    EnableProgram(context, program);
+    EnableVertexDeclaration(context, declaration, 0, 0, program);
+    EnableTexture(context, 0, 0, fallback);
+    SetMatrix(context, program, "mtx_worldview", dmVMath::Matrix4::identity());
+    SetMatrix(context, program, "mtx_normal", dmVMath::Matrix4::identity());
+    SetVector(context, program, "pbrMetallicRoughness.baseColorFactor", dmVMath::Vector4(1, 1, 1, opacity));
+    SetVector(context, program, "pbrMetallicRoughness.metallicAndRoughnessFactor", dmVMath::Vector4(0));
+    SetVector(context, program, "pbrAlphaCutoffAndDoubleSidedAndIsUnlit", dmVMath::Vector4(0.5f, 1, 0, opacity < 1 ? 2 : 0));
+    SetVector(context, program, "transmission_params", dmVMath::Vector4(0, 1, 0, 0));
+    SetVector(context, program, "ibl_params", dmVMath::Vector4(0));
+    SetVector(context, program, "pbrEmissiveFactorAndStrength", dmVMath::Vector4(1, 0.5f, 0.25f, 8));
+    SetVector(context, program, "light_info", dmVMath::Vector4(0));
+    SetViewport(context, 2, 2, 4, 4);
+    EnableState(context, STATE_BLEND);
+    SetBlendFuncSeparate(context, BLEND_FACTOR_SRC_ALPHA, BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, BLEND_FACTOR_ONE, BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+    Draw(context, PRIMITIVE_TRIANGLES, 0, 3, 1);
+    DisableState(context, STATE_BLEND);
+    // A quarter of the image has emissive geometry; both it and the environment
+    // exceed the LDR range, so clamping either path loses measurable energy.
+    float mean[3];
+    for (uint32_t c = 0; c < 3; ++c)
+        mean[c] = environment_color[c] * (1 - 0.25f * opacity) + geometry_color[c] * 0.25f * opacity;
+    EnableProgram(context, filter);
+    EnableVertexDeclaration(context, declaration, 0, 0, filter);
+    SetSampler(context, FindUniformLocation(filter, "tex_source"), 0);
+    HRenderTarget previous = scene;
+    uint32_t      previous_width = width, previous_height = height;
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        SetRenderTarget(context, levels[i], RenderTargetBindingParams());
+        SetViewport(context, 0, 0, width >> (i + 1), height >> (i + 1));
+        EnableTexture(context, 0, 0, GetRenderTargetTexture(context, previous, BUFFER_TYPE_COLOR0_BIT));
+        SetVector(context, filter, "filter_params", dmVMath::Vector4(0.5f / previous_width, 0.5f / previous_height, 0, 0));
+        Draw(context, PRIMITIVE_TRIANGLES, 0, 3, 1);
+        previous = levels[i];
+        previous_width /= 2;
+        previous_height /= 2;
+    }
+    SetRenderTarget(context, atlas, RenderTargetBindingParams());
+    SetVector(context, filter, "filter_params", dmVMath::Vector4(0));
+    uint32_t y = 0;
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        SetViewport(context, 0, y, width >> (i + 1), height >> (i + 1));
+        EnableTexture(context, 0, 0, GetRenderTargetTexture(context, levels[i], BUFFER_TYPE_COLOR0_BIT));
+        Draw(context, PRIMITIVE_TRIANGLES, 0, 3, 1);
+        y += height >> (i + 1);
+    }
+    EnableProgram(context, program);
+    EnableVertexDeclaration(context, declaration, 0, 0, program);
+    EnableTexture(context, 0, 0, fallback);
+    EnableTexture(context, scene_unit, 0, GetRenderTargetTexture(context, scene, BUFFER_TYPE_COLOR0_BIT));
+    EnableTexture(context, blur_unit, 0, GetRenderTargetTexture(context, atlas, BUFFER_TYPE_COLOR0_BIT));
+    SetVector(context, program, "pbrAlphaCutoffAndDoubleSidedAndIsUnlit", dmVMath::Vector4(0.5f, 1, 0, 0));
+    SetVector(context, program, "pbrTransmission.transmissionFactor", dmVMath::Vector4(1, 0, 0, 0));
+    SetVector(context, program, "pbrVolume.thicknessFactorAndAttenuationColor", dmVMath::Vector4(0, 1, 1, 1));
+    SetVector(context, program, "pbrVolume.volumeTextures", dmVMath::Vector4(0));
+    SetVector(context, program, "pbrTransmission.transmissionTextures", dmVMath::Vector4(0));
+    SetVector(context, program, "ibl_params", dmVMath::Vector4(1, 0, 0, 0));
+    SetVector(context, program, "pbrEmissiveFactorAndStrength", dmVMath::Vector4(0));
+    SetVector(context, program, "transmission_params", dmVMath::Vector4(1, 0, 0, 0));
+    SetVector(context, program, "pbrMetallicRoughness.baseColorFactor", dmVMath::Vector4(0.125f, 0.125f, 0.125f, 1));
+    SetVector(context, program, "scene_filter_params", dmVMath::Vector4(width, height, 3, 7));
+    SetRenderTarget(context, target, RenderTargetBindingParams());
+    SetViewport(context, 0, 0, width, height);
+    bool        success = true;
+    const float roughness[] = { 1, 1, 0, 0.5f, 1.0f / 3 };
+    const float ior[] = { 1.5f, 1, 1.5f, 1.5f, 1.5f };
+    const char* names[] = { "transmission_hdr_prefilter", "transmission_filtered_ior_one", "transmission_filtered_smooth", "transmission_level_interpolation", "transmission_atlas_edges" };
+    uint8_t     pixels[width * height * 4];
+    uint32_t    center = ((height / 2) * width + width / 2) * 4;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(roughness); ++i)
+    {
+        SetVector(context, program, "pbrMetallicRoughness.metallicAndRoughnessFactor", dmVMath::Vector4(0, roughness[i], 0, 0));
+        SetVector(context, program, "pbrIor.ior", dmVMath::Vector4(ior[i], 0, 0, 0));
+        Draw(context, PRIMITIVE_TRIANGLES, 0, 3, 1);
+        ReadPixels(context, 0, 0, width, height, pixels, sizeof(pixels));
+        char name[128];
+        dmSnPrintf(name, sizeof(name), "%s%s", names[i], opacity < 1 ? "_blend" : "");
+        SaveCapture(name, pixels, width, height);
+        bool passed = true;
+        for (uint32_t c = 0; c < 3; ++c)
+        {
+            float unfiltered = geometry_color[c] * opacity + environment_color[c] * (1 - opacity);
+            float expected = unfiltered * 0.96f;
+            if (i == 0)
+                expected = mean[c] * 0.96f;
+            else if (i == 1)
+                expected = unfiltered;
+            else if (i == 3)
+                expected = (unfiltered + mean[c]) * 0.48f;
+            passed &= abs((int)pixels[center + 2 - c] - EncodeSrgb(expected * 0.125f)) <= 1;
+        }
+        if (i == 4)
+        {
+            // The first reduced level has uncovered corners. Scene coverage
+            // from the neighboring level must not leak through bilinear taps.
+            const uint32_t corners[] = { 0, width - 1, (height - 1) * width, width * height - 1 };
+            float          n_dot_v = 1.0f / sqrtf(1.0f + 2.0f * 0.875f * 0.875f);
+            float          transmission = 0.96f * (1 - powf(1 - n_dot_v, 5));
+            for (uint32_t p = 0; p < 4; ++p)
+                for (uint32_t c = 0; c < 3; ++c)
+                    passed &= abs((int)pixels[corners[p] * 4 + 2 - c] - EncodeSrgb(environment_color[c] * transmission * 0.125f)) <= 1;
+        }
+        printf("%s: %s (%u,%u,%u,%u)\n", name, passed ? "PASS" : "FAIL", pixels[center + 2], pixels[center + 1], pixels[center], pixels[center + 3]);
+        success &= passed;
+    }
+    DisableTexture(context, scene_unit, 0);
+    DisableTexture(context, blur_unit, 0);
+    SetRenderTarget(context, 0, RenderTargetBindingParams());
+    for (uint32_t i = 0; i < 3; ++i)
+        DeleteRenderTarget(context, levels[i]);
+    DeleteRenderTarget(context, atlas);
+    DeleteRenderTarget(context, scene);
+    DeleteRenderTarget(context, target);
+    DisableTexture(context, environment_unit, 0);
+    DisableTexture(context, brdf_unit, 0);
+    DeleteTexture(context, cube);
+    DeleteTexture(context, no_fresnel);
+    DeleteProgram(context, filter);
+    return success;
+}
+
 // Verify production shader composition on a hidden 1x1 target, including IBL
 // roughness mip selection when an environment material is supplied by the project.
-static bool RunProbes(HContext context, HProgram program, bool ibl)
+static bool RunProbes(HContext context, HProgram program, bool ibl, const char* project_root)
 {
     const Vertex vertices[] = {
         { { -1, -1, -1, 1 }, { 0, 0, 1 }, { 1, 0, 0, 1 }, { 1, 1, 1, 1 }, { 0.5f, 0.5f } },
@@ -444,6 +625,9 @@ static bool RunProbes(HContext context, HProgram program, bool ibl)
     EnableVertexDeclaration(context, declaration, 0, 0, program);
     uint32_t textures = 0;
     uint32_t scene_unit = 0;
+    uint32_t blur_unit = 0;
+    uint32_t environment_unit = 0;
+    uint32_t brdf_unit = 0;
     for (uint32_t i = 0; i < GetUniformCount(program); ++i)
     {
         Uniform uniform;
@@ -453,6 +637,12 @@ static bool RunProbes(HContext context, HProgram program, bool ibl)
         bool scene_color = strstr(uniform.m_Name, "tex_scene_color") != 0;
         if (scene_color)
             scene_unit = textures;
+        if (strstr(uniform.m_Name, "tex_scene_blur"))
+            blur_unit = textures;
+        if (strstr(uniform.m_Name, "tex_ibl_specular"))
+            environment_unit = textures;
+        if (strstr(uniform.m_Name, "tex_ibl_brdf"))
+            brdf_unit = textures;
         HTexture binding = scene_color ? GetRenderTargetTexture(context, scene, BUFFER_TYPE_COLOR0_BIT) : texture;
         if (strstr(uniform.m_Name, "tex_ibl_diffuse"))
             binding = diffuse;
@@ -502,6 +692,7 @@ static bool RunProbes(HContext context, HProgram program, bool ibl)
         { "zero_ior_opaque", 0, 0, 0, 0, 1, { 1, 1, 1 }, 0, 0, 0, 0, 1, 1, { 0.5f, 0.5f, 0.5f }, 1, 0 },
         { "metal", 1.5f, 1, 1, 1, 1, { 0, 0, 0 }, 0, 0, 0, 1, 1, 0, { 0, 0, 0 }, 1, 0 },
         { "capture_disabled_lit", 1.5f, 1, 1, 1, 1, { 0, 0, 0 }, 0, 0, 0, 0, 0.5f, 0.5f, { 0.26f, 0.26f, 0.26f }, 1, 0, true },
+        { "linear_capture_unlit", 1.5f, 0, 0, 0, 1, { 1, 1, 1 }, 0, 0, 1, 0, 0.5f, 0, { 0.5f, 0.5f, 0.5f }, 0, 0, true, true },
     };
     // Cubemap levels have distinct RGB radiance; the LUT is independently fixed
     // at A=0.5, B=0.125. A smooth surface uses the material's 0.04 roughness floor.
@@ -531,7 +722,7 @@ static bool RunProbes(HContext context, HProgram program, bool ibl)
         SetVector(context, program, "light_info", dmVMath::Vector4(p.m_Ambient, p.m_Ambient, p.m_Ambient, 0));
         SetMatrix(context, program, "mtx_worldview", dmVMath::Matrix4::scale(dmVMath::Vector3(1, 1, p.m_Scale)));
         SetMatrix(context, program, "mtx_normal", dmVMath::Matrix4::scale(dmVMath::Vector3(1, 1, 1 / p.m_Scale)));
-        SetVector(context, program, "transmission_params", dmVMath::Vector4(p.m_DisableCapture ? 0 : 1, 0, 0, 0));
+        SetVector(context, program, "transmission_params", dmVMath::Vector4(p.m_DisableCapture ? 0 : 1, p.m_LinearOutput ? 1 : 0, 0, 0));
         SetVector(context, program, "pbrAlphaCutoffAndDoubleSidedAndIsUnlit", dmVMath::Vector4(0.5f, 1, p.m_Unlit, 0));
         SetVector(context, program, "pbrMetallicRoughness.metallicAndRoughnessFactor", dmVMath::Vector4(p.m_Metallic, p.m_Roughness, 0, 0));
         if (ibl)
@@ -548,7 +739,10 @@ static bool RunProbes(HContext context, HProgram program, bool ibl)
         ReadPixels(context, 0, 0, 1, 1, pixel, sizeof(pixel));
         bool passed = pixel[3] == 255;
         for (uint32_t c = 0; c < 3; ++c)
-            passed &= abs((int)pixel[2 - c] - EncodeSrgb(p.m_Expected[c])) <= 1;
+        {
+            uint8_t expected = p.m_LinearOutput ? (uint8_t)(p.m_Expected[c] * 255 + 0.5f) : EncodeSrgb(p.m_Expected[c]);
+            passed &= abs((int)pixel[2 - c] - expected) <= 1;
+        }
         printf("%s: %s (%u,%u,%u,%u)\n", p.m_Name, passed ? "PASS" : "FAIL", pixel[2], pixel[1], pixel[0], pixel[3]);
         success &= passed;
     }
@@ -556,6 +750,11 @@ static bool RunProbes(HContext context, HProgram program, bool ibl)
     {
         success &= RunCaptureProbes(context, program, scene_unit);
         success &= RunRefractionProbes(context, program, buffer, scene_unit);
+    }
+    else
+    {
+        success &= RunTransmissionFilterProbes(context, program, declaration, texture, scene_unit, blur_unit, environment_unit, brdf_unit, project_root, 1.0f);
+        success &= RunTransmissionFilterProbes(context, program, declaration, texture, scene_unit, blur_unit, environment_unit, brdf_unit, project_root, 0.5f);
     }
     DisableVertexDeclaration(context, declaration);
     DisableVertexBuffer(context, buffer);
@@ -681,7 +880,7 @@ int main(int argc, char** argv)
     if (program)
     {
         uint64_t start = dmTime::GetMonotonicTime();
-        success = RunProbes(context, program, ibl);
+        success = RunProbes(context, program, ibl, argc >= 3 ? argv[1] : 0);
         printf("GPU probes completed in %.3f ms\n", (dmTime::GetMonotonicTime() - start) / 1000.0);
         DeleteProgram(context, program);
     }

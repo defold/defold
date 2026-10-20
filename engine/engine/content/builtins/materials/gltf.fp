@@ -51,6 +51,6 @@ void main()
         color = pbr_compose_transmission(inputs, material, surface, lighting, transmission, background, length(ray), inputs.occlusion, inputs.occlusion);
     }
 
-    // HDR renderers can write linear color here and convert in their final pass.
-    out_fragColor = vec4(pbr_linear_to_srgb(color), pbr_get_alpha(inputs));
+    // Keep linear radiance in an HDR capture; normal draws write sRGB.
+    out_fragColor = vec4(transmission_params.y > 0.5 ? color : pbr_linear_to_srgb(color), pbr_get_alpha(inputs));
 }
