@@ -290,8 +290,6 @@
     (swap! (:state-atom updater) dissoc :channel-download)
     (is (= offer (updater/channel-offer updater)))))
 
-;; Verifies public update checks discover beta offers through HTTP metadata and
-;; respect version, channel, and platform restrictions.
 (deftest check-channel-offer-test
   (let [beta {:version "1.14.0" :sha1 "B2"}
         host-platform (Platform/getHostPlatform)

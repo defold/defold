@@ -373,9 +373,11 @@
   "Returns the newer channel to suggest, or nil while an update or download is
   pending."
   [updater]
-  (let [{:keys [channel-offer downloaded-sha1]} @(:state-atom updater)]
+  (let [{:keys [channel-offer downloaded-sha1]} @(:state-atom updater)
+        prefs (:prefs updater)]
     (when (and channel-offer
-               (not (prefs/get (:prefs updater) [:versioning :channel-offer-disabled]))
+               (not (prefs/get prefs [:versioning :channel-offer-disabled]))
+               (not= (:sha1 channel-offer) (prefs/get prefs [:versioning :downloaded-channel-sha1]))
                (not downloaded-sha1)
                (not (update-advertised? updater))
                (not (download-in-progress? updater))
@@ -522,6 +524,7 @@
           (fn download-to-temp-path! [^Path temp-path]
             (download! url (.toFile temp-path) "progress.downloading-beta" track-progress! (atom false))))
         (log/info :message "Channel build downloaded" :channel channel :file (str file))
+        (prefs/set! (:prefs updater) [:versioning :downloaded-channel-sha1] sha1)
         file
         (catch Exception e
           (log/info :message "Channel download failed" :channel channel :exception e)

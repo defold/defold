@@ -205,10 +205,12 @@
       (localization/message "updater.try-channel-dialog.title")
       (localization/message "updater.try-channel-dialog.header" {"version" version})
       [{:text (localization/message "updater.release-notes-dialog.button.later")
-        :result false
+        :result :later
         :cancel-button true}
+       {:text (localization/message "updater.try-channel-dialog.button.dont-show-again")
+        :result :dont-show-again}
        {:text (localization/message "updater.try-channel-dialog.button.download")
-        :result true
+        :result :download
         :default-button true}])
     (dialogs/make-confirmation-dialog
       localization
@@ -218,11 +220,13 @@
        :header (localization/message "updater.try-channel-dialog.header" {"version" version})
        :buttons [{:text (localization/message "updater.release-notes-dialog.button.later")
                   :cancel-button true
-                  :result false}
+                  :result :later}
+                 {:text (localization/message "updater.try-channel-dialog.button.dont-show-again")
+                  :result :dont-show-again}
                  {:text (localization/message "updater.try-channel-dialog.button.download")
                   :variant :primary
                   :default-button true
-                  :result true}]})))
+                  :result :download}]})))
 
 (defn- choose-channel-download-file [^Stage stage updater localization channel-info]
   (dialogs/make-save-file-dialog
@@ -277,10 +281,16 @@
           (try
             (cond
               newer
-              (when (confirm-try-channel! stage project localization (:version info) release-notes)
+              (case (confirm-try-channel! stage project localization (:version info) release-notes)
+                :download
                 (let [channel-info (assoc info :channel channel)]
                   (when-let [file (choose-channel-download-file stage updater localization channel-info)]
-                    (start-channel-download! updater localization channel-info file))))
+                    (start-channel-download! updater localization channel-info file)))
+
+                :dont-show-again
+                (updater/disable-channel-offer! updater)
+
+                nil)
 
               info
               (dialogs/make-info-dialog
@@ -317,10 +327,8 @@
                                    :message (localization/message "updater.notification.channel-offer"
                                                                   {"channel" (:channel offer)
                                                                    "version" (:version offer)})
-                                   :actions [{:message (localization/message "updater.notification.channel-offer.download")
-                                              :on-action #(try-channel! stage project updater localization)}
-                                             {:message (localization/message "updater.notification.channel-offer.not-interested")
-                                              :on-action #(updater/disable-channel-offer! updater)}]})))
+                                   :actions [{:message (localization/message "updater.notification.channel-offer.try-it")
+                                              :on-action #(try-channel! stage project updater localization)}]})))
                             (when (some? @shown-version)
                               (ui/run-later
                                 (notifications/close! notifications-node ::channel-offer)))))]
