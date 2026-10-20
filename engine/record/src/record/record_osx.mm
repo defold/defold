@@ -32,12 +32,14 @@
 // public entry points. ScreenCaptureKit itself is present from macOS 12.3.
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
 
-@interface DefoldRecordingDelegate : NSObject <SCRecordingOutputDelegate>
+@interface DefoldRecordingDelegate : NSObject <SCRecordingOutputDelegate, SCStreamDelegate>
 {
     @public
     dispatch_semaphore_t m_Started;
     dispatch_semaphore_t m_Finished;
     NSError*             m_Error;
+    bool                 m_RecordingFinished;
+    bool                 m_StreamStopped;
 }
 @end
 
@@ -51,6 +53,8 @@
         m_Started = dispatch_semaphore_create(0);
         m_Finished = dispatch_semaphore_create(0);
         m_Error = nil;
+        m_RecordingFinished = false;
+        m_StreamStopped = false;
     }
     return self;
 }
@@ -74,6 +78,7 @@
     {
         [m_Error release];
         m_Error = [error retain];
+        m_RecordingFinished = true;
     }
     dispatch_semaphore_signal(m_Started);
     dispatch_semaphore_signal(m_Finished);
@@ -82,7 +87,28 @@
 - (void)recordingOutputDidFinishRecording:(SCRecordingOutput*)recordingOutput
 {
     (void)recordingOutput;
+    @synchronized(self)
+    {
+        m_RecordingFinished = true;
+    }
     dispatch_semaphore_signal(m_Finished);
+}
+
+- (void)stream:(SCStream*)stream didStopWithError:(NSError*)error
+{
+    (void)stream;
+    @synchronized(self)
+    {
+        m_StreamStopped = true;
+        // Stopping from the system recording UI is a normal completion. The
+        // output delegate still tells us when the MP4 has finished writing.
+        if (![[error domain] isEqualToString:SCStreamErrorDomain] || [error code] != SCStreamErrorUserStopped)
+        {
+            [m_Error release];
+            m_Error = [error retain];
+        }
+    }
+    dispatch_semaphore_signal(m_Started);
 }
 
 @end
@@ -159,6 +185,22 @@ namespace dmRecord
         @synchronized(delegate)
         {
             return [[delegate->m_Error retain] autorelease];
+        }
+    }
+
+    static bool RecordingFinished(DefoldRecordingDelegate* delegate)
+    {
+        @synchronized(delegate)
+        {
+            return delegate->m_RecordingFinished;
+        }
+    }
+
+    static bool StreamStopped(DefoldRecordingDelegate* delegate)
+    {
+        @synchronized(delegate)
+        {
+            return delegate->m_StreamStopped;
         }
     }
 
@@ -280,8 +322,9 @@ namespace dmRecord
                 if (error)
                 {
                     SetFailure(status, [error localizedDescription]);
-                    status->m_Stopping = status->m_Active;
                 }
+                if (error || RecordingFinished(g_Delegate) || StreamStopped(g_Delegate))
+                    status->m_Stopping = status->m_Active;
             }
             [RecordingLock() unlock];
         }
@@ -382,7 +425,8 @@ namespace dmRecord
                 [configuration setShouldBeOpaque:YES];
 
                 SCContentFilter* filter = [[SCContentFilter alloc] initWithDesktopIndependentWindow:selected_window];
-                stream = [[SCStream alloc] initWithFilter:filter configuration:configuration delegate:nil];
+                delegate = [[DefoldRecordingDelegate alloc] init];
+                stream = [[SCStream alloc] initWithFilter:filter configuration:configuration delegate:delegate];
                 [filter release];
                 [configuration release];
 
@@ -398,7 +442,6 @@ namespace dmRecord
                 [recording_configuration setOutputURL:output_url];
                 [recording_configuration setOutputFileType:AVFileTypeMPEG4];
                 [recording_configuration setVideoCodecType:AVVideoCodecTypeH264];
-                delegate = [[DefoldRecordingDelegate alloc] init];
                 output = [[SCRecordingOutput alloc] initWithConfiguration:recording_configuration delegate:delegate];
                 [recording_configuration release];
 
@@ -500,7 +543,9 @@ namespace dmRecord
 
             NSString* failure = nil;
             NSError*  remove_error = nil;
-            if (![stream removeRecordingOutput:output error:&remove_error])
+            if (!RecordingFinished(delegate) && !StreamStopped(delegate) &&
+                ![stream removeRecordingOutput:output error:&remove_error] &&
+                !RecordingFinished(delegate) && !StreamStopped(delegate))
             {
                 failure = [remove_error localizedDescription];
             }
@@ -510,18 +555,26 @@ namespace dmRecord
             }
 
             __block NSError*     stop_error = nil;
-            dispatch_semaphore_t capture_stopped = dispatch_semaphore_create(0);
-            [stream stopCaptureWithCompletionHandler:^(NSError* error) {
-              stop_error = [error retain];
-              dispatch_semaphore_signal(capture_stopped);
-            }];
-            if (!Wait(capture_stopped, 15) && !failure)
+            if (!StreamStopped(delegate))
             {
-                failure = @"timed out while stopping screen capture";
-            }
-            else if (stop_error && !failure)
-            {
-                failure = [stop_error localizedDescription];
+                dispatch_semaphore_t capture_stopped = dispatch_semaphore_create(0);
+                [stream stopCaptureWithCompletionHandler:^(NSError* error) {
+                  stop_error = [error retain];
+                  dispatch_semaphore_signal(capture_stopped);
+                }];
+                if (!Wait(capture_stopped, 15) && !failure)
+                {
+                    failure = @"timed out while stopping screen capture";
+                }
+                else if (stop_error && !failure && !StreamStopped(delegate))
+                {
+                    // A completed output can precede the stream's stop callback.
+                    bool already_stopped = RecordingFinished(delegate) &&
+                        [[stop_error domain] isEqualToString:SCStreamErrorDomain] &&
+                        [stop_error code] == SCStreamErrorAttemptToStopStreamState;
+                    if (!already_stopped)
+                        failure = [stop_error localizedDescription];
+                }
             }
             NSError* delegate_error = DelegateError(delegate);
             if (delegate_error && !failure)

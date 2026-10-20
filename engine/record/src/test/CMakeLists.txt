@@ -37,6 +37,8 @@ if(TARGET record AND TARGET_PLATFORM MATCHES "macos$")
   # Exercise native output path handling without a window or capture permission.
   record_test(test_record_osx test_record_osx.cpp)
   defold_target_link_libraries(test_record_osx "${TARGET_PLATFORM}" record)
+  record_test(test_record_osx_native test_record_osx_native.mm)
+  defold_target_link_libraries(test_record_osx_native "${TARGET_PLATFORM}" record)
 endif()
 
 if(TARGET record AND TARGET_PLATFORM MATCHES "linux$")
