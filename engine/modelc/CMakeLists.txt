@@ -44,6 +44,7 @@ if(MODELC_IS_DESKTOP)
     "${MODELC_SRC_DIR}/modelimporter.cpp"
     "${MODELC_SRC_DIR}/modelimporter_debug.cpp"
     "${MODELC_SRC_DIR}/modelimporter_gltf.cpp"
+    "${MODELC_SRC_DIR}/modelimporter_tangents.cpp"
     "${MODELC_SRC_DIR}/modelimporter_compression.cpp")
   # Upstream Draco's C++11 interface is confined to the codec adapter.
   if(NOT MSVC)
