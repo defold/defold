@@ -21,7 +21,7 @@ namespace dmHttpServer
 {
     /**
      * @file
-     * Simple single-threaded HTTP server with multiple persistent clients supported.
+     * HTTP server with update-thread handlers and asynchronous response sending.
      * Http methods sending data, eg put and post, are not supported.
      */
 
@@ -136,12 +136,24 @@ namespace dmHttpServer
 
     /**
      * Send response data
+     * Copies data into an owned response sent asynchronously after the handler returns.
+     * Socket errors are handled by the server; RESULT_OK means the data was queued.
      * @param request Request
      * @param data Data to send
      * @param data_length Data-length to send
-     * @return RESULT_ON on success
+     * @return RESULT_OK on success
      */
     Result Send(const Request* request, const void* data, uint32_t data_length);
+
+    typedef uint32_t (*StreamRead)(void* context, void* buffer, uint32_t size);
+    typedef void (*StreamClose)(void* context);
+
+    // Stream exactly length bytes with Content-Length after the handler returns, using a bounded buffer.
+    // Call after setting headers, instead of Send. Read runs on the response worker
+    // (or Update on platforms without threads); returning zero early aborts the response.
+    // On success the server owns context and calls close exactly once, including
+    // disconnect/shutdown. On failure ownership stays with the caller.
+    Result SendStream(const Request* request, uint64_t length, StreamRead read, StreamClose close, void* context);
 
     /**
      * Send attribute

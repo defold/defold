@@ -99,7 +99,7 @@ All routes use the engine service port and are described in `/openapi.json`.
 | GET | `/recording/status` | Current operation and finalized file receipt |
 | POST | `/recording/start` | Start recording; returns HTTP 202 with an operation ID |
 | POST | `/recording/stop` | Stop that operation; returns HTTP 202 |
-| GET | `/recording/files/{id}` | Download a finalized MP4 using a closed byte range |
+| GET | `/recording/files/{id}` | Stream a finalized MP4 or a closed byte range |
 | DELETE | `/recording/files/{id}` | Delete a retained, completed file |
 
 First read `/recording/capabilities` and retain its `instance_id`. Send it as the
@@ -136,9 +136,17 @@ Poll status until `pending` is false and `active` is true. Stop with the returne
 ```
 
 Poll until `pending` is false, `finalized` is true, and `file.state` is `complete`.
-The file receipt contains its URL, byte size and SHA-256. Download using
-`Range: bytes=START-END`, with inclusive bounds and at most 1 MiB per request;
-responses use HTTP 206 and `video/mp4`. Verify the assembled file against SHA-256.
+The file receipt contains its URL, byte size and SHA-256. GET that URL without
+`Range` to stream the entire MP4 with HTTP 200. For a partial download, send
+`Range: bytes=START-END`, with inclusive bounds within the file, to receive HTTP
+206. There is no range-size cap. Both responses use `video/mp4` and `Content-Length`
+for the number of bytes being downloaded.
+
+The engine update accepts the request, then a worker reads and sends the body
+through a 64 KiB buffer, independently of subsequent engine updates. Prefer one
+whole-file request to avoid waiting for an update for every range. Clients should
+read, hash and write the response incrementally, then verify its total size and
+SHA-256 against the receipt before publishing the downloaded file.
 
 Files remain available until DELETE or engine shutdown/reboot. The service retains
 at most 128 files. Hashing runs on a worker after native finalization. Failed

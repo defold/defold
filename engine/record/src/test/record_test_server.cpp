@@ -16,10 +16,13 @@
 #include <record/record_file.h>
 #include <record/record_service.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/dstrings.h>
+#include <dlib/math.h>
 #include <dlib/mutex.h>
 #include <dlib/socket.h>
 #include <dlib/time.h>
+#include <dlib/thread.h>
 #include <dlib/webserver.h>
 #include <extension/extension.hpp>
 #include <dmsdk/engine/extension.hpp>
@@ -29,6 +32,7 @@
 #include <dmsdk/graphics/graphics.h>
 #endif
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // A controlled capture backend serves real HTTP without graphics, automation,
@@ -41,6 +45,7 @@ namespace dmRecord
     static bool            g_FailStart;
     static bool            g_NoWindow;
     static bool            g_AudioSupported;
+    static bool            g_LargeRecording;
     static bool            g_Teardown;
     static uint32_t        g_Finalizes;
     static uint32_t        g_LateFinalizes;
@@ -100,8 +105,19 @@ namespace dmRecord
         }
         else
         {
-            const char contents[] = "standalone recording test\n";
-            fwrite(contents, 1, sizeof(contents) - 1, file);
+            if (g_LargeRecording)
+            {
+                uint8_t contents[65536];
+                for (uint32_t i = 0; i < sizeof(contents); ++i)
+                    contents[i] = (uint8_t)i;
+                for (uint32_t i = 0; i < 16; ++i)
+                    fwrite(contents, 1, sizeof(contents), file);
+            }
+            else
+            {
+                const char contents[] = "standalone recording test\n";
+                fwrite(contents, 1, sizeof(contents) - 1, file);
+            }
             fclose(file);
             g_Status.m_Active = true;
             g_Status.m_Width = 320;
@@ -134,6 +150,13 @@ namespace dmRecord
 } // namespace dmRecord
 
 static bool                   g_Quit;
+static bool                   g_PauseUpdates;
+static uint64_t               g_Updates;
+static dmThread::TlsKey        g_UpdateThread;
+static int32_atomic_t         g_StreamBytes;
+static int32_atomic_t         g_StreamClosed;
+static int32_atomic_t         g_StreamOnUpdate;
+static int32_atomic_t         g_StreamOversizedReads;
 static dmWebServer::HServer   g_Server;
 static const char*            g_Directory;
 static dmExtension::AppParams g_AppParams;
@@ -212,10 +235,40 @@ static void SendLifecycle(dmWebServer::Request* request)
     dmWebServer::Send(request, body, (uint32_t)strlen(body));
 }
 
+struct TestStream
+{
+    uint32_t m_Offset;
+    uint32_t m_ReadLimit;
+    uint32_t m_FailAfter;
+};
+
+static uint32_t ReadTestStream(void* context, void* buffer, uint32_t size)
+{
+    TestStream* stream = (TestStream*)context;
+    if (dmThread::GetTlsValue(g_UpdateThread))
+        dmAtomicIncrement32(&g_StreamOnUpdate);
+    if (size > 65536)
+        dmAtomicIncrement32(&g_StreamOversizedReads);
+    size = dmMath::Min(size, dmMath::Min(stream->m_ReadLimit, stream->m_FailAfter - stream->m_Offset));
+    for (uint32_t i = 0; i < size; ++i)
+        ((uint8_t*)buffer)[i] = (uint8_t)(stream->m_Offset + i);
+    stream->m_Offset += size;
+    dmAtomicAdd32(&g_StreamBytes, size);
+    return size;
+}
+
+static void CloseTestStream(void* context)
+{
+    delete (TestStream*)context;
+    dmAtomicIncrement32(&g_StreamClosed);
+}
+
 static void TestHandler(void*, dmWebServer::Request* request)
 {
     if (!strcmp(request->m_Resource, "/test/quit"))
         g_Quit = true;
+    else if (!strcmp(request->m_Resource, "/test/pause-updates"))
+        g_PauseUpdates = true;
     else if (!strcmp(request->m_Resource, "/test/fail-start"))
         dmRecord::g_FailStart = true;
     else if (!strcmp(request->m_Resource, "/test/unsupported"))
@@ -224,6 +277,47 @@ static void TestHandler(void*, dmWebServer::Request* request)
         dmRecord::g_NoWindow = true;
     else if (!strcmp(request->m_Resource, "/test/audio-support"))
         dmRecord::g_AudioSupported = true;
+    else if (!strcmp(request->m_Resource, "/test/large-recording"))
+        dmRecord::g_LargeRecording = true;
+    else if (!strcmp(request->m_Resource, "/test/large-response"))
+    {
+        uint8_t data[65536];
+        for (uint32_t i = 0; i < sizeof(data); ++i)
+            data[i] = (uint8_t)i;
+        for (uint32_t i = 0; i < 16; ++i)
+        {
+            if (dmWebServer::Send(request, data, sizeof(data)) != dmWebServer::RESULT_OK)
+                break;
+        }
+    }
+    else if (!strncmp(request->m_Resource, "/test/stream/", 13))
+    {
+        TestStream* stream = new TestStream();
+        const char* limit = dmWebServer::GetHeader(request, "X-Test-Read-Limit");
+        const char* fail = dmWebServer::GetHeader(request, "X-Test-Fail-After");
+        stream->m_ReadLimit = limit ? (uint32_t)strtoul(limit, 0, 10) : UINT32_MAX;
+        stream->m_FailAfter = fail ? (uint32_t)strtoul(fail, 0, 10) : UINT32_MAX;
+        uint64_t length = strtoull(request->m_Resource + 13, 0, 10);
+        if (dmWebServer::SendStream(request, length, ReadTestStream, CloseTestStream, stream) != dmWebServer::RESULT_OK)
+        {
+            CloseTestStream(stream);
+            dmWebServer::SetStatusCode(request, 500);
+        }
+    }
+    else if (!strcmp(request->m_Resource, "/test/stream-stats"))
+    {
+        char body[160];
+        dmSnPrintf(body, sizeof(body), "{\"bytes\":%d,\"closed\":%d,\"on_update\":%d,\"oversized_reads\":%d}",
+            dmAtomicGet32(&g_StreamBytes), dmAtomicGet32(&g_StreamClosed),
+            dmAtomicGet32(&g_StreamOnUpdate), dmAtomicGet32(&g_StreamOversizedReads));
+        dmWebServer::Send(request, body, (uint32_t)strlen(body));
+    }
+    else if (!strcmp(request->m_Resource, "/test/updates"))
+    {
+        char body[64];
+        dmSnPrintf(body, sizeof(body), "{\"updates\":%llu}", (unsigned long long)g_Updates);
+        dmWebServer::Send(request, body, (uint32_t)strlen(body));
+    }
     else if (!strcmp(request->m_Resource, "/test/replace-recording"))
     {
         // A non-HTTP caller stops the service recording and immediately starts
@@ -250,6 +344,7 @@ static void TestHandler(void*, dmWebServer::Request* request)
         dmRecord::g_FailStart = false;
         dmRecord::g_NoWindow = false;
         dmRecord::g_AudioSupported = false;
+        dmRecord::g_LargeRecording = false;
         dmRecord::g_Teardown = false;
         dmRecord::g_Finalizes = 0;
         dmRecord::g_LateFinalizes = 0;
@@ -305,9 +400,14 @@ int main(int argc, char** argv)
     g_Directory = argv[1];
 #endif
     dmSocket::Initialize();
+    g_UpdateThread = dmThread::AllocTls();
+    dmThread::SetTlsValue(g_UpdateThread, &g_Updates);
     dmRecord::g_Mutex = dmMutex::New();
     dmWebServer::NewParams params;
     params.m_Port = 0;
+    const char* connection_timeout = getenv("DEFOLD_RECORD_TEST_CONNECTION_TIMEOUT");
+    if (connection_timeout)
+        params.m_ConnectionTimeout = (uint16_t)strtoul(connection_timeout, 0, 10);
     if (dmWebServer::New(&params, &g_Server) != dmWebServer::RESULT_OK)
         return 3;
     dmWebServer::HandlerParams handler;
@@ -328,12 +428,21 @@ int main(int argc, char** argv)
     {
         dmWebServer::Update(g_Server);
         dmRecord::Update();
+        ++g_Updates;
+        if (g_PauseUpdates)
+        {
+            printf("RECORD_TEST_PAUSED\n");
+            fflush(stdout);
+            getchar();
+            g_PauseUpdates = false;
+        }
     }
     EngineDelete();
     FinalizeExtensions();
     ExtensionParamsFinalize(&g_Params);
     ExtensionAppParamsFinalize(&g_AppParams);
     dmWebServer::Delete(g_Server);
+    dmThread::FreeTls(g_UpdateThread);
     dmMutex::Delete(dmRecord::g_Mutex);
     dmSocket::Finalize();
     return 0;

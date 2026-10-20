@@ -379,6 +379,12 @@ namespace dmWebServer
         return TranslateResult(r);
     }
 
+    Result SendStream(Request* request, uint64_t length, StreamRead read, StreamClose close, void* context)
+    {
+        InternalRequest* internal_request = (InternalRequest*)request->m_Internal;
+        return TranslateResult(dmHttpServer::SendStream(internal_request->m_Request, length, read, close, context));
+    }
+
     Result Receive(Request* request, void* buffer, uint32_t buffer_size, uint32_t* received_bytes)
     {
         InternalRequest* internal_request = (InternalRequest*) request->m_Internal;

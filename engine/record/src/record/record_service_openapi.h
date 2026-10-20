@@ -256,16 +256,26 @@ namespace dmRecord
         {
           "name": "Range",
           "in": "header",
-          "required": true,
+          "required": false,
           "schema": {"type": "string"},
           "example": "bytes=0-1023",
-          "description": "Closed inclusive byte range of at most 1 MiB. File size and SHA-256 are in the status receipt."
+          "description": "Optional closed inclusive byte range within the file. Omit to stream the whole MP4. File size and SHA-256 are in the status receipt."
         }
       ],
       "responses": {
+        "200": {
+          "description": "Complete MP4 streamed with a bounded buffer; verify its size and SHA-256 against the status receipt.",
+          "headers": {
+            "Content-Length": {"schema": {"type": "integer"}},
+            "Accept-Ranges": {"schema": {"type": "string"}},
+            "ETag": {"schema": {"type": "string"}}
+          },
+          "content": {"video/mp4": {"schema": {"type": "string", "format": "binary"}}}
+        },
         "206": {
           "description": "MP4 bytes; verify the assembled file against its SHA-256.",
           "headers": {
+            "Content-Length": {"schema": {"type": "integer"}},
             "Content-Range": {"schema": {"type": "string"}},
             "Accept-Ranges": {"schema": {"type": "string"}},
             "ETag": {"schema": {"type": "string"}}
@@ -285,7 +295,7 @@ namespace dmRecord
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "416": {
-          "description": "Range is missing, invalid or larger than 1 MiB.",
+          "description": "Range is invalid or outside the file.",
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1recording~1status/get/responses/400/content/application~1json/schema"}}}
         },
         "500": {

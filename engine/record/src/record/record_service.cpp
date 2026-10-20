@@ -53,6 +53,13 @@ namespace dmRecord
         dmMutex::HMutex  m_Mutex;
         dmThread::Thread m_Worker;
         FileState        m_State;
+        uint32_t         m_References;
+    };
+
+    struct FileDownload
+    {
+        FILE*          m_Input;
+        RecordingFile* m_File;
     };
 
     static dmWebServer::HServer    g_Server;
@@ -74,16 +81,45 @@ namespace dmRecord
 #endif
     }
 
+    static void ReleaseFile(RecordingFile* file)
+    {
+        bool released;
+        {
+            dmMutex::ScopedLock lock(file->m_Mutex);
+            released = --file->m_References == 0;
+        }
+        if (released)
+        {
+            FileRemove(file->m_Path);
+            dmMutex::Delete(file->m_Mutex);
+            delete file;
+        }
+    }
+
+    static uint32_t ReadDownload(void* context, void* buffer, uint32_t size)
+    {
+        FileDownload* download = (FileDownload*)context;
+        return (uint32_t)fread(buffer, 1, size, download->m_Input);
+    }
+
+    static void CloseDownload(void* context)
+    {
+        FileDownload* download = (FileDownload*)context;
+        fclose(download->m_Input);
+        ReleaseFile(download->m_File);
+        delete download;
+    }
+
     static void DeleteFile(uint32_t index)
     {
         RecordingFile* file = g_Files[index];
         JoinWorker(file->m_Worker);
-        FileRemove(file->m_Path);
-        dmMutex::Delete(file->m_Mutex);
         if (g_CurrentFile == file)
             g_CurrentFile = 0;
-        delete file;
         g_Files.EraseSwap(index);
+        // Hide the receipt immediately. An active download keeps the file alive
+        // until its worker closes it, including on Windows and during reboot.
+        ReleaseFile(file);
     }
 
     static void PrepareFile(void* arg)
@@ -393,12 +429,12 @@ namespace dmRecord
             return;
         }
         const char*        range = dmWebServer::GetHeader(request, "Range");
-        unsigned long long start = 0, end = 0;
+        unsigned long long start = 0, end = file->m_Size - 1;
         int                consumed = 0;
-        if (!range || sscanf(range, "bytes=%llu-%llu%n", &start, &end, &consumed) != 2 || range[consumed] ||
-            end < start || start >= file->m_Size || end >= file->m_Size || end - start >= 1024 * 1024)
+        if (range && (sscanf(range, "bytes=%llu-%llu%n", &start, &end, &consumed) != 2 || range[consumed] ||
+                      end < start || start >= file->m_Size || end >= file->m_Size))
         {
-            Error(request, 416, "invalid_range", "provide a closed byte range of at most 1 MiB within the file");
+            Error(request, 416, "invalid_range", "provide a closed byte range within the file");
             return;
         }
         FILE* input = FileOpen(file->m_Path, "rb");
@@ -414,24 +450,25 @@ namespace dmRecord
             Error(request, 500, "file_unavailable", "cannot read recording file");
             return;
         }
-        char content_range[100];
-        dmSnPrintf(content_range, sizeof(content_range), "bytes %llu-%llu/%llu", start, end, (unsigned long long)file->m_Size);
-        dmWebServer::SetStatusCode(request, 206);
+        dmWebServer::SetStatusCode(request, range ? 206 : 200);
         dmWebServer::SendAttribute(request, "Content-Type", "video/mp4");
-        dmWebServer::SendAttribute(request, "Content-Range", content_range);
+        if (range)
+        {
+            char content_range[100];
+            dmSnPrintf(content_range, sizeof(content_range), "bytes %llu-%llu/%llu", start, end, (unsigned long long)file->m_Size);
+            dmWebServer::SendAttribute(request, "Content-Range", content_range);
+        }
         dmWebServer::SendAttribute(request, "Accept-Ranges", "bytes");
         dmWebServer::SendAttribute(request, "ETag", file->m_Sha256);
-        uint8_t  buffer[65536];
-        uint64_t remaining = end - start + 1;
-        while (remaining)
+        FileDownload* download = new FileDownload;
+        download->m_Input = input;
+        download->m_File = file;
         {
-            uint32_t count = remaining < sizeof(buffer) ? (uint32_t)remaining : sizeof(buffer);
-            size_t   read = fread(buffer, 1, count, input);
-            if (!read || dmWebServer::Send(request, buffer, (uint32_t)read) != dmWebServer::RESULT_OK)
-                break;
-            remaining -= read;
+            dmMutex::ScopedLock lock(file->m_Mutex);
+            ++file->m_References;
         }
-        fclose(input);
+        if (dmWebServer::SendStream(request, end - start + 1, ReadDownload, CloseDownload, download) != dmWebServer::RESULT_OK)
+            CloseDownload(download);
     }
 
     static void Handler(void*, dmWebServer::Request* request)
@@ -604,6 +641,7 @@ namespace dmRecord
             return;
         }
         recording->m_Mutex = dmMutex::New();
+        recording->m_References = 1;
         recording->m_OperationId = status.m_Id;
         recording->m_State = FILE_RECORDING;
         if (g_Files.Full())

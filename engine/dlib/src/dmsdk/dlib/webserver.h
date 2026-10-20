@@ -169,6 +169,8 @@ namespace dmWebServer
     const char* GetHeader(Request* request, const char* name);
 
     /*# Send response data
+     * Copies data into an owned response sent asynchronously after the handler returns.
+     * Socket errors are handled by the server; RESULT_OK means the data was queued.
      * @name Send
      * @param request [type:Request] Request handle
      * @param data [type:void*] Data to send
