@@ -7,14 +7,17 @@ project(defold_record LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 set(RECORD_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(RECORD_SRC_DIR "${RECORD_ROOT}/src/record")
 
-defold_add_library(record_null STATIC src/record/record_null.cpp src/record/record_common.cpp)
-target_include_directories(record_null PUBLIC "${RECORD_ROOT}/src")
-defold_target_link_libraries(record_null "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
-set_target_properties(record_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET record_sdk_headers)
-set(RECORD_INSTALL_TARGETS record_null)
-
+set(RECORD_INSTALL_TARGETS)
 defold_feature_disabled(record RECORD_FEATURE_DISABLED)
 if(NOT RECORD_FEATURE_DISABLED AND TARGET_PLATFORM MATCHES "(macos|linux|win32)$")
+  defold_add_library(record_script STATIC src/record/record_script_extension.cpp)
+  target_include_directories(record_script PUBLIC "${RECORD_ROOT}/src")
+  defold_target_link_libraries(record_script "${TARGET_PLATFORM}" SCOPE PUBLIC script extension dlib)
+  defold_target_link_lua(record_script "${TARGET_PLATFORM}" SCOPE PUBLIC)
+  if(TARGET graphics_sdk_headers)
+    add_dependencies(record_script graphics_sdk_headers)
+  endif()
+
   defold_add_library(record STATIC src/record/record.cpp src/record/record_common.cpp)
   target_include_directories(record PUBLIC "${RECORD_ROOT}/src")
   defold_target_link_libraries(record "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
@@ -34,29 +37,26 @@ if(NOT RECORD_FEATURE_DISABLED AND TARGET_PLATFORM MATCHES "(macos|linux|win32)$
       PROPERTIES COMPILE_OPTIONS "$<IF:$<CXX_COMPILER_ID:MSVC>,/std:c++17,-std=c++17>")
     target_link_libraries(record PUBLIC dxgi dwmapi mfuuid ole32)
   endif()
-  list(APPEND RECORD_INSTALL_TARGETS record)
-endif()
-
-# The service is independently linkable with either the native or null backend.
-# Release engines omit this library; headless debug engines can report unsupported.
-if(NOT RECORD_FEATURE_DISABLED AND TARGET_PLATFORM MATCHES "(macos|linux|win32)$")
+  # Desktop debug engines link the service and Lua API with the native backend.
   defold_add_library(record_service STATIC
     src/record/record_service.cpp src/record/record_file.cpp src/record/record_extension.cpp)
   target_include_directories(record_service PUBLIC "${RECORD_ROOT}/src")
   defold_target_link_libraries(record_service "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
-  list(APPEND RECORD_INSTALL_TARGETS record_service)
+  list(APPEND RECORD_INSTALL_TARGETS record record_script record_service)
 endif()
 
 foreach(target IN LISTS RECORD_INSTALL_TARGETS)
   target_compile_definitions(${target} PRIVATE DLIB_LOG_DOMAIN="RECORD")
 endforeach()
-defold_install_targets(TARGETS ${RECORD_INSTALL_TARGETS}
-  ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
-  LIBRARY DESTINATION lib/${TARGET_PLATFORM}
-  RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+if(RECORD_INSTALL_TARGETS)
+  defold_install_targets(TARGETS ${RECORD_INSTALL_TARGETS}
+    ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
+    LIBRARY DESTINATION lib/${TARGET_PLATFORM}
+    RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+endif()
 defold_add_sdk_headers_target(record_sdk_headers
   DESTINATION include/record FILES "${RECORD_SRC_DIR}/record.h"
-  DEPENDS record_null dlib_sdk_headers)
+  DEPENDS dlib_sdk_headers)
 install(FILES "${RECORD_SRC_DIR}/record.h" DESTINATION include/record)
 
 if(BUILD_TESTS)

@@ -374,11 +374,11 @@
 
 (def record-setting
   (make-check-box-setting
-    (coll/into-> [(exclude-libs-toggles all-platforms ["record"])
+    (coll/into-> [(exclude-libs-toggles all-platforms ["record" "record_script"])
                   (exclude-libs-toggles desktop ["record_service"])
                   (exclude-libs-toggles linux ["openh264"])
-                  (generic-contains-toggles desktop :excludeSymbols ["EngineRecord"])
-                  (libs-toggles all-platforms ["record_null"])]
+                  (generic-contains-toggles all-platforms :excludeSymbols ["ScriptRecord"])
+                  (generic-contains-toggles desktop :excludeSymbols ["EngineRecord"])]
       []
       cat)))
 
@@ -833,7 +833,7 @@
                     manifest
                     [:excludeLibs :libs :engineLibs]))
           manifest
-          (conj windows :win32)))
+          (conj windows :win32 :x86-win32)))
 
 (defn- migrate-mobile-library-names [manifest]
   (reduce (fn [manifest platform]
@@ -917,24 +917,42 @@
                            platforms
                            platforms))))))
 
+(defn- recording-library-name [library]
+  (let [library-name (get AppManifestMigration/WINDOWS_LIBRARY_NAMES library)]
+    (#{"record" "record_null" "record_script" "record_service"} library-name)))
+
 (defn- migrate-record-context [context platform]
-  ;; The old recording toggle excluded record and VPX together. Preserve that
-  ;; choice after splitting out the service and replacing the encoder.
-  (let [excluded-libraries (:excludeLibs context)
+  ;; The null backend was removed. Explicit selections now exclude recording,
+  ;; as do the legacy VPX toggle and its native-recorder migration.
+  (let [excluded-libraries (mapv #(or (recording-library-name %) %) (:excludeLibs context))
+        excluded-library-names (set excluded-libraries)
         excluded-symbols (:excludeSymbols context)
-        obsolete #{"vpx" "vpx.lib" "libvpx" "libvpx.lib"}]
-    (if-not (and (coll/any? #{"record" "record.lib" "librecord" "librecord.lib"}
-                            excluded-libraries)
-                 (coll/any? obsolete excluded-libraries))
-      context
-      (let [common-platform (or (nil? platform) (= :common platform))
-            linux-platform (or common-platform (= :linux platform) (linux platform))
+        obsolete #{"vpx" "vpx.lib" "libvpx" "libvpx.lib"}
+        common-platform (or (nil? platform) (= :common platform))
+        linux-platform (or common-platform (= :linux platform) (linux platform))
 
-            desktop-platform
-            (or linux-platform (desktop platform) (#{:osx :win32 :x86-win32} platform))
+        desktop-platform
+        (or linux-platform (desktop platform) (#{:osx :win32 :x86-win32} platform))
 
-            required-libraries
-            (cond-> []
+        included-library-names
+        (coll/into-> [(:libs context) (:engineLibs context)]
+          #{}
+          (comp cat (keep recording-library-name)))
+
+        excludes-recording
+        (or (included-library-names "record_null")
+            (and (excluded-library-names "record")
+                 (or (coll/any? obsolete excluded-libraries)
+                     (excluded-library-names "record_null")
+                     (excluded-library-names "record_script")
+                     (and (excluded-library-names "record_service")
+                          (coll/any? #{"EngineRecord"} excluded-symbols)))))]
+    (if-not excludes-recording
+      (cond-> context
+        (excluded-library-names "record_null")
+        (update :excludeLibs #(coll/into-> % [] (remove (comp #{"record_null"} recording-library-name)))))
+      (let [required-libraries
+            (cond-> ["record" "record_script"]
               desktop-platform
               (conj "record_service")
 
@@ -942,13 +960,22 @@
               (conj "openh264"))
 
             libraries
-            (coll/into-> excluded-libraries [] (remove obsolete))]
-        (cond-> (assoc context
-                  :excludeLibs
-                  (coll/into-> required-libraries libraries
-                    (remove (set libraries))))
-          (and desktop-platform (coll/not-any? #{"EngineRecord"} excluded-symbols))
-          (assoc :excludeSymbols (conj (or excluded-symbols []) "EngineRecord")))))))
+            (coll/into-> excluded-libraries [] (remove (conj obsolete "record_null")))
+
+            required-symbols
+            (cond-> ["ScriptRecord"]
+              desktop-platform
+              (conj "EngineRecord"))]
+        (reduce (fn [context key]
+                  (if-let [libraries (get context key)]
+                    (assoc context key (coll/into-> libraries [] (remove recording-library-name)))
+                    context))
+                (assoc context
+                  :excludeLibs (coll/into-> required-libraries libraries (remove (set libraries)))
+                  :excludeSymbols (coll/into-> required-symbols
+                                    (or excluded-symbols [])
+                                    (remove (set excluded-symbols))))
+                [:libs :engineLibs])))))
 
 (defn- migrate-record-exclusions [manifest]
   (if-not (map? manifest)
@@ -963,9 +990,9 @@
                 ;; so the context migration only handles valid library lists.
                 (let [context (get-in manifest path)]
                   (if-not (and (map? context)
-                               (vector? (:excludeLibs context))
-                               (or (nil? (:excludeSymbols context))
-                                   (vector? (:excludeSymbols context))))
+                               (coll/every? #(or (nil? (get context %))
+                                                 (vector? (get context %)))
+                                            [:excludeLibs :excludeSymbols :libs :engineLibs]))
                     manifest
                     (assoc-in manifest path
                               (migrate-record-context context platform)))))

@@ -483,6 +483,12 @@ public class ExtenderUtil {
         return modified;
     }
 
+    private static String recordingLibraryName(Object library) {
+        String name = AppManifestMigration.WINDOWS_LIBRARY_NAMES.get(library);
+        return name != null && List.of("record", "record_null", "record_script", "record_service").contains(name)
+                ? name : null;
+    }
+
     @SuppressWarnings("unchecked")
     private static boolean migrateRecordExclusions(Object contextValue, Object platform) {
         if (!(contextValue instanceof Map<?, ?>)) {
@@ -491,42 +497,94 @@ public class ExtenderUtil {
         Map<String, Object> context = (Map<String, Object>) contextValue;
         Object excludedLibrariesValue = context.get("excludeLibs");
         Object excludedSymbolsValue = context.get("excludeSymbols");
-        if (!(excludedLibrariesValue instanceof List<?>)
+        if ((excludedLibrariesValue != null && !(excludedLibrariesValue instanceof List<?>))
                 || (excludedSymbolsValue != null && !(excludedSymbolsValue instanceof List<?>))) {
             return false;
         }
-
-        // Match the legacy toggle, leaving intentional null-backend service
-        // configurations and unrelated VPX libraries alone.
-        List<?> excludedLibraries = (List<?>) excludedLibrariesValue;
-        List<String> obsolete = Arrays.asList("vpx", "vpx.lib", "libvpx", "libvpx.lib");
-        if (Collections.disjoint(excludedLibraries, Arrays.asList("record", "record.lib", "librecord", "librecord.lib"))
-                || Collections.disjoint(excludedLibraries, obsolete)) {
-            return false;
+        for (String key : List.of("libs", "engineLibs")) {
+            Object value = context.get(key);
+            if (value != null && !(value instanceof List<?>)) {
+                return false;
+            }
         }
 
+        List<?> excludedLibraries = excludedLibrariesValue == null ? List.of() : (List<?>) excludedLibrariesValue;
+        List<String> obsolete = Arrays.asList("vpx", "vpx.lib", "libvpx", "libvpx.lib");
         boolean common = platform == null || "common".equals(platform);
         boolean linux = common || List.of("linux", "x86_64-linux", "arm64-linux").contains(platform);
         boolean desktop = linux || List.of("osx", "x86_64-osx", "arm64-osx", "win32", "x86-win32", "x86_64-win32").contains(platform);
-        List<Object> libraries = new ArrayList<>(excludedLibraries);
+        List<Object> libraries = new ArrayList<>(excludedLibraries.size());
+        for (Object library : excludedLibraries) {
+            String name = recordingLibraryName(library);
+            libraries.add(name == null ? library : name);
+        }
+        List<Object> symbols = excludedSymbolsValue == null
+                ? new ArrayList<>()
+                : new ArrayList<>((List<?>) excludedSymbolsValue);
+        boolean includesNullBackend = false;
+        for (String key : List.of("libs", "engineLibs")) {
+            if (context.get(key) instanceof List<?> includedLibraries) {
+                for (Object library : includedLibraries) {
+                    includesNullBackend |= "record_null".equals(recordingLibraryName(library));
+                }
+            }
+        }
+
+        // The null backend was removed. Explicit selections now exclude recording,
+        // as do the legacy VPX toggle and its native-recorder migration.
+        boolean excludesRecording = includesNullBackend || (libraries.contains("record")
+                && (!Collections.disjoint(excludedLibraries, obsolete)
+                    || libraries.contains("record_null")
+                    || libraries.contains("record_script")
+                    || (libraries.contains("record_service") && symbols.contains("EngineRecord"))));
+        if (!excludesRecording) {
+            List<Object> remaining = new ArrayList<>(excludedLibraries);
+            if (remaining.removeIf(library -> "record_null".equals(recordingLibraryName(library)))) {
+                context.put("excludeLibs", remaining);
+                return true;
+            }
+            return false;
+        }
+
         libraries.removeAll(obsolete);
+        libraries.removeIf("record_null"::equals);
+        for (String library : List.of("record", "record_script")) {
+            if (!libraries.contains(library)) {
+                libraries.add(library);
+            }
+        }
         if (desktop && !libraries.contains("record_service")) {
             libraries.add("record_service");
         }
         if (linux && !libraries.contains("openh264")) {
             libraries.add("openh264");
         }
-        context.put("excludeLibs", libraries);
-        if (desktop) {
-            List<Object> symbols = excludedSymbolsValue == null
-                    ? new ArrayList<>()
-                    : new ArrayList<>((List<?>) excludedSymbolsValue);
-            if (!symbols.contains("EngineRecord")) {
-                symbols.add("EngineRecord");
-                context.put("excludeSymbols", symbols);
+        if (!symbols.contains("ScriptRecord")) {
+            symbols.add("ScriptRecord");
+        }
+        if (desktop && !symbols.contains("EngineRecord")) {
+            symbols.add("EngineRecord");
+        }
+
+        boolean modified = false;
+        if (!excludedLibraries.equals(libraries)) {
+            context.put("excludeLibs", libraries);
+            modified = true;
+        }
+        if (!symbols.equals(excludedSymbolsValue)) {
+            context.put("excludeSymbols", symbols);
+            modified = true;
+        }
+        for (String key : List.of("libs", "engineLibs")) {
+            if (context.get(key) instanceof List<?> includedLibraries) {
+                List<Object> remaining = new ArrayList<>(includedLibraries);
+                if (remaining.removeIf(library -> recordingLibraryName(library) != null)) {
+                    context.put(key, remaining);
+                    modified = true;
+                }
             }
         }
-        return true;
+        return modified;
     }
 
     // Migrate legacy app manifest settings before upload, even without opening

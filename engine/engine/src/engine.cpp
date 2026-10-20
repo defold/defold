@@ -67,13 +67,6 @@
 #include <profiler/profiler.h>
 #include <platform/window.hpp>
 #include <script/sys_ddf.h>
-#include <record/record.h>
-#include <record/record_script.h>
-#if defined(DM_PLATFORM_LINUX)
-    #include <record/record_private.h>
-#elif defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_WINDOWS)
-    #include <dmsdk/graphics/graphics_native.h>
-#endif
 #include <liveupdate/liveupdate.h>
 
 #if defined(_WIN32)
@@ -523,8 +516,6 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
-        // Stop capture and release Lua callbacks before scripts, sound or the window.
-        dmRecord::FinalizeScript();
         {
             ScopedExtensionParams params(engine);
 
@@ -1436,17 +1427,6 @@ namespace dmEngine
 
         engine->m_ScriptContext = dmScript::NewContext(script_params);
         dmScript::Initialize(engine->m_ScriptContext);
-        {
-            void* recording_window = 0;
-#if defined(DM_PLATFORM_MACOS)
-            recording_window = (void*)dmGraphics::GetNativeOSXNSWindow();
-#elif defined(DM_PLATFORM_WINDOWS)
-            recording_window = (void*)dmGraphics::GetNativeWindowsHWND();
-#elif defined(DM_PLATFORM_LINUX)
-            recording_window = (void*)engine->m_GraphicsContext;
-#endif
-            dmRecord::InitializeScript(dmScript::GetLuaState(engine->m_ScriptContext), recording_window);
-        }
         PopulateContextRegistry(engine);
         extension_params.SetLuaContext(engine->m_ScriptContext);
         dmExtension::Initialize(extension_params);
@@ -2090,8 +2070,6 @@ bail:
                     dmScript::Update(engine->m_ScriptContext);
                     extension_params.SetLuaContext(engine->m_ScriptContext);
                     dmExtension::Update(extension_params);
-                    dmRecord::Update();
-                    dmRecord::UpdateScript();
                 }
 
                 bool esc_pressed = false;
@@ -2224,9 +2202,6 @@ bail:
                 {
                     ScopedExtensionParams ext_params(engine);
                     dmExtension::PostRender(ext_params);
-#if defined(DM_PLATFORM_LINUX)
-                    dmRecord::CaptureFrame();
-#endif
                 }
 
                 dmGraphics::Flip(engine->m_GraphicsContext);

@@ -12,18 +12,29 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_RECORD_SCRIPT_H
-#define DM_RECORD_SCRIPT_H
+#ifndef DM_RECORD_WINDOW_H
+#define DM_RECORD_WINDOW_H
 
-struct lua_State;
+#if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_WINDOWS)
+#include <dmsdk/graphics/graphics_native.h>
+#elif defined(DM_PLATFORM_LINUX)
+#include <dmsdk/graphics/graphics.h>
+#endif
 
 namespace dmRecord
 {
-    void InitializeScript(lua_State* L, void* native_window);
-    // Dispatch callbacks after the host has called dmRecord::Update().
-    void UpdateScript();
-    // Discard callbacks and join capture before Lua, sound and window teardown.
-    void FinalizeScript();
+    static inline void* GetRecordingWindow()
+    {
+#if defined(DM_PLATFORM_MACOS)
+        return (void*)dmGraphics::GetNativeOSXNSWindow();
+#elif defined(DM_PLATFORM_WINDOWS)
+        return (void*)dmGraphics::GetNativeWindowsHWND();
+#elif defined(DM_PLATFORM_LINUX)
+        return (void*)dmGraphics::GetInstalledContext();
+#else
+        return 0;
+#endif
+    }
 }
 
 #endif

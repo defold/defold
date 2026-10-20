@@ -13,7 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include "record_private.h"
-#include "record_script.h"
+#include "record_window.h"
+#include <dmsdk/extension/extension.hpp>
 #include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/script/script.h>
 #include <math.h>
@@ -24,9 +25,11 @@
  * Record the game window to an MP4 file. One recording may run at a time,
  * shared with the engine's HTTP recording service.
  *
- * Recording is supported by desktop debug engines. Unsupported builds return
- * an error from [ref:recorder.start]. Application audio support depends on the
- * platform; audio is disabled by default.
+ * Recording is supported by desktop debug engines. The module is omitted from
+ * release, headless, mobile and web builds, and when recording is excluded through
+ * an app manifest. Unsupported desktop operating systems or capture environments
+ * return an error from [ref:recorder.start].
+ * Application audio support depends on the platform; audio is disabled by default.
  *
  * @document
  * @name Video recording
@@ -265,7 +268,7 @@ namespace dmRecord
         dmScript::TeardownCallback(callback);
     }
 
-    void UpdateScript()
+    static void UpdateCallbacks()
     {
         if (!g_Callback)
             return;
@@ -292,8 +295,9 @@ namespace dmRecord
         }
     }
 
-    void InitializeScript(lua_State* L, void* native_window)
+    static dmExtension::Result Initialize(dmExtension::Params* params)
     {
+        lua_State* L = params->m_L;
         DM_LUA_STACK_CHECK(L, 0);
         const luaL_Reg methods[] = {{"start", ScriptStart}, {"stop", ScriptStop}, {0, 0}};
         luaL_register(L, "recorder", methods);
@@ -304,12 +308,13 @@ namespace dmRecord
         lua_pushinteger(L, EVENT_ERROR);
         lua_setfield(L, -2, "EVENT_ERROR");
         lua_pop(L, 1);
-        g_Window = native_window;
+        g_Window = GetRecordingWindow();
         AddStatusListener(&g_Listener);
         g_Initialized = true;
+        return dmExtension::RESULT_OK;
     }
 
-    void FinalizeScript()
+    static void FinalizeScript()
     {
         g_Initialized = false;
         RemoveStatusListener(&g_Listener);
@@ -321,4 +326,53 @@ namespace dmRecord
         Finalize();
         g_Window = 0;
     }
+
+#if defined(DM_PLATFORM_LINUX)
+    static ExtensionResult PostRender(dmExtension::Params*)
+    {
+        CaptureFrame();
+        return EXTENSION_RESULT_OK;
+    }
+#endif
+
+    static dmExtension::Result AppInitialize(dmExtension::AppParams*)
+    {
+#if defined(DM_PLATFORM_LINUX)
+        // ScriptRecord is registered first, so its post-render callback runs last.
+        dmExtension::RegisterCallback(dmExtension::CALLBACK_POST_RENDER, PostRender);
+#endif
+        return dmExtension::RESULT_OK;
+    }
+
+    static dmExtension::Result UpdateExtension(dmExtension::Params*)
+    {
+        Update();
+        UpdateCallbacks();
+        return dmExtension::RESULT_OK;
+    }
+
+    static void OnEvent(dmExtension::Params*, const dmExtension::Event* event)
+    {
+        if (event->m_Event == EXTENSION_EVENT_ID_ENGINE_DELETE)
+        {
+            // Stop capture and release callbacks before scripts, sound or the window.
+            FinalizeScript();
+        }
+    }
+
+    static dmExtension::Result FinalizeExtension(dmExtension::Params*)
+    {
+        // Also support hosts that do not send ENGINE_DELETE.
+        FinalizeScript();
+        return dmExtension::RESULT_OK;
+    }
+
+    static dmExtension::Result AppFinalize(dmExtension::AppParams*)
+    {
+        // Also handles initialization failures before a Lua context exists.
+        FinalizeScript();
+        return dmExtension::RESULT_OK;
+    }
 }
+
+DM_DECLARE_EXTENSION(ScriptRecord, "ScriptRecord", dmRecord::AppInitialize, dmRecord::AppFinalize, dmRecord::Initialize, dmRecord::UpdateExtension, dmRecord::OnEvent, dmRecord::FinalizeExtension)

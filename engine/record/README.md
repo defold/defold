@@ -7,17 +7,19 @@ work on `automation-bridge-in` at `dc343a46f1`.
 ## Libraries and lifetime
 
 - `record`: asynchronous capture and H.264/MP4 backends.
-- `record_null`: the same C++ interface with recording reported as unsupported.
-- `record_script.cpp`: the Lua `recorder` module, compiled into the engine variants
-  and linked against their selected native or null backend.
+- `record_script`: the Lua `recorder` module and `ScriptRecord` built-in extension,
+  built from `record_script_extension.cpp`.
 - `record_service`: the `EngineRecord` built-in extension, HTTP handlers,
-  OpenAPI metadata, recording files and downloads. It works with either backend.
+  OpenAPI metadata, recording files and downloads.
 
 Debug desktop engines register the service through the existing extension and
 web-server registries. The handler registers its own Paths Object with
 `dmWebServer::AddHandler`, so `/openapi.json` discovers it automatically.
-Headless debug engines register the service with `record_null`. Release engines
-omit `record_service` and native capture dependencies.
+Release, headless, mobile and web engines omit all recording libraries and both
+extension symbols, including the Lua API, HTTP service and native capture
+dependencies. The same defaults apply to custom engines built through Extender.
+Excluding recording through an app manifest or the CMake feature option also
+omits all three libraries and both extensions.
 
 `record.h` exposes capabilities, `Start`, `Stop`, `Update`, `GetStatus`, and `Finalize`.
 There is one recording per process. Public calls run on the main thread; startup,
@@ -28,9 +30,13 @@ The host calls `Update` once per frame to poll native state, schedule automatic
 stops, restore the window and notify observers. `GetStatus` only copies the latest
 snapshot; HTTP requests and Lua callback dispatch do not advance capture.
 Explicit start/stop commands preserve completed receipts before replacing them.
-The engine calls `Update` before dispatching recording callbacks and finalizes
-capture before script, sound, render and window teardown. Linux reads the backbuffer
-after post-render extension callbacks and before `Flip`, independently of HTTP.
+`ScriptRecord` initializes the Lua module and obtains the recording window through
+the SDK. Its update callback calls `Update` before dispatching Lua callbacks, and
+its `ENGINE_DELETE` event handler finalizes capture before script, sound, render
+and window teardown. Linux reads the backbuffer in an SDK post-render callback,
+before `Flip`, independently of HTTP. CMake and Extender register `ScriptRecord`
+first: extension registration prepends callbacks, so capture runs after the other
+extensions' post-render drawing. Custom hosts must preserve that registration order.
 The service also handles `ENGINE_DELETE`; repeated finalization is safe.
 The C++ caller owns its output path; the HTTP service owns and cleans up its
 generated files.
@@ -40,7 +46,10 @@ generated files.
 The module exposes only `recorder.start(options, callback)` and `recorder.stop()`.
 Lua and HTTP share one recording: a second start fails while capture or
 finalization is pending. No recording ID or capability check is required.
-Unsupported builds provide the same functions and return an error.
+Desktop debug engines return an error when the operating system or capture
+environment is unsupported. The `recorder` module is absent from release,
+headless, mobile and web builds, and when Exclude Record is enabled in the
+app manifest.
 
 ```lua
 local ok, err = recorder.start({
@@ -142,10 +151,11 @@ within a process; stale stop IDs and deleted file IDs return HTTP 410.
 | Runtime | Backend | Audio |
 | --- | --- | --- |
 | macOS 15+ | ScreenCaptureKit | Application audio |
-| Windows 10 version 1903+ | Windows Graphics Capture and Media Foundation | Application audio on Windows build 20348+ |
+| Windows 10 version 1903+, OpenGL, DirectX 12 or Vulkan | Windows Graphics Capture and Media Foundation | Application audio on Windows build 20348+ |
 | Linux debug, OpenGL/OpenGL ES or Vulkan | Framebuffer capture, OpenH264 and minimp4 | Video only |
 | Headless debug | Null backend; capabilities and errors remain discoverable | Unsupported |
-| Release, mobile and web | No recording HTTP service | Unsupported |
+| Mobile and web debug | Null backend; no recording HTTP service | Unsupported |
+| Release | Recording libraries, Lua API and HTTP service omitted | Unavailable |
 
 OS availability does not guarantee permission or device support. Capture failures
 are reported asynchronously in the status receipt. ScreenCaptureKit is weakly
@@ -154,6 +164,14 @@ window's client area, excluding its title bar and borders. Windows crop geometry
 is measured in physical pixels regardless of the calling thread's DPI awareness.
 Windows copies the native client pixels into the encoder without resampling.
 A resized capture frame is discarded before the recording is finalized.
+
+Windows capture targets the engine's `HWND` through `CreateForWindow`, using a
+separate D3D11 device for the capture frame pool. It does not read the engine's
+graphics buffers. OpenGL, DirectX 12 and Vulkan all expose that same native
+window through the graphics SDK, so the capture path supports all three.
+Vulkan must be included and selected in the engine build. The native Windows
+tests below use a GDI window; live recording with each graphics adapter still
+requires an interactive Windows smoke test.
 
 Windows application audio uses WASAPI process loopback for the engine process and
 its children, with 48 kHz stereo PCM encoded to 128 kbit/s AAC in the MP4. It does
@@ -205,7 +223,7 @@ HTTP service. Automation clients can discover and call these routes directly.
 From the repository root with the usual Defold SDK configured:
 
 ```sh
-cmake --build engine/build/arm64-macos --target run_test_record run_test_record_script run_test_record_null run_test_record_timeline run_test_record_service
+cmake --build engine/build/arm64-macos --target run_test_record run_test_record_script run_test_record_timeline run_test_record_service
 ```
 
 The lifecycle suite uses controlled completion signals to cover repeated capture,
@@ -219,10 +237,12 @@ through the registered extension event callback. The timeline suite
 covers leading silence, gaps, overlapping packets, clipping at stop and rounding
 over long recordings.
 
-The Lua suite uses real script contexts and the asynchronous recorder with a
-controlled backend. It checks callback ordering, validation, busy/unsupported
-requests, start/stop/capture failures, resize, deletion, shutdown and callbacks
-that stop or restart recording. The service suite also verifies that a direct
+The Lua suite uses the registered extension, real script contexts and the
+asynchronous recorder with a controlled backend. It checks update and callback
+ordering without HTTP, validation, busy/unsupported requests, start/stop/capture
+failures, resize, deletion, early shutdown, reboot, initialization failure and
+callbacks that stop or restart recording. On Linux it also verifies capture after
+other post-render callbacks. The service suite also verifies that a direct
 caller can replace an HTTP recording without losing its completed file or
 transferring ownership of the caller's output to the service.
 
@@ -235,7 +255,7 @@ deadline rounding and drift.
 It does not require a display server. Run the focused targets with:
 
 ```sh
-cmake --build engine/build/arm64-linux --target run_test_record_linux run_test_record run_test_record_null run_test_record_service
+cmake --build engine/build/arm64-linux --target run_test_record_linux run_test_record run_test_record_service
 ```
 
 Set `DEFOLD_RECORD_TEST_OUTPUT` to a writable path when running the Linux test
@@ -257,23 +277,24 @@ DPI virtualization. The launcher plays a competing tone in another process
 so the silence cases also check application isolation. Completion uses playback
 and capture events; the native tests are excluded from the default CI test suite.
 
-Validated on arm64 macOS: recording, null, timeline and HTTP service suites;
-debug, headless and release engine builds; live debug/headless discovery; native
+Validated on arm64 macOS: recording, Lua, timeline and HTTP service suites;
+debug, headless and release engine builds; live debug discovery; native
 320×240 H.264 MP4 capture,
 ranged download, SHA-256, `ffprobe`, and normal engine exit with application audio
-recording active. Binary inspection confirmed that release omits the service/native
-backend and all three variants omit automation and VP8.
+recording active. Binary inspection confirmed that release and headless omit
+all recording libraries and extensions, and all three variants omit automation
+and VP8.
 
-Validated on x86_64 Windows 11 build 26200: recording, null, timeline and HTTP
+Validated on x86_64 Windows 11 build 26200: recording, timeline and HTTP
 service suites, and the native recording suite using 320×240 H.264 video and
 48 kHz stereo AAC. Native decoding verifies synchronization, stream contents and
 client-area cropping at 150% display scaling across all three DPI awareness modes.
 The Windows sources also build with MSVC and the Windows SDK 10.0.20348.0.
 
-Validated in Ubuntu 24.04 containers on arm64 and x86_64: all 31 recording,
-null, timeline and HTTP service tests, with NEON and x86 assembly respectively.
+Validated in Ubuntu 24.04 containers on arm64 and x86_64: recording,
+timeline and HTTP service tests, with NEON and x86 assembly respectively.
 FFmpeg independently decodes the generated MP4s; ffprobe confirms H.264 I420
-video with no audio track. macOS recording, null, timeline and service regression
+video with no audio track. macOS recording, timeline and service regression
 suites also pass. These Linux tests supply framebuffer pixels through a test
 adapter; live OpenGL/OpenGL ES/Vulkan window capture and desktop performance
 still require an interactive Linux smoke test.

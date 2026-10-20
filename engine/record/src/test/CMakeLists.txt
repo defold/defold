@@ -21,16 +21,16 @@ endfunction()
 if(TARGET_PLATFORM MATCHES "(macos|linux|win32)$")
   record_test(test_record test_record.cpp ../record/record.cpp ../record/record_common.cpp)
   record_test(test_record_file test_record_file.cpp ../record/record_file.cpp ../record/record_common.cpp)
-  record_test(test_record_script test_record_script.cpp
-    ../record/record.cpp ../record/record_common.cpp ../record/record_script.cpp)
-  defold_target_link_libraries(test_record_script "${TARGET_PLATFORM}"
-    script resource extension ddf graphics_null platform_null image zip mbedtls)
-  defold_target_link_lua(test_record_script "${TARGET_PLATFORM}")
-  defold_target_link_socket(test_record_script "${TARGET_PLATFORM}")
-  defold_target_link_app(test_record_script "${TARGET_PLATFORM}")
+  if(TARGET record_script)
+    record_test(test_record_script test_record_script.cpp
+      ../record/record.cpp ../record/record_common.cpp)
+    defold_target_link_libraries(test_record_script "${TARGET_PLATFORM}"
+      record_script script resource extension ddf graphics_null platform_null image zip mbedtls)
+    defold_target_link_lua(test_record_script "${TARGET_PLATFORM}")
+    defold_target_link_socket(test_record_script "${TARGET_PLATFORM}")
+    defold_target_link_app(test_record_script "${TARGET_PLATFORM}")
+  endif()
 endif()
-record_test(test_record_null test_record_null.cpp)
-defold_target_link_libraries(test_record_null "${TARGET_PLATFORM}" record_null)
 record_test(test_record_timeline test_record_timeline.cpp)
 
 if(TARGET record AND TARGET_PLATFORM MATCHES "macos$")

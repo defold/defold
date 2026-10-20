@@ -18,21 +18,42 @@
 #include <dlib/dstrings.h>
 #include <dlib/mutex.h>
 #include <dlib/time.h>
+#include <extension/extension.hpp>
 #include <script/script.h>
 #include <record/record_private.h>
-#include <record/record_script.h>
 #include <string.h>
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
+#include <record/record_window.h>
+#if defined(DM_PLATFORM_LINUX)
+#include <graphics/graphics.h>
+extern "C" void GraphicsAdapterNull();
+#endif
+
+extern "C" void ScriptRecord();
 
 static dmMutex::HMutex g_Mutex;
 static dmRecord::Status g_NativeStatus;
+static void* g_NativeWindow = (void*)1;
 static bool g_Unsupported;
 static bool g_FailStart;
 static bool g_FailStop;
 static bool g_Resized;
+#if defined(DM_PLATFORM_LINUX)
+static uint32_t g_RenderedFrames;
+static uint32_t g_CapturedFrames;
+#endif
+
+namespace dmGraphics
+{
+#if defined(DM_PLATFORM_MACOS)
+    id GetNativeOSXNSWindow() { return (id)g_NativeWindow; }
+#elif defined(DM_PLATFORM_WINDOWS)
+    HWND GetNativeWindowsHWND() { return (HWND)g_NativeWindow; }
+#endif
+}
 
 // Real Lua and recorder workers, with a deterministic backend that needs no display.
 namespace dmRecord
@@ -40,8 +61,9 @@ namespace dmRecord
     bool IsSupported() { return !g_Unsupported; }
     bool IsAudioSupported() { return false; }
     const char* GetUnsupportedReason() { return "unsupported test backend"; }
-    bool GetWindow(void*, Window* window)
+    bool GetWindow(void* native_window, Window* window)
     {
+        EXPECT_EQ(g_NativeWindow, native_window);
         memset(window, 0, sizeof(*window));
         window->m_Width = g_Resized ? 640 : 320;
         window->m_Height = 240;
@@ -85,7 +107,30 @@ namespace dmRecord
         Status status;
         StopNative(&status);
     }
+#if defined(DM_PLATFORM_LINUX)
+    void CaptureFrame()
+    {
+        ASSERT_EQ(g_CapturedFrames + 1, g_RenderedFrames);
+        ++g_CapturedFrames;
+    }
+#endif
 }
+
+#if defined(DM_PLATFORM_LINUX)
+static ExtensionResult Render(dmExtension::Params*)
+{
+    ++g_RenderedFrames;
+    return EXTENSION_RESULT_OK;
+}
+
+static dmExtension::Result AppInitializeRenderer(dmExtension::AppParams*)
+{
+    dmExtension::RegisterCallback(dmExtension::CALLBACK_POST_RENDER, Render);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(RecordTestRenderer, "RecordRenderer", AppInitializeRenderer, 0, 0, 0, 0, 0)
+#endif
 
 struct ScriptInstance
 {
@@ -121,12 +166,33 @@ protected:
     ScriptInstance* m_Instance;
     int m_InstanceRef;
     int m_Refs;
+    dmExtension::AppParams m_AppParams;
+    dmExtension::Params m_Params;
+#if defined(DM_PLATFORM_LINUX)
+    HWindow m_Window;
+    dmGraphics::HContext m_GraphicsContext;
+#endif
 
     void SetUp()
     {
         g_Mutex = dmMutex::New();
         memset(&g_NativeStatus, 0, sizeof(g_NativeStatus));
         g_Unsupported = g_FailStart = g_FailStop = g_Resized = false;
+#if defined(DM_PLATFORM_LINUX)
+        g_RenderedFrames = g_CapturedFrames = 0;
+        WindowCreateParams window_params;
+        WindowCreateParamsInitialize(&window_params);
+        m_Window = WindowNew();
+        ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(m_Window, &window_params));
+        dmGraphics::ContextParams graphics_params;
+        graphics_params.m_Window = m_Window;
+        m_GraphicsContext = dmGraphics::NewContext(graphics_params);
+        ASSERT_NE((dmGraphics::HContext)0, m_GraphicsContext);
+        g_NativeWindow = (void*)m_GraphicsContext;
+#endif
+        ExtensionAppParamsInitialize(&m_AppParams);
+        ExtensionParamsInitialize(&m_Params);
+        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&m_AppParams));
         ASSERT_EQ(dmConfigFile::RESULT_OK, dmConfigFile::LoadFromBuffer("", 0, 0, 0, &m_Config));
         dmScript::ContextParams params = {};
         params.m_ConfigFile = m_Config;
@@ -153,7 +219,8 @@ protected:
         lua_pushvalue(m_L, -1);
         lua_setglobal(m_L, "expected_self");
         dmScript::SetInstance(m_L);
-        dmRecord::InitializeScript(m_L, (void*)1);
+        m_Params.m_L = m_L;
+        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Initialize(&m_Params));
         m_Refs = dmScript::GetLuaRefCount();
         ASSERT_TRUE(Run(
             "events = {}; results = {}; "
@@ -164,7 +231,7 @@ protected:
 
     void TearDown()
     {
-        dmRecord::FinalizeScript();
+        EngineDelete();
         ASSERT_EQ(m_Refs, dmScript::GetLuaRefCount());
         ASSERT_EQ(0, lua_gettop(m_L));
         lua_pushnil(m_L);
@@ -175,6 +242,31 @@ protected:
         dmScript::DeleteContext(m_Context);
         dmConfigFile::Delete(m_Config);
         dmMutex::Delete(g_Mutex);
+        g_Mutex = 0;
+        m_Params.m_L = 0;
+#if defined(DM_PLATFORM_LINUX)
+        dmGraphics::CloseWindow(m_GraphicsContext);
+        dmGraphics::DeleteContext(m_GraphicsContext);
+        WindowDelete(m_Window);
+        g_NativeWindow = 0;
+#endif
+        // Late extension cleanup must be safe after Lua and capture resources are gone.
+        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Finalize(&m_Params));
+        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppFinalize(&m_AppParams));
+        ExtensionParamsFinalize(&m_Params);
+        ExtensionAppParamsFinalize(&m_AppParams);
+    }
+
+    void UpdateExtension()
+    {
+        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Update(&m_Params));
+    }
+
+    void EngineDelete()
+    {
+        dmExtension::Event event;
+        event.m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
+        dmExtension::DispatchEvent(&m_Params, &event);
     }
 
     bool Run(const char* source)
@@ -215,33 +307,33 @@ TEST_F(RecordScriptTest, StartStop)
                    "assert(recorder.start({path='capture.mp4', fps=24}, callback)); assert(#events == 0)"));
     Complete();
     ASSERT_TRUE(Run("assert(#events == 0)"));
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 1 and events[1] == recorder.EVENT_STARTED); "
                    "assert(results[1].path == 'capture.mp4' and results[1].fps == 24); "
                    "assert(results[1].width == 320 and results[1].height == 240 and not results[1].audio); "
                    "assert(recorder.stop()); assert(#events == 1)"));
     Complete();
-    dmRecord::UpdateScript();
-    dmRecord::UpdateScript();
+    UpdateExtension();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_STOPPED)"));
 }
 
-// Lua callback dispatch must consume core notifications without independently polling or stopping capture.
-TEST_F(RecordScriptTest, DispatchDoesNotAdvanceRecording)
+// Extension updates advance recording before dispatching its Lua notifications, without an HTTP service.
+TEST_F(RecordScriptTest, UpdateBeforeCallbacks)
 {
     ASSERT_TRUE(Run("assert(recorder.start({path='capture.mp4'}, callback))"));
     Complete(false);
-    g_Resized = true;
-    dmRecord::UpdateScript();
-    dmRecord::UpdateScript();
     ASSERT_TRUE(Run("assert(#events == 0)"));
+    UpdateExtension();
+    ASSERT_TRUE(Run("assert(#events == 1 and events[1] == recorder.EVENT_STARTED)"));
+    g_Resized = true;
+    UpdateExtension();
+    Complete(false);
+    UpdateExtension();
     dmRecord::Status status;
     dmRecord::GetStatus(&status);
-    ASSERT_TRUE(status.m_Active);
+    ASSERT_FALSE(status.m_Active);
     ASSERT_FALSE(status.m_Pending);
-    dmRecord::Update();
-    Complete();
-    dmRecord::UpdateScript();
     ASSERT_TRUE(Run("assert(#events == 2 and events[1] == recorder.EVENT_STARTED and events[2] == recorder.EVENT_STOPPED)"));
 }
 
@@ -268,10 +360,10 @@ TEST_F(RecordScriptTest, HostPathEncoding)
         dmMutex::ScopedLock lock(g_Mutex);
         ASSERT_STREQ(expected, g_NativeStatus.m_Path);
     }
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 1 and results[1].path == output_path); assert(recorder.stop())"));
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_STOPPED); "
                    "assert(results[2].path == output_path)"));
 }
@@ -327,7 +419,7 @@ TEST_F(RecordScriptTest, ConflictingRequests)
     ASSERT_TRUE(Run("assert(recorder.stop())"));
     Complete();
     ASSERT_TRUE(Run("local ok, err = recorder.start({path='second.mp4'}, callback); assert(ok == nil and err)"));
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 2 and results[2].path == 'first.mp4')"));
 }
 
@@ -339,7 +431,7 @@ TEST_F(RecordScriptTest, Unsupported)
                    "assert(ok == nil and err == 'unsupported test backend')"));
     g_Unsupported = false;
     ASSERT_TRUE(Run("local ok, err = recorder.start({path='capture.mp4', audio=true}, callback); assert(ok == nil and err)"));
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 0)"));
 }
 
@@ -362,7 +454,7 @@ TEST_F(RecordScriptTest, GeneratedOptions)
                    "collectgarbage('collect'); return nil end}); "
                    "assert(recorder.start(options, callback))"));
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(results[1].path == string.rep('a', 100) .. '.mp4')"));
 }
 
@@ -372,13 +464,13 @@ TEST_F(RecordScriptTest, StartFailure)
     g_FailStart = true;
     ASSERT_TRUE(Run("assert(recorder.start({path='capture.mp4'}, callback))"));
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 1 and events[1] == recorder.EVENT_ERROR); "
                    "assert(results[1].error == 'permission denied' and results[1].path == 'capture.mp4')"));
     g_FailStart = false;
     ASSERT_TRUE(Run("assert(recorder.start({path='retry.mp4'}, callback))"));
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(events[2] == recorder.EVENT_STARTED)"));
 }
 
@@ -387,11 +479,11 @@ TEST_F(RecordScriptTest, StopFailure)
 {
     ASSERT_TRUE(Run("assert(recorder.start({path='capture.mp4'}, callback))"));
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     g_FailStop = true;
     ASSERT_TRUE(Run("assert(recorder.stop())"));
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_ERROR and results[2].error == 'disk full')"));
 }
 
@@ -404,12 +496,11 @@ TEST_F(RecordScriptTest, ExternalReplacement)
     ASSERT_TRUE(dmRecord::Stop(&status));
     Complete(false);
     dmRecord::StartParams params;
-    params.m_Window = (void*)1;
+    params.m_Window = g_NativeWindow;
     params.m_Path = "http.mp4";
     ASSERT_TRUE(dmRecord::Start(&params, &status));
     Complete(false);
-    dmRecord::Update();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_STOPPED); "
                    "assert(results[2].path == 'lua.mp4'); assert(recorder.stop())"));
 }
@@ -424,9 +515,9 @@ TEST_F(RecordScriptTest, RestartFromCallback)
     Complete();
     ASSERT_TRUE(Run("assert(recorder.stop())"));
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 3 and events[3] == recorder.EVENT_STARTED and results[3].path == 'next.mp4')"));
 }
 
@@ -438,9 +529,9 @@ TEST_F(RecordScriptTest, StopFromStartedCallback)
                    "if event == recorder.EVENT_STARTED then assert(recorder.stop()) end end; "
                    "assert(recorder.start({path='capture.mp4'}, stop_started))"));
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 2 and events[1] == recorder.EVENT_STARTED and events[2] == recorder.EVENT_STOPPED)"));
 }
 
@@ -449,19 +540,19 @@ TEST_F(RecordScriptTest, CaptureFailure)
 {
     ASSERT_TRUE(Run("assert(recorder.start({path='capture.mp4'}, callback))"));
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     {
         dmMutex::ScopedLock lock(g_Mutex);
         dmStrlCpy(g_NativeStatus.m_Failure, "capture failed", sizeof(g_NativeStatus.m_Failure));
     }
     Complete();
-    dmRecord::UpdateScript();
-    dmRecord::UpdateScript();
+    UpdateExtension();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_ERROR); "
                    "assert(results[2].error == 'capture failed'); "
                    "assert(recorder.start({path='retry.mp4'}, callback))"));
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 3 and events[3] == recorder.EVENT_STARTED)"));
 }
 
@@ -470,10 +561,10 @@ TEST_F(RecordScriptTest, Resize)
 {
     ASSERT_TRUE(Run("assert(recorder.start({path='capture.mp4'}, callback))"));
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     g_Resized = true;
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_STOPPED)"));
 }
 
@@ -484,8 +575,8 @@ TEST_F(RecordScriptTest, ResizeBeforeFirstUpdate)
     g_Resized = true;
     Complete();
     ASSERT_TRUE(Run("assert(#events == 0)"));
-    dmRecord::UpdateScript();
-    dmRecord::UpdateScript();
+    UpdateExtension();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 2 and events[1] == recorder.EVENT_STARTED and events[2] == recorder.EVENT_STOPPED)"));
 }
 
@@ -496,14 +587,14 @@ TEST_F(RecordScriptTest, DeletedScript)
     Complete();
     m_Instance->m_Valid = false;
     m_Instance->m_Id = dmScript::GenerateUniqueScriptId();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     dmRecord::Status status;
     dmRecord::GetStatus(&status);
     ASSERT_TRUE(status.m_Active);
     ASSERT_EQ(m_Refs, dmScript::GetLuaRefCount());
     ASSERT_TRUE(Run("assert(#events == 0); assert(recorder.stop())"));
     Complete();
-    dmRecord::UpdateScript();
+    UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 0)"));
 }
 
@@ -511,15 +602,85 @@ TEST_F(RecordScriptTest, DeletedScript)
 TEST_F(RecordScriptTest, Shutdown)
 {
     ASSERT_TRUE(Run("assert(recorder.start({path='capture.mp4'}, callback))"));
-    dmRecord::FinalizeScript();
+    EngineDelete();
     ASSERT_FALSE(g_NativeStatus.m_Active);
     ASSERT_TRUE(Run("assert(#events == 0); "
                    "local ok, err = recorder.start({path='late.mp4'}, callback); assert(ok == nil and err); "
                    "ok, err = recorder.stop(); assert(ok == nil and err)"));
 }
 
+// Reboot must discard the previous callback and restore Lua recording without duplicate status listeners.
+TEST_F(RecordScriptTest, ShutdownAndReboot)
+{
+    for (uint32_t run = 1; run <= 2; ++run)
+    {
+        ASSERT_TRUE(Run("assert(recorder.start({path='capture.mp4'}, callback))"));
+        Complete(false);
+        UpdateExtension();
+        ASSERT_TRUE(Run("assert(#events == 1 and events[1] == recorder.EVENT_STARTED); events = {}"));
+        EngineDelete();
+        ASSERT_FALSE(g_NativeStatus.m_Active);
+        ASSERT_EQ(m_Refs, dmScript::GetLuaRefCount());
+        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Finalize(&m_Params));
+        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppFinalize(&m_AppParams));
+        if (run == 1)
+        {
+            ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&m_AppParams));
+            ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Initialize(&m_Params));
+        }
+    }
+}
+
+// Hosts without ENGINE_DELETE still join capture and release Lua callbacks during extension finalization.
+TEST_F(RecordScriptTest, FinalizeWithoutEngineDelete)
+{
+    ASSERT_TRUE(Run("assert(recorder.start({path='capture.mp4'}, callback))"));
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Finalize(&m_Params));
+    ASSERT_FALSE(g_NativeStatus.m_Active);
+    ASSERT_EQ(m_Refs, dmScript::GetLuaRefCount());
+    ASSERT_TRUE(Run("assert(#events == 0); local ok, err = recorder.stop(); assert(ok == nil and err)"));
+}
+
+// Failure before Lua initialization must allow early and repeated cleanup with no script or capture resources.
+TEST(RecordScriptExtension, ShutdownBeforeLuaInitialization)
+{
+    dmExtension::AppParams app_params;
+    dmExtension::Params params;
+    ExtensionAppParamsInitialize(&app_params);
+    ExtensionParamsInitialize(&params);
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&app_params));
+    dmExtension::Event event;
+    event.m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
+    dmExtension::DispatchEvent(&params, &event);
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Finalize(&params));
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppFinalize(&app_params));
+    ExtensionParamsFinalize(&params);
+    ExtensionAppParamsFinalize(&app_params);
+}
+
+#if defined(DM_PLATFORM_LINUX)
+// Registering recording before rendering extensions captures their drawing before the engine flips.
+TEST_F(RecordScriptTest, CaptureAfterExtensionRendering)
+{
+    for (uint32_t frame = 1; frame <= 3; ++frame)
+    {
+        dmExtension::PostRender(&m_Params);
+        ASSERT_EQ(frame, g_RenderedFrames);
+        ASSERT_EQ(frame, g_CapturedFrames);
+    }
+}
+#endif
+
 int main(int argc, char** argv)
 {
+    // Match engine/Extender registration: callbacks traverse the prepended list.
+    ScriptRecord();
+#if defined(DM_PLATFORM_LINUX)
+    RecordTestRenderer();
+    GraphicsAdapterNull();
+    if (!dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NULL))
+        return 1;
+#endif
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

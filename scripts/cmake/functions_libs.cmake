@@ -89,7 +89,7 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   profilerext
   profilerext_null
   record
-  record_null
+  record_script
   record_service
   render
   resource

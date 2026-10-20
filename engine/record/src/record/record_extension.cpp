@@ -13,35 +13,17 @@
 // specific language governing permissions and limitations under the License.
 
 #include "record_service.h"
-#include "record_private.h"
+#include "record_window.h"
 #include <dmsdk/engine/extension.hpp>
 #include <dmsdk/extension/extension.hpp>
-#if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_WINDOWS)
-#include <dmsdk/graphics/graphics_native.h>
-#elif defined(DM_PLATFORM_LINUX)
-#include <dmsdk/graphics/graphics.h>
-#endif
 #include <dmsdk/dlib/log.h>
 
 namespace dmRecord
 {
-    static void* NativeWindow()
-    {
-#if defined(DM_PLATFORM_MACOS)
-        return (void*)dmGraphics::GetNativeOSXNSWindow();
-#elif defined(DM_PLATFORM_WINDOWS)
-        return (void*)dmGraphics::GetNativeWindowsHWND();
-#elif defined(DM_PLATFORM_LINUX)
-        return (void*)dmGraphics::GetInstalledContext();
-#else
-        return 0;
-#endif
-    }
-
     static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
     {
         dmWebServer::HServer server = dmEngine::GetWebServer(params);
-        if (server && !RegisterService(server, NativeWindow))
+        if (server && !RegisterService(server, GetRecordingWindow))
             dmLogError("Unable to register the recording service");
         return dmExtension::RESULT_OK;
     }
