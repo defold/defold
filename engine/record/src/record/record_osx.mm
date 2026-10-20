@@ -32,6 +32,44 @@
 // public entry points. ScreenCaptureKit itself is present from macOS 12.3.
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
 
+// A copied completion block retains this object until the callback returns.
+// Timeouts can release the waiting thread's ownership without invalidating the
+// semaphore or leaking results delivered after that thread has moved on.
+@interface DefoldRecordingCompletion : NSObject
+{
+    @public
+    dispatch_semaphore_t m_Completed;
+    id                   m_Result;
+    NSError*             m_Error;
+}
+- (void)completeWithResult:(id)result error:(NSError*)error;
+@end
+
+@implementation DefoldRecordingCompletion
+- (id)init
+{
+    self = [super init];
+    if (self)
+        m_Completed = dispatch_semaphore_create(0);
+    return self;
+}
+
+- (void)completeWithResult:(id)result error:(NSError*)error
+{
+    m_Result = [result retain];
+    m_Error = [error retain];
+    dispatch_semaphore_signal(m_Completed);
+}
+
+- (void)dealloc
+{
+    dispatch_release(m_Completed);
+    [m_Result release];
+    [m_Error release];
+    [super dealloc];
+}
+@end
+
 @interface DefoldRecordingDelegate : NSObject <SCRecordingOutputDelegate, SCStreamDelegate>
 {
     @public
@@ -61,6 +99,8 @@
 
 - (void)dealloc
 {
+    dispatch_release(m_Started);
+    dispatch_release(m_Finished);
     [m_Error release];
     [super dealloc];
 }
@@ -357,26 +397,25 @@ namespace dmRecord
                 return false;
             }
 
-            __block SCShareableContent* shareable = nil;
-            __block NSError*            setup_error = nil;
-            dispatch_semaphore_t        content_ready = dispatch_semaphore_create(0);
+            DefoldRecordingCompletion* content_ready = [[[DefoldRecordingCompletion alloc] init] autorelease];
             [SCShareableContent getShareableContentExcludingDesktopWindows:NO
                                                        onScreenWindowsOnly:YES
                                                          completionHandler:^(SCShareableContent* content, NSError* error) {
-                                                           shareable = [content retain];
-                                                           setup_error = [error retain];
-                                                           dispatch_semaphore_signal(content_ready);
+                                                           [content_ready completeWithResult:content error:error];
                                                          }];
 
             NSString* failure = nil;
-            if (!Wait(content_ready, 15))
+            SCShareableContent* shareable = nil;
+            if (!Wait(content_ready->m_Completed, 15))
             {
                 failure = @"timed out while requesting screen-capture access";
             }
-            else if (setup_error)
+            else if (content_ready->m_Error)
             {
-                failure = [setup_error localizedDescription];
+                failure = [content_ready->m_Error localizedDescription];
             }
+            else
+                shareable = content_ready->m_Result;
 
             SCWindow* selected_window = nil;
             if (!failure)
@@ -454,21 +493,18 @@ namespace dmRecord
 
             if (!failure)
             {
-                __block NSError*     start_error = nil;
-                dispatch_semaphore_t capture_started = dispatch_semaphore_create(0);
+                DefoldRecordingCompletion* capture_started = [[[DefoldRecordingCompletion alloc] init] autorelease];
                 [stream startCaptureWithCompletionHandler:^(NSError* error) {
-                  start_error = [error retain];
-                  dispatch_semaphore_signal(capture_started);
+                  [capture_started completeWithResult:nil error:error];
                 }];
-                if (!Wait(capture_started, 15))
+                if (!Wait(capture_started->m_Completed, 15))
                 {
                     failure = @"timed out while starting screen capture";
                 }
-                else if (start_error)
+                else if (capture_started->m_Error)
                 {
-                    failure = [start_error localizedDescription];
+                    failure = [capture_started->m_Error localizedDescription];
                 }
-                [start_error release];
             }
 
             if (!failure && !Wait(delegate->m_Started, 15))
@@ -518,8 +554,6 @@ namespace dmRecord
                 [output release];
                 [delegate release];
             }
-            [setup_error release];
-            [shareable release];
             return failure == nil;
         }
     }
@@ -554,21 +588,21 @@ namespace dmRecord
                 failure = @"timed out while finalizing the MP4 file";
             }
 
-            __block NSError*     stop_error = nil;
             if (!StreamStopped(delegate))
             {
-                dispatch_semaphore_t capture_stopped = dispatch_semaphore_create(0);
+                DefoldRecordingCompletion* capture_stopped = [[[DefoldRecordingCompletion alloc] init] autorelease];
                 [stream stopCaptureWithCompletionHandler:^(NSError* error) {
-                  stop_error = [error retain];
-                  dispatch_semaphore_signal(capture_stopped);
+                  [capture_stopped completeWithResult:nil error:error];
                 }];
-                if (!Wait(capture_stopped, 15) && !failure)
+                if (!Wait(capture_stopped->m_Completed, 15))
                 {
-                    failure = @"timed out while stopping screen capture";
+                    if (!failure)
+                        failure = @"timed out while stopping screen capture";
                 }
-                else if (stop_error && !failure && !StreamStopped(delegate))
+                else if (capture_stopped->m_Error && !failure && !StreamStopped(delegate))
                 {
                     // A completed output can precede the stream's stop callback.
+                    NSError* stop_error = capture_stopped->m_Error;
                     bool already_stopped = RecordingFinished(delegate) &&
                         [[stop_error domain] isEqualToString:SCStreamErrorDomain] &&
                         [stop_error code] == SCStreamErrorAttemptToStopStreamState;
@@ -598,7 +632,6 @@ namespace dmRecord
             *status = g_Status;
             [RecordingLock() unlock];
 
-            [stop_error release];
             [stream release];
             [output release];
             [delegate release];

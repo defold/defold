@@ -164,6 +164,45 @@ TEST_F(RecordNativeTest, ExplicitStop)
     ASSERT_EQ(1U, g_StopCount);
 }
 
+static void SemaphoreReleased(void* context)
+{
+    dispatch_semaphore_signal((dispatch_semaphore_t)context);
+}
+
+// Both delegate semaphores must be destroyed when the recording releases its delegate.
+TEST(RecordOwnership, DelegateSemaphores)
+{
+    dispatch_semaphore_t released = dispatch_semaphore_create(0);
+    DefoldRecordingDelegate* delegate = [[DefoldRecordingDelegate alloc] init];
+    dispatch_set_context(delegate->m_Started, released);
+    dispatch_set_finalizer_f(delegate->m_Started, SemaphoreReleased);
+    dispatch_set_context(delegate->m_Finished, released);
+    dispatch_set_finalizer_f(delegate->m_Finished, SemaphoreReleased);
+    [delegate release];
+    ASSERT_TRUE(dmRecord::Wait(released, 5));
+    ASSERT_TRUE(dmRecord::Wait(released, 5));
+    dispatch_release(released);
+}
+
+// A late completion must keep its semaphore alive after a timeout, then release it.
+TEST(RecordOwnership, CompletionAfterTimeout)
+{
+    dispatch_semaphore_t released = dispatch_semaphore_create(0);
+    DefoldRecordingCompletion* completion = [[DefoldRecordingCompletion alloc] init];
+    dispatch_set_context(completion->m_Completed, released);
+    dispatch_set_finalizer_f(completion->m_Completed, SemaphoreReleased);
+    void (^callback)(NSError*) = [^(NSError* error) {
+        [completion completeWithResult:nil error:error];
+    } copy];
+    ASSERT_FALSE(dmRecord::Wait(completion->m_Completed, 0));
+    [completion release];
+    ASSERT_FALSE(dmRecord::Wait(released, 0));
+    callback(nil);
+    [callback release];
+    ASSERT_TRUE(dmRecord::Wait(released, 5));
+    dispatch_release(released);
+}
+
 int main(int argc, char** argv)
 {
     @autoreleasepool
