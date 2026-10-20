@@ -280,7 +280,8 @@ TEST_F(LinuxRecordingTest, ResizeFinalizesAndRestarts)
         do
         {
             dmRecord::CaptureFrame();
-            dmRecord::GetNativeStatus(&status);
+            dmRecord::Update();
+            dmRecord::GetStatus(&status);
         } while ((status.m_Active || status.m_Pending) && dmTime::GetMonotonicTime() < deadline);
         ASSERT_FALSE(status.m_Active);
         ASSERT_FALSE(status.m_Pending);

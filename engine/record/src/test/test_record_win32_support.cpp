@@ -12,12 +12,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
-
 // Substitute the WinRT factory entry points in the real backend. These tests
 // require no capture permission, display, encoder, or particular Windows build.
+// Include the backend first so it sets the Windows SDK target before jc_test
+// includes Windows.h.
 #include "../record/record_win32.cpp"
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 struct CaptureItemFactory : Microsoft::WRL::RuntimeClass<
     Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IGraphicsCaptureItemInterop>
