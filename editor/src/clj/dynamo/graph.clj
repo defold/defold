@@ -319,13 +319,17 @@
   (when (and (not (:dry-run transact-opts))
              (= :ok (:status tx-result)))
     (let [undo-key (or (:undo-key transact-opts) :undo/global)
-          {:keys [basis label nodes-deleted outputs-modified sequence-label undoable-changes]} tx-result]
-      (swap! *the-system*
-             (fn [system]
-               (-> system
-                   (is/merge-basis pre-tx-basis basis outputs-modified nodes-deleted undo-key label sequence-label undoable-changes (:full-invalidation transact-opts))
-                   (is/merge-materialization-results (:materialization-results tx-result)))))))
-  nil)
+          {:keys [basis label nodes-deleted outputs-modified sequence-label undoable-changes]} tx-result
+
+          [old-system new-system]
+          (swap-vals!
+            *the-system*
+            (fn [system]
+              (-> system
+                  (is/merge-basis pre-tx-basis basis outputs-modified nodes-deleted undo-key label sequence-label undoable-changes (:full-invalidation transact-opts))
+                  (is/merge-materialization-results (:materialization-results tx-result)))))]
+
+      (it/log-committed-materialization-results! (:materialization-results tx-result) old-system new-system))))
 
 (defn transact
   "Runs a transaction against the graph system.
@@ -1242,8 +1246,9 @@
   with the system."
   [{:keys [basis-ref] :as evaluation-context}]
   (assert @basis-ref "Evaluation context is closed.")
-  (swap! *the-system* is/update-system-from-evaluation-context evaluation-context)
-  (reset! basis-ref nil)
+  (let [[old-system new-system] (swap-vals! *the-system* is/update-system-from-evaluation-context evaluation-context)]
+    (reset! basis-ref nil)
+    (it/log-committed-materialization-results! @(:materialization-results-atom evaluation-context) old-system new-system))
   nil)
 
 (defmacro with-auto-evaluation-context
