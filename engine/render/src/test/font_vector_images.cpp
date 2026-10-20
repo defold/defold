@@ -138,6 +138,7 @@ struct VectorImageResources
     HFont                          m_BankFont;
     HFontCollection                m_Collection;
     HTextLayout                    m_Layout;
+    HFontTextCurve                 m_Curve;
     dmGraphics::HProgram           m_Program;
     dmGraphics::HRenderTarget      m_Target;
     dmGraphics::HVertexBuffer      m_Buffer;
@@ -267,10 +268,16 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     ASSERT_TRUE(dmRender::SetFontMapMaterial(map, material));
     ASSERT_TRUE(dmRender::GetFontMapIsVector(map));
 
+    const FontImageCaptureGeometry geometry = c.m_Mapping ? (c.m_Mapping < 3 ? g_Capture_arc : g_Capture_path) : g_Capture_vector;
+    resources.m_Curve = CreateFontImageCurve(c.m_Mapping);
     TextLayoutSettings settings = {};
     settings.m_Size = c.m_Size;
-    settings.m_Width = rtl_wrapped ? 100 : g_Capture_vector.m_LayoutWidth;
-    settings.m_LineBreak = rtl_wrapped;
+    settings.m_Width = rtl_wrapped ? 100 : geometry.m_LayoutWidth;
+    if (resources.m_Curve)
+        settings.m_Width = FontTextCurveGetLength(resources.m_Curve);
+    else if (c.m_Mapping == 2)
+        settings.m_Width = 240.0f * 6.283185307179586f;
+    settings.m_LineBreak = rtl_wrapped || c.m_Mapping != 0;
     settings.m_Leading = 1;
     settings.m_BaseStyle = default_style;
     settings.m_UseBaseStyle = true;
@@ -299,14 +306,20 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
         ASSERT_LE(glyph->m_Bitmap.m_Height, params.m_CacheCellHeight);
     }
     dmRender::UpdateCacheTexture(map);
-    const uint32_t      width = g_Capture_vector.m_Width;
-    const uint32_t      height = g_Capture_vector.m_Height;
+    const uint32_t      width = geometry.m_Width;
+    const uint32_t      height = geometry.m_Height;
     dmRender::TextEntry entry = {};
-    entry.m_Transform = dmVMath::Matrix4::translation(dmVMath::Vector3(g_Capture_vector.m_OriginX, height - g_Capture_vector.m_OriginTop, depth_overlap ? -0.5f : 0.0f));
+    entry.m_Transform = dmVMath::Matrix4::translation(dmVMath::Vector3(geometry.m_OriginX, height - geometry.m_OriginTop, depth_overlap ? -0.5f : 0.0f));
     entry.m_TextLayout = layout;
     entry.m_Material = material;
     entry.m_FontSize = c.m_Size;
     entry.m_Width = settings.m_Width;
+    entry.m_Curve = resources.m_Curve;
+    entry.m_ArcRadius = 240.0f;
+    entry.m_ArcAngle = c.m_Mapping == 1 ? 120.0f : c.m_Mapping == 2 ? 360.0f :
+                                                                      0.0f;
+    if (c.m_Mapping)
+        entry.m_Align = dmRender::TEXT_ALIGN_CENTER;
     entry.m_Leading = 1;
     entry.m_VAlign = dmRender::TEXT_VALIGN_TOP;
     entry.m_FaceColor = dmGraphics::PackRGBA(dmVMath::Vector4(1, 1, 1, c.m_FaceAlpha));
@@ -393,7 +406,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     }
     dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
     dmGraphics::EnableProgram(context, program);
-    dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1, 1);
+    dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1024, 1024);
     dmGraphics::SetConstantM4(context, (dmVMath::Vector4*)&projection, 1, dmGraphics::FindUniformLocation(program, "view_proj"));
     for (uint32_t i = 0; i < 4; ++i)
     {
@@ -676,6 +689,7 @@ void TestFontVectorImage(const FontImageCase& c, dmGraphics::HContext context)
         dmGraphics::DeleteRenderTarget(context, resources.m_Target);
     if (resources.m_Layout)
         TextLayoutRelease(resources.m_Layout);
+    FontTextCurveRelease(resources.m_Curve);
     if (resources.m_Map)
         dmRender::DeleteFontMap(resources.m_Map);
     if (resources.m_Collection)

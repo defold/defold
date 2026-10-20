@@ -464,7 +464,7 @@ static void CaptureFontImage(dmGraphics::HRenderTarget target, dmGraphics::HText
     dmGraphics::EnableState(g_ImageContext, dmGraphics::STATE_BLEND);
     dmGraphics::SetBlendFunc(g_ImageContext, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
     dmGraphics::EnableProgram(g_ImageContext, program);
-    dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1, 1);
+    dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1024, 1024);
     dmGraphics::SetConstantM4(g_ImageContext, (dmVMath::Vector4*)&projection, 1, dmGraphics::FindUniformLocation(program, "view_proj"));
     dmGraphics::EnableTexture(g_ImageContext, 0, 0, texture);
     const dmGraphics::HUniformLocation effect_location = dmGraphics::FindUniformLocation(program, "font_effects");
@@ -562,6 +562,23 @@ static void TestFontAlignmentImage(const FontImageCase& c)
     dmGraphics::DeleteTexture(g_ImageContext, texture);
 }
 
+HFontTextCurve CreateFontImageCurve(uint32_t mapping)
+{
+    if (mapping < 3)
+        return 0;
+    FontTextCurveKnot knots[4] = {};
+    const float       heights[] = { 0, 20, -20, 0 };
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        knots[i].m_Position = dmVMath::Vector3(i * (520.0f / 3), heights[i], mapping == 4 ? heights[i] * 2 : 0);
+        knots[i].m_InHandle = dmVMath::Vector3(-60, 0, 0);
+        knots[i].m_OutHandle = dmVMath::Vector3(60, 0, 0);
+        knots[i].m_Scale = mapping == 4 ? 0.8f + i * 0.15f : 1.0f;
+        knots[i].m_RollDegrees = mapping == 4 ? i * 15.0f : 0.0f;
+    }
+    return FontTextCurveCreate(knots, 4, false, dmVMath::Vector3(0, 1, 0));
+}
+
 static void TestFontImage(const FontImageCase& c)
 {
     if (c.m_Pivot >= 0)
@@ -628,6 +645,9 @@ static void TestFontImage(const FontImageCase& c)
     TextLayoutSettings settings = {};
     settings.m_Size = c.m_Size;
     FontImageCaptureGeometry geometry = arabic ? g_Capture_arabic : paragraph ? g_Capture_english : g_Capture_single_line;
+    HFontTextCurve           curve = CreateFontImageCurve(c.m_Mapping);
+    if (c.m_Mapping)
+        geometry = c.m_Mapping < 3 ? g_Capture_arc : g_Capture_path;
     if (strstr(c.m_Name, "radial_block_ellipse"))
     {
         geometry = g_Capture_radial_block_ellipse;
@@ -641,8 +661,12 @@ static void TestFontImage(const FontImageCase& c)
         geometry = strncmp(c.m_Source, "otf", 3) == 0 ? otf[index] : ttf[index];
     }
     settings.m_Width = geometry.m_LayoutWidth;
+    if (curve)
+        settings.m_Width = FontTextCurveGetLength(curve);
+    else if (c.m_Mapping == 2)
+        settings.m_Width = 240.0f * 6.283185307179586f;
     settings.m_Leading = 1;
-    settings.m_LineBreak = paragraph;
+    settings.m_LineBreak = paragraph || c.m_Mapping != 0;
     settings.m_UseBaseStyle = 1;
     settings.m_BaseStyle = strstr(c.m_Name, "named_style") ? dmHashString64("notice") : default_style;
     dmArray<uint32_t> codepoints;
@@ -724,6 +748,9 @@ static void TestFontImage(const FontImageCase& c)
         CopyFontImageGlyph(glyph.m_Bitmap, glyph.m_Bitmap.m_Data, fnt,
                            image.m_X + 1, (uint32_t)(1 + max_ascent - glyph.m_Ascent), atlas_width, atlas);
     }
+    // Curved rich-text captures sample a reserved opaque texel for decorations.
+    if (c.m_Mapping)
+        memset(atlas.Begin(), 255, 4);
     FontLayoutVertexConfig config = {};
     config.m_Layout = layout;
     config.m_ResolveGlyph = ResolveImageGlyph;
@@ -767,6 +794,15 @@ static void TestFontImage(const FontImageCase& c)
     config.m_ShadowBlur = c.m_ShadowBlur;
     config.m_BaseShadowAlpha = c.m_ShadowAlpha;
     config.m_Width = settings.m_Width;
+    config.m_Curve = curve;
+    config.m_RenderDecorations = c.m_Mapping != 0;
+    config.m_DecorationU = 0.5f / atlas_width;
+    config.m_DecorationV = 0.5f / atlas_height;
+    config.m_ArcRadius = 240.0f;
+    config.m_ArcAngle = c.m_Mapping == 1 ? 120.0f : c.m_Mapping == 2 ? 360.0f :
+                                                                       0.0f;
+    if (c.m_Mapping)
+        config.m_Align = 1;
     FontLayoutVertexMetrics metrics;
     ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
     ASSERT_GT(metrics.m_VertexCount, 0u);
@@ -947,6 +983,7 @@ static void TestFontImage(const FontImageCase& c)
     for (uint32_t i = 0; i < glyphs.Size(); ++i)
         FontFreeGlyph(glyphs[i].m_Font, &glyphs[i].m_Glyph);
     TextLayoutRelease(layout);
+    FontTextCurveRelease(curve);
     FontCollectionDestroy(collection);
     if (bank_source)
     {

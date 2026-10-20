@@ -736,9 +736,21 @@ class FontImageReportTest(unittest.TestCase):
                 vector = [c for c in cases if c['source'] in report.VECTOR_SOURCES]
                 self.assertEqual(set(report.VECTOR_SOURCES), {c['source'] for c in vector})
                 self.assertTrue(all(c['multi'] for c in vector))
-                self.assertEqual(4 * (11 if rich else 4), len(vector))
+                self.assertEqual(4 * (11 if rich else 4) + (6 if rich else 4), len(vector))
                 count += len(cases)
-        self.assertEqual(556, count)
+        self.assertEqual(620, count)
+
+    # Curved cases participate in every backend/configuration and keep both
+    # rich-text decoration and shaped RTL coverage in the image comparison.
+    def test_matrix_covers_arc_and_path_mapping(self):
+        for full in (False, True):
+            for rich in (False, True):
+                curved = [c for c in report.cases(full, rich) if c.get('mapping')]
+                for source in ('ttf_sdf', 'ttf_bitmap', 'ttf_vector'):
+                    self.assertEqual({1, 2, 3, 4}, {c['mapping'] for c in curved if c['source'] == source})
+                    self.assertTrue(all('\n' in c['text'] for c in curved if c['source'] == source))
+                self.assertEqual(rich, any(c['markup'] for c in curved))
+                self.assertEqual(full, any(c['source'] == 'arabic' for c in curved))
 
     # Verifies all pivots use the shared preview references and that a one-pixel
     # text shift fails even with the large unchanged white box from #13339.
@@ -807,7 +819,7 @@ class FontImageReportTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             root=Path(temporary)
             summary=report.build_reports(root/'missing',root/'report',{},False)
-            self.assertEqual(556,summary['failed'])
+            self.assertEqual(620,summary['failed'])
             self.assertEqual(0,summary['completed'])
             self.assertEqual('fail',summary['status'])
             self.assertTrue((root/'report/index.html').exists())
