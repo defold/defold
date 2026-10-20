@@ -226,6 +226,81 @@ class RecordingServiceTest(unittest.TestCase):
                 self.request("DELETE", url, expected=204,
                              headers={instance_name: self.instance_id}, instance=False)
 
+    # Oversized requests must return a complete 413 and close without waiting for their bodies.
+    def test_oversized_body_rejected_without_drain(self):
+        for method, path, size, prefix in [
+            ("POST", "/recording/start", 1024, b""),
+            ("POST", "/recording/stop", 0x7fffffff, b"{"),
+            ("GET", "/recording/capabilities", 1024, b""),
+            ("DELETE", "/recording/files/missing", 1024, b""),
+        ]:
+            with self.subTest(method=method, path=path, size=size):
+                with socket.create_connection(("127.0.0.1", self.port), timeout=5) as connection:
+                    connection.sendall((f"{method} {path} HTTP/1.1\r\n"
+                                        "Host: 127.0.0.1\r\n"
+                                        f"Content-Length: {size}\r\n\r\n").encode("ascii") + prefix)
+                    response = http.client.HTTPResponse(connection)
+                    response.begin()
+                    self.assertEqual(413, response.status)
+                    self.assertEqual("close", response.getheader("Connection"))
+                    self.assertEqual("body_too_large", json.loads(response.read())["error"]["code"])
+                    self.assertEqual(b"", connection.recv(1))
+                self.assertFalse(self.request("GET", "/recording/status")["active"])
+
+    # Incomplete small bodies must yield to other requests, retain their headers, and resume normally.
+    def test_partial_body_does_not_block_updates(self):
+        for body, prefix_size in [(b"{}", 0), (b"{}", 1), (b'{"fps":30}' + b" " * 1013, 1)]:
+            with self.subTest(size=len(body), prefix_size=prefix_size):
+                with socket.create_connection(("127.0.0.1", self.port), timeout=5) as connection:
+                    connection.sendall(("POST /recording/start HTTP/1.1\r\n"
+                                        "Host: 127.0.0.1\r\n"
+                                        "Content-Type: application/json\r\n"
+                                        f"X-Recording-Instance: {self.instance_id}\r\n"
+                                        f"Content-Length: {len(body)}\r\n\r\n").encode("ascii") + body[:prefix_size])
+                    try:
+                        # A completed request is the progress signal; no sleep is needed.
+                        self.request("GET", "/recording/capabilities",
+                                     headers={"X-Recording-Instance": "unrelated", "Content-Type": "text/plain"})
+                    finally:
+                        connection.sendall(body[prefix_size:])
+                    response = http.client.HTTPResponse(connection)
+                    response.begin()
+                    self.assertEqual(202, response.status)
+                    receipt = json.loads(response.read())
+                    # The completed request must leave the connection reusable.
+                    connection.sendall(b"GET /recording/capabilities HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+                    response = http.client.HTTPResponse(connection)
+                    response.begin()
+                    self.assertEqual(200, response.status)
+                    self.assertEqual(self.instance_id, json.loads(response.read())["instance_id"])
+                self.wait_status()
+                self.request("POST", "/recording/stop", {"operation_id": receipt["operation_id"]}, 202)
+                self.wait_status(complete_file=True)
+
+    # Fragmented headers must also yield rather than blocking before the recording handler runs.
+    def test_partial_headers_do_not_block_updates(self):
+        with socket.create_connection(("127.0.0.1", self.port), timeout=5) as connection:
+            connection.sendall(b"GET /recording/capabilities HTTP/1.1\r\nHost: 127.0.0.1\r\n")
+            try:
+                self.request("GET", "/recording/capabilities")
+            finally:
+                connection.sendall(b"\r\n")
+            response = http.client.HTTPResponse(connection)
+            response.begin()
+            self.assertEqual(200, response.status)
+            self.assertEqual(self.instance_id, json.loads(response.read())["instance_id"])
+
+    # Disconnecting mid-body must release the connection instead of spinning on end-of-stream.
+    def test_abandoned_body_releases_connection(self):
+        for _ in range(20):
+            with socket.create_connection(("127.0.0.1", self.port), timeout=5) as connection:
+                connection.sendall(("POST /recording/start HTTP/1.1\r\n"
+                                    "Host: 127.0.0.1\r\n"
+                                    "Content-Length: 2\r\n\r\n{").encode("ascii"))
+                self.request("GET", "/recording/capabilities")
+                connection.shutdown(socket.SHUT_RDWR)
+            self.assertFalse(self.request("GET", "/recording/status")["active"])
+
     # Reject invalid JSON, unknown/duplicate keys and invalid bounds before starting capture.
     def test_request_validation(self):
         invalid = [[], {"path": "/tmp/unowned.mp4"}, {"fps": 0}, {"fps": 61}, {"width": 10},

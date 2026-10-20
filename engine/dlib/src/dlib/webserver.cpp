@@ -117,6 +117,8 @@ namespace dmWebServer
             return RESULT_INVALID_REQUEST;
         case dmHttpServer::RESULT_ERROR_INVAL:
             return RESULT_ERROR_INVAL;
+        case dmHttpServer::RESULT_TRY_AGAIN:
+            return RESULT_TRY_AGAIN;
         case dmHttpServer::RESULT_INTERNAL_ERROR:
             return RESULT_INTERNAL_ERROR;
         case dmHttpServer::RESULT_UNKNOWN:
@@ -349,6 +351,12 @@ namespace dmWebServer
         return TranslateResult(r);
     }
 
+    Result CloseConnection(Request* request)
+    {
+        InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
+        return TranslateResult(dmHttpServer::CloseConnection(internal_request->m_Request));
+    }
+
     const char* GetHeader(Request* request, const char* name)
     {
         uint32_t name_hash = HashHeaderName(name);
@@ -376,6 +384,12 @@ namespace dmWebServer
         InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
         dmHttpServer::Result r = dmHttpServer::Receive(internal_request->m_Request, buffer, buffer_size, received_bytes);
         return TranslateResult(r);
+    }
+
+    Result ReceiveBuffered(Request* request, void* buffer, uint32_t buffer_size)
+    {
+        InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
+        return TranslateResult(dmHttpServer::ReceiveBuffered(internal_request->m_Request, buffer, buffer_size));
     }
 
     Result Update(HServer server)

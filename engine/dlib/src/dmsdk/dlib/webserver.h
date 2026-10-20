@@ -53,6 +53,7 @@ namespace dmWebServer
      * @member RESULT_ERROR_INVAL
      * @member RESULT_HANDLER_ALREADY_REGISTRED
      * @member RESULT_HANDLER_NOT_REGISTRED
+     * @member RESULT_TRY_AGAIN
      * @member RESULT_INTERNAL_ERROR
      * @member RESULT_UNKNOWN
      */
@@ -64,6 +65,7 @@ namespace dmWebServer
         RESULT_ERROR_INVAL = -3,
         RESULT_HANDLER_ALREADY_REGISTRED = -4,
         RESULT_HANDLER_NOT_REGISTRED = -5,
+        RESULT_TRY_AGAIN = -6,
         RESULT_INTERNAL_ERROR = -100,
         RESULT_UNKNOWN = -1000,
     };

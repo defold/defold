@@ -36,6 +36,9 @@ namespace dmHttpServer
         dmSocket::Socket m_Socket;
         uint16_t         m_RequestCount;
         uint64_t         m_ConnectionTimeStart;
+        char*            m_RequestBuffer;
+        uint32_t         m_RequestBufferCapacity;
+        uint32_t         m_RequestBufferSize;
     };
 
     struct Server
@@ -88,6 +91,7 @@ namespace dmHttpServer
         uint16_t m_CloseConnection : 1;
         uint16_t m_HeaderSent : 1;
         uint16_t m_AttributesSent : 1;
+        uint16_t m_DeferResponse : 1;
 
         InternalRequest()
         {
@@ -190,9 +194,17 @@ namespace dmHttpServer
         return RESULT_OK;
     }
 
+    static void CloseConnection(Connection* connection)
+    {
+        dmSocket::Shutdown(connection->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
+        dmSocket::Delete(connection->m_Socket);
+        free(connection->m_RequestBuffer);
+    }
+
     void Delete(HServer server)
     {
-        // TODO: Shutdown connections
+        for (uint32_t i = 0; i < server->m_Connections.Size(); ++i)
+            CloseConnection(&server->m_Connections[i]);
         dmSocket::Delete(server->m_ServerSocket);
         delete server;
     }
@@ -345,7 +357,10 @@ bail:
         request->m_Internal = internal_req;
         server->m_HttpResponse(server->m_Userdata, request);
 
-        if (internal_req->m_Result == RESULT_OK &&
+        if (internal_req->m_DeferResponse)
+            return;
+
+        if (internal_req->m_Result == RESULT_OK && !internal_req->m_CloseConnection &&
             internal_req->m_TotalContentReceived != internal_req->m_Request.m_ContentLength)
         {
             dmLogWarning("Actual content differs from expected content-length (%d != %d)",
@@ -385,6 +400,15 @@ bail:
         }
 
         internal_req->m_StatusCode = status_code;
+        return RESULT_OK;
+    }
+
+    Result CloseConnection(const Request* request)
+    {
+        InternalRequest* internal_req = (InternalRequest*) request->m_Internal;
+        if (internal_req->m_HeaderSent)
+            return RESULT_ERROR_INVAL;
+        internal_req->m_CloseConnection = 1;
         return RESULT_OK;
     }
 
@@ -507,7 +531,7 @@ bail:
             {
                 // Ok
             }
-            else if (r == dmSocket::RESULT_OK)
+            else if (r == dmSocket::RESULT_OK && recv_bytes > 0)
             {
                 total += recv_bytes;
             }
@@ -523,61 +547,78 @@ bail:
         return internal_req->m_Result;
     }
 
+    Result ReceiveBuffered(const Request* request, void* buffer, uint32_t buffer_size)
+    {
+        InternalRequest* internal_req = (InternalRequest*) request->m_Internal;
+        if (internal_req->m_HeaderSent || internal_req->m_TotalContentReceived ||
+            request->m_ContentLength > buffer_size ||
+            request->m_ContentLength > BUFFER_SIZE - 1 - internal_req->m_ContentOffset)
+            return RESULT_ERROR_INVAL;
+
+        if (internal_req->m_TotalReceived - internal_req->m_ContentOffset < request->m_ContentLength)
+        {
+            internal_req->m_DeferResponse = 1;
+            return RESULT_TRY_AGAIN;
+        }
+
+        uint32_t received_bytes;
+        return Receive(request, buffer, request->m_ContentLength, &received_bytes);
+    }
+
     /*
      * Handle an http-connection
      * Returns false if the connection should be closed
      */
     static bool HandleConnection(Server* server, Connection* connection)
     {
-        int total_recv = 0;
+        if (connection->m_RequestBufferCapacity == 0 ||
+            connection->m_RequestBufferSize == connection->m_RequestBufferCapacity - 1)
+        {
+            uint32_t capacity = connection->m_RequestBufferCapacity ?
+                dmMath::Min(2 * connection->m_RequestBufferCapacity, BUFFER_SIZE) : 1024;
+            if (capacity == connection->m_RequestBufferCapacity)
+                return false;
+            char* buffer = (char*)realloc(connection->m_RequestBuffer, capacity);
+            if (!buffer)
+                return false;
+            connection->m_RequestBuffer = buffer;
+            connection->m_RequestBufferCapacity = capacity;
+        }
+
+        // Update selects readable sockets. Read once, then yield if the headers
+        // or a buffered body are incomplete, so other connections and frames run.
+        int received_bytes;
+        dmSocket::Result r = dmSocket::Receive(connection->m_Socket,
+            connection->m_RequestBuffer + connection->m_RequestBufferSize,
+            connection->m_RequestBufferCapacity - 1 - connection->m_RequestBufferSize, &received_bytes);
+        if (r == dmSocket::RESULT_TRY_AGAIN)
+            return true;
+        if (r != dmSocket::RESULT_OK || received_bytes == 0)
+            return false;
+        connection->m_RequestBufferSize += received_bytes;
+
+        // ParseHeader modifies its input and Send reuses the server buffer.
+        // Retain the original request per connection until its handler completes.
+        memcpy(server->m_Buffer, connection->m_RequestBuffer, connection->m_RequestBufferSize);
+        server->m_Buffer[connection->m_RequestBufferSize] = '\0';
 
         InternalRequest internal_req;
         internal_req.m_Result = RESULT_OK;
         internal_req.m_Socket = connection->m_Socket;
         internal_req.m_Server = server;
-
-        dmHttpServerPrivate::ParseResult parse_result;
-        bool first_recv = true;
-        do
-        {
-            // -1 in order to be able to null-terminate the string
-            int max_to_recv = (BUFFER_SIZE-1) - total_recv;
-            if (max_to_recv == 0)
-                break;
-
-            int recv_bytes;
-            dmSocket::Result r = dmSocket::Receive(connection->m_Socket, server->m_Buffer + total_recv, max_to_recv, &recv_bytes);
-            if (r == dmSocket::RESULT_OK)
-            {
-                if (recv_bytes == 0)
-                {
-                    // Interpret zero bytes, in first read, as connection closed by client.
-                    if(!first_recv)
-                        dmLogWarning("Client socket in http server was unexpectedly closed");
-
-                    return false;
-                }
-
-                total_recv += recv_bytes;
-                internal_req.m_TotalReceived = (uint32_t) total_recv;
-                // null-terminate the string.
-                server->m_Buffer[dmMath::Min(total_recv, (int) BUFFER_SIZE-1)] = '\0';
-                parse_result = dmHttpServerPrivate::ParseHeader(server->m_Buffer, &internal_req, &HandleRequest, &HandleHeader, &HandleReponse);
-            }
-            else
-            {
-                return false;
-            }
-
-            first_recv = false;
-        }
-        while (parse_result == dmHttpServerPrivate::PARSE_RESULT_NEED_MORE_DATA);
+        internal_req.m_TotalReceived = connection->m_RequestBufferSize;
+        dmHttpServerPrivate::ParseResult parse_result = dmHttpServerPrivate::ParseHeader(server->m_Buffer,
+            &internal_req, &HandleRequest, &HandleHeader, &HandleReponse);
 
         switch (parse_result)
         {
             case dmHttpServerPrivate::PARSE_RESULT_NEED_MORE_DATA:
-                dmLogError("Buffer size in http-server too small");
-                return false;
+                if (connection->m_RequestBufferSize == BUFFER_SIZE - 1)
+                {
+                    dmLogError("Buffer size in http-server too small");
+                    return false;
+                }
+                return true;
 
             case dmHttpServerPrivate::PARSE_RESULT_OK:
                 // Ok
@@ -592,14 +633,11 @@ bail:
                 break;
         }
 
-        if (internal_req.m_Result == RESULT_OK)
-        {
-            return (bool) !internal_req.m_CloseConnection;
-        }
-        else
-        {
-            return false;
-        }
+        if (internal_req.m_DeferResponse)
+            return true;
+
+        connection->m_RequestBufferSize = 0;
+        return internal_req.m_Result == RESULT_OK && !internal_req.m_CloseConnection;
     }
 
     Result Update(HServer server)
@@ -661,9 +699,7 @@ bail:
             uint64_t time_diff = current_time - connection->m_ConnectionTimeStart;
             if (time_diff > server->m_ConnectionTimeout)
             {
-                dmSocket::Shutdown(connection->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
-                dmSocket::Delete(connection->m_Socket);
-                connection->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+                CloseConnection(connection);
                 server->m_Connections.EraseSwap(i);
                 --i;
             }
@@ -689,9 +725,7 @@ bail:
                 bool keep_connection =  HandleConnection(server, connection);
                 if (!keep_connection)
                 {
-                    dmSocket::Shutdown(connection->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
-                    dmSocket::Delete(connection->m_Socket);
-                    connection->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+                    CloseConnection(connection);
                     server->m_Connections.EraseSwap(i);
                     --i;
                 }

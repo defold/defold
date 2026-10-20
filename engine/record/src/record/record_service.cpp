@@ -22,6 +22,7 @@
 #include <dlib/sys.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
+#include <dlib/webserver.h>
 #include <mbedtls/md.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -359,26 +360,6 @@ namespace dmRecord
         return *p == 0 && (!stopping || seen == 4);
     }
 
-    static bool ReceiveBody(dmWebServer::Request* request, char* body, uint32_t capacity)
-    {
-        uint32_t total = 0;
-        char     discard[1024];
-        bool     fits = request->m_ContentLength < capacity;
-        while (total < request->m_ContentLength)
-        {
-            uint32_t count = request->m_ContentLength - total;
-            if (count > sizeof(discard))
-                count = sizeof(discard);
-            uint32_t received = 0;
-            if (dmWebServer::Receive(request, fits ? body + total : discard, count, &received) != dmWebServer::RESULT_OK || !received)
-                return false;
-            total += received;
-        }
-        if (fits)
-            body[total] = 0;
-        return fits && !memchr(body, 0, total);
-    }
-
     static void FileRequest(dmWebServer::Request* request, const char* id)
     {
         uint32_t index = 0;
@@ -456,17 +437,22 @@ namespace dmRecord
     static void Handler(void*, dmWebServer::Request* request)
     {
         char body[1024];
-        bool received = ReceiveBody(request, body, sizeof(body));
         if (request->m_ContentLength >= sizeof(body))
         {
+            dmWebServer::CloseConnection(request);
             Error(request, 413, "body_too_large", "recording requests must be smaller than 1024 bytes");
             return;
         }
-        if (!received)
+        dmWebServer::Result received = dmWebServer::ReceiveBuffered(request, body, sizeof(body));
+        if (received == dmWebServer::RESULT_TRY_AGAIN)
+            return;
+        if (received != dmWebServer::RESULT_OK || memchr(body, 0, request->m_ContentLength))
         {
+            dmWebServer::CloseConnection(request);
             Error(request, 400, "invalid_body", "cannot read request body");
             return;
         }
+        body[request->m_ContentLength] = 0;
         const char* path = request->m_Resource;
         if (strchr(path, '?'))
         {
