@@ -306,7 +306,7 @@
   [^Stage stage notifications-node project updater localization]
   (let [shown-version (atom nil)
         notification-fn (fn show-channel-offer-notification [updater]
-                          (when-let [offer (updater/channel-offer updater)]
+                          (if-let [offer (updater/channel-offer updater)]
                             (when (not= offer @shown-version)
                               (reset! shown-version offer)
                               (ui/run-later
@@ -320,7 +320,10 @@
                                    :actions [{:message (localization/message "updater.notification.channel-offer.download")
                                               :on-action #(try-channel! stage project updater localization)}
                                              {:message (localization/message "updater.notification.channel-offer.not-interested")
-                                              :on-action #(updater/disable-channel-offer! updater)}]})))))]
+                                              :on-action #(updater/disable-channel-offer! updater)}]})))
+                            (when (some? @shown-version)
+                              (ui/run-later
+                                (notifications/close! notifications-node ::channel-offer)))))]
     (updater/add-state-watch updater notification-fn)
     (.addEventHandler stage
                       WindowEvent/WINDOW_HIDING
