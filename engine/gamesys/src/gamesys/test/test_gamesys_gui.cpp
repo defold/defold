@@ -1956,14 +1956,14 @@ TEST_F(GuiTest, GuiSelectedBaseStyle)
     ASSERT_GT(TextLayoutGetDecorationCount(layout), 0u);
     const float         color[] = { 1.0f, 1.0f, 1.0f, 1.0f };
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data, true);
     ASSERT_EQ(1.0f, data.m_FaceColors.m_BottomLeft[0]);
     ASSERT_EQ(0.0f, data.m_FaceColors.m_BottomLeft[1]);
     dmGui::SetNodeTextStyle(scene, node, 0);
     layout = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout;
     ASSERT_EQ((dmhash_t)0, layout->m_BaseStyleName);
     ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data, true);
     ASSERT_EQ(1.0f, data.m_FaceColors.m_BottomLeft[0]);
     ASSERT_EQ(0.0f, data.m_FaceColors.m_BottomLeft[1]);
     dmGui::SetNodeTextStyle(scene, node, dmHashString64("missing"));
@@ -2115,7 +2115,7 @@ TEST_F(GuiTest, GuiRichTextLinkInteraction)
     ASSERT_EQ(1u, TextLayoutGetDecorationCount(initial.m_TextLayout));
 
     TextGlyphRenderData before = {};
-    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &before);
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &before, true);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
     dmGameObject::InputAction input_action = {};
@@ -2125,7 +2125,7 @@ TEST_F(GuiTest, GuiRichTextLinkInteraction)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
 
     TextGlyphRenderData hovered = {};
-    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &hovered);
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &hovered, true);
     ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
     ASSERT_EQ(0u, TextLayoutGetDecorationCount(initial.m_TextLayout));
     ASSERT_NEAR(0.25f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
@@ -2143,7 +2143,7 @@ TEST_F(GuiTest, GuiRichTextLinkInteraction)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
 
     TextGlyphRenderData unhovered = {};
-    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &unhovered);
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &unhovered, true);
     ASSERT_NEAR(before.m_FaceColors.m_BottomLeft[0], unhovered.m_FaceColors.m_BottomLeft[0], 0.0001f);
     ASSERT_EQ(1u, TextLayoutGetDecorationCount(initial.m_TextLayout));
     ASSERT_NEAR(0.5f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
@@ -2319,14 +2319,14 @@ TEST_F(GuiTest, GuiRichTextAnimationAdvances)
     GuiTextSubmitResult initial = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
     TextGlyphRenderData before = {};
-    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &before);
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &before, true);
 
     m_UpdateContext.m_DT = 0.25f;
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
     TextGlyphRenderData after = {};
-    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &after);
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &after, true);
     ASSERT_NE(before.m_OffsetY, after.m_OffsetY);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -2511,7 +2511,7 @@ TEST_F(LabelComponentTest, LabelUserDataSurvivesPoolCompaction)
     ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
 
     TextGlyphRenderData before = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before, true);
 
     dmGameObject::AcquireInputFocus(m_Collection, target);
     dmGameObject::InputAction input_action = {};
@@ -2521,7 +2521,7 @@ TEST_F(LabelComponentTest, LabelUserDataSurvivesPoolCompaction)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
 
     TextGlyphRenderData hovered = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &hovered);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &hovered, true);
     ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
 
     DeleteInstance(m_Collection, target);
@@ -2548,7 +2548,7 @@ TEST_F(LabelComponentTest, LabelSelectedBaseStyles)
         ASSERT_EQ(styles[i], layout->m_BaseStyleName);
         ASSERT_EQ(i == 2, TextLayoutGetDecorationCount(layout) > 0);
         TextGlyphRenderData data;
-        TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], white, &data);
+        TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], white, &data, true);
         ASSERT_EQ(1.0f, data.m_FaceColors.m_BottomLeft[0]);
         ASSERT_EQ(0.0f, data.m_FaceColors.m_BottomLeft[1]);
         ASSERT_EQ(i == 0, (data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) != 0);
@@ -2728,14 +2728,14 @@ TEST_F(LabelComponentTest, LabelRichTextAnimationAdvances)
     ASSERT_GT(TextLayoutGetGlyphCount(layout), 0u);
 
     TextGlyphRenderData before = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before, true);
 
     m_UpdateContext.m_DT = 0.25f;
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
     TextGlyphRenderData after = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &after);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &after, true);
     ASSERT_NE(before.m_OffsetY, after.m_OffsetY);
 
     DeleteInstance(m_Collection, go);
@@ -2765,7 +2765,7 @@ TEST_F(LabelComponentTest, LabelRichTextLinkHover)
     ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
 
     TextGlyphRenderData before = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before, true);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
     dmGameObject::InputAction input_action = {};
@@ -2775,7 +2775,7 @@ TEST_F(LabelComponentTest, LabelRichTextLinkHover)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
 
     TextGlyphRenderData hovered = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &hovered);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &hovered, true);
     ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
     ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
 
@@ -2791,7 +2791,7 @@ TEST_F(LabelComponentTest, LabelRichTextLinkHover)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
 
     TextGlyphRenderData unhovered = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &unhovered);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &unhovered, true);
     ASSERT_NEAR(before.m_FaceColors.m_BottomLeft[0], unhovered.m_FaceColors.m_BottomLeft[0], 0.0001f);
     ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
 
@@ -3546,6 +3546,163 @@ TEST_F(GuiTest, PerPropertyPrecedence)
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterGetPropertyFn(test_prop_hash));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+class GuiLayoutChangedTest : public GuiTest
+{
+public:
+    void SetUp() override
+    {
+        GuiTest::SetUp();
+        m_L = m_Scriptlibcontext.m_LuaState;
+        m_DisplayProfiles = 0;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/gui/layout_changed.display_profilesc", (void**)&m_DisplayProfiles));
+        dmGui::SetDisplayProfiles(m_GuiContext, m_DisplayProfiles);
+        dmGui::SetPhysicalResolution(m_GuiContext, 640, 480);
+
+        // Loading a proxy also creates its GUI components before initializing them.
+        dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/gui/layout_changed.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, go);
+        m_Scene = GetGuiComponent(m_Collection)->m_Scene;
+        ASSERT_EQ(dmHashString64("Landscape"), dmGui::GetLayout(m_Scene));
+    }
+
+    void TearDown() override
+    {
+        dmGameObject::Final(m_Collection);
+        dmGui::SetDisplayProfiles(m_GuiContext, 0);
+        dmResource::Release(m_Factory, m_DisplayProfiles);
+        GuiTest::TearDown();
+    }
+
+    lua_State* m_L;
+    dmGui::HScene m_Scene;
+    dmRender::HDisplayProfiles m_DisplayProfiles;
+};
+
+// Initial layout selection must not generate a notification when no layout change is pending.
+TEST_F(GuiLayoutChangedTest, InitialLayoutWithoutResize)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(RunString(m_L, "assert(layout_changed_test.layout_at_init == hash('Landscape'))"));
+    ASSERT_TRUE(RunString(m_L, "assert(#layout_changed_test.messages == 0)"));
+}
+
+// Coalesce pre-init resizes without calling Lua early or overwriting init's node changes (#8250).
+TEST_F(GuiLayoutChangedTest, ResizeBeforeInit)
+{
+    dmGui::SetPhysicalResolution(m_GuiContext, 480, 640);
+    dmGui::SetPhysicalResolution(m_GuiContext, 480, 480);
+    ASSERT_TRUE(RunString(m_L, "assert(#layout_changed_test.messages == 0)"));
+    ASSERT_EQ(dmHashString64("Square"), dmGui::GetLayout(m_Scene));
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(RunString(m_L,
+        "assert(layout_changed_test.layout_at_init == hash('Square'))\n"
+        "assert(layout_changed_test.position_at_init == 40)\n"
+        "assert(#layout_changed_test.messages == 1)\n"
+        "local message = layout_changed_test.messages[1]\n"
+        "assert(message.initialized)\n"
+        "assert(message.previous_id == hash('Landscape'))\n"
+        "assert(message.id == hash('Square'))\n"
+        "assert(message.position == 99)"));
+
+    dmGui::SetPhysicalResolution(m_GuiContext, 480, 480);
+    ASSERT_TRUE(RunString(m_L, "assert(#layout_changed_test.messages == 1)"));
+    dmGui::SetPhysicalResolution(m_GuiContext, 480, 640);
+    ASSERT_TRUE(RunString(m_L,
+        "assert(#layout_changed_test.messages == 2)\n"
+        "local message = layout_changed_test.messages[2]\n"
+        "assert(message.initialized)\n"
+        "assert(message.previous_id == hash('Square'))\n"
+        "assert(message.id == hash('Portrait'))\n"
+        "assert(message.position == 30)"));
+}
+
+// Returning to the initial layout before init must not emit a net-zero layout change.
+TEST_F(GuiLayoutChangedTest, ResizeBackBeforeInit)
+{
+    dmGui::SetPhysicalResolution(m_GuiContext, 480, 640);
+    dmGui::SetPhysicalResolution(m_GuiContext, 640, 480);
+    ASSERT_TRUE(RunString(m_L, "assert(#layout_changed_test.messages == 0)"));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(RunString(m_L,
+        "assert(layout_changed_test.layout_at_init == hash('Landscape'))\n"
+        "assert(#layout_changed_test.messages == 0)"));
+}
+
+// gui.set_layout() during init must notify only after the script finishes initializing.
+TEST_F(GuiLayoutChangedTest, SetLayoutInInit)
+{
+    ASSERT_TRUE(RunString(m_L, "layout_changed_test.layout_in_init = 'Square'"));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(RunString(m_L,
+        "assert(#layout_changed_test.messages == 1)\n"
+        "local message = layout_changed_test.messages[1]\n"
+        "assert(message.initialized)\n"
+        "assert(message.previous_id == hash('Landscape'))\n"
+        "assert(message.id == hash('Square'))\n"
+        "assert(message.position == 99)"));
+}
+
+// An explicit layout selected in init must replace the pending resize notification's current layout.
+TEST_F(GuiLayoutChangedTest, InitOverridesPendingLayout)
+{
+    dmGui::SetPhysicalResolution(m_GuiContext, 480, 640);
+    ASSERT_TRUE(RunString(m_L, "layout_changed_test.layout_in_init = 'Square'"));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(RunString(m_L,
+        "assert(layout_changed_test.layout_at_init == hash('Portrait'))\n"
+        "assert(#layout_changed_test.messages == 1)\n"
+        "local message = layout_changed_test.messages[1]\n"
+        "assert(message.initialized)\n"
+        "assert(message.previous_id == hash('Landscape'))\n"
+        "assert(message.id == hash('Square'))"));
+}
+
+// Restoring the original layout in init must cancel the pending resize notification.
+TEST_F(GuiLayoutChangedTest, InitRestoresOriginalLayout)
+{
+    dmGui::SetPhysicalResolution(m_GuiContext, 480, 640);
+    ASSERT_TRUE(RunString(m_L, "layout_changed_test.layout_in_init = 'Landscape'"));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(RunString(m_L, "assert(#layout_changed_test.messages == 0)"));
+}
+
+// A failed init must leave layout notifications deferred rather than calling an uninitialized script.
+TEST_F(GuiLayoutChangedTest, InitFailureDoesNotNotify)
+{
+    dmGui::SetPhysicalResolution(m_GuiContext, 480, 640);
+    ASSERT_TRUE(RunString(m_L, "layout_changed_test.fail_init = true"));
+    ASSERT_FALSE(dmGameObject::Init(m_Collection));
+    dmGui::SetPhysicalResolution(m_GuiContext, 480, 480);
+    ASSERT_TRUE(RunString(m_L, "assert(#layout_changed_test.messages == 0)"));
+}
+
+// Finalization must discard pending changes, and reload must flush only after the new init succeeds.
+TEST_F(GuiLayoutChangedTest, FinalAndReload)
+{
+    ASSERT_TRUE(RunString(m_L, "layout_changed_test.layout_in_init = 'Square'"));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(RunString(m_L,
+        "layout_changed_test.messages = {}\n"
+        "layout_changed_test.layout_in_final = 'Portrait'"));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/gui/layout_changed.guic", 0));
+    ASSERT_TRUE(RunString(m_L,
+        "assert(layout_changed_test.init_count == 2)\n"
+        "assert(layout_changed_test.final_count == 1)\n"
+        "assert(#layout_changed_test.messages == 1)\n"
+        "local message = layout_changed_test.messages[1]\n"
+        "assert(message.initialized)\n"
+        "assert(message.previous_id == hash('Landscape'))\n"
+        "assert(message.id == hash('Square'))\n"
+        "assert(message.position == 99)"));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_TRUE(RunString(m_L,
+        "assert(layout_changed_test.final_count == 2)\n"
+        "assert(#layout_changed_test.messages == 1)"));
 }
 
 TEST_F(GuiTest, GuiCustomPropertiesFromDDF)

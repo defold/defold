@@ -7,11 +7,13 @@ precision highp int;
 
 #include "/builtins/fonts/font-vector-slug.glsl"
 #include "/builtins/fonts/font-vector-paint.glsl"
+#include "/builtins/fonts/font-effect.glsl"
 
 in highp vec2 var_font_position;
 flat in highp float var_paint;
 in highp vec2 var_texcoord;
 in mediump vec4 var_color;
+in highp vec4 var_effect;
 flat in highp float var_mode;
 flat in highp vec4 var_banding;
 flat in highp ivec4 var_glyph;
@@ -66,7 +68,8 @@ void main()
     else
         coverage = 0.0;
 
-    out_fragColor = coverage * vec4(var_color.rgb * var_color.a, var_color.a);
+    vec4 face_color = font_effect_face_color(var_effect, var_color, false);
+    out_fragColor = coverage * vec4(face_color.rgb * face_color.a, face_color.a);
     if (var_mode > 3.5)
     {
         out_fragColor = FontVectorPaintGlyphColor(int(var_paint + 0.5), var_font_position, font_dx, font_dy, var_color);

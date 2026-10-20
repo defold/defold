@@ -20,6 +20,7 @@
 #include <graphics_private.h>
 #include <test/test_graphics_util.h>
 #include <font/font.h>
+#include <font_render.h>
 #include <font/font_glyphbank.h>
 #include <font/fontcollection.h>
 #include <font/text_layout.h>
@@ -38,6 +39,22 @@ static void LoadVectorImageFile(const char* path, dmArray<char>& data)
     data.SetSize(size + 1);
     ASSERT_EQ(dmSys::RESULT_OK, dmSys::LoadResource(path, data.Begin(), size, &size));
     data[size] = 0;
+    const char  include[] = "#include \"/builtins/fonts/font-effect.glsl\"";
+    const char* directive = strstr(data.Begin(), include);
+    if (directive)
+    {
+        dmArray<char> effect;
+        LoadVectorImageFile("content/builtins/fonts/font-effect.glsl", effect);
+        const uint32_t prefix = directive - data.Begin();
+        const uint32_t suffix = prefix + sizeof(include) - 1;
+        dmArray<char>  expanded;
+        expanded.SetCapacity(prefix + effect.Size() - 1 + data.Size() - suffix);
+        expanded.SetSize(expanded.Capacity());
+        memcpy(expanded.Begin(), data.Begin(), prefix);
+        memcpy(expanded.Begin() + prefix, effect.Begin(), effect.Size() - 1);
+        memcpy(expanded.Begin() + prefix + effect.Size() - 1, data.Begin() + suffix, data.Size() - suffix);
+        data.Swap(expanded);
+    }
 }
 
 struct VectorImageBank
@@ -195,13 +212,13 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     dmGraphics::ShaderDescBuilder shaders;
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vp.Begin(), vp.Size() - 1);
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment.Begin(), strlen(fragment.Begin()));
-    const char* inputs[] = { "position", "texcoord", "effect_params", "color", "texcoord0", "face_color", "outline_color" };
-    for (uint32_t i = 0; i < 7; ++i)
+    const char* inputs[] = { "position", "texcoord", "effect_params", "color", "texcoord0", "face_color", "outline_color", "effect" };
+    for (uint32_t i = 0; i < 8; ++i)
         shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, inputs[i], i, i == 4 ? dmGraphics::ShaderDesc::SHADER_TYPE_VEC2 : dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shaders.AddTypeMember("view_proj", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
     shaders.AddUniform("vs_uniforms", 0, 0);
-    const char* samplers[] = { "curve_texture", "band_texture", "effect_bitmap", "paint_texture" };
-    for (uint32_t i = 0; i < 4; ++i)
+    const char* samplers[] = { "curve_texture", "band_texture", "effect_bitmap", "paint_texture", "font_effects" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(samplers); ++i)
         shaders.AddTexture(samplers[i], i, i == 1 ? dmGraphics::ShaderDesc::SHADER_TYPE_UTEXTURE2D : dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
     char                 error[1024] = {};
     dmGraphics::HProgram program = resources.m_Program = dmGraphics::NewProgram(context, shaders.Get(), error, sizeof(error));
@@ -211,7 +228,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
 
     dmRender::HRenderContext render = resources.m_Render;
     dmRender::HMaterial      material = resources.m_Material = dmRender::NewMaterial(render, program);
-    for (uint32_t i = 0; i < 4; ++i)
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(samplers); ++i)
     {
         dmGraphics::TextureFilter filter = i == 2 ? dmGraphics::TEXTURE_FILTER_LINEAR : dmGraphics::TEXTURE_FILTER_NEAREST;
         ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64(samplers[i]), i, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, filter, filter, 1));
@@ -321,6 +338,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     dmRender::TextEntry entry = {};
     entry.m_Transform = dmVMath::Matrix4::translation(dmVMath::Vector3(g_Capture_vector.m_OriginX, height - g_Capture_vector.m_OriginTop, depth_overlap ? -0.5f : color ? 0.25f : 0.0f));
     entry.m_TextLayout = layout;
+    entry.m_Material = material;
     entry.m_FontSize = c.m_Size;
     entry.m_Width = settings.m_Width;
     entry.m_Leading = 1;
@@ -410,7 +428,8 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     dmGraphics::HRenderTarget      target = resources.m_Target = dmGraphics::NewRenderTarget(context, buffer_flags, rt);
     dmGraphics::HVertexBuffer      buffer = resources.m_Buffer = dmGraphics::NewVertexBuffer(context, count * sizeof(vertices[0]), vertices.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
     dmGraphics::HVertexDeclaration declaration = resources.m_Declaration = dmRender::CreateFontVertexDeclaration(context);
-    dmGraphics::HTexture           textures[] = { map->m_Texture, map->m_VectorBandTexture, map->m_VectorSdfTexture ? map->m_VectorSdfTexture : map->m_Texture, map->m_VectorPaintTexture };
+    FontUploadEffects(map->m_EffectCache);
+    dmGraphics::HTexture textures[] = { map->m_Texture, map->m_VectorBandTexture, map->m_VectorSdfTexture ? map->m_VectorSdfTexture : map->m_Texture, map->m_VectorPaintTexture, FontGetEffectTexture(map->m_EffectCache) };
     dmGraphics::BeginFrame(context);
     dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::SetViewport(context, 0, 0, width, height);
@@ -434,7 +453,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     dmGraphics::EnableProgram(context, program);
     dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1, 1);
     dmGraphics::SetConstantM4(context, (dmVMath::Vector4*)&projection, 1, dmGraphics::FindUniformLocation(program, "view_proj"));
-    for (uint32_t i = 0; i < 4; ++i)
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(samplers); ++i)
     {
         dmGraphics::SetSampler(context, dmGraphics::FindUniformLocation(program, samplers[i]), i);
         dmGraphics::EnableTexture(context, i, 0, textures[i]);
@@ -471,7 +490,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
     dmGraphics::DisableVertexDeclaration(context, declaration);
     dmGraphics::DisableVertexBuffer(context, buffer);
-    for (uint32_t i = 0; i < 4; ++i)
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(samplers); ++i)
         dmGraphics::DisableTexture(context, i, textures[i]);
     dmGraphics::DisableProgram(context);
     dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
@@ -497,6 +516,19 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
         ASSERT_GT(yellow_pixels, 100u);
         if (strstr(c.m_Name, "_fallback"))
             ASSERT_GT(gray_pixels, 10u);
+    }
+    if (strstr(c.m_Name, "_gradient_"))
+    {
+        ASSERT_GT(front_pixels, 0u);
+        ASSERT_GT(shadow_pixels, 0u);
+        ASSERT_GT(outline_pixels, 0u);
+        uint32_t yellow_pixels = 0;
+        for (uint32_t i = 0; i < pixels.Size(); i += 4)
+        {
+            const uint8_t* pixel = &pixels[i];
+            yellow_pixels += pixel[1] > 100 && pixel[2] > 100 && pixel[0] < 40;
+        }
+        ASSERT_GT(yellow_pixels, 0u);
     }
     if (outline)
         ASSERT_GT(outline_pixels, 0u);

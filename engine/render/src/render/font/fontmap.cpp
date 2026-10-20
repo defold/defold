@@ -1441,6 +1441,10 @@ namespace dmRender
         if (font_map->m_VectorSdfTexture)
             size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_VectorSdfTexture);
         size += font_map->m_DecorationVertices.Capacity() * sizeof(FontGlyphVertex);
+        if (font_map->m_EffectCache)
+        {
+            size += FontGetEffectCacheResourceSize(font_map->m_EffectCache);
+        }
         return size;
     }
 

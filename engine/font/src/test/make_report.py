@@ -73,6 +73,12 @@ def cases(full, rich):
                     inline_shadow=f'<shadow x=6 y=-6 blur=4>{TEXT}</shadow>',
                     mixed=f'ABCD<color=#ff8080>EFGab</color>cdefG 0123456789').items():
                     add(source,multi,name,text=text,markup=True)
+    if rich:
+        add('ttf_sdf', False, 'radial_block_ellipse', markup=True, outline=0, outline_alpha=0,
+            description='Verifies a rotated elliptical four-stop radial gradient across a multiline block.',
+            text='<gradient type=radial fit=block angle=45 radius-x=0.5 radius-y=0.25\n'
+                 '          color0=#FFFF00 color1=#FF8000 color2=#FF0000 color3=#8000FF>\n'
+                 'Lorem ipsum\ndolor sit amet\n</gradient>')
     # Vector always uses separate face/effect quads. Exercise runtime sources and
     # the exact prebaked curve payload exported by Fontc, including magnification.
     for source in VECTOR_SOURCES:
@@ -81,6 +87,10 @@ def cases(full, rich):
         add(source, True, 'scaled', text='Example', size=80, outline_alpha=0, outline=0)
         add(source, True, 'depth_overlap', text='Depth', size=80, outline_alpha=0, outline=0)
         if rich:
+            for gradient in ('linear', 'radial'):
+                add(source, True, 'gradient_' + gradient, size=80, outline=0, outline_alpha=0, markup=True,
+                    description='Verifies four gradient stops reach vector glyph pixels, including the interior stops.',
+                    text=f'<gradient type={gradient} fit=glyph color0=#ff0000 color1=#00ff00 color2=#0000ff color3=#ffff00>III</gradient>')
             add(source, True, 'rich_style', text='<color=#ff8080><size=150%>AB</size></color>CD', markup=True, outline_alpha=0, outline=0)
             add(source, True, 'decorations', text='<ul>HH HH</ul> <strike>HH HH</strike>', markup=True, outline_alpha=0, outline=0)
             add(source, True, 'decorations_dashed', text='<ul pattern=dashed>HH HH</ul> <strike pattern=dashed>HH HH</strike>', markup=True, outline_alpha=0, outline=0)
@@ -125,6 +135,8 @@ def generate_cases(output):
                 lines.append('// Verifies every visible vector glyph renders after growing an overflowing atlas.')
             elif c['scenario'] == 'rtl_wrapped':
                 lines.append('// Verifies wrapped RTL vector glyphs use the shared content origin, excluding trailing spaces.')
+            if 'description' in c:
+                lines.append('// ' + c['description'])
             lines.append('TEST(FontImages_'+c['id']+', Render)\n{\n    const FontImageCase c = { '+', '.join(values)+' };\n    TestFontImage(c);\n}\n')
         lines.append('#endif')
     output.parent.mkdir(parents=True,exist_ok=True); output.write_text('\n'.join(lines)+'\n', encoding="utf-8")

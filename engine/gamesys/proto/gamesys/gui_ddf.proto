@@ -289,6 +289,10 @@ message SceneDesc
  * This message is broadcast to every GUI component when a layout change has been initiated
  * on device.
  *
+ * Layout changes before or during `init()` are applied immediately, but their notifications
+ * are coalesced and delivered after `init()` completes successfully. If the final layout
+ * matches the layout before these changes, no notification is sent.
+ *
  * @message
  * @name layout_changed
  * @param id [type:hash] the id of the layout the engine is changing to

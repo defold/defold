@@ -70,6 +70,7 @@
 #include <font_render.h>
 #include <glyph_gen.h>
 #include <glyph_vertex.h>
+#include <layout_vertex.h>
 #include <text_layout.h>
 
 using dmVMath::Matrix4;
@@ -182,6 +183,8 @@ struct Viewer
         , m_NuklearVertexDeclaration(0)
         , m_Texture(0)
         , m_NuklearTexture(0)
+        , m_EffectCache(0)
+        , m_EffectFrame(0)
         , m_Collection(0)
         , m_VectorFont(0)
         , m_LoadedFontDataSize(0)
@@ -276,6 +279,8 @@ struct Viewer
     dmGraphics::HVertexDeclaration m_NuklearVertexDeclaration;
     dmGraphics::HTexture           m_Texture;
     dmGraphics::HTexture           m_NuklearTexture;
+    FontEffectCache*               m_EffectCache;
+    uint32_t                       m_EffectFrame;
     HFontCollection                m_Collection;
     FontViewerVectorFont*          m_VectorFont;
     dmArray<HFont>                 m_Fonts;
@@ -836,7 +841,7 @@ static void GetBitmapEffectWidths(Viewer* viewer, HTextLayout layout, const Text
         return;
     const float         white[4] = { 1, 1, 1, 1 };
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, glyph, white, &data);
+    TextLayoutGetGlyphRenderData(layout, glyph, white, &data, true);
     *outline_width = data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH ? data.m_OutlineWidth / glyph.m_RenderScale : viewer->m_Properties.m_OutlineWidth;
     *shadow_blur = data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_BLUR ? data.m_ShadowBlur / glyph.m_RenderScale : viewer->m_Properties.m_ShadowBlur;
 }
@@ -1365,7 +1370,7 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
             }
 
             TextGlyphRenderData glyph_render_data;
-            TextLayoutGetGlyphRenderData(layout, text_glyph, base_face_color, &glyph_render_data);
+            TextLayoutGetGlyphRenderData(layout, text_glyph, base_face_color, &glyph_render_data, true);
             if (glyph->m_VectorGlyph != ~0u)
             {
                 Vector4 clip(2.0f * clip_box.m_X / WINDOW_WIDTH - 1.0f,
@@ -1549,7 +1554,7 @@ static void PackLayoutDecorations(Viewer* viewer, HTextLayout layout, float para
             if (glyph_segments)
             {
                 TextGlyphRenderData render_data;
-                TextLayoutGetGlyphRenderData(layout, glyphs[decoration_segment.m_GlyphIndex], base_face_color, &render_data);
+                TextLayoutGetGlyphRenderData(layout, glyphs[decoration_segment.m_GlyphIndex], base_face_color, &render_data, true);
                 segment_colors = render_data.m_FaceColors;
             }
             else
@@ -1704,7 +1709,7 @@ static uint32_t HitTestPreviewLink(Viewer* viewer, float mouse_x, float mouse_y)
                 float               descent = fabsf(FontGetDescent(glyph.m_Font, scale));
                 const float         white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
                 TextGlyphRenderData render_data;
-                TextLayoutGetGlyphRenderData(layout, glyph, white, &render_data);
+                TextLayoutGetGlyphRenderData(layout, glyph, white, &render_data, true);
                 float        x = line_x + glyph.m_X - first_x + render_data.m_OffsetX;
                 float        width = dmMath::Max(glyph.m_Width, glyph_size * 0.35f);
                 CachedGlyph* cached_glyph = FindGlyph(viewer, layout, glyph, viewer->m_LayoutSizes[0], true);
@@ -2552,8 +2557,97 @@ static bool PushEditorLayout(Viewer* viewer)
     return true;
 }
 
+static bool ResolveExportGlyph(void* context, const TextGlyph& text_glyph, FontLayoutCachedGlyph* cached)
+{
+    Viewer*      viewer = (Viewer*)context;
+    CachedGlyph* glyph = FindGlyph(viewer, viewer->m_Layouts[0], text_glyph, viewer->m_FontSize, true);
+    if (!glyph || !glyph->m_Glyph.m_Bitmap.m_Width || !glyph->m_Glyph.m_Bitmap.m_Height)
+    {
+        return false;
+    }
+    cached->m_Glyph = &glyph->m_Glyph;
+    cached->m_CellX = glyph->m_X;
+    cached->m_CellY = glyph->m_Y;
+    return true;
+}
+
+static uint32_t ResolveExportEffect(void* context, const FontEffectRecord& record)
+{
+    Viewer* viewer = (Viewer*)context;
+    return FontCacheEffect(viewer->m_EffectCache, record, viewer->m_EffectFrame);
+}
+
+static bool PackExportLayout(Viewer* viewer)
+{
+    // Documentation captures use the engine's layout packer, including effect
+    // coordinates and metadata for GPU gradients.
+    if (!viewer->m_EffectCache)
+    {
+        viewer->m_EffectCache = FontCreateEffectCache(viewer->m_Context);
+    }
+    ++viewer->m_EffectFrame;
+
+    HTextLayout                 layout = viewer->m_Layouts[0];
+    const FontViewerProperties& properties = viewer->m_Properties;
+    const float                 outline_width = dmMath::Max(properties.m_OutlineWidth, TextLayoutGetMaxMarkupOutlineWidth(layout));
+    const float                 spread = 6.0f + outline_width + properties.m_ShadowBlur;
+    FontLayoutVertexConfig      config = {};
+    config.m_Layout = layout;
+    config.m_ResolveGlyph = ResolveExportGlyph;
+    config.m_ResolveGlyphContext = viewer;
+    config.m_ResolveEffect = ResolveExportEffect;
+    config.m_ResolveEffectContext = viewer;
+    config.m_Transform = Matrix4::orthographic(0.0f, (float)WINDOW_WIDTH, 0.0f, (float)WINDOW_HEIGHT, -1.0f, 1.0f) *
+                         Matrix4::translation(Vector3(viewer->m_LayoutXs[0], viewer->m_LayoutTops[0], 0.0f));
+    memcpy(config.m_FaceColor, properties.m_FaceColor, sizeof(properties.m_FaceColor));
+    config.m_FaceColor[3] = properties.m_Alpha;
+    config.m_OutlineColor = Vector4(properties.m_OutlineColor[0], properties.m_OutlineColor[1], properties.m_OutlineColor[2], properties.m_Alpha * properties.m_OutlineAlpha);
+    config.m_ShadowColor = Vector4(properties.m_ShadowColor[0], properties.m_ShadowColor[1], properties.m_ShadowColor[2], properties.m_Alpha);
+    config.m_Width = viewer->m_LayoutWidths[0];
+    config.m_RecipAtlasWidth = 1.0f / ATLAS_WIDTH;
+    config.m_RecipAtlasHeight = 1.0f / ATLAS_HEIGHT;
+    config.m_SdfEdge = 0.75f;
+    config.m_SdfOutline = 0.75f - FONT_SDF_DISTANCE_SCALE * properties.m_OutlineWidth / spread;
+    config.m_SdfShadow = properties.m_ShadowBlur > 0.0f ? 0.75f - FONT_SDF_DISTANCE_SCALE * properties.m_ShadowBlur / spread : 1.0f;
+    config.m_SdfSmoothing = FONT_SDF_DISTANCE_SCALE / spread;
+    config.m_SdfSpread = spread;
+    config.m_OutlineWidth = outline_width;
+    config.m_ShadowX = properties.m_ShadowX;
+    config.m_ShadowY = properties.m_ShadowY;
+    config.m_ShadowBlur = properties.m_ShadowBlur;
+    config.m_BaseShadowAlpha = properties.m_ShadowAlpha;
+    config.m_CacheCellMaxAscent = viewer->m_CellMaxAscent;
+    config.m_CacheCellPadding = CELL_PADDING;
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+    config.m_MetricsFromTtf = true;
+    config.m_IsSdf = true;
+    config.m_ResolveGlyphsForMetrics = true;
+
+    FontLayoutVertexMetrics metrics;
+    if (!FontGetLayoutVertexMetrics(config, &metrics))
+    {
+        return false;
+    }
+    viewer->m_Vertices.EnsureSize(metrics.m_VertexCount);
+    viewer->m_VertexCount = FontCreateLayoutVertices(config, metrics, viewer->m_Vertices.Begin(), viewer->m_Vertices.Size());
+
+    viewer->m_ColorVertices.SetSize(0);
+    viewer->m_ColorBackgroundVertexCount = 0;
+    viewer->m_ColorDebugVertexCount = 0;
+    viewer->m_SpriteVertices.SetSize(0);
+    viewer->m_SpriteDraws.SetSize(0);
+    PackLayoutDecorations(viewer, layout, viewer->m_LayoutXs[0], viewer->m_LayoutTops[0], viewer->m_LayoutWidths[0], viewer->m_LayoutClips[0]);
+    PackLayoutObjects(viewer, layout, viewer->m_LayoutXs[0], viewer->m_LayoutTops[0], viewer->m_LayoutWidths[0], true);
+    viewer->m_ColorDecorationVertexCount = viewer->m_ColorVertices.Size() - viewer->m_ColorBackgroundVertexCount;
+    return viewer->m_VertexCount == metrics.m_VertexCount;
+}
+
 static bool PackAllLayouts(Viewer* viewer)
 {
+    if (viewer->m_ExportMode && viewer->m_Properties.m_RenderMode == FONT_VIEWER_RENDER_SDF)
+    {
+        return PackExportLayout(viewer);
+    }
     viewer->m_Vertices.EnsureSize(viewer->m_VertexCount);
     // Invisible and color glyphs retain empty atlas slots; Slug draws separately.
     memset(viewer->m_Vertices.Begin(), 0, viewer->m_Vertices.Size() * sizeof(FontGlyphVertex));
@@ -2637,9 +2731,11 @@ static bool CreateGraphicsResources(Viewer* viewer)
     shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "shadow_color", 4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "sdf_params", 5, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "layer_mask", 6, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+    shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "effect", 7, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shaders.AddTypeMember("view_proj", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
     shaders.AddUniform("vs_uniforms", 0, 0);
     shaders.AddTexture("texture_sampler", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shaders.AddTexture("font_effects", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
     char error[1024] = {};
     viewer->m_Program = dmGraphics::NewProgram(viewer->m_Context, shaders.Get(), error, sizeof(error));
     if (!viewer->m_Program)
@@ -3291,6 +3387,10 @@ static bool Initialize(Viewer* viewer)
 
 static void Finalize(Viewer* viewer)
 {
+    if (viewer->m_EffectCache)
+    {
+        FontDeleteEffectCache(viewer->m_EffectCache);
+    }
     if (viewer->m_Context)
     {
         DestroyNuklearGraphicsResources(viewer);
@@ -3435,6 +3535,12 @@ static void Draw(Viewer* viewer, void* capture_buffer, uint32_t capture_buffer_s
     const Matrix4 identity = Matrix4::identity();
     dmGraphics::SetConstantM4(viewer->m_Context, (const Vector4*)&identity, 1, viewer->m_ViewProjLocation);
     dmGraphics::EnableTexture(viewer->m_Context, 0, 0, viewer->m_Texture);
+    if (viewer->m_EffectCache)
+    {
+        FontUploadEffects(viewer->m_EffectCache);
+        dmGraphics::SetSampler(viewer->m_Context, dmGraphics::FindUniformLocation(viewer->m_Program, "font_effects"), 1);
+        dmGraphics::EnableTexture(viewer->m_Context, 1, 0, FontGetEffectTexture(viewer->m_EffectCache));
+    }
     dmGraphics::EnableVertexBuffer(viewer->m_Context, viewer->m_VertexBuffer, 0);
     dmGraphics::EnableVertexDeclaration(viewer->m_Context, viewer->m_VertexDeclaration, 0, 0, viewer->m_Program);
     dmGraphics::Draw(viewer->m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, viewer->m_VertexCount, 1);

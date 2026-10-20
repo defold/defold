@@ -36,3 +36,10 @@ samplers {
   filter_min: FILTER_MODE_MIN_NEAREST
   filter_mag: FILTER_MODE_MAG_NEAREST
 }
+samplers {
+  name: "font_effects"
+  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  filter_min: FILTER_MODE_MIN_NEAREST
+  filter_mag: FILTER_MODE_MAG_NEAREST
+}

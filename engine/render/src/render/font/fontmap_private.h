@@ -16,6 +16,7 @@
 #define DM_FONTMAP_PRIVATE_H
 
 #include "font_renderer.h"
+#include <font_render.h>
 #include <font/font_vector_slug.h>
 #include <font/render/glyph_vertex.h>
 #include <font/font_vector_paint.hpp>
@@ -48,6 +49,7 @@ namespace dmRender
             delete m_VectorPaint;
             if (m_VectorPaintTexture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorPaintTexture);
+            FontDeleteEffectCache(m_EffectCache);
             delete m_SlugData;
             if (m_VectorBandTexture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorBandTexture);
@@ -83,6 +85,7 @@ namespace dmRender
         bool                    m_VectorBitmapEffects;
         bool                    m_SlugResetPending;
         uint32_t                m_SlugOverflowFrame;
+        FontEffectCache*        m_EffectCache;
         HMaterial               m_Material;
         dmhash_t                m_NameHash;
 

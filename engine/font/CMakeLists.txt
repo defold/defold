@@ -30,6 +30,7 @@ set(FONT_PUBLIC_HEADERS
   "${FONT_SRC_DIR}/font_glyphbank.h"
   "${FONT_SRC_DIR}/fontcollection.h"
   "${FONT_SRC_DIR}/markup.h"
+  "${FONT_SRC_DIR}/font_effect.h"
   "${FONT_SRC_DIR}/text_layout.h")
 set(FONT_RENDER_PUBLIC_HEADERS
   "${FONT_RENDER_SRC_DIR}/font_render.h")
@@ -81,6 +82,7 @@ set(FONT_GLYPH_VERTEX_SOURCE "${FONT_RENDER_SRC_DIR}/glyph_vertex.cpp")
 set(FONT_LAYOUT_VERTEX_SOURCE "${FONT_RENDER_SRC_DIR}/layout_vertex.cpp")
 set(FONT_RENDER_SOURCES
   "${FONT_RENDER_SRC_DIR}/font_render.cpp"
+  "${FONT_RENDER_SRC_DIR}/font_effect.cpp"
   "${FONT_GLYPH_VERTEX_SOURCE}"
   "${FONT_LAYOUT_VERTEX_SOURCE}")
 set(FONT_RICHTEXT_SOURCES
@@ -328,6 +330,7 @@ install(FILES
   "${FONT_SRC_DIR}/font_glyphbank.h"
   "${FONT_SRC_DIR}/fontcollection.h"
   "${FONT_SRC_DIR}/markup.h"
+  "${FONT_SRC_DIR}/font_effect.h"
   "${FONT_SRC_DIR}/text_layout.h"
   DESTINATION include/font)
 install(FILES ${FONT_RENDER_PUBLIC_HEADERS} DESTINATION include/font)

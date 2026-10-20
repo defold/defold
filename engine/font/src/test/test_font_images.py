@@ -746,6 +746,7 @@ class FontImageReportTest(unittest.TestCase):
         self.assertNotIn('missing references', output.getvalue())
         self.assertIn('1 image-size mismatches', output.getvalue())
 
+    # Retains every source/layout/parser combination, including rich-text-only cases.
     def test_matrix_keeps_all_sources_and_build_configurations(self):
         count = 0
         for full in (False, True):
@@ -758,9 +759,9 @@ class FontImageReportTest(unittest.TestCase):
                 vector = [c for c in cases if c['source'] in report.VECTOR_SOURCES]
                 self.assertEqual(set(report.VECTOR_SOURCES), {c['source'] for c in vector})
                 self.assertTrue(all(c['multi'] for c in vector))
-                self.assertEqual(4 * (9 if rich else 4) + ((3 if rich else 2) if full else 0), len(vector))
+                self.assertEqual(4 * (11 if rich else 4) + ((3 if rich else 2) if full else 0), len(vector))
                 count += len(cases)
-        self.assertEqual(543, count)
+        self.assertEqual(561, count)
 
     # Verifies all pivots use the shared preview references and that a one-pixel
     # text shift fails even with the large unchanged white box from #13339.
@@ -824,11 +825,12 @@ class FontImageReportTest(unittest.TestCase):
                 self.assertTrue((page.parent/'actual.png').exists())
                 self.assertTrue((page.parent/'difference.png').exists())
 
+    # Missing captures must fail every declared case instead of hiding absent output.
     def test_missing_images_finish_a_failure_report(self):
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             root=Path(temporary)
             summary=report.build_reports(root/'missing',root/'report',{},False)
-            self.assertEqual(543,summary['failed'])
+            self.assertEqual(561,summary['failed'])
             self.assertEqual(0,summary['completed'])
             self.assertEqual('fail',summary['status'])
             self.assertTrue((root/'report/index.html').exists())

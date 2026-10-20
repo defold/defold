@@ -31,6 +31,7 @@ struct FontImageCaptureGeometry
 };
 
 extern const FontImageCaptureGeometry g_Capture_single_line;
+extern const FontImageCaptureGeometry g_Capture_radial_block_ellipse;
 extern const FontImageCaptureGeometry g_Capture_vector;
 extern const FontImageCaptureGeometry g_Capture_english;
 extern const FontImageCaptureGeometry g_Capture_arabic;
