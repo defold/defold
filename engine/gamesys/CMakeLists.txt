@@ -160,7 +160,7 @@ set(GAMESYS_PROTO_PY_DIR "${GS_PROTO_PY_DIR}" CACHE INTERNAL "Generated gamesys 
 
 # Mirror ant_glob patterns from wscript:
 #   ['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp']
-file(GLOB GS_TOP_LEVEL
+file(GLOB GS_TOP_LEVEL CONFIGURE_DEPENDS
     "${GS_SRC_DIR}/*.cpp"
     "${GS_SRC_DIR}/scripts/*.cpp")
 file(GLOB_RECURSE GS_RESOURCES "${GS_SRC_DIR}/resources/*.cpp")

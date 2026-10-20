@@ -35,6 +35,7 @@
 
 #include "../resources/res_sprite.h"
 #include "../gamesys.h"
+#include "../geometry.h"
 #include "../gamesys_private.h"
 #include "comp_private.h"
 
@@ -215,11 +216,6 @@ namespace dmGameSystem
     static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
     static const dmhash_t SPRITE_PROP_FRAME_COUNT   = dmHashString64("frame_count");
 
-    // The 9 slice function produces 16 vertices (4 rows 4 columns)
-    // and since there's 2 triangles per quad and 9 quads in total,
-    // the amount of indices is 6 per quad and 9 quads = 54 indices in total
-    static const uint8_t SPRITE_VERTEX_COUNT_SLICE9 = 16;
-    static const uint8_t SPRITE_INDEX_COUNT_SLICE9  = 9 * 6;
     // For the legacy version, we produce a single quad with 4 vertices
     // and 6 indices, 2 triangles per quad and three points each.
     static const uint8_t SPRITE_VERTEX_COUNT_LEGACY = 4;
@@ -835,26 +831,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static void FillSlice9Uvs(const float us[4], const float vs[4], bool rotated, float uvs[SPRITE_VERTEX_COUNT_SLICE9*2]) {
-        int index = 0;
-        for (int y=0; y<4; ++y)
-        {
-            for (int x=0; x<4; ++x, ++index)
-            {
-                if (rotated)
-                {
-                    uvs[index*2+0] = us[y];
-                    uvs[index*2+1] = vs[x];
-                }
-                else
-                {
-                    uvs[index*2+0] = us[x];
-                    uvs[index*2+1] = vs[y];
-                }
-            }
-        }
-    }
-
     static inline void FillWriteVertexAttributeParams(dmGraphics::WriteAttributeParams* params,
         const dmGraphics::VertexAttributeInfos* attribute_infos,
         const float** world_matrix,
@@ -903,8 +879,8 @@ namespace dmGameSystem
         {
             if (component->m_UseSlice9)
             {
-                component->m_VertexCount   = SPRITE_VERTEX_COUNT_SLICE9;
-                component->m_IndexCount    = SPRITE_INDEX_COUNT_SLICE9;
+                component->m_VertexCount   = SLICE9_VERTEX_COUNT;
+                component->m_IndexCount    = SLICE9_INDEX_COUNT;
             }
             else
             {
@@ -928,7 +904,6 @@ namespace dmGameSystem
         bool has_local_position_attribute,
         const Matrix4& world_matrix,
         uint32_t vertex_offset,
-        uint32_t vertex_stride,
         AnimationData* anim_data,
         dmArray<float>* scratch_uvs,
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT],
@@ -938,141 +913,65 @@ namespace dmGameSystem
         dmArray<dmVMath::Vector4>* scratch_positions_local,
         dmGraphics::VertexAttributeInfos* sprite_infos)
     {
-        Vector3 sprite_size = component->m_Size;
-        Vector4 slice9 = component->m_Slice9;
-        bool flip_u = component->m_FlipHorizontal == 1;
-        bool flip_v = component->m_FlipVertical == 1;
-        uint8_t texture_num = component->m_NumTextures;
-        // render 9-sliced node
-        //   0 1     2 3
-        // 0 *-*-----*-*
-        //   | |  y  | |
-        // 1 *-*-----*-*
-        //   | |     | |
-        //   |x|     |z|
-        //   | |     | |
-        // 2 *-*-----*-*
-        //   | |  w  | |
-        // 3 *-*-----*-*
+        const Vector3 sprite_size = component->m_Size;
+        const Vector4 slice9 = component->m_Slice9;
+        const uint8_t texture_num = component->m_NumTextures;
+        Slice9Params slice9_params = {
+            sprite_size.getX(), sprite_size.getY(),
+            {slice9.getX(), slice9.getY(), slice9.getZ(), slice9.getW()},
+            0.5f + component->m_PivotX, 0.5f + component->m_PivotY,
+            component->m_FlipHorizontal != 0, component->m_FlipVertical != 0
+        };
 
-        uint32_t uv_channels_count = 0;
+        // The driving animation determines the geometry, including flipped borders.
+        if (texture_num != 0 && anim_data->m_Animations[0])
+        {
+            slice9_params.m_FlipHorizontal ^= anim_data->m_Animations[0]->m_FlipHorizontal != 0;
+            slice9_params.m_FlipVertical ^= anim_data->m_Animations[0]->m_FlipVertical != 0;
+        }
 
-        for (uint8_t i = 0; i < texture_num; ++i)
+        const uint8_t uv_channels_count = texture_num != 0 ? texture_num : 1;
+        for (uint8_t i = 0; i < uv_channels_count; ++i)
         {
             dmArray<float>& uvs = scratch_uvs[i];
-            uvs.EnsureSize(SPRITE_VERTEX_COUNT_SLICE9*2);
+            uvs.EnsureSize(SLICE9_VERTEX_COUNT * 2);
+            scratch_uv_ptrs[i] = uvs.Begin();
+            scratch_pi_ptrs[i] = &anim_data->m_PageIndices[i];
+            scratch_tt_ptrs[i] = &anim_data->m_TextureTransformsPacked[i][0];
 
-            uint32_t frame_index = anim_data->m_Frames[i];
-            if (frame_index == 0xFFFFFFFF)
+            if (texture_num == 0)
             {
-                // The animation frame wasn't found in the textureset.
-                memset(uvs.Begin(), 0, uvs.Size());
+                const float tc[8] = {0, 0, 0, 1, 1, 1, 1, 0};
+                GenerateSlice9TexCoords(slice9_params, sprite_size.getX(), sprite_size.getY(), tc, uvs.Begin());
+                continue;
+            }
+
+            const uint32_t frame_index = anim_data->m_Frames[i];
+            const dmGameSystemDDF::TextureSetAnimation* animation = anim_data->m_Animations[i];
+            if (frame_index == 0xFFFFFFFF || !animation)
+            {
+                // Keep missing texture channels in their original slots.
+                memset(uvs.Begin(), 0, uvs.Size() * sizeof(float));
                 continue;
             }
 
             const TextureSetResource* texture_set_resource = GetTextureSetByIndex(component, i);
             const dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set_resource->m_TextureSet;
-            const float* tex_coords = (const float*) texture_set_ddf->m_TexCoords.m_Data;
-            const float* tc         = &tex_coords[frame_index * 4 * 2];
-
-            float us[4], vs[4];
-
-            uint32_t texture_width = texture_set_ddf->m_Width;
-            uint32_t texture_height = texture_set_ddf->m_Height;
-
-            const float su = 1.0f / texture_width;
-            const float sv = 1.0f / texture_height;
-
-            static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
-            bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
-            if(uv_rotated)
-            {
-                const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
-                const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
-                us[uI[0]] = tc[0];
-                us[uI[1]] = tc[0] + (su * slice9.getW());
-                us[uI[2]] = tc[2] - (su * slice9.getY());
-                us[uI[3]] = tc[2];
-                vs[vI[0]] = tc[1];
-                vs[vI[1]] = tc[1] - (sv * slice9.getX());
-                vs[vI[2]] = tc[5] + (sv * slice9.getZ());
-                vs[vI[3]] = tc[5];
-            }
-            else
-            {
-                const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
-                const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
-                us[uI[0]] = tc[0];
-                us[uI[1]] = tc[0] + (su * slice9.getX());
-                us[uI[2]] = tc[4] - (su * slice9.getZ());
-                us[uI[3]] = tc[4];
-                vs[vI[0]] = tc[1];
-                vs[vI[1]] = tc[1] + (sv * slice9.getW());
-                vs[vI[2]] = tc[3] - (sv * slice9.getY());
-                vs[vI[3]] = tc[3];
-            }
-
-            FillSlice9Uvs(us, vs, uv_rotated, uvs.Begin());
-
-            scratch_uv_ptrs[i] = uvs.Begin();
-            scratch_pi_ptrs[i] = (float*) &anim_data->m_PageIndices[i];
-            scratch_tt_ptrs[i] = (float*) &anim_data->m_TextureTransformsPacked[i][0];
-            uv_channels_count++;
+            const float* tc = (const float*) texture_set_ddf->m_TexCoords.m_Data + frame_index * 8;
+            Slice9Params uv_params = slice9_params;
+            uv_params.m_FlipHorizontal = (component->m_FlipHorizontal != 0) ^ (animation->m_FlipHorizontal != 0);
+            uv_params.m_FlipVertical = (component->m_FlipVertical != 0) ^ (animation->m_FlipVertical != 0);
+            GenerateSlice9TexCoords(uv_params, texture_set_ddf->m_Width, texture_set_ddf->m_Height, tc, uvs.Begin());
         }
-
-        // disable slice9 computation below a certain threshold
-        // (avoid div by zero)
-        const float s9_min_dim = 0.001f;
-
-        if (texture_num == 0)
-        {
-            dmArray<float>& uvs = scratch_uvs[0];
-            uvs.EnsureSize(SPRITE_VERTEX_COUNT_SLICE9*2);
-
-            float us[4];
-            float vs[4];
-            us[0] = 0.0f;
-            us[1] = sprite_size.getX() > s9_min_dim ? slice9.getX() / sprite_size.getX() : 0.0f;
-            us[2] = 1.0f - (sprite_size.getX() > s9_min_dim ? slice9.getZ() / sprite_size.getX() : 0.0f);
-            us[3] = 1.0f;
-
-            vs[0] = 0.0f;
-            vs[1] = sprite_size.getY() > s9_min_dim ? slice9.getY() / sprite_size.getY() : 0.0f;
-            vs[2] = 1.0f - (sprite_size.getY() > s9_min_dim ? slice9.getW() / sprite_size.getY() : 0.0f);
-            vs[3] = 1.0f;
-
-            FillSlice9Uvs(us, vs, false, uvs.Begin());
-
-            scratch_uv_ptrs[0] = uvs.Begin();
-            scratch_pi_ptrs[0] = (float*) &anim_data->m_PageIndices[0];
-            scratch_tt_ptrs[0] = (float*) &anim_data->m_TextureTransformsPacked[0][0];
-            uv_channels_count  = 1;
-        }
-
-        const float sx = sprite_size.getX() > s9_min_dim ? 1.0f / sprite_size.getX() : 0;
-        const float sy = sprite_size.getY() > s9_min_dim ? 1.0f / sprite_size.getY() : 0;
-
-        float xs[4], ys[4];
-        // v are '1-v'
-        xs[0] = ys[0] = 0;
-        xs[3] = ys[3] = 1;
-
-        // Flipping the UV grid also moves the fixed-size slice borders to the
-        // opposite side of the sprite. Keep the geometry subdivisions aligned
-        // with the reversed UV subdivisions for asymmetric slice values.
-        xs[1] = sx * (flip_u ? slice9.getZ() : slice9.getX());
-        xs[2] = 1 - sx * (flip_u ? slice9.getX() : slice9.getZ());
-        ys[1] = sy * (flip_v ? slice9.getY() : slice9.getW());
-        ys[2] = 1 - sy * (flip_v ? slice9.getW() : slice9.getY());
 
         if (has_world_position_attribute)
         {
-            scratch_positions_world->EnsureSize(SPRITE_VERTEX_COUNT_SLICE9);
+            scratch_positions_world->EnsureSize(SLICE9_VERTEX_COUNT);
         }
 
         if (has_local_position_attribute)
         {
-            scratch_positions_local->EnsureSize(SPRITE_VERTEX_COUNT_SLICE9);
+            scratch_positions_local->EnsureSize(SLICE9_VERTEX_COUNT);
         }
 
         const float* world_matrix_channels[] = { (float*) &world_matrix };
@@ -1092,72 +991,40 @@ namespace dmGameSystem
             (const float**) scratch_tt_ptrs,
             uv_channels_count);
 
-        uint32_t sp_width = sprite_size.getX();
-        uint32_t sp_height = sprite_size.getY();
-        uint32_t vertex_index = 0;
-        for (int y=0; y<4; y++)
+        float positions[SLICE9_VERTEX_COUNT * 2];
+        if (has_local_position_attribute || has_world_position_attribute)
         {
-            for (int x=0; x<4; x++)
+            GenerateSlice9Positions(slice9_params, positions);
+        }
+        for (uint32_t vertex_index = 0; vertex_index < SLICE9_VERTEX_COUNT; ++vertex_index)
+        {
+            if (has_local_position_attribute || has_world_position_attribute)
             {
-                if (has_local_position_attribute || has_world_position_attribute)
+                // Local space includes size; the world matrix supplies the component transform.
+                const Vector4 local_pos(positions[vertex_index * 2] * sprite_size.getX(),
+                                       positions[vertex_index * 2 + 1] * sprite_size.getY(), 0.0f, 1.0f);
+                if (has_local_position_attribute)
                 {
-                    // convert from [0,1] to [-0.5, 0.5]
-                    float px = xs[x] - 0.5f;
-                    float py = ys[y] - 0.5f;
-                    Point3 p = Point3(px - component->m_PivotX, py - component->m_PivotY, 0);
-
-                    // Local space has size applied; world = mtx_world * local (mtx_world has no scale)
-                    Vector4 local_pos(p.getX() * sp_width, p.getY() * sp_height, 0.0f, 1.0f);
-
-                    if (has_local_position_attribute)
-                    {
-                        (*scratch_positions_local)[vertex_index] = local_pos;
-                    }
-                    if (has_world_position_attribute)
-                    {
-                        (*scratch_positions_world)[vertex_index] = world_matrix * local_pos;
-                    }
+                    (*scratch_positions_local)[vertex_index] = local_pos;
                 }
-
-                vertices = dmGraphics::WriteAttributes(vertices, vertex_index++, 1, params);
+                if (has_world_position_attribute)
+                {
+                    (*scratch_positions_world)[vertex_index] = world_matrix * local_pos;
+                }
             }
+            vertices = dmGraphics::WriteAttributes(vertices, vertex_index, 1, params);
         }
 
-        uint32_t index = 0;
-        for (int y=0;y<3;y++)
+        const uint16_t* slice9_indices = GetSlice9Indices();
+        if (is_indices_16_bit)
         {
-            for (int x=0;x<3;x++)
-            {
-                uint32_t p0 = vertex_offset + y * 4 + x;
-                uint32_t p1 = p0 + 1;
-                uint32_t p2 = p0 + 4;
-                uint32_t p3 = p2 + 1;
-
-                if (is_indices_16_bit)
-                {
-                    uint16_t* indices_16 = (uint16_t*) indices;
-                    // Triangle 1
-                    indices_16[index++] = p0;
-                    indices_16[index++] = p1;
-                    indices_16[index++] = p2;
-                    // Triangle 2
-                    indices_16[index++] = p2;
-                    indices_16[index++] = p1;
-                    indices_16[index++] = p3;
-                }
-                else
-                {
-                    uint32_t* indices_32 = (uint32_t*) indices;
-                    // Triangle 1
-                    indices_32[index++] = p0;
-                    indices_32[index++] = p1;
-                    indices_32[index++] = p2;
-                    // Triangle 2
-                    indices_32[index++] = p2;
-                    indices_32[index++] = p1;
-                    indices_32[index++] = p3;
-                }
-            }
+            for (uint32_t i = 0; i < SLICE9_INDEX_COUNT; ++i)
+                ((uint16_t*) indices)[i] = vertex_offset + slice9_indices[i];
+        }
+        else
+        {
+            for (uint32_t i = 0; i < SLICE9_INDEX_COUNT; ++i)
+                ((uint32_t*) indices)[i] = vertex_offset + slice9_indices[i];
         }
     }
 
@@ -1710,7 +1577,6 @@ namespace dmGameSystem
                         has_local_position_attribute,
                         world_matrix,
                         vertex_offset,
-                        vertex_stride,
                         animations,
                         sprite_world->m_ScratchUVs,
                         scratch_uv_ptrs,
@@ -1720,9 +1586,9 @@ namespace dmGameSystem
                         &sprite_world->m_ScratchPositionLocal,
                         scratch_attribute_infos);
 
-                    indices       += index_type_size * SPRITE_INDEX_COUNT_SLICE9;
-                    vertices      += SPRITE_VERTEX_COUNT_SLICE9 * vertex_stride;
-                    vertex_offset += SPRITE_VERTEX_COUNT_SLICE9;
+                    indices       += index_type_size * SLICE9_INDEX_COUNT;
+                    vertices      += SLICE9_VERTEX_COUNT * vertex_stride;
+                    vertex_offset += SLICE9_VERTEX_COUNT;
                 }
                 else
                 {
