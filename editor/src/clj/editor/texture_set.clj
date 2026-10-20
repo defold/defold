@@ -22,7 +22,7 @@
             [editor.render-util :as render-util]
             [editor.shaders :as shaders]
             [editor.slice9 :as slice9]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL3]
            [editor.gl.vertex2 VertexBuffer]
@@ -108,7 +108,7 @@
      :height (:height frame-geometry)}))
 
 (defn- ->anim-data
-  [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries]
+  [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries texture-width texture-height]
   {:pre [(contains? #{nil 0 1} flip-horizontal)
          (contains? #{nil 0 1} flip-vertical)]}
   (let [^long flip-horizontal (or flip-horizontal 0)
@@ -124,11 +124,15 @@
                              frame-geometry (geometries frame-index)
                              quad-tex-coords (->quad-tex-coords frame-index tex-coords tex-coord-order)
                              quad-tex-coords-raw (->quad-tex-coords frame-index tex-coords tex-coord-order-unflipped)]
-                         (if (and use-geometries
-                                  (not= :sprite-trim-mode-off
-                                        (:trim-mode frame-geometry)))
-                           (->anim-frame-from-geometry page-index quad-tex-coords quad-tex-coords-raw frame-geometry scale-factors reverse)
-                           (->anim-frame page-index quad-tex-coords quad-tex-coords-raw (->tex-dim frame-index tex-dims) frame-geometry))))
+                         (assoc (if (and use-geometries
+                                         (not= :sprite-trim-mode-off
+                                               (:trim-mode frame-geometry)))
+                                  (->anim-frame-from-geometry page-index quad-tex-coords quad-tex-coords-raw frame-geometry scale-factors reverse)
+                                  (->anim-frame page-index quad-tex-coords quad-tex-coords-raw (->tex-dim frame-index tex-dims) frame-geometry))
+                           :texture-width texture-width
+                           :texture-height texture-height
+                           :flip-horizontal (pos? flip-horizontal)
+                           :flip-vertical (pos? flip-vertical))))
                      (range start end))]
     {:width (transduce (map :width) max 0 frames)
      :height (transduce (map :height) max 0 frames)
@@ -153,9 +157,8 @@
         animations (:animations texture-set)
         frame-indices (:frame-indices texture-set)
         page-indices (:page-indices texture-set)]
-    (into {}
-          (map #(pair (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries)))
-          animations)))
+    (coll/into-> animations {}
+      (map #(pair (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries (:width texture-set) (:height texture-set)))))))
 
 ;; vertex data
 
@@ -284,16 +287,19 @@
      :texture-transform texture-transform-identity}))
 
 (defn vertex-data [animation-frame size-mode size slice9 pivot]
-  (let [out (-> (cond
+  (let [use-slice9 (and animation-frame
+                        (= :size-mode-manual size-mode)
+                        (slice9/sliced? slice9))
+
+        out (-> (cond
                   (nil? animation-frame)
                   (quad-vertex-data size pivot)
 
-                  (and (= :size-mode-manual size-mode)
-                       (slice9/sliced? slice9))
+                  use-slice9
                   (-> (slice9/vertex-data animation-frame size slice9 pivot)
                       (assoc :texture-transform
-                        (if-some [raw (or (:tex-coords-raw animation-frame)
-                                          (:tex-coords animation-frame))]
+                        (if-let [raw (or (:tex-coords-raw animation-frame)
+                                         (:tex-coords animation-frame))]
                           (tex-coords->texture-transform-2d raw (true? (:atlas-rotated animation-frame)))
                           texture-transform-identity)))
 
@@ -302,7 +308,10 @@
                 (assoc :page-index (:page-index animation-frame 0)))
 
         ; Pivot point comes from the SpriteGeometry, where (0,0) is center of the image and +Y is up.
-        [^double image-pivot-x ^double image-pivot-y] (or (:pivot animation-frame) [0.0 0.0])
+        ;; The shared slice-9 generator already applies the image pivot.
+        [^double image-pivot-x ^double image-pivot-y] (if use-slice9
+                                                        [0.0 0.0]
+                                                        (or (:pivot animation-frame) [0.0 0.0]))
         [^double width ^double height] (if (or (and (= :size-mode-manual size-mode)) (nil? animation-frame)) size [(:width animation-frame) (:height animation-frame)])
         image-pivot-x (* width image-pivot-x)
         image-pivot-y (* height image-pivot-y)

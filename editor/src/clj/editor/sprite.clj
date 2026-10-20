@@ -35,6 +35,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
             [editor.shaders :as shaders]
+            [editor.slice9 :as slice9]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -121,13 +122,12 @@
 
 (def id-shader shaders/selection-uniform-paged-world-space)
 
-(defn- quad-count [size-mode slice9]
-  (let [[^double x0 ^double y0 ^double x1 ^double y1] slice9
-        columns (cond-> 1 (pos? x0) inc (pos? x1) inc)
-        rows (cond-> 1 (pos? y0) inc (pos? y1) inc)]
-    (if (= :size-mode-auto size-mode)
-      1
-      (* columns rows))))
+(defn- quad-count [animation size-mode slice9]
+  (if (and animation
+           (= :size-mode-manual size-mode)
+           (slice9/sliced? slice9))
+    9
+    1))
 
 (defn- count-quads [renderables]
   (transduce (map (comp :quad-count :user-data))
@@ -219,7 +219,7 @@
                                       :size-mode size-mode
                                       :size size
                                       :slice9 slice9
-                                      :quad-count (quad-count size-mode slice9)}
+                                      :quad-count (quad-count first-animation size-mode slice9)}
                           :passes [pass/transparent pass/selection]}
              :children [{:node-id _node-id
                          :aabb aabb
@@ -231,7 +231,7 @@
                                                   :size-mode size-mode
                                                   :size size
                                                   :slice9 slice9
-                                                  :quad-count (quad-count size-mode slice9)}
+                                                  :quad-count (quad-count first-animation size-mode slice9)}
                                       :passes [pass/outline]}}]}
 
       (< 1 (count (:frames first-animation)))
