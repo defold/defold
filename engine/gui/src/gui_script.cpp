@@ -3525,8 +3525,8 @@ namespace dmGui
      * Open endpoints extrapolate their tangents. Pass nil to clear the curve.
      * @name gui.set_curve
      * @param node [type:node] text node
-     * @param knots [type:table|nil] ordered array of at least two knots, or nil to clear
-     * @param [options] [type:table] optional table with closed (boolean, default false)
+     * @param knots [type:{ position:vector3|number[], in_handle?:vector3|number[], out_handle?:vector3|number[], up?:vector3|number[], roll_degrees?:number, scale?:number }[]|nil] ordered array of at least two knots, or nil to clear
+     * @param [options] [type:{ closed?:boolean }] optional table with closed (boolean, default false)
      */
     static int LuaSetCurve(lua_State* L)
     {

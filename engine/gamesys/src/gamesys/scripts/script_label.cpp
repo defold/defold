@@ -417,8 +417,8 @@ static int GetText(lua_State* L)
  * Open endpoints extrapolate their tangents. Passing nil restores arc/textbox mapping.
  * @name label.set_curve
  * @param url [type:string|hash|url] label component
- * @param knots [type:table|nil] ordered array of at least two knots, or nil to clear
- * @param [options] [type:table] optional table with closed (boolean, default false)
+ * @param knots [type:{ position:vector3|number[], in_handle?:vector3|number[], out_handle?:vector3|number[], up?:vector3|number[], roll_degrees?:number, scale?:number }[]|nil] ordered array of at least two knots, or nil to clear
+ * @param [options] [type:{ closed?:boolean }] optional table with closed (boolean, default false)
  * @examples
  * ```lua
  * label.set_curve("#label", {
