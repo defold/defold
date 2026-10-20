@@ -196,7 +196,7 @@ PACKAGES_MACOS_X86_64=[
     "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
-    "dawn-6bab1bd",
+    "dawn-67d4d6e",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
@@ -329,7 +329,7 @@ EXTERNAL_PACKAGE_VERSIONS = {
     "sheenbidi": "2.9.0",
     "libunibreak": "6.1",
     "skribidi": "a4a2f5",
-    "dawn": "6bab1bd",
+    "dawn": "67d4d6e",
 }
 EXTERNAL_PACKAGE_NAMES = {
     "box2d_v2": "box2d_defold",

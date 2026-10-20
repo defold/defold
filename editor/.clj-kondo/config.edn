@@ -88,6 +88,7 @@
                         potemkin.namespaces/import-vars hooks.potemkin-namespaces/import-vars
                         support.dap-util/with-adapter hooks.support-dap-util/with-adapter
                         support.dap-util/with-server hooks.support-dap-util/with-server
+                        support.gl-support/with-offscreen-gl hooks.support-gl-support/with-offscreen-gl
                         support.test-support/with-clean-system hooks.support-test-support/with-clean-system
                         util.defonce/interface hooks.util-defonce/interface
                         util.defonce/protocol hooks.util-defonce/protocol

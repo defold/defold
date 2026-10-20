@@ -148,6 +148,7 @@ namespace
     }
 }
 
+// Verifies the null backend provides the Android interface without linking the real window backend.
 TEST(AndroidPlatform, LinkPlatformWindowAndroidSymbols)
 {
     ReferenceAndroidSymbol(&dmPlatform::AndroidVerifySurface);
@@ -164,6 +165,8 @@ TEST(AndroidPlatform, LinkPlatformWindowAndroidSymbols)
     ReferenceAndroidSymbol(&dmPlatform::GetSafeAreaAndroid);
     ReferenceAndroidSymbol(&dmPlatform::SetAndroidInputMethod);
     ReferenceAndroidSymbol(&dmPlatform::SetAndroidFullscreenParameters);
+    ReferenceAndroidSymbol(&dmPlatform::SetAndroidJoystickLayoutLegacy);
+    ReferenceAndroidSymbol(&dmPlatform::InitializeAndroidJoystickAxes);
     SKIP();
 }
 #endif

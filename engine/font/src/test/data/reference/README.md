@@ -1,6 +1,6 @@
 # Font rendering references
 
-These references cover 428 native font rendering cases: 392 existing captures and nine pivot references shared by four configurations. Every case requires at least **98% foreground likeness**, measured over the union of actual and reference foreground pixels using RGB RMSE. Effect visibility, native assertions and independent edge-quality checks must also pass.
+These references cover 430 native font rendering cases: 394 configuration-specific captures and nine pivot references shared by four configurations. Every case requires at least **98% foreground likeness**, measured over the union of actual and reference foreground pixels using RGB RMSE. Effect visibility, native assertions and independent edge-quality checks must also pass.
 
 The 48 H cases cover scales 0.5, 1 and 2, interior opacity and fractional
 outline widths. They compare edge coverage, stroke area and placement against
@@ -10,6 +10,12 @@ Original 1.13.1 captures in `1.13.1/` provide an informational comparison;
 The report shows Actual, Reference and Difference, with H images enlarged 4x.
 
 Single-line tests use `ABCDEFGabcdefg 0123456789`. Full-layout English and Arabic paragraphs retain their frozen Lorem ipsum fixtures.
+
+The `ttf_sdf_single_radial_block_ellipse` references cover a four-stop radial
+gradient over `Lorem ipsum\ndolor sit amet`, fitted to the block with a 45-degree
+angle and radii 0.5 and 0.25. Legacy and full rich-text layouts each have a
+reviewed reference. `radial-block-ellipse-provenance.json` records their inputs,
+fixed capture geometry, and PNG hashes.
 
 The `alignment/` references cover all nine pivots for issue #13339 using black
 `Example` text over a 200×100 white box. They use the editor's native TTF preview

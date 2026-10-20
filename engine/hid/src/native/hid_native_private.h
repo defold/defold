@@ -47,6 +47,20 @@ namespace dmHID
 
     GamepadDriver* CreateGamepadDriverPlatform(HContext context);
     GamepadDriver* CreateGamepadDriverApple(HContext context);
+
+#if defined(ANDROID)
+    // Owned by the platform device; a zero button mask keeps the raw packet layout.
+    struct AndroidGamepadMapping
+    {
+        uint16_t m_ButtonMask;
+        uint16_t m_AxisMask;
+    };
+
+    uint32_t GetAndroidGamepadMappingSupport(HWindow window, uint32_t joystick_index);
+    void SetAndroidGamepadMapping(HWindow window, uint32_t joystick_index, HGamepad gamepad, AndroidGamepadMapping* state, const char* mapping);
+    // Writes up to MAX_GAMEPAD_BUTTON_COUNT entries into the caller's buttons buffer.
+    void UpdateAndroidGamepad(HWindow window, uint32_t joystick_index, HGamepad gamepad, const AndroidGamepadMapping* mapping, uint8_t* buttons);
+#endif
 }
 
 #endif // HID_NATIVE_PRIVATE_H

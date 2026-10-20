@@ -2859,6 +2859,7 @@ error.buffer-syntax-error = Syntax error in buffer file.
 error.editor-extension-compilation-failed = Could not compile editor extension.
 error.font-bitmap-generation-failed = Failed to generate bitmap from Font. {error}
 error.font.style-not-found = Font style ''{style}'' does not exist.
+error.font.invalid-gradient-radius = Invalid rich text markup at line {line}, column {column}: gradient radius must be greater than zero.
 error.font.invalid-style-name = Style names must be unique and non-empty; default is reserved.
 error.font.authored-default-style = The default style is generated and cannot contain markup.
 error.font.rich-text-outline-and-shadow-not-supported-by-bmfont = Rich-text outline and shadow tags are not supported by BMFont fonts.

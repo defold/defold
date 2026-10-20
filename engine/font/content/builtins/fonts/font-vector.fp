@@ -6,9 +6,11 @@ precision highp float;
 precision highp int;
 
 #include "/builtins/fonts/font-vector-slug.glsl"
+#include "/builtins/fonts/font-effect.glsl"
 
 in highp vec2 var_texcoord;
 in mediump vec4 var_color;
+in highp vec4 var_effect;
 flat in highp float var_mode;
 flat in highp vec4 var_banding;
 flat in highp ivec4 var_glyph;
@@ -59,7 +61,8 @@ void main()
         coverage = SlugRender(var_texcoord, emsPerPixel, var_banding, var_glyph);
     }
 
-    out_fragColor = coverage * vec4(var_color.rgb * var_color.a, var_color.a);
+    vec4 face_color = font_effect_face_color(var_effect, var_color, false);
+    out_fragColor = coverage * vec4(face_color.rgb * face_color.a, face_color.a);
     if ((var_mode < 0.5 && var_curve_count <= 0.0) || out_fragColor.a <= 0.0)
     {
         discard;
