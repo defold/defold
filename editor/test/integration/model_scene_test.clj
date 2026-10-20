@@ -204,6 +204,8 @@
                   (g/node-value node-id :scene))]
       (is (not (g/error? scene))))))
 
+;; Embedded glTF/GLB images must remain bound alongside the runtime
+;; scene-capture sampler in the material preview.
 (deftest gltf-contained-materials-and-textures-are-used-in-preview
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
         models-directory (io/file project-path "models")]
@@ -246,8 +248,8 @@
                       (is (= name (:material-name user-data)))
                       (is (= (dissoc expected-shader :uniforms)
                              (dissoc (:shader user-data) :uniforms)))
-                      (is (= #{expected-sampler-name}
-                             (into #{} (map key) (:textures user-data))))
+                      (is (= #{expected-sampler-name "tex_scene_color"}
+                             (set (coll/keys (:textures user-data)))))
                       (is (= base-color-factor
                              (math/vecmath->clj
                                (material-data "pbrMetallicRoughness.baseColorFactor"))))
