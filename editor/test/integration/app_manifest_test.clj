@@ -180,31 +180,33 @@
              (#'app-manifest/migrate-record-context context :linux)))))
 
   (testing "Explicit recording libraries are removed while custom libraries remain"
-    (let [context {:excludeLibs ["record" "record_script"]
-                   :libs ["librecord.lib" "record_null" "record_script.lib" "librecord_service" "custom"]}]
+    (let [context
+          {:excludeLibs ["record" "record_script"]
+           :libs ["librecord.lib" "record_null" "record_script.lib" "librecord_service" "custom"]}]
       (is (= {:excludeLibs ["record" "record_script" "record_service" "openh264"]
               :excludeSymbols ["ScriptRecord" "EngineRecord"]
               :libs ["custom"]}
              (#'app-manifest/migrate-record-context context :linux)))))
 
   (testing "Partial and malformed settings are preserved"
-    (doseq [context [nil 42 []
-                     {:excludeLibs ["record"]}
-                     {:excludeLibs ["vpx"]}
-                     {:excludeLibs "record"}
-                     {:excludeLibs [nil 42 "custom"]}
-                     {:excludeLibs ["record" "vpx"]
-                      :excludeSymbols "invalid"}
-                     {:excludeLibs ["record" "vpx"]
-                      :libs "invalid"}
-                     {:excludeLibs ["record" "vpx"]
-                      :engineLibs "invalid"}
-                     {:excludeLibs ["record_script"]}
-                     {:libs ["record"]}
-                     {:libs ["record_null"]
-                      :excludeLibs "invalid"}
-                     {:libs ["record_null"]
-                      :excludeSymbols "invalid"}]
+    (doseq [context
+            [nil 42 []
+             {:excludeLibs ["record"]}
+             {:excludeLibs ["vpx"]}
+             {:excludeLibs "record"}
+             {:excludeLibs [nil 42 "custom"]}
+             {:excludeLibs ["record" "vpx"]
+              :excludeSymbols "invalid"}
+             {:excludeLibs ["record" "vpx"]
+              :libs "invalid"}
+             {:excludeLibs ["record" "vpx"]
+              :engineLibs "invalid"}
+             {:excludeLibs ["record_script"]}
+             {:libs ["record"]}
+             {:libs ["record_null"]
+              :excludeLibs "invalid"}
+             {:libs ["record_null"]
+              :excludeSymbols "invalid"}]
 
             path [[:context]
                   [:platforms :common :context]
@@ -218,27 +220,37 @@
 ;; Verifies manifests already migrated away from VPX also strip the Lua API and
 ;; explicit recorder libraries, while keeping unrelated libraries and settings.
 (deftest native-record-exclusion-migration-test
-  (doseq [platform [nil :common :osx :arm64-osx :x86_64-osx
-                    :linux :x86_64-linux :arm64-linux :win32 :x86-win32 :x86_64-win32
-                    :ios :arm64-ios :arm64_sim-ios
-                    :android :armv7-android :arm64-android :x86_64-android
-                    :web :wasm-web :wasm_pthread-web]
+  (doseq [platform
+          [nil :common :osx :arm64-osx :x86_64-osx
+           :linux :x86_64-linux :arm64-linux :win32 :x86-win32 :x86_64-win32
+           :ios :arm64-ios :arm64_sim-ios
+           :android :armv7-android :arm64-android :x86_64-android
+           :web :wasm-web :wasm_pthread-web]
+
           included-key [:libs :engineLibs]
           null-library ["record_null" "record_null.lib" "librecord_null" "librecord_null.lib"]]
     (let [path (if platform [:platforms platform :context] [:context])
-          linux-platform (or (nil? platform) (#{:common :linux} platform) (app-manifest/linux platform))
-          desktop-platform (or linux-platform (app-manifest/desktop platform) (#{:osx :win32 :x86-win32} platform))
+
+          linux-platform
+          (or (nil? platform) (#{:common :linux} platform) (app-manifest/linux platform))
+
+          desktop-platform
+          (or linux-platform (app-manifest/desktop platform) (#{:osx :win32 :x86-win32} platform))
 
           context
-          {:excludeLibs (cond-> ["custom" "record"]
-                          desktop-platform
-                          (conj "record_service")
+          {:excludeLibs
+           (cond-> ["custom" "record"]
+             desktop-platform
+             (conj "record_service")
 
-                          linux-platform
-                          (conj "openh264"))
-           :excludeSymbols (cond-> ["CustomSymbol"]
-                             desktop-platform
-                             (conj "EngineRecord"))
+             linux-platform
+             (conj "openh264"))
+
+           :excludeSymbols
+           (cond-> ["CustomSymbol"]
+             desktop-platform
+             (conj "EngineRecord"))
+
            included-key [null-library "custom"]
            :defines ["CUSTOM"]}
 
@@ -258,44 +270,63 @@
           included-key [:libs :engineLibs]
           null-library ["record_null" "record_null.lib" "librecord_null" "librecord_null.lib"]]
     (let [path (if platform [:platforms platform :context] [:context])
-          context {included-key [null-library "custom"]
-                   :defines ["CUSTOM"]}
+
+          context
+          {included-key [null-library "custom"]
+           :defines ["CUSTOM"]}
+
           manifest (assoc-in {} path context)
           migrated (#'app-manifest/migrate-record-exclusions manifest)
           linux-platform (or (nil? platform) (#{:common :linux} platform))
           desktop-platform (or linux-platform (#{:osx :win32} platform))]
       (is (= {included-key ["custom"]
               :defines ["CUSTOM"]
-              :excludeLibs (cond-> ["record" "record_script"]
-                             desktop-platform
-                             (conj "record_service")
 
-                             linux-platform
-                             (conj "openh264"))
-              :excludeSymbols (cond-> ["ScriptRecord"]
-                                desktop-platform
-                                (conj "EngineRecord"))}
+              :excludeLibs
+              (cond-> ["record" "record_script"]
+                desktop-platform
+                (conj "record_service")
+
+                linux-platform
+                (conj "openh264"))
+
+              :excludeSymbols
+              (cond-> ["ScriptRecord"]
+                desktop-platform
+                (conj "EngineRecord"))}
              (get-in migrated path)))
       (is (= migrated (#'app-manifest/migrate-record-exclusions migrated)))))
 
-  (doseq [context [{:excludeLibs ["record"] :libs ["record_null"]}
-                   {:excludeLibs ["record"] :excludeSymbols ["ScriptRecord"] :libs ["record_null"]}
-                   {:excludeLibs nil :excludeSymbols nil :libs ["record_null"]}]]
+  (doseq [context
+          [{:excludeLibs ["record"]
+            :libs ["record_null"]}
+
+           {:excludeLibs ["record"]
+            :excludeSymbols ["ScriptRecord"]
+            :libs ["record_null"]}
+
+           {:excludeLibs nil
+            :excludeSymbols nil
+            :libs ["record_null"]}]]
     (is (= {:excludeLibs ["record" "record_script" "record_service" "openh264"]
             :excludeSymbols ["ScriptRecord" "EngineRecord"]
             :libs []}
            (#'app-manifest/migrate-record-context context :linux))))
 
-  (doseq [context [{:excludeLibs ["record" "record_null"]}
-                   {:excludeLibs ["record" "record_null" "record_script" "record_service" "openh264"]
-                    :excludeSymbols ["ScriptRecord" "EngineRecord"]}]]
+  (doseq [context
+          [{:excludeLibs ["record" "record_null"]}
+
+           {:excludeLibs ["record" "record_null" "record_script" "record_service" "openh264"]
+            :excludeSymbols ["ScriptRecord" "EngineRecord"]}]]
     (is (= {:excludeLibs ["record" "record_script" "record_service" "openh264"]
             :excludeSymbols ["ScriptRecord" "EngineRecord"]}
            (#'app-manifest/migrate-record-context context :linux))))
 
-  (let [context {:excludeLibs ["custom" "record_null" "record_null.lib" "librecord_null" "librecord_null.lib"]
-                 :defines ["CUSTOM"]}]
-    (is (= {:excludeLibs ["custom"] :defines ["CUSTOM"]}
+  (let [context
+        {:excludeLibs ["custom" "record_null" "record_null.lib" "librecord_null" "librecord_null.lib"]
+         :defines ["CUSTOM"]}]
+    (is (= {:excludeLibs ["custom"]
+            :defines ["CUSTOM"]}
            (#'app-manifest/migrate-record-context context :linux)))))
 
 ;; Verifies Windows manifests and editor controls use the actual record_script
@@ -309,6 +340,7 @@
       (is (= ["record_script" "record_script" "record_script" "record_script"]
              (get-in migrated path)))
       (is (= migrated (#'app-manifest/migrate-windows-library-names migrated)))))
+
   (is (= "record_script" (app-manifest/platformify-excluded-lib :x86_64-win32 "record_script")))
   (is (= "record_script.lib" (app-manifest/platformify-lib-filename :x86_64-win32 "record_script"))))
 

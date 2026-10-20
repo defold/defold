@@ -924,7 +924,9 @@
 (defn- migrate-record-context [context platform]
   ;; The null backend was removed. Explicit selections now exclude recording,
   ;; as do the legacy VPX toggle and its native-recorder migration.
-  (let [excluded-libraries (mapv #(or (recording-library-name %) %) (:excludeLibs context))
+  (let [excluded-libraries
+        (mapv #(or (recording-library-name %) %) (:excludeLibs context))
+
         excluded-library-names (set excluded-libraries)
         excluded-symbols (:excludeSymbols context)
         obsolete #{"vpx" "vpx.lib" "libvpx" "libvpx.lib"}
@@ -967,14 +969,17 @@
               desktop-platform
               (conj "EngineRecord"))]
         (reduce (fn [context key]
-                  (if-let [libraries (get context key)]
-                    (assoc context key (coll/into-> libraries [] (remove recording-library-name)))
-                    context))
+                  (cond-> context
+                    (get context key)
+                    (update key #(coll/into-> % [] (remove recording-library-name)))))
                 (assoc context
-                  :excludeLibs (coll/into-> required-libraries libraries (remove (set libraries)))
-                  :excludeSymbols (coll/into-> required-symbols
-                                    (or excluded-symbols [])
-                                    (remove (set excluded-symbols))))
+                  :excludeLibs
+                  (coll/into-> required-libraries libraries (remove (set libraries)))
+
+                  :excludeSymbols
+                  (coll/into-> required-symbols
+                    (or excluded-symbols [])
+                    (remove (set excluded-symbols))))
                 [:libs :engineLibs])))))
 
 (defn- migrate-record-exclusions [manifest]
