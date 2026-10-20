@@ -22,6 +22,7 @@
 #include <glyph_gen.h>
 #include <glyph_vertex.h>
 #include <layout_vertex.h>
+#include <text_arc.hpp>
 
 #include <stddef.h>
 #include <math.h>
@@ -53,8 +54,8 @@ static_assert(sizeof(FontcLayout) == 28, "Unexpected FontcLayout ABI layout");
 static_assert(sizeof(FontcGlyph) == 48, "Unexpected FontcGlyph ABI layout");
 static_assert(offsetof(FontcGlyph, m_Pixels) == 32, "Unexpected FontcGlyph ABI layout");
 static_assert(sizeof(FontcGlyphMetrics) == 52, "Unexpected FontcGlyphMetrics ABI layout");
-static_assert(sizeof(FontcProperties) == 88, "Unexpected FontcProperties ABI layout");
-static_assert(offsetof(FontcProperties, m_Bits) == 80, "Unexpected FontcProperties bit field offset");
+static_assert(sizeof(FontcProperties) == 96, "Unexpected FontcProperties ABI layout");
+static_assert(offsetof(FontcProperties, m_Bits) == 88, "Unexpected FontcProperties bit field offset");
 static_assert(sizeof(FontcStyleEffect) == 120, "Unexpected FontcStyleEffect ABI layout");
 static_assert(offsetof(FontcStyleEffect, m_Bits) == 116, "Unexpected FontcStyleEffect bit field offset");
 static_assert(sizeof(FontcTexture) == 40, "Unexpected FontcTexture ABI layout");
@@ -1601,7 +1602,9 @@ void FontcFreeImage(FontcImage* image)
 
 FontRendererResult FontcSetProperties(HFontRenderer renderer, const FontcProperties* properties)
 {
-    if (!renderer || !properties)
+    if (!renderer || !properties ||
+        !isfinite(properties->m_ArcRadius) || !isfinite(properties->m_ArcAngle) ||
+        properties->m_ArcAngle < 0.0f || properties->m_ArcAngle > 360.0f)
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
     renderer->m_Properties = *properties;
     renderer->m_HasProperties = true;
@@ -1913,6 +1916,8 @@ static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, co
     config->m_Width = properties.m_Width;
     config->m_Height = properties.m_Height;
     config->m_GlyphScale = renderer->m_Mode == FONTC_MODE_VECTOR ? GetLayoutFontSize(renderer) / renderer->m_Size : 1.0f;
+    config->m_ArcRadius = properties.m_ArcRadius;
+    config->m_ArcAngle = properties.m_ArcAngle;
     config->m_RecipAtlasWidth = 1.0f / renderer->m_AtlasWidth;
     config->m_RecipAtlasHeight = 1.0f / renderer->m_AtlasHeight;
     config->m_DecorationU = 0.5f / renderer->m_AtlasWidth;
@@ -1943,6 +1948,192 @@ static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, co
     config->m_RenderObjectOutlines = renderer->m_Mode != FONTC_MODE_VECTOR;
     config->m_ResolveGlyphsForMetrics = true;
     config->m_FaceOnly = false;
+}
+
+struct LayoutGlyphMetricsContext
+{
+    HFontRenderer m_Renderer;
+    FontGlyph     m_Glyph;
+};
+
+// Resolve the same sampled glyph bounds as vertex generation, without rasterizing
+// glyph images or changing the renderer's atlas.
+static bool ResolveLayoutGlyphMetrics(void* context, const TextGlyph& text_glyph, FontLayoutCachedGlyph* output)
+{
+    LayoutGlyphMetricsContext* metrics = (LayoutGlyphMetricsContext*)context;
+    HFontRenderer renderer = metrics->m_Renderer;
+    FontGlyph* glyph = &metrics->m_Glyph;
+    FontResult result;
+    if (renderer->m_Mode == FONTC_MODE_GLYPH_BANK)
+    {
+        FontGlyphOptions options;
+        // Glyph-bank images are already stored. Borrow their render metrics,
+        // rather than the optional metrics used only for text layout.
+        options.m_GenerateImage = true;
+        result = FontGetGlyphByIndex(text_glyph.m_Font, text_glyph.m_GlyphIndex, &options, glyph);
+    }
+    else
+    {
+        const float scale = FontGetScaleFromSize(text_glyph.m_Font, renderer->m_Size);
+        const float padding = renderer->m_SdfBasePadding + renderer->m_OutlineWidth + renderer->m_ShadowBlur;
+        result = FontGetGlyphSDFMetricsTTF(text_glyph.m_Font, text_glyph.m_GlyphIndex, scale, padding, glyph);
+        glyph->m_Bitmap.m_Width = (uint16_t)glyph->m_Width;
+    }
+    if (result != FONT_RESULT_OK || glyph->m_Bitmap.m_Width == 0 || glyph->m_Height <= 0.0f)
+        return false;
+
+    output->m_Glyph = glyph;
+    output->m_CellX = 0;
+    output->m_CellY = 0;
+    return true;
+}
+
+// Enclose each glyph quad radially for the Editor's curved box. The guide
+// retains the requested angle; framing also includes the actual glyph bounds.
+// Distances to edges include the quad interiors.
+static void ExpandTextArcBox(const FontTextArc& arc, const FontGlyphVertex* quad, float* box, float* radial_bounds)
+{
+    const float up_x = quad[2].m_Position[0] - quad[0].m_Position[0];
+    const float up_y = quad[2].m_Position[1] - quad[0].m_Position[1];
+    const uint32_t corners[] = { 0, 1, 5, 2 };
+    bool positive = false;
+    bool negative = false;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(corners); ++i)
+    {
+        const float x = quad[corners[i]].m_Position[0] - arc.m_CenterX;
+        const float y = quad[corners[i]].m_Position[1] - arc.m_CenterY;
+        const float next_x = quad[corners[(i + 1) % 4]].m_Position[0] - arc.m_CenterX;
+        const float next_y = quad[corners[(i + 1) % 4]].m_Position[1] - arc.m_CenterY;
+        const float dx = next_x - x;
+        const float dy = next_y - y;
+        const float length_sq = dx * dx + dy * dy;
+        const float t = length_sq > 0.0f ? dmMath::Clamp(-(x * dx + y * dy) / length_sq, 0.0f, 1.0f) : 0.0f;
+        const float near_x = x + t * dx;
+        const float near_y = y + t * dy;
+        box[0] = dmMath::Min(box[0], sqrtf(near_x * near_x + near_y * near_y));
+        const float radius = sqrtf(x * x + y * y);
+        const float signed_radius = (x * up_x + y * up_y) < 0.0f ? -radius : radius;
+        radial_bounds[0] = dmMath::Min(radial_bounds[0], signed_radius);
+        radial_bounds[1] = dmMath::Max(radial_bounds[1], signed_radius);
+        box[1] = dmMath::Max(box[1], radius);
+        const float cross = x * next_y - y * next_x;
+        positive |= cross > 0.0f;
+        negative |= cross < 0.0f;
+    }
+    if (!positive || !negative)
+        box[0] = 0.0f;
+}
+
+static bool GetLayoutVertexBounds(HFontRenderer renderer, FontLayoutVertexConfig config, const FontTextArc& arc, float* bounds, float* box)
+{
+    LayoutGlyphMetricsContext context;
+    context.m_Renderer = renderer;
+    config.m_ResolveGlyph = ResolveLayoutGlyphMetrics;
+    config.m_ResolveGlyphContext = &context;
+    FontLayoutVertexMetrics metrics;
+    if (!FontGetLayoutVertexMetrics(config, &metrics))
+        return false;
+    if (metrics.m_VertexCount == 0)
+        return true;
+
+    FontGlyphVertex* vertices = (FontGlyphVertex*)malloc(metrics.m_VertexBufferSize);
+    if (!vertices)
+        return false;
+    const uint32_t count = FontCreateLayoutVertices(config, metrics, vertices, metrics.m_VertexCount);
+    box[0] = FLT_MAX;
+    box[1] = 0.0f;
+    box[2] = -fabsf(arc.m_Span) * 0.5f;
+    box[3] = fabsf(arc.m_Span) * 0.5f;
+    float radial_bounds[] = { FLT_MAX, -FLT_MAX };
+    bool has_bounds = false;
+    for (uint32_t i = 0; i < count; i += 6)
+    {
+        // Unused decoration quads are zeroed by the vertex generator.
+        if (vertices[i].m_Position[0] == vertices[i + 1].m_Position[0] &&
+            vertices[i].m_Position[1] == vertices[i + 1].m_Position[1] &&
+            vertices[i].m_Position[0] == vertices[i + 2].m_Position[0] &&
+            vertices[i].m_Position[1] == vertices[i + 2].m_Position[1])
+            continue;
+        ExpandTextArcBox(arc, vertices + i, box, radial_bounds);
+        for (uint32_t j = i; j < i + 6; ++j)
+        {
+            const float x = vertices[j].m_Position[0];
+            const float y = vertices[j].m_Position[1];
+            bounds[0] = has_bounds ? dmMath::Min(bounds[0], x) : x;
+            bounds[1] = has_bounds ? dmMath::Min(bounds[1], y) : y;
+            bounds[2] = has_bounds ? dmMath::Max(bounds[2], x) : x;
+            bounds[3] = has_bounds ? dmMath::Max(bounds[3], y) : y;
+            has_bounds = true;
+        }
+    }
+    if (!has_bounds)
+        memset(box, 0, sizeof(float) * 4);
+    else if (radial_bounds[0] < 0.0f || box[0] == 0.0f)
+    {
+        // Continue the inner edge across the center with a signed radius.
+        // Polar angles there are undefined; retain the requested sweep while
+        // framing still uses the actual glyph bounds above.
+        box[0] = dmMath::Min(0.0f, radial_bounds[0]);
+        box[1] = radial_bounds[1];
+    }
+    free(vertices);
+    return true;
+}
+
+FontRendererResult FontcGetArc(HFontRenderer renderer, float* output)
+{
+    if (!renderer || !renderer->m_HasProperties || !renderer->m_HasText || !output)
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    memset(output, 0, sizeof(float) * 12);
+    HTextLayout layout = 0;
+    if (GetRetainedLayout(renderer, &layout) != TEXT_RESULT_OK)
+        return FONT_RENDERER_RESULT_TEXT_ERROR;
+    FontLayoutVertexConfig config;
+    GetLayoutVertexConfig(renderer, layout, Matrix4::identity(), &config);
+    FontTextArc arc;
+    if (FontPrepareTextArc(layout, config.m_Width, config.m_Height, config.m_Align,
+                          config.m_VerticalAlign, config.m_MonospacePadding,
+                          config.m_ArcRadius, config.m_ArcAngle, &arc))
+    {
+        output[0] = arc.m_CenterX;
+        output[1] = arc.m_CenterY;
+        output[2] = arc.m_Radius;
+        output[3] = arc.m_Span;
+        if (!GetLayoutVertexBounds(renderer, config, arc, output + 4, output + 8))
+        {
+            TextLayoutRelease(layout);
+            return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
+        }
+    }
+    TextLayoutRelease(layout);
+    return FONT_RENDERER_RESULT_OK;
+}
+
+FontRendererResult FontcGetArcLineRadii(HFontRenderer renderer, float* radii, uint32_t capacity, uint32_t* line_count)
+{
+    if (!renderer || !renderer->m_HasProperties || !renderer->m_HasText || !line_count)
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    *line_count = 0;
+    if (renderer->m_Properties.m_ArcAngle == 0.0f)
+        return FONT_RENDERER_RESULT_OK;
+    HTextLayout layout = 0;
+    if (GetRetainedLayout(renderer, &layout) != TEXT_RESULT_OK)
+        return FONT_RENDERER_RESULT_TEXT_ERROR;
+    *line_count = TextLayoutGetLineCount(layout);
+    if (radii && capacity < *line_count)
+    {
+        TextLayoutRelease(layout);
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+    if (radii && *line_count)
+    {
+        const TextLine* lines = TextLayoutGetLines(layout);
+        const float first_baseline = lines[0].m_Baseline;
+        for (uint32_t i = 0; i < *line_count; ++i)
+            radii[i] = renderer->m_Properties.m_ArcRadius + (lines[i].m_Baseline - first_baseline);
+    }
+    TextLayoutRelease(layout);
+    return FONT_RENDERER_RESULT_OK;
 }
 
 FontRendererResult FontcGetVertexBufferSize(HFontRenderer renderer,

@@ -59,6 +59,8 @@ FUNCTIONS = (
     "FontcGetEffectTexture",
     "FontcGetVectorTextures",
     "FontcFreeTexture",
+    "FontcGetArc",
+    "FontcGetArcLineRadii",
     "FontcGetVertexBufferSize",
     "FontcGetVertices",
 )

@@ -4460,3 +4460,83 @@
         (test-util/prop! node :style "missing"))
       (is (= "default" (g/node-value node :style)))
       (is (g/error-fatal? (g/node-value scene :build-targets))))))
+
+;; GUI text arcs preserve authored and layout override values, keep wrapping
+;; editable, ignore stored Size, and use tight curved outlines and per-line
+;; selection guides.
+(deftest gui-text-arc-test
+  (test-util/with-scratch-project test-util/project-path
+    (let [scene (test-util/resource-node project "/logic/main.gui")
+          node (gui-node scene "multi_line_text")]
+      (is (= 100.0 (g/node-value node :arc-radius)))
+      (is (= 0.0 (g/node-value node :arc-angle)))
+      (test-util/prop! node :text "Alpha beta gamma\nDelta epsilon")
+      (test-util/prop! node :manual-size [40.0 200.0 0.0])
+      (test-util/prop! node :line-break true)
+      (let [wrapped (g/node-value node :text-layout)]
+        (is (< 2 (:line-count wrapped)))
+        (doseq [degrees [90.0 360.0]]
+          (test-util/prop! node :arc-radius 200.0)
+          (test-util/prop! node :arc-angle degrees)
+          (is (true? (get-in (g/node-value node :_properties) [:properties :manual-size :read-only?])))
+          (is (not (get-in (g/node-value node :_properties) [:properties :line-break :read-only?])))
+          (let [arc-data (g/node-value node :arc-data)
+                bounds (g/node-value node :aabb)]
+            (is (= (:aabb arc-data) bounds))
+            (is (< 8 (count (:line-data arc-data))))
+            (is (= (:line-data arc-data) (:line-data (g/node-value node :scene-renderable-user-data))))
+            (is (pos? (count (:baseline-line-data arc-data))))
+            (is (= (:baseline-line-data arc-data)
+                   (get-in (g/node-value node :scene-outline-renderable) [:user-data :baseline-line-data])))
+            (is (= [[-5.0 -5.0 0.0] [5.0 5.0 0.0] [-5.0 5.0 0.0] [5.0 -5.0 0.0]]
+                   (get-in (g/node-value node :scene-outline-renderable) [:user-data :center-line-data])))
+            (let [renderable (assoc (g/node-value node :scene-outline-renderable)
+                               :world-transform math/identity-mat4)
+                  unselected (#'gui/gen-lines-vb [renderable])
+                  selected (#'gui/gen-lines-vb [(assoc renderable :selected :self-selected)])]
+              (is (= (count (:line-data arc-data)) (count unselected)))
+              (is (= (+ (count (:line-data arc-data)) (count (:baseline-line-data arc-data)) 4)
+                     (count selected))))
+            (test-util/with-prop [node :manual-size [800.0 1000.0 0.0]]
+              (is (= bounds (g/node-value node :aabb))))))
+        (test-util/prop! node :arc-radius 30.0)
+        (test-util/prop! node :arc-angle 90.0)
+        (is (< 2 (:line-count (g/node-value node :text-layout))))
+        (test-util/with-prop [node :line-break false]
+          (is (= 2 (:line-count (g/node-value node :text-layout)))))
+        (let [property (get-in (properties/coalesce [(g/node-value node :_properties)]) [:properties :arc-angle])]
+          (properties/set-values! property [999.0])
+          (is (= 360.0 (g/node-value node :arc-angle))))
+        (test-util/prop! node :arc-angle 0.0)
+        (is (= wrapped (g/node-value node :text-layout)))
+        (is (false? (get-in (g/node-value node :_properties) [:properties :manual-size :read-only?]))))
+      (test-util/prop! node :arc-radius 200.0)
+      (test-util/prop! node :arc-angle 120.0)
+      (add-layout! project app-view scene "Portrait")
+      (with-visible-layout! scene "Portrait"
+        (let [property (get-in (properties/coalesce [(g/node-value node :_properties)]) [:properties :arc-angle])]
+          (properties/set-values! property [360.0]))
+        (is (= 360.0 (g/node-value node :arc-angle))))
+      (is (= 120.0 (g/node-value node :arc-angle)))
+      (let [saved (g/node-value scene :save-value)
+            base-node (coll/first-where #(= "multi_line_text" (:id %)) (:nodes saved))
+            layout (coll/first-where #(= "Portrait" (:name %)) (:layouts saved))
+            override (coll/first-where #(= "multi_line_text" (:id %)) (:nodes layout))]
+        (is (= 200.0 (:arc-radius base-node)))
+        (is (= 120.0 (:arc-angle base-node)))
+        (is (= 360.0 (:arc-angle override)))
+        (is (contains? (set (:overridden-fields override)) (gui/prop-key->pb-field-index :arc-angle))))
+      (test-util/prop! node :text "AA\nAA")
+      (test-util/prop! node :arc-angle 90.0)
+      (doseq [pivot [:pivot-center :pivot-nw :pivot-se]
+              radius [-200.0 200.0 400.0]]
+        (test-util/prop! node :pivot pivot)
+        (test-util/prop! node :arc-radius radius)
+        (let [[x y] (first (:baseline-line-data (g/node-value node :arc-data)))
+              expected (* (double radius) (Math/sqrt 0.5))]
+          (is (= [0.0 0.0] (:offset (g/node-value node :text-data))))
+          (is (< (Math/abs (+ (double x) expected)) 0.001))
+          (is (< (Math/abs (- (double y) expected)) 0.001))))
+      (test-util/with-prop [node :arc-radius Double/POSITIVE_INFINITY]
+        (is (g/error-fatal? (test-util/prop-error node :arc-radius)))
+        (is (g/error-fatal? (g/node-value node :own-build-errors)))))))

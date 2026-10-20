@@ -66,10 +66,18 @@
 
 (defn- gen-lines-vb
   [renderables]
-  (let [vcount (transduce (map (comp count :line-data :user-data)) + renderables)]
+  (let [vcount (transduce (map (fn [{:keys [user-data selected]}]
+                                 (+ (count (:line-data user-data))
+                                    (if selected
+                                      (+ (count (:baseline-line-data user-data))
+                                         (count (:center-line-data user-data)))
+                                      0))))
+                          + renderables)]
     (when (pos? vcount)
-      (vtx/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
-                           (let [line-data (:line-data user-data)
+      (vtx/flip! (reduce (fn [vb {:keys [world-transform user-data] :as renderable}]
+                           (let [line-data (cond-> (:line-data user-data)
+                                             (:selected renderable) (into (:baseline-line-data user-data))
+                                             (:selected renderable) (into (:center-line-data user-data)))
                                  line-color (:line-color user-data)
                                  [r g b a] (or line-color (colors/renderable-outline-color renderable))]
                              (reduce (fn [vb [x y z]]
@@ -157,7 +165,21 @@
              :bottom 0.0)]
     (mapv * size [xs ys 1])))
 
-(g/defnk produce-save-value [text size color outline shadow leading tracking pivot blend-mode line-break font material font-size style]
+(defn- arc-property-error [node-id property value limits]
+  (validation/prop-error :fatal node-id property
+                         (partial validation/prop-outside-range? limits)
+                         value (properties/label-message :label property)))
+
+(g/defnk produce-arc-error [_node-id arc-radius arc-angle]
+  (when-let [errors (coll/not-empty
+                      (coll/into-> [(arc-property-error _node-id :arc-radius arc-radius [(- Float/MAX_VALUE) Float/MAX_VALUE])
+                                    (arc-property-error _node-id :arc-angle arc-angle [0.0 360.0])]
+                        []
+                        (remove nil?)))]
+    (g/error-aggregate errors)))
+
+(g/defnk produce-save-value [text size color outline shadow leading tracking pivot blend-mode line-break font material font-size style
+                             arc-radius arc-angle]
   (protobuf/make-map-without-defaults Label$LabelDesc
     :text text
     :style style
@@ -167,6 +189,8 @@
     :shadow shadow
     :leading leading
     :tracking tracking
+    :arc-radius arc-radius
+    :arc-angle arc-angle
     :pivot pivot
     :blend-mode blend-mode
     :line-break line-break
@@ -175,7 +199,7 @@
     :font-size font-size))
 
 (g/defnk produce-scene
-  [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data]
+  [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data arc-data arc-angle]
   (let [scene {:node-id _node-id
                :aabb aabb}
         font-map (get-in text-data [:font-data :font-map])
@@ -186,7 +210,9 @@
     (if text-data
       (let [[w h _] size
             offset (pivot-offset pivot size)
-            lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
+            lines (if-not (zero? (double arc-angle))
+                    (:line-data arc-data)
+                    (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0)))]
         (assoc scene :renderable {:render-fn render-tris
                                   :tags #{:text}
                                   :batch-key {:blend-mode blend-mode :gpu-texture gpu-texture :material-shader material-shader}
@@ -200,9 +226,12 @@
                :children [{:node-id _node-id
                            :aabb aabb
                            :renderable {:render-fn render-lines
+                                        :selectable-root? (not (zero? (double arc-angle)))
                                         :tags #{:text :outline}
                                         :batch-key ::outline
-                                        :user-data {:line-data lines}
+                                        :user-data {:line-data lines
+                                                    :baseline-line-data (:baseline-line-data arc-data)
+                                                    :center-line-data (:center-line-data arc-data)}
                                         :passes [pass/outline]}}]))
       scene)))
 
@@ -215,8 +244,9 @@
   (when (:vector? font-map)
     (validation/prop-error :fatal node-id :font-size validation/prop-zero-or-below? font-size (properties/label-message :label :font-size))))
 
-(g/defnk produce-build-targets [_node-id resource font material save-value dep-build-targets font-map ^:try markup-error style font-size]
-  (or (font-size-error _node-id font-map font-size)
+(g/defnk produce-build-targets [_node-id resource font material save-value dep-build-targets font-map ^:try markup-error style font-size arc-error]
+  (or arc-error
+      (font-size-error _node-id font-map font-size)
       (font/style-error _node-id font-map style)
       (when (g/error-fatal? markup-error) markup-error)
       (when-let [errors (->> [[font :font font-message]
@@ -254,8 +284,18 @@
             (dynamic label (properties/label-dynamic :label :text))
             (dynamic tooltip (properties/tooltip-dynamic :label :text)))
   (property size types/Vec3 ; Required protobuf field.
+            (dynamic read-only? (g/fnk [arc-angle] (not (zero? (double arc-angle)))))
             (dynamic label (properties/label-dynamic :label :size))
             (dynamic tooltip (properties/tooltip-dynamic :label :size)))
+  (property arc-radius g/Num (default (protobuf/default Label$LabelDesc :arc-radius))
+            (dynamic error (g/fnk [_node-id arc-radius] (arc-property-error _node-id :arc-radius arc-radius [(- Float/MAX_VALUE) Float/MAX_VALUE])))
+            (dynamic label (properties/label-dynamic :label :arc-radius))
+            (dynamic tooltip (properties/tooltip-dynamic :label :arc-radius)))
+  (property arc-angle g/Num (default (protobuf/default Label$LabelDesc :arc-angle))
+            (dynamic edit-type (g/constantly font/arc-angle-edit-type))
+            (dynamic error (g/fnk [_node-id arc-angle] (arc-property-error _node-id :arc-angle arc-angle [0.0 360.0])))
+            (dynamic label (properties/label-dynamic :label :arc-angle))
+            (dynamic tooltip (properties/tooltip-dynamic :label :arc-angle)))
   (property font-size g/Num (default (protobuf/default Label$LabelDesc :font-size))
             (dynamic visible (g/fnk [font-data] (:vector? font-data)))
             (dynamic error (g/fnk [_node-id font-size font-map]
@@ -335,31 +375,50 @@
   (input font-data font/FontData)
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
+
+  (output arc-error g/Any produce-arc-error)
   (output save-value g/Any :cached produce-save-value)
   (output markup-error g/Any :cached (g/fnk [_node-id ^:try font-map text]
                                        (when-not (g/error-value? font-map)
                                          (font/markup-error _node-id :text font-map text))))
-  (output text-layout g/Any :cached (g/fnk [size font-map font-data font-size text line-break leading tracking style]
-                                      (font/layout-text (some-> font-map (assoc :style style)) text line-break (first size) tracking leading
+  (output text-layout g/Any :cached (g/fnk [size font-map font-data font-size text line-break leading tracking style arc-radius arc-angle]
+                                      (font/layout-text (some-> font-map (assoc :style style)) text line-break
+                                                        (cond
+                                                          (zero? (double arc-angle)) (first size)
+                                                          line-break (* (Math/abs (double arc-radius)) (Math/toRadians (Math/abs (double arc-angle))))
+                                                          :else 0.0)
+                                                        tracking leading
                                                         (when (:vector? font-data) font-size))))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color outline shadow pivot size]
-                                   (cond-> {:text-layout text-layout
-                                            :font-data font-data
-                                            :color color
-                                            :outline outline
-                                            :shadow shadow
-                                            :font-size (when (:vector? font-data) font-size)
-                                            :align (pivot->h-align pivot)}
-                                     font-data
-                                     (assoc :box-height (second size)
-                                            :offset (pivot-offset pivot size)
-                                            :vertical-align (pivot->v-align pivot)))))
-  (output aabb g/Any :cached (g/fnk [pivot size]
-                               (let [offset-fn (partial mapv + (pivot-offset pivot size))
-                                     [min-x min-y _] (offset-fn [0 0 0])
-                                     [max-x max-y _] (offset-fn size)]
-                                 (geom/coords->aabb [min-x min-y 0]
-                                                    [max-x max-y 0]))))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color outline shadow pivot size arc-radius arc-angle ^:try arc-error]
+                                   (let [size (if (zero? (double arc-angle)) size [(:layout-width text-layout) 0.0 0.0])
+                                         text-data {:text-layout text-layout
+                                                    :font-data font-data
+                                                    :color color
+                                                    :outline outline
+                                                    :shadow shadow
+                                                    :font-size (when (:vector? font-data) font-size)
+                                                    :align (pivot->h-align pivot)}
+                                         ;; Keep invalid edits previewable.
+                                         ;; Property errors remain visible.
+                                         text-data (if (g/error-value? arc-error)
+                                                     text-data
+                                                     (assoc text-data :arc-radius arc-radius :arc-angle arc-angle))]
+                                     (cond-> text-data
+                                       font-data
+                                       (assoc :box-height (second size)
+                                              :offset (if (zero? (double arc-angle)) (pivot-offset pivot size) [0.0 0.0])
+                                              :vertical-align (pivot->v-align pivot))))))
+  (output arc-data g/Any :cached (g/fnk [font-map text-data]
+                                   (font/arc-data font-map text-data)))
+  (output aabb g/Any :cached (g/fnk [pivot size arc-data arc-angle]
+                               (if-not (zero? (double arc-angle))
+                                 (or (:aabb arc-data) geom/empty-bounding-box)
+                                 (let [[min-x min-y] (pivot-offset pivot size)
+                                       [width height] size]
+                                   (geom/coords->aabb [min-x min-y 0.0]
+                                                      [(+ (double min-x) (double width))
+                                                       (+ (double min-y) (double height))
+                                                       0.0])))))
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
   (output tex-params g/Any :cached (g/fnk [material-samplers]
@@ -381,6 +440,8 @@
       shadow :shadow
       leading :leading
       tracking :tracking
+      arc-radius :arc-radius
+      arc-angle :arc-angle
       pivot :pivot
       blend-mode :blend-mode
       line-break :line-break

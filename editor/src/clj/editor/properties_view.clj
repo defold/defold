@@ -340,7 +340,7 @@
         is-float (math/float32? old-num)]
     (-> {:fx/type fxui/value-field
          :to-string field-expression/format-number
-         :to-value field-expression/to-double
+         :to-value (get-in property [:edit-type :to-value] field-expression/to-double)
          :on-value-changed #(set-values! property (repeat (cond-> % is-float float)))
          :editable (not (properties/read-only? property))}
         (resolve-value property)

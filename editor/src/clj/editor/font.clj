@@ -27,6 +27,7 @@
             [editor.defold-project :as project]
             [editor.editor-extensions.graph :as ext-graph]
             [editor.editor-extensions.runtime :as rt]
+            [editor.field-expression :as field-expression]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -38,6 +39,7 @@
             [editor.id :as id]
             [editor.localization :as localization]
             [editor.material :as material]
+            [editor.math :as math]
             [editor.outline :as outline]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
@@ -53,7 +55,7 @@
             [schema.core :as schema]
             [util.coll :as coll]
             [util.defonce :as defonce])
-  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$GlyphBank FontRenderer$GlyphBankGlyph FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupException FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$MarkupSpan FontRenderer$Params FontRenderer$Properties FontRenderer$Style FontRenderer$Texture FontRenderer$VertexBufferRequirements FontStyles]
+  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$Arc FontRenderer$GlyphBank FontRenderer$GlyphBankGlyph FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupException FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$MarkupSpan FontRenderer$Params FontRenderer$Properties FontRenderer$Style FontRenderer$Texture FontRenderer$VertexBufferRequirements FontStyles]
            [com.dynamo.bob.util MurmurHash]
            [com.dynamo.font.proto GlyphBankProto$GlyphBank]
            [com.dynamo.render.proto Font$CompiledStyle Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$StyleDesc Font$VectorFontMode]
@@ -782,6 +784,8 @@
     (set! (.-height properties) height)
     (set! (.-leading properties) leading)
     (set! (.-tracking properties) tracking)
+    (set! (.-arcRadius properties) (float (:arc-radius entry 0.0)))
+    (set! (.-arcAngle properties) (float (:arc-angle entry 0.0)))
     (set! (.-align properties) (int align))
     (set! (.-verticalAlign properties) vertical-align)
     (set! (.-faceColor properties) (float-array face-color))
@@ -801,7 +805,8 @@
      :transform transform
      :atlas-key [(:style text-layout) font-size use-rich-text line-break width tracking text markup]
      :state-key [use-gpu-effects (:style text-layout) font-size use-rich-text line-break width height leading tracking align vertical-align
-                 face-color outline-color shadow-color shadow-alpha sdf-scale text markup]}))
+                 face-color outline-color shadow-color shadow-alpha sdf-scale text markup
+                 (:arc-radius entry 0.0) (:arc-angle entry 0.0)]}))
 
 (defn- apply-native-entry-state!
   [^FontRenderer native-renderer native-entry-state]
@@ -809,6 +814,75 @@
   (if-let [markup (:markup native-entry-state)]
     (.setMarkup native-renderer ^String markup)
     (.setText native-renderer ^String (:text native-entry-state))))
+
+(def arc-angle-edit-type
+  "Bounded angle editing shared by label and GUI text arcs."
+  (let [clamp-value (fn clamp-value [value]
+                      (min 360.0 (max 0.0 (double value))))]
+    {:type g/Num
+     :min 0.0
+     :max 360.0
+     :from-type clamp-value
+     :to-value (fn parse-arc-angle [text]
+                 (some-> (field-expression/to-double text) clamp-value))}))
+
+(defn arc-data
+  "Returns the curved outline and bounds enclosing it and the text vertices."
+  [font-map entry]
+  (when (and (not (zero? (double (:arc-angle entry 0.0))))
+             (:native-renderer-spec font-map))
+    (let [renderer-spec (:native-renderer-spec font-map)
+          ^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
+          state (make-native-entry-state font-map (assoc entry :world-transform math/identity-mat4) false)]
+      (apply-native-entry-state! renderer state)
+      (when-let [^FontRenderer$Arc arc (.getArc renderer)]
+        (when (< (.-minX arc) (.-maxX arc))
+          (let [[offset-x offset-y] (:offset entry [0.0 0.0])
+                center-x (+ (double offset-x) (double (.-centerX arc)))
+                center-y (+ (double offset-y) (double (.-centerY arc)))
+                start-angle (double (.-startAngle arc))
+                span (- (double (.-endAngle arc)) start-angle)
+                segments (max 2 (long (* 2.0 (Math/ceil (/ span (Math/toRadians 4.0))))))
+                arc-points (fn arc-points [radius from-angle angular-span]
+                             (mapv (fn [index]
+                                     (let [angle (+ (double from-angle) (* (double angular-span) (/ (double index) (double segments))))]
+                                       [(+ center-x (* (double radius) (Math/sin angle)))
+                                        (+ center-y (* (double radius) (Math/cos angle)))
+                                        0.0]))
+                                   (range (inc segments))))
+                inner (arc-points (.-innerRadius arc) start-angle span)
+                outer (arc-points (.-outerRadius arc) start-angle span)
+                end-lines (if (< span (- (* 2.0 Math/PI) 0.00001))
+                            [(first inner) (first outer) (peek inner) (peek outer)]
+                            [])
+                line-data (coll/into-> (range segments) end-lines
+                            (mapcat (fn [index]
+                                      (let [next-index (inc (long index))]
+                                        [(nth inner index) (nth inner next-index)
+                                         (nth outer index) (nth outer next-index)]))))
+                baseline-line-data (coll/into-> (.-lineRadii arc) []
+                                     (mapcat (fn [radius]
+                                               (let [points (arc-points radius (* -0.5 (double (.-span arc))) (.-span arc))]
+                                                 (eduction
+                                                   (mapcat (fn [index]
+                                                             [(nth points index) (nth points (inc (long index)))]))
+                                                   (range segments))))))
+                text-aabb (geom/coords->aabb [(+ (double offset-x) (double (.-minX arc)))
+                                              (+ (double offset-y) (double (.-minY arc)))
+                                              0.0]
+                                             [(+ (double offset-x) (double (.-maxX arc)))
+                                              (+ (double offset-y) (double (.-maxY arc)))
+                                              0.0])]
+            {:line-data line-data
+             :baseline-line-data baseline-line-data
+             :center-line-data [[(- center-x 5.0) (- center-y 5.0) 0.0]
+                                [(+ center-x 5.0) (+ center-y 5.0) 0.0]
+                                [(- center-x 5.0) (+ center-y 5.0) 0.0]
+                                [(+ center-x 5.0) (- center-y 5.0) 0.0]]
+             :aabb (reduce (fn [aabb [x y _]]
+                             (geom/aabb-incorporate aabb (double x) (double y) 0.0))
+                           text-aabb
+                           (eduction cat [line-data baseline-line-data]))}))))))
 
 (defn- generate-native-texture!
   [^GL3 gl ^FontRenderer native-renderer texture ^long known-atlas-version]

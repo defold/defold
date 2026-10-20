@@ -1561,6 +1561,11 @@ property.gui.y-anchor.tooltip = Controls vertical positioning when the parent or
 
 # Properties: label
 
+property.label.arc-radius = Arc Radius
+property.label.arc-radius.tooltip = Signed radius of the first text baseline in local units, centered on the object origin. Later lines retain the layout's line spacing.
+property.label.arc-angle = Arc Angle
+property.label.arc-angle.tooltip = Angular span from `0` to `360` degrees, inclusive. `360` forms a full circle. `0` selects textbox layout. Arc layout ignores Size. Line Break wraps text at the arc length; explicit newlines are preserved.
+
 property.label.color = Color
 property.label.color.tooltip = Sets the text's RGBA color. Use the alpha channel to control opacity.
 property.label.font = Font

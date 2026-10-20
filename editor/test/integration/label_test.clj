@@ -18,20 +18,29 @@
             [clojure.walk :as walk]
             [dynamo.graph :as g]
             [editor.build :as build]
+            [editor.camera :as camera]
+            [editor.colors :as colors]
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
+            [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
+            [editor.gl.vertex2 :as vtx]
             [editor.label :as label]
             [editor.math :as math]
+            [editor.properties :as properties]
+            [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [util.coll :as coll]
             [util.fn :as fn]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Label$LabelDesc]
-           [editor.types Region]))
+           [editor.types Region]
+           [java.nio ByteBuffer]
+           [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (deftest label-validation-test
   (test-util/with-loaded-project
@@ -392,3 +401,195 @@
       (is (= :vector-font-mode-bitmap (g/node-value font-node :vector-font-mode)))
       (is (= "/builtins/fonts/font.material" (:material (g/node-value font-node :save-value))))
       (is (false? (g/node-value font-node :antialias))))))
+
+;; Arc settings survive compilation and preview. Invalid edits report errors
+;; and remain previewable.
+(deftest label-arc-properties-test
+  (test-util/with-scratch-project test-util/project-path
+    (let [node (project/get-resource-node project "/label/test.label")
+          defaults {:arc-radius 100.0
+                    :arc-angle 0.0}
+          authored {:arc-radius -200.0
+                    :arc-angle 120.0}
+          arc-properties (into [] (coll/keys authored))
+          straight-layout (g/node-value node :text-layout)]
+      (doseq [[property value] defaults]
+        (is (= value (g/node-value node property)))
+        (is (not (contains? (g/node-value node :save-value) property))))
+      (doseq [[property value] authored]
+        (test-util/prop! node property value))
+      (is (= (dissoc straight-layout :layout-width) (dissoc (g/node-value node :text-layout) :layout-width)))
+      (is (= authored (select-keys (g/node-value node :text-data) arc-properties)))
+      (is (= authored (select-keys (g/node-value node :save-value) arc-properties)))
+      (with-open [_ (test-util/build! node)]
+        (let [built (test-util/built-pb node Label$LabelDesc)]
+          (is (= -200.0 (.getArcRadius built)))
+          (is (= 120.0 (.getArcAngle built)))))
+      (test-util/with-prop [node :arc-angle 361.0]
+        (is (g/error-fatal? (test-util/prop-error node :arc-angle)))
+        (is (g/error-fatal? (g/node-value node :build-targets)))
+        (is (not (g/error? (g/node-value node :text-data))))
+        (is (not (contains? (g/node-value node :text-data) :arc-radius)))))))
+
+;; Typed fields, property edits and scrubbing stay within the inclusive angle
+;; range instead of displaying invalid values or falling back to flat text.
+(deftest label-arc-angle-edit-range-test
+  (test-util/with-scratch-project test-util/project-path
+    (let [node (project/get-resource-node project "/label/test.label")]
+      (doseq [[entered expected] [[-1.0 0.0]
+                                  [-360.0 0.0]
+                                  [0.0 0.0]
+                                  [360.0 360.0]
+                                  [361.0 360.0]]]
+        (let [property (get-in (properties/coalesce [(g/node-value node :_properties)])
+                               [:properties :arc-angle])]
+          (is (= [0.0 360.0] ((juxt :min :max) (:edit-type property))))
+          (is (= expected ((:to-value (properties-view/make-control-view property nil nil))
+                           (str entered))))
+          (properties/set-values! property [entered])
+          (is (= expected (g/node-value node :arc-angle)))
+          (is (nil? (test-util/prop-error node :arc-angle))))))))
+
+;; The curved box replaces the textbox, keeps short radial end edges,
+;; closes both full-circle endpoints, and follows transforms and selection
+;; colors. Selected arcs show a center cross without affecting tight framing.
+(deftest label-arc-box-guide-test
+  (test-util/with-scratch-project test-util/project-path
+    (let [node (project/get-resource-node project "/label/test.label")]
+      (is (= 8 (count (get-in (g/node-value node :scene) [:children 0 :renderable :user-data :line-data]))))
+      (test-util/prop! node :text "AA\nAA")
+      (test-util/prop! node :arc-radius 200.0)
+      (doseq [degrees [60.0 90.0]]
+        (test-util/prop! node :arc-angle degrees)
+        (let [label-scene (g/node-value node :scene)
+              render-data (fn render-data [selection]
+                            (scene/produce-scene-render-data {:scene label-scene
+                                                              :selection selection
+                                                              :hidden-renderable-tags #{}
+                                                              :hidden-node-outline-key-paths #{}
+                                                              :local-camera (camera/make-camera)}))
+              renderable (get-in (render-data [node]) [:renderables pass/outline 0])
+              guide (get-in renderable [:user-data :line-data])
+              [inner outer] guide
+              cap-length (Math/hypot (- (double (first outer)) (double (first inner)))
+                                     (- (double (second outer)) (double (second inner))))
+              transform (doto (Matrix4d.)
+                          (.setIdentity)
+                          (.setTranslation (Vector3d. 10.0 -5.0 0.0)))
+              unselected (#'label/gen-lines-vb (get-in (render-data []) [:renderables pass/outline]))
+              selected (#'label/gen-lines-vb [(assoc renderable :world-transform transform)])
+              ^ByteBuffer buffer (vtx/buf selected)]
+          (is (< 8 (count guide)))
+          (is (< (Math/abs (- (Math/atan2 (double (first inner)) (double (second inner)))
+                              (* -0.5 (Math/toRadians (double degrees)))))
+                 0.001))
+          (is (< 0.0 cap-length 150.0))
+          (is (= :self-selected (:selected renderable)))
+          (is (= guide (get-in label-scene [:renderable :user-data :line-data])))
+          (is (= (count guide) (count unselected)))
+          (is (= [[-5.0 -5.0 0.0] [5.0 5.0 0.0] [-5.0 5.0 0.0] [5.0 -5.0 0.0]]
+                 (get-in renderable [:user-data :center-line-data])))
+          (is (= (+ (count guide) (count (:baseline-line-data (g/node-value node :arc-data))) 4)
+                 (count selected)))
+          (is (< (count unselected) (count selected)))
+          (is (< (Math/abs (- (+ (double (first inner)) 10.0) (.getFloat buffer 0))) 0.001))
+          (is (< (Math/abs (- (- (double (second inner)) 5.0) (.getFloat buffer Float/BYTES))) 0.001))
+          (is (= (mapv float colors/selected-outline-color)
+                 (mapv #(.getFloat buffer (* (+ 3 %) Float/BYTES)) (range 4))))
+          (let [marker-offset (* (- (count selected) 4) 7 Float/BYTES)]
+            (is (= 5.0 (.getFloat buffer marker-offset)))
+            (is (= -10.0 (.getFloat buffer (+ marker-offset Float/BYTES)))))))
+      (doseq [degrees [360.0]]
+        (test-util/prop! node :arc-angle degrees)
+        (is (nil? (test-util/prop-error node :arc-angle)))
+        (let [guide (:line-data (g/node-value node :arc-data))]
+          (doseq [[start end] [[(first guide) (nth guide (- (count guide) 3))]
+                               [(nth guide 2) (peek guide)]]]
+            (is (< (Math/hypot (- (double (first end)) (double (first start)))
+                               (- (double (second end)) (double (second start))))
+                   0.001)))))
+      (test-util/prop! node :arc-angle 0.0)
+      (is (= 8 (count (get-in (g/node-value node :scene) [:children 0 :renderable :user-data :line-data])))))))
+
+;; Arc mode wraps at the arc length while keeping Line Break editable and Size
+;; disabled. Switching back restores the stored textbox dimensions.
+(deftest label-arc-layout-mode-test
+  (test-util/with-scratch-project test-util/project-path
+    (let [node (project/get-resource-node project "/label/test.label")]
+      (test-util/prop! node :text "Alpha beta gamma\nDelta epsilon")
+      (test-util/prop! node :size [40.0 200.0 0.0])
+      (test-util/prop! node :line-break true)
+      (test-util/prop! node :arc-radius 30.0)
+      (let [wrapped (g/node-value node :text-layout)]
+        (is (< 2 (:line-count wrapped)))
+        (doseq [degrees [60.0 90.0]]
+          (test-util/prop! node :arc-angle degrees)
+          (is (< 2 (:line-count (g/node-value node :text-layout))))
+          (is (true? (get-in (g/node-value node :_properties) [:properties :size :read-only?])))
+          (is (not (get-in (g/node-value node :_properties) [:properties :line-break :read-only?])))
+          (test-util/with-prop [node :line-break false]
+            (is (= 2 (:line-count (g/node-value node :text-layout)))))
+          (test-util/with-prop [node :arc-radius 300.0]
+            (is (= 2 (:line-count (g/node-value node :text-layout)))))
+          (let [bounds (g/node-value node :aabb)]
+            (test-util/with-prop [node :size [800.0 1000.0 0.0]]
+              (is (= bounds (g/node-value node :aabb))))))
+        (test-util/prop! node :arc-angle 0.0)
+        (is (= wrapped (g/node-value node :text-layout)))
+        (is (= [40.0 200.0 0.0] (g/node-value node :size)))
+        (is (true? (g/node-value node :line-break)))
+        (is (false? (get-in (g/node-value node :_properties) [:properties :size :read-only?])))
+        (is (not (get-in (g/node-value node :_properties) [:properties :line-break :read-only?])))))))
+
+;; Framing encloses the curved box and text, excluding the distant circle center
+;; and original layout rectangle, for changed angles.
+(deftest label-arc-framing-test
+  (test-util/with-scratch-project test-util/project-path
+    (let [[node view] (test-util/open-scene-view! project app-view "/label/test.label" 128 128)]
+      (test-util/prop! node :text "Arc\nsecond line\nthird")
+      (test-util/prop! node :size [800.0 200.0 0.0])
+      (test-util/prop! node :tracking 10.0)
+      (let [straight-aabb (g/node-value node :aabb)]
+        (doseq [degrees [60.0 90.0]]
+          (test-util/prop! node :arc-radius 2000.0)
+          (test-util/prop! node :arc-angle degrees)
+          (let [arc-data (g/node-value node :arc-data)
+                aabb (g/node-value view :selected-aabb)
+                center (Point3d. 0.0 0.0 0.0)
+                extent (math/vecmath->clj (geom/aabb-extent aabb))]
+            (is (= (:aabb arc-data) aabb))
+            (is (not (geom/aabb-contains? aabb center)))
+            (doseq [point (subvec (:line-data arc-data) 0 4)]
+              (is (geom/aabb-contains? aabb (Point3d. (double-array point)))))
+            (is (< (double (first extent)) 3000.0))
+            (is (< (double (second extent)) 800.0))))
+        (test-util/prop! node :arc-angle 0.0)
+        (is (= straight-aabb (g/node-value node :aabb)))))))
+
+;; Ordinary text remains planar even when the unused Size Z component
+;; is nonzero.
+(deftest label-textbox-planar-bounds-test
+  (test-util/with-scratch-project test-util/project-path
+    (let [node (project/get-resource-node project "/label/test.label")]
+      (test-util/prop! node :size [40.0 200.0 0.0])
+      (let [bounds (g/node-value node :aabb)]
+        (test-util/prop! node :size [40.0 200.0 100.0])
+        (is (= bounds (g/node-value node :aabb)))))))
+
+;; Radius changes move the first baseline about the component origin, regardless
+;; of textbox pivot or wrapping width, while retaining line spacing.
+(deftest label-arc-center-test
+  (test-util/with-scratch-project test-util/project-path
+    (let [node (project/get-resource-node project "/label/test.label")]
+      (test-util/prop! node :text "AA\nAA")
+      (test-util/prop! node :line-break true)
+      (test-util/prop! node :arc-angle 90.0)
+      (doseq [pivot [:pivot-center :pivot-nw :pivot-se]
+              radius [-200.0 200.0 400.0]]
+        (test-util/prop! node :pivot pivot)
+        (test-util/prop! node :arc-radius radius)
+        (let [[x y] (first (:baseline-line-data (g/node-value node :arc-data)))
+              expected (* (double radius) (Math/sqrt 0.5))]
+          (is (= [0.0 0.0] (:offset (g/node-value node :text-data))))
+          (is (< (Math/abs (+ (double x) expected)) 0.001))
+          (is (< (Math/abs (- (double y) expected)) 0.001)))))))

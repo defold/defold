@@ -156,6 +156,11 @@ extern "C"
         float    m_Height;
         float    m_Leading;
         float    m_Tracking;
+        /* Arc mapping uses local font units for radius and degrees for angles.
+         * Radius anchors the first baseline around the local origin; later lines retain their baseline offsets.
+         * Angles are in [0, 360]; zero leaves ordinary layout unchanged. */
+        float    m_ArcRadius;
+        float    m_ArcAngle;
         float    m_SdfScale;
         uint64_t m_BaseStyle;
         // Java accesses m_Bits because jextract does not expose bit fields.
@@ -727,6 +732,40 @@ extern "C"
      * @param texture [type: FontcTexture*] Texture returned by FontcGenerateTexture or FontcGetEffectTexture.
      */
     DM_DLLEXPORT void FontcFreeTexture(FontcTexture* texture);
+
+    /*#
+     * Returns the circular baseline used by the retained text, without generating glyph images.
+     * The caller supplies twelve floats: center x and y (the local origin), and signed first-line radius in local
+     * font units, the angular span in radians, then the text vertex bounds as
+     * min x, min y, max x, max y, then the curved box's inner radius, outer radius,
+     * start angle and end angle. Box angles increase along text X.
+     * The bounds exclude the arc guide.
+     * The box's inner radius is negative when text extends across the center;
+     * in that case the guide retains the requested angular span.
+     * All values are zero when arc mapping is disabled or the layout is empty.
+     * No pointers are retained.
+     *
+     * @name FontcGetArc
+     * @param renderer [type: HFontRenderer] Font renderer context with retained properties and text.
+     * @param arc [type: float*] Caller-owned output storage for twelve floats.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcGetArc(HFontRenderer renderer, float* arc);
+
+    /*#
+     * Copies the circular baseline radius for each retained text line, in layout
+     * order, without generating glyph images. The first line uses m_ArcRadius;
+     * later lines use the layout's baseline offsets.
+     * Returns zero lines for straight or empty text. No pointers are retained.
+     *
+     * @name FontcGetArcLineRadii
+     * @param renderer [type: HFontRenderer] Context with retained properties and text.
+     * @param radii [type: float*] Caller-owned output array, or null to query the count.
+     * @param capacity [type: uint32_t] Number of floats available in radii.
+     * @param line_count [type: uint32_t*] Receives the required or written line count.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcGetArcLineRadii(HFontRenderer renderer, float* radii, uint32_t capacity, uint32_t* line_count);
 
     /*#
      * Calculates the storage required for vertices of the retained text.

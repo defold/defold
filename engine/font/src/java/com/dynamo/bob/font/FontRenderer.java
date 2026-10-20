@@ -32,6 +32,8 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetEffectTexture;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetArc;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetArcLineRadii;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetGlyphMetrics;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetMarkupData;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetSupportedGlyphMetrics;
@@ -182,6 +184,8 @@ public final class FontRenderer implements AutoCloseable {
         public float height;
         public float leading;
         public float tracking;
+        public float arcRadius;
+        public float arcAngle;
         public int align;
         public int verticalAlign;
         public float[] faceColor = {1, 1, 1, 1};
@@ -494,6 +498,60 @@ public final class FontRenderer implements AutoCloseable {
             this.componentSize = componentSize;
             int pixelCount = FontcTexture.m_PixelCount(values);
             pixels = pixelCount == 0 ? null : copyNativeBytes(FontcTexture.m_Pixels(values), pixelCount);
+        }
+    }
+
+    /** Circular baseline and text vertex bounds in local font units; span is measured in radians. */
+    public static final class Arc {
+        public final float centerX;
+        public final float centerY;
+        public final float radius;
+        public final float span;
+        public final float minX;
+        public final float minY;
+        public final float maxX;
+        public final float maxY;
+        /** Curved guide; a negative inner radius continues across the center, retaining the requested sweep. */
+        public final float innerRadius;
+        public final float outerRadius;
+        public final float startAngle;
+        public final float endAngle;
+        /** Baseline radii in layout order; the first line uses radius. */
+        public final float[] lineRadii;
+
+        private Arc(MemorySegment values, float[] lineRadii) {
+            centerX = values.getAtIndex(JAVA_FLOAT, 0);
+            centerY = values.getAtIndex(JAVA_FLOAT, 1);
+            radius = values.getAtIndex(JAVA_FLOAT, 2);
+            span = values.getAtIndex(JAVA_FLOAT, 3);
+            minX = values.getAtIndex(JAVA_FLOAT, 4);
+            minY = values.getAtIndex(JAVA_FLOAT, 5);
+            maxX = values.getAtIndex(JAVA_FLOAT, 6);
+            maxY = values.getAtIndex(JAVA_FLOAT, 7);
+            innerRadius = values.getAtIndex(JAVA_FLOAT, 8);
+            outerRadius = values.getAtIndex(JAVA_FLOAT, 9);
+            startAngle = values.getAtIndex(JAVA_FLOAT, 10);
+            endAngle = values.getAtIndex(JAVA_FLOAT, 11);
+            this.lineRadii = lineRadii;
+        }
+    }
+
+    /**
+     * Returns the retained text's circular baseline, or null for straight or empty text.
+     * Used by the Editor for arc guides and text framing; does not generate glyph images or modify the atlas.
+     */
+    public synchronized Arc getArc() {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment values = arena.allocate(JAVA_FLOAT, 12);
+            checkResult(FontcGetArc(requireHandle(), values), "Unable to read native text arc");
+            if (values.getAtIndex(JAVA_FLOAT, 3) == 0.0f)
+                return null;
+            MemorySegment count = arena.allocate(JAVA_INT);
+            checkResult(FontcGetArcLineRadii(requireHandle(), MemorySegment.NULL, 0, count), "Unable to count arc baselines");
+            int lineCount = count.get(JAVA_INT, 0);
+            MemorySegment radii = arena.allocate(JAVA_FLOAT, lineCount);
+            checkResult(FontcGetArcLineRadii(requireHandle(), radii, lineCount, count), "Unable to read arc baselines");
+            return new Arc(values, radii.toArray(JAVA_FLOAT));
         }
     }
 
@@ -975,6 +1033,8 @@ public final class FontRenderer implements AutoCloseable {
             FontcProperties.m_Height(values, properties.height);
             FontcProperties.m_Leading(values, properties.leading);
             FontcProperties.m_Tracking(values, properties.tracking);
+            FontcProperties.m_ArcRadius(values, properties.arcRadius);
+            FontcProperties.m_ArcAngle(values, properties.arcAngle);
             FontcProperties.m_SdfScale(values, properties.sdfScale);
             FontcProperties.m_BaseStyle(values, properties.baseStyle);
             // Matches the low-to-high bit fields in FontcProperties.

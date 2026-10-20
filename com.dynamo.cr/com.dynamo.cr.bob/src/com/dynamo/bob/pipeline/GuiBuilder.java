@@ -202,6 +202,12 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     }
 
     private static void validateNodeResources(NodeDesc n, GuiBuilder builder, String input, Set<String> resourceNames, Set<String> fontNames, Set<String> particlefxNames, Set<String> textureNames, Set<String> layerNames, Set<String> materialNames) throws CompileExceptionError {
+        if (n.getType() == Type.TYPE_TEXT &&
+                (!Float.isFinite(n.getArcRadius()) ||
+                 !Float.isFinite(n.getArcAngle()) || n.getArcAngle() < 0.0f || n.getArcAngle() > 360.0f)) {
+            throw new CompileExceptionError(builder.project.getResource(input), 0,
+                    "Invalid GUI text arc parameters: Arc Radius must be finite, and Arc Angle must be within [0, 360]");
+        }
         List<String> nodeResources = new ArrayList<>();
 
         // TODO: Do resource validation in the plugin. I.e. how to get the resources?

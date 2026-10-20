@@ -1076,6 +1076,227 @@ public class FontRendererTest {
         }
     }
 
+    // Verify that both arc properties reach native geometry and remain in the renderer cache key.
+    @Test
+    public void testMultilineArcProperties() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            FontRenderer.Properties properties = properties(100.0f, 1.0f, 0);
+            renderer.setProperties(properties);
+            renderer.setText("AA\nAA");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+            TestVertices flat = getVertices(renderer, IDENTITY);
+            long flatHash = renderer.hash();
+            assertEquals(24, flat.vertexCount);
+            properties.arcRadius = 200.0f;
+            properties.arcAngle = 120.0f;
+            renderer.setProperties(properties);
+            TestVertices curved = getVertices(renderer, IDENTITY);
+            assertEquals(flat.vertexCount, curved.vertexCount);
+            assertTrue(flatHash != renderer.hash());
+            assertTrue(!flat.vertices.equals(curved.vertices));
+            properties.arcAngle = 0.0f;
+            renderer.setProperties(properties);
+            assertEquals(flat.vertices, getVertices(renderer, IDENTITY).vertices);
+            properties.arcRadius = 0.0f;
+            properties.arcAngle = 90.0f;
+            renderer.setProperties(properties);
+            assertNotNull(renderer.getArc());
+            properties.arcRadius = -200.0f;
+            renderer.setProperties(properties);
+            assertEquals(-200.0f, renderer.getArc().radius, 0.0f);
+            assertEquals(24, getVertices(renderer, IDENTITY).vertexCount);
+            properties.arcRadius = Float.POSITIVE_INFINITY;
+            try {
+                renderer.setProperties(properties);
+                fail("Accepted an infinite radius");
+            } catch (IllegalStateException expected) {
+                assertTrue(expected.getMessage().contains("native result"));
+            }
+            properties.arcRadius = 200.0f;
+            properties.arcAngle = -1.0f;
+            try {
+                renderer.setProperties(properties);
+                fail("Accepted a negative arc angle");
+            } catch (IllegalStateException expected) {
+                assertTrue(expected.getMessage().contains("native result"));
+            }
+            properties.arcAngle = 361.0f;
+            try {
+                renderer.setProperties(properties);
+                fail("Accepted an arc greater than a circle");
+            } catch (IllegalStateException expected) {
+                assertTrue(expected.getMessage().contains("native result"));
+            }
+        }
+    }
+
+    // Arc guides anchor the first baseline at a fixed local center and expose rich-text baselines without building the atlas.
+    @Test
+    public void testArcGuideMatchesRichTextBaseline() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            FontRenderer.Properties properties = properties(100.0f, 1.0f, 1);
+            properties.width = 200.0f;
+            properties.align = 1;
+            properties.arcRadius = 200.0f;
+            properties.arcAngle = 90.0f;
+            renderer.setProperties(properties);
+            String text = "<size=2em>AA</size>\nAA";
+            renderer.setMarkup(text);
+            long atlasVersion = renderer.atlasVersion();
+            FontRenderer.Arc arc = renderer.getArc();
+            assertNotNull(arc);
+            assertEquals(0.0f, arc.centerX, 0.0f);
+            assertEquals(0.0f, arc.centerY, 0.0f);
+            assertEquals(200.0f, arc.radius, 0.0f);
+            assertEquals((float)Math.PI * 0.5f, arc.span, 0.001f);
+            assertEquals(atlasVersion, renderer.atlasVersion());
+            assertEquals(2, arc.lineRadii.length);
+            assertEquals(200.0f, arc.lineRadii[0], 0.0f);
+            assertTrue(arc.lineRadii[0] > arc.lineRadii[1]);
+            properties.arcRadius = 400.0f;
+            properties.width = 700.0f;
+            properties.height = 300.0f;
+            properties.align = 2;
+            properties.verticalAlign = 0;
+            renderer.setProperties(properties);
+            FontRenderer.Arc resized = renderer.getArc();
+            assertEquals(0.0f, resized.centerX, 0.0f);
+            assertEquals(0.0f, resized.centerY, 0.0f);
+            assertEquals(400.0f, resized.lineRadii[0], 0.0f);
+            for (float degrees : new float[] {360.0f}) {
+                properties.arcAngle = degrees;
+                renderer.setProperties(properties);
+                FontRenderer.Arc circle = renderer.getArc();
+                assertNotNull(circle);
+                assertEquals((float)Math.toRadians(degrees), circle.span, 0.001f);
+                assertEquals((float)(2.0 * Math.PI), circle.endAngle - circle.startAngle, 0.001f);
+            }
+            properties.arcAngle = 0.0f;
+            renderer.setProperties(properties);
+            assertNull(renderer.getArc());
+            properties.arcAngle = 90.0f;
+            renderer.setProperties(properties);
+            renderer.setText("");
+            assertNull(renderer.getArc());
+        }
+    }
+
+    // Framing uses the rendered quads, including rich sizes and effects, without including the distant circle center.
+    @Test
+    public void testArcBoundsMatchRenderedVertices() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+            assertNotNull(input);
+            fontBytes = input.readAllBytes();
+        }
+        for (boolean bitmap : new boolean[] {false, true}) {
+            FontRenderer.Params params = new FontRenderer.Params();
+            params.size = 32.0f;
+            params.cacheWidth = 512;
+            params.cacheHeight = 512;
+            params.outputBitmap = bitmap;
+            params.useTextShaping = true;
+            params.layerMask = FontRenderer.LAYER_FACE | FontRenderer.LAYER_OUTLINE | FontRenderer.LAYER_SHADOW;
+            params.outlineWidth = 2.0f;
+            params.shadowBlur = 1.0f;
+            params.hasOutline = true;
+            params.hasShadow = true;
+            try (FontRenderer renderer = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
+                for (float radius : new float[] {-2000.0f, -200.0f, 200.0f, 2000.0f}) {
+                    for (float degrees : new float[] {90.0f, 270.0f}) {
+                        FontRenderer.Properties properties = properties(100.0f, 1.2f, 1);
+                        properties.width = 800.0f;
+                        properties.align = 1;
+                        properties.tracking = 10.0f;
+                        properties.arcRadius = radius;
+                        properties.arcAngle = degrees;
+                        renderer.setProperties(properties);
+                        renderer.setMarkup("<size=2em><outline color=#ffffff><shadow x=8 y=-4 color=#000000><ul>Arc</ul></shadow></outline></size>\nsecond line\nthird");
+                        long atlasVersion = renderer.atlasVersion();
+                        FontRenderer.Arc arc = renderer.getArc();
+                        assertEquals(atlasVersion, renderer.atlasVersion());
+                        assertEquals(radius, arc.radius, 0.0f);
+                        assertTrue(radius > 0.0f ? arc.innerRadius > 0.0f : arc.outerRadius < 0.0f);
+                        assertTrue(arc.outerRadius > arc.innerRadius);
+                        assertTrue(arc.endAngle > arc.startAngle);
+                        renderer.beginBatch();
+                        renderer.generateTexture(0);
+                        TestVertices vertices = getVertices(renderer, IDENTITY);
+                        float minX = Float.POSITIVE_INFINITY;
+                        float minY = Float.POSITIVE_INFINITY;
+                        float maxX = Float.NEGATIVE_INFINITY;
+                        float maxY = Float.NEGATIVE_INFINITY;
+                        for (int index = 0; index < vertices.vertexCount; ++index) {
+                            float x = vertices.vertices.getFloat(index * VERTEX_STRIDE);
+                            float y = vertices.vertices.getFloat(index * VERTEX_STRIDE + Float.BYTES);
+                            minX = Math.min(minX, x);
+                            minY = Math.min(minY, y);
+                            maxX = Math.max(maxX, x);
+                            maxY = Math.max(maxY, y);
+                        }
+                        assertEquals(minX, arc.minX, 0.001f);
+                        assertEquals(minY, arc.minY, 0.001f);
+                        assertEquals(maxX, arc.maxX, 0.001f);
+                        assertEquals(maxY, arc.maxY, 0.001f);
+                        if (Math.abs(degrees) == 90.0f)
+                            assertTrue(arc.centerY < arc.minY || arc.centerY > arc.maxY);
+                    }
+                }
+            }
+        }
+    }
+
+    // Inner-line glyph corners must not widen the guide beyond the authored angle.
+    @Test
+    public void testArcGuideRetainsRequestedAngle() throws Exception {
+        try (FontRenderer renderer = createRenderer("/SourceCodePro-Regular.otf", 32.0f, 512, 512, true)) {
+            FontRenderer.Properties properties = properties(0.0f, 1.2f, 1);
+            properties.arcAngle = 86.0f;
+            properties.align = 1;
+            properties.lineBreak = true;
+            String text = "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+            for (float radius : new float[] {293.0f, 330.0f}) {
+                properties.arcRadius = radius;
+                properties.width = radius * (float)Math.toRadians(properties.arcAngle);
+                renderer.setProperties(properties);
+                renderer.setText(text);
+                FontRenderer.Arc arc = renderer.getArc();
+                assertTrue(arc.lineRadii.length > 2);
+                assertEquals((float)Math.toRadians(-43.0), arc.startAngle, 0.00001f);
+                assertEquals((float)Math.toRadians(43.0), arc.endAngle, 0.00001f);
+            }
+        }
+    }
+
+    // Many wrapped lines extend inward from the first baseline, preserving the sweep when text crosses the center.
+    @Test
+    public void testWrappedArcCrossesCenterFromFirstBaseline() throws Exception {
+        try (FontRenderer renderer = createRenderer("/SourceCodePro-Regular.otf", 32.0f, 512, 512, true)) {
+            FontRenderer.Properties properties = properties(0.0f, 1.2f, 1);
+            properties.arcRadius = 240.0f;
+            properties.arcAngle = 104.0f;
+            properties.width = properties.arcRadius * (float)Math.toRadians(properties.arcAngle);
+            properties.align = 1;
+            properties.lineBreak = true;
+            String text = "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+            renderer.setProperties(properties);
+            renderer.setText(text);
+            FontRenderer.Layout layout = renderer.measure(text, true, properties.width, properties.leading, 0.0f);
+            assertTrue(layout.height > properties.arcRadius);
+            FontRenderer.Arc arc = renderer.getArc();
+            assertNotNull(arc);
+            assertEquals((float)Math.toRadians(104.0f), arc.span, 0.001f);
+            assertTrue(arc.endAngle - arc.startAngle < Math.PI);
+            assertTrue(arc.innerRadius < 0.0f);
+            assertEquals(layout.lineCount, arc.lineRadii.length);
+            assertEquals(properties.arcRadius, arc.lineRadii[0], 0.0f);
+            for (int line = 1; line < arc.lineRadii.length; ++line)
+                assertTrue(arc.lineRadii[line - 1] > arc.lineRadii[line]);
+            assertTrue(arc.outerRadius > properties.arcRadius);
+        }
+    }
+
     @Test
     public void testRichTextMeasureAndRender() throws Exception {
         try (FontRenderer renderer = createRenderer(32.0f)) {
