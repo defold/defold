@@ -916,12 +916,17 @@ namespace dmGameSystem
         const Vector3 sprite_size = component->m_Size;
         const Vector4 slice9 = component->m_Slice9;
         const uint8_t texture_num = component->m_NumTextures;
-        Slice9Params slice9_params = {
-            sprite_size.getX(), sprite_size.getY(),
-            {slice9.getX(), slice9.getY(), slice9.getZ(), slice9.getW()},
-            0.5f + component->m_PivotX, 0.5f + component->m_PivotY,
-            component->m_FlipHorizontal != 0, component->m_FlipVertical != 0
-        };
+        Slice9Params slice9_params = {};
+        slice9_params.m_Width = sprite_size.getX();
+        slice9_params.m_Height = sprite_size.getY();
+        slice9_params.m_Slice9[0] = slice9.getX();
+        slice9_params.m_Slice9[1] = slice9.getY();
+        slice9_params.m_Slice9[2] = slice9.getZ();
+        slice9_params.m_Slice9[3] = slice9.getW();
+        slice9_params.m_PivotX = 0.5f + component->m_PivotX;
+        slice9_params.m_PivotY = 0.5f + component->m_PivotY;
+        slice9_params.m_FlipHorizontal = component->m_FlipHorizontal != 0;
+        slice9_params.m_FlipVertical = component->m_FlipVertical != 0;
 
         // The driving animation determines the geometry, including flipped borders.
         if (texture_num != 0 && anim_data->m_Animations[0])

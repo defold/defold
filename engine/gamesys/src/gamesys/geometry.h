@@ -25,29 +25,44 @@ namespace dmGameSystem
 
     struct Slice9Params
     {
-        float m_Width;
-        float m_Height;
-        float m_Slice9[4]; // Left, top, right, bottom margins in pixels.
-        float m_PivotX;    // Normalized origin: 0 = left/bottom, 0.5 = center.
-        float m_PivotY;
-        bool  m_FlipHorizontal;
-        bool  m_FlipVertical;
+        float   m_Slice9[4]; // Left, top, right, bottom margins in pixels.
+        float   m_Width;
+        float   m_Height;
+        float   m_PivotX;    // Normalized origin: 0 = left/bottom, 0.5 = center.
+        float   m_PivotY;
+        uint8_t m_FlipHorizontal : 1;
+        uint8_t m_FlipVertical : 1;
     };
 
-    // Writes interleaved XY pairs in row-major order, starting at the bottom left.
-    // Positions are normalized to the box size, with the pivot subtracted.
-    // Flips exchange the fixed-size borders. Margins are not clamped to the size.
-    // Dimensions <= 0.001 disable the inner subdivisions along that axis.
+    /**
+     * Generate slice-9 vertex positions, normalized to the box size with the pivot subtracted.
+     * Flips exchange the fixed-size borders. Margins are not clamped to the size.
+     * Dimensions <= 0.001 disable the inner subdivisions along that axis.
+     *
+     * @param params Box dimensions, margins, pivot and flip flags
+     * @param positions Output buffer of SLICE9_VERTEX_COUNT interleaved XY pairs in row-major order, starting at the bottom left
+     */
     void GenerateSlice9Positions(const Slice9Params& params, float positions[SLICE9_VERTEX_COUNT * 2]);
 
-    // Writes matching UV pairs from unflipped TextureSet corners (BL, TL, TR, BR).
-    // Texture dimensions refer to the original atlas, before texture resizing.
-    // Rotated atlas regions and both flips are handled here.
+    /**
+     * Generate slice-9 texture coordinates matching the vertex positions.
+     * Handles rotated atlas regions and both flips.
+     *
+     * @param params Slice-9 margins and flip flags
+     * @param texture_width Original atlas width in pixels, before texture resizing
+     * @param texture_height Original atlas height in pixels, before texture resizing
+     * @param tex_coords Unflipped TextureSet UV pairs in bottom-left, top-left, top-right, bottom-right order
+     * @param uvs Output buffer of SLICE9_VERTEX_COUNT interleaved UV pairs in the same order as GenerateSlice9Positions
+     */
     void GenerateSlice9TexCoords(const Slice9Params& params, float texture_width, float texture_height,
                                 const float tex_coords[8], float uvs[SLICE9_VERTEX_COUNT * 2]);
 
-    // Two counterclockwise triangles per cell, sharing the BL-to-TR diagonal.
-    // The returned indices refer to the row-major grid and have static lifetime.
+    /**
+     * Get indices for two counterclockwise triangles per slice-9 cell, sharing the bottom-left to top-right diagonal.
+     * The indices refer to the row-major grid produced by GenerateSlice9Positions.
+     *
+     * @return Buffer of SLICE9_INDEX_COUNT indices with static lifetime
+     */
     const uint16_t* GetSlice9Indices();
 }
 

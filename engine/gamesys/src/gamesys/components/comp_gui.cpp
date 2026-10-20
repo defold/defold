@@ -2384,11 +2384,17 @@ namespace dmGameSystem
             }
 
             const Point3 size = dmGui::GetNodeSize(scene, node);
-            const Slice9Params slice9_params = {
-                size.getX(), size.getY(),
-                {slice9.getX(), slice9.getY(), slice9.getZ(), slice9.getW()},
-                pivot_x, pivot_y, flip_u, flip_v
-            };
+            Slice9Params slice9_params = {};
+            slice9_params.m_Width = size.getX();
+            slice9_params.m_Height = size.getY();
+            slice9_params.m_Slice9[0] = slice9.getX();
+            slice9_params.m_Slice9[1] = slice9.getY();
+            slice9_params.m_Slice9[2] = slice9.getZ();
+            slice9_params.m_Slice9[3] = slice9.getW();
+            slice9_params.m_PivotX = pivot_x;
+            slice9_params.m_PivotY = pivot_y;
+            slice9_params.m_FlipHorizontal = flip_u;
+            slice9_params.m_FlipVertical = flip_v;
             float positions[SLICE9_VERTEX_COUNT * 2];
             float uvs[SLICE9_VERTEX_COUNT * 2];
             GenerateSlice9Positions(slice9_params, positions);
