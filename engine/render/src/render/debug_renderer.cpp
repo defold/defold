@@ -237,7 +237,6 @@ namespace dmRender
         if (vertex_count == debug_renderer.m_UploadedVertexCount)
             return;
 
-        dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, vertex_count * sizeof(DebugVertex), 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         // Adding faces can move the lines in the packed buffer, so upload all

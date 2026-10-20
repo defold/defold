@@ -1727,6 +1727,7 @@ static void InitializeTestDebugRenderer(dmRender::HRenderContext context)
 }
 
 // Verifies that empty and unrelated passes do not upload debug geometry, and repeated debug draws reuse it.
+// Each upload must resize the buffer once without a redundant zero-sized update.
 TEST_F(dmRenderTest, DebugGeometryUploadDeferred)
 {
     InitializeTestDebugRenderer(m_Context);
@@ -1749,6 +1750,7 @@ TEST_F(dmRenderTest, DebugGeometryUploadDeferred)
 
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
     ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
     ASSERT_EQ(2U, vertex_buffer->m_SubDataSetCount);
     ASSERT_EQ((uint64_t)(8 * 2 * sizeof(Vector4)), vertex_buffer->m_SubDataSetBytes);
     const uint32_t data_set_count = vertex_buffer->m_DataSetCount;
@@ -1776,6 +1778,7 @@ TEST_F(dmRenderTest, DebugGeometryAddedBetweenPasses)
     dmRender::Line3D(m_Context, Point3(1, 2, 3), Point3(4, 5, 6), Vector4(1, 0, 0, 1), Vector4(0, 1, 0, 1));
     dmRender::RenderListEnd(m_Context);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
     ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
 
     Point3 triangle[3] = {Point3(10, 0, 0), Point3(0, 10, 0), Point3(0, 0, 10)};
@@ -1784,11 +1787,13 @@ TEST_F(dmRenderTest, DebugGeometryAddedBetweenPasses)
     unrelated_predicate.m_Tags[0] = dmHashString64("unrelated");
     unrelated_predicate.m_TagCount = 1;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, &unrelated_predicate, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
     ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
 
     dmRender::Line2D(m_Context, 20, 30, 40, 50, Vector4(1, 1, 0, 1), Vector4(0, 1, 1, 1));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
     ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(2U, vertex_buffer->m_DataSetCount);
     ASSERT_EQ((uint64_t)((2 + 7) * vertex_stride), vertex_buffer->m_SubDataSetBytes);
 
     const dmRender::DebugRenderTypeData& faces = debug_renderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_FACE_3D];
@@ -1819,6 +1824,7 @@ TEST_F(dmRenderTest, DebugGeometryUploadResetPerFrame)
     dmRender::Line3D(m_Context, Point3(1, 2, 3), Point3(4, 5, 6), Vector4(1, 0, 0, 1), Vector4(0, 1, 0, 1));
     dmRender::RenderListEnd(m_Context);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
     const uint32_t data_set_count = vertex_buffer->m_DataSetCount;
     ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
 
@@ -1833,6 +1839,7 @@ TEST_F(dmRenderTest, DebugGeometryUploadResetPerFrame)
     dmRender::Line3D(m_Context, Point3(7, 8, 9), Point3(10, 11, 12), Vector4(0, 0, 1, 1), Vector4(1, 1, 0, 1));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
     ASSERT_EQ(1U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(2U, vertex_buffer->m_DataSetCount);
     ASSERT_EQ((uint64_t)(4 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
     ASSERT_EQ(0, memcmp(vertex_buffer->m_Buffer, debug_renderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_LINE_3D].m_ClientBuffer, 2 * vertex_stride));
 }
