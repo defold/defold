@@ -21,7 +21,6 @@
             <StackPane>
                 <ProgressBar id="update-progress-bar" styleClass="really-small-progress-bar" visible="false" />
                 <VBox id="update-progress-vbox" alignment="CENTER">
-                    <Hyperlink id="channel-offer-link" alignment="CENTER" textAlignment="CENTER" wrapText="true" visible="false" managed="false" focusTraversable="false" />
                     <Hyperlink id="update-link" alignment="CENTER" visible="false" focusTraversable="false" />
                 </VBox>
                 <VBox.margin>

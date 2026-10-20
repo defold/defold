@@ -298,7 +298,8 @@
 
       (when updater
         (let [update-link (.lookup root "#update-link")]
-          (init-pending-update-indicator! stage update-link project changes-view updater localization)))
+          (init-pending-update-indicator! stage update-link project changes-view updater localization)
+          (ui.updater/init-channel-offer-notification! stage (workspace/notifications workspace) project updater localization)))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (os/is-mac-os?)

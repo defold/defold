@@ -19,6 +19,7 @@
             [editor.fxui :as fxui]
             [editor.localization :as localization]
             [editor.markdown-view :as markdown-view]
+            [editor.notifications :as notifications]
             [editor.ui :as ui]
             [editor.updater :as updater]
             [service.log :as log]
@@ -299,28 +300,32 @@
             (finally
               (updater/end-manual-update-check! updater))))))))
 
-(defn init-channel-offer!
-  "Makes `link` suggest a channel with a newer version whenever there is one.
-  Clicking it offers to download that channel's editor."
-  [^Stage stage link project updater localization]
-  (ui/on-action! link
-    (fn on-channel-offer-link-action [_]
-      (try-channel! stage project updater localization)))
-  (let [link-fn (fn update-channel-offer-link [updater]
-                  (ui/run-later
-                    (let [offer (updater/channel-offer updater)]
-                      (ui/visible! link (some? offer))
-                      (ui/managed! link (some? offer))
-                      (when offer
-                        (localization/localize! link localization
-                                                (localization/message "updater.button.channel-offer"
-                                                                      {"channel" (:channel offer)
-                                                                       "version" (:version offer)}))))))]
-    (updater/add-state-watch updater link-fn)
+(defn init-channel-offer-notification!
+  "Shows a notification suggesting a channel with a newer version whenever there
+  is one. Its action offers to download that channel's editor."
+  [^Stage stage notifications-node project updater localization]
+  (let [shown-version (atom nil)
+        notification-fn (fn show-channel-offer-notification [updater]
+                          (when-let [offer (updater/channel-offer updater)]
+                            (when (not= offer @shown-version)
+                              (reset! shown-version offer)
+                              (ui/run-later
+                                (notifications/show!
+                                  notifications-node
+                                  {:type :info
+                                   :id ::channel-offer
+                                   :message (localization/message "updater.notification.channel-offer"
+                                                                  {"channel" (:channel offer)
+                                                                   "version" (:version offer)})
+                                   :actions [{:message (localization/message "updater.notification.channel-offer.download")
+                                              :on-action #(try-channel! stage project updater localization)}
+                                             {:message (localization/message "updater.notification.channel-offer.not-interested")
+                                              :on-action #(updater/disable-channel-offer! updater)}]})))))]
+    (updater/add-state-watch updater notification-fn)
     (.addEventHandler stage
                       WindowEvent/WINDOW_HIDING
                       (ui/event-handler _
-                        (updater/remove-state-watch updater link-fn)))))
+                        (updater/remove-state-watch updater notification-fn)))))
 
 (defn init! [^Stage stage link project updater install-and-restart! render-progress! localization]
   (let [link-fn (make-link-fn link localization)]

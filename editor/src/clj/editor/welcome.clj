@@ -577,7 +577,7 @@
 ;; Automatic updates
 ;; -----------------------------------------------------------------------------
 
-(defn- init-pending-update-indicator! [stage update-link channel-offer-link progress-bar progress-vbox updater localization]
+(defn- init-pending-update-indicator! [stage update-link progress-bar progress-vbox updater localization]
   (let [render-progress! (progress/throttle-render-progress
                            (fn [progress]
                              (ui/run-later
@@ -587,8 +587,7 @@
         install-and-restart! #(ui.updater/install-and-restart! stage updater localization)]
     ;; No project is open on the welcome screen; release-notes links are external
     ;; (forum) urls that don't need one.
-    (ui.updater/init! stage update-link nil updater install-and-restart! render-progress! localization)
-    (ui.updater/init-channel-offer! stage channel-offer-link nil updater localization)))
+    (ui.updater/init! stage update-link nil updater install-and-restart! render-progress! localization)))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog
@@ -805,10 +804,9 @@
 
      ;; Install pending update check.
      (when (some? updater)
-       (ui/with-controls left-pane [update-link channel-offer-link update-progress-bar update-progress-vbox]
+       (ui/with-controls left-pane [update-link update-progress-bar update-progress-vbox]
          (init-pending-update-indicator! stage
                                          update-link
-                                         channel-offer-link
                                          update-progress-bar
                                          update-progress-vbox
                                          updater

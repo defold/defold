@@ -109,7 +109,9 @@ welcome.new-project.lightning-vfx.description = The sample shows a lightning eff
 # Updater
 updater.button.update-available = Update Available
 updater.button.restart-to-update = Restart to Update
-updater.button.channel-offer = Defold {version} {channel} is out.\nTry it
+updater.notification.channel-offer = Defold {version} {channel} is out.
+updater.notification.channel-offer.download = Download
+updater.notification.channel-offer.not-interested = Not Interested
 updater.try-channel-dialog.title = Try the Beta
 updater.try-channel-dialog.header = Try Defold {version} beta?
 updater.try-channel-dialog.button.download = Download Beta

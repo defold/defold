@@ -263,8 +263,8 @@
   (add-watch (:state-atom updater)
              [:state f]
              (fn [_ _ old-state new-state]
-               (let [old-state-sha1s (-> old-state (update :current-download :sha1) (update :channel-download :channel))
-                     new-state-sha1s (-> new-state (update :current-download :sha1) (update :channel-download :channel))]
+               (let [old-state-sha1s (-> old-state (update :current-download :sha1) (update :channel-download :channel) (update :channel-offer :sha1))
+                     new-state-sha1s (-> new-state (update :current-download :sha1) (update :channel-download :channel) (update :channel-offer :sha1))]
                  (when-not (= old-state-sha1s new-state-sha1s)
                    (f updater)))))
   (f updater))
@@ -365,12 +365,16 @@
 (defn channel-download-in-progress? [updater]
   (some? (:channel-download @(:state-atom updater))))
 
+(defn disable-channel-offer! [updater]
+  (prefs/set! (:prefs updater) [:versioning :channel-offer-disabled] true))
+
 (defn channel-offer
   "Returns the newer channel to suggest, or nil while an update or download is
   pending."
   [updater]
   (let [{:keys [channel-offer downloaded-sha1]} @(:state-atom updater)]
     (when (and channel-offer
+               (not (prefs/get (:prefs updater) [:versioning :channel-offer-disabled]))
                (not downloaded-sha1)
                (not (update-advertised? updater))
                (not (download-in-progress? updater))
