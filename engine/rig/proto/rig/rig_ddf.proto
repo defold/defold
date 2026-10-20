@@ -117,7 +117,7 @@ message Transmission
 // https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_ior/README.md
 message Ior
 {
-    optional float ior = 1 [default = 0];
+    optional float ior = 1 [default = 1.5];
 }
 
 // https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_specular/README.md#extending-materials

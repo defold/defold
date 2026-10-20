@@ -73,6 +73,22 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         src.append("}");
     }
 
+    // Verifies every built-in glTF vertex variant links with transmission and exposes imported volume/IOR parameters.
+    @Test
+    public void testBuiltinGltfTransmissionMaterials() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        for (String name : new String[]{"gltf", "gltf_skinned", "gltf_instanced", "gltf_skinned_instanced"}) {
+            String source = new String(getProject().getResource("/builtins/materials/" + name + ".material").getContent(), StandardCharsets.UTF_8);
+            MaterialDesc material = getMessage(build("/" + name + ".material", source), MaterialDesc.class);
+            assertTrue(name, material.getPbrParameters().getHasTransmission());
+            assertTrue(name, material.getPbrParameters().getHasVolume());
+            assertTrue(name, material.getPbrParameters().getHasIor());
+            for (String sampler : new String[]{"PbrTransmission_transmissionTexture", "PbrVolume_thicknessTexture", "tex_scene_color"}) {
+                assertTrue(name + ": " + sampler, material.getSamplersList().stream().anyMatch(value -> value.getName().equals(sampler)));
+            }
+        }
+    }
+
     private void addAttribute(StringBuilder src, int elementCount) {
         addAttribute(src, "ele_count_" + elementCount, elementCount, Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_NONE);
     }

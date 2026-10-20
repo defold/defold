@@ -9,6 +9,8 @@ uniform sampler2D PbrMaterial_occlusionTexture;
 uniform sampler2D PbrMaterial_emissiveTexture;
 uniform sampler2D PbrMetallicRoughness_baseColorTexture;
 uniform sampler2D PbrMetallicRoughness_metallicRoughnessTexture;
+uniform sampler2D PbrTransmission_transmissionTexture;
+uniform sampler2D PbrVolume_thicknessTexture;
 
 struct PbrMetallicRoughness
 {
@@ -17,6 +19,24 @@ struct PbrMetallicRoughness
     vec4 metallicAndRoughnessFactor;
     // Texture-presence flags: X base color, Y metallic-roughness
     vec4 metallicRoughnessTextures;
+};
+
+struct PbrTransmission
+{
+    vec4 transmissionFactor;
+    vec4 transmissionTextures;
+};
+
+struct PbrVolume
+{
+    vec4 thicknessFactorAndAttenuationColor;
+    vec4 attenuationDistance;
+    vec4 volumeTextures;
+};
+
+struct PbrIor
+{
+    vec4 ior;
 };
 
 uniform PbrMaterial
@@ -30,6 +50,9 @@ uniform PbrMaterial
     // X normal scale, Y occlusion strength
     vec4 pbrNormalScaleAndOcclusionStrength;
     PbrMetallicRoughness pbrMetallicRoughness;
+    PbrTransmission      pbrTransmission;
+    PbrVolume            pbrVolume;
+    PbrIor               pbrIor;
 };
 
 // TODO: Base-color and emissive textures currently use ordinary texture formats,
@@ -60,6 +83,12 @@ PBRMaterial pbr_sample_material(vec2 uv, vec4 vertex_color)
     // procedurally or use a custom sampler; changing unlit alone cannot recover them.
     material.occlusion = 1.0;
     material.emissive = vec3(0.0);
+    // The mesh-set default supplies 1.5; an authored zero means infinite IOR.
+    material.ior = pbrIor.ior.x == 0.0 || pbrIor.ior.x >= 1.0 ? pbrIor.ior.x : 1.5;
+    material.transmission = 0.0;
+    material.thickness = 0.0;
+    material.attenuationColor = pbrVolume.thicknessFactorAndAttenuationColor.yzw;
+    material.attenuationDistance = pbrVolume.attenuationDistance.x;
 
     bool has_base_color_texture = pbrMetallicRoughness.metallicRoughnessTextures.x > 0.5;
     if (has_base_color_texture)
@@ -71,6 +100,21 @@ PBRMaterial pbr_sample_material(vec2 uv, vec4 vertex_color)
 
     if (!material.unlit)
     {
+        material.transmission = pbrTransmission.transmissionFactor.x;
+        if (material.transmission > 0.0)
+        {
+            if (pbrTransmission.transmissionTextures.x > 0.5)
+            {
+                material.transmission *= texture(PbrTransmission_transmissionTexture, uv).r;
+            }
+            material.thickness = pbrVolume.thicknessFactorAndAttenuationColor.x;
+            if (pbrVolume.volumeTextures.x > 0.5)
+            {
+                // glTF thickness is linear data in the green channel.
+                material.thickness *= texture(PbrVolume_thicknessTexture, uv).g;
+            }
+        }
+
         bool has_metallic_roughness_texture = pbrMetallicRoughness.metallicRoughnessTextures.y > 0.5;
         if (has_metallic_roughness_texture)
         {

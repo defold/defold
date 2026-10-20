@@ -29,6 +29,7 @@ out mediump vec3 var_tangent;
 out mediump vec3 var_bitangent;
 out mediump float var_has_tangent;
 out highp mat4 var_view;
+out highp mat3 var_world_to_local;
 
 uniform vs_uniforms
 {

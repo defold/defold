@@ -56,6 +56,9 @@ void main()
     var_texcoord0 = texcoord0;
     var_color = color;
     var_view = mtx_view;
+    // mtx_normal is inverse-transpose(model_view). Remove the view transform
+    // to measure world-space transmission rays in the mesh's local coordinates.
+    var_world_to_local = transpose(mat3(mtx_normal)) * mat3(mtx_view);
     gl_Position = mtx_proj * view_position;
 }
 

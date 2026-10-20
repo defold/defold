@@ -3128,6 +3128,76 @@ TEST_F(ModelTest, PbrTextureFactorDefaults)
     dmResource::Release(m_Factory, model);
 }
 
+// Bob's generated glTF material must accept the scene capture bound by sampler name at draw time.
+TEST_F(ModelTest, GltfSceneCaptureSamplerBinding)
+{
+    dmGameSystem::MaterialResource* material = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/pbr_properties.gltf/materials/red_0.materialc", (void**)&material));
+    dmhash_t scene_sampler = dmHashString64("tex_scene_color");
+    uint32_t scene_unit = dmRender::GetMaterialSamplerUnit(material->m_Material, scene_sampler);
+    ASSERT_NE(dmRender::INVALID_SAMPLER_UNIT, scene_unit);
+
+    dmGraphics::TextureCreationParams creation;
+    creation.m_Width = creation.m_Height = 1;
+    dmGraphics::HTexture      capture = dmGraphics::NewTexture(m_GraphicsContext, creation);
+    const uint8_t             pixels[] = { 64, 128, 255, 255 };
+    dmGraphics::TextureParams upload;
+    upload.m_Width = upload.m_Height = 1;
+    upload.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+    upload.m_Data = pixels;
+    upload.m_DataSize = sizeof(pixels);
+    dmGraphics::SetTexture(m_GraphicsContext, capture, upload);
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/pbr_properties.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+
+    dmRender::SetTextureBindingByHash(m_RenderContext, scene_sampler, capture);
+    dmRender::RenderContext* render_context = (dmRender::RenderContext*)m_RenderContext;
+    render_context->m_Material = material->m_Material;
+    dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    render_context->m_Material = 0;
+
+    dmGraphics::NullContext* graphics_context = (dmGraphics::NullContext*)m_GraphicsContext;
+    dmGraphics::NullTexture* texture = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(graphics_context->m_BaseContext.m_AssetHandleContainer, capture);
+    ASSERT_EQ((int32_t)scene_unit, texture->m_LastBoundUnit[0]);
+
+    dmRender::SetTextureBindingByHash(m_RenderContext, scene_sampler, 0);
+    dmGraphics::DeleteTexture(m_GraphicsContext, capture);
+    dmResource::Release(m_Factory, material);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Authored zero IOR reaches the shader unchanged; meshes without materials receive 1.5.
+TEST_F(ModelTest, PbrIorDefaultAndExplicitZero)
+{
+    dmGameSystem::ModelResource* model = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/pbr_properties.modelc", (void**)&model));
+    const dmGameSystem::MaterialInfo& material_info = model->m_Materials[0];
+    dmRigDDF::Material&               source = model->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials[0];
+    float                             original_ior = source.m_Ior.m_Ior;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        dmGameSystem::HComponentRenderConstants constants = 0;
+        source.m_Ior.m_Ior = 0.0f;
+        bool filled = dmGameSystem::FillPBRConstants(model, &material_info, &constants, material_info.m_Material->m_Material, i ? ~0u : 0);
+        source.m_Ior.m_Ior = original_ior;
+        ASSERT_TRUE(filled);
+        dmRender::HConstant constant = 0;
+        ASSERT_TRUE(dmGameSystem::GetRenderConstant(constants, dmGameSystem::PBR_IOR_IOR_FACTOR, &constant));
+        uint32_t          count = 0;
+        dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &count);
+        ASSERT_EQ(1u, count);
+        ASSERT_EQ(i ? 1.5f : 0.0f, values[0].getX());
+        dmGameSystem::DestroyRenderConstants(constants);
+    }
+    dmResource::Release(m_Factory, model);
+}
+
 // Verifies imported/default PBR constants, including factors used by glTF shading.
 TEST_F(ModelTest, PbrProperties)
 {

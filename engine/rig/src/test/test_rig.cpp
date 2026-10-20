@@ -22,6 +22,7 @@
 #include <dlib/hashtable.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/dstrings.h>
+#include <ddf/ddf.h>
 
 #include <../rig.h>
 #include <../rig_private.h>
@@ -2376,6 +2377,21 @@ TEST(RigMorphWeights, SetMorphWeightsOverriddenByNextUpdate)
 #undef ASSERT_VERT_POS
 #undef ASSERT_VERT_NORM
 #undef ASSERT_VERT_UV
+
+// Missing IOR resolves to glTF's 1.5 default, while an authored zero survives DDF loading.
+TEST(RigMaterial, IorDefaultAndExplicitZero)
+{
+    dmRigDDF::Material* material = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage("", 0, &material));
+    ASSERT_EQ(1.5f, material->m_Ior.m_Ior);
+    dmDDF::FreeMessage(material);
+
+    // Material field 7 contains an Ior message with an explicitly encoded zero float.
+    const uint8_t zero_ior[] = { 0x3a, 5, 0x0d, 0, 0, 0, 0 };
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(zero_ior, sizeof(zero_ior), &material));
+    ASSERT_EQ(0.0f, material->m_Ior.m_Ior);
+    dmDDF::FreeMessage(material);
+}
 
 int main(int argc, char **argv)
 {

@@ -10,5 +10,6 @@ in mediump vec3 var_tangent;
 in mediump vec3 var_bitangent;
 in mediump float var_has_tangent;
 in highp mat4 var_view;
+in highp mat3 var_world_to_local;
 
 #endif

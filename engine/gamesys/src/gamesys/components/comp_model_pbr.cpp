@@ -95,6 +95,7 @@ namespace dmGameSystem
         material.m_Pbrspecularglossiness.m_Glossinessfactor = 1.0f;
         material.m_Specular.m_Specularcolorfactor = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
         material.m_Specular.m_Specularfactor = 1.0f;
+        material.m_Ior.m_Ior = 1.5f;
         material.m_Volume.m_Attenuationcolor = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
         material.m_Volume.m_Attenuationdistance = -1.0f;
         material.m_Emissivestrength.m_Emissivestrength = 1.0f;
@@ -247,7 +248,7 @@ namespace dmGameSystem
             /*
             struct Ior
             {
-                vec4 ior; // R: ior (Default=0.0)
+                vec4 ior; // R: ior (Default=1.5, 0 means infinite IOR)
             };
             */
             dmVMath::Vector4 ior = dmVMath::Vector4(ddf_material.m_Ior.m_Ior, 0.0f, 0.0f, 0.0f);
