@@ -427,9 +427,9 @@
               (workspace/register-resource-type workspace
                 :ext "searchvalue"
                 :node-type resource-node/ResourceNode
-                :stateless? false
                 :textual? true
                 :read-fn (fn [_read-opts _resource input] (slurp input))
+                :load-fn (fn load-search-value [_load-opts _node-load-info] nil)
                 :write-fn identity
                 :source-value-fn source-value-fn
                 :search-value-fn (when source-value-fn

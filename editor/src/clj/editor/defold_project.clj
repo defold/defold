@@ -79,11 +79,8 @@
 (defn code-transpilers [basis]
   (g/graph-value basis :code-transpilers))
 
-(defn- resource-type->node-type [resource-type]
-  (or (:node-type resource-type)
-      placeholder-resource/PlaceholderResourceNode))
-
-(def resource-node-type (comp resource-type->node-type resource/resource-type))
+(defn resource-node-type [resource]
+  (:node-type (resource/resource-type resource)))
 
 (defn make-load-opts-in-evaluation-context [project evaluation-context]
   (let [{:keys [basis-ref]} evaluation-context
@@ -163,10 +160,11 @@
 (defn- make-file-not-found-error [node-id resource]
   (resource-io/file-not-found-error node-id nil :fatal resource))
 
-(defn- make-file-not-found-node-load-info [node-id resource]
+(defn- make-file-not-found-node-load-info [node-id resource resource-type]
   {:node-id node-id
    :owner-resource resource
    :resource resource
+   :resource-type resource-type
    :read-error (make-file-not-found-error node-id resource)})
 
 (defn read-node-load-info
@@ -318,13 +316,13 @@
 (defn- sort-node-ids-for-loading [node-ids node-id->dependency-node-ids]
   (first (sort-node-ids-for-loading-impl node-ids #{} [] #{} (set node-ids) node-id->dependency-node-ids)))
 
-(defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} load-opts]
+(defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource-type] :as node-load-info} load-opts]
   ;; At this point, the node-id refers to a created node in the graph.
   (e/concat
     (g/materialize-shell node-id)
     (g/set-property node-id :loaded true)
     (if read-error
-      (let [node-type (resource-node-type resource)]
+      (let [node-type (:node-type resource-type)]
         (g/mark-defective node-id node-type read-error))
       (load-resource-node load-opts node-load-info))))
 
@@ -1180,22 +1178,23 @@
       (node-load-info->disk-state-tx-data node-load-info)
       (load-nodes-tx-data load-opts [node-load-info] progress/null-render-progress! progress/null-render-progress! nil))))
 
-(defn make-resource-node-tx-data [project node-type node-id resource]
+(defn make-resource-node-tx-data [project transpiler-tx-data-fn! node-id resource resource-type]
   {:pre [(g/node-id? project)
          (g/node-id? node-id)
          (resource/resource? resource)]}
   (e/concat
-    (g/add-node
-      (g/construct-shell node-type
-        {:_node-id node-id
-         :resource resource}
-        (when (resource/loaded? resource)
-          materialize-resource-node)))
+    (let [node-type (:node-type resource-type)
+          node-properties {:_node-id node-id
+                           :resource resource}]
+      (g/add-node
+        (if (nil? (:load-fn resource-type))
+          (g/construct node-type node-properties)
+          (g/construct-shell node-type node-properties
+            (when (resource/loaded? resource)
+              materialize-resource-node)))))
     (g/connect node-id :node-id+resource project :node-id+resources)
-    (g/expand-ec
-      (fn [evaluation-context]
-        ((get-transpiler-tx-data-fn! evaluation-context) node-id resource)))
-    (when-let [connect-fn (:connect-fn (resource/resource-type resource))]
+    (transpiler-tx-data-fn! node-id resource)
+    (when-let [connect-fn (:connect-fn resource-type)]
       (connect-fn project node-id resource))))
 
 (defn make-resource-nodes-tx-data [project node-id+resource-pairs]
@@ -1204,17 +1203,22 @@
   ;; from the node-id+resource-pairs function. We now further sort by node-type
   ;; since there isn't a one-to-one relationship between the extension and the
   ;; node-type. The idea is to achieve a deterministic load order for the nodes.
-  (->> node-id+resource-pairs
-       (iutil/group-into
-         (sorted-map-by (comparator :k)) []
-         (fn key-fn [[_node-id resource]]
-           (resource-node-type resource)))
-       (e/mapcat
-         (fn [[node-type node-id+resource-pairs]]
-           (->> node-id+resource-pairs
-                (e/mapcat
-                  (fn [[node-id resource]]
-                    (make-resource-node-tx-data project node-type node-id resource))))))))
+  (g/let-ec [transpiler-tx-data-fn! (get-transpiler-tx-data-fn! evaluation-context)
+             basis @(:basis-ref evaluation-context)
+             workspace (g/raw-property-value basis project :workspace)
+
+             editable->type-ext->resource-type
+             {true (resource/resource-types-by-type-ext basis workspace true)
+              false (resource/resource-types-by-type-ext basis workspace false)}]
+
+    (->> node-id+resource-pairs
+         (mapv (fn [[node-id resource]]
+                 (let [resource-type (resource/lookup-resource-type resource editable->type-ext->resource-type)]
+                   [node-id resource resource-type])))
+         (coll/sort-by (fn [[_node-id _resource resource-type]]
+                         (:k (:node-type resource-type))))
+         (e/map (fn [[node-id resource resource-type]]
+                  (make-resource-node-tx-data project transpiler-tx-data-fn! node-id resource resource-type))))))
 
 (defn load-project!
   ([project]
@@ -1903,15 +1907,14 @@
         node (get-resource-node project resource evaluation-context)]
     (disconnect-from-inputs @basis-ref node consumer-node connections)))
 
-(defn- ensure-resource-node-created [tx-data-context project resource]
+(defn- ensure-resource-node-created [tx-data-context project transpiler-tx-data-fn! resource resource-type]
   {:pre [(resource/resource? resource)]}
   (let [created-resource-nodes (:created-resource-nodes tx-data-context)
         pending-resource-node-id (get created-resource-nodes resource ::not-found)]
     (if (not= ::not-found pending-resource-node-id)
       [tx-data-context pending-resource-node-id nil]
-      (let [node-type (resource-node-type resource)
-            created-resource-node-id (first (g/take-node-ids 1))
-            creation-tx-data (make-resource-node-tx-data project node-type created-resource-node-id resource)
+      (let [created-resource-node-id (first (g/take-node-ids 1))
+            creation-tx-data (make-resource-node-tx-data project transpiler-tx-data-fn! created-resource-node-id resource resource-type)
             created-resource-nodes' (assoc (or created-resource-nodes {}) resource created-resource-node-id)
             tx-data-context' (assoc tx-data-context :created-resource-nodes created-resource-nodes')]
         [tx-data-context' created-resource-node-id creation-tx-data]))))
@@ -1953,14 +1956,16 @@
                       system, such nodes can't be used for `g/node-value` calls"
   [evaluation-context project path-or-resource consumer-node connections]
   (when-some [resource (resolve-path-or-resource project path-or-resource evaluation-context)]
-    (let [{:keys [basis-ref]} evaluation-context
-          tx-data-context-atom (:tx-data-context-atom evaluation-context)
+    (let [{:keys [basis-ref tx-data-context-atom]} evaluation-context
+          resource-type (resource/resource-type resource @basis-ref)
+          node-type (:node-type resource-type)
           existing-resource-node-id (get-resource-node project resource evaluation-context)
-          [node-id creation-tx-data] (if existing-resource-node-id
-                                       [existing-resource-node-id nil]
-                                       (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-created project resource))
-          resource-type (resource/resource-type resource)
-          node-type (resource-type->node-type resource-type)
+
+          [node-id creation-tx-data]
+          (if existing-resource-node-id
+            [existing-resource-node-id nil]
+            (let [transpiler-tx-data-fn! (get-transpiler-tx-data-fn! evaluation-context)]
+              (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-created project transpiler-tx-data-fn! resource resource-type)))
 
           load-tx-data
           (cond
@@ -1968,7 +1973,7 @@
             ;; resource does not exist, or it would have already been created
             ;; during resource-sync. Mark it as loaded and defective.
             creation-tx-data
-            (let [node-load-info (make-file-not-found-node-load-info node-id resource)]
+            (let [node-load-info (make-file-not-found-node-load-info node-id resource resource-type)]
               (node-load-info-tx-data node-load-info (make-load-opts-in-evaluation-context project evaluation-context)))
 
             ;; If we're about to connect a defunloaded resource that does not
@@ -1980,8 +1985,7 @@
                  (not (resource-node/loaded? @basis-ref existing-resource-node-id)))
             (let [load-opts (g/tx-cached-value! evaluation-context [:load-opts]
                               (make-load-opts-in-evaluation-context project evaluation-context))
-                  basis @(:basis-ref evaluation-context)
-                  [load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded basis node-id resource load-opts)]
+                  [load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded @basis-ref node-id resource load-opts)]
               load-tx-data))]
 
       {:node-id node-id
