@@ -271,8 +271,29 @@ namespace dmRecord
             closable->Close();
     }
 
+    static bool CaptureFactoriesAvailable()
+    {
+        // Session IsSupported() predates HWND capture and free-threaded frame
+        // pools. Probe the interfaces used below before advertising support.
+        ComPtr<IGraphicsCaptureItemInterop> item;
+        HRESULT result = GetActivationFactory(
+        RuntimeClass_Windows_Graphics_Capture_GraphicsCaptureItem,
+        __uuidof(IGraphicsCaptureItemInterop),
+        reinterpret_cast<void**>(item.ReleaseAndGetAddressOf()));
+        if (FAILED(result))
+            return false;
+        ComPtr<CaptureAbi::IDirect3D11CaptureFramePoolStatics2> pool;
+        result = GetActivationFactory(
+        RuntimeClass_Windows_Graphics_Capture_Direct3D11CaptureFramePool,
+        __uuidof(CaptureAbi::IDirect3D11CaptureFramePoolStatics2),
+        reinterpret_cast<void**>(pool.ReleaseAndGetAddressOf()));
+        return SUCCEEDED(result);
+    }
+
     static bool GraphicsCaptureSupported()
     {
+        if (!CaptureFactoriesAvailable())
+            return false;
         ComPtr<CaptureAbi::IGraphicsCaptureSessionStatics> statics;
         HRESULT                                            result = GetActivationFactory(
         RuntimeClass_Windows_Graphics_Capture_GraphicsCaptureSession,

@@ -50,6 +50,11 @@ if(TARGET record AND TARGET_PLATFORM MATCHES "linux$")
 endif()
 
 if(TARGET record AND TARGET_PLATFORM MATCHES "win32$")
+  # Headless capability checks with controlled WinRT activation factories.
+  record_test(test_record_win32_support test_record_win32_support.cpp)
+  target_compile_features(test_record_win32_support PRIVATE cxx_std_17)
+  defold_target_link_libraries(test_record_win32_support "${TARGET_PLATFORM}" record)
+
   # Explicit opt-in: opens a test window and plays a tone on the default device.
   # Keep it out of run_tests/build_tests on headless CI workers.
   defold_add_executable(test_record_win32_native test_record_win32.cpp)
