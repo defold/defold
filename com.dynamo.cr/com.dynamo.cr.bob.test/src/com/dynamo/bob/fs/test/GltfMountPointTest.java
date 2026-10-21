@@ -62,6 +62,8 @@ import com.dynamo.bob.fs.GltfMeshResource;
 import com.dynamo.bob.fs.GltfMountPoint;
 import com.dynamo.bob.fs.GltfResource;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.Ktx2TextureGeneratorTest;
+import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.pipeline.ModelImporterJni;
 import com.dynamo.bob.pipeline.Modelimporter;
 import com.dynamo.bob.test.util.MockFileSystem;
@@ -94,6 +96,66 @@ public class GltfMountPointTest {
     @After
     public void tearDown() {
         fileSystem.close();
+    }
+
+    @Test
+    public void testKtx2StorageFormsAndRebuilds() throws Exception {
+        fileSystem.addMountPoint(mountPoint);
+        for (String name : new String[] {"etc1s", "uastc", "uastc-zstd", "uastc-zlib", "bc7", "bc7-zlib"}) {
+            png = Ktx2TextureGeneratorTest.fixture(name);
+            fileSystem.addFile("models/external.ktx2", png);
+            String source = gltf("external.ktx2").replace("image/png", "image/ktx2");
+            fileSystem.addFile("models/robot.gltf", source.getBytes(StandardCharsets.UTF_8));
+            byte[] compiled = TextureGenerator.generate(png, null, false).imageDatas.get(0);
+            for (String path : new String[] {"models/external.ktx2", "models/robot.gltf/images/DataImage_0.ktx2", "models/robot.gltf/images/BufferImage_0.ktx2"}) {
+                IResource image = fileSystem.get(path);
+                assertNotNull(image);
+                assertArrayEquals(png, image.getContent());
+                assertArrayEquals(compiled, TextureGenerator.generate(image.getContent(), null, false).imageDatas.get(0));
+            }
+
+            // Put the image in the GLB binary chunk after the padded geometry.
+            String buffers = "\"buffers\":[{\"uri\":\"data:application/octet-stream;base64," + GEOMETRY_BUFFER_BASE64
+                    + "\",\"byteLength\":42},{\"uri\":\"data:application/octet-stream;base64,"
+                    + Base64.getEncoder().encodeToString(png) + "\",\"byteLength\":" + png.length + "}]";
+            byte[] binary = new byte[44 + png.length];
+            System.arraycopy(Base64.getDecoder().decode(GEOMETRY_BUFFER_BASE64), 0, binary, 0, 42);
+            System.arraycopy(png, 0, binary, 44, png.length);
+            String embedded = source.replace(buffers, "\"buffers\":[{\"byteLength\":" + binary.length + "}]")
+                    .replace("\"buffer\":1,\"byteOffset\":0", "\"buffer\":0,\"byteOffset\":44");
+            assertFalse(embedded.equals(source));
+            fileSystem.addFile("models/robot.glb", glbFromJson(embedded, binary));
+            IResource image = fileSystem.get("models/robot.glb/images/BufferImage_0.ktx2");
+            assertArrayEquals(png, image.getContent());
+            assertArrayEquals(compiled, TextureGenerator.generate(image.getContent(), null, false).imageDatas.get(0));
+        }
+        IResource external = fileSystem.get("models/external.ktx2");
+        byte[] previousHash = external.sha1();
+        byte[] changed = Ktx2TextureGeneratorTest.fixture("uastc");
+        fileSystem.addFile("models/external.ktx2", changed);
+        external = fileSystem.get("models/external.ktx2");
+        assertArrayEquals(changed, external.getContent());
+        assertFalse(Arrays.equals(previousHash, external.sha1()));
+        fileSystem.get("models/external.ktx2").remove();
+        assertFalse(fileSystem.get("models/external.ktx2").exists());
+        fileSystem.addFile("models/external.ktx2", changed);
+        external = fileSystem.get("models/external.ktx2");
+        assertTrue(external.exists());
+        assertArrayEquals(changed, external.getContent());
+    }
+
+    @Test
+    public void testKtx2BasisImageSelectionAndSignatureDetection() throws Exception {
+        String source = gltf("external.png")
+                .replace("\"asset\":{\"version\":\"2.0\"},", "\"asset\":{\"version\":\"2.0\"},\"extensionsUsed\":[\"KHR_texture_basisu\"],")
+                .replace("\"name\":\"ExternalTexture\",\"sampler\":0,\"source\":0}",
+                         "\"name\":\"ExternalTexture\",\"sampler\":0,\"source\":0,\"extensions\":{\"KHR_texture_basisu\":{\"source\":1}}}")
+                .replace("data:image/png;base64," + Base64.getEncoder().encodeToString(png), "data:;base64," + Base64.getEncoder().encodeToString(Ktx2TextureGeneratorTest.fixture("uastc")));
+        fileSystem.addFile("models/robot.gltf", source.getBytes(StandardCharsets.UTF_8));
+        fileSystem.addMountPoint(mountPoint);
+        GltfMaterialResource material = (GltfMaterialResource)fileSystem.get("models/robot.gltf/materials/Paint_0.material");
+        assertSamplerBinding(material.getSamplerBindings(), "PbrMetallicRoughness_baseColorTexture", 0, 0, 1, "/models/robot.gltf/images/DataImage_0.ktx2");
+        assertArrayEquals(Ktx2TextureGeneratorTest.fixture("uastc"), fileSystem.get("models/robot.gltf/images/DataImage_0.ktx2").getContent());
     }
 
     @Test
@@ -348,6 +410,32 @@ public class GltfMountPointTest {
             GltfContainer.ImageLocation location = ((GltfContainer.ImageAsset)extraction.assets().get(0)).location();
             assertEquals("/models/image.glb", location.resourcePath());
             assertArrayEquals(png, Arrays.copyOfRange(glb, (int)location.offset(), (int)(location.offset() + location.length())));
+        }
+    }
+
+    // Guards optional Meshopt GLB asset discovery while leaving BIN and compressed geometry unread.
+    @Test
+    public void testInspectionKeepsOptionalMeshoptGlbAssets() throws Exception {
+        byte[] binary = Base64.getDecoder().decode(GEOMETRY_BUFFER_BASE64);
+        for (String extension : List.of("EXT_meshopt_compression", "KHR_meshopt_compression")) {
+            // The fallback is in BIN; inspection must not read it or resolve the compressed geometry.
+            String json = "{\"asset\":{\"version\":\"2.0\"},\"extensionsUsed\":[\"" + extension + "\"],"
+                    + "\"buffers\":[{\"byteLength\":42},{\"uri\":\"missing.bin\",\"byteLength\":32}],"
+                    + "\"bufferViews\":[{\"buffer\":0,\"byteLength\":36,\"byteStride\":12,"
+                    + "\"extensions\":{\"" + extension + "\":{\"buffer\":1,\"byteLength\":32,"
+                    + "\"byteStride\":12,\"count\":3,\"mode\":\"ATTRIBUTES\"}}},"
+                    + "{\"buffer\":0,\"byteOffset\":36,\"byteLength\":6}],"
+                    + "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\","
+                    + "\"min\":[0,0,0],\"max\":[1,1,0]},"
+                    + "{\"bufferView\":1,\"componentType\":5123,\"count\":3,\"type\":\"SCALAR\"}],"
+                    + "\"materials\":[{\"name\":\"Paint\"}],"
+                    + "\"meshes\":[{\"name\":\"Triangle\",\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1,\"material\":0}]}]}";
+            ByteArrayInputStream stream = new ByteArrayInputStream(glbFromJson(json, binary));
+            GltfContainer.Extraction extraction = GltfContainer.inspect(stream, "models/triangle.glb");
+            assertTrue(extraction.diagnostics().isEmpty());
+            assertEquals(List.of("/models/triangle.glb/materials/Paint_0.material", "/models/triangle.glb/meshes/Triangle_0"),
+                    extraction.assets().stream().map(GltfContainer.Asset::resourcePath).toList());
+            assertEquals((binary.length + 3) & ~3, stream.available());
         }
     }
 

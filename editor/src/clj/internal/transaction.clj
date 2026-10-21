@@ -338,7 +338,7 @@
 
 (defn- ctx-delete-nodes [ctx nodes removed-arc->source+target-pkids overrides node-id->pkid->override-node-id]
   (let [node-ids (mapv gt/node-id nodes)
-        nodes-by-id (coll/pair-map-by gt/node-id nodes)
+        nodes-by-id (coll/pair-map-by gt/node-id identity nodes)
         arcs (coll/into-> removed-arc->source+target-pkids []
                (map key))
         source-arcs (coll/into-> removed-arc->source+target-pkids []
@@ -823,7 +823,7 @@
 (defn- ctx-revert-add-nodes [ctx added-nodes introduced-node-id->pkid->override-node-id]
   (let [old-basis (:basis ctx)
         node-ids (mapv gt/node-id added-nodes)
-        nodes-by-id (coll/pair-map-by gt/node-id added-nodes)
+        nodes-by-id (coll/pair-map-by gt/node-id identity added-nodes)
         source-arcs (coll/into-> node-ids []
                       (mapcat #(ig/explicit-arcs-by-source old-basis %)))
         changed-node-ids (e/concat node-ids (e/map key introduced-node-id->pkid->override-node-id))]

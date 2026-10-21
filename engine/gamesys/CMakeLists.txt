@@ -159,11 +159,10 @@ set(GAMESYS_PROTO_PY_DIR "${GS_PROTO_PY_DIR}" CACHE INTERNAL "Generated gamesys 
 # ========= gamesys (main) =========
 
 # Mirror ant_glob patterns from wscript:
-#   ['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp', 'fontgen/*.cpp']
+#   ['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp']
 file(GLOB GS_TOP_LEVEL
     "${GS_SRC_DIR}/*.cpp"
-    "${GS_SRC_DIR}/scripts/*.cpp"
-    "${GS_SRC_DIR}/fontgen/*.cpp")
+    "${GS_SRC_DIR}/scripts/*.cpp")
 file(GLOB_RECURSE GS_RESOURCES "${GS_SRC_DIR}/resources/*.cpp")
 file(GLOB_RECURSE GS_COMPONENTS "${GS_SRC_DIR}/components/*.cpp")
 set(GS_SOURCES ${GS_TOP_LEVEL} ${GS_RESOURCES} ${GS_COMPONENTS})
@@ -429,8 +428,7 @@ defold_install_targets(TARGETS gamesys gamesys_gui gamesys_particle gamesys_mode
 
 set(GAMESYS_PUBLIC_HEADERS
     "${GS_SRC_DIR}/gamesys.h"
-    "${GS_SRC_DIR}/components/comp_gui.h"
-    "${GS_SRC_DIR}/fontgen/fontgen.h")
+    "${GS_SRC_DIR}/components/comp_gui.h")
 file(GLOB_RECURSE GAMESYS_DMSDK_HEADERS CONFIGURE_DEPENDS
     "${GS_ROOT}/src/dmsdk/*.h"
     "${GS_ROOT}/src/dmsdk/*.hpp")
@@ -474,7 +472,6 @@ add_custom_target(gamesys_sdk_headers
 
 install(FILES "${GS_SRC_DIR}/gamesys.h" DESTINATION include/gamesys)
 install(FILES "${GS_SRC_DIR}/components/comp_gui.h" DESTINATION include/gamesys/components)
-install(FILES "${GS_SRC_DIR}/fontgen/fontgen.h" DESTINATION include/gamesys/fontgen)
 install(FILES ${GS_PROTO_HEADERS} "${GS_MODEL_HEADER}" DESTINATION include/gamesys)
 install(FILES "${GS_HTTP_PROTO_HEADER}" DESTINATION include/dlib)
 install(FILES "${GS_HTTP_PROTO}" DESTINATION share/proto/dlib)

@@ -30,6 +30,21 @@ add_dependencies(test_platform platform_null)
 # Register into global build_tests and run_tests with working directory set to engine/input
 defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
+if(TARGET_PLATFORM STREQUAL "x86_64-win32")
+    defold_add_executable(test_platform_win32
+        "${CMAKE_CURRENT_LIST_DIR}/test_platform_win32.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../../../engine/src/engine.rc")
+    target_include_directories(test_platform_win32 PRIVATE
+        "${CMAKE_CURRENT_LIST_DIR}/../../../engine/src")
+    defold_target_link_libraries(test_platform_win32 "${TARGET_PLATFORM}"
+        dlib profile_null testmain platform)
+    target_link_libraries(test_platform_win32 PRIVATE user32 gdi32 shell32)
+    defold_target_link_opengl(test_platform_win32 "${TARGET_PLATFORM}")
+    defold_target_link_glfw(test_platform_win32 "${TARGET_PLATFORM}")
+    defold_target_link_socket(test_platform_win32 "${TARGET_PLATFORM}")
+    defold_register_test_target(test_platform_win32 ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+endif()
+
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
     defold_add_executable(test_native_web "${CMAKE_CURRENT_LIST_DIR}/test_native_web.cpp")
     defold_target_link_libraries(test_native_web "${TARGET_PLATFORM}"
@@ -91,6 +106,21 @@ if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
 endif()
 
 if(TARGET_PLATFORM MATCHES "-android$")
+    defold_add_executable(test_platform_android_joystick
+        "${CMAKE_CURRENT_LIST_DIR}/test_platform_android_joystick.cpp")
+    target_include_directories(test_platform_android_joystick PRIVATE
+        "${CMAKE_CURRENT_LIST_DIR}/../native"
+        "${CMAKE_CURRENT_LIST_DIR}/../native/android")
+    defold_target_link_libraries(test_platform_android_joystick "${TARGET_PLATFORM}" dlib profile_null testmain platform)
+    foreach(function IN ITEMS AInputEvent_getDeviceId AInputEvent_getType AInputEvent_getSource
+            AKeyEvent_getKeyCode AKeyEvent_getAction AKeyEvent_getFlags AKeyEvent_getMetaState
+            AKeyEvent_getScanCode AKeyEvent_getRepeatCount AKeyEvent_getDownTime AKeyEvent_getEventTime
+            AMotionEvent_getAction AMotionEvent_getAxisValue)
+        target_link_options(test_platform_android_joystick PRIVATE "-Wl,--wrap=${function}")
+    endforeach()
+    defold_target_link_socket(test_platform_android_joystick "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_platform_android_joystick ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
     foreach(backend IN ITEMS gl no_api)
         set(test_target "test_platform_android_insets_${backend}")
         defold_add_executable(${test_target}

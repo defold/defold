@@ -1149,7 +1149,8 @@
                                (fn path-fn [^TreeItem item]
                                  (vec (rseq (coll/into-> (iterate TreeItem/.getParent item) []
                                               (take-while some?)
-                                              (map tree-item-id-fn)))))))
+                                              (map tree-item-id-fn)))))
+                               identity))
         root-paths (reduce-kv
                      (fn [root-paths path _]
                        (if (coll/any? #(util/seq-starts-with? path %) root-paths)

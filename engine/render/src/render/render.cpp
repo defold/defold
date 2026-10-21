@@ -434,6 +434,8 @@ namespace dmRender
             return RESULT_OUT_OF_RESOURCES;
         }
         context->m_RenderObjects.Push(ro);
+        if (context->m_GpuIndirect.m_RenderBatches.Capacity() < context->m_RenderObjects.Size())
+            context->m_GpuIndirect.m_RenderBatches.SetCapacity(context->m_RenderObjects.Capacity());
         context->m_GpuIndirect.m_RenderBatches.SetSize(context->m_RenderObjects.Size());
         context->m_GpuIndirect.m_RenderBatches.Back() = 0;
 

@@ -540,7 +540,7 @@
                                  :manip-space :world
                                  :scene (Scene. (VBox.))]]
           (g/connect project :_node-id app-view :project-id)
-          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
+          (for [label [:outline-selection-by-resource-node :selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label)))))))
 
 (defn- make-tab! [project app-view path make-view-fn!]

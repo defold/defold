@@ -561,6 +561,14 @@ namespace dmShaderc
             if (!image_name || !image_name[0] || !sampler_name || !sampler_name[0])
                 continue;
 
+            // texelFetch on a separate texture creates a synthetic sampler in
+            // GLSL. Preserve the reflected texture name for material lookup.
+            if (strcmp(sampler_name, "SPIRV_Cross_DummySampler") == 0)
+            {
+                spvc_compiler_set_name(compiler->m_SPVCCompiler, sampler.m_CombinedId, image_name);
+                continue;
+            }
+
             const size_t combined_name_size = strlen(prefix) + strlen(image_name) + strlen(sampler_name) + 1;
             if (combined_name.Capacity() < combined_name_size)
                 combined_name.SetCapacity(combined_name_size);
@@ -881,17 +889,19 @@ namespace dmShaderc
         uint32_t workgroup_size_z = 0;
 
         spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
-        spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
-
-        // SPIRV-Cross may leave synthetic combined samplers with an ID-based
-        // name (for example, `_194`) after texture/sampler splitting. Give the
-        // generated resource its canonical SPIRV-Cross name so Bob can map it
-        // back to the reflected texture name in GLSL variants.
-        if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_GLSL)
-            SetCombinedSamplerNamesGLSL(context, compiler);
 
         if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_GLSL)
         {
+            // Only GLSL needs combined samplers. Building them for HLSL or MSL
+            // removes separate textures that their native texel loads still use.
+            spvc_variable_id dummy_sampler_id = 0;
+            spvc_compiler_build_dummy_sampler_for_combined_images(compiler->m_SPVCCompiler, &dummy_sampler_id);
+            spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
+
+            // Give synthetic combined samplers canonical names so Bob can map
+            // them back to the reflected texture names in GLSL variants.
+            SetCombinedSamplerNamesGLSL(context, compiler);
+
             spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_GLSL_VERSION, options.m_Version);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ENABLE_420PACK_EXTENSION, !options.m_No420PackExtension);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ES, options.m_GlslEs);
