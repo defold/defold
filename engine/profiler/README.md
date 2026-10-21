@@ -21,9 +21,9 @@ An em dash means that profiling was disabled or the initial load has not complet
 
 Timing storage is embedded in the resource and loader structures, so it is also
 allocated when `resource.profile=0`. On arm64, each resource descriptor grows from
-56 to 120 bytes: 64 KiB extra at the default capacity of 1,024 resources. Each
+56 to 88 bytes: 32 KiB extra at the default capacity of 1,024 resources. Each
 preloader gains 56 KiB in its request array, and each pending post-create entry
-grows by 128 bytes (16 KiB at the initial capacity of 128 entries). This avoids
+grows by 96 bytes (12 KiB at the initial capacity of 128 entries). This avoids
 separate allocations for timing state. Profiling clock reads and timing logs are skipped
 while disabled.
 

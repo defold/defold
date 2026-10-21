@@ -342,18 +342,19 @@ namespace dmResource
 
     /**
      * Completed initial-load timings in microseconds, retained while the resource is loaded.
+     * Each duration can represent up to UINT32_MAX microseconds (approximately 71.6 minutes).
      * Callback times include any nested resource loads. Wait is the unaccounted elapsed time.
      * m_Recorded is false when profiling was disabled or loading has not completed.
      */
     struct LoadTimings
     {
-        uint64_t m_Total;
-        uint64_t m_Preload;
-        uint64_t m_Read;
-        uint64_t m_Create;
-        uint64_t m_PostCreate;
-        uint64_t m_Queue;
-        uint64_t m_Wait;
+        uint32_t m_Total;
+        uint32_t m_Preload;
+        uint32_t m_Read;
+        uint32_t m_Create;
+        uint32_t m_PostCreate;
+        uint32_t m_Queue;
+        uint32_t m_Wait;
         uint32_t m_PostCreateCount;
         bool     m_Recorded;
     };

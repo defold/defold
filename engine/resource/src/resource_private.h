@@ -151,13 +151,13 @@ namespace dmResource
         uint64_t wait = total - accounted;
         if (timings)
         {
-            timings->m_Total = total;
-            timings->m_Preload = profile->m_Time[LOAD_PROFILE_PRELOAD];
-            timings->m_Read = profile->m_Time[LOAD_PROFILE_READ];
-            timings->m_Create = profile->m_Time[LOAD_PROFILE_CREATE];
-            timings->m_PostCreate = profile->m_Time[LOAD_PROFILE_POST_CREATE];
-            timings->m_Queue = profile->m_Time[LOAD_PROFILE_QUEUE];
-            timings->m_Wait = wait;
+            timings->m_Total = (uint32_t)total;
+            timings->m_Preload = (uint32_t)profile->m_Time[LOAD_PROFILE_PRELOAD];
+            timings->m_Read = (uint32_t)profile->m_Time[LOAD_PROFILE_READ];
+            timings->m_Create = (uint32_t)profile->m_Time[LOAD_PROFILE_CREATE];
+            timings->m_PostCreate = (uint32_t)profile->m_Time[LOAD_PROFILE_POST_CREATE];
+            timings->m_Queue = (uint32_t)profile->m_Time[LOAD_PROFILE_QUEUE];
+            timings->m_Wait = (uint32_t)wait;
             timings->m_PostCreateCount = profile->m_PostCreateCount;
             timings->m_Recorded = true;
         }

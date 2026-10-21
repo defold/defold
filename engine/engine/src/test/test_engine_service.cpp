@@ -416,7 +416,7 @@ public:
         ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetDescriptorWithExt(m_Factory, dmHashString64("/test.profile"), 0, 0, &m_Descriptor));
 
         // Seed distinct measurements to verify field order and width without relying on clock resolution.
-        dmResource::LoadTimings timings = { 0x1000000011ULL, 0x100000002ULL, 3, 5, 7, 11, 0xefffffff5ULL, 17, true };
+        dmResource::LoadTimings timings = { UINT32_MAX, 0x80000000U, 3, 5, 7, 11, 0x7fffffe5U, 17, true };
         m_Descriptor->m_LoadTimings = timings;
         dmEngineService::InitProfiler(m_Service, m_Factory, m_Register);
     }
@@ -490,7 +490,7 @@ TEST_F(EngineServiceResourceTest, LegacyResources)
     ExpectResponse(false);
 }
 
-// RES2 must preserve all stage durations, including values above 32 bits, in the documented order.
+// RES2 must zero-extend 32-bit durations through UINT32_MAX into the existing 64-bit wire fields.
 TEST_F(EngineServiceResourceTest, ResourceTimings)
 {
     Fetch("GET", "/resources_data?timings=1");
