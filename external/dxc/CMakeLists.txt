@@ -44,8 +44,11 @@ ExternalProject_Add(dxc_headers_source
   BUILD_COMMAND ""
   INSTALL_COMMAND "")
 
+# Forward SDK tools as well as compilers: nested CMake runs may not have the
+# Windows SDK bin directory on PATH (for example when launched from Git Bash).
 set(dxc_platform_args)
 foreach(variable CMAKE_C_COMPILER CMAKE_CXX_COMPILER CMAKE_MAKE_PROGRAM
+                 CMAKE_RC_COMPILER CMAKE_MT
                  CMAKE_SYSROOT CMAKE_C_COMPILER_TARGET CMAKE_CXX_COMPILER_TARGET
                  CMAKE_OSX_SYSROOT CMAKE_OSX_ARCHITECTURES CMAKE_OSX_DEPLOYMENT_TARGET)
   if(DEFINED ${variable} AND NOT "${${variable}}" STREQUAL "")
@@ -57,10 +60,35 @@ if(APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET AND SDK_VERSION_MACOSX_MIN)
 endif()
 
 set(dxc_targets dxc dxcompiler)
+set(dxc_build_environment)
 if(WIN32)
+  # Upstream invokes SDK tools such as mc by name in custom build commands.
+  get_filename_component(dxc_sdk_bin "${CMAKE_RC_COMPILER}" DIRECTORY)
+  set(dxc_build_environment "${CMAKE_COMMAND}" -E env
+    --modify "PATH=path_list_prepend:${dxc_sdk_bin}" --)
   # Native Windows builds use the toolchain headers; the portable stubs are
   # only for Unix and conflict with Windows SDK RPC declarations.
   list(APPEND dxc_platform_args "-DDIRECTX_HEADER_INCLUDE_DIR:PATH=")
+  # The parent discovers SDK headers and libraries without a developer shell.
+  # Forward only these paths, leaving LLVM in control of its own build flags.
+  get_filename_component(dxc_compiler_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+  get_filename_component(dxc_msvc_root "${dxc_compiler_dir}/../../.." ABSOLUTE)
+  find_path(dxc_atl_include atlbase.h HINTS "${dxc_msvc_root}/atlmfc/include" REQUIRED)
+  find_library(dxc_atl_library atls HINTS "${dxc_msvc_root}/atlmfc/lib/x64" REQUIRED)
+  get_filename_component(dxc_atl_lib_dir "${dxc_atl_library}" DIRECTORY)
+  list(APPEND dxc_platform_args
+    "-DCMAKE_TRY_COMPILE_PLATFORM_VARIABLES=CMAKE_C_STANDARD_INCLUDE_DIRECTORIES|CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES")
+  # Resource compilation needs the same SDK headers as C/C++ compilation.
+  foreach(language C CXX RC)
+    set(dxc_includes ${CMAKE_C_STANDARD_INCLUDE_DIRECTORIES} "${dxc_atl_include}")
+    string(REPLACE ";" "|" dxc_includes "${dxc_includes}")
+    if(dxc_includes)
+      list(APPEND dxc_platform_args "-DCMAKE_${language}_STANDARD_INCLUDE_DIRECTORIES=${dxc_includes}")
+    endif()
+  endforeach()
+  foreach(kind EXE SHARED MODULE)
+    list(APPEND dxc_platform_args "-DCMAKE_${kind}_LINKER_FLAGS_INIT=${_DEFOLD_LINK_LIBPATH_FLAGS_STR} /LIBPATH:\"${dxc_atl_lib_dir}\"")
+  endforeach()
   # Match Defold's static CRT policy for distributable Windows tools.
   list(APPEND dxc_platform_args "-DLLVM_USE_CRT_RELEASE=MT")
   list(APPEND dxc_targets dxildll)
@@ -87,8 +115,11 @@ ExternalProject_Add(dxc_build_external
   BINARY_DIR "${dxc_build}"
   PATCH_COMMAND "${CMAKE_COMMAND}" "-DDXC_SOURCE_DIR=<SOURCE_DIR>"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/patch.cmake"
+  LIST_SEPARATOR "|"
   CMAKE_GENERATOR Ninja
   CMAKE_ARGS
+    # Discard stale compiler detection when the external configure step reruns.
+    --fresh
     -C "${dxc_source}/cmake/caches/PredefinedParams.cmake"
     "-DCMAKE_BUILD_TYPE=Release"
     "-DPython3_EXECUTABLE=${Python3_EXECUTABLE}"
@@ -109,7 +140,7 @@ ExternalProject_Add(dxc_build_external
     # depend on whichever clang-format (including wrapper scripts) is on PATH.
     "-DCLANG_FORMAT_EXE:FILEPATH="
     ${dxc_platform_args}
-  BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --target ${dxc_targets}
+  BUILD_COMMAND ${dxc_build_environment} "${CMAKE_COMMAND}" --build <BINARY_DIR> --target ${dxc_targets}
                 --parallel "${DEFOLD_DXC_BUILD_JOBS}"
   USES_TERMINAL_CONFIGURE TRUE
   USES_TERMINAL_BUILD TRUE
