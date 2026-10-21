@@ -136,6 +136,26 @@ bool IsLoadProfilingEnabled(HFactory factory)
     return factory->m_Profile;
 }
 
+uint64_t LoadProfileTime(const LoadProfile* profile)
+{
+    return profile->m_StartTime ? dmTime::GetMonotonicTime() : 0;
+}
+
+void LoadProfileBegin(LoadProfile* profile, bool enabled)
+{
+    memset(profile, 0, sizeof(*profile));
+    profile->m_StartTime = enabled ? dmTime::GetMonotonicTime() : 0;
+}
+
+void LoadProfileAddTime(LoadProfile* profile, LoadProfileStage stage, uint64_t start)
+{
+    if (!profile->m_StartTime)
+        return;
+    profile->m_Time[stage] += dmTime::GetMonotonicTime() - start;
+    if (stage == LOAD_PROFILE_POST_CREATE)
+        ++profile->m_PostCreateCount;
+}
+
 void LogLoadProfile(const LoadProfile* profile, const char* name, Result result, LoadTimings* timings)
 {
     if (!profile->m_StartTime)

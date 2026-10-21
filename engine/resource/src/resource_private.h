@@ -20,8 +20,6 @@
 #include "resource.h"
 #include <dmsdk/resource/resource.h>
 
-#include <dlib/time.h>
-
 // Internal API that preloader needs to use.
 
 // 1 - higher level mount info
@@ -117,27 +115,10 @@ namespace dmResource
         uint32_t m_PostCreateCount;
     };
 
-    inline uint64_t LoadProfileTime(const LoadProfile* profile)
-    {
-        return profile->m_StartTime ? dmTime::GetMonotonicTime() : 0;
-    }
-
-    inline void LoadProfileBegin(LoadProfile* profile, bool enabled)
-    {
-        memset(profile, 0, sizeof(*profile));
-        profile->m_StartTime = enabled ? dmTime::GetMonotonicTime() : 0;
-    }
-
-    inline void LoadProfileAddTime(LoadProfile* profile, LoadProfileStage stage, uint64_t start)
-    {
-        if (!profile->m_StartTime)
-            return;
-        profile->m_Time[stage] += dmTime::GetMonotonicTime() - start;
-        if (stage == LOAD_PROFILE_POST_CREATE)
-            ++profile->m_PostCreateCount;
-    }
-
-    void   LogLoadProfile(const LoadProfile* profile, const char* name, Result result, LoadTimings* timings = 0);
+    uint64_t LoadProfileTime(const LoadProfile* profile);
+    void     LoadProfileBegin(LoadProfile* profile, bool enabled);
+    void     LoadProfileAddTime(LoadProfile* profile, LoadProfileStage stage, uint64_t start);
+    void     LogLoadProfile(const LoadProfile* profile, const char* name, Result result, LoadTimings* timings = 0);
 
     bool   IsLoadProfilingEnabled(HFactory factory);
 
