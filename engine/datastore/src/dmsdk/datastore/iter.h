@@ -94,8 +94,7 @@ extern "C"
     // private
     // Address calculation for the public pointer wrappers. Validated field handles and current
     // row indices are caller obligations; no repeated checks occur here.
-    static inline const void*   DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, uint32_t field);
-    static inline void*         DSFieldGetPointerMutInternal(const DSIterator* batch, uint32_t row, uint32_t field);
+    static inline void*         DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, uint32_t field);
 
     static inline DSRowIterator DSIterRows(const DSIterator* iterator)
     {
@@ -128,12 +127,7 @@ extern "C"
         return iterator->m_Parent->m_Values + (size_t)iterator->m_Index * iterator->m_Parent->m_RowStride;
     }
 
-    static inline const void* DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, uint32_t field)
-    {
-        return batch->m_Values + (size_t)row * batch->m_RowStride + batch->m_FieldOffsets[field];
-    }
-
-    static inline void* DSFieldGetPointerMutInternal(const DSIterator* batch, uint32_t row, uint32_t field)
+    static inline void* DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, uint32_t field)
     {
         return batch->m_Values + (size_t)row * batch->m_RowStride + batch->m_FieldOffsets[field];
     }
@@ -145,7 +139,7 @@ extern "C"
 
     static inline double* DSRowIterGetNumberMut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (double*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (double*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
     static inline const float* DSRowIterGetFloat(const DSRowIterator* iterator, uint32_t field)
@@ -155,7 +149,7 @@ extern "C"
 
     static inline float* DSRowIterGetFloatMut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (float*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (float*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
     static inline const uint32_t* DSRowIterGetUInt32(const DSRowIterator* iterator, uint32_t field)
@@ -165,7 +159,7 @@ extern "C"
 
     static inline uint32_t* DSRowIterGetUInt32Mut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (uint32_t*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (uint32_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
     static inline const uint8_t* DSRowIterGetBoolean(const DSRowIterator* iterator, uint32_t field)
@@ -175,7 +169,7 @@ extern "C"
 
     static inline uint8_t* DSRowIterGetBooleanMut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (uint8_t*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (uint8_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
     static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, uint32_t field)
@@ -185,7 +179,7 @@ extern "C"
 
     static inline DSVector3* DSRowIterGetVector3Mut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (DSVector3*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (DSVector3*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
     static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, uint32_t field)
@@ -195,7 +189,7 @@ extern "C"
 
     static inline DSVector4* DSRowIterGetVector4Mut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (DSVector4*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (DSVector4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
     static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, uint32_t field)
@@ -205,7 +199,7 @@ extern "C"
 
     static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, uint32_t field)
     {
-        return (DSMatrix4*)DSFieldGetPointerMutInternal(iterator->m_Parent, iterator->m_Index, field);
+        return (DSMatrix4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
 #ifdef __cplusplus

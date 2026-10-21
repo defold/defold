@@ -346,13 +346,13 @@ static void CompileLayout(dmArray<DSFieldMeta>& metadata, const DSFieldDesc* fie
             dmHashUpdateBuffer64(&name, field.m_Name, (uint32_t)strlen(field.m_Name));
         HashState64 full_name;
         dmHashClone64(&full_name, &name, false);
-        uint64_t      full_hash = dmHashFinal64(&full_name);
-        DSFieldMeta   meta = {
-              .m_Field = prefix ? full_hash : field.m_Field,
-              .m_Type = field.m_Type,
-              .m_Offset = base_offset + field.m_Offset,
-              .m_Size = FieldSize(field),
-              .m_Name = field.m_Field
+        uint64_t    full_hash = dmHashFinal64(&full_name);
+        DSFieldMeta meta = {
+            .m_Field = prefix ? full_hash : field.m_Field,
+            .m_Type = field.m_Type,
+            .m_Offset = base_offset + field.m_Offset,
+            .m_Size = FieldSize(field),
+            .m_Name = field.m_Field
         };
         if (field.m_Struct)
         {
