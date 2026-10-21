@@ -36,6 +36,7 @@
 #include <render/font/fontmap.h>
 #include <render/font/font_renderer.h>
 #include <gameobject/gameobject_ddf.h>
+#include <gameobject/gameobject_props.h>
 #include <dmsdk/gameobject/script.h>
 
 #include "../resources/res_label.h"
@@ -1121,8 +1122,12 @@ namespace dmGameSystem
         {
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-            const float value = (float)params.m_Value.m_Number;
-            if (!isfinite(value) || value < 0.0f || value > 360.0f)
+            float value = (float)params.m_Value.m_Number;
+            if (!isfinite(value))
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            if (params.m_Options && params.m_Options->m_IsAnimation)
+                value = dmMath::Clamp(value, 0.0f, 360.0f);
+            else if (value < 0.0f || value > 360.0f)
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
             if (component->m_LineBreak && value != component->m_ArcAngle)
                 InvalidateTextLayout(component);

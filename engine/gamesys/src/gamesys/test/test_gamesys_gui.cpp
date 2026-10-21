@@ -2657,6 +2657,40 @@ TEST_F(LabelComponentTest, LabelArcProperties)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Arc angle animations clamp easing overshoot instead of freezing at the last valid value.
+TEST_F(LabelComponentTest, LabelArcAngleOvershoot)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    dmGameObject::PropertyOptions options;
+    const dmhash_t                component = dmHashString64("label");
+    const dmhash_t                property = dmHashString64("arc_angle");
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, component, property, options, dmGameObject::PropertyVar(0.0f)));
+    const float     endpoints[] = { 360.0f, 0.0f };
+    dmEasing::Curve easing;
+    easing.type = dmEasing::TYPE_OUTBACK;
+    for (uint32_t endpoint = 0; endpoint < DM_ARRAY_SIZE(endpoints); ++endpoint)
+    {
+        const float               from = endpoint ? endpoints[endpoint - 1] : 0.0f;
+        dmGameObject::PropertyVar to(endpoints[endpoint]);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+                  dmGameObject::Animate(m_Collection, go, component, property, dmGameObject::PLAYBACK_ONCE_FORWARD, to, easing, 1.0f, 0.0f, 0, 0, 0));
+        m_UpdateContext.m_DT = 0.2f;
+        for (uint32_t i = 0; i < 5; ++i)
+        {
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            dmGameObject::PropertyDesc desc;
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, component, property, options, desc));
+            const float expected = dmMath::Clamp(from + (endpoints[endpoint] - from) * dmEasing::GetValue(easing, (i + 1) * 0.2f), 0.0f, 360.0f);
+            EXPECT_NEAR(expected, desc.m_Variant.m_Number, 0.001f);
+        }
+    }
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE,
+              dmGameObject::SetProperty(go, component, property, options, dmGameObject::PropertyVar(361.0f)));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(LabelComponentTest, LabelTextProperty)
 {
     const dmhash_t go_id = dmHashString64("/go");

@@ -362,6 +362,7 @@ namespace dmGameObject
                 else
                 {
                     PropertyOptions property_opt;
+                    property_opt.m_IsAnimation = true;
                     AddPropertyOptionsIndex(&property_opt, 0);
                     SetProperty(anim.m_Instance, anim.m_ComponentId, anim.m_PropertyId, property_opt, PropertyVar(v));
                 }
