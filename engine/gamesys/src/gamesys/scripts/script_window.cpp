@@ -49,7 +49,7 @@ namespace dmGameSystem
      * @member window.WINDOW_EVENT_FOCUS_GAINED focus gained window event This event is sent to a window event listener when the game window or app screen has gained focus. This event is also sent at game startup and the engine gives focus to the game.
      * @member window.WINDOW_EVENT_FOCUS_LOST focus lost window event This event is sent to a window event listener when the game window or app screen has lost focus.
      * @member window.WINDOW_EVENT_ICONIFIED iconify window event [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is iconified (reduced to an application icon in a toolbar, application tray or similar).
-     * @member window.WINDOW_EVENT_RESIZED resized window event This event is sent to a window event listener when the game window or app screen is resized. The new size is passed along in the data field to the event listener.
+     * @member window.WINDOW_EVENT_RESIZED resized window event This event is sent to a window event listener when the game window or app screen is resized. On iOS, it is also sent after orientation transitions and safe-area inset changes, even when the size is unchanged. The current size is passed along in the data field to the event listener.
      */
 
     /*# Window event data

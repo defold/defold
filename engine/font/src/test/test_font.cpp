@@ -39,6 +39,44 @@
 #include "font_effect_index.h"
 #include "text_layout.h"
 
+// Verifies decoded contents and counts, guarding against #13504 with fresh and reused arrays.
+TEST(TextLayout, TextToCodePoints)
+{
+    struct TestCase
+    {
+        const char* m_Text;
+        uint32_t    m_Count;
+        uint32_t    m_Codepoints[4];
+    };
+    const TestCase cases[] = {
+        { 0, 0, { 0 } },
+        { "", 0, { 0 } },
+        { "abc", 3, { 'a', 'b', 'c' } },
+        { "\xc3\xa5\xe2\x82\xac\xf0\x9f\x98\x80", 3, { 0xe5, 0x20ac, 0x1f600 } },
+        { "\200abc", 4, { 0x80, 'a', 'b', 'c' } },
+        { "\277abc", 4, { 0xbf, 'a', 'b', 'c' } },
+        { "\x80", 1, { 0x80 } },
+        { "\xbf", 1, { 0xbf } },
+    };
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        for (uint32_t capacity = 0; capacity <= 8; capacity += 8)
+        {
+            dmArray<uint32_t> codepoints;
+            codepoints.SetCapacity(capacity);
+            codepoints.SetSize(capacity);
+
+            ASSERT_EQ(cases[i].m_Count, TextToCodePoints(cases[i].m_Text, codepoints));
+            ASSERT_EQ(cases[i].m_Count, codepoints.Size());
+            for (uint32_t j = 0; j < codepoints.Size(); ++j)
+            {
+                ASSERT_EQ(cases[i].m_Codepoints[j], codepoints[j]);
+            }
+        }
+    }
+}
+
 // static const char* g_TextLorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut tempus quam in lacinia imperdiet. Vestibulum interdum erat quis purus lacinia, at ullamcorper arcu sagittis. Etiam molestie varius lacus, eget fringilla enim tempor quis. In at mollis dolor, et dictum sem. Mauris condimentum metus sed auctor tempus.";
 
 #if defined(FONT_USE_SKRIBIDI)

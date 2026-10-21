@@ -96,13 +96,13 @@
   (instance? OutlineEntrySelection selection))
 
 (defn selection-path
-  "Extends an outline selection path within a node; a root or different node
-  starts a new path."
+  "Extends an outline selection path within a node; a different node starts a
+  new path."
   [parent-path {:keys [node-id node-outline-key]}]
-  (if (or (coll/empty? parent-path)
-          (not= node-id (first parent-path)))
-    [node-id]
-    (cond-> parent-path node-outline-key (conj node-outline-key))))
+  (if (and (coll/not-empty parent-path)
+           (= node-id (first parent-path)))
+    (cond-> parent-path node-outline-key (conj node-outline-key))
+    [node-id]))
 
 (defn selection-id
   "Returns the selection identity for an outline path.

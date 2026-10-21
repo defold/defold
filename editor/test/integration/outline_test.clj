@@ -920,11 +920,8 @@
   (is (= "b4" (outline/next-node-outline-key "b123" #{"a0" "a1" "b0" "b1" "b2" "b3"})))
   (is (= "b4" (outline/next-node-outline-key "b123" #{"a1" "b3"}))))
 
-(defn- attach-shared-outline-node [parent-id child-id]
-  (g/connect child-id :node-outline parent-id :child-outlines))
-
-;; Empty outlines during startup or without an active resource must remain
-;; renderable instead of slicing an empty selection path.
+;; An absent outline must decorate without crashing during startup or after
+;; closing the last resource tab.
 (deftest decorate-empty-outline-test
   (doseq [empty-outline [nil {}]]
     (let [{:keys [outline default-selected-node-id->node-id-paths default-node-id-path->expanded]}
@@ -934,6 +931,9 @@
       (is (= [] (:children outline)))
       (is (= {} default-selected-node-id->node-id-paths))
       (is (= {[nil] true} default-node-id-path->expanded)))))
+
+(defn- attach-shared-outline-node [parent-id child-id]
+  (g/connect child-id :node-outline parent-id :child-outlines))
 
 (g/defnode SharedOutlineNode
   (inherits outline/OutlineNode)
