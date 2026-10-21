@@ -1569,6 +1569,7 @@
 
 (defmethod properties/push-down-overrides-plan-alternatives ::GuiNode
   [source-node-id source-prop-infos-by-prop-kw {:keys [basis-ref] :as evaluation-context}]
+  (resource-node/materialize-owner-resource-referencers! source-node-id evaluation-context)
   (when-let [override-node-ids (coll/not-empty (g/overrides @basis-ref source-node-id))]
     (when-let [trivial-gui-scene-info (g/maybe-node-value source-node-id :trivial-gui-scene-info evaluation-context)]
       (let [source-layout-name (or (:current-layout trivial-gui-scene-info) "")

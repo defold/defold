@@ -523,8 +523,7 @@
 
           predecessor-node-ids
           (fn predecessor-node-ids [basis]
-            (set (g/pre-traverse
-                   basis [target-node-id]
+            (set (g/pre-traverse basis [target-node-id]
                    (fn [basis node-id]
                      (mapv gt/source-id (g/inputs basis node-id))))))
 

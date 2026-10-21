@@ -24,6 +24,7 @@
                  dynamo.graph/fnk [[:block 1]]
                  dynamo.graph/override [[:inner 0]]
                  dynamo.graph/package-errors [[:block 1]]
+                 dynamo.graph/pre-traverse [[:inner 0]]
                  dynamo.graph/precluding-errors [[:inner 0]]
                  dynamo.graph/set-properties [[:inner 0]]
                  dynamo.graph/set-properties! [[:inner 0]]

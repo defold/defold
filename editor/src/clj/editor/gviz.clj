@@ -110,8 +110,9 @@
                output-fn (:output-fn opts fn/constantly-false)]
            (mapcat
              (fn [[f arcs-fn key]]
-               (g/pre-traverse basis [root-id] (fn [basis node-id]
-                                                 (map key (filter f (arcs-fn basis node-id))))))
+               (g/pre-traverse basis [root-id]
+                 (fn [basis node-id]
+                   (map key (filter f (arcs-fn basis node-id))))))
              [[input-fn g/inputs gt/source-id]
               [output-fn g/outputs gt/target-id]]))
          (keys (gt/nodes basis)))

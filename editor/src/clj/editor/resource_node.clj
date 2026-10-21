@@ -211,16 +211,6 @@
                 (g/node-instance*? resource/ResourceNode node))
        (resource/node-resource basis node)))))
 
-(defn materialize-resource-types!
-  "Materializes containers needed by queries that follow references in reverse."
-  [type-exts {:keys [basis-ref] :as evaluation-context}]
-  (coll/run!-> (g/node-ids @basis-ref)
-    (fn [node-id]
-      (when-let [resource (as-resource-original @basis-ref node-id)]
-        (when (and (contains? type-exts (resource/type-ext resource))
-                   (resource/loaded? resource))
-          (g/materialize-node! node-id evaluation-context))))))
-
 (defn dirty?
   ([resource-node-id]
    (g/valid-node-value resource-node-id :dirty))
@@ -295,6 +285,70 @@
   ([basis node-id]
    (some->> (owner-resource-node-id basis node-id)
             (resource basis))))
+
+(defn- prerequisite-proj-paths [node-id resource read-opts {:keys [basis-ref] :as evaluation-context}]
+  (let [{:keys [editable->type-ext->resource-type]} read-opts
+        {:keys [read-fn prerequisites-fn]} (resource/lookup-resource-type resource editable->type-ext->resource-type)]
+    (when (and read-fn prerequisites-fn)
+      (let [prerequisite-proj-paths
+            (resource-io/with-error-translation resource node-id nil
+              (let [source-value
+                    (or (when (loaded? @basis-ref node-id)
+                          (g/node-value node-id :save-value evaluation-context)) ; Will materialize.
+                        (g/node-value node-id :source-value evaluation-context) ; Won't materialize.
+                        (with-open [input-stream (io/input-stream resource)]
+                          (read-fn read-opts resource input-stream)))]
+                (when (and (some? source-value)
+                           (not (g/error? source-value)))
+                  (vec (prerequisites-fn read-opts resource source-value)))))]
+        (when-not (g/error? prerequisite-proj-paths)
+          prerequisite-proj-paths)))))
+
+(defn materialize-resource-referencers!
+  "Materializes resource nodes that directly or transitively report any of the
+  supplied resources as prerequisites."
+  [project resources {:keys [basis-ref] :as evaluation-context}]
+  (when-not (coll/empty? resources)
+    (let [basis @basis-ref
+          workspace (resource/workspace (first resources))
+          {:keys [proj-path->resource] :as read-opts} (workspace/make-read-opts basis workspace :include-editor-dependencies true)
+          proj-path->resource-node-id (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context)
+
+          proj-path->referencing-resource-node-ids
+          (coll/reduce-kv-> proj-path->resource-node-id {}
+            (fn [proj-path->referencing-resource-node-ids proj-path resource-node-id]
+              (let [resource (proj-path->resource proj-path)]
+                (if (or (nil? resource)
+                        (not (resource/loaded? resource)))
+                  proj-path->referencing-resource-node-ids
+                  (let [prerequisite-proj-paths (prerequisite-proj-paths resource-node-id resource read-opts evaluation-context)]
+                    (coll/reduce-> prerequisite-proj-paths proj-path->referencing-resource-node-ids
+                      (fn [proj-path->referencing-resource-node-ids prerequisite-proj-path]
+                        (update proj-path->referencing-resource-node-ids prerequisite-proj-path coll/conj-vector resource-node-id))))))))
+
+          direct-referencing-resource-node-ids
+          (coll/into-> resources [] ; De-duplicated by g/pre-traverse below.
+            (mapcat #(proj-path->referencing-resource-node-ids (resource/proj-path %))))
+
+          transitively-referencing-resource-node-ids
+          (g/pre-traverse basis direct-referencing-resource-node-ids
+            (fn [basis node-id]
+              (let [resource (resource basis node-id)
+                    proj-path (resource/proj-path resource)]
+                (proj-path->referencing-resource-node-ids proj-path))))]
+
+      (coll/run!-> transitively-referencing-resource-node-ids
+        #(g/materialize-node! % evaluation-context)))))
+
+(defn materialize-owner-resource-referencers!
+  "Materializes resource nodes that directly or transitively report the owner
+  resource of the supplied node-id as a prerequisite."
+  [node-id evaluation-context]
+  (let [basis @(:basis-ref evaluation-context)
+        project (g/graph-value basis :project-id) ; Can't call project/get-project, since they depend on us.
+        owner-resource (owner-resource basis node-id)]
+    (when owner-resource
+      (materialize-resource-referencers! project [owner-resource] evaluation-context))))
 
 (defn sha256-or-throw
   ^String [resource-node-id evaluation-context]

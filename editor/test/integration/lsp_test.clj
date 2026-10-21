@@ -28,6 +28,7 @@
             [editor.lsp.project :as lsp.project]
             [editor.lsp.server :as lsp.server]
             [editor.prefs :as prefs]
+            [editor.resource-node :as resource-node]
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.util :as util]
@@ -267,6 +268,8 @@
                    (a/close! in)
                    (<! (a/reduce conj [] out))))))))))
 
+;; Verifies project reference completions and their edits while ensuring
+;; unrelated containers remain unmaterialized.
 (deftest project-completions-test
   (with-scratch-project "test/resources/project_lsp_completion_project"
     (let [lsp (lsp/get-lsp)
@@ -322,6 +325,9 @@
           shared-module-urls (coll/into-> level-urls player-urls)]
       (set-servers! lsp #{(lsp.project/language-server project)})
 
+      (doseq [proj-path ["/unrelated/unrelated.go" "/unrelated/unrelated.collection"]]
+        (is (not (resource-node/loaded? (test-util/resource-node project proj-path)))))
+
       (testing "Component ids in scripts"
         (is (false? (:complete (completion-result! "/scripts/player.script" "local hash_double = \"#"))))
         (is (= #{"controller" "player-visual"}
@@ -356,6 +362,10 @@
                   :cursor-range (data/->CursorRange (data/->Cursor 4 21) (data/->Cursor 4 25))
                   :type :plaintext}
                  (:insert completion)))))
+
+      (testing "Unrelated containers remain unmaterialized after URL completion"
+        (doseq [proj-path ["/unrelated/unrelated.go" "/unrelated/unrelated.collection"]]
+          (is (not (resource-node/loaded? (test-util/resource-node project proj-path))))))
 
       (testing "Socket urls in scripts"
         (let [socket-urls (coll/into-> player-urls #{}

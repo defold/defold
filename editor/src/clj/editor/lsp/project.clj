@@ -40,9 +40,7 @@
       (workspace/find-resource basis workspace proj-path))))
 
 (defn- script-node-ids-requiring-module [basis requiring-resource-infos-by-module-proj-path module-proj-path]
-  (coll/into-> (g/pre-traverse
-                 basis
-                 [[module-proj-path nil]]
+  (coll/into-> (g/pre-traverse basis [[module-proj-path nil]]
                  (fn [_basis [proj-path _node-id]]
                    (requiring-resource-infos-by-module-proj-path proj-path))) #{}
     (filter #(string/ends-with? (first %) ".script"))
@@ -80,7 +78,8 @@
           replacement-start (- character (count url-content))]
       (->> (g/node-value project :nodes-by-resource-path evaluation-context)
            (e/mapcat (fn [[_ node-id]]
-                       (when (g/node-kw-instance? @basis-ref :editor.collection/CollectionNode node-id)
+                       (when (and (g/node-kw-instance? @basis-ref :editor.collection/CollectionNode node-id)
+                                  (resource-node/loaded? @basis-ref node-id))
                          (let [go-inst-ids (g/node-value node-id :go-inst-ids evaluation-context)]
                            (when-not (g/error? go-inst-ids)
                              (let [go-instance-ids (coll/vals go-inst-ids)]
@@ -113,20 +112,21 @@
                                              :character character}}
                                :newText url}}))))))
 
-(defn- completion-owner-root-ids [project resource-node-id resource evaluation-context]
-  (resource-node/materialize-resource-types! #{"collection" "go"} evaluation-context)
-  (let [{:keys [basis-ref]} evaluation-context]
-    (owning-game-object-node-ids
-      @basis-ref
-      (if (= "script" (resource/type-ext resource))
-        #{resource-node-id}
-        (script-node-ids-requiring-module
-          @basis-ref
-          (g/node-value
-            (defold-project/script-intelligence project evaluation-context)
-            :requiring-resource-infos-by-module-proj-path
-            evaluation-context)
-          (resource/proj-path resource))))))
+(defn- completion-owner-root-ids [project resource-node-id resource {:keys [basis-ref] :as evaluation-context}]
+  (let [script-node-ids
+        (if (= "script" (resource/type-ext resource))
+          #{resource-node-id}
+          (let [script-intelligence (defold-project/script-intelligence project evaluation-context)
+                requiring-resource-infos-by-module-proj-path (g/node-value script-intelligence :requiring-resource-infos-by-module-proj-path evaluation-context)
+                proj-path (resource/proj-path resource)]
+            (script-node-ids-requiring-module @basis-ref requiring-resource-infos-by-module-proj-path proj-path)))
+
+        script-resources
+        (mapv (partial resource-node/resource @basis-ref)
+              script-node-ids)]
+
+    (resource-node/materialize-resource-referencers! project script-resources evaluation-context)
+    (owning-game-object-node-ids @basis-ref script-node-ids)))
 
 (defn- reference-completion-string [resource-node-id line character evaluation-context]
   (when-let [line-text (get (g/node-value resource-node-id :lines evaluation-context) line)]

@@ -1397,11 +1397,12 @@
   immediate override node of the source-node-id."
   {:arglists '([source-node-id source-prop-infos-by-prop-kw evaluation-context])}
   (fn [source-node-id _source-prop-infos-by-prop-kw evaluation-context]
-    (resource-node/materialize-resource-types! #{"collection" "go" "gui"} evaluation-context)
-    (g/node-type-kw @(:basis-ref evaluation-context) source-node-id)))
+    (let [basis @(:basis-ref evaluation-context)]
+      (g/node-type-kw basis source-node-id))))
 
 (defmethod push-down-overrides-plan-alternatives :default
   [source-node-id source-prop-infos-by-prop-kw {:keys [basis-ref] :as evaluation-context}]
+  (resource-node/materialize-owner-resource-referencers! source-node-id evaluation-context)
   (when-let [override-node-ids (coll/not-empty (g/overrides @basis-ref source-node-id))]
     (let [transfer-overrides-plan (basic-transfer-overrides-plan :push-down-overrides source-prop-infos-by-prop-kw override-node-ids evaluation-context)]
       [transfer-overrides-plan])))

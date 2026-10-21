@@ -299,8 +299,8 @@
     ;; resources.
     (coll/into->
       (g/pre-traverse basis changed-proj-paths
-                      (fn [_basis proj-path]
-                        (prerequisite->dependents proj-path)))
+        (fn [_basis proj-path]
+          (prerequisite->dependents proj-path)))
       []
       (remove changed-proj-paths)
       (map old-nodes-by-path)

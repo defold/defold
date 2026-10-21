@@ -181,6 +181,54 @@
           (let [project (test-util/setup-project! workspace)]
             (test-fn project workspace load-fn-calls)))))))
 
+;; Reverse materialization follows prerequisite chains while leaving ordinary
+;; dependents and unrelated resources, including broken ones, unmaterialized.
+(deftest materialize-resource-referencers-test
+  (call-with-prerequisite-project
+    {"/target.prereq" {:value 42}
+     "/direct.prereq" {:prerequisites ["/target.prereq"]}
+     "/transitive.prereq" {:prerequisites ["/direct.prereq"]}
+     "/dependency-only.prereq" {:dependencies ["/target.prereq"]}
+     "/unrelated.prereq" {:value 1}
+     "/broken.prereq" {:fail true}}
+    (fn test-prerequisites [_read-opts _resource source-value]
+      (if (:fail source-value)
+        (throw (ex-info "Failed to discover prerequisites." {}))
+        (:prerequisites source-value)))
+    (fn check-materialized-referencers [project _workspace load-fn-calls]
+      (let [target-resource (resource-node/resource (test-util/resource-node project "/target.prereq"))]
+        (is (= [] @load-fn-calls))
+        (g/with-auto-evaluation-context evaluation-context
+          (resource-node/materialize-resource-referencers! project [target-resource] evaluation-context))
+        (is (= ["/target.prereq" "/direct.prereq" "/transitive.prereq"] @load-fn-calls))
+        (doseq [proj-path ["/dependency-only.prereq" "/unrelated.prereq" "/broken.prereq"]]
+          (is (not (resource-node/loaded? (test-util/resource-node project proj-path)))))
+        (g/with-auto-evaluation-context evaluation-context
+          (resource-node/materialize-resource-referencers! project [target-resource] evaluation-context))
+        (is (= ["/target.prereq" "/direct.prereq" "/transitive.prereq"] @load-fn-calls))))))
+
+;; Loaded resources report current prerequisites, so unsaved reference edits
+;; determine which unmaterialized containers are discovered.
+(deftest materialize-resource-referencers-uses-live-references-test
+  (test-util/with-temp-project-content
+    {"/original.script" []
+     "/replacement.script" []
+     "/referencer.go" {:components [{:id "script" :component "/original.script"}]}
+     "/container.collection" {:name "container"
+                              :instances [{:id "referencer" :prototype "/referencer.go"}]}}
+    (let [component-node-id (test-util/resource-outline-node-id project "/referencer.go" "script")
+          container-node-id (test-util/resource-node project "/container.collection")
+          original-resource (test-util/resource workspace "/original.script")
+          replacement-resource (test-util/resource workspace "/replacement.script")]
+      (test-util/prop! component-node-id :path {:resource replacement-resource :overrides []})
+      (is (not (resource-node/loaded? container-node-id)))
+      (g/with-auto-evaluation-context evaluation-context
+        (resource-node/materialize-resource-referencers! project [original-resource] evaluation-context))
+      (is (not (resource-node/loaded? container-node-id)))
+      (g/with-auto-evaluation-context evaluation-context
+        (resource-node/materialize-resource-referencers! project [replacement-resource] evaluation-context))
+      (is (resource-node/loaded? container-node-id)))))
+
 ;; Prerequisite discovery failures must prevent both the resource and its
 ;; dependents from loading.
 (deftest prerequisite-read-failure-blocks-dependent-load-operation-test

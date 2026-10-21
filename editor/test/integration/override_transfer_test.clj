@@ -20,6 +20,7 @@
             [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-post-ec]]
             [util.coll :as coll :refer [pair]]))
@@ -942,6 +943,8 @@
         (is (not (empty? (transferred-properties source-node-id :all))))
         (is (empty? transfer-overrides-plans))))))
 
+;; Finds overrides in referencing collections from a component inside a game
+;; object while keeping unrelated containers unmaterialized.
 (deftest push-down-go-overrides-from-book-go-to-shelf-collections-test
   (test-util/with-temp-project-content
     {"/book.script"
@@ -968,13 +971,19 @@
       [{:id "referenced_book_one"
         :prototype "/book.go"}
        {:id "referenced_book_two"
-        :prototype "/book.go"}]}}
+        :prototype "/book.go"}]}
+
+     "/unrelated.go" {}
+     "/unrelated.collection" {:name "unrelated"}
+     "/unrelated.gui" {}}
 
     (test-util/with-changes-reverted
       (let [source-node-id (test-util/resource-outline-node-id project "/book.go" "book_script")
             transfer-overrides-plans (push-down-overrides-plan-alternatives source-node-id :all)]
         (is (= [["Push Down \"text\" Override to 3 Descendants Across 2 Resources" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
+        (doseq [proj-path ["/unrelated.go" "/unrelated.collection" "/unrelated.gui"]]
+          (is (not (resource-node/loaded? (test-util/resource-node project proj-path)))))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/book.go"
                 {:components

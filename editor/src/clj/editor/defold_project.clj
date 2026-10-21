@@ -35,7 +35,6 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.notifications :as notifications]
-            [editor.placeholder-resource :as placeholder-resource]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -192,8 +191,8 @@
   :read-error (optional)
     If the resource does not exist, or reading or prerequisite discovery fails,
     this will be an ErrorValue with details about what went wrong. A successful
-    read retains its :source-value and :disk-sha256 even if prerequisites prevent
-    loading, but the dependency fields below will be omitted.
+    read retains its :source-value and :disk-sha256 even if prerequisites
+    prevent loading, but the dependency fields below will be omitted.
 
   :source-value (optional)
     When the resource-type specifies a :read-fn, this will be its return value
