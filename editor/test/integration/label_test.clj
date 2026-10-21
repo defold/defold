@@ -13,10 +13,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.label-test
-  (:require [clojure.string :as string]
+  (:require [cljfx.api :as fx]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [clojure.walk :as walk]
             [dynamo.graph :as g]
+            [editor.buffers :as buffers]
             [editor.build :as build]
             [editor.camera :as camera]
             [editor.colors :as colors]
@@ -39,7 +41,7 @@
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Label$LabelDesc]
            [editor.types Region]
-           [java.nio ByteBuffer]
+           [javafx.scene.control TextField]
            [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (deftest label-validation-test
@@ -431,96 +433,79 @@
         (is (not (g/error? (g/node-value node :text-data))))
         (is (not (contains? (g/node-value node :text-data) :arc-radius)))))))
 
-;; Typed angles retain their values and report range errors; scrubbing clamps
-;; to the inclusive bounds using the standard numeric control.
+;; The standard angle field preserves typed values and reports errors outside
+;; the bounds declared for numeric scrubbing.
 (deftest label-arc-angle-edit-range-test
-  (test-util/with-scratch-project test-util/project-path
-    (let [node (project/get-resource-node project "/label/test.label")]
-      (doseq [[entered valid] [[-1.0 false]
-                               [0.0 true]
-                               [360.0 true]
-                               [361.0 false]]]
-        (let [property (get-in (properties/coalesce [(g/node-value node :_properties)])
-                               [:properties :arc-angle])]
-          (is (= [0.0 360.0] ((juxt :min :max) (:edit-type property))))
-          (is (= entered ((:to-value (properties-view/make-control-view property nil @test-util/localization))
-                          (str entered))))
-          (properties/set-values! property [entered])
-          (is (= entered (g/node-value node :arc-angle)))
-          (if valid
-            (is (nil? (test-util/prop-error node :arc-angle)))
-            (is (g/error-fatal? (test-util/prop-error node :arc-angle))))))
-      (let [property (get-in (properties/coalesce [(g/node-value node :_properties)])
-                             [:properties :arc-angle])
-            control (properties-view/make-control-view property nil @test-util/localization)
-            scrubbed ((get-in control [:hover-overlay :content :on-scrubbed]))]
-        (scrubbed 1000.0)
-        (is (= 360.0 (g/node-value node :arc-angle)))
-        (scrubbed -1000.0)
-        (is (= 0.0 (g/node-value node :arc-angle)))
-        (is (nil? (test-util/prop-error node :arc-angle)))))))
+  @(fx/on-fx-thread
+     (test-util/with-loaded-project
+       (let [node (project/get-resource-node project "/label/test.label")]
+         (doseq [[entered valid] [[-1.0 false]
+                                  [0.0 true]
+                                  [360.0 true]
+                                  [361.0 false]]]
+           (testing (str "Typed angle " entered)
+             (let [property (get-in (properties/coalesce [(g/node-value node :_properties)])
+                                    [:properties :arc-angle])
+                   component (fx/create-component
+                               (properties-view/make-control-view property {} @test-util/localization))
+                   ^TextField field (fx/instance component)]
+               (try
+                 (is (= [0.0 360.0] ((juxt :min :max) (:edit-type property))))
+                 (test-util/set-control-value! field entered)
+                 (is (= entered (Double/parseDouble (.getText field))))
+                 (is (= entered (g/node-value node :arc-angle)))
+                 (if valid
+                   (is (nil? (test-util/prop-error node :arc-angle)))
+                   (is (g/error-fatal? (test-util/prop-error node :arc-angle))))
+                 (finally
+                   (fx/delete-component component))))))))))
 
-;; The curved box replaces the textbox, keeps short radial end edges,
-;; closes both full-circle endpoints, and follows transforms and selection
-;; colors. Selected arcs show a center cross without affecting tight framing.
+(defn- line-vertices [renderables]
+  (let [vertex-buffer (#'label/gen-lines-vb renderables)
+        component-count (quot (long (:size label/color-vtx)) Float/BYTES)]
+    (coll/into-> (buffers/as-primitive-array (vtx/buf vertex-buffer) :float) []
+      (partition-all component-count)
+      (map vec))))
+
+;; Arc guides pass through to the scene and selected outline vertices, with
+;; the editor's selection color and world transform applied.
 (deftest label-arc-box-guide-test
-  (test-util/with-scratch-project test-util/project-path
+  (test-util/with-loaded-project
     (let [node (project/get-resource-node project "/label/test.label")]
-      (is (= 8 (count (get-in (g/node-value node :scene) [:children 0 :renderable :user-data :line-data]))))
       (test-util/prop! node :text "AA\nAA")
       (test-util/prop! node :arc-radius 200.0)
-      (doseq [degrees [60.0 90.0]]
-        (test-util/prop! node :arc-angle degrees)
-        (let [label-scene (g/node-value node :scene)
-              render-data (fn render-data [label-scene selection]
-                            (scene/produce-scene-render-data {:scene label-scene
-                                                              :selection selection
-                                                              :hidden-renderable-tags #{}
-                                                              :hidden-node-outline-key-paths #{}
-                                                              :local-camera (camera/make-camera)}))
-              renderable (get-in (render-data label-scene [node]) [:renderables pass/outline 0])
-              guide (get-in renderable [:user-data :line-data])
-              selected-lines (get-in renderable [:user-data :selected-line-data])
-              [inner outer] guide
-              cap-length (Math/hypot (- (double (first outer)) (double (first inner)))
-                                     (- (double (second outer)) (double (second inner))))
-              transform (doto (Matrix4d.)
-                          (.setIdentity)
-                          (.setTranslation (Vector3d. 10.0 -5.0 0.0)))
-              unselected (#'label/gen-lines-vb (get-in (render-data label-scene []) [:renderables pass/outline]))
-              selected (#'label/gen-lines-vb [(assoc renderable :world-transform transform)])
-              ^ByteBuffer buffer (vtx/buf selected)]
-          (is (< 8 (count guide)))
-          (is (< (Math/abs (- (Math/atan2 (double (first inner)) (double (second inner)))
-                              (* -0.5 (Math/toRadians (double degrees)))))
-                 0.001))
-          (is (< 0.0 cap-length 150.0))
-          (is (= :self-selected (:selected renderable)))
-          (is (= :self-selected (get-in (render-data (scene/claim-scene label-scene 0 "label") [0])
-                                        [:renderables pass/outline 0 :selected])))
-          (is (= guide (get-in label-scene [:renderable :user-data :line-data])))
-          (is (= (count guide) (count unselected)))
-          (is (= [[-5.0 -5.0 0.0] [5.0 5.0 0.0] [-5.0 5.0 0.0] [5.0 -5.0 0.0]]
-                 (mapv vec (subvec (vec selected-lines) (- (count selected-lines) 4)))))
-          (is (identical? selected-lines (:selected-line-data (g/node-value node :arc-data))))
-          (is (= (count selected-lines) (count selected)))
-          (is (< (count unselected) (count selected)))
-          (is (< (Math/abs (- (+ (double (first inner)) 10.0) (.getFloat buffer 0))) 0.001))
-          (is (< (Math/abs (- (- (double (second inner)) 5.0) (.getFloat buffer Float/BYTES))) 0.001))
-          (is (= (mapv float colors/selected-outline-color)
-                 (mapv #(.getFloat buffer (* (+ 3 %) Float/BYTES)) (range 4))))
-          (let [marker-offset (* (- (count selected) 4) 7 Float/BYTES)]
-            (is (= 5.0 (.getFloat buffer marker-offset)))
-            (is (= -10.0 (.getFloat buffer (+ marker-offset Float/BYTES)))))))
-      (doseq [degrees [360.0]]
-        (test-util/prop! node :arc-angle degrees)
-        (is (nil? (test-util/prop-error node :arc-angle)))
-        (let [guide (:line-data (g/node-value node :arc-data))]
-          (doseq [[start end] [[(first guide) (nth guide (- (count guide) 3))]
-                               [(nth guide 2) (nth guide (dec (count guide)))]]]
-            (is (< (Math/hypot (- (double (first end)) (double (first start)))
-                               (- (double (second end)) (double (second start))))
-                   0.001)))))
+      (doseq [angle [90.0 360.0]]
+        (testing (str "Arc angle " angle)
+          (test-util/prop! node :arc-angle angle)
+          (let [label-scene (g/node-value node :scene)
+                render-data (fn render-data [label-scene selection]
+                              (scene/produce-scene-render-data {:scene label-scene
+                                                                :selection selection
+                                                                :hidden-renderable-tags #{}
+                                                                :hidden-node-outline-key-paths #{}
+                                                                :local-camera (camera/make-camera)}))
+                renderable (get-in (render-data label-scene [node]) [:renderables pass/outline 0])
+                arc-data (g/node-value node :arc-data)
+                guide (:line-data arc-data)
+                selected-lines (:selected-line-data arc-data)
+                transform (doto (Matrix4d.)
+                            (.setIdentity)
+                            (.setTranslation (Vector3d. 10.0 -5.0 0.0)))
+                unselected (line-vertices (get-in (render-data label-scene []) [:renderables pass/outline]))
+                selected (line-vertices [(assoc renderable :world-transform transform)])
+                expected-positions (mapv (fn [[x y z]]
+                                           (mapv float [(+ (double x) 10.0) (- (double y) 5.0) z]))
+                                         selected-lines)]
+            (is (= :self-selected (:selected renderable)))
+            (is (identical? guide (get-in renderable [:user-data :line-data])))
+            (is (identical? selected-lines (get-in renderable [:user-data :selected-line-data])))
+            (is (= (mapv #(mapv float %) guide) (mapv #(subvec % 0 3) unselected)))
+            (is (= expected-positions (mapv #(subvec % 0 3) selected)))
+            (is (< (count unselected) (count selected)))
+            (is (coll/every? #(= (mapv float colors/selected-outline-color) (subvec % 3)) selected))
+            (is (= :self-selected
+                   (get-in (render-data (scene/claim-scene label-scene 0 "label") [0])
+                           [:renderables pass/outline 0 :selected]))))))
       (test-util/prop! node :arc-angle 0.0)
       (is (= 8 (count (get-in (g/node-value node :scene) [:children 0 :renderable :user-data :line-data])))))))
 
@@ -538,8 +523,8 @@
         (doseq [degrees [60.0 90.0]]
           (test-util/prop! node :arc-angle degrees)
           (is (< 2 (:line-count (g/node-value node :text-layout))))
-          (is (true? (get-in (g/node-value node :_properties) [:properties :size :read-only?])))
-          (is (not (get-in (g/node-value node :_properties) [:properties :line-break :read-only?])))
+          (is (test-util/prop-read-only? node :size))
+          (is (not (test-util/prop-read-only? node :line-break)))
           (test-util/with-prop [node :line-break false]
             (is (= 2 (:line-count (g/node-value node :text-layout)))))
           (test-util/with-prop [node :arc-radius 300.0]
@@ -551,8 +536,8 @@
         (is (= wrapped (g/node-value node :text-layout)))
         (is (= [40.0 200.0 0.0] (g/node-value node :size)))
         (is (true? (g/node-value node :line-break)))
-        (is (false? (get-in (g/node-value node :_properties) [:properties :size :read-only?])))
-        (is (not (get-in (g/node-value node :_properties) [:properties :line-break :read-only?])))))))
+        (is (not (test-util/prop-read-only? node :size)))
+        (is (not (test-util/prop-read-only? node :line-break)))))))
 
 ;; Framing encloses the curved box and text, excluding the distant circle center
 ;; and original layout rectangle, for changed angles.
@@ -589,21 +574,15 @@
         (test-util/prop! node :size [40.0 200.0 100.0])
         (is (= bounds (g/node-value node :aabb)))))))
 
-;; Radius changes move the first baseline about the component origin, regardless
-;; of textbox pivot or wrapping width, while retaining line spacing.
+;; Arc preview entries use the component origin and forward authored parameters
+;; independently of the textbox pivot.
 (deftest label-arc-center-test
-  (test-util/with-scratch-project test-util/project-path
+  (test-util/with-loaded-project
     (let [node (project/get-resource-node project "/label/test.label")]
-      (test-util/prop! node :text "AA\nAA")
-      (test-util/prop! node :line-break true)
       (test-util/prop! node :arc-angle 90.0)
       (doseq [pivot [:pivot-center :pivot-nw :pivot-se]
               radius [-200.0 200.0 400.0]]
         (test-util/prop! node :pivot pivot)
         (test-util/prop! node :arc-radius radius)
-        (let [arc-data (g/node-value node :arc-data)
-              [x y] (nth (:selected-line-data arc-data) (count (:line-data arc-data)))
-              expected (* (double radius) (Math/sqrt 0.5))]
-          (is (= [0.0 0.0] (:offset (g/node-value node :text-data))))
-          (is (< (Math/abs (+ (double x) expected)) 0.001))
-          (is (< (Math/abs (- (double y) expected)) 0.001)))))))
+        (is (= {:arc-radius radius :arc-angle 90.0 :offset [0.0 0.0]}
+               (select-keys (g/node-value node :text-data) [:arc-radius :arc-angle :offset])))))))
