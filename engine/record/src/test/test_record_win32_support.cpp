@@ -21,16 +21,19 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-struct CaptureItemFactory : Microsoft::WRL::RuntimeClass<
-    Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IGraphicsCaptureItemInterop>
+struct CaptureItemFactory : Microsoft::WRL::RuntimeClass<Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IGraphicsCaptureItemInterop>
 {
-    IFACEMETHODIMP CreateForWindow(HWND, REFIID, void**) override { return E_NOTIMPL; }
-    IFACEMETHODIMP CreateForMonitor(HMONITOR, REFIID, void**) override { return E_NOTIMPL; }
+    IFACEMETHODIMP CreateForWindow(HWND, REFIID, void**) override
+    {
+        return E_NOTIMPL;
+    }
+    IFACEMETHODIMP CreateForMonitor(HMONITOR, REFIID, void**) override
+    {
+        return E_NOTIMPL;
+    }
 };
 
-struct FramePoolFactory : Microsoft::WRL::RuntimeClass<
-    Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::WinRt | Microsoft::WRL::InhibitRoOriginateError>,
-    CaptureAbi::IDirect3D11CaptureFramePoolStatics2>
+struct FramePoolFactory : Microsoft::WRL::RuntimeClass<Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::WinRt | Microsoft::WRL::InhibitRoOriginateError>, CaptureAbi::IDirect3D11CaptureFramePoolStatics2>
 {
     IFACEMETHODIMP GetRuntimeClassName(HSTRING* name) override
     {
@@ -43,15 +46,17 @@ struct FramePoolFactory : Microsoft::WRL::RuntimeClass<
         return S_OK;
     }
     IFACEMETHODIMP CreateFreeThreaded(Direct3DAbi::IDirect3DDevice*,
-        ABI::Windows::Graphics::DirectX::DirectXPixelFormat, INT32,
-        ABI::Windows::Graphics::SizeInt32, CaptureAbi::IDirect3D11CaptureFramePool**) override
+                                      ABI::Windows::Graphics::DirectX::DirectXPixelFormat,
+                                      INT32,
+                                      ABI::Windows::Graphics::SizeInt32,
+                                      CaptureAbi::IDirect3D11CaptureFramePool**) override
     {
         return E_NOTIMPL;
     }
 };
 
-static bool g_HasWindowCapture;
-static bool g_HasFreeThreadedPool;
+static bool     g_HasWindowCapture;
+static bool     g_HasFreeThreadedPool;
 static unsigned g_ActivationQueries;
 static unsigned g_Initializations;
 static unsigned g_Uninitializations;
@@ -62,8 +67,14 @@ static HRESULT WINAPI TestInitialize(RO_INIT_TYPE)
     return S_OK;
 }
 
-static void WINAPI TestUninitialize() { ++g_Uninitializations; }
-static BOOL CALLBACK RecordingApisLoaded(PINIT_ONCE, PVOID, PVOID*) { return TRUE; }
+static void WINAPI TestUninitialize()
+{
+    ++g_Uninitializations;
+}
+static BOOL CALLBACK RecordingApisLoaded(PINIT_ONCE, PVOID, PVOID*)
+{
+    return TRUE;
+}
 
 static HRESULT WINAPI TestCreateString(PCNZWCH text, UINT32, HSTRING* string)
 {
@@ -71,7 +82,10 @@ static HRESULT WINAPI TestCreateString(PCNZWCH text, UINT32, HSTRING* string)
     return S_OK;
 }
 
-static HRESULT WINAPI TestDeleteString(HSTRING) { return S_OK; }
+static HRESULT WINAPI TestDeleteString(HSTRING)
+{
+    return S_OK;
+}
 
 static HRESULT WINAPI TestActivationFactory(HSTRING name, REFIID iid, void** output)
 {

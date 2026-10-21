@@ -28,7 +28,7 @@ using namespace dmRecord;
 TEST(RecordingText, UnicodeMessage)
 {
     const char message[] = "Error: \xc3\xa9\xd0\x96\xe6\x97\xa5\xf0\x9f\x8e\xa5";
-    char output[sizeof(message)];
+    char       output[sizeof(message)];
     CopyTextUtf8(output, sizeof(output), message);
     ASSERT_STREQ(message, output);
     CopyTextUtf8(output, sizeof(output), 0);
@@ -41,11 +41,9 @@ TEST(RecordingText, UnicodeMessage)
 // Truncating two-, three- or four-byte characters must not corrupt JSON UTF-8.
 TEST(RecordingText, TruncateAtCharacterBoundary)
 {
-    const char message[] = "\xc3\xa9\xe6\x97\xa5\xf0\x9f\x8e\xa5";
+    const char  message[] = "\xc3\xa9\xe6\x97\xa5\xf0\x9f\x8e\xa5";
     const char* expected[] = {
-        "", "", "\xc3\xa9", "\xc3\xa9", "\xc3\xa9",
-        "\xc3\xa9\xe6\x97\xa5", "\xc3\xa9\xe6\x97\xa5", "\xc3\xa9\xe6\x97\xa5", "\xc3\xa9\xe6\x97\xa5",
-        message
+        "", "", "\xc3\xa9", "\xc3\xa9", "\xc3\xa9", "\xc3\xa9\xe6\x97\xa5", "\xc3\xa9\xe6\x97\xa5", "\xc3\xa9\xe6\x97\xa5", "\xc3\xa9\xe6\x97\xa5", message
     };
     for (size_t size = 1; size <= sizeof(message); ++size)
     {
@@ -61,7 +59,7 @@ TEST(RecordingText, TruncateAtCharacterBoundary)
 TEST(RecordingText, StatusFailureLimit)
 {
     Status status = {};
-    char message[sizeof(status.m_Failure) + 2];
+    char   message[sizeof(status.m_Failure) + 2];
     memset(message, 'x', sizeof(message));
     memcpy(message + sizeof(status.m_Failure) - 2, "\xe6\x97\xa5", 4);
     CopyTextUtf8(status.m_Failure, sizeof(status.m_Failure), message);
@@ -104,7 +102,7 @@ static void OnStatus(const Status*)
 {
     ++g_Backend.m_Notifications;
 }
-static StatusListener g_Listener = {OnStatus, 0};
+static StatusListener g_Listener = { OnStatus, 0 };
 
 namespace dmRecord
 {
@@ -135,9 +133,11 @@ namespace dmRecord
 
     bool PrepareWindow(void* native_window, Window* window)
     {
-        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Backend.m_Mutex);
         if (dmThread::GetTlsValue(g_Backend.m_ThreadKey) != &g_Backend.m_WindowPrepared)
+        {
             ++g_Backend.m_WrongThread;
+        }
         ++g_Backend.m_WindowPrepares;
         g_Backend.m_WindowPrepared = true;
         return !g_Backend.m_FailPrepare && GetWindow(native_window, window);
@@ -145,36 +145,44 @@ namespace dmRecord
 
     void RestoreWindow()
     {
-        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Backend.m_Mutex);
         if (dmThread::GetTlsValue(g_Backend.m_ThreadKey) != &g_Backend.m_WindowPrepared)
+        {
             ++g_Backend.m_WrongThread;
+        }
         if (g_Backend.m_Status.m_Active)
+        {
             ++g_Backend.m_EarlyRestores;
+        }
         ++g_Backend.m_WindowRestores;
         g_Backend.m_WindowPrepared = false;
     }
 
     void GetNativeStatus(Status* status)
     {
-        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Backend.m_Mutex);
         ++g_Backend.m_StatusQueries;
         *status = g_Backend.m_Status;
     }
 
     bool StartNative(const Window* window, const char* path, uint32_t fps, bool audio, Status* status)
     {
-        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Backend.m_Mutex);
         // TLS detects a replacement thread even if the OS reuses its thread ID.
         dmThread::SetTlsValue(g_Backend.m_ThreadKey, &g_Backend);
         ++g_Backend.m_Starts;
         dmConditionVariable::Broadcast(g_Backend.m_Condition);
         while (!g_Backend.m_AllowStart)
+        {
             dmConditionVariable::Wait(g_Backend.m_Condition, g_Backend.m_Mutex);
+        }
         memset(&g_Backend.m_Status, 0, sizeof(g_Backend.m_Status));
         g_Backend.m_Status.m_Supported = true;
         g_Backend.m_Status.m_Active = !g_Backend.m_FailStart;
         if (g_Backend.m_FailStart)
+        {
             dmStrlCpy(g_Backend.m_Status.m_Failure, "start failed", sizeof(g_Backend.m_Status.m_Failure));
+        }
         else
         {
             dmStrlCpy(g_Backend.m_Status.m_Path, path, sizeof(g_Backend.m_Status.m_Path));
@@ -189,17 +197,23 @@ namespace dmRecord
 
     bool StopNative(Status* status)
     {
-        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Backend.m_Mutex);
         if (dmThread::GetTlsValue(g_Backend.m_ThreadKey) != &g_Backend)
+        {
             ++g_Backend.m_WrongThread;
+        }
         ++g_Backend.m_Stops;
         dmConditionVariable::Broadcast(g_Backend.m_Condition);
         while (!g_Backend.m_AllowStop)
+        {
             dmConditionVariable::Wait(g_Backend.m_Condition, g_Backend.m_Mutex);
+        }
         g_Backend.m_Status.m_Active = false;
         g_Backend.m_Status.m_Finalized = !g_Backend.m_FailStop && !g_Backend.m_Status.m_Failure[0];
         if (g_Backend.m_FailStop)
+        {
             dmStrlCpy(g_Backend.m_Status.m_Failure, "stop failed", sizeof(g_Backend.m_Status.m_Failure));
+        }
         *status = g_Backend.m_Status;
         return status->m_Finalized;
     }
@@ -208,9 +222,11 @@ namespace dmRecord
     {
         bool active;
         {
-            dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(g_Backend.m_Mutex);
             if (dmThread::GetTlsValue(g_Backend.m_ThreadKey) != &g_Backend)
+            {
                 ++g_Backend.m_WrongThread;
+            }
             ++g_Backend.m_Finalizes;
             active = g_Backend.m_Status.m_Active;
         }
@@ -226,7 +242,7 @@ namespace dmRecord
 
 class RecordingAsyncTest : public jc_test_base_class
 {
-    protected:
+protected:
     void SetUp()
     {
         memset(&g_Backend, 0, sizeof(g_Backend));
@@ -266,7 +282,7 @@ class RecordingAsyncTest : public jc_test_base_class
 
     static void AllowOperations()
     {
-        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Backend.m_Mutex);
         g_Backend.m_AllowStart = true;
         g_Backend.m_AllowStop = true;
         dmConditionVariable::Broadcast(g_Backend.m_Condition);
@@ -274,9 +290,11 @@ class RecordingAsyncTest : public jc_test_base_class
 
     static void WaitForOperation(bool stopping)
     {
-        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Backend.m_Mutex);
         while (!(stopping ? g_Backend.m_Stops : g_Backend.m_Starts))
+        {
             dmConditionVariable::Wait(g_Backend.m_Condition, g_Backend.m_Mutex);
+        }
     }
 
     static Status WaitForCompletion(bool update = true)
@@ -295,7 +313,9 @@ class RecordingAsyncTest : public jc_test_base_class
                 // An automatic stop can finish before this read. Consume its
                 // terminal receipt before checking cleanup or observers.
                 if (was_active && !status.m_Pending && !status.m_Active)
+                {
                     Update();
+                }
             }
         } while (status.m_Pending && dmTime::GetMonotonicTime() < deadline);
         return status;
@@ -304,9 +324,11 @@ class RecordingAsyncTest : public jc_test_base_class
     static void AllowOperationsWorker(void*)
     {
         {
-            dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(g_Backend.m_Mutex);
             while (!g_Backend.m_FinalizeRequested)
+            {
                 dmConditionVariable::Wait(g_Backend.m_Condition, g_Backend.m_Mutex);
+            }
         }
         AllowOperations();
     }
@@ -315,7 +337,7 @@ class RecordingAsyncTest : public jc_test_base_class
     {
         dmThread::Thread thread = dmThread::New(AllowOperationsWorker, 512 * 1024, 0, "recording-unblock-test");
         {
-            dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(g_Backend.m_Mutex);
             g_Backend.m_FinalizeRequested = true;
             dmConditionVariable::Broadcast(g_Backend.m_Condition);
         }
@@ -407,7 +429,9 @@ TEST_F(RecordingAsyncTest, GetStatusDoesNotAdvanceRecording)
     ASSERT_TRUE(status.m_Finalized);
     ASSERT_TRUE(g_Backend.m_WindowPrepared);
     for (uint32_t i = 0; i < 10; ++i)
+    {
         GetStatus(&status);
+    }
     ASSERT_EQ(0u, g_Backend.m_WindowRestores);
     ASSERT_EQ(notifications + 1, g_Backend.m_Notifications);
     ASSERT_EQ(1u, g_Backend.m_StatusQueries);
@@ -451,7 +475,7 @@ TEST_F(RecordingAsyncTest, NativeResizeFinalizesRecording)
     status = WaitForCompletion();
     ASSERT_TRUE(status.m_Active);
     {
-        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Backend.m_Mutex);
         g_Backend.m_Status.m_Stopping = true;
     }
     status = WaitForCompletion();
@@ -523,7 +547,7 @@ TEST_F(RecordingAsyncTest, RetryFailedStart)
     ASSERT_STREQ("recording-test.mp4", status.m_Path);
     ASSERT_FALSE(g_Backend.m_WindowPrepared);
     {
-        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Backend.m_Mutex);
         g_Backend.m_FailStart = false;
     }
     ASSERT_TRUE(Start(&status));
@@ -581,7 +605,7 @@ TEST_F(RecordingAsyncTest, FailedCaptureRestoresWindow)
     status = WaitForCompletion();
     ASSERT_TRUE(status.m_Active);
     {
-        dmMutex::ScopedLock lock(g_Backend.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Backend.m_Mutex);
         g_Backend.m_AllowStop = false;
         dmStrlCpy(g_Backend.m_Status.m_Failure, "capture failed", sizeof(g_Backend.m_Status.m_Failure));
     }

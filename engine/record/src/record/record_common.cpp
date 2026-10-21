@@ -46,21 +46,29 @@ namespace dmRecord
     void NotifyStatus(const Status* status)
     {
         if (!status->m_Pending)
+        {
             for (StatusListener* listener = g_Listeners; listener; listener = listener->m_Next)
+            {
                 listener->m_Callback(status);
+            }
+        }
     }
 
     void CopyTextUtf8(char* output, size_t output_size, const char* text)
     {
         if (!output_size)
+        {
             return;
+        }
         text = text ? text : "";
         size_t length = strlen(text);
         if (length >= output_size)
         {
             length = output_size - 1;
             while (length && ((unsigned char)text[length] & 0xc0) == 0x80)
+            {
                 --length;
+            }
         }
         memcpy(output, text, length);
         output[length] = 0;
@@ -69,12 +77,16 @@ namespace dmRecord
     bool HostPathToUtf8(const char* path, char* output, uint32_t output_size)
     {
         if (!output_size)
+        {
             return false;
+        }
         output[0] = 0;
 #if defined(_WIN32)
         wchar_t wide[1024];
         if (!MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS, path, -1, wide, sizeof(wide) / sizeof(wide[0])))
+        {
             return false;
+        }
         if (!WideCharToMultiByte(CP_UTF8, 0, wide, -1, output, output_size, 0, 0))
         {
             output[0] = 0;
@@ -83,7 +95,9 @@ namespace dmRecord
 #else
         size_t size = strlen(path) + 1;
         if (size > output_size)
+        {
             return false;
+        }
         memcpy(output, path, size);
 #endif
         return true;

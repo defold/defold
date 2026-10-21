@@ -57,15 +57,19 @@ namespace dmGraphics
         ASSERT_EQ(width * height * 4, size);
         const uint8_t colors[4][4] = { { 0, 0, 255, 255 }, { 0, 255, 0, 255 }, { 255, 0, 0, 255 }, { 255, 255, 255, 255 } };
         for (uint32_t row = 0; row < height; ++row)
+        {
             for (uint32_t col = 0; col < width; ++col)
+            {
                 memcpy((uint8_t*)buffer + (row * width + col) * 4, colors[(row >= height / 2) * 2 + (col >= width / 2)], 4);
+            }
+        }
         ++g_Reads;
     }
 } // namespace dmGraphics
 
 class LinuxRecordingTest : public jc_test_base_class
 {
-    protected:
+protected:
     char m_Path[256];
 
     void SetUp()
@@ -109,7 +113,9 @@ class LinuxRecordingTest : public jc_test_base_class
                 dmRecord::Update();
                 dmRecord::GetStatus(&status);
                 if (was_active && !status.m_Pending && !status.m_Active)
+                {
                     dmRecord::Update();
+                }
             }
         } while (status.m_Pending && dmTime::GetMonotonicTime() < deadline);
         EXPECT_FALSE(status.m_Pending);
@@ -133,7 +139,9 @@ class LinuxRecordingTest : public jc_test_base_class
         uint64_t deadline = dmTime::GetMonotonicTime() + 10000000;
         // Wait for an accepted frame, not an assumed encoder or scheduler delay.
         while (g_Reads == reads && dmTime::GetMonotonicTime() < deadline)
+        {
             dmRecord::CaptureFrame();
+        }
         ASSERT_EQ(reads + 1, g_Reads);
     }
 
@@ -255,7 +263,9 @@ TEST_F(LinuxRecordingTest, VideoOnly)
         uint8_t buffer[4096];
         size_t  bytes;
         while ((bytes = fread(buffer, 1, sizeof(buffer), source)))
+        {
             ASSERT_EQ(bytes, fwrite(buffer, 1, bytes, target));
+        }
         fclose(source);
         ASSERT_EQ(0, fclose(target));
     }
@@ -264,8 +274,8 @@ TEST_F(LinuxRecordingTest, VideoOnly)
 // Growth and shrink stop before readback, preserve the completed video and permit recording at the new size.
 TEST_F(LinuxRecordingTest, ResizeFinalizesAndRestarts)
 {
-    const uint32_t widths[] = {320, 160};
-    const uint32_t heights[] = {240, 120};
+    const uint32_t widths[] = { 320, 160 };
+    const uint32_t heights[] = { 240, 120 };
     for (uint32_t i = 0; i < 2; ++i)
     {
         uint32_t width = g_Width;
@@ -276,7 +286,7 @@ TEST_F(LinuxRecordingTest, ResizeFinalizesAndRestarts)
         g_Width = widths[i];
         g_Height = heights[i];
         dmRecord::Status status;
-        uint64_t deadline = dmTime::GetMonotonicTime() + 10000000;
+        uint64_t         deadline = dmTime::GetMonotonicTime() + 10000000;
         do
         {
             dmRecord::CaptureFrame();
@@ -364,7 +374,7 @@ TEST_F(LinuxRecordingTest, OddNativeDimensions)
     g_Width = 319;
     g_Height = 239;
     dmRecord::StartParams params = Params();
-    dmRecord::Status status;
+    dmRecord::Status      status;
     ASSERT_TRUE(dmRecord::Start(&params, &status));
     status = Complete();
     ASSERT_TRUE(status.m_Active);
@@ -382,7 +392,7 @@ TEST_F(LinuxRecordingTest, OversizedFramebufferCanRetry)
 {
     g_Width = g_Height = 8192;
     dmRecord::StartParams params = Params();
-    dmRecord::Status status;
+    dmRecord::Status      status;
     ASSERT_TRUE(dmRecord::Start(&params, &status));
     status = Complete();
     ASSERT_FALSE(status.m_Active);
@@ -405,7 +415,7 @@ TEST_F(LinuxRecordingTest, OversizedOutputFails)
     g_Width = 4096;
     g_Height = 2306;
     dmRecord::StartParams params = Params();
-    dmRecord::Status status;
+    dmRecord::Status      status;
     ASSERT_TRUE(dmRecord::Start(&params, &status));
     status = Complete();
     ASSERT_FALSE(status.m_Active);
@@ -417,7 +427,7 @@ TEST_F(LinuxRecordingTest, SmallFramebufferFails)
 {
     g_Width = 15;
     dmRecord::StartParams params = Params();
-    dmRecord::Status status;
+    dmRecord::Status      status;
     ASSERT_TRUE(dmRecord::Start(&params, &status));
     status = Complete();
     ASSERT_FALSE(status.m_Active);

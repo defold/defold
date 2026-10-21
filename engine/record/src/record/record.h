@@ -26,8 +26,8 @@ namespace dmRecord
         StartParams();
         void*       m_Window; // NSWindow*, HWND, or Linux graphics context. Borrowed until Finalize().
         const char* m_Path;   // UTF-8 MP4 output path, copied by Start().
-        uint32_t    m_Fps;   // Capture rate, 1..60. Defaults to 30.
-        bool        m_Audio; // Application audio, where supported. Defaults to false.
+        uint32_t    m_Fps;    // Capture rate, 1..60. Defaults to 30.
+        bool        m_Audio;  // Application audio, where supported. Defaults to false.
     };
 
     struct Status
@@ -50,17 +50,17 @@ namespace dmRecord
         char     m_Failure[512];
     };
 
-    bool        IsSupported();
-    bool        IsAudioSupported();
+    bool IsSupported();
+    bool IsAudioSupported();
     const char* GetBackendName();
     const char* GetMinimumPlatformVersion();
     const char* GetUnsupportedReason();
     // Advance native state once per frame on the main thread, before dispatching
     // script callbacks. Handles automatic stops, window restoration and observers.
-    void        Update();
+    void Update();
     // Copy the latest worker/update snapshot without advancing the recording,
     // changing the window or notifying observers.
-    void        GetStatus(Status* status);
+    void GetStatus(Status* status);
 
     // True means the operation was accepted. Keep calling Update() each frame
     // and read GetStatus() until m_Pending clears, then inspect m_Failure and

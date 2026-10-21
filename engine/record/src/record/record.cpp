@@ -55,13 +55,17 @@ namespace dmRecord
     static void PublishCompletedStatus(const Status* status)
     {
         if (status->m_Pending)
+        {
             return;
+        }
         if (!status->m_Active)
+        {
             RestorePreparedWindow();
+        }
         NotifyStatus(status);
     }
 
-    static void               RecordingWorker(void* arg)
+    static void RecordingWorker(void* arg)
     {
         RecordingOperation* operation = (RecordingOperation*)arg;
         for (;;)
@@ -70,9 +74,11 @@ namespace dmRecord
             Status           pending;
             Window           window;
             {
-                dmMutex::ScopedLock lock(operation->m_Mutex);
+                DM_MUTEX_SCOPED_LOCK(operation->m_Mutex);
                 while (operation->m_Request == RECORDING_REQUEST_NONE)
+                {
                     dmConditionVariable::Wait(operation->m_Condition, operation->m_Mutex);
+                }
                 request = operation->m_Request;
                 operation->m_Request = RECORDING_REQUEST_NONE;
                 pending = operation->m_Status;
@@ -87,15 +93,21 @@ namespace dmRecord
             }
             Status result;
             if (request == RECORDING_REQUEST_STOP)
+            {
                 StopNative(&result);
+            }
             else
+            {
                 StartNative(&window, pending.m_Path, pending.m_Fps, pending.m_Audio, &result);
+            }
             if (!result.m_Path[0])
+            {
                 dmStrlCpy(result.m_Path, pending.m_Path, sizeof(result.m_Path));
+            }
             result.m_Id = pending.m_Id;
             result.m_Stopping = pending.m_Stopping;
             result.m_Pending = false;
-            dmMutex::ScopedLock lock(operation->m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(operation->m_Mutex);
             operation->m_Status = result;
         }
     }
@@ -107,17 +119,21 @@ namespace dmRecord
             memset(status, 0, sizeof(*status));
             status->m_Supported = IsSupported();
             if (!status->m_Supported)
+            {
                 dmStrlCpy(status->m_Failure, GetUnsupportedReason(), sizeof(status->m_Failure));
+            }
             return;
         }
-        dmMutex::ScopedLock lock(g_Recording.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Recording.m_Mutex);
         *status = g_Recording.m_Status;
     }
 
     void Update()
     {
         if (!g_Recording.m_Mutex)
+        {
             return;
+        }
         Status status;
         GetStatus(&status);
         // Preserve a completed start before native polling can replace it with
@@ -133,9 +149,11 @@ namespace dmRecord
                 (window.m_Width != g_Recording.m_Window.m_Width ||
                  window.m_Height != g_Recording.m_Window.m_Height ||
                  window.m_Scale != g_Recording.m_Window.m_Scale))
-                current.m_Stopping = true;
             {
-                dmMutex::ScopedLock lock(g_Recording.m_Mutex);
+                current.m_Stopping = true;
+            }
+            {
+                DM_MUTEX_SCOPED_LOCK(g_Recording.m_Mutex);
                 if (current.m_Active && (current.m_Stopping || current.m_Failure[0]))
                 {
                     // Finalize on the same worker that owns the native recorder.
@@ -148,7 +166,9 @@ namespace dmRecord
                 g_Recording.m_Status = current;
             }
             if (!current.m_Active)
+            {
                 PublishCompletedStatus(&current);
+            }
         }
     }
 
@@ -162,18 +182,30 @@ namespace dmRecord
     {
         GetStatus(status);
         if (status->m_Pending || status->m_Active)
+        {
             return Fail(status, "a recording operation is already active");
+        }
         if (!IsSupported())
+        {
             return Fail(status, GetUnsupportedReason());
+        }
         if (!params->m_Path || !params->m_Path[0] || strlen(params->m_Path) >= sizeof(status->m_Path))
+        {
             return Fail(status, "recording path is empty or too long");
+        }
         if (params->m_Fps < 1 || params->m_Fps > 60)
+        {
             return Fail(status, "fps must be between 1 and 60");
+        }
         if (params->m_Audio && !IsAudioSupported())
+        {
             return Fail(status, "application audio is not supported by this recording backend");
+        }
         Window window = {};
         if (!params->m_Window)
+        {
             return Fail(status, "recording window is unavailable");
+        }
         // A caller may replace a completed operation before the next Update.
         // Preserve its receipt and restore its window before preparing another.
         PublishCompletedStatus(status);
@@ -189,7 +221,7 @@ namespace dmRecord
             g_Recording.m_Condition = dmConditionVariable::New();
         }
         {
-            dmMutex::ScopedLock lock(g_Recording.m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(g_Recording.m_Mutex);
             g_Recording.m_Window = window;
             g_Recording.m_NativeWindow = params->m_Window;
             memset(&g_Recording.m_Status, 0, sizeof(g_Recording.m_Status));
@@ -202,7 +234,9 @@ namespace dmRecord
             dmStrlCpy(pending->m_Path, params->m_Path, sizeof(pending->m_Path));
             g_Recording.m_Request = RECORDING_REQUEST_START;
             if (!g_Recording.m_Thread)
+            {
                 g_Recording.m_Thread = dmThread::New(RecordingWorker, 512 * 1024, &g_Recording, "record");
+            }
             if (!g_Recording.m_Thread)
             {
                 g_Recording.m_Request = RECORDING_REQUEST_NONE;
@@ -210,7 +244,9 @@ namespace dmRecord
                 dmStrlCpy(pending->m_Failure, "recording worker unavailable", sizeof(pending->m_Failure));
             }
             else
+            {
                 dmConditionVariable::Signal(g_Recording.m_Condition);
+            }
             *status = *pending;
         }
         if (!g_Recording.m_Thread)
@@ -225,10 +261,12 @@ namespace dmRecord
     {
         GetStatus(status);
         if (status->m_Pending || !status->m_Active)
+        {
             return Fail(status, "no active recording is ready to stop");
+        }
         // Preserve STARTED even if the caller stops before the next Update.
         PublishCompletedStatus(status);
-        dmMutex::ScopedLock lock(g_Recording.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Recording.m_Mutex);
         g_Recording.m_Status.m_Pending = true;
         g_Recording.m_Status.m_Stopping = true;
         g_Recording.m_Request = RECORDING_REQUEST_STOP;
@@ -244,7 +282,7 @@ namespace dmRecord
         if (g_Recording.m_Thread)
         {
             {
-                dmMutex::ScopedLock lock(g_Recording.m_Mutex);
+                DM_MUTEX_SCOPED_LOCK(g_Recording.m_Mutex);
                 g_Recording.m_Request = RECORDING_REQUEST_FINALIZE;
                 dmConditionVariable::Signal(g_Recording.m_Condition);
             }
@@ -256,9 +294,13 @@ namespace dmRecord
         }
         RestorePreparedWindow();
         if (g_Recording.m_Condition)
+        {
             dmConditionVariable::Delete(g_Recording.m_Condition);
+        }
         if (g_Recording.m_Mutex)
+        {
             dmMutex::Delete(g_Recording.m_Mutex);
+        }
         memset(&g_Recording, 0, sizeof(g_Recording));
     }
 } // namespace dmRecord

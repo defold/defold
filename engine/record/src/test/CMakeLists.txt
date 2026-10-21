@@ -31,7 +31,7 @@ if(TARGET_PLATFORM MATCHES "(macos|linux|win32)$")
     defold_target_link_app(test_record_script "${TARGET_PLATFORM}")
   endif()
 endif()
-record_test(test_record_timeline test_record_timeline.cpp)
+record_test(test_record_timeline test_record_timeline.cpp ../record/record_timeline.cpp)
 
 if(TARGET record AND TARGET_PLATFORM MATCHES "macos$")
   # Exercise native output path handling without a window or capture permission.

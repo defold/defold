@@ -35,13 +35,13 @@ namespace dmHttpServer
      */
     enum Result
     {
-        RESULT_OK = 0,               //!< RESULT_OK
-        RESULT_SOCKET_ERROR = -1,    //!< RESULT_SOCKET_ERROR
-        RESULT_INVALID_REQUEST = -2, //!< RESULT_INVALID_REQUEST
-        RESULT_ERROR_INVAL = -3,     //!< RESULT_ERROR_INVAL
-        RESULT_TRY_AGAIN = -4,       //!< Request body is incomplete; return from the response callback and retry on a later update.
-        RESULT_INTERNAL_ERROR = -100,//!< RESULT_INTERNAL_ERROR
-        RESULT_UNKNOWN = -1000,      //!< RESULT_UNKNOWN
+        RESULT_OK = 0,                //!< RESULT_OK
+        RESULT_SOCKET_ERROR = -1,     //!< RESULT_SOCKET_ERROR
+        RESULT_INVALID_REQUEST = -2,  //!< RESULT_INVALID_REQUEST
+        RESULT_ERROR_INVAL = -3,      //!< RESULT_ERROR_INVAL
+        RESULT_TRY_AGAIN = -4,        //!< Request body is incomplete; return from the response callback and retry on a later update.
+        RESULT_INTERNAL_ERROR = -100, //!< RESULT_INTERNAL_ERROR
+        RESULT_UNKNOWN = -1000,       //!< RESULT_UNKNOWN
     };
 
     /**

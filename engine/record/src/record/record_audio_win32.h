@@ -26,8 +26,7 @@ namespace dmRecord
     struct AudioCapture;
     // Runs on the capture thread. Data is copied out of WASAPI before calling
     // the writer. A null samples pointer represents silence.
-    typedef HRESULT (*AudioCaptureCallback)(void* context, const int16_t* samples, uint32_t frames,
-                                           uint64_t time, bool discontinuity);
+    typedef HRESULT (*AudioCaptureCallback)(void* context, const int16_t* samples, uint32_t frames, uint64_t time, bool discontinuity);
 
     bool IsProcessAudioCaptureSupported();
     // Initializes on its own COM thread and waits for StartAudioCapture.

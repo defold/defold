@@ -37,7 +37,7 @@
 // semaphore or leaking results delivered after that thread has moved on.
 @interface DefoldRecordingCompletion : NSObject
 {
-    @public
+@public
     dispatch_semaphore_t m_Completed;
     id                   m_Result;
     NSError*             m_Error;
@@ -50,7 +50,9 @@
 {
     self = [super init];
     if (self)
+    {
         m_Completed = dispatch_semaphore_create(0);
+    }
     return self;
 }
 
@@ -72,7 +74,7 @@
 
 @interface DefoldRecordingDelegate : NSObject <SCRecordingOutputDelegate, SCStreamDelegate>
 {
-    @public
+@public
     dispatch_semaphore_t m_Started;
     dispatch_semaphore_t m_Finished;
     NSError*             m_Error;
@@ -157,8 +159,8 @@ namespace dmRecord
 {
     // Only the main thread changes the window. Capture workers never dispatch
     // back to it, so shutdown can join the worker before restoring decorations.
-    static NSWindow*                g_BorderlessWindow = nil;
-    static NSWindowStyleMask        g_WindowStyle;
+    static NSWindow*         g_BorderlessWindow = nil;
+    static NSWindowStyleMask g_WindowStyle;
 
     static NSLock*                  g_Lock = nil;
     static bool                     g_Starting = false;
@@ -167,7 +169,7 @@ namespace dmRecord
     static DefoldRecordingDelegate* g_Delegate = nil;
     static Status                   g_Status;
 
-    static NSLock*                  RecordingLock()
+    static NSLock* RecordingLock()
     {
         static dispatch_once_t once;
         dispatch_once(&once, ^{
@@ -202,9 +204,9 @@ namespace dmRecord
             NSFileManager* files = [NSFileManager defaultManager];
             NSError*       error = nil;
             if (![files createDirectoryAtURL:[output_url URLByDeletingLastPathComponent]
-                 withIntermediateDirectories:YES
-                                  attributes:nil
-                                       error:&error])
+                    withIntermediateDirectories:YES
+                                     attributes:nil
+                                          error:&error])
             {
                 SetFailure(status, [error localizedDescription]);
                 return false;
@@ -254,7 +256,9 @@ namespace dmRecord
     {
         NSWindow* window = (NSWindow*)native_window;
         if (!window)
+        {
             return false;
+        }
         NSRect frame = [window frame];
         NSRect content = [window contentRectForFrameRect:frame];
         target->m_Handle = (uintptr_t)[window windowNumber];
@@ -270,7 +274,7 @@ namespace dmRecord
     {
         // Keep the rendered content at the same screen position and size while
         // AppKit rebuilds the surrounding frame. Preserve keyboard input too.
-        NSRect content = [window contentRectForFrameRect:[window frame]];
+        NSRect       content = [window contentRectForFrameRect:[window frame]];
         NSResponder* responder = [[window firstResponder] retain];
         [window setStyleMask:style];
         [window setFrame:[window frameRectForContentRect:content] display:YES];
@@ -282,7 +286,9 @@ namespace dmRecord
     {
         NSWindow* window = (NSWindow*)native_window;
         if (!window)
+        {
             return false;
+        }
         NSWindowStyleMask style = [window styleMask];
         // Fullscreen and already-borderless windows need no decoration changes.
         if ((style & NSWindowStyleMaskTitled) && !(style & NSWindowStyleMaskFullScreen))
@@ -364,7 +370,9 @@ namespace dmRecord
                     SetFailure(status, [error localizedDescription]);
                 }
                 if (error || RecordingFinished(g_Delegate) || StreamStopped(g_Delegate))
+                {
                     status->m_Stopping = status->m_Active;
+                }
             }
             [RecordingLock() unlock];
         }
@@ -404,7 +412,7 @@ namespace dmRecord
                                                            [content_ready completeWithResult:content error:error];
                                                          }];
 
-            NSString* failure = nil;
+            NSString*           failure = nil;
             SCShareableContent* shareable = nil;
             if (!Wait(content_ready->m_Completed, 15))
             {
@@ -415,7 +423,9 @@ namespace dmRecord
                 failure = [content_ready->m_Error localizedDescription];
             }
             else
+            {
                 shareable = content_ready->m_Result;
+            }
 
             SCWindow* selected_window = nil;
             if (!failure)
@@ -440,12 +450,13 @@ namespace dmRecord
             uint32_t                 width = (uint32_t)llround(target->m_Width * target->m_Scale) & ~1U;
             uint32_t                 height = (uint32_t)llround(target->m_Height * target->m_Scale) & ~1U;
             if (!failure && (!width || !height))
+            {
                 failure = @"recording requires a content area of at least 2x2 pixels";
+            }
             if (!failure)
             {
                 // Match source and output pixels, cropping only codec alignment.
-                CGRect source_rect = CGRectMake(target->m_X, target->m_Y,
-                                                width / target->m_Scale, height / target->m_Scale);
+                CGRect source_rect = CGRectMake(target->m_X, target->m_Y, width / target->m_Scale, height / target->m_Scale);
 
                 SCStreamConfiguration* configuration = [[SCStreamConfiguration alloc] init];
                 [configuration setWidth:width];
@@ -471,12 +482,14 @@ namespace dmRecord
 
                 Status file_status = {};
                 if (!PrepareOutputFile(path, &file_status))
+                {
                     failure = [NSString stringWithUTF8String:file_status.m_Failure];
+                }
             }
 
             if (!failure)
             {
-                NSURL* output_url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];
+                NSURL*                          output_url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];
                 SCRecordingOutputConfiguration* recording_configuration = [[SCRecordingOutputConfiguration alloc] init];
                 [recording_configuration setOutputURL:output_url];
                 [recording_configuration setOutputFileType:AVFileTypeMPEG4];
@@ -597,17 +610,21 @@ namespace dmRecord
                 if (!Wait(capture_stopped->m_Completed, 15))
                 {
                     if (!failure)
+                    {
                         failure = @"timed out while stopping screen capture";
+                    }
                 }
                 else if (capture_stopped->m_Error && !failure && !StreamStopped(delegate))
                 {
                     // A completed output can precede the stream's stop callback.
                     NSError* stop_error = capture_stopped->m_Error;
-                    bool already_stopped = RecordingFinished(delegate) &&
+                    bool     already_stopped = RecordingFinished(delegate) &&
                         [[stop_error domain] isEqualToString:SCStreamErrorDomain] &&
                         [stop_error code] == SCStreamErrorAttemptToStopStreamState;
                     if (!already_stopped)
+                    {
                         failure = [stop_error localizedDescription];
+                    }
                 }
             }
             NSError* delegate_error = DelegateError(delegate);
@@ -621,8 +638,8 @@ namespace dmRecord
             g_Status.m_StoppedWallTime = dmTime::GetTime();
             g_Status.m_StoppedMonotonicTime = dmTime::GetMonotonicTime();
             NSDictionary* attributes = [[NSFileManager defaultManager]
-            attributesOfItemAtPath:[NSString stringWithUTF8String:g_Status.m_Path]
-                             error:nil];
+                attributesOfItemAtPath:[NSString stringWithUTF8String:g_Status.m_Path]
+                                 error:nil];
             g_Status.m_Finalized = !failure && [[attributes objectForKey:NSFileSize] unsignedLongLongValue] > 0;
             if (failure)
             {

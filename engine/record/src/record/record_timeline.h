@@ -21,23 +21,13 @@ namespace dmRecord
 {
     // Framebuffer capture uses microseconds. Round the next boundary up so a
     // fractional interval (e.g. 60 fps) cannot capture twice at the same tick.
-    static inline uint64_t NextVideoFrameTime(uint64_t elapsed, uint32_t fps)
-    {
-        uint64_t tick = elapsed * fps / 1000000 + 1;
-        return (tick * 1000000 + fps - 1) / fps;
-    }
+    uint64_t NextVideoFrameTime(uint64_t elapsed, uint32_t fps);
 
     // Media Foundation and WASAPI timestamps are in 100 ns units. Calculate
     // absolute sample boundaries rather than accumulating rounded durations.
-    static inline uint64_t FramesToTime(uint64_t frames, uint32_t rate)
-    {
-        return frames / rate * 10000000 + frames % rate * 10000000 / rate;
-    }
+    uint64_t FramesToTime(uint64_t frames, uint32_t rate);
 
-    static inline uint64_t TimeToFrames(uint64_t time, uint32_t rate)
-    {
-        return time / 10000000 * rate + time % 10000000 * rate / 10000000;
-    }
+    uint64_t TimeToFrames(uint64_t time, uint32_t rate);
 
     struct AudioPacketRange
     {
@@ -46,28 +36,7 @@ namespace dmRecord
         uint32_t m_Frames;
     };
 
-    static inline AudioPacketRange GetAudioPacketRange(uint64_t origin, uint64_t time, uint32_t frames,
-                                                       uint32_t rate, uint64_t written, uint64_t limit)
-    {
-        AudioPacketRange range = {};
-        // Round to the nearest sample so timestamp quantization does not insert
-        // or drop one sample on every packet (e.g. 44100 Hz in a 100 ns clock).
-        int64_t position = time >= origin
-            ? (int64_t)TimeToFrames(time - origin + 5000000 / rate, rate)
-            : -(int64_t)TimeToFrames(origin - time + 5000000 / rate, rate);
-        int64_t end = position + frames;
-        if (end <= (int64_t)written || written >= limit)
-            return range;
-        if (position < (int64_t)written)
-            range.m_SkipFrames = (uint32_t)((int64_t)written - position);
-        else if ((uint64_t)position > written)
-            range.m_SilenceFrames = ((uint64_t)position < limit ? (uint64_t)position : limit) - written;
-        uint64_t begin = written + range.m_SilenceFrames;
-        uint64_t clipped_end = (uint64_t)end < limit ? (uint64_t)end : limit;
-        if (clipped_end > begin)
-            range.m_Frames = (uint32_t)(clipped_end - begin);
-        return range;
-    }
-}
+    AudioPacketRange GetAudioPacketRange(uint64_t origin, uint64_t time, uint32_t frames, uint32_t rate, uint64_t written, uint64_t limit);
+} // namespace dmRecord
 
 #endif

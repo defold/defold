@@ -52,7 +52,9 @@ protected:
     {
         const char* tmpdir = getenv("TMPDIR");
         if (!tmpdir || !tmpdir[0])
+        {
             tmpdir = "/tmp";
+        }
         ASSERT_LT(snprintf(m_Path, sizeof(m_Path), "%s/record-native-XXXXXX", tmpdir), (int)sizeof(m_Path));
         int file = mkstemp(m_Path);
         ASSERT_GE(file, 0);
@@ -80,7 +82,9 @@ protected:
 TEST_F(RecordNativeTest, ExternalOutputCompletion)
 {
     if (!dmRecord::IsSupported())
+    {
         SKIP();
+    }
     [dmRecord::g_Delegate recordingOutputDidFinishRecording:dmRecord::g_Output];
     dmRecord::Status status;
     dmRecord::GetNativeStatus(&status);
@@ -101,7 +105,9 @@ TEST_F(RecordNativeTest, ExternalOutputCompletion)
 TEST_F(RecordNativeTest, UserStoppedStream)
 {
     if (!dmRecord::IsSupported())
+    {
         SKIP();
+    }
     NSError* error = [NSError errorWithDomain:SCStreamErrorDomain code:SCStreamErrorUserStopped userInfo:nil];
     [dmRecord::g_Delegate stream:dmRecord::g_Stream didStopWithError:error];
     dmRecord::Status status;
@@ -121,7 +127,9 @@ TEST_F(RecordNativeTest, UserStoppedStream)
 TEST_F(RecordNativeTest, OutputFinishesBeforeStreamStopNotification)
 {
     if (!dmRecord::IsSupported())
+    {
         SKIP();
+    }
     [dmRecord::g_Delegate recordingOutputDidFinishRecording:dmRecord::g_Output];
     g_StopError = [NSError errorWithDomain:SCStreamErrorDomain code:SCStreamErrorAttemptToStopStreamState userInfo:nil];
     dmRecord::Status status;
@@ -136,9 +144,12 @@ TEST_F(RecordNativeTest, OutputFinishesBeforeStreamStopNotification)
 TEST_F(RecordNativeTest, StreamFailure)
 {
     if (!dmRecord::IsSupported())
+    {
         SKIP();
-    NSError* error = [NSError errorWithDomain:SCStreamErrorDomain code:SCStreamErrorInternalError
-                                    userInfo:@{NSLocalizedDescriptionKey: @"capture failed"}];
+    }
+    NSError* error = [NSError errorWithDomain:SCStreamErrorDomain
+                                         code:SCStreamErrorInternalError
+                                     userInfo:@ { NSLocalizedDescriptionKey : @"capture failed" }];
     [dmRecord::g_Delegate stream:dmRecord::g_Stream didStopWithError:error];
     [dmRecord::g_Delegate recordingOutputDidFinishRecording:dmRecord::g_Output];
     dmRecord::Status status;
@@ -155,7 +166,9 @@ TEST_F(RecordNativeTest, StreamFailure)
 TEST_F(RecordNativeTest, ExplicitStop)
 {
     if (!dmRecord::IsSupported())
+    {
         SKIP();
+    }
     dmRecord::Status status;
     ASSERT_TRUE(dmRecord::StopNative(&status));
     ASSERT_FALSE(status.m_Active);
@@ -172,7 +185,7 @@ static void SemaphoreReleased(void* context)
 // Both delegate semaphores must be destroyed when the recording releases its delegate.
 TEST(RecordOwnership, DelegateSemaphores)
 {
-    dispatch_semaphore_t released = dispatch_semaphore_create(0);
+    dispatch_semaphore_t     released = dispatch_semaphore_create(0);
     DefoldRecordingDelegate* delegate = [[DefoldRecordingDelegate alloc] init];
     dispatch_set_context(delegate->m_Started, released);
     dispatch_set_finalizer_f(delegate->m_Started, SemaphoreReleased);
@@ -187,12 +200,12 @@ TEST(RecordOwnership, DelegateSemaphores)
 // A late completion must keep its semaphore alive after a timeout, then release it.
 TEST(RecordOwnership, CompletionAfterTimeout)
 {
-    dispatch_semaphore_t released = dispatch_semaphore_create(0);
+    dispatch_semaphore_t       released = dispatch_semaphore_create(0);
     DefoldRecordingCompletion* completion = [[DefoldRecordingCompletion alloc] init];
     dispatch_set_context(completion->m_Completed, released);
     dispatch_set_finalizer_f(completion->m_Completed, SemaphoreReleased);
     void (^callback)(NSError*) = [^(NSError* error) {
-        [completion completeWithResult:nil error:error];
+      [completion completeWithResult:nil error:error];
     } copy];
     ASSERT_FALSE(dmRecord::Wait(completion->m_Completed, 0));
     [completion release];

@@ -24,7 +24,9 @@ namespace dmRecord
     {
         dmWebServer::HServer server = dmEngine::GetWebServer(params);
         if (server && !RegisterService(server, GetRecordingWindow))
+        {
             dmLogError("Unable to register the recording service");
+        }
         return dmExtension::RESULT_OK;
     }
 
@@ -44,7 +46,9 @@ namespace dmRecord
     {
         // Join native capture before sound, render and window teardown begins.
         if (event->m_Event == EXTENSION_EVENT_ID_ENGINE_DELETE)
+        {
             FinalizeService();
+        }
     }
 
     static dmExtension::Result AppFinalize(dmExtension::AppParams*)

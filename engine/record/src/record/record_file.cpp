@@ -27,7 +27,9 @@ namespace dmRecord
         wchar_t wide_mode[16];
         if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, wide_path, sizeof(wide_path) / sizeof(wide_path[0])) ||
             !MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, mode, -1, wide_mode, sizeof(wide_mode) / sizeof(wide_mode[0])))
+        {
             return 0;
+        }
         return _wfopen(wide_path, wide_mode);
 #else
         return fopen(path, mode);
@@ -39,7 +41,9 @@ namespace dmRecord
 #if defined(_WIN32)
         wchar_t wide[1024];
         if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, wide, sizeof(wide) / sizeof(wide[0])))
+        {
             return -1;
+        }
         return _wremove(wide);
 #else
         return remove(path);

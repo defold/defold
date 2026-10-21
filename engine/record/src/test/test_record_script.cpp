@@ -34,13 +34,13 @@ extern "C" void GraphicsAdapterNull();
 
 extern "C" void ScriptRecord();
 
-static dmMutex::HMutex g_Mutex;
+static dmMutex::HMutex  g_Mutex;
 static dmRecord::Status g_NativeStatus;
-static void* g_NativeWindow = (void*)1;
-static bool g_Unsupported;
-static bool g_FailStart;
-static bool g_FailStop;
-static bool g_Resized;
+static void*            g_NativeWindow = (void*)1;
+static bool             g_Unsupported;
+static bool             g_FailStart;
+static bool             g_FailStop;
+static bool             g_Resized;
 #if defined(DM_PLATFORM_LINUX)
 static uint32_t g_RenderedFrames;
 static uint32_t g_CapturedFrames;
@@ -49,18 +49,33 @@ static uint32_t g_CapturedFrames;
 namespace dmGraphics
 {
 #if defined(DM_PLATFORM_MACOS)
-    id GetNativeOSXNSWindow() { return (id)g_NativeWindow; }
+    id GetNativeOSXNSWindow()
+    {
+        return (id)g_NativeWindow;
+    }
 #elif defined(DM_PLATFORM_WINDOWS)
-    HWND GetNativeWindowsHWND() { return (HWND)g_NativeWindow; }
+    HWND GetNativeWindowsHWND()
+    {
+        return (HWND)g_NativeWindow;
+    }
 #endif
 }
 
 // Real Lua and recorder workers, with a deterministic backend that needs no display.
 namespace dmRecord
 {
-    bool IsSupported() { return !g_Unsupported; }
-    bool IsAudioSupported() { return false; }
-    const char* GetUnsupportedReason() { return "unsupported test backend"; }
+    bool IsSupported()
+    {
+        return !g_Unsupported;
+    }
+    bool IsAudioSupported()
+    {
+        return false;
+    }
+    const char* GetUnsupportedReason()
+    {
+        return "unsupported test backend";
+    }
     bool GetWindow(void* native_window, Window* window)
     {
         EXPECT_EQ(g_NativeWindow, native_window);
@@ -70,16 +85,19 @@ namespace dmRecord
         window->m_Scale = 1;
         return true;
     }
-    bool PrepareWindow(void* window, Window* target) { return GetWindow(window, target); }
+    bool PrepareWindow(void* window, Window* target)
+    {
+        return GetWindow(window, target);
+    }
     void RestoreWindow() {}
     void GetNativeStatus(Status* status)
     {
-        dmMutex::ScopedLock lock(g_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Mutex);
         *status = g_NativeStatus;
     }
     bool StartNative(const Window*, const char* path, uint32_t fps, bool audio, Status* status)
     {
-        dmMutex::ScopedLock lock(g_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Mutex);
         memset(&g_NativeStatus, 0, sizeof(g_NativeStatus));
         g_NativeStatus.m_Active = !g_FailStart;
         g_NativeStatus.m_Width = 320;
@@ -88,17 +106,21 @@ namespace dmRecord
         g_NativeStatus.m_Audio = audio;
         dmStrlCpy(g_NativeStatus.m_Path, path, sizeof(g_NativeStatus.m_Path));
         if (g_FailStart)
+        {
             dmStrlCpy(g_NativeStatus.m_Failure, "permission denied", sizeof(g_NativeStatus.m_Failure));
+        }
         *status = g_NativeStatus;
         return status->m_Active;
     }
     bool StopNative(Status* status)
     {
-        dmMutex::ScopedLock lock(g_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Mutex);
         g_NativeStatus.m_Active = false;
         g_NativeStatus.m_Finalized = !g_FailStop && !g_NativeStatus.m_Failure[0];
         if (g_FailStop)
+        {
             dmStrlCpy(g_NativeStatus.m_Failure, "disk full", sizeof(g_NativeStatus.m_Failure));
+        }
         *status = g_NativeStatus;
         return status->m_Finalized;
     }
@@ -134,9 +156,9 @@ DM_DECLARE_EXTENSION(RecordTestRenderer, "RecordRenderer", AppInitializeRenderer
 
 struct ScriptInstance
 {
-    int m_Context;
+    int      m_Context;
     uint32_t m_Id;
-    bool m_Valid;
+    bool     m_Valid;
 };
 
 static int InstanceContext(lua_State* L)
@@ -160,16 +182,16 @@ static int InstanceValid(lua_State* L)
 class RecordScriptTest : public jc_test_base_class
 {
 protected:
-    dmScript::HContext m_Context;
-    dmConfigFile::HConfig m_Config;
-    lua_State* m_L;
-    ScriptInstance* m_Instance;
-    int m_InstanceRef;
-    int m_Refs;
+    dmScript::HContext     m_Context;
+    dmConfigFile::HConfig  m_Config;
+    lua_State*             m_L;
+    ScriptInstance*        m_Instance;
+    int                    m_InstanceRef;
+    int                    m_Refs;
     dmExtension::AppParams m_AppParams;
-    dmExtension::Params m_Params;
+    dmExtension::Params    m_Params;
 #if defined(DM_PLATFORM_LINUX)
-    HWindow m_Window;
+    HWindow              m_Window;
     dmGraphics::HContext m_GraphicsContext;
 #endif
 
@@ -199,12 +221,12 @@ protected:
         m_Context = dmScript::NewContext(params);
         dmScript::Initialize(m_Context);
         m_L = dmScript::GetLuaState(m_Context);
-        const luaL_Reg methods[] = {{0, 0}};
+        const luaL_Reg methods[] = { { 0, 0 } };
         const luaL_Reg meta[] = {
-            {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, InstanceContext},
-            {dmScript::META_GET_UNIQUE_SCRIPT_ID, InstanceId},
-            {dmScript::META_TABLE_IS_VALID, InstanceValid},
-            {0, 0}
+            { dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, InstanceContext },
+            { dmScript::META_GET_UNIQUE_SCRIPT_ID, InstanceId },
+            { dmScript::META_TABLE_IS_VALID, InstanceValid },
+            { 0, 0 }
         };
         dmScript::RegisterUserType(m_L, "RecordingScriptInstance", methods, meta);
         m_Instance = (ScriptInstance*)lua_newuserdata(m_L, sizeof(ScriptInstance));
@@ -283,7 +305,7 @@ protected:
     void Complete(bool update = true)
     {
         dmRecord::Status status;
-        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        uint64_t         deadline = dmTime::GetMonotonicTime() + 5000000;
         do
         {
             dmRecord::GetStatus(&status);
@@ -293,7 +315,9 @@ protected:
                 dmRecord::Update();
                 dmRecord::GetStatus(&status);
                 if (was_active && !status.m_Pending && !status.m_Active)
+                {
                     dmRecord::Update();
+                }
             }
         } while (status.m_Pending && dmTime::GetMonotonicTime() < deadline);
         ASSERT_FALSE(status.m_Pending);
@@ -304,14 +328,14 @@ protected:
 TEST_F(RecordScriptTest, StartStop)
 {
     ASSERT_TRUE(Run("assert(recorder.get_status == nil and recorder.get_capabilities == nil); "
-                   "assert(recorder.start({path='capture.mp4', fps=24}, callback)); assert(#events == 0)"));
+                    "assert(recorder.start({path='capture.mp4', fps=24}, callback)); assert(#events == 0)"));
     Complete();
     ASSERT_TRUE(Run("assert(#events == 0)"));
     UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 1 and events[1] == recorder.EVENT_STARTED); "
-                   "assert(results[1].path == 'capture.mp4' and results[1].fps == 24); "
-                   "assert(results[1].width == 320 and results[1].height == 240 and not results[1].audio); "
-                   "assert(recorder.stop()); assert(#events == 1)"));
+                    "assert(results[1].path == 'capture.mp4' and results[1].fps == 24); "
+                    "assert(results[1].width == 320 and results[1].height == 240 and not results[1].audio); "
+                    "assert(recorder.stop()); assert(#events == 1)"));
     Complete();
     UpdateExtension();
     UpdateExtension();
@@ -344,7 +368,7 @@ TEST_F(RecordScriptTest, HostPathEncoding)
     char expected[128];
 #if defined(_WIN32)
     const wchar_t path[] = L"capture-\x00e9-\x0416-\x65e5.mp4";
-    wchar_t wide[128];
+    wchar_t       wide[128];
     ASSERT_GT(WideCharToMultiByte(CP_ACP, 0, path, -1, host, sizeof(host), 0, 0), 0);
     ASSERT_GT(MultiByteToWideChar(CP_ACP, 0, host, -1, wide, sizeof(wide) / sizeof(wide[0])), 0);
     ASSERT_GT(WideCharToMultiByte(CP_UTF8, 0, wide, -1, expected, sizeof(expected), 0, 0), 0);
@@ -357,7 +381,7 @@ TEST_F(RecordScriptTest, HostPathEncoding)
     ASSERT_TRUE(Run("assert(recorder.start({path=output_path}, callback))"));
     Complete();
     {
-        dmMutex::ScopedLock lock(g_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Mutex);
         ASSERT_STREQ(expected, g_NativeStatus.m_Path);
     }
     UpdateExtension();
@@ -365,24 +389,26 @@ TEST_F(RecordScriptTest, HostPathEncoding)
     Complete();
     UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_STOPPED); "
-                   "assert(results[2].path == output_path)"));
+                    "assert(results[2].path == output_path)"));
 }
 
 #if defined(_WIN32)
 // A host path that expands beyond the native UTF-8 limit must fail before allocating a callback.
 TEST_F(RecordScriptTest, ExpandedHostPathLimit)
 {
-    const wchar_t candidates[] = {0x00e9, 0x0416, 0x65e5, 0xac00, 0x03a9, 0x0e01, 0x05d0, 0x0633};
-    char host_character[8];
-    size_t host_size = 0;
+    const wchar_t candidates[] = { 0x00e9, 0x0416, 0x65e5, 0xac00, 0x03a9, 0x0e01, 0x05d0, 0x0633 };
+    char          host_character[8];
+    size_t        host_size = 0;
     for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i)
     {
-        wchar_t wide[] = {candidates[i], 0};
+        wchar_t wide[] = { candidates[i], 0 };
         wchar_t roundtrip[2];
-        char utf8[8];
-        int size = WideCharToMultiByte(CP_ACP, 0, wide, -1, host_character, sizeof(host_character), 0, 0);
+        char    utf8[8];
+        int     size = WideCharToMultiByte(CP_ACP, 0, wide, -1, host_character, sizeof(host_character), 0, 0);
         if (size <= 1 || !MultiByteToWideChar(CP_ACP, 0, host_character, -1, roundtrip, 2) || roundtrip[0] != wide[0])
+        {
             continue;
+        }
         int utf8_size = WideCharToMultiByte(CP_UTF8, 0, wide, -1, utf8, sizeof(utf8), 0, 0);
         if (utf8_size > size)
         {
@@ -391,8 +417,10 @@ TEST_F(RecordScriptTest, ExpandedHostPathLimit)
         }
     }
     if (!host_size)
+    {
         SKIP(); // UTF-8 system locales cannot expand during this conversion.
-    char path[1024];
+    }
+    char   path[1024];
     size_t length = 0;
     while (length + host_size + sizeof(".mp4") <= sizeof(path))
     {
@@ -403,7 +431,7 @@ TEST_F(RecordScriptTest, ExpandedHostPathLimit)
     lua_pushstring(m_L, path);
     lua_setglobal(m_L, "output_path");
     ASSERT_TRUE(Run("local ok, err = pcall(recorder.start, {path=output_path}, callback); "
-                   "assert(not ok and string.find(err, 'UTF-8 conversion', 1, true)); assert(#events == 0)"));
+                    "assert(not ok and string.find(err, 'UTF-8 conversion', 1, true)); assert(#events == 0)"));
     ASSERT_EQ(m_Refs, dmScript::GetLuaRefCount());
     ASSERT_FALSE(g_NativeStatus.m_Active);
 }
@@ -413,8 +441,8 @@ TEST_F(RecordScriptTest, ExpandedHostPathLimit)
 TEST_F(RecordScriptTest, ConflictingRequests)
 {
     ASSERT_TRUE(Run("local ok, err = recorder.stop(); assert(ok == nil and type(err) == 'string'); "
-                   "assert(recorder.start({path='first.mp4'}, callback)); "
-                   "ok, err = recorder.start({path='second.mp4'}, callback); assert(ok == nil and err)"));
+                    "assert(recorder.start({path='first.mp4'}, callback)); "
+                    "ok, err = recorder.start({path='second.mp4'}, callback); assert(ok == nil and err)"));
     Complete();
     ASSERT_TRUE(Run("assert(recorder.stop())"));
     Complete();
@@ -428,7 +456,7 @@ TEST_F(RecordScriptTest, Unsupported)
 {
     g_Unsupported = true;
     ASSERT_TRUE(Run("local ok, err = recorder.start({path='capture.mp4'}, callback); "
-                   "assert(ok == nil and err == 'unsupported test backend')"));
+                    "assert(ok == nil and err == 'unsupported test backend')"));
     g_Unsupported = false;
     ASSERT_TRUE(Run("local ok, err = recorder.start({path='capture.mp4', audio=true}, callback); assert(ok == nil and err)"));
     UpdateExtension();
@@ -450,9 +478,9 @@ TEST_F(RecordScriptTest, InvalidOptions)
 TEST_F(RecordScriptTest, GeneratedOptions)
 {
     ASSERT_TRUE(Run("local options = setmetatable({}, {__index=function(_, key) "
-                   "if key == 'path' then return string.rep('a', 100) .. '.mp4' end "
-                   "collectgarbage('collect'); return nil end}); "
-                   "assert(recorder.start(options, callback))"));
+                    "if key == 'path' then return string.rep('a', 100) .. '.mp4' end "
+                    "collectgarbage('collect'); return nil end}); "
+                    "assert(recorder.start(options, callback))"));
     Complete();
     UpdateExtension();
     ASSERT_TRUE(Run("assert(results[1].path == string.rep('a', 100) .. '.mp4')"));
@@ -466,7 +494,7 @@ TEST_F(RecordScriptTest, StartFailure)
     Complete();
     UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 1 and events[1] == recorder.EVENT_ERROR); "
-                   "assert(results[1].error == 'permission denied' and results[1].path == 'capture.mp4')"));
+                    "assert(results[1].error == 'permission denied' and results[1].path == 'capture.mp4')"));
     g_FailStart = false;
     ASSERT_TRUE(Run("assert(recorder.start({path='retry.mp4'}, callback))"));
     Complete();
@@ -502,16 +530,16 @@ TEST_F(RecordScriptTest, ExternalReplacement)
     Complete(false);
     UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_STOPPED); "
-                   "assert(results[2].path == 'lua.mp4'); assert(recorder.stop())"));
+                    "assert(results[2].path == 'lua.mp4'); assert(recorder.stop())"));
 }
 
 // A terminal callback may start another recording without the old callback cleanup destroying it.
 TEST_F(RecordScriptTest, RestartFromCallback)
 {
     ASSERT_TRUE(Run("function restart(self, event, result) "
-                   "callback(self, event, result); "
-                   "if event == recorder.EVENT_STOPPED then assert(recorder.start({path='next.mp4'}, callback)) end end; "
-                   "assert(recorder.start({path='first.mp4'}, restart))"));
+                    "callback(self, event, result); "
+                    "if event == recorder.EVENT_STOPPED then assert(recorder.start({path='next.mp4'}, callback)) end end; "
+                    "assert(recorder.start({path='first.mp4'}, restart))"));
     Complete();
     ASSERT_TRUE(Run("assert(recorder.stop())"));
     Complete();
@@ -525,9 +553,9 @@ TEST_F(RecordScriptTest, RestartFromCallback)
 TEST_F(RecordScriptTest, StopFromStartedCallback)
 {
     ASSERT_TRUE(Run("function stop_started(self, event, result) "
-                   "callback(self, event, result); "
-                   "if event == recorder.EVENT_STARTED then assert(recorder.stop()) end end; "
-                   "assert(recorder.start({path='capture.mp4'}, stop_started))"));
+                    "callback(self, event, result); "
+                    "if event == recorder.EVENT_STARTED then assert(recorder.stop()) end end; "
+                    "assert(recorder.start({path='capture.mp4'}, stop_started))"));
     Complete();
     UpdateExtension();
     Complete();
@@ -542,15 +570,15 @@ TEST_F(RecordScriptTest, CaptureFailure)
     Complete();
     UpdateExtension();
     {
-        dmMutex::ScopedLock lock(g_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Mutex);
         dmStrlCpy(g_NativeStatus.m_Failure, "capture failed", sizeof(g_NativeStatus.m_Failure));
     }
     Complete();
     UpdateExtension();
     UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 2 and events[2] == recorder.EVENT_ERROR); "
-                   "assert(results[2].error == 'capture failed'); "
-                   "assert(recorder.start({path='retry.mp4'}, callback))"));
+                    "assert(results[2].error == 'capture failed'); "
+                    "assert(recorder.start({path='retry.mp4'}, callback))"));
     Complete();
     UpdateExtension();
     ASSERT_TRUE(Run("assert(#events == 3 and events[3] == recorder.EVENT_STARTED)"));
@@ -605,8 +633,8 @@ TEST_F(RecordScriptTest, Shutdown)
     EngineDelete();
     ASSERT_FALSE(g_NativeStatus.m_Active);
     ASSERT_TRUE(Run("assert(#events == 0); "
-                   "local ok, err = recorder.start({path='late.mp4'}, callback); assert(ok == nil and err); "
-                   "ok, err = recorder.stop(); assert(ok == nil and err)"));
+                    "local ok, err = recorder.start({path='late.mp4'}, callback); assert(ok == nil and err); "
+                    "ok, err = recorder.stop(); assert(ok == nil and err)"));
 }
 
 // Reboot must discard the previous callback and restore Lua recording without duplicate status listeners.
@@ -645,7 +673,7 @@ TEST_F(RecordScriptTest, FinalizeWithoutEngineDelete)
 TEST(RecordScriptExtension, ShutdownBeforeLuaInitialization)
 {
     dmExtension::AppParams app_params;
-    dmExtension::Params params;
+    dmExtension::Params    params;
     ExtensionAppParamsInitialize(&app_params);
     ExtensionParamsInitialize(&params);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&app_params));
@@ -679,7 +707,9 @@ int main(int argc, char** argv)
     RecordTestRenderer();
     GraphicsAdapterNull();
     if (!dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NULL))
+    {
         return 1;
+    }
 #endif
     jc_test_init(&argc, argv);
     return jc_test_run_all();

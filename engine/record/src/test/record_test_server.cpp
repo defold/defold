@@ -50,7 +50,7 @@ namespace dmRecord
     static uint32_t        g_Finalizes;
     static uint32_t        g_LateFinalizes;
 
-    bool                   IsSupported()
+    bool IsSupported()
     {
         return g_Supported;
     }
@@ -85,14 +85,14 @@ namespace dmRecord
 
     void GetNativeStatus(Status* status)
     {
-        dmMutex::ScopedLock lock(g_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Mutex);
         *status = g_Status;
         status->m_Supported = IsSupported();
     }
 
     bool StartNative(const Window*, const char* path, uint32_t fps, bool audio, Status* status)
     {
-        dmMutex::ScopedLock lock(g_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Mutex);
         memset(&g_Status, 0, sizeof(g_Status));
         g_Status.m_Supported = true;
         dmStrlCpy(g_Status.m_Path, path, sizeof(g_Status.m_Path));
@@ -101,7 +101,9 @@ namespace dmRecord
         {
             dmStrlCpy(g_Status.m_Failure, "test start failed", sizeof(g_Status.m_Failure));
             if (file)
+            {
                 fclose(file);
+            }
         }
         else
         {
@@ -109,9 +111,13 @@ namespace dmRecord
             {
                 uint8_t contents[65536];
                 for (uint32_t i = 0; i < sizeof(contents); ++i)
+                {
                     contents[i] = (uint8_t)i;
+                }
                 for (uint32_t i = 0; i < 16; ++i)
+                {
                     fwrite(contents, 1, sizeof(contents), file);
+                }
             }
             else
             {
@@ -131,7 +137,7 @@ namespace dmRecord
 
     bool StopNative(Status* status)
     {
-        dmMutex::ScopedLock lock(g_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Mutex);
         g_Status.m_Active = false;
         g_Status.m_Finalized = true;
         *status = g_Status;
@@ -142,17 +148,19 @@ namespace dmRecord
     {
         Status status;
         StopNative(&status);
-        dmMutex::ScopedLock lock(g_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Mutex);
         ++g_Finalizes;
         if (g_Teardown)
+        {
             ++g_LateFinalizes;
+        }
     }
 } // namespace dmRecord
 
 static bool                   g_Quit;
 static bool                   g_PauseUpdates;
 static uint64_t               g_Updates;
-static dmThread::TlsKey        g_UpdateThread;
+static dmThread::TlsKey       g_UpdateThread;
 static int32_atomic_t         g_StreamBytes;
 static int32_atomic_t         g_StreamClosed;
 static int32_atomic_t         g_StreamOnUpdate;
@@ -161,7 +169,7 @@ static dmWebServer::HServer   g_Server;
 static const char*            g_Directory;
 static dmExtension::AppParams g_AppParams;
 static dmExtension::Params    g_Params;
-static void*                  TestNativeWindow()
+static void* TestNativeWindow()
 {
     return dmRecord::g_NoWindow ? 0 : (void*)1;
 }
@@ -204,12 +212,12 @@ namespace dmRecord
 
 extern "C" void EngineRecord();
 
-static void     EngineDelete()
+static void EngineDelete()
 {
     dmExtension::Event event;
     event.m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
     dmExtension::DispatchEvent(&g_Params, &event);
-    dmMutex::ScopedLock lock(dmRecord::g_Mutex);
+    DM_MUTEX_SCOPED_LOCK(dmRecord::g_Mutex);
     dmRecord::g_Teardown = true;
 }
 
@@ -217,8 +225,8 @@ static bool InitializeService()
 {
     // Retain test-owned storage when AppInitialize registers the same server.
     return dmRecord::RegisterService(g_Server, TestNativeWindow, g_Directory) &&
-    dmExtension::AppInitialize(&g_AppParams) == dmExtension::RESULT_OK &&
-    dmExtension::Initialize(&g_Params) == dmExtension::RESULT_OK;
+        dmExtension::AppInitialize(&g_AppParams) == dmExtension::RESULT_OK &&
+        dmExtension::Initialize(&g_Params) == dmExtension::RESULT_OK;
 }
 
 static void FinalizeExtensions()
@@ -229,8 +237,8 @@ static void FinalizeExtensions()
 
 static void SendLifecycle(dmWebServer::Request* request)
 {
-    dmMutex::ScopedLock lock(dmRecord::g_Mutex);
-    char                body[128];
+    DM_MUTEX_SCOPED_LOCK(dmRecord::g_Mutex);
+    char body[128];
     dmSnPrintf(body, sizeof(body), "{\"active\":%s,\"finalizes\":%u,\"late_finalizes\":%u}", dmRecord::g_Status.m_Active ? "true" : "false", dmRecord::g_Finalizes, dmRecord::g_LateFinalizes);
     dmWebServer::Send(request, body, (uint32_t)strlen(body));
 }
@@ -246,12 +254,18 @@ static uint32_t ReadTestStream(void* context, void* buffer, uint32_t size)
 {
     TestStream* stream = (TestStream*)context;
     if (dmThread::GetTlsValue(g_UpdateThread))
+    {
         dmAtomicIncrement32(&g_StreamOnUpdate);
+    }
     if (size > 65536)
+    {
         dmAtomicIncrement32(&g_StreamOversizedReads);
+    }
     size = dmMath::Min(size, dmMath::Min(stream->m_ReadLimit, stream->m_FailAfter - stream->m_Offset));
     for (uint32_t i = 0; i < size; ++i)
+    {
         ((uint8_t*)buffer)[i] = (uint8_t)(stream->m_Offset + i);
+    }
     stream->m_Offset += size;
     dmAtomicAdd32(&g_StreamBytes, size);
     return size;
@@ -266,28 +280,46 @@ static void CloseTestStream(void* context)
 static void TestHandler(void*, dmWebServer::Request* request)
 {
     if (!strcmp(request->m_Resource, "/test/quit"))
+    {
         g_Quit = true;
+    }
     else if (!strcmp(request->m_Resource, "/test/pause-updates"))
+    {
         g_PauseUpdates = true;
+    }
     else if (!strcmp(request->m_Resource, "/test/fail-start"))
+    {
         dmRecord::g_FailStart = true;
+    }
     else if (!strcmp(request->m_Resource, "/test/unsupported"))
+    {
         dmRecord::g_Supported = false;
+    }
     else if (!strcmp(request->m_Resource, "/test/no-window"))
+    {
         dmRecord::g_NoWindow = true;
+    }
     else if (!strcmp(request->m_Resource, "/test/audio-support"))
+    {
         dmRecord::g_AudioSupported = true;
+    }
     else if (!strcmp(request->m_Resource, "/test/large-recording"))
+    {
         dmRecord::g_LargeRecording = true;
+    }
     else if (!strcmp(request->m_Resource, "/test/large-response"))
     {
         uint8_t data[65536];
         for (uint32_t i = 0; i < sizeof(data); ++i)
+        {
             data[i] = (uint8_t)i;
+        }
         for (uint32_t i = 0; i < 16; ++i)
         {
             if (dmWebServer::Send(request, data, sizeof(data)) != dmWebServer::RESULT_OK)
+            {
                 break;
+            }
         }
     }
     else if (!strncmp(request->m_Resource, "/test/stream/", 13))
@@ -307,9 +339,7 @@ static void TestHandler(void*, dmWebServer::Request* request)
     else if (!strcmp(request->m_Resource, "/test/stream-stats"))
     {
         char body[160];
-        dmSnPrintf(body, sizeof(body), "{\"bytes\":%d,\"closed\":%d,\"on_update\":%d,\"oversized_reads\":%d}",
-            dmAtomicGet32(&g_StreamBytes), dmAtomicGet32(&g_StreamClosed),
-            dmAtomicGet32(&g_StreamOnUpdate), dmAtomicGet32(&g_StreamOversizedReads));
+        dmSnPrintf(body, sizeof(body), "{\"bytes\":%d,\"closed\":%d,\"on_update\":%d,\"oversized_reads\":%d}", dmAtomicGet32(&g_StreamBytes), dmAtomicGet32(&g_StreamClosed), dmAtomicGet32(&g_StreamOnUpdate), dmAtomicGet32(&g_StreamOversizedReads));
         dmWebServer::Send(request, body, (uint32_t)strlen(body));
     }
     else if (!strcmp(request->m_Resource, "/test/updates"))
@@ -323,17 +353,21 @@ static void TestHandler(void*, dmWebServer::Request* request)
         // A non-HTTP caller stops the service recording and immediately starts
         // its own, before another Update can consume the old receipt.
         dmRecord::Status status;
-        bool stopped = dmRecord::Stop(&status);
-        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        bool             stopped = dmRecord::Stop(&status);
+        uint64_t         deadline = dmTime::GetMonotonicTime() + 5000000;
         while (status.m_Pending && dmTime::GetMonotonicTime() < deadline)
+        {
             dmRecord::GetStatus(&status);
+        }
         char path[1024];
         dmSnPrintf(path, sizeof(path), "%s/caller.mp4", g_Directory);
         dmRecord::StartParams params;
         params.m_Window = TestNativeWindow();
         params.m_Path = path;
         if (!stopped || status.m_Pending || !dmRecord::Start(&params, &status))
+        {
             dmWebServer::SetStatusCode(request, 500);
+        }
     }
     else if (!strcmp(request->m_Resource, "/test/restart"))
     {
@@ -349,7 +383,9 @@ static void TestHandler(void*, dmWebServer::Request* request)
         dmRecord::g_Finalizes = 0;
         dmRecord::g_LateFinalizes = 0;
         if (!InitializeService())
+        {
             dmWebServer::SetStatusCode(request, 500);
+        }
     }
     else if (!strcmp(request->m_Resource, "/test/engine-delete"))
     {
@@ -369,7 +405,9 @@ static void TestHandler(void*, dmWebServer::Request* request)
         SendLifecycle(request);
     }
     else if (!strcmp(request->m_Resource, "/test/unregister"))
+    {
         dmRecord::FinalizeService();
+    }
     else if (!strcmp(request->m_Resource, "/openapi.json"))
     {
         dmArray<char> paths;
@@ -380,7 +418,9 @@ static void TestHandler(void*, dmWebServer::Request* request)
         dmWebServer::Send(request, "}", 1);
     }
     else
+    {
         dmWebServer::SetStatusCode(request, 404);
+    }
 }
 
 #if defined(_WIN32)
@@ -390,11 +430,15 @@ int main(int argc, char** argv)
 #endif
 {
     if (argc != 2)
+    {
         return 2;
+    }
 #if defined(_WIN32)
     char directory[1024];
     if (!WideCharToMultiByte(CP_UTF8, 0, argv[1], -1, directory, sizeof(directory), 0, 0))
+    {
         return 2;
+    }
     g_Directory = directory;
 #else
     g_Directory = argv[1];
@@ -407,9 +451,13 @@ int main(int argc, char** argv)
     params.m_Port = 0;
     const char* connection_timeout = getenv("DEFOLD_RECORD_TEST_CONNECTION_TIMEOUT");
     if (connection_timeout)
+    {
         params.m_ConnectionTimeout = (uint16_t)strtoul(connection_timeout, 0, 10);
+    }
     if (dmWebServer::New(&params, &g_Server) != dmWebServer::RESULT_OK)
+    {
         return 3;
+    }
     dmWebServer::HandlerParams handler;
     handler.m_Userdata = 0;
     handler.m_Handler = TestHandler;
@@ -418,7 +466,9 @@ int main(int argc, char** argv)
     ExtensionAppParamsInitialize(&g_AppParams);
     ExtensionParamsInitialize(&g_Params);
     if (!InitializeService())
+    {
         return 4;
+    }
     dmSocket::Address address;
     uint16_t          port;
     dmWebServer::GetName(g_Server, &address, &port);

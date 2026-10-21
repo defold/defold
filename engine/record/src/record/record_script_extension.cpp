@@ -73,22 +73,24 @@ namespace dmRecord
         EVENT_ERROR = 3
     };
 
-    static void* g_Window;
-    static bool g_Initialized;
+    static void*                      g_Window;
+    static bool                       g_Initialized;
     static dmScript::LuaCallbackInfo* g_Callback;
-    static uint64_t g_RecordingId;
+    static uint64_t                   g_RecordingId;
     // Keep the callback's host-encoded path separate from the native UTF-8 path.
-    static char g_Path[sizeof(Status().m_Path)];
-    static bool g_Started;
-    static bool g_StartPending;
-    static bool g_EndPending;
+    static char   g_Path[sizeof(Status().m_Path)];
+    static bool   g_Started;
+    static bool   g_StartPending;
+    static bool   g_EndPending;
     static Status g_StartStatus;
     static Status g_EndStatus;
 
     static void OnStatus(const Status* status)
     {
         if (!g_Callback || status->m_Id != g_RecordingId)
+        {
             return;
+        }
         if (status->m_Active)
         {
             if (!g_Started)
@@ -107,7 +109,7 @@ namespace dmRecord
         }
     }
 
-    static StatusListener g_Listener = {OnStatus, 0};
+    static StatusListener g_Listener = { OnStatus, 0 };
 
     static int ReturnError(lua_State* L, const char* error)
     {
@@ -159,20 +161,26 @@ namespace dmRecord
         while (lua_next(L, 1))
         {
             if (lua_type(L, -2) != LUA_TSTRING)
+            {
                 return luaL_error(L, "recorder.start options must have string keys");
+            }
             const char* key = lua_tostring(L, -2);
             if (strcmp(key, "path") && strcmp(key, "fps") && strcmp(key, "audio"))
+            {
                 return luaL_error(L, "unknown recorder.start option '%s'", key);
+            }
             lua_pop(L, 1);
         }
 
         StartParams params;
         lua_getfield(L, 1, "path");
         luaL_checktype(L, -1, LUA_TSTRING);
-        size_t path_size;
+        size_t      path_size;
         const char* path = lua_tolstring(L, -1, &path_size);
         if (!path_size || path_size >= sizeof(Status().m_Path) || strlen(path) != path_size)
+        {
             return luaL_error(L, "recorder.start path must contain 1–1023 bytes without NUL characters");
+        }
         // Keep the original path on the stack until it is copied for callbacks. An options
         // metatable may have generated it instead of retaining it in the table.
         lua_getfield(L, 1, "fps");
@@ -181,7 +189,9 @@ namespace dmRecord
             luaL_checktype(L, -1, LUA_TNUMBER);
             lua_Number fps = lua_tonumber(L, -1);
             if (!(fps >= 1 && fps <= 60) || fps != floor(fps))
+            {
                 return luaL_error(L, "recorder.start fps must be an integer from 1 to 60");
+            }
             params.m_Fps = (uint32_t)fps;
         }
         lua_pop(L, 1);
@@ -193,17 +203,25 @@ namespace dmRecord
         }
         lua_pop(L, 1);
         if (!g_Initialized)
+        {
             return ReturnError(L, "recording is shutting down");
+        }
         if (g_Callback)
+        {
             return ReturnError(L, "a recording operation is already active or awaiting its callback");
+        }
 
         char native_path[sizeof(Status().m_Path)];
         if (!HostPathToUtf8(path, native_path, sizeof(native_path)))
+        {
             return luaL_error(L, "recorder.start path is invalid or exceeds 1023 bytes after UTF-8 conversion");
+        }
         params.m_Path = native_path;
         dmScript::LuaCallbackInfo* callback = dmScript::CreateCallback(L, 2);
         if (!callback)
+        {
             return ReturnError(L, "recorder.start requires a script instance");
+        }
         params.m_Window = g_Window;
         Status status;
         if (!Start(&params, &status))
@@ -233,10 +251,14 @@ namespace dmRecord
     static int ScriptStop(lua_State* L)
     {
         if (!g_Initialized)
+        {
             return ReturnError(L, "recording is shutting down");
+        }
         Status status;
         if (!Stop(&status))
+        {
             return ReturnError(L, status.m_Failure);
+        }
         lua_pushboolean(L, 1);
         return 1;
     }
@@ -246,7 +268,9 @@ namespace dmRecord
         lua_State* L = dmScript::GetCallbackLuaContext(callback);
         DM_LUA_STACK_CHECK(L, 0);
         if (!dmScript::IsCallbackValid(callback) || !dmScript::SetupCallback(callback))
+        {
             return;
+        }
         lua_pushinteger(L, event);
         lua_newtable(L);
         lua_pushstring(L, status->m_Path);
@@ -271,7 +295,9 @@ namespace dmRecord
     static void UpdateCallbacks()
     {
         if (!g_Callback)
+        {
             return;
+        }
         if (!dmScript::IsCallbackValid(g_Callback))
         {
             dmScript::DestroyCallback(g_Callback);
@@ -287,7 +313,7 @@ namespace dmRecord
         {
             // Detach before invoking Lua: a completion callback may start a new recording.
             dmScript::LuaCallbackInfo* callback = g_Callback;
-            Status completed = g_EndStatus;
+            Status                     completed = g_EndStatus;
             g_Callback = 0;
             g_EndPending = false;
             Invoke(callback, completed.m_Finalized ? EVENT_STOPPED : EVENT_ERROR, &completed);
@@ -299,7 +325,7 @@ namespace dmRecord
     {
         lua_State* L = params->m_L;
         DM_LUA_STACK_CHECK(L, 0);
-        const luaL_Reg methods[] = {{"start", ScriptStart}, {"stop", ScriptStop}, {0, 0}};
+        const luaL_Reg methods[] = { { "start", ScriptStart }, { "stop", ScriptStop }, { 0, 0 } };
         luaL_register(L, "recorder", methods);
         lua_pushinteger(L, EVENT_STARTED);
         lua_setfield(L, -2, "EVENT_STARTED");

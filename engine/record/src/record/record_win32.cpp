@@ -60,17 +60,19 @@ typedef __FITypedEventHandler_2_Windows__CGraphics__CCapture__CDirect3D11Capture
 
 struct AgileFrameArrivedHandler
     : public Microsoft::WRL::RuntimeClass<
-      Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::WinRtClassicComMix | Microsoft::WRL::InhibitRoOriginateError>,
-      FrameArrivedHandler,
-      Microsoft::WRL::FtmBase>
+          Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::WinRtClassicComMix | Microsoft::WRL::InhibitRoOriginateError>,
+          FrameArrivedHandler,
+          Microsoft::WRL::FtmBase>
 {
-    public:
+public:
     // A delegate needs no runtime class name. Avoid WRL's InspectableClass macro,
     // which introduces a mandatory WindowsCreateString import on older Windows.
     IFACEMETHODIMP GetRuntimeClassName(HSTRING* name) override
     {
         if (!name)
+        {
             return E_POINTER;
+        }
         *name = 0;
         return S_OK;
     }
@@ -78,7 +80,9 @@ struct AgileFrameArrivedHandler
     IFACEMETHODIMP GetTrustLevel(TrustLevel* level) override
     {
         if (!level)
+        {
             return E_POINTER;
+        }
         *level = BaseTrust;
         return S_OK;
     }
@@ -99,7 +103,7 @@ struct AgileFrameArrivedHandler
         return S_OK;
     }
 
-    private:
+private:
     void*    m_Context;
     Callback m_Callback;
 };
@@ -117,20 +121,22 @@ namespace dmRecord
     static decltype(&::WindowsDeleteString)    pWindowsDeleteString;
     static decltype(&::D3D11CreateDevice)      pD3D11CreateDevice;
     typedef HRESULT(WINAPI* CreateDirect3DDeviceFn)(IDXGIDevice*, IInspectable**);
-    static CreateDirect3DDeviceFn                 pCreateDirect3D11DeviceFromDXGIDevice;
-    static decltype(&::MFStartup)                 pMFStartup;
-    static decltype(&::MFShutdown)                pMFShutdown;
-    static decltype(&::MFCreateAttributes)        pMFCreateAttributes;
-    static decltype(&::MFCreateMediaType)         pMFCreateMediaType;
-    static decltype(&::MFCreateMemoryBuffer)      pMFCreateMemoryBuffer;
-    static decltype(&::MFCreateSample)            pMFCreateSample;
-    static decltype(&::MFCreateSinkWriterFromURL) pMFCreateSinkWriterFromURL;
+    static CreateDirect3DDeviceFn                    pCreateDirect3D11DeviceFromDXGIDevice;
+    static decltype(&::MFStartup)                    pMFStartup;
+    static decltype(&::MFShutdown)                   pMFShutdown;
+    static decltype(&::MFCreateAttributes)           pMFCreateAttributes;
+    static decltype(&::MFCreateMediaType)            pMFCreateMediaType;
+    static decltype(&::MFCreateMemoryBuffer)         pMFCreateMemoryBuffer;
+    static decltype(&::MFCreateSample)               pMFCreateSample;
+    static decltype(&::MFCreateSinkWriterFromURL)    pMFCreateSinkWriterFromURL;
     static decltype(&::SetThreadDpiAwarenessContext) pSetThreadDpiAwarenessContext;
-    static BOOL CALLBACK                          LoadRecorderApis(PINIT_ONCE, PVOID, PVOID*)
+    static BOOL CALLBACK LoadRecorderApis(PINIT_ONCE, PVOID, PVOID*)
     {
         wchar_t system_directory[MAX_PATH];
         if (!GetSystemDirectoryW(system_directory, MAX_PATH))
+        {
             return TRUE;
+        }
         bool    available = true;
         wchar_t path0[MAX_PATH];
         _snwprintf_s(path0, MAX_PATH, _TRUNCATE, L"%s\\combase.dll", system_directory);
@@ -203,7 +209,7 @@ namespace dmRecord
     static SRWLOCK g_StateLock = SRWLOCK_INIT;
     static Status  g_Status;
 
-    static void    CopyText(char* output, size_t output_size, const char* value)
+    static void CopyText(char* output, size_t output_size, const char* value)
     {
         CopyTextUtf8(output, output_size, value);
     }
@@ -211,8 +217,8 @@ namespace dmRecord
     static void HResultText(HRESULT result, char* output, size_t output_size)
     {
         wchar_t* system_message = 0;
-        DWORD length = FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
-                                      FORMAT_MESSAGE_IGNORE_INSERTS,
+        DWORD    length = FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                                          FORMAT_MESSAGE_IGNORE_INSERTS,
                                       0,
                                       (DWORD)result,
                                       0,
@@ -222,10 +228,12 @@ namespace dmRecord
         if (length && system_message)
         {
             while (length && (system_message[length - 1] == L'\r' || system_message[length - 1] == L'\n'))
+            {
                 system_message[--length] = 0;
-            int utf8_size = WideCharToMultiByte(CP_UTF8, 0, system_message, -1, 0, 0, 0, 0);
+            }
+            int   utf8_size = WideCharToMultiByte(CP_UTF8, 0, system_message, -1, 0, 0, 0, 0);
             char* utf8 = utf8_size > 0 ? new (std::nothrow) char[utf8_size] : 0;
-            bool converted = utf8 && WideCharToMultiByte(CP_UTF8, 0, system_message, -1, utf8, utf8_size, 0, 0) > 0;
+            bool  converted = utf8 && WideCharToMultiByte(CP_UTF8, 0, system_message, -1, utf8, utf8_size, 0, 0) > 0;
             LocalFree(system_message);
             char code[16];
             snprintf(code, sizeof(code), " (0x%08lx)", (unsigned long)result);
@@ -238,7 +246,9 @@ namespace dmRecord
             }
             delete[] utf8;
             if (converted && output_size > code_length)
+            {
                 return;
+            }
         }
         snprintf(output, output_size, "Windows error 0x%08lx", (unsigned long)result);
     }
@@ -246,7 +256,9 @@ namespace dmRecord
     static bool Utf8ToWide(const char* input, wchar_t* output, uint32_t output_count)
     {
         if (!input || !input[0])
+        {
             return false;
+        }
         int count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, input, -1, output, (int)output_count);
         return count > 0;
     }
@@ -256,19 +268,27 @@ namespace dmRecord
         HSTRING name = 0;
         HRESULT result = WindowsCreateString(class_name, (UINT32)wcslen(class_name), &name);
         if (SUCCEEDED(result))
+        {
             result = RoGetActivationFactory(name, interface_id, output);
+        }
         if (name)
+        {
             WindowsDeleteString(name);
+        }
         return result;
     }
 
     static void CloseInspectable(IInspectable* object)
     {
         if (!object)
+        {
             return;
+        }
         ComPtr<ABI::Windows::Foundation::IClosable> closable;
         if (SUCCEEDED(object->QueryInterface(IID_PPV_ARGS(&closable))))
+        {
             closable->Close();
+        }
     }
 
     static bool CaptureFactoriesAvailable()
@@ -276,29 +296,33 @@ namespace dmRecord
         // Session IsSupported() predates HWND capture and free-threaded frame
         // pools. Probe the interfaces used below before advertising support.
         ComPtr<IGraphicsCaptureItemInterop> item;
-        HRESULT result = GetActivationFactory(
-        RuntimeClass_Windows_Graphics_Capture_GraphicsCaptureItem,
-        __uuidof(IGraphicsCaptureItemInterop),
-        reinterpret_cast<void**>(item.ReleaseAndGetAddressOf()));
+        HRESULT                             result = GetActivationFactory(
+            RuntimeClass_Windows_Graphics_Capture_GraphicsCaptureItem,
+            __uuidof(IGraphicsCaptureItemInterop),
+            reinterpret_cast<void**>(item.ReleaseAndGetAddressOf()));
         if (FAILED(result))
+        {
             return false;
+        }
         ComPtr<CaptureAbi::IDirect3D11CaptureFramePoolStatics2> pool;
         result = GetActivationFactory(
-        RuntimeClass_Windows_Graphics_Capture_Direct3D11CaptureFramePool,
-        __uuidof(CaptureAbi::IDirect3D11CaptureFramePoolStatics2),
-        reinterpret_cast<void**>(pool.ReleaseAndGetAddressOf()));
+            RuntimeClass_Windows_Graphics_Capture_Direct3D11CaptureFramePool,
+            __uuidof(CaptureAbi::IDirect3D11CaptureFramePoolStatics2),
+            reinterpret_cast<void**>(pool.ReleaseAndGetAddressOf()));
         return SUCCEEDED(result);
     }
 
     static bool GraphicsCaptureSupported()
     {
         if (!CaptureFactoriesAvailable())
+        {
             return false;
+        }
         ComPtr<CaptureAbi::IGraphicsCaptureSessionStatics> statics;
         HRESULT                                            result = GetActivationFactory(
-        RuntimeClass_Windows_Graphics_Capture_GraphicsCaptureSession,
-        __uuidof(CaptureAbi::IGraphicsCaptureSessionStatics),
-        reinterpret_cast<void**>(statics.ReleaseAndGetAddressOf()));
+            RuntimeClass_Windows_Graphics_Capture_GraphicsCaptureSession,
+            __uuidof(CaptureAbi::IGraphicsCaptureSessionStatics),
+            reinterpret_cast<void**>(statics.ReleaseAndGetAddressOf()));
         boolean supported = FALSE;
         return SUCCEEDED(result) && SUCCEEDED(statics->IsSupported(&supported)) && supported;
     }
@@ -318,7 +342,7 @@ namespace dmRecord
 
     struct WindowsRecorder
     {
-        public:
+    public:
         WindowsRecorder()
             : m_Window(0)
             , m_CornerPreference(0)
@@ -355,7 +379,9 @@ namespace dmRecord
         {
             Cleanup(false);
             if (m_FirstFrameEvent)
+            {
                 CloseHandle(m_FirstFrameEvent);
+            }
             DeleteCriticalSection(&m_FrameLock);
             DeleteCriticalSection(&m_WriterLock);
         }
@@ -363,12 +389,18 @@ namespace dmRecord
         bool Start(HWND window, const char* path, uint32_t fps, bool audio, char* failure, size_t failure_size)
         {
             if (!RecorderApisAvailable())
+            {
                 return Fail(E_NOTIMPL, failure, failure_size);
+            }
             HRESULT result = RoInitialize(RO_INIT_MULTITHREADED);
             if (SUCCEEDED(result))
+            {
                 m_RoInitialized = true;
+            }
             else if (result != RPC_E_CHANGED_MODE)
+            {
                 return Fail(result, failure, failure_size);
+            }
 
             if (!GraphicsCaptureSupported())
             {
@@ -390,15 +422,21 @@ namespace dmRecord
             {
                 DWORD do_not_round = 1; // DWMWCP_DONOTROUND
                 if (SUCCEEDED(DwmSetWindowAttribute(m_Window, corner_attribute, &do_not_round, sizeof(do_not_round))))
+                {
                     m_RestoreCornerPreference = true;
+                }
             }
 
             result = CreateCaptureItem();
             if (FAILED(result))
+            {
                 return Fail(result, failure, failure_size);
+            }
             result = m_Item->get_Size(&m_CaptureSize);
             if (FAILED(result))
+            {
                 return Fail(result, failure, failure_size);
+            }
             if (!ResolveClientCrop(m_CaptureSize))
             {
                 CopyText(failure, failure_size, "could not resolve the Defold window client area inside the capture surface");
@@ -423,26 +461,38 @@ namespace dmRecord
 
             result = CreateDevice();
             if (FAILED(result))
+            {
                 return Fail(result, failure, failure_size);
+            }
             if (audio)
             {
                 result = NewAudioCapture(&m_AudioCapture, DispatchAudio, this);
                 if (FAILED(result))
+                {
                     return Fail(result, failure, failure_size);
+                }
             }
             result = CreateWriter(audio);
             if (FAILED(result))
+            {
                 return Fail(result, failure, failure_size);
+            }
 
             result = CreateFramePool();
             if (FAILED(result))
+            {
                 return Fail(result, failure, failure_size);
+            }
             m_StartTime = GetCounterTime();
             if (m_AudioCapture)
+            {
                 StartAudioCapture(m_AudioCapture);
+            }
             result = m_Session->StartCapture();
             if (FAILED(result))
+            {
                 return Fail(result, failure, failure_size);
+            }
 
             DWORD wait_result = WaitForSingleObject(m_FirstFrameEvent, 15000);
             if (wait_result != WAIT_OBJECT_0)
@@ -456,7 +506,9 @@ namespace dmRecord
             LeaveCriticalSection(&m_FrameLock);
             result = GetAudioCaptureResult(m_AudioCapture);
             if (FAILED(result))
+            {
                 return Fail(result, failure, failure_size);
+            }
             return ok;
         }
 
@@ -467,7 +519,9 @@ namespace dmRecord
             LeaveCriticalSection(&m_WriterLock);
             InterlockedExchange(&m_Stopping, 1);
             if (m_FramePool && m_FrameHandler)
+            {
                 m_FramePool->remove_FrameArrived(m_FrameToken);
+            }
             CloseInspectable(m_Session.Get());
             CloseInspectable(m_FramePool.Get());
             m_FrameHandler.Reset();
@@ -478,41 +532,57 @@ namespace dmRecord
             // for an in-flight callback before the sink writer is finalized.
             EnterCriticalSection(&m_FrameLock);
             if (m_Failure[0] && !failure[0])
+            {
                 CopyText(failure, failure_size, m_Failure);
+            }
             LeaveCriticalSection(&m_FrameLock);
 
-            bool audio = m_AudioCapture != 0;
+            bool    audio = m_AudioCapture != 0;
             HRESULT result = DeleteAudioCapture(m_AudioCapture);
             m_AudioCapture = 0;
             if (FAILED(result) && !failure[0])
+            {
                 HResultText(result, failure, failure_size);
+            }
             // A silent application still needs a complete AAC track. Also pad
             // the final partial capture period up to the common stop boundary.
             if (audio && SUCCEEDED(result))
             {
                 uint64_t end = TimeToFrames(m_StopTime, RECORD_AUDIO_RATE);
                 if (end > m_AudioFrames)
+                {
                     result = WriteSilence(end - m_AudioFrames);
+                }
                 if (FAILED(result) && !failure[0])
+                {
                     HResultText(result, failure, failure_size);
+                }
             }
             // WGC only delivers changed content. Keep the final image visible
             // through the same stop boundary as audio, including video-only files.
             result = FlushVideoFrame(m_StopTime);
             if (FAILED(result) && !failure[0])
+            {
                 HResultText(result, failure, failure_size);
+            }
             if (m_Writer)
+            {
                 result = m_Writer->Finalize();
+            }
             if (FAILED(result) && !failure[0])
+            {
                 HResultText(result, failure, failure_size);
+            }
 
             Cleanup(false);
             WIN32_FILE_ATTRIBUTE_DATA attributes;
             bool                      finalized = failure[0] == 0 &&
-            GetFileAttributesExW(m_OutputPath, GetFileExInfoStandard, &attributes) &&
-            (attributes.nFileSizeHigh != 0 || attributes.nFileSizeLow != 0);
+                GetFileAttributesExW(m_OutputPath, GetFileExInfoStandard, &attributes) &&
+                (attributes.nFileSizeHigh != 0 || attributes.nFileSizeLow != 0);
             if (!finalized && !failure[0])
+            {
                 CopyText(failure, failure_size, "Media Foundation did not produce a non-empty MP4 file");
+            }
             return finalized;
         }
 
@@ -543,17 +613,19 @@ namespace dmRecord
             ReleaseSRWLockShared(&m_FailureLock);
             HRESULT result = GetAudioCaptureResult(m_AudioCapture);
             if (FAILED(result) && !failure[0])
+            {
                 HResultText(result, failure, failure_size);
+            }
         }
 
-        private:
+    private:
         static uint64_t GetCounterTime()
         {
             LARGE_INTEGER counter, frequency;
             QueryPerformanceCounter(&counter);
             QueryPerformanceFrequency(&frequency);
             return counter.QuadPart / frequency.QuadPart * 10000000 +
-                   counter.QuadPart % frequency.QuadPart * 10000000 / frequency.QuadPart;
+                counter.QuadPart % frequency.QuadPart * 10000000 / frequency.QuadPart;
         }
 
         bool Fail(HRESULT result, char* failure, size_t failure_size)
@@ -566,11 +638,13 @@ namespace dmRecord
         {
             ComPtr<IGraphicsCaptureItemInterop> interop;
             HRESULT                             result = GetActivationFactory(
-            RuntimeClass_Windows_Graphics_Capture_GraphicsCaptureItem,
-            __uuidof(IGraphicsCaptureItemInterop),
-            reinterpret_cast<void**>(interop.ReleaseAndGetAddressOf()));
+                RuntimeClass_Windows_Graphics_Capture_GraphicsCaptureItem,
+                __uuidof(IGraphicsCaptureItemInterop),
+                reinterpret_cast<void**>(interop.ReleaseAndGetAddressOf()));
             if (FAILED(result))
+            {
                 return result;
+            }
             return interop->CreateForWindow(m_Window,
                                             __uuidof(CaptureAbi::IGraphicsCaptureItem),
                                             reinterpret_cast<void**>(m_Item.ReleaseAndGetAddressOf()));
@@ -583,16 +657,20 @@ namespace dmRecord
             // unaware or system-aware on a monitor with a different scale.
             DPI_AWARENESS_CONTEXT previous = pSetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
             if (!previous)
+            {
                 return false;
+            }
             RECT  window_rect;
             RECT  client_rect;
             POINT client_origin = { 0, 0 };
-            bool have_rects = (SUCCEEDED(DwmGetWindowAttribute(m_Window, DWMWA_EXTENDED_FRAME_BOUNDS, &window_rect, sizeof(window_rect))) ||
+            bool  have_rects = (SUCCEEDED(DwmGetWindowAttribute(m_Window, DWMWA_EXTENDED_FRAME_BOUNDS, &window_rect, sizeof(window_rect))) ||
                                GetWindowRect(m_Window, &window_rect)) &&
-                              GetClientRect(m_Window, &client_rect) && ClientToScreen(m_Window, &client_origin);
+                GetClientRect(m_Window, &client_rect) && ClientToScreen(m_Window, &client_origin);
             pSetThreadDpiAwarenessContext(previous);
             if (!have_rects)
+            {
                 return false;
+            }
 
             LONG window_width = window_rect.right - window_rect.left;
             LONG window_height = window_rect.bottom - window_rect.top;
@@ -600,7 +678,9 @@ namespace dmRecord
             LONG client_height = client_rect.bottom - client_rect.top;
             if (capture_size.Width <= 0 || capture_size.Height <= 0 ||
                 window_width <= 0 || window_height <= 0 || client_width <= 0 || client_height <= 0)
+            {
                 return false;
+            }
 
             double scale_x = (double)capture_size.Width / window_width;
             double scale_y = (double)capture_size.Height / window_height;
@@ -609,7 +689,9 @@ namespace dmRecord
             m_CropWidth = (uint32_t)dmMath::Max(1.0, client_width * scale_x + 0.5);
             m_CropHeight = (uint32_t)dmMath::Max(1.0, client_height * scale_y + 0.5);
             if (m_CropX >= (uint32_t)capture_size.Width || m_CropY >= (uint32_t)capture_size.Height)
+            {
                 return false;
+            }
             m_CropWidth = dmMath::Min(m_CropWidth, (uint32_t)capture_size.Width - m_CropX);
             m_CropHeight = dmMath::Min(m_CropHeight, (uint32_t)capture_size.Height - m_CropY);
             return true;
@@ -622,15 +704,21 @@ namespace dmRecord
             D3D_FEATURE_LEVEL selected;
             HRESULT           result = D3D11CreateDevice(0, D3D_DRIVER_TYPE_HARDWARE, 0, flags, levels, sizeof(levels) / sizeof(levels[0]), D3D11_SDK_VERSION, &m_Device, &selected, &m_Context);
             if (FAILED(result))
+            {
                 return result;
+            }
             ComPtr<IDXGIDevice> dxgi_device;
             result = m_Device.As(&dxgi_device);
             if (FAILED(result))
+            {
                 return result;
+            }
             ComPtr<IInspectable> inspectable;
             result = CreateDirect3D11DeviceFromDXGIDevice(dxgi_device.Get(), inspectable.ReleaseAndGetAddressOf());
             if (FAILED(result))
+            {
                 return result;
+            }
             return inspectable.As(&m_Direct3DDevice);
         }
 
@@ -638,29 +726,39 @@ namespace dmRecord
         {
             ComPtr<CaptureAbi::IDirect3D11CaptureFramePoolStatics2> statics;
             HRESULT                                                 result = GetActivationFactory(
-            RuntimeClass_Windows_Graphics_Capture_Direct3D11CaptureFramePool,
-            __uuidof(CaptureAbi::IDirect3D11CaptureFramePoolStatics2),
-            reinterpret_cast<void**>(statics.ReleaseAndGetAddressOf()));
+                RuntimeClass_Windows_Graphics_Capture_Direct3D11CaptureFramePool,
+                __uuidof(CaptureAbi::IDirect3D11CaptureFramePoolStatics2),
+                reinterpret_cast<void**>(statics.ReleaseAndGetAddressOf()));
             if (FAILED(result))
+            {
                 return result;
+            }
             result = statics->CreateFreeThreaded(
-            m_Direct3DDevice.Get(),
-            ABI::Windows::Graphics::DirectX::DirectXPixelFormat_B8G8R8A8UIntNormalized,
-            3,
-            m_CaptureSize,
-            &m_FramePool);
+                m_Direct3DDevice.Get(),
+                ABI::Windows::Graphics::DirectX::DirectXPixelFormat_B8G8R8A8UIntNormalized,
+                3,
+                m_CaptureSize,
+                &m_FramePool);
             if (FAILED(result))
+            {
                 return result;
+            }
             result = m_FramePool->CreateCaptureSession(m_Item.Get(), &m_Session);
             if (FAILED(result))
+            {
                 return result;
+            }
             ComPtr<AgileFrameArrivedHandler> frame_handler =
-            Microsoft::WRL::Make<AgileFrameArrivedHandler>();
+                Microsoft::WRL::Make<AgileFrameArrivedHandler>();
             if (!frame_handler)
+            {
                 return E_OUTOFMEMORY;
+            }
             result = frame_handler->RuntimeClassInitialize(this, &WindowsRecorder::DispatchFrame);
             if (FAILED(result))
+            {
                 return result;
+            }
             m_FrameHandler = frame_handler;
             return m_FramePool->add_FrameArrived(m_FrameHandler.Get(), &m_FrameToken);
         }
@@ -680,71 +778,115 @@ namespace dmRecord
         {
             HRESULT result = MFStartup(MF_VERSION, MFSTARTUP_FULL);
             if (FAILED(result))
+            {
                 return result;
+            }
             m_MfStarted = true;
 
             ComPtr<IMFAttributes> attributes;
             result = MFCreateAttributes(&attributes, 2);
             if (FAILED(result))
+            {
                 return result;
+            }
             attributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE);
             attributes->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, TRUE);
             result = MFCreateSinkWriterFromURL(m_OutputPath, 0, attributes.Get(), &m_Writer);
             if (FAILED(result))
+            {
                 return result;
+            }
 
             ComPtr<IMFMediaType> output_type;
             result = MFCreateMediaType(&output_type);
             if (FAILED(result))
+            {
                 return result;
+            }
             if (FAILED(result = output_type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video)))
+            {
                 return result;
+            }
             if (FAILED(result = output_type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_H264)))
+            {
                 return result;
+            }
             uint64_t pixels_per_second = (uint64_t)m_OutputWidth * m_OutputHeight * m_Fps;
             uint32_t bitrate = (uint32_t)dmMath::Min<uint64_t>(25000000, dmMath::Max<uint64_t>(1000000, pixels_per_second / 8));
             if (FAILED(result = output_type->SetUINT32(MF_MT_AVG_BITRATE, bitrate)))
+            {
                 return result;
+            }
             if (FAILED(result = output_type->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive)))
+            {
                 return result;
+            }
             if (FAILED(result = SetMediaAttributeSize(output_type.Get(), MF_MT_FRAME_SIZE, m_OutputWidth, m_OutputHeight)))
+            {
                 return result;
+            }
             if (FAILED(result = MFSetAttributeRatio(output_type.Get(), MF_MT_FRAME_RATE, m_Fps, 1)))
+            {
                 return result;
+            }
             if (FAILED(result = MFSetAttributeRatio(output_type.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1)))
+            {
                 return result;
+            }
             if (FAILED(result = m_Writer->AddStream(output_type.Get(), &m_StreamIndex)))
+            {
                 return result;
+            }
 
             ComPtr<IMFMediaType> input_type;
             result = MFCreateMediaType(&input_type);
             if (FAILED(result))
+            {
                 return result;
+            }
             if (FAILED(result = input_type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video)))
+            {
                 return result;
+            }
             if (FAILED(result = input_type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32)))
+            {
                 return result;
+            }
             if (FAILED(result = input_type->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive)))
+            {
                 return result;
+            }
             if (FAILED(result = SetMediaAttributeSize(input_type.Get(), MF_MT_FRAME_SIZE, m_OutputWidth, m_OutputHeight)))
+            {
                 return result;
+            }
             if (FAILED(result = MFSetAttributeRatio(input_type.Get(), MF_MT_FRAME_RATE, m_Fps, 1)))
+            {
                 return result;
+            }
             if (FAILED(result = MFSetAttributeRatio(input_type.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1)))
+            {
                 return result;
+            }
             if (FAILED(result = m_Writer->SetInputMediaType(m_StreamIndex, input_type.Get(), 0)))
+            {
                 return result;
+            }
             if (audio && FAILED(result = CreateAudioStream()))
+            {
                 return result;
+            }
             return m_Writer->BeginWriting();
         }
 
         HRESULT CreateAudioStream()
         {
             ComPtr<IMFMediaType> output;
-            HRESULT result = MFCreateMediaType(&output);
+            HRESULT              result = MFCreateMediaType(&output);
             if (FAILED(result))
+            {
                 return result;
+            }
             if (FAILED(result = output->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio)) ||
                 FAILED(result = output->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_AAC)) ||
                 FAILED(result = output->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, RECORD_AUDIO_CHANNELS)) ||
@@ -752,11 +894,15 @@ namespace dmRecord
                 FAILED(result = output->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16)) ||
                 FAILED(result = output->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 16000)) ||
                 FAILED(result = m_Writer->AddStream(output.Get(), &m_AudioStreamIndex)))
+            {
                 return result;
+            }
             ComPtr<IMFMediaType> input;
             result = MFCreateMediaType(&input);
             if (FAILED(result))
+            {
                 return result;
+            }
             if (FAILED(result = input->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio)) ||
                 FAILED(result = input->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM)) ||
                 FAILED(result = input->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, RECORD_AUDIO_CHANNELS)) ||
@@ -764,37 +910,53 @@ namespace dmRecord
                 FAILED(result = input->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16)) ||
                 FAILED(result = input->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, RECORD_AUDIO_CHANNELS * sizeof(int16_t))) ||
                 FAILED(result = input->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, RECORD_AUDIO_RATE * RECORD_AUDIO_CHANNELS * sizeof(int16_t))))
+            {
                 return result;
+            }
             return m_Writer->SetInputMediaType(m_AudioStreamIndex, input.Get(), 0);
         }
 
         HRESULT WriteAudio(const int16_t* samples, uint32_t frames, bool discontinuity)
         {
-            DWORD bytes = frames * RECORD_AUDIO_CHANNELS * sizeof(int16_t);
+            DWORD                  bytes = frames * RECORD_AUDIO_CHANNELS * sizeof(int16_t);
             ComPtr<IMFMediaBuffer> buffer;
-            HRESULT result = MFCreateMemoryBuffer(bytes, &buffer);
+            HRESULT                result = MFCreateMemoryBuffer(bytes, &buffer);
             if (FAILED(result))
+            {
                 return result;
+            }
             BYTE* data = 0;
             if (FAILED(result = buffer->Lock(&data, 0, 0)))
+            {
                 return result;
+            }
             if (samples)
+            {
                 memcpy(data, samples, bytes);
+            }
             else
+            {
                 memset(data, 0, bytes);
+            }
             buffer->Unlock();
             buffer->SetCurrentLength(bytes);
             ComPtr<IMFSample> sample;
             if (FAILED(result = MFCreateSample(&sample)) || FAILED(result = sample->AddBuffer(buffer.Get())))
+            {
                 return result;
+            }
             uint64_t time = FramesToTime(m_AudioFrames, RECORD_AUDIO_RATE);
             sample->SetSampleTime(time);
             sample->SetSampleDuration(FramesToTime(m_AudioFrames + frames, RECORD_AUDIO_RATE) - time);
             if (discontinuity)
+            {
                 sample->SetUINT32(MFSampleExtension_Discontinuity, TRUE);
+            }
             result = m_Writer->WriteSample(m_AudioStreamIndex, sample.Get());
             if (SUCCEEDED(result))
+            {
                 m_AudioFrames += frames;
+            }
             return result;
         }
 
@@ -804,9 +966,11 @@ namespace dmRecord
             while (frames)
             {
                 uint32_t count = (uint32_t)dmMath::Min<uint64_t>(frames, RECORD_AUDIO_RATE / 10);
-                HRESULT result = WriteAudio(0, count, false);
+                HRESULT  result = WriteAudio(0, count, false);
                 if (FAILED(result))
+                {
                     return result;
+                }
                 frames -= count;
             }
             return S_OK;
@@ -816,13 +980,15 @@ namespace dmRecord
         {
             WindowsRecorder* recorder = (WindowsRecorder*)context;
             EnterCriticalSection(&recorder->m_WriterLock);
-            uint64_t limit = recorder->m_StopTime == UINT64_MAX ? UINT64_MAX : TimeToFrames(recorder->m_StopTime, RECORD_AUDIO_RATE);
-            AudioPacketRange range = GetAudioPacketRange(recorder->m_StartTime, time, frames,
-                RECORD_AUDIO_RATE, recorder->m_AudioFrames, limit);
-            HRESULT result = recorder->WriteSilence(range.m_SilenceFrames);
+            uint64_t         limit = recorder->m_StopTime == UINT64_MAX ? UINT64_MAX : TimeToFrames(recorder->m_StopTime, RECORD_AUDIO_RATE);
+            AudioPacketRange range = GetAudioPacketRange(recorder->m_StartTime, time, frames, RECORD_AUDIO_RATE, recorder->m_AudioFrames, limit);
+            HRESULT          result = recorder->WriteSilence(range.m_SilenceFrames);
             if (SUCCEEDED(result) && range.m_Frames)
+            {
                 result = recorder->WriteAudio(samples ? samples + range.m_SkipFrames * RECORD_AUDIO_CHANNELS : 0,
-                    range.m_Frames, discontinuity || range.m_SilenceFrames != 0);
+                                              range.m_Frames,
+                                              discontinuity || range.m_SilenceFrames != 0);
+            }
             LeaveCriticalSection(&recorder->m_WriterLock);
             return result;
         }
@@ -830,7 +996,9 @@ namespace dmRecord
         HRESULT EnsureStagingTexture()
         {
             if (m_Staging)
+            {
                 return S_OK;
+            }
             D3D11_TEXTURE2D_DESC description = {};
             description.Width = m_CropWidth;
             description.Height = m_CropHeight;
@@ -846,7 +1014,9 @@ namespace dmRecord
         void OnFrame(CaptureAbi::IDirect3D11CaptureFramePool* sender)
         {
             if (InterlockedCompareExchange(&m_Stopping, 0, 0))
+            {
                 return;
+            }
             EnterCriticalSection(&m_FrameLock);
             if (InterlockedCompareExchange(&m_Stopping, 0, 0))
             {
@@ -863,7 +1033,9 @@ namespace dmRecord
             }
             ABI::Windows::Graphics::SizeInt32 size = {};
             if (SUCCEEDED(result))
+            {
                 result = frame->get_ContentSize(&size);
+            }
             bool valid_size = size.Width > 0 && size.Height > 0;
             bool resized = valid_size && (size.Width != m_CaptureSize.Width || size.Height != m_CaptureSize.Height);
             if (SUCCEEDED(result) && resized)
@@ -877,7 +1049,9 @@ namespace dmRecord
                 }
             }
             else if (SUCCEEDED(result) && valid_size)
+            {
                 result = ReadFrame(frame.Get());
+            }
 
             // A resized frame belongs to the old pool and may be clipped or
             // undefined. Drop it and let the recording worker finalize the file.
@@ -887,55 +1061,77 @@ namespace dmRecord
             {
                 AcquireSRWLockExclusive(&m_FailureLock);
                 if (!m_Failure[0])
+                {
                     HResultText(result, m_Failure, sizeof(m_Failure));
+                }
                 ReleaseSRWLockExclusive(&m_FailureLock);
             }
             if (m_FrameCount > 0 || m_Failure[0])
+            {
                 SetEvent(m_FirstFrameEvent);
+            }
             LeaveCriticalSection(&m_FrameLock);
         }
 
         HRESULT ReadFrame(CaptureAbi::IDirect3D11CaptureFrame* frame)
         {
-            ComPtr<Direct3DAbi::IDirect3DSurface> surface;
-            HRESULT result = frame->get_Surface(&surface);
+            ComPtr<Direct3DAbi::IDirect3DSurface>                 surface;
+            HRESULT                                               result = frame->get_Surface(&surface);
             ComPtr<Direct3DInterop::IDirect3DDxgiInterfaceAccess> access;
             if (SUCCEEDED(result))
+            {
                 result = surface.As(&access);
+            }
             ComPtr<ID3D11Texture2D> texture;
             if (SUCCEEDED(result))
+            {
                 result = access->GetInterface(IID_PPV_ARGS(&texture));
+            }
             ABI::Windows::Foundation::TimeSpan time;
             if (SUCCEEDED(result))
+            {
                 result = frame->get_SystemRelativeTime(&time);
+            }
             if (SUCCEEDED(result))
+            {
                 result = WriteFrame(texture.Get(), time.Duration);
+            }
             return result;
         }
 
         HRESULT WriteFrame(ID3D11Texture2D* texture, uint64_t time)
         {
             if (time < m_StartTime)
+            {
                 return S_FALSE;
+            }
             uint64_t frame_slot = TimeToFrames(time - m_StartTime, m_Fps);
             if (m_LastFrameSlot != UINT64_MAX && frame_slot <= m_LastFrameSlot)
+            {
                 return S_FALSE;
+            }
 
             HRESULT result = EnsureStagingTexture();
             if (FAILED(result))
+            {
                 return result;
+            }
             D3D11_TEXTURE2D_DESC source_description;
             texture->GetDesc(&source_description);
             if (m_CropX + m_CropWidth > source_description.Width ||
                 m_CropY + m_CropHeight > source_description.Height)
+            {
                 return E_INVALIDARG;
+            }
 
             D3D11_BOX source_box = { m_CropX, m_CropY, 0, m_CropX + m_CropWidth, m_CropY + m_CropHeight, 1 };
             m_Context->CopySubresourceRegion(m_Staging.Get(), 0, 0, 0, 0, texture, 0, &source_box);
             D3D11_MAPPED_SUBRESOURCE mapped;
             result = m_Context->Map(m_Staging.Get(), 0, D3D11_MAP_READ, 0, &mapped);
             if (FAILED(result))
+            {
                 return result;
+            }
 
             uint64_t buffer_size_64 = (uint64_t)m_OutputWidth * m_OutputHeight * 4;
             if (buffer_size_64 > 0xffffffffU)
@@ -947,7 +1143,9 @@ namespace dmRecord
             result = MFCreateMemoryBuffer((DWORD)buffer_size_64, &buffer);
             BYTE* destination = 0;
             if (SUCCEEDED(result))
+            {
                 result = buffer->Lock(&destination, 0, 0);
+            }
             if (SUCCEEDED(result))
             {
                 const BYTE* source = (const BYTE*)mapped.pData;
@@ -964,19 +1162,27 @@ namespace dmRecord
             }
             m_Context->Unmap(m_Staging.Get(), 0);
             if (FAILED(result))
+            {
                 return result;
+            }
 
             ComPtr<IMFSample> sample;
             result = MFCreateSample(&sample);
             if (FAILED(result))
+            {
                 return result;
+            }
             if (FAILED(result = sample->AddBuffer(buffer.Get())))
+            {
                 return result;
+            }
             uint64_t sample_time = FramesToTime(frame_slot, m_Fps);
             sample->SetSampleTime(sample_time);
             EnterCriticalSection(&m_WriterLock);
             if (time - m_StartTime >= m_StopTime)
+            {
                 result = S_FALSE;
+            }
             else
             {
                 // Delay writing one frame until its duration is known. A static
@@ -999,15 +1205,23 @@ namespace dmRecord
         HRESULT FlushVideoFrame(uint64_t end_time)
         {
             if (!m_PendingVideoSample)
+            {
                 return S_OK;
+            }
             uint64_t time = FramesToTime(m_LastFrameSlot, m_Fps);
             if (end_time <= time)
+            {
                 return S_FALSE;
+            }
             HRESULT result = m_PendingVideoSample->SetSampleDuration(end_time - time);
             if (SUCCEEDED(result))
+            {
                 result = m_Writer->WriteSample(m_StreamIndex, m_PendingVideoSample.Get());
+            }
             if (SUCCEEDED(result))
+            {
                 m_PendingVideoSample.Reset();
+            }
             return result;
         }
 
@@ -1026,7 +1240,9 @@ namespace dmRecord
             (void)finalize;
             InterlockedExchange(&m_Stopping, 1);
             if (m_FramePool && m_FrameHandler)
+            {
                 m_FramePool->remove_FrameArrived(m_FrameToken);
+            }
             CloseInspectable(m_Session.Get());
             CloseInspectable(m_FramePool.Get());
             // Join both producers before releasing the writer, including a
@@ -1063,7 +1279,7 @@ namespace dmRecord
         bool                                            m_RestoreCornerPreference;
         uint32_t                                        m_OutputWidth, m_OutputHeight, m_Fps;
         uint32_t                                        m_CropX, m_CropY, m_CropWidth, m_CropHeight;
-        ABI::Windows::Graphics::SizeInt32                m_CaptureSize;
+        ABI::Windows::Graphics::SizeInt32               m_CaptureSize;
         DWORD                                           m_StreamIndex;
         DWORD                                           m_AudioStreamIndex;
         AudioCapture*                                   m_AudioCapture;
@@ -1097,18 +1313,24 @@ namespace dmRecord
     static WindowsRecorder* g_Recorder = 0;
 
     static INIT_ONCE g_CaptureSupportOnce = INIT_ONCE_STATIC_INIT;
-    static bool g_CaptureSupported;
+    static bool      g_CaptureSupported;
 
     static BOOL CALLBACK CheckCaptureSupport(PINIT_ONCE, PVOID, PVOID*)
     {
         if (!RecorderApisAvailable())
+        {
             return TRUE;
+        }
         HRESULT initialized = RoInitialize(RO_INIT_MULTITHREADED);
         bool    uninitialize = SUCCEEDED(initialized);
         if (SUCCEEDED(initialized) || initialized == RPC_E_CHANGED_MODE)
+        {
             g_CaptureSupported = GraphicsCaptureSupported();
+        }
         if (uninitialize)
+        {
             RoUninitialize();
+        }
         return TRUE;
     }
 
@@ -1152,7 +1374,9 @@ namespace dmRecord
         ReleaseSRWLockShared(&g_StateLock);
         status->m_Supported = IsSupported();
         if (!status->m_Supported && !status->m_Failure[0])
+        {
             CopyText(status->m_Failure, sizeof(status->m_Failure), GetUnsupportedReason());
+        }
     }
 
     bool StartNative(const Window* target, const char* path, uint32_t fps, bool audio, Status* status)
@@ -1249,7 +1473,9 @@ namespace dmRecord
         Status status;
         GetNativeStatus(&status);
         if (status.m_Active)
+        {
             StopNative(&status);
+        }
     }
 } // namespace dmRecord
 

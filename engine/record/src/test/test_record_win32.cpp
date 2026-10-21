@@ -39,33 +39,35 @@
 
 using Microsoft::WRL::ComPtr;
 
-static bool g_White;
-static bool g_Animate;
+static bool     g_White;
+static bool     g_Animate;
 static uint32_t g_Paints;
 static uint32_t g_PaintTarget;
-static HANDLE g_Painted;
+static HANDLE   g_Painted;
 
 static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 {
     if (message == WM_TIMER)
     {
         if (g_Animate)
+        {
             InvalidateRect(window, 0, FALSE);
+        }
         return 0;
     }
     if (message == WM_PAINT)
     {
         PAINTSTRUCT paint;
-        HDC dc = BeginPaint(window, &paint);
-        RECT rect;
+        HDC         dc = BeginPaint(window, &paint);
+        RECT        rect;
         GetClientRect(window, &rect);
         FillRect(dc, &rect, (HBRUSH)GetStockObject(g_White ? WHITE_BRUSH : BLACK_BRUSH));
-        const COLORREF colors[] = {RGB(224, 32, 32), RGB(32, 224, 32), RGB(32, 32, 224), RGB(224, 224, 32)};
+        const COLORREF colors[] = { RGB(224, 32, 32), RGB(32, 224, 32), RGB(32, 32, 224), RGB(224, 224, 32) };
         for (uint32_t i = 0; i < 4; ++i)
         {
-            LONG x = (i & 1) ? rect.right - 24 : 0;
-            LONG y = (i & 2) ? rect.bottom - 24 : 0;
-            RECT corner = {x, y, x + 24, y + 24};
+            LONG   x = (i & 1) ? rect.right - 24 : 0;
+            LONG   y = (i & 2) ? rect.bottom - 24 : 0;
+            RECT   corner = { x, y, x + 24, y + 24 };
             HBRUSH brush = CreateSolidBrush(colors[i]);
             FillRect(dc, &corner, brush);
             DeleteObject(brush);
@@ -82,7 +84,9 @@ static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPA
         DeleteObject(marker);
         EndPaint(window, &paint);
         if (g_PaintTarget && g_Paints >= g_PaintTarget)
+        {
             SetEvent(g_Painted);
+        }
         return 0;
     }
     return DefWindowProcW(window, message, wparam, lparam);
@@ -94,11 +98,15 @@ static bool PumpUntil(HANDLE event)
     while (GetTickCount64() < deadline)
     {
         ULONGLONG now = GetTickCount64();
-        DWORD result = MsgWaitForMultipleObjects(1, &event, FALSE, now < deadline ? (DWORD)(deadline - now) : 0, QS_ALLINPUT);
+        DWORD     result = MsgWaitForMultipleObjects(1, &event, FALSE, now < deadline ? (DWORD)(deadline - now) : 0, QS_ALLINPUT);
         if (result == WAIT_OBJECT_0)
+        {
             return true;
+        }
         if (result != WAIT_OBJECT_0 + 1)
+        {
             return false;
+        }
         MSG message;
         while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE))
         {
@@ -111,25 +119,24 @@ static bool PumpUntil(HANDLE event)
 
 struct Recording
 {
-    dmRecord::Window m_Window;
-    dmRecord::Status m_Status;
-    HANDLE m_Started, m_Stop, m_Thread;
-    bool m_Audio;
-    bool m_Finalize;
-    bool m_StartResult, m_StopResult;
+    dmRecord::Window      m_Window;
+    dmRecord::Status      m_Status;
+    HANDLE                m_Started, m_Stop, m_Thread;
+    bool                  m_Audio;
+    bool                  m_Finalize;
+    bool                  m_StartResult, m_StopResult;
     DPI_AWARENESS_CONTEXT m_DpiContext;
-    bool m_DpiContextPreserved;
-    uint64_t m_StartBefore, m_StartAfter, m_StopBefore;
-    char m_Path[MAX_PATH];
+    bool                  m_DpiContextPreserved;
+    uint64_t              m_StartBefore, m_StartAfter, m_StopBefore;
+    char                  m_Path[MAX_PATH];
 };
 
 static DWORD WINAPI RecordWorker(void* context)
 {
-    Recording* recording = (Recording*)context;
+    Recording*            recording = (Recording*)context;
     DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(recording->m_DpiContext);
     recording->m_StartBefore = dmTime::GetMonotonicTime();
-    recording->m_StartResult = dmRecord::StartNative(&recording->m_Window, recording->m_Path,
-        30, recording->m_Audio, &recording->m_Status);
+    recording->m_StartResult = dmRecord::StartNative(&recording->m_Window, recording->m_Path, 30, recording->m_Audio, &recording->m_Status);
     recording->m_StartAfter = dmTime::GetMonotonicTime();
     SetEvent(recording->m_Started);
     WaitForSingleObject(recording->m_Stop, INFINITE);
@@ -143,7 +150,9 @@ static DWORD WINAPI RecordWorker(void* context)
             recording->m_StopResult = recording->m_Status.m_Finalized;
         }
         else
+        {
             recording->m_StopResult = dmRecord::StopNative(&recording->m_Status);
+        }
     }
     dmRecord::FinalizeNative();
     recording->m_DpiContextPreserved = AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), recording->m_DpiContext);
@@ -154,25 +163,26 @@ static DWORD WINAPI RecordWorker(void* context)
 static void CALLBACK WaveDone(HWAVEOUT, UINT message, DWORD_PTR context, DWORD_PTR, DWORD_PTR)
 {
     if (message == WOM_DONE)
+    {
         SetEvent((HANDLE)context);
+    }
 }
 
 class RecordWindowsTest : public jc_test_base_class
 {
 protected:
-    HWND m_Window;
-    HWAVEOUT m_Output;
-    HANDLE m_Played;
+    HWND      m_Window;
+    HWAVEOUT  m_Output;
+    HANDLE    m_Played;
     Recording m_Recording;
 
     void CreateTestWindow(DPI_AWARENESS_CONTEXT context)
     {
         DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(context);
         ASSERT_NE((DPI_AWARENESS_CONTEXT)0, previous);
-        RECT rect = {0, 0, 320, 240};
+        RECT rect = { 0, 0, 320, 240 };
         AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
-        m_Window = CreateWindowW(L"DefoldRecordingTest", L"Defold recording test", WS_OVERLAPPEDWINDOW,
-            40, 40, rect.right - rect.left, rect.bottom - rect.top, 0, 0, GetModuleHandleW(0), 0);
+        m_Window = CreateWindowW(L"DefoldRecordingTest", L"Defold recording test", WS_OVERLAPPEDWINDOW, 40, 40, rect.right - rect.left, rect.bottom - rect.top, 0, 0, GetModuleHandleW(0), 0);
         SetThreadDpiAwarenessContext(previous);
         ASSERT_NE((HWND)0, m_Window);
         ShowWindow(m_Window, SW_SHOWNOACTIVATE);
@@ -199,8 +209,7 @@ protected:
         format.wBitsPerSample = 16;
         format.nBlockAlign = 4;
         format.nAvgBytesPerSec = 192000;
-        ASSERT_EQ((MMRESULT)MMSYSERR_NOERROR, waveOutOpen(&m_Output, WAVE_MAPPER, &format,
-            (DWORD_PTR)WaveDone, (DWORD_PTR)m_Played, CALLBACK_FUNCTION));
+        ASSERT_EQ((MMRESULT)MMSYSERR_NOERROR, waveOutOpen(&m_Output, WAVE_MAPPER, &format, (DWORD_PTR)WaveDone, (DWORD_PTR)m_Played, CALLBACK_FUNCTION));
     }
 
     void TearDown()
@@ -216,8 +225,7 @@ protected:
         CloseHandle(g_Painted);
     }
 
-    bool Begin(bool audio, const char* suffix, bool finalize = false,
-               DPI_AWARENESS_CONTEXT dpi_context = DPI_AWARENESS_CONTEXT_UNAWARE)
+    bool Begin(bool audio, const char* suffix, bool finalize = false, DPI_AWARENESS_CONTEXT dpi_context = DPI_AWARENESS_CONTEXT_UNAWARE)
     {
         memset(&m_Recording, 0, sizeof(m_Recording));
         m_Recording.m_Audio = audio;
@@ -229,9 +237,13 @@ protected:
         m_Recording.m_Stop = CreateEventW(0, TRUE, FALSE, 0);
         m_Recording.m_Thread = CreateThread(0, 0, RecordWorker, &m_Recording, 0, 0);
         if (!m_Recording.m_Thread || !PumpUntil(m_Recording.m_Started))
+        {
             return false;
+        }
         if (!m_Recording.m_StartResult)
+        {
             printf("Start failed: %s\n", m_Recording.m_Status.m_Failure);
+        }
         return m_Recording.m_StartResult;
     }
 
@@ -247,7 +259,9 @@ protected:
             m_Recording.m_Thread = 0;
             ASSERT_TRUE(m_Recording.m_DpiContextPreserved);
             if (m_Recording.m_StartResult && !m_Recording.m_StopResult)
+            {
                 printf("Stop failed: %s\n", m_Recording.m_Status.m_Failure);
+            }
         }
     }
 
@@ -259,7 +273,9 @@ protected:
         DwmFlush();
         int16_t* samples = (int16_t*)calloc(frames * 2, sizeof(int16_t));
         for (uint32_t i = 0; tone && i < frames; ++i)
+        {
             samples[i * 2] = samples[i * 2 + 1] = (int16_t)(8000 * sin(i * 440.0 * 6.283185307179586 / 48000));
+        }
         WAVEHDR buffer = {};
         buffer.lpData = (char*)samples;
         buffer.dwBufferLength = frames * 4;
@@ -267,7 +283,9 @@ protected:
         ASSERT_EQ((MMRESULT)MMSYSERR_NOERROR, waveOutWrite(m_Output, &buffer, sizeof(buffer)));
         bool completed = PumpUntil(m_Played);
         if (!completed)
+        {
             waveOutReset(m_Output);
+        }
         waveOutUnprepareHeader(m_Output, &buffer, sizeof(buffer));
         free(samples);
         ASSERT_TRUE(completed);
@@ -294,27 +312,35 @@ protected:
         uint32_t frames = 0;
         for (;;)
         {
-            DWORD flags;
-            LONGLONG time;
+            DWORD             flags;
+            LONGLONG          time;
             ComPtr<IMFSample> sample;
             ASSERT_EQ(S_OK, reader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, 0, &flags, &time, &sample));
             if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
+            {
                 break;
+            }
             if (!sample)
+            {
                 continue;
+            }
             ComPtr<IMFMediaBuffer> buffer;
             ASSERT_EQ(S_OK, sample->ConvertToContiguousBuffer(&buffer));
             BYTE* data;
             DWORD bytes;
             ASSERT_EQ(S_OK, buffer->Lock(&data, 0, &bytes));
             if (bytes >= 320 * 240 * 4 && *white_onset < 0 && data[(120 * 320 + 160) * 4] > 200)
+            {
                 *white_onset = time;
+            }
             buffer->Unlock();
             LONGLONG duration;
             ASSERT_EQ(S_OK, sample->GetSampleDuration(&duration));
             ASSERT_GT(duration, 0LL);
             if (frames)
+            {
                 ASSERT_LT(fabs((double)(time - *video_end)), 10000.0);
+            }
             *video_end = time + duration;
             ++frames;
         }
@@ -367,17 +393,21 @@ protected:
         ASSERT_EQ(S_OK, reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, type.Get()));
         uint64_t audio_frames = 0;
         LONGLONG audio_end = 0, audio_onset = -1;
-        int peak = 0;
+        int      peak = 0;
         for (;;)
         {
-            DWORD flags;
-            LONGLONG time;
+            DWORD             flags;
+            LONGLONG          time;
             ComPtr<IMFSample> sample;
             ASSERT_EQ(S_OK, reader->ReadSample(MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, 0, &flags, &time, &sample));
             if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
+            {
                 break;
+            }
             if (!sample)
+            {
                 continue;
+            }
             ComPtr<IMFMediaBuffer> buffer;
             ASSERT_EQ(S_OK, sample->ConvertToContiguousBuffer(&buffer));
             BYTE* data;
@@ -388,9 +418,13 @@ protected:
             {
                 int amplitude = abs((int)samples[i]);
                 if (amplitude > peak)
+                {
                     peak = amplitude;
+                }
                 if (audio_onset < 0 && amplitude > 1000)
+                {
                     audio_onset = time + dmRecord::FramesToTime(i / 2, 48000);
+                }
             }
             buffer->Unlock();
             audio_frames += bytes / 4;
@@ -401,14 +435,21 @@ protected:
         }
         ASSERT_GT(audio_frames, 24000ULL);
         if (tone)
+        {
             ASSERT_GT(peak, 1000);
+        }
         else
+        {
             ASSERT_LT(peak, 100);
+        }
 
         LONGLONG video_end, white_onset;
         InspectVideo(&video_end, &white_onset, minimum_video_frames);
         printf("%s: audio=%llu frames, peak=%d, end difference=%.1f ms\n",
-            m_Recording.m_Path, audio_frames, peak, (audio_end - video_end) / 10000.0);
+               m_Recording.m_Path,
+               audio_frames,
+               peak,
+               (audio_end - video_end) / 10000.0);
         ASSERT_LT(fabs((double)(audio_end - video_end)), 1500000.0);
         if (tone)
         {
@@ -441,24 +482,28 @@ protected:
         ASSERT_EQ(S_OK, MFGetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, &width, &height));
         ASSERT_EQ(m_Recording.m_Status.m_Width, width);
         ASSERT_EQ(m_Recording.m_Status.m_Height, height);
-        LONG stride = (LONG)MFGetAttributeUINT32(type.Get(), MF_MT_DEFAULT_STRIDE, width * 4);
+        LONG     stride = (LONG)MFGetAttributeUINT32(type.Get(), MF_MT_DEFAULT_STRIDE, width * 4);
         uint32_t frames = 0;
         for (;;)
         {
-            DWORD flags;
+            DWORD             flags;
             ComPtr<IMFSample> sample;
             ASSERT_EQ(S_OK, reader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, 0, &flags, 0, &sample));
             if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
+            {
                 break;
+            }
             if (!sample)
+            {
                 continue;
+            }
             ComPtr<IMFMediaBuffer> buffer;
             ASSERT_EQ(S_OK, sample->ConvertToContiguousBuffer(&buffer));
             BYTE* data;
             DWORD bytes;
             ASSERT_EQ(S_OK, buffer->Lock(&data, 0, &bytes));
-            bool valid = bytes >= abs(stride) * height;
-            const BYTE expected[4][3] = {{32, 32, 224}, {32, 224, 32}, {224, 32, 32}, {32, 224, 224}};
+            bool       valid = bytes >= abs(stride) * height;
+            const BYTE expected[4][3] = { { 32, 32, 224 }, { 32, 224, 32 }, { 224, 32, 32 }, { 32, 224, 224 } };
             // Sample just inside each client corner, allowing H.264 color loss.
             // All four must survive: checking only the center misses title bars,
             // shifted crops, truncated content and an upside-down image.
@@ -467,13 +512,23 @@ protected:
                 uint32_t x = (i & 1) ? width - 9 : 8;
                 uint32_t y = (i & 2) ? height - 9 : 8;
                 if (stride < 0)
+                {
                     y = height - 1 - y;
+                }
                 const BYTE* pixel = data + y * abs(stride) + x * 4;
                 for (uint32_t c = 0; c < 3; ++c)
+                {
                     valid = valid && abs((int)pixel[c] - expected[i][c]) < 25;
+                }
                 if (!valid)
+                {
                     printf("%s: incorrect client corner %u: BGR=(%u,%u,%u)\n",
-                        m_Recording.m_Path, i, pixel[0], pixel[1], pixel[2]);
+                           m_Recording.m_Path,
+                           i,
+                           pixel[0],
+                           pixel[1],
+                           pixel[2]);
+                }
             }
             buffer->Unlock();
             ASSERT_TRUE(valid);
@@ -488,16 +543,17 @@ protected:
 // Run on a display above 100% scaling to catch logical/physical coordinate mismatches.
 TEST_F(RecordWindowsTest, ClientAreaCropping)
 {
-    const DPI_AWARENESS_CONTEXT contexts[] = {DPI_AWARENESS_CONTEXT_UNAWARE,
-        DPI_AWARENESS_CONTEXT_SYSTEM_AWARE, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE};
-    const char* suffixes[] = {"crop-unaware", "crop-system", "crop-per-monitor"};
+    const DPI_AWARENESS_CONTEXT contexts[] = { DPI_AWARENESS_CONTEXT_UNAWARE,
+                                               DPI_AWARENESS_CONTEXT_SYSTEM_AWARE,
+                                               DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE };
+    const char*                 suffixes[] = { "crop-unaware", "crop-system", "crop-per-monitor" };
     for (uint32_t i = 0; i < 3; ++i)
     {
         DestroyWindow(m_Window);
         CreateTestWindow(contexts[i]);
         ASSERT_TRUE(Begin(false, suffixes[i], false, contexts[i]));
         DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
-        RECT client;
+        RECT                  client;
         ASSERT_TRUE(GetClientRect(m_Window, &client));
         SetThreadDpiAwarenessContext(previous);
         ASSERT_EQ((uint32_t)(client.right - client.left) & ~1U, m_Recording.m_Status.m_Width);
@@ -518,13 +574,12 @@ TEST_F(RecordWindowsTest, ResizeStopsCapture)
     CreateTestWindow(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
     ASSERT_TRUE(Begin(false, "resize", false, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE));
     DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
-    RECT rect = {0, 0, 480, 360};
+    RECT                  rect = { 0, 0, 480, 360 };
     ASSERT_TRUE(AdjustWindowRectExForDpi(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0, GetDpiForWindow(m_Window)));
-    ASSERT_TRUE(SetWindowPos(m_Window, 0, 0, 0, rect.right - rect.left, rect.bottom - rect.top,
-        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE));
+    ASSERT_TRUE(SetWindowPos(m_Window, 0, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE));
     SetThreadDpiAwarenessContext(previous);
     dmRecord::Status status;
-    uint64_t deadline = dmTime::GetMonotonicTime() + 15000000;
+    uint64_t         deadline = dmTime::GetMonotonicTime() + 15000000;
     do
     {
         ResetEvent(g_Painted);
@@ -605,7 +660,7 @@ TEST_F(RecordWindowsTest, VideoOnly)
 // Static windows and a paused animation must retain their full duration, with or without audio.
 TEST_F(RecordWindowsTest, StaticVideoDuration)
 {
-    const char* suffixes[] = {"static-video", "static-audio", "paused-video", "paused-audio"};
+    const char* suffixes[] = { "static-video", "static-audio", "paused-video", "paused-audio" };
     for (uint32_t i = 0; i < 4; ++i)
     {
         bool audio = (i & 1) != 0;

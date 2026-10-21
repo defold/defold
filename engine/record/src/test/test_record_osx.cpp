@@ -31,7 +31,9 @@ protected:
     {
         const char* tmpdir = getenv("TMPDIR");
         if (!tmpdir || !tmpdir[0])
+        {
             tmpdir = "/tmp";
+        }
         ASSERT_LT(snprintf(m_Directory, sizeof(m_Directory), "%s/record-output-XXXXXX", tmpdir), (int)sizeof(m_Directory));
         ASSERT_NE((char*)0, mkdtemp(m_Directory));
         ASSERT_LT(snprintf(m_Path, sizeof(m_Path), "%s/capture-\xc3\xa9.mp4", m_Directory), (int)sizeof(m_Path));
@@ -60,8 +62,7 @@ TEST_F(RecordOutputTest, NewOutput)
 TEST_F(RecordOutputTest, InvalidUtf8)
 {
     const char* invalid[] = {
-        "\xff", "\x80", "\xc0\xaf", "\xc2", "\xe2\x82", "\xf0\x9f\x8e",
-        "\xc2x", "\xed\xa0\x80", "\xf4\x90\x80\x80"
+        "\xff", "\x80", "\xc0\xaf", "\xc2", "\xe2\x82", "\xf0\x9f\x8e", "\xc2x", "\xed\xa0\x80", "\xf4\x90\x80\x80"
     };
     for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
     {

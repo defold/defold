@@ -18,7 +18,8 @@ if(NOT RECORD_FEATURE_DISABLED AND TARGET_PLATFORM MATCHES "(macos|linux|win32)$
     add_dependencies(record_script graphics_sdk_headers)
   endif()
 
-  defold_add_library(record STATIC src/record/record.cpp src/record/record_common.cpp)
+  defold_add_library(record STATIC
+    src/record/record.cpp src/record/record_common.cpp src/record/record_timeline.cpp)
   target_include_directories(record PUBLIC "${RECORD_ROOT}/src")
   defold_target_link_libraries(record "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
   if(TARGET_PLATFORM MATCHES "macos$")

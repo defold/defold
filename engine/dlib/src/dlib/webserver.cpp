@@ -359,7 +359,7 @@ namespace dmWebServer
 
     const char* GetHeader(Request* request, const char* name)
     {
-        uint32_t name_hash = HashHeaderName(name);
+        uint32_t         name_hash = HashHeaderName(name);
         InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
         const char** value = internal_request->m_Server->m_Headers.Get(name_hash);
         if (value)
@@ -381,7 +381,7 @@ namespace dmWebServer
 
     Result SendStream(Request* request, uint64_t length, StreamRead read, StreamClose close, void* context)
     {
-        InternalRequest* internal_request = (InternalRequest*)request->m_Internal;
+        InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
         return TranslateResult(dmHttpServer::SendStream(internal_request->m_Request, length, read, close, context));
     }
 

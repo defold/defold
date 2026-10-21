@@ -68,7 +68,7 @@ namespace dmRecord
     };
     static LinuxRecording g_Capture;
 
-    bool                  IsSupported()
+    bool IsSupported()
     {
         dmGraphics::AdapterFamily adapter = dmGraphics::GetInstalledAdapterFamily();
         return adapter == dmGraphics::ADAPTER_FAMILY_OPENGL || adapter == dmGraphics::ADAPTER_FAMILY_OPENGLES || adapter == dmGraphics::ADAPTER_FAMILY_VULKAN;
@@ -94,13 +94,17 @@ namespace dmRecord
     bool GetWindow(void* context, Window* window)
     {
         if (!IsSupported())
+        {
             return false;
+        }
         window->m_Handle = (uintptr_t)context;
         window->m_Width = dmGraphics::GetWindowWidth((dmGraphics::HContext)context);
         window->m_Height = dmGraphics::GetWindowHeight((dmGraphics::HContext)context);
         window->m_Scale = 1.0;
         if (!window->m_Width || !window->m_Height)
+        {
             return false;
+        }
         if (!g_Capture.m_Mutex)
         {
             g_Capture.m_Mutex = dmMutex::New();
@@ -111,7 +115,7 @@ namespace dmRecord
 
     void GetNativeStatus(Status* status)
     {
-        dmMutex::ScopedLock lock(g_Capture.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_Capture.m_Mutex);
         *status = g_Capture.m_Status;
     }
 
@@ -126,7 +130,9 @@ namespace dmRecord
     {
         // Caller holds the mutex, or startup has not published an active recorder.
         if (!recording->m_Status.m_Failure[0])
+        {
             dmStrlCpy(recording->m_Status.m_Failure, message, sizeof(recording->m_Status.m_Failure));
+        }
     }
 
     static int WriteMp4(int64_t offset, const void* buffer, size_t size, void* context)
@@ -167,18 +173,22 @@ namespace dmRecord
     static bool WritePending(LinuxRecording* recording, uint64_t end_time)
     {
         if (!recording->m_PendingSize)
+        {
             return true;
+        }
         uint64_t duration = end_time > recording->m_PendingTime ? end_time - recording->m_PendingTime : 1;
         // minimp4 writes 32-bit track/movie durations as well as sample durations.
         // Include the minimum one-tick sample duration in the accumulated total.
         if (duration > UINT32_MAX - recording->m_WrittenDuration)
         {
-            dmMutex::ScopedLock lock(recording->m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(recording->m_Mutex);
             Fail(recording, "recording exceeds the MP4 duration limit");
             return false;
         }
         if (mp4_h26x_write_nal(&recording->m_Writer, recording->m_Pending, recording->m_PendingSize, (uint32_t)duration) != MP4E_STATUS_OK)
+        {
             return false;
+        }
         recording->m_WrittenDuration += (uint32_t)duration;
         return true;
     }
@@ -200,18 +210,26 @@ namespace dmRecord
         picture.uiTimeStamp = (frame->m_Time - recording->m_Status.m_StartedMonotonicTime) / 1000;
         SFrameBSInfo encoded = {};
         if (recording->m_Encoder->EncodeFrame(&picture, &encoded) != cmResultSuccess)
+        {
             return false;
+        }
         if (encoded.eFrameType == videoFrameTypeSkip)
+        {
             return true;
+        }
         uint64_t time = (frame->m_Time - recording->m_Status.m_StartedMonotonicTime) * MP4_TIMESCALE / 1000000;
         bool     first = recording->m_PendingSize == 0;
         if (!WritePending(recording, time))
+        {
             return false;
+        }
         if ((uint32_t)encoded.iFrameSizeInBytes > recording->m_PendingCapacity)
         {
             void* data = realloc(recording->m_Pending, encoded.iFrameSizeInBytes);
             if (!data)
+            {
                 return false;
+            }
             recording->m_Pending = (uint8_t*)data;
             recording->m_PendingCapacity = encoded.iFrameSizeInBytes;
         }
@@ -221,7 +239,9 @@ namespace dmRecord
             SLayerBSInfo* layer = &encoded.sLayerInfo[i];
             uint32_t      size = 0;
             for (int j = 0; j < layer->iNalCount; ++j)
+            {
                 size += layer->pNalLengthInByte[j];
+            }
             memcpy(recording->m_Pending + recording->m_PendingSize, layer->pBsBuf, size);
             recording->m_PendingSize += size;
         }
@@ -243,7 +263,9 @@ namespace dmRecord
         if (recording->m_File)
         {
             if (fclose(recording->m_File))
+            {
                 ok = false;
+            }
             recording->m_File = 0;
         }
         if (recording->m_Encoder)
@@ -272,15 +294,19 @@ namespace dmRecord
         {
             Frame* frame;
             {
-                dmMutex::ScopedLock lock(recording->m_Mutex);
+                DM_MUTEX_SCOPED_LOCK(recording->m_Mutex);
                 while (!recording->m_Count && !recording->m_Stop)
+                {
                     dmConditionVariable::Wait(recording->m_Condition, recording->m_Mutex);
+                }
                 if ((!recording->m_Count && recording->m_Stop) || recording->m_Status.m_Failure[0])
+                {
                     break;
+                }
                 frame = &recording->m_Frames[recording->m_Read];
             }
-            bool                ok = EncodeFrame(recording, frame);
-            dmMutex::ScopedLock lock(recording->m_Mutex);
+            bool ok = EncodeFrame(recording, frame);
+            DM_MUTEX_SCOPED_LOCK(recording->m_Mutex);
             recording->m_Read = (recording->m_Read + 1) % FRAME_QUEUE_SIZE;
             --recording->m_Count;
             if (!ok)
@@ -290,7 +316,7 @@ namespace dmRecord
             }
         }
         {
-            dmMutex::ScopedLock lock(recording->m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(recording->m_Mutex);
             recording->m_Stop = true;
             if (!recording->m_Status.m_StoppedMonotonicTime)
             {
@@ -302,12 +328,18 @@ namespace dmRecord
         bool     frames = recording->m_PendingSize != 0;
         bool     ok = WritePending(recording, end);
         if (!CloseResources(recording))
+        {
             ok = false;
-        dmMutex::ScopedLock lock(recording->m_Mutex);
+        }
+        DM_MUTEX_SCOPED_LOCK(recording->m_Mutex);
         if (!frames)
+        {
             Fail(recording, "no rendered frames were captured");
+        }
         if (!ok)
+        {
             Fail(recording, "unable to finalize the MP4 file");
+        }
         recording->m_Status.m_Active = false;
         recording->m_Status.m_Finalized = !recording->m_Status.m_Failure[0];
     }
@@ -320,7 +352,7 @@ namespace dmRecord
             dmThread::Join(recording->m_Thread);
             recording->m_Thread = 0;
         }
-        dmMutex::ScopedLock lock(recording->m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(recording->m_Mutex);
         memset(&recording->m_Status, 0, sizeof(Status));
         memset(&recording->m_Writer, 0, sizeof(recording->m_Writer));
         recording->m_Status.m_Supported = true;
@@ -337,15 +369,25 @@ namespace dmRecord
         recording->m_WrittenDuration = 0;
         recording->m_Stop = false;
         if (audio)
+        {
             Fail(recording, "Linux recording supports video only");
+        }
         else if (width < 16 || height < 16)
+        {
             Fail(recording, "recording requires a framebuffer of at least 16x16 pixels");
+        }
         else if ((uint64_t)recording->m_CaptureWidth * recording->m_CaptureHeight > MAX_CAPTURE_PIXELS)
+        {
             Fail(recording, "framebuffer exceeds the recording readback size limit");
+        }
         else if ((uint64_t)((width + 15) / 16) * ((height + 15) / 16) > 36864)
+        {
             Fail(recording, "recording dimensions exceed the H.264 encoder frame-size limit");
+        }
         else if (WelsCreateSVCEncoder(&recording->m_Encoder) != cmResultSuccess)
+        {
             Fail(recording, "unable to create the H.264 encoder");
+        }
         if (!recording->m_Status.m_Failure[0])
         {
             SEncParamExt params;
@@ -376,19 +418,25 @@ namespace dmRecord
             layer->bColorDescriptionPresent = true;
             layer->uiColorPrimaries = layer->uiTransferCharacteristics = layer->uiColorMatrix = 6; // SMPTE 170M / BT.601.
             if (recording->m_Encoder->InitializeExt(&params) != cmResultSuccess)
+            {
                 Fail(recording, "unable to initialize the H.264 encoder");
+            }
         }
         if (!recording->m_Status.m_Failure[0])
         {
             recording->m_Yuv = (uint8_t*)malloc(width * height * 3 / 2);
             recording->m_File = fopen(path, "wb");
             if (!recording->m_Yuv || !recording->m_File)
+            {
                 Fail(recording, "unable to allocate recording buffers or open the MP4 file");
+            }
             else
             {
                 recording->m_Mux = MP4E_open(0, 0, recording->m_File, WriteMp4);
                 if (!recording->m_Mux || mp4_h26x_write_init(&recording->m_Writer, recording->m_Mux, width, height, 0) != MP4E_STATUS_OK)
+                {
                     Fail(recording, "unable to initialize the MP4 writer");
+                }
             }
         }
         if (!recording->m_Status.m_Failure[0])
@@ -398,11 +446,15 @@ namespace dmRecord
             recording->m_NextCapture = recording->m_Status.m_StartedMonotonicTime;
             recording->m_Thread = dmThread::New(EncoderWorker, 512 * 1024, recording, "record_encode");
             if (!recording->m_Thread)
+            {
                 Fail(recording, "recording encoder worker unavailable");
+            }
         }
         recording->m_Status.m_Active = !recording->m_Status.m_Failure[0];
         if (!recording->m_Status.m_Active)
+        {
             CloseResources(recording);
+        }
         *status = recording->m_Status;
         return status->m_Active;
     }
@@ -411,15 +463,21 @@ namespace dmRecord
     {
         uint64_t now = dmTime::GetMonotonicTime();
         if (!recording->m_Status.m_Active || recording->m_Stop || now < recording->m_NextCapture)
+        {
             return;
+        }
         uint64_t elapsed = now - recording->m_Status.m_StartedMonotonicTime;
         recording->m_NextCapture = recording->m_Status.m_StartedMonotonicTime + NextVideoFrameTime(elapsed, recording->m_Status.m_Fps);
         if (recording->m_Count == FRAME_QUEUE_SIZE)
+        {
             return; // Bound memory and never wait for the encoder on the render thread.
+        }
         uint32_t width = dmGraphics::GetWindowWidth(recording->m_Context);
         uint32_t height = dmGraphics::GetWindowHeight(recording->m_Context);
         if (!width || !height)
+        {
             return;
+        }
         if (width != recording->m_CaptureWidth || height != recording->m_CaptureHeight)
         {
             recording->m_Status.m_Stopping = true;
@@ -461,7 +519,9 @@ namespace dmRecord
         LinuxRecording* recording = &g_Capture;
         // In particular, do not wait for asynchronous encoder initialization.
         if (!recording->m_Mutex || !dmMutex::TryLock(recording->m_Mutex))
+        {
             return;
+        }
         CaptureFrameLocked(recording);
         dmMutex::Unlock(recording->m_Mutex);
     }
@@ -470,7 +530,7 @@ namespace dmRecord
     {
         LinuxRecording* recording = &g_Capture;
         {
-            dmMutex::ScopedLock lock(recording->m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(recording->m_Mutex);
             if (!recording->m_Stop)
             {
                 recording->m_Status.m_StoppedWallTime = dmTime::GetTime();
@@ -492,7 +552,9 @@ namespace dmRecord
     {
         LinuxRecording* recording = &g_Capture;
         if (!recording->m_Mutex)
+        {
             return;
+        }
         Status status;
         StopNative(&status);
         dmConditionVariable::Delete(recording->m_Condition);

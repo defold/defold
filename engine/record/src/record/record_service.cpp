@@ -71,10 +71,12 @@ namespace dmRecord
     static char                    g_InstanceId[96];
     static uint64_t                g_Generation;
 
-    static void                    JoinWorker(dmThread::Thread worker)
+    static void JoinWorker(dmThread::Thread worker)
     {
         if (!worker)
+        {
             return;
+        }
         dmThread::Join(worker);
 #if defined(_WIN32)
         dmThread::Detach(worker);
@@ -85,7 +87,7 @@ namespace dmRecord
     {
         bool released;
         {
-            dmMutex::ScopedLock lock(file->m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(file->m_Mutex);
             released = --file->m_References == 0;
         }
         if (released)
@@ -115,7 +117,9 @@ namespace dmRecord
         RecordingFile* file = g_Files[index];
         JoinWorker(file->m_Worker);
         if (g_CurrentFile == file)
+        {
             g_CurrentFile = 0;
+        }
         g_Files.EraseSwap(index);
         // Hide the receipt immediately. An active download keeps the file alive
         // until its worker closes it, including on Windows and during reboot.
@@ -132,7 +136,9 @@ namespace dmRecord
         FILE*                    file = failed ? 0 : FileOpen(recording->m_Path, "rb");
         uint64_t                 size = 0;
         if (!file)
+        {
             failed = true;
+        }
         else
         {
             uint8_t buffer[65536];
@@ -151,12 +157,18 @@ namespace dmRecord
         }
         uint8_t digest[32];
         if (!failed && mbedtls_md_finish(&hash, digest) != 0)
+        {
             failed = true;
+        }
         mbedtls_md_free(&hash);
-        dmMutex::ScopedLock lock(recording->m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(recording->m_Mutex);
         if (!failed)
+        {
             for (uint32_t i = 0; i < sizeof(digest); ++i)
+            {
                 dmSnPrintf(recording->m_Sha256 + 2 * i, 3, "%02x", digest[i]);
+            }
+        }
         recording->m_Size = size;
         recording->m_State = failed ? FILE_FAILED : FILE_READY;
     }
@@ -164,7 +176,9 @@ namespace dmRecord
     static void OnStatus(const Status* status)
     {
         if (!g_CurrentFile || g_CurrentFile->m_OperationId != status->m_Id || status->m_Pending || status->m_Active)
+        {
             return;
+        }
         RecordingFile* file = g_CurrentFile;
         if (!status->m_Finalized)
         {
@@ -178,16 +192,20 @@ namespace dmRecord
             }
             return;
         }
-        dmMutex::ScopedLock lock(file->m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(file->m_Mutex);
         if (file->m_State != FILE_RECORDING)
+        {
             return;
+        }
         file->m_State = FILE_PREPARING;
         file->m_Worker = dmThread::New(PrepareFile, 128 * 1024, file, "record-file");
         if (!file->m_Worker)
+        {
             file->m_State = FILE_FAILED;
+        }
     }
 
-    static StatusListener g_StatusListener = {OnStatus, 0};
+    static StatusListener g_StatusListener = { OnStatus, 0 };
 
     // All response strings originate in bounded status/platform buffers.
     static void EscapeJson(const char* source, char* output)
@@ -206,7 +224,9 @@ namespace dmRecord
                 output += 6;
             }
             else
+            {
                 *output++ = c;
+            }
         }
         *output = 0;
     }
@@ -233,9 +253,9 @@ namespace dmRecord
         char file_json[512] = "null";
         if (g_CurrentFile && g_CurrentFile->m_OperationId == status->m_Id)
         {
-            RecordingFile*      file = g_CurrentFile;
-            dmMutex::ScopedLock lock(file->m_Mutex);
-            const char*         state = file->m_State == FILE_READY ? "complete" : (file->m_State == FILE_FAILED ? "failed" : "pending");
+            RecordingFile* file = g_CurrentFile;
+            DM_MUTEX_SCOPED_LOCK(file->m_Mutex);
+            const char* state = file->m_State == FILE_READY ? "complete" : (file->m_State == FILE_FAILED ? "failed" : "pending");
             dmSnPrintf(file_json, sizeof(file_json), "{\"id\":\"%s\",\"url\":\"/recording/files/%s\",\"state\":\"%s\",\"size\":%llu,\"sha256\":\"%s\"}", file->m_Id, file->m_Id, state, (unsigned long long)file->m_Size, file->m_Sha256);
         }
         const char* state = status->m_Pending ? (status->m_Stopping ? "stopping" : "starting") :
@@ -243,11 +263,10 @@ namespace dmRecord
         char        failure[sizeof(status->m_Failure) * 6 + 1];
         EscapeJson(status->m_Failure, failure);
         char body[8192];
-        dmSnPrintf(body, sizeof(body),
-                   "{\"instance_id\":\"%s\",\"operation_id\":%llu,\"state\":\"%s\",\"pending\":%s,\"supported\":%s,\"active\":%s,\"finalized\":%s,"
-                   "\"backend\":\"%s\",\"format\":\"mp4\",\"codec\":\"h264\",\"audio\":%s,\"width\":%u,\"height\":%u,\"fps\":%u,"
-                   "\"started_wall_time_us\":%llu,\"started_monotonic_time_us\":%llu,\"stopped_wall_time_us\":%llu,"
-                   "\"stopped_monotonic_time_us\":%llu,\"failure\":\"%s\",\"file\":%s}",
+        dmSnPrintf(body, sizeof(body), "{\"instance_id\":\"%s\",\"operation_id\":%llu,\"state\":\"%s\",\"pending\":%s,\"supported\":%s,\"active\":%s,\"finalized\":%s,"
+                                       "\"backend\":\"%s\",\"format\":\"mp4\",\"codec\":\"h264\",\"audio\":%s,\"width\":%u,\"height\":%u,\"fps\":%u,"
+                                       "\"started_wall_time_us\":%llu,\"started_monotonic_time_us\":%llu,\"stopped_wall_time_us\":%llu,"
+                                       "\"stopped_monotonic_time_us\":%llu,\"failure\":\"%s\",\"file\":%s}",
                    g_InstanceId,
                    (unsigned long long)status->m_Id,
                    state,
@@ -272,7 +291,9 @@ namespace dmRecord
     static void SkipWhitespace(const char** p)
     {
         while (**p == ' ' || **p == '\t' || **p == '\r' || **p == '\n')
+        {
             ++*p;
+        }
     }
 
     // The request schema contains only known ASCII field names, unsigned
@@ -280,7 +301,9 @@ namespace dmRecord
     static bool ParseName(const char** p, char* name, uint32_t size)
     {
         if (*(*p)++ != '"')
+        {
             return false;
+        }
         uint32_t length = 0;
         while (**p && **p != '"')
         {
@@ -288,29 +311,41 @@ namespace dmRecord
             if (c == '\\')
             {
                 if (*(*p)++ != 'u')
+                {
                     return false;
+                }
                 uint32_t value = 0;
                 for (uint32_t i = 0; i < 4; ++i)
                 {
                     c = (unsigned char)**p;
                     if (!c)
+                    {
                         return false;
+                    }
                     ++*p;
                     uint32_t digit = c >= '0' && c <= '9' ? c - '0' : (c >= 'a' && c <= 'f' ? c - 'a' + 10 : (c >= 'A' && c <= 'F' ? c - 'A' + 10 : 16));
                     if (digit == 16)
+                    {
                         return false;
+                    }
                     value = value * 16 + digit;
                 }
                 if (value > 127)
+                {
                     return false;
+                }
                 c = (unsigned char)value;
             }
             if (c < 32 || c > 127 || length + 1 >= size)
+            {
                 return false;
+            }
             name[length++] = c;
         }
         if (**p != '"')
+        {
             return false;
+        }
         ++*p;
         name[length] = 0;
         return true;
@@ -319,7 +354,9 @@ namespace dmRecord
     static bool ParseUInt(const char** p, uint64_t* value)
     {
         if (**p < '0' || **p > '9')
+        {
             return false;
+        }
         bool zero = **p == '0';
         *value = 0;
         uint32_t digits = 0;
@@ -327,7 +364,9 @@ namespace dmRecord
         {
             uint32_t digit = *(*p)++ - '0';
             if (*value > (UINT64_MAX - digit) / 10)
+            {
                 return false;
+            }
             *value = *value * 10 + digit;
             ++digits;
         } while (**p >= '0' && **p <= '9');
@@ -339,21 +378,29 @@ namespace dmRecord
         const char* p = body;
         SkipWhitespace(&p);
         if (*p++ != '{')
+        {
             return false;
+        }
         SkipWhitespace(&p);
         uint32_t seen = 0;
         while (*p != '}')
         {
             char name[32];
             if (!ParseName(&p, name, sizeof(name)))
+            {
                 return false;
+            }
             uint32_t field = !strcmp(name, "fps") ? 1 : (!strcmp(name, "audio") ? 2 : (!strcmp(name, "operation_id") ? 4 : 0));
             if (!field || (seen & field) || (stopping ? field != 4 : field == 4))
+            {
                 return false;
+            }
             seen |= field;
             SkipWhitespace(&p);
             if (*p++ != ':')
+            {
                 return false;
+            }
             SkipWhitespace(&p);
             if (field == 2)
             {
@@ -368,28 +415,44 @@ namespace dmRecord
                     p += 5;
                 }
                 else
+                {
                     return false;
+                }
             }
             else
             {
                 uint64_t value;
                 if (!ParseUInt(&p, &value) || !value)
+                {
                     return false;
+                }
                 if (field == 1 && value > 60)
+                {
                     return false;
+                }
                 if (field == 1)
+                {
                     params->m_Fps = (uint32_t)value;
+                }
                 else
+                {
                     *id = value;
+                }
             }
             SkipWhitespace(&p);
             if (*p == '}')
+            {
                 break;
+            }
             if (*p++ != ',')
+            {
                 return false;
+            }
             SkipWhitespace(&p);
             if (*p == '}')
+            {
                 return false;
+            }
         }
         ++p;
         SkipWhitespace(&p);
@@ -400,7 +463,9 @@ namespace dmRecord
     {
         uint32_t index = 0;
         while (index < g_Files.Size() && strcmp(g_Files[index]->m_Id, id))
+        {
             ++index;
+        }
         if (index == g_Files.Size())
         {
             Error(request, 410, "stale_file", "recording file no longer exists");
@@ -409,7 +474,7 @@ namespace dmRecord
         RecordingFile* file = g_Files[index];
         FileState      state;
         {
-            dmMutex::ScopedLock lock(file->m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(file->m_Mutex);
             state = file->m_State;
         }
         if (state == FILE_RECORDING || state == FILE_PREPARING)
@@ -431,8 +496,7 @@ namespace dmRecord
         const char*        range = dmWebServer::GetHeader(request, "Range");
         unsigned long long start = 0, end = file->m_Size - 1;
         int                consumed = 0;
-        if (range && (sscanf(range, "bytes=%llu-%llu%n", &start, &end, &consumed) != 2 || range[consumed] ||
-                      end < start || start >= file->m_Size || end >= file->m_Size))
+        if (range && (sscanf(range, "bytes=%llu-%llu%n", &start, &end, &consumed) != 2 || range[consumed] || end < start || start >= file->m_Size || end >= file->m_Size))
         {
             Error(request, 416, "invalid_range", "provide a closed byte range within the file");
             return;
@@ -446,7 +510,9 @@ namespace dmRecord
         if (!seek_ok)
         {
             if (input)
+            {
                 fclose(input);
+            }
             Error(request, 500, "file_unavailable", "cannot read recording file");
             return;
         }
@@ -464,11 +530,13 @@ namespace dmRecord
         download->m_Input = input;
         download->m_File = file;
         {
-            dmMutex::ScopedLock lock(file->m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(file->m_Mutex);
             ++file->m_References;
         }
         if (dmWebServer::SendStream(request, end - start + 1, ReadDownload, CloseDownload, download) != dmWebServer::RESULT_OK)
+        {
             CloseDownload(download);
+        }
     }
 
     static void Handler(void*, dmWebServer::Request* request)
@@ -482,7 +550,9 @@ namespace dmRecord
         }
         dmWebServer::Result received = dmWebServer::ReceiveBuffered(request, body, sizeof(body));
         if (received == dmWebServer::RESULT_TRY_AGAIN)
+        {
             return;
+        }
         if (received != dmWebServer::RESULT_OK || memchr(body, 0, request->m_ContentLength))
         {
             dmWebServer::CloseConnection(request);
@@ -541,9 +611,8 @@ namespace dmRecord
         {
             char response[2048];
             bool supported = IsSupported() && g_GetWindow();
-            dmSnPrintf(response, sizeof(response),
-                       "{\"version\":1,\"instance_id\":\"%s\",\"supported\":%s,\"audio\":%s,\"backend\":\"%s\",\"format\":\"mp4\",\"codec\":\"h264\","
-                       "\"minimum_platform_version\":\"%s\",\"unsupported_reason\":\"%s\",\"max_fps\":60}",
+            dmSnPrintf(response, sizeof(response), "{\"version\":1,\"instance_id\":\"%s\",\"supported\":%s,\"audio\":%s,\"backend\":\"%s\",\"format\":\"mp4\",\"codec\":\"h264\","
+                                                   "\"minimum_platform_version\":\"%s\",\"unsupported_reason\":\"%s\",\"max_fps\":60}",
                        g_InstanceId,
                        supported ? "true" : "false",
                        supported && IsAudioSupported() ? "true" : "false",
@@ -645,7 +714,9 @@ namespace dmRecord
         recording->m_OperationId = status.m_Id;
         recording->m_State = FILE_RECORDING;
         if (g_Files.Full())
+        {
             g_Files.OffsetCapacity(16);
+        }
         g_Files.Push(recording);
         g_CurrentFile = recording;
         SendStatus(request, 202, &status);
@@ -654,12 +725,16 @@ namespace dmRecord
     bool RegisterService(dmWebServer::HServer server, GetNativeWindow get_window, const char* directory)
     {
         if (g_Server)
+        {
             return g_Server == server;
+        }
         dmWebServer::HandlerParams handler;
         handler.m_Userdata = 0;
         handler.m_Handler = Handler;
         if (dmWebServer::AddHandler(server, "/recording", &handler, RECORD_OPENAPI) != dmWebServer::RESULT_OK)
+        {
             return false;
+        }
         g_Server = server;
         AddStatusListener(&g_StatusListener);
         g_GetWindow = get_window;
@@ -678,12 +753,16 @@ namespace dmRecord
     void FinalizeService()
     {
         if (!g_Server)
+        {
             return;
+        }
         dmWebServer::RemoveHandler(g_Server, "/recording");
         RemoveStatusListener(&g_StatusListener);
         Finalize();
         while (!g_Files.Empty())
+        {
             DeleteFile(g_Files.Size() - 1);
+        }
         g_Files.SetCapacity(0);
         g_Server = 0;
         g_GetWindow = 0;
