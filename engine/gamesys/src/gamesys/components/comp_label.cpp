@@ -1113,7 +1113,7 @@ namespace dmGameSystem
             const float value = (float)params.m_Value.m_Number;
             if (!isfinite(value))
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
-            if (component->m_LineBreak && component->m_ArcAngle != 0.0f)
+            if (!component->m_Curve && component->m_LineBreak && component->m_ArcAngle != 0.0f)
                 InvalidateTextLayout(component);
             component->m_ArcRadius = value;
             return dmGameObject::PROPERTY_RESULT_OK;
@@ -1129,7 +1129,7 @@ namespace dmGameSystem
                 value = dmMath::Clamp(value, 0.0f, 360.0f);
             else if (value < 0.0f || value > 360.0f)
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
-            if (component->m_LineBreak && value != component->m_ArcAngle)
+            if (!component->m_Curve && component->m_LineBreak && value != component->m_ArcAngle)
                 InvalidateTextLayout(component);
             component->m_ArcAngle = value;
             return dmGameObject::PROPERTY_RESULT_OK;

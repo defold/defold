@@ -1420,21 +1420,16 @@ static uint32_t HitTestLayoutClusters(HTextLayout layout, const TextLayoutHitTes
         const float    baseline = layout_y + line.m_Baseline;
         for (uint32_t start = line.m_Index; start < line.m_Index + line.m_Length;)
         {
-            uint32_t               end = start;
-            float                  min_x = INFINITY;
-            float                  max_x = -INFINITY;
+            uint32_t               end;
+            const float            pivot = FontGetTextClusterPivot(glyphs, &line, start, line_x, first_x, &end);
             TextLayoutObjectBounds bounds;
             bounds.m_MinX = bounds.m_MinY = INFINITY;
             bounds.m_MaxX = bounds.m_MaxY = -INFINITY;
-            do
+            for (uint32_t i = start; i < end; ++i)
             {
-                const TextGlyph& glyph = glyphs[end];
-                min_x = fminf(min_x, glyph.m_X);
-                max_x = fmaxf(max_x, glyph.m_X + glyph.m_Width);
+                const TextGlyph& glyph = glyphs[i];
                 ExpandGlyphHitBounds(&bounds, glyph, line_x + glyph.m_X - first_x, baseline + glyph.m_Y - first_y, baseline, params.m_FontSize);
-                ++end;
-            } while (end < line.m_Index + line.m_Length && glyphs[end].m_Cluster == glyphs[start].m_Cluster);
-            const float      pivot = line_x + (min_x + max_x) * 0.5f - first_x;
+            }
             dmVMath::Matrix4 cluster_transform = transform;
             if (params.m_Curve)
                 cluster_transform = transform * FontTextCurveGetTransform(params.m_Curve, pivot, layout_y + lines[0].m_Baseline);

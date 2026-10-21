@@ -1821,7 +1821,7 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
 }
 
 // Scripted curves reach the label render queue, retain their mapping across
-// replacements, and ignore the stored size while preserving the three lines.
+// replacements, and ignore stored size/arc properties while preserving the three lines.
 TEST_F(LabelComponentTest, LabelScriptedCurve)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -1841,11 +1841,31 @@ TEST_F(LabelComponentTest, LabelScriptedCurve)
     ASSERT_EQ(0.0f, entry.m_Height);
     Matrix4 transform = entry.m_Transform;
     dmGameObject::PropertyOptions options;
+    const dmhash_t                label_id = dmHashString64("label");
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("line_break"), options, dmGameObject::PropertyVar(true)));
+    layout = PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    TextLayoutAcquire(layout);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_angle"), options, dmGameObject::PropertyVar(90.0f)));
+    EXPECT_EQ(layout, PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(10.0f)));
+    EXPECT_EQ(layout, PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection));
+    TextLayoutRelease(layout);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
               dmGameObject::SetProperty(go, dmHashString64("label"), dmHashString64("size"), options, dmGameObject::PropertyVar(Vector3(1, 1, 0))));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    FontTextCurveRetain(curve);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    dmGameSystem::CompLabelSetCurve(GetLabelComponent(go, label_id), 0);
+    ASSERT_GT(TextLayoutGetLineCount(PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection)), 3u);
+    dmGameSystem::CompLabelSetCurve(GetLabelComponent(go, label_id), curve);
+    FontTextCurveRelease(curve);
+    QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
     dmGameObject::Delete(m_Collection, go, false);
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_GT(FontTextCurveGetLength(curve), 680.0f); // The queue still owns its reference.
