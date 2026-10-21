@@ -201,13 +201,6 @@ For scripted analysis, `gpudebug -t /tmp/frame.gputrace -c "list"` starts a sess
 Reuse its printed session id with `gpudebug -s <id> -c "<command>"`, then finish
 with `gpudebug --terminate <id>`.
 
-The macOS integration tests start a local Metal engine and exercise capture,
-validation, early stop, failures, and reboot cleanup:
-
-```sh
-python3 engine/engine/src/test/test_gputrace.py --engine <path-to-dmengine> -v
-```
-
 ## Redirect service
 The redirect service will redirect any request to the engine service on its actual port (see Engine Service)
 
