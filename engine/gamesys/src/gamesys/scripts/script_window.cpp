@@ -395,7 +395,7 @@ static int GetSafeArea(lua_State* L)
  * The returned table is a snapshot and is not modified by subsequent events.
  *
  * @name window.get_reserved_areas
- * @return areas [type:table] array of [ref:window.reserved_area] rectangles
+ * @return areas [type:window.reserved_area[]] array of [ref:window.reserved_area] rectangles
  * @examples
  *
  * ```lua
