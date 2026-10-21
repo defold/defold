@@ -39,7 +39,7 @@ set(FONT_INTERNAL_HEADERS
 set(FONT_RENDER_VERTEX_HEADERS
   "${FONT_RENDER_SRC_DIR}/glyph_vertex.h"
   "${FONT_RENDER_SRC_DIR}/layout_vertex.h"
-  "${FONT_RENDER_SRC_DIR}/text_arc.hpp")
+  "${FONT_RENDER_SRC_DIR}/text_arc.h")
 set(FONT_DEPENDENCIES dlib)
 set(FONT_RENDER_DEPENDENCIES
   dlib

@@ -12,20 +12,22 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "text_arc.hpp"
+#include "text_arc.h"
+#include "../text_layout.h"
 #include <float.h>
 #include <math.h>
+#include <string.h>
 #include <dlib/math.h>
 
-float FontGetTextClusterPivot(const TextGlyph* glyphs, const TextLine& line, uint32_t index, float line_x, float first_x, uint32_t* end)
+float FontGetTextClusterPivot(const TextGlyph* glyphs, const TextLine* line, uint32_t index, float line_x, float first_x, uint32_t* end)
 {
     uint32_t start = index;
-    while (start > line.m_Index && glyphs[start - 1].m_Cluster == glyphs[index].m_Cluster)
+    while (start > line->m_Index && glyphs[start - 1].m_Cluster == glyphs[index].m_Cluster)
         --start;
     uint32_t next = start + 1;
     float    minimum = glyphs[start].m_X;
     float    maximum = minimum + glyphs[start].m_Width;
-    while (next < line.m_Index + line.m_Length && glyphs[next].m_Cluster == glyphs[index].m_Cluster)
+    while (next < line->m_Index + line->m_Length && glyphs[next].m_Cluster == glyphs[index].m_Cluster)
     {
         minimum = dmMath::Min(minimum, glyphs[next].m_X);
         maximum = dmMath::Max(maximum, glyphs[next].m_X + glyphs[next].m_Width);
@@ -76,22 +78,26 @@ bool FontPrepareTextArc(HTextLayout layout, float width, float height, uint32_t 
     return true;
 }
 
-dmVMath::Matrix4 FontGetTextArcFrame(const FontTextArc& arc, float angle, float radius)
+void FontGetTextArcFrame(const FontTextArc* arc, float angle, float radius, float transform[16])
 {
     const float cosine = cosf(angle);
     const float sine = sinf(angle);
-    return dmVMath::Matrix4(dmVMath::Vector4(cosine, -sine, 0.0f, 0.0f),
-                            dmVMath::Vector4(sine, cosine, 0.0f, 0.0f),
-                            dmVMath::Vector4(0.0f, 0.0f, 1.0f, 0.0f),
-                            dmVMath::Vector4(arc.m_CenterX + sine * radius, arc.m_CenterY + cosine * radius, 0.0f, 1.0f));
+    const float matrix[4][4] = {
+        { cosine, -sine, 0.0f, 0.0f },
+        { sine, cosine, 0.0f, 0.0f },
+        { 0.0f, 0.0f, 1.0f, 0.0f },
+        { arc->m_CenterX + sine * radius, arc->m_CenterY + cosine * radius, 0.0f, 1.0f }
+    };
+    memcpy(transform, matrix, sizeof(matrix));
 }
 
-dmVMath::Matrix4 FontGetTextArcTransform(const FontTextArc& arc, float x, float baseline)
+void FontGetTextArcTransform(const FontTextArc* arc, float x, float baseline, float transform[16])
 {
-    const float      angle = ((x - arc.m_MinX) / arc.m_Width - 0.5f) * arc.m_Span;
-    const float      radius = arc.m_Radius + (baseline - arc.m_FirstBaseline);
-    dmVMath::Matrix4 frame = FontGetTextArcFrame(arc, angle, radius);
+    const float angle = ((x - arc->m_MinX) / arc->m_Width - 0.5f) * arc->m_Span;
+    const float radius = arc->m_Radius + (baseline - arc->m_FirstBaseline);
+    FontGetTextArcFrame(arc, angle, radius, transform);
     // Include the inverse pivot directly instead of multiplying three matrices.
-    frame.setTranslation(frame.getTranslation() - frame.getCol0().getXYZ() * x - frame.getCol1().getXYZ() * baseline);
-    return frame;
+    transform[12] = transform[12] - transform[0] * x - transform[4] * baseline;
+    transform[13] = transform[13] - transform[1] * x - transform[5] * baseline;
+    transform[14] = transform[14] - transform[2] * x - transform[6] * baseline;
 }

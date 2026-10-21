@@ -2320,6 +2320,14 @@ TEST_F(FontTest, MultilineCurveVertices)
     TextLayoutRelease(layout);
 }
 
+extern "C" int TestTextArcC(void);
+
+// A C translation unit verifies the header, C linkage and column-major arc matrices.
+TEST(FontTextArc, CApi)
+{
+    ASSERT_EQ(0, TestTextArcC());
+}
+
 // Multiline arcs retain each glyph's size and texture data while using the laid-out baselines.
 TEST_F(FontTest, MultilineArcVertices)
 {

@@ -29,7 +29,7 @@
 #include "fontmap.h"
 #include "fontmap_private.h"
 #include "font_renderer_private.h"  // for FontMap, RenderLayerMask
-#include <font/render/text_arc.hpp>
+#include <font/render/text_arc.h>
 
 #include "font_renderer.h"          // for FontGlyphCompression
 #include "default/font_default_vertex.h"

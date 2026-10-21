@@ -14,7 +14,7 @@
 
 #include "text_layout.h"
 #include "fontcollection.h"
-#include "render/text_arc.hpp"
+#include "render/text_arc.h"
 #include <assert.h>
 #include <math.h>
 #include <stdlib.h>
@@ -446,7 +446,7 @@ uint8_t TextLayoutGetObjectPositionLocal(HTextLayout layout, const TextLayoutObj
     if (glyph_index != UINT32_MAX)
     {
         const TextGlyph* glyphs = layout->m_Glyphs.Begin();
-        pivot = FontGetTextClusterPivot(glyphs, line, glyph_index, x, glyphs[glyph_index].m_X, 0);
+        pivot = FontGetTextClusterPivot(glyphs, &line, glyph_index, x, glyphs[glyph_index].m_X, 0);
     }
     const float      layout_y = -pivot_y * layout->m_Height;
     dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
@@ -456,7 +456,7 @@ uint8_t TextLayoutGetObjectPositionLocal(HTextLayout layout, const TextLayoutObj
     {
         FontTextArc arc;
         if (FontPrepareTextArc(layout, width, 0.0f, (uint32_t)(pivot_x * 2), (uint32_t)((1.0f - pivot_y) * 2), layout->m_MonospacePadding, arc_radius, arc_angle, &arc))
-            transform = FontGetTextArcTransform(arc, pivot, layout_y + line.m_Baseline);
+            FontGetTextArcTransform(&arc, pivot, layout_y + line.m_Baseline, (float*)&transform);
     }
     *position = dmVMath::Point3((transform * dmVMath::Point3(x, y, 0.0f)).getXYZ());
     return 1;
@@ -1439,7 +1439,10 @@ static uint32_t HitTestLayoutClusters(HTextLayout layout, const TextLayoutHitTes
             if (params.m_Curve)
                 cluster_transform = transform * FontTextCurveGetTransform(params.m_Curve, pivot, layout_y + lines[0].m_Baseline);
             else if (use_arc)
-                cluster_transform = transform * FontGetTextArcTransform(arc, pivot, baseline);
+            {
+                FontGetTextArcTransform(&arc, pivot, baseline, (float*)&cluster_transform);
+                cluster_transform = transform * cluster_transform;
+            }
             if (HitTestProjectedBounds(bounds, cluster_transform, params.m_X, params.m_Y))
             {
                 if (!objects_only)

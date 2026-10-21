@@ -22,7 +22,7 @@
 #include <glyph_gen.h>
 #include <glyph_vertex.h>
 #include <layout_vertex.h>
-#include <text_arc.hpp>
+#include <text_arc.h>
 
 #include <float.h>
 #include <stddef.h>
@@ -2107,6 +2107,13 @@ static void WriteArcGuideVertex(float** vertices, const Vector3& point, float* b
     bounds[3] = dmMath::Max(bounds[3], point.getY());
 }
 
+static Vector3 GetArcGuidePoint(const FontTextArc& arc, float angle, float radius)
+{
+    Matrix4 frame;
+    FontGetTextArcFrame(&arc, angle, radius, (float*)&frame);
+    return frame.getTranslation();
+}
+
 static bool CreateArcGuide(const FontTextArc& arc, HTextLayout layout, const float* box, FontcArc* output)
 {
     const float    start = box[2];
@@ -2131,15 +2138,15 @@ static bool CreateArcGuide(const FontTextArc& arc, HTextLayout layout, const flo
     {
         for (uint32_t end = 0; end < 2; ++end)
             for (uint32_t edge = 0; edge < 2; ++edge)
-                WriteArcGuideVertex(&vertices, FontGetTextArcFrame(arc, start + span * end, box[edge]).getTranslation(), output->m_Bounds);
+                WriteArcGuideVertex(&vertices, GetArcGuidePoint(arc, start + span * end, box[edge]), output->m_Bounds);
     }
-    Vector3 inner = FontGetTextArcFrame(arc, start, box[0]).getTranslation();
-    Vector3 outer = FontGetTextArcFrame(arc, start, box[1]).getTranslation();
+    Vector3 inner = GetArcGuidePoint(arc, start, box[0]);
+    Vector3 outer = GetArcGuidePoint(arc, start, box[1]);
     for (uint32_t i = 1; i <= segments; ++i)
     {
         const float   angle = start + span * ((float)i / segments);
-        const Vector3 next_inner = FontGetTextArcFrame(arc, angle, box[0]).getTranslation();
-        const Vector3 next_outer = FontGetTextArcFrame(arc, angle, box[1]).getTranslation();
+        const Vector3 next_inner = GetArcGuidePoint(arc, angle, box[0]);
+        const Vector3 next_outer = GetArcGuidePoint(arc, angle, box[1]);
         WriteArcGuideVertex(&vertices, inner, output->m_Bounds);
         WriteArcGuideVertex(&vertices, next_inner, output->m_Bounds);
         WriteArcGuideVertex(&vertices, outer, output->m_Bounds);
@@ -2151,11 +2158,11 @@ static bool CreateArcGuide(const FontTextArc& arc, HTextLayout layout, const flo
     for (uint32_t line = 0; line < line_count; ++line)
     {
         const float radius = arc.m_Radius + (lines[line].m_Baseline - lines[0].m_Baseline);
-        Vector3     previous = FontGetTextArcFrame(arc, -0.5f * arc.m_Span, radius).getTranslation();
+        Vector3     previous = GetArcGuidePoint(arc, -0.5f * arc.m_Span, radius);
         for (uint32_t i = 1; i <= segments; ++i)
         {
             const float   angle = -0.5f * arc.m_Span + arc.m_Span * ((float)i / segments);
-            const Vector3 point = FontGetTextArcFrame(arc, angle, radius).getTranslation();
+            const Vector3 point = GetArcGuidePoint(arc, angle, radius);
             WriteArcGuideVertex(&vertices, previous, output->m_Bounds);
             WriteArcGuideVertex(&vertices, point, output->m_Bounds);
             previous = point;

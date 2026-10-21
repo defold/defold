@@ -14,7 +14,7 @@
 
 #include "layout_vertex.h"
 #include "font_effect.h"
-#include "text_arc.hpp"
+#include "text_arc.h"
 #include "../font.h"
 #include "text_layout.h"
 
@@ -1090,10 +1090,12 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
 
             if ((config.m_Curve || use_arc) && i >= cluster_end)
             {
-                const float pivot_x = FontGetTextClusterPivot(glyphs, line, i, line_x, first_x, &cluster_end);
-                cluster_transform = config.m_Transform * (config.m_Curve
-                    ? FontTextCurveGetTransform(config.m_Curve, pivot_x, layout_y + lines[0].m_Baseline)
-                    : FontGetTextArcTransform(arc, pivot_x, line_y));
+                const float pivot_x = FontGetTextClusterPivot(glyphs, &line, i, line_x, first_x, &cluster_end);
+                if (config.m_Curve)
+                    cluster_transform = FontTextCurveGetTransform(config.m_Curve, pivot_x, layout_y + lines[0].m_Baseline);
+                else
+                    FontGetTextArcTransform(&arc, pivot_x, line_y, (float*)&cluster_transform);
+                cluster_transform = config.m_Transform * cluster_transform;
             }
 
             if (text_glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
@@ -1296,9 +1298,11 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             if (config.m_Curve || use_arc)
             {
                 const float pivot_x = x0 + decoration_segment.m_Length * 0.5f;
-                decoration_transform = config.m_Transform * (config.m_Curve
-                    ? FontTextCurveGetTransform(config.m_Curve, pivot_x, layout_y + lines[0].m_Baseline)
-                    : FontGetTextArcTransform(arc, pivot_x, line_y));
+                if (config.m_Curve)
+                    decoration_transform = FontTextCurveGetTransform(config.m_Curve, pivot_x, layout_y + lines[0].m_Baseline);
+                else
+                    FontGetTextArcTransform(&arc, pivot_x, line_y, (float*)&decoration_transform);
+                decoration_transform = config.m_Transform * decoration_transform;
             }
             layers.m_Transform = &decoration_transform;
             FontPackDecorationVertices(decoration_params, layers);

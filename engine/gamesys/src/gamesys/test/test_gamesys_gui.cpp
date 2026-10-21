@@ -14,7 +14,7 @@
 
 #include "test_gamesys_private.h"
 #include <dlib/thread.h>
-#include <font/render/text_arc.hpp>
+#include <font/render/text_arc.h>
 
 using namespace dmVMath;
 
@@ -1969,8 +1969,10 @@ TEST_F(GuiTest, GuiCurvedTextPicking)
     const float      baseline = TextLayoutGetLines(layout)[0].m_Baseline;
     FontTextArc      arc;
     ASSERT_TRUE(FontPrepareTextArc(layout, 0, 0, 0, 2, layout->m_MonospacePadding, 200, 90, &arc));
+    Matrix4 arc_transform;
+    FontGetTextArcTransform(&arc, pivot, baseline, (float*)&arc_transform);
     Matrix4 screen = dmGui::GetNodeScreenTransform(scene, node);
-    Vector4 point = screen * FontGetTextArcTransform(arc, pivot, baseline) * Point3(pivot, baseline + 2, 0);
+    Vector4 point = screen * arc_transform * Point3(pivot, baseline + 2, 0);
     ASSERT_TRUE(dmGui::PickNode(scene, node, point.getX(), point.getY()));
     const Vector4 origin = screen * Point3(0, 0, 0);
     ASSERT_FALSE(dmGui::PickNode(scene, node, origin.getX(), origin.getY()));
