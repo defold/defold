@@ -26,6 +26,7 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDestroy;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDestroyMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDecodeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFilterMarkup;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeArc;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeTexture;
@@ -33,7 +34,6 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetEffectTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetArc;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetArcLineRadii;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetGlyphMetrics;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetMarkupData;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetSupportedGlyphMetrics;
@@ -59,6 +59,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import com.dynamo.bob.font.generated.FontRendererFFM;
+import com.dynamo.bob.font.generated.FontcArc;
 import com.dynamo.bob.font.generated.FontcGlyph;
 import com.dynamo.bob.font.generated.FontcGlyphBankGlyph;
 import com.dynamo.bob.font.generated.FontcGlyphMetrics;
@@ -501,7 +502,7 @@ public final class FontRenderer implements AutoCloseable {
         }
     }
 
-    /** Circular baseline and text vertex bounds in local font units; span is measured in radians. */
+    /** Arc guides and text bounds in local font units; angles use radians. */
     public static final class Arc {
         public final float centerX;
         public final float centerY;
@@ -519,7 +520,14 @@ public final class FontRenderer implements AutoCloseable {
         /** Baseline radii in layout order; the first line uses radius. */
         public final float[] lineRadii;
 
-        private Arc(MemorySegment values, float[] lineRadii) {
+        /** XYZ line pairs for the curved box and each text baseline. */
+        public final float[] outlineVertices;
+        public final float[] baselineVertices;
+        /** Text and guide min x/y, max x/y; excludes the center marker. */
+        public final float[] guideBounds;
+
+        private Arc(MemorySegment arc) {
+            MemorySegment values = FontcArc.m_Parameters(arc);
             centerX = values.getAtIndex(JAVA_FLOAT, 0);
             centerY = values.getAtIndex(JAVA_FLOAT, 1);
             radius = values.getAtIndex(JAVA_FLOAT, 2);
@@ -532,7 +540,13 @@ public final class FontRenderer implements AutoCloseable {
             outerRadius = values.getAtIndex(JAVA_FLOAT, 9);
             startAngle = values.getAtIndex(JAVA_FLOAT, 10);
             endAngle = values.getAtIndex(JAVA_FLOAT, 11);
-            this.lineRadii = lineRadii;
+            long outlineBytes = Integer.toUnsignedLong(FontcArc.m_OutlineVertexCount(arc)) * 3 * Float.BYTES;
+            long baselineBytes = Integer.toUnsignedLong(FontcArc.m_BaselineVertexCount(arc)) * 3 * Float.BYTES;
+            MemorySegment vertices = FontcArc.m_Vertices(arc).reinterpret(outlineBytes + baselineBytes);
+            outlineVertices = vertices.asSlice(0, outlineBytes).toArray(JAVA_FLOAT);
+            baselineVertices = vertices.asSlice(outlineBytes, baselineBytes).toArray(JAVA_FLOAT);
+            lineRadii = FontcArc.m_LineRadii(arc).reinterpret((long)FontcArc.m_LineCount(arc) * Float.BYTES).toArray(JAVA_FLOAT);
+            guideBounds = FontcArc.m_Bounds(arc).toArray(JAVA_FLOAT);
         }
     }
 
@@ -542,16 +556,13 @@ public final class FontRenderer implements AutoCloseable {
      */
     public synchronized Arc getArc() {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment values = arena.allocate(JAVA_FLOAT, 12);
-            checkResult(FontcGetArc(requireHandle(), values), "Unable to read native text arc");
-            if (values.getAtIndex(JAVA_FLOAT, 3) == 0.0f)
-                return null;
-            MemorySegment count = arena.allocate(JAVA_INT);
-            checkResult(FontcGetArcLineRadii(requireHandle(), MemorySegment.NULL, 0, count), "Unable to count arc baselines");
-            int lineCount = count.get(JAVA_INT, 0);
-            MemorySegment radii = arena.allocate(JAVA_FLOAT, lineCount);
-            checkResult(FontcGetArcLineRadii(requireHandle(), radii, lineCount, count), "Unable to read arc baselines");
-            return new Arc(values, radii.toArray(JAVA_FLOAT));
+            MemorySegment arc = FontcArc.allocate(arena);
+            checkResult(FontcGetArc(requireHandle(), arc), "Unable to read native text arc");
+            try {
+                return FontcArc.m_OutlineVertexCount(arc) == 0 ? null : new Arc(arc);
+            } finally {
+                FontcFreeArc(arc);
+            }
         }
     }
 

@@ -96,24 +96,26 @@ static inline bool FontPrepareTextArc(HTextLayout layout, float width, float hei
     return true;
 }
 
-// One rigid transform per glyph cluster keeps marks and shadow/outline layers attached.
-static inline dmVMath::Matrix4 FontGetTextArcTransform(const FontTextArc& arc, float x, float baseline)
+// Shared arc evaluation for glyph transforms and guide vertices.
+static inline dmVMath::Matrix4 FontGetTextArcFrame(const FontTextArc& arc, float angle, float radius)
 {
-    const float angle = ((x - arc.m_MinX) / arc.m_Width - 0.5f) * arc.m_Span;
-    const float radius = arc.m_Radius + (baseline - arc.m_FirstBaseline);
     const float cosine = cosf(angle);
     const float sine = sinf(angle);
-    const float position_x = arc.m_CenterX + sine * radius;
-    const float position_y = arc.m_CenterY + cosine * radius;
-    // Tangent and up form the rotation basis. Include the inverse pivot in the
-    // translation directly to avoid multiplying three matrices per cluster.
     return dmVMath::Matrix4(dmVMath::Vector4(cosine, -sine, 0.0f, 0.0f),
                             dmVMath::Vector4(sine, cosine, 0.0f, 0.0f),
                             dmVMath::Vector4(0.0f, 0.0f, 1.0f, 0.0f),
-                            dmVMath::Vector4(position_x - cosine * x - sine * baseline,
-                                             position_y + sine * x - cosine * baseline,
-                                             0.0f,
-                                             1.0f));
+                            dmVMath::Vector4(arc.m_CenterX + sine * radius, arc.m_CenterY + cosine * radius, 0.0f, 1.0f));
+}
+
+// One rigid transform per glyph cluster keeps marks and shadow/outline layers attached.
+static inline dmVMath::Matrix4 FontGetTextArcTransform(const FontTextArc& arc, float x, float baseline)
+{
+    const float      angle = ((x - arc.m_MinX) / arc.m_Width - 0.5f) * arc.m_Span;
+    const float      radius = arc.m_Radius + (baseline - arc.m_FirstBaseline);
+    dmVMath::Matrix4 frame = FontGetTextArcFrame(arc, angle, radius);
+    // Include the inverse pivot directly instead of multiplying three matrices.
+    frame.setTranslation(frame.getTranslation() - frame.getCol0().getXYZ() * x - frame.getCol1().getXYZ() * baseline);
+    return frame;
 }
 
 #endif // DM_FONT_TEXT_ARC_HPP

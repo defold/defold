@@ -836,53 +836,29 @@
           state (make-native-entry-state font-map (assoc entry :world-transform math/identity-mat4) false)]
       (apply-native-entry-state! renderer state)
       (when-let [^FontRenderer$Arc arc (.getArc renderer)]
-        (when (< (.-minX arc) (.-maxX arc))
-          (let [[offset-x offset-y] (:offset entry [0.0 0.0])
-                center-x (+ (double offset-x) (double (.-centerX arc)))
-                center-y (+ (double offset-y) (double (.-centerY arc)))
-                start-angle (double (.-startAngle arc))
-                span (- (double (.-endAngle arc)) start-angle)
-                segments (max 2 (long (* 2.0 (Math/ceil (/ span (Math/toRadians 4.0))))))
-                arc-points (fn arc-points [radius from-angle angular-span]
+        (let [[offset-x offset-y] (:offset entry [0.0 0.0])
+              center-x (+ (double offset-x) (double (.-centerX arc)))
+              center-y (+ (double offset-y) (double (.-centerY arc)))
+              offset-lines (fn offset-lines [^floats vertices]
                              (mapv (fn [index]
-                                     (let [angle (+ (double from-angle) (* (double angular-span) (/ (double index) (double segments))))]
-                                       [(+ center-x (* (double radius) (Math/sin angle)))
-                                        (+ center-y (* (double radius) (Math/cos angle)))
-                                        0.0]))
-                                   (range (inc segments))))
-                inner (arc-points (.-innerRadius arc) start-angle span)
-                outer (arc-points (.-outerRadius arc) start-angle span)
-                end-lines (if (< span (- (* 2.0 Math/PI) 0.00001))
-                            [(first inner) (first outer) (peek inner) (peek outer)]
-                            [])
-                line-data (coll/into-> (range segments) end-lines
-                            (mapcat (fn [index]
-                                      (let [next-index (inc (long index))]
-                                        [(nth inner index) (nth inner next-index)
-                                         (nth outer index) (nth outer next-index)]))))
-                baseline-line-data (coll/into-> (.-lineRadii arc) []
-                                     (mapcat (fn [radius]
-                                               (let [points (arc-points radius (* -0.5 (double (.-span arc))) (.-span arc))]
-                                                 (eduction
-                                                   (mapcat (fn [index]
-                                                             [(nth points index) (nth points (inc (long index)))]))
-                                                   (range segments))))))
-                text-aabb (geom/coords->aabb [(+ (double offset-x) (double (.-minX arc)))
-                                              (+ (double offset-y) (double (.-minY arc)))
-                                              0.0]
-                                             [(+ (double offset-x) (double (.-maxX arc)))
-                                              (+ (double offset-y) (double (.-maxY arc)))
-                                              0.0])]
-            {:line-data line-data
-             :baseline-line-data baseline-line-data
-             :center-line-data [[(- center-x 5.0) (- center-y 5.0) 0.0]
-                                [(+ center-x 5.0) (+ center-y 5.0) 0.0]
-                                [(- center-x 5.0) (+ center-y 5.0) 0.0]
-                                [(+ center-x 5.0) (- center-y 5.0) 0.0]]
-             :aabb (reduce (fn [aabb [x y _]]
-                             (geom/aabb-incorporate aabb (double x) (double y) 0.0))
-                           text-aabb
-                           (eduction cat [line-data baseline-line-data]))}))))))
+                                     (let [index (long index)]
+                                       [(+ (double offset-x) (double (aget vertices index)))
+                                        (+ (double offset-y) (double (aget vertices (inc index))))
+                                        (double (aget vertices (+ index 2)))]))
+                                   (range 0 (alength vertices) 3)))
+              ^floats bounds (.-guideBounds arc)]
+          {:line-data (offset-lines (.-outlineVertices arc))
+           :baseline-line-data (offset-lines (.-baselineVertices arc))
+           :center-line-data [[(- center-x 5.0) (- center-y 5.0) 0.0]
+                              [(+ center-x 5.0) (+ center-y 5.0) 0.0]
+                              [(- center-x 5.0) (+ center-y 5.0) 0.0]
+                              [(+ center-x 5.0) (- center-y 5.0) 0.0]]
+           :aabb (geom/coords->aabb [(+ (double offset-x) (double (aget bounds 0)))
+                                     (+ (double offset-y) (double (aget bounds 1)))
+                                     0.0]
+                                    [(+ (double offset-x) (double (aget bounds 2)))
+                                     (+ (double offset-y) (double (aget bounds 3)))
+                                     0.0])})))))
 
 (defn- generate-native-texture!
   [^GL3 gl ^FontRenderer native-renderer texture ^long known-atlas-version]

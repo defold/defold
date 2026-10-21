@@ -45,6 +45,7 @@
 #include "render/font_effect_index.h"
 
 using dmVMath::Matrix4;
+using dmVMath::Vector3;
 using dmVMath::Vector4;
 
 static_assert(sizeof(void*) == 8, "The font renderer FFM ABI requires a 64-bit target");
@@ -2080,26 +2081,99 @@ static bool GetLayoutVertexBounds(HFontRenderer renderer, FontLayoutVertexConfig
     return true;
 }
 
-FontRendererResult FontcGetArc(HFontRenderer renderer, float* output)
+static void WriteArcGuideVertex(float** vertices, const Vector3& point, float* bounds)
+{
+    *(*vertices)++ = point.getX();
+    *(*vertices)++ = point.getY();
+    *(*vertices)++ = point.getZ();
+    bounds[0] = dmMath::Min(bounds[0], point.getX());
+    bounds[1] = dmMath::Min(bounds[1], point.getY());
+    bounds[2] = dmMath::Max(bounds[2], point.getX());
+    bounds[3] = dmMath::Max(bounds[3], point.getY());
+}
+
+static bool CreateArcGuide(const FontTextArc& arc, HTextLayout layout, FontcArc* output)
+{
+    const float*   parameters = output->m_Parameters;
+    const float    start = parameters[10];
+    const float    span = parameters[11] - start;
+    const uint32_t segments = dmMath::Max(2u, (uint32_t)(2.0f * ceilf(span / (4.0f * 0.017453292519943295f))));
+    const bool     end_edges = span < 6.283185307179586f - 0.00001f;
+    const uint32_t outline_count = segments * 4 + (end_edges ? 4 : 0);
+    const uint32_t line_count = TextLayoutGetLineCount(layout);
+    if (line_count > (UINT32_MAX - outline_count) / (segments * 2))
+        return false;
+    const uint32_t baseline_count = line_count * segments * 2;
+    const uint64_t float_count = (uint64_t)(outline_count + baseline_count) * 3 + line_count;
+    if (float_count > SIZE_MAX / sizeof(float))
+        return false;
+    float* vertices = (float*)malloc((size_t)float_count * sizeof(float));
+    if (!vertices)
+        return false;
+    output->m_Vertices = vertices;
+    output->m_LineRadii = vertices + (size_t)(outline_count + baseline_count) * 3;
+    output->m_OutlineVertexCount = outline_count;
+    output->m_BaselineVertexCount = baseline_count;
+    output->m_LineCount = line_count;
+    memcpy(output->m_Bounds, parameters + 4, sizeof(output->m_Bounds));
+    if (end_edges)
+    {
+        for (uint32_t end = 0; end < 2; ++end)
+            for (uint32_t edge = 0; edge < 2; ++edge)
+                WriteArcGuideVertex(&vertices, FontGetTextArcFrame(arc, start + span * end, parameters[8 + edge]).getTranslation(), output->m_Bounds);
+    }
+    Vector3 inner = FontGetTextArcFrame(arc, start, parameters[8]).getTranslation();
+    Vector3 outer = FontGetTextArcFrame(arc, start, parameters[9]).getTranslation();
+    for (uint32_t i = 1; i <= segments; ++i)
+    {
+        const float   angle = start + span * ((float)i / segments);
+        const Vector3 next_inner = FontGetTextArcFrame(arc, angle, parameters[8]).getTranslation();
+        const Vector3 next_outer = FontGetTextArcFrame(arc, angle, parameters[9]).getTranslation();
+        WriteArcGuideVertex(&vertices, inner, output->m_Bounds);
+        WriteArcGuideVertex(&vertices, next_inner, output->m_Bounds);
+        WriteArcGuideVertex(&vertices, outer, output->m_Bounds);
+        WriteArcGuideVertex(&vertices, next_outer, output->m_Bounds);
+        inner = next_inner;
+        outer = next_outer;
+    }
+    const TextLine* lines = TextLayoutGetLines(layout);
+    for (uint32_t line = 0; line < line_count; ++line)
+    {
+        const float radius = arc.m_Radius + (lines[line].m_Baseline - lines[0].m_Baseline);
+        output->m_LineRadii[line] = radius;
+        Vector3 previous = FontGetTextArcFrame(arc, -0.5f * arc.m_Span, radius).getTranslation();
+        for (uint32_t i = 1; i <= segments; ++i)
+        {
+            const float   angle = -0.5f * arc.m_Span + arc.m_Span * ((float)i / segments);
+            const Vector3 point = FontGetTextArcFrame(arc, angle, radius).getTranslation();
+            WriteArcGuideVertex(&vertices, previous, output->m_Bounds);
+            WriteArcGuideVertex(&vertices, point, output->m_Bounds);
+            previous = point;
+        }
+    }
+    return true;
+}
+
+FontRendererResult FontcGetArc(HFontRenderer renderer, FontcArc* output)
 {
     if (!renderer || !renderer->m_HasProperties || !renderer->m_HasText || !output)
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
-    memset(output, 0, sizeof(float) * 12);
+    memset(output, 0, sizeof(*output));
     HTextLayout layout = 0;
     if (GetRetainedLayout(renderer, &layout) != TEXT_RESULT_OK)
         return FONT_RENDERER_RESULT_TEXT_ERROR;
     FontLayoutVertexConfig config;
     GetLayoutVertexConfig(renderer, layout, Matrix4::identity(), &config);
     FontTextArc arc;
-    if (FontPrepareTextArc(layout, config.m_Width, config.m_Height, config.m_Align,
-                          config.m_VerticalAlign, config.m_MonospacePadding,
-                          config.m_ArcRadius, config.m_ArcAngle, &arc))
+    if (FontPrepareTextArc(layout, config.m_Width, config.m_Height, config.m_Align, config.m_VerticalAlign, config.m_MonospacePadding, config.m_ArcRadius, config.m_ArcAngle, &arc))
     {
-        output[0] = arc.m_CenterX;
-        output[1] = arc.m_CenterY;
-        output[2] = arc.m_Radius;
-        output[3] = arc.m_Span;
-        if (!GetLayoutVertexBounds(renderer, config, arc, output + 4, output + 8))
+        float* parameters = output->m_Parameters;
+        parameters[0] = arc.m_CenterX;
+        parameters[1] = arc.m_CenterY;
+        parameters[2] = arc.m_Radius;
+        parameters[3] = arc.m_Span;
+        if (!GetLayoutVertexBounds(renderer, config, arc, parameters + 4, parameters + 8) ||
+            (parameters[4] < parameters[6] && !CreateArcGuide(arc, layout, output)))
         {
             TextLayoutRelease(layout);
             return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
@@ -2109,31 +2183,13 @@ FontRendererResult FontcGetArc(HFontRenderer renderer, float* output)
     return FONT_RENDERER_RESULT_OK;
 }
 
-FontRendererResult FontcGetArcLineRadii(HFontRenderer renderer, float* radii, uint32_t capacity, uint32_t* line_count)
+void FontcFreeArc(FontcArc* arc)
 {
-    if (!renderer || !renderer->m_HasProperties || !renderer->m_HasText || !line_count)
-        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
-    *line_count = 0;
-    if (renderer->m_Properties.m_ArcAngle == 0.0f)
-        return FONT_RENDERER_RESULT_OK;
-    HTextLayout layout = 0;
-    if (GetRetainedLayout(renderer, &layout) != TEXT_RESULT_OK)
-        return FONT_RENDERER_RESULT_TEXT_ERROR;
-    *line_count = TextLayoutGetLineCount(layout);
-    if (radii && capacity < *line_count)
+    if (arc)
     {
-        TextLayoutRelease(layout);
-        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+        free(arc->m_Vertices);
+        memset(arc, 0, sizeof(*arc));
     }
-    if (radii && *line_count)
-    {
-        const TextLine* lines = TextLayoutGetLines(layout);
-        const float first_baseline = lines[0].m_Baseline;
-        for (uint32_t i = 0; i < *line_count; ++i)
-            radii[i] = renderer->m_Properties.m_ArcRadius + (lines[i].m_Baseline - first_baseline);
-    }
-    TextLayoutRelease(layout);
-    return FONT_RENDERER_RESULT_OK;
 }
 
 FontRendererResult FontcGetVertexBufferSize(HFontRenderer renderer,

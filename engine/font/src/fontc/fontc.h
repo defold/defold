@@ -246,6 +246,19 @@ extern "C"
         uint32_t m_Channels;
     } FontcTexture;
 
+    typedef struct FontcArc
+    {
+        // Center x/y, signed first-line radius, span, text min/max x/y,
+        // inner/outer radii, start/end angles. Angles use radians.
+        float    m_Parameters[12];
+        float    m_Bounds[4]; // Text and guide min x/y, max x/y; excludes the center marker.
+        float*   m_Vertices;  // XYZ line pairs: outline first, then baselines.
+        float*   m_LineRadii;
+        uint32_t m_OutlineVertexCount;
+        uint32_t m_BaselineVertexCount;
+        uint32_t m_LineCount;
+    } FontcArc;
+
     typedef struct FontcImage
     {
         uint8_t* m_Pixels;
@@ -734,31 +747,22 @@ extern "C"
     DM_DLLEXPORT void FontcFreeTexture(FontcTexture* texture);
 
     /*#
-     * Returns arc geometry and text bounds; zeros for disabled or empty text.
-     * Distances use local font units; angles use radians.
+     * Returns arc guides and bounds in local font units; empty for disabled or empty text.
      *
      * @name FontcGetArc
      * @param renderer [type: HFontRenderer] Font renderer context.
-     * @param arc [type: float*] Caller-owned 12-float output: center x/y, signed first-line radius, span,
-     * bounds min x/y and max x/y, inner/outer radii, start/end angles.
+     * @param arc [type: FontcArc*] Receives owned guide buffers. Release with FontcFreeArc.
      * @return result [type: FontRendererResult] Result of the operation.
      */
-    DM_DLLEXPORT FontRendererResult FontcGetArc(HFontRenderer renderer, float* arc);
+    DM_DLLEXPORT FontRendererResult FontcGetArc(HFontRenderer renderer, FontcArc* arc);
 
     /*#
-     * Copies the circular baseline radius for each retained text line, in layout
-     * order, without generating glyph images. The first line uses m_ArcRadius;
-     * later lines use the layout's baseline offsets.
-     * Returns zero lines for straight or empty text. No pointers are retained.
+     * Releases the guide buffers and clears the arc.
      *
-     * @name FontcGetArcLineRadii
-     * @param renderer [type: HFontRenderer] Context with retained properties and text.
-     * @param radii [type: float*] Caller-owned output array, or null to query the count.
-     * @param capacity [type: uint32_t] Number of floats available in radii.
-     * @param line_count [type: uint32_t*] Receives the required or written line count.
-     * @return result [type: FontRendererResult] Result of the operation.
+     * @name FontcFreeArc
+     * @param arc [type: FontcArc*] Arc returned by FontcGetArc, or null.
      */
-    DM_DLLEXPORT FontRendererResult FontcGetArcLineRadii(HFontRenderer renderer, float* radii, uint32_t capacity, uint32_t* line_count);
+    DM_DLLEXPORT void FontcFreeArc(FontcArc* arc);
 
     /*#
      * Calculates the storage required for vertices of the retained text.

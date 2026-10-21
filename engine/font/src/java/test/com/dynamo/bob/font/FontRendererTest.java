@@ -1182,6 +1182,61 @@ public class FontRendererTest {
         }
     }
 
+    // Native guides preserve the requested sweep and signed multiline radii; framing excludes the center marker.
+    @Test
+    public void testArcGuideVerticesAndBounds() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            FontRenderer.Properties properties = properties(100.0f, 1.2f, 1);
+            properties.align = 1;
+            renderer.setText("First line\nSecond line\nThird line");
+            long atlasVersion = renderer.atlasVersion();
+            for (float radius : new float[] {2000.0f, -2000.0f, 40.0f}) {
+                for (float degrees : new float[] {86.0f, 360.0f}) {
+                    properties.arcRadius = radius;
+                    properties.arcAngle = degrees;
+                    renderer.setProperties(properties);
+                    FontRenderer.Arc arc = renderer.getArc();
+                    assertNotNull(arc);
+                    assertEquals(atlasVersion, renderer.atlasVersion());
+                    assertEquals(3, arc.lineRadii.length);
+                    int lineStride = arc.baselineVertices.length / arc.lineRadii.length;
+                    assertTrue(lineStride > 0 && lineStride % 6 == 0);
+                    assertEquals(lineStride * 2 + (degrees == 360.0f ? 0 : 12), arc.outlineVertices.length);
+                    for (int line = 0; line < arc.lineRadii.length; ++line) {
+                        for (int vertex = 0; vertex < lineStride / 3; ++vertex) {
+                            int offset = line * lineStride + vertex * 3;
+                            double angle = -arc.span * 0.5 + arc.span * ((vertex + 1) / 2) / (lineStride / 6);
+                            assertEquals(arc.centerX + Math.sin(angle) * arc.lineRadii[line], arc.baselineVertices[offset], 0.001);
+                            assertEquals(arc.centerY + Math.cos(angle) * arc.lineRadii[line], arc.baselineVertices[offset + 1], 0.001);
+                            assertEquals(0.0f, arc.baselineVertices[offset + 2], 0.0f);
+                        }
+                    }
+                    float[] bounds = {arc.minX, arc.minY, arc.maxX, arc.maxY};
+                    for (float[] vertices : new float[][] {arc.outlineVertices, arc.baselineVertices}) {
+                        for (int index = 0; index < vertices.length; index += 3) {
+                            bounds[0] = Math.min(bounds[0], vertices[index]);
+                            bounds[1] = Math.min(bounds[1], vertices[index + 1]);
+                            bounds[2] = Math.max(bounds[2], vertices[index]);
+                            bounds[3] = Math.max(bounds[3], vertices[index + 1]);
+                        }
+                    }
+                    assertArrayEquals(bounds, arc.guideBounds, 0.001f);
+                    for (int index = 0; index < arc.outlineVertices.length; index += 3) {
+                        double distance = Math.hypot(arc.outlineVertices[index] - arc.centerX, arc.outlineVertices[index + 1] - arc.centerY);
+                        assertTrue(Math.abs(distance - Math.abs(arc.innerRadius)) < 0.001 ||
+                                Math.abs(distance - Math.abs(arc.outerRadius)) < 0.001);
+                    }
+                    if (degrees == 86.0f && Math.abs(radius) == 2000.0f)
+                        assertTrue(arc.centerY < arc.guideBounds[1] || arc.centerY > arc.guideBounds[3]);
+                    // A second native allocation must not invalidate the Java-owned guide arrays.
+                    FontRenderer.Arc next = renderer.getArc();
+                    assertArrayEquals(arc.outlineVertices, next.outlineVertices, 0.0f);
+                    assertArrayEquals(arc.baselineVertices, next.baselineVertices, 0.0f);
+                }
+            }
+        }
+    }
+
     // Framing uses the rendered quads, including rich sizes and effects, without including the distant circle center.
     @Test
     public void testArcBoundsMatchRenderedVertices() throws Exception {
