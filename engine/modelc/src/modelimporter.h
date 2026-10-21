@@ -123,6 +123,7 @@ namespace dmModelImporter
         int              m_Texcoord;
         float            m_Scale; // equivalent to strength for occlusion_texture
         bool             m_HasTransform;
+        bool             m_TransformBaked; // The mesh UV channel already includes this transform.
         TextureTransform m_Transform;
     };
 

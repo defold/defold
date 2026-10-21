@@ -37,6 +37,9 @@ struct Vertex
     float m_Tangent[4];
     float m_Color[4];
     float m_Uv[2];
+    float m_Uv1[2];
+    float m_Weights[4];
+    float m_Bones[4];
 };
 
 struct Probe
@@ -81,7 +84,10 @@ static bool ReadFile(const char* path, dmArray<uint8_t>& bytes)
 
 static void SetVector(HContext context, HProgram program, const char* name, const dmVMath::Vector4& value)
 {
-    SetConstantV4(context, &value, 1, FindUniformLocation(program, name));
+    // A regression control may use an older shader without the new uniforms.
+    HUniformLocation location = FindUniformLocation(program, name);
+    if (location != INVALID_UNIFORM_LOCATION)
+        SetConstantV4(context, &value, 1, location);
 }
 
 static void SetMatrix(HContext context, HProgram program, const char* name, const dmVMath::Matrix4& value)
@@ -648,13 +654,21 @@ static bool RunTransmissionFilterProbes(HContext context, HProgram program, HVer
 
 // Verify production shader composition on a hidden 1x1 target, including IBL
 // roughness mip selection when an environment material is supplied by the project.
-static bool RunProbes(HContext context, HProgram program, bool ibl, const char* project_root)
+static bool RunProbes(HContext context, HProgram program, bool ibl, const char* project_root, bool skinned = false)
 {
-    const Vertex vertices[] = {
+    Vertex vertices[] = {
         { { -1, -1, -1, 1 }, { 0, 0, 1 }, { 1, 0, 0, 1 }, { 1, 1, 1, 1 }, { 0.5f, 0.5f } },
         { { 3, -1, -1, 1 }, { 0, 0, 1 }, { 1, 0, 0, 1 }, { 1, 1, 1, 1 }, { 0.5f, 0.5f } },
         { { -1, 3, -1, 1 }, { 0, 0, 1 }, { 1, 0, 0, 1 }, { 1, 1, 1, 1 }, { 0.5f, 0.5f } },
     };
+    if (skinned)
+    {
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            vertices[i].m_Weights[0] = 1;
+            vertices[i].m_Bones[1] = 1;
+        }
+    }
     HVertexBuffer            buffer = NewVertexBuffer(context, sizeof(vertices), vertices, BUFFER_USAGE_STATIC_DRAW);
     HVertexStreamDeclaration streams = NewVertexStreamDeclaration(context);
     AddVertexStream(streams, "position", 4, TYPE_FLOAT, false);
@@ -662,6 +676,9 @@ static bool RunProbes(HContext context, HProgram program, bool ibl, const char* 
     AddVertexStream(streams, "tangent", 4, TYPE_FLOAT, false);
     AddVertexStream(streams, "color", 4, TYPE_FLOAT, false);
     AddVertexStream(streams, "texcoord0", 2, TYPE_FLOAT, false);
+    AddVertexStream(streams, "texcoord1", 2, TYPE_FLOAT, false);
+    AddVertexStream(streams, "bone_weights", 4, TYPE_FLOAT, false);
+    AddVertexStream(streams, "bone_indices", 4, TYPE_FLOAT, false);
     HVertexDeclaration declaration = NewVertexDeclaration(context, streams, sizeof(Vertex));
     DeleteVertexStreamDeclaration(streams);
 
@@ -686,6 +703,14 @@ static bool RunProbes(HContext context, HProgram program, bool ibl, const char* 
     upload.m_DataSize = sizeof(texel);
     upload.m_MinFilter = upload.m_MagFilter = TEXTURE_FILTER_NEAREST;
     SetTexture(context, texture, upload);
+
+    HTexture pose = 0;
+    if (skinned)
+    {
+        creation.m_Width = 6;
+        creation.m_Height = 1;
+        pose = NewTexture(context, creation);
+    }
 
     HTexture diffuse = 0, specular = 0, brdf = 0;
     if (ibl)
@@ -737,6 +762,8 @@ static bool RunProbes(HContext context, HProgram program, bool ibl, const char* 
         if (strstr(uniform.m_Name, "tex_ibl_brdf"))
             brdf_unit = textures;
         HTexture binding = scene_color ? GetRenderTargetTexture(context, scene, BUFFER_TYPE_COLOR0_BIT) : texture;
+        if (strstr(uniform.m_Name, "pose_matrix_cache"))
+            binding = pose;
         if (strstr(uniform.m_Name, "tex_ibl_diffuse"))
             binding = diffuse;
         else if (strstr(uniform.m_Name, "tex_ibl_specular"))
@@ -752,6 +779,8 @@ static bool RunProbes(HContext context, HProgram program, bool ibl, const char* 
     // applies this backend adjustment when it supplies projection constants.
     const dmVMath::Matrix4 projection = dmVMath::Matrix4::scale(dmVMath::Vector3(1, 1, -0.1f));
     SetMatrix(context, program, "mtx_view", identity);
+    if (skinned)
+        SetVector(context, program, "animation_data", dmVMath::Vector4(0, 1, 6, 1));
     SetMatrix(context, program, "mtx_normal", identity);
     SetMatrix(context, program, "mtx_proj", projection);
     SetMatrix(context, program, "mtx_projection", projection);
@@ -805,12 +834,43 @@ static bool RunProbes(HContext context, HProgram program, bool ibl, const char* 
         // Volume attenuation tints the background without tinting reflected IBL.
         { "ibl_volume", 1.5f, 1, 2, 2, 1, { 0.25f, 0.5f, 1 }, 0, 0, 0, 0, 0.5f, 0, { 0.15625f, 0.2671875f, 0.534375f }, 0.5f, 0.5f },
     };
-    const Probe* probes = ibl ? ibl_probes : base_probes;
-    uint32_t     probe_count = ibl ? sizeof(ibl_probes) / sizeof(ibl_probes[0]) : sizeof(base_probes) / sizeof(base_probes[0]);
+    // Bone Z scale changes mesh-space thickness in world space. Blend two
+    // distinct bones and combine bone/model scales; small invertible scales
+    // must not fall back to the unskinned approximation.
+    const Probe skin_probes[] = {
+        { "bone_identity", 1, 1, 1, 1, 1, { 0.5f, 0.5f, 0.5f }, 0, 0, 0, 0, 1, 0, { 0.5f, 0.5f, 0.5f }, 0, 0 },
+        { "bone_nonuniform_scale", 1, 1, 1, 1, 1, { 0.5f, 0.5f, 0.5f }, 0, 0, 0, 0, 1, 0, { 0.25f, 0.25f, 0.25f }, 0, 0 },
+        { "bone_blended_scale", 1, 1, 1, 1, 1, { 0.5f, 0.5f, 0.5f }, 0, 0, 0, 0, 1, 0, { 0.125f, 0.125f, 0.125f }, 0, 0 },
+        { "bone_small_scale", 1, 1, 1, 1, 1, { 0.5f, 0.5f, 0.5f }, 0, 0, 0, 0, 1, 0, { 0.9930925f, 0.9930925f, 0.9930925f }, 0, 0 },
+        { "bone_and_model_scale", 1, 1, 1, 1, 2, { 0.5f, 0.5f, 0.5f }, 0, 0, 0, 0, 1, 0, { 0.0625f, 0.0625f, 0.0625f }, 0, 0 },
+    };
+    const Probe* probes = skinned ? skin_probes : ibl ? ibl_probes :
+                                                        base_probes;
+    uint32_t     probe_count = skinned ? DM_ARRAY_SIZE(skin_probes) : ibl ? DM_ARRAY_SIZE(ibl_probes) :
+                                                                            DM_ARRAY_SIZE(base_probes);
     bool         success = true;
     for (uint32_t i = 0; i < probe_count; ++i)
     {
         const Probe& p = probes[i];
+        if (skinned)
+        {
+            const float   scales[] = { 1, 2, 2, 0.01f, 2 };
+            const float   matrices[] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, scales[i], 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0 };
+            TextureParams pose_upload;
+            pose_upload.m_Width = 6;
+            pose_upload.m_Height = 1;
+            pose_upload.m_Format = TEXTURE_FORMAT_RGBA32F;
+            pose_upload.m_Data = matrices;
+            pose_upload.m_DataSize = sizeof(matrices);
+            pose_upload.m_MinFilter = pose_upload.m_MagFilter = TEXTURE_FILTER_NEAREST;
+            SetTexture(context, pose, pose_upload);
+            for (uint32_t v = 0; v < 3; ++v)
+            {
+                vertices[v].m_Weights[0] = i == 2 ? 0.5f : 1;
+                vertices[v].m_Weights[1] = i == 2 ? 0.5f : 0;
+            }
+            SetVertexBufferData(buffer, sizeof(vertices), vertices, BUFFER_USAGE_STATIC_DRAW);
+        }
         SetVector(context, program, "pbrMetallicRoughness.baseColorFactor", dmVMath::Vector4(p.m_BaseColor, p.m_BaseColor, p.m_BaseColor, 1));
         SetVector(context, program, "light_info", dmVMath::Vector4(p.m_Ambient, p.m_Ambient, p.m_Ambient, 0));
         SetMatrix(context, program, "mtx_worldview", dmVMath::Matrix4::scale(dmVMath::Vector3(1, 1, p.m_Scale)));
@@ -837,14 +897,101 @@ static bool RunProbes(HContext context, HProgram program, bool ibl, const char* 
             passed &= abs((int)pixel[2 - c] - expected) <= 1;
         }
         printf("%s: %s (%u,%u,%u,%u)\n", p.m_Name, passed ? "PASS" : "FAIL", pixel[2], pixel[1], pixel[0], pixel[3]);
+        if (skinned)
+            SaveCapture(p.m_Name, pixel, 1, 1);
         success &= passed;
     }
-    if (!ibl)
+    // UV0 and UV1 address different texels. Independent transforms must select
+    // the authored transmission red and thickness green channels, including V flip.
+    if (!ibl && !skinned)
+    {
+        Vertex uv_vertices[3];
+        memcpy(uv_vertices, vertices, sizeof(uv_vertices));
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            uv_vertices[i].m_Uv[0] = 0.25f;
+            uv_vertices[i].m_Uv[1] = 0.75f;
+            uv_vertices[i].m_Uv1[0] = 0.75f;
+            uv_vertices[i].m_Uv1[1] = 0.25f;
+        }
+        SetVertexBufferData(buffer, sizeof(uv_vertices), uv_vertices, BUFFER_USAGE_STATIC_DRAW);
+        const uint8_t         texels[] = { 0, 0, 0, 255, 255, 128, 0, 255, 64, 255, 0, 255, 128, 64, 0, 255 };
+        TextureCreationParams uv_creation;
+        uv_creation.m_Width = uv_creation.m_Height = 2;
+        HTexture uv_texture = NewTexture(context, uv_creation);
+        upload.m_Width = upload.m_Height = 2;
+        upload.m_Data = texels;
+        upload.m_DataSize = sizeof(texels);
+        SetTexture(context, uv_texture, upload);
+        for (uint32_t unit = 0; unit < textures; ++unit)
+            if (unit != scene_unit)
+                EnableTexture(context, unit, 0, uv_texture);
+        SetMatrix(context, program, "mtx_worldview", identity);
+        SetMatrix(context, program, "mtx_normal", identity);
+        SetVector(context, program, "transmission_params", dmVMath::Vector4(1, 1, 0, 0));
+        SetVector(context, program, "pbrMetallicRoughness.baseColorFactor", dmVMath::Vector4(1));
+        SetVector(context, program, "pbrMetallicRoughness.metallicAndRoughnessFactor", dmVMath::Vector4(0));
+        SetVector(context, program, "light_info", dmVMath::Vector4(0));
+        SetVector(context, program, "pbrAlphaCutoffAndDoubleSidedAndIsUnlit", dmVMath::Vector4(0.5f, 1, 0, 0));
+        SetVector(context, program, "pbrIor.ior", dmVMath::Vector4(1, 0, 0, 0));
+        SetVector(context, program, "pbrTransmission.transmissionFactor", dmVMath::Vector4(1, 0, 0, 0));
+        SetVector(context, program, "pbrVolume.attenuationDistance", dmVMath::Vector4(1, 0, 0, 0));
+        struct UvProbe
+        {
+            const char* m_Name;
+            float       m_U[4];
+            float       m_V[4];
+            bool        m_Thickness;
+            float       m_Expected;
+        };
+        const UvProbe uv_probes[] = {
+            { "transmission_uv0", { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, false, 64.0f / 255 },
+            { "transmission_uv1", { 0, 0, 0, 1 }, { 0, 0, 0, 0 }, false, 1 },
+            { "transmission_offset", { 0, 0, 0.5f, 0 }, { 0, 0, 0, 0 }, false, 128.0f / 255 },
+            { "transmission_rotated", { -1, 1, 0, 0 }, { -1, -1, 1, 0 }, false, 128.0f / 255 },
+            { "thickness_uv0", { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, true, 0.5f },
+            { "thickness_uv1", { 0, 0, 0, 1 }, { 0, 0, 0, 0 }, true, powf(0.5f, 128.0f / 255) },
+            { "thickness_offset", { 0, 0, 0.5f, 0 }, { 0, 0, 0, 0 }, true, powf(0.5f, 64.0f / 255) },
+        };
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(uv_probes); ++i)
+        {
+            const UvProbe&   p = uv_probes[i];
+            dmVMath::Vector4 u(p.m_U[0], p.m_U[1], p.m_U[2], p.m_U[3]);
+            dmVMath::Vector4 v(p.m_V[0], p.m_V[1], p.m_V[2], p.m_V[3]);
+            SetVector(context, program, "pbrTransmission.transmissionTextures", dmVMath::Vector4(p.m_Thickness ? 0 : 1, 0, 0, 0));
+            SetVector(context, program, "pbrVolume.volumeTextures", dmVMath::Vector4(p.m_Thickness ? 1 : 0, 0, 0, 0));
+            SetVector(context, program, "pbrVolume.thicknessFactorAndAttenuationColor", dmVMath::Vector4(p.m_Thickness ? 1 : 0, 0.5f, 0.5f, 0.5f));
+            SetVector(context, program, "pbrTransmission.transmissionTextureTransformU", u);
+            SetVector(context, program, "pbrTransmission.transmissionTextureTransformV", v);
+            SetVector(context, program, "pbrVolume.thicknessTextureTransformU", u);
+            SetVector(context, program, "pbrVolume.thicknessTextureTransformV", v);
+            Draw(context, PRIMITIVE_TRIANGLES, 0, 3, 1);
+            uint8_t pixel[4];
+            ReadPixels(context, 0, 0, 1, 1, pixel, sizeof(pixel));
+            uint8_t expected = (uint8_t)(p.m_Expected * 255 + 0.5f);
+            bool    passed = pixel[3] == 255;
+            for (uint32_t c = 0; c < 3; ++c)
+                passed &= abs((int)pixel[c] - expected) <= 1;
+            printf("%s: %s (%u,%u,%u,%u)\n", p.m_Name, passed ? "PASS" : "FAIL", pixel[2], pixel[1], pixel[0], pixel[3]);
+            SaveCapture(p.m_Name, pixel, 1, 1);
+            success &= passed;
+        }
+        SetVector(context, program, "pbrTransmission.transmissionTextureTransformU", dmVMath::Vector4(0));
+        SetVector(context, program, "pbrTransmission.transmissionTextureTransformV", dmVMath::Vector4(0));
+        SetVector(context, program, "pbrVolume.thicknessTextureTransformU", dmVMath::Vector4(0));
+        SetVector(context, program, "pbrVolume.thicknessTextureTransformV", dmVMath::Vector4(0));
+        SetVertexBufferData(buffer, sizeof(vertices), vertices, BUFFER_USAGE_STATIC_DRAW);
+        for (uint32_t unit = 0; unit < textures; ++unit)
+            if (unit != scene_unit)
+                EnableTexture(context, unit, 0, texture);
+        DeleteTexture(context, uv_texture);
+    }
+    if (!ibl && !skinned)
     {
         success &= RunCaptureProbes(context, program, scene_unit);
         success &= RunRefractionProbes(context, program, buffer, scene_unit);
     }
-    else
+    else if (ibl)
     {
         success &= RunTransmissionFilterProbes(context, program, declaration, texture, scene_unit, blur_unit, environment_unit, brdf_unit, project_root, 1.0f, depth_unit);
         success &= RunTransmissionFilterProbes(context, program, declaration, texture, scene_unit, blur_unit, environment_unit, brdf_unit, project_root, 0.5f, depth_unit);
@@ -867,6 +1014,8 @@ static bool RunProbes(HContext context, HProgram program, bool ibl, const char* 
     DeleteRenderTarget(context, scene);
     DeleteRenderTarget(context, target);
     DeleteTexture(context, texture);
+    if (pose)
+        DeleteTexture(context, pose);
     if (ibl)
     {
         DeleteTexture(context, diffuse);
@@ -974,6 +1123,25 @@ int main(int argc, char** argv)
     {
         uint64_t start = dmTime::GetMonotonicTime();
         success = RunProbes(context, program, ibl, argc >= 3 ? argv[1] : 0);
+        if (!ibl)
+        {
+            ShaderDesc* skin_shader = 0;
+            if (ReadFile(DM_TEST_GLTF_SKIN_SHADER, bytes) &&
+                dmDDF::LoadMessage(bytes.Begin(), bytes.Size(), &skin_shader) == dmDDF::RESULT_OK)
+            {
+                HProgram skin_program = NewProgram(context, skin_shader, error, sizeof(error));
+                dmDDF::FreeMessage(skin_shader);
+                if (skin_program)
+                {
+                    success &= RunProbes(context, skin_program, false, 0, true);
+                    DeleteProgram(context, skin_program);
+                }
+                else
+                    success = false;
+            }
+            else
+                success = false;
+        }
         printf("GPU probes completed in %.3f ms\n", (dmTime::GetMonotonicTime() - start) / 1000.0);
         DeleteProgram(context, program);
     }

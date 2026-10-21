@@ -65,21 +65,27 @@ endforeach()
 if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
   set(_gltf_content_root "${DEFOLD_HOME}/engine/engine/content")
   set(_gltf_shader "${CMAKE_CURRENT_BINARY_DIR}/gltf_render/gltf.spc")
+  set(_gltf_skin_shader "${CMAKE_CURRENT_BINARY_DIR}/gltf_render/gltf_skinned.spc")
   set(_gltf_bob "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
   file(GLOB _gltf_shader_sources CONFIGURE_DEPENDS "${_gltf_content_root}/builtins/materials/*.glsl")
-  add_custom_command(OUTPUT "${_gltf_shader}"
+  add_custom_command(OUTPUT "${_gltf_shader}" "${_gltf_skin_shader}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/gltf_render"
     COMMAND "${DEFOLD_JAVA_EXECUTABLE}" -cp "${_gltf_bob}" com.dynamo.bob.pipeline.ShaderProgramBuilder
       "${_gltf_content_root}/builtins/materials/gltf.vp"
       "${_gltf_content_root}/builtins/materials/gltf.fp"
       "${_gltf_shader}" "${TARGET_PLATFORM}" "${_gltf_content_root}"
+    COMMAND "${DEFOLD_JAVA_EXECUTABLE}" -cp "${_gltf_bob}" com.dynamo.bob.pipeline.ShaderProgramBuilder
+      "${_gltf_content_root}/builtins/materials/gltf_skinned.vp"
+      "${_gltf_content_root}/builtins/materials/gltf.fp"
+      "${_gltf_skin_shader}" "${TARGET_PLATFORM}" "${_gltf_content_root}"
     DEPENDS "${_gltf_bob}" ${_gltf_shader_sources}
       "${_gltf_content_root}/builtins/materials/gltf.vp"
+      "${_gltf_content_root}/builtins/materials/gltf_skinned.vp"
       "${_gltf_content_root}/builtins/materials/gltf.fp"
     COMMENT "Compiling production glTF shaders for GPU regression tests"
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     VERBATIM)
-  add_custom_target(gltf_render_shaders DEPENDS "${_gltf_shader}")
+  add_custom_target(gltf_render_shaders DEPENDS "${_gltf_shader}" "${_gltf_skin_shader}")
   if(TARGET bob_light)
     add_dependencies(gltf_render_shaders bob_light)
   endif()
@@ -99,7 +105,7 @@ if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-ma
     "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_gltf.cpp")
   target_include_directories(test_gltf_render PRIVATE "${RENDER_SRC_DIR}" "${RENDER_ROOT}/proto" "${CMAKE_CURRENT_BINARY_DIR}/../..")
   target_compile_definitions(test_gltf_render PRIVATE
-    DM_TEST_GLTF_SHADER="${_gltf_shader}" DM_TEST_GLTF_BACKEND="${_gltf_backend}")
+    DM_TEST_GLTF_SHADER="${_gltf_shader}" DM_TEST_GLTF_SKIN_SHADER="${_gltf_skin_shader}" DM_TEST_GLTF_BACKEND="${_gltf_backend}")
   defold_target_link_libraries(test_gltf_render "${TARGET_PLATFORM}" testmain render ddf dlib profile_null)
   defold_target_link_graphics(test_gltf_render "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_target_link_platform(test_gltf_render "${TARGET_PLATFORM}" SCOPE PRIVATE)

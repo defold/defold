@@ -54,11 +54,20 @@ void main()
     var_bitangent = cross(view_normal, view_tangent) * tangent.w * transform_sign;
     var_has_tangent = has_tangent ? 1.0 : 0.0;
     var_texcoord0 = texcoord0;
+    var_texcoord1 = texcoord1;
     var_color = color;
     var_view = mtx_view;
     // mtx_normal is inverse-transpose(model_view). Remove the view transform
     // to measure world-space transmission rays in the mesh's local coordinates.
     var_world_to_local = transpose(mat3(mtx_normal)) * mat3(mtx_view);
+#ifdef PBR_SKINNED
+    // Thickness follows the same blended bone deformation as the mesh. Reuse
+    // the normal cofactors to invert its linear part, including nonuniform scale.
+    float skin_determinant = dot(skin_linear[0], skin_cofactor[0]);
+    // A collapsed skin has no inverse; retain the unskinned distance estimate.
+    if (skin_determinant != 0.0)
+        var_world_to_local = (transpose(skin_cofactor) / skin_determinant) * var_world_to_local;
+#endif
     gl_Position = mtx_proj * view_position;
 }
 

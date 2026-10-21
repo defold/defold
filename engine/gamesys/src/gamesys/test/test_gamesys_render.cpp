@@ -3128,6 +3128,57 @@ TEST_F(ModelTest, PbrTextureFactorDefaults)
     dmResource::Release(m_Factory, model);
 }
 
+// Texture UV selection and flipped-V affine transforms reach the renderer;
+// transforms already baked into the mesh must not be applied a second time.
+TEST_F(ModelTest, PbrExtensionTextureTransforms)
+{
+    dmGameSystem::ModelResource* model = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/pbr_properties_textured.modelc", (void**)&model));
+    dmRigDDF::Material&               source = model->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials[0];
+    const dmGameSystem::MaterialInfo& info = model->m_Materials[0];
+    dmRigDDF::TextureView*            views[] = { &source.m_Transmission.m_Transmissiontexture, &source.m_Volume.m_Thicknesstexture };
+    const char*                       names[][2] = { { "pbrTransmission.transmissionTextureTransformU", "pbrTransmission.transmissionTextureTransformV" },
+                                                     { "pbrVolume.thicknessTextureTransformU", "pbrVolume.thicknessTextureTransformV" } };
+    const float                       expected[][2][4] = {
+        { { 1, 0, 0.25f, 1 }, { 0, 2, -2.5f, 0 } },
+        { { -1, 3, -2.75f, 0 }, { -2, -1, 0.5f, 0 } },
+        { { 0, 0, 0, 1 }, { 0, 0, 0, 0 } },
+    };
+    for (uint32_t view_index = 0; view_index < 2; ++view_index)
+    {
+        dmRigDDF::TextureView& view = *views[view_index];
+        dmRigDDF::TextureView  original = view;
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            view.m_Texture.m_Index = 0;
+            view.m_Texcoord = 1;
+            view.m_Transform.m_Texcoord = i == 1 ? 0 : -1;
+            view.m_Transform.m_OffsetX = 0.25f;
+            view.m_Transform.m_OffsetY = 0.5f;
+            view.m_Transform.m_ScaleX = 2;
+            view.m_Transform.m_ScaleY = 3;
+            view.m_Transform.m_Rotation = i == 1 ? 1.57079632679f : 0;
+            view.m_TransformBaked = i == 2;
+            dmGameSystem::HComponentRenderConstants constants = 0;
+            bool                                    filled = dmGameSystem::FillPBRConstants(model, &info, &constants, info.m_Material->m_Material, 0);
+            view = original;
+            ASSERT_TRUE(filled);
+            for (uint32_t row = 0; row < 2; ++row)
+            {
+                dmRender::HConstant constant = 0;
+                ASSERT_TRUE(dmGameSystem::GetRenderConstant(constants, dmHashString64(names[view_index][row]), &constant));
+                uint32_t          count = 0;
+                dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &count);
+                ASSERT_EQ(1u, count);
+                for (uint32_t component = 0; component < 4; ++component)
+                    ASSERT_NEAR(expected[i][row][component], values[0].getElem(component), 1e-5f);
+            }
+            dmGameSystem::DestroyRenderConstants(constants);
+        }
+    }
+    dmResource::Release(m_Factory, model);
+}
+
 // Bob's generated glTF material must accept the scene capture bound by sampler name at draw time.
 TEST_F(ModelTest, GltfSceneCaptureSamplerBinding)
 {

@@ -708,6 +708,50 @@ TEST(ModelGLTF, SharedMaterialTextureTransformIsBakedIntoQuantizedTexCoords)
     dmModelImporter::DestroyScene(scene);
 }
 
+// Extension views retain their authored transform and UV override, but mark a
+// shared transform as baked only when it was actually applied to the mesh UVs.
+TEST(ModelGLTF, ExtensionTextureTransformBakeState)
+{
+    const char* format =
+    "{\"asset\":{\"version\":\"2.0\"},"
+    "\"extensionsUsed\":[\"KHR_mesh_quantization\",\"KHR_texture_transform\"],"
+    "\"buffers\":[{\"byteLength\":48,\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAGQAAAAAAGQA\"}],"
+    "\"bufferViews\":[{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},{\"buffer\":0,\"byteOffset\":36,\"byteLength\":12}],"
+    "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},"
+    "{\"bufferView\":1,\"componentType\":5123,\"count\":3,\"type\":\"VEC2\"}],"
+    "\"images\":[{\"uri\":\"image.png\"}],\"textures\":[{\"source\":0}],"
+    "\"materials\":[{\"pbrMetallicRoughness\":{\"baseColorTexture\":{\"index\":0,"
+    "\"extensions\":{\"KHR_texture_transform\":{\"offset\":[0.25,0.5],\"scale\":[0.01,0.02]}}}},"
+    "\"extensions\":{\"KHR_materials_transmission\":{\"transmissionTexture\":{\"index\":0,\"texCoord\":1,"
+    "\"extensions\":{\"KHR_texture_transform\":{\"texCoord\":0,\"offset\":[%g,0.5],\"scale\":[0.01,0.02]}}}},"
+    "\"KHR_materials_volume\":{\"thicknessTexture\":{\"index\":0,\"texCoord\":1,"
+    "\"extensions\":{\"KHR_texture_transform\":{\"texCoord\":0,\"offset\":[%g,0.5],\"scale\":[0.01,0.02]}}}}}}],"
+    "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":1},\"material\":0}]}]}";
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        float offset = i == 0 ? 0.25f : 0.75f;
+        char  json[2048];
+        dmSnPrintf(json, sizeof(json), format, offset, offset);
+        dmModelImporter::Scene* scene = LoadGltfJson(json);
+        ASSERT_NE((dmModelImporter::Scene*)0, scene);
+        ASSERT_EQ((char*)0, scene->m_LoadError);
+        const dmModelImporter::Material& material = scene->m_Materials[0];
+        ASSERT_EQ(i == 0, material.m_PbrMetallicRoughness->m_BaseColorTexture.m_TransformBaked);
+        const dmModelImporter::TextureView* views[] = { &material.m_Transmission->m_TransmissionTexture, &material.m_Volume->m_ThicknessTexture };
+        for (uint32_t view = 0; view < 2; ++view)
+        {
+            ASSERT_EQ(i == 0, views[view]->m_TransformBaked);
+            ASSERT_EQ(1, views[view]->m_Texcoord);
+            ASSERT_EQ(0, views[view]->m_Transform.m_Texcoord);
+            ASSERT_NEAR(offset, views[view]->m_Transform.m_Offset[0], 1e-6f);
+        }
+        const dmArray<float>& uv = scene->m_Models[0].m_Meshes[0].m_TexCoords0;
+        ASSERT_NEAR(i == 0 ? 0.25f : 0.0f, uv[0], 1e-6f);
+        ASSERT_NEAR(i == 0 ? 0.5f : 1.0f, uv[1], 1e-6f);
+        dmModelImporter::DestroyScene(scene);
+    }
+}
+
 // Verifies generated clearcoat tangents honor the normal texture UV set and transform, preserving authored tangents.
 TEST(ModelGLTF, ClearcoatTangentsUseNormalTextureUVs)
 {

@@ -5,6 +5,7 @@
 in highp vec4 var_position;
 in mediump vec3 var_normal;
 in mediump vec2 var_texcoord0;
+in mediump vec2 var_texcoord1;
 in mediump vec4 var_color;
 in mediump vec3 var_tangent;
 in mediump vec3 var_bitangent;

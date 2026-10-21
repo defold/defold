@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.model-scene-test
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
@@ -278,6 +279,63 @@
                           (is (= expected-shader
                                  (get-in (scene-mesh-user-data-by-material-index (g/node-value source-node-id :scene))
                                          [index :shader]))))))))))))))))
+
+;; The editor uses each extension texture's UV1 transform and skips transforms
+;; already baked by the importer, matching runtime material constants.
+(deftest gltf-extension-texture-transforms-in-preview
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
+        models-directory (io/file project-path "models")
+        source (json/read-str (preview-gltf-content))]
+    (with-open [_project-directory-deleter (test-util/make-directory-deleter project-path)]
+      (doseq [shared [false true]]
+        (let [transmission-view {"index" 0
+                                 "texCoord" 1
+                                 "extensions" {"KHR_texture_transform"
+                                               {"offset" [0.25 0.5] "scale" [2.0 3.0]}}}
+              thickness-view (assoc-in transmission-view
+                                       ["extensions" "KHR_texture_transform" "offset"]
+                                       [(if shared 0.25 0.75) 0.5])
+              content (-> source
+                          (assoc "extensionsUsed" ["KHR_texture_transform"
+                                                   "KHR_materials_transmission"
+                                                   "KHR_materials_volume"])
+                          (update "materials"
+                                  (fn [materials]
+                                    (mapv (fn [material]
+                                            (-> material
+                                                (update "pbrMetallicRoughness" dissoc "baseColorTexture")
+                                                (assoc "extensions"
+                                                  {"KHR_materials_transmission"
+                                                   {"transmissionFactor" 1.0
+                                                    "transmissionTexture" transmission-view}
+                                                   "KHR_materials_volume"
+                                                   {"thicknessFactor" 1.0
+                                                    "thicknessTexture" thickness-view}})))
+                                          materials)))
+                          (update-in ["meshes" 0 "primitives"]
+                                     (fn [primitives]
+                                       (mapv #(assoc-in % ["attributes" "TEXCOORD_1"] 1)
+                                             primitives))))]
+          (fs/create-file! (io/file models-directory (str shared ".gltf"))
+                           (json/write-str content :escape-slash false))))
+      (test-support/with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              project (test-util/setup-project! workspace)]
+          (doseq [shared [false true]]
+            (let [node-id (test-util/resource-node project (str "/models/" shared ".gltf"))
+                  scene (g/node-value node-id :scene)]
+              (is (not (g/error? scene)))
+              (is (= 2 (count (scene-mesh-user-data-by-material-index scene))))
+              (doseq [[_ user-data] (scene-mesh-user-data-by-material-index scene)]
+                (let [material-data (into {} (:material-data user-data))]
+                  (doseq [[prefix offset] [["pbrTransmission.transmission" 0.25]
+                                           ["pbrVolume.thickness" 0.75]]]
+                    (is (= (if shared [0.0 0.0 0.0 1.0] [1.0 0.0 offset 1.0])
+                           (math/vecmath->clj
+                             (material-data (str prefix "TextureTransformU")))))
+                    (is (= (if shared [0.0 0.0 0.0 0.0] [0.0 2.0 -2.5 0.0])
+                           (math/vecmath->clj
+                             (material-data (str prefix "TextureTransformV")))))))))))))))
 
 ;; Verifies outline paths hide a glTF/GLB mesh or Meshes group, guarding against mismatched scene and outline paths.
 (deftest gltf-selected-mesh-visibility

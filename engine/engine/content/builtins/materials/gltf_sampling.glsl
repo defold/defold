@@ -25,6 +25,8 @@ struct PbrTransmission
 {
     vec4 transmissionFactor;
     vec4 transmissionTextures;
+    vec4 transmissionTextureTransformU;
+    vec4 transmissionTextureTransformV;
 };
 
 struct PbrVolume
@@ -32,6 +34,8 @@ struct PbrVolume
     vec4 thicknessFactorAndAttenuationColor;
     vec4 attenuationDistance;
     vec4 volumeTextures;
+    vec4 thicknessTextureTransformU;
+    vec4 thicknessTextureTransformV;
 };
 
 struct PbrIor
@@ -64,6 +68,15 @@ uniform PbrMaterial
 // the manual decoding below when those samplers return linear RGB, to avoid
 // decoding twice. Alpha and normal/metallic/roughness/occlusion data stay linear.
 //
+// Affine rows store the difference from identity, so zero uniforms preserve
+// ordinary UV0 sampling. U.w selects UV1. Coordinates use Defold's flipped V.
+vec2 pbr_texture_uv(vec2 uv0, vec4 transform_u, vec4 transform_v)
+{
+    vec2 uv = transform_u.w > 0.5 ? var_texcoord1 : uv0;
+    return uv + vec2(dot(transform_u.xy, uv) + transform_u.z,
+                     dot(transform_v.xy, uv) + transform_v.z);
+}
+
 // Sample once. Subsequent material/lighting functions consume explicit data.
 PBRMaterial pbr_sample_material(vec2 uv, vec4 vertex_color)
 {
@@ -105,13 +118,15 @@ PBRMaterial pbr_sample_material(vec2 uv, vec4 vertex_color)
         {
             if (pbrTransmission.transmissionTextures.x > 0.5)
             {
-                material.transmission *= texture(PbrTransmission_transmissionTexture, uv).r;
+                vec2 transmission_uv = pbr_texture_uv(uv, pbrTransmission.transmissionTextureTransformU, pbrTransmission.transmissionTextureTransformV);
+                material.transmission *= texture(PbrTransmission_transmissionTexture, transmission_uv).r;
             }
             material.thickness = pbrVolume.thicknessFactorAndAttenuationColor.x;
             if (pbrVolume.volumeTextures.x > 0.5)
             {
                 // glTF thickness is linear data in the green channel.
-                material.thickness *= texture(PbrVolume_thicknessTexture, uv).g;
+                vec2 thickness_uv = pbr_texture_uv(uv, pbrVolume.thicknessTextureTransformU, pbrVolume.thicknessTextureTransformV);
+                material.thickness *= texture(PbrVolume_thicknessTexture, thickness_uv).g;
             }
         }
 

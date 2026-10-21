@@ -107,6 +107,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(texcoord, "I");
         GET_FLD_TYPESTR(scale, "F");
         GET_FLD_TYPESTR(hasTransform, "Z");
+        GET_FLD_TYPESTR(transformBaked, "Z");
         GET_FLD(transform, "TextureTransform");
     }
     {
@@ -451,6 +452,7 @@ jobject C2J_CreateTextureView(JNIEnv* env, TypeInfos* types, const TextureView* 
     dmJNI::SetInt(env, obj, types->m_TextureViewJNI.texcoord, src->m_Texcoord);
     dmJNI::SetFloat(env, obj, types->m_TextureViewJNI.scale, src->m_Scale);
     dmJNI::SetBoolean(env, obj, types->m_TextureViewJNI.hasTransform, src->m_HasTransform);
+    dmJNI::SetBoolean(env, obj, types->m_TextureViewJNI.transformBaked, src->m_TransformBaked);
     dmJNI::SetObjectDeref(env, obj, types->m_TextureViewJNI.transform, C2J_CreateTextureTransform(env, types, &src->m_Transform));
     return obj;
 }
@@ -1533,6 +1535,7 @@ bool J2C_CreateTextureView(JNIEnv* env, TypeInfos* types, jobject obj, TextureVi
     out->m_Texcoord = dmJNI::GetInt(env, obj, types->m_TextureViewJNI.texcoord);
     out->m_Scale = dmJNI::GetFloat(env, obj, types->m_TextureViewJNI.scale);
     out->m_HasTransform = dmJNI::GetBoolean(env, obj, types->m_TextureViewJNI.hasTransform);
+    out->m_TransformBaked = dmJNI::GetBoolean(env, obj, types->m_TextureViewJNI.transformBaked);
     {
         jobject field_object = env->GetObjectField(obj, types->m_TextureViewJNI.transform);
         if (field_object) {

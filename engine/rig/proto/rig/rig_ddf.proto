@@ -75,6 +75,7 @@ message TextureView
     optional int32 texcoord     = 2 [default = -1]; // It should be set
     optional float scale        = 3 [default = 1];
     optional TextureTransform transform = 4;
+    optional bool transform_baked = 5 [default = false]; // Already applied to the mesh UV channel.
 }
 
 // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-material-pbrmetallicroughness
