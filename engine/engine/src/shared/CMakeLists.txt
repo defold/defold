@@ -50,6 +50,10 @@ if(BUILD_TESTS)
     VERBATIM)
   add_custom_target(test_engine_shared_java DEPENDS "${ENGINE_SHARED_TEST_CLASS}")
   add_dependencies(build_tests test_engine_shared_java dmengine_shared)
+endif()
+
+# The host JVM cannot load a shared library built for a different architecture.
+if(BUILD_TESTS AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
   cmake_path(CONVERT "${ENGINE_SHARED_JAR};${ENGINE_SHARED_TEST_CLASSES}" TO_NATIVE_PATH_LIST _test_classpath)
   set(_java_test_command "${DEFOLD_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST}
     -Xcheck:jni "-Djava.library.path=$<TARGET_FILE_DIR:dmengine_shared>"
