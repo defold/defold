@@ -1,10 +1,11 @@
 # DXC host tools
 
-`build_ext` builds DXC for the desktop host platform. `install_ext` invokes
+`build_ext` builds DXC for each desktop platform being built. `install_ext` invokes
 `build_ext` after installing prepackaged dependencies, so no extra command is
-required. Cross-builds first build dependencies for the host as usual and do
-not build a target copy of DXC. Build on each native host when preparing tools
-for distribution across platforms.
+required. Cross-builds first build dependencies for the host as usual. Desktop
+targets also need their own DXC library because shaderc links it, including
+when building x86_64-macos on an arm64-macos host. Mobile and web targets use
+only the host copy. Linux builds require a native runner for each architecture.
 This does not select or replace platform-specific shader compiler backends.
 
 The pinned DXC source and its matching DirectX-Headers archive are downloaded

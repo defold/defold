@@ -29,9 +29,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|
   add_subdirectory(draco)
   add_subdirectory(ogg)
   add_subdirectory(protobuf)
-  # DXC runs during asset compilation. Cross-builds get it from build_ext's
-  # host pass, rather than trying to build/run LLVM tools for the target.
-  if(TARGET_PLATFORM STREQUAL HOST_PLATFORM)
-    add_subdirectory(dxc)
-  endif()
+  # shaderc links DXC, so each desktop target needs a matching library even
+  # when cross-building (for example x86_64-macos on an arm64-macos host).
+  add_subdirectory(dxc)
 endif()

@@ -64,6 +64,45 @@ endif()
                         self.assertTrue(versions, command)
                         self.assertEqual(expected, versions[-1], command)
 
+    # Desktop cross-builds need a target DXC library as well as the host copy used by build tools.
+    def test_macos_cross_build_includes_dxc(self):
+        for platform in ('arm64-macos', 'x86_64-macos'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(dxc_platform_test LANGUAGES C CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_LANGUAGE_LIST C CXX)
+set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
+set(HOST_PLATFORM arm64-macos)
+# Model the macOS target even when the configure-only test runs on another OS.
+set(WIN32 FALSE)
+set(APPLE TRUE)
+set(CMAKE_SHARED_LIBRARY_PREFIX lib)
+set(CMAKE_SHARED_LIBRARY_SUFFIX .dylib)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+add_library(defold_sdk INTERFACE)
+set(SDK_VERSION_MACOSX_MIN 12.0)
+include(platform_macos)
+# Exercise the real dependency selection and DXC wrapper without configuring
+# unrelated packages or downloading/compiling LLVM in this configure-only test.
+function(add_subdirectory directory)
+    if(directory STREQUAL "dxc")
+        _add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
+    endif()
+endfunction()
+include("${DEFOLD_HOME}/external/CMakeLists.txt")
+''')
+                self.configure_target(root, 'dxc_build_external', TARGET_PLATFORM=platform)
+                command = (root / 'build/dxc/dxc_build_external-prefix/tmp/dxc_build_external-cfgcmd.txt').read_text()
+                architecture = platform.split('-')[0]
+                self.assertIn('-DCMAKE_OSX_ARCHITECTURES=' + architecture, command)
+                install = (root / 'build/dxc/cmake_install.cmake').read_text()
+                self.assertIn('/lib/' + platform, install)
+                self.assertIn('dxcompiler', install)
+
     def configure_consumer(self, root, vulkan, opengl):
         # Generate the real platform/HID/graphics dependency graph with the host compiler.
         # No Android sources are compiled, so an NDK or populated SDK is unnecessary.
