@@ -836,29 +836,9 @@
           state (make-native-entry-state font-map (assoc entry :world-transform math/identity-mat4) false)]
       (apply-native-entry-state! renderer state)
       (when-let [^FontRenderer$Arc arc (.getArc renderer)]
-        (let [[offset-x offset-y] (:offset entry [0.0 0.0])
-              center-x (+ (double offset-x) (double (.-centerX arc)))
-              center-y (+ (double offset-y) (double (.-centerY arc)))
-              offset-lines (fn offset-lines [^floats vertices]
-                             (mapv (fn [index]
-                                     (let [index (long index)]
-                                       [(+ (double offset-x) (double (aget vertices index)))
-                                        (+ (double offset-y) (double (aget vertices (inc index))))
-                                        (double (aget vertices (+ index 2)))]))
-                                   (range 0 (alength vertices) 3)))
-              ^floats bounds (.-guideBounds arc)]
-          {:line-data (offset-lines (.-outlineVertices arc))
-           :baseline-line-data (offset-lines (.-baselineVertices arc))
-           :center-line-data [[(- center-x 5.0) (- center-y 5.0) 0.0]
-                              [(+ center-x 5.0) (+ center-y 5.0) 0.0]
-                              [(- center-x 5.0) (+ center-y 5.0) 0.0]
-                              [(+ center-x 5.0) (- center-y 5.0) 0.0]]
-           :aabb (geom/coords->aabb [(+ (double offset-x) (double (aget bounds 0)))
-                                     (+ (double offset-y) (double (aget bounds 1)))
-                                     0.0]
-                                    [(+ (double offset-x) (double (aget bounds 2)))
-                                     (+ (double offset-y) (double (aget bounds 3)))
-                                     0.0])})))))
+        {:line-data (.-outlineLines arc)
+         :selected-line-data (.-selectedLines arc)
+         :aabb (geom/coords->aabb (.-min arc) (.-max arc))}))))
 
 (defn- generate-native-texture!
   [^GL3 gl ^FontRenderer native-renderer texture ^long known-atlas-version]

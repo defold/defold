@@ -1104,7 +1104,7 @@ public class FontRendererTest {
             assertNotNull(renderer.getArc());
             properties.arcRadius = -200.0f;
             renderer.setProperties(properties);
-            assertEquals(-200.0f, renderer.getArc().radius, 0.0f);
+            assertArcPoint(getArcBaselines(renderer.getArc()).get(0), -200.0, -Math.PI * 0.25);
             assertEquals(24, getVertices(renderer, IDENTITY).vertexCount);
             properties.arcRadius = Float.POSITIVE_INFINITY;
             try {
@@ -1131,6 +1131,16 @@ public class FontRendererTest {
         }
     }
 
+    private static List<List<Float>> getArcBaselines(FontRenderer.Arc arc) {
+        return arc.selectedLines.subList(arc.outlineLines.size(), arc.selectedLines.size() - 4);
+    }
+
+    private static void assertArcPoint(List<Float> point, double radius, double angle) {
+        assertEquals(Math.sin(angle) * radius, point.get(0), 0.001);
+        assertEquals(Math.cos(angle) * radius, point.get(1), 0.001);
+        assertEquals(0.0f, point.get(2), 0.0f);
+    }
+
     // Arc guides anchor the first baseline at a fixed local center and expose rich-text baselines without building the atlas.
     @Test
     public void testArcGuideMatchesRichTextBaseline() throws Exception {
@@ -1141,37 +1151,27 @@ public class FontRendererTest {
             properties.arcRadius = 200.0f;
             properties.arcAngle = 90.0f;
             renderer.setProperties(properties);
-            String text = "<size=2em>AA</size>\nAA";
-            renderer.setMarkup(text);
+            renderer.setMarkup("<size=2em>AA</size>\nAA");
             long atlasVersion = renderer.atlasVersion();
             FontRenderer.Arc arc = renderer.getArc();
             assertNotNull(arc);
-            assertEquals(0.0f, arc.centerX, 0.0f);
-            assertEquals(0.0f, arc.centerY, 0.0f);
-            assertEquals(200.0f, arc.radius, 0.0f);
-            assertEquals((float)Math.PI * 0.5f, arc.span, 0.001f);
             assertEquals(atlasVersion, renderer.atlasVersion());
-            assertEquals(2, arc.lineRadii.length);
-            assertEquals(200.0f, arc.lineRadii[0], 0.0f);
-            assertTrue(arc.lineRadii[0] > arc.lineRadii[1]);
+            List<List<Float>> baselines = getArcBaselines(arc);
+            assertArcPoint(baselines.get(0), 200.0, -Math.PI * 0.25);
+            List<Float> second = baselines.get(baselines.size() / 2);
+            assertTrue(Math.hypot(second.get(0), second.get(1)) < 200.0);
             properties.arcRadius = 400.0f;
             properties.width = 700.0f;
             properties.height = 300.0f;
             properties.align = 2;
             properties.verticalAlign = 0;
             renderer.setProperties(properties);
-            FontRenderer.Arc resized = renderer.getArc();
-            assertEquals(0.0f, resized.centerX, 0.0f);
-            assertEquals(0.0f, resized.centerY, 0.0f);
-            assertEquals(400.0f, resized.lineRadii[0], 0.0f);
-            for (float degrees : new float[] {360.0f}) {
-                properties.arcAngle = degrees;
-                renderer.setProperties(properties);
-                FontRenderer.Arc circle = renderer.getArc();
-                assertNotNull(circle);
-                assertEquals((float)Math.toRadians(degrees), circle.span, 0.001f);
-                assertEquals((float)(2.0 * Math.PI), circle.endAngle - circle.startAngle, 0.001f);
-            }
+            assertArcPoint(getArcBaselines(renderer.getArc()).get(0), 400.0, -Math.PI * 0.25);
+            properties.arcAngle = 360.0f;
+            renderer.setProperties(properties);
+            baselines = getArcBaselines(renderer.getArc());
+            assertArcPoint(baselines.get(0), 400.0, -Math.PI);
+            assertArcPoint(baselines.get(baselines.size() / 2 - 1), 400.0, Math.PI);
             properties.arcAngle = 0.0f;
             renderer.setProperties(properties);
             assertNull(renderer.getArc());
@@ -1182,7 +1182,7 @@ public class FontRendererTest {
         }
     }
 
-    // Native guides preserve the requested sweep and signed multiline radii; framing excludes the center marker.
+    // Native guides supply complete selected/unselected line lists, preserving signed radii and excluding the marker from framing.
     @Test
     public void testArcGuideVerticesAndBounds() throws Exception {
         try (FontRenderer renderer = createRenderer(32.0f)) {
@@ -1198,48 +1198,43 @@ public class FontRendererTest {
                     FontRenderer.Arc arc = renderer.getArc();
                     assertNotNull(arc);
                     assertEquals(atlasVersion, renderer.atlasVersion());
-                    assertEquals(3, arc.lineRadii.length);
-                    int lineStride = arc.baselineVertices.length / arc.lineRadii.length;
-                    assertTrue(lineStride > 0 && lineStride % 6 == 0);
-                    assertEquals(lineStride * 2 + (degrees == 360.0f ? 0 : 12), arc.outlineVertices.length);
-                    for (int line = 0; line < arc.lineRadii.length; ++line) {
-                        for (int vertex = 0; vertex < lineStride / 3; ++vertex) {
-                            int offset = line * lineStride + vertex * 3;
-                            double angle = -arc.span * 0.5 + arc.span * ((vertex + 1) / 2) / (lineStride / 6);
-                            assertEquals(arc.centerX + Math.sin(angle) * arc.lineRadii[line], arc.baselineVertices[offset], 0.001);
-                            assertEquals(arc.centerY + Math.cos(angle) * arc.lineRadii[line], arc.baselineVertices[offset + 1], 0.001);
-                            assertEquals(0.0f, arc.baselineVertices[offset + 2], 0.0f);
+                    assertEquals(arc.outlineLines, arc.selectedLines.subList(0, arc.outlineLines.size()));
+                    assertEquals(List.of(List.of(-5.0f, -5.0f, 0.0f), List.of(5.0f, 5.0f, 0.0f),
+                            List.of(-5.0f, 5.0f, 0.0f), List.of(5.0f, -5.0f, 0.0f)),
+                            arc.selectedLines.subList(arc.selectedLines.size() - 4, arc.selectedLines.size()));
+                    List<List<Float>> baselines = getArcBaselines(arc);
+                    int lineStride = baselines.size() / 3;
+                    assertTrue(lineStride > 0 && lineStride % 2 == 0);
+                    assertEquals(lineStride * 2 + (degrees == 360.0f ? 0 : 4), arc.outlineLines.size());
+                    double span = Math.toRadians(degrees);
+                    double previousRadius = Double.POSITIVE_INFINITY;
+                    for (int line = 0; line < 3; ++line) {
+                        List<Float> start = baselines.get(line * lineStride);
+                        double lineRadius = start.get(0) * Math.sin(-span * 0.5) + start.get(1) * Math.cos(-span * 0.5);
+                        if (line == 0)
+                            assertEquals(radius, lineRadius, 0.001);
+                        assertTrue(lineRadius < previousRadius);
+                        previousRadius = lineRadius;
+                        for (int vertex = 0; vertex < lineStride; ++vertex) {
+                            double angle = -span * 0.5 + span * ((vertex + 1) / 2) / (lineStride / 2);
+                            assertArcPoint(baselines.get(line * lineStride + vertex), lineRadius, angle);
                         }
                     }
-                    float[] bounds = {arc.minX, arc.minY, arc.maxX, arc.maxY};
-                    for (float[] vertices : new float[][] {arc.outlineVertices, arc.baselineVertices}) {
-                        for (int index = 0; index < vertices.length; index += 3) {
-                            bounds[0] = Math.min(bounds[0], vertices[index]);
-                            bounds[1] = Math.min(bounds[1], vertices[index + 1]);
-                            bounds[2] = Math.max(bounds[2], vertices[index]);
-                            bounds[3] = Math.max(bounds[3], vertices[index + 1]);
-                        }
-                    }
-                    assertArrayEquals(bounds, arc.guideBounds, 0.001f);
-                    for (int index = 0; index < arc.outlineVertices.length; index += 3) {
-                        double distance = Math.hypot(arc.outlineVertices[index] - arc.centerX, arc.outlineVertices[index + 1] - arc.centerY);
-                        assertTrue(Math.abs(distance - Math.abs(arc.innerRadius)) < 0.001 ||
-                                Math.abs(distance - Math.abs(arc.outerRadius)) < 0.001);
-                    }
+                    if (radius == 40.0f)
+                        assertTrue(previousRadius < 0.0);
                     if (degrees == 86.0f && Math.abs(radius) == 2000.0f)
-                        assertTrue(arc.centerY < arc.guideBounds[1] || arc.centerY > arc.guideBounds[3]);
-                    // A second native allocation must not invalidate the Java-owned guide arrays.
+                        assertTrue(0.0f < arc.min.get(1) || 0.0f > arc.max.get(1));
+                    // Native storage is freed before these immutable Java lists are returned.
                     FontRenderer.Arc next = renderer.getArc();
-                    assertArrayEquals(arc.outlineVertices, next.outlineVertices, 0.0f);
-                    assertArrayEquals(arc.baselineVertices, next.baselineVertices, 0.0f);
+                    assertEquals(arc.selectedLines, next.selectedLines);
                 }
             }
         }
     }
 
-    // Framing uses the rendered quads, including rich sizes and effects, without including the distant circle center.
+    // Framing tightly encloses text and guides, including rich sizes and effects, without the distant center marker.
     @Test
-    public void testArcBoundsMatchRenderedVertices() throws Exception {
+    public void testArcBoundsMatchTextAndGuides() throws Exception {
         byte[] fontBytes;
         try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
             assertNotNull(input);
@@ -1271,10 +1266,6 @@ public class FontRendererTest {
                         long atlasVersion = renderer.atlasVersion();
                         FontRenderer.Arc arc = renderer.getArc();
                         assertEquals(atlasVersion, renderer.atlasVersion());
-                        assertEquals(radius, arc.radius, 0.0f);
-                        assertTrue(radius > 0.0f ? arc.innerRadius > 0.0f : arc.outerRadius < 0.0f);
-                        assertTrue(arc.outerRadius > arc.innerRadius);
-                        assertTrue(arc.endAngle > arc.startAngle);
                         renderer.beginBatch();
                         renderer.generateTexture(0);
                         TestVertices vertices = getVertices(renderer, IDENTITY);
@@ -1290,12 +1281,18 @@ public class FontRendererTest {
                             maxX = Math.max(maxX, x);
                             maxY = Math.max(maxY, y);
                         }
-                        assertEquals(minX, arc.minX, 0.001f);
-                        assertEquals(minY, arc.minY, 0.001f);
-                        assertEquals(maxX, arc.maxX, 0.001f);
-                        assertEquals(maxY, arc.maxY, 0.001f);
-                        if (Math.abs(degrees) == 90.0f)
-                            assertTrue(arc.centerY < arc.minY || arc.centerY > arc.maxY);
+                        for (List<Float> point : arc.selectedLines.subList(0, arc.selectedLines.size() - 4)) {
+                            minX = Math.min(minX, point.get(0));
+                            minY = Math.min(minY, point.get(1));
+                            maxX = Math.max(maxX, point.get(0));
+                            maxY = Math.max(maxY, point.get(1));
+                        }
+                        assertEquals(minX, arc.min.get(0), 0.001f);
+                        assertEquals(minY, arc.min.get(1), 0.001f);
+                        assertEquals(maxX, arc.max.get(0), 0.001f);
+                        assertEquals(maxY, arc.max.get(1), 0.001f);
+                        if (degrees == 90.0f)
+                            assertTrue(0.0f < arc.min.get(1) || 0.0f > arc.max.get(1));
                     }
                 }
             }
@@ -1317,9 +1314,11 @@ public class FontRendererTest {
                 renderer.setProperties(properties);
                 renderer.setText(text);
                 FontRenderer.Arc arc = renderer.getArc();
-                assertTrue(arc.lineRadii.length > 2);
-                assertEquals((float)Math.toRadians(-43.0), arc.startAngle, 0.00001f);
-                assertEquals((float)Math.toRadians(43.0), arc.endAngle, 0.00001f);
+                assertTrue(renderer.measure(text, true, properties.width, properties.leading, 0.0f).lineCount > 2);
+                List<Float> start = arc.outlineLines.get(1);
+                List<Float> end = arc.outlineLines.get(3);
+                assertEquals(Math.toRadians(-43.0), Math.atan2(start.get(0), start.get(1)), 0.00001);
+                assertEquals(Math.toRadians(43.0), Math.atan2(end.get(0), end.get(1)), 0.00001);
             }
         }
     }
@@ -1341,14 +1340,24 @@ public class FontRendererTest {
             assertTrue(layout.height > properties.arcRadius);
             FontRenderer.Arc arc = renderer.getArc();
             assertNotNull(arc);
-            assertEquals((float)Math.toRadians(104.0f), arc.span, 0.001f);
-            assertTrue(arc.endAngle - arc.startAngle < Math.PI);
-            assertTrue(arc.innerRadius < 0.0f);
-            assertEquals(layout.lineCount, arc.lineRadii.length);
-            assertEquals(properties.arcRadius, arc.lineRadii[0], 0.0f);
-            for (int line = 1; line < arc.lineRadii.length; ++line)
-                assertTrue(arc.lineRadii[line - 1] > arc.lineRadii[line]);
-            assertTrue(arc.outerRadius > properties.arcRadius);
+            List<List<Float>> baselines = getArcBaselines(arc);
+            int lineStride = baselines.size() / layout.lineCount;
+            assertEquals(baselines.size(), lineStride * layout.lineCount);
+            double angle = Math.toRadians(-52.0);
+            assertArcPoint(baselines.get(0), properties.arcRadius, angle);
+            double previousRadius = properties.arcRadius;
+            for (int line = 1; line < layout.lineCount; ++line) {
+                List<Float> point = baselines.get(line * lineStride);
+                double radius = point.get(0) * Math.sin(angle) + point.get(1) * Math.cos(angle);
+                assertTrue(previousRadius > radius);
+                previousRadius = radius;
+            }
+            assertTrue(previousRadius < 0.0);
+            List<Float> start = arc.outlineLines.get(1);
+            List<Float> end = arc.outlineLines.get(3);
+            assertEquals(angle, Math.atan2(start.get(0), start.get(1)), 0.00001);
+            assertEquals(-angle, Math.atan2(end.get(0), end.get(1)), 0.00001);
+            assertTrue(Math.hypot(start.get(0), start.get(1)) > properties.arcRadius);
         }
     }
 

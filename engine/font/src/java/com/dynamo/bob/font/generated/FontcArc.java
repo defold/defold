@@ -29,13 +29,10 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
 /**
  * {@snippet lang=c :
  * struct FontcArc {
- *     float m_Parameters[12];
  *     float m_Bounds[4];
  *     float *m_Vertices;
- *     float *m_LineRadii;
+ *     uint32_t m_VertexCount;
  *     uint32_t m_OutlineVertexCount;
- *     uint32_t m_BaselineVertexCount;
- *     uint32_t m_LineCount;
  * }
  * }
  */
@@ -46,14 +43,10 @@ public class FontcArc {
     }
 
     private static final GroupLayout $LAYOUT = MemoryLayout.structLayout(
-        MemoryLayout.sequenceLayout(12, FontRendererFFM.C_FLOAT).withName("m_Parameters"),
         MemoryLayout.sequenceLayout(4, FontRendererFFM.C_FLOAT).withName("m_Bounds"),
         FontRendererFFM.C_POINTER.withName("m_Vertices"),
-        FontRendererFFM.C_POINTER.withName("m_LineRadii"),
-        FontRendererFFM.C_INT.withName("m_OutlineVertexCount"),
-        FontRendererFFM.C_INT.withName("m_BaselineVertexCount"),
-        FontRendererFFM.C_INT.withName("m_LineCount"),
-        MemoryLayout.paddingLayout(4)
+        FontRendererFFM.C_INT.withName("m_VertexCount"),
+        FontRendererFFM.C_INT.withName("m_OutlineVertexCount")
     ).withName("FontcArc");
 
     /**
@@ -61,83 +54,6 @@ public class FontcArc {
      */
     public static final GroupLayout layout() {
         return $LAYOUT;
-    }
-
-    private static final SequenceLayout m_Parameters$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("m_Parameters"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * float m_Parameters[12]
-     * }
-     */
-    public static final SequenceLayout m_Parameters$layout() {
-        return m_Parameters$LAYOUT;
-    }
-
-    private static final long m_Parameters$OFFSET = $LAYOUT.byteOffset(groupElement("m_Parameters"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * float m_Parameters[12]
-     * }
-     */
-    public static final long m_Parameters$offset() {
-        return m_Parameters$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * float m_Parameters[12]
-     * }
-     */
-    public static MemorySegment m_Parameters(MemorySegment struct) {
-        return struct.asSlice(m_Parameters$OFFSET, m_Parameters$LAYOUT.byteSize());
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * float m_Parameters[12]
-     * }
-     */
-    public static void m_Parameters(MemorySegment struct, MemorySegment fieldValue) {
-        MemorySegment.copy(fieldValue, 0L, struct, m_Parameters$OFFSET, m_Parameters$LAYOUT.byteSize());
-    }
-
-    private static long[] m_Parameters$DIMS = { 12 };
-
-    /**
-     * Dimensions for array field:
-     * {@snippet lang=c :
-     * float m_Parameters[12]
-     * }
-     */
-    public static long[] m_Parameters$dimensions() {
-        return m_Parameters$DIMS;
-    }
-    private static final VarHandle m_Parameters$ELEM_HANDLE = m_Parameters$LAYOUT.varHandle(sequenceElement());
-
-    /**
-     * Indexed getter for field:
-     * {@snippet lang=c :
-     * float m_Parameters[12]
-     * }
-     */
-    public static float m_Parameters(MemorySegment struct, long index0) {
-        return (float)m_Parameters$ELEM_HANDLE.get(struct, m_Parameters$OFFSET, index0);
-    }
-
-    /**
-     * Indexed setter for field:
-     * {@snippet lang=c :
-     * float m_Parameters[12]
-     * }
-     */
-    public static void m_Parameters(MemorySegment struct, long index0, float fieldValue) {
-        m_Parameters$ELEM_HANDLE.set(struct, m_Parameters$OFFSET, index0, fieldValue);
     }
 
     private static final SequenceLayout m_Bounds$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("m_Bounds"));
@@ -261,48 +177,48 @@ public class FontcArc {
         struct.set(m_Vertices$LAYOUT, m_Vertices$OFFSET, fieldValue);
     }
 
-    private static final AddressLayout m_LineRadii$LAYOUT = (AddressLayout)$LAYOUT.select(groupElement("m_LineRadii"));
+    private static final OfInt m_VertexCount$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_VertexCount"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * float *m_LineRadii
+     * uint32_t m_VertexCount
      * }
      */
-    public static final AddressLayout m_LineRadii$layout() {
-        return m_LineRadii$LAYOUT;
+    public static final OfInt m_VertexCount$layout() {
+        return m_VertexCount$LAYOUT;
     }
 
-    private static final long m_LineRadii$OFFSET = $LAYOUT.byteOffset(groupElement("m_LineRadii"));
+    private static final long m_VertexCount$OFFSET = $LAYOUT.byteOffset(groupElement("m_VertexCount"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * float *m_LineRadii
+     * uint32_t m_VertexCount
      * }
      */
-    public static final long m_LineRadii$offset() {
-        return m_LineRadii$OFFSET;
+    public static final long m_VertexCount$offset() {
+        return m_VertexCount$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * float *m_LineRadii
+     * uint32_t m_VertexCount
      * }
      */
-    public static MemorySegment m_LineRadii(MemorySegment struct) {
-        return struct.get(m_LineRadii$LAYOUT, m_LineRadii$OFFSET);
+    public static int m_VertexCount(MemorySegment struct) {
+        return struct.get(m_VertexCount$LAYOUT, m_VertexCount$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * float *m_LineRadii
+     * uint32_t m_VertexCount
      * }
      */
-    public static void m_LineRadii(MemorySegment struct, MemorySegment fieldValue) {
-        struct.set(m_LineRadii$LAYOUT, m_LineRadii$OFFSET, fieldValue);
+    public static void m_VertexCount(MemorySegment struct, int fieldValue) {
+        struct.set(m_VertexCount$LAYOUT, m_VertexCount$OFFSET, fieldValue);
     }
 
     private static final OfInt m_OutlineVertexCount$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_OutlineVertexCount"));
@@ -347,94 +263,6 @@ public class FontcArc {
      */
     public static void m_OutlineVertexCount(MemorySegment struct, int fieldValue) {
         struct.set(m_OutlineVertexCount$LAYOUT, m_OutlineVertexCount$OFFSET, fieldValue);
-    }
-
-    private static final OfInt m_BaselineVertexCount$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_BaselineVertexCount"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * uint32_t m_BaselineVertexCount
-     * }
-     */
-    public static final OfInt m_BaselineVertexCount$layout() {
-        return m_BaselineVertexCount$LAYOUT;
-    }
-
-    private static final long m_BaselineVertexCount$OFFSET = $LAYOUT.byteOffset(groupElement("m_BaselineVertexCount"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * uint32_t m_BaselineVertexCount
-     * }
-     */
-    public static final long m_BaselineVertexCount$offset() {
-        return m_BaselineVertexCount$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * uint32_t m_BaselineVertexCount
-     * }
-     */
-    public static int m_BaselineVertexCount(MemorySegment struct) {
-        return struct.get(m_BaselineVertexCount$LAYOUT, m_BaselineVertexCount$OFFSET);
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * uint32_t m_BaselineVertexCount
-     * }
-     */
-    public static void m_BaselineVertexCount(MemorySegment struct, int fieldValue) {
-        struct.set(m_BaselineVertexCount$LAYOUT, m_BaselineVertexCount$OFFSET, fieldValue);
-    }
-
-    private static final OfInt m_LineCount$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_LineCount"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * uint32_t m_LineCount
-     * }
-     */
-    public static final OfInt m_LineCount$layout() {
-        return m_LineCount$LAYOUT;
-    }
-
-    private static final long m_LineCount$OFFSET = $LAYOUT.byteOffset(groupElement("m_LineCount"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * uint32_t m_LineCount
-     * }
-     */
-    public static final long m_LineCount$offset() {
-        return m_LineCount$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * uint32_t m_LineCount
-     * }
-     */
-    public static int m_LineCount(MemorySegment struct) {
-        return struct.get(m_LineCount$LAYOUT, m_LineCount$OFFSET);
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * uint32_t m_LineCount
-     * }
-     */
-    public static void m_LineCount(MemorySegment struct, int fieldValue) {
-        struct.set(m_LineCount$LAYOUT, m_LineCount$OFFSET, fieldValue);
     }
 
     /**

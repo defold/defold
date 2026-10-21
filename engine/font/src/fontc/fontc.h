@@ -248,15 +248,10 @@ extern "C"
 
     typedef struct FontcArc
     {
-        // Center x/y, signed first-line radius, span, text min/max x/y,
-        // inner/outer radii, start/end angles. Angles use radians.
-        float    m_Parameters[12];
         float    m_Bounds[4]; // Text and guide min x/y, max x/y; excludes the center marker.
-        float*   m_Vertices;  // XYZ line pairs: outline first, then baselines.
-        float*   m_LineRadii;
+        float*   m_Vertices;  // XYZ line pairs: outline, baselines, then center marker.
+        uint32_t m_VertexCount;
         uint32_t m_OutlineVertexCount;
-        uint32_t m_BaselineVertexCount;
-        uint32_t m_LineCount;
     } FontcArc;
 
     typedef struct FontcImage

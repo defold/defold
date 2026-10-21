@@ -126,19 +126,12 @@
 (defn- gen-lines-vb
   [renderables]
   (let [vcount (transduce (map (fn [{:keys [user-data selected]}]
-                                 (+ (count (:line-data user-data))
-                                    (if selected
-                                      (+ (count (:baseline-line-data user-data))
-                                         (count (:center-line-data user-data)))
-                                      0))))
+                                 (count (or (when selected (:selected-line-data user-data)) (:line-data user-data)))))
                           + renderables)]
     (when (pos? vcount)
       (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
-                            (let [{:keys [line-data line-color]} user-data
-                                  line-data (cond-> line-data
-                                              selected (into (:baseline-line-data user-data))
-                                              selected (into (:center-line-data user-data)))
-                                  [r g b a] (or line-color (colors/renderable-outline-color renderable))]
+                            (let [line-data (or (when selected (:selected-line-data user-data)) (:line-data user-data))
+                                  [r g b a] (or (:line-color user-data) (colors/renderable-outline-color renderable))]
                               (reduce (fn [vb [x y z]]
                                         (color-vtx-put! vb x y z r g b a))
                                       vb
@@ -1709,7 +1702,7 @@
             {:render-fn render-lines
              :tags (set/union #{:gui :outline} (:renderable-tags scene-renderable-user-data))
              :passes [pass/outline]
-             :user-data (select-keys scene-renderable-user-data [:line-data :baseline-line-data :center-line-data])
+             :user-data (select-keys scene-renderable-user-data [:line-data :selected-line-data])
              :batch-key nil
              :select-batch-key _node-id
              :child-index child-index
@@ -2296,8 +2289,7 @@
               ;; simply overload the material-shader output on this node.
               ;; Instead, the base VisualNode will pick it up from here.
               {:line-data lines
-               :baseline-line-data (:baseline-line-data arc-data)
-               :center-line-data (:center-line-data arc-data)
+               :selected-line-data (:selected-line-data arc-data)
                :text-data text-data
                :color color+alpha
                :override-material-shader font-shader

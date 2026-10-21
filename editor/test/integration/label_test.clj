@@ -470,6 +470,7 @@
                                                               :local-camera (camera/make-camera)}))
               renderable (get-in (render-data [node]) [:renderables pass/outline 0])
               guide (get-in renderable [:user-data :line-data])
+              selected-lines (get-in renderable [:user-data :selected-line-data])
               [inner outer] guide
               cap-length (Math/hypot (- (double (first outer)) (double (first inner)))
                                      (- (double (second outer)) (double (second inner))))
@@ -488,9 +489,9 @@
           (is (= guide (get-in label-scene [:renderable :user-data :line-data])))
           (is (= (count guide) (count unselected)))
           (is (= [[-5.0 -5.0 0.0] [5.0 5.0 0.0] [-5.0 5.0 0.0] [5.0 -5.0 0.0]]
-                 (get-in renderable [:user-data :center-line-data])))
-          (is (= (+ (count guide) (count (:baseline-line-data (g/node-value node :arc-data))) 4)
-                 (count selected)))
+                 (mapv vec (subvec (vec selected-lines) (- (count selected-lines) 4)))))
+          (is (identical? selected-lines (:selected-line-data (g/node-value node :arc-data))))
+          (is (= (count selected-lines) (count selected)))
           (is (< (count unselected) (count selected)))
           (is (< (Math/abs (- (+ (double (first inner)) 10.0) (.getFloat buffer 0))) 0.001))
           (is (< (Math/abs (- (- (double (second inner)) 5.0) (.getFloat buffer Float/BYTES))) 0.001))
@@ -504,7 +505,7 @@
         (is (nil? (test-util/prop-error node :arc-angle)))
         (let [guide (:line-data (g/node-value node :arc-data))]
           (doseq [[start end] [[(first guide) (nth guide (- (count guide) 3))]
-                               [(nth guide 2) (peek guide)]]]
+                               [(nth guide 2) (nth guide (dec (count guide)))]]]
             (is (< (Math/hypot (- (double (first end)) (double (first start)))
                                (- (double (second end)) (double (second start))))
                    0.001)))))
@@ -559,7 +560,7 @@
                 extent (math/vecmath->clj (geom/aabb-extent aabb))]
             (is (= (:aabb arc-data) aabb))
             (is (not (geom/aabb-contains? aabb center)))
-            (doseq [point (subvec (:line-data arc-data) 0 4)]
+            (doseq [point (subvec (vec (:line-data arc-data)) 0 4)]
               (is (geom/aabb-contains? aabb (Point3d. (double-array point)))))
             (is (< (double (first extent)) 3000.0))
             (is (< (double (second extent)) 800.0))))
@@ -588,7 +589,8 @@
               radius [-200.0 200.0 400.0]]
         (test-util/prop! node :pivot pivot)
         (test-util/prop! node :arc-radius radius)
-        (let [[x y] (first (:baseline-line-data (g/node-value node :arc-data)))
+        (let [arc-data (g/node-value node :arc-data)
+              [x y] (nth (:selected-line-data arc-data) (count (:line-data arc-data)))
               expected (* (double radius) (Math/sqrt 0.5))]
           (is (= [0.0 0.0] (:offset (g/node-value node :text-data))))
           (is (< (Math/abs (+ (double x) expected)) 0.001))

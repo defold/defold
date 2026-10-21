@@ -56,7 +56,9 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import com.dynamo.bob.font.generated.FontRendererFFM;
 import com.dynamo.bob.font.generated.FontcArc;
@@ -502,56 +504,29 @@ public final class FontRenderer implements AutoCloseable {
         }
     }
 
-    /** Arc guides and text bounds in local font units; angles use radians. */
+    /** Ready-to-render arc lines and framing bounds in local font units. */
     public static final class Arc {
-        public final float centerX;
-        public final float centerY;
-        public final float radius;
-        public final float span;
-        public final float minX;
-        public final float minY;
-        public final float maxX;
-        public final float maxY;
-        /** Curved guide; a negative inner radius continues across the center, retaining the requested sweep. */
-        public final float innerRadius;
-        public final float outerRadius;
-        public final float startAngle;
-        public final float endAngle;
-        /** Baseline radii in layout order; the first line uses radius. */
-        public final float[] lineRadii;
-
-        /** XYZ line pairs for the curved box and each text baseline. */
-        public final float[] outlineVertices;
-        public final float[] baselineVertices;
-        /** Text and guide min x/y, max x/y; excludes the center marker. */
-        public final float[] guideBounds;
+        public final List<List<Float>> outlineLines;
+        public final List<List<Float>> selectedLines;
+        public final List<Float> min;
+        public final List<Float> max;
 
         private Arc(MemorySegment arc) {
-            MemorySegment values = FontcArc.m_Parameters(arc);
-            centerX = values.getAtIndex(JAVA_FLOAT, 0);
-            centerY = values.getAtIndex(JAVA_FLOAT, 1);
-            radius = values.getAtIndex(JAVA_FLOAT, 2);
-            span = values.getAtIndex(JAVA_FLOAT, 3);
-            minX = values.getAtIndex(JAVA_FLOAT, 4);
-            minY = values.getAtIndex(JAVA_FLOAT, 5);
-            maxX = values.getAtIndex(JAVA_FLOAT, 6);
-            maxY = values.getAtIndex(JAVA_FLOAT, 7);
-            innerRadius = values.getAtIndex(JAVA_FLOAT, 8);
-            outerRadius = values.getAtIndex(JAVA_FLOAT, 9);
-            startAngle = values.getAtIndex(JAVA_FLOAT, 10);
-            endAngle = values.getAtIndex(JAVA_FLOAT, 11);
-            long outlineBytes = Integer.toUnsignedLong(FontcArc.m_OutlineVertexCount(arc)) * 3 * Float.BYTES;
-            long baselineBytes = Integer.toUnsignedLong(FontcArc.m_BaselineVertexCount(arc)) * 3 * Float.BYTES;
-            MemorySegment vertices = FontcArc.m_Vertices(arc).reinterpret(outlineBytes + baselineBytes);
-            outlineVertices = vertices.asSlice(0, outlineBytes).toArray(JAVA_FLOAT);
-            baselineVertices = vertices.asSlice(outlineBytes, baselineBytes).toArray(JAVA_FLOAT);
-            lineRadii = FontcArc.m_LineRadii(arc).reinterpret((long)FontcArc.m_LineCount(arc) * Float.BYTES).toArray(JAVA_FLOAT);
-            guideBounds = FontcArc.m_Bounds(arc).toArray(JAVA_FLOAT);
+            float[] bounds = FontcArc.m_Bounds(arc).toArray(JAVA_FLOAT);
+            min = List.of(bounds[0], bounds[1], 0.0f);
+            max = List.of(bounds[2], bounds[3], 0.0f);
+            long byteCount = Integer.toUnsignedLong(FontcArc.m_VertexCount(arc)) * 3 * Float.BYTES;
+            float[] vertices = FontcArc.m_Vertices(arc).reinterpret(byteCount).toArray(JAVA_FLOAT);
+            ArrayList<List<Float>> lines = new ArrayList<>(vertices.length / 3);
+            for (int index = 0; index < vertices.length; index += 3)
+                lines.add(List.of(vertices[index], vertices[index + 1], vertices[index + 2]));
+            selectedLines = List.copyOf(lines);
+            outlineLines = selectedLines.subList(0, FontcArc.m_OutlineVertexCount(arc));
         }
     }
 
     /**
-     * Returns the retained text's circular baseline, or null for straight or empty text.
+     * Returns the retained text's arc guides, or null for straight or empty text.
      * Used by the Editor for arc guides and text framing; does not generate glyph images or modify the atlas.
      */
     public synchronized Arc getArc() {

@@ -67,17 +67,11 @@
 (defn- gen-lines-vb
   [renderables]
   (let [vcount (transduce (map (fn [{:keys [user-data selected]}]
-                                 (+ (count (:line-data user-data))
-                                    (if selected
-                                      (+ (count (:baseline-line-data user-data))
-                                         (count (:center-line-data user-data)))
-                                      0))))
+                                 (count (or (when selected (:selected-line-data user-data)) (:line-data user-data)))))
                           + renderables)]
     (when (pos? vcount)
-      (vtx/flip! (reduce (fn [vb {:keys [world-transform user-data] :as renderable}]
-                           (let [line-data (cond-> (:line-data user-data)
-                                             (:selected renderable) (into (:baseline-line-data user-data))
-                                             (:selected renderable) (into (:center-line-data user-data)))
+      (vtx/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
+                           (let [line-data (or (when selected (:selected-line-data user-data)) (:line-data user-data))
                                  line-color (:line-color user-data)
                                  [r g b a] (or line-color (colors/renderable-outline-color renderable))]
                              (reduce (fn [vb [x y z]]
@@ -230,8 +224,7 @@
                                         :tags #{:text :outline}
                                         :batch-key ::outline
                                         :user-data {:line-data lines
-                                                    :baseline-line-data (:baseline-line-data arc-data)
-                                                    :center-line-data (:center-line-data arc-data)}
+                                                    :selected-line-data (:selected-line-data arc-data)}
                                         :passes [pass/outline]}}]))
       scene)))
 

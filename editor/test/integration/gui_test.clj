@@ -4481,22 +4481,22 @@
           (is (true? (get-in (g/node-value node :_properties) [:properties :manual-size :read-only?])))
           (is (not (get-in (g/node-value node :_properties) [:properties :line-break :read-only?])))
           (let [arc-data (g/node-value node :arc-data)
+                selected-lines (:selected-line-data arc-data)
                 bounds (g/node-value node :aabb)]
             (is (= (:aabb arc-data) bounds))
             (is (< 8 (count (:line-data arc-data))))
             (is (= (:line-data arc-data) (:line-data (g/node-value node :scene-renderable-user-data))))
-            (is (pos? (count (:baseline-line-data arc-data))))
-            (is (= (:baseline-line-data arc-data)
-                   (get-in (g/node-value node :scene-outline-renderable) [:user-data :baseline-line-data])))
+            (is (< (count (:line-data arc-data)) (count selected-lines)))
+            (is (identical? selected-lines
+                            (get-in (g/node-value node :scene-outline-renderable) [:user-data :selected-line-data])))
             (is (= [[-5.0 -5.0 0.0] [5.0 5.0 0.0] [-5.0 5.0 0.0] [5.0 -5.0 0.0]]
-                   (get-in (g/node-value node :scene-outline-renderable) [:user-data :center-line-data])))
+                   (mapv vec (subvec (vec selected-lines) (- (count selected-lines) 4)))))
             (let [renderable (assoc (g/node-value node :scene-outline-renderable)
                                :world-transform math/identity-mat4)
                   unselected (#'gui/gen-lines-vb [renderable])
                   selected (#'gui/gen-lines-vb [(assoc renderable :selected :self-selected)])]
               (is (= (count (:line-data arc-data)) (count unselected)))
-              (is (= (+ (count (:line-data arc-data)) (count (:baseline-line-data arc-data)) 4)
-                     (count selected))))
+              (is (= (count selected-lines) (count selected))))
             (test-util/with-prop [node :manual-size [800.0 1000.0 0.0]]
               (is (= bounds (g/node-value node :aabb))))))
         (test-util/prop! node :arc-radius 30.0)
@@ -4532,7 +4532,8 @@
               radius [-200.0 200.0 400.0]]
         (test-util/prop! node :pivot pivot)
         (test-util/prop! node :arc-radius radius)
-        (let [[x y] (first (:baseline-line-data (g/node-value node :arc-data)))
+        (let [arc-data (g/node-value node :arc-data)
+              [x y] (nth (:selected-line-data arc-data) (count (:line-data arc-data)))
               expected (* (double radius) (Math/sqrt 0.5))]
           (is (= [0.0 0.0] (:offset (g/node-value node :text-data))))
           (is (< (Math/abs (+ (double x) expected)) 0.001))
