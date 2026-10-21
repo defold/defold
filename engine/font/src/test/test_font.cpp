@@ -2247,6 +2247,63 @@ TEST(FontTextCurve, UnevenSegments)
     FontTextCurveRelease(curve);
 }
 
+// Curve scale adjusts glyph and underline SDF smoothing without scaling geometry twice.
+TEST_F(FontTest, CurveScaleSdfSmoothing)
+{
+    using namespace dmVMath;
+    const char text[] = "<ul>A</ul>";
+    HMarkup    markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+    FontGlyphGenParams glyph_params;
+    glyph_params.m_Scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, 'A'), &glyph_params, &glyph));
+    TestLayoutCachedGlyph  cached = { &glyph };
+    FontLayoutVertexConfig config = {};
+    config.m_Layout = layout;
+    config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+    config.m_ResolveGlyphContext = &cached;
+    config.m_Transform = Matrix4::scale(Vector3(3.0f));
+    config.m_Width = 100;
+    config.m_RecipAtlasWidth = config.m_RecipAtlasHeight = 1.0f / 256;
+    config.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
+    config.m_MetricsFromTtf = true;
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    config.m_FaceColor[0] = config.m_FaceColor[1] = config.m_FaceColor[2] = config.m_FaceColor[3] = 1;
+    config.m_RenderDecorations = true;
+    config.m_SdfSmoothing = 0.1f / 3.0f;
+    FontLayoutVertexMetrics metrics;
+    ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+    FontGlyphVertex normal[12], scaled[12];
+    ASSERT_EQ(12u, FontCreateLayoutVertices(config, metrics, normal, 12));
+    FontTextCurveKnot knots[2] = {};
+    knots[0].m_OutHandle = Vector3(100.0f / 3, 0, 0);
+    knots[1].m_Position = Vector3(100, 0, 0);
+    knots[1].m_InHandle = -knots[0].m_OutHandle;
+    const float scales[] = { 0.5f, 2.0f };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(scales); ++i)
+    {
+        knots[0].m_Scale = knots[1].m_Scale = scales[i];
+        config.m_Curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+        ASSERT_NE((HFontTextCurve)0, config.m_Curve);
+        ASSERT_EQ(12u, FontCreateLayoutVertices(config, metrics, scaled, 12));
+        for (uint32_t vertex = 0; vertex < 12; ++vertex)
+            EXPECT_NEAR(normal[vertex].m_SdfParams[2] / scales[i], scaled[vertex].m_SdfParams[2], 0.0001f);
+        const float flat_width = normal[1].m_Position[0] - normal[0].m_Position[0];
+        const float curve_width = scaled[1].m_Position[0] - scaled[0].m_Position[0];
+        EXPECT_NEAR(flat_width * scales[i], curve_width, 0.001f);
+        FontTextCurveRelease(config.m_Curve);
+    }
+    FontFreeGlyph(m_Font, &glyph);
+    TextLayoutRelease(layout);
+}
+
 // All three lines share identical curve frames. Only their baseline offsets
 // differ, including in 3D; a set curve overrides arc parameters.
 TEST_F(FontTest, MultilineCurveVertices)

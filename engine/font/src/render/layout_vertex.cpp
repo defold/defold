@@ -1081,6 +1081,7 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
         const float line_y = layout_y + line.m_Baseline;
         uint32_t cluster_end = line.m_Index;
         Matrix4 cluster_transform = config.m_Transform;
+        float cluster_scale = 1.0f;
 
         for (uint32_t i = line.m_Index; i < line.m_Index + line.m_Length; ++i)
         {
@@ -1092,7 +1093,10 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             {
                 const float pivot_x = FontGetTextClusterPivot(glyphs, &line, i, line_x, first_x, &cluster_end);
                 if (config.m_Curve)
+                {
                     cluster_transform = FontTextCurveGetTransform(config.m_Curve, pivot_x, layout_y + lines[0].m_Baseline);
+                    cluster_scale = Length(cluster_transform.getCol0().getXYZ());
+                }
                 else
                     FontGetTextArcTransform(&arc, pivot_x, line_y, (float*)&cluster_transform);
                 cluster_transform = config.m_Transform * cluster_transform;
@@ -1153,7 +1157,7 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             glyph_params.m_MetricsFromTtf = config.m_MetricsFromTtf;
 
             FontVertexLayerParams layers;
-            SetVertexLayerParams(config, layer_data, face_colors, glyph_params.m_RenderScale, metrics.m_LayerCount,
+            SetVertexLayerParams(config, layer_data, face_colors, glyph_params.m_RenderScale * cluster_scale, metrics.m_LayerCount,
                                  vertices + face_vertex_index, outline_vertices, shadow_vertices, &layers);
             layers.m_Transform = &cluster_transform;
             FontPackGlyphVertices(glyph_params, layers);
@@ -1299,7 +1303,10 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             {
                 const float pivot_x = x0 + decoration_segment.m_Length * 0.5f;
                 if (config.m_Curve)
+                {
                     decoration_transform = FontTextCurveGetTransform(config.m_Curve, pivot_x, layout_y + lines[0].m_Baseline);
+                    layers.m_SdfSmoothing /= Length(decoration_transform.getCol0().getXYZ());
+                }
                 else
                     FontGetTextArcTransform(&arc, pivot_x, line_y, (float*)&decoration_transform);
                 decoration_transform = config.m_Transform * decoration_transform;
