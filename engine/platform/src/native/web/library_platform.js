@@ -522,9 +522,6 @@ var LibraryDefoldPlatform = {
       if (!DefoldPlatform.isFullscreen) {
         DefoldPlatform.removeFullScreenEventListeners();
       }
-      //reset previous values for updating size in dmNativeSwapBuffers()
-      DefoldPlatform.prevWidth = 0;
-      DefoldPlatform.prevHeight = 0;
     },
 
     requestFullScreen: function(element) {
@@ -957,11 +954,17 @@ var LibraryDefoldPlatform = {
     var width = Module['canvas'].width;
     var height = Module['canvas'].height;
 
-    if (DefoldPlatform.prevWidth != width || DefoldPlatform.prevHeight != height) {
-      if (DefoldPlatform.isFullscreen) {
-        width = Math.floor(window.innerWidth * DefoldPlatform.dpi);
-        height = Math.floor(window.innerHeight * DefoldPlatform.dpi);
-      }
+    if (DefoldPlatform.isFullscreen) {
+      // Custom/older loaders may not provide the rendering ratio helper.
+      var dpi = typeof Module['getPixelRatio'] === 'function'
+        ? Module['getPixelRatio'](DefoldPlatform.params[21]) // WINDOW_STATE_HIGH_DPI
+        : DefoldPlatform.dpi;
+      width = Math.max(1, Math.floor(window.innerWidth * dpi));
+      height = Math.max(1, Math.floor(window.innerHeight * dpi));
+    }
+
+    if (DefoldPlatform.prevWidth != width || DefoldPlatform.prevHeight != height ||
+        Module['canvas'].width != width || Module['canvas'].height != height) {
       DefoldPlatform.prevWidth = width;
       DefoldPlatform.prevHeight = height;
       _dmNativeSetWindowSize(width, height);
@@ -1233,7 +1236,10 @@ var LibraryDefoldPlatform = {
   },
 
   dmNativeGetDisplayScaleFactor: function() {
-    return DefoldPlatform.dpi;
+    // Match the canvas rendering ratio so pixel-ratio limits do not change camera zoom.
+    return typeof Module['getPixelRatio'] === 'function'
+      ? Module['getPixelRatio'](DefoldPlatform.params[21]) // WINDOW_STATE_HIGH_DPI
+      : DefoldPlatform.dpi;
   }
 };
 

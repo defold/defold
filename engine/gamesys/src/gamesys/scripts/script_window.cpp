@@ -384,6 +384,8 @@ static int GetMouseLock(lua_State* L)
 /*# get the display scale
  *
  * This returns the content scale of the current display.
+ * On HTML5, the scale respects `display.high_dpi`, `html5.min_pixel_ratio`
+ * and `html5.max_pixel_ratio`. When High DPI is disabled, the scale is 1.
  *
  * @name window.get_display_scale
  * @return scale [type:number] The display scale

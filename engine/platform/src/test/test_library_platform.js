@@ -23,6 +23,9 @@ const joystickParams = ["PRESENT", "AXES", "BUTTONS", "HATS"].map(name =>
 
 function loadEnvironment() {
     const listeners = new Map();
+    const dispatch = type => {
+        for (const callback of Array.from(listeners.get(type) || [])) callback();
+    };
     const context = vm.createContext({
         console,
         Module: {},
@@ -31,11 +34,14 @@ function loadEnvironment() {
         window: { addEventListener() {}, removeEventListener() {} },
         document: {
             fullscreenElement: null,
-            addEventListener: (type, callback) => listeners.set(type, callback),
-            removeEventListener: type => listeners.delete(type),
+            addEventListener(type, callback) {
+                if (!listeners.has(type)) listeners.set(type, new Set());
+                listeners.get(type).add(callback);
+            },
+            removeEventListener: (type, callback) => listeners.get(type)?.delete(callback),
             exitFullscreen() {
                 this.fullscreenElement = null;
-                listeners.get("fullscreenchange")();
+                dispatch("fullscreenchange");
             }
         },
         autoAddDeps() {},
@@ -53,7 +59,7 @@ function loadEnvironment() {
     context.createFullscreenElement = () => ({
         requestFullscreen() {
             context.document.fullscreenElement = this;
-            listeners.get("fullscreenchange")();
+            dispatch("fullscreenchange");
         }
     });
     return context;
@@ -88,19 +94,193 @@ function testGamepadCapabilitiesAndInput() {
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(0, param)), [0, 0, 0, 0]);
 }
 
-function loadLoaderEnvironment(hasWebGPU = false) {
+function loadLoaderEnvironment(hasWebGPU = false, settings = {}) {
     const loaderPath = path.resolve(__dirname,
         "../../../../com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/bundle/resources/web/dmloader.js");
     const flags = { "html5.verify_downloaded_file_size": true, DEFOLD_HAS_WASM_ENGINE: true,
-                    DEFOLD_HAS_WEBGPU: hasWebGPU };
+                    DEFOLD_HAS_WEBGPU: hasWebGPU, ...settings };
     const loader = fs.readFileSync(loaderPath, "utf8")
         .replace(/\{\{![\s\S]*?\}\}/g, "")
         .replace(/\{\{([#^])([^}]+)\}\}([\s\S]*?)\{\{\/\2\}\}/g,
             (_, kind, name, content) => (kind === "#" ? !!flags[name] : !flags[name]) ? content : "")
-        .replace(/\{\{[^}]+\}\}/g, "0");
+        .replace(/\{\{([^}]+)\}\}/g, (_, name) => String(flags[name] ?? 0));
     const context = loadEnvironment();
     vm.runInContext(loader, context, { filename: loaderPath });
     return context;
+}
+
+function loadResizeEnvironment(settings = {}, scaleMode = "stretch") {
+    const context = loadLoaderEnvironment(false, {
+        "display.width": 640, "display.height": 480, "display.high_dpi": true,
+        ["DEFOLD_SCALE_MODE_IS_" + scaleMode.toUpperCase()]: true, ...settings
+    });
+    const container = { style: {} };
+    const canvas = {
+        width: 640, height: 480,
+        getBoundingClientRect: () => ({ left: 10, top: 20,
+            right: 10 + parseFloat(container.style.width), bottom: 20 + parseFloat(container.style.height) })
+    };
+    context.navigator.userAgent = "";
+    Object.assign(context.window, { innerWidth: 900, innerHeight: 700, devicePixelRatio: 3 });
+    context.document.getElementById = id => id === "canvas" ? canvas : container;
+    context.Module.canvas = canvas;
+    context.Browser = { setCanvasSize: (width, height) => Object.assign(canvas, { width, height }) };
+    context._dmNativeSetWindowSize = (width, height) => context.LibraryDefoldPlatform.dmNativeSetWindowSize(width, height);
+    context.LibraryDefoldPlatform.dmNativeOpenWindowJS(640, 480, 8, 0, 0,
+        settings["display.high_dpi"] ?? true, false, 2);
+    context.resizes = [];
+    context.DefoldPlatform.resizeFunc = (width, height) => context.resizes.push([width, height]);
+    context.resize = () => {
+        context.CUSTOM_PARAMETERS.resize_window_callback();
+        context.LibraryDefoldPlatform.dmNativeSwapBuffers();
+    };
+    context.container = container;
+    return context;
+}
+
+// Verify bounds keep backing pixels and display scale consistent, including fractional DPR and High DPI off (#8040).
+function testLoaderPixelRatioBounds() {
+    for (const [highDPI, dpr, min, max, expected] of [
+        [true, 3, 0, 0, 3], [true, undefined, 0, 0, 1], [true, 0.75, 0, 0, 0.75],
+        [true, 3, 0, 2, 2], [true, 3, 0, 1.5, 1.5], [true, 3, 0, 0.5, 0.5],
+        [true, 1, 1.5, 0, 1.5], [true, 3, 1.5, 1.5, 1.5], [true, 1.25, 1, 2, 1.25],
+        [false, 3, 1.5, 2, 1]
+    ]) {
+        const context = loadResizeEnvironment({ "display.high_dpi": highDPI,
+            DEFOLD_MIN_PIXEL_RATIO: min, DEFOLD_MAX_PIXEL_RATIO: max });
+        context.window.devicePixelRatio = dpr;
+        context.resize();
+        assert.deepStrictEqual(context.resizes, [[Math.floor(900 * expected), Math.floor(700 * expected)]]);
+        const displayScale = context.LibraryDefoldPlatform.dmNativeGetDisplayScaleFactor();
+        assert.strictEqual(displayScale, expected);
+        // Fixed orthographic cameras divide the buffer size by this scale to obtain the visible world size.
+        assert.deepStrictEqual([context.Module.canvas.width / displayScale, context.Module.canvas.height / displayScale], [900, 700]);
+        assert.strictEqual(context.container.style.width, "900px");
+        assert.strictEqual(context.container.style.height, "700px");
+        // Touch conversion must use the actual buffer/CSS ratio, not the device's uncapped DPR.
+        const coordinates = context.DefoldPlatform.convertCoordinatesFromMonitorToWebGLPixels(460, 370);
+        assert.deepStrictEqual(Array.from(coordinates), [context.Module.canvas.width / 2, context.Module.canvas.height / 2]);
+        context.resize();
+        assert.strictEqual(context.resizes.length, 1);
+    }
+}
+
+// Verify older/custom loaders without a pixel-ratio helper retain their existing display scale and High DPI behavior.
+function testDisplayScaleWithoutLoaderPixelRatio() {
+    for (const highDPI of [false, true]) {
+        const context = loadResizeEnvironment({ "display.high_dpi": highDPI });
+        delete context.Module.getPixelRatio;
+        assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetDisplayScaleFactor(), highDPI ? 3 : 1);
+    }
+}
+
+// Verify all four scale modes retain their CSS layout while applying the cap, including fractional backing dimensions.
+function testLoaderPixelRatioScaleModes() {
+    for (const [mode, viewport, css, pixels] of [
+        ["stretch", [900, 700], [900, 700], [1350, 1050]],
+        ["fit", [900, 700], [900, 675], [1350, 1012]],
+        ["fit", [900, 600], [800, 600], [1200, 900]],
+        ["downscale_fit", [900, 700], [640, 480], [960, 720]],
+        ["downscale_fit", [300, 210], [280, 210], [420, 315]],
+        ["no_scale", [300, 200], [640, 480], [960, 720]]
+    ]) {
+        const context = loadResizeEnvironment({ DEFOLD_MAX_PIXEL_RATIO: 1.5 }, mode);
+        [context.window.innerWidth, context.window.innerHeight] = viewport;
+        context.resize();
+        assert.deepStrictEqual(context.resizes, [pixels]);
+        assert.deepStrictEqual([parseFloat(context.container.style.width), parseFloat(context.container.style.height)], css);
+    }
+}
+
+// Verify DPR-only changes resize the buffer, rearm the resolution listener and preserve custom callbacks on older browsers.
+function testLoaderPixelRatioChanges() {
+    for (const legacy of [false, true]) {
+        const context = loadResizeEnvironment({ DEFOLD_MAX_PIXEL_RATIO: 2 });
+        const queries = [];
+        context.window.matchMedia = query => {
+            const media = { query, listener: null };
+            media[legacy ? "addListener" : "addEventListener"] = (...args) => media.listener = args.at(-1);
+            media[legacy ? "removeListener" : "removeEventListener"] = (...args) => {
+                assert.strictEqual(media.listener, args.at(-1));
+                media.listener = null;
+            };
+            queries.push(media);
+            return media;
+        };
+        context.EngineLoader.setupResizeCallback();
+        context.LibraryDefoldPlatform.dmNativeSwapBuffers();
+        assert.deepStrictEqual(context.resizes, [[1800, 1400]]);
+        assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetDisplayScaleFactor(), 2);
+        for (const dpr of [1.5, 1]) {
+            context.window.devicePixelRatio = dpr;
+            const previous = queries.at(-1);
+            previous.listener();
+            assert.strictEqual(previous.listener, null);
+            assert.strictEqual(queries.at(-1).query, "(resolution: " + dpr + "dppx)");
+            context.LibraryDefoldPlatform.dmNativeSwapBuffers();
+            context.LibraryDefoldPlatform.dmNativeSwapBuffers();
+            assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetDisplayScaleFactor(), dpr);
+        }
+        assert.deepStrictEqual(context.resizes, [[1800, 1400], [1350, 1050], [900, 700]]);
+
+        const custom = loadResizeEnvironment({ DEFOLD_MAX_PIXEL_RATIO: 1.5 });
+        custom.window.matchMedia = context.window.matchMedia;
+        let customCalls = 0;
+        custom.CUSTOM_PARAMETERS.resize_window_callback = () => {
+            ++customCalls;
+            custom.Module.canvas.width = 321;
+            custom.Module.canvas.height = 123;
+        };
+        custom.EngineLoader.setupResizeCallback();
+        custom.window.devicePixelRatio = 1;
+        queries.at(-1).listener();
+        custom.LibraryDefoldPlatform.dmNativeSwapBuffers();
+        assert.deepStrictEqual(custom.resizes, [[321, 123]]);
+        assert.strictEqual(customCalls, 2);
+    }
+}
+
+// Verify fullscreen shares the loader's bounds, restores windowed dimensions and avoids repeated resize notifications.
+function testLoaderFullscreenPixelRatio() {
+    const context = loadResizeEnvironment({ DEFOLD_MAX_PIXEL_RATIO: 1.5 }, "no_scale");
+    context.EngineLoader.setupResizeCallback();
+    context.LibraryDefoldPlatform.dmNativeSwapBuffers();
+    assert.deepStrictEqual(context.resizes, [[960, 720]]);
+    assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetDisplayScaleFactor(), 1.5);
+    context.Module.fullScreenContainer = context.createFullscreenElement();
+    context.Module.toggleFullscreen();
+    context.LibraryDefoldPlatform.dmNativeSwapBuffers();
+    assert.deepStrictEqual(context.resizes, [[960, 720], [1350, 1050]]);
+    assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetDisplayScaleFactor(), 1.5);
+    // A fullscreen frame must notice a changed ratio even before a resize event is delivered.
+    context.window.devicePixelRatio = 1;
+    context.LibraryDefoldPlatform.dmNativeSwapBuffers();
+    context.resize();
+    assert.deepStrictEqual(context.resizes, [[960, 720], [1350, 1050], [900, 700]]);
+    assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetDisplayScaleFactor(), 1);
+    context.Module.toggleFullscreen();
+    context.LibraryDefoldPlatform.dmNativeSwapBuffers();
+    context.resize();
+    assert.deepStrictEqual(context.resizes, [[960, 720], [1350, 1050], [900, 700], [640, 480]]);
+    assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetDisplayScaleFactor(), 1);
+
+    // Hosts with an older/custom loader keep the existing fullscreen scaling fallback.
+    delete context.Module.getPixelRatio;
+    context.DefoldPlatform.isFullscreen = true;
+    context.LibraryDefoldPlatform.dmNativeSwapBuffers();
+    assert.deepStrictEqual(context.resizes.at(-1), [2700, 2100]);
+    assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetDisplayScaleFactor(), 3);
+
+    // Fullscreen changes that keep the same backing dimensions must not emit another resize.
+    const unchanged = loadResizeEnvironment({ DEFOLD_MAX_PIXEL_RATIO: 1.5 });
+    unchanged.EngineLoader.setupResizeCallback();
+    unchanged.LibraryDefoldPlatform.dmNativeSwapBuffers();
+    unchanged.Module.fullScreenContainer = unchanged.createFullscreenElement();
+    for (let transition = 0; transition < 2; ++transition) {
+        unchanged.Module.toggleFullscreen();
+        unchanged.LibraryDefoldPlatform.dmNativeSwapBuffers();
+    }
+    assert.deepStrictEqual(unchanged.resizes, [[1350, 1050]]);
 }
 
 function setupLoaderStartup(hasWebGPU, hasWebGL) {
@@ -373,6 +553,8 @@ async function runTests() {
     for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderArchiveConcurrency,
                        testLoaderArchiveBufferOwnership,
+                       testLoaderPixelRatioBounds, testDisplayScaleWithoutLoaderPixelRatio, testLoaderPixelRatioScaleModes,
+                       testLoaderPixelRatioChanges, testLoaderFullscreenPixelRatio,
                        testTouchMouseSources, testMixedTouchAndMouseSources]) {
         try {
             await test();
