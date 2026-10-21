@@ -136,6 +136,42 @@ bool IsLoadProfilingEnabled(HFactory factory)
     return factory->m_Profile;
 }
 
+void LogLoadProfile(const LoadProfile* profile, const char* name, Result result, LoadTimings* timings)
+{
+    if (!profile->m_StartTime)
+        return;
+    uint64_t total = dmTime::GetMonotonicTime() - profile->m_StartTime;
+    uint64_t accounted = 0;
+    for (uint32_t i = 0; i < LOAD_PROFILE_STAGE_COUNT; ++i)
+        accounted += profile->m_Time[i];
+
+    // Includes dependency/main-thread waits, pending PostCreate intervals and loader bookkeeping.
+    uint64_t wait = total - accounted;
+    if (timings)
+    {
+        timings->m_Total = (uint32_t)total;
+        timings->m_Preload = (uint32_t)profile->m_Time[LOAD_PROFILE_PRELOAD];
+        timings->m_Read = (uint32_t)profile->m_Time[LOAD_PROFILE_READ];
+        timings->m_Create = (uint32_t)profile->m_Time[LOAD_PROFILE_CREATE];
+        timings->m_PostCreate = (uint32_t)profile->m_Time[LOAD_PROFILE_POST_CREATE];
+        timings->m_Queue = (uint32_t)profile->m_Time[LOAD_PROFILE_QUEUE];
+        timings->m_Wait = (uint32_t)wait;
+        timings->m_PostCreateCount = profile->m_PostCreateCount;
+        timings->m_Recorded = true;
+    }
+    dmLogInfo("%s took %.3fms (pre: %.3fms, read: %.3fms, create: %.3fms, post: %.3fms [%u calls], queue: %.3fms, wait: %.3fms, result: %s)",
+              name,
+              total / 1000.0,
+              profile->m_Time[LOAD_PROFILE_PRELOAD] / 1000.0,
+              profile->m_Time[LOAD_PROFILE_READ] / 1000.0,
+              profile->m_Time[LOAD_PROFILE_CREATE] / 1000.0,
+              profile->m_Time[LOAD_PROFILE_POST_CREATE] / 1000.0,
+              profile->m_PostCreateCount,
+              profile->m_Time[LOAD_PROFILE_QUEUE] / 1000.0,
+              wait / 1000.0,
+              ResultToString(result));
+}
+
 static inline uint16_t IncreaseVersion(HResourceFactory factory)
 {
     uint16_t next_version = factory->m_Version++;
