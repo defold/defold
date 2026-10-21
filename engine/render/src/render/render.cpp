@@ -1462,7 +1462,7 @@ namespace dmRender
                     break;
                 ++end;
             }
-            GpuRenderListBatch batch = { start, end, entry.m_Dispatch };
+            GpuRenderListBatch batch = { start, end, (HRenderListDispatch)entry.m_Dispatch };
             if (cache.m_Batches.Full())
                 cache.m_Batches.OffsetCapacity(16);
             cache.m_Batches.Push(batch);
