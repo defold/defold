@@ -516,6 +516,9 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
+        if (engine->m_EngineService)
+            dmEngineService::OnEngineDelete(engine->m_EngineService);
+
         {
             ScopedExtensionParams params(engine);
 
@@ -2014,6 +2017,7 @@ bail:
             DM_PROFILE("Frame");
 
             bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext);
+            bool frame_rendered = false;
 
             {
                 DM_PROFILE("Sim");
@@ -2120,6 +2124,10 @@ bail:
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
+                    frame_rendered = true;
+                    if (engine->m_EngineService)
+                        dmEngineService::BeginFrame(engine->m_EngineService);
+
                     // Begin the renderer frame with current time since engine start and frame delta-time.
                     // Use the same dt that is passed into script updates and the accumulated engine time.
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
@@ -2205,6 +2213,9 @@ bail:
                 }
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
+
+                if (engine->m_EngineService && frame_rendered)
+                    dmEngineService::EndFrame(engine->m_EngineService);
 
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
