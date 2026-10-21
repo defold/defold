@@ -15,8 +15,12 @@
 #include "native/native.h"
 
 #include "native/native_handles.h"
+#import "native/ios/app/ViewController.h"
 
+#include <assert.h>
 #include <math.h>
+#include <string.h>
+#include <dlib/log.h>
 #include <UIKit/UIKit.h>
 
 #include "platform_window_ios.h"
@@ -36,6 +40,23 @@ namespace dmPlatform
     id GetiOSEAGLContext()
     {
         return dmNativeGetiOSEAGLContext();
+    }
+
+    void SetiOSHomeIndicatorMode(const char* mode)
+    {
+        assert([NSThread isMainThread]);
+
+        HomeIndicatorMode indicator_mode = HOME_INDICATOR_MODE_DEFERRED;
+        if (strcmp(mode, "system") == 0)
+            indicator_mode = HOME_INDICATOR_MODE_SYSTEM;
+        else if (strcmp(mode, "auto_hide") == 0)
+            indicator_mode = HOME_INDICATOR_MODE_AUTO_HIDE;
+        else if (strcmp(mode, "deferred") != 0)
+            dmLogWarning("Unknown ios.home_indicator_mode '%s', defaulting to deferred", mode);
+
+        UIWindow* window = (UIWindow*)dmNativeGetiOSUIWindow();
+        ViewController* controller = (ViewController*)window.rootViewController;
+        controller.homeIndicatorMode = indicator_mode;
     }
 
     bool GetSafeAreaiOS(HWindow window, WindowSafeArea* out)

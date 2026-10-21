@@ -2099,6 +2099,8 @@ form.help.project.html5.transparent_graphics_context = Requests an alpha channel
 
 form.label.project.ios = iOS
 form.help.project.ios = iOS related settings
+form.label.project.ios.home_indicator_mode = Home Indicator Mode
+form.help.project.ios.home_indicator_mode = **Deferred** preserves the default protection for all screen edges and requires two swipes to return Home. **System** allows normal system gestures, including a single swipe to return Home. **Auto Hide** also allows a single swipe and asks iOS to hide the Home Indicator automatically; iOS controls its visibility and may show it again when the screen is touched. System and Auto Hide also remove gesture protection from the other screen edges.
 form.label.project.ios.app_icon_76x76 = App Icon 76x76
 form.help.project.ios.app_icon_76x76 = Square **76 × 76 px PNG** used for the iPad home-screen icon. If omitted, Defold scales the largest configured iOS icon — or its built-in icon — to this size.
 form.label.project.ios.app_icon_120x120 = App Icon 120x120
