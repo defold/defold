@@ -734,20 +734,13 @@ extern "C"
     DM_DLLEXPORT void FontcFreeTexture(FontcTexture* texture);
 
     /*#
-     * Returns the circular baseline used by the retained text, without generating glyph images.
-     * The caller supplies twelve floats: center x and y (the local origin), and signed first-line radius in local
-     * font units, the angular span in radians, then the text vertex bounds as
-     * min x, min y, max x, max y, then the curved box's inner radius, outer radius,
-     * start angle and end angle. Box angles increase along text X.
-     * The bounds exclude the arc guide.
-     * The box's inner radius is negative when text extends across the center;
-     * in that case the guide retains the requested angular span.
-     * All values are zero when arc mapping is disabled or the layout is empty.
-     * No pointers are retained.
+     * Returns arc geometry and text bounds; zeros for disabled or empty text.
+     * Distances use local font units; angles use radians.
      *
      * @name FontcGetArc
-     * @param renderer [type: HFontRenderer] Font renderer context with retained properties and text.
-     * @param arc [type: float*] Caller-owned output storage for twelve floats.
+     * @param renderer [type: HFontRenderer] Font renderer context.
+     * @param arc [type: float*] Caller-owned 12-float output: center x/y, signed first-line radius, span,
+     * bounds min x/y and max x/y, inner/outer radii, start/end angles.
      * @return result [type: FontRendererResult] Result of the operation.
      */
     DM_DLLEXPORT FontRendererResult FontcGetArc(HFontRenderer renderer, float* arc);
