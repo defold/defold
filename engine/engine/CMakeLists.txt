@@ -252,9 +252,7 @@ set(ENGINE_SERVICE_SOURCES
   "${ENGINE_SRC_DIR}/engine_service.cpp"
   "${ENGINE_SRC_DIR}/engine_service_discovery.cpp")
 if(TARGET_PLATFORM MATCHES "macos")
-  list(APPEND ENGINE_SERVICE_SOURCES
-    "${ENGINE_SRC_DIR}/engine_service_gputrace.cpp"
-    "${ENGINE_SRC_DIR}/engine_service_gputrace_metal.mm")
+  list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_gputrace_metal.mm")
 endif()
 if(TARGET_PLATFORM MATCHES "ios")
   list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_discovery_ios.mm")

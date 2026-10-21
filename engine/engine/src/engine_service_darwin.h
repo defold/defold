@@ -42,8 +42,6 @@ namespace dmEngineService
     };
 
     void GPUTraceRequest(void* context, dmWebServer::Request* request);
-    void GPUTracePlatformRequest(GPUTrace* trace, dmWebServer::Request* request, const char* body, uint32_t body_size);
-    void GPUTraceSendError(dmWebServer::Request* request, int status, const char* code, const char* message);
     void GPUTraceBeginFrame(GPUTrace* trace);
     void GPUTraceEndFrame(GPUTrace* trace);
     void GPUTraceStop(GPUTrace* trace);

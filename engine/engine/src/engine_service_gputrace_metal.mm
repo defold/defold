@@ -27,6 +27,19 @@
 
 namespace dmEngineService
 {
+    static void SendError(dmWebServer::Request* request, int status, const char* code, const char* message)
+    {
+        // Callers supply fixed error codes and messages. Native errors are serialized with capture status.
+        char response[512];
+        int  length = dmSnPrintf(response, sizeof(response), "{\"ok\":false,\"error\":{\"status\":%d,\"code\":\"%s\",\"message\":\"%s\"}}", status, code, message);
+        dmWebServer::SetStatusCode(request, status);
+        dmWebServer::SendAttribute(request, "Content-Type", "application/json");
+        dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
+        if (status == 405)
+            dmWebServer::SendAttribute(request, "Allow", "GET, POST, DELETE");
+        dmWebServer::Send(request, response, length);
+    }
+
     static bool IsSupported()
     {
         if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_METAL || !dmGraphics::GetInstalledContext())
@@ -114,7 +127,7 @@ namespace dmEngineService
             id      json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
             if (![json isKindOfClass:[NSDictionary class]])
             {
-                GPUTraceSendError(request, 400, "bad_request", "provide a JSON object");
+                SendError(request, 400, "bad_request", "provide a JSON object");
                 return false;
             }
             [params addEntriesFromDictionary:json];
@@ -124,7 +137,7 @@ namespace dmEngineService
         NSURLComponents* url = resource ? [NSURLComponents componentsWithString:resource] : nil;
         if (!url)
         {
-            GPUTraceSendError(request, 400, "bad_request", "invalid query parameters");
+            SendError(request, 400, "bad_request", "invalid query parameters");
             return false;
         }
         // Query parameters take precedence over body fields, as in the bridge endpoint.
@@ -135,30 +148,30 @@ namespace dmEngineService
         id path = [params objectForKey:@"path"];
         if (![path isKindOfClass:[NSString class]] || ![path hasPrefix:@"/"] || ![path hasSuffix:@".gputrace"])
         {
-            GPUTraceSendError(request, 400, "bad_request", "provide an absolute path ending in .gputrace");
+            SendError(request, 400, "bad_request", "provide an absolute path ending in .gputrace");
             return false;
         }
         NSUInteger  path_size = [path lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
         const char* path_text = [path UTF8String];
         if (memchr(path_text, 0, path_size))
         {
-            GPUTraceSendError(request, 400, "bad_request", "path must not contain a null character");
+            SendError(request, 400, "bad_request", "path must not contain a null character");
             return false;
         }
         if (path_size >= sizeof(trace->m_Path))
         {
-            GPUTraceSendError(request, 414, "gputrace_path_too_long", "GPU trace path is too long");
+            SendError(request, 414, "gputrace_path_too_long", "GPU trace path is too long");
             return false;
         }
         uint32_t frames;
         if (!ParseFrames([params objectForKey:@"frames"], &frames))
         {
-            GPUTraceSendError(request, 400, "bad_request", "frames must be a positive integer no greater than 10000");
+            SendError(request, 400, "bad_request", "frames must be a positive integer no greater than 10000");
             return false;
         }
         if (trace->m_State == GPU_TRACE_PENDING || trace->m_State == GPU_TRACE_CAPTURING)
         {
-            GPUTraceSendError(request, 409, "gputrace_active", "a GPU trace is already pending or active");
+            SendError(request, 409, "gputrace_active", "a GPU trace is already pending or active");
             return false;
         }
 
@@ -171,16 +184,60 @@ namespace dmEngineService
         return true;
     }
 
-    void GPUTracePlatformRequest(GPUTrace* trace, dmWebServer::Request* request, const char* body, uint32_t body_size)
+    void GPUTraceRequest(void* context, dmWebServer::Request* request)
     {
+        // Bound allocations and consume the entire body, including on rejected requests.
+        const uint32_t max_body_size = 64 * 1024;
+        dmArray<char>  body;
+        if (request->m_ContentLength <= max_body_size)
+            body.SetCapacity(request->m_ContentLength);
+        char     discard[256];
+        uint32_t offset = 0;
+        while (offset < request->m_ContentLength)
+        {
+            uint32_t remaining = request->m_ContentLength - offset;
+            uint32_t received = 0;
+            uint32_t count = remaining;
+            char*    destination = discard;
+            if (request->m_ContentLength <= max_body_size)
+                destination = body.Begin() + offset;
+            else
+            {
+                count = remaining < sizeof(discard) ? remaining : sizeof(discard);
+            }
+            if (dmWebServer::Receive(request, destination, count, &received) != dmWebServer::RESULT_OK || received == 0)
+            {
+                SendError(request, 400, "bad_request", "could not read request body");
+                return;
+            }
+            offset += received;
+        }
+
+        const char* suffix = request->m_Resource + strlen("/profiler/gputrace");
+        if (*suffix != 0 && *suffix != '?')
+        {
+            SendError(request, 404, "not_found", "unknown GPU trace endpoint");
+            return;
+        }
+        if (!dmStrEq(request->m_Method, "GET") && !dmStrEq(request->m_Method, "POST") && !dmStrEq(request->m_Method, "DELETE"))
+        {
+            SendError(request, 405, "method_not_allowed", "use GET, POST or DELETE");
+            return;
+        }
+        if (request->m_ContentLength > max_body_size)
+        {
+            SendError(request, 413, "request_too_large", "request body exceeds 65536 bytes");
+            return;
+        }
+        GPUTrace* trace = (GPUTrace*)context;
         @autoreleasepool
         {
             if (!IsSupported())
             {
-                GPUTraceSendError(request, 501, "gputrace_unsupported", "GPU trace capture requires macOS, Metal and METAL_CAPTURE_ENABLED=1");
+                SendError(request, 501, "gputrace_unsupported", "GPU trace capture requires macOS, Metal and METAL_CAPTURE_ENABLED=1");
                 return;
             }
-            if (dmStrEq(request->m_Method, "POST") && !Schedule(trace, request, body, body_size))
+            if (dmStrEq(request->m_Method, "POST") && !Schedule(trace, request, body.Begin(), request->m_ContentLength))
                 return;
             if (dmStrEq(request->m_Method, "DELETE"))
             {
@@ -190,7 +247,7 @@ namespace dmEngineService
                     trace->m_StopRequested = true;
                 else
                 {
-                    GPUTraceSendError(request, 409, "gputrace_inactive", "no GPU trace is pending or active");
+                    SendError(request, 409, "gputrace_inactive", "no GPU trace is pending or active");
                     return;
                 }
             }
