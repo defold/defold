@@ -15,12 +15,13 @@
 (ns support.process-util
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [editor.future :as future]
             [editor.os :as os]
             [editor.process :as process]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.task :as task])
   (:import [java.io File]
-           [java.util.concurrent TimeUnit TimeoutException]
+           [java.lang AutoCloseable]
+           [java.util.concurrent Callable Executors TimeUnit TimeoutException]
            [java.util.regex Pattern]))
 
 (set! *warn-on-reflection* true)
@@ -50,22 +51,31 @@
           "-" ~arguments))
 
 (defmacro with-child-process [options form arguments & body]
-  `(let [~(with-meta 'process {:tag 'Process}) (child-process process/start! ~options ~form ~arguments)]
-     (try
-       (.get (future/io
-               (with-open [stdin# (process/in ~'process)
-                           stdout# (process/out ~'process)
-                           stderr# (process/err ~'process)]
-                 ~@body))
-             60 TimeUnit/SECONDS)
-       (catch TimeoutException cause#
-         (throw (doto (TimeoutException.
-                        (format "Child process %s interaction timed out after 60 seconds."
-                                (.pid ~'process)))
-                  (.initCause cause#))))
-       (finally
-         (.destroyForcibly ~'process)
-         (when-not (.waitFor ~'process 10 TimeUnit/SECONDS)
-           (throw (TimeoutException.
-                    (format "Child process %s did not terminate within 10 seconds after forced destruction."
-                            (.pid ~'process)))))))))
+  `(task/with-open [executor# (Executors/newVirtualThreadPerTaskExecutor)]
+     (let [~(with-meta 'process {:tag 'Process}) (child-process process/start! ~options ~form ~arguments)
+           ^Callable interaction-fn# (bound-fn interact-with-child# []
+                                       (with-open [stdin# (process/in ~'process)
+                                                   stdout# (process/out ~'process)
+                                                   stderr# (process/err ~'process)]
+                                         ~@body))
+           interaction# (.submit executor# interaction-fn#)]
+       ;; Close in reverse order: destroy, cancel, await child, join worker.
+       (task/with-open [await-child# (reify AutoCloseable
+                                       (close [_#]
+                                         (when-not (.waitFor ~'process 10 TimeUnit/SECONDS)
+                                           (throw (TimeoutException.
+                                                    (format "Child process %s did not terminate within 10 seconds after forced destruction."
+                                                            (.pid ~'process)))))))
+                        cancel-interaction# (reify AutoCloseable
+                                              (close [_#]
+                                                (.cancel interaction# true)))
+                        destroy-child# (reify AutoCloseable
+                                         (close [_#]
+                                           (.destroyForcibly ~'process)))]
+         (try
+           (.get interaction# 60 TimeUnit/SECONDS)
+           (catch TimeoutException cause#
+             (throw (doto (TimeoutException.
+                            (format "Child process %s interaction timed out after 60 seconds."
+                                    (.pid ~'process)))
+                      (.initCause cause#)))))))))

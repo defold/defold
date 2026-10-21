@@ -172,8 +172,7 @@
            (and (is (false? (:dirty save-data)))
                 (is (= resource (:resource save-data)))
                 (is (= expected-save-value (:save-value save-data)))
-                (is (= (text-util/crlf->lf expected-save-text)
-                       (resource-node/save-data-content save-data)))))
+                (is (= expected-save-text (resource-node/save-data-content save-data)))))
          (is (resource-node/loaded? node-id)
              "Node has been registered as loaded.")
          (is (= (resource-node/save-value->source-value expected-save-value (resource/resource-type resource))
@@ -211,7 +210,7 @@
 (deftest async-reload-test
   (with-clean-system
     (let [[workspace project] (setup-scratch)
-          external-game-object-text (slurp (workspace/find-resource workspace "/game_object/empty_props.go"))
+          external-game-object-text (text-util/crlf->lf (slurp (workspace/find-resource workspace "/game_object/empty_props.go")))
           external-json-text "{\"item\" : \"Added externally\"}"
           external-lua-text "-- Edited externally"
           external-markdown-text "# Added externally"
@@ -315,7 +314,7 @@
 (deftest async-save-test
   (with-clean-system
     (let [[workspace project] (setup-scratch)
-          external-game-object-text (text-util/crlf->lf (slurp (workspace/find-resource workspace "/game_object/empty_props.go")))
+          external-game-object-text (slurp (workspace/find-resource workspace "/game_object/empty_props.go"))
           internal-edit-text "-- Edited by us"
           external-json-text "{\"item\" : \"Added externally\"}"
           external-lua-text "-- Modified externally"

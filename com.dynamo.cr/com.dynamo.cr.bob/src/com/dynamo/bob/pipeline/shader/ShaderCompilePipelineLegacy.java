@@ -53,9 +53,9 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         if (spirvOptExe == null) spirvOptExe = Bob.getExe(Platform.getHostPlatform(), "spirv-opt");
     }
 
-    static private void checkResult(String result_string) throws CompileExceptionError {
-        if (result_string != null ) {
-            throw new CompileExceptionError(result_string, null);
+    static private void checkResult(String resultString) throws CompileExceptionError {
+        if (resultString != null) {
+            throw new CompileExceptionError(resultString, null);
         }
     }
 
