@@ -4511,7 +4511,9 @@
           (is (= 2 (:line-count (g/node-value node :text-layout)))))
         (let [property (get-in (properties/coalesce [(g/node-value node :_properties)]) [:properties :arc-angle])]
           (properties/set-values! property [999.0])
-          (is (= 360.0 (g/node-value node :arc-angle))))
+          (is (= 999.0 (g/node-value node :arc-angle)))
+          (is (g/error-fatal? (test-util/prop-error node :arc-angle)))
+          (is (g/error-fatal? (g/node-value scene :build-targets))))
         (test-util/prop! node :arc-angle 0.0)
         (is (= wrapped (g/node-value node :text-layout)))
         (is (false? (get-in (g/node-value node :_properties) [:properties :manual-size :read-only?]))))

@@ -431,24 +431,34 @@
         (is (not (g/error? (g/node-value node :text-data))))
         (is (not (contains? (g/node-value node :text-data) :arc-radius)))))))
 
-;; Typed fields, property edits and scrubbing stay within the inclusive angle
-;; range instead of displaying invalid values or falling back to flat text.
+;; Typed angles retain their values and report range errors; scrubbing clamps
+;; to the inclusive bounds using the standard numeric control.
 (deftest label-arc-angle-edit-range-test
   (test-util/with-scratch-project test-util/project-path
     (let [node (project/get-resource-node project "/label/test.label")]
-      (doseq [[entered expected] [[-1.0 0.0]
-                                  [-360.0 0.0]
-                                  [0.0 0.0]
-                                  [360.0 360.0]
-                                  [361.0 360.0]]]
+      (doseq [[entered valid] [[-1.0 false]
+                               [0.0 true]
+                               [360.0 true]
+                               [361.0 false]]]
         (let [property (get-in (properties/coalesce [(g/node-value node :_properties)])
                                [:properties :arc-angle])]
           (is (= [0.0 360.0] ((juxt :min :max) (:edit-type property))))
-          (is (= expected ((:to-value (properties-view/make-control-view property nil nil))
-                           (str entered))))
+          (is (= entered ((:to-value (properties-view/make-control-view property nil @test-util/localization))
+                          (str entered))))
           (properties/set-values! property [entered])
-          (is (= expected (g/node-value node :arc-angle)))
-          (is (nil? (test-util/prop-error node :arc-angle))))))))
+          (is (= entered (g/node-value node :arc-angle)))
+          (if valid
+            (is (nil? (test-util/prop-error node :arc-angle)))
+            (is (g/error-fatal? (test-util/prop-error node :arc-angle))))))
+      (let [property (get-in (properties/coalesce [(g/node-value node :_properties)])
+                             [:properties :arc-angle])
+            control (properties-view/make-control-view property nil @test-util/localization)
+            scrubbed ((get-in control [:hover-overlay :content :on-scrubbed]))]
+        (scrubbed 1000.0)
+        (is (= 360.0 (g/node-value node :arc-angle)))
+        (scrubbed -1000.0)
+        (is (= 0.0 (g/node-value node :arc-angle)))
+        (is (nil? (test-util/prop-error node :arc-angle)))))))
 
 ;; The curved box replaces the textbox, keeps short radial end edges,
 ;; closes both full-circle endpoints, and follows transforms and selection

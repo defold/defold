@@ -27,7 +27,6 @@
             [editor.defold-project :as project]
             [editor.editor-extensions.graph :as ext-graph]
             [editor.editor-extensions.runtime :as rt]
-            [editor.field-expression :as field-expression]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -842,15 +841,10 @@
     (assoc :arc-radius arc-radius :arc-angle arc-angle)))
 
 (def arc-angle-edit-type
-  "Bounded angle editing shared by label and GUI text arcs."
-  (let [clamp-value (fn clamp-value [value]
-                      (min 360.0 (max 0.0 (double value))))]
-    {:type g/Num
-     :min 0.0
-     :max 360.0
-     :from-type clamp-value
-     :to-value (fn parse-arc-angle [text]
-                 (some-> (field-expression/to-double text) clamp-value))}))
+  "Angle scrubber bounds shared by label and GUI text arcs."
+  {:type g/Num
+   :min 0.0
+   :max 360.0})
 
 (defn arc-data
   "Returns the curved outline and bounds enclosing it and the text vertices."
