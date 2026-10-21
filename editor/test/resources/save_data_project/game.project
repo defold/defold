@@ -100,6 +100,7 @@ retry_time = 1.5
 transparent_graphics_context = 1
 
 [ios]
+home_indicator_mode = auto_hide
 app_icon_76x76 = /referenced/images/diamond.png
 app_icon_152x152 = /referenced/images/diamond.png
 app_icon_167x167 = /referenced/images/diamond.png
