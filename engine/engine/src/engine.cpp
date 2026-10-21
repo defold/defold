@@ -426,46 +426,48 @@ namespace dmEngine
     }
 
     Engine::Engine(dmEngineService::HEngineService engine_service)
-    : m_Config(0)
-    , m_Window(0)
-    , m_Alive(true)
-    , m_MainCollectionResource(0)
-    , m_LastReloadMTime(0)
-    , m_MouseSensitivity(1.0f)
-    , m_DataStore(DSCreateStore(0))
-    , m_GraphicsContext(0)
-    , m_RenderContext(0)
-    , m_ScriptContext(0x0)
-    , m_Factory(0x0)
-    , m_SystemSocket(0x0)
-    , m_SystemFont(0x0)
-    , m_HidContext(0x0)
-    , m_InputContext(0x0)
-    , m_GameInputBinding(0x0)
-    , m_DisplayProfiles(0x0)
-    , m_RenderScriptPrototype(0x0)
-    , m_Stats()
-    , m_WasIconified(true)
-    , m_QuitOnEsc(false)
-    , m_ConnectionAppMode(false)
-    , m_RunWhileIconified(false)
-    , m_SwapInterval(0)
-    , m_EffectiveSwapInterval(~0U)
-    , m_PreviousFrameTime(dmTime::GetMonotonicTime())
-    , m_NextFrameTime(0)
-    , m_FramePacingFrequency(0)
-    , m_FrameTimeRemainder(0)
-    , m_PacedFrameTimeDebt(0.0f)
-    , m_AccumFrameTime(0.0f)
-    , m_UpdateFrequency(0)
-    , m_FixedUpdateFrequency(0)
-    , m_Width(960)
-    , m_Height(640)
-    , m_InvPhysicalWidth(1.0f/960)
-    , m_InvPhysicalHeight(1.0f/640)
-    , m_ThrottleCooldownMax(0.0f)
-    , m_ThrottleCooldown(0.0f)
-    , m_ThrottleEnabled(false)
+        : m_Config(0)
+        , m_Window(0)
+        , m_Alive(true)
+        , m_MainCollectionResource(0)
+        , m_LastReloadMTime(0)
+        , m_MouseSensitivity(1.0f)
+        , m_DataStore(DSCreateStore(0))
+        , m_DataStoreJobs(0)
+        , m_DataStorePreUpdate(DS_EVENT_GAMEOBJECT_PRE_UPDATE)
+        , m_GraphicsContext(0)
+        , m_RenderContext(0)
+        , m_ScriptContext(0x0)
+        , m_Factory(0x0)
+        , m_SystemSocket(0x0)
+        , m_SystemFont(0x0)
+        , m_HidContext(0x0)
+        , m_InputContext(0x0)
+        , m_GameInputBinding(0x0)
+        , m_DisplayProfiles(0x0)
+        , m_RenderScriptPrototype(0x0)
+        , m_Stats()
+        , m_WasIconified(true)
+        , m_QuitOnEsc(false)
+        , m_ConnectionAppMode(false)
+        , m_RunWhileIconified(false)
+        , m_SwapInterval(0)
+        , m_EffectiveSwapInterval(~0U)
+        , m_PreviousFrameTime(dmTime::GetMonotonicTime())
+        , m_NextFrameTime(0)
+        , m_FramePacingFrequency(0)
+        , m_FrameTimeRemainder(0)
+        , m_PacedFrameTimeDebt(0.0f)
+        , m_AccumFrameTime(0.0f)
+        , m_UpdateFrequency(0)
+        , m_FixedUpdateFrequency(0)
+        , m_Width(960)
+        , m_Height(640)
+        , m_InvPhysicalWidth(1.0f / 960)
+        , m_InvPhysicalHeight(1.0f / 640)
+        , m_ThrottleCooldownMax(0.0f)
+        , m_ThrottleCooldown(0.0f)
+        , m_ThrottleEnabled(false)
     {
         m_EngineService = engine_service;
         m_Register = dmGameObject::NewRegister();
@@ -485,6 +487,9 @@ namespace dmEngine
         m_DependenciesJsonSize = 0;
         m_ContextRegistry = ContextRegistryCreate();
         dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
+
+        DSEventDesc event = { .m_Name = m_DataStorePreUpdate };
+        DSRegisterEvent(m_DataStore, &event);
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -495,6 +500,26 @@ namespace dmEngine
     static dmGameObject::HCollection GetMainCollection(HEngine engine)
     {
         return dmGameObject::ResCollectionGetCollection(engine->m_MainCollectionResource);
+    }
+
+    static void UpdateDataStore(HEngine engine)
+    {
+        DM_PROFILE("DataStorePreUpdate");
+        DSResult result = DSBeginSchedule(engine->m_DataStore, engine->m_DataStoreJobs);
+        if (result != DS_RESULT_OK)
+        {
+            dmLogError("Failed to begin datastore schedule (%d)", result);
+            return;
+        }
+
+        result = DSSchedulerEvent(engine->m_DataStore, engine->m_DataStorePreUpdate);
+        if (result != DS_RESULT_OK)
+            dmLogError("Failed to signal %s (%d)", dmHashReverseSafe64(engine->m_DataStorePreUpdate), result);
+
+        // Finish running and ready functions before components access their output.
+        // Functions behind unsignaled custom events do not hold this boundary open.
+        while (DSEndSchedule(engine->m_DataStore) == DS_RESULT_BUSY)
+            DSSchedulerUpdate(engine->m_DataStore);
     }
 
     void Delete(HEngine engine)
@@ -612,6 +637,8 @@ namespace dmEngine
 #endif
 
         ContextRegistrySet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME, 0);
+        if (engine->m_DataStoreJobs)
+            JobSystemDestroy(engine->m_DataStoreJobs);
         DSDestroyStore(engine->m_DataStore);
 
         ContextRegistryDestroy(engine->m_ContextRegistry);
@@ -1181,6 +1208,10 @@ namespace dmEngine
         job_thread_create_param.m_ThreadNamePrefix  = "DefoldJob";
         job_thread_create_param.m_ThreadCount       = 1;
         engine->m_JobThreadContext                  = JobSystemCreate(&job_thread_create_param);
+
+        // Frame-critical queries must not wait behind resource streaming jobs.
+        JobSystemCreateParams datastore_jobs = { .m_ThreadNamePrefix = "Datastore", .m_ThreadCount = 2 };
+        engine->m_DataStoreJobs = JobSystemCreate(&datastore_jobs);
 
         PopulateContextRegistry(engine);
 
@@ -2092,6 +2123,7 @@ bail:
                     dmGameObject::DispatchInput(GetMainCollection(engine), &input_buffer[0], input_buffer.Size());
                 }
 
+                UpdateDataStore(engine);
 
                 dmGameObject::UpdateContext update_context;
                 update_context.m_TimeScale = 1.0f;

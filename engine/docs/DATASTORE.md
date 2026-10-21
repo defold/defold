@@ -624,15 +624,17 @@ value pointers must also be reacquired after mutations affecting their storage.
 
 [scheduler.h](../datastore/src/dmsdk/datastore/scheduler.h) registers a query,
 processing function and user context under a name in the existing `HDSContext`.
-The store owns the copied descriptor and dependency strings; queries and user
-contexts remain caller-owned. Unregister callbacks between schedules before releasing
-their queries, or finish callbacks, end the schedule and destroy queries at teardown.
+The store copies the descriptor and dependency hashes; queries and user contexts
+remain caller-owned. Hash names once during setup. Registration stores no strings;
+Defold reverse hashing can supply names for diagnostics. Unregister callbacks
+between schedules before releasing their queries, or finish callbacks, end the
+schedule and destroy queries at teardown.
 Destroying the store frees remaining registrations without invoking callbacks.
 
 ```cpp
 DSSystemDesc desc = {
-    .m_Name = "game.boids.steer",
-    .m_DependsOn = { "game.boids.cells" },
+    .m_Name = dmHashString64("game.boids.steer"),
+    .m_DependsOn = { dmHashString64("game.boids.cells") },
     .m_Query = boids_query,
     .m_Process = SteerBoids,
     .m_Context = boids_context,
@@ -643,7 +645,7 @@ DSResult result = DSRegisterFunction(store, &desc);
 Between schedules, remove the registration by name:
 
 ```cpp
-DSResult result = DSUnregisterFunction(store, "game.boids.steer");
+DSResult result = DSUnregisterFunction(store, dmHashString64("game.boids.steer"));
 ```
 
 This returns `DS_RESULT_NOT_FOUND` if the name is not registered. The query and
@@ -661,13 +663,13 @@ reservation and automatically submits newly unblocked functions.
 | `DSBeginSchedule(store, jobs)` | Borrow the caller's `HJobContext`, resolve dependencies, reset invocation state and submit ready functions. |
 | `DSSchedulerEvent(store, name)` | Signal the start of a stage and submit functions whose event/dependency/access requirements are satisfied. `BUSY` leaves the event unsignaled until its own prerequisites finish. |
 | `DSSchedulerUpdate(store)` | Pump job completion and retry access blocked by external reservations. Returns `OK` when all functions finished; `BUSY` while any await jobs, events or access. |
-| `DSEndSchedule(store)` | End the invocation. Returns `BUSY` while submitted jobs await completion; otherwise discards unsubmitted functions and unsignaled events. |
+| `DSEndSchedule(store)` | End the invocation. Returns `BUSY` while jobs run or ready functions await query access; otherwise discards unsignaled events and functions waiting on them. |
 
 Use one main thread for these operations and for pumping the borrowed job context.
 The datastore creates no threads and never destroys the context. With zero workers,
 `DSSchedulerUpdate` executes at most one queued job on the calling thread. With
-workers, jobs run there. The normal engine `JobSystemUpdate` also delivers the
-scheduler's completion callbacks, which automatically submit ready dependents.
+workers, jobs run there. Pumping the borrowed context with `JobSystemUpdate` also
+delivers completion callbacks, which automatically submit ready dependents.
 `DSSchedulerUpdate` may service other users of that shared context; do not call it
 recursively from a job or completion callback.
 
@@ -680,48 +682,43 @@ Every named prerequisite must be registered as a function or event.
 
 ### Engine events
 
-Register engine milestones in the same graph. An entry event starts dependent
-work; a consumer boundary can depend on functions whose output it needs:
+The engine-owned `DATASTORE_CONTEXT_NAME` store registers
+`DS_EVENT_GAMEOBJECT_PRE_UPDATE`, the hash of `"engine.gameobject.pre_update"`. Depend on it
+to run after input dispatch and before game-object component updates:
 
 ```cpp
-DSEventDesc begin = { .m_Name = "engine.gameobject.update.begin" };
-DSEventDesc end = {
-    .m_Name = "engine.gameobject.update.end",
-    .m_DependsOn = { "game.boids.steer" },
+DSSystemDesc desc = {
+    .m_Name = dmHashString64("game.boids.steer"),
+    .m_DependsOn = { DS_EVENT_GAMEOBJECT_PRE_UPDATE },
+    .m_Query = boids_query,
+    .m_Process = SteerBoids,
+    .m_Context = boids_context,
 };
-DSRegisterEvent(store, &begin);
-DSRegisterEvent(store, &end);
-
-// The first Boids function depends on engine.gameobject.update.begin.
-DSResult result = DSBeginSchedule(store, jobs);
-
-// Start the stage: the scheduler submits ready functions to the job system.
-result = DSSchedulerEvent(store, "engine.gameobject.update.begin");
-
-// Service completion during the engine update. The scheduler handles job chaining.
-result = DSSchedulerUpdate(store);
-
-// BUSY: continue pumping and retry before entering dependent engine code.
-// OK: this boundary's prerequisites finished; the engine may proceed.
-result = DSSchedulerEvent(store, "engine.gameobject.update.end");
-
-// Finish once all submitted jobs have delivered their completion callbacks.
-result = DSEndSchedule(store);
+DSResult result = DSRegisterFunction(store, &desc);
 ```
 
-Signaling queues jobs without waiting for them. Scheduler records and dependency
-indices are reused; submitting jobs may grow the borrowed job system's storage.
-Signal each event once per invocation; a duplicate signal is invalid.
-`DSBeginSchedule` resets all signals, so a previous frame cannot release this frame's
-work. `DSUnregisterEvent` removes an event between schedules. Names and dependencies
-are copied at registration and share the function namespace.
+The engine begins a fresh schedule each frame, signals the event, and pumps its
+dedicated two-worker job context until ready functions, submitted callbacks and
+their dependents finish. Resource streaming uses a separate context, so loading
+work cannot block this stage's job queue. The schedule ends before calling
+`dmGameObject::Update`. The engine owns and destroys the datastore and its job
+context. Functions waiting on custom unsignaled events are discarded for that
+invocation. Invalid dependency graphs are logged and skipped. Do not leave manual
+schedules or query reservations active across this boundary.
 
-Engine call sites are not wired yet; these names are examples. The host must wait
-for the relevant completion boundary before existing component code reads or writes
-the same transforms. Only registered query access is protected; raw engine accesses
-need explicit ordering. An entry dependency specifies the earliest start, not a
-completion deadline. Use a separate invocation for each fixed step or collection
-scope; only query that scope's rows.
+Callbacks run on workers when available; use datastore queries there. Apply
+results to game objects on the main thread during component updates. This event
+does not refresh world transforms: local transforms include earlier input changes,
+while world transforms still depend on normal hierarchy propagation. The event is
+once per frame, not once per collection or fixed physics step.
+
+Standalone stores still use `DSRegisterEvent`, `DSBeginSchedule`,
+`DSSchedulerEvent`, `DSSchedulerUpdate` and `DSEndSchedule` with a caller-owned job
+context. Signaling only submits jobs; the caller must wait before accessing their
+output. `DSEndSchedule` returns `BUSY` while jobs run or ready functions await
+query access. Pump updates and retry it; waiting for `DSSchedulerUpdate` to return
+`OK` would also wait for functions blocked on unsignaled events. End schedules
+before destroying their job context or unregistering callbacks.
 
 ### Parallel access and structural changes
 

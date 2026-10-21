@@ -22,11 +22,14 @@
 #include <dlib/array.h>
 #include <dlib/http/http_client.h>
 #include <dlib/thread.h>
+#include <dlib/condition_variable.h>
+#include <dlib/mutex.h>
 #include <dlib/time.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <script/sys_ddf.h>
+#include <dmsdk/script/script.h>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
@@ -59,6 +62,28 @@ struct DatastoreContextTest
     bool       m_Initialize;
     bool       m_Finalize;
     bool       m_AppFinalize;
+};
+
+struct DatastoreScheduleTest
+{
+    HDSContext m_Store;
+    DSId       m_Row;
+    uint32_t   m_Field;
+    uint32_t   m_Calls;
+    uint32_t   m_Checks;
+    uint32_t   m_UnexpectedCalls;
+    double     m_Observed;
+    bool       m_Valid;
+    bool       m_Input;
+};
+
+struct DatastoreStreamingGate
+{
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Condition;
+    bool                                    m_Started;
+    bool                                    m_Release;
+    bool                                    m_Complete;
 };
 
 static DatastoreContextTest g_DatastoreContextTest;
@@ -279,6 +304,198 @@ TEST_F(EngineTest, DatastoreContext)
     ASSERT_TRUE(g_DatastoreContextTest.m_Finalize);
     ASSERT_TRUE(g_DatastoreContextTest.m_AppFinalize);
 }
+
+static void UpdateScheduledHealth(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+{
+    DatastoreScheduleTest* state = (DatastoreScheduleTest*)context;
+    ++state->m_Calls;
+    DSIterator it = DSQueryIterRange(query, first, num_rows);
+    while (DSIterNext(&it))
+    {
+        DSRowIterator rows = DSIterRows(&it);
+        while (DSRowIterNext(&rows))
+            *DSRowIterGetNumberMut(&rows, state->m_Field) += 1.0;
+    }
+}
+
+static void ReadScheduledHealth(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+{
+    DatastoreScheduleTest* state = (DatastoreScheduleTest*)context;
+    DSIterator             it = DSQueryIterRange(query, first, num_rows);
+    while (DSIterNext(&it))
+    {
+        DSRowIterator rows = DSIterRows(&it);
+        while (DSRowIterNext(&rows))
+            state->m_Observed = *DSRowIterGetNumber(&rows, state->m_Field);
+    }
+}
+
+static void UnexpectedScheduledUpdate(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+{
+    ++((DatastoreScheduleTest*)context)->m_UnexpectedCalls;
+}
+
+static int CheckScheduledUpdate(lua_State* L)
+{
+    DatastoreScheduleTest* state = (DatastoreScheduleTest*)lua_touserdata(L, lua_upvalueindex(1));
+    uint32_t               frame = (uint32_t)luaL_checkinteger(L, 1);
+    if (frame == 0)
+    {
+        state->m_Input = true;
+        state->m_Valid &= DSSetFieldNumber(state->m_Store, state->m_Row, dmHashString64("health"), 100.0) == DS_RESULT_OK;
+        return 0;
+    }
+
+    double health = 0.0;
+    state->m_Valid &= DSFieldGetNumber(state->m_Store, state->m_Row, dmHashString64("health"), &health) == DS_RESULT_OK;
+    state->m_Valid &= state->m_Input && state->m_Calls == frame && health == 100.0 + frame && state->m_Observed == health;
+    ++state->m_Checks;
+    return 0;
+}
+
+static int32_t BlockDatastoreStreamingJob(HJobContext, HJob, void* context, void*)
+{
+    DatastoreStreamingGate* gate = (DatastoreStreamingGate*)context;
+    DM_MUTEX_SCOPED_LOCK(gate->m_Mutex);
+    gate->m_Started = true;
+    dmConditionVariable::Signal(gate->m_Condition);
+    while (!gate->m_Release)
+        dmConditionVariable::Wait(gate->m_Condition, gate->m_Mutex);
+    return 0;
+}
+
+static void CompleteDatastoreStreamingJob(HJobContext, HJob, JobSystemStatus status, void* context, void*, int32_t)
+{
+    EXPECT_EQ(JOBSYSTEM_STATUS_FINISHED, status);
+    ((DatastoreStreamingGate*)context)->m_Complete = true;
+}
+
+static void TestDatastorePreUpdate(bool threaded, bool block_streaming = false)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char              project_path[256];
+    const char*       argv[] = {
+        "test_engine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=bootstrap.main_collection=/datastore/pre_update.collectionc",
+        "--config=input.game_binding=/text_input/text_input.input_bindingc",
+        MAKE_PATH(project_path, "/game.projectc")
+    };
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    if (!initialized)
+    {
+        dmEngine::Delete(engine);
+        dmEngineFinalize();
+    }
+    ASSERT_TRUE(initialized);
+
+    HJobContext original_jobs = engine->m_DataStoreJobs;
+    if (!threaded)
+    {
+        JobSystemCreateParams jobs = { .m_ThreadNamePrefix = "DSTest", .m_ThreadCount = 0 };
+        engine->m_DataStoreJobs = JobSystemCreate(&jobs);
+    }
+
+    HDSContext  store = engine->m_DataStore;
+    DSFieldDesc field = { .m_Field = dmHashString64("health"), .m_Type = DS_TYPE_NUMBER };
+    DSTableDesc table = { .m_Type = dmHashString64("scheduled_health"), .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double) };
+    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    double                health = 0.0;
+    DatastoreScheduleTest state = { .m_Store = store, .m_Valid = true };
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, table.m_Type, 0, 1, &health, &state.m_Row));
+    DSQueryDesc desc = { .m_Items = { DSField("health", DS_TYPE_NUMBER, DS_FIELD_MUTABLE) } };
+    HDSQuery    query;
+    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    state.m_Field = DSQueryFindField(query, &desc.m_Items[0]);
+
+    DSEventDesc custom_event = { .m_Name = dmHashString64("test.manual_update") };
+    ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &custom_event));
+    DSSystemDesc functions[] = {
+        { .m_Name = dmHashString64("test.heal"), .m_DependsOn = { DS_EVENT_GAMEOBJECT_PRE_UPDATE }, .m_Query = query, .m_Process = UpdateScheduledHealth, .m_Context = &state },
+        { .m_Name = dmHashString64("test.read"), .m_DependsOn = { dmHashString64("test.heal") }, .m_Query = query, .m_Process = ReadScheduledHealth, .m_Context = &state },
+        { .m_Name = dmHashString64("test.manual"), .m_DependsOn = { dmHashString64("test.manual_update") }, .m_Query = query, .m_Process = UnexpectedScheduledUpdate, .m_Context = &state }
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(functions); ++i)
+        ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &functions[i]));
+
+    lua_State* L = dmScript::GetLuaState(engine->m_ScriptContext);
+    lua_pushlightuserdata(L, &state);
+    lua_pushcclosure(L, CheckScheduledUpdate, 1);
+    lua_setglobal(L, "check_datastore_update");
+
+    DatastoreStreamingGate gate = {};
+    if (block_streaming)
+    {
+        gate.m_Mutex = dmMutex::New();
+        gate.m_Condition = dmConditionVariable::New();
+        Job  job = { .m_Process = BlockDatastoreStreamingJob, .m_Callback = CompleteDatastoreStreamingJob, .m_Context = &gate };
+        HJob handle = JobSystemCreateJob(engine->m_JobThreadContext, &job);
+        ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(engine->m_JobThreadContext, handle));
+        DM_MUTEX_SCOPED_LOCK(gate.m_Mutex);
+        while (!gate.m_Started)
+            dmConditionVariable::Wait(gate.m_Condition, gate.m_Mutex);
+    }
+
+    dmHID::AddKeyboardChar(engine->m_HidContext, 'A');
+    for (uint32_t i = 0; i < 3; ++i)
+        dmEngine::Step(engine);
+
+    if (block_streaming)
+    {
+        EXPECT_FALSE(gate.m_Complete);
+        EXPECT_EQ(3U, state.m_Calls);
+        {
+            DM_MUTEX_SCOPED_LOCK(gate.m_Mutex);
+            gate.m_Release = true;
+            dmConditionVariable::Signal(gate.m_Condition);
+        }
+        while (!gate.m_Complete)
+            JobSystemUpdate(engine->m_JobThreadContext, 0);
+        dmConditionVariable::Delete(gate.m_Condition);
+        dmMutex::Delete(gate.m_Mutex);
+    }
+
+    // Successful removal also verifies the engine ended the schedule and released queries.
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(functions); ++i)
+        ASSERT_EQ(DS_RESULT_OK, DSUnregisterFunction(store, functions[i].m_Name));
+    ASSERT_EQ(DS_RESULT_OK, DSUnregisterEvent(store, custom_event.m_Name));
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
+    ASSERT_EQ(DS_RESULT_OK, DSUnregisterTable(store, table.m_Type));
+    if (!threaded)
+    {
+        JobSystemDestroy(engine->m_DataStoreJobs);
+        engine->m_DataStoreJobs = original_jobs;
+    }
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(state.m_Valid);
+    ASSERT_EQ(3U, state.m_Calls);
+    ASSERT_EQ(3U, state.m_Checks);
+    ASSERT_EQ(0U, state.m_UnexpectedCalls);
+}
+
+// Input precedes scheduled work and scripts see all dependent results, even without workers.
+TEST_F(EngineTest, DatastorePreUpdateWithoutWorkers)
+{
+    TestDatastorePreUpdate(false);
+}
+
+// Worker callbacks finish before script updates; custom unsignaled events cannot stall the frame.
+TEST_F(EngineTest, DatastorePreUpdateWithWorkers)
+{
+    TestDatastorePreUpdate(true);
+}
+
+#if defined(DM_HAS_THREADS)
+// A blocked resource worker must not delay scheduled queries or component updates.
+// Completion signals, rather than elapsed time, prove the queues are independent.
+TEST_F(EngineTest, DatastorePreUpdateWhileStreamingBlocked)
+{
+    TestDatastorePreUpdate(true, true);
+}
+#endif
 
 static void PreRunTextInput(dmEngine::HEngine engine, void* context)
 {
