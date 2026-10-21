@@ -55,6 +55,8 @@ endif()
 # The host JVM cannot load a shared library built for a different architecture.
 if(BUILD_TESTS AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
   cmake_path(CONVERT "${ENGINE_SHARED_JAR};${ENGINE_SHARED_TEST_CLASSES}" TO_NATIVE_PATH_LIST _test_classpath)
+  # Preserve Windows classpath separators when expanding the command as a CMake list.
+  string(REPLACE ";" "$<SEMICOLON>" _test_classpath "${_test_classpath}")
   set(_java_test_command "${DEFOLD_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST}
     -Xcheck:jni "-Djava.library.path=$<TARGET_FILE_DIR:dmengine_shared>"
     -classpath "${_test_classpath}" com.defold.engine.EngineJniTest)
