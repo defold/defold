@@ -2207,6 +2207,8 @@ TEST(FontTextCurve, FramesAndEndpoints)
     const float length = FontTextCurveGetLength(curve);
     const Vector4 repeated = FontTextCurveGetTransform(curve, length + 25, 0) * Point3(length + 25, 0, 0);
     ASSERT_NEAR(25.0f, repeated.getX(), 0.001f);
+    // Nonfinite distances must not become indices after closed-path wrapping.
+    ASSERT_FALSE(isfinite(FontTextCurveGetTransform(curve, INFINITY, 0).getTranslation().getX()));
     FontTextCurveRelease(curve);
     ASSERT_EQ((HFontTextCurve)0, FontTextCurveCreate(knots, 2, false, Vector3(0)));
     knots[1].m_Scale = 0;
@@ -2214,6 +2216,35 @@ TEST(FontTextCurve, FramesAndEndpoints)
     ASSERT_EQ((HFontTextCurve)0, FontTextCurveCreate(knots, 1, false, up));
     memset(knots, 0, sizeof(knots));
     ASSERT_EQ((HFontTextCurve)0, FontTextCurveCreate(knots, 2, false, up));
+}
+
+// Distance buckets preserve straight-path positions and unit frames across
+// zero-length and very uneven segments, including repeated endpoint samples.
+TEST(FontTextCurve, UnevenSegments)
+{
+    using namespace dmVMath;
+    FontTextCurveKnot knots[5] = {};
+    knots[2].m_Position = Vector3(0.001f, 0, 0);
+    knots[3].m_Position = knots[4].m_Position = Vector3(100, 0, 0);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(knots); ++i)
+        knots[i].m_Scale = 1;
+    HFontTextCurve curve = FontTextCurveCreate(knots, DM_ARRAY_SIZE(knots), false, Vector3(0, 1, 0));
+    ASSERT_NE((HFontTextCurve)0, curve);
+    const float distances[] = { 0, 0.0005f, 0.001f, 0.1f, 25, 50, 99.999f, 100 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(distances); ++i)
+    {
+        const Matrix4 frame = FontTextCurveGetTransform(curve, distances[i], 0);
+        const Vector3 tangent = frame.getCol0().getXYZ();
+        const Vector3 up = frame.getCol1().getXYZ();
+        const Vector4 point = frame * Point3(distances[i], 0, 0);
+        ASSERT_NEAR(1.0f, Length(tangent), 0.001f);
+        ASSERT_NEAR(1.0f, Length(up), 0.001f);
+        ASSERT_NEAR(0.0f, Dot(tangent, up), 0.001f);
+        ASSERT_TRUE(fabsf(point.getX() - distances[i]) < 0.001f);
+        ASSERT_NEAR(0.0f, point.getY(), 0.001f);
+        ASSERT_NEAR(0.0f, point.getZ(), 0.001f);
+    }
+    FontTextCurveRelease(curve);
 }
 
 // All three lines share identical curve frames. Only their baseline offsets

@@ -33,6 +33,8 @@ struct CurveSample
 struct FontTextCurve
 {
     dmArray<CurveSample> m_Samples;
+    dmArray<uint32_t>    m_DistanceIndex;
+    double               m_DistanceToIndex;
     Vector3              m_Minimum;
     Vector3              m_Maximum;
     float                m_MaxScale;
@@ -156,6 +158,20 @@ HFontTextCurve FontTextCurveCreate(const FontTextCurveKnot* knots, uint32_t coun
             sample.m_Scale = a.m_Scale + (b.m_Scale - a.m_Scale) * t;
         }
     }
+    // Uniform distance buckets bracket the original samples without resampling.
+    const uint32_t sample_count = curve->m_Samples.Size();
+    curve->m_DistanceToIndex = (sample_count - 1) / (double)curve->m_Samples.Back().m_Distance;
+    curve->m_DistanceIndex.SetCapacity(sample_count + 1);
+    curve->m_DistanceIndex.SetSize(sample_count + 1);
+    uint32_t bucket = 0;
+    for (uint32_t i = 0; i < sample_count; ++i)
+    {
+        const uint32_t last_bucket = (uint32_t)(curve->m_Samples[i].m_Distance * curve->m_DistanceToIndex);
+        for (; bucket <= last_bucket; ++bucket)
+            curve->m_DistanceIndex[bucket] = i;
+    }
+    for (; bucket <= sample_count; ++bucket)
+        curve->m_DistanceIndex[bucket] = sample_count - 1;
     return curve;
 }
 
@@ -192,15 +208,18 @@ static CurveSample SampleCurve(HFontTextCurve curve, float distance)
         if (distance < 0)
             distance += length;
     }
-    if (distance <= 0 || distance >= length)
+    if (!(distance > 0 && distance < length))
     {
         CurveSample sample = curve->m_Samples[distance <= 0 ? 0 : curve->m_Samples.Size() - 1];
         sample.m_Position += sample.m_Tangent * (distance - sample.m_Distance);
         sample.m_Up = Rotate(sample.m_Up, sample.m_Tangent, sample.m_Roll);
         return sample;
     }
-    uint32_t low = 0;
-    uint32_t high = curve->m_Samples.Size() - 1;
+    const uint32_t bucket = (uint32_t)(distance * curve->m_DistanceToIndex);
+    uint32_t       low = curve->m_DistanceIndex[bucket];
+    uint32_t       high = curve->m_DistanceIndex[bucket + 1];
+    if (low > 0)
+        --low;
     while (high - low > 1)
     {
         const uint32_t mid = (low + high) / 2;
