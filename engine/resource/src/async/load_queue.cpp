@@ -14,12 +14,19 @@
 
 #include "load_queue.h"
 #include "load_queue_private.h"
+#include <dlib/profile.h>
 
 namespace dmLoadQueue
 {
 
 dmResource::Result DoLoadResource(dmResource::HFactory factory, HRequest request, dmResource::LoadBufferType* buffer, LoadResult* result)
 {
+    DM_PROFILE("ResourceLoad");
+    DM_PROFILE_DYN(request->m_Name, 0);
+
+    memset(&result->m_Profile, 0, sizeof(result->m_Profile));
+    result->m_Profile.m_StartTime = request->m_ProfileStartTime;
+    dmResource::LoadProfileAddTime(&result->m_Profile, dmResource::LOAD_PROFILE_QUEUE, request->m_ProfileStartTime);
     dmResource::HResourceType resource_type = request->m_PreloadInfo.m_Type;
     uint32_t preload_size = RESOURCE_INVALID_PRELOAD_SIZE;
     if (ResourceTypeIsStreaming(resource_type))
@@ -27,7 +34,9 @@ dmResource::Result DoLoadResource(dmResource::HFactory factory, HRequest request
         preload_size = ResourceTypeGetPreloadSize(resource_type);
     }
 
+    uint64_t read_start = dmResource::LoadProfileTime(&result->m_Profile);
     result->m_LoadResult = dmResource::LoadResourceToBuffer(factory, request->m_CanonicalPath, request->m_Name, preload_size, &request->m_ResourceSize, &request->m_BufferSize, buffer);
+    dmResource::LoadProfileAddTime(&result->m_Profile, dmResource::LOAD_PROFILE_READ, read_start);
     result->m_PreloadResult = dmResource::RESULT_PENDING;
     result->m_PreloadData   = 0;
     result->m_IsBufferOwnershipTransferred = false;
@@ -61,7 +70,12 @@ dmResource::Result DoLoadResource(dmResource::HFactory factory, HRequest request
             params.m_PreloadData = &result->m_PreloadData;
             params.m_IsBufferOwnershipTransferred = &result->m_IsBufferOwnershipTransferred;
 
-            result->m_PreloadResult = (dmResource::Result)request->m_PreloadInfo.m_CompleteFunction(&params);
+            {
+                DM_PROFILE("ResourcePreload");
+                uint64_t start = dmResource::LoadProfileTime(&result->m_Profile);
+                result->m_PreloadResult = (dmResource::Result)request->m_PreloadInfo.m_CompleteFunction(&params);
+                dmResource::LoadProfileAddTime(&result->m_Profile, dmResource::LOAD_PROFILE_PRELOAD, start);
+            }
         }
         else
         {
