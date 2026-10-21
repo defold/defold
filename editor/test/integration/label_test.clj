@@ -462,13 +462,13 @@
       (doseq [degrees [60.0 90.0]]
         (test-util/prop! node :arc-angle degrees)
         (let [label-scene (g/node-value node :scene)
-              render-data (fn render-data [selection]
+              render-data (fn render-data [label-scene selection]
                             (scene/produce-scene-render-data {:scene label-scene
                                                               :selection selection
                                                               :hidden-renderable-tags #{}
                                                               :hidden-node-outline-key-paths #{}
                                                               :local-camera (camera/make-camera)}))
-              renderable (get-in (render-data [node]) [:renderables pass/outline 0])
+              renderable (get-in (render-data label-scene [node]) [:renderables pass/outline 0])
               guide (get-in renderable [:user-data :line-data])
               selected-lines (get-in renderable [:user-data :selected-line-data])
               [inner outer] guide
@@ -477,7 +477,7 @@
               transform (doto (Matrix4d.)
                           (.setIdentity)
                           (.setTranslation (Vector3d. 10.0 -5.0 0.0)))
-              unselected (#'label/gen-lines-vb (get-in (render-data []) [:renderables pass/outline]))
+              unselected (#'label/gen-lines-vb (get-in (render-data label-scene []) [:renderables pass/outline]))
               selected (#'label/gen-lines-vb [(assoc renderable :world-transform transform)])
               ^ByteBuffer buffer (vtx/buf selected)]
           (is (< 8 (count guide)))
@@ -486,6 +486,8 @@
                  0.001))
           (is (< 0.0 cap-length 150.0))
           (is (= :self-selected (:selected renderable)))
+          (is (= :self-selected (get-in (render-data (scene/claim-scene label-scene 0 "label") [0])
+                                        [:renderables pass/outline 0 :selected])))
           (is (= guide (get-in label-scene [:renderable :user-data :line-data])))
           (is (= (count guide) (count unselected)))
           (is (= [[-5.0 -5.0 0.0] [5.0 5.0 0.0] [-5.0 5.0 0.0] [5.0 -5.0 0.0]]

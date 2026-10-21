@@ -204,15 +204,16 @@
                                               :line-data lines
                                               :text-data text-data}
                                   :passes [pass/transparent pass/selection]}
-               :children [{:node-id _node-id
-                           :aabb aabb
-                           :renderable {:render-fn render-lines
-                                        :selectable-root? (not (zero? (double arc-angle)))
-                                        :tags #{:text :outline}
-                                        :batch-key ::outline
-                                        :user-data {:line-data lines
-                                                    :selected-line-data (:selected-line-data arc-data)}
-                                        :passes [pass/outline]}}]))
+               :children [(cond-> {:node-id _node-id
+                                   :aabb aabb
+                                   :renderable {:render-fn render-lines
+                                                :tags #{:text :outline}
+                                                :batch-key ::outline
+                                                :user-data {:line-data lines
+                                                            :selected-line-data (:selected-line-data arc-data)}
+                                                :passes [pass/outline]}}
+                            (not (zero? (double arc-angle)))
+                            (assoc :selection-id _node-id))]))
       scene)))
 
 (defn- build-label [resource dep-resources user-data]

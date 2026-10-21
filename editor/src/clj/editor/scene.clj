@@ -647,10 +647,7 @@
         world-translation (math/transform parent-world-transform local-translation)
         world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
         world-scale (math/multiply-vector parent-world-scale local-scale)
-        ;; Resource roots normally have no selection state. Component guides
-        ;; can opt into selection in the resource's own view.
-        selection-id (or (:selection-id scene node-id)
-                         (when (:selectable-root? renderable) (:node-id scene)))
+        selection-id (:selection-id scene node-id)
         picking-node-id (or (:picking-node-id scene) selection-id)
         selection-state (cond
                           (contains? selection-set selection-id) :self-selected ; This node is selected.
