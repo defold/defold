@@ -194,38 +194,69 @@ var FileLoader = {
         if (typeof method === 'undefined') throw TypeError("No method specified");
         if (typeof method === 'responseType') throw TypeError("No responseType specified");
         if (typeof currentAttempt === 'undefined') currentAttempt = 0;
+        var activeXHR = null;
+        var retryTimer = null;
+        var finished = false;
         var obj = {
+            cancel: function() {
+                finished = true;
+                clearTimeout(retryTimer);
+                retryTimer = null;
+                var xhr = activeXHR;
+                activeXHR = null;
+                if (xhr) xhr.abort();
+            },
             retry: function(xhr, event) {
-                if (currentAttempt == FileLoader.options.retryCount) {
+                activeXHR = null;
+                if (currentAttempt >= FileLoader.options.retryCount) {
+                    finished = true;
                     return false;
                 }
                 if (obj.onretry) obj.onretry(xhr, event, xhr._loadedSize, currentAttempt);
                 xhr._loadedSize = 0;
                 currentAttempt += 1;
-                setTimeout(obj.send.bind(obj), FileLoader.options.retryInterval);
+                if (!finished) {
+                    retryTimer = setTimeout(function() {
+                        retryTimer = null;
+                        obj.send();
+                    }, FileLoader.options.retryInterval);
+                }
                 return true;
             },
             send: function() {
+                if (finished) return;
                 var onprogress = this.onprogress;
                 var onload = this.onload;
                 var onerror = this.onerror;
 
                 var xhr = new XMLHttpRequest();
+                activeXHR = xhr;
                 xhr._loadedSize = 0;
                 obj.url = FileLoader.resolveUrl(url, currentAttempt);
                 xhr.open(method, obj.url, true);
                 xhr.responseType = responseType;
                 xhr.onprogress = function(event) {
+                    if (activeXHR !== xhr) return;
                     if (onprogress) onprogress(xhr, event, xhr._loadedSize);
                     xhr._loadedSize = event.loaded;
                 };
                 xhr.onerror = function(event) {
+                    if (activeXHR !== xhr) return;
                     if (!obj.retry(xhr, event)) {
                         if (onerror) onerror(xhr, event);
                     }
                 };
                 xhr.onload = function(event) {
-                    if (onload) onload(xhr, event);
+                    if (activeXHR !== xhr) return;
+                    try {
+                        if (onload) onload(xhr, event);
+                    } finally {
+                        // A rejected response may have scheduled a retry instead.
+                        if (activeXHR === xhr) {
+                            activeXHR = null;
+                            finished = true;
+                        }
+                    }
                 };
                 xhr.send(null);
             }
@@ -251,7 +282,9 @@ var FileLoader = {
         };
         request.send();
     },
-    // Do HTTP GET request
+    // Do HTTP GET request. Delivers at most one success/error callback.
+    // cancel() suppresses subsequent callbacks and retries; async work started by
+    // onload must still check whether its owner is current when that work finishes.
     // onprogress(loadedDelta)
     // onerror(error)
     // onload(response, url) - url is the one that answered, which is not the one passed in
@@ -290,6 +323,7 @@ var FileLoader = {
             onretry(loadedSize, currentAttempt);
         };
         request.send();
+        return request;
     }
 };
 
@@ -566,15 +600,13 @@ var GameArchiveLoader = {
     // which files to load
     _files: [],
     _fileIndex: 0,
-    // file
-    //  name: intended filepath of built object
-    //  size: expected size of built object.
-    //  data: combined pieces
-    //  downloaded: total bytes downloaded
-    //  pieces: array of name, offset and data objects
-    //  numExpectedFiles: total number of files expected in description
-    //  lastRequestedPiece: index of last data file requested (strictly ascending)
-    //  totalLoadedPieces: counts the number pieces received
+    _generation: 0,
+    _fileLoad: null,
+    _descriptionRequest: null,
+    _failed: false,
+    // Files and their pieces are immutable archive metadata: name, size, sha1,
+    // and piece offsets. A file load owns the verification retry budget and timer.
+    // Each attempt owns fresh buffers, streams, requests, and piece counters.
 
     //MAX_CONCURRENT_XHR: 6,    // remove comment if throttling of XHR is desired.
 
@@ -604,12 +636,58 @@ var GameArchiveLoader = {
         return function(attempt) { return self._archiveLocationFilter(path, base + attempt); };
     },
 
+    closeAttemptStream: function(attempt) {
+        var stream = attempt.stream;
+        attempt.stream = null;
+        if (stream) FS.close(stream);
+    },
+
+    disposeAttempt: function(attempt) {
+        if (!attempt) return;
+        attempt.fileLoad.attempt = null;
+        attempt.requests.forEach(function(request) { request.cancel(); });
+        attempt.requests.length = 0;
+        try {
+            this.closeAttemptStream(attempt);
+        } catch (e) {
+            // Closing discarded data must not interrupt cleanup or hide the original failure.
+            console.warn("Failed to close discarded archive stream: " + e);
+        }
+        attempt.data = undefined;
+    },
+
+    disposeFileLoad: function() {
+        var fileLoad = this._fileLoad;
+        this._fileLoad = null;
+        if (!fileLoad) return;
+        clearTimeout(fileLoad.retryTimer);
+        fileLoad.retryTimer = null;
+        this.disposeAttempt(fileLoad.attempt);
+    },
+
+    disposeDownloads: function() {
+        this.disposeFileLoad();
+        var request = this._descriptionRequest;
+        this._descriptionRequest = null;
+        if (request) request.cancel();
+    },
+
+    isCurrentAttempt: function(attempt) {
+        return this._fileLoad === attempt.fileLoad && attempt.fileLoad.attempt === attempt;
+    },
+
+    failArchive: function() {
+        if (this._failed || this.isCompleted) return false;
+        this._failed = true;
+        this.disposeDownloads();
+        return true;
+    },
+
     cleanUp: function() {
-        this._files =  [];
+        ++this._generation;
+        this.disposeDownloads();
+        this._files = [];
         this._fileIndex = 0;
-        this.isCompleted = false;
-        this._onGameArchiveLoaderCompletedListeners = [];
-        this._onAllTargetsBuiltListeners = [];
         this._onFileDownloadErrorListeners = [];
     },
 
@@ -627,7 +705,7 @@ var GameArchiveLoader = {
         this.addListener(this._onFileDownloadErrorListeners, callback);
     },
     notifyFileDownloadError: function(error) {
-        this.notifyListeners(this._onFileDownloadErrorListeners, error);
+        if (this.failArchive()) this.notifyListeners(this._onFileDownloadErrorListeners, error);
     },
 
     addFileLoadedListener: function(callback) {
@@ -653,19 +731,31 @@ var GameArchiveLoader = {
     // pieces
     // descriptionUrl: location of text file describing files to be preloaded
     loadArchiveDescription: function(descriptionUrl) {
-        FileLoader.load(
+        var generation = ++this._generation;
+        this.disposeDownloads();
+        this._files = [];
+        this._fileIndex = 0;
+        this.isCompleted = false;
+        this._failed = false;
+        this._descriptionRequest = FileLoader.load(
             this.archiveLocationProvider(descriptionUrl, 0),
             "text",
             function (delta) { },
             function (error) { GameArchiveLoader.notifyFileDownloadError(descriptionUrl); },
-            function (text) { GameArchiveLoader.onReceiveDescription(text); },
+            function (text) { GameArchiveLoader.onReceiveDescription(text, generation); },
             function (loadedDelta, currentAttempt) { });
     },
 
-    onReceiveDescription: async function(text) {
+    onReceiveDescription: async function(text, generation) {
         let json;
         try {
             json = JSON.parse(text);
+            if (!Array.isArray(json.content)) throw new Error("Invalid archive description: missing content");
+            json.content.forEach(function(file, index) {
+                if (!file || !Array.isArray(file.pieces) || file.pieces.length === 0) {
+                    throw new Error("Invalid archive file at index " + index);
+                }
+            });
             if (EngineLoader.arc_sha1) {
                 const digest = await window.crypto.subtle.digest("SHA-1", (new TextEncoder()).encode(text));
                 const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -674,9 +764,10 @@ var GameArchiveLoader = {
                 }
             }
         } catch (e) {
-            GameArchiveLoader.notifyFileDownloadError(e.toString());
+            if (generation === this._generation) this.notifyFileDownloadError(e.toString());
             return;
         }
+        if (generation !== this._generation) return;
 
         var totalSize = json.total_size;
         var exeName = CUSTOM_PARAMETERS['exe_name'];
@@ -694,7 +785,9 @@ var GameArchiveLoader = {
         }
         EngineLoader.loadWasmAsync(exeName);
         totalSize += EngineLoader.getWasmSize() + EngineLoader.getWasmJSSize();
-        if (!Module['isDMFSSupported']) {
+        if (this._files.length === 0) {
+            this.onArchiveLoaded();
+        } else if (!Module['isDMFSSupported']) {
             // we can download in parallel here because we will not rely on FS, otherwise
             // we have to wait until after the [w]asm is loaded.
             this.downloadContent();
@@ -705,7 +798,19 @@ var GameArchiveLoader = {
     },
 
     downloadContent: async function() {
+        if (this.isCompleted || this._failed || this._fileLoad) return;
         var file = this._files[this._fileIndex];
+        var fileLoad = { file: file, generation: this._generation, verificationAttempt: 0,
+                         attempt: null, retryTimer: null };
+        this._fileLoad = fileLoad;
+        return this.downloadFile(fileLoad);
+    },
+
+    downloadFile: async function(fileLoad) {
+        var file = fileLoad.file;
+        var attempt = { fileLoad: fileLoad, requests: [], stream: null, data: undefined,
+                        pieceLengths: [], receivedPieces: 0, receivedBytes: 0, nextPiece: 0 };
+        fileLoad.attempt = attempt;
 
         if (Module['isDMFSSupported']) {
             const path = `${DMSYS.GetUserPersistentDataRoot()}/${file.name}`;
@@ -714,7 +819,7 @@ var GameArchiveLoader = {
                     On a retry the persisted copy is known bad, and skipping the check lets
                     "w+" below truncate away a stale tail.
                 }}
-                const stat = file.verificationAttempt ? null : FS.stat(path);
+                const stat = fileLoad.verificationAttempt ? null : FS.stat(path);
                 if (stat) {
                     {{#html5.verify_downloaded_file_size}}
                     let matches = (file.size == stat.size);
@@ -731,28 +836,28 @@ var GameArchiveLoader = {
                             A copy whose hash can not be computed is not trusted either.
                         }}
                         matches = false;
-                        const stream = FS.open(path, "r");
-                        if (stream) {
+                        attempt.stream = FS.open(path, "r");
+                        if (attempt.stream) {
                             try {
-                                const mmap = FS.mmap(stream, stat.size, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
+                                const mmap = FS.mmap(attempt.stream, stat.size, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
                                 if (mmap) {
                                     const digest = await window.crypto.subtle.digest("SHA-1", mmap);
                                     matches = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('') == file.sha1;
                                 }
                             } catch(e) { }
-                            FS.close(stream);
+                            finally { this.closeAttemptStream(attempt); }
                         }
                     }
+                    if (!this.isCurrentAttempt(attempt)) return;
                     if (matches) {
-                        this.onFileLoaded(file);
+                        this.onFileLoaded(attempt);
                         return;
                     }
                 }
             } catch(_e) { }
-            file.stream = FS.open(path, "w+");
+            if (!this.isCurrentAttempt(attempt)) return;
+            attempt.stream = FS.open(path, "w+");
         }
-
-        file.totalLoadedPieces = 0;
 
         // how many pieces to download at a time
         var limit = file.pieces.length;
@@ -761,7 +866,7 @@ var GameArchiveLoader = {
         }
 
         for (var i=0; i<limit; ++i) {
-            this.downloadPiece(file, i);
+            this.downloadPiece(attempt);
         }
     },
 
@@ -769,81 +874,72 @@ var GameArchiveLoader = {
         ProgressUpdater.updateCurrent(delta);
     },
 
-    downloadPiece: function(file, index) {
-        if (index < file.lastRequestedPiece) {
-            throw RangeError("Request out of order: " + file.name + ", index: " + index + ", last requested piece: " + file.lastRequestedPiece);
-        }
-
+    downloadPiece: function(attempt) {
+        var fileLoad = attempt.fileLoad;
+        var file = fileLoad.file;
+        if (attempt.nextPiece === file.pieces.length) return;
+        var index = attempt.nextPiece++;
         var piece = file.pieces[index];
-        file.lastRequestedPiece = index;
 
-        FileLoader.load(
-            this.archiveLocationProvider('/' + piece.name, file.verificationAttempt), "arraybuffer",
-            function (delta) {
-                GameArchiveLoader.notifyDownloadProgress(delta);
-            },
-            function (error) {
-                GameArchiveLoader.notifyFileDownloadError(error);
-            },
-            function (response) {
-                piece.data = new Uint8Array(response);
-                piece.dataLength = piece.data.length;
-                total = piece.dataLength;
-                downloaded = piece.dataLength;
-                GameArchiveLoader.onPieceLoaded(file, piece);
-                piece.data = undefined;
-            },
-            function(loadedDelta, currentAttempt){
-                ProgressUpdater.updateCurrent(-loadedDelta);
-            });
+        // Disposing an attempt cancels its FileLoader requests. Async verification
+        // cannot be cancelled and checks attempt ownership when it finishes.
+        var request = FileLoader.load(
+            this.archiveLocationProvider('/' + piece.name, fileLoad.verificationAttempt), "arraybuffer",
+            function (delta) { GameArchiveLoader.notifyDownloadProgress(delta); },
+            function (error) { GameArchiveLoader.notifyFileDownloadError(error); },
+            function (response) { GameArchiveLoader.onPieceLoaded(attempt, index, new Uint8Array(response)); },
+            function (loadedDelta, currentAttempt) { ProgressUpdater.updateCurrent(-loadedDelta); });
+        attempt.requests.push(request);
     },
 
-    addPieceToFile: function(file, piece) {
-        if (file.stream !== undefined) {
-            FS.write(file.stream, piece.data, 0, piece.data.length, piece.offset);
+    addPieceToFile: function(attempt, index, data) {
+        var file = attempt.fileLoad.file;
+        var piece = file.pieces[index];
+        if (attempt.stream) {
+            FS.write(attempt.stream, data, 0, data.length, piece.offset);
         } else if (1 == file.pieces.length) {
-            file.data = piece.data;
+            attempt.data = data;
         } else {
-            if (!file.data) {
-               file.data = new Uint8Array(file.size);
+            if (!attempt.data) {
+               attempt.data = new Uint8Array(file.size);
             }
             var start = piece.offset;
-            var end = start + piece.data.length;
+            var end = start + data.length;
             {{^html5.verify_downloaded_file_size}}
-            if (end > file.data.length) {
+            if (end > attempt.data.length) {
                 const grown = new Uint8Array(end);
-                grown.set(file.data);
-                file.data = grown;
+                grown.set(attempt.data);
+                attempt.data = grown;
             }
             {{/html5.verify_downloaded_file_size}}
-            if (0 > start || end > file.data.length) {
+            if (0 > start || end > attempt.data.length) {
                 {{!
                     Let verifyFile() report this once every piece has settled, rather than
                     throwing from an xhr callback while the other pieces are still in flight.
                 }}
-                console.warn("Piece " + piece.name + " does not fit " + file.name + ": start " + start + ", end " + end + ", buffer length " + file.data.length);
+                console.warn("Piece " + piece.name + " does not fit " + file.name + ": start " + start + ", end " + end + ", buffer length " + attempt.data.length);
                 return;
             }
-            file.data.set(piece.data, piece.offset);
+            attempt.data.set(data, piece.offset);
         }
     },
 
-    onPieceLoaded: function(file, piece) {
-        this.addPieceToFile(file, piece);
-
-        ++file.totalLoadedPieces;
-        // is all pieces of the file loaded?
-        if (file.totalLoadedPieces == file.pieces.length) {
-            this.verifyFile(file).then(() => {
-                if (file.stream !== undefined) {
-                    FS.close(file.stream);
-                    file.stream = undefined;
-                }
-                this.onFileLoaded(file);
-            }).catch((e) => {
-                if (this.retryFile(file, e)) {
-                    return;
-                }
+    onPieceLoaded: function(attempt, index, data) {
+        this.addPieceToFile(attempt, index, data);
+        attempt.pieceLengths[index] = data.length;
+        attempt.receivedBytes += data.length;
+        ++attempt.receivedPieces;
+        if (attempt.receivedPieces === attempt.fileLoad.file.pieces.length) {
+            this.verifyFile(attempt).then(() => {
+                if (!this.isCurrentAttempt(attempt)) return;
+                // Keep ownership until closing succeeds so close failures can retry.
+                this.closeAttemptStream(attempt);
+            }).then(() => {
+                this.onFileLoaded(attempt);
+            }, (e) => {
+                if (!this.isCurrentAttempt(attempt)) return;
+                if (this.retryFile(attempt, e)) return;
+                if (!this.failArchive()) return;
                 console.log('file verification failed! ' + e);
                 if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
                    CUSTOM_PARAMETERS["start_error"](e);
@@ -851,59 +947,33 @@ var GameArchiveLoader = {
                    throw e;
                 }
             });
-        }
-        // continue loading more pieces of the file
-        // if not all pieces are already in progress
-        else {
-            var next = file.lastRequestedPiece + 1;
-            if (next < file.pieces.length) {
-                this.downloadPiece(file, next);
-            }
+        } else {
+            this.downloadPiece(attempt);
         }
     },
 
-    retryFile: function(file, error) {
-        if (file.verificationAttempt === undefined) {
-            file.verificationAttempt = 0;
-        }
-        if (file.verificationAttempt >= this.MAX_VERIFICATION_RETRIES) {
-            return false;
-        }
-        file.verificationAttempt += 1;
-        console.warn("Verification of " + file.name + " failed (attempt " + file.verificationAttempt + " of " + this.MAX_VERIFICATION_RETRIES + "), downloading it again: " + error);
+    retryFile: function(attempt, error) {
+        var fileLoad = attempt.fileLoad;
+        if (fileLoad.verificationAttempt >= this.MAX_VERIFICATION_RETRIES) return false;
+        ++fileLoad.verificationAttempt;
+        this.disposeAttempt(attempt);
+        console.warn("Verification of " + fileLoad.file.name + " failed (attempt " + fileLoad.verificationAttempt + " of " + this.MAX_VERIFICATION_RETRIES + "), downloading it again: " + error);
 
-        // hand back the progress of everything we are about to throw away
-        var downloadedSize = 0;
-        for (var i = 0; i < file.pieces.length; ++i) {
-            downloadedSize += file.pieces[i].dataLength;
-            file.pieces[i].dataLength = 0;
-            file.pieces[i].data = undefined;
-        }
-        ProgressUpdater.updateCurrent(-downloadedSize);
-
-        {{!
-            Reopening with "w+" in downloadContent() truncates. Without that, a response that
-            was too long has already extended the file and the retry only rewrites its prefix.
-        }}
-        if (file.stream !== undefined) {
-            FS.close(file.stream);
-            file.stream = undefined;
-        }
-
-        file.data = undefined;
-        file.totalLoadedPieces = 0;
-        file.lastRequestedPiece = undefined;
-
-        setTimeout(function() { GameArchiveLoader.downloadContent(); }, FileLoader.options.retryInterval);
+        // Hand back the discarded bytes. The next attempt owns fresh buffers and
+        // counters; reopening its stream with "w+" also truncates any stale tail.
+        ProgressUpdater.updateCurrent(-attempt.receivedBytes);
+        // A progress listener may have cancelled or replaced this archive.
+        if (this._fileLoad !== fileLoad) return true;
+        fileLoad.retryTimer = setTimeout(() => {
+            fileLoad.retryTimer = null;
+            this.downloadFile(fileLoad);
+        }, FileLoader.options.retryInterval);
         return true;
     },
 
-    verifyFile: function(file) {
-        // verify that we downloaded as much as we were supposed to
-        var actualSize = 0;
-        for (var i=0;i<file.pieces.length; ++i) {
-            actualSize += file.pieces[i].dataLength;
-        }
+    verifyFile: function(attempt) {
+        var file = attempt.fileLoad.file;
+        var actualSize = attempt.receivedBytes;
         {{#html5.verify_downloaded_file_size}}
         if (actualSize != file.size) {
             return Promise.reject(new Error("Unexpected data size: " + file.name + ", expected size: " + file.size + ", actual size: " + actualSize));
@@ -913,15 +983,15 @@ var GameArchiveLoader = {
         // verify the pieces
         if (file.pieces.length > 1) {
             var pieces = file.pieces;
-            for (i=0; i<pieces.length; ++i) {
+            for (var i=0; i<pieces.length; ++i) {
                 var item = pieces[i];
                 // Bounds check
                 var start = item.offset;
-                var end = start + item.dataLength;
+                var end = start + attempt.pieceLengths[i];
                 if (0 < i) {
-                    var previous = pieces[i - 1];
-                    if (previous.offset + previous.dataLength > start) {
-                        return Promise.reject(new RangeError("Segment underflow in file: " + file.name + ", offset: " + (previous.offset + previous.dataLength) + " , start: " + start));
+                    var previousEnd = pieces[i - 1].offset + attempt.pieceLengths[i - 1];
+                    if (previousEnd > start) {
+                        return Promise.reject(new RangeError("Segment underflow in file: " + file.name + ", offset: " + previousEnd + " , start: " + start));
                     }
                 }
                 if (pieces.length - 2 > i) {
@@ -933,10 +1003,10 @@ var GameArchiveLoader = {
             }
         }
         if (file.sha1) {
-            let data = file.data;
-            if (file.stream) {
+            let data = attempt.data;
+            if (attempt.stream) {
                 try {
-                    data = FS.mmap(file.stream, actualSize, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
+                    data = FS.mmap(attempt.stream, actualSize, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
                 } catch(e) { }
             }
             if(data) {
@@ -950,9 +1020,14 @@ var GameArchiveLoader = {
         return Promise.resolve();
     },
 
-    onFileLoaded: function(file) {
-        this.notifyFileLoaded(file);
+    onFileLoaded: function(attempt) {
+        if (!this.isCurrentAttempt(attempt)) return;
+        var fileLoad = attempt.fileLoad;
+        var result = { name: fileLoad.file.name, data: attempt.data };
+        this.disposeFileLoad();
         ++this._fileIndex;
+        this.notifyFileLoaded(result);
+        if (this._generation !== fileLoad.generation || this._failed || this.isCompleted) return;
         if (this._fileIndex == this._files.length) {
             this.onArchiveLoaded();
         } else {
@@ -961,6 +1036,7 @@ var GameArchiveLoader = {
     },
 
     onArchiveLoaded: function() {
+        if (this.isCompleted || this._failed) return;
         this.isCompleted = true;
         this.notifyArchiveLoaded();
     }
