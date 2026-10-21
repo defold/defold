@@ -195,6 +195,12 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[1]));
             GetDataMemoryStats(store, &stats);
             ASSERT_EQ(0u, stats.m_BaseUsed + stats.m_PayloadUsed + stats.m_StructRows);
+            ASSERT_EQ(0u, stats.m_StructRowBytes);
+            ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 9, ids, columns != 0));
+            CheckLifetimeViews(store, ids[0]);
+            ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[0]));
+            GetDataMemoryStats(store, &stats);
+            ASSERT_EQ(0u, stats.m_StructRowBytes);
             ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
         }
 }

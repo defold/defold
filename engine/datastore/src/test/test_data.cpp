@@ -1274,6 +1274,8 @@ TEST(Data, CompactNestedBulkStorageAndBorrowedInsertion)
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
 }
 
+// Child slots are reused without moving survivors; empty buffers are freed and
+// subsequent insertions reuse the layout without following stale free slots.
 TEST(Data, OwnedStructRowsShareLayoutsButNotValues)
 {
     HDSContext  store = DSCreateStore(0);
@@ -1325,9 +1327,24 @@ TEST(Data, OwnedStructRowsShareLayoutsButNotValues)
     for (uint32_t i = 0; i < 3; ++i)
         ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[i]));
     ASSERT_EQ(0u, children->m_RowCount);
+    ASSERT_EQ(0u, children->m_Values.Capacity());
+    for (uint32_t i = 0; i < 3; ++i)
+        ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 1, 0, &object, 1, &ids[i]));
+    ASSERT_EQ(1u, table->m_Structs->m_Tables.Size());
+    ASSERT_EQ(3u, children->m_RowCount);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[i], 1, &first));
+        ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&first.m_Value.m_Struct, 2, &child));
+        ASSERT_EQ(10.0, child.m_Value.m_Number);
+        ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[i]));
+    }
+    ASSERT_EQ(0u, children->m_Values.Capacity());
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
 }
 
+// Recursive children can share a layout with their parents. Its buffer must
+// remain live until every descendant and retained default has been released.
 TEST(Data, OwnedStructRowsReleaseRecursiveTrees)
 {
     HDSContext  store = DSCreateStore(0);
@@ -1362,7 +1379,10 @@ TEST(Data, OwnedStructRowsReleaseRecursiveTrees)
     for (uint32_t i = 0; i < 40; ++i)
         ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[i]));
     for (uint32_t t = 0; t < table->m_Structs->m_Tables.Size(); ++t)
+    {
         ASSERT_EQ(0u, table->m_Structs->m_Tables[t]->m_RowCount);
+        ASSERT_EQ(0u, table->m_Structs->m_Tables[t]->m_Values.Capacity());
+    }
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
 }
 

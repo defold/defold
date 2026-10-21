@@ -221,7 +221,7 @@ struct DSFieldMeta
 //                        +---------------------> m_Values[r * m_RowStride]
 //                            [ B values ][ free ][ B values ] ...
 // A freed slot holds the next free index in its first four bytes. Slots are reused
-// without moving other children; capacity remains until the component table dies.
+// without moving other children. Empty value buffers are freed; layouts are retained.
 struct DSStructField
 {
     uint64_t    m_Name;   // Local member hash, shared by all child rows of this layout.

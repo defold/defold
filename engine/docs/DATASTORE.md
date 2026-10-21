@@ -447,7 +447,8 @@ independent copies, not shared mutable references. Reset keeps the original tree
 and releases any replacement tree; removing the parent releases both. Free slots
 are linked through their unused row bytes and reused by later insertions. Child
 rows do not move, so removal needs no global ID lookup or reference fixups.
-Capacity and shared layouts remain allocated until the component table is freed.
+Removing the last child row frees its value buffer, including any free slots.
+Shared layouts remain allocated until the component table is freed.
 Strings and lists inside child rows still use the containing table/registration's
 payload arena and follow its reclamation rules.
 

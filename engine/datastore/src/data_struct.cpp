@@ -134,9 +134,15 @@ void ReleaseStructRow(DSTable* owner, uint64_t reference)
         if (field.m_Type == DS_TYPE_STRUCT || field.m_Type == DS_TYPE_STRING || field.m_Type == DS_TYPE_LIST)
             ReleaseReference(owner, field.m_Type, ReadDataInteger(bytes + field.m_Offset, 8));
     }
+    if (--table->m_RowCount == 0)
+    {
+        table->m_Values.SetSize(0);
+        table->m_Values.SetCapacity(0);
+        table->m_FreeRow = INVALID_ROW;
+        return;
+    }
     WriteDataInteger(bytes, table->m_FreeRow, 4);
     table->m_FreeRow = row;
-    --table->m_RowCount;
 }
 
 void DeleteStructStorage(DSTable* table)
