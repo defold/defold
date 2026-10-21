@@ -28,9 +28,7 @@ extern "C"
     {
         // private
         HDSQuery        m_Query;
-        uint32_t        m_TableIndex;
         uint32_t        m_NextRow;
-        uint32_t        m_StartRow;
         uint32_t        m_Count;
         void*           m_Table;
         void*           m_Rows;
@@ -38,7 +36,6 @@ extern "C"
         const uint32_t* m_FieldOffsets;
         uint8_t*        m_Values;
         uint32_t        m_RowStride;
-        uint32_t        m_EndRow;
         uint32_t        m_FieldCount;
         uint32_t        m_RangeIndex;
         uint32_t        m_Remaining;
@@ -98,13 +95,13 @@ extern "C"
 
     static inline DSRowIterator DSIterRows(const DSIterator* iterator)
     {
-        DSRowIterator rows = { .m_Parent = iterator, .m_Index = UINT32_MAX, .m_NextRow = iterator->m_StartRow };
+        DSRowIterator rows = { .m_Parent = iterator, .m_Index = UINT32_MAX };
         return rows;
     }
 
     static inline bool DSRowIterNext(DSRowIterator* iterator)
     {
-        if (iterator->m_NextRow >= iterator->m_Parent->m_EndRow)
+        if (iterator->m_NextRow >= iterator->m_Parent->m_Count)
         {
             iterator->m_Index = UINT32_MAX;
             return false;

@@ -45,7 +45,6 @@ DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count)
 bool DSIterNext(DSIterator* iterator)
 {
     iterator->m_Count = 0;
-    iterator->m_EndRow = iterator->m_StartRow;
     if (!iterator->m_Remaining)
         return false;
 
@@ -57,19 +56,15 @@ bool DSIterNext(DSIterator* iterator)
     if (count > iterator->m_Remaining)
         count = iterator->m_Remaining;
 
+    uint32_t start = range.m_Start + iterator->m_NextRow;
     iterator->m_Table = table;
-    iterator->m_TableIndex = range.m_TableIndex;
-    iterator->m_StartRow = range.m_Start + iterator->m_NextRow;
     iterator->m_Count = count;
-    iterator->m_Rows = table->m_Rows.Begin() + iterator->m_StartRow;
+    iterator->m_Rows = table->m_Rows.Begin() + start;
     iterator->m_Fields = match.m_Fields;
     iterator->m_FieldOffsets = match.m_Fields ? GetQueryFieldOffsets(match.m_Fields, query->m_Fields.Size()) : 0;
-    iterator->m_Values = GetRowBytes(table, iterator->m_StartRow);
+    iterator->m_Values = GetRowBytes(table, start);
     iterator->m_RowStride = table->m_RowStride;
     iterator->m_FieldCount = match.m_Fields ? query->m_Fields.Size() : table->m_FieldCount;
-
-    iterator->m_StartRow = 0;
-    iterator->m_EndRow = count;
 
     iterator->m_Remaining -= count;
     iterator->m_NextRow = 0;
@@ -135,10 +130,10 @@ DSResult DSIterSetField(const DSIterator* iterator, uint32_t row, uint32_t field
 
 DSId DSRowIterGetId(const DSRowIterator* iterator)
 {
-    return DSIterGetId(iterator->m_Parent, iterator->m_Index - iterator->m_Parent->m_StartRow);
+    return DSIterGetId(iterator->m_Parent, iterator->m_Index);
 }
 
 DSGroupId DSRowIterGetGroupId(const DSRowIterator* iterator)
 {
-    return DSIterGetGroupId(iterator->m_Parent, iterator->m_Index - iterator->m_Parent->m_StartRow);
+    return DSIterGetGroupId(iterator->m_Parent, iterator->m_Index);
 }

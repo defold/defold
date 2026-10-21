@@ -44,7 +44,7 @@ void DSRowIterGetView(const DSRowIterator* iterator, uint32_t field, DSValueView
 {
     const DSIterator*     batch = iterator->m_Parent;
     const DSQueryBinding& binding = ((const DSQueryBinding*)batch->m_Fields)[field];
-    const DSRow*          row = (const DSRow*)batch->m_Rows + iterator->m_Index - batch->m_StartRow;
+    const DSRow*          row = (const DSRow*)batch->m_Rows + iterator->m_Index;
     WriteView(ReadBoundValue((const DSTable*)batch->m_Table, row, binding.m_Meta), out_view);
 }
 
