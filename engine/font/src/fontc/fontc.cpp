@@ -24,6 +24,7 @@
 #include <layout_vertex.h>
 #include <text_arc.hpp>
 
+#include <float.h>
 #include <stddef.h>
 #include <math.h>
 #include <stdlib.h>
