@@ -167,6 +167,93 @@ var CUSTOM_PARAMETERS = {
     }
 };
 
+// A scope owns cancellable work. Waiting on hashing or instantiation also settles
+// immediately on cancellation; their eventual results can no longer advance startup.
+function createLoaderScope(parent) {
+    var callbacks = new Set();
+    var releaseParent = function() {};
+    var scope = {
+        error: null,
+        check: function() { if (this.error) throw this.error; },
+        own: function(cancel) {
+            if (this.error) cancel(this.error);
+            else callbacks.add(cancel);
+            return function() { callbacks.delete(cancel); };
+        },
+        cancel: function(error) {
+            if (this.error) return;
+            this.error = error || Object.assign(new Error("Loading cancelled"), { name: "AbortError" });
+            releaseParent();
+            callbacks.forEach(function(cancel) {
+                try { cancel(scope.error); }
+                catch (e) { console.warn("Failed to release loader resource: " + e); }
+            });
+            callbacks.clear();
+        },
+        wait: function(promise, cancel) {
+            return new Promise(function(resolve, reject) {
+                var release = scope.own(function(error) {
+                    try { if (cancel) cancel(); }
+                    finally { reject(error); }
+                });
+                Promise.resolve(promise).then(function(value) {
+                    release();
+                    if (scope.error) reject(scope.error);
+                    else resolve(value);
+                }, function(error) {
+                    release();
+                    reject(error);
+                });
+            });
+        },
+        delay: function(milliseconds) {
+            this.check();
+            var timer;
+            return this.wait(new Promise(function(resolve) {
+                timer = setTimeout(resolve, milliseconds);
+            }), function() { clearTimeout(timer); });
+        }
+    };
+    if (parent) releaseParent = parent.own(function(error) { scope.cancel(error); });
+    return scope;
+}
+
+// Share request slots across archive files. Queued work is cancellable, and a
+// transport retry releases its slot while waiting so other files can advance.
+function createLoaderQueue(limit) {
+    var active = 0;
+    const pending = [];
+    function pump() {
+        while (active < limit && pending.length) {
+            const task = pending.shift();
+            task.release();
+            ++active;
+            task.resolve();
+        }
+    }
+    return {
+        run: async function(scope, work) {
+            scope.check();
+            await new Promise(function(resolve, reject) {
+                const task = { resolve: resolve };
+                task.release = scope.own(function(error) {
+                    pending.splice(pending.indexOf(task), 1);
+                    reject(error);
+                });
+                pending.push(task);
+                pump();
+            });
+            try {
+                scope.check();
+                return await work();
+            } finally {
+                --active;
+                pump();
+            }
+        }
+    };
+}
+
 // file downloader
 // wraps XMLHttpRequest and adds retry support and progress updates when the
 // content is gzipped (gzipped content doesn't report a computable content length
@@ -189,141 +276,156 @@ var FileLoader = {
         }
         return attempt > 0 ? FileLoader.addCacheBuster(url, attempt) : url;
     },
-    // do xhr request with retries
+    // One XHR attempt. Only network failures are retryable at this layer.
+    requestOnce: function(url, options, scope) {
+        scope.check();
+        const xhr = new XMLHttpRequest();
+        var active = true;
+        var loaded = 0;
+        function abort() {
+            if (active) { active = false; xhr.abort(); }
+        }
+        const promise = new Promise(function(resolve, reject) {
+            xhr.open(options.method || "GET", url, true);
+            xhr.responseType = options.responseType;
+            xhr.onprogress = function(event) {
+                if (!active) return;
+                try {
+                    if (options.progress) options.progress(event.loaded - loaded, xhr, event, loaded);
+                    loaded = event.loaded;
+                } catch (error) {
+                    abort();
+                    reject(error);
+                }
+            };
+            xhr.onerror = function(event) {
+                if (!active) return;
+                active = false;
+                reject(Object.assign(new Error(String(event)), { retryable: true, xhr: xhr, event: event }));
+            };
+            xhr.onload = function(event) {
+                if (!active) return;
+                active = false;
+                resolve({ response: xhr.response, url: url, xhr: xhr, event: event });
+            };
+            xhr.send(null);
+        });
+        return scope.wait(promise, abort).finally(function() {
+            abort();
+            xhr.onload = xhr.onerror = xhr.onprogress = null;
+        });
+    },
+
+    // Transport retries are a loop around a single request. Response validation
+    // shares this budget; archive verification has its own whole-file budget.
+    fetch: async function(url, options, scope) {
+        for (var attempt = options.attempt || 0; ; ++attempt) {
+            scope.check();
+            const resolvedUrl = FileLoader.resolveUrl(url, attempt);
+            var loaded = 0;
+            try {
+                const request = () => FileLoader.requestOnce(resolvedUrl, {
+                    method: options.method,
+                    responseType: options.responseType,
+                    progress: function(delta, xhr, event, previous) {
+                        loaded = event.loaded;
+                        if (options.progress) options.progress(delta, xhr, event, previous);
+                    }
+                }, scope);
+                const result = await (options.queue ? options.queue.run(scope, request) : request());
+                scope.check();
+                // Callback exceptions are terminal; only an explicit rejection retries.
+                const rejected = options.accept && options.accept(result, attempt);
+                try {
+                    if (rejected) throw new Error(rejected);
+                    if (!options.accept) {
+                        if (result.xhr.status !== 200) throw new Error("status " + result.xhr.status);
+                        if (options.responseType === "json" && typeof result.response === "string") {
+                            result.response = JSON.parse(result.response);
+                        }
+                        const error = options.verify && options.verify(result.response);
+                        if (error) throw new Error(error);
+                    }
+                } catch (error) {
+                    throw Object.assign(error, { retryable: true, xhr: result.xhr, event: result.event });
+                }
+                scope.check();
+                return result;
+            } catch (error) {
+                scope.check();
+                if (!error.retryable || attempt >= FileLoader.options.retryCount) {
+                    throw Object.assign(new Error("Error loading '" + resolvedUrl + "' (" + (error.message || String(error)) + ")"),
+                        { download: true, xhr: error.xhr, event: error.event });
+                }
+                if (options.retry) options.retry(loaded, attempt, error);
+                else if (options.progress) options.progress(-loaded);
+                await scope.delay(FileLoader.options.retryInterval);
+            }
+        }
+    },
+
+    // Callback adapters for custom HTML templates. Core loading uses fetch().
     request: function(url, method, responseType, currentAttempt) {
-        if (typeof method === 'undefined') throw TypeError("No method specified");
-        if (typeof method === 'responseType') throw TypeError("No responseType specified");
-        if (typeof currentAttempt === 'undefined') currentAttempt = 0;
-        var activeXHR = null;
-        var retryTimer = null;
-        var finished = false;
-        var obj = {
-            cancel: function() {
-                finished = true;
-                clearTimeout(retryTimer);
-                retryTimer = null;
-                var xhr = activeXHR;
-                activeXHR = null;
-                if (xhr) xhr.abort();
-            },
-            retry: function(xhr, event) {
-                activeXHR = null;
-                if (currentAttempt >= FileLoader.options.retryCount) {
-                    finished = true;
-                    return false;
-                }
-                if (obj.onretry) obj.onretry(xhr, event, xhr._loadedSize, currentAttempt);
-                xhr._loadedSize = 0;
-                currentAttempt += 1;
-                if (!finished) {
-                    retryTimer = setTimeout(function() {
-                        retryTimer = null;
-                        obj.send();
-                    }, FileLoader.options.retryInterval);
-                }
-                return true;
+        if (typeof method === "undefined") throw TypeError("No method specified");
+        if (typeof responseType === "undefined") throw TypeError("No responseType specified");
+        const scope = createLoaderScope();
+        var attempt = currentAttempt || 0;
+        var retryRequested = false;
+        const request = {
+            cancel: function() { scope.cancel(); },
+            retry: function() {
+                retryRequested = attempt < FileLoader.options.retryCount;
+                return retryRequested;
             },
             send: function() {
-                if (finished) return;
-                var onprogress = this.onprogress;
-                var onload = this.onload;
-                var onerror = this.onerror;
-
-                var xhr = new XMLHttpRequest();
-                activeXHR = xhr;
-                xhr._loadedSize = 0;
-                obj.url = FileLoader.resolveUrl(url, currentAttempt);
-                xhr.open(method, obj.url, true);
-                xhr.responseType = responseType;
-                xhr.onprogress = function(event) {
-                    if (activeXHR !== xhr) return;
-                    if (onprogress) onprogress(xhr, event, xhr._loadedSize);
-                    xhr._loadedSize = event.loaded;
-                };
-                xhr.onerror = function(event) {
-                    if (activeXHR !== xhr) return;
-                    if (!obj.retry(xhr, event)) {
-                        if (onerror) onerror(xhr, event);
+                if (request.promise || scope.error) return;
+                request.promise = FileLoader.fetch(function(index) {
+                    request.url = FileLoader.resolveUrl(url, index);
+                    return request.url;
+                }, {
+                    method: method, responseType: responseType, attempt: attempt,
+                    progress: function(delta, xhr, event, previous) {
+                        if (request.onprogress) request.onprogress(xhr, event, previous);
+                    },
+                    accept: function(result, index) {
+                        attempt = index;
+                        retryRequested = false;
+                        if (request.onload) request.onload(result.xhr, result.event);
+                        return retryRequested ? "Response rejected" : undefined;
+                    },
+                    retry: function(loaded, index, error) {
+                        if (request.onretry) request.onretry(error.xhr, error.event, loaded, index);
                     }
-                };
-                xhr.onload = function(event) {
-                    if (activeXHR !== xhr) return;
-                    try {
-                        if (onload) onload(xhr, event);
-                    } finally {
-                        // A rejected response may have scheduled a retry instead.
-                        if (activeXHR === xhr) {
-                            activeXHR = null;
-                            finished = true;
-                        }
-                    }
-                };
-                xhr.send(null);
+                }, scope).catch(function(error) {
+                    if (!scope.error && request.onerror) request.onerror(error.xhr, error.event || error);
+                });
             }
         };
-        return obj;
-    },
-    // Do HTTP HEAD request to get size of resource
-    // callback will receive size or undefined in case of an error
-    size: function(url, callback) {
-        var request = FileLoader.request(url, "HEAD", "text");
-        request.onerror = function(xhr, e) {
-            callback(undefined);
-        };
-        request.onload = function(xhr, e) {
-            if (xhr.readyState === 4) {
-                if (xhr.status === 200) {
-                    var total = xhr.getResponseHeader('content-length');
-                    callback(total);
-                } else {
-                    callback(undefined);
-                }
-            }
-        };
-        request.send();
-    },
-    // Do HTTP GET request. Delivers at most one success/error callback.
-    // cancel() suppresses subsequent callbacks and retries; async work started by
-    // onload must still check whether its owner is current when that work finishes.
-    // onprogress(loadedDelta)
-    // onerror(error)
-    // onload(response, url) - url is the one that answered, which is not the one passed in
-    //                         when a retry had to vary it
-    // onretry(loadedSize, currentAttempt)
-    // onverify(response) - optional, returns an error message for a response that must not
-    //                      be used, which is then retried like a failed status
-    load: function(url, responseType, onprogress, onerror, onload, onretry, onverify) {
-        var request = FileLoader.request(url, "GET", responseType);
-        request.onprogress = function(xhr, e, ls) {
-            var delta = e.loaded - ls;
-            onprogress(delta);
-        };
-        request.onerror = function(xhr, e) {
-            onerror("Error loading '" + request.url + "' (" + e + ")");
-        };
-        request.onload = function(xhr, e) {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    var res = xhr.response;
-                    if (responseType == "json" && typeof res === "string") {
-                        res = JSON.parse(res);
-                    }
-                    var error = onverify ? onverify(res) : undefined;
-                    if (!error) {
-                        onload(res, request.url);
-                    } else if (!request.retry(xhr, e)) {
-                        onerror("Error loading '" + request.url + "' (" + error + ")");
-                    }
-                } else if (!request.retry(xhr, e)) {
-                    onerror("Error loading '" + request.url + "' (status " + xhr.status + ")");
-                }
-            }
-        };
-        request.onretry = function(xhr, event, loadedSize, currentAttempt) {
-            onretry(loadedSize, currentAttempt);
-        };
-        request.send();
         return request;
+    },
+    size: function(url, callback) {
+        const scope = createLoaderScope();
+        FileLoader.fetch(url, { method: "HEAD", responseType: "text", accept: function() {} }, scope).then(
+            result => callback(result.xhr.status === 200 ? result.xhr.getResponseHeader("content-length") : undefined),
+            () => callback(undefined));
+    },
+    load: function(url, responseType, onprogress, onerror, onload, onretry, onverify) {
+        const scope = createLoaderScope();
+        const request = { cancel: function() { scope.cancel(); } };
+        request.promise = FileLoader.fetch(function(attempt) {
+            request.url = FileLoader.resolveUrl(url, attempt);
+            return request.url;
+        }, { responseType: responseType, progress: onprogress, retry: onretry, verify: onverify }, scope).then(
+            result => { if (!scope.error) onload(result.response, result.url); },
+            error => { if (!scope.error) onerror(error.message); });
+        return request;
+    },
+
+    verifyHash: async function(data, expected) {
+        if (!expected) return;
+        const digest = await window.crypto.subtle.digest("SHA-1", data);
+        const actual = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+        if (actual !== expected) throw new Error(`Unexpected hash ${actual} wanted ${expected}`);
     }
 };
 
@@ -338,224 +440,173 @@ var EngineLoader = {
     wasm_pthread_size: {{ DEFOLD_WASM_PTHREAD_SIZE }},
     wasmjs_pthread_sha1: "{{DEFOLD_WASMJS_PTHREAD_SHA1}}",
     wasmjs_pthread_size: {{ DEFOLD_WASMJS_PTHREAD_SIZE }},
-    wasm_instantiate_progress: 0,
 
     stream_wasm: "{{html5.wasm_streaming}}" === "true",
 
-    updateWasmInstantiateProgress: function(totalDownloadedSize) {
-        EngineLoader.wasm_instantiate_progress = totalDownloadedSize * 0.1;
-    },
-
-    getWasmSize: function() {
-        if (Module['isWASMPthreadSupported'])
-            return EngineLoader.wasm_pthread_size;
-        return EngineLoader.wasm_size;
-    },
-
-    getWasmJSSize: function() {
-        if (Module['isWASMPthreadSupported'])
-            return EngineLoader.wasmjs_pthread_size;
-        return EngineLoader.wasmjs_size;
-    },
-
-    getWasmSha1: function() {
-        if (Module['isWASMPthreadSupported'])
-            return EngineLoader.wasm_pthread_sha1;
-        return EngineLoader.wasm_sha1;
-    },
-
-    getWasmJSSha1: function() {
-        if (Module['isWASMPthreadSupported'])
-            return EngineLoader.wasmjs_pthread_sha1;
-        return EngineLoader.wasmjs_sha1;
-    },
-
-    getWasmName: function(exeName) {
-        if (Module['isWASMPthreadSupported'])
-            return exeName + '_pthread.wasm';
-        return exeName + '.wasm';
-    },
-
-    getWasmJSName: function(exeName) {
-        if (Module['isWASMPthreadSupported'])
-            return exeName + '_pthread_wasm.js';
-        return exeName + '_wasm.js';
-    },
-
-    // load and instantiate .wasm file using XMLHttpRequest
-    loadAndInstantiateWasmAsync: function(src, imports, successCallback) {
-        FileLoader.load(src, "arraybuffer",
-            function(delta) {
-                ProgressUpdater.updateCurrent(delta);
+    // Capture the variant once so every request and verification uses the same metadata.
+    selectEngine: function(exeName) {
+        const pthread = Module['isWASMPthreadSupported'];
+        return {
+            script: {
+                url: exeName + (pthread ? "_pthread_wasm.js" : "_wasm.js"),
+                size: pthread ? this.wasmjs_pthread_size : this.wasmjs_size,
+                sha1: pthread ? this.wasmjs_pthread_sha1 : this.wasmjs_sha1
             },
-            function(error) { throw error; },
-            async function(wasm) {
-                if (EngineLoader.getWasmSha1()) {
-                    const digest = await window.crypto.subtle.digest("SHA-1", wasm);
-                    const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-                    if (sha1 != EngineLoader.getWasmSha1()) {
-                        const error = new Error("Unexpected wasm sha1: " + sha1 + ", expected: " + EngineLoader.getWasmSha1());
-                        if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
-                           CUSTOM_PARAMETERS["start_error"](error);
-                        } else {
-                            throw error;
-                        }
-                    }
-                }
-                var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
-                    Module.instance = output.instance;
-                    successCallback(output.instance, output.module);
-                }).catch(function(e) {
-                    console.log('wasm instantiation failed! ' + e);
-                    if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
-                        CUSTOM_PARAMETERS["start_error"](e);
-                    } else {
-                        throw e;
-                    }
-                });
+            wasm: {
+                url: exeName + (pthread ? "_pthread.wasm" : ".wasm"),
+                size: pthread ? this.wasm_pthread_size : this.wasm_size,
+                sha1: pthread ? this.wasm_pthread_sha1 : this.wasm_sha1
             },
-            function(loadedDelta, currentAttempt){
-                ProgressUpdater.updateCurrent(-loadedDelta);
-            },
-            function(wasm) {
+            streaming: this.stream_wasm
+        };
+    },
+
+    // Each engine operation resolves only after its work completes. Its caller
+    // owns failure reporting, so a failed verification cannot continue startup.
+    loadAndInstantiateWasmAsync: async function(asset, imports, scope) {
+        scope = scope || createLoaderScope();
+        const result = await FileLoader.fetch(asset.url, {
+            responseType: "arraybuffer",
+            progress: delta => ProgressUpdater.updateCurrent(delta),
+            verify: function(wasm) {
                 {{#html5.verify_downloaded_file_size}}
-                if (wasm.byteLength != EngineLoader.getWasmSize()) {
-                    return "Unexpected wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.getWasmSize();
+                if (wasm.byteLength != asset.size) {
+                    return "Unexpected wasm size: " + wasm.byteLength + ", expected: " + asset.size;
                 }
                 {{/html5.verify_downloaded_file_size}}
-            });
+            }
+        }, scope);
+        scope.check();
+        await scope.wait(FileLoader.verifyHash(result.response, asset.sha1));
+        // The download can finish before Emscripten supplies the imports.
+        const importObject = await scope.wait(imports);
+        scope.check();
+        const output = await scope.wait(WebAssembly.instantiate(result.response, importObject));
+        scope.check();
+        return output;
     },
 
-    // stream and instantiate .wasm file
-    streamAndInstantiateWasmAsync: async function(src, imports, successCallback) {
+    streamAndInstantiateWasmAsync: async function(asset, imports, scope) {
+        scope = scope || createLoaderScope();
+        scope.check();
         var canCount = typeof TransformStream === "function" && ReadableStream.prototype.pipeThrough;
-        {{#html5.verify_downloaded_file_size}}
-        if (!canCount) {
-            // without a stream to count the bytes, only the xhr path can verify the size
-            EngineLoader.loadAndInstantiateWasmAsync(src, imports, successCallback);
-            return;
+        // Hash verification requires the bytes before instantiation.
+        if (asset.sha1{{#html5.verify_downloaded_file_size}} || !canCount{{/html5.verify_downloaded_file_size}}) {
+            return EngineLoader.loadAndInstantiateWasmAsync(asset, imports, scope);
         }
-        {{/html5.verify_downloaded_file_size}}
-        // https://stackoverflow.com/a/69179454
-        var fetchFn = fetch;
+        var streamScope = createLoaderScope(scope);
+        var controller = new AbortController();
+        streamScope.own(function() { controller.abort(); });
         var streamedSize = 0;
-        if (canCount) {
-            async function fetchWithProgress(path) {
-                const response = await fetch(path);
-                if (response.ok) {
-                    const ts = new TransformStream({
-                        transform (chunk, controller) {
-                            streamedSize += chunk.byteLength;
-                            ProgressUpdater.updateCurrent(chunk.byteLength);
-                            controller.enqueue(chunk);
-                        }
-                    });
-
-                    return new Response(response.body.pipeThrough(ts), response);
-                } else {
-                    return new Response(null, response);
+        async function fetchWithProgress() {
+            const response = await fetch(asset.url, { signal: controller.signal });
+            streamScope.check();
+            if (!response.ok || !canCount) return response;
+            const stream = new TransformStream({
+                transform: function(chunk, target) {
+                    streamScope.check();
+                    streamedSize += chunk.byteLength;
+                    ProgressUpdater.updateCurrent(chunk.byteLength);
+                    streamScope.check();
+                    target.enqueue(chunk);
                 }
-            }
-            fetchFn = fetchWithProgress;
+            });
+            return new Response(response.body.pipeThrough(stream), response);
         }
-
-        WebAssembly.instantiateStreaming(fetchFn(src), imports).then(function(output) {
+        var output;
+        try {
+            // Start fetching now, and keep the response streaming when imports arrive.
+            const ready = await streamScope.wait(Promise.all([fetchWithProgress(), imports]));
+            streamScope.check();
+            output = await streamScope.wait(WebAssembly.instantiateStreaming(ready[0], ready[1]));
+            scope.check();
             {{#html5.verify_downloaded_file_size}}
-            if (streamedSize != EngineLoader.getWasmSize()) {
-                throw new Error("Unexpected wasm size: " + streamedSize + ", expected: " + EngineLoader.getWasmSize());
+            if (streamedSize != asset.size) {
+                throw new Error("Unexpected wasm size: " + streamedSize + ", expected: " + asset.size);
             }
             {{/html5.verify_downloaded_file_size}}
-            ProgressUpdater.updateCurrent(EngineLoader.wasm_instantiate_progress);
-            Module.instance = output.instance;
-            successCallback(output.instance, output.module);
-        }).catch(function(e) {
-            console.log('wasm streaming instantiation failed! ' + e);
-            console.log('Fallback to wasm loading');
-            // the xhr download counts the file again
+        } catch (error) {
+            scope.check();
+            streamScope.cancel();
+            console.log('wasm streaming instantiation failed, falling back to XHR: ' + error);
             ProgressUpdater.updateCurrent(-streamedSize);
-            try {
-                EngineLoader.loadAndInstantiateWasmAsync(src, imports, successCallback);
-            } catch (error) {
-                 if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
-                    CUSTOM_PARAMETERS["start_error"](error);
-                 } else {
-                    throw error;
-                 }
-            }
-        });
+            return EngineLoader.loadAndInstantiateWasmAsync(asset, imports, scope);
+        } finally {
+            streamScope.cancel();
+        }
+        ProgressUpdater.updateCurrent(asset.instantiateProgress || 0);
+        scope.check();
+        return output;
     },
 
-    // instantiate the .wasm file either by streaming it or first loading and then instantiate it
-    // https://github.com/emscripten-core/emscripten/blob/main/test/manual_wasm_instantiate.html
-    loadWasmAsync: function(exeName) {
+    loadWasmAsync: async function(engine, session) {
+        const scope = session.scope;
+        const importsReady = createLoaderSignal();
+        const instantiate = engine.streaming && typeof WebAssembly.instantiateStreaming === "function"
+            ? EngineLoader.streamAndInstantiateWasmAsync : EngineLoader.loadAndInstantiateWasmAsync;
+        const instantiation = instantiate(engine.wasm, importsReady.promise, scope);
         Module.instantiateWasm = function(imports, successCallback) {
-            if (typeof CUSTOM_PARAMETERS["update_imports"] === "function") {
-                var callback = CUSTOM_PARAMETERS["update_imports"];
-                callback(imports);
-            }
-            if (EngineLoader.stream_wasm && (typeof WebAssembly.instantiateStreaming === "function")) {
-                EngineLoader.streamAndInstantiateWasmAsync(EngineLoader.getWasmName(exeName), imports, successCallback);
-            }
-            else {
-                EngineLoader.loadAndInstantiateWasmAsync(EngineLoader.getWasmName(exeName), imports, successCallback);
-            }
-            return {}; // Compiling asynchronously, no exports.
+            (async function() {
+                scope.check();
+                if (typeof CUSTOM_PARAMETERS["update_imports"] === "function") {
+                    CUSTOM_PARAMETERS["update_imports"](imports);
+                }
+                importsReady.resolve(imports);
+                const output = await instantiation;
+                scope.check();
+                Module.instance = output.instance;
+                successCallback(output.instance, output.module);
+            })().catch(error => scope.cancel(error));
+            return {}; // Emscripten expects exports to arrive through successCallback.
         };
-
-        EngineLoader.loadAndRunScriptAsync(EngineLoader.getWasmJSName(exeName), EngineLoader.getWasmJSSize(), EngineLoader.getWasmJSSha1());
+        const onRuntimeInitialized = Module.onRuntimeInitialized;
+        const initialize = function() {
+            if (!scope.error && onRuntimeInitialized) onRuntimeInitialized.apply(this, arguments);
+        };
+        Module.onRuntimeInitialized = initialize;
+        scope.own(function() {
+            if (Module.onRuntimeInitialized === initialize) Module.onRuntimeInitialized = onRuntimeInitialized;
+        });
+        await scope.wait(Promise.all([
+            instantiation,
+            EngineLoader.loadAndRunScriptAsync(engine.script, scope),
+            session.runtime.promise
+        ]));
     },
 
-    // load and start the wasm loader script
-    loadAndRunScriptAsync: function(src, expectedLength, expectedSHA1) {
-        FileLoader.load(src, "text",
-            function(delta) {
-                ProgressUpdater.updateCurrent(delta);
-            },
-            function(error) { throw error; },
-            async function(response, url) {
-                if (expectedSHA1) {
-                    const digest = await window.crypto.subtle.digest("SHA-1", new TextEncoder().encode(response));
-                    const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-                    if (sha1 != expectedSHA1) {
-                        const error = new Error("Unexpected sha1: " + sha1 + ", expected: " + expectedSHA1);
-                        if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
-                            CUSTOM_PARAMETERS["start_error"](error);
-                        } else {
-                             throw error;
-                        }
-                    }
-                }
-                {{!
-                    The script tag re-requests the file, so it has to ask for the url that
-                    answered here. Asking for src again would go back to the url whose
-                    response failed, and run bytes other than the ones verified above.
-                }}
-                Module["mainScriptUrlOrBlob"] = url;
-
-                const script = document.createElement('script');
-                script.src = url;
-                script.type = "text/javascript";
-                document.body.appendChild(script);
-            },
-            function(loadedDelta, currentAttempt){
-                ProgressUpdater.updateCurrent(-loadedDelta);
-            },
-            function(response) {
+    loadAndRunScriptAsync: async function(asset, scope) {
+        scope = scope || createLoaderScope();
+        const result = await FileLoader.fetch(asset.url, {
+            responseType: "arraybuffer",
+            progress: delta => ProgressUpdater.updateCurrent(delta),
+            verify: function(response) {
                 {{#html5.verify_downloaded_file_size}}
-                {{!
-                    response.length counts utf-16 code units, expectedLength counts bytes.
-                }}
-                const actualLength = new TextEncoder().encode(response).length;
-                if (actualLength != expectedLength) {
-                    return "Unexpected JS size: " + actualLength + ", expected: " + expectedLength;
+                if (response.byteLength != asset.size) {
+                    return "Unexpected JS size: " + response.byteLength + ", expected: " + asset.size;
                 }
                 {{/html5.verify_downloaded_file_size}}
-            });
+            }
+        }, scope);
+        scope.check();
+        await scope.wait(FileLoader.verifyHash(result.response, asset.sha1));
+        scope.check();
+        // Reuse the URL that passed verification, including any retry cache buster.
+        Module["mainScriptUrlOrBlob"] = result.url;
+        const script = document.createElement('script');
+        script.src = result.url;
+        script.type = "text/javascript";
+        try {
+            await scope.wait(new Promise(function(resolve, reject) {
+                script.onload = resolve;
+                script.onerror = function() { reject(new Error("Error executing '" + result.url + "'")); };
+                document.body.appendChild(script);
+            }), function() { script.remove(); });
+        } finally {
+            script.onload = script.onerror = null;
+        }
     },
 
-    // left as entrypoint for backward capability
-    // start loading archive_files.json
-    // after receiving it - start loading engine and data concurrently
+    // Public entry point used by built-in and custom HTML templates.
     load: function(appCanvasId, exeName) {
         if (typeof CUSTOM_PARAMETERS["update_progress"] === "function") {
             ProgressUpdater.addListener(CUSTOM_PARAMETERS["update_progress"]);
@@ -566,18 +617,8 @@ var EngineLoader = {
 
         FileLoader.options.retryCount = CUSTOM_PARAMETERS["retry_count"];
         FileLoader.options.retryInterval = CUSTOM_PARAMETERS["retry_time"] * 1000;
-        // Load and assemble archive
-        GameArchiveLoader.addFileDownloadErrorListener((error) => {
-           if (typeof CUSTOM_PARAMETERS["can_not_download_file_callback"] === "function") {
-               CUSTOM_PARAMETERS["can_not_download_file_callback"](error);
-           } else if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
-               CUSTOM_PARAMETERS["start_error"](error);
-           }
-        });
-        GameArchiveLoader.addFileLoadedListener(Module.onArchiveFileLoaded);
-        GameArchiveLoader.addArchiveLoadedListener(Module.onArchiveLoaded);
         GameArchiveLoader.setFileLocationFilter(CUSTOM_PARAMETERS["archive_location_filter"]);
-        GameArchiveLoader.loadArchiveDescription('/archive_files.json');
+        const ready = GameStartup.start('/archive_files.json', exeName);
 
         // move resize callback setup here to make possible to override callback
         // from outside of dmloader.js
@@ -588,6 +629,103 @@ var EngineLoader = {
             window.addEventListener('orientationchange', callback, false);
             window.addEventListener('focus', callback, false);
         }
+        return ready;
+    }
+};
+
+
+function createLoaderSignal() {
+    var resolve;
+    const promise = new Promise(function(done) { resolve = done; });
+    return { promise: promise, resolve: resolve };
+}
+
+// The only owner of startup ordering and failure reporting. Emscripten hooks
+// resolve milestones; archive listeners are notifications, not control flow.
+var GameStartup = {
+    _session: null,
+
+    begin: function() {
+        this.cancel();
+        const session = {
+            scope: createLoaderScope(), state: "loading", pendingFiles: [], archive: null,
+            runtime: createLoaderSignal(), filesystem: createLoaderSignal(), storage: createLoaderSignal()
+        };
+        if (Module._filesystemReady) session.filesystem.resolve();
+        if (Module._syncInitial || !Module.persistentStorage) session.storage.resolve();
+        this._session = session;
+        Module._preLoadDone = false;
+        Module._filesToPreload = session.pendingFiles;
+        GameArchiveLoader.isCompleted = false;
+        return session;
+    },
+    cancel: function() {
+        const session = this._session;
+        this._session = null;
+        if (session) {
+            session.scope.cancel();
+            session.pendingFiles.length = 0;
+        }
+        GameArchiveLoader._files = [];
+    },
+    fail: function(session, error) {
+        if (this._session !== session || session.state !== "loading") return;
+        session.state = "failed";
+        session.scope.cancel(error);
+        session.pendingFiles.length = 0;
+        if (error.archive) {
+            const message = error.download ? error.message : String(error);
+            GameArchiveLoader.notifyListeners(GameArchiveLoader._onFileDownloadErrorListeners, message);
+            const callback = CUSTOM_PARAMETERS["can_not_download_file_callback"] || CUSTOM_PARAMETERS["start_error"];
+            if (typeof callback === "function") callback(message);
+        } else if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
+            CUSTOM_PARAMETERS["start_error"](error);
+        }
+    },
+    track: function(session, promise) {
+        const completion = session.scope.wait(promise).catch(error => {
+            this.fail(session, error);
+            throw error;
+        });
+        // Callback callers may ignore completion; awaiters still receive rejection.
+        completion.catch(function() {});
+        return completion;
+    },
+    start: function(descriptionUrl, exeName) {
+        const session = this.begin();
+        session.engine = EngineLoader.selectEngine(exeName || CUSTOM_PARAMETERS['exe_name']);
+        session.ready = this.track(session, this.run(session, descriptionUrl));
+        return session.ready;
+    },
+    run: async function(session, descriptionUrl) {
+        const scope = session.scope;
+        if (!Module['isWASMSupported']) throw new Error("WebAssembly is not supported in this browser.");
+        const engine = session.engine;
+        const engineSize = engine.wasm.size + engine.script.size;
+        engine.wasm.instantiateProgress = engineSize * 0.1;
+        ProgressUpdater.resetCurrent();
+        // Count early engine bytes, but wait for the manifest before reporting a percentage.
+        ProgressUpdater.setupTotal(0);
+        const archive = GameArchiveLoader.loadDescription(descriptionUrl, scope).then(manifest => {
+            scope.check();
+            ProgressUpdater.setupTotal(manifest.total_size + engineSize + engine.wasm.instantiateProgress);
+            ProgressUpdater.setCurrent(ProgressUpdater.current);
+            scope.check();
+            GameArchiveLoader._files = manifest.content;
+            return GameArchiveLoader.downloadContent(manifest.content, session);
+        });
+
+        await scope.wait(Promise.all([
+            EngineLoader.loadWasmAsync(engine, session),
+            archive,
+            session.storage.promise
+        ]));
+        scope.check();
+        Module.preloadAll();
+        ProgressUpdater.complete();
+        scope.check();
+        Module._callMain();
+        session.state = "started";
     }
 };
 
@@ -596,449 +734,272 @@ var EngineLoader = {
 /* Load and combine game archive data that is split into archives        */
 /* ********************************************************************* */
 
+// Storage owns buffers and streams; orchestration only writes, verifies, and
+// finishes a destination. Disposing an unfinished DMFS file removes partial data.
+var ArchiveStorage = {
+    readCached: async function(file, scope) {
+        if (!Module['isDMFSSupported']) return false;
+        const path = `${DMSYS.GetUserPersistentDataRoot()}/${file.name}`;
+        var stream = null;
+        var valid = false;
+        function close() {
+            const current = stream;
+            stream = null;
+            if (current) FS.close(current);
+        }
+        const release = scope.own(close);
+        try {
+            const stat = FS.stat(path);
+            {{#html5.verify_downloaded_file_size}}
+            if (stat.size != file.size) return false;
+            {{/html5.verify_downloaded_file_size}}
+            {{^html5.verify_downloaded_file_size}}
+            if (!file.sha1) return false;
+            {{/html5.verify_downloaded_file_size}}
+            if (!file.sha1) return true;
+            stream = FS.open(path, "r");
+            const data = FS.mmap(stream, stat.size, 0, 0x01, 0x01); // PROT_READ, MAP_SHARED
+            if (data) {
+                await scope.wait(FileLoader.verifyHash(data, file.sha1));
+                valid = true;
+            }
+        } catch (error) {
+            scope.check(); // Cancellation is not a cache miss.
+        } finally {
+            release();
+            try { close(); }
+            catch (error) { valid = false; }
+        }
+        scope.check();
+        return valid;
+    },
+
+    create: function(file) {
+        if (Module['isDMFSSupported']) {
+            const path = `${DMSYS.GetUserPersistentDataRoot()}/${file.name}`;
+            var stream = FS.open(path, "w+");
+            var committed = false;
+            function close() {
+                var current = stream;
+                stream = null;
+                if (current) FS.close(current);
+            }
+            return {
+                write: function(index, data) { FS.write(stream, data, 0, data.length, file.pieces[index].offset); },
+                bytes: function(size) { return FS.mmap(stream, size, 0, 0x01, 0x01); },
+                finish: function() { close(); committed = true; },
+                dispose: function() {
+                    try { close(); }
+                    finally { if (!committed) FS.unlink(path); }
+                }
+            };
+        }
+        var buffer;
+        return {
+            write: function(index, data) {
+                if (file.pieces.length === 1) {
+                    buffer = data;
+                    return;
+                }
+                if (!buffer) buffer = new Uint8Array(file.size);
+                const piece = file.pieces[index];
+                const end = piece.offset + data.length;
+                {{^html5.verify_downloaded_file_size}}
+                if (end > buffer.length) {
+                    const grown = new Uint8Array(end);
+                    grown.set(buffer);
+                    buffer = grown;
+                }
+                {{/html5.verify_downloaded_file_size}}
+                // Let verification reject oversized responses after all pieces settle.
+                if (piece.offset >= 0 && end <= buffer.length) buffer.set(data, piece.offset);
+            },
+            bytes: function() { return buffer; },
+            finish: function() { const result = buffer; buffer = undefined; return result; },
+            dispose: function() { buffer = undefined; }
+        };
+    }
+};
+
 var GameArchiveLoader = {
-    // which files to load
     _files: [],
-    _fileIndex: 0,
-    _generation: 0,
-    _fileLoad: null,
-    _descriptionRequest: null,
-    _failed: false,
-    // Files and their pieces are immutable archive metadata: name, size, sha1,
-    // and piece offsets. A file load owns the verification retry budget and timer.
-    // Each attempt owns fresh buffers, streams, requests, and piece counters.
-
-    //MAX_CONCURRENT_XHR: 6,    // remove comment if throttling of XHR is desired.
-
-    isCompleted: false,       // status of process
-
-    {{!
-        Kept much lower than html5.retry_count: this re-requests a whole file, not a piece.
-    }}
+    isCompleted: false,
+    MAX_CONCURRENT_XHR: 6, // Shared across all archive files, including transport retries.
     MAX_VERIFICATION_RETRIES: 2,
-
-    _onFileLoadedListeners: [],          // signature: name, data.
-    _onArchiveLoadedListeners:[],        // signature: void
-    _onFileDownloadErrorListeners: [],   // signature: name
+    _onFileLoadedListeners: [],
+    _onArchiveLoadedListeners: [],
+    _onFileDownloadErrorListeners: [],
 
     _archiveLocationFilter: function(path, attempt) {
         var url = "split" + path;
         return attempt ? FileLoader.addCacheBuster(url, attempt) : url;
     },
-
-    {{!
-        The attempt passed to the filter has to cover the transport retries of every earlier
-        verification attempt as well, so that no two requests for a piece can be identical.
-    }}
     archiveLocationProvider: function(path, verificationAttempt) {
-        var self = this;
         var base = (verificationAttempt || 0) * (FileLoader.options.retryCount + 1);
-        return function(attempt) { return self._archiveLocationFilter(path, base + attempt); };
+        return attempt => this._archiveLocationFilter(path, base + attempt);
+    },
+    setFileLocationFilter: function(filter) {
+        if (typeof filter !== 'function') throw TypeError("Invalid filter");
+        this._archiveLocationFilter = filter;
     },
 
-    closeAttemptStream: function(attempt) {
-        var stream = attempt.stream;
-        attempt.stream = null;
-        if (stream) FS.close(stream);
-    },
-
-    disposeAttempt: function(attempt) {
-        if (!attempt) return;
-        attempt.fileLoad.attempt = null;
-        attempt.requests.forEach(function(request) { request.cancel(); });
-        attempt.requests.length = 0;
-        try {
-            this.closeAttemptStream(attempt);
-        } catch (e) {
-            // Closing discarded data must not interrupt cleanup or hide the original failure.
-            console.warn("Failed to close discarded archive stream: " + e);
-        }
-        attempt.data = undefined;
-    },
-
-    disposeFileLoad: function() {
-        var fileLoad = this._fileLoad;
-        this._fileLoad = null;
-        if (!fileLoad) return;
-        clearTimeout(fileLoad.retryTimer);
-        fileLoad.retryTimer = null;
-        this.disposeAttempt(fileLoad.attempt);
-    },
-
-    disposeDownloads: function() {
-        this.disposeFileLoad();
-        var request = this._descriptionRequest;
-        this._descriptionRequest = null;
-        if (request) request.cancel();
-    },
-
-    isCurrentAttempt: function(attempt) {
-        return this._fileLoad === attempt.fileLoad && attempt.fileLoad.attempt === attempt;
-    },
-
-    failArchive: function() {
-        if (this._failed || this.isCompleted) return false;
-        this._failed = true;
-        this.disposeDownloads();
-        return true;
-    },
-
-    cleanUp: function() {
-        ++this._generation;
-        this.disposeDownloads();
-        this._files = [];
-        this._fileIndex = 0;
-        this._onFileDownloadErrorListeners = [];
+    // Compatibility entry points; startup itself lives in GameStartup.run().
+    loadArchiveDescription: function(url) { return GameStartup.start(url); },
+    cleanUp: function() { GameStartup.cancel(); },
+    notifyFileDownloadError: function(error) {
+        const session = GameStartup._session;
+        if (session) GameStartup.fail(session, Object.assign(new Error(error), { archive: true, download: true }));
     },
 
     addListener: function(list, callback) {
         if (typeof callback !== 'function') throw TypeError("Invalid callback registration");
         list.push(callback);
     },
-    notifyListeners: function(list, data) {
-        for (let i=0; i<list.length; ++i) {
-            list[i](data);
+    notifyListeners: function(list, data, session) {
+        for (const callback of list) {
+            if (session) session.scope.check();
+            callback(data);
         }
     },
+    addFileDownloadErrorListener: function(callback) { this.addListener(this._onFileDownloadErrorListeners, callback); },
+    addFileLoadedListener: function(callback) { this.addListener(this._onFileLoadedListeners, callback); },
+    addArchiveLoadedListener: function(callback) { this.addListener(this._onArchiveLoadedListeners, callback); },
 
-    addFileDownloadErrorListener: function(callback) {
-        this.addListener(this._onFileDownloadErrorListeners, callback);
-    },
-    notifyFileDownloadError: function(error) {
-        if (this.failArchive()) this.notifyListeners(this._onFileDownloadErrorListeners, error);
-    },
-
-    addFileLoadedListener: function(callback) {
-        this.addListener(this._onFileLoadedListeners, callback);
-    },
-    notifyFileLoaded: function(file) {
-        this.notifyListeners(this._onFileLoadedListeners, { name: file.name, data: file.data });
-    },
-
-    addArchiveLoadedListener: function(callback) {
-        this.addListener(this._onArchiveLoadedListeners, callback);
-    },
-    notifyArchiveLoaded: function() {
-        this.notifyListeners(this._onArchiveLoadedListeners);
-    },
-
-    setFileLocationFilter: function(filter) {
-        if (typeof filter !== 'function') throw "Invalid filter";
-        this._archiveLocationFilter = filter;
-    },
-
-    // load the archive_files.json with the list of files and their individual
-    // pieces
-    // descriptionUrl: location of text file describing files to be preloaded
-    loadArchiveDescription: function(descriptionUrl) {
-        var generation = ++this._generation;
-        this.disposeDownloads();
-        this._files = [];
-        this._fileIndex = 0;
-        this.isCompleted = false;
-        this._failed = false;
-        this._descriptionRequest = FileLoader.load(
-            this.archiveLocationProvider(descriptionUrl, 0),
-            "text",
-            function (delta) { },
-            function (error) { GameArchiveLoader.notifyFileDownloadError(descriptionUrl); },
-            function (text) { GameArchiveLoader.onReceiveDescription(text, generation); },
-            function (loadedDelta, currentAttempt) { });
-    },
-
-    onReceiveDescription: async function(text, generation) {
-        let json;
+    loadDescription: async function(url, scope) {
         try {
-            json = JSON.parse(text);
-            if (!Array.isArray(json.content)) throw new Error("Invalid archive description: missing content");
-            json.content.forEach(function(file, index) {
-                if (!file || !Array.isArray(file.pieces) || file.pieces.length === 0) {
-                    throw new Error("Invalid archive file at index " + index);
-                }
+            const result = await FileLoader.fetch(this.archiveLocationProvider(url, 0), { responseType: "text" }, scope);
+            scope.check();
+            return await this.parseDescription(result.response, scope);
+        } catch (error) {
+            scope.check();
+            throw Object.assign(error, { archive: true });
+        }
+    },
+    parseDescription: async function(text, scope) {
+        const json = JSON.parse(text);
+        if (!Array.isArray(json.content)) throw new Error("Invalid archive description: missing content");
+        json.content.forEach(function(file, index) {
+            if (!file || !Array.isArray(file.pieces) || file.pieces.length === 0) {
+                throw new Error("Invalid archive file at index " + index);
+            }
+        });
+        if (EngineLoader.arc_sha1) {
+            await scope.wait(FileLoader.verifyHash(new TextEncoder().encode(text), EngineLoader.arc_sha1));
+        }
+        scope.check();
+        return json;
+    },
+
+    downloadContent: function(files, session) {
+        const standalone = !session;
+        files = files || this._files;
+        session = session || GameStartup._session || GameStartup.begin();
+        if (!session.archive) {
+            const download = Promise.resolve().then(() => this.downloadFiles(files, session)).catch(function(error) {
+                session.scope.check();
+                throw Object.assign(error, { archive: true });
             });
-            if (EngineLoader.arc_sha1) {
-                const digest = await window.crypto.subtle.digest("SHA-1", (new TextEncoder()).encode(text));
-                const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-                if (sha1 != EngineLoader.arc_sha1) {
-                    throw new Error(`Unexpected hash ${sha1} wanted ${EngineLoader.arc_sha1}`);
+            session.archive = standalone ? GameStartup.track(session, download) : download;
+        }
+        return session.archive;
+    },
+    downloadFiles: async function(files, session) {
+        if (Module['isDMFSSupported'] && files.length) await session.scope.wait(session.filesystem.promise);
+        session.scope.check();
+        const limit = this.MAX_CONCURRENT_XHR || 6;
+        const queue = createLoaderQueue(limit);
+        const completed = [];
+        var nextFile = 0;
+        await Promise.all(files.map(async (file, index) => {
+            completed[index] = await this.downloadFile(file, session.scope, queue, limit);
+            session.scope.check();
+            // Downloads may finish out of order; keep public notifications in manifest order.
+            while (completed[nextFile]) {
+                const result = completed[nextFile];
+                completed[nextFile++] = undefined;
+                Module.onArchiveFileLoaded(result);
+                this.notifyListeners(this._onFileLoadedListeners, result, session);
+                session.scope.check();
+            }
+        }));
+        this.isCompleted = true;
+        this._files = [];
+        Module.onArchiveLoaded();
+        this.notifyListeners(this._onArchiveLoadedListeners, undefined, session);
+    },
+
+    downloadFile: async function(file, scope, queue, limit) {
+        scope.check();
+        if (await ArchiveStorage.readCached(file, scope)) {
+            scope.check();
+            return { name: file.name };
+        }
+        for (var retry = 0; ; ++retry) {
+            scope.check();
+            const attemptScope = createLoaderScope(scope);
+            const attempt = { file: file, scope: attemptScope, pieceLengths: [], receivedBytes: 0 };
+            try {
+                attempt.storage = ArchiveStorage.create(file);
+                attemptScope.own(() => attempt.storage.dispose());
+                await this.downloadPieces(attempt, retry, queue, limit);
+                attemptScope.check();
+                try {
+                    await attemptScope.wait(this.verifyFile(attempt));
+                    attemptScope.check();
+                    return { name: file.name, data: attempt.storage.finish() };
+                } catch (error) {
+                    scope.check();
+                    if (retry >= this.MAX_VERIFICATION_RETRIES) throw error;
+                    console.warn("Verification of " + file.name + " failed, downloading it again: " + error);
                 }
+            } finally {
+                attemptScope.cancel();
             }
-        } catch (e) {
-            if (generation === this._generation) this.notifyFileDownloadError(e.toString());
-            return;
+            // Transport retries already roll back their own progress. Only bytes
+            // from completed pieces belong to this discarded verification attempt.
+            ProgressUpdater.updateCurrent(-attempt.receivedBytes);
+            await scope.delay(FileLoader.options.retryInterval);
         }
-        if (generation !== this._generation) return;
-
-        var totalSize = json.total_size;
-        var exeName = CUSTOM_PARAMETERS['exe_name'];
-        this._files = json.content;
-
-        var isWASMSupported = Module['isWASMSupported'];
-        if (!isWASMSupported) {
-            const error = new Error("WebAssembly is not supported in this browser.");
-            if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
-                CUSTOM_PARAMETERS["start_error"](error);
-            } else {
-                throw error;
+    },
+    downloadPieces: async function(attempt, verificationAttempt, queue, limit) {
+        const file = attempt.file;
+        var nextPiece = 0;
+        const worker = async () => {
+            while (nextPiece < file.pieces.length) {
+                attempt.scope.check();
+                const index = nextPiece++;
+                const result = await FileLoader.fetch(this.archiveLocationProvider('/' + file.pieces[index].name, verificationAttempt), {
+                    responseType: "arraybuffer",
+                    queue: queue,
+                    progress: delta => ProgressUpdater.updateCurrent(delta)
+                }, attempt.scope);
+                attempt.scope.check();
+                const data = new Uint8Array(result.response);
+                attempt.storage.write(index, data);
+                attempt.pieceLengths[index] = data.length;
+                attempt.receivedBytes += data.length;
             }
-            return;
-        }
-        EngineLoader.loadWasmAsync(exeName);
-        totalSize += EngineLoader.getWasmSize() + EngineLoader.getWasmJSSize();
-        if (this._files.length === 0) {
-            this.onArchiveLoaded();
-        } else if (!Module['isDMFSSupported']) {
-            // we can download in parallel here because we will not rely on FS, otherwise
-            // we have to wait until after the [w]asm is loaded.
-            this.downloadContent();
-        }
-        ProgressUpdater.resetCurrent();
-        EngineLoader.updateWasmInstantiateProgress(totalSize);
-        ProgressUpdater.setupTotal(totalSize + EngineLoader.wasm_instantiate_progress);
+        };
+        await Promise.all(Array.from({ length: Math.min(file.pieces.length, limit) }, worker));
     },
-
-    downloadContent: async function() {
-        if (this.isCompleted || this._failed || this._fileLoad) return;
-        var file = this._files[this._fileIndex];
-        var fileLoad = { file: file, generation: this._generation, verificationAttempt: 0,
-                         attempt: null, retryTimer: null };
-        this._fileLoad = fileLoad;
-        return this.downloadFile(fileLoad);
-    },
-
-    downloadFile: async function(fileLoad) {
-        var file = fileLoad.file;
-        var attempt = { fileLoad: fileLoad, requests: [], stream: null, data: undefined,
-                        pieceLengths: [], receivedPieces: 0, receivedBytes: 0, nextPiece: 0 };
-        fileLoad.attempt = attempt;
-
-        if (Module['isDMFSSupported']) {
-            const path = `${DMSYS.GetUserPersistentDataRoot()}/${file.name}`;
-            try { // see if already and stored
-                {{!
-                    On a retry the persisted copy is known bad, and skipping the check lets
-                    "w+" below truncate away a stale tail.
-                }}
-                const stat = fileLoad.verificationAttempt ? null : FS.stat(path);
-                if (stat) {
-                    {{#html5.verify_downloaded_file_size}}
-                    let matches = (file.size == stat.size);
-                    {{/html5.verify_downloaded_file_size}}
-                    {{^html5.verify_downloaded_file_size}}
-                    {{!
-                        Without the size check only a hash can tell a complete persisted file
-                        from a truncated one, so bundle with --with-sha1 to keep persistence.
-                    }}
-                    let matches = !!file.sha1;
-                    {{/html5.verify_downloaded_file_size}}
-                    if (matches && file.sha1) {
-                        {{!
-                            A copy whose hash can not be computed is not trusted either.
-                        }}
-                        matches = false;
-                        attempt.stream = FS.open(path, "r");
-                        if (attempt.stream) {
-                            try {
-                                const mmap = FS.mmap(attempt.stream, stat.size, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
-                                if (mmap) {
-                                    const digest = await window.crypto.subtle.digest("SHA-1", mmap);
-                                    matches = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('') == file.sha1;
-                                }
-                            } catch(e) { }
-                            finally { this.closeAttemptStream(attempt); }
-                        }
-                    }
-                    if (!this.isCurrentAttempt(attempt)) return;
-                    if (matches) {
-                        this.onFileLoaded(attempt);
-                        return;
-                    }
-                }
-            } catch(_e) { }
-            if (!this.isCurrentAttempt(attempt)) return;
-            attempt.stream = FS.open(path, "w+");
-        }
-
-        // how many pieces to download at a time
-        var limit = file.pieces.length;
-        if (typeof this.MAX_CONCURRENT_XHR !== 'undefined') {
-            limit = Math.min(limit, this.MAX_CONCURRENT_XHR);
-        }
-
-        for (var i=0; i<limit; ++i) {
-            this.downloadPiece(attempt);
-        }
-    },
-
-    notifyDownloadProgress: function(delta) {
-        ProgressUpdater.updateCurrent(delta);
-    },
-
-    downloadPiece: function(attempt) {
-        var fileLoad = attempt.fileLoad;
-        var file = fileLoad.file;
-        if (attempt.nextPiece === file.pieces.length) return;
-        var index = attempt.nextPiece++;
-        var piece = file.pieces[index];
-
-        // Disposing an attempt cancels its FileLoader requests. Async verification
-        // cannot be cancelled and checks attempt ownership when it finishes.
-        var request = FileLoader.load(
-            this.archiveLocationProvider('/' + piece.name, fileLoad.verificationAttempt), "arraybuffer",
-            function (delta) { GameArchiveLoader.notifyDownloadProgress(delta); },
-            function (error) { GameArchiveLoader.notifyFileDownloadError(error); },
-            function (response) { GameArchiveLoader.onPieceLoaded(attempt, index, new Uint8Array(response)); },
-            function (loadedDelta, currentAttempt) { ProgressUpdater.updateCurrent(-loadedDelta); });
-        attempt.requests.push(request);
-    },
-
-    addPieceToFile: function(attempt, index, data) {
-        var file = attempt.fileLoad.file;
-        var piece = file.pieces[index];
-        if (attempt.stream) {
-            FS.write(attempt.stream, data, 0, data.length, piece.offset);
-        } else if (1 == file.pieces.length) {
-            attempt.data = data;
-        } else {
-            if (!attempt.data) {
-               attempt.data = new Uint8Array(file.size);
-            }
-            var start = piece.offset;
-            var end = start + data.length;
-            {{^html5.verify_downloaded_file_size}}
-            if (end > attempt.data.length) {
-                const grown = new Uint8Array(end);
-                grown.set(attempt.data);
-                attempt.data = grown;
-            }
-            {{/html5.verify_downloaded_file_size}}
-            if (0 > start || end > attempt.data.length) {
-                {{!
-                    Let verifyFile() report this once every piece has settled, rather than
-                    throwing from an xhr callback while the other pieces are still in flight.
-                }}
-                console.warn("Piece " + piece.name + " does not fit " + file.name + ": start " + start + ", end " + end + ", buffer length " + attempt.data.length);
-                return;
-            }
-            attempt.data.set(data, piece.offset);
-        }
-    },
-
-    onPieceLoaded: function(attempt, index, data) {
-        this.addPieceToFile(attempt, index, data);
-        attempt.pieceLengths[index] = data.length;
-        attempt.receivedBytes += data.length;
-        ++attempt.receivedPieces;
-        if (attempt.receivedPieces === attempt.fileLoad.file.pieces.length) {
-            this.verifyFile(attempt).then(() => {
-                if (!this.isCurrentAttempt(attempt)) return;
-                // Keep ownership until closing succeeds so close failures can retry.
-                this.closeAttemptStream(attempt);
-            }).then(() => {
-                this.onFileLoaded(attempt);
-            }, (e) => {
-                if (!this.isCurrentAttempt(attempt)) return;
-                if (this.retryFile(attempt, e)) return;
-                if (!this.failArchive()) return;
-                console.log('file verification failed! ' + e);
-                if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
-                   CUSTOM_PARAMETERS["start_error"](e);
-                } else {
-                   throw e;
-                }
-            });
-        } else {
-            this.downloadPiece(attempt);
-        }
-    },
-
-    retryFile: function(attempt, error) {
-        var fileLoad = attempt.fileLoad;
-        if (fileLoad.verificationAttempt >= this.MAX_VERIFICATION_RETRIES) return false;
-        ++fileLoad.verificationAttempt;
-        this.disposeAttempt(attempt);
-        console.warn("Verification of " + fileLoad.file.name + " failed (attempt " + fileLoad.verificationAttempt + " of " + this.MAX_VERIFICATION_RETRIES + "), downloading it again: " + error);
-
-        // Hand back the discarded bytes. The next attempt owns fresh buffers and
-        // counters; reopening its stream with "w+" also truncates any stale tail.
-        ProgressUpdater.updateCurrent(-attempt.receivedBytes);
-        // A progress listener may have cancelled or replaced this archive.
-        if (this._fileLoad !== fileLoad) return true;
-        fileLoad.retryTimer = setTimeout(() => {
-            fileLoad.retryTimer = null;
-            this.downloadFile(fileLoad);
-        }, FileLoader.options.retryInterval);
-        return true;
-    },
-
-    verifyFile: function(attempt) {
-        var file = attempt.fileLoad.file;
-        var actualSize = attempt.receivedBytes;
+    verifyFile: async function(attempt) {
+        const file = attempt.file;
         {{#html5.verify_downloaded_file_size}}
-        if (actualSize != file.size) {
-            return Promise.reject(new Error("Unexpected data size: " + file.name + ", expected size: " + file.size + ", actual size: " + actualSize));
+        if (attempt.receivedBytes != file.size) {
+            throw new Error("Unexpected data size: " + file.name + ", expected size: " + file.size + ", actual size: " + attempt.receivedBytes);
         }
         {{/html5.verify_downloaded_file_size}}
-
-        // verify the pieces
-        if (file.pieces.length > 1) {
-            var pieces = file.pieces;
-            for (var i=0; i<pieces.length; ++i) {
-                var item = pieces[i];
-                // Bounds check
-                var start = item.offset;
-                var end = start + attempt.pieceLengths[i];
-                if (0 < i) {
-                    var previousEnd = pieces[i - 1].offset + attempt.pieceLengths[i - 1];
-                    if (previousEnd > start) {
-                        return Promise.reject(new RangeError("Segment underflow in file: " + file.name + ", offset: " + previousEnd + " , start: " + start));
-                    }
-                }
-                if (pieces.length - 2 > i) {
-                    var next = pieces[i + 1];
-                    if (end > next.offset) {
-                        return Promise.reject(new RangeError("Segment overflow in file: " + file.name + ", offset: " + next.offset + ", end: " + end));
-                    }
-                }
+        for (var i = 1; i < file.pieces.length; ++i) {
+            const previousEnd = file.pieces[i - 1].offset + attempt.pieceLengths[i - 1];
+            if (previousEnd > file.pieces[i].offset) {
+                throw new RangeError("Segment underflow in file: " + file.name + ", offset: " + previousEnd + ", start: " + file.pieces[i].offset);
             }
         }
         if (file.sha1) {
-            let data = attempt.data;
-            if (attempt.stream) {
-                try {
-                    data = FS.mmap(attempt.stream, actualSize, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
-                } catch(e) { }
-            }
-            if(data) {
-                return window.crypto.subtle.digest("SHA-1", data).then((digest) => {
-                    const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-                    if (sha1 !== file.sha1)
-                        return Promise.reject(new Error(`Unexpected hash ${sha1} wanted ${file.sha1}`));
-                });
-            }
+            const data = attempt.storage.bytes(attempt.receivedBytes);
+            if (!data) throw new Error("Cannot read " + file.name + " for hash verification");
+            await FileLoader.verifyHash(data, file.sha1);
         }
-        return Promise.resolve();
-    },
-
-    onFileLoaded: function(attempt) {
-        if (!this.isCurrentAttempt(attempt)) return;
-        var fileLoad = attempt.fileLoad;
-        var result = { name: fileLoad.file.name, data: attempt.data };
-        this.disposeFileLoad();
-        ++this._fileIndex;
-        this.notifyFileLoaded(result);
-        if (this._generation !== fileLoad.generation || this._failed || this.isCompleted) return;
-        if (this._fileIndex == this._files.length) {
-            this.onArchiveLoaded();
-        } else {
-            this.downloadContent();
-        }
-    },
-
-    onArchiveLoaded: function() {
-        if (this.isCompleted || this._failed) return;
-        this.isCompleted = true;
-        this.notifyArchiveLoaded();
     }
 };
 
@@ -1086,7 +1047,7 @@ var ProgressUpdater = {
     },
 
     notifyListeners: function(percentage) {
-        for (i=0; i<this.listeners.length; ++i) {
+        for (var i=0; i<this.listeners.length; ++i) {
             this.listeners[i](percentage);
         }
     },
@@ -1103,10 +1064,7 @@ var ProgressUpdater = {
     },
 
     updateCurrent: function (diff) {
-        this.current += diff;
-        var percentage = this.calculateProgress();
-        ProgressView.updateProgress(percentage);
-        this.notifyListeners(percentage);
+        this.setCurrent(this.current + diff);
     },
 
     resetCurrent: function () {
@@ -1118,7 +1076,7 @@ var ProgressUpdater = {
     },
 
     calculateProgress: function () {
-        return this.current / this.total * 100;
+        return this.total ? this.current / this.total * 100 : 0;
     }
 };
 
@@ -1162,10 +1120,9 @@ var Module = {
     noInitialRun: true,
 
     _filesToPreload: [],
-    _archiveLoaded: false,
     _preLoadDone: false,
-    _isEngineLoaded: false,
     _isMainCalled: false,
+    _filesystemReady: false,
 
     // Persistent storage
     persistentStorage: true,
@@ -1238,7 +1195,7 @@ var Module = {
     },
 
     {{#DEFOLD_HAS_WEBGPU}}
-    probeWebGPUSupport: function(callback) {
+    probeWebGPUSupport: function(callback, scope) {
         Module._webgpuAdapterAvailable = false;
         var can_probe_adapter = false;
 
@@ -1258,6 +1215,7 @@ var Module = {
 
         try {
             navigator.gpu.requestAdapter().then(function(adapter) {
+                if (scope && scope.error) return;
                 Module._webgpuAdapterAvailable = adapter !== null && typeof adapter !== "undefined";
                 callback();
             }, function(error) {
@@ -1303,7 +1261,8 @@ var Module = {
     /**
     * Module.runApp - Starts the application given a canvas element id
     **/
-    runApp: function(appCanvasId, _) {
+    runApp: function(appCanvasId, session) {
+        session = session || GameStartup._session;
         window.addEventListener("error", (errorEvent) => {
             var errorObject = Module.prepareErrorObject(errorEvent.message, errorEvent.filename, errorEvent.lineno, errorEvent.colno, errorEvent.error);
             Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
@@ -1319,8 +1278,8 @@ var Module = {
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
         function startApp() {
+            if (session && session.scope.error) return;
             if (Module.hasWebGLSupport(){{#DEFOLD_HAS_WEBGPU}} || Module.hasWebGPUSupport(){{/DEFOLD_HAS_WEBGPU}}) {
-                Module._isEngineLoaded = true;
                 Module.canvas.focus();
 
                 Module.canvas.addEventListener("webglcontextlost", function(event) {
@@ -1337,7 +1296,7 @@ var Module = {
                         e.preventDefault();
                     };
                 }
-                Module._preloadAndCallMain();
+                if (session) session.runtime.resolve();
             } else {
                 // "Unable to start game, WebGL not supported"
                 ProgressUpdater.complete();
@@ -1348,13 +1307,14 @@ var Module = {
                 if (typeof CUSTOM_PARAMETERS["unsupported_webgl_callback"] === "function") {
                     CUSTOM_PARAMETERS["unsupported_webgl_callback"]();
                 }
+                if (session) GameStartup.fail(session, new Error("No supported graphics adapter"));
             }
         }
         {{#DEFOLD_HAS_WEBGPU}}
         // Adapter selection in the engine is synchronous. Resolve the WebGPU
         // adapter before marking the engine loaded so other callbacks cannot
         // start main() before WebGPUIsSupported() can use the cached result.
-        Module.probeWebGPUSupport(startApp);
+        Module.probeWebGPUSupport(startApp, session && session.scope);
         {{/DEFOLD_HAS_WEBGPU}}
         {{^DEFOLD_HAS_WEBGPU}}
         startApp();
@@ -1367,11 +1327,8 @@ var Module = {
         }
     },
 
-    onArchiveLoaded: function() {
-        GameArchiveLoader.cleanUp();
-        Module._archiveLoaded = true;
-        Module._preloadAndCallMain();
-    },
+    // Notification hook retained for custom HTML templates.
+    onArchiveLoaded: function() {},
 
     toggleFullscreen: function(element) {
         if (DefoldPlatform.isFullscreen) {
@@ -1442,6 +1399,8 @@ var Module = {
     },
 
     preInit: [function() {
+        const session = GameStartup._session;
+        function storageReady() { if (session) session.storage.resolve(); }
         // Mount filesystem on preinit
         var dir = DMSYS.GetUserPersistentDataRoot();
         try {
@@ -1449,7 +1408,7 @@ var Module = {
         }
         catch (error) {
             Module.persistentStorage = false;
-            Module._preloadAndCallMain();
+            storageReady();
             return;
         }
 
@@ -1475,59 +1434,32 @@ var Module = {
         }
         catch (error) {
             Module.persistentStorage = false;
-            Module._preloadAndCallMain();
+            storageReady();
             return;
         }
 
         // Sync IDB->MEM before calling main()
-        Module.preSync(function() {
-            Module._preloadAndCallMain();
-        });
+        Module.preSync(storageReady);
     }],
 
-    preRun: [function() {
-        /* If archive is loaded, preload all its files */
-        if (Module._archiveLoaded) {
-            Module.preloadAll();
-        }
-    }],
+    preRun: [],
 
     postRun: [function() {
-        if (Module._archiveLoaded) {
-            ProgressView.removeProgress();
-        } else if (Module['isDMFSSupported']) {
-            // kick off the content download now that we have FS access
-            GameArchiveLoader.downloadContent();
-        }
+        Module._filesystemReady = true;
+        const session = GameStartup._session;
+        if (session) session.filesystem.resolve();
     }],
-
-    _preloadAndCallMain: function() {
-        if (Module._syncInitial || Module.persistentStorage != true) {
-            // If the archive isn't loaded,
-            // we will have to wait with calling main.
-            if (Module._archiveLoaded) {
-                Module.preloadAll();
-                if (Module._isEngineLoaded) {
-                    // "Starting...."
-                    ProgressUpdater.complete();
-                    Module._callMain();
-                }
-            }
-        }
-    },
 
     _callMain: function(_, _) {
         if (!Module._isMainCalled) {
+            const session = GameStartup._session;
             Module._isMainCalled = true;
             ProgressView.removeProgress();
             if (typeof CUSTOM_PARAMETERS["start_success"] === "function") {
                 CUSTOM_PARAMETERS["start_success"]();
             }
-            if (Module.callMain === undefined) {
-                Module.noInitialRun = false;
-            } else {
-                Module.callMain(Module.arguments);
-            }
+            if (session) session.scope.check();
+            Module.callMain(Module.arguments);
         } else {
             console.warn("Main was called several times!");
         }
@@ -1535,9 +1467,8 @@ var Module = {
     // Wrap IDBFS syncfs call with logic to avoid multiple syncs
     // running at the same time.
     _startSyncFS: function() {
-        Module._syncInProgress = true;
-
         if (Module._syncMaxTries > Module._syncTries) {
+            Module._syncInProgress = true;
             FS.syncfs(false, function(err) {
                 Module._syncInProgress = false;
 
@@ -1579,11 +1510,9 @@ Module["locateFile"] = function(path, scriptDirectory)
     // dmengine*.wasm is hardcoded in the built JS loader for WASM,
     // we need to replace it here with the correct project name.
     if (path == "dmengine.wasm" || path == "dmengine_release.wasm" || path == "dmengine_headless.wasm") {
-        if (Module['isWASMPthreadSupported']) {
-            path = "{{exe-name}}_pthread.wasm";
-        } else {
-            path = "{{exe-name}}.wasm";
-        }
+        const session = GameStartup._session;
+        const engine = session && session.engine || EngineLoader.selectEngine("{{exe-name}}");
+        path = engine.wasm.url.substring(engine.wasm.url.lastIndexOf('/') + 1);
     }
     return scriptDirectory + path;
 };
@@ -1593,7 +1522,10 @@ Module["isWASMSupported"] = false;
 {{/DEFOLD_HAS_WASM_ENGINE}}
 
 window.addEventListener("error", (errorEvent) => {
-    if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
+    const session = GameStartup._session;
+    if (session && session.state !== "started") {
+        GameStartup.fail(session, errorEvent);
+    } else if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
         CUSTOM_PARAMETERS["start_error"](errorEvent);
     }
     Module.setStatus('Exception thrown, see JavaScript console');
