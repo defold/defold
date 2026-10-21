@@ -1455,7 +1455,7 @@ namespace dmEngine
         render_params.m_MaxDebugVertexCount = 0;
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
-        if (dmConfigFile::GetInt(engine->m_Config, "render.gpu_culling", 0))
+        if (dmConfigFile::GetInt(engine->m_Config, "render.gpu_culling", 1))
         {
             render_params.m_InstanceCullingShaderProgramDesc = ::CULLING_INSTANCES_SPC;
             render_params.m_InstanceCullingShaderProgramDescSize = ::CULLING_INSTANCES_SPC_SIZE;

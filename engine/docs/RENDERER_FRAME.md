@@ -28,7 +28,7 @@ Each component type will calculate this visibility based, allowing each type to 
 
 ### GPU model culling
 
-Set `render.gpu_culling = 1` in `game.project` to enable GPU frustum culling and indexed indirect drawing for eligible instanced models. It is disabled by default. Metal, Vulkan and WebGPU support this path when the device provides compute shaders, storage buffers and indirect drawing.
+GPU frustum culling and indexed indirect drawing are enabled by default for eligible instanced models. Set `render.gpu_culling = 0` in `game.project` to disable them. Metal, Vulkan and WebGPU support this path when the device provides compute shaders, storage buffers and indirect drawing; unsupported graphics contexts use CPU culling.
 
 Eligible models use indexed geometry, local vertex space and an instance layout containing world and/or normal matrices. Skinned models, morph targets and dynamic vertex attributes retain CPU culling. The renderer also uses the CPU path for material overrides, blending, stencil tests, disabled depth testing or depth writes, and depth comparisons other than less/less-equal/greater/greater-equal. These passes require instance order, which GPU compaction does not preserve. Storage-buffer allocation failures or device limits fall back to CPU culling and conventional instancing.
 
