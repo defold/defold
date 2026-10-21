@@ -39,7 +39,7 @@
 *         Function that is called just before main is called upon successful load.
 *
 *     'start_error':
-*         Function that is called if startup fails for any reason.
+*         Function that is called if startup fails or the engine aborts/exits with an error.
 *
 *     'update_progress':
 *         Function that is called as progress is updated. Parameter progress is updated 0-100.
@@ -669,10 +669,13 @@ var GameStartup = {
         GameArchiveLoader._files = [];
     },
     fail: function(session, error) {
-        if (this._session !== session || session.state !== "loading") return;
+        if (this._session !== session || session.state === "failed") return;
         session.state = "failed";
         session.scope.cancel(error);
         session.pendingFiles.length = 0;
+        // Startup promises are handled even when a template ignores them. Keep
+        // terminal failures visible regardless of the optional error callbacks.
+        console.error(error);
         if (error.archive) {
             const message = error.download ? error.message : String(error);
             GameArchiveLoader.notifyListeners(GameArchiveLoader._onFileDownloadErrorListeners, message);
@@ -725,6 +728,7 @@ var GameStartup = {
         ProgressUpdater.complete();
         scope.check();
         Module._callMain();
+        scope.check();
         session.state = "started";
     }
 };
@@ -1139,6 +1143,33 @@ var Module = {
 
     setStatus: function(text) { console.log(text); },
 
+    reportEngineError: function(error) {
+        // A custom callback must not interrupt Emscripten's abort/exit handling.
+        try {
+            const session = GameStartup._session;
+            if (session) {
+                GameStartup.fail(session, error);
+            } else {
+                console.error(error);
+                if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
+                    CUSTOM_PARAMETERS["start_error"](error);
+                }
+            }
+        } catch (callbackError) {
+            console.error(callbackError);
+        }
+    },
+
+    onAbort: function(reason) {
+        Module.reportEngineError(new Error("Engine aborted: " + reason));
+    },
+
+    onExit: function(status) {
+        if (status !== 0) {
+            Module.reportEngineError(new Error("Engine exited with code " + status));
+        }
+    },
+
     isDMFSSupported: (function() {
         // DMFS is meant as a mount for FS to provide another way to acess resources, by default we just use IDBFS
         if (typeof DMFS === "undefined")
@@ -1459,7 +1490,12 @@ var Module = {
                 CUSTOM_PARAMETERS["start_success"]();
             }
             if (session) session.scope.check();
-            Module.callMain(Module.arguments);
+            const status = Module.callMain(Module.arguments);
+            // Emscripten catches ExitStatus internally and returns its code even
+            // when onExit is skipped because the runtime is kept alive.
+            if (typeof status === "number" && status !== 0) {
+                throw new Error("Engine exited with code " + status);
+            }
         } else {
             console.warn("Main was called several times!");
         }

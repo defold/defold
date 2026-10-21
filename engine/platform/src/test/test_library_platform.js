@@ -126,6 +126,7 @@ function setupLoaderStartup(hasWebGPU, hasWebGL) {
     };
     if (hasWebGL !== undefined) context.Module.hasWebGLSupport = () => hasWebGL;
     const session = context.GameStartup.begin();
+    context.console = { log() {}, error() {} };
     const ready = session.runtime.resolve;
     session.runtime.resolve = () => { ++calls.started; ready(); };
     context.CUSTOM_PARAMETERS.full_screen_container = null;
@@ -156,7 +157,7 @@ function testLoaderWebGLSkipsWebGPUProbe() {
 function testLoaderWebGLDetection() {
     for (const scenario of ["webgl", "experimental-webgl", "missing", "throws"]) {
         const { context, calls } = setupLoaderStartup(false);
-        context.console = { log() {} };
+        context.console = { log() {}, error() {} };
         context.WebGLRenderingContext = class {};
         context.document.createElement = () => ({ getContext(type) {
             if (scenario === "throws") throw new Error("context unavailable");
@@ -211,7 +212,7 @@ async function testLoaderWebGPUProbeGatesStartup() {
         for (const outcome of ["adapter", "null", "rejected", "throws", "unavailable"]) {
             const { context, calls } = setupLoaderStartup(true, hasWebGL);
             let resolveProbe, rejectProbe;
-            context.console = { log() {} };
+            context.console = { log() {}, error() {} };
             if (outcome !== "unavailable") {
                 context.navigator.gpu = { requestAdapter() {
                     ++calls.probes;
@@ -408,7 +409,7 @@ function setupArchiveDownloads(files = [archiveFile("a")], verifySize = true, fu
     const timers = new Map();
     const requests = [];
     const waiters = new Set();
-    const calls = { loaded: [], errors: [], completed: 0, engines: 0, maxPending: 0 };
+    const calls = { loaded: [], errors: [], consoleErrors: [], completed: 0, engines: 0, maxPending: 0 };
     let nextTimer = 1;
     function notify() {
         for (const waiter of waiters) {
@@ -422,7 +423,7 @@ function setupArchiveDownloads(files = [archiveFile("a")], verifySize = true, fu
         if (predicate()) return Promise.resolve();
         return new Promise(resolve => waiters.add({ predicate, resolve }));
     }
-    context.console = { log() {}, warn() {} };
+    context.console = { log() {}, warn() {}, error(error) { calls.consoleErrors.push(error); } };
     context.setTimeout = callback => {
         const id = nextTimer++;
         timers.set(id, callback);
@@ -546,6 +547,7 @@ async function testLoaderArchiveQueuedCancellation() {
     assert(requests.every(request => request.aborted));
     assert.deepStrictEqual(calls.loaded, []);
     assert.deepStrictEqual(calls.errors, []);
+    assert.deepStrictEqual(calls.consoleErrors, [], "intentional cancellation is not a fatal error");
 }
 
 // Files download concurrently, but verification gates ordered notifications and archive completion.
@@ -1964,6 +1966,7 @@ async function testLoaderStartupFailure() {
         }
         await assert.rejects(completion);
         assert.strictEqual(calls.errors.length, 1, failure);
+        assert.strictEqual(calls.consoleErrors.length, 1, failure);
         assert(requests.filter(xhr => xhr.url.startsWith("split/a")).every(xhr => !xhr.pending));
         const session = context.GameStartup._session;
         session.runtime.resolve();
@@ -2038,6 +2041,118 @@ async function testLoaderStartupErrorCallbacks() {
     }
 }
 
+// Fatal main failures must reject startup and log the original error even with a missing or empty start_error callback.
+async function testLoaderFatalMainReporting() {
+    const defaultStartError = loadLoaderEnvironment().CUSTOM_PARAMETERS.start_error;
+    for (const callback of ["default", "missing", "custom"]) {
+        for (const failure of ["trap", "exit", "abort", "on-exit"]) {
+            const { context, calls, scripts, request, runScript, restore, waitFor } = setupEngineStartup();
+            if (callback === "default") context.CUSTOM_PARAMETERS.start_error = defaultStartError;
+            if (callback === "missing") delete context.CUSTOM_PARAMETERS.start_error;
+            const trap = new WebAssembly.RuntimeError("memory access out of bounds");
+            context.Module.callMain = () => {
+                ++calls.main;
+                if (failure === "trap") throw trap;
+                if (failure === "abort") context.Module.onAbort("native assertion failed");
+                if (failure === "on-exit") context.Module.onExit(1);
+                return failure === "exit" ? 1 : 0;
+            };
+            const completion = context.EngineLoader.load("canvas", "game");
+            request("split/archive_files.json").complete('{"total_size":0,"content":[]}');
+            request("game_wasm.js").complete(Uint8Array.of(120).buffer);
+            await waitFor(() => scripts.length === 1);
+            runScript();
+            restore();
+            request("game.wasm").complete(Uint8Array.of(0, 97, 115, 109, 1, 0, 0, 0).buffer);
+            const message = failure === "trap" ? /memory access out of bounds/ :
+                failure === "abort" ? /native assertion failed/ : /Engine exited with code 1/;
+            await assert.rejects(completion, message);
+            assert.strictEqual(context.GameStartup._session.state, "failed", failure);
+            assert.strictEqual(calls.main, 1);
+            assert.strictEqual(calls.consoleErrors.length, 1, failure);
+            assert.match(calls.consoleErrors[0].message, message);
+            if (failure === "trap") assert.strictEqual(calls.consoleErrors[0], trap, "preserve the exception and its stack");
+            assert.strictEqual(calls.errors.length, callback === "custom" ? 1 : 0);
+        }
+    }
+}
+
+// Emscripten aborts and nonzero exits must report once before or after startup, including when a window error follows.
+async function testLoaderEngineFatalHooks() {
+    for (const state of ["loading", "started"]) {
+        for (const hook of ["abort", "exit"]) {
+            const { context, calls, requests, scripts, request, runScript, restore, waitFor } = setupEngineStartup();
+            const completion = context.EngineLoader.load("canvas", "game");
+            const session = context.GameStartup._session;
+            if (state === "started") {
+                request("split/archive_files.json").complete('{"total_size":0,"content":[]}');
+                request("game_wasm.js").complete(Uint8Array.of(120).buffer);
+                await waitFor(() => scripts.length === 1);
+                runScript();
+                restore();
+                request("game.wasm").complete(Uint8Array.of(0, 97, 115, 109, 1, 0, 0, 0).buffer);
+                await completion;
+                context.Module.printErr("ERROR:SCRIPT: recoverable script error");
+                assert.strictEqual(session.state, "started", "stderr output alone is not a fatal engine failure");
+                assert.strictEqual(calls.consoleErrors.length, 1);
+                calls.consoleErrors.length = 0;
+            }
+            context.Module.onExit(0);
+            assert.strictEqual(session.state, state, "a normal exit must not report failure");
+            assert.deepStrictEqual(calls.consoleErrors, []);
+            assert.deepStrictEqual(calls.errors, []);
+            if (hook === "abort") context.Module.onAbort("out of memory");
+            else context.Module.onExit(2);
+            if (state === "loading") {
+                await assert.rejects(completion, hook === "abort" ? /out of memory/ : /Engine exited with code 2/);
+                assert(requests.every(xhr => xhr.aborted));
+            }
+            assert.strictEqual(session.state, "failed");
+            context.Module.ccall = () => {};
+            context.window.dispatchEvent({ type: "error", error: new Error("same engine failure") });
+            assert.strictEqual(calls.errors.length, 1, "the abort and its subsequent exception are one failure");
+            assert.strictEqual(calls.consoleErrors.length, 1);
+        }
+    }
+}
+
+// A throwing start_error callback must not prevent Emscripten from completing its abort or exit operation.
+async function testLoaderFatalHookCallbackFailure() {
+    for (const hook of ["abort", "exit"]) {
+        const { context, calls } = setupEngineStartup();
+        const callbackError = new Error("custom error callback failed");
+        context.CUSTOM_PARAMETERS.start_error = () => { throw callbackError; };
+        const completion = context.EngineLoader.load("canvas", "game");
+        assert.doesNotThrow(() => {
+            if (hook === "abort") context.Module.onAbort("native assertion failed");
+            else context.Module.onExit(1);
+        });
+        await assert.rejects(completion, hook === "abort" ? /native assertion failed/ : /Engine exited with code 1/);
+        assert.strictEqual(calls.consoleErrors.length, 2);
+        assert.strictEqual(calls.consoleErrors[1], callbackError);
+    }
+}
+
+// The normal Emscripten main-loop unwind (zero/undefined result) must still finish startup without an error.
+async function testLoaderMainSuccessStatus() {
+    for (const status of [0, undefined]) {
+        const { context, calls, scripts, request, runScript, restore, waitFor } = setupEngineStartup();
+        context.Module.callMain = () => { ++calls.main; return status; };
+        const completion = context.EngineLoader.load("canvas", "game");
+        request("split/archive_files.json").complete('{"total_size":0,"content":[]}');
+        request("game_wasm.js").complete(Uint8Array.of(120).buffer);
+        await waitFor(() => scripts.length === 1);
+        runScript();
+        restore();
+        request("game.wasm").complete(Uint8Array.of(0, 97, 115, 109, 1, 0, 0, 0).buffer);
+        await completion;
+        assert.strictEqual(context.GameStartup._session.state, "started");
+        assert.strictEqual(calls.main, 1);
+        assert.deepStrictEqual(calls.errors, []);
+        assert.deepStrictEqual(calls.consoleErrors, []);
+    }
+}
+
 // Repeated or recursive startup callbacks must enter main only once (#9841).
 function testLoaderMainReentrancy() {
     const context = loadLoaderEnvironment();
@@ -2049,7 +2164,7 @@ function testLoaderMainReentrancy() {
         assert.strictEqual(started, 1, "start_success must not run recursively");
         context.Module._callMain();
     };
-    context.Module.callMain = () => ++main;
+    context.Module.callMain = () => { ++main; };
     context.Module._callMain();
     context.Module._callMain();
     assert.strictEqual(started, 1);
@@ -2219,6 +2334,8 @@ async function runTests() {
                        testLoaderStartupOverlapsManifest, testLoaderStartupEarlyEngineFailure,
                        testLoaderStartupEarlyWasm, testLoaderStartupEarlyStreamingWasm, testLoaderStartupEarlyStreamCancellation,
                        testLoaderStartupErrorCallbacks, testLoaderHandledStartupFailure,
+                       testLoaderFatalMainReporting, testLoaderEngineFatalHooks,
+                       testLoaderFatalHookCallbackFailure, testLoaderMainSuccessStatus,
                        testLoaderEngineSelection, testLoaderStartupDMFS, testLoaderStartupStorageFallback,
                        testLoaderInitialSyncRetryBudget, testLoaderPersistentSyncRetryBudget,
                        testTouchMouseSources, testMixedTouchAndMouseSources]) {
