@@ -14,6 +14,7 @@
 
 #include <assert.h>                 // for assert
 #include <float.h>                  // for FLT_MAX
+#include <math.h>
 #include <stdint.h>                 // for UINT32_MAX, uint64_t
 #include <string.h>                 // for memcpy
 
@@ -21,7 +22,6 @@
 #include <dlib/memory.h>            // for dmMemory
 #include <dlib/profile.h>           // for DM_PROFILE, DM_PROPERTY_*
 #include <dlib/math.h>              // for dmMath::Max
-#include <dmsdk/dlib/intersection.h>// for dmIntersection
 
 #include <graphics/graphics.h>      // for TextureParams, TextureFilter, Tex...
 #include <graphics/graphics_util.h> // for PackRGBA
@@ -119,6 +119,8 @@ namespace dmRender
         text_context.m_Frame = 0;
         text_context.m_PreviousFrame = ~0;
         text_context.m_TextEntriesFlushed = 0;
+        text_context.m_RenderDispatch = 0;
+        text_context.m_ActiveRenderItemCount = 0;
 
         dmMemory::Result result = dmMemory::AlignedMalloc(&text_context.m_ClientBuffer, 16, buffer_size);
         if (result != dmMemory::RESULT_OK)
@@ -156,6 +158,10 @@ namespace dmRender
     void FinalizeTextContext(HRenderContext render_context)
     {
         TextContext& text_context = render_context->m_TextContext;
+        for (uint32_t i = 0; i < text_context.m_RenderItems.Size(); ++i)
+            DeleteRenderItem(render_context, text_context.m_RenderItems[i]);
+        if (text_context.m_RenderDispatch != 0)
+            UnregisterRenderListDispatch(render_context, text_context.m_RenderDispatch);
         ReleaseTextEntries(text_context);
         for (uint32_t i = 0; i < text_context.m_ConstantBuffers.Size(); ++i)
         {
@@ -169,6 +175,9 @@ namespace dmRender
     void ClearTextEntries(HRenderContext render_context)
     {
         TextContext& text_context = render_context->m_TextContext;
+        for (uint32_t i = 0; i < text_context.m_ActiveRenderItemCount; ++i)
+            Enable(render_context, text_context.m_RenderItems[i], false);
+        text_context.m_ActiveRenderItemCount = 0;
         ReleaseTextEntries(text_context);
         text_context.m_TextEntries.SetSize(0);
         text_context.m_TextEntriesFlushed = 0;
@@ -562,7 +571,7 @@ namespace dmRender
         DM_PROFILE("FontRenderBatch");
         TextContext& text_context = render_context->m_TextContext;
 
-        const TextEntry& first_te = *(TextEntry*) buf[*begin].m_UserData;
+        const TextEntry& first_te = text_context.m_TextEntries[buf[*begin].m_UserData];
 
         HFontMap font_map = first_te.m_FontMap;
         if (!font_map->m_IsVector)
@@ -691,7 +700,7 @@ namespace dmRender
 
         for (uint32_t *i = begin;i != end; ++i)
         {
-            const TextEntry& te = *(TextEntry*) buf[*i].m_UserData;
+            const TextEntry& te = text_context.m_TextEntries[buf[*i].m_UserData];
             const char* text = te.m_TextLayout ? "" : &text_context.m_TextBuffer[te.m_StringOffset];
 
             float sdf_scale = 0.0f;
@@ -757,22 +766,6 @@ namespace dmRender
         }
     }
 
-    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
-    {
-        DM_PROFILE("Label");
-
-        const dmIntersection::Frustum frustum = *params.m_Frustum;
-        uint32_t num_entries = params.m_NumEntries;
-        for (uint32_t i = 0; i < num_entries; ++i)
-        {
-            dmRender::RenderListEntry* entry = &params.m_Entries[i];
-            TextEntry* te = ((TextEntry*) entry->m_UserData);
-
-            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, te->m_FrustumCullingCenter, te->m_FrustumCullingRadiusSq);
-            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
-        }
-    }
-
     void FlushTexts(HRenderContext render_context, uint32_t major_order, bool final)
     {
         DM_PROFILE("FlushTexts");
@@ -799,24 +792,29 @@ namespace dmRender
 
             if (count > 0)
             {
-                dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
-                dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &FontRenderListDispatch, &RenderListFrustumCulling, render_context);
-                dmRender::RenderListEntry* write_ptr = render_list;
+                if (text_context.m_RenderDispatch == 0)
+                    text_context.m_RenderDispatch = RegisterRenderListDispatch(render_context, FontRenderListDispatch, 0, render_context);
 
                 for( uint32_t i = 0; i < count; ++i )
                 {
-                    TextEntry& te = text_context.m_TextEntries[text_context.m_TextEntriesFlushed + i];
-                    write_ptr->m_WorldPosition = Point3(te.m_Transform.getTranslation());
-                    write_ptr->m_MinorOrder = 0;
-                    write_ptr->m_MajorOrder = major_order;
-                    write_ptr->m_Order = te.m_RenderOrder & 0xFFFFFF;
-                    write_ptr->m_UserData = (uintptr_t) &te; // The text entry must live until the dispatch is done
-                    write_ptr->m_BatchKey = te.m_BatchKey;
-                    write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(te.m_Material);
-                    write_ptr->m_Dispatch = dispatch;
-                    write_ptr++;
+                    uint32_t   index = text_context.m_TextEntriesFlushed + i;
+                    TextEntry& te = text_context.m_TextEntries[index];
+                    if (index == text_context.m_RenderItems.Size())
+                    {
+                        if (text_context.m_RenderItems.Full())
+                            text_context.m_RenderItems.OffsetCapacity(32);
+                        text_context.m_RenderItems.Push(NewRenderItem(render_context, text_context.m_RenderDispatch, index));
+                    }
+                    HRenderItem item = text_context.m_RenderItems[index];
+                    SetWorldTransform(render_context, item, te.m_Transform);
+                    SetBoundingSphere(render_context, item, te.m_FrustumCullingCenter, sqrtf(te.m_FrustumCullingRadiusSq));
+                    SetMaterial(render_context, item, te.m_Material);
+                    SetOrder(render_context, item, (RenderOrder)major_order, te.m_RenderOrder);
+                    SetBatchKey(render_context, item, te.m_BatchKey);
+                    Enable(render_context, item, true);
                 }
-                dmRender::RenderListSubmit(render_context, render_list, write_ptr);
+                text_context.m_ActiveRenderItemCount = text_context.m_TextEntries.Size();
+                SubmitRenderListDispatch(render_context, text_context.m_RenderDispatch);
             }
         }
 

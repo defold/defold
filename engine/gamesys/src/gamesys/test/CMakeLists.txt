@@ -216,8 +216,13 @@ set(_GS_TEST_INCLUDES
   "${CMAKE_CURRENT_BINARY_DIR}")
 
 function(gamesys_configure_common_test target)
-  cmake_parse_arguments(GS_TEST "BENCHMARK;PROFILE" "" "" ${ARGN})
+  cmake_parse_arguments(GS_TEST "BENCHMARK;PROFILE;METAL" "" "" ${ARGN})
   set(_test_libs ${_DEFOLD_TEST_LIBS})
+  if(GS_TEST_METAL)
+    list(REMOVE_ITEM _test_libs platform_null)
+    target_compile_definitions(${target} PRIVATE DM_TEST_GAMESYS_METAL=1)
+    defold_target_link_graphics(${target} ${TARGET_PLATFORM} SCOPE PRIVATE)
+  endif()
   if(GS_TEST_BENCHMARK OR GS_TEST_PROFILE)
     list(REMOVE_ITEM _test_libs profile_null)
     list(APPEND _test_libs profile)
@@ -238,7 +243,11 @@ function(gamesys_configure_common_test target)
   # Keep them together because resource reload tests modify staged files.
   # HTTP tests register separately and retain the shared server group.
   if(NOT GS_TEST_BENCHMARK)
-    defold_register_test_target(${target} ON "${GS_TEST_RUN_DIR}"
+    set(_run_by_default ON)
+    if(GS_TEST_METAL)
+      set(_run_by_default OFF)
+    endif()
+    defold_register_test_target(${target} ${_run_by_default} "${GS_TEST_RUN_DIR}"
       RUN_GROUP gamesys
       RUNTIME_DEPENDS gamesys_test_content
       STAGE_FILES
@@ -274,6 +283,30 @@ defold_add_executable(test_gamesys_profile
   "${GS_TEST_ROOT}/test_gamesys_profile.cpp"
   ${_TEST1_EXPORTED_CPP} ${_EMBED_HEADERS} ${_EMBED_CPP})
 gamesys_configure_common_test(test_gamesys_profile PROFILE)
+
+if(TARGET graphics_metal AND "engine" IN_LIST DEFOLD_SELECTED_ENGINE_LIBS AND TARGET_PLATFORM MATCHES "^(arm64|x86_64)-macos$")
+  set(_model_gpu_shader "${CMAKE_CURRENT_BINARY_DIR}/model_gpu.spc")
+  add_custom_command(
+    OUTPUT "${_model_gpu_shader}"
+    COMMAND "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST} -cp "${_GS_BOB_CLASSPATH}"
+      com.dynamo.bob.pipeline.ShaderProgramBuilder
+      "${GS_TEST_ROOT}/model/gpu_culling.vp" "${GS_TEST_ROOT}/model/gpu_culling.fp"
+      "${_model_gpu_shader}" "${TARGET_PLATFORM}" "${GS_TEST_ROOT}"
+    DEPENDS "${GS_TEST_ROOT}/model/gpu_culling.vp" "${GS_TEST_ROOT}/model/gpu_culling.fp"
+      "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS}
+    VERBATIM)
+  add_custom_target(gamesys_model_gpu_shader DEPENDS "${_model_gpu_shader}")
+  defold_create_exported_symbols_file("${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_model_gpu.cpp"
+    "${_TEST1_SYMBOLS};GraphicsAdapterMetal")
+  defold_add_executable(test_gamesys_model_gpu
+    "${GS_TEST_ROOT}/test_gamesys_model_gpu.cpp"
+    "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_model_gpu.cpp" ${_EMBED_HEADERS} ${_EMBED_CPP})
+  gamesys_configure_common_test(test_gamesys_model_gpu METAL)
+  target_compile_definitions(test_gamesys_model_gpu PRIVATE
+    MODEL_GPU_SHADER_FILE="${_model_gpu_shader}"
+    INDIRECT_SHADER_FILE="${DEFOLD_BUILD_HOME}/engine/engine/build/${TARGET_PLATFORM}/content/materials/culling_instances.spc")
+  add_dependencies(test_gamesys_model_gpu engine_culling_instances_shader gamesys_model_gpu_shader gamesys_test_data_model)
+endif()
 
 # Opt-in CPU benchmark using real model/rig code, null devices, and profiler counters.
 defold_feature_enabled(performance_tests GAMESYS_BUILD_PERFORMANCE_TESTS)

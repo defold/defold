@@ -1395,6 +1395,992 @@ static void NoopDrawDispatch(dmRender::RenderListDispatchParams const & params)
     (void) params;
 }
 
+static void PersistentItemVisibility(const dmRender::RenderListVisibilityParams& params)
+{
+    for (uint32_t i = 0; i < params.m_NumEntries; ++i)
+    {
+        dmRender::RenderListEntry& entry = params.m_Entries[i];
+        Vector4                    center(entry.m_WorldPosition.getX(), entry.m_WorldPosition.getY(), entry.m_WorldPosition.getZ(), 1.0f);
+        entry.m_Visibility = dmIntersection::TestFrustumSphereSq(*params.m_Frustum, center, 1.0f) ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+    }
+}
+
+static void PersistentItemDispatch(const dmRender::RenderListDispatchParams& params)
+{
+    if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+        *(uint32_t*)params.m_UserData += params.m_End - params.m_Begin;
+}
+
+static void AssertInvalidRenderItem(dmRender::HRenderContext context, dmRender::HRenderItem item)
+{
+    ASSERT_FALSE(dmRender::Enable(context, item, true));
+    ASSERT_FALSE(dmRender::Enable(context, item, false));
+    ASSERT_FALSE(dmRender::SetWorldTransform(context, item, Matrix4::identity()));
+    ASSERT_FALSE(dmRender::SetBoundingSphere(context, item, Point3(0, 0, 0), 1.0f));
+    ASSERT_FALSE(dmRender::SetBoundingAABB(context, item, Vector3(-1, -1, -1), Vector3(1, 1, 1)));
+    ASSERT_FALSE(dmRender::SetBoundingOBB(context, item, Vector3(-1, -1, -1), Vector3(1, 1, 1)));
+    ASSERT_FALSE(dmRender::SetBoundingAABB(context, item, Vector3(1), Vector3(-1)));
+    ASSERT_FALSE(dmRender::SetBatchKey(context, item, 1));
+    ASSERT_FALSE(dmRender::SetMaterial(context, item, 0));
+    ASSERT_FALSE(dmRender::SetOrder(context, item, dmRender::RENDER_ORDER_AFTER_WORLD, 1));
+    ASSERT_FALSE(dmRender::DeleteRenderItem(context, item));
+}
+
+// Verifies GUI/text ordering survives material changes and overrides, and a
+// recycled slot returns to world ordering instead of inheriting its owner.
+TEST_F(dmRenderTest, PersistentRenderItemExplicitOrder)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    dmGraphics::ShaderDescBuilder shader;
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+    dmRender::HMaterial  material = dmRender::NewMaterial(m_Context, program);
+    dmRender::SetMaterialTags(material, 0, 0);
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::HRenderItem         items[3];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
+        ASSERT_TRUE(dmRender::SetOrder(m_Context, items[i], i == 2 ? dmRender::RENDER_ORDER_BEFORE_WORLD : dmRender::RENDER_ORDER_AFTER_WORLD, 20 - i * 5));
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], material));
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
+    }
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    for (uint32_t pass = 0; pass < 2; ++pass)
+    {
+        context->m_Material = pass ? material : 0;
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[0], 0));
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        ASSERT_EQ(3u, context->m_RenderListSortBuffer.Size());
+        ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
+        ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[1]);
+        ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[2]);
+    }
+    context->m_Material = 0;
+    uint32_t recycled_slot = (uint32_t)items[2];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+    dmRender::HRenderItem replacement = dmRender::NewRenderItem(m_Context, dispatch, 99);
+    ASSERT_EQ(recycled_slot, (uint32_t)replacement);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, replacement, 0));
+    ASSERT_EQ(dmRender::RENDER_ORDER_WORLD, context->m_RenderList[recycled_slot].m_MajorOrder);
+    ASSERT_EQ(0u, context->m_RenderList[recycled_slot].m_Order);
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, replacement));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Verifies retained items coexist with legacy submissions, updates invalidate
+// callback visibility, and recycled handles cannot mutate replacement items.
+TEST_F(dmRenderTest, PersistentRenderItemLifecycle)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      drawn = 0;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, PersistentItemDispatch, PersistentItemVisibility, &drawn);
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::HRenderListDispatch transient_dispatch = dmRender::RenderListMakeDispatch(m_Context, PersistentItemDispatch, PersistentItemVisibility, &drawn);
+    dmRender::RenderListEntry*    transient = dmRender::RenderListAlloc(m_Context, 1);
+    transient->m_Dispatch = transient_dispatch;
+    transient->m_UserData = 77;
+    transient->m_TagListKey = dmRender::RegisterMaterialTagList(m_Context, 0, 0);
+    transient->m_WorldPosition = Point3(0, 0, 0);
+    dmRender::RenderListSubmit(m_Context, transient, transient + 1);
+
+    dmRender::HRenderItem item = dmRender::NewRenderItem(m_Context, dispatch, 42);
+    uint32_t              slot = (uint32_t)item;
+    ASSERT_EQ(dmRender::RENDERLIST_INVALID_DISPATCH, context->m_RenderList[slot].m_Dispatch);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
+    ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, item, Matrix4::translation(Vector3(0, 0, 0.5f))));
+    ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
+    dmRender::RenderListEnd(m_Context);
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(2u, drawn);
+    ASSERT_EQ(77u, context->m_RenderList[1].m_UserData);
+    ASSERT_EQ(42u, context->m_RenderList[slot].m_UserData);
+    ASSERT_EQ(0.5f, context->m_RenderList[slot].m_WorldPosition.getZ());
+    uint32_t hash = context->m_RenderList[slot].m_FrustumHash;
+    ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
+    ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
+    ASSERT_EQ(hash, context->m_RenderList[slot].m_FrustumHash);
+    ASSERT_EQ(1u, context->m_RenderListRanges.Size());
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    ASSERT_EQ(1u, context->m_RenderList.Size());
+    ASSERT_EQ(1u, context->m_RenderListDispatch.Size());
+    ASSERT_EQ(hash, context->m_RenderList[slot].m_FrustumHash);
+    ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, item, Matrix4::translation(Vector3(100, 0, 0.5f))));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(dmRender::VISIBILITY_NONE, context->m_RenderList[slot].m_Visibility);
+    ASSERT_EQ(2u, drawn);
+    ASSERT_TRUE(dmRender::Enable(m_Context, item, false));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmRender::Enable(m_Context, item, false));
+    ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
+    ASSERT_EQ(100.0f, context->m_PersistentRenderItems[slot].m_WorldTransform.getTranslation().getX());
+    ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(3u, drawn);
+    dmhash_t                      tag = dmHashString64("persistent_tag");
+    dmGraphics::ShaderDescBuilder shader;
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+    dmRender::HMaterial  material = dmRender::NewMaterial(m_Context, program);
+    dmRender::SetMaterialTags(material, 1, &tag);
+    dmRender::HPredicate predicate = dmRender::NewPredicate();
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddPredicateTag(predicate, tag));
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, material));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, predicate, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(4u, drawn);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, predicate, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(4u, drawn);
+    dmRender::DeletePredicate(predicate);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, material));
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, item));
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    AssertInvalidRenderItem(m_Context, 0);
+    AssertInvalidRenderItem(m_Context, item);
+    dmRender::HRenderItem replacement = dmRender::NewRenderItem(m_Context, dispatch, 99);
+    ASSERT_EQ((uint32_t)item, (uint32_t)replacement);
+    ASSERT_NE(item, replacement);
+    AssertInvalidRenderItem(m_Context, item);
+    ASSERT_EQ(99u, context->m_RenderList[slot].m_UserData);
+    ASSERT_EQ(0u, context->m_RenderList[slot].m_BatchKey);
+    ASSERT_EQ(0u, context->m_RenderList[slot].m_TagListKey);
+    ASSERT_EQ(0u, context->m_RenderList[slot].m_Order);
+    ASSERT_EQ(0u, context->m_RenderList[slot].m_MinorOrder);
+    ASSERT_EQ(dmRender::RENDER_ORDER_WORLD, context->m_RenderList[slot].m_MajorOrder);
+    ASSERT_EQ(dmRender::RENDERLIST_INVALID_DISPATCH, context->m_RenderList[slot].m_Dispatch);
+    ASSERT_EQ(0.0f, context->m_RenderList[slot].m_WorldPosition.getX());
+    ASSERT_EQ(dmRender::BOUNDING_VOLUME_NONE, context->m_PersistentRenderItems[slot].m_BoundingVolumeType);
+    const Matrix4& replacement_transform = context->m_PersistentRenderItems[slot].m_WorldTransform;
+    AssertMatrixUniformData(Matrix4::identity(), (const float*)&replacement_transform);
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, replacement));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+    ASSERT_EQ(dispatch, dmRender::RegisterRenderListDispatch(m_Context, PersistentItemDispatch, 0, &drawn));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListBegin(m_Context);
+    ASSERT_EQ(0u, context->m_RenderListDispatch.Size());
+}
+
+static void CountingPersistentItemVisibility(const dmRender::RenderListVisibilityParams& params)
+{
+    *(uint32_t*)params.m_UserData += params.m_NumEntries;
+    PersistentItemVisibility(params);
+}
+
+// Retained growth must preserve outstanding legacy allocations and submitted
+// entries, including partial submissions and visibility cached by earlier draws.
+TEST_F(dmRenderTest, PersistentRenderItemsDuringTransientAllocation)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      visibility_count = 0;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &visibility_count);
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::HRenderListDispatch transient_dispatch = dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &visibility_count);
+    dmRender::RenderListEntry*    transient = dmRender::RenderListAlloc(m_Context, 3);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        transient[i].m_Dispatch = transient_dispatch;
+        transient[i].m_UserData = 77 + i;
+        transient[i].m_TagListKey = dmRender::RegisterMaterialTagList(m_Context, 0, 0);
+    }
+    dmRender::HRenderItem items[270];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
+    ASSERT_EQ(transient, context->m_TransientRenderList.Begin());
+    ASSERT_EQ(77u, transient[0].m_UserData);
+    ASSERT_EQ(78u, transient[1].m_UserData);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[0], 0));
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[0], true));
+    dmRender::RenderListSubmit(m_Context, transient, transient + 2);
+    ASSERT_EQ(2u, context->m_TransientRenderList.Size());
+    dmRender::RenderListEnd(m_Context);
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(3u, visibility_count);
+    ASSERT_EQ(3u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(77u, context->m_RenderList[270].m_UserData);
+    ASSERT_EQ(78u, context->m_RenderList[271].m_UserData);
+    uint32_t hash = context->m_TransientRenderList[0].m_FrustumHash;
+
+    transient = dmRender::RenderListAlloc(m_Context, 1);
+    transient->m_Dispatch = transient_dispatch;
+    transient->m_UserData = 88;
+    transient->m_TagListKey = dmRender::RegisterMaterialTagList(m_Context, 0, 0);
+    dmRender::HRenderItem extra = dmRender::NewRenderItem(m_Context, dispatch, 999);
+    ASSERT_EQ(88u, transient->m_UserData);
+    ASSERT_EQ(hash, context->m_TransientRenderList[0].m_FrustumHash);
+    dmRender::RenderListSubmit(m_Context, transient, transient + 1);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(4u, visibility_count);
+    ASSERT_EQ(4u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(77u, context->m_RenderList[271].m_UserData);
+    ASSERT_EQ(78u, context->m_RenderList[272].m_UserData);
+    ASSERT_EQ(88u, context->m_RenderList[273].m_UserData);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(4u, visibility_count);
+    ASSERT_FALSE(context->m_TransientRenderListDirty);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, extra));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+// Unchanged legacy draws reuse the snapshot; visibility changes must refresh it.
+// A snapshot-only hash canary detects a redundant copy without timing assertions.
+TEST_F(dmRenderTest, TransientRenderListSnapshotReuse)
+{
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+    uint32_t                 visibility_count = 0;
+    dmRender::RenderListBegin(m_Context);
+    dmRender::HRenderListDispatch dispatches[] = {
+        dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &visibility_count),
+        dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, 0),
+    };
+    dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(m_Context, 2);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        entries[i].m_Dispatch = dispatches[i];
+        entries[i].m_TagListKey = dmRender::RegisterMaterialTagList(m_Context, 0, 0);
+    }
+    dmRender::RenderListSubmit(m_Context, entries, entries + 2);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    for (uint32_t pass = 0; pass < 2; ++pass)
+    {
+        const dmRender::FrustumOptions* frustum = pass ? &options : 0;
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, frustum, dmRender::SORT_NONE));
+        uint32_t hash = context->m_TransientRenderList[0].m_FrustumHash;
+        ASSERT_EQ(pass, visibility_count);
+        for (uint32_t i = 0; i < 2; ++i)
+            context->m_RenderList[i].m_FrustumHash = 0x12345678;
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, frustum, dmRender::SORT_NONE));
+        ASSERT_EQ(pass, visibility_count);
+        ASSERT_EQ(hash, context->m_TransientRenderList[0].m_FrustumHash);
+        for (uint32_t i = 0; i < 2; ++i)
+            ASSERT_EQ(0x12345678u, context->m_RenderList[i].m_FrustumHash);
+    }
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(0u, context->m_RenderList[0].m_FrustumHash);
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+}
+
+// Slot zero stays invalid. Unloading worlds must leave their slots available without
+// moving surviving handles or confusing registration IDs with frame IDs.
+TEST_F(dmRenderTest, PersistentRenderItemDispatchSlotReuse)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    dmRender::HRenderItemDispatch dispatches[514];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches); ++i)
+    {
+        dispatches[i] = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+        ASSERT_NE(0u, dispatches[i]);
+    }
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches) - 1; ++i)
+        dmRender::UnregisterRenderListDispatch(m_Context, dispatches[i]);
+    dmRender::HRenderItemDispatch survivor = dispatches[513];
+    dmRender::HRenderItem         item = dmRender::NewRenderItem(m_Context, survivor, 42);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
+    ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
+    ASSERT_EQ(1u, dispatches[0]);
+    ASSERT_EQ((dmRender::RenderItemDispatch*)0, context->m_RenderItemDispatches[0]);
+    for (uint32_t frame = 0; frame < 2; ++frame)
+    {
+        dmRender::RenderListBegin(m_Context);
+        ASSERT_EQ(0u, context->m_RenderListDispatch.Size());
+        dmRender::SubmitRenderListDispatch(m_Context, survivor);
+        dmRender::HRenderListDispatch first = dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, 0);
+        dmRender::HRenderListDispatch second = dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, 0);
+        ASSERT_EQ(1u, first);
+        ASSERT_EQ(2u, second);
+        dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(m_Context, 2);
+        entries[0].m_Dispatch = first;
+        entries[1].m_Dispatch = second;
+        for (uint32_t i = 0; i < 2; ++i)
+            entries[i].m_TagListKey = dmRender::RegisterMaterialTagList(m_Context, 0, 0);
+        dmRender::RenderListSubmit(m_Context, entries, entries + 2);
+        dmRender::RenderListEnd(m_Context);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+        ASSERT_EQ(3u, context->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(0u, context->m_RenderItemDispatches[survivor]->m_FrameDispatch);
+        ASSERT_EQ(0u, context->m_RenderList[(uint32_t)item].m_Dispatch);
+    }
+    dmRender::HRenderItemDispatch replacement = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    ASSERT_EQ(dispatches[0], replacement);
+    ASSERT_EQ((dmRender::RenderItemDispatch*)0, context->m_RenderItemDispatches[0]);
+    dmRender::RenderListBegin(m_Context);
+    ASSERT_EQ(dmRender::RENDERLIST_INVALID_DISPATCH, context->m_RenderItemDispatches[replacement]->m_FrameDispatch);
+    ASSERT_EQ(dmRender::RENDERLIST_INVALID_DISPATCH, context->m_RenderItemDispatches[survivor]->m_FrameDispatch);
+    ASSERT_EQ(0u, dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, 0));
+    dmRender::SubmitRenderListDispatch(m_Context, survivor);
+    dmRender::SubmitRenderListDispatch(m_Context, replacement);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(1u, context->m_RenderList[(uint32_t)item].m_Dispatch);
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, item));
+    dmRender::UnregisterRenderListDispatch(m_Context, survivor);
+    dmRender::UnregisterRenderListDispatch(m_Context, replacement);
+}
+
+// Idle worlds consume no frame dispatch slots or cache work, even when their
+// registration IDs exceed eight bits. Equal-tag worlds follow submission order.
+TEST_F(dmRenderTest, PersistentRenderItemIdleWorlds)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    dmRender::HRenderItemDispatch dispatches[514];
+    dmRender::HRenderItem         items[514];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches); ++i)
+    {
+        dispatches[i] = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+        ASSERT_NE(0u, dispatches[i]);
+        items[i] = dmRender::NewRenderItem(m_Context, dispatches[i], i);
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], 0));
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
+    }
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatches[513]);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatches[513]);
+    ASSERT_EQ(1u, context->m_RenderListDispatch.Size());
+    ASSERT_EQ(1u, context->m_SubmittedRenderItemDispatches.Size());
+    dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(m_Context, 2);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        entries[i].m_Dispatch = dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, 0);
+        ASSERT_EQ(i + 1, entries[i].m_Dispatch);
+        entries[i].m_TagListKey = dmRender::RegisterMaterialTagList(m_Context, 0, 0);
+    }
+    dmRender::RenderListSubmit(m_Context, entries, entries + 2);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(3u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(dispatches[513], context->m_PersistentRenderItems[(uint32_t)items[513]].m_Dispatch);
+    ASSERT_EQ(0u, context->m_RenderList[(uint32_t)items[513]].m_Dispatch);
+    for (uint32_t i = 0; i < 513; ++i)
+    {
+        ASSERT_TRUE(context->m_RenderItemDispatches[dispatches[i]]->m_RebuildCache);
+        ASSERT_TRUE(context->m_RenderItemDispatches[dispatches[i]]->m_SortIndices.Empty());
+    }
+    ASSERT_FALSE(context->m_RenderItemDispatches[dispatches[513]]->m_RebuildCache);
+    // Mutating an idle world leaves the current draw's ranges valid.
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[1], false));
+    ASSERT_EQ(1u, context->m_RenderListRanges.Size());
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatches[513]);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatches[0]);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[513], context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[1]);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+        dmRender::UnregisterRenderListDispatch(m_Context, dispatches[i]);
+    }
+}
+
+// Sparse-world cache rebuilds use the dense enabled list after an allocation
+// peak. Erase-swap, slot reuse and disabled-item churn preserve that list.
+TEST_F(dmRenderTest, PersistentRenderItemDenseEnabledList)
+{
+    dmRender::RenderContext*       context = (dmRender::RenderContext*)m_Context;
+    dmRender::HRenderItemDispatch  dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmArray<dmRender::HRenderItem> items;
+    items.SetCapacity(100000);
+    for (uint32_t i = 0; i < items.Capacity(); ++i)
+        items.Push(dmRender::NewRenderItem(m_Context, dispatch, i));
+    uint32_t enabled[] = { 0, 50000, 99999 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(enabled); ++i)
+    {
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[enabled[i]], 0));
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[enabled[i]], true));
+    }
+    dmRender::RenderItemDispatch* registration = context->m_RenderItemDispatches[dispatch];
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[50000], false));
+    ASSERT_EQ(1u, context->m_PersistentRenderItems[99999].m_EnabledIndex);
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[50000], true));
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(3u, registration->m_SortIndices.Size());
+    ASSERT_LT(registration->m_SortIndices.Capacity(), 1000u);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(enabled); ++i)
+        ASSERT_EQ(enabled[i], registration->m_SortIndices[i]);
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[0]));
+    ASSERT_EQ(0u, context->m_PersistentRenderItems[50000].m_EnabledIndex);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_FALSE(registration->m_RebuildCache);
+    dmRender::HRenderItem replacement = dmRender::NewRenderItem(m_Context, dispatch, 42);
+    ASSERT_EQ(0u, (uint32_t)replacement);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, replacement, 0));
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, replacement));
+    ASSERT_FALSE(registration->m_RebuildCache);
+    for (uint32_t i = 1; i < items.Size(); ++i)
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+    ASSERT_TRUE(registration->m_EnabledItems.Empty());
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_TRUE(registration->m_SortIndices.Empty());
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+// Visibility resets must not touch disabled, deleted or unsubmitted retained
+// entries. The dense enabled list is shared with tag sorting.
+TEST_F(dmRenderTest, PersistentRenderItemInactiveVisibility)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::HRenderItemDispatch skipped = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::HRenderItem         items[4];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        items[i] = dmRender::NewRenderItem(m_Context, i == 3 ? skipped : dispatch, i);
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], 0));
+        ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, items[i], Point3(0, 0, 0), 1));
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
+    }
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[1], false));
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[2]));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        context->m_RenderList[(uint32_t)items[i]].m_FrustumHash = 0x12345678;
+        context->m_RenderList[(uint32_t)items[i]].m_Visibility = dmRender::VISIBILITY_NONE;
+    }
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(1u, context->m_RenderItemDispatches[dispatch]->m_SortIndices.Size());
+    ASSERT_TRUE(context->m_RenderItemDispatches[skipped]->m_SortIndices.Empty());
+    ASSERT_TRUE(context->m_RenderItemDispatches[skipped]->m_RebuildCache);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(0u, context->m_RenderList[0].m_FrustumHash);
+    for (uint32_t i = 1; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        ASSERT_EQ(0x12345678u, context->m_RenderList[(uint32_t)items[i]].m_FrustumHash);
+        ASSERT_EQ(dmRender::VISIBILITY_NONE, context->m_RenderList[(uint32_t)items[i]].m_Visibility);
+    }
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[0]));
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[1]));
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[3]));
+    dmRender::UnregisterRenderListDispatch(m_Context, skipped);
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+// Verifies world transforms are copied and retained, their translations drive
+// depth sorting, and only transform updates invalidate cached visibility.
+TEST_F(dmRenderTest, PersistentRenderItemTransform)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      visibility_count = 0;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &visibility_count);
+    dmRender::HRenderItem         first = dmRender::NewRenderItem(m_Context, dispatch, 1);
+    dmRender::HRenderItem         second = dmRender::NewRenderItem(m_Context, dispatch, 2);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, first, 0));
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, second, 0));
+    Matrix4       world_transform = Matrix4::translation(Vector3(0, 0, 0.5f)) * Matrix4::rotationZ(0.5f) * Matrix4::scale(Vector3(2, 3, 4));
+    const Matrix4 expected = world_transform;
+    ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, first, world_transform));
+    world_transform = Matrix4::identity();
+    ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, second, Matrix4::translation(Vector3(0, 0, 1.5f))));
+    ASSERT_TRUE(dmRender::Enable(m_Context, first, true));
+    ASSERT_TRUE(dmRender::Enable(m_Context, second, true));
+    dmRender::SetViewMatrix(m_Context, Matrix4::identity());
+    dmRender::SetProjectionMatrix(m_Context, Matrix4::identity());
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    AssertMatrixUniformData(expected, (const float*)&context->m_PersistentRenderItems[(uint32_t)first].m_WorldTransform);
+
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(2u, visibility_count);
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ((uint32_t)second, context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ((uint32_t)first, context->m_RenderListSortBuffer[1]);
+
+    ASSERT_TRUE(dmRender::SetBatchKey(m_Context, first, 0xaabbccddu));
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, first, 0));
+    ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(2u, visibility_count);
+
+    world_transform = expected;
+    world_transform.setTranslation(Vector3(0, 0, 2.5f));
+    ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, first, world_transform));
+    ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(3u, visibility_count);
+    ASSERT_EQ((uint32_t)first, context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ((uint32_t)second, context->m_RenderListSortBuffer[1]);
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    AssertMatrixUniformData(world_transform, (const float*)&context->m_PersistentRenderItems[(uint32_t)first].m_WorldTransform);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(3u, visibility_count);
+
+    // The same transform also lets callers notify a change to callback-owned bounds.
+    ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, first, world_transform));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(4u, visibility_count);
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, first));
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, second));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+// Verifies explicit spheres, AABBs and OBBs override legacy visibility, use the
+// documented coordinate spaces, and refresh visibility when type or data changes.
+TEST_F(dmRenderTest, PersistentRenderItemBoundingVolumes)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      callback_entries = 0;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &callback_entries);
+    dmRender::HRenderItem         items[3];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], 0));
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
+    }
+    ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, items[0], Matrix4::translation(Vector3(100, 0, 0))));
+    ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, items[0], Point3(1.5f, 0, 0), 0.5f));
+    ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, items[1], Matrix4::translation(Vector3(100, 0, 0))));
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, items[1], Vector3(1.5f, -0.25f, -0.25f), Vector3(2, 0.25f, 0.25f)));
+    Vector3 local_min(-0.25f, -0.5f, -0.25f);
+    Vector3 local_max(0.25f, 0.5f, 0.25f);
+    Matrix4 box_world = Matrix4::translation(Vector3(1.625f, 0, 0)) * Matrix4::scale(Vector3(3, 1, 1));
+    ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, items[2], box_world));
+    ASSERT_TRUE(dmRender::SetBoundingOBB(m_Context, items[2], local_min, local_max));
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-1, 1, -1, 1, -1, 1);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(0u, callback_entries);
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[1]);
+    uint32_t hash = context->m_RenderList[0].m_FrustumHash;
+    ASSERT_NE(0u, hash);
+    ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, items[0], Point3(1.5f, 0, 0), 0.5f));
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, items[1], Vector3(1.5f, -0.25f, -0.25f), Vector3(2, 0.25f, 0.25f)));
+    ASSERT_TRUE(dmRender::SetBoundingOBB(m_Context, items[2], local_min, local_max));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        ASSERT_EQ(hash, context->m_RenderList[(uint32_t)items[i]].m_FrustumHash);
+
+    ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, items[0], Point3(1.5f, 0, 0), 0.25f));
+    ASSERT_EQ(0u, context->m_RenderList[0].m_FrustumHash);
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, items[1], Vector3(-0.25f, -0.25f, -0.25f), Vector3(0.25f, 0.25f, 0.25f)));
+    box_world = Matrix4::translation(Vector3(1.625f, 0, 0)) * Matrix4::rotationZ(M_PI * 0.5f) * Matrix4::scale(Vector3(3, 1, 1));
+    ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, items[2], box_world));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[0]);
+
+    // Replacing a world-space volume with an OBB now uses the retained transform.
+    ASSERT_TRUE(dmRender::SetBoundingOBB(m_Context, items[1], local_min, local_max));
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, items[2], Vector3(-0.25f, -0.25f, -0.25f), Vector3(0.25f, 0.25f, 0.25f)));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ(0u, callback_entries);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+// Verifies a retained volume and legacy entries can share a dispatch without
+// callbacks overriding the volume, and an inverted AABB restores the callback.
+// An idle registration keeps persistent and frame dispatch IDs distinct.
+TEST_F(dmRenderTest, PersistentRenderItemBoundingVolumeFallback)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      callback_entries = 0;
+    dmRender::HRenderItemDispatch idle = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &callback_entries);
+    dmRender::HRenderItem         item = dmRender::NewRenderItem(m_Context, dispatch, 42);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
+    ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
+    ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, item, Point3(100, 0, 0), 1));
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::HRenderListDispatch frame_dispatch = context->m_RenderItemDispatches[dispatch]->m_FrameDispatch;
+    ASSERT_NE(dispatch, (uint32_t)frame_dispatch);
+    dmRender::RenderListEntry* transient = dmRender::RenderListAlloc(m_Context, 1);
+    transient->m_Dispatch = frame_dispatch;
+    transient->m_WorldPosition = Point3(0, 0, 0);
+    transient->m_TagListKey = dmRender::RegisterMaterialTagList(m_Context, 0, 0);
+    dmRender::RenderListSubmit(m_Context, transient, transient + 1);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(1u, callback_entries);
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer[0]);
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(1), Vector3(-1)));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(2u, callback_entries);
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    uint32_t hash = context->m_RenderList[(uint32_t)item].m_FrustumHash;
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(1), Vector3(-1)));
+    ASSERT_EQ(hash, context->m_RenderList[(uint32_t)item].m_FrustumHash);
+
+    ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, item, Point3(100, 0, 0), 1));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, item));
+    dmRender::HRenderItem replacement = dmRender::NewRenderItem(m_Context, dispatch, 99);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, replacement, 0));
+    ASSERT_TRUE(dmRender::Enable(m_Context, replacement, true));
+    AssertInvalidRenderItem(m_Context, item);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, replacement));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+    dmRender::UnregisterRenderListDispatch(m_Context, idle);
+}
+
+// Inverted AABBs on any axis remove stale bounds without a visibility callback;
+// repeated resets keep cached visibility, while point boxes still undergo culling.
+TEST_F(dmRenderTest, PersistentRenderItemInvalidAABB)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::HRenderItem         item = dmRender::NewRenderItem(m_Context, dispatch, 0);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
+    ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
+    ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, item, Matrix4::translation(Vector3(100, 0, 0))));
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    for (uint32_t axis = 0; axis < 3; ++axis)
+    {
+        ASSERT_TRUE(dmRender::SetBoundingOBB(m_Context, item, Vector3(-1), Vector3(1)));
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+        ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+        Vector3 min(-1);
+        Vector3 max(1);
+        min.setElem(axis, 2);
+        ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, min, max));
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+        ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+        uint32_t hash = context->m_RenderList[(uint32_t)item].m_FrustumHash;
+        ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(10), Vector3(-10)));
+        ASSERT_EQ(hash, context->m_RenderList[(uint32_t)item].m_FrustumHash);
+    }
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(100, 0, 0), Vector3(100, 0, 0)));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(0), Vector3(0)));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, item));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+// Verifies mirrored non-uniform scale and shear affect an OBB's visible extent,
+// and near/far rejection depends on the selected frustum planes.
+TEST_F(dmRenderTest, PersistentRenderItemBoundingOBBAffineTransforms)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::HRenderItem         item = dmRender::NewRenderItem(m_Context, dispatch, 0);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
+    ASSERT_TRUE(dmRender::SetBoundingOBB(m_Context, item, Vector3(-1, -2, -0.5f), Vector3(1, 2, 0.5f)));
+    ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-2, 2, -2, 2, -2, 2);
+    for (uint32_t planes = 0; planes < 2; ++planes)
+    {
+        options.m_NumPlanes = planes ? dmRender::FRUSTUM_PLANES_ALL : dmRender::FRUSTUM_PLANES_SIDES;
+        for (uint32_t depth = 0; depth < 2; ++depth)
+        {
+            for (uint32_t i = 0; i < 9; ++i)
+            {
+                Matrix4 world = Matrix4::rotationZ(0.3f) * Matrix4::scale(Vector3(-2, 0.5f, 3));
+                world.setElem(1, 0, 1.25f);
+                world.setTranslation(Vector3((float)i * 2 - 8, 0, depth ? 20 : 0));
+                ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, item, world));
+                // The transformed X half-width is about 4.41, so centers at
+                // +/-8 miss this frustum while centers at +/-6 intersect it.
+                bool visible = i > 0 && i < 8 && (!planes || !depth);
+                ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+                ASSERT_EQ(visible ? 1u : 0u, context->m_RenderListSortBuffer.Size());
+            }
+        }
+    }
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, item));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+static void CountingPersistentItemBatches(const dmRender::RenderListDispatchParams& params)
+{
+    if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+        ++*(uint32_t*)params.m_UserData;
+}
+
+// Verifies full batch-key matching, depth sorting and visibility updates without
+// rebuilding the registration's cached tag ranges.
+TEST_F(dmRenderTest, PersistentRenderItemBatchKeys)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      batches = 0;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, CountingPersistentItemBatches, 0, &batches);
+    dmRender::HRenderItem         items[3];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], 0));
+        ASSERT_TRUE(dmRender::SetBatchKey(m_Context, items[i], 7));
+        ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, items[i], Matrix4::translation(Vector3(0, 0, 3.0f - i))));
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
+    }
+    dmRender::SetViewMatrix(m_Context, Matrix4::identity());
+    dmRender::SetProjectionMatrix(m_Context, Matrix4::identity());
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+    ASSERT_EQ(1u, batches);
+    ASSERT_EQ(3u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[1]);
+    ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[2]);
+
+    batches = 0;
+    // Equal low 24 bits share a sort key, but full batch keys must still match.
+    ASSERT_TRUE(dmRender::SetBatchKey(m_Context, items[1], 0x01000007));
+    ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
+    ASSERT_EQ(1u, context->m_RenderListRanges.Size());
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+    ASSERT_EQ(3u, batches);
+    ASSERT_TRUE(dmRender::SetBatchKey(m_Context, items[1], 7));
+
+    ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, items[1], Point3(100, 0, 0), 1.0f));
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    batches = 0;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_FRONT_TO_BACK));
+    ASSERT_EQ(1u, batches);
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, items[1], Vector3(1), Vector3(-1)));
+    batches = 0;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+    ASSERT_EQ(1u, batches);
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[1]);
+    ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[2]);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+// Materials supply predicate tags without choosing a geometry path or sort order.
+// Explicit order survives material changes and render-script overrides.
+TEST_F(dmRenderTest, PersistentRenderItemMaterialTagsPreserveOrder)
+{
+    dmGraphics::ShaderDescBuilder shader;
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "custom_transform", 0, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+    dmGraphics::HProgram        program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+    dmRender::HMaterial         regular = dmRender::NewMaterial(m_Context, program);
+    dmRender::HMaterial         instanced = dmRender::NewMaterial(m_Context, program);
+    dmGraphics::VertexAttribute attribute = {};
+    attribute.m_NameHash = dmHashString64("custom_transform");
+    attribute.m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
+    attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4;
+    attribute.m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+    attribute.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+    Matrix4 identity = Matrix4::identity();
+    attribute.m_Values.m_BinaryValues.m_Data = (uint8_t*)&identity;
+    attribute.m_Values.m_BinaryValues.m_Count = sizeof(identity);
+    dmRender::SetMaterialProgramAttributes(instanced, &attribute, 1);
+    ASSERT_NE((dmGraphics::HVertexDeclaration)0, dmRender::GetVertexDeclaration(instanced, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE));
+    ASSERT_EQ((dmGraphics::HVertexDeclaration)0, dmRender::GetVertexDeclaration(regular, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE));
+    dmhash_t tag = dmHashString64("instanced");
+    dmRender::SetMaterialTags(instanced, 1, &tag);
+    dmRender::SetMaterialTags(regular, 0, 0);
+
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::HRenderItem         items[3];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], instanced));
+        ASSERT_EQ(dmRender::RENDER_ORDER_WORLD, context->m_RenderList[(uint32_t)items[i]].m_MajorOrder);
+        ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, items[i], Matrix4::translation(Vector3(0, 0, 3.0f - i))));
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
+    }
+    ASSERT_TRUE(dmRender::SetOrder(m_Context, items[0], dmRender::RENDER_ORDER_BEFORE_WORLD, 0));
+    dmRender::SetViewMatrix(m_Context, identity);
+    dmRender::SetProjectionMatrix(m_Context, identity);
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+    ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[1]);
+    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[2]);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[0], regular));
+    ASSERT_EQ(1u, context->m_RenderItemDispatches[dispatch]->m_NumChanges);
+    ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
+    for (uint32_t pass = 0; pass < 2; ++pass)
+    {
+        context->m_Material = pass ? regular : instanced;
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+        ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[0]);
+        ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[1]);
+        ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[2]);
+    }
+    context->m_Material = 0;
+    dmRender::HPredicate predicate = dmRender::NewPredicate();
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddPredicateTag(predicate, tag));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, predicate, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[1]);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[1], 0));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, predicate, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
+    // Refresh tags even when the material handle itself stays unchanged.
+    dmRender::SetMaterialTags(instanced, 0, 0);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[2], instanced));
+    ASSERT_EQ(1u, context->m_RenderItemDispatches[dispatch]->m_NumChanges);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, predicate, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[2], instanced));
+    ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+    dmRender::DeletePredicate(predicate);
+    dmRender::DeleteMaterial(m_Context, regular);
+    dmRender::DeleteMaterial(m_Context, instanced);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Verifies 100K handles, incremental membership updates and sparse sort-value
+// storage after most registrations are deleted.
+TEST_F(dmRenderTest, PersistentRenderItems100K)
+{
+    uint32_t                       drawn = 0;
+    dmRender::HRenderItemDispatch  dispatch = dmRender::RegisterRenderListDispatch(m_Context, PersistentItemDispatch, 0, &drawn);
+    dmArray<dmRender::HRenderItem> items;
+    items.SetCapacity(100000);
+    for (uint32_t i = 0; i < items.Capacity(); ++i)
+    {
+        dmRender::HRenderItem item = dmRender::NewRenderItem(m_Context, dispatch, i);
+        items.Push(item);
+        dmRender::Enable(m_Context, item, true);
+    }
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+    ASSERT_NE(items[65535], items[65536]);
+    ASSERT_EQ(100000u, context->m_PersistentRenderItems.Size());
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(100000u, drawn);
+    dmRender::RenderItemDispatch* registration = context->m_RenderItemDispatches[dispatch];
+    const uint32_t*               cached_indices = registration->m_SortIndices.Begin();
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[0], false));
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[0], true));
+    ASSERT_FALSE(registration->m_RebuildCache);
+    ASSERT_EQ(1u, registration->m_NumChanges);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(200000u, drawn);
+    ASSERT_EQ(0u, registration->m_NumChanges);
+    ASSERT_EQ(cached_indices, registration->m_SortIndices.Begin());
+    ASSERT_EQ(0u, registration->m_SortIndices[0]);
+    ASSERT_EQ(99999u, registration->m_SortIndices.Back());
+    uint32_t                         capacity = context->m_RenderList.Capacity();
+    const dmRender::RenderListEntry* storage = context->m_RenderList.Begin();
+    for (uint32_t i = 0; i < items.Size() - 1; ++i)
+        dmRender::DeleteRenderItem(m_Context, items[i]);
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    ASSERT_EQ(storage, context->m_RenderList.Begin());
+    ASSERT_EQ(capacity, context->m_RenderList.Capacity());
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(99999u, context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ(200001u, drawn);
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[99999]));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+// Verifies skipped component worlds keep their handles but produce neither
+// visibility callbacks nor draws until their dispatch is submitted again.
+TEST_F(dmRenderTest, PersistentRenderItemDispatchSubmission)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    uint32_t                      visibility_count = 0;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, CountingPersistentItemVisibility, &visibility_count);
+    dmRender::HRenderItem         item = dmRender::NewRenderItem(m_Context, dispatch, 42);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, 0));
+    ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    for (uint32_t frame = 0; frame < 3; ++frame)
+    {
+        dmRender::RenderListBegin(m_Context);
+        if (frame != 1)
+        {
+            dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+            dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+        }
+        dmRender::RenderListEnd(m_Context);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+        ASSERT_EQ(frame == 1 ? 0u : 1u, context->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(1u, visibility_count);
+        ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
+        ASSERT_EQ(42u, context->m_RenderList[(uint32_t)item].m_UserData);
+    }
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, item));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
 static void TestDrawVisibilityDispatch(dmRender::RenderListDispatchParams const & params)
 {
     TestDrawDispatchCtx *ctx = (TestDrawDispatchCtx*) params.m_UserData;
@@ -1967,7 +2953,7 @@ TEST_F(dmRenderTest, TestRenderListTagSortStableOrder)
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
 
         dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
-        ASSERT_EQ(count, context->m_RenderListSortIndices.Size());
+        ASSERT_EQ(count, context->m_TransientRenderListIndices.Size());
         uint32_t index = 0;
         for (uint32_t tag = 0; tag < DM_ARRAY_SIZE(tag_keys); ++tag)
         {
@@ -1975,13 +2961,324 @@ TEST_F(dmRenderTest, TestRenderListTagSortStableOrder)
             {
                 if (context->m_RenderList[i].m_TagListKey == tag_keys[tag])
                 {
-                    ASSERT_EQ(i, context->m_RenderListSortIndices[index]);
+                    ASSERT_EQ(i, context->m_TransientRenderListIndices[index]);
                     ++index;
                 }
             }
         }
         ASSERT_EQ(count, index);
     }
+}
+
+struct TestRenderItemRangeOrder
+{
+    const uint32_t*    m_Indices;
+    dmArray<uint32_t>* m_DrawOrder;
+};
+
+static void AppendRenderItemRangeOrder(void* ctx, uint32_t tag_list_key, size_t start, size_t count)
+{
+    TestRenderItemRangeOrder* order = (TestRenderItemRangeOrder*)ctx;
+    order->m_DrawOrder->PushArray(order->m_Indices + start, count);
+}
+
+static void AssertRenderItemTagOrder(dmRender::HRenderContext render_context)
+{
+    dmRender::RenderContext*           context = (dmRender::RenderContext*)render_context;
+    dmArray<dmRender::RenderListEntry> entries;
+    uint32_t                           num_persistent = context->m_PersistentRenderItems.Size();
+    entries.SetCapacity(num_persistent + context->m_TransientRenderList.Size());
+    entries.PushArray(context->m_RenderList.Begin(), num_persistent);
+    entries.PushArray(context->m_TransientRenderList.Begin(), context->m_TransientRenderList.Size());
+    dmArray<uint32_t> indices;
+    indices.SetCapacity(entries.Size());
+    for (uint32_t i = 0; i < context->m_PersistentRenderItems.Size(); ++i)
+    {
+        if (context->m_PersistentRenderItems[i].m_Enabled)
+            indices.Push(i);
+    }
+    for (uint32_t i = 0; i < context->m_TransientRenderListIndices.Size(); ++i)
+        indices.Push(num_persistent + context->m_TransientRenderListIndices[i]);
+    dmRender::RenderListEntrySorter sort;
+    sort.m_Base = entries.Begin();
+    if (indices.Size() > 1)
+        std::stable_sort(indices.Begin(), indices.End(), sort);
+    dmArray<uint32_t> expected;
+    expected.SetCapacity(indices.Size());
+    TestRenderItemRangeOrder      order = { indices.Begin(), &expected };
+    dmRender::FindRangeComparator comp;
+    comp.m_Entries = entries.Begin();
+    dmRender::FindRenderListRanges(indices.Begin(), 0, indices.Size(), entries.Begin(), comp, &order, AppendRenderItemRangeOrder);
+
+    const dmRender::SortOrder sort_orders[] = { dmRender::SORT_NONE, dmRender::SORT_FRONT_TO_BACK };
+    for (uint32_t s = 0; s < DM_ARRAY_SIZE(sort_orders); ++s)
+    {
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(render_context, 0, 0, 0, sort_orders[s]));
+        ASSERT_EQ(expected.Size(), context->m_RenderListSortBuffer.Size());
+        for (uint32_t i = 0; i < expected.Size(); ++i)
+            ASSERT_EQ(expected[i], context->m_RenderListSortBuffer[i]);
+    }
+}
+
+// Verifies cached tag ranges preserve legacy equal-key draw order across frames,
+// mixed submissions, mid-frame additions and retained membership/tag changes.
+// Legacy entries use the mapped frame ID rather than the persistent registration.
+TEST_F(dmRenderTest, PersistentRenderItemTagRangeMerge)
+{
+    dmGraphics::ShaderDescBuilder shader;
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+    dmhash_t             tags[] = { dmHashString64("range_a"), dmHashString64("range_b"), dmHashString64("range_c") };
+    dmRender::HMaterial  materials[DM_ARRAY_SIZE(tags)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        materials[i] = dmRender::NewMaterial(m_Context, program);
+        dmRender::SetMaterialTags(materials[i], 1, &tags[i]);
+    }
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    dmRender::HRenderItemDispatch idle = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::HRenderItem         items[9];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], materials[i % DM_ARRAY_SIZE(materials)]));
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
+    }
+    const uint32_t transient_counts[] = { 0, 1, 17, 2, 0 };
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(transient_counts); ++frame)
+    {
+        dmRender::RenderListBegin(m_Context);
+        dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+        dmRender::HRenderListDispatch frame_dispatch = context->m_RenderItemDispatches[dispatch]->m_FrameDispatch;
+        ASSERT_NE(dispatch, (uint32_t)frame_dispatch);
+        dmRender::RenderListEntry* entries = dmRender::RenderListAlloc(m_Context, transient_counts[frame]);
+        for (uint32_t i = 0; i < transient_counts[frame]; ++i)
+        {
+            entries[i].m_Dispatch = frame_dispatch;
+            entries[i].m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+            entries[i].m_TagListKey = dmRender::GetMaterialTagListKey(materials[(frame + i * 2) % DM_ARRAY_SIZE(materials)]);
+        }
+        dmRender::RenderListSubmit(m_Context, entries, entries + transient_counts[frame]);
+        dmRender::RenderListEnd(m_Context);
+        AssertRenderItemTagOrder(m_Context);
+        ASSERT_EQ(3u, context->m_RenderItemDispatches[dispatch]->m_Ranges.Size());
+
+        // A filtered draw must not store its skip flags in the retained cache.
+        dmRender::HPredicate predicate = dmRender::NewPredicate();
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddPredicateTag(predicate, tags[0]));
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, predicate, 0, 0, dmRender::SORT_NONE));
+        uint32_t expected_count = 0;
+        for (uint32_t i = 0; i < context->m_RenderList.Size(); ++i)
+        {
+            if (context->m_RenderList[i].m_Dispatch != dmRender::RENDERLIST_INVALID_DISPATCH &&
+                context->m_RenderList[i].m_TagListKey == dmRender::GetMaterialTagListKey(materials[0]))
+                ++expected_count;
+        }
+        ASSERT_EQ(expected_count, context->m_RenderListSortBuffer.Size());
+        dmRender::DeletePredicate(predicate);
+        AssertRenderItemTagOrder(m_Context);
+
+        entries = dmRender::RenderListAlloc(m_Context, 1);
+        entries->m_Dispatch = frame_dispatch;
+        entries->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+        entries->m_TagListKey = dmRender::GetMaterialTagListKey(materials[frame % DM_ARRAY_SIZE(materials)]);
+        dmRender::RenderListSubmit(m_Context, entries, entries + 1);
+        AssertRenderItemTagOrder(m_Context);
+
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[0], false));
+        AssertRenderItemTagOrder(m_Context);
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[0], true));
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[0], materials[(frame + 1) % DM_ARRAY_SIZE(materials)]));
+        AssertRenderItemTagOrder(m_Context);
+    }
+    // Growing the retained prefix preserves submitted transient entries.
+    dmRender::HRenderItem extra = dmRender::NewRenderItem(m_Context, dispatch, 100);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, extra, materials[0]));
+    ASSERT_TRUE(dmRender::Enable(m_Context, extra, true));
+    AssertRenderItemTagOrder(m_Context);
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, extra));
+    AssertRenderItemTagOrder(m_Context);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+    AssertRenderItemTagOrder(m_Context);
+    dmRender::RenderListBegin(m_Context);
+    AssertRenderItemTagOrder(m_Context);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+        dmRender::DeleteMaterial(m_Context, materials[i]);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+    dmRender::UnregisterRenderListDispatch(m_Context, idle);
+}
+
+// Small tag and membership edits must preserve legacy draw order, coalesce
+// repeated changes and remove/insert complete tag ranges without rebuilding.
+TEST_F(dmRenderTest, PersistentRenderItemIncrementalTagCache)
+{
+    dmGraphics::ShaderDescBuilder shader;
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+    dmhash_t             tags[] = { dmHashString64("incremental_a"), dmHashString64("incremental_b"), dmHashString64("incremental_c") };
+    dmRender::HMaterial  materials[DM_ARRAY_SIZE(tags)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        materials[i] = dmRender::NewMaterial(m_Context, program);
+        dmRender::SetMaterialTags(materials[i], 1, &tags[i]);
+    }
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::RenderItemDispatch* registration = context->m_RenderItemDispatches[dispatch];
+    dmRender::HRenderItem         items[9];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], materials[i % 3]));
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
+    }
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    AssertRenderItemTagOrder(m_Context);
+    ASSERT_EQ(3u, registration->m_Ranges.Size());
+
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[0], false));
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[0], materials[1]));
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[0], true));
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[0], materials[0]));
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[1], materials[0]));
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[2]));
+    dmRender::HRenderItem replacement = dmRender::NewRenderItem(m_Context, dispatch, 42);
+    ASSERT_EQ((uint32_t)items[2], (uint32_t)replacement);
+    items[2] = replacement;
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[2], materials[1]));
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[2], true));
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[3], false));
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[4], 0));
+    ASSERT_FALSE(registration->m_RebuildCache);
+    ASSERT_EQ(5u, registration->m_NumChanges);
+    AssertRenderItemTagOrder(m_Context);
+    ASSERT_EQ(0u, registration->m_NumChanges);
+    ASSERT_EQ(4u, registration->m_Ranges.Size());
+
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[5], false));
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[8], false));
+    AssertRenderItemTagOrder(m_Context);
+    ASSERT_EQ(3u, registration->m_Ranges.Size());
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[1], materials[2]));
+    AssertRenderItemTagOrder(m_Context);
+    ASSERT_EQ(4u, registration->m_Ranges.Size());
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[i], false));
+    ASSERT_FALSE(registration->m_RebuildCache);
+    AssertRenderItemTagOrder(m_Context);
+    ASSERT_TRUE(registration->m_Ranges.Empty());
+    ASSERT_TRUE(registration->m_SortIndices.Empty());
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[1], true));
+    AssertRenderItemTagOrder(m_Context);
+    ASSERT_EQ(1u, registration->m_Ranges.Size());
+    ASSERT_EQ((uint32_t)items[1], registration->m_SortIndices[0]);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+        dmRender::DeleteMaterial(m_Context, materials[i]);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// A pending removal in an idle world must not retain or remove a replacement
+// item that reuses its slot in another world, in either direction.
+TEST_F(dmRenderTest, PersistentRenderItemIncrementalSlotTransfer)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    dmRender::HRenderItemDispatch first = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::HRenderItemDispatch second = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::RenderItemDispatch* a = context->m_RenderItemDispatches[first];
+    dmRender::RenderItemDispatch* b = context->m_RenderItemDispatches[second];
+    dmRender::HRenderItem         moving = dmRender::NewRenderItem(m_Context, first, 0);
+    dmRender::HRenderItem         survivor = dmRender::NewRenderItem(m_Context, second, 1);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, moving, 0));
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, survivor, 0));
+    ASSERT_TRUE(dmRender::Enable(m_Context, moving, true));
+    ASSERT_TRUE(dmRender::Enable(m_Context, survivor, true));
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, first);
+    dmRender::SubmitRenderListDispatch(m_Context, second);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, moving));
+    moving = dmRender::NewRenderItem(m_Context, second, 2);
+    ASSERT_EQ(0u, (uint32_t)moving);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, moving, 0));
+    ASSERT_TRUE(dmRender::Enable(m_Context, moving, true));
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, second);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(1u, a->m_NumChanges);
+    ASSERT_EQ(2u, b->m_SortIndices.Size());
+    ASSERT_EQ(0u, b->m_SortIndices[0]);
+    ASSERT_EQ(1u, b->m_SortIndices[1]);
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, first);
+    dmRender::SubmitRenderListDispatch(m_Context, second);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_TRUE(a->m_SortIndices.Empty());
+    ASSERT_EQ(0u, a->m_NumChanges);
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, moving));
+    moving = dmRender::NewRenderItem(m_Context, first, 3);
+    ASSERT_EQ(0u, (uint32_t)moving);
+    ASSERT_TRUE(dmRender::SetMaterial(m_Context, moving, 0));
+    ASSERT_TRUE(dmRender::Enable(m_Context, moving, true));
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, first);
+    dmRender::SubmitRenderListDispatch(m_Context, second);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    ASSERT_EQ(1u, a->m_SortIndices.Size());
+    ASSERT_EQ(0u, a->m_SortIndices[0]);
+    ASSERT_EQ(1u, b->m_SortIndices.Size());
+    ASSERT_EQ(1u, b->m_SortIndices[0]);
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, moving));
+    ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, survivor));
+    dmRender::UnregisterRenderListDispatch(m_Context, first);
+    dmRender::UnregisterRenderListDispatch(m_Context, second);
+}
+
+// Bulk membership edits discard the small-change queue and rebuild once from
+// the dense enabled list; subsequent small edits return to the incremental path.
+TEST_F(dmRenderTest, PersistentRenderItemIncrementalBulkFallback)
+{
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::RenderItemDispatch* registration = context->m_RenderItemDispatches[dispatch];
+    dmRender::HRenderItem         items[dmRender::MAX_RENDER_ITEM_CACHE_CHANGES + 4];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], 0));
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
+    }
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    AssertRenderItemTagOrder(m_Context);
+    for (uint32_t i = 0; i <= dmRender::MAX_RENDER_ITEM_CACHE_CHANGES; ++i)
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[i], false));
+    ASSERT_TRUE(registration->m_RebuildCache);
+    ASSERT_EQ(0u, registration->m_NumChanges);
+    AssertRenderItemTagOrder(m_Context);
+    ASSERT_FALSE(registration->m_RebuildCache);
+    ASSERT_EQ(3u, registration->m_SortIndices.Size());
+    ASSERT_TRUE(dmRender::Enable(m_Context, items[0], true));
+    ASSERT_EQ(1u, registration->m_NumChanges);
+    ASSERT_FALSE(registration->m_RebuildCache);
+    AssertRenderItemTagOrder(m_Context);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
 }
 
 // Verify draw sorting preserves equal-key order, including when only the final entry is out of order.
@@ -5113,9 +6410,247 @@ TEST(Render, BatchIterator)
     ASSERT_FALSE(iterator1.Next());
 }
 
+static void GpuFallbackDispatch(const dmRender::RenderListDispatchParams&) {}
+
+// Verifies opt-in GPU culling requires all three context capabilities. Missing
+// compute, storage or indirect drawing must leave CPU visibility and batching active.
+TEST_F(dmRenderTest, GpuContextCapabilityFallback)
+{
+    dmGraphics::GraphicsContext*     graphics = (dmGraphics::GraphicsContext*)m_GraphicsContext;
+    uint32_t                         previous_features = graphics->m_ContextFeatureSupport;
+    const dmGraphics::ContextFeature required[] = {
+        dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER,
+        dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER,
+        dmGraphics::CONTEXT_FEATURE_INDIRECT_DRAW
+    };
+    uint32_t required_mask = 0;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(required); ++i)
+        required_mask |= 1u << required[i];
+
+    dmGraphics::ShaderDescBuilder shader;
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, "", 0);
+    const char* uniforms[] = { "frustum_planes", "culling_params", "instance_params", "view" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(uniforms); ++i)
+    {
+        dmGraphics::ShaderDesc::ShaderDataType type = i == 3 ? dmGraphics::ShaderDesc::SHADER_TYPE_MAT4 : dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        shader.AddTypeMember(uniforms[i], type);
+        shader.AddUniformBuffer(uniforms[i], i, i, dmGraphics::GetShaderTypeSize(type));
+    }
+    // The builder normally supplies in-memory reflection; serialization also
+    // needs the field numbers selecting each protobuf oneof.
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(uniforms); ++i)
+    {
+        shader.Get()->m_Reflection.m_Types[i].m_Members[0].m_Type.m_TypeOneOfIndex = 1;
+        shader.Get()->m_Reflection.m_UniformBuffers[i].m_Type.m_TypeOneOfIndex = 2;
+        shader.Get()->m_Reflection.m_UniformBuffers[i].m_BindinginfoOneOfIndex = 11;
+    }
+    dmArray<uint8_t> descriptor;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(shader.Get(), dmGraphics::ShaderDesc::m_DDFDescriptor, descriptor));
+    dmGraphics::EnableState(m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
+    dmGraphics::SetDepthMask(m_GraphicsContext, true);
+    dmGraphics::SetDepthFunc(m_GraphicsContext, dmGraphics::COMPARE_FUNC_LEQUAL);
+    dmGraphics::DisableState(m_GraphicsContext, dmGraphics::STATE_BLEND);
+    dmGraphics::DisableState(m_GraphicsContext, dmGraphics::STATE_STENCIL_TEST);
+
+    // Disabled setting, each missing capability, none supported, then enabled control.
+    for (uint32_t mode = 0; mode < 6; ++mode)
+    {
+        graphics->m_ContextFeatureSupport = previous_features | required_mask;
+        if (mode >= 1 && mode <= 3)
+            graphics->m_ContextFeatureSupport &= ~(1u << required[mode - 1]);
+        if (mode == 4)
+            graphics->m_ContextFeatureSupport &= ~required_mask;
+        dmRender::RenderContextParams params;
+        if (mode != 0)
+        {
+            params.m_InstanceCullingShaderProgramDesc = descriptor.Begin();
+            params.m_InstanceCullingShaderProgramDescSize = descriptor.Size();
+        }
+        dmRender::HRenderContext context = m_Context;
+        dmRender::InitializeGpuIndirect(context, params);
+        bool supported = mode == 5;
+        ASSERT_EQ(supported, dmRender::IsGpuIndirectSupported(context));
+        ASSERT_EQ(supported, context->m_GpuIndirect.m_Program != 0);
+        uint32_t                      dispatched = 0;
+        dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(context, PersistentItemDispatch, 0, &dispatched);
+        dmRender::Material            material;
+        material.m_RenderContext = context;
+        dmRender::SetMaterialTags(&material, 0, 0);
+        dmRender::HRenderItem items[2];
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            items[i] = dmRender::NewRenderItem(context, dispatch, i);
+            dmRender::SetMaterial(context, items[i], &material);
+            dmRender::SetOrder(context, items[i], dmRender::RENDER_ORDER_BEFORE_WORLD, 0);
+            dmRender::SetBoundingOBB(context, items[i], Vector3(-0.1f), Vector3(0.1f));
+            dmRender::SetRenderItemGpuDriven(context, items[i], true);
+            dmRender::SetWorldTransform(context, items[i], Matrix4::translation(Vector3(i ? 100 : 0, 0, 0)));
+            dmRender::Enable(context, items[i], true);
+            ASSERT_EQ(supported, (bool)context->m_PersistentRenderItems[(uint32_t)items[i]].m_GpuDriven);
+        }
+        dmRender::FrustumOptions options;
+        options.m_Matrix = Matrix4::identity();
+        options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+        dmRender::RenderListBegin(context);
+        dmRender::SubmitRenderListDispatch(context, dispatch);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(context, 0, 0, &options, dmRender::SORT_NONE));
+        ASSERT_EQ(supported ? 2u : 1u, dispatched);
+        ASSERT_EQ(supported, dmRender::IsRenderItemGpuDriven(context, items[0]));
+        ASSERT_EQ(dmRender::VISIBILITY_FULL, context->m_RenderList[(uint32_t)items[0]].m_Visibility);
+        ASSERT_EQ(supported ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE, context->m_RenderList[(uint32_t)items[1]].m_Visibility);
+        if (!supported)
+        {
+            ASSERT_TRUE(context->m_GpuIndirect.m_RenderSlots.Empty());
+            ASSERT_TRUE(context->m_GpuIndirect.m_DrawCaches.Empty());
+            ASSERT_TRUE(context->m_GpuIndirect.m_DirtyWorldSlots.Empty());
+            ASSERT_TRUE(context->m_GpuCulling.m_DirtySlots.Empty());
+            ASSERT_EQ((dmGraphics::HStorageBuffer)0, context->m_GpuIndirect.m_WorldBuffer);
+            ASSERT_EQ((dmGraphics::HStorageBuffer)0, context->m_GpuCulling.m_BoundsBuffer);
+        }
+        for (uint32_t i = 0; i < 2; ++i)
+            dmRender::DeleteRenderItem(context, items[i]);
+        dmRender::UnregisterRenderListDispatch(context, dispatch);
+    }
+    graphics->m_ContextFeatureSupport = previous_features;
+}
+
+// Verifies a new GPU batch has no candidate-cache identity before its first draw.
+TEST_F(dmRenderTest, GpuBatchInitialization)
+{
+    dmRender::HGpuRenderBatch batch = dmRender::NewGpuRenderBatch(m_Context);
+    ASSERT_EQ((const dmRender::GpuRenderListCache*)0, batch->m_ListCache);
+    ASSERT_EQ((const uint32_t*)0, batch->m_CachedSlots);
+    ASSERT_EQ(0u, batch->m_ListGeneration);
+    dmRender::DeleteGpuRenderBatch(m_Context, batch);
+}
+
+// Verifies every storage allocation failure retains visible instances through
+// conventional drawing, preserves dirty transforms and keeps old buffers usable.
+TEST_F(dmRenderTest, GpuBufferLimitFallback)
+{
+    dmGraphics::GraphicsContext* graphics = (dmGraphics::GraphicsContext*)m_GraphicsContext;
+    uint64_t                     previous_limit = graphics->m_Limits.m_MaxStorageBufferRange;
+    m_Context->m_GpuIndirect.m_Program = (dmGraphics::HProgram)1;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, GpuFallbackDispatch, 0, 0);
+    dmRender::HRenderItem         items[2];
+    uint32_t                      slots[2];
+    Matrix4                       world = Matrix4::translation(Vector3(0.25f, 0, 0));
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, 0);
+        slots[i] = (uint32_t)items[i];
+        dmRender::SetBoundingOBB(m_Context, items[i], Vector3(-0.1f), Vector3(0.1f));
+        dmRender::SetWorldTransform(m_Context, items[i], i ? Matrix4::translation(Vector3(100, 0, 0)) : world);
+        dmRender::SetRenderItemGpuDriven(m_Context, items[i], true);
+        dmRender::Enable(m_Context, items[i], true);
+    }
+    dmIntersection::CreateFrustumFromMatrix(Matrix4::identity(), true, 6, m_Context->m_GpuIndirect.m_Frustum);
+    // Fail membership, output, arguments, bounds and worlds respectively.
+    const uint32_t limits[] = { 4, 32, 16, 4096, 12000 };
+    for (uint32_t stage = 0; stage < DM_ARRAY_SIZE(limits); ++stage)
+    {
+        dmRender::HGpuRenderBatch batch = dmRender::NewGpuRenderBatch(m_Context);
+        batch->m_SlotBuffer = dmGraphics::NewStorageBuffer(m_GraphicsContext, 4, 0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        dmGraphics::HStorageBuffer old_membership = batch->m_SlotBuffer;
+        graphics->m_Limits.m_MaxStorageBufferRange = limits[stage];
+        for (uint32_t repeat = 0; repeat < 2; ++repeat)
+        {
+            m_Context->m_RenderObjects.SetSize(0);
+            dmRender::RenderObject object;
+            uint32_t               stride = stage == 2 ? 4 : 128;
+            int32_t                world_offset = stage == 2 ? -1 : 0;
+            int32_t                normal_offset = stage == 2 ? -1 : 64;
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRenderGpuBatch(m_Context, &object, batch, slots, 2, stride, world_offset, normal_offset));
+            ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+            ASSERT_EQ(1u, object.m_InstanceCount);
+            ASSERT_EQ((dmRender::HGpuRenderBatch)0, m_Context->m_GpuIndirect.m_RenderBatches.Back());
+            ASSERT_EQ(batch->m_FallbackBuffer, object.m_VertexBuffers[1]);
+            if (stage == 0)
+                ASSERT_EQ(old_membership, batch->m_SlotBuffer);
+            if (stage != 2)
+            {
+                dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*)object.m_VertexBuffers[1];
+                ASSERT_EQ(0, memcmp(buffer->m_Buffer, &world, sizeof(world)));
+                Matrix4 normal = dmRender::GetNormalMatrix(m_Context, world);
+                ASSERT_EQ(0, memcmp(buffer->m_Buffer + 64, &normal, sizeof(normal)));
+            }
+        }
+        ASSERT_EQ(2u, m_Context->m_GpuIndirect.m_DirtyWorldSlots.Size());
+        dmRender::DeleteGpuRenderBatch(m_Context, batch);
+        graphics->m_Limits.m_MaxStorageBufferRange = previous_limit;
+    }
+    // The same allocation fallback must also handle an entirely culled batch.
+    graphics->m_Limits.m_MaxStorageBufferRange = 4;
+    dmRender::SetWorldTransform(m_Context, items[0], Matrix4::translation(Vector3(100, 0, 0)));
+    dmRender::HGpuRenderBatch empty_batch = dmRender::NewGpuRenderBatch(m_Context);
+    dmRender::RenderObject    empty_object;
+    m_Context->m_RenderObjects.SetSize(0);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRenderGpuBatch(m_Context, &empty_object, empty_batch, slots, 2, 128, 0, 64));
+    ASSERT_EQ(0u, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ((dmGraphics::HVertexBuffer)0, empty_batch->m_FallbackBuffer);
+    // A byte-size overflow must be rejected before any large CPU allocation.
+    ASSERT_EQ(dmRender::RESULT_OUT_OF_RESOURCES, dmRender::AddToRenderGpuBatch(m_Context, &empty_object, empty_batch, slots, 2, 0x80000000u, 0, -1));
+    dmRender::DeleteGpuRenderBatch(m_Context, empty_batch);
+    graphics->m_Limits.m_MaxStorageBufferRange = previous_limit;
+    for (uint32_t i = 0; i < 2; ++i)
+        dmRender::DeleteRenderItem(m_Context, items[i]);
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+    m_Context->m_GpuIndirect.m_Program = 0;
+}
+
+// Verifies unordered compaction is disabled for depth, stencil or blend states
+// that require instance order, and CPU visibility is restored after a cached draw.
+TEST_F(dmRenderTest, GpuDrawOrderFallback)
+{
+    m_Context->m_GpuIndirect.m_Program = (dmGraphics::HProgram)1;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, GpuFallbackDispatch, 0, 0);
+    dmRender::Material            material;
+    material.m_RenderContext = m_Context;
+    dmhash_t tag = dmHashString64("model");
+    dmRender::SetMaterialTags(&material, 1, &tag);
+    dmRender::HRenderItem item = dmRender::NewRenderItem(m_Context, dispatch, 0);
+    dmRender::SetMaterial(m_Context, item, &material);
+    dmRender::SetOrder(m_Context, item, dmRender::RENDER_ORDER_BEFORE_WORLD, 0);
+    dmRender::SetBoundingSphere(m_Context, item, Point3(100, 0, 0), 0.1f);
+    dmRender::SetRenderItemGpuDriven(m_Context, item, true);
+    dmRender::Enable(m_Context, item, true);
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::identity();
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    for (uint32_t state = 0; state < 7; ++state)
+    {
+        dmGraphics::EnableState(m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::SetDepthMask(m_GraphicsContext, true);
+        dmGraphics::SetDepthFunc(m_GraphicsContext, dmGraphics::COMPARE_FUNC_LEQUAL);
+        dmGraphics::DisableState(m_GraphicsContext, dmGraphics::STATE_BLEND);
+        dmGraphics::DisableState(m_GraphicsContext, dmGraphics::STATE_STENCIL_TEST);
+        if (state == 1)
+            dmGraphics::DisableState(m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
+        if (state == 2)
+            dmGraphics::SetDepthMask(m_GraphicsContext, false);
+        if (state == 3)
+            dmGraphics::EnableState(m_GraphicsContext, dmGraphics::STATE_STENCIL_TEST);
+        if (state == 4)
+            dmGraphics::SetDepthFunc(m_GraphicsContext, dmGraphics::COMPARE_FUNC_ALWAYS);
+        if (state == 5)
+            dmGraphics::EnableState(m_GraphicsContext, dmGraphics::STATE_BLEND);
+        dmRender::RenderListBegin(m_Context);
+        dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
+        bool gpu = state == 0 || state == 6;
+        ASSERT_EQ(gpu, dmRender::IsRenderItemGpuDriven(m_Context, item));
+        ASSERT_EQ(1u, m_Context->m_GpuIndirect.m_DrawCaches.Size());
+        ASSERT_EQ(gpu, m_Context->m_GpuIndirect.m_DrawCaches[0]->m_Prepared);
+        ASSERT_EQ(gpu ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE, m_Context->m_RenderList[(uint32_t)item].m_Visibility);
+    }
+    dmRender::DeleteRenderItem(m_Context, item);
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+    m_Context->m_GpuIndirect.m_Program = 0;
+}
+
 extern "C" void dmExportedSymbols();
 
-int main(int argc, char **argv)
+int             main(int argc, char** argv)
 {
     dmExportedSymbols();
     TestMainPlatformInit();

@@ -494,4 +494,7 @@ message ShaderDesc
     optional string vertex_program       = 4;
     optional string fragment_program     = 5;
     optional string compute_program      = 6;
+    // Serialized ShaderDesc for the GPU visible-instance vertex-fetch program.
+    optional bytes visible_instance_program = 7;
+    optional uint64 visible_instance_attribute = 8;
 }

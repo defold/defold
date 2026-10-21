@@ -146,6 +146,12 @@ namespace dmGraphics
     typedef void (*EnableStorageBufferFn)(HContext context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set);
     typedef void (*DisableStorageBufferFn)(HContext context, HStorageBuffer storage_buffer);
 
+    typedef HVertexBuffer (*GetStorageBufferVertexBufferFn)(HContext context, HStorageBuffer buffer);
+    typedef void (*DrawElementsIndirectFn)(HContext context, PrimitiveType primitive, Type index_type, HIndexBuffer indices, HStorageBuffer arguments, uint32_t offset);
+    typedef HAsyncBufferReadback (*RequestStorageBufferReadbackFn)(HContext context, HStorageBuffer buffer, uint32_t offset, uint32_t size);
+    typedef bool (*PollStorageBufferReadbackFn)(HAsyncBufferReadback request, void* data);
+    typedef void (*DeleteStorageBufferReadbackFn)(HAsyncBufferReadback request);
+
     struct GraphicsAdapterFunctionTable
     {
         NewContextFn m_NewContext;
@@ -242,6 +248,11 @@ namespace dmGraphics
         GetStorageBufferSizeFn m_GetStorageBufferSize;
         EnableStorageBufferFn m_EnableStorageBuffer;
         DisableStorageBufferFn m_DisableStorageBuffer;
+        GetStorageBufferVertexBufferFn m_GetStorageBufferVertexBuffer;
+        DrawElementsIndirectFn m_DrawElementsIndirect;
+        RequestStorageBufferReadbackFn m_RequestStorageBufferReadback;
+        PollStorageBufferReadbackFn m_PollStorageBufferReadback;
+        DeleteStorageBufferReadbackFn m_DeleteStorageBufferReadback;
         SetSwapIntervalFn m_SetSwapInterval;
     };
 
@@ -341,7 +352,12 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStorageBufferSubData); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetStorageBufferSize); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableStorageBuffer); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableStorageBuffer);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableStorageBuffer); \
+        tbl.m_GetStorageBufferVertexBuffer = 0; \
+        tbl.m_DrawElementsIndirect = 0; \
+        tbl.m_RequestStorageBufferReadback = 0; \
+        tbl.m_PollStorageBufferReadback = 0; \
+        tbl.m_DeleteStorageBufferReadback = 0;
 }
 
 #endif

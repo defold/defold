@@ -2449,6 +2449,10 @@ form.label.project.render.clear_color_blue = Clear Color Blue
 form.help.project.render.clear_color_blue = The **blue** component of the clear color used when the window is created. Defold's built-in render script also uses it when clearing the frame; a custom render script need not. `0.0` contributes no blue; `1.0` contributes full blue intensity.
 form.label.project.render.clear_color_alpha = Clear Color Alpha
 form.help.project.render.clear_color_alpha = The **alpha** component of the clear color used when the window is created. Defold's built-in render script also uses it when clearing the frame; a custom render script need not. `0.0` is fully transparent; `1.0` is fully opaque where framebuffer alpha is used.
+form.label.project.render.gpu_culling = GPU Culling
+form.help.project.render.gpu_culling = Cull eligible instanced models on the GPU and draw them indirectly. Enabled by default on graphics contexts supporting compute shaders, storage buffers, and indirect drawing. Unsupported contexts, other models, and order-dependent passes use CPU culling.
+form.label.project.render.gpu_culling_stats = GPU Culling Statistics
+form.help.project.render.gpu_culling_stats = Collect asynchronous visibility statistics for GPU culling in the profiler. Requires **GPU Culling**. Disabled by default; rendering does not require these readbacks.
 
 form.label.project.resource = Resource
 form.help.project.resource = Resource loading and management related settings

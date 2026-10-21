@@ -1,0 +1,12 @@
+#version 140
+in highp vec4 position;
+in highp mat4 custom_world;
+uniform Matrices { highp mat4 view_proj; lowp vec4 tint; };
+out lowp vec4 color;
+vec4 transform_position() { return custom_world * position; }
+void main()
+{
+    color = tint * custom_world[3].w;
+    color.b = float(gl_InstanceIndex & 1);
+    gl_Position = view_proj * transform_position();
+}

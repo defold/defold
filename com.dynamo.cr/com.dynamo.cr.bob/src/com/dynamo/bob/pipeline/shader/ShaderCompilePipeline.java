@@ -817,6 +817,57 @@ public class ShaderCompilePipeline {
         return result;
     }
 
+    // Build a companion only for a single non-array mat4 input. Material semantics
+    // are checked by the renderer before selecting it; other layouts keep instancing.
+    public ShaderCompilePipeline createVisibleInstancePipeline(String name) throws IOException, CompileExceptionError {
+        ShaderModule vertex = getShaderModule(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
+        if (vertex == null) return null;
+        Shaderc.ShaderResource matrix = null;
+        for (Shaderc.ShaderResource resource : vertex.spirvReflector.getInputs()) {
+            if (resource.type.columnCount > 1) {
+                if (matrix != null || resource.type.columnCount != 4 || resource.type.vectorSize != 4 || resource.type.baseType != Shaderc.BaseType.BASE_TYPE_FP32)
+                    return null;
+                matrix = resource;
+            }
+        }
+        if (matrix == null) return null;
+        for (ShaderModule module : shaderModules) {
+            ArrayList<Shaderc.ShaderResource> resources = new ArrayList<>(module.spirvReflector.getUBOs());
+            resources.addAll(module.spirvReflector.getSsbos());
+            resources.addAll(module.spirvReflector.getTextures());
+            for (Shaderc.ShaderResource resource : resources)
+                if (resource.set == 3 || "_dm_visible_worlds".equals(resource.name) || "_dm_visible_ids".equals(resource.name)) return null;
+        }
+        byte[] vertexBytes = SPIRVVisibleInstances.transform(FileUtils.readFileToByteArray(vertex.spirvFile), matrix.id);
+        if (vertexBytes == null) return null;
+        ShaderCompilePipeline variant = new ShaderCompilePipeline(name);
+        variant.options = options;
+        boolean ready = false;
+        try {
+            for (ShaderModule module : shaderModules) {
+                ShaderModule copy = new ShaderModule(module.desc);
+                variant.shaderModules.add(copy);
+                copy.spirvFile = variant.createTempFile("visible-instance", ".spv");
+                byte[] bytes = module == vertex ? vertexBytes : FileUtils.readFileToByteArray(module.spirvFile);
+                FileUtils.writeByteArrayToFile(copy.spirvFile, bytes);
+                if (module == vertex) {
+                    File optimized = variant.createTempFile("visible-instance", ".optimized.spv");
+                    generateSPIRvOptimized(module.desc.resourcePath, copy.spirvFile.getAbsolutePath(), optimized.getAbsolutePath());
+                    copy.spirvFile = optimized;
+                    bytes = FileUtils.readFileToByteArray(optimized);
+                }
+                copy.spirvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(module.desc.type), bytes);
+                copy.spirvReflector = new SPIRVReflector(copy.spirvContext, module.desc.type);
+                copy.shaderInfo = module.shaderInfo;
+            }
+            variant.postProcessGraphicsStages(true);
+            ready = true;
+            return variant;
+        } finally {
+            if (!ready) destroyShaderPipeline(variant);
+        }
+    }
+
     public SPIRVReflector getReflectionData(ShaderDesc.ShaderType shaderStage) {
         ShaderModule module = getShaderModule(shaderStage);
         assert module != null;

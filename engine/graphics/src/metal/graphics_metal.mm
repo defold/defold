@@ -582,14 +582,16 @@ namespace dmGraphics
         }
     }
 
-    static void DeviceBufferUploadHelper(MetalContext* context, const void* data, uint32_t size, uint32_t offset, MetalDeviceBuffer* device_buffer)
+    static bool DeviceBufferUploadHelper(MetalContext* context, const void* data, uint32_t size, uint32_t offset, MetalDeviceBuffer* device_buffer)
     {
         if (size == 0)
-            return;
+            return true;
 
         if (device_buffer->m_Destroyed || device_buffer->m_Buffer == 0x0)
         {
             device_buffer->m_Buffer = context->m_Device->newBuffer(size, GetResourceOptions(device_buffer->m_StorageMode));
+            if (!device_buffer->m_Buffer)
+                return false;
             device_buffer->m_Base.m_Size = size;
             device_buffer->m_Destroyed = 0;
         }
@@ -603,6 +605,7 @@ namespace dmGraphics
         {
             memcpy(dst, data, size);
         }
+        return true;
     }
 
     void MetalConstantScratchBuffer::EnsureSize(const MetalContext* context, uint32_t size)
@@ -1436,6 +1439,7 @@ namespace dmGraphics
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INDIRECT_DRAW);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
@@ -2373,7 +2377,11 @@ namespace dmGraphics
         buffer->m_Base.m_Size = size;
         buffer->m_Base.m_Usage = buffer_usage;
         buffer->m_DeviceBuffer.m_StorageMode = MTL::StorageModeShared;
-        DeviceBufferUploadHelper(context, data, size, 0, &buffer->m_DeviceBuffer);
+        if (!DeviceBufferUploadHelper(context, data, size, 0, &buffer->m_DeviceBuffer))
+        {
+            delete buffer;
+            return 0;
+        }
 
         return (HStorageBuffer) buffer;
     }
@@ -2410,10 +2418,14 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
         MetalStorageBuffer* buffer = (MetalStorageBuffer*) storage_buffer;
+        MetalDeviceBuffer   replacement = {};
+        replacement.m_StorageMode = buffer->m_DeviceBuffer.m_StorageMode;
+        if (!DeviceBufferUploadHelper(context, data, size, 0, &replacement))
+            return;
         // Even a same-size replacement must leave recorded/in-flight reads of
         // the old allocation intact. Retire it with the frame's GPU resources.
         DestroyResourceDeferred(context, &buffer->m_DeviceBuffer);
-        DeviceBufferUploadHelper(context, data, size, 0, &buffer->m_DeviceBuffer);
+        buffer->m_DeviceBuffer = replacement;
         buffer->m_Base.m_Size = size;
         buffer->m_Base.m_Usage = buffer_usage;
     }
@@ -3710,6 +3722,19 @@ namespace dmGraphics
         {
             frame.m_RenderCommandEncoder->drawIndexedPrimitives(metal_prim_type, count, metal_index_type, ib->m_Buffer, index_offset);
         }
+    }
+
+    static void MetalDrawElementsIndirect(HContext _context, PrimitiveType primitive, Type index_type, HIndexBuffer indices, HStorageBuffer arguments, uint32_t offset)
+    {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
+        MetalContext* context = (MetalContext*)_context;
+        DrawSetup(context);
+        MetalDeviceBuffer*  index_buffer = (MetalDeviceBuffer*)indices;
+        MetalStorageBuffer* argument_buffer = (MetalStorageBuffer*)arguments;
+        MTL::IndexType      type = index_type == TYPE_UNSIGNED_INT ? MTL::IndexTypeUInt32 : MTL::IndexTypeUInt16;
+        GetCurrentFrameResource(context).m_RenderCommandEncoder->drawIndexedPrimitives(
+        ConvertPrimitiveType(primitive), type, index_buffer->m_Buffer, 0, argument_buffer->m_DeviceBuffer.m_Buffer, offset);
     }
 
     static void MetalDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
@@ -5856,6 +5881,54 @@ namespace dmGraphics
         }
     }
 
+    static HVertexBuffer MetalGetStorageBufferVertexBuffer(HContext context, HStorageBuffer buffer)
+    {
+        return (HVertexBuffer) & ((MetalStorageBuffer*)buffer)->m_DeviceBuffer;
+    }
+
+    struct MetalAsyncBufferReadback
+    {
+        MTL::CommandBuffer* m_CommandBuffer;
+        MTL::Buffer*        m_Buffer;
+        uint32_t            m_Size;
+    };
+
+    static HAsyncBufferReadback MetalRequestStorageBufferReadback(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size)
+    {
+        MetalContext* context = (MetalContext*)_context;
+        assert(context->m_FrameBegun);
+        SuspendRenderPass(context);
+        NS::AutoreleasePool*      pool = NS::AutoreleasePool::alloc()->init();
+        MetalAsyncBufferReadback* request = new MetalAsyncBufferReadback;
+        request->m_Size = size;
+        request->m_Buffer = context->m_Device->newBuffer(size, MTL::ResourceStorageModeShared);
+        request->m_CommandBuffer = GetCurrentFrameResource(context).m_CommandBuffer;
+        request->m_CommandBuffer->retain();
+        MTL::BlitCommandEncoder* encoder = request->m_CommandBuffer->blitCommandEncoder();
+        MetalStorageBuffer*      buffer = (MetalStorageBuffer*)storage_buffer;
+        encoder->copyFromBuffer(buffer->m_DeviceBuffer.m_Buffer, offset, request->m_Buffer, 0, size);
+        encoder->endEncoding();
+        pool->release();
+        return (HAsyncBufferReadback)request;
+    }
+
+    static bool MetalPollStorageBufferReadback(HAsyncBufferReadback handle, void* data)
+    {
+        MetalAsyncBufferReadback* request = (MetalAsyncBufferReadback*)handle;
+        if (request->m_CommandBuffer->status() != MTL::CommandBufferStatusCompleted)
+            return false;
+        memcpy(data, request->m_Buffer->contents(), request->m_Size);
+        return true;
+    }
+
+    static void MetalDeleteStorageBufferReadback(HAsyncBufferReadback handle)
+    {
+        MetalAsyncBufferReadback* request = (MetalAsyncBufferReadback*)handle;
+        request->m_CommandBuffer->release();
+        request->m_Buffer->release();
+        delete request;
+    }
+
     static void MetalRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         while (is_running(user_data))
@@ -5930,6 +6003,11 @@ namespace dmGraphics
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Metal);
         DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Metal, SetSwapInterval);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Metal, GetStorageBufferVertexBuffer);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Metal, DrawElementsIndirect);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Metal, RequestStorageBufferReadback);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Metal, PollStorageBufferReadback);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Metal, DeleteStorageBufferReadback);
         return fn_table;
     }
 }

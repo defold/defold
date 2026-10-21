@@ -668,6 +668,8 @@ namespace dmGameSystem
     {
         CompGuiContext* gui_context = (CompGuiContext*)params.m_Context;
         GuiWorld* gui_world = new GuiWorld();
+        gui_world->m_RenderDispatch = 0;
+        gui_world->m_ActiveRenderItemCount = 0;
         if (!gui_context->m_Worlds.Full())
         {
             gui_world->m_RenderOrder = gui_context->m_Worlds.Size();
@@ -770,6 +772,11 @@ namespace dmGameSystem
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
         CompGuiContext* gui_context = (CompGuiContext*)params.m_Context;
+
+        for (uint32_t i = 0; i < gui_world->m_RenderItems.Size(); ++i)
+            dmRender::DeleteRenderItem(gui_context->m_RenderContext, gui_world->m_RenderItems[i]);
+        if (gui_world->m_RenderDispatch != 0)
+            dmRender::UnregisterRenderListDispatch(gui_context->m_RenderContext, gui_world->m_RenderDispatch);
 
         if (dLib::IsDebugMode())
         {
@@ -3239,7 +3246,8 @@ namespace dmGameSystem
         {
             for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
             {
-                dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
+                GuiWorld*               world = (GuiWorld*)params.m_UserData;
+                dmRender::RenderObject* ro = &world->m_GuiRenderObjects[params.m_Buf[*i].m_UserData].m_RenderObject;
                 dmRender::AddToRender(params.m_Context, ro);
             }
         }
@@ -3295,28 +3303,35 @@ namespace dmGameSystem
             dmGui::RenderScene(c->m_Scene, rp, &render_gui_context);
             const uint32_t count = gui_world->m_GuiRenderObjects.Size() - lastEnd;
 
-            dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(gui_context->m_RenderContext, count);
-            dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(gui_context->m_RenderContext, &RenderListDispatch, gui_world);
-            dmRender::RenderListEntry* write_ptr = render_list;
+            if (count && gui_world->m_RenderDispatch == 0)
+                gui_world->m_RenderDispatch = dmRender::RegisterRenderListDispatch(gui_context->m_RenderContext, RenderListDispatch, 0, gui_world);
 
             uint32_t render_order = dmGui::GetRenderOrder(c->m_Scene);
             uint32_t world_order = gui_world->m_RenderOrder;
             while (lastEnd < gui_world->m_GuiRenderObjects.Size())
             {
                 const GuiRenderObject& gro = gui_world->m_GuiRenderObjects[lastEnd];
-                write_ptr->m_MinorOrder = 0;
-                write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
-                write_ptr->m_Order = MakeFinalRenderOrder(world_order, render_order, gro.m_SortOrder);
-                write_ptr->m_UserData = (uintptr_t) &gro.m_RenderObject;
-                write_ptr->m_BatchKey = lastEnd;
-                write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(gro.m_RenderObject.m_Material);
-                write_ptr->m_Dispatch = dispatch;
-                write_ptr++;
+                if (lastEnd == gui_world->m_RenderItems.Size())
+                {
+                    if (gui_world->m_RenderItems.Full())
+                        gui_world->m_RenderItems.OffsetCapacity(16);
+                    gui_world->m_RenderItems.Push(dmRender::NewRenderItem(gui_context->m_RenderContext, gui_world->m_RenderDispatch, lastEnd));
+                }
+                dmRender::HRenderItem item = gui_world->m_RenderItems[lastEnd];
+                dmRender::SetMaterial(gui_context->m_RenderContext, item, gro.m_RenderObject.m_Material);
+                dmRender::SetOrder(gui_context->m_RenderContext, item, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(world_order, render_order, gro.m_SortOrder));
+                dmRender::SetBatchKey(gui_context->m_RenderContext, item, lastEnd);
+                dmRender::Enable(gui_context->m_RenderContext, item, true);
                 lastEnd++;
             }
 
-            dmRender::RenderListSubmit(gui_context->m_RenderContext, render_list, write_ptr);
         }
+
+        for (uint32_t i = lastEnd; i < gui_world->m_ActiveRenderItemCount; ++i)
+            dmRender::Enable(gui_context->m_RenderContext, gui_world->m_RenderItems[i], false);
+        gui_world->m_ActiveRenderItemCount = lastEnd;
+        if (lastEnd)
+            dmRender::SubmitRenderListDispatch(gui_context->m_RenderContext, gui_world->m_RenderDispatch);
 
         // All scenes in this world append to the same buffer. Upload it once after
         // their render objects have been submitted, before the render list is drawn.
@@ -3324,9 +3339,9 @@ namespace dmGameSystem
         if (vertex_count > 0)
         {
             dmGraphics::SetVertexBufferData(gui_world->m_VertexBuffer,
-                                           vertex_count * sizeof(BoxVertex),
-                                           gui_world->m_ClientVertexBuffer.Begin(),
-                                           dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+                                            vertex_count * sizeof(BoxVertex),
+                                            gui_world->m_ClientVertexBuffer.Begin(),
+                                            dmGraphics::BUFFER_USAGE_STREAM_DRAW);
             DM_PROPERTY_ADD_U32(rmtp_GuiVertexCount, vertex_count);
         }
 
