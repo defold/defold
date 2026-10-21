@@ -402,9 +402,8 @@ struct DSSlot
 struct DSSystemRegistration
 {
     DSSystemDesc m_Desc;            // Copied declaration; event nodes have no query/process. Query/context are borrowed.
-    char*        m_Names;           // Owned contiguous storage for all declaration strings.
     uint32_t     m_DependencyStart; // First resolved index in DSStore::m_SystemDependencies.
-    uint8_t      m_DependencyCount; // Number of packed dependency names, at most DS_SYSTEM_MAX_DEPENDENCIES.
+    uint8_t      m_DependencyCount; // Number of packed dependency hashes, at most DS_SYSTEM_MAX_DEPENDENCIES.
     uint8_t      m_State;           // Pending, running or complete in the current schedule.
 };
 

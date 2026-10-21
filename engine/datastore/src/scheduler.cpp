@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <stdlib.h>
 #include <string.h>
 #include "data.h"
 
@@ -43,50 +42,31 @@ static void CompleteFunction(HJobContext, HJob, JobSystemStatus status, void* co
     ScheduleFunctions(store);
 }
 
-static uint32_t FindSystem(HDSContext store, const char* name)
+static uint32_t FindSystem(HDSContext store, dmhash_t name)
 {
     for (uint32_t i = 0; i < store->m_Systems.Size(); ++i)
     {
-        if (strcmp(store->m_Systems[i].m_Desc.m_Name, name) == 0)
+        if (store->m_Systems[i].m_Desc.m_Name == name)
             return i;
     }
     return UINT32_MAX;
 }
 
-static const char* CopyName(char** cursor, const char* name)
-{
-    size_t size = strlen(name) + 1;
-    char*  result = *cursor;
-    memcpy(result, name, size);
-    *cursor += size;
-    return result;
-}
-
 static DSResult RegisterSystem(HDSContext store, const DSSystemDesc* desc)
 {
-    if (!desc->m_Name || !desc->m_Name[0])
+    if (!desc->m_Name)
         return DS_RESULT_INVALID_ARGUMENT;
     if (FindSystem(store, desc->m_Name) != UINT32_MAX)
         return DS_RESULT_ALREADY_EXISTS;
 
-    size_t   names_size = strlen(desc->m_Name) + 1;
     uint32_t num_dependencies = 0;
-    for (; num_dependencies < DS_SYSTEM_MAX_DEPENDENCIES && desc->m_DependsOn[num_dependencies]; ++num_dependencies)
-    {
-        if (!desc->m_DependsOn[num_dependencies][0])
-            return DS_RESULT_INVALID_ARGUMENT;
-        names_size += strlen(desc->m_DependsOn[num_dependencies]) + 1;
-    }
+    while (num_dependencies < DS_SYSTEM_MAX_DEPENDENCIES && desc->m_DependsOn[num_dependencies])
+        ++num_dependencies;
 
-    char*                names = (char*)malloc(names_size);
     DSSystemRegistration system = {
-        .m_Desc = { .m_Query = desc->m_Query, .m_Process = desc->m_Process, .m_Context = desc->m_Context },
-        .m_Names = names,
+        .m_Desc = *desc,
         .m_DependencyCount = (uint8_t)num_dependencies
     };
-    system.m_Desc.m_Name = CopyName(&names, desc->m_Name);
-    for (uint32_t i = 0; i < num_dependencies; ++i)
-        system.m_Desc.m_DependsOn[i] = CopyName(&names, desc->m_DependsOn[i]);
 
     if (store->m_Systems.Full())
         store->m_Systems.OffsetCapacity(8);
@@ -113,7 +93,7 @@ DSResult DSRegisterEvent(HDSContext store, const DSEventDesc* desc)
     return RegisterSystem(store, &system);
 }
 
-static DSResult UnregisterSystem(HDSContext store, const char* name, bool event)
+static DSResult UnregisterSystem(HDSContext store, dmhash_t name, bool event)
 {
     if (store->m_ScheduleActive)
         return DS_RESULT_LOCKED;
@@ -122,18 +102,17 @@ static DSResult UnregisterSystem(HDSContext store, const char* name, bool event)
         return DS_RESULT_NOT_FOUND;
     if ((store->m_Systems[index].m_Desc.m_Process == 0) != event)
         return DS_RESULT_INVALID_ARGUMENT;
-    free(store->m_Systems[index].m_Names);
     store->m_Systems.EraseSwap(index);
     store->m_ScheduleDirty = true;
     return DS_RESULT_OK;
 }
 
-DSResult DSUnregisterFunction(HDSContext store, const char* name)
+DSResult DSUnregisterFunction(HDSContext store, dmhash_t name)
 {
     return UnregisterSystem(store, name, false);
 }
 
-DSResult DSUnregisterEvent(HDSContext store, const char* name)
+DSResult DSUnregisterEvent(HDSContext store, dmhash_t name)
 {
     return UnregisterSystem(store, name, true);
 }
@@ -246,7 +225,7 @@ DSResult DSSchedulerUpdate(HDSContext store)
     return DS_RESULT_OK;
 }
 
-DSResult DSSchedulerEvent(HDSContext store, const char* name)
+DSResult DSSchedulerEvent(HDSContext store, dmhash_t name)
 {
     if (!store->m_ScheduleActive)
         return DS_RESULT_INVALID_ARGUMENT;
@@ -269,8 +248,12 @@ DSResult DSEndSchedule(HDSContext store)
     if (!store->m_ScheduleActive)
         return DS_RESULT_INVALID_ARGUMENT;
     for (uint32_t i = 0; i < store->m_Systems.Size(); ++i)
-        if (store->m_Systems[i].m_State == DS_SYSTEM_RUNNING)
+    {
+        const DSSystemRegistration& system = store->m_Systems[i];
+        if (system.m_State == DS_SYSTEM_RUNNING ||
+            (system.m_Desc.m_Process && system.m_State == DS_SYSTEM_PENDING && DependenciesComplete(store, system)))
             return DS_RESULT_BUSY;
+    }
     store->m_ScheduleActive = false;
     store->m_ScheduleJobs = 0;
     return DS_RESULT_OK;

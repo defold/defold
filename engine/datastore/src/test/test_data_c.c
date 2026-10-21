@@ -50,14 +50,14 @@ int TestDataSchedulerFromC(void)
     }
     uint32_t     count = 0;
     DSSystemDesc desc = {
-        .m_Name = "game.count",
-        .m_DependsOn = { "engine.update.begin" },
+        .m_Name = dmHashString64("game.count"),
+        .m_DependsOn = { dmHashString64("engine.update.begin") },
         .m_Query = query,
         .m_Process = CountScheduledRowsFromC,
         .m_Context = &count
     };
-    DSEventDesc                  begin = { .m_Name = "engine.update.begin" };
-    DSEventDesc                  end = { .m_Name = "engine.update.end", .m_DependsOn = { "game.count" } };
+    DSEventDesc                  begin = { .m_Name = dmHashString64("engine.update.begin") };
+    DSEventDesc                  end = { .m_Name = dmHashString64("engine.update.end"), .m_DependsOn = { dmHashString64("game.count") } };
     struct JobSystemCreateParams params = { .m_ThreadNamePrefix = "ds-c", .m_ThreadCount = 0 };
     HJobContext                  jobs = JobSystemCreate(&params);
     int                          ok = DSRegisterFunction(store, &desc) == DS_RESULT_OK && count == 0;

@@ -16,9 +16,11 @@
 #define DMSDK_DATASTORE_SCHEDULER_H
 
 #include <dmsdk/datastore/types.h>
+#include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/jobsystem.h>
 
 #define DS_SYSTEM_MAX_DEPENDENCIES 16
+#define DS_EVENT_GAMEOBJECT_PRE_UPDATE dmHashString64("engine.gameobject.pre_update")
 
 #ifdef __cplusplus
 extern "C"
@@ -29,8 +31,8 @@ extern "C"
 
     typedef struct DSSystemDesc
     {
-        const char*     m_Name;
-        const char*     m_DependsOn[DS_SYSTEM_MAX_DEPENDENCIES];
+        dmhash_t        m_Name;
+        dmhash_t        m_DependsOn[DS_SYSTEM_MAX_DEPENDENCIES];
         HDSQuery        m_Query;
         DSSystemProcess m_Process;
         void*           m_Context;
@@ -38,16 +40,16 @@ extern "C"
 
     typedef struct DSEventDesc
     {
-        const char* m_Name;
-        const char* m_DependsOn[DS_SYSTEM_MAX_DEPENDENCIES];
+        dmhash_t m_Name;
+        dmhash_t m_DependsOn[DS_SYSTEM_MAX_DEPENDENCIES];
     } DSEventDesc;
 
     DSResult DSRegisterFunction(HDSContext store, const DSSystemDesc* desc);
-    DSResult DSUnregisterFunction(HDSContext store, const char* name);
+    DSResult DSUnregisterFunction(HDSContext store, dmhash_t name);
     DSResult DSRegisterEvent(HDSContext store, const DSEventDesc* desc);
-    DSResult DSUnregisterEvent(HDSContext store, const char* name);
+    DSResult DSUnregisterEvent(HDSContext store, dmhash_t name);
     DSResult DSBeginSchedule(HDSContext store, HJobContext jobs);
-    DSResult DSSchedulerEvent(HDSContext store, const char* name);
+    DSResult DSSchedulerEvent(HDSContext store, dmhash_t name);
     DSResult DSSchedulerUpdate(HDSContext store);
     DSResult DSEndSchedule(HDSContext store);
 
@@ -76,6 +78,21 @@ extern "C"
  * @value 16
  */
 
+/*# Before game-object updates
+ *
+ * Registered by the engine in its DATASTORE_CONTEXT_NAME store. Each frame, after
+ * input dispatch and before game-object updates, the engine starts a schedule and
+ * signals this event. It waits for submitted functions and their dependents before
+ * updating components. Callbacks run on a dedicated engine job context; do not access game
+ * objects or Lua from workers. This does not refresh world transforms.
+ * This macro computes the event hash; cache it during initialization when signaling
+ * repeatedly. Standalone stores must register and signal their own events.
+ *
+ * @constant
+ * @name DS_EVENT_GAMEOBJECT_PRE_UPDATE
+ * @value dmHashString64("engine.gameobject.pre_update")
+ */
+
 /*# Process a query range
  *
  * The scheduler reserves the query and submits one job calling this function for all
@@ -95,18 +112,19 @@ extern "C"
 
 /*# System registration
  *
- * Names are copied during registration. The query must belong to the supplied store.
+ * Hashes are copied during registration. The query must belong to the supplied store.
  * Keep the query and context alive until unregistration or store teardown. At teardown,
  * finish callbacks, end the schedule and destroy queries before the store.
  * Dependencies name complete updates and may refer to updates registered later.
- * [ref:DSBeginSchedule] resolves names and rejects cycles.
- * Prerequisites may name functions or events. Engine lifecycle names are not built in;
- * every prerequisite must be registered with DSRegisterFunction or DSRegisterEvent.
+ * [ref:DSBeginSchedule] resolves hashes to indices and rejects cycles.
+ * Use dmHashString64 during setup; reverse hashes are available for diagnostics.
+ * Prerequisites may name functions or events. Every prerequisite must be registered;
+ * the engine registers [ref:DS_EVENT_GAMEOBJECT_PRE_UPDATE] in its own store.
  *
  * @struct
  * @name DSSystemDesc
- * @member m_Name [type:const char*] Nonempty name, unique among functions and events in the store.
- * @member m_DependsOn [type:const char*[]] Nonempty prerequisite names, packed from index zero. Stop at the first zero or use all DS_SYSTEM_MAX_DEPENDENCIES entries.
+ * @member m_Name [type:dmhash_t] Nonzero name hash, unique among functions and events in the store.
+ * @member m_DependsOn [type:dmhash_t[]] Prerequisite hashes, packed from index zero. Stop at the first zero or use all DS_SYSTEM_MAX_DEPENDENCIES entries.
  * @member m_Query [type:HDSQuery] Borrowed query.
  * @member m_Process [type:DSSystemProcess] Required processing callback.
  * @member m_Context [type:void*] Borrowed user context passed unchanged to the callback.
@@ -115,54 +133,54 @@ extern "C"
 /*# Engine event registration
  *
  * An externally signaled milestone in the same dependency graph as query callbacks.
- * Names are copied. Dependencies may name functions or events registered later;
+ * Hashes are copied. Dependencies may name functions or events registered later;
  * DSBeginSchedule rejects missing prerequisites and cycles.
  *
  * @struct
  * @name DSEventDesc
- * @member m_Name [type:const char*] Nonempty name, unique among functions and events in the store.
- * @member m_DependsOn [type:const char*[]] Prerequisites that must complete before signaling succeeds. Packed from index zero; stop at the first zero or use all DS_SYSTEM_MAX_DEPENDENCIES entries.
+ * @member m_Name [type:dmhash_t] Nonzero name hash, unique among functions and events in the store.
+ * @member m_DependsOn [type:dmhash_t[]] Prerequisite hashes that must complete before signaling succeeds. Packed from index zero; stop at the first zero or use all DS_SYSTEM_MAX_DEPENDENCIES entries.
  */
 
 /*# Register a query callback
  *
- * Copies the descriptor and names; registration does not invoke the callback.
+ * Copies the descriptor and hashes; registration does not invoke the callback.
  *
  * @name DSRegisterFunction
  * @param store [type:HDSContext] Store receiving the registration.
- * @param desc [type:const DSSystemDesc*] Callback, query, context and dependency names.
- * @return result [type:DSResult] OK, LOCKED during a schedule, ALREADY_EXISTS for a duplicate name, or INVALID_ARGUMENT for missing required values, empty names or a query from another store.
+ * @param desc [type:const DSSystemDesc*] Callback, query, context and dependency hashes.
+ * @return result [type:DSResult] OK, LOCKED during a schedule, ALREADY_EXISTS for a duplicate name, or INVALID_ARGUMENT for missing required values, a zero name hash or a query from another store.
  */
 
 /*# Unregister a query callback
  *
  * Removes the named registration between schedules. The query
- * and user context remain caller-owned. Dependent registrations retain their names.
+ * and user context remain caller-owned. Dependent registrations retain their hashes.
  *
  * @name DSUnregisterFunction
  * @param store [type:HDSContext] Store containing the registration.
- * @param name [type:const char*] Name supplied when registering the callback.
+ * @param name [type:dmhash_t] Name hash supplied when registering the callback.
  * @return result [type:DSResult] OK, LOCKED during a schedule, NOT_FOUND for an unknown name, or INVALID_ARGUMENT if the name identifies an event.
  */
 
 /*# Register an engine event
  *
- * Copies the descriptor and names between schedules. Events have no query or callback;
+ * Copies the descriptor and hashes between schedules. Events have no query or callback;
  * the caller signals them explicitly with DSSchedulerEvent.
  *
  * @name DSRegisterEvent
  * @param store [type:HDSContext] Store receiving the registration.
- * @param desc [type:const DSEventDesc*] Event name and prerequisite names.
- * @return result [type:DSResult] OK, LOCKED during a schedule, ALREADY_EXISTS for a duplicate name, or INVALID_ARGUMENT for a missing/empty name or empty dependency name.
+ * @param desc [type:const DSEventDesc*] Event hash and prerequisite hashes.
+ * @return result [type:DSResult] OK, LOCKED during a schedule, ALREADY_EXISTS for a duplicate name, or INVALID_ARGUMENT for a zero name hash.
  */
 
 /*# Unregister an engine event
  *
- * Removes the named event between schedules. Dependent registrations retain their names.
+ * Removes the named event between schedules. Dependent registrations retain their hashes.
  *
  * @name DSUnregisterEvent
  * @param store [type:HDSContext] Store containing the event.
- * @param name [type:const char*] Name supplied when registering the event.
+ * @param name [type:dmhash_t] Name hash supplied when registering the event.
  * @return result [type:DSResult] OK, LOCKED during a schedule, NOT_FOUND for an unknown name, or INVALID_ARGUMENT if the name identifies a function.
  */
 
@@ -192,7 +210,7 @@ extern "C"
  *
  * @name DSSchedulerEvent
  * @param store [type:HDSContext] Store with an active schedule.
- * @param name [type:const char*] Registered event name.
+ * @param name [type:dmhash_t] Registered event hash.
  * @return result [type:DSResult] OK, BUSY while prerequisites are incomplete, NOT_FOUND for an unknown name, or INVALID_ARGUMENT without an active schedule, for a function name or for an already signaled event.
  */
 
@@ -215,14 +233,15 @@ extern "C"
 
 /*# End a schedule
  *
- * Ends the invocation, discarding functions not yet submitted and unsignaled events.
- * Returns BUSY while any submitted job awaits its completion callback; keep pumping
- * DSSchedulerUpdate before retrying. A failed end retains reservations and dependencies.
+ * Ends the invocation, discarding unsignaled events and functions waiting on them.
+ * Returns BUSY while jobs await completion or ready functions await query access;
+ * keep pumping DSSchedulerUpdate before retrying. A failed end retains reservations
+ * and dependencies.
  * Registration changes are allowed after success. The next begin starts fresh.
  *
  * @name DSEndSchedule
  * @param store [type:HDSContext] Store with an active schedule.
- * @return result [type:DSResult] OK, BUSY while admitted functions are unfinished, or INVALID_ARGUMENT without an active schedule.
+ * @return result [type:DSResult] OK, BUSY while functions are running or ready to run, or INVALID_ARGUMENT without an active schedule.
  */
 
 #endif // DMSDK_DATASTORE_SCHEDULER_H

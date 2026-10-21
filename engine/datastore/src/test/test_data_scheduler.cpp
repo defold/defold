@@ -116,9 +116,9 @@ static void FinishSchedule(HDSContext store, uint32_t num_functions)
     ASSERT_EQ(DS_RESULT_OK, DSEndSchedule(store));
 }
 
-// Registration must own stack-supplied names while preserving the callback's
+// Registration copies hashes while preserving the callback's
 // borrowed query/context and the row range supplied by its dispatcher.
-TEST(DataScheduler, CopiesNamesAndBorrowsQueryAndContext)
+TEST(DataScheduler, CopiesHashesAndBorrowsQueryAndContext)
 {
     HDSContext  store = DSCreateStore(0);
     DSFieldDesc field = { .m_Field = dmHashString64("health"), .m_Type = DS_TYPE_FLOAT, .m_Offset = offsetof(ScheduledRow, m_Health) };
@@ -132,26 +132,24 @@ TEST(DataScheduler, CopiesNamesAndBorrowsQueryAndContext)
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &query_desc, &query));
     ScheduledContext context = { .m_Field = DSQueryFindField(query, &query_desc.m_Items[0]), .m_Amount = 5 };
-    char             name[] = "game.heal";
-    char             dependency[] = "engine.frame_begin";
-    DSSystemDesc     desc = { .m_Name = name, .m_DependsOn = { dependency }, .m_Query = query, .m_Process = HealRows, .m_Context = &context };
+    DSSystemDesc     desc = { .m_Name = dmHashString64("game.heal"), .m_DependsOn = { dmHashString64("engine.frame_begin") }, .m_Query = query, .m_Process = HealRows, .m_Context = &context };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &desc));
     ASSERT_EQ(0u, context.m_Calls);
 
-    memset(name, 'x', sizeof(name) - 1);
-    memset(dependency, 'y', sizeof(dependency) - 1);
+    desc.m_Name = 0;
+    desc.m_DependsOn[0] = 0;
     desc.m_Query = 0;
     desc.m_Process = 0;
     desc.m_Context = 0;
     const DSSystemDesc& registered = store->m_Systems[0].m_Desc;
-    ASSERT_STREQ("game.heal", registered.m_Name);
-    ASSERT_STREQ("engine.frame_begin", registered.m_DependsOn[0]);
+    ASSERT_EQ(dmHashString64("game.heal"), registered.m_Name);
+    ASSERT_EQ(dmHashString64("engine.frame_begin"), registered.m_DependsOn[0]);
     ASSERT_EQ(query, registered.m_Query);
     ASSERT_TRUE(HealRows == registered.m_Process);
     ASSERT_EQ((void*)&context, registered.m_Context);
 
     HJobContext jobs = CreateScheduledJobs();
-    DSEventDesc begin = { .m_Name = "engine.frame_begin" };
+    DSEventDesc begin = { .m_Name = dmHashString64("engine.frame_begin") };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &begin));
     context.m_Amount = 10;
     ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(store, jobs));
@@ -165,7 +163,7 @@ TEST(DataScheduler, CopiesNamesAndBorrowsQueryAndContext)
     ASSERT_EQ(60.0f, values[1]);
     ASSERT_EQ(35.0f, values[2]);
 
-    ASSERT_EQ(DS_RESULT_OK, DSUnregisterFunction(store, "game.heal"));
+    ASSERT_EQ(DS_RESULT_OK, DSUnregisterFunction(store, dmHashString64("game.heal")));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     DSQueryEnd(query);
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
@@ -181,31 +179,31 @@ TEST(DataScheduler, GrowthRemovalAndFullDependencyArray)
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &query_desc, &query));
     char         name[32];
-    char         dependencies[DS_SYSTEM_MAX_DEPENDENCIES][32];
-    DSSystemDesc desc = { .m_Name = name, .m_Query = query, .m_Process = HealRows };
+    DSSystemDesc desc = { .m_Query = query, .m_Process = HealRows };
     for (uint32_t i = 0; i < DS_SYSTEM_MAX_DEPENDENCIES; ++i)
     {
-        snprintf(dependencies[i], sizeof(dependencies[i]), "prerequisite_%u", i);
-        desc.m_DependsOn[i] = dependencies[i];
+        snprintf(name, sizeof(name), "prerequisite_%u", i);
+        desc.m_DependsOn[i] = dmHashString64(name);
     }
     for (uint32_t i = 0; i < 24; ++i)
     {
         snprintf(name, sizeof(name), "system_%u", i);
+        desc.m_Name = dmHashString64(name);
         ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &desc));
     }
     ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSRegisterFunction(store, &desc));
     ASSERT_EQ(24u, store->m_Systems.Size());
-    ASSERT_STREQ("prerequisite_15", store->m_Systems[0].m_Desc.m_DependsOn[15]);
+    ASSERT_EQ(dmHashString64("prerequisite_15"), store->m_Systems[0].m_Desc.m_DependsOn[15]);
     for (uint32_t i = 1; i < 24; i += 2)
     {
         snprintf(name, sizeof(name), "system_%u", i);
-        ASSERT_EQ(DS_RESULT_OK, DSUnregisterFunction(store, name));
-        ASSERT_EQ(DS_RESULT_NOT_FOUND, DSUnregisterFunction(store, name));
+        ASSERT_EQ(DS_RESULT_OK, DSUnregisterFunction(store, dmHashString64(name)));
+        ASSERT_EQ(DS_RESULT_NOT_FOUND, DSUnregisterFunction(store, dmHashString64(name)));
     }
     for (uint32_t i = 0; i < 24; i += 2)
     {
         snprintf(name, sizeof(name), "system_%u", i);
-        ASSERT_EQ(DS_RESULT_OK, DSUnregisterFunction(store, name));
+        ASSERT_EQ(DS_RESULT_OK, DSUnregisterFunction(store, dmHashString64(name)));
     }
     ASSERT_EQ(0u, store->m_Systems.Size());
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &desc));
@@ -224,17 +222,15 @@ TEST(DataScheduler, RejectsInvalidDeclarations)
     HDSQuery    other_query;
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &query_desc, &query));
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(other_store, &query_desc, &other_query));
-    DSSystemDesc desc = { .m_Name = "game.heal", .m_Query = other_query, .m_Process = HealRows };
+    DSSystemDesc desc = { .m_Name = dmHashString64("game.heal"), .m_Query = other_query, .m_Process = HealRows };
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterFunction(store, &desc));
     desc.m_Query = query;
-    desc.m_Name = "";
+    desc.m_Name = 0;
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterFunction(store, &desc));
-    desc.m_Name = "game.heal";
+    desc.m_Name = dmHashString64("game.heal");
     desc.m_Process = 0;
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterFunction(store, &desc));
     desc.m_Process = HealRows;
-    desc.m_DependsOn[0] = "";
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterFunction(store, &desc));
     ASSERT_EQ(0u, store->m_Systems.Size());
     desc.m_DependsOn[0] = 0;
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &desc));
@@ -244,7 +240,7 @@ TEST(DataScheduler, RejectsInvalidDeclarations)
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
 }
 
-// Names are scoped to the owning context. Rejected destruction must preserve
+// Hashes are scoped to the owning context. Rejected destruction must preserve
 // registrations; completed teardown must not invoke callbacks or touch another store.
 TEST(DataScheduler, ContextOwnsRegistrations)
 {
@@ -256,7 +252,7 @@ TEST(DataScheduler, ContextOwnsRegistrations)
     ScheduledContext context = { 0 };
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &query_desc, &query));
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(other_store, &query_desc, &other_query));
-    DSSystemDesc desc = { .m_Name = "game.heal", .m_Query = query, .m_Process = HealRows, .m_Context = &context };
+    DSSystemDesc desc = { .m_Name = dmHashString64("game.heal"), .m_Query = query, .m_Process = HealRows, .m_Context = &context };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &desc));
     desc.m_Query = other_query;
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(other_store, &desc));
@@ -264,12 +260,12 @@ TEST(DataScheduler, ContextOwnsRegistrations)
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     ASSERT_EQ(DS_RESULT_LOCKED, DSDestroyStore(store));
     ASSERT_EQ(1u, store->m_Systems.Size());
-    ASSERT_STREQ("game.heal", store->m_Systems[0].m_Desc.m_Name);
+    ASSERT_EQ(dmHashString64("game.heal"), store->m_Systems[0].m_Desc.m_Name);
     DSQueryEnd(query);
     ASSERT_EQ(DS_RESULT_OK, DSUnregisterFunction(store, desc.m_Name));
     ASSERT_EQ(0u, store->m_Systems.Size());
     ASSERT_EQ(1u, other_store->m_Systems.Size());
-    ASSERT_STREQ("game.heal", other_store->m_Systems[0].m_Desc.m_Name);
+    ASSERT_EQ(dmHashString64("game.heal"), other_store->m_Systems[0].m_Desc.m_Name);
 
     // Teardown leaves the copied registration for the context to release.
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(other_query));
@@ -298,9 +294,9 @@ TEST(DataScheduler, QueryAccessMatrix)
             desc.m_Items[0].m_Access = b ? DS_FIELD_MUTABLE : 0;
             HDSQuery         second = CreateScheduledQuery(store, desc);
             ScheduledContext second_context = { .m_Field = DSQueryFindField(second, &desc.m_Items[0]), .m_Amount = 1 };
-            DSSystemDesc     first_desc = { .m_Name = "first", .m_DependsOn = { "engine.update.begin" }, .m_Query = first, .m_Process = a ? HealRows : ReadHealthRows, .m_Context = &first_context };
-            DSSystemDesc     second_desc = { .m_Name = "second", .m_DependsOn = { "engine.update.begin" }, .m_Query = second, .m_Process = b ? HealRows : ReadHealthRows, .m_Context = &second_context };
-            DSEventDesc      begin = { .m_Name = "engine.update.begin" };
+            DSSystemDesc     first_desc = { .m_Name = dmHashString64("first"), .m_DependsOn = { dmHashString64("engine.update.begin") }, .m_Query = first, .m_Process = a ? HealRows : ReadHealthRows, .m_Context = &first_context };
+            DSSystemDesc     second_desc = { .m_Name = dmHashString64("second"), .m_DependsOn = { dmHashString64("engine.update.begin") }, .m_Query = second, .m_Process = b ? HealRows : ReadHealthRows, .m_Context = &second_context };
+            DSEventDesc      begin = { .m_Name = dmHashString64("engine.update.begin") };
             ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &first_desc));
             ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &second_desc));
             ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &begin));
@@ -350,8 +346,8 @@ TEST(DataScheduler, DependenciesSubmitAfterCompletion)
         desc.m_Items[0].m_Access = 0;
         HDSQuery         consumer = CreateScheduledQuery(store, desc);
         ScheduledContext consumer_context = { .m_Field = DSQueryFindField(consumer, &desc.m_Items[0]) };
-        DSSystemDesc     consume = { .m_Name = "consume", .m_DependsOn = { "produce" }, .m_Query = consumer, .m_Process = ReadHealthRows, .m_Context = &consumer_context };
-        DSSystemDesc     produce = { .m_Name = "produce", .m_Query = producer, .m_Process = writable ? HealRows : ReadHealthRows, .m_Context = &producer_context };
+        DSSystemDesc     consume = { .m_Name = dmHashString64("consume"), .m_DependsOn = { dmHashString64("produce") }, .m_Query = consumer, .m_Process = ReadHealthRows, .m_Context = &consumer_context };
+        DSSystemDesc     produce = { .m_Name = dmHashString64("produce"), .m_Query = producer, .m_Process = writable ? HealRows : ReadHealthRows, .m_Context = &producer_context };
         ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &consume));
         ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &produce));
         for (uint32_t frame = 0; frame < 2; ++frame)
@@ -398,10 +394,10 @@ TEST(DataScheduler, DisjointFieldsAndGroups)
     HDSQuery         movement = CreateScheduledQuery(store, desc);
     ScheduledContext move_context = { .m_Field = DSQueryFindField(movement, &desc.m_Items[0]), .m_Amount = 10 };
     DSSystemDesc     systems[] = {
-        { .m_Name = "health_7", .m_Query = first, .m_Process = HealRows, .m_Context = &first_context },
-        { .m_Name = "read_health", .m_Query = reader, .m_Process = ReadHealthRows, .m_Context = &read_context },
-        { .m_Name = "movement", .m_Query = movement, .m_Process = MoveRows, .m_Context = &move_context },
-        { .m_Name = "health_8", .m_Query = second, .m_Process = HealRows, .m_Context = &second_context }
+        { .m_Name = dmHashString64("health_7"), .m_Query = first, .m_Process = HealRows, .m_Context = &first_context },
+        { .m_Name = dmHashString64("read_health"), .m_Query = reader, .m_Process = ReadHealthRows, .m_Context = &read_context },
+        { .m_Name = dmHashString64("movement"), .m_Query = movement, .m_Process = MoveRows, .m_Context = &move_context },
+        { .m_Name = dmHashString64("health_8"), .m_Query = second, .m_Process = HealRows, .m_Context = &second_context }
     };
     for (uint32_t i = 0; i < 4; ++i)
         ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &systems[i]));
@@ -432,9 +428,9 @@ TEST(DataScheduler, GraphValidationAndRegistrationChanges)
     DSQueryDesc      desc = { 0 };
     HDSQuery         query = CreateScheduledQuery(store, desc);
     ScheduledContext context = { 0 };
-    DSSystemDesc     function = { .m_Name = "heal", .m_DependsOn = { "engine.begin" }, .m_Query = query, .m_Process = HealRows, .m_Context = &context };
-    DSEventDesc      begin = { .m_Name = "engine.begin", .m_DependsOn = { "heal" } };
-    DSEventDesc      end = { .m_Name = "engine.end", .m_DependsOn = { "heal" } };
+    DSSystemDesc     function = { .m_Name = dmHashString64("heal"), .m_DependsOn = { dmHashString64("engine.begin") }, .m_Query = query, .m_Process = HealRows, .m_Context = &context };
+    DSEventDesc      begin = { .m_Name = dmHashString64("engine.begin"), .m_DependsOn = { dmHashString64("heal") } };
+    DSEventDesc      end = { .m_Name = dmHashString64("engine.end"), .m_DependsOn = { dmHashString64("heal") } };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &function));
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSBeginSchedule(store, jobs));
     ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &begin));
@@ -475,11 +471,13 @@ TEST(DataScheduler, FullDependencyArray)
     DSQueryDesc      desc = { 0 };
     HDSQuery         query = CreateScheduledQuery(store, desc);
     ScheduledContext producer_context = { 0 }, consumer_context = { 0 };
-    char             names[DS_SYSTEM_MAX_DEPENDENCIES][32];
-    DSSystemDesc     consumer = { .m_Name = "consumer", .m_Query = query, .m_Process = ReadHealthRows, .m_Context = &consumer_context };
+    dmhash_t         names[DS_SYSTEM_MAX_DEPENDENCIES];
+    char             name[32];
+    DSSystemDesc     consumer = { .m_Name = dmHashString64("consumer"), .m_Query = query, .m_Process = ReadHealthRows, .m_Context = &consumer_context };
     for (uint32_t i = 0; i < DS_SYSTEM_MAX_DEPENDENCIES; ++i)
     {
-        snprintf(names[i], sizeof(names[i]), "producer_%u", i);
+        snprintf(name, sizeof(name), "producer_%u", i);
+        names[i] = dmHashString64(name);
         consumer.m_DependsOn[i] = names[i];
     }
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &consumer));
@@ -520,14 +518,14 @@ TEST(DataScheduler, ScheduleLifetimeAndEmptyQueries)
     HDSQuery         query = CreateScheduledQuery(store, desc);
     HDSQuery         unrelated = CreateScheduledQuery(store, desc);
     ScheduledContext context = { 0 };
-    DSEventDesc      begin = { .m_Name = "engine.begin" };
-    DSSystemDesc     system = { .m_Name = "empty", .m_DependsOn = { "engine.begin" }, .m_Query = query, .m_Process = ReadHealthRows, .m_Context = &context };
+    DSEventDesc      begin = { .m_Name = dmHashString64("engine.begin") };
+    DSSystemDesc     system = { .m_Name = dmHashString64("empty"), .m_DependsOn = { dmHashString64("engine.begin") }, .m_Query = query, .m_Process = ReadHealthRows, .m_Context = &context };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &begin));
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &system));
     ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(store, jobs));
     ASSERT_EQ(DS_RESULT_LOCKED, DSBeginSchedule(store, jobs));
     ASSERT_EQ(DS_RESULT_LOCKED, DSRegisterFunction(store, &system));
-    ASSERT_EQ(DS_RESULT_LOCKED, DSUnregisterFunction(store, "empty"));
+    ASSERT_EQ(DS_RESULT_LOCKED, DSUnregisterFunction(store, dmHashString64("empty")));
     ASSERT_EQ(DS_RESULT_LOCKED, DSDestroyQuery(query));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(unrelated));
     ASSERT_EQ(DS_RESULT_OK, DSEndSchedule(store));
@@ -543,7 +541,7 @@ TEST(DataScheduler, ScheduleLifetimeAndEmptyQueries)
     ASSERT_EQ(DS_RESULT_OK, DSSchedulerUpdate(store));
     ASSERT_EQ(1u, context.m_Calls);
     ASSERT_EQ(DS_RESULT_OK, DSEndSchedule(store));
-    ASSERT_EQ(DS_RESULT_OK, DSUnregisterFunction(store, "empty"));
+    ASSERT_EQ(DS_RESULT_OK, DSUnregisterFunction(store, dmHashString64("empty")));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
     JobSystemDestroy(jobs);
@@ -567,8 +565,8 @@ TEST(DataScheduler, TableChangesAndExternalReservations)
     desc = { .m_Items = { DSTag("second"), DSField("health", DS_TYPE_FLOAT, 0) } };
     HDSQuery         reader = CreateScheduledQuery(store, desc);
     ScheduledContext read_context = { .m_Field = DSQueryFindField(reader, &desc.m_Items[1]) };
-    DSSystemDesc     write = { .m_Name = "write", .m_Query = writer, .m_Process = HealRows, .m_Context = &write_context };
-    DSSystemDesc     read = { .m_Name = "read", .m_Query = reader, .m_Process = ReadHealthRows, .m_Context = &read_context };
+    DSSystemDesc     write = { .m_Name = dmHashString64("write"), .m_Query = writer, .m_Process = HealRows, .m_Context = &write_context };
+    DSSystemDesc     read = { .m_Name = dmHashString64("read"), .m_Query = reader, .m_Process = ReadHealthRows, .m_Context = &read_context };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &write));
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &read));
     for (uint32_t pass = 0; pass < 3; ++pass)
@@ -605,6 +603,51 @@ TEST(DataScheduler, TableChangesAndExternalReservations)
     JobSystemDestroy(jobs);
 }
 
+// Ending must retry ready work blocked on query access, while ignoring a chain
+// behind an unsignaled event. The engine uses this end/update loop each frame.
+TEST(DataScheduler, EndWaitsForReadyFunctions)
+{
+    HJobContext      jobs = CreateScheduledJobs();
+    DSId             ids[3];
+    HDSContext       store = CreateScheduledStore(ids);
+    DSQueryDesc      desc = { .m_Items = { DSField("health", DS_TYPE_FLOAT, DS_FIELD_MUTABLE) } };
+    HDSQuery         query = CreateScheduledQuery(store, desc);
+    ScheduledContext writer = { .m_Field = DSQueryFindField(query, &desc.m_Items[0]), .m_Amount = 1 };
+    ScheduledContext reader = { .m_Field = writer.m_Field };
+    ScheduledContext pending = { .m_Field = writer.m_Field };
+    DSEventDesc      events[] = { { .m_Name = dmHashString64("begin") }, { .m_Name = dmHashString64("manual") } };
+    DSSystemDesc     systems[] = {
+        { .m_Name = dmHashString64("write"), .m_DependsOn = { events[0].m_Name }, .m_Query = query, .m_Process = HealRows, .m_Context = &writer },
+        { .m_Name = dmHashString64("read"), .m_DependsOn = { dmHashString64("write") }, .m_Query = query, .m_Process = ReadHealthRows, .m_Context = &reader },
+        { .m_Name = dmHashString64("pending"), .m_DependsOn = { events[1].m_Name }, .m_Query = query, .m_Process = ReadHealthRows, .m_Context = &pending },
+        { .m_Name = dmHashString64("pending_child"), .m_DependsOn = { dmHashString64("pending") }, .m_Query = query, .m_Process = ReadHealthRows, .m_Context = &pending }
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(events); ++i)
+        ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &events[i]));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(systems); ++i)
+        ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &systems[i]));
+
+    for (uint32_t frame = 0; frame < 2; ++frame)
+    {
+        ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
+        ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(store, jobs));
+        ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(store, events[0].m_Name));
+        ASSERT_EQ(DS_RESULT_BUSY, DSEndSchedule(store));
+        ASSERT_EQ(frame, writer.m_Calls);
+        DSQueryEnd(query);
+        ASSERT_EQ(DS_RESULT_BUSY, DSEndSchedule(store));
+        while (DSEndSchedule(store) == DS_RESULT_BUSY)
+            DSSchedulerUpdate(store);
+        ASSERT_EQ(frame + 1, writer.m_Calls);
+        ASSERT_EQ(frame + 1, reader.m_Calls);
+        ASSERT_EQ(0u, pending.m_Calls);
+    }
+
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    JobSystemDestroy(jobs);
+}
+
 // Signaling an entry queues its jobs without executing them on the caller. A later
 // engine boundary waits for those jobs; both states reset on the next invocation.
 TEST(DataScheduler, EventsLaunchFunctions)
@@ -618,10 +661,10 @@ TEST(DataScheduler, EventsLaunchFunctions)
     desc.m_Items[0].m_Access = 0;
     HDSQuery         reader = CreateScheduledQuery(store, desc);
     ScheduledContext read_context = { .m_Field = DSQueryFindField(reader, &desc.m_Items[0]) };
-    DSSystemDesc     write = { .m_Name = "heal", .m_DependsOn = { "engine.begin" }, .m_Query = writer, .m_Process = HealRows, .m_Context = &write_context };
-    DSSystemDesc     read = { .m_Name = "observe", .m_DependsOn = { "engine.end" }, .m_Query = reader, .m_Process = ReadHealthRows, .m_Context = &read_context };
-    DSEventDesc      begin = { .m_Name = "engine.begin" };
-    DSEventDesc      end = { .m_Name = "engine.end", .m_DependsOn = { "heal" } };
+    DSSystemDesc     write = { .m_Name = dmHashString64("heal"), .m_DependsOn = { dmHashString64("engine.begin") }, .m_Query = writer, .m_Process = HealRows, .m_Context = &write_context };
+    DSSystemDesc     read = { .m_Name = dmHashString64("observe"), .m_DependsOn = { dmHashString64("engine.end") }, .m_Query = reader, .m_Process = ReadHealthRows, .m_Context = &read_context };
+    DSEventDesc      begin = { .m_Name = dmHashString64("engine.begin") };
+    DSEventDesc      end = { .m_Name = dmHashString64("engine.end"), .m_DependsOn = { dmHashString64("heal") } };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &read));
     ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &end));
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &write));
@@ -648,7 +691,7 @@ TEST(DataScheduler, EventsLaunchFunctions)
     JobSystemDestroy(jobs);
 }
 
-// Events own their names and share the function namespace. Wrong-kind operations,
+// Events copy their hashes and share the function namespace. Wrong-kind operations,
 // duplicates and mid-invocation registration changes must leave the graph intact.
 TEST(DataScheduler, EventRegistrationAndLifetime)
 {
@@ -658,44 +701,38 @@ TEST(DataScheduler, EventRegistrationAndLifetime)
     HDSQuery    query = CreateScheduledQuery(store, query_desc);
     DSEventDesc invalid = { 0 };
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterEvent(store, &invalid));
-    invalid.m_Name = "";
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterEvent(store, &invalid));
-    invalid = { .m_Name = "invalid", .m_DependsOn = { "" } };
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterEvent(store, &invalid));
 
-    char        name[] = "engine.update.end";
-    char        dependency[] = "engine.update.begin";
-    DSEventDesc end = { .m_Name = name, .m_DependsOn = { dependency } };
-    DSEventDesc begin = { .m_Name = "engine.update.begin" };
+    DSEventDesc end = { .m_Name = dmHashString64("engine.update.end"), .m_DependsOn = { dmHashString64("engine.update.begin") } };
+    DSEventDesc begin = { .m_Name = dmHashString64("engine.update.begin") };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &end));
     ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSRegisterEvent(store, &end));
     ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &begin));
-    memset(name, 'x', sizeof(name) - 1);
-    memset(dependency, 'y', sizeof(dependency) - 1);
-    DSSystemDesc function = { .m_Name = "engine.update.end", .m_DependsOn = { "never" }, .m_Query = query, .m_Process = HealRows };
+    end.m_Name = 0;
+    end.m_DependsOn[0] = 0;
+    DSSystemDesc function = { .m_Name = dmHashString64("engine.update.end"), .m_DependsOn = { dmHashString64("never") }, .m_Query = query, .m_Process = HealRows };
     ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSRegisterFunction(store, &function));
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSUnregisterFunction(store, "engine.update.end"));
-    DSEventDesc never = { .m_Name = "never" };
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSUnregisterFunction(store, dmHashString64("engine.update.end")));
+    DSEventDesc never = { .m_Name = dmHashString64("never") };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &never));
-    function.m_Name = "heal";
+    function.m_Name = dmHashString64("heal");
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &function));
-    DSEventDesc duplicate = { .m_Name = "heal" };
+    DSEventDesc duplicate = { .m_Name = dmHashString64("heal") };
     ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSRegisterEvent(store, &duplicate));
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSUnregisterEvent(store, "heal"));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSUnregisterEvent(store, dmHashString64("heal")));
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSchedulerEvent(store, begin.m_Name));
     ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(store, jobs));
     ASSERT_EQ(DS_RESULT_LOCKED, DSRegisterEvent(store, &begin));
     ASSERT_EQ(DS_RESULT_LOCKED, DSUnregisterEvent(store, begin.m_Name));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSSchedulerEvent(store, "missing"));
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSchedulerEvent(store, "heal"));
-    ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerEvent(store, "engine.update.end"));
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSSchedulerEvent(store, dmHashString64("missing")));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSchedulerEvent(store, dmHashString64("heal")));
+    ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerEvent(store, dmHashString64("engine.update.end")));
     ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(store, begin.m_Name));
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSchedulerEvent(store, begin.m_Name));
-    ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(store, "engine.update.end"));
+    ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(store, dmHashString64("engine.update.end")));
     ASSERT_EQ(DS_RESULT_OK, DSEndSchedule(store));
 
     ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(store, jobs));
-    ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerEvent(store, "engine.update.end"));
+    ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerEvent(store, dmHashString64("engine.update.end")));
     ASSERT_EQ(DS_RESULT_OK, DSEndSchedule(store));
     ASSERT_EQ(DS_RESULT_OK, DSUnregisterEvent(store, begin.m_Name));
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSUnregisterEvent(store, begin.m_Name));
@@ -703,7 +740,7 @@ TEST(DataScheduler, EventRegistrationAndLifetime)
     ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &begin));
     ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(store, jobs));
     ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(store, begin.m_Name));
-    ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(store, "engine.update.end"));
+    ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(store, dmHashString64("engine.update.end")));
     ASSERT_EQ(DS_RESULT_OK, DSEndSchedule(store));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
@@ -716,11 +753,13 @@ TEST(DataScheduler, EventFullDependencyArray)
 {
     HJobContext jobs = CreateScheduledJobs();
     HDSContext  store = DSCreateStore(0);
-    char        names[DS_SYSTEM_MAX_DEPENDENCIES][32];
-    DSEventDesc end = { .m_Name = "engine.update.end" };
+    dmhash_t    names[DS_SYSTEM_MAX_DEPENDENCIES];
+    char        name[32];
+    DSEventDesc end = { .m_Name = dmHashString64("engine.update.end") };
     for (uint32_t i = 0; i < DS_SYSTEM_MAX_DEPENDENCIES; ++i)
     {
-        snprintf(names[i], sizeof(names[i]), "engine.update.%u", i);
+        snprintf(name, sizeof(name), "engine.update.%u", i);
+        names[i] = dmHashString64(name);
         end.m_DependsOn[i] = names[i];
     }
     ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &end));
@@ -738,6 +777,43 @@ TEST(DataScheduler, EventFullDependencyArray)
     }
     ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(store, end.m_Name));
     ASSERT_EQ(DS_RESULT_OK, DSEndSchedule(store));
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    JobSystemDestroy(jobs);
+}
+
+// Hashes differing only in their upper bits must identify distinct events and
+// dependencies, even without reverse-hash entries for their names.
+TEST(DataScheduler, FullWidthHashIdentity)
+{
+    HDSContext       store = DSCreateStore(0);
+    HJobContext      jobs = CreateScheduledJobs();
+    DSQueryDesc      query_desc = { 0 };
+    HDSQuery         query = CreateScheduledQuery(store, query_desc);
+    ScheduledContext context = { 0 };
+    DSEventDesc      first = { .m_Name = UINT64_C(0x100000007) };
+    DSEventDesc      second = { .m_Name = UINT64_C(0x200000007) };
+    DSSystemDesc     function = {
+            .m_Name = UINT64_C(0x300000007),
+            .m_DependsOn = { second.m_Name },
+            .m_Query = query,
+            .m_Process = ReadHealthRows,
+            .m_Context = &context
+    };
+    ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &function));
+    ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &first));
+    ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &second));
+    ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSRegisterEvent(store, &second));
+    ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(store, jobs));
+    ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(store, first.m_Name));
+    ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerUpdate(store));
+    ASSERT_EQ(0U, context.m_Calls);
+    ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(store, second.m_Name));
+    FinishSchedule(store, 1);
+    ASSERT_EQ(1U, context.m_Calls);
+    ASSERT_EQ(DS_RESULT_OK, DSUnregisterEvent(store, first.m_Name));
+    ASSERT_EQ(DS_RESULT_OK, DSUnregisterEvent(store, second.m_Name));
+    ASSERT_EQ(DS_RESULT_OK, DSUnregisterFunction(store, function.m_Name));
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
     JobSystemDestroy(jobs);
 }

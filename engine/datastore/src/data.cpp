@@ -275,8 +275,6 @@ DSResult DSDestroyStore(HDSContext store)
         DeleteBlobPool(store->m_Pools);
     for (uint32_t i = 0; i < store->m_Tables.Size(); ++i)
         DeleteTable(store, store->m_Tables[i]);
-    for (uint32_t i = 0; i < store->m_Systems.Size(); ++i)
-        free(store->m_Systems[i].m_Names);
     dmMutex::Unlock(store->m_Mutex);
     dmMutex::Delete(store->m_Mutex);
     DeleteRowPages(store);

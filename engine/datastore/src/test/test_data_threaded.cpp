@@ -69,6 +69,12 @@ struct ScheduledJobState
     double            m_Values[12];
 };
 
+struct SchedulerAdmissionGate
+{
+    HDSContext       m_Store;
+    ScheduledJobGate m_Gate;
+};
+
 static ThreadFixture CreateFixture()
 {
     ThreadFixture fixture = {};
@@ -544,10 +550,10 @@ TEST(DataThreaded, SchedulerAutomaticJobs)
     ScheduledJobGate  gate = { .m_Mutex = dmMutex::New(), .m_Condition = dmConditionVariable::New() };
     ScheduledJobState states[4] = { { .m_Gate = &gate }, { .m_Gate = &gate } };
     DSSystemDesc      systems[] = {
-        { .m_Name = "read_first", .m_DependsOn = { "engine.update.begin" }, .m_Process = ReadScheduledHealth, .m_Context = &states[0] },
-        { .m_Name = "read_second", .m_DependsOn = { "engine.update.begin" }, .m_Process = ReadScheduledHealth, .m_Context = &states[1] },
-        { .m_Name = "regenerate", .m_DependsOn = { "engine.update.begin" }, .m_Process = RegenerateScheduledHealth, .m_Context = &states[2] },
-        { .m_Name = "observe", .m_DependsOn = { "regenerate" }, .m_Process = ReadScheduledHealth, .m_Context = &states[3] }
+        { .m_Name = dmHashString64("read_first"), .m_DependsOn = { dmHashString64("engine.update.begin") }, .m_Process = ReadScheduledHealth, .m_Context = &states[0] },
+        { .m_Name = dmHashString64("read_second"), .m_DependsOn = { dmHashString64("engine.update.begin") }, .m_Process = ReadScheduledHealth, .m_Context = &states[1] },
+        { .m_Name = dmHashString64("regenerate"), .m_DependsOn = { dmHashString64("engine.update.begin") }, .m_Process = RegenerateScheduledHealth, .m_Context = &states[2] },
+        { .m_Name = dmHashString64("observe"), .m_DependsOn = { dmHashString64("regenerate") }, .m_Process = ReadScheduledHealth, .m_Context = &states[3] }
     };
     for (uint32_t i = 0; i < 4; ++i)
     {
@@ -557,8 +563,8 @@ TEST(DataThreaded, SchedulerAutomaticJobs)
         states[i].m_Field = DSQueryFindField(systems[i].m_Query, &field);
         ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(fixture.m_Store, &systems[i]));
     }
-    DSEventDesc begin = { .m_Name = "engine.update.begin" };
-    DSEventDesc end = { .m_Name = "engine.update.end", .m_DependsOn = { "observe" } };
+    DSEventDesc begin = { .m_Name = dmHashString64("engine.update.begin") };
+    DSEventDesc end = { .m_Name = dmHashString64("engine.update.end"), .m_DependsOn = { dmHashString64("observe") } };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(fixture.m_Store, &begin));
     ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(fixture.m_Store, &end));
     JobSystemCreateParams params = { .m_ThreadNamePrefix = "ds-schedule", .m_ThreadCount = 4 };
@@ -610,6 +616,64 @@ TEST(DataThreaded, SchedulerAutomaticJobs)
     dmMutex::Delete(gate.m_Mutex);
     for (uint32_t i = 0; i < 4; ++i)
         ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(systems[i].m_Query));
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(fixture.m_Store));
+}
+
+static void HoldSchedulerAdmission(void* context)
+{
+    SchedulerAdmissionGate* state = (SchedulerAdmissionGate*)context;
+    ScheduledJobGate*       gate = &state->m_Gate;
+    DM_MUTEX_SCOPED_LOCK(state->m_Store->m_Mutex);
+    DM_MUTEX_SCOPED_LOCK(gate->m_Mutex);
+    ++gate->m_Started;
+    dmConditionVariable::Signal(gate->m_Condition);
+    while (!gate->m_Release)
+        dmConditionVariable::Wait(gate->m_Condition, gate->m_Mutex);
+}
+
+// Temporary store-mutex contention must not let the engine end a schedule before
+// a ready callback runs. Condition signals control contention without time limits.
+TEST(DataThreaded, SchedulerRetriesAdmissionBeforeEnd)
+{
+    ThreadFixture     fixture = CreateFixture();
+    HDSQuery          query = Query(fixture.m_Store, HEALTH, DS_TYPE_NUMBER, 0);
+    DSQueryItem       field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
+    ScheduledJobState state = { .m_Field = DSQueryFindField(query, &field) };
+    DSEventDesc       event = { .m_Name = DS_EVENT_GAMEOBJECT_PRE_UPDATE };
+    DSSystemDesc      function = { .m_Name = dmHashString64("read"), .m_DependsOn = { event.m_Name }, .m_Query = query, .m_Process = ReadScheduledHealth, .m_Context = &state };
+    ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(fixture.m_Store, &event));
+    ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(fixture.m_Store, &function));
+    JobSystemCreateParams  params = { .m_ThreadNamePrefix = "ds-admit", .m_ThreadCount = 0 };
+    HJobContext            jobs = JobSystemCreate(&params);
+    SchedulerAdmissionGate gate = { .m_Store = fixture.m_Store, .m_Gate = { .m_Mutex = dmMutex::New(), .m_Condition = dmConditionVariable::New() } };
+
+    ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(fixture.m_Store, jobs));
+    dmThread::Thread worker = dmThread::New(HoldSchedulerAdmission, 0x80000, &gate, "ds-admit");
+    {
+        DM_MUTEX_SCOPED_LOCK(gate.m_Gate.m_Mutex);
+        while (!gate.m_Gate.m_Started)
+            dmConditionVariable::Wait(gate.m_Gate.m_Condition, gate.m_Gate.m_Mutex);
+    }
+    DSResult result = DSSchedulerEvent(fixture.m_Store, event.m_Name);
+    {
+        DM_MUTEX_SCOPED_LOCK(gate.m_Gate.m_Mutex);
+        gate.m_Gate.m_Release = true;
+        dmConditionVariable::Signal(gate.m_Gate.m_Condition);
+    }
+    dmThread::Join(worker);
+    ASSERT_EQ(DS_RESULT_OK, result);
+    ASSERT_EQ(0, dmAtomicGet32(&state.m_Calls));
+    ASSERT_EQ(DS_RESULT_BUSY, DSEndSchedule(fixture.m_Store));
+    while (DSEndSchedule(fixture.m_Store) == DS_RESULT_BUSY)
+        DSSchedulerUpdate(fixture.m_Store);
+    ASSERT_EQ(1, dmAtomicGet32(&state.m_Calls));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(state.m_Values); ++i)
+        ASSERT_EQ(50.0, state.m_Values[i]);
+
+    dmConditionVariable::Delete(gate.m_Gate.m_Condition);
+    dmMutex::Delete(gate.m_Gate.m_Mutex);
+    JobSystemDestroy(jobs);
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(fixture.m_Store));
 }
 
