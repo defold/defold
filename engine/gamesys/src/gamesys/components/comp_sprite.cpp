@@ -2142,6 +2142,28 @@ namespace dmGameSystem
         }
     }
 
+    static void RefreshComponentAnimationData(SpriteWorld* sprite_world, SpriteComponent* component, dmRender::HRenderContext render_context, bool constants_updated)
+    {
+        bool is_component_changed = component->m_ReHash || component->m_AnimationReHash;
+        if (component->m_ReHash || constants_updated)
+        {
+            ReHash(component);
+        }
+        if (component->m_AnimationReHash)
+        {
+            AnimationReHash(component);
+        }
+
+        // Get the correct animation frames, and other meta data
+        AnimationData* anim_data = GetOrCreateAnimationData(sprite_world, component);
+        // update cached pivot
+        if (is_component_changed)
+        {
+            GetPivot(anim_data, &component->m_PivotX, &component->m_PivotY);
+            UpdateVertexMetricsCache(component, anim_data, render_context);
+        }
+    }
+
     dmGameObject::UpdateResult CompSpriteUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         /*
@@ -2172,24 +2194,7 @@ namespace dmGameSystem
             Animate(component, params.m_UpdateContext->m_DT);
 
             HComponentRenderConstants constants = GetRenderConstants(component);
-            bool is_component_changed = component->m_ReHash || component->m_AnimationReHash;
-            if (component->m_ReHash || (constants && dmGameSystem::AreRenderConstantsUpdated(constants)))
-            {
-                ReHash(component);
-            }
-            if (component->m_AnimationReHash)
-            {
-                AnimationReHash(component);
-            }
-
-            // Get the correct animation frames, and other meta data
-            AnimationData* anim_data = GetOrCreateAnimationData(world, component);
-            // update cached pivot
-            if (is_component_changed)
-            {
-                GetPivot(anim_data, &component->m_PivotX, &component->m_PivotY);
-                UpdateVertexMetricsCache(component, anim_data, render_context);
-            }
+            RefreshComponentAnimationData(world, component, render_context, constants && dmGameSystem::AreRenderConstantsUpdated(constants));
 
             // TODO: check when we need send messages
             if (!component->m_IsPlaying)
@@ -2335,6 +2340,22 @@ namespace dmGameSystem
 
         if (!sprite_count)
             return dmGameObject::UPDATE_RESULT_OK;
+
+        // Properties set after CompSpriteUpdate (e.g. image or animation) leave the vertex metrics and buffer sizes out of date
+        for (uint32_t i = 0; i < sprite_count; ++i)
+        {
+            SpriteComponent* component = &components[i];
+            if (!component->m_Enabled || !component->m_AddedToUpdate || component->m_VertexCount == 0 || component->m_IndexCount == 0)
+                continue;
+            if (!component->m_ReHash && !component->m_AnimationReHash)
+                continue;
+            uint32_t vertex_count = component->m_VertexCount;
+            uint32_t index_count = component->m_IndexCount;
+            RefreshComponentAnimationData(sprite_world, component, render_context, false);
+            sprite_world->m_VertexCount += component->m_VertexCount - vertex_count;
+            sprite_world->m_IndexCount += component->m_IndexCount - index_count;
+            sprite_world->m_ReallocBuffers |= component->m_IndexCount > index_count;
+        }
 
         if (sprite_world->m_ReallocBuffers)
         {
@@ -2897,5 +2918,13 @@ namespace dmGameSystem
     void SetSpriteComponentAnimationDataHash(void* sprite_component, uint32_t hash)
     {
         ((SpriteComponent*) sprite_component)->m_AnimationDataHash = hash;
+    }
+
+    void GetSpriteComponentVertexMetrics(void* sprite_component, uint32_t* vertex_count, uint32_t* index_count, uint32_t* vertex_stride)
+    {
+        SpriteComponent* comp = (SpriteComponent*) sprite_component;
+        *vertex_count = comp->m_VertexCount;
+        *index_count = comp->m_IndexCount;
+        *vertex_stride = comp->m_VertexStride;
     }
 }

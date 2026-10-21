@@ -897,6 +897,51 @@ TEST_F(SpriteTest, AnimationDataCacheHitIsValidatedAgainstTextureSet)
 }
 
 /*
+ * Verifies that the sprite render buffers fit the geometry that is rendered when the image
+ * is changed after the sprite update in the same frame. Switching from a quad to a trimmed
+ * atlas without refreshing the vertex metrics used to overflow the vertex and index buffers.
+ */
+TEST_F(SpriteTest, SetImageAfterUpdateResizesRenderBuffers)
+{
+    dmhash_t sprite_comp_id = dmHashString64("sprite");
+    dmGameSystem::TextureSetResource* image_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/image_stale_animation_id_in_range.a.texturesetc", (void**) &image_resource));
+    ASSERT_GT(image_resource->m_TextureSet->m_Geometries[0].m_Vertices.m_Count / 2, 4u);
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+    void* sprite_component = GetSpriteComponent(go, sprite_comp_id);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    uint32_t quad_vertex_count, quad_index_count, vertex_stride;
+    dmGameSystem::GetSpriteComponentVertexMetrics(sprite_component, &quad_vertex_count, &quad_index_count, &vertex_stride);
+    ASSERT_EQ(4u, quad_vertex_count);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, dmHashString64("image"), dmHashString64("/sprite/image_stale_animation_id_in_range.a.texturesetc")));
+    RenderCollection(m_RenderContext, m_Collection);
+
+    uint32_t vertex_count, index_count;
+    dmGameSystem::GetSpriteComponentVertexMetrics(sprite_component, &vertex_count, &index_count, &vertex_stride);
+    ASSERT_GT(vertex_count, quad_vertex_count);
+
+    void* sprite_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    dmRender::BufferedRenderBuffer* vertex_buffer = 0;
+    dmRender::BufferedRenderBuffer* index_buffer = 0;
+    dmGameSystem::GetSpriteWorldRenderBuffers(sprite_world, &vertex_buffer, &index_buffer);
+    ASSERT_EQ(vertex_count * vertex_stride, dmGraphics::GetVertexBufferSize(vertex_buffer->m_Buffers[0]));
+    ASSERT_EQ(index_count * sizeof(uint16_t), dmGraphics::GetIndexBufferSize(index_buffer->m_Buffers[0]));
+    ASSERT_GE(dmGameSystem::GetSpriteWorldVertexBufferCapacity(sprite_world), vertex_count * vertex_stride);
+
+    dmResource::Release(m_Factory, image_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+/*
  * Intent:
  * Verify that sprite vertex staging memory is grown using the active render
  * material's vertex stride before vertex data is generated.
