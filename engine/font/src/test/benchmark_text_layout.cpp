@@ -452,7 +452,7 @@ static bool PackVertices(VertexGenerationContext* context)
 
     if (vertex_count != 0)
     {
-        g_BenchmarkChecksum += (uint64_t)(context->m_Vertices->Back().m_Position[0] * 1000.0f);
+        g_BenchmarkChecksum += (uint64_t)(fabsf(context->m_Vertices->Back().m_Position[0]) * 1000.0f);
     }
 
     return true;
@@ -1310,6 +1310,35 @@ int main(int argc, char** argv)
     if (success)
     {
         PrintResult("vertex_pack_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_vertex_packing_measurement);
+    }
+
+    // Compare cached curve vertex generation against vertices_plain, including
+    // the lookup cost of a longer path. Baking and glyph caching are untimed.
+    const uint32_t curve_knot_counts[] = { 4, 32 };
+    for (uint32_t c = 0; success && c < DM_ARRAY_SIZE(curve_knot_counts); ++c)
+    {
+        const uint32_t    knot_count = curve_knot_counts[c];
+        const float       step = settings.m_Width / (knot_count - 1);
+        FontTextCurveKnot knots[32];
+        for (uint32_t i = 0; i < knot_count; ++i)
+        {
+            knots[i].m_Position = dmVMath::Vector3(i * step, i % 2 ? 40.0f : -40.0f, i % 3 * 20.0f);
+            knots[i].m_InHandle = dmVMath::Vector3(-step / 3, 0, 0);
+            knots[i].m_OutHandle = dmVMath::Vector3(step / 3, 0, 0);
+            knots[i].m_RollDegrees = i * 45.0f / (knot_count - 1);
+            knots[i].m_Scale = 1.0f + i * 0.25f / (knot_count - 1);
+        }
+
+        HFontTextCurve curve = FontTextCurveCreate(knots, knot_count, false, dmVMath::Vector3(0, 1, 0));
+        plain_vertex_context.m_Config.m_Curve = curve;
+        Measurement curve_measurement;
+        success = curve && Measure(RunVertices, &plain_vertex_context, options, &curve_measurement);
+        if (success)
+        {
+            PrintResult("vertices_curve", knot_count == 4 ? "4_knots" : "32_knots", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, curve_measurement);
+        }
+        plain_vertex_context.m_Config.m_Curve = 0;
+        FontTextCurveRelease(curve);
     }
 
     PlainLayoutAndVerticesContext plain_full_context = { plain_context, &plain_vertex_context };

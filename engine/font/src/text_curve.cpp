@@ -74,7 +74,7 @@ HFontTextCurve FontTextCurveCreate(const FontTextCurveKnot* knots, uint32_t coun
 {
     if (!knots || count < 2 || count > UINT32_MAX / 64 - 1 || !IsFinite(initial_up))
         return 0;
-    const float up_component = dmMath::Max(fabsf(initial_up.getX()), dmMath::Max(fabsf(initial_up.getY()), fabsf(initial_up.getZ())));
+    const float up_component = Vectormath::Aos::maxElem(AbsPerElem(initial_up));
     if (up_component == 0.0f)
         return 0;
     const Vector3 up = initial_up / up_component;
