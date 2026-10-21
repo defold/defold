@@ -39,6 +39,7 @@
 
 #include "render/render.h"
 #include "render/render_private.h"
+#include "render/debug_renderer.h"
 #include "render/font/fontmap.h"
 #include "render/font/fontmap_private.h"
 #include "render/font/font_renderer_private.h"
@@ -1785,6 +1786,134 @@ TEST_F(dmRenderTest, TestRenderListDebug)
 
     dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
     dmRender::DrawDebug3d(m_Context, 0);
+}
+
+static void InitializeTestDebugRenderer(dmRender::HRenderContext context)
+{
+    dmGraphics::ShaderDescBuilder shader_desc;
+    shader_desc.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmArray<uint8_t> shader_data;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(shader_desc.Get(), dmGraphics::ShaderDesc::m_DDFDescriptor, shader_data));
+    dmRender::InitializeDebugRenderer(context, 256, shader_data.Begin(), shader_data.Size());
+}
+
+// Verifies that empty and unrelated passes do not upload debug geometry, and repeated debug draws reuse it.
+// Each upload must resize the buffer once without a redundant zero-sized update.
+TEST_F(dmRenderTest, DebugGeometryUploadDeferred)
+{
+    InitializeTestDebugRenderer(m_Context);
+    dmGraphics::VertexBuffer* vertex_buffer = (dmGraphics::VertexBuffer*) m_Context->m_DebugRenderer.m_VertexBuffer;
+    dmRender::Predicate unrelated_predicate = {};
+    unrelated_predicate.m_Tags[0] = dmHashString64("unrelated");
+    unrelated_predicate.m_TagCount = 1;
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(0U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ(0U, vertex_buffer->m_SubDataSetCount);
+
+    dmRender::Square2d(m_Context, 0, 0, 100, 100, Vector4(1, 0, 0, 1));
+    dmRender::Line3D(m_Context, Point3(1, 2, 3), Point3(4, 5, 6), Vector4(0, 1, 0, 1), Vector4(0, 0, 1, 1));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, &unrelated_predicate, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(0U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ(0U, vertex_buffer->m_SubDataSetCount);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ(2U, vertex_buffer->m_SubDataSetCount);
+    ASSERT_EQ((uint64_t)(8 * 2 * sizeof(Vector4)), vertex_buffer->m_SubDataSetBytes);
+    const uint32_t data_set_count = vertex_buffer->m_DataSetCount;
+
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, &unrelated_predicate, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+        ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+        ASSERT_EQ(data_set_count, vertex_buffer->m_DataSetCount);
+        ASSERT_EQ(2U, vertex_buffer->m_SubDataSetCount);
+        ASSERT_EQ((uint64_t)(8 * 2 * sizeof(Vector4)), vertex_buffer->m_SubDataSetBytes);
+    }
+}
+
+// Verifies that geometry added between passes is uploaded before drawing, including shifted line offsets.
+TEST_F(dmRenderTest, DebugGeometryAddedBetweenPasses)
+{
+    InitializeTestDebugRenderer(m_Context);
+    dmRender::DebugRenderer& debug_renderer = m_Context->m_DebugRenderer;
+    dmGraphics::VertexBuffer* vertex_buffer = (dmGraphics::VertexBuffer*) debug_renderer.m_VertexBuffer;
+    const uint32_t vertex_stride = 2 * sizeof(Vector4);
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::Line3D(m_Context, Point3(1, 2, 3), Point3(4, 5, 6), Vector4(1, 0, 0, 1), Vector4(0, 1, 0, 1));
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+
+    Point3 triangle[3] = {Point3(10, 0, 0), Point3(0, 10, 0), Point3(0, 0, 10)};
+    dmRender::Triangle3d(m_Context, triangle, Vector4(0, 0, 1, 1));
+    dmRender::Predicate unrelated_predicate = {};
+    unrelated_predicate.m_Tags[0] = dmHashString64("unrelated");
+    unrelated_predicate.m_TagCount = 1;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, &unrelated_predicate, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+
+    dmRender::Line2D(m_Context, 20, 30, 40, 50, Vector4(1, 1, 0, 1), Vector4(0, 1, 1, 1));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(2U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ((uint64_t)((2 + 7) * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+
+    const dmRender::DebugRenderTypeData& faces = debug_renderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_FACE_3D];
+    const dmRender::DebugRenderTypeData& lines = debug_renderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_LINE_3D];
+    ASSERT_EQ(0U, faces.m_RenderObject.m_VertexStart);
+    ASSERT_EQ(3U, faces.m_RenderObject.m_VertexCount);
+    ASSERT_EQ(3U, lines.m_RenderObject.m_VertexStart);
+    ASSERT_EQ(4U, lines.m_RenderObject.m_VertexCount);
+    ASSERT_EQ(0, memcmp(vertex_buffer->m_Buffer, faces.m_ClientBuffer, 3 * vertex_stride));
+    ASSERT_EQ(0, memcmp(vertex_buffer->m_Buffer + 3 * vertex_stride, lines.m_ClientBuffer, 4 * vertex_stride));
+
+    const uint32_t data_set_count = vertex_buffer->m_DataSetCount;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(data_set_count, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ((uint64_t)((2 + 7) * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+}
+
+// Verifies that a new frame with the same vertex count uploads fresh data and empty frames do not upload.
+TEST_F(dmRenderTest, DebugGeometryUploadResetPerFrame)
+{
+    InitializeTestDebugRenderer(m_Context);
+    dmRender::DebugRenderer& debug_renderer = m_Context->m_DebugRenderer;
+    dmGraphics::VertexBuffer* vertex_buffer = (dmGraphics::VertexBuffer*) debug_renderer.m_VertexBuffer;
+    const uint32_t vertex_stride = 2 * sizeof(Vector4);
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::Line3D(m_Context, Point3(1, 2, 3), Point3(4, 5, 6), Vector4(1, 0, 0, 1), Vector4(0, 1, 0, 1));
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
+    const uint32_t data_set_count = vertex_buffer->m_DataSetCount;
+    ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    dmRender::RenderListBegin(m_Context);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(0U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(data_set_count, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+
+    dmRender::Line3D(m_Context, Point3(7, 8, 9), Point3(10, 11, 12), Vector4(0, 0, 1, 1), Vector4(1, 1, 0, 1));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(1U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(2U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ((uint64_t)(4 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+    ASSERT_EQ(0, memcmp(vertex_buffer->m_Buffer, debug_renderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_LINE_3D].m_ClientBuffer, 2 * vertex_stride));
 }
 
 struct TestSortFrontToBackCtx

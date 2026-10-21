@@ -74,6 +74,8 @@ namespace dmGraphics
         char*    m_Copy;
         uint32_t m_DataSetCount; // Testing: full-buffer uploads, excluding creation.
         uint64_t m_DataSetBytes;
+        uint32_t m_SubDataSetCount; // Testing: uploads to buffer ranges.
+        uint64_t m_SubDataSetBytes;
     };
 
     struct IndexBuffer
