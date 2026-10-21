@@ -176,10 +176,13 @@
   ^String []
   (support-error (info)))
 
+(defn supported? []
+  (nil? (gl-support-error)))
+
 (defn offscreen-drawable
   ^GLOffscreenAutoDrawable [w h]
   ;; Startup reports unsupported hardware and lets users disable scene rendering.
-  (when-not (gl-support-error)
+  (when (supported?)
     (unchecked-offscreen-drawable w h)))
 
 (defn gl-gen-buffers
