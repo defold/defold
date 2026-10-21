@@ -301,6 +301,8 @@
             (set! (.-baseStyle properties) (if (= "" style) 0 (MurmurHash/hash64 ^String style)))
             (set! (.-useBaseStyle properties) true)
             (set! (.-fontSize properties) (float (or font-size 0.0)))
+            (set! (.-arcRadius properties) (float (:arc-radius font-map 0.0)))
+            (set! (.-arcAngle properties) (float (:arc-angle font-map 0.0)))
             (.setProperties renderer properties))
         [^FontRenderer$Layout layout use-rich-text native-text native-markup]
         (if-not (.-use-rich-text renderer-spec)
@@ -336,7 +338,7 @@
      :native-markup native-markup
      :use-rich-text use-rich-text
      :line-break line-break?
-     :layout-width max-width
+     :layout-width (if (zero? (double (:arc-angle font-map 0.0))) max-width (double (.-layoutWidth layout)))
      :text-tracking text-tracking
      :text-leading text-leading}))
 
@@ -673,7 +675,11 @@
   "Measures text through the native renderer at the preview's display size."
   [font-map text line-break max-width text-tracking text-leading font-size]
   (if (or (nil? font-map) (coll/empty? text))
-    (let [reference-size (double (or (:size font-map) 0))
+    (let [max-width (if (and (:native-renderer-spec font-map)
+                             (not (zero? (double (:arc-angle font-map 0.0)))))
+                      (:layout-width (native-layout-text font-map "" line-break max-width text-tracking text-leading font-size))
+                      max-width)
+          reference-size (double (or (:size font-map) 0))
           font-scale (if (and (some? font-size)
                               (pos? ^double font-size)
                               (pos? reference-size))

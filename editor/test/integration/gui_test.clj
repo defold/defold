@@ -4482,6 +4482,7 @@
           (is (not (get-in (g/node-value node :_properties) [:properties :line-break :read-only?])))
           (let [arc-data (g/node-value node :arc-data)
                 selected-lines (:selected-line-data arc-data)
+                text-layout (g/node-value node :text-layout)
                 bounds (g/node-value node :aabb)]
             (is (= (:aabb arc-data) bounds))
             (is (< 8 (count (:line-data arc-data))))
@@ -4498,7 +4499,11 @@
               (is (= (count (:line-data arc-data)) (count unselected)))
               (is (= (count selected-lines) (count selected))))
             (test-util/with-prop [node :manual-size [800.0 1000.0 0.0]]
-              (is (= bounds (g/node-value node :aabb))))))
+              (is (= bounds (g/node-value node :aabb)))
+              (is (= text-layout (g/node-value node :text-layout))))
+            (test-util/with-prop [node :text ""]
+              (is (< (Math/abs (- (double (:layout-width text-layout))
+                                  (double (:layout-width (g/node-value node :text-layout))))) 0.001)))))
         (test-util/prop! node :arc-radius 30.0)
         (test-util/prop! node :arc-angle 90.0)
         (is (< 2 (:line-count (g/node-value node :text-layout))))
@@ -4540,4 +4545,5 @@
           (is (< (Math/abs (- (double y) expected)) 0.001))))
       (test-util/with-prop [node :arc-radius Double/POSITIVE_INFINITY]
         (is (g/error-fatal? (test-util/prop-error node :arc-radius)))
-        (is (g/error-fatal? (g/node-value node :own-build-errors)))))))
+        (is (g/error-fatal? (g/node-value node :own-build-errors)))
+        (is (not (g/error? (g/node-value node :text-data))))))))

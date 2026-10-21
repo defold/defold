@@ -77,9 +77,9 @@ public class FontcProperties {
         MemoryLayout.unionLayout(
             MemoryLayout.structLayout(
                 MemoryLayout.paddingLayout(1)
-            ).withName("$anon$170:13"),
+            ).withName("$anon$171:13"),
             FontRendererFFM.C_CHAR.withName("m_Bits")
-        ).withName("$anon$168:9"),
+        ).withName("$anon$169:9"),
         MemoryLayout.paddingLayout(3),
         FontRendererFFM.C_FLOAT.withName("m_FontSize")
     ).withName("FontcProperties");
@@ -718,7 +718,7 @@ public class FontcProperties {
         struct.set(m_BaseStyle$LAYOUT, m_BaseStyle$OFFSET, fieldValue);
     }
 
-    private static final OfByte m_Bits$LAYOUT = (OfByte)$LAYOUT.select(groupElement("$anon$168:9"), groupElement("m_Bits"));
+    private static final OfByte m_Bits$LAYOUT = (OfByte)$LAYOUT.select(groupElement("$anon$169:9"), groupElement("m_Bits"));
 
     /**
      * Layout for field:
@@ -730,7 +730,7 @@ public class FontcProperties {
         return m_Bits$LAYOUT;
     }
 
-    private static final long m_Bits$OFFSET = $LAYOUT.byteOffset(groupElement("$anon$168:9"), groupElement("m_Bits"));
+    private static final long m_Bits$OFFSET = $LAYOUT.byteOffset(groupElement("$anon$169:9"), groupElement("m_Bits"));
 
     /**
      * Offset for field:

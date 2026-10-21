@@ -357,6 +357,7 @@ public final class FontRenderer implements AutoCloseable {
     public static final class Layout {
         public final float width;
         public final float height;
+        public final float layoutWidth;
         public final int lineCount;
         public final float maxAscent;
         public final float maxDescent;
@@ -374,6 +375,7 @@ public final class FontRenderer implements AutoCloseable {
         private Layout(MemorySegment values, MarkupError markupError, MarkupDocument markupDocument) {
             width = FontcLayout.m_Width(values);
             height = FontcLayout.m_Height(values);
+            layoutWidth = FontcLayout.m_LayoutWidth(values);
             lineCount = FontcLayout.m_LineCount(values);
             maxAscent = FontcLayout.m_MaxAscent(values);
             maxDescent = FontcLayout.m_MaxDescent(values);
@@ -783,7 +785,7 @@ public final class FontRenderer implements AutoCloseable {
      *
      * @param text text to shape and measure
      * @param lineBreak whether the text may wrap at the supplied width
-     * @param width maximum line width when line breaking is enabled
+     * @param width textbox wrapping width; configured arc properties override it
      * @param leading line-height multiplier
      * @param tracking additional spacing between glyphs
      * @return measured text layout

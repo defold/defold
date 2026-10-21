@@ -51,7 +51,7 @@ using dmVMath::Vector4;
 static_assert(sizeof(void*) == 8, "The font renderer FFM ABI requires a 64-bit target");
 static_assert(sizeof(FontcParams) == 76, "Unexpected FontcParams ABI layout");
 static_assert(sizeof(FontcGlyphBankGlyph) == 32, "Unexpected FontcGlyphBankGlyph ABI layout");
-static_assert(sizeof(FontcLayout) == 28, "Unexpected FontcLayout ABI layout");
+static_assert(sizeof(FontcLayout) == 32, "Unexpected FontcLayout ABI layout");
 static_assert(sizeof(FontcGlyph) == 48, "Unexpected FontcGlyph ABI layout");
 static_assert(offsetof(FontcGlyph, m_Pixels) == 32, "Unexpected FontcGlyph ABI layout");
 static_assert(sizeof(FontcGlyphMetrics) == 52, "Unexpected FontcGlyphMetrics ABI layout");
@@ -838,11 +838,19 @@ static float GetLayoutFontSize(FontcContext* session)
            ? session->m_Properties.m_FontSize : session->m_Size;
 }
 
+static float GetLayoutWidth(FontcContext* session, bool line_break, float width)
+{
+    const FontcProperties& properties = session->m_Properties;
+    if (properties.m_ArcAngle == 0.0f)
+        return width;
+    return line_break ? fabsf(properties.m_ArcRadius) * properties.m_ArcAngle * 0.017453292519943295f : 0.0f;
+}
+
 static TextResult CreateLayout(FontcContext* session, const uint32_t* codepoints, uint32_t count, bool line_break, float width, float leading, float tracking, HTextLayout* layout)
 {
     TextLayoutSettings settings = { 0 };
     settings.m_Size = GetLayoutFontSize(session);
-    settings.m_Width = width;
+    settings.m_Width = GetLayoutWidth(session, line_break, width);
     settings.m_Leading = leading;
     settings.m_Tracking = tracking;
     settings.m_LineBreak = line_break;
@@ -873,7 +881,7 @@ static TextResult CreateParsedMarkupLayout(FontcContext* session, HMarkup parsed
 {
     TextLayoutSettings settings = { 0 };
     settings.m_Size = GetLayoutFontSize(session);
-    settings.m_Width = width;
+    settings.m_Width = GetLayoutWidth(session, line_break, width);
     settings.m_Leading = leading;
     settings.m_Tracking = tracking;
     settings.m_LineBreak = line_break;
@@ -1244,6 +1252,7 @@ FontRendererResult FontcMeasure(HFontRenderer   renderer,
         return FONT_RENDERER_RESULT_TEXT_ERROR;
 
     TextLayoutGetBounds(layout, &output->m_Width, &output->m_Height);
+    output->m_LayoutWidth = GetLayoutWidth(renderer, line_break != 0, width);
     const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
     output->m_LineCount = TextLayoutGetLineCount(layout);
     output->m_MaxAscent = FontGetAscent(renderer->m_Font, scale);
@@ -1280,6 +1289,7 @@ FontRendererResult FontcMeasureMarkup(HFontRenderer renderer,
     }
 
     TextLayoutGetBounds(layout, &output->m_Width, &output->m_Height);
+    output->m_LayoutWidth = GetLayoutWidth(renderer, line_break != 0, width);
     const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
     output->m_LineCount = TextLayoutGetLineCount(layout);
     output->m_MaxAscent = FontGetAscent(renderer->m_Font, scale);
@@ -1312,6 +1322,7 @@ FontRendererResult FontcMeasureParsedMarkup(HFontRenderer renderer,
     }
 
     TextLayoutGetBounds(layout, &output->m_Width, &output->m_Height);
+    output->m_LayoutWidth = GetLayoutWidth(renderer, line_break != 0, width);
     const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
     output->m_LineCount = TextLayoutGetLineCount(layout);
     output->m_MaxAscent = FontGetAscent(renderer->m_Font, scale);
@@ -1608,6 +1619,9 @@ FontRendererResult FontcSetProperties(HFontRenderer renderer, const FontcPropert
         properties->m_ArcAngle < 0.0f || properties->m_ArcAngle > 360.0f)
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
     renderer->m_Properties = *properties;
+    renderer->m_Properties.m_Width = GetLayoutWidth(renderer, properties->m_LineBreak != 0, properties->m_Width);
+    if (properties->m_ArcAngle != 0.0f)
+        renderer->m_Properties.m_Height = 0.0f;
     renderer->m_HasProperties = true;
     UpdateStateHash(renderer);
     return FONT_RENDERER_RESULT_OK;

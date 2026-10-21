@@ -111,6 +111,7 @@ extern "C"
         float    m_MaxDescent;
         uint32_t m_ErrorByteOffset;
         uint32_t m_ErrorType;
+        float    m_LayoutWidth; // Effective wrapping/alignment width after applying arc properties.
     } FontcLayout;
 
     typedef struct FontcGlyph
@@ -447,7 +448,7 @@ extern "C"
      * @param codepoints [type: const uint32_t*] UTF-32 text to measure.
      * @param codepoint_count [type: uint32_t] Number of UTF-32 codepoints.
      * @param line_break [type: uint32_t] Non-zero to wrap text to the supplied width.
-     * @param width [type: float] Maximum line width when line breaking is enabled.
+     * @param width [type: float] Textbox wrapping width; arc properties override it.
      * @param leading [type: float] Line spacing used by the runtime text layout.
      * @param tracking [type: float] Character spacing used by the runtime text layout.
      * @param layout [type: FontcLayout*] Receives the measured layout.
@@ -471,7 +472,7 @@ extern "C"
      * @param markup [type: const char*] UTF-8 rich-text markup.
      * @param markup_byte_count [type: uint32_t] Number of bytes in the markup.
      * @param line_break [type: uint32_t] Non-zero to wrap text to the supplied width.
-     * @param width [type: float] Maximum line width when line breaking is enabled.
+     * @param width [type: float] Textbox wrapping width; arc properties override it.
      * @param leading [type: float] Line spacing used by the runtime text layout.
      * @param tracking [type: float] Character spacing used by the runtime text layout.
      * @param layout [type: FontcLayout*] Receives the measured layout.
@@ -495,7 +496,7 @@ extern "C"
      * @param renderer [type: HFontRenderer] Font renderer context.
      * @param parsed_markup [type: HFontcMarkup] Parsed markup handle.
      * @param line_break [type: uint32_t] Non-zero to wrap text to the supplied width.
-     * @param width [type: float] Maximum line width when line breaking is enabled.
+     * @param width [type: float] Textbox wrapping width; arc properties override it.
      * @param leading [type: float] Line spacing used by the runtime text layout.
      * @param tracking [type: float] Character spacing used by the runtime text layout.
      * @param layout [type: FontcLayout*] Receives the measured layout.

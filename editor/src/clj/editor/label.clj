@@ -374,33 +374,31 @@
   (output markup-error g/Any :cached (g/fnk [_node-id ^:try font-map text]
                                        (when-not (g/error-value? font-map)
                                          (font/markup-error _node-id :text font-map text))))
-  (output text-layout g/Any :cached (g/fnk [size font-map font-data font-size text line-break leading tracking style arc-radius arc-angle]
-                                      (font/layout-text (some-> font-map (assoc :style style)) text line-break
-                                                        (cond
-                                                          (zero? (double arc-angle)) (first size)
-                                                          line-break (* (Math/abs (double arc-radius)) (Math/toRadians (Math/abs (double arc-angle))))
-                                                          :else 0.0)
-                                                        tracking leading
+  (output text-layout g/Any :cached (g/fnk [size font-map font-data font-size text line-break leading tracking style arc-radius arc-angle ^:try arc-error]
+                                      (font/layout-text (some-> font-map
+                                                                (assoc :style style)
+                                                                (cond-> (not (g/error-value? arc-error))
+                                                                  (assoc :arc-radius arc-radius :arc-angle arc-angle)))
+                                                        text line-break (first size) tracking leading
                                                         (when (:vector? font-data) font-size))))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color outline shadow pivot size arc-radius arc-angle ^:try arc-error]
-                                   (let [size (if (zero? (double arc-angle)) size [(:layout-width text-layout) 0.0 0.0])
-                                         text-data {:text-layout text-layout
-                                                    :font-data font-data
-                                                    :color color
-                                                    :outline outline
-                                                    :shadow shadow
-                                                    :font-size (when (:vector? font-data) font-size)
-                                                    :align (pivot->h-align pivot)}
-                                         ;; Keep invalid edits previewable.
-                                         ;; Property errors remain visible.
-                                         text-data (if (g/error-value? arc-error)
-                                                     text-data
-                                                     (assoc text-data :arc-radius arc-radius :arc-angle arc-angle))]
-                                     (cond-> text-data
-                                       font-data
-                                       (assoc :box-height (second size)
-                                              :offset (if (zero? (double arc-angle)) (pivot-offset pivot size) [0.0 0.0])
-                                              :vertical-align (pivot->v-align pivot))))))
+                                   (cond-> {:text-layout text-layout
+                                            :font-data font-data
+                                            :color color
+                                            :outline outline
+                                            :shadow shadow
+                                            :font-size (when (:vector? font-data) font-size)
+                                            :align (pivot->h-align pivot)
+                                            :arc-radius arc-radius
+                                            :arc-angle arc-angle}
+                                     font-data
+                                     (assoc :box-height (second size)
+                                            :offset (if (zero? (double arc-angle)) (pivot-offset pivot size) [0.0 0.0])
+                                            :vertical-align (pivot->v-align pivot))
+                                     ;; Keep invalid edits previewable.
+                                     ;; Property errors remain visible.
+                                     (g/error-value? arc-error)
+                                     (dissoc :arc-radius :arc-angle))))
   (output arc-data g/Any :cached (g/fnk [font-map text-data]
                                    (font/arc-data font-map text-data)))
   (output aabb g/Any :cached (g/fnk [pivot size arc-data arc-angle]

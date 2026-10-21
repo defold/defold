@@ -2297,14 +2297,13 @@
   (output markup-error g/Any :cached (g/fnk [_node-id font-data text]
                                        (font/markup-error _node-id :text (:font-map font-data) text)))
   (output arc-error g/Any (g/fnk [_node-id arc-radius arc-angle]
-                            (text-arc-error _node-id arc-radius arc-angle)))
-  (output text-layout g/Any :cached (g/fnk [manual-size font-data font-size text line-break text-leading text-tracking style arc-radius arc-angle]
-                                      (font/layout-text (some-> font-data :font-map (assoc :style style)) text line-break
-                                                        (cond
-                                                          (zero? (double arc-angle)) (first manual-size)
-                                                          line-break (* (Math/abs (double arc-radius)) (Math/toRadians (Math/abs (double arc-angle))))
-                                                          :else 0.0)
-                                                        text-tracking text-leading
+                            (g/unpack-errors (text-arc-error _node-id arc-radius arc-angle))))
+  (output text-layout g/Any :cached (g/fnk [manual-size font-data font-size text line-break text-leading text-tracking style arc-radius arc-angle ^:try arc-error]
+                                      (font/layout-text (some-> font-data :font-map
+                                                                (assoc :style style)
+                                                                (cond-> (not (g/error-value? arc-error))
+                                                                  (assoc :arc-radius arc-radius :arc-angle arc-angle)))
+                                                        text line-break (first manual-size) text-tracking text-leading
                                                         (when (:vector? font-data) font-size))))
   (output arc-data g/Any :cached (g/fnk [font-data text-data]
                                    (font/arc-data (:font-map font-data) text-data)))
@@ -2315,22 +2314,21 @@
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                     [(:width text-layout) (:height text-layout) 0]))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color alpha outline outline-alpha shadow shadow-alpha manual-size pivot arc-radius arc-angle ^:try arc-error]
-                                   (let [manual-size (if (zero? (double arc-angle)) manual-size [(:layout-width text-layout) 0.0 0.0])
-                                         text-data {:text-layout text-layout
-                                                    :font-data font-data
-                                                    :color (assoc color 3 alpha)
-                                                    :outline (assoc outline 3 outline-alpha)
-                                                    :shadow (assoc shadow 3 shadow-alpha)
-                                                    :font-size (when (:vector? font-data) font-size)
-                                                    :align (pivot->h-align pivot)}
-                                         text-data (if (g/error-value? arc-error)
-                                                     text-data
-                                                     (assoc text-data :arc-radius arc-radius :arc-angle arc-angle))]
-                                     (cond-> text-data
-                                       font-data
-                                       (assoc :box-height (second manual-size)
-                                              :offset (if (zero? (double arc-angle)) (pivot-offset pivot manual-size) [0.0 0.0])
-                                              :vertical-align (pivot->v-align pivot))))))
+                                   (cond-> {:text-layout text-layout
+                                            :font-data font-data
+                                            :color (assoc color 3 alpha)
+                                            :outline (assoc outline 3 outline-alpha)
+                                            :shadow (assoc shadow 3 shadow-alpha)
+                                            :font-size (when (:vector? font-data) font-size)
+                                            :align (pivot->h-align pivot)
+                                            :arc-radius arc-radius
+                                            :arc-angle arc-angle}
+                                     font-data
+                                     (assoc :box-height (second manual-size)
+                                            :offset (if (zero? (double arc-angle)) (pivot-offset pivot manual-size) [0.0 0.0])
+                                            :vertical-align (pivot->v-align pivot))
+                                     (g/error-value? arc-error)
+                                     (dissoc :arc-radius :arc-angle))))
   (output own-build-errors g/Any
           (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font ^:try markup-error costly-gui-scene-info layout->prop->value]
             (let [font-names (:font-names basic-gui-scene-info)
