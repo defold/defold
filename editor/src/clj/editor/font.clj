@@ -821,6 +821,26 @@
     (.setMarkup native-renderer ^String markup)
     (.setText native-renderer ^String (:text native-entry-state))))
 
+(defn arc-property-error [node-id property value]
+  (let [limits (case property
+                 :arc-radius [(- Float/MAX_VALUE) Float/MAX_VALUE]
+                 :arc-angle [0.0 360.0])]
+    (validation/prop-error :fatal node-id property
+                           (partial validation/prop-outside-range? limits)
+                           value (properties/label-message :label property))))
+
+(defn arc-error [node-id arc-radius arc-angle]
+  (g/flatten-errors
+    (arc-property-error node-id :arc-radius arc-radius)
+    (arc-property-error node-id :arc-angle arc-angle)))
+
+(defn with-arc-properties [data arc-radius arc-angle arc-error]
+  ;; Keep invalid edits previewable.
+  ;; Property errors remain visible.
+  (cond-> data
+    (not (g/error-value? arc-error))
+    (assoc :arc-radius arc-radius :arc-angle arc-angle)))
+
 (def arc-angle-edit-type
   "Bounded angle editing shared by label and GUI text arcs."
   (let [clamp-value (fn clamp-value [value]

@@ -2112,16 +2112,6 @@
   (when (:vector? font-data)
     (validation/prop-error :fatal node-id :font-size validation/prop-zero-or-below? font-size (properties/label-message :gui :font-size))))
 
-(defn- text-arc-property-error [node-id property value limits]
-  (validation/prop-error :fatal node-id property
-                         (partial validation/prop-outside-range? limits)
-                         value (properties/label-message :label property)))
-
-(defn- text-arc-error [node-id radius degrees]
-  (g/package-errors node-id
-    (text-arc-property-error node-id :arc-radius radius [(- Float/MAX_VALUE) Float/MAX_VALUE])
-    (text-arc-property-error node-id :arc-angle degrees [0.0 360.0])))
-
 (g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw font-size ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha ^:raw style ^:raw arc-radius ^:raw arc-angle]
   (assoc visual-base-node-msg
     :manual-size manual-size
@@ -2205,14 +2195,14 @@
             (set (layout-property-setter text-tracking)))
   (property arc-radius g/Num (default (protobuf/default Gui$NodeDesc :arc-radius))
             (dynamic edit-type (layout-property-edit-type arc-radius {:type g/Num}))
-            (dynamic error (g/fnk [_node-id arc-radius] (text-arc-property-error _node-id :arc-radius arc-radius [(- Float/MAX_VALUE) Float/MAX_VALUE])))
+            (dynamic error (g/fnk [_node-id arc-radius] (font/arc-property-error _node-id :arc-radius arc-radius)))
             (dynamic label (properties/label-dynamic :label :arc-radius))
             (dynamic tooltip (properties/tooltip-dynamic :label :arc-radius))
             (value (layout-property-getter arc-radius))
             (set (layout-property-setter arc-radius)))
   (property arc-angle g/Num (default (protobuf/default Gui$NodeDesc :arc-angle))
             (dynamic edit-type (layout-property-edit-type arc-angle font/arc-angle-edit-type))
-            (dynamic error (g/fnk [_node-id arc-angle] (text-arc-property-error _node-id :arc-angle arc-angle [0.0 360.0])))
+            (dynamic error (g/fnk [_node-id arc-angle] (font/arc-property-error _node-id :arc-angle arc-angle)))
             (dynamic label (properties/label-dynamic :label :arc-angle))
             (dynamic tooltip (properties/tooltip-dynamic :label :arc-angle))
             (value (layout-property-getter arc-angle))
@@ -2297,12 +2287,11 @@
   (output markup-error g/Any :cached (g/fnk [_node-id font-data text]
                                        (font/markup-error _node-id :text (:font-map font-data) text)))
   (output arc-error g/Any (g/fnk [_node-id arc-radius arc-angle]
-                            (g/unpack-errors (text-arc-error _node-id arc-radius arc-angle))))
+                            (font/arc-error _node-id arc-radius arc-angle)))
   (output text-layout g/Any :cached (g/fnk [manual-size font-data font-size text line-break text-leading text-tracking style arc-radius arc-angle ^:try arc-error]
                                       (font/layout-text (some-> font-data :font-map
                                                                 (assoc :style style)
-                                                                (cond-> (not (g/error-value? arc-error))
-                                                                  (assoc :arc-radius arc-radius :arc-angle arc-angle)))
+                                                                (font/with-arc-properties arc-radius arc-angle arc-error))
                                                         text line-break (first manual-size) text-tracking text-leading
                                                         (when (:vector? font-data) font-size))))
   (output arc-data g/Any :cached (g/fnk [font-data text-data]
@@ -2314,21 +2303,18 @@
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                     [(:width text-layout) (:height text-layout) 0]))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color alpha outline outline-alpha shadow shadow-alpha manual-size pivot arc-radius arc-angle ^:try arc-error]
-                                   (cond-> {:text-layout text-layout
-                                            :font-data font-data
-                                            :color (assoc color 3 alpha)
-                                            :outline (assoc outline 3 outline-alpha)
-                                            :shadow (assoc shadow 3 shadow-alpha)
-                                            :font-size (when (:vector? font-data) font-size)
-                                            :align (pivot->h-align pivot)
-                                            :arc-radius arc-radius
-                                            :arc-angle arc-angle}
-                                     font-data
-                                     (assoc :box-height (second manual-size)
-                                            :offset (if (zero? (double arc-angle)) (pivot-offset pivot manual-size) [0.0 0.0])
-                                            :vertical-align (pivot->v-align pivot))
-                                     (g/error-value? arc-error)
-                                     (dissoc :arc-radius :arc-angle))))
+                                   (-> {:text-layout text-layout
+                                        :font-data font-data
+                                        :color (assoc color 3 alpha)
+                                        :outline (assoc outline 3 outline-alpha)
+                                        :shadow (assoc shadow 3 shadow-alpha)
+                                        :font-size (when (:vector? font-data) font-size)
+                                        :align (pivot->h-align pivot)}
+                                       (cond-> font-data
+                                         (assoc :box-height (second manual-size)
+                                                :offset (if (zero? (double arc-angle)) (pivot-offset pivot manual-size) [0.0 0.0])
+                                                :vertical-align (pivot->v-align pivot)))
+                                       (font/with-arc-properties arc-radius arc-angle arc-error))))
   (output own-build-errors g/Any
           (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font ^:try markup-error costly-gui-scene-info layout->prop->value]
             (let [font-names (:font-names basic-gui-scene-info)
@@ -2343,7 +2329,7 @@
                             _node-id
                             (font/style-error _node-id (:font-map font-data) (:style props "default"))
                             (validate-font-size _node-id font-data (:font-size props))
-                            (text-arc-error _node-id (:arc-radius props 100.0) (:arc-angle props 0.0)))))
+                            (font/arc-error _node-id (:arc-radius props 100.0) (:arc-angle props 0.0)))))
                       (coll/vals layout->prop->value))
                 (validate-font _node-id font-names font))))))
 
