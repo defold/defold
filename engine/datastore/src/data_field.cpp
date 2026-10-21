@@ -263,8 +263,8 @@ DSValue GetChildValue(DSValueType type, const DSValueData* value, uint32_t index
     const DSStruct* object = &value->m_Struct;
     if (named && object->m_Source == DS_STRUCT_NATIVE)
     {
-        const DSFieldDesc&   field = object->m_Input.m_Layout->m_Fields[index];
-        const uint8_t*       bytes = object->m_Input.m_Data ? object->m_Input.m_Data + field.m_Offset : 0;
+        const DSFieldDesc& field = object->m_Input.m_Layout->m_Fields[index];
+        const uint8_t*     bytes = object->m_Input.m_Data ? object->m_Input.m_Data + field.m_Offset : 0;
         return ReadNativeInput(field.m_Type, field.m_Struct, bytes);
     }
     if (!named && value->m_List.m_Input)
@@ -272,9 +272,9 @@ DSValue GetChildValue(DSValueType type, const DSValueData* value, uint32_t index
         const DSListInput* input = value->m_List.m_Input;
         if (input->m_Types)
         {
-            DSValueType   type = input->m_Types[index];
-            const void*   payload = ((const void* const*)input->m_Values)[index];
-            uint32_t      size = DSTypeSize(type);
+            DSValueType type = input->m_Types[index];
+            const void* payload = ((const void* const*)input->m_Values)[index];
+            uint32_t    size = DSTypeSize(type);
             if (size == UINT32_MAX || (size && !payload))
             {
                 DSValue invalid = { .m_Type = (DSValueType)UINT32_MAX };
@@ -303,10 +303,10 @@ DSValue GetChildValue(DSValueType type, const DSValueData* value, uint32_t index
     }
     if (named && object->m_Source == DS_STRUCT_ROW)
     {
-        const DSStructTable*   child_table = object->m_View.m_StructTable;
-        const DSStructField&   field = child_table->m_Fields[index];
-        DSFieldMeta            meta = { .m_Type = field.m_Type, .m_Size = DSTypeSize(field.m_Type) };
-        const uint8_t*         bytes = child_table->m_Values.Begin() + (size_t)object->m_View.m_Offset * child_table->m_RowStride + field.m_Offset;
+        const DSStructTable* child_table = object->m_View.m_StructTable;
+        const DSStructField& field = child_table->m_Fields[index];
+        DSFieldMeta          meta = { .m_Type = field.m_Type, .m_Size = DSTypeSize(field.m_Type) };
+        const uint8_t*       bytes = child_table->m_Values.Begin() + (size_t)object->m_View.m_Offset * child_table->m_RowStride + field.m_Offset;
         return ReadStoredValue(object->m_View.m_Table, meta, bytes);
     }
     if (named && object->m_Source == DS_STRUCT_INLINE)
@@ -602,11 +602,11 @@ static DSResult ValidateValue(DSValueType type, const DSValueData* value, uint32
     }
     if (type != DS_TYPE_STRUCT && type != DS_TYPE_LIST)
         return DS_RESULT_OK;
-    bool           named = type == DS_TYPE_STRUCT;
-    uint32_t       count = named ? value->m_Struct.m_Count : value->m_List.m_Count;
-    bool           native = named ? value->m_Struct.m_Source == DS_STRUCT_NATIVE : value->m_List.m_Input != 0;
-    bool           arrays = named ? value->m_Struct.m_Source == DS_STRUCT_ARRAY : !native && !value->m_List.m_Buffer;
-    bool           missing_input = arrays && (named ? (!value->m_Struct.m_Array.m_Names || !value->m_Struct.m_Array.m_Types || !value->m_Struct.m_Array.m_Values) : !value->m_List.m_Values);
+    bool     named = type == DS_TYPE_STRUCT;
+    uint32_t count = named ? value->m_Struct.m_Count : value->m_List.m_Count;
+    bool     native = named ? value->m_Struct.m_Source == DS_STRUCT_NATIVE : value->m_List.m_Input != 0;
+    bool     arrays = named ? value->m_Struct.m_Source == DS_STRUCT_ARRAY : !native && !value->m_List.m_Buffer;
+    bool     missing_input = arrays && (named ? (!value->m_Struct.m_Array.m_Names || !value->m_Struct.m_Array.m_Types || !value->m_Struct.m_Array.m_Values) : !value->m_List.m_Values);
     if (depth == DATA_MAX_NESTING || count > UINT32_MAX / (named ? sizeof(DSValueData) : sizeof(DSValue)) ||
         (count && missing_input))
         return DS_RESULT_INVALID_ARGUMENT;
@@ -617,9 +617,9 @@ static DSResult ValidateValue(DSValueType type, const DSValueData* value, uint32
         const DSStructDesc* layout = value->m_Struct.m_Input.m_Layout;
         if (layout->m_Size && !value->m_Struct.m_Input.m_Data)
             return DS_RESULT_INVALID_ARGUMENT;
-        uint64_t   metadata_count = 0;
-        uint32_t   alignment;
-        DSResult   result = ValidateLayout(layout->m_Fields, layout->m_FieldCount, layout->m_Size, 0, &metadata_count, &alignment);
+        uint64_t metadata_count = 0;
+        uint32_t alignment;
+        DSResult result = ValidateLayout(layout->m_Fields, layout->m_FieldCount, layout->m_Size, 0, &metadata_count, &alignment);
         if (result != DS_RESULT_OK)
             return result;
     }
@@ -633,9 +633,9 @@ static DSResult ValidateValue(DSValueType type, const DSValueData* value, uint32
     uint64_t total = named && !packed ? 0 : sizeof(DSFileContainerHeader) + (uint64_t)count * (named ? 16 : 8);
     for (uint32_t i = 0; i < count; ++i)
     {
-        DSValue    child = GetChildValue(type, value, i);
-        size_t     child_size;
-        DSResult   result = ValidateValue(child.m_Type, &child.m_Value, depth + 1, &child_size, packed || !named);
+        DSValue  child = GetChildValue(type, value, i);
+        size_t   child_size;
+        DSResult result = ValidateValue(child.m_Type, &child.m_Value, depth + 1, &child_size, packed || !named);
         if (result != DS_RESULT_OK)
             return result;
         if (packed || !named || IsReference(child.m_Type))
@@ -674,9 +674,9 @@ DSResult ValidateNativeReferences(const DSTable* table, const DSFieldMeta& meta,
     {
         for (uint32_t r = 0; r < count; ++r)
         {
-            DSValue    value = ReadNativeInput(meta.m_Type, 0, values + (size_t)r * stride);
-            size_t     size;
-            DSResult   result = ValidateValue(value.m_Type, &value.m_Value, depth, &size);
+            DSValue  value = ReadNativeInput(meta.m_Type, 0, values + (size_t)r * stride);
+            size_t   size;
+            DSResult result = ValidateValue(value.m_Type, &value.m_Value, depth, &size);
             if (result != DS_RESULT_OK)
                 return result;
             if (size > SIZE_MAX - sizeof(DSPayloadBlock) - *payload_size)
@@ -699,8 +699,8 @@ void StoreNativeReferences(DSTable* table, uint32_t count, uint8_t* rows)
             continue;
         for (uint32_t r = 0; r < count; ++r)
         {
-            uint8_t*  bytes = rows + (size_t)r * table->m_RowStride + meta.m_Offset;
-            DSValue   value = ReadNativeInput(meta.m_Type, 0, bytes);
+            uint8_t* bytes = rows + (size_t)r * table->m_RowStride + meta.m_Offset;
+            DSValue  value = ReadNativeInput(meta.m_Type, 0, bytes);
             if (meta.m_Type == DS_TYPE_STRUCT)
                 WriteDataInteger(bytes, StoreStructRow(table, GetNativePayloads(table), &value.m_Value.m_Struct), 8);
             else
@@ -730,8 +730,8 @@ DSResult ValidateStoredValue(const DSTable* table, const DSFieldMeta& meta, DSVa
         // restricted scalar value; references still need payload validation.
         if (!IsReference(type))
             return type != DS_TYPE_BOOLEAN || value->m_Boolean <= 1 ? DS_RESULT_OK : DS_RESULT_INVALID_ARGUMENT;
-        size_t     size;
-        DSResult   result = ValidateValue(type, value, depth, &size);
+        size_t   size;
+        DSResult result = ValidateValue(type, value, depth, &size);
         if (result != DS_RESULT_OK)
             return result;
         if (size > SIZE_MAX - sizeof(DSPayloadBlock) - *payload_size)
@@ -802,10 +802,10 @@ void StoreStoredValue(DSTable* table, const DSFieldMeta& meta, DSPayloadBlock** 
         DSFieldMeta packed_field;
         if (!fields)
             packed_field = GetFieldMeta(table, meta.m_ChildIndex + i);
-        const DSFieldMeta&   field = fields ? fields[i] : packed_field;
-        uint8_t*             target = field.m_Size ? bytes + (field.m_Offset - meta.m_Offset) : 0;
-        DSValue              child;
-        const DSValueData*   data;
+        const DSFieldMeta& field = fields ? fields[i] : packed_field;
+        uint8_t*           target = field.m_Size ? bytes + (field.m_Offset - meta.m_Offset) : 0;
+        DSValue            child;
+        const DSValueData* data;
         if (object->m_Source == DS_STRUCT_ARRAY)
         {
             uint32_t index = FindDecodedField(object, field.m_Name, i);
@@ -827,8 +827,8 @@ void StoreStoredValue(DSTable* table, const DSFieldMeta& meta, DSPayloadBlock** 
 // structs and references retain their name/payload validation below.
 DSResult ValidateRowValues(const DSTable* table, const DSRowDesc* rows, uint32_t count, size_t* payload_size)
 {
-    const DSFieldMeta*   fields = table->m_Owned->m_Fields.Begin();
-    uint32_t             field_count = table->m_FieldCount;
+    const DSFieldMeta* fields = table->m_Owned->m_Fields.Begin();
+    uint32_t           field_count = table->m_FieldCount;
 
     for (uint32_t i = 0; i < count; ++i)
     {
@@ -856,15 +856,15 @@ DSResult ValidateRowValues(const DSTable* table, const DSRowDesc* rows, uint32_t
 // Values have been validated and payload blocks reserved for the whole batch.
 void StoreRowValues(DSTable* table, const DSRowDesc* rows, uint32_t count, uint8_t* bytes)
 {
-    const DSFieldMeta*   fields = table->m_Owned->m_Fields.Begin();
-    uint32_t             field_count = table->m_FieldCount;
+    const DSFieldMeta* fields = table->m_Owned->m_Fields.Begin();
+    uint32_t           field_count = table->m_FieldCount;
 
     for (uint32_t i = 0; i < count; ++i)
     {
         for (uint32_t j = 0; j < field_count; ++j)
         {
-            const DSFieldMeta&   meta = fields[j];
-            uint8_t*             target = bytes + meta.m_Offset;
+            const DSFieldMeta& meta = fields[j];
+            uint8_t*           target = bytes + meta.m_Offset;
             if (IsReference(meta.m_Type))
                 StoreStoredValue(table, meta, GetNativePayloads(table), target, &rows[i].m_Values[j]);
             else
@@ -914,9 +914,9 @@ static uint32_t GetInlineDepth(const DSTable* table, uint64_t field)
 
 DSResult SetRowField(DSTable* table, DSRow* row, const DSFieldMeta& meta, const DSValue* value)
 {
-    size_t     payload_size = 0;
-    uint32_t   depth = meta.m_Type == DS_TYPE_STRUCT || meta.m_Type == DS_TYPE_LIST ? GetInlineDepth(table, meta.m_Field) : 0;
-    DSResult   result = ValidateStoredValue(table, meta, value->m_Type, &value->m_Value, depth, &payload_size);
+    size_t   payload_size = 0;
+    uint32_t depth = meta.m_Type == DS_TYPE_STRUCT || meta.m_Type == DS_TYPE_LIST ? GetInlineDepth(table, meta.m_Field) : 0;
+    DSResult result = ValidateStoredValue(table, meta, value->m_Type, &value->m_Value, depth, &payload_size);
     if (result != DS_RESULT_OK)
         return result;
 
@@ -959,8 +959,8 @@ DSResult DSSetField(HDSContext store, DSId id, uint64_t field, const DSValue* va
     DSSlot* slot = FindSlot(store, id);
     if (!slot)
         return DS_RESULT_NOT_FOUND;
-    DSTable*   table = slot->m_Table;
-    uint32_t   index = FindField(table, field);
+    DSTable* table = slot->m_Table;
+    uint32_t index = FindField(table, field);
     if (index == UINT32_MAX)
         return DS_RESULT_NOT_FOUND;
     return SetRowField(table, &table->m_Rows[slot->m_Row], GetFieldMeta(table, index), value);
@@ -977,7 +977,7 @@ DSResult DSResetField(HDSContext store, DSId id, uint64_t field)
     DSTable* table = slot->m_Table;
     if (!table->m_RetainDefaults)
         return DS_RESULT_INVALID_ARGUMENT;
-    uint32_t   index = FindField(table, field);
+    uint32_t index = FindField(table, field);
     if (index == UINT32_MAX)
         return DS_RESULT_NOT_FOUND;
     DSRow*      row = &table->m_Rows[slot->m_Row];

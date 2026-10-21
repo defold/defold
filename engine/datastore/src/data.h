@@ -134,28 +134,28 @@ enum DSStructSource
 // are retained in stored rows. Read every representation with DSGetStructField.
 struct DSStruct
 {
-    uint32_t         m_Count;  // Number of immediate fields.
-    DSStructSource   m_Source; // Selects the active union member.
+    uint32_t       m_Count;  // Number of immediate fields.
+    DSStructSource m_Source; // Selects the active union member.
     union
     {
         struct
         {
-            const uint64_t*      m_Names;  // Unique local field hashes.
-            const DSValueType*   m_Types;  // Field kinds, shareable across inputs.
-            const DSValueData*   m_Values; // Borrowed payloads in name order.
+            const uint64_t*    m_Names;  // Unique local field hashes.
+            const DSValueType* m_Types;  // Field kinds, shareable across inputs.
+            const DSValueData* m_Values; // Borrowed payloads in name order.
         } m_Array;
         struct
         {
-            const uint8_t*         m_Buffer;      // Packed container or inline row bytes.
-            uint32_t               m_Offset;      // Container offset, metadata index or child-row index.
-            uint32_t               m_FieldOffset; // Native offset of the inline struct, for relative member addressing.
-            const DSTable*         m_Table;       // Containing component table for inline/child rows.
-            const DSStructTable*   m_StructTable; // Shared child layout for DS_STRUCT_ROW.
+            const uint8_t*       m_Buffer;      // Packed container or inline row bytes.
+            uint32_t             m_Offset;      // Container offset, metadata index or child-row index.
+            uint32_t             m_FieldOffset; // Native offset of the inline struct, for relative member addressing.
+            const DSTable*       m_Table;       // Containing component table for inline/child rows.
+            const DSStructTable* m_StructTable; // Shared child layout for DS_STRUCT_ROW.
         } m_View;
         struct
         {
-            const DSStructDesc*   m_Layout; // Borrowed native input layout.
-            const uint8_t*        m_Data;   // Borrowed native struct bytes.
+            const DSStructDesc* m_Layout; // Borrowed native input layout.
+            const uint8_t*      m_Data;   // Borrowed native struct bytes.
         } m_Input;
     };
 };
@@ -164,12 +164,12 @@ struct DSStruct
 // Zero-initialize decoded input; set copies the values. Read with DSGetListValue.
 struct DSList
 {
-    const DSValue*   m_Values; // Decoded elements; unused for packed views.
-    uint32_t         m_Count;  // Number of elements.
+    const DSValue* m_Values; // Decoded elements; unused for packed views.
+    uint32_t       m_Count;  // Number of elements.
     // private
-    const uint8_t*       m_Buffer; // Borrowed bytes backing a packed container; NULL for decoded input.
-    uint32_t             m_Offset; // Container header offset in m_Buffer.
-    const DSListInput*   m_Input;  // Borrowed native list input; NULL for decoded/packed views.
+    const uint8_t*     m_Buffer; // Borrowed bytes backing a packed container; NULL for decoded input.
+    uint32_t           m_Offset; // Container header offset in m_Buffer.
+    const DSListInput* m_Input;  // Borrowed native list input; NULL for decoded/packed views.
 };
 
 // Untagged payload selected by the input's m_Types entry or DSValue::m_Type.
@@ -203,13 +203,13 @@ struct DSValue
 // an ordinary scalar/reference, including a dynamic STRUCT.
 struct DSFieldMeta
 {
-    uint64_t      m_Field;      // Full name hash; root fields retain their declared hash.
-    DSValueType   m_Type;       // Declared kind.
-    uint32_t      m_Offset;     // Absolute byte offset within the row.
-    uint16_t      m_ChildIndex; // First inline child metadata entry; zero for scalar/dynamic fields.
-    uint16_t      m_ChildCount; // Number of immediate inline members.
-    uint32_t      m_Size;       // Field byte size, including inline struct padding.
-    uint64_t      m_Name;       // Local member hash, used by structured input/views.
+    uint64_t    m_Field;      // Full name hash; root fields retain their declared hash.
+    DSValueType m_Type;       // Declared kind.
+    uint32_t    m_Offset;     // Absolute byte offset within the row.
+    uint16_t    m_ChildIndex; // First inline child metadata entry; zero for scalar/dynamic fields.
+    uint16_t    m_ChildCount; // Number of immediate inline members.
+    uint32_t    m_Size;       // Field byte size, including inline struct padding.
+    uint64_t    m_Name;       // Local member hash, used by structured input/views.
 };
 
 // Dynamic structs share field metadata within their containing component table.
@@ -224,18 +224,18 @@ struct DSFieldMeta
 // without moving other children; capacity remains until the component table dies.
 struct DSStructField
 {
-    uint64_t      m_Name;   // Local member hash, shared by all child rows of this layout.
-    DSValueType   m_Type;   // Member kind; nested structs use another child-row reference.
-    uint32_t      m_Offset; // C-aligned byte offset within the child row.
+    uint64_t    m_Name;   // Local member hash, shared by all child rows of this layout.
+    DSValueType m_Type;   // Member kind; nested structs use another child-row reference.
+    uint32_t    m_Offset; // C-aligned byte offset within the child row.
 };
 
 struct DSStructTable
 {
-    dmArray<DSStructField>   m_Fields;    // Shared member layout; input order may differ.
-    dmArray<uint8_t>         m_Values;    // Fixed-stride owned child rows, including reusable free slots.
-    uint32_t                 m_RowStride; // Row size aligned to eight bytes; at least eight for the free link.
-    uint32_t                 m_FreeRow;   // First free row index, or UINT32_MAX.
-    uint32_t                 m_RowCount;  // Live child rows, including retained reset defaults.
+    dmArray<DSStructField> m_Fields;    // Shared member layout; input order may differ.
+    dmArray<uint8_t>       m_Values;    // Fixed-stride owned child rows, including reusable free slots.
+    uint32_t               m_RowStride; // Row size aligned to eight bytes; at least eight for the free link.
+    uint32_t               m_FreeRow;   // First free row index, or UINT32_MAX.
+    uint32_t               m_RowCount;  // Live child rows, including retained reset defaults.
 };
 
 struct DSStructStorage
@@ -258,11 +258,11 @@ struct DSStructStorage
 //              [ native field bytes + alignment padding ]
 struct DSRowDesc
 {
-    DSGroupId            m_Group;       // Runtime game object or caller-defined group.
-    const DSValueType*   m_Types;       // Borrowed kinds in root metadata order; may be shared across rows.
-    const DSValueData*   m_Values;      // Borrowed untagged payloads in root metadata order; copied on insertion.
-    uint32_t             m_ValueCount;  // Number of root kinds and payloads.
-    uint64_t             m_ComponentId; // Prototype-local component name hash.
+    DSGroupId          m_Group;       // Runtime game object or caller-defined group.
+    const DSValueType* m_Types;       // Borrowed kinds in root metadata order; may be shared across rows.
+    const DSValueData* m_Values;      // Borrowed untagged payloads in root metadata order; copied on insertion.
+    uint32_t           m_ValueCount;  // Number of root kinds and payloads.
+    uint64_t           m_ComponentId; // Prototype-local component name hash.
 };
 
 static const uint32_t DATA_MAX_NESTING = 64;
@@ -271,9 +271,9 @@ static const uint32_t DATA_MAX_NESTING = 64;
 // Blocks never move; query destruction releases the arena.
 struct DSBlock
 {
-    DSBlock*   m_Next;     // Next owned arena block.
-    size_t     m_Size;     // Used payload bytes, including padding.
-    size_t     m_Capacity; // Payload capacity; excludes this header.
+    DSBlock* m_Next;     // Next owned arena block.
+    size_t   m_Size;     // Used payload bytes, including padding.
+    size_t   m_Capacity; // Payload capacity; excludes this header.
 };
 
 // Recyclable payloads keep stable addresses. Free chunks live inside their block;
@@ -281,19 +281,19 @@ struct DSBlock
 struct DSPayloadHeader;
 struct DSPayloadBlock
 {
-    DSPayloadBlock*    m_Next;     // Next block owned by the arena.
-    DSPayloadBlock*    m_Previous; // Previous block; NULL at the head.
-    DSPayloadBlock**   m_Owner;    // Stable arena head in a table or blob instance.
-    DSPayloadHeader*   m_Free;     // Reusable chunks; next links occupy freed payload bytes.
-    size_t             m_Size;     // End of the initialized chunks, including headers.
-    size_t             m_Capacity; // Payload allocation capacity, excluding this block header.
-    size_t             m_LiveSize; // Bytes held by live chunks, including their headers.
+    DSPayloadBlock*  m_Next;     // Next block owned by the arena.
+    DSPayloadBlock*  m_Previous; // Previous block; NULL at the head.
+    DSPayloadBlock** m_Owner;    // Stable arena head in a table or blob instance.
+    DSPayloadHeader* m_Free;     // Reusable chunks; next links occupy freed payload bytes.
+    size_t           m_Size;     // End of the initialized chunks, including headers.
+    size_t           m_Capacity; // Payload allocation capacity, excluding this block header.
+    size_t           m_LiveSize; // Bytes held by live chunks, including their headers.
 };
 
 struct DSPayloadHeader
 {
-    DSPayloadBlock*   m_Block; // Owning block, used for release without searching the arena.
-    size_t            m_Size;  // Aligned payload capacity; excludes this header.
+    DSPayloadBlock* m_Block; // Owning block, used for release without searching the arena.
+    size_t          m_Size;  // Aligned payload capacity; excludes this header.
 };
 
 struct DSBlobPool;
@@ -301,9 +301,9 @@ struct DSBlobPool;
 // Native/decoded tables own metadata and optional reset storage. Packed tables borrow it.
 struct DSOwnedTable
 {
-    dmArray<uint64_t>      m_Tags;       // Owned table tag hashes.
-    dmArray<DSFieldMeta>   m_Fields;     // Owned root and inline-member metadata.
-    DSPayloadBlock*        m_BaseValues; // Recyclable original payloads; empty when reset is disabled.
+    dmArray<uint64_t>    m_Tags;       // Owned table tag hashes.
+    dmArray<DSFieldMeta> m_Fields;     // Owned root and inline-member metadata.
+    DSPayloadBlock*      m_BaseValues; // Recyclable original payloads; empty when reset is disabled.
 };
 
 // Value chunks are suballocated from store pages. Oversized rows own a dedicated
@@ -348,25 +348,25 @@ static const uint32_t DATA_FIELD_LOOKUP_SIZE = 16;
 // One shared metadata array describes all rows; inline Light needs no pointer.
 struct DSTable
 {
-    uint64_t                  m_Type;           // Data type name hash.
-    uint64_t                  m_Serial;         // Store-local registration order, stable across swap removal.
-    uint32_t                  m_StoreIndex;     // Index in DSStore::m_Tables for swap removal.
-    uint16_t                  m_TagCount;       // Number of table tags.
-    uint16_t                  m_FieldCount;     // Number of root fields.
-    uint16_t                  m_MetadataCount;  // Root fields plus all inline-member entries.
-    bool                      m_HasReferences;  // Row bytes contain strings or dynamic containers.
-    bool                      m_IsView;         // Values are caller-owned; row base indices select source rows.
-    bool                      m_RetainDefaults; // Native rows retain initial values; blobs always have resource defaults.
-    dmArray<DSTable*>         m_ViewAliases;    // Borrowed views whose selected source rows overlap this view.
-    uint32_t                  m_RowStride;      // Row bytes, including native alignment padding.
-    dmArray<DSRow>            m_Rows;           // Dense row records; same layout as in the blob.
-    dmArray<uint8_t>          m_Values;         // Borrowed external values for views; empty for owned tables.
-    dmArray<DSRowChunk>       m_Chunks;         // Dense value chunks; only the last can have free rows.
-    uint32_t                  m_ChunkShift;     // log2 rows per chunk; row index uses shift and mask.
-    uint32_t                  m_ChunkMask;      // Rows per chunk minus one.
-    uint32_t                  m_DefaultOffset;  // Retained defaults within a chunk; zero when none.
-    DSBlobPool*               m_Pool;           // Owning resource pool; NULL for independently registered tables.
-    const uint8_t*            m_Blob;           // Borrowed serialized resource bytes; NULL for independent tables.
+    uint64_t            m_Type;           // Data type name hash.
+    uint64_t            m_Serial;         // Store-local registration order, stable across swap removal.
+    uint32_t            m_StoreIndex;     // Index in DSStore::m_Tables for swap removal.
+    uint16_t            m_TagCount;       // Number of table tags.
+    uint16_t            m_FieldCount;     // Number of root fields.
+    uint16_t            m_MetadataCount;  // Root fields plus all inline-member entries.
+    bool                m_HasReferences;  // Row bytes contain strings or dynamic containers.
+    bool                m_IsView;         // Values are caller-owned; row base indices select source rows.
+    bool                m_RetainDefaults; // Native rows retain initial values; blobs always have resource defaults.
+    dmArray<DSTable*>   m_ViewAliases;    // Borrowed views whose selected source rows overlap this view.
+    uint32_t            m_RowStride;      // Row bytes, including native alignment padding.
+    dmArray<DSRow>      m_Rows;           // Dense row records; same layout as in the blob.
+    dmArray<uint8_t>    m_Values;         // Borrowed external values for views; empty for owned tables.
+    dmArray<DSRowChunk> m_Chunks;         // Dense value chunks; only the last can have free rows.
+    uint32_t            m_ChunkShift;     // log2 rows per chunk; row index uses shift and mask.
+    uint32_t            m_ChunkMask;      // Rows per chunk minus one.
+    uint32_t            m_DefaultOffset;  // Retained defaults within a chunk; zero when none.
+    DSBlobPool*         m_Pool;           // Owning resource pool; NULL for independently registered tables.
+    const uint8_t*      m_Blob;           // Borrowed serialized resource bytes; NULL for independent tables.
     union
     {
         DSOwnedTable* m_Owned; // Metadata/default storage when m_Pool is NULL.
@@ -377,10 +377,10 @@ struct DSTable
             uint32_t m_FirstSlot; // First source row in each registration's slot array.
         } m_Offsets;              // Packed defaults and registration membership locations.
     };
-    DSStructStorage*   m_Structs;                             // Owned dynamic child tables; NULL until a dynamic struct is copied.
-    DSPayloadBlock*    m_Payloads;                            // Recyclable current/replacement payloads; packed rows use their registration.
-    const uint8_t*     m_FieldMetadata;                       // Borrowed owned/blob metadata; fixed for the table lifetime.
-    uint16_t           m_FieldLookup[DATA_FIELD_LOOKUP_SIZE]; // First metadata index per hash bucket; UINT16_MAX means empty.
+    DSStructStorage* m_Structs;                             // Owned dynamic child tables; NULL until a dynamic struct is copied.
+    DSPayloadBlock*  m_Payloads;                            // Recyclable current/replacement payloads; packed rows use their registration.
+    const uint8_t*   m_FieldMetadata;                       // Borrowed owned/blob metadata; fixed for the table lifetime.
+    uint16_t         m_FieldLookup[DATA_FIELD_LOOKUP_SIZE]; // First metadata index per hash bucket; UINT16_MAX means empty.
 };
 
 // DSId: [ generation: high 32 bits | slot index: low 32 bits ]
@@ -390,8 +390,8 @@ struct DSTable
 // The generation rejects stale IDs; swap removal updates m_Row, not the ID.
 struct DSSlot
 {
-    DSTable*   m_Table;      // Borrowed owning table; NULL when the slot is free.
-    uint32_t   m_Generation; // ID generation incremented on release.
+    DSTable* m_Table;      // Borrowed owning table; NULL when the slot is free.
+    uint32_t m_Generation; // ID generation incremented on release.
     union
     {
         uint32_t m_Row;      // Current dense row index in m_Table.
@@ -475,17 +475,17 @@ struct DSQueryRange
 // Public input remains wide for validation.
 struct DSQueryFieldInfo
 {
-    uint64_t      m_Field;  // Requested full-name hash.
-    DSValueType   m_Type;   // Required leaf kind.
-    uint8_t       m_Access; // Validated query access flags; zero reads, DS_FIELD_MUTABLE writes.
+    uint64_t    m_Field;  // Requested full-name hash.
+    DSValueType m_Type;   // Required leaf kind.
+    uint8_t     m_Access; // Validated query access flags; zero reads, DS_FIELD_MUTABLE writes.
 };
 
 // Compatibility depends on matching layouts and immutable filters, not row values.
 struct DSQueryConflict
 {
-    HDSQuery   m_Query;    // Other live query; removed when that query is destroyed.
-    uint64_t   m_Revision; // Other query's matching-table revision.
-    bool       m_Conflict; // Overlapping declared access with at least one writer.
+    HDSQuery m_Query;    // Other live query; removed when that query is destroyed.
+    uint64_t m_Revision; // Other query's matching-table revision.
+    bool     m_Conflict; // Overlapping declared access with at least one writer.
 };
 
 // Live query owned by its caller and registered with m_Store. Owns copies of
@@ -495,21 +495,21 @@ struct DSQueryConflict
 // While active, m_ActiveSlot identifies its reservation in the store's object pool.
 struct DSQuery
 {
-    HDSContext                  m_Store;         // Borrowed store; must outlive this query.
-    dmArray<DSQueryTable>       m_Tables;        // Matching tables and bindings, sorted by registration serial.
-    dmArray<DSQueryFieldInfo>   m_Fields;        // Copied requested fields and access modes.
-    dmArray<DSGroupId>          m_Groups;        // Copied group filter; empty matches every group.
-    dmArray<uint64_t>           m_Tags;          // Copied all-required tag filter.
-    DSBlock*                    m_Bindings;      // Owned arena for per-table field bindings.
-    DSQueryBinding*             m_FreeFields;    // Recycled binding arrays; first bytes hold the next pointer.
-    dmArray<DSQueryRange>       m_Ranges;        // Cached contiguous ranges for job splitting.
-    dmArray<DSQueryConflict>    m_Conflicts;     // Lazily cached compatibility with other queries.
-    uint64_t                    m_MatchRevision; // Invalidates compatibility when matching tables change.
-    bool                        m_HasWrites;     // Any field or the complete row has read/write access.
-    uint8_t                     m_Flags;         // Validated DSQueryFlags for whole-row access.
-    uint64_t                    m_Revision;      // Store revision used to build m_Ranges.
-    uint32_t                    m_RowCount;      // Total reserved matching rows.
-    uint32_t                    m_ActiveSlot;    // Store reservation pool slot; UINT32_MAX when inactive.
+    HDSContext                m_Store;         // Borrowed store; must outlive this query.
+    dmArray<DSQueryTable>     m_Tables;        // Matching tables and bindings, sorted by registration serial.
+    dmArray<DSQueryFieldInfo> m_Fields;        // Copied requested fields and access modes.
+    dmArray<DSGroupId>        m_Groups;        // Copied group filter; empty matches every group.
+    dmArray<uint64_t>         m_Tags;          // Copied all-required tag filter.
+    DSBlock*                  m_Bindings;      // Owned arena for per-table field bindings.
+    DSQueryBinding*           m_FreeFields;    // Recycled binding arrays; first bytes hold the next pointer.
+    dmArray<DSQueryRange>     m_Ranges;        // Cached contiguous ranges for job splitting.
+    dmArray<DSQueryConflict>  m_Conflicts;     // Lazily cached compatibility with other queries.
+    uint64_t                  m_MatchRevision; // Invalidates compatibility when matching tables change.
+    bool                      m_HasWrites;     // Any field or the complete row has read/write access.
+    uint8_t                   m_Flags;         // Validated DSQueryFlags for whole-row access.
+    uint64_t                  m_Revision;      // Store revision used to build m_Ranges.
+    uint32_t                  m_RowCount;      // Total reserved matching rows.
+    uint32_t                  m_ActiveSlot;    // Store reservation pool slot; UINT32_MAX when inactive.
 };
 
 struct DSBlob
@@ -555,10 +555,10 @@ struct DSBlobPool
 // m_Payloads --> [ DSPayloadBlock | chunk header + payload | ... ] --> next block
 struct DSBlobInstance
 {
-    DSBlobPool*       m_Pool;     // Borrowed owning pool; NULL when this slot is free.
-    DSPayloadBlock*   m_Payloads; // Owned replacement string/container arena.
-    uint32_t          m_Index;    // Stable registration slot within the pool.
-    uint32_t          m_NextFree; // Next reusable registration index while free.
+    DSBlobPool*     m_Pool;     // Borrowed owning pool; NULL when this slot is free.
+    DSPayloadBlock* m_Payloads; // Owned replacement string/container arena.
+    uint32_t        m_Index;    // Stable registration slot within the pool.
+    uint32_t        m_NextFree; // Next reusable registration index while free.
 };
 
 static inline DSTable* GetPoolTable(DSBlobPool* pool, uint32_t index)
@@ -585,21 +585,21 @@ static inline uint32_t* GetInstanceSlots(HDSBlobInstance instance)
 
 // Shared allocation and lookup helpers. Arena blocks belong to their table,
 // registration or query; borrowed values remain valid until that owner resets/frees them.
-void                             ReserveData(DSBlock** blocks, size_t size, size_t minimum_capacity = 4096);
-void*                            AllocateData(DSBlock** blocks, size_t size, size_t minimum_capacity = 4096);
-void                             DeleteBlocks(DSBlock** blocks);
-void                             ReservePayloads(DSPayloadBlock** blocks, size_t size);
-void*                            AllocatePayload(DSPayloadBlock** blocks, size_t size);
-void                             ReleasePayload(void* bytes);
-void                             DeletePayloads(DSPayloadBlock** blocks);
-void                             ReleaseReference(DSTable* table, DSValueType type, uint64_t reference);
-DSTable*                         FindTable(HDSContext store, uint64_t type);
-void                             InitializeRowStorage(HDSContext store, DSTable* table);
-void                             ReserveRowStorage(HDSContext store, DSTable* table, uint32_t num_rows);
-void                             TrimRowStorage(HDSContext store, DSTable* table, uint32_t num_rows);
-void                             DeleteRowPages(HDSContext store);
+void                           ReserveData(DSBlock** blocks, size_t size, size_t minimum_capacity = 4096);
+void*                          AllocateData(DSBlock** blocks, size_t size, size_t minimum_capacity = 4096);
+void                           DeleteBlocks(DSBlock** blocks);
+void                           ReservePayloads(DSPayloadBlock** blocks, size_t size);
+void*                          AllocatePayload(DSPayloadBlock** blocks, size_t size);
+void                           ReleasePayload(void* bytes);
+void                           DeletePayloads(DSPayloadBlock** blocks);
+void                           ReleaseReference(DSTable* table, DSValueType type, uint64_t reference);
+DSTable*                       FindTable(HDSContext store, uint64_t type);
+void                           InitializeRowStorage(HDSContext store, DSTable* table);
+void                           ReserveRowStorage(HDSContext store, DSTable* table, uint32_t num_rows);
+void                           TrimRowStorage(HDSContext store, DSTable* table, uint32_t num_rows);
+void                           DeleteRowPages(HDSContext store);
 
-static inline DSPayloadBlock**   GetNativePayloads(DSTable* table)
+static inline DSPayloadBlock** GetNativePayloads(DSTable* table)
 {
     return table->m_RetainDefaults ? &table->m_Owned->m_BaseValues : &table->m_Payloads;
 }
@@ -621,14 +621,14 @@ DSValue     ReadBoundValue(const DSTable* table, const DSRow* row, const DSField
 DSResult    ReadField(DSTable* table, uint32_t row, uint64_t field, DSValue* out_value);
 DSResult    SetRowField(DSTable* table, DSRow* row, const DSFieldMeta& meta, const DSValue* value);
 // Decoded batch construction; no table/row identities are changed by these helpers.
-DSResult   ValidateLayout(const DSFieldDesc* fields, uint32_t count, uint32_t size, uint32_t depth, uint64_t* metadata_count, uint32_t* out_alignment);
-bool       ValidateFieldNames(const uint8_t* metadata, uint32_t count, dmArray<uint64_t>& scratch);
-DSResult   ValidateNativeReferences(const DSTable* table, const DSFieldMeta& meta, const uint8_t* values, uint32_t stride, uint32_t count, uint32_t depth, size_t* payload_size);
-void       StoreNativeReferences(DSTable* table, uint32_t count, uint8_t* rows);
-DSResult   ValidateRowValues(const DSTable* table, const DSRowDesc* rows, uint32_t count, size_t* payload_size);
-void       StoreRowValues(DSTable* table, const DSRowDesc* rows, uint32_t count, uint8_t* bytes);
-DSResult   ValidateStoredValue(const DSTable* table, const DSFieldMeta& meta, DSValueType type, const DSValueData* value, uint32_t depth, size_t* payload_size);
-void       StoreStoredValue(DSTable* table, const DSFieldMeta& meta, DSPayloadBlock** blocks, uint8_t* bytes, const DSValueData* value);
+DSResult ValidateLayout(const DSFieldDesc* fields, uint32_t count, uint32_t size, uint32_t depth, uint64_t* metadata_count, uint32_t* out_alignment);
+bool     ValidateFieldNames(const uint8_t* metadata, uint32_t count, dmArray<uint64_t>& scratch);
+DSResult ValidateNativeReferences(const DSTable* table, const DSFieldMeta& meta, const uint8_t* values, uint32_t stride, uint32_t count, uint32_t depth, size_t* payload_size);
+void     StoreNativeReferences(DSTable* table, uint32_t count, uint8_t* rows);
+DSResult ValidateRowValues(const DSTable* table, const DSRowDesc* rows, uint32_t count, size_t* payload_size);
+void     StoreRowValues(DSTable* table, const DSRowDesc* rows, uint32_t count, uint8_t* bytes);
+DSResult ValidateStoredValue(const DSTable* table, const DSFieldMeta& meta, DSValueType type, const DSValueData* value, uint32_t depth, size_t* payload_size);
+void     StoreStoredValue(DSTable* table, const DSFieldMeta& meta, DSPayloadBlock** blocks, uint8_t* bytes, const DSValueData* value);
 
 // Owned dynamic structs use table/row indices. Lists retain packed containers.
 void               StoreValue(DSPayloadBlock** blocks, uint8_t* bytes, DSValueType type, const DSValueData* value);

@@ -176,11 +176,11 @@ static uint32_t AllocateSlot(HDSContext store, DSTable* table, uint32_t row)
 // filling row identities and generation-bearing slots, including reused slots.
 static void AddRowSlots(HDSContext store, DSTable* table, const DSRowDesc* rows, DSGroupId group, uint32_t count, DSId* out_ids)
 {
-    uint32_t  first_row = table->m_Rows.Size();
-    uint32_t  slot_count = store->m_Slots.Size();
-    uint32_t  free_slot = store->m_FreeSlot;
-    DSSlot*   slots = store->m_Slots.Begin();
-    DSRow*    output = table->m_Rows.Begin() + first_row;
+    uint32_t first_row = table->m_Rows.Size();
+    uint32_t slot_count = store->m_Slots.Size();
+    uint32_t free_slot = store->m_FreeSlot;
+    DSSlot*  slots = store->m_Slots.Begin();
+    DSRow*   output = table->m_Rows.Begin() + first_row;
 
     for (uint32_t i = 0; i < count; ++i)
     {
@@ -297,8 +297,8 @@ DSResult ValidateLayout(const DSFieldDesc* fields, uint32_t count, uint32_t size
     uint32_t alignment = 1;
     for (uint32_t i = 0; i < count; ++i)
     {
-        const DSFieldDesc&   field = fields[i];
-        uint32_t             field_size = FieldSize(field);
+        const DSFieldDesc& field = fields[i];
+        uint32_t           field_size = FieldSize(field);
         if (((depth || field.m_Struct) && (!field.m_Name || !field.m_Name[0] || strchr(field.m_Name, '.'))) ||
             field_size == UINT32_MAX || field.m_Offset > size || field_size > size - field.m_Offset ||
             (field.m_Struct && field.m_Type != DS_TYPE_STRUCT))
@@ -333,8 +333,8 @@ static void CompileLayout(dmArray<DSFieldMeta>& metadata, const DSFieldDesc* fie
 {
     for (uint32_t i = 0; i < count; ++i)
     {
-        const DSFieldDesc&   field = fields[i];
-        HashState64          name;
+        const DSFieldDesc& field = fields[i];
+        HashState64        name;
         if (prefix)
         {
             dmHashClone64(&name, prefix, false);
@@ -401,9 +401,9 @@ static DSResult RegisterTable(HDSContext store, const DSTableDesc* desc)
     if ((uint32_t)desc->m_ResetPolicy > DS_RESET_NONE || (desc->m_TagCount && !desc->m_Tags) || desc->m_TagCount > DATA_MAX_TAG_COUNT)
         return DS_RESULT_INVALID_ARGUMENT;
 
-    uint64_t   metadata_count = 0;
-    uint32_t   alignment;
-    DSResult   result = ValidateLayout(desc->m_Fields, desc->m_FieldCount, desc->m_RowStride, 0, &metadata_count, &alignment);
+    uint64_t metadata_count = 0;
+    uint32_t alignment;
+    DSResult result = ValidateLayout(desc->m_Fields, desc->m_FieldCount, desc->m_RowStride, 0, &metadata_count, &alignment);
     if (result != DS_RESULT_OK)
         return result;
     if (desc->m_ResetPolicy == DS_RESET_RETAIN && (uint64_t)desc->m_RowStride * 2 > SIZE_MAX)
@@ -633,15 +633,15 @@ static DSBlobPool* NewBlobPool(HDSContext store, HDSBlob blob)
     uint64_t       page_offset = rows_offset + (uint64_t)blob->m_RowCount * sizeof(DSRow);
     const uint8_t* file = blob->m_Data;
 
-    uint64_t stride = AlignBlobStorage(sizeof(DSBlobInstance) + (uint64_t)blob->m_RowCount * sizeof(uint32_t));
-    uint32_t shift = 8; // Up to 256 registrations per page, bounded to 64 KiB unless one record is larger.
+    uint64_t       stride = AlignBlobStorage(sizeof(DSBlobInstance) + (uint64_t)blob->m_RowCount * sizeof(uint32_t));
+    uint32_t       shift = 8; // Up to 256 registrations per page, bounded to 64 KiB unless one record is larger.
     while (shift && (stride << shift) > 65536)
         --shift;
     uint64_t size = page_offset + (stride << shift);
     if (size > SIZE_MAX || stride > UINT32_MAX)
         return 0;
-    uint8_t*      storage = new uint8_t[(size_t)size];
-    DSBlobPool*   pool = new (storage) DSBlobPool;
+    uint8_t*    storage = new uint8_t[(size_t)size];
+    DSBlobPool* pool = new (storage) DSBlobPool;
     pool->m_Store = store;
     pool->m_Blob = blob;
     pool->m_Next = store->m_Pools;
@@ -738,15 +738,15 @@ DSResult DSAddBlob(HDSContext store, HDSBlob blob, DSGroupId group, HDSBlobInsta
     }
 
     ReserveSlots(store, blob->m_RowCount);
-    HDSBlobInstance   instance = NewBlobInstance(pool);
-    uint32_t*         slots = GetInstanceSlots(instance);
+    HDSBlobInstance instance = NewBlobInstance(pool);
+    uint32_t*       slots = GetInstanceSlots(instance);
     for (uint32_t t = 0; t < blob->m_TableCount; ++t)
     {
         DSTable* table = GetPoolTable(pool, t);
         uint32_t count = (uint32_t)ReadDataInteger(table->m_Blob + table->m_Offsets.m_Table + offsetof(DSTableHeader, m_RowCount), 4);
         if (!count)
             continue;
-        uint32_t   start = table->m_Rows.Size();
+        uint32_t start = table->m_Rows.Size();
         ReserveTableArray(table, table->m_Rows, start + count);
         ReserveRowStorage(store, table, start + count);
         table->m_Rows.SetSize(start + count);
@@ -887,8 +887,8 @@ DSResult DSCreateRows(HDSContext store, uint64_t type, DSGroupId group, uint32_t
         return DS_RESULT_NOT_FOUND;
     if (!CanCreateRows(store, table, count))
         return DS_RESULT_INVALID_ARGUMENT;
-    size_t     payload_size = 0;
-    DSResult   result = ValidateNativeRows(table, count, rows, &payload_size);
+    size_t   payload_size = 0;
+    DSResult result = ValidateNativeRows(table, count, rows, &payload_size);
     if (result != DS_RESULT_OK)
         return result;
 
@@ -1078,8 +1078,8 @@ DSResult DSRemoveRow(HDSContext store, DSId id)
     DSSlot* slot = FindSlot(store, id);
     if (!slot)
         return DS_RESULT_NOT_FOUND;
-    DSTable*   table = slot->m_Table;
-    uint32_t   row = slot->m_Row;
+    DSTable* table = slot->m_Table;
+    uint32_t row = slot->m_Row;
     if (table->m_IsView)
         return DS_RESULT_INVALID_ARGUMENT;
     if (table->m_HasReferences)

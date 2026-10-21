@@ -17,16 +17,16 @@
 
 struct LifetimeRow
 {
-    double        m_Health;
-    DSReference   m_Name;
-    DSReference   m_Attributes;
-    DSReference   m_Loot;
+    double      m_Health;
+    DSReference m_Name;
+    DSReference m_Attributes;
+    DSReference m_Loot;
 };
 
 struct LifetimeAttributes
 {
-    DSReference   m_Faction;
-    double        m_AlertRadius;
+    DSReference m_Faction;
+    double      m_AlertRadius;
 };
 
 static DSResult RegisterLifetimeTable(HDSContext store, DSResetPolicy reset)
@@ -137,8 +137,8 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             uint32_t loot = DSQueryFindField(query, &requested);
             ASSERT_NE(UINT32_MAX, loot);
             ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
-            DSIterator   it = DSQueryIterRange(query, 0, DSQueryGetRowCount(query));
-            uint32_t     seen = 0;
+            DSIterator it = DSQueryIterRange(query, 0, DSQueryGetRowCount(query));
+            uint32_t   seen = 0;
             while (DSIterNext(&it))
             {
                 DSRowIterator rows = DSIterRows(&it);
@@ -240,10 +240,10 @@ TEST(DataLifetime, PayloadChurn)
 // changes the answer. Disjoint group filters may write the same table field.
 TEST(DataLifetime, QueryCompatibilityCache)
 {
-    HDSContext    store = DSCreateStore(0);
-    uint64_t      tags[] = { 1, 2 };
-    DSFieldDesc   field = { .m_Field = 1, .m_Type = DS_TYPE_NUMBER };
-    DSTableDesc   table = { .m_Type = 1, .m_Tags = tags, .m_TagCount = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8 };
+    HDSContext  store = DSCreateStore(0);
+    uint64_t    tags[] = { 1, 2 };
+    DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_NUMBER };
+    DSTableDesc table = { .m_Type = 1, .m_Tags = tags, .m_TagCount = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8 };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
     DSQueryItem requested = { .m_Hash = 1, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc desc = { .m_Items = { requested, { .m_Hash = tags[0], .m_Kind = DS_QUERY_ITEM_TAG } } };

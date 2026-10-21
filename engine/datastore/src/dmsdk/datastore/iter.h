@@ -48,9 +48,9 @@ extern "C"
     typedef struct DSRowIterator
     {
         // private
-        const DSIterator*   m_Parent;
-        uint32_t            m_Index;
-        uint32_t            m_NextRow;
+        const DSIterator* m_Parent;
+        uint32_t          m_Index;
+        uint32_t          m_NextRow;
     } DSRowIterator;
 
     // Query batches

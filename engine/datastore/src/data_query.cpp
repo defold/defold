@@ -107,8 +107,8 @@ void MatchTable(HDSQuery query, DSTable* table)
 
 void UnmatchTable(HDSQuery query, DSTable* table)
 {
-    dmArray<DSQueryTable>&   tables = query->m_Tables;
-    uint32_t                 index = FindQueryTable(query, table);
+    dmArray<DSQueryTable>& tables = query->m_Tables;
+    uint32_t               index = FindQueryTable(query, table);
     if (index == tables.Size() || tables[index].m_Table != table)
         return;
     ReleaseQueryFields(query, tables[index].m_Fields);
@@ -362,9 +362,9 @@ static void RefreshQueryRanges(HDSQuery query)
     query->m_RowCount = 0;
     for (uint32_t t = 0; t < query->m_Tables.Size(); ++t)
     {
-        const DSTable*   table = query->m_Tables[t].m_Table;
-        uint32_t         count = table->m_Rows.Size();
-        uint32_t         row = 0;
+        const DSTable* table = query->m_Tables[t].m_Table;
+        uint32_t       count = table->m_Rows.Size();
+        uint32_t       row = 0;
         while (row < count)
         {
             while (row < count && !MatchesGroup(query, table->m_Rows[row].m_Group))

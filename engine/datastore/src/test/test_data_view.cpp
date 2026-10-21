@@ -17,8 +17,8 @@
 
 struct ViewRow
 {
-    DSVector3   m_Position;
-    float       m_Health;
+    DSVector3 m_Position;
+    float     m_Health;
 };
 
 static DSResult RegisterView(HDSContext store, uint64_t type, ViewRow* values, uint32_t capacity, uint32_t count, const uint32_t* indices, DSId* ids)
@@ -50,13 +50,13 @@ TEST(DataView, SparseRangesAndBorrowedPointers)
     uint32_t   indices[] = { 2, 3, 4, 0, 7 };
     DSId       ids[5];
     ASSERT_EQ(DS_RESULT_OK, RegisterView(store, 100, values, 8, 5, indices, ids));
-    HDSQuery   query;
-    uint32_t   field;
+    HDSQuery query;
+    uint32_t field;
     ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, DS_FIELD_MUTABLE, &query, &field, DS_ROW_MUTABLE));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     ASSERT_EQ(5u, DSQueryGetRowCount(query));
-    DSIterator   it = DSQueryIterRange(query, 1, 3);
-    uint32_t     index = 1;
+    DSIterator it = DSQueryIterRange(query, 1, 3);
+    uint32_t   index = 1;
     while (DSIterNext(&it))
     {
         DSRowIterator rows = DSIterRows(&it);
@@ -126,8 +126,8 @@ TEST(DataView, AliasedReservations)
     ASSERT_EQ(DS_RESULT_OK, RegisterView(store, 100, values, 4, 2, a, 0));
     ASSERT_EQ(DS_RESULT_OK, RegisterView(store, 200, values, 4, 2, b, 0));
     ASSERT_EQ(DS_RESULT_OK, RegisterView(store, 300, values, 4, 2, c, 0));
-    HDSQuery   writer, disjoint, reader, reader2, health;
-    uint32_t   field;
+    HDSQuery writer, disjoint, reader, reader2, health;
+    uint32_t field;
     ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, DS_FIELD_MUTABLE, &writer, &field));
     ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 200, 1, DS_FIELD_MUTABLE, &disjoint, &field));
     ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 300, 1, 0, &reader, &field));
@@ -203,8 +203,8 @@ TEST(DataView, EmptyAndReboundViews)
     uint32_t   invalid[] = { 2 };
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, RegisterView(store, 100, values, 2, 1, invalid, 0));
     ASSERT_EQ(DS_RESULT_OK, RegisterView(store, 100, values, 2, 0, 0, 0));
-    HDSQuery   query;
-    uint32_t   field;
+    HDSQuery query;
+    uint32_t field;
     ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, 0, &query, &field));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     ASSERT_EQ(0u, DSQueryGetRowCount(query));

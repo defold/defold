@@ -19,8 +19,8 @@
 
 struct ReferenceAttributes
 {
-    DSReference   m_Faction;
-    double        m_AlertRadius;
+    DSReference m_Faction;
+    double      m_AlertRadius;
 };
 
 struct ReferenceEnemy
@@ -166,9 +166,9 @@ static int TestDataBatchFromC(HDSContext store, DSId id)
 
 int TestDataFromC(HDSContext store)
 {
-    DSGroupId      group = 123;
-    uint64_t       tag = 7;
-    DSQueryItem    fields[] = {
+    DSGroupId   group = 123;
+    uint64_t    tag = 7;
+    DSQueryItem fields[] = {
         { .m_Hash = 42, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
         { .m_Hash = 43, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD },
         { .m_Hash = 44, .m_Type = DS_TYPE_VECTOR4, .m_Kind = DS_QUERY_ITEM_FIELD },
@@ -305,8 +305,8 @@ int TestDataPointersFromC(HDSContext store, int write)
         DSDestroyQuery(query);
         return 1;
     }
-    DSIterator   it = DSQueryIter(query);
-    uint32_t     count = 0;
+    DSIterator it = DSQueryIter(query);
+    uint32_t   count = 0;
     while (ok && DSIterNext(&it))
     {
         const DSVector3* (*read_vector)(const DSRowIterator*, uint32_t) = DSRowIterGetVector3;
@@ -370,22 +370,22 @@ int TestDataNativeRowsFromC(void)
         { .m_Field = 3, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct Enemy, m_State), .m_Struct = &state, .m_Name = "state" },
         { .m_Field = 4, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(struct Enemy, m_Position) }
     };
-    uint64_t      tag = 7;
-    DSTableDesc   table = { .m_Type = 10, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(struct Enemy) };
-    struct Enemy  input[] = {
+    uint64_t     tag = 7;
+    DSTableDesc  table = { .m_Type = 10, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(struct Enemy) };
+    struct Enemy input[] = {
         { .m_State = { .m_Health = 50, .m_Enabled = 1 }, .m_Position = { .m_Values = { 1, 2, 3 } } },
         { .m_State = { .m_Health = 75 }, .m_Position = { .m_Values = { 4, 5, 6 } } }
     };
-    DSGroupId       group = 100;
-    DSId            ids[2], added[2];
-    DSQueryItem     health = { .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc     query_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Flags = DS_ROW_MUTABLE, .m_Items = { health, { .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG } } };
-    HDSContext      store = DSCreateStore(0);
-    HDSQuery        query = NULL;
-    int             active = 0;
-    int             error = 0;
-    double          number = 0;
-    DSVector3       position;
+    DSGroupId   group = 100;
+    DSId        ids[2], added[2];
+    DSQueryItem health = { .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryDesc query_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Flags = DS_ROW_MUTABLE, .m_Items = { health, { .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG } } };
+    HDSContext  store = DSCreateStore(0);
+    HDSQuery    query = NULL;
+    int         active = 0;
+    int         error = 0;
+    double      number = 0;
+    DSVector3   position;
 #define CHECK_NATIVE(condition) \
     do \
     { \
@@ -484,9 +484,9 @@ int TestDataSoARowsFromC(void)
 {
     struct State
     {
-        double      m_Health;
-        uint8_t     m_Enabled;
-        DSVector3   m_Direction;
+        double    m_Health;
+        uint8_t   m_Enabled;
+        DSVector3 m_Direction;
     };
     struct Enemy
     {
@@ -509,10 +509,10 @@ int TestDataSoARowsFromC(void)
         { .m_Field = 40, .m_Type = DS_TYPE_VECTOR4, .m_Offset = offsetof(struct Enemy, m_Color) },
         { .m_Field = 50, .m_Type = DS_TYPE_MATRIX4, .m_Offset = offsetof(struct Enemy, m_Transform) }
     };
-    DSTableDesc   table = { .m_Type = 10, .m_Fields = layout, .m_FieldCount = 5, .m_RowStride = sizeof(struct Enemy) };
-    uint8_t       active[] = { 1, 0 };
-    DSVector3     positions[] = { { .m_Values = { 1, 2, 3 } }, { .m_Values = { 4, 5, 6 } } };
-    struct State  states[] = {
+    DSTableDesc  table = { .m_Type = 10, .m_Fields = layout, .m_FieldCount = 5, .m_RowStride = sizeof(struct Enemy) };
+    uint8_t      active[] = { 1, 0 };
+    DSVector3    positions[] = { { .m_Values = { 1, 2, 3 } }, { .m_Values = { 4, 5, 6 } } };
+    struct State states[] = {
         { .m_Health = 50, .m_Enabled = 1, .m_Direction = { .m_Values = { 1, 0, 0 } } },
         { .m_Health = 75, .m_Enabled = 0, .m_Direction = { .m_Values = { 0, 1, 0 } } }
     };
@@ -529,14 +529,14 @@ int TestDataSoARowsFromC(void)
         { .m_Field = 40, .m_Values = colors },
         { .m_Field = 20, .m_Values = positions }
     };
-    DSId           ids[2] = { 123, 456 };
-    DSGroupId      group = 77;
-    DSQueryItem    health = { .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc    query_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { health } };
-    HDSContext     store = DSCreateStore(0);
-    HDSQuery       query = NULL;
-    int            error = 0;
-    int            reserved = 0;
+    DSId        ids[2] = { 123, 456 };
+    DSGroupId   group = 77;
+    DSQueryItem health = { .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryDesc query_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { health } };
+    HDSContext  store = DSCreateStore(0);
+    HDSQuery    query = NULL;
+    int         error = 0;
+    int         reserved = 0;
 #define CHECK_SOA(condition) \
     do \
     { \
@@ -575,11 +575,11 @@ int TestDataSoARowsFromC(void)
     CHECK_SOA(DSCreateRowsSoA(store, 10, group, 2, 5, fields, ids) == DS_RESULT_OK);
     for (uint32_t i = 0; i < 2; ++i)
     {
-        double      number;
-        uint8_t     boolean;
-        DSVector3   position;
-        DSVector4   color;
-        DSMatrix4   transform;
+        double    number;
+        uint8_t   boolean;
+        DSVector3 position;
+        DSVector4 color;
+        DSMatrix4 transform;
         CHECK_SOA(DSFieldGetNumber(store, ids[i], health.m_Hash, &number) == DS_RESULT_OK && number == states[i].m_Health);
         CHECK_SOA(DSFieldGetBoolean(store, ids[i], 10, &boolean) == DS_RESULT_OK && boolean == active[i]);
         CHECK_SOA(DSFieldGetBoolean(store, ids[i], dmHashString64("state.enabled"), &boolean) == DS_RESULT_OK && boolean == states[i].m_Enabled);
@@ -594,8 +594,8 @@ int TestDataSoARowsFromC(void)
     CHECK_SOA(DSSetFieldNumber(store, ids[1], health.m_Hash, 5) == DS_RESULT_OK);
     CHECK_SOA(DSSetFieldVector3(store, ids[1], 20, &positions[1]) == DS_RESULT_OK);
     CHECK_SOA(DSResetRow(store, ids[1]) == DS_RESULT_OK);
-    double      number;
-    DSVector3   position;
+    double    number;
+    DSVector3 position;
     CHECK_SOA(DSFieldGetNumber(store, ids[1], health.m_Hash, &number) == DS_RESULT_OK && number == 75);
     CHECK_SOA(DSFieldGetVector3(store, ids[1], 20, &position) == DS_RESULT_OK && position.m_Values[2] == 6);
 
@@ -648,10 +648,10 @@ cleanup:
 // References are constructed through the public API from stack-owned input.
 int CreateReferenceRowsFromC(HDSContext store, int soa, DSId ids[2])
 {
-    char          name[] = "Guard";
-    char          faction[] = "guards";
-    char          loot_name[] = "coin";
-    DSFieldDesc   members[] = {
+    char        name[] = "Guard";
+    char        faction[] = "guards";
+    char        loot_name[] = "coin";
+    DSFieldDesc members[] = {
         { .m_Field = 1, .m_Type = DS_TYPE_STRING, .m_Offset = offsetof(struct ReferenceAttributes, m_Faction), .m_Name = "faction" },
         { .m_Field = 2, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(struct ReferenceAttributes, m_AlertRadius), .m_Name = "alert_radius" }
     };
@@ -720,18 +720,18 @@ int CreateReferenceRowsFromC(HDSContext store, int soa, DSId ids[2])
 
 int CreateMixedListRowsFromC(HDSContext store, int soa, DSId ids[2])
 {
-    double          number = 100.0;
-    char            string[] = "coin";
-    uint8_t         boolean = 1;
-    DSVector3       vector3 = { .m_Values = { 1, 2, 3 } };
-    DSVector4       vector4 = { .m_Values = { 4, 5, 6, 7 } };
-    DSMatrix4       matrix = { .m_Values = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 } };
-    DSFieldDesc     member = { .m_Field = 42, .m_Type = DS_TYPE_NUMBER };
-    DSStructDesc    layout = { .m_Fields = &member, .m_FieldCount = 1, .m_Size = sizeof(number) };
-    DSStructInput   object = { .m_Layout = &layout, .m_Values = &number };
-    double          numbers[] = { 1, 2 };
-    DSListInput     nested = { .m_Type = DS_TYPE_NUMBER, .m_Count = 2, .m_Values = numbers };
-    DSValueType     types[] = {
+    double        number = 100.0;
+    char          string[] = "coin";
+    uint8_t       boolean = 1;
+    DSVector3     vector3 = { .m_Values = { 1, 2, 3 } };
+    DSVector4     vector4 = { .m_Values = { 4, 5, 6, 7 } };
+    DSMatrix4     matrix = { .m_Values = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 } };
+    DSFieldDesc   member = { .m_Field = 42, .m_Type = DS_TYPE_NUMBER };
+    DSStructDesc  layout = { .m_Fields = &member, .m_FieldCount = 1, .m_Size = sizeof(number) };
+    DSStructInput object = { .m_Layout = &layout, .m_Values = &number };
+    double        numbers[] = { 1, 2 };
+    DSListInput   nested = { .m_Type = DS_TYPE_NUMBER, .m_Count = 2, .m_Values = numbers };
+    DSValueType   types[] = {
         DS_TYPE_NUMBER, DS_TYPE_STRING, DS_TYPE_BOOLEAN, DS_TYPE_STRUCT, DS_TYPE_LIST, DS_TYPE_NULL, DS_TYPE_VECTOR3, DS_TYPE_VECTOR4, DS_TYPE_MATRIX4
     };
     const void* values[] = { &number, string, &boolean, &object, &nested, NULL, &vector3, &vector4, &matrix };
@@ -765,8 +765,8 @@ int CreateMixedListRowsFromC(HDSContext store, int soa, DSId ids[2])
     member.m_Field = 0;
     if (result != DS_RESULT_OK)
         return 2;
-    DSValueView   list, item;
-    uint32_t      count;
+    DSValueView list, item;
+    uint32_t    count;
     if (DSFieldGetView(store, ids[0], 1, &list) != DS_RESULT_OK ||
         DSViewGetCount(&list, &count) != DS_RESULT_OK || count != 9)
         return 3;

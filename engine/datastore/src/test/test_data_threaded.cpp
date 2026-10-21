@@ -35,12 +35,12 @@ struct ThreadFixture
 
 struct StructReadTask
 {
-    HDSQuery   m_Query;
-    uint32_t   m_First;
-    uint32_t   m_Count;
-    uint32_t   m_Field;
-    double     m_Total;
-    DSResult   m_Result;
+    HDSQuery m_Query;
+    uint32_t m_First;
+    uint32_t m_Count;
+    uint32_t m_Field;
+    double   m_Total;
+    DSResult m_Result;
 };
 
 struct BlobLifetimeTask
@@ -77,17 +77,17 @@ struct SchedulerAdmissionGate
 
 static ThreadFixture CreateFixture()
 {
-    ThreadFixture fixture = {};
+    ThreadFixture  fixture = {};
     DSCreateParams params = { .m_PageSize = 1024, .m_RowChunkSize = 256 };
     fixture.m_Store = DSCreateStore(&params);
-    DSFieldDesc         light_fields[] = { { .m_Field = COLOR, .m_Type = DS_TYPE_VECTOR3, .m_Name = "color" }, { .m_Field = INTENSITY, .m_Type = DS_TYPE_NUMBER, .m_Offset = 16, .m_Name = "intensity" } };
-    DSStructDesc        light = { light_fields, 2, 24 };
-    DSFieldDesc         fields[] = { { HEALTH, DS_TYPE_NUMBER, 0, 0 }, { POSITION, DS_TYPE_VECTOR3, 8, 0 }, { .m_Field = LIGHT, .m_Type = DS_TYPE_STRUCT, .m_Offset = 24, .m_Struct = &light, .m_Name = "light" } };
-    const DSValueType   child_types[] = { DS_TYPE_VECTOR3, DS_TYPE_NUMBER };
-    DSValueData         children[2] = {};
-    uint64_t            names[] = { COLOR, INTENSITY };
-    const DSValueType   types[] = { DS_TYPE_NUMBER, DS_TYPE_VECTOR3, DS_TYPE_STRUCT };
-    DSValueData         values[3] = {};
+    DSFieldDesc       light_fields[] = { { .m_Field = COLOR, .m_Type = DS_TYPE_VECTOR3, .m_Name = "color" }, { .m_Field = INTENSITY, .m_Type = DS_TYPE_NUMBER, .m_Offset = 16, .m_Name = "intensity" } };
+    DSStructDesc      light = { light_fields, 2, 24 };
+    DSFieldDesc       fields[] = { { HEALTH, DS_TYPE_NUMBER, 0, 0 }, { POSITION, DS_TYPE_VECTOR3, 8, 0 }, { .m_Field = LIGHT, .m_Type = DS_TYPE_STRUCT, .m_Offset = 24, .m_Struct = &light, .m_Name = "light" } };
+    const DSValueType child_types[] = { DS_TYPE_VECTOR3, DS_TYPE_NUMBER };
+    DSValueData       children[2] = {};
+    uint64_t          names[] = { COLOR, INTENSITY };
+    const DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_VECTOR3, DS_TYPE_STRUCT };
+    DSValueData       values[3] = {};
     values[0].m_Number = 50;
     values[2].m_Struct.m_Array.m_Names = names;
     values[2].m_Struct.m_Array.m_Types = child_types;
@@ -301,11 +301,11 @@ TEST(DataThreaded, NestedRangesAndWholeRows)
 
 TEST(DataThreaded, RangesCoverOwnerFilteredRowsAndRefreshAfterMutation)
 {
-    ThreadFixture  fixture = CreateFixture();
-    DSGroupId      group = 1;
-    DSQueryItem    field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc    desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { field } };
-    HDSQuery       query;
+    ThreadFixture fixture = CreateFixture();
+    DSGroupId     group = 1;
+    DSQueryItem   field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryDesc   desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { field } };
+    HDSQuery      query;
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(fixture.m_Store, &desc, &query));
     for (uint32_t phase = 0; phase < 2; ++phase)
     {
@@ -369,10 +369,10 @@ static void MutateOnThread(void* context)
 // Disjoint groups may reserve the same field, while structural mutation remains excluded.
 TEST(DataThreaded, MutationExclusionAndDisjointGroups)
 {
-    ThreadFixture  fixture = CreateFixture();
-    DSQueryItem    field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSGroupId      groups[] = { 0, 1 };
-    HDSQuery       queries[2];
+    ThreadFixture fixture = CreateFixture();
+    DSQueryItem   field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSGroupId     groups[] = { 0, 1 };
+    HDSQuery      queries[2];
     for (uint32_t i = 0; i < 2; ++i)
     {
         DSQueryDesc desc = { .m_GroupIds = &groups[i], .m_GroupIdCount = 1, .m_Items = { field } };
@@ -478,15 +478,15 @@ TEST(DataThreaded, SimultaneousBeginsAdmitExactlyOne)
 
 struct RangeWork
 {
-    HDSQuery   m_Query;
-    uint32_t   m_First, m_Count, m_Field;
-    uint32_t   m_Visited;
+    HDSQuery m_Query;
+    uint32_t m_First, m_Count, m_Field;
+    uint32_t m_Visited;
 };
 
 static int32_t WriteRange(HJobContext, HJob, void*, void* data)
 {
-    RangeWork*   work = (RangeWork*)data;
-    DSIterator   it = DSQueryIterRange(work->m_Query, work->m_First, work->m_Count);
+    RangeWork* work = (RangeWork*)data;
+    DSIterator it = DSQueryIterRange(work->m_Query, work->m_First, work->m_Count);
     while (DSIterNext(&it))
     {
         DSRowIterator rows = DSIterRows(&it);
@@ -741,8 +741,8 @@ static void ReadBatches(void* context)
         ids[i] = reader->m_Fixture->m_Ids[i % 12];
     for (uint32_t pass = 0; pass < 100; ++pass)
     {
-        double      health[73];
-        DSVector3   positions[73];
+        double    health[73];
+        DSVector3 positions[73];
         if (DSFieldGetNumberBatch(reader->m_Fixture->m_Store, 73, ids, HEALTH, health) != DS_RESULT_OK ||
             DSFieldGetVector3Batch(reader->m_Fixture->m_Store, 73, ids, POSITION, positions) != DS_RESULT_OK)
         {
@@ -807,12 +807,12 @@ TEST(DataThreaded, OwnedStructRowsRemainStableDuringQueryJobs)
     DSFieldDesc field = { .m_Field = 10, .m_Type = DS_TYPE_STRUCT };
     DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8 };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
-    DSFieldDesc     health = { .m_Field = HEALTH, .m_Type = DS_TYPE_NUMBER };
-    DSStructDesc    layout = { .m_Fields = &health, .m_FieldCount = 1, .m_Size = 8 };
-    double          value = 10;
-    DSStructInput   input = { .m_Layout = &layout, .m_Values = &value };
-    DSReference     rows[128];
-    DSId            ids[128];
+    DSFieldDesc   health = { .m_Field = HEALTH, .m_Type = DS_TYPE_NUMBER };
+    DSStructDesc  layout = { .m_Fields = &health, .m_FieldCount = 1, .m_Size = 8 };
+    double        value = 10;
+    DSStructInput input = { .m_Layout = &layout, .m_Values = &value };
+    DSReference   rows[128];
+    DSId          ids[128];
     for (uint32_t i = 0; i < 128; ++i)
         rows[i].m_Struct = &input;
     ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 128, rows, ids));
@@ -915,11 +915,11 @@ TEST(DataThreaded, SharedBlobLifetimeAcrossStores)
 // Independent group writers run simultaneously, each split into separate jobs.
 TEST(DataThreaded, DisjointGroupJobs)
 {
-    ThreadFixture  fixture = CreateFixture();
-    DSGroupId      groups[] = { 0, 1 };
-    HDSQuery       queries[2];
-    uint32_t       handles[2];
-    DSQueryItem    field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
+    ThreadFixture fixture = CreateFixture();
+    DSGroupId     groups[] = { 0, 1 };
+    HDSQuery      queries[2];
+    uint32_t      handles[2];
+    DSQueryItem   field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
     for (uint32_t i = 0; i < 2; ++i)
     {
         DSQueryDesc desc = { .m_GroupIds = groups + i, .m_GroupIdCount = 1, .m_Items = { field } };

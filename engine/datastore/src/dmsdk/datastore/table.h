@@ -25,18 +25,18 @@ extern "C"
     typedef struct DSStructDesc DSStructDesc;
     typedef struct DSFieldDesc
     {
-        uint64_t              m_Field;  // Field name hash.
-        DSValueType           m_Type;   // Declared kind; fixed for the table lifetime.
-        uint32_t              m_Offset; // Byte offset within the containing row/struct.
-        const DSStructDesc*   m_Struct; // Reusable inline layout; NULL for scalar/dynamic values.
-        const char*           m_Name;   // Borrowed local name for inline composition; optional for other root fields.
+        uint64_t            m_Field;  // Field name hash.
+        DSValueType         m_Type;   // Declared kind; fixed for the table lifetime.
+        uint32_t            m_Offset; // Byte offset within the containing row/struct.
+        const DSStructDesc* m_Struct; // Reusable inline layout; NULL for scalar/dynamic values.
+        const char*         m_Name;   // Borrowed local name for inline composition; optional for other root fields.
     } DSFieldDesc;
 
     typedef struct DSStructDesc
     {
-        const DSFieldDesc*   m_Fields;     // Borrowed member descriptions; copied at registration.
-        uint32_t             m_FieldCount; // Number of immediate members.
-        uint32_t             m_Size;       // Struct size in bytes, including trailing padding.
+        const DSFieldDesc* m_Fields;     // Borrowed member descriptions; copied at registration.
+        uint32_t           m_FieldCount; // Number of immediate members.
+        uint32_t           m_Size;       // Struct size in bytes, including trailing padding.
     } DSStructDesc;
 
     typedef enum DSResetPolicy
@@ -47,13 +47,13 @@ extern "C"
 
     typedef struct DSTableDesc
     {
-        uint64_t             m_Type;        // Data type name hash.
-        const uint64_t*      m_Tags;        // Borrowed tag hashes; copied at registration.
-        uint32_t             m_TagCount;    // Number of tags.
-        const DSFieldDesc*   m_Fields;      // Borrowed root field descriptions; copied at registration.
-        uint32_t             m_FieldCount;  // Number of root fields.
-        uint32_t             m_RowStride;   // Bytes per row, including trailing alignment padding.
-        DSResetPolicy        m_ResetPolicy; // Retain native initial values by default; NONE disables reset.
+        uint64_t           m_Type;        // Data type name hash.
+        const uint64_t*    m_Tags;        // Borrowed tag hashes; copied at registration.
+        uint32_t           m_TagCount;    // Number of tags.
+        const DSFieldDesc* m_Fields;      // Borrowed root field descriptions; copied at registration.
+        uint32_t           m_FieldCount;  // Number of root fields.
+        uint32_t           m_RowStride;   // Bytes per row, including trailing alignment padding.
+        DSResetPolicy      m_ResetPolicy; // Retain native initial values by default; NONE disables reset.
     } DSTableDesc;
 
     typedef struct DSFieldArray
@@ -64,23 +64,23 @@ extern "C"
 
     typedef struct DSStructInput
     {
-        const DSStructDesc*   m_Layout; // Native member layout, borrowed through creation.
-        const void*           m_Values; // One native struct matching m_Layout.
+        const DSStructDesc* m_Layout; // Native member layout, borrowed through creation.
+        const void*         m_Values; // One native struct matching m_Layout.
     } DSStructInput;
 
     typedef struct DSListInput
     {
-        DSValueType          m_Type;   // Shared element kind when m_Types is NULL.
-        uint32_t             m_Count;  // Number of elements.
-        const void*          m_Values; // Native array, or array of payload pointers when m_Types is set.
-        const DSValueType*   m_Types;  // Optional per-element kinds; selects mixed input.
+        DSValueType        m_Type;   // Shared element kind when m_Types is NULL.
+        uint32_t           m_Count;  // Number of elements.
+        const void*        m_Values; // Native array, or array of payload pointers when m_Types is set.
+        const DSValueType* m_Types;  // Optional per-element kinds; selects mixed input.
     } DSListInput;
 
     typedef union DSReference
     {
-        const char*            m_String; // NUL-terminated string input.
-        const DSStructInput*   m_Struct; // Dynamic struct input.
-        const DSListInput*     m_List;   // Dynamic list input.
+        const char*          m_String; // NUL-terminated string input.
+        const DSStructInput* m_Struct; // Dynamic struct input.
+        const DSListInput*   m_List;   // Dynamic list input.
         // private
         uint64_t m_Storage; // Keeps reference slots eight bytes on 32-bit and 64-bit hosts.
     } DSReference;

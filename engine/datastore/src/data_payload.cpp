@@ -14,10 +14,10 @@
 
 #include "data.h"
 
-static const size_t        PAYLOAD_BLOCK_SIZE = 4096;
-static const size_t        PAYLOAD_BLOCK_HEADER_SIZE = (sizeof(DSPayloadBlock) + 7) & ~(size_t)7;
+static const size_t      PAYLOAD_BLOCK_SIZE = 4096;
+static const size_t      PAYLOAD_BLOCK_HEADER_SIZE = (sizeof(DSPayloadBlock) + 7) & ~(size_t)7;
 
-static DSPayloadHeader**   FreeLink(DSPayloadHeader* chunk)
+static DSPayloadHeader** FreeLink(DSPayloadHeader* chunk)
 {
     return (DSPayloadHeader**)(chunk + 1);
 }
@@ -37,8 +37,8 @@ static DSPayloadBlock* NewPayloadBlock(DSPayloadBlock** blocks, size_t size)
 {
     if (*blocks && !(*blocks)->m_LiveSize)
         DeletePayloadBlock(*blocks);
-    size_t            capacity = size > PAYLOAD_BLOCK_SIZE ? size : PAYLOAD_BLOCK_SIZE;
-    DSPayloadBlock*   block = (DSPayloadBlock*)new uint8_t[PAYLOAD_BLOCK_HEADER_SIZE + capacity];
+    size_t          capacity = size > PAYLOAD_BLOCK_SIZE ? size : PAYLOAD_BLOCK_SIZE;
+    DSPayloadBlock* block = (DSPayloadBlock*)new uint8_t[PAYLOAD_BLOCK_HEADER_SIZE + capacity];
     *block = { .m_Next = *blocks, .m_Owner = blocks, .m_Capacity = capacity };
     if (*blocks)
         (*blocks)->m_Previous = block;

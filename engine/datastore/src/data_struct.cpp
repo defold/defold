@@ -37,8 +37,8 @@ static uint32_t FindStructLayout(const DSStructStorage* storage, const DSStruct*
         uint32_t matched = 0;
         for (; matched < object->m_Count; ++matched)
         {
-            const DSStructField&   field = table->m_Fields[matched];
-            uint32_t               index = FindStructField(object, field.m_Name, matched);
+            const DSStructField& field = table->m_Fields[matched];
+            uint32_t             index = FindStructField(object, field.m_Name, matched);
             if (index == UINT32_MAX || GetStructFieldType(object, index) != field.m_Type)
                 break;
         }
@@ -75,13 +75,13 @@ uint64_t StoreStructRow(DSTable* owner, DSPayloadBlock** blocks, const DSStruct*
 {
     if (!owner->m_Structs)
         owner->m_Structs = new DSStructStorage;
-    DSStructStorage*   storage = owner->m_Structs;
-    uint32_t           index = FindStructLayout(storage, object);
+    DSStructStorage* storage = owner->m_Structs;
+    uint32_t         index = FindStructLayout(storage, object);
     if (index == UINT32_MAX)
         index = AddStructLayout(storage, object);
     assert(index < (1u << 30));
-    DSStructTable*   table = storage->m_Tables[index];
-    uint32_t         row = table->m_FreeRow;
+    DSStructTable* table = storage->m_Tables[index];
+    uint32_t       row = table->m_FreeRow;
     if (row == INVALID_ROW)
     {
         row = table->m_Values.Size() / table->m_RowStride;
@@ -96,9 +96,9 @@ uint64_t StoreStructRow(DSTable* owner, DSPayloadBlock** blocks, const DSStruct*
     DSValue source = { .m_Type = DS_TYPE_STRUCT, .m_Value = { .m_Struct = *object } };
     for (uint32_t i = 0; i < table->m_Fields.Size(); ++i)
     {
-        const DSStructField&   field = table->m_Fields[i];
-        uint32_t               source_index = FindStructField(object, field.m_Name, i);
-        DSValue                value = GetChildValue(DS_TYPE_STRUCT, &source.m_Value, source_index);
+        const DSStructField& field = table->m_Fields[i];
+        uint32_t             source_index = FindStructField(object, field.m_Name, i);
+        DSValue              value = GetChildValue(DS_TYPE_STRUCT, &source.m_Value, source_index);
         if (field.m_Type == DS_TYPE_STRUCT)
         {
             // Recursion can grow this same layout's row array. Resolve the
@@ -125,9 +125,9 @@ DSStruct ReadStructRow(const DSTable* owner, uint64_t reference)
 
 void ReleaseStructRow(DSTable* owner, uint64_t reference)
 {
-    DSStructTable*   table = owner->m_Structs->m_Tables[(uint32_t)reference >> 2];
-    uint32_t         row = (uint32_t)(reference >> 32);
-    uint8_t*         bytes = table->m_Values.Begin() + (size_t)row * table->m_RowStride;
+    DSStructTable* table = owner->m_Structs->m_Tables[(uint32_t)reference >> 2];
+    uint32_t       row = (uint32_t)(reference >> 32);
+    uint8_t*       bytes = table->m_Values.Begin() + (size_t)row * table->m_RowStride;
     for (uint32_t i = 0; i < table->m_Fields.Size(); ++i)
     {
         const DSStructField& field = table->m_Fields[i];

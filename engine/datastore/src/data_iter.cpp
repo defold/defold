@@ -26,8 +26,8 @@ DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count)
     };
     if (count)
     {
-        const dmArray<DSQueryRange>&   ranges = query->m_Ranges;
-        uint32_t                       low = 0, high = ranges.Size();
+        const dmArray<DSQueryRange>& ranges = query->m_Ranges;
+        uint32_t                     low = 0, high = ranges.Size();
         while (low < high)
         {
             uint32_t middle = low + (high - low) / 2;
@@ -49,11 +49,11 @@ bool DSIterNext(DSIterator* iterator)
     if (!iterator->m_Remaining)
         return false;
 
-    HDSQuery              query = iterator->m_Query;
-    const DSQueryRange&   range = query->m_Ranges[iterator->m_RangeIndex++];
-    const DSQueryTable&   match = query->m_Tables[range.m_TableIndex];
-    DSTable*              table = match.m_Table;
-    uint32_t              count = range.m_Count - iterator->m_NextRow;
+    HDSQuery            query = iterator->m_Query;
+    const DSQueryRange& range = query->m_Ranges[iterator->m_RangeIndex++];
+    const DSQueryTable& match = query->m_Tables[range.m_TableIndex];
+    DSTable*            table = match.m_Table;
+    uint32_t            count = range.m_Count - iterator->m_NextRow;
     if (count > iterator->m_Remaining)
         count = iterator->m_Remaining;
 

@@ -121,8 +121,8 @@ static uint64_t ValueSize(const DSValue* value)
     uint64_t size = sizeof(DSFileContainerHeader) + (uint64_t)count * (value->m_Type == DS_TYPE_STRUCT ? 16 : 8);
     for (uint32_t i = 0; i < count; ++i)
     {
-        DSValue   child = GetChildValue(value->m_Type, &value->m_Value, i);
-        uint64_t  child_size = ValueSize(&child);
+        DSValue  child = GetChildValue(value->m_Type, &value->m_Value, i);
+        uint64_t child_size = ValueSize(&child);
         if (child_size)
             size = Align8(size) + child_size;
         if (size > UINT32_MAX)
@@ -270,8 +270,8 @@ DSResult DSWriteBlob(HDSContext store, void* buffer, uint32_t buffer_size, uint3
     uint64_t string_offset = Align8(DATA_TABLE_OFFSETS_OFFSET + (uint64_t)tables * sizeof(uint32_t));
     for (uint32_t t = 0; t < tables; ++t)
     {
-        const DSTable*   table = store->m_Tables[t];
-        uint32_t         rows = table->m_Rows.Size();
+        const DSTable* table = store->m_Tables[t];
+        uint32_t       rows = table->m_Rows.Size();
         string_offset = Align8(string_offset + DATA_TABLE_HEADER_SIZE + (uint64_t)table->m_TagCount * 8 +
                                (uint64_t)table->m_MetadataCount * DATA_FIELD_META_SIZE + (uint64_t)rows * sizeof(DSRow) + (uint64_t)rows * table->m_RowStride);
         for (uint32_t r = 0; r < rows; ++r)
@@ -307,8 +307,8 @@ DSResult DSWriteBlob(HDSContext store, void* buffer, uint32_t buffer_size, uint3
     uint32_t offset = (uint32_t)Align8(DATA_TABLE_OFFSETS_OFFSET + (uint64_t)tables * sizeof(uint32_t));
     for (uint32_t t = 0; t < tables; ++t)
     {
-        const DSTable*   table = store->m_Tables[t];
-        uint32_t         rows = table->m_Rows.Size();
+        const DSTable* table = store->m_Tables[t];
+        uint32_t       rows = table->m_Rows.Size();
         WriteDataInteger(file + DATA_TABLE_OFFSETS_OFFSET + t * 4, offset, 4);
         uint8_t* data = file + offset;
         WriteDataInteger(data + offsetof(DSTableHeader, m_TypeHash), table->m_Type, 8);
@@ -325,8 +325,8 @@ DSResult DSWriteBlob(HDSContext store, void* buffer, uint32_t buffer_size, uint3
         data += table->m_TagCount * 8;
         for (uint32_t i = 0; i < table->m_MetadataCount; ++i)
         {
-            DSFieldMeta   meta = GetFieldMeta(table, i);
-            uint8_t*      field = data + i * DATA_FIELD_META_SIZE;
+            DSFieldMeta meta = GetFieldMeta(table, i);
+            uint8_t*    field = data + i * DATA_FIELD_META_SIZE;
             WriteDataInteger(field + offsetof(DSFileFieldMeta, m_NameHash), meta.m_Field, 8);
             WriteDataInteger(field + offsetof(DSFileFieldMeta, m_Kind), meta.m_Type, 4);
             WriteDataInteger(field + offsetof(DSFileFieldMeta, m_ByteOffset), meta.m_Offset, 4);
@@ -347,9 +347,9 @@ DSResult DSWriteBlob(HDSContext store, void* buffer, uint32_t buffer_size, uint3
         {
             for (uint32_t i = 0; i < table->m_FieldCount; ++i)
             {
-                DSFieldMeta   meta = GetFieldMeta(table, i);
-                DSValue       value = ReadRowValue(table, &table->m_Rows[r], i);
-                uint8_t*      field = data + (size_t)r * table->m_RowStride + meta.m_Offset;
+                DSFieldMeta meta = GetFieldMeta(table, i);
+                DSValue     value = ReadRowValue(table, &table->m_Rows[r], i);
+                uint8_t*    field = data + (size_t)r * table->m_RowStride + meta.m_Offset;
                 offset = WriteField(table, meta, &value, field, file, offset, (uint32_t)string_offset, &strings);
             }
         }
@@ -413,8 +413,8 @@ static bool ValidateValue(const uint8_t* file, uint32_t file_size, DSValueType t
                 if (name == ReadDataInteger(data + sizeof(DSFileContainerHeader) + j * 8, 8))
                     return false;
         }
-        DSValueType   child_type = (DSValueType)ReadDataInteger(data + types + i * 4, 4);
-        uint32_t      child_offset = (uint32_t)ReadDataInteger(data + offsets + i * 4, 4);
+        DSValueType child_type = (DSValueType)ReadDataInteger(data + types + i * 4, 4);
+        uint32_t    child_offset = (uint32_t)ReadDataInteger(data + offsets + i * 4, 4);
         if (!ValidateValue(file, file_size, child_type, child_offset, &child_cursor, value_offset + size, strings, next_string, depth + 1))
             return false;
     }
@@ -498,8 +498,8 @@ static bool ValidateBlob(const uint8_t* file, uint32_t size, uint32_t* out_rows)
     if (tables > UINT32_MAX / sizeof(DSTable*) || strings > size || cursor + (uint64_t)tables * DATA_TABLE_HEADER_SIZE > strings)
         return false;
 
-    uint64_t total_rows = 0;
-    uint32_t next_string = strings;
+    uint64_t          total_rows = 0;
+    uint32_t          next_string = strings;
     dmArray<uint64_t> name_scratch;
     for (uint32_t t = 0; t < tables; ++t)
     {

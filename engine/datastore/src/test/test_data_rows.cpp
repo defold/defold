@@ -19,32 +19,32 @@
 
 struct StorageRow
 {
-    uint8_t     m_Enabled;
-    DSVector3   m_Position;
-    float       m_Health;
-    uint32_t    m_Color;
+    uint8_t   m_Enabled;
+    DSVector3 m_Position;
+    float     m_Health;
+    uint32_t  m_Color;
 };
 
 struct StorageOtherRow
 {
-    float       m_Health;
-    DSVector3   m_Position;
+    float     m_Health;
+    DSVector3 m_Position;
 };
 
 struct StorageLight
 {
-    uint32_t    m_Color;
-    DSVector3   m_Direction;
-    float       m_Health;
+    uint32_t  m_Color;
+    DSVector3 m_Direction;
+    float     m_Health;
 };
 
 struct StorageReferences
 {
-    uint8_t       m_Enabled;
-    StorageLight  m_Light;
-    DSReference   m_Name;
-    DSReference   m_Dynamic;
-    DSReference   m_List;
+    uint8_t      m_Enabled;
+    StorageLight m_Light;
+    DSReference  m_Name;
+    DSReference  m_Dynamic;
+    DSReference  m_List;
 };
 
 static DSResult RegisterStorageRows(HDSContext store)
@@ -75,15 +75,15 @@ TEST(DataRows, GrowthRangesRemovalAndReset)
     DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { fields[0], fields[1], fields[2] } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
-    uint32_t    health_field = DSQueryFindField(query, &fields[0]);
-    uint32_t    position_field = DSQueryFindField(query, &fields[1]);
-    uint32_t    color_field = DSQueryFindField(query, &fields[2]);
-    StorageRow  input[36];
-    DSId        ids[36];
-    DSVector3   positions[33];
-    uint32_t    colors[33];
-    float       health[33];
-    uint8_t     enabled[33];
+    uint32_t   health_field = DSQueryFindField(query, &fields[0]);
+    uint32_t   position_field = DSQueryFindField(query, &fields[1]);
+    uint32_t   color_field = DSQueryFindField(query, &fields[2]);
+    StorageRow input[36];
+    DSId       ids[36];
+    DSVector3  positions[33];
+    uint32_t   colors[33];
+    float      health[33];
+    uint8_t    enabled[33];
     for (uint32_t i = 0; i < 36; ++i)
     {
         input[i] = { .m_Enabled = (uint8_t)(i & 1), .m_Position = { { (float)i, 2, 3 } }, .m_Health = 100.0f + i, .m_Color = UINT32_MAX - i };
@@ -100,8 +100,8 @@ TEST(DataRows, GrowthRangesRemovalAndReset)
     ASSERT_EQ(DS_RESULT_OK, DSCreateRowsSoA(store, 100, group, 33, 4, columns, ids + 3));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     ASSERT_EQ(33u, DSQueryGetRowCount(query));
-    DSIterator   it = DSQueryIterRange(query, 5, 11);
-    uint32_t     visited = 0;
+    DSIterator it = DSQueryIterRange(query, 5, 11);
+    uint32_t   visited = 0;
     while (DSIterNext(&it))
     {
         DSRowIterator rows = DSIterRows(&it);
@@ -464,8 +464,8 @@ TEST(DataRows, MixedTableQuery)
     ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 2, 0, 3, other + 3, 0));
     ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 2, 0, 16, other + 3, 0));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
-    DSIterator   it = DSQueryIterRange(query, 1, 8);
-    uint32_t     visited = 0;
+    DSIterator it = DSQueryIterRange(query, 1, 8);
+    uint32_t   visited = 0;
     while (DSIterNext(&it))
     {
         DSRowIterator rows = DSIterRows(&it);
