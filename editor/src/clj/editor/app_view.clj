@@ -2909,8 +2909,7 @@
       localization)))
 
 (handler/defhandler :help.try-beta :global
-  (enabled? []
-    (beta/enabled?))
+  (enabled? [] (beta/enabled?))
   (run [project main-stage prefs localization]
     (beta/try! main-stage project prefs localization)))
 

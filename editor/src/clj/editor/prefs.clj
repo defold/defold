@@ -91,7 +91,7 @@
                  :properties
                  {:opened-versions {:type :set :item {:type :string}}
                   :beta-suggestions-disabled {:type :boolean}
-                  :downloaded-beta-sha1 {:type :string}
+                  :opened-beta-sha1 {:type :string}
                   :skipped-update-sha1s {:type :object-of
                                          :key {:type :string}
                                          :val {:type :string}}}}

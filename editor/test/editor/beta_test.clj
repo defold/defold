@@ -41,14 +41,14 @@
                                      (deliver started true)
                                      @finish
                                      info)]
-      (let [check (future (beta/check-once! nil Platform/X86_64Linux))]
+      (let [check (future (#'beta/check-once! nil Platform/X86_64Linux))]
         (try
           (is (= true (deref started 10000 :timed-out)))
-          (is (nil? (beta/check-once! nil Platform/X86_64Linux)))
+          (is (nil? (#'beta/check-once! nil Platform/X86_64Linux)))
           (finally
             (deliver finish true)))
         (is (= info @check))
-        (is (nil? (beta/check-once! nil Platform/X86_64Linux)))))))
+        (is (nil? (#'beta/check-once! nil Platform/X86_64Linux)))))))
 
 ;; Verifies opted-out users and ineligible installations never request beta
 ;; metadata, including on platforms without editor downloads.
@@ -57,14 +57,14 @@
                                    (throw (AssertionError. "Unexpected beta request")))]
     (testing "Opt-out"
       (with-redefs [prefs/get (constantly true)]
-        (is (nil? (beta/check-once! nil Platform/X86_64Linux)))))
+        (is (nil? (#'beta/check-once! nil Platform/X86_64Linux)))))
     (with-redefs [prefs/get (constantly nil)]
       (testing "Other channels"
         (doseq [channel ["beta" "alpha" nil]]
           (with-redefs [system/defold-channel (constantly channel)]
-            (is (nil? (beta/check-once! nil Platform/X86_64Linux))))))
+            (is (nil? (#'beta/check-once! nil Platform/X86_64Linux))))))
       (testing "Unsupported platform"
-        (is (nil? (beta/check-once! nil Platform/WasmWeb)))))))
+        (is (nil? (#'beta/check-once! nil Platform/WasmWeb)))))))
 
 ;; Verifies a failed startup request is not retried during the same session.
 (deftest automatic-check-failure-does-not-retry
@@ -73,19 +73,19 @@
                   beta/fetch-info! (fn failed-request! []
                                      (swap! requests inc)
                                      nil)]
-      (is (nil? (beta/check-once! nil Platform/X86_64Linux)))
-      (is (nil? (beta/check-once! nil Platform/X86_64Linux)))
+      (is (nil? (#'beta/check-once! nil Platform/X86_64Linux)))
+      (is (nil? (#'beta/check-once! nil Platform/X86_64Linux)))
       (is (= 1 @requests)))))
 
-;; Verifies suggestions exclude equal, older and already downloaded betas.
+;; Verifies suggestions exclude equal, older and already opened betas.
 (deftest automatic-check-filters-offers
-  (doseq [[version downloaded] [["1.13.2" nil] ["1.12.0" nil] ["1.14.0" "B2"]]]
+  (doseq [[version opened] [["1.13.2" nil] ["1.12.0" nil] ["1.14.0" "B2"]]]
     (with-redefs [beta/automatic-check-started (atom false)
                   prefs/get (fn get-pref [_ path]
-                              (when (= [:versioning :downloaded-beta-sha1] path)
-                                downloaded))
+                              (when (= [:versioning :opened-beta-sha1] path)
+                                opened))
                   beta/fetch-info! (constantly {:version version :sha1 "B2"})]
-      (is (nil? (beta/check-once! nil Platform/X86_64Linux))))))
+      (is (nil? (#'beta/check-once! nil Platform/X86_64Linux))))))
 
 ;; Verifies malformed or unavailable remote metadata cannot become an offer.
 (deftest fetch-info-validates-metadata
@@ -93,23 +93,23 @@
                 {:version "bad" :sha1 "B2"} {:version "1.14.0"}
                 {:version "1.14.0" :sha1 ""}]]
     (with-redefs [updater/fetch-json! (constantly info)]
-      (is (nil? (beta/fetch-info!)))))
+      (is (nil? (#'beta/fetch-info!)))))
   (let [info {:version "1.14.0" :sha1 "B2"}]
     (with-redefs [updater/fetch-json! (constantly info)]
-      (is (= info (beta/fetch-info!))))))
+      (is (= info (#'beta/fetch-info!))))))
 
 ;; Verifies natural version comparison handles double-digit components and dev
-;; builds without a version, independently of the updater.
+;; builds without a version.
 (deftest compares-beta-with-running-version
   (with-redefs [system/defold-version (constantly "1.9.0")]
-    (is (beta/newer-than-running? "1.10.0"))
-    (is (not (beta/newer-than-running? "1.9.0"))))
+    (is (#'beta/newer-than-running? "1.10.0"))
+    (is (not (#'beta/newer-than-running? "1.9.0"))))
   (with-redefs [system/defold-version (constantly nil)]
-    (is (beta/newer-than-running? "1.14.0"))))
+    (is (#'beta/newer-than-running? "1.14.0"))))
 
 ;; Verifies beta release notes are fetched from the beta channel and rendered
-;; with the updater's formatting, and missing or malformed notes allow a plain
-;; download prompt.
+;; with the updater's formatting, and missing or malformed notes still show the
+;; dialog, just without notes.
 (deftest beta-release-notes
   (let [notes {:external-link "https://forum.defold.com/release"
                :issues [{:title "Beta feature" :type "NEW" :body "Feature details"
@@ -120,7 +120,7 @@
     (with-redefs [updater/fetch-version-notes! (fn fetch-notes! [_archive-domain channel version]
                                                  (swap! requests conj [channel version])
                                                  notes)]
-      (let [markdown (beta/release-notes "1.14.0")]
+      (let [markdown (#'beta/release-notes "1.14.0")]
         (is (= [["beta" "1.14.0"]] @requests))
         (is (string/includes? (first (string/split-lines markdown)) "Defold 1.14.0 beta"))
         (is (string/includes? markdown "Beta feature"))
@@ -129,4 +129,4 @@
         (is (not (string/includes? markdown "Duplicate"))))))
   (doseq [notes [nil [] {} {:issues "bad"}]]
     (with-redefs [updater/fetch-version-notes! (constantly notes)]
-      (is (nil? (beta/release-notes "1.14.0"))))))
+      (is (nil? (#'beta/release-notes "1.14.0"))))))

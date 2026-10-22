@@ -109,7 +109,7 @@ welcome.new-project.lightning-vfx.description = The sample shows a lightning eff
 # Beta suggestions
 beta.notification.available = Defold {version} beta is out.
 beta.notification.try-it = Try It
-beta.button.dont-suggest = Don''t Suggest Beta
+beta.button.dont-suggest = Not Interested
 beta.dialog.title = Try the Beta
 beta.dialog.header = Try Defold {version} beta?
 beta.dialog.button.later = Later
