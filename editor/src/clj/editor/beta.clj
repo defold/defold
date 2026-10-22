@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.beta
-  (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.connection-properties :refer [connection-properties]]
             [editor.dialogs :as dialogs]
@@ -25,13 +24,12 @@
             [editor.progress :as progress]
             [editor.system :as system]
             [editor.ui :as ui]
-            [editor.util :as util]
+            [editor.updater :as updater]
             [service.log :as log]
-            [util.coll :as coll]
             [util.net :as net]
             [util.path :as path])
   (:import [com.dynamo.bob Platform]
-           [java.io ByteArrayOutputStream File]
+           [java.io File]
            [java.nio.file Path]
            [javafx.stage Stage]))
 
@@ -39,34 +37,17 @@
 
 (defonce ^:private automatic-check-started (atom false))
 
-(defn- platform-supported? [platform]
-  (contains? #{Platform/X86_64Linux
-               Platform/Arm64MacOS
-               Platform/X86_64MacOS
-               Platform/X86_64Win32}
-             platform))
-
 (defn- eligible? [platform]
   (and (= "stable" (system/defold-channel))
-       (platform-supported? platform)))
-
-(defn- fetch-json! [url]
-  (try
-    (let [out (ByteArrayOutputStream.)]
-      (net/download! url out :read-timeout 10000 :connect-timeout 5000)
-      (json/read-str (.toString out "UTF-8") :key-fn keyword))
-    (catch Exception e
-      (log/warn :message "Failed to fetch beta resource" :url url :exception e)
-      nil)))
+       (updater/platform-supported? platform)))
 
 (defn fetch-info!
   "Returns beta metadata, or nil if the request fails or the metadata is invalid."
   []
   (let [url (format (get-in connection-properties [:beta :info-url-template])
                     (system/defold-archive-domain))
-        {:keys [version sha1] :as info} (fetch-json! url)]
-    (when (and (string? version)
-               (re-matches #"\d+(\.\d+)*" version)
+        {:keys [version sha1] :as info} (updater/fetch-json! url)]
+    (when (and (updater/version-string? version)
                (string? sha1)
                (not (string/blank? sha1)))
       info)))
@@ -74,7 +55,7 @@
 (defn newer-than-running? [^String version]
   (let [running (system/defold-version)]
     (or (nil? running)
-        (pos? (.compare util/natural-order version running)))))
+        (updater/newer-version? version running))))
 
 (defn check-once!
   "Checks for a beta suggestion at most once per editor session. Call off the UI
@@ -91,27 +72,13 @@
 (defn release-notes
   "Returns Markdown for the beta release, or nil when its notes are unavailable."
   [version]
-  (let [url (format (get-in connection-properties [:beta :release-notes-url-template])
-                    (system/defold-archive-domain) version)]
-    (when-let [notes (fetch-json! url)]
-      (when (and (map? notes) (vector? (:issues notes)))
-        (str "# Defold " version " beta\n\n"
-             (when-let [link (:external-link notes)]
-               (str "[Full release notes](" link ")\n\n"))
-             (coll/join-to-string
-               "\n"
-               (into []
-                     (comp
-                       (remove :duplicate)
-                       (map (fn issue-markdown [{:keys [type title body url pr_number author]}]
-                              (str "<details>\n<summary><strong>" type "</strong>: " title "</summary>\n\n"
-                                   "PR [#" pr_number "](" url ") by " author ".\n\n"
-                                   body "\n\n</details>\n"))))
-                     (:issues notes))))))))
+  (when-let [notes (updater/fetch-version-notes! (system/defold-archive-domain) "beta" version)]
+    (when (and (map? notes) (vector? (:issues notes)))
+      (updater/release-notes-markdown (assoc notes :version (str version " beta"))))))
 
 (defn- downloads-dir
   ^File []
-  (let [home-dir (io/file (System/getProperty "user.home"))
+  (let [home-dir (io/file (system/user-home))
         downloads-dir (io/file home-dir "Downloads")]
     (if (.isDirectory downloads-dir) downloads-dir home-dir)))
 
@@ -125,8 +92,7 @@
   "Downloads a beta archive to the chosen file. Reports progress and returns the
   file on success, or nil on failure. Failed downloads preserve existing files."
   [{:keys [sha1]} ^Platform platform ^File file render-progress!]
-  (let [url (format (get-in connection-properties [:beta :download-url-template])
-                    (system/defold-archive-domain) sha1 (.getPair platform) (download-extension platform))]
+  (let [url (updater/download-url (system/defold-archive-domain) sha1 "beta" platform (download-extension platform))]
     (try
       (render-progress! (progress/make-indeterminate (localization/message "progress.downloading-beta")))
       (path/atomic-replace!

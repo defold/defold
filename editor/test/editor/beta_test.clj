@@ -21,6 +21,7 @@
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.system :as system]
+            [editor.updater :as updater]
             [util.http-server :as http-server]
             [util.net :as net])
   (:import [com.dynamo.bob Platform]
@@ -97,10 +98,10 @@
   (doseq [info [nil {} [] "bad" {:version 114 :sha1 "B2"}
                 {:version "bad" :sha1 "B2"} {:version "1.14.0"}
                 {:version "1.14.0" :sha1 ""}]]
-    (with-redefs [beta/fetch-json! (constantly info)]
+    (with-redefs [updater/fetch-json! (constantly info)]
       (is (nil? (beta/fetch-info!)))))
   (let [info {:version "1.14.0" :sha1 "B2"}]
-    (with-redefs [beta/fetch-json! (constantly info)]
+    (with-redefs [updater/fetch-json! (constantly info)]
       (is (= info (beta/fetch-info!))))))
 
 ;; Verifies natural version comparison handles double-digit components and dev
@@ -112,22 +113,28 @@
   (with-redefs [system/defold-version (constantly nil)]
     (is (beta/newer-than-running? "1.14.0"))))
 
-;; Verifies release notes remain available without using updater formatting or
-;; dialogs, and missing or malformed notes allow a plain download prompt.
+;; Verifies beta release notes are fetched from the beta channel and rendered
+;; with the updater's formatting, and missing or malformed notes allow a plain
+;; download prompt.
 (deftest beta-release-notes
   (let [notes {:external-link "https://forum.defold.com/release"
                :issues [{:title "Beta feature" :type "NEW" :body "Feature details"
                          :url "https://github.com/defold/defold/pull/1"
-                         :pr_number 1 :author "author"}
-                        {:title "Duplicate" :duplicate true}]}]
-    (with-redefs [beta/fetch-json! (constantly notes)]
+                         :pr_number 1 :author "author" :repository "defold"}
+                        {:title "Duplicate" :type "NEW" :repository "defold" :duplicate true}]}
+        requests (atom [])]
+    (with-redefs [updater/fetch-version-notes! (fn fetch-notes! [_archive-domain channel version]
+                                                 (swap! requests conj [channel version])
+                                                 notes)]
       (let [markdown (beta/release-notes "1.14.0")]
-        (is (string/includes? markdown "Defold 1.14.0 beta"))
+        (is (= [["beta" "1.14.0"]] @requests))
+        (is (string/includes? (first (string/split-lines markdown)) "Defold 1.14.0 beta"))
+        (is (string/includes? markdown "Beta feature"))
         (is (string/includes? markdown "Feature details"))
         (is (string/includes? markdown "https://forum.defold.com/release"))
         (is (not (string/includes? markdown "Duplicate"))))))
   (doseq [notes [nil [] {} {:issues "bad"}]]
-    (with-redefs [beta/fetch-json! (constantly notes)]
+    (with-redefs [updater/fetch-version-notes! (constantly notes)]
       (is (nil? (beta/release-notes "1.14.0"))))))
 
 ;; Verifies real HTTP downloads select the platform's installer format, preserve
