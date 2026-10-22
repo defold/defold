@@ -185,7 +185,7 @@
     (g/precluding-errors error-values texture-request-datas-by-key)))
 
 ;; -----------------------------------------------------------------------------
-;; 2D TextureLifecycles
+;; 2D and array TextureLifecycles
 ;; -----------------------------------------------------------------------------
 
 (defn make-gpu-texture
@@ -227,11 +227,18 @@
   (call-generator gpu-texture-generator))
 
 (defn construct-gpu-texture
-  ^TextureLifecycle [request-id content-generatable texture-profile]
-  {:post [(or (g/error-value? %)
+  "Construct a preview texture with an explicit :type-2d or :type-2d-array
+  target. The target is independent of the number of generated page images."
+  ^TextureLifecycle [request-id content-generatable texture-profile texture-type]
+  {:pre [(contains? #{:type-2d :type-2d-array} texture-type)]
+   :post [(or (g/error-value? %)
               (texture/texture-lifecycle? %))]}
   (let [texture-request-datas (make-texture-request-datas content-generatable texture-profile true)]
-    (make-gpu-texture request-id texture-request-datas)))
+    (if (g/error-value? texture-request-datas)
+      texture-request-datas
+      (case texture-type
+        :type-2d (make-gpu-texture request-id texture-request-datas)
+        :type-2d-array (texture/make-gpu-array-texture request-id texture-request-datas 0 texture/default-image-texture-params)))))
 
 (def placeholder-gpu-texture-generator
   {:f gpu-texture-gen-fn

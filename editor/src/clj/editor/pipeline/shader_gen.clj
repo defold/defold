@@ -17,7 +17,6 @@
             [editor.graphics.types :as graphics.types]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
-            [util.eduction :as e]
             [util.fn :as fn])
   (:import [com.dynamo.bob CompileExceptionError]
            [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ResourceType Shaderc$ResourceTypeInfo Shaderc$ShaderPrecision Shaderc$ShaderResource Shaderc$ShaderStage]
@@ -115,18 +114,15 @@
   (shader-language->pb-shader-language :language-glsl-sm330))
 
 (defn- decorate-transpile-error
-  [^Exception cause shader-type ^String shader-proj-path ^String shader-source max-page-count & extra-key-value-pairs]
+  [^Exception cause shader-type ^String shader-proj-path ^String shader-source & extra-key-value-pairs]
   (let [ex-message
-        (format "Failed to transpile shader '%s' with max-page-count %d."
-                shader-proj-path
-                max-page-count)
+        (format "Failed to transpile shader '%s'." shader-proj-path)
 
         ex-map
         (cond-> {:ex-type ::shader-transpile-error
                  :shader-type shader-type
                  :shader-proj-path shader-proj-path
-                 :shader-source shader-source
-                 :max-page-count max-page-count}
+                 :shader-source shader-source}
 
           (coll/not-empty extra-key-value-pairs)
           (into (partition-all 2)
@@ -183,7 +179,7 @@
   {:cache (-> (Caffeine/newBuilder)
               (.maximumSize 64)
               (.build))}
-  [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str]
+  [^String shader-path ^String shader-source float-precision-str int-precision-str]
   {:pre [(string? shader-path)
          (pos? (count shader-path))
          (string? shader-source)
@@ -193,22 +189,28 @@
 
         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
         (try
-          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type transpile-target-pb-shader-language ^long max-page-count (precision-string->enum float-precision-str) (precision-string->enum int-precision-str))
+          (ShaderProgramBuilderEditor/buildGLSL shader-path shader-source pb-shader-type transpile-target-pb-shader-language (precision-string->enum float-precision-str) (precision-string->enum int-precision-str))
           (catch CompileExceptionError cause
             (let [error-line-number (.getLineNumber cause)
                   error-proj-path (or (some-> cause .getResource .getPath (str "/"))
                                       shader-path)]
               (throw (decorate-transpile-error
-                       cause shader-type shader-path shader-source ^long max-page-count
+                       cause shader-type shader-path shader-source
                        :error-line-number error-line-number
                        :error-proj-path error-proj-path))))
           (catch Exception cause
             (throw (decorate-transpile-error
-                     cause shader-type shader-path shader-source ^long max-page-count))))
+                     cause shader-type shader-path shader-source))))
 
         transpiled-shader-source (.source glsl-compile-result)
-        array-sampler-names (vec (.arraySamplers glsl-compile-result))
         spirv-reflector (.reflector glsl-compile-result)
+        array-sampler-names
+        (coll/into-> (.getTextures spirv-reflector) []
+          (filter (fn [^Shaderc$ShaderResource resource]
+                    (= Graphics$ShaderDesc$ShaderDataType/SHADER_TYPE_SAMPLER2D_ARRAY
+                       (ShaderProgramBuilder/resourceTypeToShaderDataType (.-type resource)))))
+          (map (fn [^Shaderc$ShaderResource resource] (.-name resource))))
+
         resource-binding-namespaces (resource-binding-namespaces spirv-reflector)
         preview-light-capacity (preview-light-capacity spirv-reflector)
 
@@ -218,7 +220,6 @@
           (map make-attribute-reflection-info))]
 
     {:shader-type shader-type
-     :max-page-count ^long max-page-count
      :transpiled-shader-source transpiled-shader-source
      :resource-binding-namespaces resource-binding-namespaces
      :preview-light-capacity preview-light-capacity
@@ -234,25 +235,18 @@
   `.fp` file returned from the transpile-shader-source function into a map with
   all the information required to construct a ShaderLifecycle."
   [augmented-shader-infos]
-  (let [max-page-count
-        (or (coll/unanimous-value (e/map :max-page-count augmented-shader-infos))
-            (throw (ex-info "The max page counts differ among the shaders."
-                            {:augmented-shader-infos augmented-shader-infos})))
-
-        shader-type+source-pairs
+  (let [shader-type+source-pairs
         (coll/into-> augmented-shader-infos []
           (map (fn [{:keys [shader-type transpiled-shader-source]}]
                  (pair shader-type transpiled-shader-source))))
 
-        array-sampler-name->slice-sampler-names
+        array-sampler-name->uniform-names
         (coll/into-> augmented-shader-infos {}
           (mapcat :array-sampler-names)
           (distinct)
           (map (fn [array-sampler-name]
                  (pair array-sampler-name
-                       (mapv (fn [page-index]
-                               (str array-sampler-name "_" page-index))
-                             (range max-page-count))))))
+                       [array-sampler-name]))))
 
         strip-resource-binding-namespace-regex-str
         (resource-binding-namespaces->regex-str
@@ -292,10 +286,9 @@
         preview-light-capacity
         (reduce max 0 (map :preview-light-capacity augmented-shader-infos))]
 
-    {:array-sampler-name->slice-sampler-names array-sampler-name->slice-sampler-names
+    {:array-sampler-name->uniform-names array-sampler-name->uniform-names
      :attribute-reflection-infos attribute-reflection-infos
      :location+attribute-name-pairs location+attribute-name-pairs
-     :max-page-count max-page-count
      :shader-type+source-pairs shader-type+source-pairs
      :preview-light-capacity preview-light-capacity
      :strip-resource-binding-namespace-regex-str strip-resource-binding-namespace-regex-str}))

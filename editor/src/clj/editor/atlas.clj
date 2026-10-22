@@ -824,17 +824,21 @@
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 
   (output gpu-texture g/Any :cached
-          (g/fnk [_node-id packed-page-images-generator texture-profile]
+          (g/fnk [_node-id packed-page-images-generator texture-profile texture-page-count]
             ;; NOTE: Temporary fix until we can properly disconnect the image nodes that invalidate this
-            (or (when (= (:sha1 packed-page-images-generator) (g/user-data _node-id :gpu-texture-sha1))
-                  (some-> ^WeakReference (g/user-data _node-id :gpu-texture-cached) .get))
-                (let [texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
-                                  (texture/set-params {:min-filter gl/nearest
-                                                       :mag-filter gl/nearest}))
-                      texture-ref (WeakReference. texture)]
-                  (g/user-data! _node-id :gpu-texture-sha1 (:sha1 packed-page-images-generator))
-                  (g/user-data! _node-id :gpu-texture-cached texture-ref)
-                  texture))))
+            (let [;; Match AtlasBuilder: a paged atlas remains an array even if
+                  ;; all images fit on one page. Zero denotes a nonpaged atlas.
+                  texture-type (if (zero? texture-page-count) :type-2d :type-2d-array)
+                  texture-key [(:sha1 packed-page-images-generator) texture-profile texture-type texture-page-count]]
+              (or (when (= texture-key (g/user-data _node-id :gpu-texture-key))
+                    (some-> ^WeakReference (g/user-data _node-id :gpu-texture-cached) .get))
+                  (let [texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile texture-type)
+                                    (texture/set-params {:min-filter gl/nearest
+                                                         :mag-filter gl/nearest}))
+                        texture-ref (WeakReference. texture)]
+                    (g/user-data! _node-id :gpu-texture-key texture-key)
+                    (g/user-data! _node-id :gpu-texture-cached texture-ref)
+                    texture)))))
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image->rect      g/Any               :cached produce-image->rect)

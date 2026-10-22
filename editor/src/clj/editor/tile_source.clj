@@ -876,7 +876,7 @@
 
   (output gpu-texture g/Any :cached
           (g/fnk [_node-id packed-image-generator texture-profile]
-            (-> (texture-util/construct-gpu-texture _node-id packed-image-generator texture-profile)
+            (-> (texture-util/construct-gpu-texture _node-id packed-image-generator texture-profile :type-2d)
                 (texture/set-params {:min-filter gl/nearest
                                      :mag-filter gl/nearest}))))
 

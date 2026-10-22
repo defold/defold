@@ -19,12 +19,44 @@
             [editor.atlas :as atlas]
             [editor.defold-project :as project]
             [editor.fs :as fs]
+            [editor.gl.texture :as texture]
             [editor.texture-util :as texture-util]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support]
             [util.coll :as coll]
             [util.murmur :as murmur]))
+
+;; Verifies atlas settings select the native texture target and invalidate it
+;; when paging changes, including retaining an array for a single packed page.
+(deftest native-atlas-texture-paging-test
+  (test-support/with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/image_project")
+          project (test-util/setup-project! workspace)
+          resource (test-util/make-resource!
+                     workspace "/main/native-texture.atlas"
+                     {:margin 0
+                      :extrude-borders 0
+                      :inner-padding 0
+                      :images [{:image "/images/ball_anim.png"}
+                               {:image "/images/diamond.png"}]})
+          _ (workspace/resource-sync! workspace)
+          atlas (project/get-resource-node project resource)]
+      (doseq [[page-size expected-page-count] [[[0 0] 0]
+                                               [[32 32] 1]
+                                               [[16 16] 2]
+                                               [[0 0] 0]]]
+        (testing (str "Maximum page size " page-size)
+          (test-util/prop! atlas :max-page-size page-size)
+          (let [native-texture (g/node-value atlas :gpu-texture)]
+            (is (= expected-page-count (g/node-value atlas :texture-page-count)))
+            (is (= [0] (:texture-units native-texture)))
+            (is (= [4] (:texture-units (texture/set-base-unit native-texture 4))))
+            (if (zero? expected-page-count)
+              (is (= ::texture/texture (:cache-id native-texture)))
+              (do
+                (is (= ::texture/array-texture (:cache-id native-texture)))
+                (is (= expected-page-count (count (first (:texture-request-datas native-texture)))))))))))))
 
 (deftest valid-fps
   (test-util/with-loaded-project

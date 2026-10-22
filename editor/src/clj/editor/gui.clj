@@ -196,7 +196,10 @@
         clipping-state (:clipping-state user-data)
         font-data (get-in user-data [:text-data :font-data])
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
-        material-shader (or (:material-shader user-data) shader)
+        material-shader (or (:material-shader user-data)
+                            (if (texture/array-texture? gpu-texture)
+                              shaders/basic-texture-paged-color-straight-alpha-world-space
+                              shader))
         blend-mode (get user-data :blend-mode)
         render-pass (:pass render-args)
         {vb :vertex-buffer effect-texture :effect-texture} (gen-render-data gl renderables render-args material-shader)
@@ -220,7 +223,10 @@
             (clipping/restore-gl gl clipping-state)))
 
         pass/selection
-        (let [id-shader (or (:selection-shader font-data) id-shader)
+        (let [id-shader (or (:selection-shader font-data)
+                            (if (texture/array-texture? gpu-texture)
+                              shaders/selection-uniform-paged-world-space
+                              id-shader))
               vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
                                (vtx2/use-with ::tris vb id-shader)
                                (vtx/use-with ::tris vb id-shader))]

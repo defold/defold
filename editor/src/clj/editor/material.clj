@@ -184,13 +184,13 @@
     :constant-type-worldviewproj-inverse :world-view-proj-inv))
 
 (defn- transpile-shader-source
-  [shader-resource-node-id shader-resource ^String shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]
+  [shader-resource-node-id shader-resource ^String shader-source glsl-es-default-precision-float glsl-es-default-precision-int]
   ;; TODO(instancing): The shader-source has been preprocessed and will contain
   ;; lines from include directives, so we do not report the correct source paths
   ;; and line numbers here.
   (let [shader-proj-path (resource/proj-path shader-resource)]
     (try
-      (shader-gen/transpile-shader-source shader-proj-path shader-source ^long max-page-count glsl-es-default-precision-float glsl-es-default-precision-int)
+      (shader-gen/transpile-shader-source shader-proj-path shader-source glsl-es-default-precision-float glsl-es-default-precision-int)
       (catch Exception exception
         (let [ex-data (ex-data exception)]
           (if-not (shader-gen/shader-transpile-ex-data? ex-data)
@@ -206,12 +206,12 @@
                               error-cursor-range (assoc :cursor-range error-cursor-range))]
               (g/->error shader-resource-node-id :lines :fatal nil message user-data))))))))
 
-(g/defnk produce-combined-shader-info [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]
+(g/defnk produce-combined-shader-info [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info glsl-es-default-precision-float glsl-es-default-precision-int]
   (or (prop-resource-error _node-id :vertex-program vertex-program vertex-program-message "vp")
       (prop-resource-error _node-id :fragment-program fragment-program fragment-program-message "fp")
       (let [augmented-shader-infos
             (mapv (fn [{:keys [node-id resource shader-source]}]
-                    (transpile-shader-source node-id resource shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int))
+                    (transpile-shader-source node-id resource shader-source glsl-es-default-precision-float glsl-es-default-precision-int))
                   [vertex-shader-source-info
                    fragment-shader-source-info])]
         (g/precluding-errors augmented-shader-infos
@@ -221,24 +221,20 @@
   (-> (shader/make-shader-request-data
         (:shader-type+source-pairs combined-shader-info)
         (:location+attribute-name-pairs combined-shader-info)
-        (:array-sampler-name->slice-sampler-names combined-shader-info)
+        (:array-sampler-name->uniform-names combined-shader-info)
         (:strip-resource-binding-namespace-regex-str combined-shader-info))
       (shader/with-preview-light-capacity (:preview-light-capacity combined-shader-info))))
 
 (g/defnk produce-shader [_node-id combined-shader-info shader-request-data vertex-constants fragment-constants samplers]
-  (let [{:keys [array-sampler-name->slice-sampler-names attribute-reflection-infos]} combined-shader-info
+  (let [{:keys [attribute-reflection-infos]} combined-shader-info
 
         uniform-values-by-name
         (-> {}
             (into (map (fn [constant]
                          (pair (:name constant) (constant->val constant))))
                   (concat vertex-constants fragment-constants))
-            (into (comp
-                    (mapcat (fn [{sampler-name :name}]
-                              (or (array-sampler-name->slice-sampler-names sampler-name)
-                                  [sampler-name])))
-                    (map (fn [resolved-sampler-name]
-                           (pair resolved-sampler-name nil))))
+            (into (map (fn [{sampler-name :name}]
+                         (pair sampler-name nil)))
                   samplers))]
 
     ;; OpenGL programs retain uniform values, including constants omitted by a material.

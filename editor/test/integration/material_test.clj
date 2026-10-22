@@ -17,6 +17,7 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.form :as form]
+            [editor.gl.shader :as shader]
             [editor.material]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -41,6 +42,19 @@
       (prop! node-id :samplers [(assoc sampler :wrap-w :wrap-mode-clamp-to-edge)])
       (is (= :wrap-mode-clamp-to-edge
              (get-in (g/node-value node-id :save-value) [:samplers 0 :wrap-w]))))))
+
+;; Verifies native array previews retain sampler names and cached programs when
+;; the material's runtime ES2 page limit changes.
+(deftest native-array-preview-independent-of-max-page-count
+  (test-util/with-loaded-project "test/resources/max_paged_count_project"
+    (let [node-id (test-util/resource-node project "/builtins/materials/sprite_paged_atlas.material")
+          preview-shader (g/node-value node-id :shader)]
+      (is (shader/is-using-array-samplers? preview-shader))
+      (is (contains? (:uniforms preview-shader) "texture_sampler"))
+      (is (not (contains? (:uniforms preview-shader) "texture_sampler_0")))
+      (doseq [max-page-count [0 1 16]]
+        (test-util/with-prop [node-id :max-page-count max-page-count]
+          (is (identical? preview-shader (g/node-value node-id :shader))))))))
 
 (deftest missing-material-constant-value
   (test-util/with-loaded-project

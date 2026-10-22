@@ -18,6 +18,7 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.render-util :as render-util]
             [editor.shaders :as shaders]
@@ -159,7 +160,8 @@
 
 ;; vertex data
 
-(def ^:private animation-overlay-shader shaders/basic-texture-paged-local-space)
+(def ^:private animation-overlay-vertex-description
+  (shaders/vertex-description shaders/basic-texture-paged-local-space))
 
 (defn- gen-vertex
   [^Matrix4d world-transform x y u v page-index]
@@ -393,8 +395,7 @@
   [anim-data frame-index world-transform]
   (let [animation-data (get-in anim-data [:frames frame-index])
         animation-vertices (animation-frame->vertex-floats animation-data world-transform)
-        vertex-description (shaders/vertex-description animation-overlay-shader)
-        ^VertexBuffer vbuf (vtx/make-vertex-buffer vertex-description :stream (count animation-vertices))
+        ^VertexBuffer vbuf (vtx/make-vertex-buffer animation-overlay-vertex-description :stream (count animation-vertices))
         buf (.buf vbuf)]
     (doseq [vertex animation-vertices]
       (vtx/buf-push-floats! buf vertex))
@@ -434,8 +435,11 @@
                 vertex-count (anim-data->vertex-count anim-data frame)
                 vbuf (anim-data->vbuf anim-data frame world-transform)]
             (when vbuf
-              (let [vertex-binding (vtx/use-with ::animation vbuf animation-overlay-shader)
-                    gpu-texture (:gpu-texture user-data)
+              (let [gpu-texture (:gpu-texture user-data)
+                    animation-overlay-shader (if (texture/array-texture? gpu-texture)
+                                               shaders/basic-texture-paged-local-space
+                                               shaders/basic-texture-local-space)
+                    vertex-binding (vtx/use-with ::animation vbuf animation-overlay-shader)
                     x0 (.x world-pos)
                     y0 (.y world-pos)
                     x1 (+ x0 scaled-width)

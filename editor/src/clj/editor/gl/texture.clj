@@ -239,6 +239,11 @@
 (defn texture-lifecycle? [value]
   (instance? TextureLifecycle value))
 
+(defn array-texture?
+  "Returns whether the lifecycle binds a native 2D array texture."
+  [texture-lifecycle]
+  (= ::array-texture (:cache-id texture-lifecycle)))
+
 (defn set-params
   ^TextureLifecycle [^TextureLifecycle texture-lifecycle texture-params]
   ;; Return nil or ErrorValue unaltered.

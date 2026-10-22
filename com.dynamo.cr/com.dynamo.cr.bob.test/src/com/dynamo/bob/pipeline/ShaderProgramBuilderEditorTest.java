@@ -19,7 +19,6 @@ import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import org.junit.Test;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -40,7 +39,7 @@ public class ShaderProgramBuilderEditorTest {
         """;
 
     private static ShaderUtil.Common.GLSLCompileResult compile(String source, ShaderDesc.ShaderType stage, ShaderDesc.Language language) throws Exception {
-        return ShaderProgramBuilderEditor.buildGLSLVariantTextureArray("editor-preview", source, stage, language, 2,
+        return ShaderProgramBuilderEditor.buildGLSL("editor-preview", source, stage, language,
             Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP, Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
     }
 
@@ -83,9 +82,10 @@ public class ShaderProgramBuilderEditorTest {
         }
     }
 
+    // Verifies editor SM330 keeps native array samplers, including one-layer atlases,
+    // instead of reintroducing ES2 slice uniforms into the preview program.
     @Test
-    public void pagedSamplersUseTargetAppropriateLookups() throws Exception {
-        // Paged samplers use separate 2D textures and the lookup syntax of the selected target.
+    public void pagedSamplersRemainNative() throws Exception {
         String fragment = """
             #version 140
             uniform sampler2DArray pages;
@@ -94,21 +94,58 @@ public class ShaderProgramBuilderEditorTest {
             out vec4 color;
             void main() { color = texture(pages, uv) * texture(ordinary, uv.xy); }
             """;
-        for (ShaderDesc.Language language : new ShaderDesc.Language[]{ShaderDesc.Language.LANGUAGE_GLSL_SM120, ShaderDesc.Language.LANGUAGE_GLSL_SM330}) {
-            ShaderUtil.Common.GLSLCompileResult result = compile(fragment, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, language);
-            assertArrayEquals(new String[]{"pages"}, result.arraySamplers);
-            assertFalse(result.source.contains("sampler2DArray"));
-            assertTrue(result.source, result.source.contains("sampler2D pages_0;"));
-            assertTrue(result.source, result.source.contains("sampler2D pages_1;"));
-            assertTrue(result.source, result.source.matches("(?s).*texture2DArray_pages\\(\\s*uv\\).*"));
-            String lookup = language == ShaderDesc.Language.LANGUAGE_GLSL_SM330 ? "texture" : "texture2D";
-            assertTrue(result.source.contains(lookup + "(pages_0,"));
-            assertTrue(result.source.contains(lookup + "(ordinary,"));
-            if (language == ShaderDesc.Language.LANGUAGE_GLSL_SM330) {
-                assertFalse(result.source.contains("texture2D("));
-                assertFalse(result.source.contains("gl_FragColor"));
+        ShaderUtil.Common.GLSLCompileResult result = compile(fragment, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+            ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+        assertTrue(result.source, result.source.contains("sampler2DArray pages;"));
+        assertTrue(result.source, result.source.contains("texture(pages,"));
+        assertTrue(result.source, result.source.contains("texture(ordinary,"));
+        assertFalse(result.source.contains("pages_0"));
+        assertFalse(result.source.contains("texture2DArray_pages"));
+        Shaderc.ShaderResource pages = result.reflector.getTextures().stream()
+            .filter(texture -> texture.name.equals("pages")).findFirst().get();
+        assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY,
+            ShaderProgramBuilder.resourceTypeToShaderDataType(pages.type));
+    }
+
+    // Verifies native editor previews do not remove the runtime ES2 fallback.
+    @Test
+    public void runtimeArrayVariantsRemainTargetSpecific() throws Exception {
+        ShaderCompilePipeline.ShaderModuleDesc vertex = new ShaderCompilePipeline.ShaderModuleDesc();
+        vertex.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
+        vertex.resourcePath = "/array.vp";
+        vertex.source = VERTEX;
+        ShaderCompilePipeline.ShaderModuleDesc fragment = new ShaderCompilePipeline.ShaderModuleDesc();
+        fragment.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+        fragment.resourcePath = "/array.fp";
+        fragment.source = """
+            #version 140
+            uniform sampler2DArray pages;
+            out vec4 color;
+            void main() { color = texture(pages, vec3(0.5, 0.5, 1.0)); }
+            """;
+        ShaderProgramBuilder.ShaderDescBuildResult result = ShaderProgramBuilderEditor.makeShaderDescWithVariants(
+            "/array.spc", new ShaderCompilePipeline.ShaderModuleDesc[]{vertex, fragment},
+            new ShaderDesc.Language[]{ShaderDesc.Language.LANGUAGE_GLSL_SM330, ShaderDesc.Language.LANGUAGE_GLES_SM100}, 2,
+            Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP, Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
+        assertNotNull(java.util.Arrays.toString(result.buildWarnings), result.shaderDesc);
+        int fragmentCount = 0;
+        for (ShaderDesc.Shader shader : result.shaderDesc.getShadersList()) {
+            if (shader.getShaderType() != ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT) {
+                continue;
+            }
+            ++fragmentCount;
+            String source = shader.getSource().toStringUtf8();
+            if (shader.getLanguage() == ShaderDesc.Language.LANGUAGE_GLES_SM100) {
+                assertTrue(shader.getVariantTextureArray());
+                assertTrue(source.contains("sampler2D pages_0;"));
+                assertTrue(source.contains("sampler2D pages_1;"));
+            } else {
+                assertFalse(shader.getVariantTextureArray());
+                assertTrue(source.contains("sampler2DArray pages;"));
+                assertFalse(source.contains("pages_0"));
             }
         }
+        assertEquals(2, fragmentCount);
     }
 
     @Test

@@ -356,13 +356,14 @@
     :uniform-type-int-vec3
     :uniform-type-int-vec4
     :uniform-type-sampler-2d
+    :uniform-type-sampler-2d-array
     :uniform-type-sampler-cube})
 
 (fn/defamong uniform-type? uniform-types)
 
 (defn sampler-uniform-type? [uniform-type]
   (case uniform-type
-    (:uniform-type-sampler-2d :uniform-type-sampler-cube) true
+    (:uniform-type-sampler-2d :uniform-type-sampler-2d-array :uniform-type-sampler-cube) true
     (do (assert (uniform-type? uniform-type))
         false)))
 
