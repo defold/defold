@@ -1,3 +1,7 @@
+#ifndef DEFOLD_FONT_VECTOR_PAINT
+#define DEFOLD_FONT_VECTOR_PAINT
+
+// Numeric COLR layer, transform and paint records, indexed by each glyph quad.
 uniform highp sampler2D paint_texture;
 vec4 paintData(int index)
 {
@@ -154,3 +158,5 @@ vec4 FontVectorPaintGlyphColor(int glyph, vec2 p, vec2 dx, vec2 dy, vec4 foregro
     // Text opacity belongs to the completed glyph, not its overlapping paints.
     return foreground.a * result;
 }
+
+#endif

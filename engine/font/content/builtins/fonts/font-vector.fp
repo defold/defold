@@ -10,10 +10,10 @@ precision highp int;
 #include "/builtins/fonts/font-effect.glsl"
 
 in highp vec2 var_font_position;
-flat in highp float var_paint;
 in highp vec2 var_texcoord;
 in mediump vec4 var_color;
 in highp vec4 var_effect;
+flat in highp float var_paint;
 flat in highp float var_mode;
 flat in highp vec4 var_banding;
 flat in highp ivec4 var_glyph;

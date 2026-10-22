@@ -11,10 +11,10 @@ in highp vec4 face_color;
 in highp vec4 effect;
 
 out highp vec2 var_font_position;
-flat out highp float var_paint;
 out highp vec4 var_effect;
 out highp vec2 var_texcoord;
 out mediump vec4 var_color;
+flat out highp float var_paint;
 flat out highp float var_mode;
 flat out highp vec4 var_banding;
 flat out highp ivec4 var_glyph;
