@@ -40,6 +40,7 @@ import com.dynamo.gamesys.proto.Gui.Property.PropertyType;
 import com.dynamo.gamesys.proto.Gui.SceneDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.LayoutDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.ResourceDesc;
+import com.google.protobuf.Descriptors.FieldDescriptor;
 
 public class GuiCustomNodeTest extends AbstractProtoBuilderTest {
     @GuiCustomNode(type = "LifecycleTest")
@@ -183,6 +184,21 @@ public class GuiCustomNodeTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // The registration-only API used by Spine 4.9.4, before source migration callbacks.
+    @GuiCustomNode(type = "Spine")
+    public static class OldSpineNode implements IGuiCustomNode {
+        public static void registerProperties(IGuiCustomType type) {
+            type.addProperty("spine_scene", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_RESOURCE);
+            type.addProperty("spine_default_animation", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_DEFAULT);
+            type.addProperty("spine_skin", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_DEFAULT);
+            type.addProperty("spine_create_bones", false, PropertyType.TYPE_BOOLEAN, IGuiCustomType.EDIT_TYPE_DEFAULT);
+        }
+
+        public static void migrateProperties(Map<String, Object> properties) {
+            properties.remove("spine_node_child");
+        }
+    }
+
     @GuiCustomNode(type = "SourceMigration")
     public static class SourceMigrationNode implements IGuiCustomNode {
         private final Set<String> migratedSources = new HashSet<>();
@@ -286,6 +302,60 @@ public class GuiCustomNodeTest extends AbstractProtoBuilderTest {
 
     private static ResourceDesc resource(String name, String path) {
         return ResourceDesc.newBuilder().setName(name).setPath(path).build();
+    }
+
+    private void assertMigrationError(SceneDesc.Builder source, String resourcePath, String location, String field) throws Exception {
+        addScene("/test.gui", source);
+        GuiBuilder builder = new GuiBuilder();
+        builder.setProject(getProject());
+        try {
+            builder.create(getProject().getResource("/test.gui"));
+            Assert.fail("Unmigrated fields must fail during task creation, even when a cached output exists");
+        } catch (CompileExceptionError e) {
+            Assert.assertEquals(resourcePath, e.getResource().getPath());
+            Assert.assertEquals(location + "Legacy GUI field '" + field
+                    + "' was not migrated. Install or update the GUI plugin that handles this field.", e.getMessage());
+        }
+    }
+
+    // New Bob with a registration-only Spine plugin must reject legacy fields instead of emitting empty defaults.
+    @Test
+    public void testOldPluginRejectsUnmigratedCustomNodeFields() throws Exception {
+        getProject().getGuiCustomTypeRegistry().register(OldSpineNode.class);
+        for (boolean named : List.of(true, false)) {
+            for (FieldDescriptor field : NodeDesc.getDescriptor().getFields()) {
+                if (!field.getOptions().getDeprecated()) {
+                    continue;
+                }
+                NodeDesc.Builder node = node("actor", "Spine");
+                if (!named) {
+                    node.clearCustomTypeName().setCustomType(MurmurHash.hash32("Spine"));
+                }
+                // Explicit empty/false values still need migration, particularly in overrides.
+                node.setField(field, field.getDefaultValue());
+                assertMigrationError(scene().addNodes(node), "test.gui", "Node 'actor': ", field.getName());
+            }
+        }
+    }
+
+    // An anonymous template/layout override may contain only a legacy field marker selecting its default.
+    @Test
+    public void testUnmigratedSparseOverridesFailBeforeInheritance() throws Exception {
+        NodeDesc.Builder override = NodeDesc.newBuilder().setId("template/actor").setType(NodeDesc.Type.TYPE_CUSTOM)
+                .setTemplateNodeChild(true).addOverriddenFields(NodeDesc.SPINE_CREATE_BONES_FIELD_NUMBER);
+        assertMigrationError(scene().addNodes(override), "test.gui", "Node 'template/actor': ", "spine_create_bones");
+        assertMigrationError(scene().addLayouts(LayoutDesc.newBuilder().setName("Portrait").addNodes(override)),
+                "test.gui", "Node 'template/actor', layout 'Portrait': ", "spine_create_bones");
+    }
+
+    // Legacy template fields identify their declaring source, and legacy resource lists fail even without nodes.
+    @Test
+    public void testUnmigratedTemplateFieldsAndResourceLists() throws Exception {
+        addScene("/template.gui", scene().addNodes(node("actor", "Spine").setSpineScene("scene")));
+        assertMigrationError(scene().addNodes(template("template", "/template.gui")),
+                "template.gui", "Node 'actor': ", "spine_scene");
+        assertMigrationError(scene().addSpineScenes(SceneDesc.SpineSceneDesc.newBuilder()
+                .setName("scene").setSpineScene("/unused.spinescene")), "test.gui", "", "spine_scenes");
     }
 
     // Reuse one context across custom types, nodes, layouts and phases without sharing it between GUI tasks.

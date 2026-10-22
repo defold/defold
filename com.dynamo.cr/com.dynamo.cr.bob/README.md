@@ -159,8 +159,10 @@ legacy static `migrateProperties(Map)` hook do not need to implement callbacks
 or expose a constructor. Legacy scene/node conversion now belongs to the
 plugin's `migrateScene` implementation; Bob does not extract old plugin-specific
 protobuf fields into that property map. Use an updated plugin when building
-files that still contain its legacy format. Unsupported node types produce a
-build error if no plugin migrates them.
+files that still contain its legacy format. Unsupported node types and protobuf
+fields marked deprecated produce a build error if no plugin migrates them,
+including sparse override markers that select an omitted default value. These
+checks run before task signatures so cached output cannot hide a missing migration.
 
 ### Byte order
 

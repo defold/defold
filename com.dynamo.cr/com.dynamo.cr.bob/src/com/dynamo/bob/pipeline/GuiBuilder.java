@@ -426,6 +426,33 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
+    private static void validateMigratedField(FieldDescriptor field, IResource resource, String location) throws CompileExceptionError {
+        if (field != null && field.getOptions().getDeprecated()) {
+            throw new CompileExceptionError(resource, 0, location + "Legacy GUI field '" + field.getName()
+                    + "' was not migrated. Install or update the GUI plugin that handles this field.");
+        }
+    }
+
+    private static void validateMigratedFields(MessageOrBuilder message, IResource resource, String location) throws CompileExceptionError {
+        for (FieldDescriptor field : message.getAllFields().keySet()) {
+            validateMigratedField(field, resource, location);
+        }
+    }
+
+    private static void validateSourceNode(NodeDesc node, IResource resource, String layoutName) throws CompileExceptionError {
+        validateNodeType(node, resource);
+        String location = "Node '" + node.getId() + "'";
+        if (!layoutName.isEmpty()) {
+            location += ", layout '" + layoutName + "'";
+        }
+        location += ": ";
+        validateMigratedFields(node, resource, location);
+        // Sparse overrides can select a default without storing the field value.
+        for (int fieldNumber : node.getOverriddenFieldsList()) {
+            validateMigratedField(NodeDesc.getDescriptor().findFieldByNumber(fieldNumber), resource, location);
+        }
+    }
+
     private static NodeDesc resolveCustomNode(GuiBuilder builder, String input, NodeDesc node) throws CompileExceptionError {
         validateNodeType(node, builder.project.getResource(input));
         if (node.getType() != Type.TYPE_CUSTOM) {
@@ -918,14 +945,15 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             "GUI resource name must not be empty (path: '" + resource.getPath() + "')");
                 }
             }
-            // Unsupported legacy types must fail even if an older Bob produced
-            // a cached output and the plugin needed to migrate them is now absent.
+            // Check before task signatures so old cached outputs cannot hide an
+            // absent or outdated source-format migration plugin.
+            validateMigratedFields(scene, input, "");
             for (NodeDesc node : scene.getNodesList()) {
-                validateNodeType(node, input);
+                validateSourceNode(node, input, "");
             }
             for (LayoutDesc layout : scene.getLayoutsList()) {
                 for (NodeDesc node : layout.getNodesList()) {
-                    validateNodeType(node, input);
+                    validateSourceNode(node, input, layout.getName());
                 }
             }
             sourceSceneCache.put(input.getPath(), scene);
