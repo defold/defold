@@ -516,6 +516,43 @@ public class GuiCustomNodeTest extends AbstractProtoBuilderTest {
         Assert.assertEquals("/root-resource.guic", result.getResources(0).getPath());
     }
 
+    // Sibling and repeated templates must give callbacks the same winning resources that the runtime GUI uses.
+    @Test
+    public void testSourceAndCompiledResourcePrecedenceMatch() throws Exception {
+        for (String name : List.of("leaf", "first", "second", "root")) {
+            addScene("/" + name + "-resource.gui", scene());
+        }
+        addScene("/leaf.gui", scene().addResources(resource("scene", "/leaf-resource.gui"))
+                .addNodes(node("actor", "LifecycleTest").addCustomProperties(stringProperty("scene", "scene"))));
+        addScene("/first.gui", scene().addResources(resource("scene", "/first-resource.gui"))
+                .addNodes(template("leaf", "/leaf.gui")));
+        addScene("/second.gui", scene().addResources(resource("scene", "/second-resource.gui"))
+                .addNodes(template("leaf", "/leaf.gui")));
+
+        for (boolean reverse : List.of(false, true)) {
+            for (boolean local : List.of(false, true)) {
+                SceneDesc.Builder source = scene()
+                        .addNodes(template("first", reverse ? "/second.gui" : "/first.gui"))
+                        .addNodes(template("second", reverse ? "/first.gui" : "/second.gui"))
+                        .addNodes(template("again", "/leaf.gui"))
+                        .addLayouts(LayoutDesc.newBuilder().setName("Landscape"));
+                if (local) {
+                    source.addResources(resource("scene", "/root-resource.gui"));
+                }
+                String winner = (local ? "root" : reverse ? "second" : "first") + "-resource.gui";
+                SceneDesc result = buildScene(source);
+                Assert.assertEquals(1, result.getResourcesCount());
+                Assert.assertEquals("/" + winner + "c", result.getResources(0).getPath());
+                for (List<NodeDesc> nodes : List.of(result.getNodesList(), result.getLayouts(0).getNodesList())) {
+                    Assert.assertEquals(3, nodes.size());
+                    for (NodeDesc node : nodes) {
+                        Assert.assertEquals(winner, property(node, "source_path").getString());
+                    }
+                }
+            }
+        }
+    }
+
     // A template value may be invalid until its parent overrides it; only the resolved node is validated.
     @Test
     public void testParentOverridesInvalidTemplateValues() throws Exception {

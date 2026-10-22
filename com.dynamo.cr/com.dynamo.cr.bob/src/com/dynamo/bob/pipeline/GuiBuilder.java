@@ -67,6 +67,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     private final Set<String> migrationCacheKeys = new TreeSet<>();
     private final Set<String> declaredTemplates = new HashSet<>();
     private final Set<String> visitingTemplates = new LinkedHashSet<>();
+    private boolean hasNodeCallbacks;
     private GuiBuildContext customNodeContext;
     private SceneDesc resolvedScene;
 
@@ -598,7 +599,14 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         public SceneDesc.Builder readScene(String resourcePath, HashMap<String, SceneDesc.Builder> sceneResourceCache) throws IOException, CompileExceptionError;
     }
 
+    private record SceneResolution(SceneDesc.Builder scene, Map<String, IResource> resources) {
+    }
+
     public static SceneDesc.Builder transformScene(GuiBuilder builder, String input, SceneDesc.Builder sceneBuilder, ISceneBuilderIO sceneIO, HashMap<String, SceneDesc.Builder> sceneResourceCache, boolean flattenTemplates) throws IOException, CompileExceptionError {
+        return resolveScene(builder, input, sceneBuilder, sceneIO, sceneResourceCache, flattenTemplates).scene();
+    }
+
+    private static SceneResolution resolveScene(GuiBuilder builder, String input, SceneDesc.Builder sceneBuilder, ISceneBuilderIO sceneIO, HashMap<String, SceneDesc.Builder> sceneResourceCache, boolean flattenTemplates) throws IOException, CompileExceptionError {
         // register resources
         Set<String> fontNames = new HashSet<String>();
         List<FontDesc> newFontList = new ArrayList<FontDesc>();
@@ -608,7 +616,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         List<TextureDesc> newTextureList = new ArrayList<TextureDesc>();
         Set<String> layerNames = new HashSet<String>();
 
-        Set<String> resourceNames = new HashSet<String>();
+        Map<String, IResource> sourceResources = new LinkedHashMap<>();
         List<ResourceDesc> newResourcesList = new ArrayList<>();
 
         Set<String> materialNames          = new HashSet<String>();
@@ -666,11 +674,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             }
 
             for (ResourceDesc f : sceneBuilder.getResourcesList()) {
-                if (resourceNames.contains(f.getName())) {
+                if (sourceResources.containsKey(f.getName())) {
                     throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_DUPLICATE_RESOURCE,
                             f.getName()));
                 }
-                resourceNames.add(f.getName());
+                sourceResources.put(f.getName(), builder.project.getResource(f.getPath()));
                 String resourceSuffix = ResourceUtil.getSuffix(f.getPath());
                 String buildPath = resourceSuffix == null
                         ? ResourceUtil.minifyPath(f.getPath())
@@ -736,7 +744,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             // read in template scene (text version) and transform recursively
             if(node.getType() == Type.TYPE_TEMPLATE) {
                 SceneDesc.Builder templateBuilder = sceneIO.readScene(node.getTemplate(), sceneResourceCache);
-                templateBuilder = transformScene(builder, node.getTemplate(), templateBuilder, sceneIO, sceneResourceCache, false);
+                SceneResolution template = resolveScene(builder, node.getTemplate(), templateBuilder, sceneIO, sceneResourceCache, false);
+                templateBuilder = template.scene();
 
                 // merge template scene nodes with overrides of current scene
                 List<NodeDesc> nodes = mergeNodes(builder, input, node, templateBuilder.getNodesList(), null, nodeMap, "", true);
@@ -807,10 +816,12 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     newMaterialList.add(f);
                 }
                 for (ResourceDesc f : templateBuilder.getResourcesList()) {
-                    if (resourceNames.contains(f.getName())) {
+                    if (sourceResources.containsKey(f.getName())) {
                         continue;
                     }
-                    resourceNames.add(f.getName());
+                    // Select source and compiled paths together, with local resources
+                    // followed by template resources in node order.
+                    sourceResources.put(f.getName(), template.resources().get(f.getName()));
                     newResourcesList.add(f);
                 }
 
@@ -872,11 +883,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 // Validate named custom resources only after parent overrides and
                 // inherited resource lists have been resolved.
                 for (NodeDesc node : sceneBuilder.getNodesList()) {
-                    validateCustomNodeResources(node, builder, input, "", resourceNames);
+                    validateCustomNodeResources(node, builder, input, "", sourceResources.keySet());
                 }
                 for (LayoutDesc layout : sceneBuilder.getLayoutsList()) {
                     for (NodeDesc node : layout.getNodesList()) {
-                        validateCustomNodeResources(node, builder, input, layout.getName(), resourceNames);
+                        validateCustomNodeResources(node, builder, input, layout.getName(), sourceResources.keySet());
                     }
                 }
             }
@@ -889,7 +900,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             for (LayoutDesc layout : sceneBuilder.getLayoutsList())
                 for (NodeDesc node : layout.getNodesList()) builder.validateStyleSelection(input, node, styles);
         }
-        return sceneBuilder;
+        return new SceneResolution(sceneBuilder, Collections.unmodifiableMap(sourceResources));
     }
 
     private static void MergeOriginalValuesIntoLayouts(SceneDesc.Builder sceneBuilder) {
@@ -950,10 +961,12 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             validateMigratedFields(scene, input, "");
             for (NodeDesc node : scene.getNodesList()) {
                 validateSourceNode(node, input, "");
+                hasNodeCallbacks |= hasCustomNodeCallbacks(node);
             }
             for (LayoutDesc layout : scene.getLayoutsList()) {
                 for (NodeDesc node : layout.getNodesList()) {
                     validateSourceNode(node, input, layout.getName());
+                    hasNodeCallbacks |= hasCustomNodeCallbacks(node);
                 }
             }
             sourceSceneCache.put(input.getPath(), scene);
@@ -1012,32 +1025,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    // Use the same precedence as transformScene: local resources, then resources
-    // from templates in node order. Keep the original paths for plugin lookups,
-    // and report whether any node in this scene or its templates has callbacks.
-    private boolean collectCustomNodeResources(SceneDesc.Builder scene, SceneBuilderIO sceneIO,
-            HashMap<String, SceneDesc.Builder> sceneResourceCache, Set<String> visitedTemplates,
-            Map<String, IResource> resources) throws IOException, CompileExceptionError {
-        for (ResourceDesc resource : scene.getResourcesList()) {
-            resources.putIfAbsent(resource.getName(), project.getResource(resource.getPath()));
-        }
-        boolean hasCallbacks = false;
-        for (NodeDesc node : scene.getNodesList()) {
-            hasCallbacks |= hasCustomNodeCallbacks(node);
-            if (node.getType() == Type.TYPE_TEMPLATE && !node.getTemplateNodeChild()
-                    && visitedTemplates.add(node.getTemplate())) {
-                hasCallbacks |= collectCustomNodeResources(sceneIO.readScene(node.getTemplate(), sceneResourceCache),
-                        sceneIO, sceneResourceCache, visitedTemplates, resources);
-            }
-        }
-        for (LayoutDesc layout : scene.getLayoutsList()) {
-            for (NodeDesc node : layout.getNodesList()) {
-                hasCallbacks |= hasCustomNodeCallbacks(node);
-            }
-        }
-        return hasCallbacks;
-    }
-
     private void createCustomNodes(IResource input, String layoutName, List<NodeDesc> nodes,
             Task.TaskBuilder<?> taskBuilder) throws IOException, CompileExceptionError {
         for (NodeDesc node : nodes) {
@@ -1064,24 +1051,18 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         for (String key : migrationCacheKeys) {
             taskBuilder.addExtraCacheKey(key);
         }
-        if (!project.getGuiCustomTypeRegistry().hasNodeCallbacks()) {
-            return taskBuilder.build();
-        }
-
-        SceneBuilderIO sceneIO = new SceneBuilderIO();
-        Map<String, IResource> resources = new LinkedHashMap<>();
-        if (!collectCustomNodeResources(sourceScene, sceneIO, sourceSceneCache, new HashSet<>(), resources)) {
+        if (!hasNodeCallbacks) {
             // GUIs without callbacks can still defer transformation until build,
             // avoiding that work entirely when their outputs are cached.
             return taskBuilder.build();
         }
-        customNodeContext = new GuiBuildContext(project, input, Collections.unmodifiableMap(resources));
-
         // Resolve once, before dependency declarations, and retain these exact
         // values for build. Never transform already compiled resource paths again.
         SceneDesc.Builder scene = sourceScene.clone();
         MergeOriginalValuesIntoLayouts(scene);
-        resolvedScene = transformScene(this, input.getPath(), scene, sceneIO, sourceSceneCache, true).build();
+        SceneResolution resolution = resolveScene(this, input.getPath(), scene, new SceneBuilderIO(), sourceSceneCache, true);
+        resolvedScene = resolution.scene().build();
+        customNodeContext = new GuiBuildContext(project, input, resolution.resources());
 
         createCustomNodes(input, "", resolvedScene.getNodesList(), taskBuilder);
         for (LayoutDesc layout : resolvedScene.getLayoutsList()) {

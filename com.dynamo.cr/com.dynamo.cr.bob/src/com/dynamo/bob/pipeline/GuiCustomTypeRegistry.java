@@ -173,15 +173,6 @@ public class GuiCustomTypeRegistry {
                 .sorted(Comparator.comparing(Type::getName)).toList();
     }
 
-    boolean hasNodeCallbacks() {
-        for (Type type : typesByName.values()) {
-            if (type.hasNodeCallbacks()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static void invokeRegisterProperties(Class<?> klass, Type type) {
         Method method = findStaticMethod(klass, "registerProperties", IGuiCustomType.class);
         if (method == null) {

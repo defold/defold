@@ -121,6 +121,8 @@ the node ID. The default layout name is an empty string.
 either a node or its builder. `context.getResources()` maps generic GUI resource
 names to their original source files, including inherited resources.
 Local resource names take precedence over resources from templates.
+The same resolution pass selects original paths for callbacks and compiled
+paths for the output, including collisions between nested or sibling templates.
 Templates are source dependencies of the containing GUI. Bob validates their
 custom nodes after applying the containing GUI's overrides, so a parent can
 provide a required value left empty in a template. Building the template as a
