@@ -1574,8 +1574,7 @@
 
     ;; For debugging resource loading / reloading issues:
     ;; (resource-update/print-plan resource-change-plan)
-    (du/log-time "Perform resource change plan"
-      (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!)))
+    (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))
     (lsp/apply-resource-changes! (lsp/get-lsp) changes)
     ;; Suggest fetching libraries if dependencies changed externally.
     (update-fetch-libraries-notification! project)))
