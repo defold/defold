@@ -12,6 +12,7 @@
                  clojure.test.check.properties/for-all [[:block 1]]
                  clojure.test/are [[:inner 0]]
                  cond-> [[:inner 0]]
+                 cond->> [[:inner 0]]
                  dev/run-with-progress [[:inner 0]]
                  dev/run-with-terminal-progress [[:inner 0]]
                  dynamo.graph/construct [[:inner 0]]
