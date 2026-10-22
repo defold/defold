@@ -22,6 +22,7 @@
             [editor.debugging.dap :as dap]
             [editor.debugging.variables :as variables]
             [editor.future :as future]
+            [editor.os :as os]
             [editor.ui :as ui]
             [support.dap-util :as dap-util]
             [support.test-support :as test-support]
@@ -531,7 +532,7 @@
       (dap-util/await-ui! view #(item-at view ["table"]))
       (ui/run-now (.setExpanded (item-at view ["table"]) true))
       (let [[request out] (dap-util/await! pending)
-            modifier (if (.startsWith (System/getProperty "os.name") "Mac") :meta :control)]
+            modifier (if (os/is-mac-os?) :meta :control)]
         (ui/run-now
           (render-view! view)
           (.requestFocus view)
@@ -650,7 +651,7 @@
         (ui/run-now
           (render-view! view)
           (let [other (item-at view ["other"])
-                mac (.startsWith (System/getProperty "os.name") "Mac")]
+                mac (os/is-mac-os?)]
             (.select (.getSelectionModel view) other)
             (.focus (.getFocusModel view) (.getRow view other))
             (is (= "other" (:name (first (ui/selection view)))))

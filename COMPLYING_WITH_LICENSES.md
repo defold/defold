@@ -49,8 +49,8 @@ The following software has licenses which require inclusion of their respective 
     * [SampleRateConverter] (https://github.com/zephray/SampleRateConverter/tree/master) - Used offline to generate polyphase filter coefficients for sound system
   * Simplified BSD license (2-clause license)
     * [LZ4](/licenses/NOTICE-lz4) - Used internally by the engine to read game archives. Included in all builds.
+    * [OpenH264](/licenses/NOTICE-openh264) - Used to encode H.264 video recordings. Included only in graphical Linux debug builds.
   * BSD 2.0 license (3-clause license)
-    * [vpx/vp8](/licenses/NOTICE-vpx-vp8) - Used by the game play recorder. Only included in debug builds by default, but can be added [using an app manifest](https://defold.com/manuals/project-settings/#app-manifest).
     * [Tremolo](/licenses/NOTICE-tremolo) - Used for decoding of Ogg sound files. Not used on Nintendo Switch, Win32 or HTML5. Included in all builds, but can be excluded [using an app manifest](https://defold.com/manuals/project-settings/#app-manifest)
     * [Sony Vector Math library](/licenses/NOTICE-vecmath) - Used internally by the engine. Included in all builds.
   * LGPL 2.0
@@ -62,6 +62,7 @@ The following software has licenses which require inclusion of their respective 
 The following third party software has licenses which does not require inclusion of their respective license in derivative work:
 
   * Public Domain
+    * [minimp4](/licenses/NOTICE-minimp4) (CC0 1.0 Universal) - Used to write MP4 video recordings. Included only in graphical Linux debug builds.
     * stb_image - Sean Barrett
     * stb_truetype - Sean Barrett
     * stb_vorbis - Sean Barrett

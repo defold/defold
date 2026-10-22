@@ -23,11 +23,13 @@
             [editor.debugging.variables :as debugger-variables]
             [editor.defold-project :as project]
             [editor.engine :as engine]
-            [editor.os :as os]
+            [editor.fs :as fs]
+            [editor.prefs :as prefs]
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [support.dap-util :as dap-util]
+            [support.process-util :as process-util]
             [support.test-support :as test-support]
             [util.coll :as coll]
             [util.http-server.types :as http-server.types])
@@ -133,40 +135,39 @@
 (deftest late-debugger-port-test
   (test-support/with-clean-system
     (let [workspace (workspace/make-workspace "test/resources/empty_project" {} {} nil)
+          prefs (prefs/global (fs/create-temp-file! "late-debugger" ".editor_settings"))
           project (g/make-node! project/Project :workspace workspace)
           changes (LinkedBlockingQueue.)
           view (g/make-node! debug-view/DebugView :state-changed-fn (fn [_] (.add changes true)))
-          ^Stage stage (ui/run-now (doto (Stage.) (.setScene (Scene. (StackPane.)))))
-          command (if (os/is-win32?)
-                    ["cmd" "/c" "set /p value="]
-                    ["sh" "-c" "read value"])
-          process (.start (ProcessBuilder. ^java.util.List command))]
+          ^Stage stage (ui/run-now (doto (Stage.) (.setScene (Scene. (StackPane.)))))]
       (try
-        (binding [ui/*main-stage* (atom stage)]
-          (let [target (targets/add-launched-target! 1 {:process process :address "127.0.0.1"})
-                removed (promise)
-                cancel-watch (targets/when-url-or-removed (:id target) #(deliver removed %))]
-            (try
-              (dap-util/with-server
-                (fn [request _ out _] (dap-util/respond! out request {}))
-                (debug-view/start-debugger! view project target false)
-                (let [session (debug-view/current-session view)]
+        (process-util/with-child-process {} '(.read System/in) []
+          (binding [ui/*main-stage* (atom stage)]
+            (let [target (targets/add-launched-target! prefs 0 {:process process :address "127.0.0.1"})
+                  removed (promise)
+                  cancel-watch (targets/when-url-or-removed (:id target) #(deliver removed %))]
+              (try
+                (is (= target (targets/selected-target prefs)))
+                (dap-util/with-server
+                  (fn [request _ out _] (dap-util/respond! out request {}))
+                  (debug-view/start-debugger! view project target false)
+                  (let [session (debug-view/current-session view)]
+                    (try
+                      (is (= :connecting (dap/status session)))
+                      (targets/update-launched-target! target
+                                                       (engine/parse-launched-target-info
+                                                         (str "Lua DAP debugger port: " port)))
+                      (await-state! changes #(= :running (dap/status session)))
+                      (is (identical? session (debug-view/current-session view)))
+                      (finally (dap/close! session)))))
+                (finally
+                  (targets/kill-launched-target! target)
+                  (.waitFor process)
                   (try
-                    (is (= :connecting (dap/status session)))
-                    (targets/update-launched-target! target
-                                                     (engine/parse-launched-target-info
-                                                       (str "Lua DAP debugger port: " port)))
-                    (await-state! changes #(= :running (dap/status session)))
-                    (is (identical? session (debug-view/current-session view)))
-                    (finally (dap/close! session)))))
-              (finally
-                (.destroyForcibly process)
-                (.waitFor process)
-                (try
-                  (is (nil? (dap-util/await! removed)))
-                  (finally (cancel-watch)))))))
+                    (is (nil? @removed))
+                    (is (nil? (targets/selected-target prefs)))
+                    (finally (cancel-watch))))))))
         (finally
-          (.destroyForcibly process)
           (ui/run-now (.close stage)))))))
 
 ;; A newer start or detach supersedes a pending replacement before it connects,

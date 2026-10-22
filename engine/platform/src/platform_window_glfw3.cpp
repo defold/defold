@@ -22,6 +22,7 @@
 #include <glfw/glfw3.h>
 
 #include <dlib/platform.h>
+#include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 
@@ -484,6 +485,17 @@ namespace dmPlatform
     {
         SetSafeAreaFull(window, out);
         return true;
+    }
+
+    void GetReservedAreas(HWindow window, dmArray<WindowReservedArea>& areas)
+    {
+        areas.SetSize(0);
+    }
+
+    uint32_t GetReservedAreas(HWindow window, const WindowReservedArea** areas)
+    {
+        *areas = 0;
+        return 0;
     }
 
     void SetSwapInterval(HWindow window, uint32_t swap_interval)
