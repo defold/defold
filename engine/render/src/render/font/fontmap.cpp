@@ -1130,9 +1130,6 @@ namespace dmRender
 
     void PrepareVectorPaintGlyphs(HFontMap font_map, HTextLayout layout, uint32_t frame, uint32_t max_glyph_count)
     {
-        // Existing curve/band-only materials cannot consume color vertices.
-        if (GetMaterialSamplerUnit(font_map->m_Material, PAINT_TEXTURE_HASH) == INVALID_SAMPLER_UNIT)
-            return;
         FontVectorPaintCache* cache = font_map->m_VectorPaint;
         uint32_t              previous_count = cache->m_Glyphs.Size();
         TextGlyph*            glyphs = TextLayoutGetGlyphs(layout);

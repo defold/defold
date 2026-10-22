@@ -3331,21 +3331,76 @@ TEST_F(VectorFontTest, ColorRequiresPaintSampler)
     HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
     FontCollectionRemoveFont(collection, m_Font);
     FontCollectionAddFont(collection, font);
+    dmRender::HMaterial original = m_Material;
     for (uint32_t pass = 0; pass < 3; ++pass)
     {
         bool color = pass != 1;
-        EXPECT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, color ? m_Material : material));
+        EXPECT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, color ? original : material));
+        m_Material = color ? original : material;
         dmRender::FontDefaultVertex vertices[6];
         EXPECT_EQ(6u, Render("J", false, vertices, DM_ARRAY_SIZE(vertices)));
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(vertices); ++i)
             EXPECT_EQ(color ? 4.0f : 0.0f, vertices[i].m_VectorTexcoord[3]);
         EXPECT_EQ(color ? 1u : 0u, m_SystemFontMap->m_VectorPaint->m_Glyphs.Size());
     }
+    m_Material = original;
     FontCollectionRemoveFont(collection, font);
     FontCollectionAddFont(collection, m_Font);
     FontDestroy(font);
     dmRender::DeleteMaterial(m_Context, material);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// A per-draw override must reject paint vertices even after another draw warms the color cache.
+TEST_F(VectorFontTest, ColorRequiresDrawMaterialPaintSampler)
+{
+    dmRender::HMaterial  material;
+    dmGraphics::HProgram program;
+    CreateVectorMaterial(false, &material, &program);
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    dmRender::HMaterial original = m_Material;
+    for (uint32_t pass = 0; pass < 4; ++pass)
+    {
+        const bool color = pass % 2 != 0;
+        m_Material = color ? original : material;
+        dmRender::FontDefaultVertex vertices[6];
+        EXPECT_EQ(6u, Render("J", false, vertices, 6));
+        for (uint32_t i = 0; i < 6; ++i)
+            EXPECT_EQ(color ? 4.0f : 0.0f, vertices[i].m_VectorTexcoord[3]);
+        EXPECT_EQ(pass == 0 ? 0u : 1u, m_SystemFontMap->m_VectorPaint->m_Glyphs.Size());
+        EXPECT_EQ(original, dmRender::GetFontMapMaterial(m_SystemFontMap));
+    }
+    m_Material = original;
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Color paint must honor spatial gradient opacity when the material uses the CPU fallback.
+TEST_F(VectorFontTest, ColorSpatialGradientCpuFallback)
+{
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    dmRender::FontDefaultVertex vertices[6];
+    EXPECT_EQ(6u, Render("<gradient type=linear color0=#ffffff00 color1=#ffffff00>J</gradient>", true, vertices, 6));
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        EXPECT_EQ(4.0f, vertices[i].m_VectorTexcoord[3]);
+        EXPECT_EQ(0u, vertices[i].m_VectorColor[3]);
+    }
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
 }
 
 // Color-cache preparation follows the vertex budget, including whitespace,

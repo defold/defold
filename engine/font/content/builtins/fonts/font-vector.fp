@@ -72,7 +72,7 @@ void main()
     out_fragColor = coverage * vec4(face_color.rgb * face_color.a, face_color.a);
     if (var_mode > 3.5)
     {
-        out_fragColor = FontVectorPaintGlyphColor(int(var_paint + 0.5), var_font_position, font_dx, font_dy, var_color);
+        out_fragColor = FontVectorPaintGlyphColor(int(var_paint + 0.5), var_font_position, font_dx, font_dy, face_color);
     }
     if ((var_mode < 0.5 && var_curve_count <= 0.0) || out_fragColor.a <= 0.0)
     {
