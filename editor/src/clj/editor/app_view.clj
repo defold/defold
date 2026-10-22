@@ -27,6 +27,7 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.beta :as beta]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.camera :as camera]
@@ -783,7 +784,8 @@
    :resource-sync progress/done
    :save-all progress/done
    :fetch-libraries progress/done
-   :download-update progress/done})
+   :download-update progress/done
+   :download-beta progress/done})
 
 (def ^:private app-task-state
   (atom {:progress initial-app-task-progress
@@ -791,7 +793,7 @@
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
-  [:save-all :resource-sync :fetch-libraries :build :download-update :main])
+  [:save-all :resource-sync :fetch-libraries :build :download-update :download-beta :main])
 
 (def status-bar-controls-delay
   (delay
@@ -2908,15 +2910,10 @@
       localization)))
 
 (handler/defhandler :help.try-beta :global
-  (enabled? [updater]
-    (and updater
-         (updater/platform-supported? updater)
-         (= "stable" (updater/installed-channel updater))
-         (not (updater/manual-update-check-in-progress? updater))
-         (not (updater/download-in-progress? updater))
-         (not (updater/channel-download-in-progress? updater))))
-  (run [updater project main-stage localization]
-    (ui.updater/try-channel! main-stage project updater localization)))
+  (enabled? []
+    (beta/enabled?))
+  (run [project main-stage prefs localization]
+    (beta/try! main-stage project prefs localization (make-render-task-progress :download-beta))))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [basis (:basis evaluation-context)

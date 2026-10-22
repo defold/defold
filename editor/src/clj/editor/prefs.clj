@@ -90,8 +90,8 @@
    {:versioning {:type :object
                  :properties
                  {:opened-versions {:type :set :item {:type :string}}
-                  :channel-offer-disabled {:type :boolean}
-                  :downloaded-channel-sha1 {:type :string}
+                  :beta-suggestions-disabled {:type :boolean}
+                  :downloaded-beta-sha1 {:type :string}
                   :skipped-update-sha1s {:type :object-of
                                          :key {:type :string}
                                          :val {:type :string}}}}

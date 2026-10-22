@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
+            [editor.beta :as beta]
             [editor.breakpoints-view :as breakpoints-view]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
@@ -298,8 +299,10 @@
 
       (when updater
         (let [update-link (.lookup root "#update-link")]
-          (init-pending-update-indicator! stage update-link project changes-view updater localization)
-          (ui.updater/init-channel-offer-notification! stage (workspace/notifications workspace) project updater localization)))
+          (init-pending-update-indicator! stage update-link project changes-view updater localization)))
+
+      (beta/suggest! stage (workspace/notifications workspace) project prefs localization
+                        (app-view/make-render-task-progress :download-beta))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (os/is-mac-os?)

@@ -106,22 +106,26 @@ welcome.new-project.perspective-parallax.description = This sample shows a persp
 welcome.new-project.lightning-vfx.title = Lightning VFX
 welcome.new-project.lightning-vfx.description = The sample shows a lightning effect in a 2d scrolling shooter and how the mesh component is setup to be manipulated during gameplay.
 
+# Beta suggestions
+beta.notification.available = Defold {version} beta is out.
+beta.notification.try-it = Try It
+beta.button.dont-suggest = Don''t Suggest Beta
+beta.dialog.title = Try the Beta
+beta.dialog.header = Try Defold {version} beta?
+beta.dialog.button.later = Later
+beta.dialog.button.download = Download Beta
+beta.no-newer-dialog.header = There is no Beta version available at this time
+beta.check-failed-dialog.header = Couldn''t check for a beta version
+beta.save-dialog.title = Save Defold {version} Beta
+beta.save-dialog.filter = Defold Editor
+beta.download-done-dialog.header = Defold {version} beta is downloaded
+beta.download-done-dialog.detail = Saved to {path}.
+beta.download-done-dialog.button.show = Show in Folder
+beta.download-failed-dialog.header = Couldn''t download Defold {version} beta
+
 # Updater
 updater.button.update-available = Update Available
 updater.button.restart-to-update = Restart to Update
-updater.notification.channel-offer = Defold {version} {channel} is out.
-updater.notification.channel-offer.try-it = Try It
-updater.try-channel-dialog.title = Try the Beta
-updater.try-channel-dialog.header = Try Defold {version} beta?
-updater.try-channel-dialog.button.dont-show-again = Don''t Show Again
-updater.try-channel-dialog.button.download = Download Beta
-updater.no-newer-channel-dialog.header = There is no Beta version available at this time
-updater.channel-save-dialog.title = Save Defold {version} Beta
-updater.channel-save-dialog.filter = Defold Editor
-updater.channel-download-done-dialog.header = Defold {version} beta is downloaded
-updater.channel-download-done-dialog.detail = Saved to {path}.
-updater.channel-download-done-dialog.button.show = Show in Folder
-updater.channel-download-failed-dialog.header = Couldn''t download Defold {version} beta
 updater.download-or-restart-dialog.title = Install Update?
 updater.download-or-restart-dialog.header = Update is ready, but there is even newer version available
 updater.download-or-restart-dialog.detail = You can install downloaded update or download newer one
