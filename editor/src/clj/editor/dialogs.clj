@@ -543,8 +543,8 @@
                 :default-button true
                 :result :continue}]}))
 
-(defn- make-file-chooser
-  ^FileChooser [^String title filter-descs ^File initial-file]
+(defn make-file-dialog
+  ^File [^String title filter-descs ^File initial-file ^Window owner-window]
   (let [chooser (FileChooser.)
         initial-directory (some-> initial-file .getParentFile)
         initial-file-name (some-> initial-file .getName)
@@ -559,15 +559,7 @@
       (.setInitialFileName chooser initial-file-name))
     (.addAll (.getExtensionFilters chooser) ^Collection extension-filters)
     (.setTitle chooser title)
-    chooser))
-
-(defn make-file-dialog
-  ^File [^String title filter-descs ^File initial-file ^Window owner-window]
-  (.showOpenDialog (make-file-chooser title filter-descs initial-file) owner-window))
-
-(defn make-save-file-dialog
-  ^File [^String title filter-descs ^File initial-file ^Window owner-window]
-  (.showSaveDialog (make-file-chooser title filter-descs initial-file) owner-window))
+    (.showOpenDialog chooser owner-window)))
 
 (defn make-directory-dialog
   ^File [^String title ^File initial-dir ^Window owner-window]

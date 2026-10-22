@@ -21,16 +21,11 @@
             [editor.markdown-view :as markdown-view]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
-            [editor.progress :as progress]
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.updater :as updater]
-            [service.log :as log]
-            [util.net :as net]
-            [util.path :as path])
+            [service.log :as log])
   (:import [com.dynamo.bob Platform]
-           [java.io File]
-           [java.nio.file Path]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
@@ -76,42 +71,8 @@
     (when (and (map? notes) (vector? (:issues notes)))
       (updater/release-notes-markdown (assoc notes :version (str version " beta"))))))
 
-(defn- downloads-dir
-  ^File []
-  (let [home-dir (io/file (system/user-home))
-        downloads-dir (io/file home-dir "Downloads")]
-    (if (.isDirectory downloads-dir) downloads-dir home-dir)))
-
 (defn- download-extension [^Platform platform]
   (if (= "macos" (.getOs platform)) "dmg" "zip"))
-
-(defn download-file-name [^Platform platform version]
-  (str "Defold-" version "-beta-" (.getPair platform) "." (download-extension platform)))
-
-(defn download!
-  "Downloads a beta archive to the chosen file. Reports progress and returns the
-  file on success, or nil on failure. Failed downloads preserve existing files."
-  [{:keys [sha1]} ^Platform platform ^File file render-progress!]
-  (let [url (updater/download-url (system/defold-archive-domain) sha1 "beta" platform (download-extension platform))]
-    (try
-      (render-progress! (progress/make-indeterminate (localization/message "progress.downloading-beta")))
-      (path/atomic-replace!
-        file
-        (fn download-to-temp-path! [^Path temp-path]
-          (net/download! url (.toFile temp-path)
-                         :read-timeout 10000
-                         :connect-timeout 5000
-                         :chunk-size (* 1024 1024)
-                         :progress-callback
-                         (fn report-progress! [current total]
-                           (render-progress!
-                             (progress/make (localization/message "progress.downloading-beta") total current))))))
-      file
-      (catch Exception e
-        (log/warn :message "Beta download failed" :url url :exception e)
-        nil)
-      (finally
-        (render-progress! progress/done)))))
 
 (defonce ^:private busy (atom false))
 
@@ -143,41 +104,10 @@
                        :stylesheets [(str (io/resource "editor.css"))]
                        :root-props {:style-class "md-page-root"}}))))
 
-(defn- choose-download-file [stage localization platform version]
-  (dialogs/make-save-file-dialog
-    (localization (localization/message "beta.save-dialog.title" {"version" version}))
-    [[(localization (localization/message "beta.save-dialog.filter"))
-      (str "*." (download-extension platform))]]
-    (io/file (downloads-dir) (download-file-name platform version))
-    stage))
-
-(defn- show-download-result! [stage localization version ^File file]
-  (if-not file
-    (dialogs/make-info-dialog
-      localization
-      {:title (localization/message "beta.dialog.title")
-       :icon :icon/triangle-error
-       :owner stage
-       :header (localization/message "beta.download-failed-dialog.header" {"version" version})})
-    (when (dialogs/make-confirmation-dialog
-            localization
-            {:title (localization/message "beta.dialog.title")
-             :icon :icon/circle-check
-             :owner stage
-             :header (localization/message "beta.download-done-dialog.header" {"version" version})
-             :content {:text (localization/message "beta.download-done-dialog.detail" {"path" (.getPath file)})
-                       :wrap-text true}
-             :buttons [{:text (localization/message "dialog.button.close")
-                        :cancel-button true
-                        :result false}
-                       {:text (localization/message "beta.download-done-dialog.button.show")
-                        :default-button true
-                        :result true}]})
-      (ui/open-file (.getParentFile file)))))
-
 (defn try!
-  "Offers a beta download independently of updater checks, downloads and prefs."
-  [^Stage stage project prefs localization render-progress!]
+  "Offers to open the beta download in the web browser, independently of updater
+  checks, downloads and prefs."
+  [^Stage stage project prefs localization]
   (when (and (enabled?) (compare-and-set! busy false true))
     (future
       (try
@@ -191,15 +121,8 @@
               (case choice
                 :download
                 (let [platform (Platform/getHostPlatform)]
-                  (when-let [target (ui/run-now
-                                      (when (.isShowing stage)
-                                        (choose-download-file stage localization platform version)))]
-                    (let [file (download! info platform target render-progress!)]
-                      (when file
-                        (prefs/set! prefs [:versioning :downloaded-beta-sha1] (:sha1 info)))
-                      (ui/run-now
-                        (when (.isShowing stage)
-                          (show-download-result! stage localization version file))))))
+                  (ui/open-url (updater/download-url (system/defold-archive-domain) (:sha1 info) "beta" platform (download-extension platform)))
+                  (prefs/set! prefs [:versioning :downloaded-beta-sha1] (:sha1 info)))
 
                 :dont-suggest
                 (prefs/set! prefs [:versioning :beta-suggestions-disabled] true)
@@ -223,7 +146,7 @@
 (defn suggest!
   "Checks once per session and shows a nonmodal beta notification unless opted
   out. Does not depend on the updater being present or idle."
-  [^Stage stage notifications-node project prefs localization render-progress!]
+  [^Stage stage notifications-node project prefs localization]
   (future
     (when-let [info (check-once! prefs (Platform/getHostPlatform))]
       (ui/run-later
@@ -236,7 +159,7 @@
              :message (localization/message "beta.notification.available" {"version" (:version info)})
              :actions [{:message (localization/message "beta.notification.try-it")
                         :on-action (fn try-beta! []
-                                     (when-let [download (try! stage project prefs localization render-progress!)]
+                                     (when-let [download (try! stage project prefs localization)]
                                        (notifications/close! notifications-node ::suggestion)
                                        download))}
                        {:message (localization/message "beta.button.dont-suggest")

@@ -116,12 +116,6 @@ beta.dialog.button.later = Later
 beta.dialog.button.download = Download Beta
 beta.no-newer-dialog.header = There is no Beta version available at this time
 beta.check-failed-dialog.header = Couldn''t check for a beta version
-beta.save-dialog.title = Save Defold {version} Beta
-beta.save-dialog.filter = Defold Editor
-beta.download-done-dialog.header = Defold {version} beta is downloaded
-beta.download-done-dialog.detail = Saved to {path}.
-beta.download-done-dialog.button.show = Show in Folder
-beta.download-failed-dialog.header = Couldn''t download Defold {version} beta
 
 # Updater
 updater.button.update-available = Update Available
@@ -827,7 +821,6 @@ progress.building = Building…
 progress.building-resource = Building {resource}
 progress.fetching = Fetching {uri}
 progress.downloading-update = Downloading update
-progress.downloading-beta = Downloading beta
 progress.extracting-update = Extracting update
 progress.waiting = Waiting
 progress.bundling = Bundling…

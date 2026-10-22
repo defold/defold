@@ -784,8 +784,7 @@
    :resource-sync progress/done
    :save-all progress/done
    :fetch-libraries progress/done
-   :download-update progress/done
-   :download-beta progress/done})
+   :download-update progress/done})
 
 (def ^:private app-task-state
   (atom {:progress initial-app-task-progress
@@ -793,7 +792,7 @@
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
-  [:save-all :resource-sync :fetch-libraries :build :download-update :download-beta :main])
+  [:save-all :resource-sync :fetch-libraries :build :download-update :main])
 
 (def status-bar-controls-delay
   (delay
@@ -2913,7 +2912,7 @@
   (enabled? []
     (beta/enabled?))
   (run [project main-stage prefs localization]
-    (beta/try! main-stage project prefs localization (make-render-task-progress :download-beta))))
+    (beta/try! main-stage project prefs localization)))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [basis (:basis evaluation-context)

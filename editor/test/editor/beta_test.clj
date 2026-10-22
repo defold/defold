@@ -13,19 +13,13 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.beta-test
-  (:require [clojure.java.io :as io]
-            [clojure.string :as string]
+  (:require [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.beta :as beta]
-            [editor.fs :as fs]
             [editor.prefs :as prefs]
-            [editor.progress :as progress]
             [editor.system :as system]
-            [editor.updater :as updater]
-            [util.http-server :as http-server]
-            [util.net :as net])
-  (:import [com.dynamo.bob Platform]
-           [java.io File IOException]))
+            [editor.updater :as updater])
+  (:import [com.dynamo.bob Platform]))
 
 (set! *warn-on-reflection* true)
 
@@ -136,58 +130,3 @@
   (doseq [notes [nil [] {} {:issues "bad"}]]
     (with-redefs [updater/fetch-version-notes! (constantly notes)]
       (is (nil? (beta/release-notes "1.14.0"))))))
-
-;; Verifies real HTTP downloads select the platform's installer format, preserve
-;; sibling files and clear progress after replacing the chosen destination.
-(deftest downloads-beta-archive-to-chosen-file
-  (with-open [server (http-server/start!
-                       (fn serve-archive [_]
-                         (http-server/response 200 "beta archive")))]
-    (let [dir (fs/create-temp-directory! "beta-download-test")
-          target (io/file dir "chosen.bin")
-          sibling (io/file dir "chosen.bin.part")
-          download! net/download!]
-      (try
-        (spit sibling "existing sibling")
-        (doseq [platform [Platform/X86_64Linux Platform/X86_64Win32
-                          Platform/X86_64MacOS Platform/Arm64MacOS]]
-          (let [events (atom [])
-                urls (atom [])
-                extension (if (= "macos" (.getOs ^Platform platform)) "dmg" "zip")]
-            (with-redefs [net/download! (fn download-local! [url out & args]
-                                          (swap! urls conj url)
-                                          (apply download!
-                                                 (str "http://localhost:" (http-server/port server) "/archive")
-                                                 out args))]
-              (is (= target (beta/download! {:sha1 "B2"} platform target
-                                            (fn render-progress! [value] (swap! events conj value)))))
-              (is (string/ends-with? (first @urls) (str "/Defold-" (.getPair ^Platform platform) "." extension)))
-              (is (string/ends-with? (beta/download-file-name platform "1.14.0") (str "." extension)))
-              (is (= "beta archive" (slurp target)))
-              (is (= "existing sibling" (slurp sibling)))
-              (is (= #{"chosen.bin" "chosen.bin.part"} (set (.list ^File dir))))
-              (is (progress/done? (last @events))))))
-        (finally
-          (fs/delete-directory! dir))))))
-
-;; Verifies a transfer that fails after writing some bytes cleans its temporary
-;; file, preserves the existing destination and sibling, and completes progress.
-(deftest failed-download-preserves-existing-files
-  (let [dir (fs/create-temp-directory! "beta-download-failure-test")
-        target (io/file dir "chosen.bin")
-        sibling (io/file dir "chosen.bin.part")
-        events (atom [])]
-    (try
-      (spit target "existing download")
-      (spit sibling "existing sibling")
-      (with-redefs [net/download! (fn fail-mid-download! [_ out & _args]
-                                    (spit out "partial download")
-                                    (throw (IOException. "Transfer interrupted")))]
-        (is (nil? (beta/download! {:sha1 "B2"} Platform/X86_64Linux target
-                                  (fn render-progress! [value] (swap! events conj value))))))
-      (is (= "existing download" (slurp target)))
-      (is (= "existing sibling" (slurp sibling)))
-      (is (= #{"chosen.bin" "chosen.bin.part"} (set (.list ^File dir))))
-      (is (progress/done? (last @events)))
-      (finally
-        (fs/delete-directory! dir)))))
