@@ -1212,7 +1212,6 @@ property.appmanifest.physics-3d.tooltip = Incluye el motor de física 3D de bala
 property.appmanifest.rig+model = Rig + Modelo
 property.appmanifest.rig+model.tooltip = Elige si incluir tanto el renderizado de modelos como la animación de rig, solo la funcionalidad de rig o ninguno de los dos. Excluir la funcionalidad no usada reduce el tamaño del motor.
 property.appmanifest.exclude-record = Excluir registro
-property.appmanifest.exclude-record.tooltip = Elimina el soporte de grabación de vídeo de escritorio usado por el mensaje del sistema `start_record`. Actívalo cuando el proyecto no graba el juego para reducir el tamaño del motor.
 property.appmanifest.profiler = Perfilador
 property.appmanifest.profiler.tooltip = Elige qué compilaciones incluyen la funcionalidad del perfilador. **Sólo para depuración** lo excluye de las versiones de lanzamiento, **nunca** lo excluye totalmente, y **Siempre** también lo incluye en las versiones de lanzamiento.
 property.appmanifest.exclude-sound = Excluir sonido
