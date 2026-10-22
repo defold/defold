@@ -15,7 +15,7 @@
 #include <string.h>
 #include <dlib/hash.h>
 #include <jc_test/jc_test.h>
-#include "../data.h"
+#include "test_data_memory.h"
 
 struct StorageRow
 {
@@ -65,8 +65,8 @@ static DSResult RegisterStorageRows(HDSContext store)
 TEST(DataRows, GrowthRangesRemovalAndReset)
 {
     HDSContext store = DSCreateStore(0);
+    DSGroupId  group = CreateTestGroup(store);
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
-    DSGroupId   group = 20;
     DSQueryItem fields[] = {
         { .m_Hash = 3, .m_Type = DS_TYPE_FLOAT, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
         { .m_Hash = 2, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD },
@@ -95,7 +95,7 @@ TEST(DataRows, GrowthRangesRemovalAndReset)
             enabled[i - 3] = input[i].m_Enabled;
         }
     }
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 100, 10, 3, input, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 100, 0, 3, input, ids));
     DSFieldArray columns[] = { { 3, health }, { 2, positions }, { 1, enabled }, { 4, colors } };
     ASSERT_EQ(DS_RESULT_OK, DSCreateRowsSoA(store, 100, group, 33, 4, columns, ids + 3));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
@@ -148,6 +148,7 @@ TEST(DataRows, GrowthRangesRemovalAndReset)
 TEST(DataRows, NativeRowPointers)
 {
     HDSContext store = DSCreateStore(0);
+    DSGroupId  group = CreateTestGroup(store);
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
     StorageRow input[] = {
         { .m_Position = { { 1, 2, 3 } }, .m_Health = 10, .m_Color = 11 },
@@ -155,9 +156,8 @@ TEST(DataRows, NativeRowPointers)
         { .m_Position = { { 7, 8, 9 } }, .m_Health = 30, .m_Color = 33 }
     };
     DSId ids[3];
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 100, 10, 1, input, ids));
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 100, 20, 2, input + 1, ids + 1));
-    DSGroupId   group = 20;
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 100, 0, 1, input, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 100, group, 2, input + 1, ids + 1));
     DSQueryDesc desc = {
         .m_GroupIds = &group,
         .m_GroupIdCount = 1,
@@ -299,7 +299,7 @@ TEST(DataRows, WholeRowGroupsAndTableChanges)
     HDSContext store = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
     StorageRow value = {};
-    DSGroupId  groups[] = { 10, 20 };
+    DSGroupId  groups[] = { CreateTestGroup(store), CreateTestGroup(store) };
     HDSQuery   queries[2];
     for (uint32_t i = 0; i < 2; ++i)
     {
@@ -368,7 +368,7 @@ TEST(DataRows, ReferencesInlineFieldsAndBlobRoundtrip)
     char              name[] = "school";
     StorageReferences input = { .m_Enabled = 1, .m_Light = child, .m_Name = { .m_String = name }, .m_Dynamic = { .m_Struct = &dynamic }, .m_List = { .m_List = &list } };
     DSId              id;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 100, 7, 1, &input, &id));
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 100, 0, 1, &input, &id));
     name[0] = 'X';
     const char* stored_name;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, id, 3, &stored_name));
@@ -401,7 +401,7 @@ TEST(DataRows, ReferencesInlineFieldsAndBlobRoundtrip)
     ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes.Begin(), size, &blob));
     HDSContext      loaded = DSCreateStore(0);
     HDSBlobInstance instance;
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(loaded, blob, 7, &instance));
+    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(loaded, blob, 0, &instance));
     DSQueryItem query_field = { .m_Hash = dmHashString64("light.color"), .m_Type = DS_TYPE_UINT32, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc desc = { .m_Items = { query_field } };
     HDSQuery    query;

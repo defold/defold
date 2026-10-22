@@ -17,7 +17,7 @@
 #include <string.h>
 #include <jc_test/jc_test.h>
 #include <dmsdk/datastore/datastore.h>
-#include "../data.h"
+#include "test_data_memory.h"
 
 struct ScheduledRow
 {
@@ -89,7 +89,7 @@ static HDSContext CreateScheduledStore(DSId* out_ids)
     DSTableDesc table = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(ScheduledEntity) };
     EXPECT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
     ScheduledEntity input[] = { { .m_Health = 50 }, { .m_Health = 50 }, { .m_Health = 50 } };
-    EXPECT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 7, 3, input, out_ids));
+    EXPECT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 3, input, out_ids));
     return store;
 }
 
@@ -377,10 +377,11 @@ TEST(DataScheduler, DisjointFieldsAndGroups)
 {
     DSId            ids[3];
     HDSContext      store = CreateScheduledStore(ids);
+    DSGroupId       other_group = CreateTestGroup(store);
     ScheduledEntity input = { .m_Health = 75 };
     DSId            other_id;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 8, 1, &input, &other_id));
-    DSGroupId        groups[] = { 7, 8 };
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, other_group, 1, &input, &other_id));
+    DSGroupId        groups[] = { 0, other_group };
     DSQueryDesc      desc = { .m_GroupIds = groups, .m_GroupIdCount = 1, .m_Items = { DSField("health", DS_TYPE_FLOAT, DS_FIELD_MUTABLE) } };
     HDSQuery         first = CreateScheduledQuery(store, desc);
     ScheduledContext first_context = { .m_Field = DSQueryFindField(first, &desc.m_Items[0]), .m_Amount = 1 };

@@ -238,8 +238,8 @@ extern "C"
 /*# Create rows from native input
  *
  * Copies count complete rows using the registered C layout and row size. Assigns
- * group to every row; groups can share a table. Supplied values become reset
- * defaults unless m_ResetPolicy is DS_RESET_NONE. Native rows have no component name; DSGetComponentId returns zero.
+ * group to every row; groups can share a table. DSRemoveGroup removes owned rows.
+ * Supplied values become reset defaults unless m_ResetPolicy is DS_RESET_NONE. Native rows have no component name; DSGetComponentId returns zero.
  * Supports fixed-size values, inline structs and DSReference fields. Strings
  * and dynamic containers are copied into table-owned storage, including nested
  * payloads; all input memory can be released after the call. Dynamic struct fields
@@ -255,11 +255,11 @@ extern "C"
  * @name DSCreateRows
  * @param store [type:HDSContext] Destination store.
  * @param type [type:uint64_t] Registered table type.
- * @param group [type:DSGroupId] Caller-defined group assigned to every row; zero is valid.
+ * @param group [type:DSGroupId] Live group created in this store; zero creates ungrouped rows.
  * @param count [type:uint32_t] Rows to add; zero adds nothing.
  * @param rows [type:const void*] Borrowed contiguous native rows; NULL for zero-size rows or an empty batch.
  * @param out_ids [type:DSId*] Optional array receiving count stable IDs on success; NULL skips the output. IDs remain available through row iteration.
- * @return result [type:DSResult] OK, LOCKED, NOT_FOUND for an unknown type, ALREADY_EXISTS for duplicate dynamic member names, or INVALID_ARGUMENT for incompatible input or capacity limits.
+ * @return result [type:DSResult] OK, LOCKED, NOT_FOUND for an unknown type or invalid group, ALREADY_EXISTS for duplicate dynamic member names, or INVALID_ARGUMENT for incompatible input or capacity limits.
  */
 
 /*# Native field array
@@ -289,7 +289,7 @@ extern "C"
  * @name DSCreateRowsSoA
  * @param store [type:HDSContext] Destination store.
  * @param type [type:uint64_t] Registered table type.
- * @param group [type:DSGroupId] Group assigned to every row; zero is valid.
+ * @param group [type:DSGroupId] Live group created in this store; zero creates ungrouped rows.
  * @param count [type:uint32_t] Rows to add; zero returns OK without accessing the store or arrays.
  * @param field_count [type:uint32_t] Number of root field arrays.
  * @param fields [type:const DSFieldArray*] Borrowed field arrays; NULL for a table without fields or an empty batch.

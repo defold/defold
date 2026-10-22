@@ -17,7 +17,7 @@
 #include <dlib/thread.h>
 #include <dlib/condition_variable.h>
 #include <dlib/jobsystem.h>
-#include "../data.h"
+#include "test_data_memory.h"
 #include <dlib/hash.h>
 
 #ifndef DM_SANITIZE_THREAD
@@ -31,6 +31,7 @@ struct ThreadFixture
 {
     HDSContext m_Store;
     DSId       m_Ids[12];
+    DSGroupId  m_Group;
 };
 
 struct StructReadTask
@@ -80,6 +81,7 @@ static ThreadFixture CreateFixture()
     ThreadFixture  fixture = {};
     DSCreateParams params = { .m_PageSize = 1024, .m_RowChunkSize = 256 };
     fixture.m_Store = DSCreateStore(&params);
+    fixture.m_Group = CreateTestGroup(fixture.m_Store);
     DSFieldDesc       light_fields[] = { { .m_Field = COLOR, .m_Type = DS_TYPE_VECTOR3, .m_Name = "color" }, { .m_Field = INTENSITY, .m_Type = DS_TYPE_NUMBER, .m_Offset = 16, .m_Name = "intensity" } };
     DSStructDesc      light = { light_fields, 2, 24 };
     DSFieldDesc       fields[] = { { HEALTH, DS_TYPE_NUMBER, 0, 0 }, { POSITION, DS_TYPE_VECTOR3, 8, 0 }, { .m_Field = LIGHT, .m_Type = DS_TYPE_STRUCT, .m_Offset = 24, .m_Struct = &light, .m_Name = "light" } };
@@ -102,7 +104,7 @@ static ThreadFixture CreateFixture()
         DSRowDesc rows[6] = {};
         for (uint32_t r = 0; r < 6; ++r)
         {
-            rows[r].m_Group = r % 2;
+            rows[r].m_Group = r % 2 ? fixture.m_Group : 0;
             rows[r].m_Types = types;
             rows[r].m_Values = values;
             rows[r].m_ValueCount = 3;
@@ -302,7 +304,7 @@ TEST(DataThreaded, NestedRangesAndWholeRows)
 TEST(DataThreaded, RangesCoverOwnerFilteredRowsAndRefreshAfterMutation)
 {
     ThreadFixture fixture = CreateFixture();
-    DSGroupId     group = 1;
+    DSGroupId     group = fixture.m_Group;
     DSQueryItem   field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc   desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { field } };
     HDSQuery      query;
@@ -350,16 +352,18 @@ struct MutationAttempt
 {
     HDSContext m_Store;
     DSId       m_Id;
-    DSResult   m_Remove, m_CreateRows, m_CreateQuery, m_DestroyStore;
+    DSGroupId  m_Group;
+    DSResult   m_Remove, m_RemoveGroup, m_CreateRows, m_CreateQuery, m_DestroyStore;
 };
 
 static void MutateOnThread(void* context)
 {
     MutationAttempt* attempt = (MutationAttempt*)context;
     attempt->m_Remove = DSRemoveRow(attempt->m_Store, attempt->m_Id);
+    attempt->m_RemoveGroup = DSRemoveGroup(attempt->m_Store, attempt->m_Group);
     uint64_t values[6] = {};
     DSId     id;
-    attempt->m_CreateRows = DSCreateRows(attempt->m_Store, 100, 2, 1, values, &id);
+    attempt->m_CreateRows = DSCreateRows(attempt->m_Store, 100, attempt->m_Group, 1, values, &id);
     HDSQuery    query = 0;
     DSQueryDesc desc = {};
     attempt->m_CreateQuery = DSCreateQuery(attempt->m_Store, &desc, &query);
@@ -371,7 +375,7 @@ TEST(DataThreaded, MutationExclusionAndDisjointGroups)
 {
     ThreadFixture fixture = CreateFixture();
     DSQueryItem   field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSGroupId     groups[] = { 0, 1 };
+    DSGroupId     groups[] = { 0, fixture.m_Group };
     HDSQuery      queries[2];
     for (uint32_t i = 0; i < 2; ++i)
     {
@@ -380,10 +384,11 @@ TEST(DataThreaded, MutationExclusionAndDisjointGroups)
     }
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(queries[0]));
     ASSERT_EQ(DS_RESULT_OK, TryFromWorker(queries[1]));
-    MutationAttempt  attempt = { fixture.m_Store, fixture.m_Ids[0] };
+    MutationAttempt  attempt = { .m_Store = fixture.m_Store, .m_Id = fixture.m_Ids[0], .m_Group = fixture.m_Group };
     dmThread::Thread worker = dmThread::New(MutateOnThread, 0x80000, &attempt, "data-mutate");
     dmThread::Join(worker);
     ASSERT_EQ(DS_RESULT_LOCKED, attempt.m_Remove);
+    ASSERT_EQ(DS_RESULT_LOCKED, attempt.m_RemoveGroup);
     ASSERT_EQ(DS_RESULT_LOCKED, attempt.m_CreateRows);
     ASSERT_EQ(DS_RESULT_LOCKED, attempt.m_CreateQuery);
     ASSERT_EQ(DS_RESULT_LOCKED, attempt.m_DestroyStore);
@@ -858,7 +863,7 @@ static void ExerciseBlobLifetime(void* context)
     for (uint32_t i = 0; i < 1000; ++i)
     {
         HDSBlobInstance instance;
-        task->m_Result = DSAddBlob(store, task->m_Blob, i, &instance);
+        task->m_Result = DSAddBlob(store, task->m_Blob, 0, &instance);
         if (task->m_Result != DS_RESULT_OK)
             break;
         task->m_Result = DSRemoveBlob(instance);
@@ -916,7 +921,7 @@ TEST(DataThreaded, SharedBlobLifetimeAcrossStores)
 TEST(DataThreaded, DisjointGroupJobs)
 {
     ThreadFixture fixture = CreateFixture();
-    DSGroupId     groups[] = { 0, 1 };
+    DSGroupId     groups[] = { 0, fixture.m_Group };
     HDSQuery      queries[2];
     uint32_t      handles[2];
     DSQueryItem   field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };

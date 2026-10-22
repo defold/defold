@@ -15,6 +15,7 @@
 #ifndef TEST_DATA_MEMORY_H
 #define TEST_DATA_MEMORY_H
 
+#include <assert.h>
 #include "../data.h"
 
 // Test snapshot for ownership and allocation lifetime checks. Payload used/capacity bytes include chunk
@@ -43,6 +44,16 @@ struct DSMemoryStats
     uint64_t m_QueryBytes;       // Query objects, copied filters, ranges and binding arenas in bytes.
     uint64_t m_TotalBytes;       // Retained store memory; excludes borrowed resource blobs.
 };
+
+// Create a real owner for fixtures that exercise group filters or membership.
+static inline DSGroupId CreateTestGroup(HDSContext store)
+{
+    DSGroupId group = 0;
+    DSResult  result = DSCreateGroup(store, &group);
+    assert(result == DS_RESULT_OK);
+    (void)result;
+    return group;
+}
 
 void GetDataMemoryStats(HDSContext store, DSMemoryStats* out_stats);
 

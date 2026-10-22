@@ -174,7 +174,7 @@ extern "C"
  *
  * @struct
  * @name DSQueryDesc
- * @member m_GroupIds [type:const DSGroupId*] Group IDs; optional when count is zero.
+ * @member m_GroupIds [type:const DSGroupId*] Group handles; zero selects ungrouped rows. Removed handles match no rows. Optional when count is zero.
  * @member m_GroupIdCount [type:uint32_t] Group count; zero matches all.
  * @member m_Flags [type:uint32_t] DSQueryFlags bits; zero keeps field-level access and disables native row pointers.
  * @member m_Items [type:DSQueryItem[DS_QUERY_MAX_ITEMS]] Required tags and fields, in any order.

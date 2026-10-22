@@ -31,6 +31,8 @@ struct DSColumnBinding
 
 static const uint32_t INVALID_SLOT = UINT32_MAX;
 
+static void           RemoveRow(HDSContext store, DSSlot* slot);
+
 void                  ReserveData(DSBlock** blocks, size_t size, size_t minimum_capacity)
 {
     const size_t header_size = (sizeof(DSBlock) + 7) & ~(size_t)7;
@@ -85,9 +87,41 @@ DSTable* FindTable(HDSContext store, uint64_t type)
     return 0;
 }
 
+static DSGroup* FindGroup(HDSContext store, DSGroupId id)
+{
+    uint32_t index = (uint32_t)id;
+    if (index >= store->m_Groups.Size())
+        return 0;
+    DSGroup* group = &store->m_Groups[index];
+    return group->m_Alive && group->m_Generation == (uint32_t)(id >> 32) ? group : 0;
+}
+
+static void AddGroupRow(HDSContext store, DSGroupId group_id, uint32_t index)
+{
+    if (!group_id)
+        return;
+    DSGroup* group = &store->m_Groups[(uint32_t)group_id];
+    DSSlot*  slots = store->m_Slots.Begin();
+    slots[index].m_GroupPrevious = INVALID_SLOT;
+    slots[index].m_GroupNext = group->m_FirstSlot;
+    if (group->m_FirstSlot != INVALID_SLOT)
+        slots[group->m_FirstSlot].m_GroupPrevious = index;
+    group->m_FirstSlot = index;
+}
+
 static void ReleaseSlot(HDSContext store, uint32_t index)
 {
-    DSSlot* slot = &store->m_Slots[index];
+    DSSlot*   slot = &store->m_Slots[index];
+    DSGroupId group = slot->m_Table->m_Rows[slot->m_Row].m_Group;
+    if (group)
+    {
+        if (slot->m_GroupPrevious == INVALID_SLOT)
+            store->m_Groups[(uint32_t)group].m_FirstSlot = slot->m_GroupNext;
+        else
+            store->m_Slots[slot->m_GroupPrevious].m_GroupNext = slot->m_GroupNext;
+        if (slot->m_GroupNext != INVALID_SLOT)
+            store->m_Slots[slot->m_GroupNext].m_GroupPrevious = slot->m_GroupPrevious;
+    }
     slot->m_Table = 0;
     // Retire exhausted slots rather than ever resurrecting an old ID.
     if (slot->m_Generation != UINT32_MAX)
@@ -202,6 +236,7 @@ static void AddRowSlots(HDSContext store, DSTable* table, const DSRowDesc* rows,
             .m_BaseIndex = first_row + i
         };
         output[i] = row;
+        AddGroupRow(store, row.m_Group, index);
         if (out_ids)
             out_ids[i] = ((uint64_t)slot->m_Generation << 32) | index;
     }
@@ -252,6 +287,7 @@ HDSContext  DSCreateStore(const DSCreateParams* params)
     store->m_MaxSparePages = params ? params->m_MaxSparePages : 16;
     store->m_FreeSlotCount = 0;
     store->m_FreeSlot = INVALID_SLOT;
+    store->m_FreeGroup = INVALID_SLOT;
     store->m_Pools = 0;
     store->m_Mutex = dmMutex::New();
     store->m_Revision = 1;
@@ -260,6 +296,29 @@ HDSContext  DSCreateStore(const DSCreateParams* params)
     store->m_ScheduleActive = false;
     store->m_ScheduleJobs = 0;
     return store;
+}
+
+DSResult DSCreateGroup(HDSContext store, DSGroupId* out_group)
+{
+    DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
+    uint32_t index = store->m_FreeGroup;
+    if (index == INVALID_SLOT)
+    {
+        index = store->m_Groups.Size();
+        if (index == UINT32_MAX / sizeof(DSGroup))
+            return DS_RESULT_INVALID_ARGUMENT;
+        Reserve(store->m_Groups, index + 1);
+        DSGroup group = { .m_Generation = 1 };
+        store->m_Groups.Push(group);
+    }
+    else
+        store->m_FreeGroup = store->m_Groups[index].m_NextFree;
+    DSGroup* group = &store->m_Groups[index];
+    group->m_FirstSlot = INVALID_SLOT;
+    group->m_FirstInstance = 0;
+    group->m_Alive = true;
+    *out_group = ((uint64_t)group->m_Generation << 32) | index;
+    return DS_RESULT_OK;
 }
 
 DSResult DSDestroyStore(HDSContext store)
@@ -722,6 +781,8 @@ DSResult DSAddBlob(HDSContext store, HDSBlob blob, DSGroupId group, HDSBlobInsta
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
+    if (group && !FindGroup(store, group))
+        return DS_RESULT_NOT_FOUND;
     ++store->m_Revision;
     if (blob->m_RowCount > UINT32_MAX / sizeof(DSSlot) - store->m_Slots.Size() ||
         blob->m_TableCount > UINT32_MAX / sizeof(DSTable*) - store->m_Tables.Size())
@@ -739,6 +800,17 @@ DSResult DSAddBlob(HDSContext store, HDSBlob blob, DSGroupId group, HDSBlobInsta
 
     ReserveSlots(store, blob->m_RowCount);
     HDSBlobInstance instance = NewBlobInstance(pool);
+    instance->m_Group = group;
+    instance->m_GroupPrevious = 0;
+    instance->m_GroupNext = 0;
+    if (group)
+    {
+        DSGroup* owner = &store->m_Groups[(uint32_t)group];
+        instance->m_GroupNext = owner->m_FirstInstance;
+        if (owner->m_FirstInstance)
+            owner->m_FirstInstance->m_GroupPrevious = instance;
+        owner->m_FirstInstance = instance;
+    }
     uint32_t*       slots = GetInstanceSlots(instance);
     for (uint32_t t = 0; t < blob->m_TableCount; ++t)
     {
@@ -759,6 +831,7 @@ DSResult DSAddBlob(HDSContext store, HDSBlob blob, DSGroupId group, HDSBlobInsta
         {
             rows[r].m_Group = group;
             rows[r].m_Slot = AllocateSlot(store, table, start + r);
+            AddGroupRow(store, group, rows[r].m_Slot);
             rows[r].m_BaseIndex = r;
             rows[r].m_InstanceIndex = instance->m_Index;
             slots[table->m_Offsets.m_FirstSlot + r] = rows[r].m_Slot;
@@ -791,24 +864,39 @@ static void DeleteBlobPool(DSBlobPool* pool)
     delete[] (uint8_t*)pool;
 }
 
-DSResult DSRemoveBlob(HDSBlobInstance instance)
+static void RemoveBlob(HDSBlobInstance instance)
 {
     DSBlobPool* pool = instance->m_Pool;
     HDSContext  store = pool->m_Store;
-    DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
-    if (store->m_ActiveQueries.Size())
-        return DS_RESULT_LOCKED;
-    ++store->m_Revision;
+    if (instance->m_Group)
+    {
+        if (instance->m_GroupPrevious)
+            instance->m_GroupPrevious->m_GroupNext = instance->m_GroupNext;
+        else
+            store->m_Groups[(uint32_t)instance->m_Group].m_FirstInstance = instance->m_GroupNext;
+        if (instance->m_GroupNext)
+            instance->m_GroupNext->m_GroupPrevious = instance->m_GroupPrevious;
+    }
     const uint32_t* slots = GetInstanceSlots(instance);
     for (uint32_t i = 0; i < pool->m_Blob->m_RowCount; ++i)
         if (slots[i] != INVALID_SLOT)
-            DSRemoveRow(store, MakeId(store, slots[i]));
+            RemoveRow(store, &store->m_Slots[slots[i]]);
     DeletePayloads(&instance->m_Payloads);
     instance->m_Pool = 0;
     instance->m_NextFree = pool->m_FreeInstance;
     pool->m_FreeInstance = instance->m_Index;
     if (!--pool->m_Live)
         DeleteBlobPool(pool);
+}
+
+DSResult DSRemoveBlob(HDSBlobInstance instance)
+{
+    HDSContext store = instance->m_Pool->m_Store;
+    DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
+    if (store->m_ActiveQueries.Size())
+        return DS_RESULT_LOCKED;
+    ++store->m_Revision;
+    RemoveBlob(instance);
     return DS_RESULT_OK;
 }
 
@@ -882,6 +970,8 @@ DSResult DSCreateRows(HDSContext store, uint64_t type, DSGroupId group, uint32_t
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
+    if (group && !FindGroup(store, group))
+        return DS_RESULT_NOT_FOUND;
     DSTable* table = FindTable(store, type);
     if (!table)
         return DS_RESULT_NOT_FOUND;
@@ -942,6 +1032,8 @@ DSResult DSCreateRowsSoA(HDSContext store, uint64_t type, DSGroupId group, uint3
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
+    if (group && !FindGroup(store, group))
+        return DS_RESULT_NOT_FOUND;
     DSTable* table = FindTable(store, type);
     if (!table)
         return DS_RESULT_NOT_FOUND;
@@ -1047,6 +1139,10 @@ DSResult DSAddRows(HDSContext store, uint64_t type, const DSRowDesc* rows, uint3
     if (!rows || !CanCreateRows(store, table, count))
         return DS_RESULT_INVALID_ARGUMENT;
 
+    for (uint32_t i = 0; i < count; ++i)
+        if (rows[i].m_Group && !FindGroup(store, rows[i].m_Group))
+            return DS_RESULT_NOT_FOUND;
+
     size_t   payload_size = 0;
     DSResult result = ValidateRowValues(table, rows, count, &payload_size);
     if (result != DS_RESULT_OK)
@@ -1069,19 +1165,10 @@ DSResult DSAddRows(HDSContext store, uint64_t type, const DSRowDesc* rows, uint3
     return DS_RESULT_OK;
 }
 
-DSResult DSRemoveRow(HDSContext store, DSId id)
+static void RemoveRow(HDSContext store, DSSlot* slot)
 {
-    DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
-    if (store->m_ActiveQueries.Size())
-        return DS_RESULT_LOCKED;
-    ++store->m_Revision;
-    DSSlot* slot = FindSlot(store, id);
-    if (!slot)
-        return DS_RESULT_NOT_FOUND;
     DSTable* table = slot->m_Table;
     uint32_t row = slot->m_Row;
-    if (table->m_IsView)
-        return DS_RESULT_INVALID_ARGUMENT;
     if (table->m_HasReferences)
         ReleaseRowValues(table, row, true);
     if (table->m_Pool)
@@ -1090,9 +1177,11 @@ DSResult DSRemoveRow(HDSContext store, DSId id)
         HDSBlobInstance instance = GetPoolInstance(table->m_Pool, removed.m_InstanceIndex);
         GetInstanceSlots(instance)[table->m_Offsets.m_FirstSlot + removed.m_BaseIndex] = INVALID_SLOT;
     }
+    ReleaseSlot(store, table->m_Rows[row].m_Slot);
     uint32_t last = table->m_Rows.Size() - 1;
     DSRow*   last_record = table->m_Rows.Begin() + last;
-    store->m_Slots.Begin()[last_record->m_Slot].m_Row = row;
+    if (row != last)
+        store->m_Slots.Begin()[last_record->m_Slot].m_Row = row;
     if (row != last && table->m_RowStride)
     {
         const DSRowChunk* chunks = table->m_Chunks.Begin();
@@ -1117,7 +1206,43 @@ DSResult DSRemoveRow(HDSContext store, DSId id)
     table->m_Rows.SetSize(last);
     if (!(last & table->m_ChunkMask))
         TrimRowStorage(store, table, last);
-    ReleaseSlot(store, (uint32_t)id);
+}
+
+DSResult DSRemoveRow(HDSContext store, DSId id)
+{
+    DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
+    if (store->m_ActiveQueries.Size())
+        return DS_RESULT_LOCKED;
+    DSSlot* slot = FindSlot(store, id);
+    if (!slot)
+        return DS_RESULT_NOT_FOUND;
+    if (slot->m_Table->m_IsView)
+        return DS_RESULT_INVALID_ARGUMENT;
+    ++store->m_Revision;
+    RemoveRow(store, slot);
+    return DS_RESULT_OK;
+}
+
+DSResult DSRemoveGroup(HDSContext store, DSGroupId id)
+{
+    DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
+    if (store->m_ActiveQueries.Size())
+        return DS_RESULT_LOCKED;
+    DSGroup* group = FindGroup(store, id);
+    if (!group)
+        return DS_RESULT_NOT_FOUND;
+    ++store->m_Revision;
+    while (group->m_FirstInstance)
+        RemoveBlob(group->m_FirstInstance);
+    while (group->m_FirstSlot != INVALID_SLOT)
+        RemoveRow(store, &store->m_Slots[group->m_FirstSlot]);
+    group->m_Alive = false;
+    if (group->m_Generation != UINT32_MAX)
+    {
+        ++group->m_Generation;
+        group->m_NextFree = store->m_FreeGroup;
+        store->m_FreeGroup = (uint32_t)id;
+    }
     return DS_RESULT_OK;
 }
 

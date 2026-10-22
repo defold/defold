@@ -58,7 +58,7 @@ extern "C"
 
 /*# Blob instance handle
  *
- * Identifies one grouped registration in a store. Release with DSRemoveBlob,
+ * Identifies one grouped registration in a store. Release with DSRemoveBlob or DSRemoveGroup,
  * or by destroying the store. This does not own the caller's blob bytes.
  *
  * @typedef
@@ -90,7 +90,7 @@ extern "C"
  * @param blob [type:HDSBlob] Reference to release; must not be used afterward.
  */
 
-/*# Add every component table for one game object instance
+/*# Add every component table for one resource instance
  *
  * Retains the resource and copies fixed row bytes into shared mutable tables.
  * Registrations of the same loaded resource share metadata, defaults and capacity.
@@ -101,9 +101,9 @@ extern "C"
  * @name DSAddBlob
  * @param store [type:HDSContext] Destination store.
  * @param blob [type:HDSBlob] Loaded resource to retain.
- * @param group [type:DSGroupId] Runtime game object group assigned to every added row.
+ * @param group [type:DSGroupId] Live group created in this store; zero leaves the registration ungrouped.
  * @param out_instance [type:HDSBlobInstance*] Receives the registration handle on success; unchanged on error.
- * @return result [type:DSResult] OK, LOCKED while query reservations are active, or INVALID_ARGUMENT if store capacity would be exceeded. Errors leave the store unchanged.
+ * @return result [type:DSResult] OK, LOCKED while query reservations are active, NOT_FOUND for an invalid group, or INVALID_ARGUMENT if store capacity would be exceeded. Errors leave the store unchanged.
  */
 
 /*# Remove one instance's complete set of component tables
@@ -111,7 +111,8 @@ extern "C"
  * Removes its remaining rows, invalidates their IDs, frees its replacement payloads,
  * and returns the registration slot for reuse. Shared capacity remains while other
  * registrations use that resource; the last removal frees the pool and its blob reference.
- * The store also removes its instances automatically when destroyed.
+ * DSRemoveGroup also releases registrations owned by that group. Their handles
+ * must not be used afterward. The store releases all registrations when destroyed.
  *
  * @name DSRemoveBlob
  * @param instance [type:HDSBlobInstance] Registration to remove; must not be used after success.

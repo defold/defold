@@ -16,8 +16,9 @@ current values as the next load's defaults.
 is present in the file as **zero**, along with zeroed runtime slot and source
 indices; the component name hash is preserved. Instantiation bulk-copies each
 table's record array and value array separately, then fills the records' group,
-stable-ID slot, source row and registration index. A group may be a game-object
-handle. No live handles or pointers are written to disk.
+stable-ID slot, source row and registration index. Groups are managed datastore
+handles; the caller associates them with game objects or other owners.
+No live handles or pointers are written to disk.
 
 ![Generic blob layout and one expanded table. Solid arrows follow blob offsets;
 dashed arrows expand the table, row record, field metadata and dynamic container.](images/datastore-binary.svg)
@@ -339,13 +340,45 @@ size from scan, lookup, allocation and slack measurements, rather than making it
 machine-dependent.
 
 A **datastore** holds runtime tables, stable row IDs, resource registrations and
-queries for many game objects. A **table** groups rows with the same type, tags
-and field layout. Each data component occupies one row. A game object can have
-multiple data components of different types, or several of the same type; they
-can share its `DSGroupId`. A group is a caller-defined identifier stored on each
-row; it may also identify a wave or other collection of rows. Different groups
-share the same type table. Each row has a runtime `DSId`; loaded components also
-retain their prototype-local component name hash.
+queries. A **table** groups rows with the same type, tags and field layout.
+Each data component occupies one row. A game object can have multiple data
+components of different types, or several of the same type; they can share a
+`DSGroupId` created with `DSCreateGroup`. A **group** owns its rows across tables.
+The caller associates the group with a game object, spawn wave or other owner;
+the datastore has no game-object dependency. Different groups share the same type
+table. Each row has a runtime `DSId`; loaded components also retain their
+prototype-local component name hash.
+
+`DSRemoveRow` removes one row; `DSRemoveGroup` removes all of the group's rows,
+owned payloads and blob registrations, including empty registrations. Independent
+table registrations remain available. Both operations require all query
+reservations to finish. The caller applies queued removals after joining jobs.
+Group handles are store-local and generation-checked: removing a group invalidates
+its handle, and a reused slot gets a new generation. Existing query filters keep
+the old handle and no longer match. Group `0` denotes ungrouped, caller-managed rows.
+
+```cpp
+DSGroupId group;
+DSResult result = DSCreateGroup(store, &group);
+if (result != DS_RESULT_OK)
+    return result;
+
+result = DSCreateRows(store, dmHashString64("Enemy"), group, count, enemies, ids);
+if (result != DS_RESULT_OK)
+{
+    DSRemoveGroup(store, group);
+    return result;
+}
+
+// Later, at a structural safe point:
+DSRemoveRow(store, ids[0]);    // Remove one enemy; the group stays alive.
+DSRemoveGroup(store, group);  // Remove the remaining enemies and invalidate group.
+```
+
+Group membership uses integer links in the stable row-ID slots. Table growth and
+swap removal leave those links valid; group removal visits only its members.
+The registry and membership links are runtime bookkeeping, separate from value
+rows and query iteration.
 
 `DSTable::m_Rows` uses the file's `DSRow` layout, while `m_Chunks` holds the
 separate dense component bytes. Borrowed external tables keep their existing
@@ -371,8 +404,8 @@ layout and its tags. `DSCreateRows(store, type, group, count, rows, out_ids)`
 copies complete native rows, including inline members, using the registered row
 size. One group is assigned to every row; each receives its own ID. Native rows
 have no component name. The caller prepares defaults and per-instance values.
-Group membership does not imply ownership or deletion. By default, supplied values
-become reset defaults, kept in the same dense row order as current values. Set
+Nonzero groups must be live handles created in this store. By default, supplied
+values become reset defaults, kept in the same dense row order as current values. Set
 `DSTableDesc.m_ResetPolicy = DS_RESET_NONE` for generated simulation rows that
 need no history: AoS creation writes directly into current storage and reset returns
 `DS_RESULT_INVALID_ARGUMENT`. With history enabled, swap removal moves current
@@ -477,7 +510,7 @@ separate, even if their layouts match.
 ![The datastore references caller-owned blobs. Each resource pool has shared
 runtime tables and registration records connecting game objects to their rows.](images/datastore-tables.svg)
 
-### Adding and removing game objects
+### Instantiating and removing grouped blobs
 
 `DSAddBlob(store, blob, group, &instance)` instantiates all component rows from
 the blob in one operation. For each table it bulk-copies the row-record array and
@@ -488,6 +521,8 @@ Metadata and defaults remain in the blob; strings and dynamic containers initial
 reference its payloads. Pooled
 registration records and membership indices track the new rows. Capacity grows
 as needed and is reused by later registrations.
+Removing its group also removes the registration and invalidates its instance
+handle. The caller retains ownership of the original blob and its backing bytes.
 Each runtime table records whether its rows contain references. Numeric-only
 instantiation and reset copy the bytes directly without walking field metadata.
 
@@ -553,7 +588,7 @@ Pass `DS_FIELD_MUTABLE` for writes, or `0` for reads. A descriptor holds up to 6
 mixed items, in any order. Zero-initialize unused entries; the first unused item
 ends the list, so no count is needed. Each item's kind distinguishes a tag or field
 from an unused entry, allowing zero hashes. Group filters use a pointer and count,
-allowing group `0`.
+allowing group `0` to select ungrouped rows.
 
 ![Create a light-color query, cache a binding for each matching table, then reserve
 access and iterate batches and rows using a stable field handle.](images/datastore-queries.svg)

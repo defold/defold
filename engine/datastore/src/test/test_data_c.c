@@ -164,9 +164,8 @@ static int TestDataBatchFromC(HDSContext store, DSId id)
     DSFieldGetMatrix4Batch(0, 0, 0, 45, 0) == DS_RESULT_OK;
 }
 
-int TestDataFromC(HDSContext store)
+int TestDataFromC(HDSContext store, DSGroupId group)
 {
-    DSGroupId   group = 123;
     uint64_t    tag = 7;
     DSQueryItem fields[] = {
         { .m_Hash = 42, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
@@ -376,7 +375,7 @@ int TestDataNativeRowsFromC(void)
         { .m_State = { .m_Health = 50, .m_Enabled = 1 }, .m_Position = { .m_Values = { 1, 2, 3 } } },
         { .m_State = { .m_Health = 75 }, .m_Position = { .m_Values = { 4, 5, 6 } } }
     };
-    DSGroupId   group = 100;
+    DSGroupId   group;
     DSId        ids[2], added[2];
     DSQueryItem health = { .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc query_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Flags = DS_ROW_MUTABLE, .m_Items = { health, { .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG } } };
@@ -395,6 +394,7 @@ int TestDataNativeRowsFromC(void)
             goto cleanup; \
         } \
     } while (0)
+    CHECK_NATIVE(DSCreateGroup(store, &group) == DS_RESULT_OK);
     CHECK_NATIVE(DSRegisterTable(store, &table) == DS_RESULT_OK);
     CHECK_NATIVE(DSCreateQuery(store, &query_desc, &query) == DS_RESULT_OK);
     CHECK_NATIVE(DSCreateRows(store, 10, group, 2, input, ids) == DS_RESULT_OK);
@@ -406,7 +406,7 @@ int TestDataNativeRowsFromC(void)
     struct Enemy enemies[] = { input[0], input[0] };
     enemies[0].m_State.m_Health = 80;
     enemies[1].m_State.m_Health = 90;
-    CHECK_NATIVE(DSCreateRows(store, 10, 200, 2, enemies, added) == DS_RESULT_OK);
+    CHECK_NATIVE(DSCreateRows(store, 10, 0, 2, enemies, added) == DS_RESULT_OK);
     CHECK_NATIVE(DSSetFieldNumber(store, added[1], health.m_Hash, 5) == DS_RESULT_OK);
     CHECK_NATIVE(DSResetRow(store, added[1]) == DS_RESULT_OK);
     CHECK_NATIVE(DSFieldGetNumber(store, added[1], health.m_Hash, &number) == DS_RESULT_OK && number == 90);
@@ -418,12 +418,12 @@ int TestDataNativeRowsFromC(void)
     DSIterator it = DSQueryIterRange(query, 0, 2);
     CHECK_NATIVE(DSIterNext(&it));
     DSRowIterator rows = DSIterRows(&it);
-    CHECK_NATIVE(DSRowIterNext(&rows) && DSRowIterGetGroupId(&rows) == 100);
+    CHECK_NATIVE(DSRowIterNext(&rows) && DSRowIterGetGroupId(&rows) == group);
     const struct Enemy* read_row = (const struct Enemy*)DSRowIterGetData(&rows);
     CHECK_NATIVE(read_row->m_State.m_Health == 50);
     struct Enemy* write_row = (struct Enemy*)DSRowIterGetDataMut(&rows);
     write_row->m_State.m_Health = 45;
-    CHECK_NATIVE(DSCreateRows(store, 10, 200, 2, enemies, added) == DS_RESULT_LOCKED);
+    CHECK_NATIVE(DSCreateRows(store, 10, 0, 2, enemies, added) == DS_RESULT_LOCKED);
     DSQueryEnd(query);
     active = 0;
 
@@ -433,11 +433,11 @@ int TestDataNativeRowsFromC(void)
     // Failed input leaves IDs and query membership intact.
     DSId unchanged[] = { 123, 456 };
     enemies[1].m_State.m_Enabled = 2;
-    CHECK_NATIVE(DSCreateRows(store, 10, 200, 2, enemies, unchanged) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_NATIVE(DSCreateRows(store, 10, 0, 2, enemies, unchanged) == DS_RESULT_INVALID_ARGUMENT);
     enemies[1].m_State.m_Enabled = 1;
-    CHECK_NATIVE(DSCreateRows(store, 10, 200, 2, NULL, unchanged) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_NATIVE(DSCreateRows(store, 10, 0, 2, NULL, unchanged) == DS_RESULT_INVALID_ARGUMENT);
     CHECK_NATIVE(unchanged[0] == 123 && unchanged[1] == 456);
-    CHECK_NATIVE(DSCreateRows(store, 10, 200, 0, NULL, NULL) == DS_RESULT_OK);
+    CHECK_NATIVE(DSCreateRows(store, 10, 0, 0, NULL, NULL) == DS_RESULT_OK);
     CHECK_NATIVE(DSCreateRows(NULL, 999, 200, 0, NULL, NULL) == DS_RESULT_OK);
 
     CHECK_NATIVE(DSRemoveRow(store, ids[0]) == DS_RESULT_OK);
@@ -458,6 +458,9 @@ int TestDataNativeRowsFromC(void)
     CHECK_NATIVE(DSQueryGetRowCount(query) == 1);
     DSQueryEnd(query);
     active = 0;
+    CHECK_NATIVE(DSRemoveGroup(store, group) == DS_RESULT_OK);
+    CHECK_NATIVE(DSFieldGetNumber(store, ids[1], health.m_Hash, &number) == DS_RESULT_NOT_FOUND);
+    CHECK_NATIVE(DSRemoveGroup(store, group) == DS_RESULT_NOT_FOUND);
     CHECK_NATIVE(DSUnregisterTable(store, 10) == DS_RESULT_OK);
     CHECK_NATIVE(DSFieldGetNumber(store, ids[1], health.m_Hash, &number) == DS_RESULT_NOT_FOUND);
 
@@ -468,7 +471,7 @@ int TestDataNativeRowsFromC(void)
     table.m_RowStride = 8;
     CHECK_NATIVE(DSRegisterTable(store, &table) == DS_RESULT_OK);
     DSReference missing_strings[2] = { 0 };
-    CHECK_NATIVE(DSCreateRows(store, 10, 200, 2, missing_strings, unchanged) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_NATIVE(DSCreateRows(store, 10, 0, 2, missing_strings, unchanged) == DS_RESULT_INVALID_ARGUMENT);
 cleanup:
     if (active)
         DSQueryEnd(query);
@@ -530,7 +533,7 @@ int TestDataSoARowsFromC(void)
         { .m_Field = 20, .m_Values = positions }
     };
     DSId        ids[2] = { 123, 456 };
-    DSGroupId   group = 77;
+    DSGroupId   group;
     DSQueryItem health = { .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc query_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { health } };
     HDSContext  store = DSCreateStore(0);
@@ -546,6 +549,7 @@ int TestDataSoARowsFromC(void)
             goto cleanup; \
         } \
     } while (0)
+    CHECK_SOA(DSCreateGroup(store, &group) == DS_RESULT_OK);
     CHECK_SOA(DSRegisterTable(store, &table) == DS_RESULT_OK);
     CHECK_SOA(DSCreateQuery(store, &query_desc, &query) == DS_RESULT_OK);
     CHECK_SOA(DSCreateRowsSoA(store, 999, group, 2, 5, fields, ids) == DS_RESULT_NOT_FOUND);
@@ -692,7 +696,7 @@ int CreateReferenceRowsFromC(HDSContext store, int soa, DSId ids[2])
             { .m_Field = 10, .m_Values = names },
             { .m_Field = 11, .m_Values = structures }
         };
-        result = DSCreateRowsSoA(store, 93, 42, 2, 4, columns, ids);
+        result = DSCreateRowsSoA(store, 93, 0, 2, 4, columns, ids);
     }
     else
     {
@@ -700,7 +704,7 @@ int CreateReferenceRowsFromC(HDSContext store, int soa, DSId ids[2])
             { .m_Name = names[0], .m_Attributes = structures[0], .m_Loot = loot[0], .m_State = attributes[0] },
             { .m_Name = names[1], .m_Attributes = structures[1], .m_Loot = loot[1], .m_State = attributes[1] }
         };
-        result = DSCreateRows(store, 93, 42, 2, enemies, ids);
+        result = DSCreateRows(store, 93, 0, 2, enemies, ids);
     }
     if (result != DS_RESULT_OK)
         return 2;
@@ -748,10 +752,10 @@ int CreateMixedListRowsFromC(HDSContext store, int soa, DSId ids[2])
     if (soa)
     {
         DSFieldArray column = { .m_Field = 1, .m_Values = rows };
-        result = DSCreateRowsSoA(store, 94, 42, 2, 1, &column, ids);
+        result = DSCreateRowsSoA(store, 94, 0, 2, 1, &column, ids);
     }
     else
-        result = DSCreateRows(store, 94, 42, 2, rows, ids);
+        result = DSCreateRows(store, 94, 0, 2, rows, ids);
 
     number = -1;
     string[0] = 'X';

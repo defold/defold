@@ -14,7 +14,7 @@
 
 #include <dlib/align.h>
 #include <jc_test/jc_test.h>
-#include "../data.h"
+#include "test_data_memory.h"
 
 struct PageRow
 {
@@ -73,15 +73,16 @@ TEST(DataPages, GrowthRangesSwapAndReset)
 {
     DSCreateParams params = { .m_PageSize = 2048, .m_RowChunkSize = 256, .m_MaxSparePages = 1 };
     HDSContext     store = DSCreateStore(&params);
+    DSGroupId      group = CreateTestGroup(store);
     ASSERT_EQ(DS_RESULT_OK, RegisterPageRows(store, 10, DS_RESET_RETAIN));
     PageRow input[259];
     DSId    ids[259];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(input); ++i)
         input[i] = PageRow { .m_Health = (double)i, .m_Position = { { (float)i, 2, 3 } }, .m_Color = i };
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 10, 20, 1, input, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 10, 0, 1, input, ids));
     DSTable*       table = FindTable(store, 10);
     const uint8_t* first = GetRowBytes(table, 0);
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 10, 30, 256, input + 1, ids + 1));
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 10, group, 256, input + 1, ids + 1));
     ASSERT_EQ(first, GetRowBytes(table, 0));
     double       health[] = { 257, 258 };
     DSVector3    positions[] = { input[257].m_Position, input[258].m_Position };
@@ -91,8 +92,7 @@ TEST(DataPages, GrowthRangesSwapAndReset)
         { .m_Field = 1, .m_Values = health },
         { .m_Field = 2, .m_Values = positions }
     };
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRowsSoA(store, 10, 30, 2, 3, columns, ids + 257));
-    DSGroupId   group = 30;
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRowsSoA(store, 10, group, 2, 3, columns, ids + 257));
     DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Flags = DS_ROW_MUTABLE };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
@@ -233,7 +233,7 @@ TEST(DataPages, BlobReferencesAcrossChunks)
     HDSContext      store = DSCreateStore(&params);
     HDSBlobInstance instances[3];
     for (uint32_t i = 0; i < 3; ++i)
-        ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, 20 + i, &instances[i]));
+        ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, 0, &instances[i]));
     DSQueryDesc desc = { .m_Items = { { .m_Hash = 1, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD } } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));

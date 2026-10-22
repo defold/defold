@@ -113,8 +113,8 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             HDSContext store = DSCreateStore(0);
             ASSERT_EQ(DS_RESULT_OK, RegisterLifetimeTable(store, (DSResetPolicy)history));
             DSId ids[2];
-            ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 7, ids, columns != 0));
-            ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 8, ids + 1, columns != 0));
+            ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, ids, columns != 0));
+            ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, ids + 1, columns != 0));
             CheckLifetimeViews(store, ids[0]);
             ASSERT_EQ(DS_RESULT_OK, DSSetFieldNumber(store, ids[0], 1, 42));
             ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, ids[0], 2, "captain"));
@@ -196,7 +196,7 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             GetDataMemoryStats(store, &stats);
             ASSERT_EQ(0u, stats.m_BaseUsed + stats.m_PayloadUsed + stats.m_StructRows);
             ASSERT_EQ(0u, stats.m_StructRowBytes);
-            ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 9, ids, columns != 0));
+            ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, ids, columns != 0));
             CheckLifetimeViews(store, ids[0]);
             ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[0]));
             GetDataMemoryStats(store, &stats);
@@ -212,7 +212,7 @@ TEST(DataLifetime, PayloadChurn)
     HDSContext store = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, RegisterLifetimeTable(store, DS_RESET_RETAIN));
     DSId sentinel;
-    ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 1, &sentinel, false));
+    ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, &sentinel, false));
     char name[1024];
     memset(name, 'a', sizeof(name) - 1);
     name[sizeof(name) - 1] = 0;
@@ -220,7 +220,7 @@ TEST(DataLifetime, PayloadChurn)
     for (uint32_t i = 0; i < 1000; ++i)
     {
         DSId id;
-        ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 2, &id, false));
+        ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, &id, false));
         ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, id, 2, name));
         const char* borrowed;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, id, 2, &borrowed));
@@ -273,7 +273,8 @@ TEST(DataLifetime, QueryCompatibilityCache)
     }
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(a));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(b));
-    DSGroupId groups[] = { 7, 1, 8, 9, 1 };
+    DSGroupId groups[] = { CreateTestGroup(store), CreateTestGroup(store), CreateTestGroup(store), CreateTestGroup(store), 0 };
+    groups[4] = groups[1];
     desc = { .m_GroupIds = groups, .m_GroupIdCount = 2, .m_Items = { requested } };
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &a));
     desc.m_GroupIds = groups + 2;
@@ -283,7 +284,7 @@ TEST(DataLifetime, QueryCompatibilityCache)
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &overlap));
     double health = 50;
     DSId   id;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 7, 1, &health, &id));
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, groups[0], 1, &health, &id));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(a));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(b));
     ASSERT_EQ(DS_RESULT_BUSY, DSQueryTryBegin(overlap));
@@ -295,4 +296,27 @@ TEST(DataLifetime, QueryCompatibilityCache)
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(b));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(overlap));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+}
+
+// Owned dynamic structs, mixed lists and reset defaults are reclaimed with their group.
+TEST(DataLifetime, GroupRemovalReleasesNestedPayloads)
+{
+    for (uint32_t history = 0; history < 2; ++history)
+        for (uint32_t columns = 0; columns < 2; ++columns)
+        {
+            HDSContext store = DSCreateStore(0);
+            ASSERT_EQ(DS_RESULT_OK, RegisterLifetimeTable(store, (DSResetPolicy)history));
+            DSGroupId group = CreateTestGroup(store);
+            DSId      id;
+            ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, group, &id, columns != 0));
+            CheckLifetimeViews(store, id);
+            ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, id, 2, "changed"));
+            ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, group));
+            DSMemoryStats stats;
+            GetDataMemoryStats(store, &stats);
+            ASSERT_EQ(0u, stats.m_Rows);
+            ASSERT_EQ(0u, stats.m_StructRows);
+            ASSERT_EQ(0u, stats.m_BaseUsed + stats.m_PayloadUsed);
+            ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+        }
 }

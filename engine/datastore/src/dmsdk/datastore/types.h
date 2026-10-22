@@ -109,9 +109,11 @@ extern "C"
  * @name DSId
  */
 
-/*# Logical group identifier
+/*# Owning group identifier
  *
- * Caller-defined group shared by any number of rows; zero is valid.
+ * Store-local, generation-checked handle from [ref:DSCreateGroup]. Removing the
+ * group removes its rows and invalidates the handle. Zero selects ungrouped rows;
+ * it is not a group handle. Names and external-object associations remain caller-owned.
  *
  * @typedef
  * @name DSGroupId
@@ -124,7 +126,7 @@ extern "C"
  * @enum
  * @name DSResult
  * @member DS_RESULT_OK Operation succeeded (0).
- * @member DS_RESULT_NOT_FOUND Table, row, field, system or event was not found (-1).
+ * @member DS_RESULT_NOT_FOUND Table, row, group, field, system or event was not found (-1).
  * @member DS_RESULT_LOCKED An operation requires query reservations or a schedule to finish (-3).
  * @member DS_RESULT_INVALID_ARGUMENT Invalid argument, value or count (-4).
  * @member DS_RESULT_ALREADY_EXISTS Table type, field name or function/event name is duplicated (-5).

@@ -34,7 +34,8 @@ void GetDataMemoryStats(HDSContext store, DSMemoryStats* out_stats)
     memset(out_stats, 0, sizeof(*out_stats));
     out_stats->m_Tables = store->m_Tables.Size();
     out_stats->m_StoreBytes = sizeof(DSStore) + (uint64_t)store->m_Tables.Capacity() * sizeof(DSTable*) +
-    (uint64_t)store->m_Queries.Capacity() * sizeof(HDSQuery);
+    (uint64_t)store->m_Queries.Capacity() * sizeof(HDSQuery) +
+    (uint64_t)store->m_Groups.Capacity() * sizeof(DSGroup);
     // Object pool storage: query pointers, logical entries and the reverse index.
     out_stats->m_StoreBytes += (uint64_t)store->m_ActiveQueries.Capacity() * (sizeof(HDSQuery) + 3 * sizeof(uint32_t));
     out_stats->m_StoreBytes += (uint64_t)store->m_Pages.Capacity() * sizeof(DSRowPage);

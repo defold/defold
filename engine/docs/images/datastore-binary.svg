@@ -116,7 +116,7 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px
 <text x="82" y="982" class="mono">uint32_t m_Reserved;</text>
 <text x="524" y="982" class="mono" text-anchor="end">28</text>
 <text x="82" y="1018" class="small">File: component name hash; all other fields are zero.</text>
-<text x="82" y="1044" class="small">Runtime: Group = caller group / game-object handle;</text>
+<text x="82" y="1044" class="small">Runtime: Group = managed datastore group handle;</text>
 <text x="82" y="1070" class="small">Slot = stable ID slot; BaseIndex = source/default row;</text>
 <text x="82" y="1096" class="small">InstanceIndex = blob registration. Reserved stays zero.</text>
 <rect x="580" y="800" width="488" height="330" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>

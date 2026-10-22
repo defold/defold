@@ -90,7 +90,7 @@ struct DSFileFieldMeta
 // unchanged; owned default rows move with their current values.
 struct DSRow
 {
-    DSGroupId m_Group;         // Caller group (e.g. game object handle); zero in files.
+    DSGroupId m_Group;         // Managed runtime group; zero in files or for ungrouped rows.
     uint64_t  m_ComponentId;   // Prototype-local component name hash; retained in files.
     uint32_t  m_Slot;          // Runtime stable ID slot in DSStore::m_Slots; zero in files.
     uint32_t  m_BaseIndex;     // Runtime source/default/view row index; zero in files.
@@ -258,7 +258,7 @@ struct DSStructStorage
 //              [ native field bytes + alignment padding ]
 struct DSRowDesc
 {
-    DSGroupId          m_Group;       // Runtime game object or caller-defined group.
+    DSGroupId          m_Group;       // Managed runtime group, or zero for an ungrouped row.
     const DSValueType* m_Types;       // Borrowed kinds in root metadata order; may be shared across rows.
     const DSValueData* m_Values;      // Borrowed untagged payloads in root metadata order; copied on insertion.
     uint32_t           m_ValueCount;  // Number of root kinds and payloads.
@@ -397,6 +397,19 @@ struct DSSlot
         uint32_t m_Row;      // Current dense row index in m_Table.
         uint32_t m_NextFree; // Next free slot when m_Table is NULL.
     };
+    uint32_t m_GroupPrevious; // Previous row slot in the group, or UINT32_MAX.
+    uint32_t m_GroupNext;     // Next row slot in the group, or UINT32_MAX.
+};
+
+// Group handles use the same generation/index encoding as DSId. Membership is
+// indexed by stable row slots, so table growth and swap removal do not relink it.
+struct DSGroup
+{
+    uint32_t        m_Generation;    // Incremented on release; exhausted slots are retired.
+    uint32_t        m_FirstSlot;     // First owned row slot, or UINT32_MAX.
+    uint32_t        m_NextFree;      // Next reusable group slot, or UINT32_MAX.
+    bool            m_Alive;         // False after removal, including retired slots.
+    HDSBlobInstance m_FirstInstance; // Owned blob registrations, including those with no rows.
 };
 
 struct DSSystemRegistration
@@ -418,6 +431,8 @@ struct DSStore
     uint32_t                      m_MaxSparePages;      // Limit on retained empty pages; excess pages are freed.
     dmArray<DSTable*>             m_Tables;             // Owned runtime tables.
     dmArray<DSSlot>               m_Slots;              // Stable row ID slots and free-list links.
+    dmArray<DSGroup>              m_Groups;             // Generation-checked owners and their membership heads.
+    uint32_t                      m_FreeGroup;          // First reusable group slot, or UINT32_MAX.
     dmArray<HDSQuery>             m_Queries;            // Borrowed live queries; callers destroy them before the store.
     uint32_t                      m_FreeSlotCount;      // Reusable slots; excludes retired generations.
     uint32_t                      m_FreeSlot;           // First unused row ID slot, or UINT32_MAX.
@@ -559,6 +574,9 @@ struct DSBlobInstance
     DSPayloadBlock* m_Payloads; // Owned replacement string/container arena.
     uint32_t        m_Index;    // Stable registration slot within the pool.
     uint32_t        m_NextFree; // Next reusable registration index while free.
+    DSGroupId       m_Group;    // Managed owner; zero for an independently managed registration.
+    HDSBlobInstance m_GroupPrevious; // Previous owned registration; NULL at the head.
+    HDSBlobInstance m_GroupNext;     // Next owned registration; NULL at the tail.
 };
 
 static inline DSTable* GetPoolTable(DSBlobPool* pool, uint32_t index)
