@@ -1394,6 +1394,11 @@ namespace dmEngine
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         }
 
+        if (dmConfigFile::GetInt(engine->m_Config, "resource.profile", 0))
+        {
+            params.m_Flags |= RESOURCE_FACTORY_FLAGS_PROFILE;
+        }
+
 #if !defined(DM_RELEASE)
         params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_ARCI;
         params.m_ArchiveIndex.m_Size = BUILTINS_ARCI_SIZE;
