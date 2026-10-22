@@ -274,6 +274,7 @@ clear_color_alpha = 0.0
 [resource]
 http_cache = 1
 max_resources = 2048
+profile = 1
 uri = http://localhost:1234/save-data-project
 
 [library]

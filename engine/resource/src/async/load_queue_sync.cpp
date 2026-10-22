@@ -19,6 +19,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/time.h>
 
 namespace dmLoadQueue
 {
@@ -57,6 +58,7 @@ namespace dmLoadQueue
         queue->m_ActiveRequest->m_Name          = name;
         queue->m_ActiveRequest->m_CanonicalPath = canonical_path;
         queue->m_ActiveRequest->m_PreloadInfo   = *info;
+        queue->m_ActiveRequest->m_ProfileStartTime = dmResource::IsLoadProfilingEnabled(queue->m_Factory) ? dmTime::GetMonotonicTime() : 0;
         return queue->m_ActiveRequest;
     }
 

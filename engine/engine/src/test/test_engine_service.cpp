@@ -14,6 +14,7 @@
 
 #include "test_engine.h"
 #include "../engine_service_private.h"
+#include "../../../resource/src/resource_private.h"
 #include <dlib/atomic.h>
 #include <dlib/http/http_client.h>
 #include <dlib/socket.h>
@@ -469,6 +470,130 @@ TEST_F(EngineServiceOpenAPITest, DiscoveryRequestValidation)
     Fetch("GET", "/state");
     ASSERT_EQ(200, m_Status);
     ASSERT_STREQ("application/json", m_ContentType);
+}
+
+class EngineServiceResourceTest : public EngineServiceOpenAPITest
+{
+public:
+    dmResource::HFactory    m_Factory;
+    dmGameObject::HRegister m_Register;
+    void*                   m_Resource;
+    ResourceDescriptor*     m_Descriptor;
+
+    void SetUp()
+    {
+        m_Factory = 0;
+        m_Register = 0;
+        m_Resource = 0;
+        EngineServiceOpenAPITest::SetUp();
+        if (!m_Service)
+            return;
+        m_Register = dmGameObject::NewRegister();
+        dmResource::NewFactoryParams params;
+        m_Factory = dmResource::NewFactory(&params, ".");
+        ASSERT_NE((dmResource::HFactory)0, m_Factory);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(m_Factory, "profile", 0, 0, Create, 0, Destroy, 0));
+        uint32_t data = 42;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/test.profile", &data, sizeof(data), &m_Resource));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetDescriptorWithExt(m_Factory, dmHashString64("/test.profile"), 0, 0, &m_Descriptor));
+
+        // Seed distinct measurements to verify field order and width without relying on clock resolution.
+        dmResource::LoadTimings timings = { UINT32_MAX, 0x80000000U, 3, 5, 7, 11, 0x7fffffe5U, 17, true };
+        m_Descriptor->m_LoadTimings = timings;
+        dmEngineService::InitProfiler(m_Service, m_Factory, m_Register);
+    }
+
+    void TearDown()
+    {
+        EngineServiceOpenAPITest::TearDown();
+        if (m_Resource)
+            dmResource::Release(m_Factory, m_Resource);
+        if (m_Factory)
+            dmResource::DeleteFactory(m_Factory);
+        if (m_Register)
+            dmGameObject::DeleteRegister(m_Register);
+    }
+
+    static dmResource::Result Create(const dmResource::ResourceCreateParams* params)
+    {
+        ResourceDescriptorSetResource(params->m_Resource, new uint32_t(42));
+        ResourceDescriptorSetResourceSize(params->m_Resource, 256);
+        return dmResource::RESULT_OK;
+    }
+
+    static dmResource::Result Destroy(const dmResource::ResourceDestroyParams* params)
+    {
+        delete (uint32_t*)ResourceDescriptorGetResource(params->m_Resource);
+        return dmResource::RESULT_OK;
+    }
+
+    void ExpectBytes(uint32_t* offset, const void* expected, uint32_t size)
+    {
+        ASSERT_LE(*offset + size, m_Body.Size() - 1);
+        ASSERT_ARRAY_EQ_LEN((const char*)expected, m_Body.Begin() + *offset, size);
+        *offset += size;
+    }
+
+    void ExpectString(uint32_t* offset, const char* expected)
+    {
+        uint16_t length = (uint16_t)strlen(expected);
+        ExpectBytes(offset, &length, sizeof(length));
+        ExpectBytes(offset, expected, length);
+    }
+
+    void ExpectResponse(bool include_timings)
+    {
+        ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ("application/octet-stream", m_ContentType);
+        uint32_t offset = 0;
+        ExpectString(&offset, include_timings ? "RES2" : "RESS");
+        ExpectString(&offset, "/test.profile");
+        ExpectString(&offset, ".profile");
+        uint32_t sizes_and_refs[] = { 256, sizeof(uint32_t), 1 };
+        ExpectBytes(&offset, sizes_and_refs, sizeof(sizes_and_refs));
+        if (include_timings)
+        {
+            const dmResource::LoadTimings& timings = m_Descriptor->m_LoadTimings;
+            uint32_t                       recorded = timings.m_Recorded ? 1 : 0;
+            uint64_t                       durations[] = { timings.m_Total, timings.m_Preload, timings.m_Read, timings.m_Create, timings.m_PostCreate, timings.m_Queue, timings.m_Wait };
+            ExpectBytes(&offset, &recorded, sizeof(recorded));
+            ExpectBytes(&offset, durations, sizeof(durations));
+            ExpectBytes(&offset, &timings.m_PostCreateCount, sizeof(timings.m_PostCreateCount));
+        }
+        ASSERT_EQ(offset + 1, m_Body.Size()); // Fetch appends a trailing zero outside the HTTP body.
+    }
+};
+
+// Existing clients must receive the unchanged RESS layout even when timing data is available.
+TEST_F(EngineServiceResourceTest, LegacyResources)
+{
+    Fetch("GET", "/resources_data");
+    ExpectResponse(false);
+}
+
+// RES2 must zero-extend 32-bit durations through UINT32_MAX into the existing 64-bit wire fields.
+TEST_F(EngineServiceResourceTest, ResourceTimings)
+{
+    Fetch("GET", "/resources_data?timings=1");
+    ExpectResponse(true);
+}
+
+// A completed zero-duration measurement must remain distinguishable from unavailable timing data.
+TEST_F(EngineServiceResourceTest, ZeroResourceTimings)
+{
+    memset(&m_Descriptor->m_LoadTimings, 0, sizeof(m_Descriptor->m_LoadTimings));
+    m_Descriptor->m_LoadTimings.m_Recorded = true;
+    Fetch("GET", "/resources_data?timings=1");
+    ExpectResponse(true);
+}
+
+// Unavailable timings still occupy a full RES2 record so the next resource starts at the correct byte.
+TEST_F(EngineServiceResourceTest, UnavailableResourceTimings)
+{
+    memset(&m_Descriptor->m_LoadTimings, 0, sizeof(m_Descriptor->m_LoadTimings));
+    Fetch("GET", "/resources_data?timings=1");
+    ExpectResponse(true);
 }
 
 #endif
