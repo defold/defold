@@ -62,7 +62,7 @@ foreach(_render_test IN ITEMS
   render_configure_test(${_render_test})
 endforeach()
 
-# Native GPU tests share culling/count/pixel coverage across available backends.
+# Native GPU tests share culling/count/pixel coverage across enabled backends.
 if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-macos$" AND "engine" IN_LIST DEFOLD_SELECTED_ENGINE_LIBS)
   add_custom_command(
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/test_visible_instances.spc"
@@ -76,6 +76,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-macos$" AND "engine" IN_LIST DEFOLD_
     VERBATIM)
   add_custom_target(render_gpu_test_shaders
     DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/test_visible_instances.spc" "${DEFOLD_BUILD_HOME}/engine/engine/build/${TARGET_PLATFORM}/content/materials/debug.spc")
+  defold_get_graphics_symbols(_render_gpu_graphics_symbols "${TARGET_PLATFORM}")
   foreach(_gpu_backend IN ITEMS metal vulkan webgpu)
     if(NOT TARGET graphics_${_gpu_backend})
       continue()
@@ -89,6 +90,9 @@ if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-macos$" AND "engine" IN_LIST DEFOLD_
     else()
       set(_gpu_target test_render_gpu_webgpu)
       set(_gpu_symbol GraphicsAdapterWebGPU)
+    endif()
+    if(NOT _gpu_symbol IN_LIST _render_gpu_graphics_symbols)
+      continue()
     endif()
     defold_create_exported_symbols_file("${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_${_gpu_target}.cpp" "${_gpu_symbol}")
     defold_add_executable(${_gpu_target}
