@@ -59,6 +59,8 @@ struct ResourceDescriptor
     uint32_t        m_ResourceSizeOnDisc;
     uint32_t        m_ReferenceCount;
     uint16_t        m_Version;
+
+    dmResource::LoadTimings m_LoadTimings;
 };
 
 struct ResourceType
@@ -94,6 +96,31 @@ struct ResourcePreloadHintInfo
 
 namespace dmResource
 {
+
+    enum LoadProfileStage
+    {
+        LOAD_PROFILE_QUEUE,
+        LOAD_PROFILE_READ,
+        LOAD_PROFILE_PRELOAD,
+        LOAD_PROFILE_CREATE,
+        LOAD_PROFILE_POST_CREATE,
+        LOAD_PROFILE_STAGE_COUNT
+    };
+
+    // Passed with a load request through the worker and any pending PostCreate calls.
+    struct LoadProfile
+    {
+        uint64_t m_StartTime;
+        uint64_t m_Time[LOAD_PROFILE_STAGE_COUNT];
+        uint32_t m_PostCreateCount;
+    };
+
+    uint64_t LoadProfileTime(const LoadProfile* profile);
+    void     LoadProfileBegin(LoadProfile* profile, bool enabled);
+    void     LoadProfileAddTime(LoadProfile* profile, LoadProfileStage stage, uint64_t start);
+    void     LogLoadProfile(const LoadProfile* profile, const char* name, Result result, LoadTimings* timings = 0);
+
+    bool   IsLoadProfilingEnabled(HFactory factory);
 
     Result CheckSuppliedResourcePath(const char* name);
 

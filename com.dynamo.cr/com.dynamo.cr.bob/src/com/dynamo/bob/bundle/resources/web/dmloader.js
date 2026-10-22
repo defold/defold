@@ -33,7 +33,7 @@
 *         Executable name which used for find right binary to load
 *
 *     'resize_window_callback':
-*         Function that is called when resize/orientationchanges/focus events happened
+*         Function called on resize, orientation, focus, fullscreen and device pixel ratio changes.
 *
 *     'start_success':
 *         Function that is called just before main is called upon successful load.
@@ -77,6 +77,8 @@ var CUSTOM_PARAMETERS = {
     },
     resize_window_prev_inner_width: -1,
     resize_window_prev_inner_height: -1,
+    resize_window_prev_pixel_ratio: -1,
+    resize_window_prev_fullscreen: false,
     resize_window_callback: function() {
         var is_iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         var buttonHeight = 0;
@@ -95,13 +97,23 @@ var CUSTOM_PARAMETERS = {
         var game_canvas = document.getElementById('canvas');
         var innerWidth = window.innerWidth;
         var innerHeight = window.innerHeight - buttonHeight;
+        var dpi = Module["getPixelRatio"]({{display.high_dpi}});
+        var fullscreen = !!(document.fullscreenElement || document.fullScreen || document.mozFullScreen ||
+                            document.webkitIsFullScreen || document.msIsFullScreen);
+        if (innerWidth <= 0 || innerHeight <= 0) {
+            return;
+        }
         if (CUSTOM_PARAMETERS.resize_window_prev_inner_width == innerWidth &&
-            CUSTOM_PARAMETERS.resize_window_prev_inner_height == innerHeight)
+            CUSTOM_PARAMETERS.resize_window_prev_inner_height == innerHeight &&
+            CUSTOM_PARAMETERS.resize_window_prev_pixel_ratio == dpi &&
+            CUSTOM_PARAMETERS.resize_window_prev_fullscreen == fullscreen)
         {
             return;
         }
         CUSTOM_PARAMETERS.resize_window_prev_inner_width = innerWidth;
         CUSTOM_PARAMETERS.resize_window_prev_inner_height = innerHeight;
+        CUSTOM_PARAMETERS.resize_window_prev_pixel_ratio = dpi;
+        CUSTOM_PARAMETERS.resize_window_prev_fullscreen = fullscreen;
         var width = {{display.width}};
         var height = {{display.height}};
         var targetRatio = width / height;
@@ -156,14 +168,13 @@ var CUSTOM_PARAMETERS = {
         app_container.style.marginLeft = margin_left + "px";
         app_container.style.marginTop = margin_top + "px";
     {{/DEFOLD_SCALE_MODE_IS_NO_SCALE}}
-        var dpi = 1;
-    {{#display.high_dpi}}
-        dpi = window.devicePixelRatio || 1;
-    {{/display.high_dpi}}
         app_container.style.width = width + "px";
         app_container.style.height = height + buttonHeight + "px";
-        game_canvas.width = Math.floor(width * dpi);
-        game_canvas.height = Math.floor(height * dpi);
+        // Fullscreen uses the whole viewport, matching the browser backend.
+        var canvasWidth = Math.max(1, Math.floor((fullscreen ? window.innerWidth : width) * dpi));
+        var canvasHeight = Math.max(1, Math.floor((fullscreen ? window.innerHeight : height) * dpi));
+        if (game_canvas.width != canvasWidth) game_canvas.width = canvasWidth;
+        if (game_canvas.height != canvasHeight) game_canvas.height = canvasHeight;
     }
 };
 
@@ -606,6 +617,37 @@ var EngineLoader = {
         }
     },
 
+    setupResizeCallback: function() {
+        var callback = CUSTOM_PARAMETERS["resize_window_callback"];
+        if (typeof callback !== "function") return;
+
+        callback();
+        window.addEventListener('resize', callback, false);
+        window.addEventListener('orientationchange', callback, false);
+        window.addEventListener('focus', callback, false);
+        for (var event of ['fullscreenchange', 'mozfullscreenchange', 'webkitfullscreenchange', 'MSFullscreenChange']) {
+            document.addEventListener(event, callback, false);
+        }
+
+        // Moving between displays can change DPR without changing the CSS viewport.
+        // Watch the current resolution again after every change.
+        var mediaQuery;
+        var watchPixelRatio = function() {
+            if (mediaQuery) {
+                if (mediaQuery.removeEventListener) mediaQuery.removeEventListener('change', onPixelRatioChange);
+                else mediaQuery.removeListener(onPixelRatioChange);
+            }
+            mediaQuery = window.matchMedia('(resolution: ' + (window.devicePixelRatio || 1) + 'dppx)');
+            if (mediaQuery.addEventListener) mediaQuery.addEventListener('change', onPixelRatioChange);
+            else mediaQuery.addListener(onPixelRatioChange);
+        };
+        var onPixelRatioChange = function() {
+            watchPixelRatio();
+            callback();
+        };
+        watchPixelRatio();
+    },
+
     // Public entry point used by built-in and custom HTML templates.
     load: function(appCanvasId, exeName) {
         if (typeof CUSTOM_PARAMETERS["update_progress"] === "function") {
@@ -622,13 +664,7 @@ var EngineLoader = {
 
         // move resize callback setup here to make possible to override callback
         // from outside of dmloader.js
-        if (typeof CUSTOM_PARAMETERS["resize_window_callback"] === "function") {
-            var callback = CUSTOM_PARAMETERS["resize_window_callback"];
-            callback();
-            window.addEventListener('resize', callback, false);
-            window.addEventListener('orientationchange', callback, false);
-            window.addEventListener('focus', callback, false);
-        }
+        EngineLoader.setupResizeCallback();
         return ready;
     }
 };
@@ -1122,6 +1158,17 @@ var Module = {
     engineVersion: "{{DEFOLD_ENGINE_VERSION}}",
     engineSdkSha1: "{{DEFOLD_SDK_SHA1}}",
     noInitialRun: true,
+
+    // Shared with the browser backend so fullscreen and display scale use the same rendering ratio.
+    getPixelRatio: function(highDPI) {
+        if (!highDPI) return 1;
+        var ratio = window.devicePixelRatio || 1;
+        var minRatio = {{DEFOLD_MIN_PIXEL_RATIO}};
+        var maxRatio = {{DEFOLD_MAX_PIXEL_RATIO}};
+        if (minRatio > 0) ratio = Math.max(ratio, minRatio);
+        if (maxRatio > 0) ratio = Math.min(ratio, maxRatio);
+        return ratio;
+    },
 
     _filesToPreload: [],
     _preLoadDone: false,
