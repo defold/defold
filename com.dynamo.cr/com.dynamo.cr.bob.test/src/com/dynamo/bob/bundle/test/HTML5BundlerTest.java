@@ -229,8 +229,8 @@ public class HTML5BundlerTest {
                 String html = Files.readString(new File(appDir, "index.html").toPath());
                 assertEquals("<title>" + title.replace("&", "&amp;") + "</title>\n" + binaryName + "\n" + binaryName, html);
                 String loader = Files.readString(new File(appDir, "dmloader.js").toPath());
-                assertTrue(loader.contains("\"" + binaryName + ".wasm\""));
-                assertTrue(loader.contains("\"" + binaryName + "_pthread.wasm\""));
+                // The loader builds variant-specific WASM filenames from the sanitized executable name.
+                assertTrue(loader.contains("EngineLoader.selectEngine(\"" + binaryName + "\")"));
                 assertEquals(title, properties.getStringValue("project", "title"));
             }
         }
