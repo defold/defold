@@ -2250,6 +2250,8 @@ form.help.project.display.display_device_info = Logs graphics device details at 
 
 form.label.project.engine = Engine
 form.help.project.engine = Runtime settings for the engine
+form.label.project.engine.datastore = Datastore
+form.help.project.engine.datastore = Enables the experimental datastore and its scheduler. When disabled, the engine creates no datastore or datastore worker threads, and native extensions receive no datastore context. Enabled by default.
 form.label.project.engine.run_while_iconified = Run While Iconified
 form.help.project.engine.run_while_iconified = Keeps updates and sound running while the application window is minimized; rendering remains paused. When disabled, updates and sound also pause until the window is restored. Desktop platforms only.
 form.label.project.engine.fixed_update_frequency = Fixed Update Frequency

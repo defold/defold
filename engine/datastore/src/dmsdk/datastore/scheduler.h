@@ -80,9 +80,10 @@ extern "C"
 
 /*# Before game-object updates
  *
- * Registered by the engine in its DATASTORE_CONTEXT_NAME store. Each frame, after
- * input dispatch and before game-object updates, the engine starts a schedule and
- * signals this event. It waits for submitted functions and their dependents before
+ * Registered in the engine's DATASTORE_CONTEXT_NAME store when engine.datastore
+ * is enabled (the default). After input dispatch and before game-object updates,
+ * the engine starts a schedule and signals this event. It waits for submitted
+ * functions and their dependents before
  * updating components. Callbacks run on a dedicated engine job context; do not access game
  * objects or Lua from workers. This does not refresh world transforms.
  * This macro computes the event hash; cache it during initialization when signaling

@@ -305,6 +305,23 @@ TEST_F(EngineTest, DatastoreContext)
     ASSERT_TRUE(g_DatastoreContextTest.m_AppFinalize);
 }
 
+static void PreRunDatastoreDisabled(dmEngine::HEngine engine, void* context)
+{
+    ASSERT_NE((dmEngine::HEngine)0, engine);
+    EXPECT_EQ((HDSContext)0, engine->m_DataStore);
+    EXPECT_EQ((HJobContext)0, engine->m_DataStoreJobs);
+    EXPECT_EQ((void*)0, ContextRegistryGet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME));
+}
+
+// Disabling the datastore omits its context and workers while allowing the
+// normal frame loop and extension shutdown to complete without a store.
+TEST_F(EngineTest, DatastoreDisabled)
+{
+    char        project_path[256];
+    const char* argv[] = { "test_engine", "--config=dmengine.unload_builtins=0", "--config=engine.datastore=0", MAKE_PATH(project_path, "/game.projectc") };
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, PreRunDatastoreDisabled, 0, 0));
+}
+
 static void UpdateScheduledHealth(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
 {
     DatastoreScheduleTest* state = (DatastoreScheduleTest*)context;

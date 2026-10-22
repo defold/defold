@@ -683,6 +683,18 @@ Every named prerequisite must be registered as a function or event.
 
 ### Engine events
 
+`engine.datastore` defaults to `1`. Set it to `0` in `game.project` to disable
+the engine-owned datastore, its worker threads and per-frame scheduling:
+
+```ini
+[engine]
+datastore = 0
+```
+
+When disabled, looking up `DATASTORE_CONTEXT_NAME` returns null. Extensions that
+use the engine store must handle its absence. Standalone stores created with
+`DSCreateStore` are unaffected.
+
 The engine-owned `DATASTORE_CONTEXT_NAME` store registers
 `DS_EVENT_GAMEOBJECT_PRE_UPDATE`, the hash of `"engine.gameobject.pre_update"`. Depend on it
 to run after input dispatch and before game-object component updates:

@@ -61,6 +61,8 @@ extern "C"
  * Registry name for the engine-owned [type:HDSContext], available from extension
  * app initialization through app finalization. Borrow the store; do not destroy
  * it. Finish jobs and release your queries and tables before finalization ends.
+ * Setting engine.datastore to 0 disables creation; context lookup returns NULL.
+ * The default is 1 (enabled).
  *
  * @constant
  * @name DATASTORE_CONTEXT_NAME

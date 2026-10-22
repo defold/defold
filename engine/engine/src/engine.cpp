@@ -432,7 +432,7 @@ namespace dmEngine
         , m_MainCollectionResource(0)
         , m_LastReloadMTime(0)
         , m_MouseSensitivity(1.0f)
-        , m_DataStore(DSCreateStore(0))
+        , m_DataStore(0)
         , m_DataStoreJobs(0)
         , m_DataStorePreUpdate(DS_EVENT_GAMEOBJECT_PRE_UPDATE)
         , m_GraphicsContext(0)
@@ -487,9 +487,6 @@ namespace dmEngine
         m_DependenciesJsonSize = 0;
         m_ContextRegistry = ContextRegistryCreate();
         dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
-
-        DSEventDesc event = { .m_Name = m_DataStorePreUpdate };
-        DSRegisterEvent(m_DataStore, &event);
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -639,7 +636,8 @@ namespace dmEngine
         ContextRegistrySet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME, 0);
         if (engine->m_DataStoreJobs)
             JobSystemDestroy(engine->m_DataStoreJobs);
-        DSDestroyStore(engine->m_DataStore);
+        if (engine->m_DataStore)
+            DSDestroyStore(engine->m_DataStore);
 
         ContextRegistryDestroy(engine->m_ContextRegistry);
         engine->m_ContextRegistry = 0;
@@ -1209,9 +1207,16 @@ namespace dmEngine
         job_thread_create_param.m_ThreadCount       = 1;
         engine->m_JobThreadContext                  = JobSystemCreate(&job_thread_create_param);
 
-        // Frame-critical queries must not wait behind resource streaming jobs.
-        JobSystemCreateParams datastore_jobs = { .m_ThreadNamePrefix = "Datastore", .m_ThreadCount = 2 };
-        engine->m_DataStoreJobs = JobSystemCreate(&datastore_jobs);
+        if (dmConfigFile::GetInt(engine->m_Config, "engine.datastore", 1))
+        {
+            engine->m_DataStore = DSCreateStore(0);
+            DSEventDesc event = { .m_Name = engine->m_DataStorePreUpdate };
+            DSRegisterEvent(engine->m_DataStore, &event);
+
+            // Frame-critical queries must not wait behind resource streaming jobs.
+            JobSystemCreateParams datastore_jobs = { .m_ThreadNamePrefix = "Datastore", .m_ThreadCount = 2 };
+            engine->m_DataStoreJobs = JobSystemCreate(&datastore_jobs);
+        }
 
         PopulateContextRegistry(engine);
 
@@ -2123,7 +2128,8 @@ bail:
                     dmGameObject::DispatchInput(GetMainCollection(engine), &input_buffer[0], input_buffer.Size());
                 }
 
-                UpdateDataStore(engine);
+                if (engine->m_DataStore)
+                    UpdateDataStore(engine);
 
                 dmGameObject::UpdateContext update_context;
                 update_context.m_TimeScale = 1.0f;
