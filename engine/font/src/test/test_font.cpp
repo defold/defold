@@ -6763,6 +6763,46 @@ TEST_F(FontTest, LayoutRequiresResolverForResourceObjects)
 }
 
 #if defined(FONT_USE_SKRIBIDI)
+// Emoji fallback must shape complete keycaps while keeping bare digits in the original text font.
+TEST_F(FontTest, SkribidiKeycapEmojiFallback)
+{
+    HFont text_font = 0, color_font = 0, mono_font = 0;
+    LoadFont("src/test/data/NotoSans-Regular.ttf", &text_font);
+    LoadFont("src/test/data/NotoColorEmoji-Regular.ttf", &color_font);
+    LoadFont("src/test/data/NotoEmoji-Regular.ttf", &mono_font);
+    HFontCollection collection = FontCollectionCreate();
+    FontCollectionAddFont(collection, text_font);
+    FontCollectionAddFont(collection, color_font);
+    FontCollectionAddFont(collection, mono_font);
+    uint32_t           text[] = { '1', '#', '1', 0xfe0f, 0x20e3, '#', 0xfe0f, 0x20e3, '*', 0xfe0f, 0x20e3 };
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32;
+    settings.m_Leading = 1;
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        const bool color = pass != 1;
+        FontCollectionSetColorEmojiEnabled(collection, color);
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, text, DM_ARRAY_SIZE(text), &settings, &layout));
+        ASSERT_GE(TextLayoutGetGlyphCount(layout), 5u);
+        if (color)
+            ASSERT_EQ(5u, TextLayoutGetGlyphCount(layout));
+        const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+        ASSERT_EQ(text_font, glyphs[0].m_Font);
+        ASSERT_EQ(text_font, glyphs[1].m_Font);
+        for (uint32_t i = 2; i < TextLayoutGetGlyphCount(layout); ++i)
+        {
+            EXPECT_EQ(color ? color_font : mono_font, glyphs[i].m_Font);
+            EXPECT_EQ(2u, glyphs[i].m_Cluster % 3);
+        }
+        TextLayoutRelease(layout);
+    }
+    FontCollectionDestroy(collection);
+    FontDestroy(text_font);
+    FontDestroy(color_font);
+    FontDestroy(mono_font);
+}
+
 // Production collections select a supplied outline emoji font for both raster
 // modes, including after switching back from color and adding fonts at runtime.
 TEST_F(FontTest, SkribidiMonochromeEmojiFallback)
