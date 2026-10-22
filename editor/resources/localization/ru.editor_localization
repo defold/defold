@@ -1215,7 +1215,6 @@ property.appmanifest.physics-3d.tooltip = Включает движок 3D-фи�
 property.appmanifest.rig+model = Rig + модель
 property.appmanifest.rig+model.tooltip = Выберите, включать ли отрисовку моделей и скелетную анимацию вместе, только скелетную анимацию либо ни одну из этих возможностей. Исключение неиспользуемых возможностей уменьшает размер движка.
 property.appmanifest.exclude-record = Отключить запись
-property.appmanifest.exclude-record.tooltip = Удаляет поддержку записи видео на настольных платформах, используемую системным сообщением `start_record`. Включите, если проект не записывает игровой процесс, чтобы уменьшить размер движка.
 property.appmanifest.profiler = Профайлер
 property.appmanifest.profiler.tooltip = Выберите, какие сборки включают профайлер. **Debug Only** исключает его из релизных сборок, **None** исключает полностью, а **Always** включает и в релизные сборки.
 property.appmanifest.exclude-sound = Отключить звук
