@@ -51,7 +51,6 @@ var LibraryDefoldPlatform = {
     prevNonFSHeight: 0,
     isFullscreen: false,
     isPointerLocked: false,
-    dpi: 1,
     mouseTouchId:null,
 
 /*******************************************************************************
@@ -805,8 +804,6 @@ var LibraryDefoldPlatform = {
     DefoldPlatform.params[19] = 0; // WINDOW_STATE_FSAA_SAMPLES
     DefoldPlatform.params[21] = 0; // WINDOW_STATE_HIGH_DPI
 
-    DefoldPlatform.dpi = 1;
-
     DefoldPlatform.keys = new Array();
 
     DefoldPlatform.NATIVE_PHASE_BEGAN = 0;
@@ -890,7 +887,6 @@ var LibraryDefoldPlatform = {
 
     DefoldPlatform.params[19] = samples; // WINDOW_STATE_FSAA_SAMPLES
     DefoldPlatform.params[21] = highDPI; // WINDOW_STATE_HIGH_DPI
-    DefoldPlatform.dpi = highDPI ? (window.devicePixelRatio || 1) : 1;
     if(useWebGL) {
         var contextAttributes = {
             antialias: (DefoldPlatform.params[19] > 1), // WINDOW_STATE_FSAA_SAMPLES
@@ -955,10 +951,7 @@ var LibraryDefoldPlatform = {
     var height = Module['canvas'].height;
 
     if (DefoldPlatform.isFullscreen) {
-      // Custom/older loaders may not provide the rendering ratio helper.
-      var dpi = typeof Module['getPixelRatio'] === 'function'
-        ? Module['getPixelRatio'](DefoldPlatform.params[21]) // WINDOW_STATE_HIGH_DPI
-        : DefoldPlatform.dpi;
+      var dpi = Module['getPixelRatio'](DefoldPlatform.params[21]); // WINDOW_STATE_HIGH_DPI
       width = Math.max(1, Math.floor(window.innerWidth * dpi));
       height = Math.max(1, Math.floor(window.innerHeight * dpi));
     }
@@ -1237,9 +1230,7 @@ var LibraryDefoldPlatform = {
 
   dmNativeGetDisplayScaleFactor: function() {
     // Match the canvas rendering ratio so pixel-ratio limits do not change camera zoom.
-    return typeof Module['getPixelRatio'] === 'function'
-      ? Module['getPixelRatio'](DefoldPlatform.params[21]) // WINDOW_STATE_HIGH_DPI
-      : DefoldPlatform.dpi;
+    return Module['getPixelRatio'](DefoldPlatform.params[21]); // WINDOW_STATE_HIGH_DPI
   }
 };
 

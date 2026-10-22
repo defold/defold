@@ -31,7 +31,11 @@ function loadEnvironment() {
         Module: {},
         MainLoop: { currentFrameNumber: 1 },
         navigator: { getGamepads: () => [] },
-        window: { addEventListener() {}, removeEventListener() {} },
+        window: {
+            addEventListener() {},
+            removeEventListener() {},
+            matchMedia: () => ({ addEventListener() {}, removeEventListener() {} })
+        },
         document: {
             fullscreenElement: null,
             addEventListener(type, callback) {
@@ -165,15 +169,6 @@ function testLoaderPixelRatioBounds() {
     }
 }
 
-// Verify older/custom loaders without a pixel-ratio helper retain their existing display scale and High DPI behavior.
-function testDisplayScaleWithoutLoaderPixelRatio() {
-    for (const highDPI of [false, true]) {
-        const context = loadResizeEnvironment({ "display.high_dpi": highDPI });
-        delete context.Module.getPixelRatio;
-        assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetDisplayScaleFactor(), highDPI ? 3 : 1);
-    }
-}
-
 // Verify all four scale modes retain their CSS layout while applying the cap, including fractional backing dimensions.
 function testLoaderPixelRatioScaleModes() {
     for (const [mode, viewport, css, pixels] of [
@@ -263,13 +258,6 @@ function testLoaderFullscreenPixelRatio() {
     context.resize();
     assert.deepStrictEqual(context.resizes, [[960, 720], [1350, 1050], [900, 700], [640, 480]]);
     assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetDisplayScaleFactor(), 1);
-
-    // Hosts with an older/custom loader keep the existing fullscreen scaling fallback.
-    delete context.Module.getPixelRatio;
-    context.DefoldPlatform.isFullscreen = true;
-    context.LibraryDefoldPlatform.dmNativeSwapBuffers();
-    assert.deepStrictEqual(context.resizes.at(-1), [2700, 2100]);
-    assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetDisplayScaleFactor(), 3);
 
     // Fullscreen changes that keep the same backing dimensions must not emit another resize.
     const unchanged = loadResizeEnvironment({ DEFOLD_MAX_PIXEL_RATIO: 1.5 });
@@ -553,7 +541,7 @@ async function runTests() {
     for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderArchiveConcurrency,
                        testLoaderArchiveBufferOwnership,
-                       testLoaderPixelRatioBounds, testDisplayScaleWithoutLoaderPixelRatio, testLoaderPixelRatioScaleModes,
+                       testLoaderPixelRatioBounds, testLoaderPixelRatioScaleModes,
                        testLoaderPixelRatioChanges, testLoaderFullscreenPixelRatio,
                        testTouchMouseSources, testMixedTouchAndMouseSources]) {
         try {

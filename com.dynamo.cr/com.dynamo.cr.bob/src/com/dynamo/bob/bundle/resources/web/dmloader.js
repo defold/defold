@@ -544,23 +544,21 @@ var EngineLoader = {
 
         // Moving between displays can change DPR without changing the CSS viewport.
         // Watch the current resolution again after every change.
-        if (typeof window.matchMedia === "function") {
-            var mediaQuery;
-            var watchPixelRatio = function() {
-                if (mediaQuery) {
-                    if (mediaQuery.removeEventListener) mediaQuery.removeEventListener('change', onPixelRatioChange);
-                    else mediaQuery.removeListener(onPixelRatioChange);
-                }
-                mediaQuery = window.matchMedia('(resolution: ' + (window.devicePixelRatio || 1) + 'dppx)');
-                if (mediaQuery.addEventListener) mediaQuery.addEventListener('change', onPixelRatioChange);
-                else mediaQuery.addListener(onPixelRatioChange);
-            };
-            var onPixelRatioChange = function() {
-                watchPixelRatio();
-                callback();
-            };
+        var mediaQuery;
+        var watchPixelRatio = function() {
+            if (mediaQuery) {
+                if (mediaQuery.removeEventListener) mediaQuery.removeEventListener('change', onPixelRatioChange);
+                else mediaQuery.removeListener(onPixelRatioChange);
+            }
+            mediaQuery = window.matchMedia('(resolution: ' + (window.devicePixelRatio || 1) + 'dppx)');
+            if (mediaQuery.addEventListener) mediaQuery.addEventListener('change', onPixelRatioChange);
+            else mediaQuery.addListener(onPixelRatioChange);
+        };
+        var onPixelRatioChange = function() {
             watchPixelRatio();
-        }
+            callback();
+        };
+        watchPixelRatio();
     },
 
     // left as entrypoint for backward capability
