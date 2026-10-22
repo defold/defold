@@ -34,11 +34,11 @@ namespace dmEngineService
     struct GPUTrace
     {
         GPUTraceState m_State;
-        uint32_t      m_Frames;
-        uint32_t      m_FramesCaptured;
-        bool          m_StopRequested;
-        char          m_Path[1024];
-        char          m_Error[512];
+        uint32_t m_Frames;
+        uint32_t m_FramesCaptured;
+        bool m_StopRequested;
+        char m_Path[1024];
+        char m_Error[512];
     };
 
     void GPUTraceRequest(void* context, dmWebServer::Request* request);

@@ -31,7 +31,7 @@ namespace dmEngineService
     {
         // Callers supply fixed error codes and messages. Native errors are serialized with capture status.
         char response[512];
-        int  length = dmSnPrintf(response, sizeof(response), "{\"ok\":false,\"error\":{\"status\":%d,\"code\":\"%s\",\"message\":\"%s\"}}", status, code, message);
+        int length = dmSnPrintf(response, sizeof(response), "{\"ok\":false,\"error\":{\"status\":%d,\"code\":\"%s\",\"message\":\"%s\"}}", status, code, message);
         dmWebServer::SetStatusCode(request, status);
         dmWebServer::SendAttribute(request, "Content-Type", "application/json");
         dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
@@ -84,7 +84,7 @@ namespace dmEngineService
         }
         NSDictionary* response = [NSDictionary dictionaryWithObjectsAndKeys:
                                                [NSNumber numberWithBool:YES], @"ok", status, @"data", nil];
-        NSData*       json = [NSJSONSerialization dataWithJSONObject:response options:0 error:nil];
+        NSData* json = [NSJSONSerialization dataWithJSONObject:response options:0 error:nil];
         dmWebServer::SetStatusCode(request, 200);
         dmWebServer::SendAttribute(request, "Content-Type", "application/json");
         dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
@@ -103,7 +103,7 @@ namespace dmEngineService
             return false;
 
         const char* text = [[value description] UTF8String];
-        uint32_t    result = 0;
+        uint32_t result = 0;
         for (const char* p = text; *p; ++p)
         {
             if (*p < '0' || *p > '9')
@@ -124,7 +124,7 @@ namespace dmEngineService
         if (body_size)
         {
             NSData* data = [NSData dataWithBytes:body length:body_size];
-            id      json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
             if (![json isKindOfClass:[NSDictionary class]])
             {
                 SendError(request, 400, "bad_request", "provide a JSON object");
@@ -133,7 +133,7 @@ namespace dmEngineService
             [params addEntriesFromDictionary:json];
         }
 
-        NSString*        resource = [NSString stringWithUTF8String:request->m_Resource];
+        NSString* resource = [NSString stringWithUTF8String:request->m_Resource];
         NSURLComponents* url = resource ? [NSURLComponents componentsWithString:resource] : nil;
         if (!url)
         {
@@ -151,7 +151,7 @@ namespace dmEngineService
             SendError(request, 400, "bad_request", "provide an absolute path ending in .gputrace");
             return false;
         }
-        NSUInteger  path_size = [path lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+        NSUInteger path_size = [path lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
         const char* path_text = [path UTF8String];
         if (memchr(path_text, 0, path_size))
         {
@@ -186,26 +186,22 @@ namespace dmEngineService
 
     void GPUTraceRequest(void* context, dmWebServer::Request* request)
     {
-        // Bound allocations and consume the entire body, including on rejected requests.
         const uint32_t max_body_size = 64 * 1024;
-        dmArray<char>  body;
-        if (request->m_ContentLength <= max_body_size)
-            body.SetCapacity(request->m_ContentLength);
-        char     discard[256];
+        if (request->m_ContentLength > max_body_size)
+        {
+            // Do not block the engine waiting for a body that will be rejected.
+            dmWebServer::CloseConnection(request);
+            SendError(request, 413, "request_too_large", "request body exceeds 65536 bytes");
+            return;
+        }
+        dmArray<char> body;
+        body.SetCapacity(request->m_ContentLength);
         uint32_t offset = 0;
         while (offset < request->m_ContentLength)
         {
             uint32_t remaining = request->m_ContentLength - offset;
             uint32_t received = 0;
-            uint32_t count = remaining;
-            char*    destination = discard;
-            if (request->m_ContentLength <= max_body_size)
-                destination = body.Begin() + offset;
-            else
-            {
-                count = remaining < sizeof(discard) ? remaining : sizeof(discard);
-            }
-            if (dmWebServer::Receive(request, destination, count, &received) != dmWebServer::RESULT_OK || received == 0)
+            if (dmWebServer::Receive(request, body.Begin() + offset, remaining, &received) != dmWebServer::RESULT_OK || received == 0)
             {
                 SendError(request, 400, "bad_request", "could not read request body");
                 return;
@@ -222,11 +218,6 @@ namespace dmEngineService
         if (!dmStrEq(request->m_Method, "GET") && !dmStrEq(request->m_Method, "POST") && !dmStrEq(request->m_Method, "DELETE"))
         {
             SendError(request, 405, "method_not_allowed", "use GET, POST or DELETE");
-            return;
-        }
-        if (request->m_ContentLength > max_body_size)
-        {
-            SendError(request, 413, "request_too_large", "request body exceeds 65536 bytes");
             return;
         }
         GPUTrace* trace = (GPUTrace*)context;
@@ -269,8 +260,8 @@ namespace dmEngineService
 
         @autoreleasepool
         {
-            NSWindow*     window = (NSWindow*)dmGraphics::GetNativeOSXNSWindow();
-            NSView*       view = [window contentView];
+            NSWindow* window = (NSWindow*)dmGraphics::GetNativeOSXNSWindow();
+            NSView* view = [window contentView];
             CAMetalLayer* layer = [[view layer] isKindOfClass:[CAMetalLayer class]] ? (CAMetalLayer*)[view layer] : nil;
             id<MTLDevice> device = [layer device];
             if (!device)
@@ -284,7 +275,7 @@ namespace dmEngineService
             descriptor.destination = MTLCaptureDestinationGPUTraceDocument;
             descriptor.outputURL = [NSURL fileURLWithPath:[NSString stringWithUTF8String:trace->m_Path]];
             NSError* error = nil;
-            BOOL     started = [[MTLCaptureManager sharedCaptureManager] startCaptureWithDescriptor:descriptor error:&error];
+            BOOL started = [[MTLCaptureManager sharedCaptureManager] startCaptureWithDescriptor:descriptor error:&error];
             [descriptor release];
             if (!started)
             {

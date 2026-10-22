@@ -113,11 +113,13 @@ public:
     dmArray<char> m_Body;
     char m_ContentType[64];
     char m_Allow[32];
+    char m_Connection[16];
     int m_Status;
     int32_atomic_t m_Done;
     const char* m_Method;
     const char* m_Path;
     const char* m_RequestBody;
+    bool m_SendRequestBody;
     dmHttpClient::Result m_Result;
 
     void SetUp()
@@ -144,6 +146,8 @@ public:
             dmStrlCpy(self->m_ContentType, value, sizeof(self->m_ContentType));
         if (dmStrCaseCmp(key, "Allow") == 0)
             dmStrlCpy(self->m_Allow, value, sizeof(self->m_Allow));
+        if (dmStrCaseCmp(key, "Connection") == 0)
+            dmStrlCpy(self->m_Connection, value, sizeof(self->m_Connection));
     }
 
     static void Content(dmHttpClient::HResponse, void* context, int status, const void* data, uint32_t size,
@@ -188,17 +192,22 @@ public:
 
     static dmHttpClient::Result Write(dmHttpClient::HResponse response, uint32_t offset, uint32_t length, void* context)
     {
-        return dmHttpClient::Write(response, ((EngineServiceOpenAPITest*)context)->m_RequestBody + offset, length);
+        EngineServiceOpenAPITest* self = (EngineServiceOpenAPITest*)context;
+        if (!self->m_SendRequestBody)
+            return dmHttpClient::RESULT_OK;
+        return dmHttpClient::Write(response, self->m_RequestBody + offset, length);
     }
 
-    void Fetch(const char* method, const char* path, const char* body = "")
+    void Fetch(const char* method, const char* path, const char* body = "", bool send_body = true)
     {
         m_Method = method;
         m_Path = path;
         m_RequestBody = body;
+        m_SendRequestBody = send_body;
         m_Status = 0;
         m_ContentType[0] = 0;
         m_Allow[0] = 0;
+        m_Connection[0] = 0;
         m_Body.SetSize(0);
         dmAtomicStore32(&m_Done, 0);
         dmThread::Thread client = dmThread::New(Request, 0x80000, this, "openapi-client");
@@ -252,8 +261,8 @@ TEST_F(EngineServiceOpenAPITest, GPUTraceRegistration)
     dmEngineService::InitProfiler(m_Service, 0, 0); // Reboot reuses the service.
     Fetch("GET", "/openapi.json");
     ASSERT_EQ(200, m_Status);
-    const char*          key = "\"/profiler/gputrace\":";
-    const char*          occurrence = strstr(m_Body.Begin(), key);
+    const char* key = "\"/profiler/gputrace\":";
+    const char* occurrence = strstr(m_Body.Begin(), key);
     dmWebServer::HServer server = dmEngineService::GetWebServer(m_Service);
 #if defined(DM_PLATFORM_MACOS)
     ASSERT_NE((const char*)0, occurrence);
@@ -295,7 +304,7 @@ TEST_F(EngineServiceOpenAPITest, GPUTraceRouting)
     ASSERT_EQ(501, m_Status);
 }
 
-// Bounded request bodies are rejected without corrupting the server's following request.
+// Oversized bodies are rejected and closed even when only headers arrive, without blocking subsequent requests.
 TEST_F(EngineServiceOpenAPITest, GPUTraceBodyLimit)
 {
     dmEngineService::InitProfiler(m_Service, 0, 0);
@@ -304,12 +313,16 @@ TEST_F(EngineServiceOpenAPITest, GPUTraceBodyLimit)
     body.SetSize(body.Capacity());
     memset(body.Begin(), ' ', body.Capacity() - 1);
     body[body.Capacity() - 1] = 0;
-    Fetch("POST", "/profiler/gputrace", body.Begin());
-    ASSERT_EQ(413, m_Status);
-    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"code\":\"request_too_large\""));
-    Fetch("GET", "/ping");
-    ASSERT_EQ(200, m_Status);
-    ASSERT_STREQ("PONG\n", m_Body.Begin());
+    for (uint32_t send_body = 0; send_body < 2; ++send_body)
+    {
+        Fetch("POST", "/profiler/gputrace", body.Begin(), send_body != 0);
+        ASSERT_EQ(413, m_Status);
+        ASSERT_STREQ("close", m_Connection);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"code\":\"request_too_large\""));
+        Fetch("GET", "/ping");
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ("PONG\n", m_Body.Begin());
+    }
 }
 #endif
 
