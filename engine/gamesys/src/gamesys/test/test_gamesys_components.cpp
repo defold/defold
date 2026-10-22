@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include "../scripts/script_window.h"
 
 using namespace dmVMath;
 
@@ -1311,6 +1312,27 @@ TEST_F(WindowTest, MouseLock)
     dmHID::Final(hid_context);
     dmHID::DeleteContext(hid_context);
     dmPlatform::DeleteWindow(window);
+}
+
+// Verifies the Lua API returns fresh, empty arrays on the null backend, with no synthetic safe-area regions.
+TEST(ScriptWindowTest, ReservedAreas)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_LuaState = luaL_newstate();
+    luaL_openlibs(scriptlibcontext.m_LuaState);
+    scriptlibcontext.m_Window = WindowNew();
+    dmGameSystem::ScriptWindowRegister(scriptlibcontext);
+
+    EXPECT_TRUE(RunString(scriptlibcontext.m_LuaState,
+        "local areas = window.get_reserved_areas()\n"
+        "assert(type(areas) == 'table' and next(areas) == nil)\n"
+        "areas[1] = { x = 1, y = 2, width = 3, height = 4 }\n"
+        "local next_areas = window.get_reserved_areas()\n"
+        "assert(areas ~= next_areas and next(next_areas) == nil)\n"));
+
+    dmGameSystem::ScriptWindowFinalize(scriptlibcontext);
+    WindowDelete(scriptlibcontext.m_Window);
+    lua_close(scriptlibcontext.m_LuaState);
 }
 
 TEST_F(WindowTest, Events)
