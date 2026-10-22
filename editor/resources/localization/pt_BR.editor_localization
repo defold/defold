@@ -1214,7 +1214,6 @@ property.appmanifest.physics-3d = Física 3D
 property.appmanifest.physics-3d.tooltip = Incluir o motor de física Bullet 3D. Desative isso quando o projeto não usa física 3D para reduzir o tamanho do motor.
 property.appmanifest.rig+model = Rig + Modelo
 property.appmanifest.exclude-record = Excluir Registro
-property.appmanifest.exclude-record.tooltip = Remova o suporte de gravação de vídeo na área de trabalho usado pela mensagem do sistema `start_record`. Ative esta opção quando o projeto não grava vídeos para reduzir o tamanho do motor.
 property.appmanifest.profiler = Perfilador
 property.appmanifest.profiler.tooltip = Escolha quais compilações incluem a funcionalidade do perfilador. **Somente Depurar** exclui isso das compilações de lançamento, **Nenhum** exclui completamente e **Sempre** também o inclui nas compilações de lançamento.
 property.appmanifest.exclude-sound = Excluir Som
