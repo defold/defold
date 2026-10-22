@@ -14,9 +14,7 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -49,7 +47,6 @@ import com.dynamo.gamesys.proto.Gui.NodeDesc.Type;
 import com.dynamo.gamesys.proto.Gui.SceneDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.FontDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.ParticleFXDesc;
-import com.dynamo.gamesys.proto.Gui.SceneDesc.SpineSceneDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.LayerDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.LayoutDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.TextureDesc;
@@ -57,7 +54,7 @@ import com.dynamo.gamesys.proto.Gui.SceneDesc.MaterialDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.ResourceDesc;
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.Descriptors.FieldDescriptor;
-import com.google.protobuf.TextFormat;
+import com.google.protobuf.MessageOrBuilder;
 
 import org.apache.commons.io.FilenameUtils;
 
@@ -65,6 +62,13 @@ import org.apache.commons.io.FilenameUtils;
 @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
 public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     private final Map<String, Set<String>> fontStyleNames = new HashMap<>();
+    private final Map<Integer, IGuiCustomNode> customNodes = new HashMap<>();
+    private final HashMap<String, SceneDesc.Builder> sourceSceneCache = new HashMap<>();
+    private final Set<String> migrationCacheKeys = new TreeSet<>();
+    private final Set<String> declaredTemplates = new HashSet<>();
+    private final Set<String> visitingTemplates = new LinkedHashSet<>();
+    private GuiBuildContext customNodeContext;
+    private SceneDesc resolvedScene;
 
     private void validateStyleSelection(String input, NodeDesc node, Map<String, Set<String>> styles) throws CompileExceptionError {
         if (node.getType() == Type.TYPE_TEXT && styles.containsKey(node.getFont()) && !styles.get(node.getFont()).contains(node.getStyle()))
@@ -201,14 +205,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private static void validateNodeResources(NodeDesc n, GuiBuilder builder, String input, Set<String> resourceNames, Set<String> fontNames, Set<String> particlefxNames, Set<String> textureNames, Set<String> layerNames, Set<String> materialNames) throws CompileExceptionError {
+    private static void validateCustomNodeResources(NodeDesc n, GuiBuilder builder, String input, String layoutName, Set<String> resourceNames) throws CompileExceptionError {
         List<String> nodeResources = new ArrayList<>();
-
-        // TODO: Do resource validation in the plugin. I.e. how to get the resources?
-        // Perhaps "getResourceProperties()" or "getResources()"
-        if (n.hasSpineScene() && !n.getSpineScene().isEmpty()){
-            nodeResources.add(n.getSpineScene());
-        }
 
         if (n.getType() == Type.TYPE_CUSTOM) {
             GuiCustomTypeRegistry.Type customType = builder.project.getGuiCustomTypeRegistry().getByHash(n.getCustomType());
@@ -227,10 +225,17 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         for (String resource : nodeResources) {
             if (!resourceNames.contains(resource)) {
-                throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_MISSING_RESOURCE, resource));
+                String location = "Node '" + n.getId() + "'";
+                if (!layoutName.isEmpty()) {
+                    location += ", layout '" + layoutName + "'";
+                }
+                throw new CompileExceptionError(builder.project.getResource(input), 0,
+                        location + ": " + BobNLS.bind(Messages.BuilderUtil_MISSING_RESOURCE, "resource", resource));
             }
         }
+    }
 
+    private static void validateNodeResources(NodeDesc n, GuiBuilder builder, String input, Set<String> fontNames, Set<String> particlefxNames, Set<String> textureNames, Set<String> layerNames, Set<String> materialNames) throws CompileExceptionError {
         if (n.hasTexture() && !n.getTexture().isEmpty()) {
             if (!textureNames.contains(n.getTexture().split("/")[0])) {
                 throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture().split("/")[0]));
@@ -410,42 +415,29 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         targetBuilder.addAllCustomProperties(customProperties);
     }
 
-    private static void putLegacySpineProperties(NodeDesc node, Map<String, Object> properties) {
-        if (node.hasSpineScene()) {
-            properties.put("spine_scene", node.getSpineScene());
-        }
-        if (node.hasSpineDefaultAnimation()) {
-            properties.put("spine_default_animation", node.getSpineDefaultAnimation());
-        }
-        if (node.hasSpineSkin()) {
-            properties.put("spine_skin", node.getSpineSkin());
-        }
-        if (node.hasSpineNodeChild()) {
-            properties.put("spine_node_child", node.getSpineNodeChild());
-        }
-        if (node.hasSpineCreateBones()) {
-            properties.put("spine_create_bones", node.getSpineCreateBones());
+    private static void validateNodeType(NodeDesc node, IResource resource) throws CompileExceptionError {
+        switch (node.getType()) {
+            case TYPE_BOX, TYPE_TEXT, TYPE_PIE, TYPE_TEMPLATE, TYPE_PARTICLEFX, TYPE_CUSTOM:
+                return;
+            default:
+                throw new CompileExceptionError(resource, 0,
+                        "Node '" + node.getId() + "': unsupported GUI node type '" + node.getType()
+                        + "'. Install or update the plugin that migrates this node type.");
         }
     }
 
-    private static NodeDesc migrateCustomNode(GuiBuilder builder, String input, NodeDesc node) throws CompileExceptionError {
-        GuiCustomTypeRegistry customTypeRegistry = builder.project.getGuiCustomTypeRegistry();
-        GuiCustomTypeRegistry.Type customType;
-
-        if (node.getType() == Type.TYPE_SPINE) {
-            customType = customTypeRegistry.getByName("Spine");
-        } else if (node.getType() == Type.TYPE_CUSTOM) {
-            if (node.hasCustomTypeName() && !node.getCustomTypeName().isEmpty()) {
-                customType = customTypeRegistry.getByName(node.getCustomTypeName());
-            } else {
-                customType = customTypeRegistry.getByHash(node.getCustomType());
-            }
-        } else {
+    private static NodeDesc resolveCustomNode(GuiBuilder builder, String input, NodeDesc node) throws CompileExceptionError {
+        validateNodeType(node, builder.project.getResource(input));
+        if (node.getType() != Type.TYPE_CUSTOM) {
             return node;
         }
+        GuiCustomTypeRegistry customTypeRegistry = builder.project.getGuiCustomTypeRegistry();
+        GuiCustomTypeRegistry.Type customType = node.hasCustomTypeName() && !node.getCustomTypeName().isEmpty()
+                ? customTypeRegistry.getByName(node.getCustomTypeName())
+                : customTypeRegistry.getByHash(node.getCustomType());
 
         if (customType == null) {
-            String customTypeName = node.getType() == Type.TYPE_SPINE ? "Spine" : node.getCustomTypeName();
+            String customTypeName = node.getCustomTypeName();
             String message = customTypeName.isEmpty()
                     ? "Unknown GUI custom node type hash '" + Integer.toUnsignedLong(node.getCustomType()) + "' for node '" + node.getId() + "'"
                     : "Unknown GUI custom node type '" + customTypeName + "' for node '" + node.getId() + "'";
@@ -454,29 +446,13 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
 
         var migratedProperties = new LinkedHashMap<String, Object>();
-        putLegacySpineProperties(node, migratedProperties);
-        var legacyPropertyNames = new HashSet<String>(migratedProperties.keySet());
         customType.migrateProperties(migratedProperties);
 
         var overriddenFields = new ArrayList<Integer>(node.getOverriddenFieldsCount());
         for (int fieldNumber : node.getOverriddenFieldsList()) {
-            var customPropertyName = switch (fieldNumber) {
-                case NodeDesc.SPINE_SCENE_FIELD_NUMBER -> "spine_scene";
-                case NodeDesc.SPINE_DEFAULT_ANIMATION_FIELD_NUMBER -> "spine_default_animation";
-                case NodeDesc.SPINE_SKIN_FIELD_NUMBER -> "spine_skin";
-                case NodeDesc.SPINE_NODE_CHILD_FIELD_NUMBER -> "spine_node_child";
-                case NodeDesc.SPINE_CREATE_BONES_FIELD_NUMBER -> "spine_create_bones";
-                default -> null;
-            };
-            if (fieldNumber == NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER) {
-            } else if (customPropertyName == null || !legacyPropertyNames.contains(customPropertyName)) {
+            if (fieldNumber != NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER) {
                 overriddenFields.add(fieldNumber);
             }
-        }
-
-        var migratedPropertyHashes = new HashSet<Long>();
-        for (String propertyName : migratedProperties.keySet()) {
-            migratedPropertyHashes.add(hashPropertyName(propertyName));
         }
 
         var existingPropertyHashes = new HashSet<Long>();
@@ -484,9 +460,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         for (Property property : node.getCustomPropertiesList()) {
             var canonicalProperty = canonicalizeCustomProperty(property);
             if (canonicalProperty.hasIdHash()) {
-                if (!property.hasId() && migratedPropertyHashes.contains(canonicalProperty.getIdHash())) {
-                    continue;
-                }
                 existingPropertyHashes.add(canonicalProperty.getIdHash());
             }
             customProperties.add(canonicalProperty);
@@ -511,11 +484,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         nodeBuilder.addAllCustomProperties(customProperties);
         nodeBuilder.clearOverriddenFields();
         nodeBuilder.addAllOverriddenFields(overriddenFields);
-        nodeBuilder.clearSpineScene();
-        nodeBuilder.clearSpineDefaultAnimation();
-        nodeBuilder.clearSpineSkin();
-        nodeBuilder.clearSpineNodeChild();
-        nodeBuilder.clearSpineCreateBones();
         return nodeBuilder.build();
     }
 
@@ -577,7 +545,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             if (layoutNodes != null) {
                 ApplyLayoutOverrides(b, layoutNodes, parentSceneNodeMap.get(layout));
             }
-            newNodes.add(migrateCustomNode(builder, input, b.build()));
+            newNodes.add(resolveCustomNode(builder, input, b.build()));
         }
         return newNodes;
     }
@@ -607,8 +575,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         // register resources
         Set<String> fontNames = new HashSet<String>();
         List<FontDesc> newFontList = new ArrayList<FontDesc>();
-        Set<String> spineSceneNames = new HashSet<String>();
-        List<SpineSceneDesc> newSpineSceneList = new ArrayList<SpineSceneDesc>();
         Set<String> particlefxNames = new HashSet<String>();
         List<ParticleFXDesc> newParticleFXList = new ArrayList<ParticleFXDesc>();
         Set<String> textureNames = new HashSet<String>();
@@ -643,16 +609,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 String compiledPath = ResourceUtil.minifyPathAndReplaceExt(f.getFont(), ".font", ".fontc");
                 builder.fontStyleNames.put(compiledPath, FontStyles.readStyleNames(builder.project.getResource(f.getFont())));
                 newFontList.add(FontDesc.newBuilder().mergeFrom(f).setFont(ResourceUtil.minifyPathAndReplaceExt(f.getFont(), ".font", ".fontc")).build());
-            }
-
-            for (SpineSceneDesc f : sceneBuilder.getSpineScenesList()) {
-                if (resourceNames.contains(f.getName())) {
-                    throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_DUPLICATE_RESOURCE,
-                            f.getName()));
-                }
-                resourceNames.add(f.getName());
-                ResourceDesc desc = ResourceDesc.newBuilder().setName(f.getName()).setPath(ResourceUtil.minifyPathAndReplaceExt(f.getSpineScene(), ".spinescene", ".spinescenec")).build();
-                newResourcesList.add(desc);
             }
 
             for (ParticleFXDesc f : sceneBuilder.getParticlefxsList()) {
@@ -736,16 +692,16 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 continue;
             }
 
-            node = migrateCustomNode(builder, input, node);
+            node = resolveCustomNode(builder, input, node);
 
             // add current scene nodes
             newScene.get("").add(node);
-            validateNodeResources(node, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames, materialNames);
+            validateNodeResources(node, builder, input, fontNames, particlefxNames, textureNames, layerNames, materialNames);
             for(String layout : layouts) {
                 NodeDesc n = nodeMap.get(layout).get(node.getId());
                 if(n != null) {
-                    n = migrateCustomNode(builder, input, n);
-                    validateNodeResources(n, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames, materialNames);
+                    n = resolveCustomNode(builder, input, n);
+                    validateNodeResources(n, builder, input, fontNames, particlefxNames, textureNames, layerNames, materialNames);
                     newScene.get(layout).add(n);
                 }
             }
@@ -870,8 +826,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         sceneBuilder.clearFonts();
         sceneBuilder.addAllFonts(newFontList);
 
-        sceneBuilder.clearSpineScenes();
-
         sceneBuilder.clearParticlefxs();
         sceneBuilder.addAllParticlefxs(newParticleFXList);
 
@@ -887,6 +841,18 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         clearEditorOnlyCustomNodeFields(sceneBuilder);
 
         if (builder != null) {
+            if (flattenTemplates) {
+                // Validate named custom resources only after parent overrides and
+                // inherited resource lists have been resolved.
+                for (NodeDesc node : sceneBuilder.getNodesList()) {
+                    validateCustomNodeResources(node, builder, input, "", resourceNames);
+                }
+                for (LayoutDesc layout : sceneBuilder.getLayoutsList()) {
+                    for (NodeDesc node : layout.getNodesList()) {
+                        validateCustomNodeResources(node, builder, input, layout.getName(), resourceNames);
+                    }
+                }
+            }
             Map<String, Set<String>> styles = new HashMap<>();
             for (FontDesc font : sceneBuilder.getFontsList()) {
                 Set<String> names = builder.fontStyleNames.get(font.getFont());
@@ -922,31 +888,216 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private static class SceneBuilderIO implements ISceneBuilderIO {
-        com.dynamo.bob.Project project;
-        SceneBuilderIO(com.dynamo.bob.Project project) {
-            this.project = project;
-        }
-
-        public SceneDesc.Builder readScene(String resourcePath, HashMap<String, SceneDesc.Builder> resourceCache) throws IOException {
-            SceneDesc.Builder sceneBuilder = resourceCache.get(resourcePath);
-            if(sceneBuilder == null) {
-                IResource templateSceneResource = this.project.getResource(resourcePath);
-                InputStreamReader reader = new InputStreamReader(new ByteArrayInputStream(templateSceneResource.getContent()), "ASCII");
-                sceneBuilder = SceneDesc.newBuilder();
-                TextFormat.merge(reader, sceneBuilder);
-                MergeOriginalValuesIntoLayouts(sceneBuilder);
-                resourceCache.put(resourcePath, sceneBuilder);
+    private IGuiCustomNode getCustomNode(GuiCustomTypeRegistry.Type type, IResource input) throws CompileExceptionError {
+        IGuiCustomNode customNode = customNodes.get(type.getNameHash());
+        if (customNode == null) {
+            try {
+                customNode = type.newNode();
+            } catch (ReflectiveOperationException e) {
+                throw new CompileExceptionError(input, 0, "Unable to create GUI custom node plugin for type '" + type.getName() + "'", e);
             }
-            return sceneBuilder.clone();
+            customNodes.put(type.getNameHash(), customNode);
+        }
+        return customNode;
+    }
+
+    @Override
+    protected SceneDesc.Builder getSrcBuilder(IResource input) throws IOException, CompileExceptionError {
+        SceneDesc.Builder scene = sourceSceneCache.get(input.getPath());
+        if (scene == null) {
+            scene = super.getSrcBuilder(input).clone();
+            GuiSceneMigrationContext context = new GuiSceneMigrationContext(input, scene, migrationCacheKeys::add);
+            for (GuiCustomTypeRegistry.Type type : project.getGuiCustomTypeRegistry().getSceneMigrations()) {
+                migrationCacheKeys.add("gui-source-migration-v1:" + type.getName());
+                getCustomNode(type, input).migrateScene(context);
+            }
+            // Validate migrated resources even when unused or restored from cache.
+            for (ResourceDesc resource : scene.getResourcesList()) {
+                if (resource.getName().isEmpty()) {
+                    throw new CompileExceptionError(input, 0,
+                            "GUI resource name must not be empty (path: '" + resource.getPath() + "')");
+                }
+            }
+            // Unsupported legacy types must fail even if an older Bob produced
+            // a cached output and the plugin needed to migrate them is now absent.
+            for (NodeDesc node : scene.getNodesList()) {
+                validateNodeType(node, input);
+            }
+            for (LayoutDesc layout : scene.getLayoutsList()) {
+                for (NodeDesc node : layout.getNodesList()) {
+                    validateNodeType(node, input);
+                }
+            }
+            sourceSceneCache.put(input.getPath(), scene);
+        }
+        // Callers merge layouts and replace resource paths. Keep the cached
+        // migrated source untouched so repeated template instances see the same input.
+        return scene.clone();
+    }
+
+    private class SceneBuilderIO implements ISceneBuilderIO {
+        public SceneDesc.Builder readScene(String resourcePath, HashMap<String, SceneDesc.Builder> resourceCache) throws IOException, CompileExceptionError {
+            SceneDesc.Builder scene = getSrcBuilder(project.getResource(resourcePath));
+            MergeOriginalValuesIntoLayouts(scene);
+            return scene;
         }
     }
 
-    @Override()
+    private boolean hasCustomNodeCallbacks(NodeDesc node) {
+        if (node.getType() != Type.TYPE_CUSTOM) {
+            return false;
+        }
+        GuiCustomTypeRegistry.Type type = node.hasCustomTypeName() && !node.getCustomTypeName().isEmpty()
+                ? project.getGuiCustomTypeRegistry().getByName(node.getCustomTypeName())
+                : project.getGuiCustomTypeRegistry().getByHash(node.getCustomType());
+        return type != null && type.hasNodeCallbacks();
+    }
+
+    @Override
+    protected void createSubTasks(MessageOrBuilder message, Task.TaskBuilder taskBuilder) throws CompileExceptionError {
+        if (!(message instanceof NodeDesc node) || node.getTemplate().isEmpty()) {
+            super.createSubTasks(message, taskBuilder);
+            return;
+        }
+
+        // Templates are flattened from source. Building them as independent GUIs
+        // would validate their nodes before the parent can override their values.
+        super.createSubTasks(node.toBuilder().clearTemplate(), taskBuilder);
+        IResource template = BuilderUtil.checkResource(project, taskBuilder.firstInput(), "template", node.getTemplate());
+        taskBuilder.addInput(template);
+        String path = template.getPath();
+        if (declaredTemplates.contains(path)) {
+            return;
+        }
+        if (!visitingTemplates.add(path)) {
+            throw new CompileExceptionError(taskBuilder.firstInput(), 0,
+                    "Circular GUI template dependency: " + String.join(" -> ", visitingTemplates) + " -> " + path);
+        }
+        try {
+            SceneDesc.Builder source = new SceneBuilderIO().readScene(node.getTemplate(), sourceSceneCache);
+            createSubTasks(source, taskBuilder);
+            declaredTemplates.add(path);
+        } catch (IOException e) {
+            throw new CompileExceptionError(template, 0, e.getMessage(), e);
+        } finally {
+            visitingTemplates.remove(path);
+        }
+    }
+
+    // Use the same precedence as transformScene: local resources, then resources
+    // from templates in node order. Keep the original paths for plugin lookups,
+    // and report whether any node in this scene or its templates has callbacks.
+    private boolean collectCustomNodeResources(SceneDesc.Builder scene, SceneBuilderIO sceneIO,
+            HashMap<String, SceneDesc.Builder> sceneResourceCache, Set<String> visitedTemplates,
+            Map<String, IResource> resources) throws IOException, CompileExceptionError {
+        for (ResourceDesc resource : scene.getResourcesList()) {
+            resources.putIfAbsent(resource.getName(), project.getResource(resource.getPath()));
+        }
+        boolean hasCallbacks = false;
+        for (NodeDesc node : scene.getNodesList()) {
+            hasCallbacks |= hasCustomNodeCallbacks(node);
+            if (node.getType() == Type.TYPE_TEMPLATE && !node.getTemplateNodeChild()
+                    && visitedTemplates.add(node.getTemplate())) {
+                hasCallbacks |= collectCustomNodeResources(sceneIO.readScene(node.getTemplate(), sceneResourceCache),
+                        sceneIO, sceneResourceCache, visitedTemplates, resources);
+            }
+        }
+        for (LayoutDesc layout : scene.getLayoutsList()) {
+            for (NodeDesc node : layout.getNodesList()) {
+                hasCallbacks |= hasCustomNodeCallbacks(node);
+            }
+        }
+        return hasCallbacks;
+    }
+
+    private void createCustomNodes(IResource input, String layoutName, List<NodeDesc> nodes,
+            Task.TaskBuilder<?> taskBuilder) throws IOException, CompileExceptionError {
+        for (NodeDesc node : nodes) {
+            if (node.getType() != Type.TYPE_CUSTOM) {
+                continue;
+            }
+            GuiCustomTypeRegistry.Type type = project.getGuiCustomTypeRegistry().getByHash(node.getCustomType());
+            if (!type.hasNodeCallbacks()) {
+                continue;
+            }
+            IGuiCustomNode customNode = getCustomNode(type, input);
+            customNode.create(customNodeContext, taskBuilder, node, layoutName);
+        }
+    }
+
+    @Override
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder<?> taskBuilder = Task.newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
+        SceneDesc.Builder sourceScene = getSrcBuilder(input);
+        createSubTasks(sourceScene, taskBuilder);
+        for (String key : migrationCacheKeys) {
+            taskBuilder.addExtraCacheKey(key);
+        }
+        if (!project.getGuiCustomTypeRegistry().hasNodeCallbacks()) {
+            return taskBuilder.build();
+        }
+
+        SceneBuilderIO sceneIO = new SceneBuilderIO();
+        Map<String, IResource> resources = new LinkedHashMap<>();
+        if (!collectCustomNodeResources(sourceScene, sceneIO, sourceSceneCache, new HashSet<>(), resources)) {
+            // GUIs without callbacks can still defer transformation until build,
+            // avoiding that work entirely when their outputs are cached.
+            return taskBuilder.build();
+        }
+        customNodeContext = new GuiBuildContext(project, input, Collections.unmodifiableMap(resources));
+
+        // Resolve once, before dependency declarations, and retain these exact
+        // values for build. Never transform already compiled resource paths again.
+        SceneDesc.Builder scene = sourceScene.clone();
+        MergeOriginalValuesIntoLayouts(scene);
+        resolvedScene = transformScene(this, input.getPath(), scene, sceneIO, sourceSceneCache, true).build();
+
+        createCustomNodes(input, "", resolvedScene.getNodesList(), taskBuilder);
+        for (LayoutDesc layout : resolvedScene.getLayoutsList()) {
+            createCustomNodes(input, layout.getName(), layout.getNodesList(), taskBuilder);
+        }
+        if (!customNodes.isEmpty()) {
+            // Do not reuse outputs produced before lifecycle callbacks existed.
+            taskBuilder.addExtraCacheKey("gui-custom-node-lifecycle-v1");
+        }
+        return taskBuilder.build();
+    }
+
+    private void buildCustomNode(Task task, String layoutName, NodeDesc.Builder nodeBuilder) throws IOException, CompileExceptionError {
+        if (nodeBuilder.getType() != Type.TYPE_CUSTOM) {
+            return;
+        }
+        IGuiCustomNode customNode = customNodes.get(nodeBuilder.getCustomType());
+        if (customNode == null) {
+            return;
+        }
+        customNode.build(customNodeContext, task, nodeBuilder, layoutName);
+        for (int i = 0; i < nodeBuilder.getCustomPropertiesCount(); ++i) {
+            nodeBuilder.setCustomProperties(i, canonicalizeCustomProperty(nodeBuilder.getCustomProperties(i)));
+        }
+        nodeBuilder.clearCustomTypeName();
+    }
+
+    @Override
     protected SceneDesc.Builder transform(Task task, IResource input, SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
-        HashMap<String, SceneDesc.Builder> sceneResourceCache = new HashMap<String, SceneDesc.Builder>(32);
+        if (resolvedScene != null) {
+            SceneDesc.Builder scene = resolvedScene.toBuilder();
+            for (NodeDesc.Builder node : scene.getNodesBuilderList()) {
+                buildCustomNode(task, "", node);
+            }
+            for (LayoutDesc.Builder layout : scene.getLayoutsBuilderList()) {
+                for (NodeDesc.Builder node : layout.getNodesBuilderList()) {
+                    buildCustomNode(task, layout.getName(), node);
+                }
+            }
+            return scene;
+        }
+
         MergeOriginalValuesIntoLayouts(messageBuilder);
-        return transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(this.project), sceneResourceCache, true);
+        return transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(), sourceSceneCache, true);
     }
 
 }
