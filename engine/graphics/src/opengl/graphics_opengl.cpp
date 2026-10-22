@@ -2085,6 +2085,7 @@ static void LogFrameBufferError(GLenum status)
         if (context->m_TextureArraySupport)              SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         if (context->m_ComputeSupport)                   SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
         if (context->m_StorageBufferSupport)             SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
+        if (context->m_IsGles3Version)                   SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_UNIFORM_BUFFER);
         if (context->m_InstancingSupport)                SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         if (context->m_3DTextureSupport)                 SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         if (context->m_ASTCArrayTextureSupport)          SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
@@ -2373,9 +2374,13 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
     {
+        OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
 
         OpenGLDisableUniformBuffer(_context, uniform_buffer);
+        GLuint handle = GetGLHandle(context, ubo->m_Id);
+        glDeleteBuffersARB(1, &handle);
+        CleanupGLHandle(context, ubo->m_Id);
         delete ubo;
     }
 

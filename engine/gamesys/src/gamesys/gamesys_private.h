@@ -92,6 +92,9 @@ namespace dmGameSystem
 
     bool FillPBRConstants(ModelResource* resource, const MaterialInfo* material_info, HComponentRenderConstants* render_constants, dmRender::HMaterial material, uint32_t material_index);
 
+    bool SetModelMaterialBuffer(dmGraphics::HContext context, ModelResource* resource, dmRender::HMaterial material, uint32_t material_index, dmRender::RenderObject* ro);
+    void DeleteModelMaterialBuffers(dmGraphics::HContext context, ModelResource* resource);
+
     static const dmGraphics::TextureFormat BIND_POSE_CACHE_TEXTURE_FORMAT = dmGraphics::TEXTURE_FORMAT_RGBA32F;
 
     struct EmitterStateChangedScriptData

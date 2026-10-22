@@ -314,6 +314,42 @@ struct DX12Test : public jc_test_base_class
     }
 };
 
+// Repeated and aliased UBO bindings must all be cleared on deletion while their
+// GPU allocation remains queued for retirement behind the frame fence.
+TEST_F(DX12Test, UniformBufferBindingsAndDeferredDeletion)
+{
+    ASSERT_TRUE(IsContextFeatureSupported(GetContext(), CONTEXT_FEATURE_UNIFORM_BUFFER));
+    HUniformBuffer buffer = NewUniformBuffer(GetContext(), 0, 64);
+    HUniformBuffer replacement = NewUniformBuffer(GetContext(), 0, 64);
+    DX12UniformBuffer* data = (DX12UniformBuffer*) buffer;
+    DX12UniformBuffer* replacement_data = (DX12UniformBuffer*) replacement;
+    ASSERT_NE((HUniformBuffer) 0, buffer);
+    ASSERT_NE((HUniformBuffer) 0, replacement);
+
+    EnableUniformBuffer(GetContext(), buffer, 0, 2);
+    EnableUniformBuffer(GetContext(), buffer, 0, 2);
+    DisableUniformBuffer(GetContext(), buffer);
+    ASSERT_EQ((DX12UniformBuffer*) 0, m_Context->m_CurrentUniformBuffers[0][2]);
+
+    EnableUniformBuffer(GetContext(), buffer, 0, 2);
+    EnableUniformBuffer(GetContext(), buffer, 1, 3);
+    EnableUniformBuffer(GetContext(), replacement, 1, 3);
+    ASSERT_EQ(data, m_Context->m_CurrentUniformBuffers[0][2]);
+    ASSERT_EQ(replacement_data, m_Context->m_CurrentUniformBuffers[1][3]);
+
+    DX12FrameResource& frame = m_Context->m_FrameResources[m_Context->m_CurrentFrameIndex];
+    uint32_t deferred_count = frame.m_ResourcesToDestroy.Size();
+    ID3D12Resource* resource = data->m_DeviceBuffer.m_Resource;
+    DeleteUniformBuffer(GetContext(), buffer);
+    ASSERT_EQ((DX12UniformBuffer*) 0, m_Context->m_CurrentUniformBuffers[0][2]);
+    ASSERT_EQ(replacement_data, m_Context->m_CurrentUniformBuffers[1][3]);
+    ASSERT_EQ(deferred_count + 1, frame.m_ResourcesToDestroy.Size());
+    ASSERT_EQ(resource, frame.m_ResourcesToDestroy.Back());
+
+    DeleteUniformBuffer(GetContext(), replacement);
+    ASSERT_EQ((DX12UniformBuffer*) 0, m_Context->m_CurrentUniformBuffers[1][3]);
+}
+
 // Verifies array-layer uploads and partial RGB conversion preserve untouched pixels.
 TEST_F(DX12Test, ArrayUploadsAndPartialRGBUpdates)
 {

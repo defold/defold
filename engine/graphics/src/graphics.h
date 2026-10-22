@@ -112,7 +112,8 @@ namespace dmGraphics
         CONTEXT_FEATURE_BC_ARRAY_TEXTURES      = 9,
         // Availability for the current surface; query after BeginFrame.
         CONTEXT_FEATURE_BACKBUFFER_READBACK    = 10,
-        MAX_CONTEXT_FEATURE_COUNT              = 11,
+        CONTEXT_FEATURE_UNIFORM_BUFFER         = 11,
+        MAX_CONTEXT_FEATURE_COUNT              = 12,
     };
 
     // Binding family for shader resources in a program.
@@ -304,6 +305,30 @@ namespace dmGraphics
         uint32_t              m_MemberCount;
     };
 
+    // Read-only reflection owned by the program. Pointer fields remain valid until
+    // the program is deleted or ReloadProgram is called, including a failed reload.
+    struct UniformBufferBindingInfo
+    {
+        const char*                   m_Name;
+        const char*                   m_InstanceName;
+        dmhash_t                      m_NameHash;
+        const ShaderResourceTypeInfo* m_Types;
+        uint32_t                      m_NumTypes;
+        uint32_t                      m_RootTypeIndex;
+        uint32_t                      m_Size;
+        UniformBufferLayout           m_Layout;
+        uint16_t                      m_Set;
+        uint16_t                      m_Binding;
+    };
+
+    // Look up a uniform block by its reflected block name, not its instance name.
+    // The output is unchanged when the block is absent.
+    bool GetUniformBufferBinding(HProgram program, dmhash_t name_hash, UniformBufferBindingInfo* out);
+
+    // Unique across program creations and reload attempts. Use to invalidate
+    // caches containing program-owned reflection or resolved binding locations.
+    uint64_t GetProgramVersion(HProgram program);
+
     // Callback invoked for each resource binding in a program that matches the specified family.
     typedef void (*IterateProgramResourceBindingsCallback)(uint16_t set, uint16_t binding, const ShaderResourceTypeInfo* types, uint32_t num_types, uint32_t root_type_index, UniformBufferLayout* layout, void* user_data);
 
@@ -471,7 +496,7 @@ namespace dmGraphics
     HUniformBuffer      NewUniformBuffer(HContext context, UniformBufferLayout layout, uint32_t size);
     void                DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
     void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
-    void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
+    void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t set, uint32_t binding);
     void                DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);

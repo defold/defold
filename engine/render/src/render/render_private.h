@@ -77,6 +77,15 @@ namespace dmRender
         uint16_t m_ValueCount;
     };
 
+    struct MaterialUniformBufferBinding
+    {
+        dmGraphics::UniformBufferLayout m_Layout;
+        uint32_t                        m_Size;
+        uint16_t                        m_Set;
+        uint16_t                        m_Binding;
+        bool                            m_Valid;
+    };
+
     struct Material
     {
         Material()
@@ -92,6 +101,9 @@ namespace dmRender
         dmGraphics::HVertexDeclaration              m_VertexDeclarationPerInstance;
         dmGraphics::VertexAttributeInfoMetadata     m_VertexAttributeInfoMetadata;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
+        dmHashTable64<MaterialUniformBufferBinding> m_UniformBufferBindings;
+        dmHashTable64<dmhash_t>                     m_ConstantUniformBuffers;
+        uint64_t                                    m_UniformBufferProgramVersion;
         dmArray<dmGraphics::VertexAttributeInfo>    m_VertexAttributeInfos;
         dmArray<MaterialAttribute>                  m_MaterialAttributes;
         dmArray<uint8_t>                            m_MaterialAttributeValues;
@@ -110,6 +122,11 @@ namespace dmRender
         uint8_t                                     m_HasMorphTargetsSampler : 1;
         uint8_t                                     m_HasMorphTargetWeightsAttribute : 1;
     };
+
+    bool ValidateRenderObjectUniformBuffers(HMaterial material, const RenderObject* render_object);
+    bool IsRenderObjectUniformBufferConstant(HMaterial material, const RenderObject* render_object, dmhash_t name_hash);
+    void EnableRenderObjectUniformBuffers(HRenderContext render_context, HMaterial material, const RenderObject* render_object);
+    void DisableRenderObjectUniformBuffers(HRenderContext render_context, const RenderObject* render_object);
 
     struct ComputeProgram
     {

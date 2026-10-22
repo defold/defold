@@ -69,6 +69,7 @@ namespace dmGraphics
     static GraphicsAdapter*             g_adapter_list = 0;
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
+    static uint64_t                     g_ProgramVersion = 0;
 
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter,
         GraphicsAdapterIsSupportedCb              is_supported_cb,
@@ -1580,6 +1581,36 @@ namespace dmGraphics
         }
     }
 
+    bool GetUniformBufferBinding(HProgram prog, dmhash_t name_hash, UniformBufferBindingInfo* out)
+    {
+        ProgramResourceBindingIterator it((Program*) prog);
+        const ProgramResourceBinding* binding;
+        while ((binding = it.Next()))
+        {
+            const ShaderResourceBinding* resource = binding->m_Res;
+            if (resource->m_BindingFamily != BINDING_FAMILY_UNIFORM_BUFFER || resource->m_NameHash != name_hash)
+                continue;
+
+            out->m_Name          = resource->m_Name;
+            out->m_InstanceName  = resource->m_InstanceName;
+            out->m_NameHash      = resource->m_NameHash;
+            out->m_Types         = binding->m_TypeInfos->Begin();
+            out->m_NumTypes      = binding->m_TypeInfos->Size();
+            out->m_RootTypeIndex = resource->m_Type.m_TypeIndex;
+            out->m_Size          = resource->m_BindingInfo.m_BlockSize;
+            out->m_Layout        = *(const UniformBufferLayout*) binding->m_BindingUserData;
+            out->m_Set           = resource->m_Set;
+            out->m_Binding       = resource->m_Binding;
+            return true;
+        }
+        return false;
+    }
+
+    uint64_t GetProgramVersion(HProgram program)
+    {
+        return ((Program*) program)->m_Version;
+    }
+
     void BuildUniforms(Program* program)
     {
         uint32_t uniform_count = 0;
@@ -2351,7 +2382,10 @@ namespace dmGraphics
     }
     HProgram NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
+        HProgram program = g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
+        if (program)
+            ((Program*) program)->m_Version = ++g_ProgramVersion;
+        return program;
     }
     void DeleteProgram(HContext context, HProgram program)
     {
@@ -2379,7 +2413,9 @@ namespace dmGraphics
         // DX12 constructs a replacement first, preserving the active program on a failed reload.
         if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_DIRECTX)
             DestroyProgram((Program*) program);
-        return g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
+        bool result = g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
+        ((Program*) program)->m_Version = ++g_ProgramVersion;
+        return result;
     }
     uint32_t GetAttributeCount(HProgram prog)
     {
@@ -2678,6 +2714,8 @@ namespace dmGraphics
     }
     HUniformBuffer NewUniformBuffer(HContext context, UniformBufferLayout layout, uint32_t size)
     {
+        if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_UNIFORM_BUFFER))
+            return 0;
         return g_functions.m_NewUniformBuffer(context, layout, size);
     }
     void DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer)

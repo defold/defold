@@ -4843,6 +4843,152 @@ TEST(Constants, Constant)
     dmRender::DeleteConstant(constant);
 }
 
+static void BuildExplicitUniformBufferShader(dmGraphics::ShaderDescBuilder& builder, uint32_t binding)
+{
+    builder.AddTypeMember("color", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    dmGraphics::ShaderDesc::ResourceMember member = {};
+    member.m_Name = "pbr";
+    member.m_NameHash = dmHashString64(member.m_Name);
+    member.m_Type.m_UseTypeIndex = true;
+    member.m_Type.m_Type.m_TypeIndex = 0;
+    builder.AddTypeMemberWithMembers("PbrMaterial", &member, 1);
+    builder.AddUniformBuffer("PbrMaterial", binding, 1, sizeof(Vector4));
+    builder.AddTypeMember("unrelated", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    builder.AddUniformBuffer("Other", binding + 1, 2, sizeof(Vector4));
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "", 0);
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "", 0);
+}
+
+static uint32_t GetTestUniformBufferOffset(dmGraphics::HProgram program, uint32_t binding)
+{
+    return ((dmGraphics::NullProgram*) program)->m_BaseProgram.m_ResourceBindings[0][binding].m_UniformBufferOffset;
+}
+
+// Explicit blocks suppress all constant override sources, preserve other blocks, and cannot leak into the next draw.
+TEST_F(dmRenderTest, ExplicitUniformBuffersSuppressConstantsAndClearBindings)
+{
+    dmGraphics::ShaderDescBuilder builder;
+    BuildExplicitUniformBufferShader(builder, 0);
+    builder.Get()->m_Reflection.m_UniformBuffers[0].m_InstanceName = "material";
+    builder.Get()->m_Reflection.m_UniformBuffers[0].m_InstanceNameHash = dmHashString64("material");
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+    dmhash_t tag = dmHashString64("explicit_uniform_buffer");
+    dmRender::SetMaterialTags(material, 1, &tag);
+    dmhash_t pbr_name = dmHashString64("material.pbr.color");
+    dmhash_t other_name = dmHashString64("unrelated");
+    Vector4 material_value(1.0f), component_value(2.0f), draw_value(3.0f), immutable_value(4.0f), sentinel(5.0f);
+    dmRender::SetMaterialProgramConstant(material, pbr_name, &material_value, 1);
+    dmRender::SetMaterialProgramConstant(material, other_name, &material_value, 1);
+    dmRender::HNamedConstantBuffer component_constants = dmRender::NewNamedConstantBuffer();
+    dmRender::HNamedConstantBuffer draw_constants = dmRender::NewNamedConstantBuffer();
+    dmRender::SetNamedConstant(component_constants, pbr_name, &component_value, 1);
+    dmRender::SetNamedConstant(component_constants, other_name, &component_value, 1);
+    dmRender::SetNamedConstant(draw_constants, pbr_name, &draw_value, 1);
+    dmRender::SetNamedConstant(draw_constants, other_name, &draw_value, 1);
+
+    dmGraphics::UniformBufferBindingInfo info;
+    ASSERT_TRUE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("PbrMaterial"), &info));
+    dmRender::UniformBufferBinding binding = { info.m_NameHash, dmGraphics::NewUniformBuffer(m_GraphicsContext, info.m_Layout, info.m_Size), info.m_Layout, info.m_Size };
+    dmGraphics::SetUniformBuffer(m_GraphicsContext, binding.m_Buffer, 0, sizeof(immutable_value), &immutable_value);
+    dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
+    uint32_t pbr_offset = GetTestUniformBufferOffset(program, 0);
+    uint32_t other_offset = GetTestUniformBufferOffset(program, 1);
+    memcpy(null_program->m_UniformData + pbr_offset, &sentinel, sizeof(sentinel));
+
+    dmRender::RenderObject ro;
+    ro.m_Material = material;
+    ro.m_VertexCount = 3;
+    ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+    ro.m_ConstantBuffer = component_constants;
+    ro.m_UniformBuffers = &binding;
+    ro.m_UniformBufferCount = 1;
+    dmRender::AddToRender(m_Context, &ro);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, draw_constants));
+
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    Vector4 written;
+    memcpy(&written, null_context->m_PerDrawUniformData.Begin() + pbr_offset, sizeof(written));
+    ASSERT_VEC4(immutable_value, written);
+    memcpy(&written, null_program->m_UniformData + pbr_offset, sizeof(written));
+    ASSERT_VEC4(sentinel, written);
+    memcpy(&written, null_context->m_PerDrawUniformData.Begin() + other_offset, sizeof(written));
+    ASSERT_VEC4(draw_value, written);
+    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[0][0]);
+
+    ro.m_UniformBufferCount = 0;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, draw_constants));
+    memcpy(&written, null_context->m_PerDrawUniformData.Begin() + pbr_offset, sizeof(written));
+    ASSERT_VEC4(draw_value, written);
+
+    dmRender::ClearRenderObjects(m_Context);
+    dmGraphics::DeleteUniformBuffer(m_GraphicsContext, binding.m_Buffer);
+    dmRender::DeleteNamedConstantBuffer(draw_constants);
+    dmRender::DeleteNamedConstantBuffer(component_constants);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Effective materials and reloaded programs resolve their own slots; incompatible layouts never fall back to constants.
+TEST_F(dmRenderTest, ExplicitUniformBuffersUseEffectiveMaterial)
+{
+    dmGraphics::ShaderDescBuilder original_builder, override_builder;
+    BuildExplicitUniformBufferShader(original_builder, 0);
+    BuildExplicitUniformBufferShader(override_builder, 3);
+    dmGraphics::HProgram original_program = dmGraphics::NewProgram(m_GraphicsContext, original_builder.Get(), 0, 0);
+    dmGraphics::HProgram override_program = dmGraphics::NewProgram(m_GraphicsContext, override_builder.Get(), 0, 0);
+    dmRender::HMaterial original_material = dmRender::NewMaterial(m_Context, original_program);
+    dmRender::HMaterial override_material = dmRender::NewMaterial(m_Context, override_program);
+    dmhash_t tag = dmHashString64("explicit_uniform_buffer");
+    dmRender::SetMaterialTags(original_material, 1, &tag);
+    dmGraphics::UniformBufferBindingInfo info;
+    ASSERT_TRUE(dmGraphics::GetUniformBufferBinding(original_program, dmHashString64("PbrMaterial"), &info));
+    dmRender::UniformBufferBinding binding = { info.m_NameHash, dmGraphics::NewUniformBuffer(m_GraphicsContext, info.m_Layout, info.m_Size), info.m_Layout, info.m_Size };
+    Vector4 expected(6.0f);
+    dmGraphics::SetUniformBuffer(m_GraphicsContext, binding.m_Buffer, 0, sizeof(expected), &expected);
+
+    dmRender::RenderObject ro;
+    ro.m_Material = original_material;
+    ro.m_VertexCount = 3;
+    ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+    ro.m_UniformBuffers = &binding;
+    ro.m_UniformBufferCount = 1;
+    m_Context->m_Material = override_material;
+    dmRender::AddToRender(m_Context, &ro);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
+    ASSERT_TRUE(dmRender::IsRenderObjectUniformBufferConstant(override_material, &ro, dmHashString64("pbr.color")));
+    ASSERT_FALSE(dmRender::IsRenderObjectUniformBufferConstant(override_material, &ro, dmHashString64("unrelated")));
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    Vector4 written;
+    memcpy(&written, null_context->m_PerDrawUniformData.Begin() + GetTestUniformBufferOffset(override_program, 3), sizeof(written));
+    ASSERT_VEC4(expected, written);
+    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[0][3]);
+
+    binding.m_Layout ^= 1;
+    ASSERT_FALSE(dmRender::ValidateRenderObjectUniformBuffers(override_material, &ro));
+    binding.m_Layout ^= 1;
+    binding.m_NameHash = dmHashString64("MissingBlock");
+    ASSERT_FALSE(dmRender::ValidateRenderObjectUniformBuffers(override_material, &ro));
+
+    dmGraphics::ShaderDescBuilder reloaded_builder;
+    BuildExplicitUniformBufferShader(reloaded_builder, 6);
+    ASSERT_TRUE(dmGraphics::ReloadProgram(m_GraphicsContext, override_program, reloaded_builder.Get(), 0, 0));
+    binding.m_NameHash = info.m_NameHash;
+    ASSERT_TRUE(dmRender::ValidateRenderObjectUniformBuffers(override_material, &ro));
+    dmRender::EnableRenderObjectUniformBuffers(m_Context, override_material, &ro);
+    ASSERT_EQ((dmGraphics::NullUniformBuffer*) binding.m_Buffer, null_context->m_UniformBuffers[0][6]);
+    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[0][3]);
+    dmRender::DisableRenderObjectUniformBuffers(m_Context, &ro);
+
+    m_Context->m_Material = 0;
+    dmRender::ClearRenderObjects(m_Context);
+    dmGraphics::DeleteUniformBuffer(m_GraphicsContext, binding.m_Buffer);
+    dmRender::DeleteMaterial(m_Context, override_material);
+    dmRender::DeleteMaterial(m_Context, original_material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, override_program);
+    dmGraphics::DeleteProgram(m_GraphicsContext, original_program);
+}
+
 TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
 {
     // Build a simple shader with a single vec4 uniform "time" backed by a uniform buffer.

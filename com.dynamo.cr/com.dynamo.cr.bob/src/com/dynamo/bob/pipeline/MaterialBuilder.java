@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 
 import com.dynamo.bob.fs.IResource;
@@ -47,33 +48,42 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
     // This is the uniform name we are looking for in the reflection:
     private static final String PBR_MATERIAL_NAME = "PbrMaterial";
+    private static final String[] PBR_COMMON_MEMBERS = {
+        "pbrAlphaCutoffAndDoubleSidedAndIsUnlit",
+        "pbrCommonTextures",
+        "pbrEmissiveFactorAndStrength",
+        "pbrNormalScaleAndOcclusionStrength",
+    };
 
     public static enum PbrParameterType
     {
-        PBR_PARAMETER_TYPE_METALLIC_ROUGHNESS,
-        PBR_PARAMETER_TYPE_SPECULAR_GLOSSINESS,
-        PBR_PARAMETER_TYPE_CLEARCOAT,
-        PBR_PARAMETER_TYPE_TRANSMISSION,
-        PBR_PARAMETER_TYPE_IOR,
-        PBR_PARAMETER_TYPE_SPECULAR,
-        PBR_PARAMETER_TYPE_VOLUME,
-        PBR_PARAMETER_TYPE_SHEEN,
-        PBR_PARAMETER_TYPE_EMISSIVE_STRENGTH,
-        PBR_PARAMETER_TYPE_IRIDESCENCE,
+        PBR_PARAMETER_TYPE_METALLIC_ROUGHNESS("PbrMetallicRoughness", "baseColorFactor", "metallicAndRoughnessFactor", "metallicRoughnessTextures"),
+        PBR_PARAMETER_TYPE_SPECULAR_GLOSSINESS("PbrSpecularGlossiness", "diffuseFactor", "specularAndSpecularGlossinessFactor", "specularGlossinessTextures"),
+        PBR_PARAMETER_TYPE_CLEARCOAT("PbrClearCoat", "clearCoatAndClearCoatRoughnessFactor", "clearCoatTextures"),
+        PBR_PARAMETER_TYPE_TRANSMISSION("PbrTransmission", "transmissionFactor", "transmissionTextures"),
+        PBR_PARAMETER_TYPE_IOR("PbrIor", "ior"),
+        PBR_PARAMETER_TYPE_SPECULAR("PbrSpecular", "specularColorAndSpecularFactor", "specularTextures"),
+        PBR_PARAMETER_TYPE_VOLUME("PbrVolume", "thicknessFactorAndAttenuationColor", "attenuationDistance", "volumeTextures"),
+        PBR_PARAMETER_TYPE_SHEEN("PbrSheen", "sheenColorAndRoughnessFactor", "sheenTextures"),
+        PBR_PARAMETER_TYPE_EMISSIVE_STRENGTH("PbrEmissiveStrength", "emissiveStrength"),
+        PBR_PARAMETER_TYPE_IRIDESCENCE("PbrIridescence", "iridescenceFactorAndIorAndThicknessMinMax", "iridescenceTextures");
+
+        private final String structName;
+        private final String memberName;
+        private final String[] members;
+
+        PbrParameterType(String structName, String... members) {
+            this.structName = structName;
+            this.memberName = "p" + structName.substring(1);
+            this.members = members;
+        }
     }
 
     private static final HashMap<String, PbrParameterType> pbrStructNameToParameterType = new HashMap<>();
     static {
-        pbrStructNameToParameterType.put("PbrMetallicRoughness", PbrParameterType.PBR_PARAMETER_TYPE_METALLIC_ROUGHNESS);
-        pbrStructNameToParameterType.put("PbrSpecularGlossiness", PbrParameterType.PBR_PARAMETER_TYPE_SPECULAR_GLOSSINESS);
-        pbrStructNameToParameterType.put("PbrClearCoat", PbrParameterType.PBR_PARAMETER_TYPE_CLEARCOAT);
-        pbrStructNameToParameterType.put("PbrTransmission", PbrParameterType.PBR_PARAMETER_TYPE_TRANSMISSION);
-        pbrStructNameToParameterType.put("PbrIor", PbrParameterType.PBR_PARAMETER_TYPE_IOR);
-        pbrStructNameToParameterType.put("PbrSpecular", PbrParameterType.PBR_PARAMETER_TYPE_SPECULAR);
-        pbrStructNameToParameterType.put("PbrVolume", PbrParameterType.PBR_PARAMETER_TYPE_VOLUME);
-        pbrStructNameToParameterType.put("PbrSheen", PbrParameterType.PBR_PARAMETER_TYPE_SHEEN);
-        pbrStructNameToParameterType.put("PbrEmissiveStrength", PbrParameterType.PBR_PARAMETER_TYPE_EMISSIVE_STRENGTH);
-        pbrStructNameToParameterType.put("PbrIridescence", PbrParameterType.PBR_PARAMETER_TYPE_IRIDESCENCE);
+        for (PbrParameterType type : PbrParameterType.values()) {
+            pbrStructNameToParameterType.put(type.structName, type);
+        }
     }
 
     private static void migrateTexturesToSamplers(MaterialDesc.Builder materialBuilder) {
@@ -189,43 +199,91 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
-    private static PbrParameterType[] getPbrParameters(Graphics.ShaderDesc.ShaderReflection shaderReflection) {
-        ArrayList<PbrParameterType> params = new ArrayList<>();
-        if (shaderReflection != null) {
-            for (ShaderDesc.ResourceBinding resourceBinding : shaderReflection.getUniformBuffersList()) {
-                ShaderDesc.ResourceType resourceType = resourceBinding.getType();
-                ShaderDesc.ResourceTypeInfo resourceTypeInfo = shaderReflection.getTypes(resourceType.getTypeIndex());
+    private static CompileExceptionError invalidPbrLayout(String message) {
+        return new CompileExceptionError("Invalid PbrMaterial uniform layout: " + message);
+    }
 
-                if (resourceTypeInfo.getName().equals(PBR_MATERIAL_NAME)) {
-                    for (ShaderDesc.ResourceMember resourceMember : resourceTypeInfo.getMembersList()) {
-                        ShaderDesc.ResourceTypeInfo resourceMemberTypeInfo = shaderReflection.getTypes(resourceMember.getType().getTypeIndex());
-                        String resourceMemberTypeName = resourceMemberTypeInfo.getName();
-                        if (pbrStructNameToParameterType.containsKey(resourceMemberTypeName)) {
-                            params.add(pbrStructNameToParameterType.get(resourceMemberTypeName));
-                        }
-                    }
-                }
+    private static void validatePbrVec4(ShaderDesc.ResourceMember member, String name, int offset, String owner) throws CompileExceptionError {
+        if (!member.getName().equals(name) || member.getType().getUseTypeIndex() ||
+                member.getType().getShaderType() != ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4 ||
+                member.getElementCount() > 1 || member.getOffset() != offset) {
+            throw invalidPbrLayout(owner + " must contain vec4 " + name + " at byte offset " + offset + ".");
+        }
+    }
+
+    private static ShaderDesc.ResourceTypeInfo getPbrStruct(ShaderDesc.ShaderReflection reflection, ShaderDesc.ResourceType type, String name) throws CompileExceptionError {
+        if (!type.getUseTypeIndex() || type.getTypeIndex() < 0 || type.getTypeIndex() >= reflection.getTypesCount()) {
+            throw invalidPbrLayout(name + " must be a PBR struct.");
+        }
+        return reflection.getTypes(type.getTypeIndex());
+    }
+
+    private static void validatePbrMaterial(ShaderDesc.ShaderReflection reflection, ShaderDesc.ResourceBinding resource,
+            ShaderDesc.ResourceTypeInfo material, MaterialDesc.PbrParameters.Builder parameters) throws CompileExceptionError {
+        int commonSize = PBR_COMMON_MEMBERS.length * 16;
+        if (material.getMembersCount() < PBR_COMMON_MEMBERS.length || resource.getBlockSize() < commonSize || resource.getElementCount() > 1) {
+            throw invalidPbrLayout("PbrMaterial must begin with the four common vec4 fields and cannot be an array.");
+        }
+        for (int i = 0; i < PBR_COMMON_MEMBERS.length; ++i) {
+            validatePbrVec4(material.getMembers(i), PBR_COMMON_MEMBERS[i], i * 16, PBR_MATERIAL_NAME);
+        }
+
+        HashSet<PbrParameterType> seen = new HashSet<>();
+        ArrayList<int[]> ranges = new ArrayList<>();
+        for (int i = PBR_COMMON_MEMBERS.length; i < material.getMembersCount(); ++i) {
+            ShaderDesc.ResourceMember member = material.getMembers(i);
+            ShaderDesc.ResourceTypeInfo struct = getPbrStruct(reflection, member.getType(), member.getName());
+            PbrParameterType parameter = pbrStructNameToParameterType.get(struct.getName());
+            if (parameter == null) {
+                throw invalidPbrLayout("Unsupported channel " + member.getName() + " of type " + struct.getName() + ".");
+            }
+            if (!seen.add(parameter)) {
+                throw invalidPbrLayout("Duplicate channel " + struct.getName() + ".");
+            }
+            if (!member.getName().equals(parameter.memberName) || member.getElementCount() > 1) {
+                throw invalidPbrLayout("Use a single " + parameter.structName + " " + parameter.memberName + " channel.");
+            }
+            if (struct.getMembersCount() != parameter.members.length) {
+                throw invalidPbrLayout(parameter.structName + " must contain exactly " + parameter.members.length + " vec4 fields.");
+            }
+            for (int j = 0; j < parameter.members.length; ++j) {
+                validatePbrVec4(struct.getMembers(j), parameter.members[j], j * 16, parameter.structName);
             }
 
+            int offset = member.getOffset();
+            int size = parameter.members.length * 16;
+            if (offset < commonSize || offset % 16 != 0 || offset > resource.getBlockSize() - size) {
+                throw invalidPbrLayout(parameter.memberName + " must be aligned to 16 bytes and fit inside the uniform block.");
+            }
+            for (int[] range : ranges) {
+                if (offset < range[1] && offset + size > range[0]) {
+                    throw invalidPbrLayout(parameter.memberName + " overlaps another channel.");
+                }
+            }
+            ranges.add(new int[] { offset, offset + size });
+            addPbrParameter(parameters, parameter);
         }
-        return params.toArray(new PbrParameterType[0]);
     }
 
-    public static MaterialDesc.PbrParameters makePbrParametersProtoMessage(Graphics.ShaderDesc.ShaderReflection shaderReflection) {
-        MaterialDesc.PbrParameters.Builder pbrParametersBuilder = MaterialDesc.PbrParameters.newBuilder();
-        PbrParameterType[] parameters = getPbrParameters(shaderReflection);
-        for (PbrParameterType parameter : parameters) {
-            addPbrParameter(pbrParametersBuilder, parameter);
+    public static MaterialDesc.PbrParameters makePbrParametersProtoMessage(Graphics.ShaderDesc.ShaderReflection shaderReflection) throws CompileExceptionError {
+        if (shaderReflection == null) {
+            return null;
         }
-
-        if (parameters.length > 0) {
-            pbrParametersBuilder.setHasParameters(true);
-            return pbrParametersBuilder.build();
+        MaterialDesc.PbrParameters.Builder parameters = MaterialDesc.PbrParameters.newBuilder();
+        for (ShaderDesc.ResourceBinding resource : shaderReflection.getUniformBuffersList()) {
+            if (!resource.getType().getUseTypeIndex()) {
+                continue;
+            }
+            ShaderDesc.ResourceTypeInfo material = getPbrStruct(shaderReflection, resource.getType(), resource.getName());
+            if (material.getName().equals(PBR_MATERIAL_NAME)) {
+                validatePbrMaterial(shaderReflection, resource, material, parameters);
+                parameters.setHasParameters(true);
+            }
         }
-        return null;
+        return parameters.getHasParameters() ? parameters.build() : null;
     }
 
-    private static void buildPbrParameters(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
+    private static void buildPbrParameters(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) throws CompileExceptionError {
         MaterialDesc.PbrParameters builtPbrParameters = makePbrParametersProtoMessage(shaderBuilder.getReflection());
         if (builtPbrParameters != null) {
             materialBuilder.setPbrParameters(builtPbrParameters);

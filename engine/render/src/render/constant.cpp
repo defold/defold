@@ -373,12 +373,14 @@ void IterateNamedConstants(HNamedConstantBuffer buffer, IterateNamedConstantsFn 
         callback(buffer->m_Constants[i].m_NameHash, ctx);
 }
 
-void ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer)
+void ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer, const RenderObject* render_object)
 {
     dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
     for (uint32_t i = 0; i < buffer->m_Constants.Size(); ++i)
     {
         NamedConstantBuffer::Constant& constant = buffer->m_Constants[i];
+        if (IsRenderObjectUniformBufferConstant(material, render_object, constant.m_NameHash))
+            continue;
         dmGraphics::HUniformLocation* location = material->m_NameHashToLocation.Get(constant.m_NameHash);
         if (!location)
             continue;
