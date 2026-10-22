@@ -99,7 +99,20 @@ namespace dmTexc
 
     Image* Resize(Image* image, uint32_t width, uint32_t height)
     {
-        Image* resized = image->m_PixelFormat == PF_RGBA32F ? dmTexc::ResizeRGBA32F(image, width, height) : dmTexc::ResizeBasis(image, width, height);
+        return Resize(image, width, height, false, false);
+    }
+
+    Image* Resize(Image* image, uint32_t width, uint32_t height, bool srgb, bool premultiplied)
+    {
+        Image* resized;
+        if (image->m_PixelFormat == PF_RGBA32F)
+            resized = dmTexc::ResizeRGBA32F(image, width, height);
+        else if (srgb)
+            resized = dmTexc::ResizeBasis(image, width, height, srgb, premultiplied);
+        else
+            resized = dmTexc::ResizeRGBA8888(image, width, height);
+        if (!resized)
+            return 0;
         resized->m_Path = strdup(image->m_Path?image->m_Path:"null");
         return resized;
     }

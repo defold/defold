@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #import "ViewController.h"
+#import "SceneDelegate.h"
 #include "native.h"
 #include "internal.h"
 
@@ -20,11 +21,21 @@
 #import "EAGLView.h"
 
 extern int g_IsReboot;
+extern UIWindow* g_ApplicationWindow;
 static int g_view_type = NATIVE_NO_API;
 
 @implementation ViewController
 
 @synthesize baseView;
+
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations
+{
+    UIWindow* window = self.viewIfLoaded.window;
+    // A full-screen presentation detaches the root view from the game window.
+    if (!window)
+        window = g_ApplicationWindow;
+    return dmNativeGetiOSSupportedInterfaceOrientations(window);
+}
 
 - (void)dealloc
 {
@@ -86,6 +97,16 @@ static int g_view_type = NATIVE_NO_API;
         // According to Apple glFinish() should be called here (Comment moved from AppDelegate applicationWillResignActive)
         glFinish();
     }
+}
+
+- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
+{
+    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+    [coordinator animateAlongsideTransition:nil completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+        // A 180-degree rotation can move reserved regions without changing size or insets.
+        // Notify during event polling after UIKit has finished updating the geometry.
+        self.baseView.safeAreaChanged = YES;
+    }];
 }
 
 - (BOOL)shouldUpdateViewFrame

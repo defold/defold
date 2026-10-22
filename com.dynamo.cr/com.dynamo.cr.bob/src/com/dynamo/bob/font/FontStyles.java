@@ -125,6 +125,10 @@ public final class FontStyles {
             item.setWavelength(effect.wavelength);
             item.setFit(effect.fit);
             item.setGradientMode(effect.gradientMode);
+            item.setColorType(effect.colorType);
+            item.setStopCount(effect.stopCount);
+            for (float value : effect.positions) item.addPositions(value);
+            for (float value : effect.parameters) item.addParameters(value);
             for (float value : effect.colors) item.addColors(value);
             output.addEffects(item);
         }
@@ -160,6 +164,10 @@ public final class FontStyles {
             effect.wavelength = source.getWavelength();
             effect.fit = source.getFit();
             effect.gradientMode = source.getGradientMode();
+            effect.colorType = source.getColorType();
+            effect.stopCount = source.getStopCount();
+            for (int j = 0; j < source.getPositionsCount(); ++j) effect.positions[j] = source.getPositions(j);
+            for (int j = 0; j < source.getParametersCount(); ++j) effect.parameters[j] = source.getParameters(j);
             for (int j = 0; j < source.getColorsCount(); ++j) effect.colors[j] = source.getColors(j);
             style.effects[i] = effect;
         }

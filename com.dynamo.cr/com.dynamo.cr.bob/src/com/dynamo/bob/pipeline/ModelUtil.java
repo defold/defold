@@ -96,6 +96,45 @@ public class ModelUtil {
     private record JsonRange(int offset, int length, long totalLength) {
     }
 
+    /** JSON source and the optional GLB BIN chunk location, without reading BIN bytes. */
+    public record ModelSource(byte[] json, long binaryOffset, long binaryLength) {}
+
+    /** Reads JSON and locates BIN data; the caller owns and closes the stream. */
+    public static ModelSource readModelSource(InputStream input) throws IOException {
+        PushbackInputStream stream = new PushbackInputStream(input, Integer.BYTES);
+        byte[] prefix = stream.readNBytes(Integer.BYTES);
+        stream.unread(prefix);
+        if (!isGlbMagic(prefix)) {
+            return new ModelSource(stream.readAllBytes(), -1, 0);
+        }
+
+        JsonRange range = getGlbJsonRange(stream.readNBytes(GLB_JSON_OFFSET), -1);
+        byte[] json = stream.readNBytes(range.length);
+        if (json.length != range.length) {
+            throw new IOException("GLB JSON chunk is truncated");
+        }
+        long offset = GLB_JSON_OFFSET + (long)range.length;
+        while (offset < range.totalLength) {
+            byte[] header = stream.readNBytes(8);
+            if (header.length != 8 || range.totalLength - offset < 8) {
+                throw new IOException("GLB chunk header is truncated");
+            }
+            ByteBuffer chunk = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN);
+            long length = Integer.toUnsignedLong(chunk.getInt());
+            int type = chunk.getInt();
+            offset += 8;
+            if (length > range.totalLength - offset) {
+                throw new IOException("Invalid GLB chunk length");
+            }
+            if (type == 0x004e4942) {
+                return new ModelSource(json, offset, length);
+            }
+            stream.skipNBytes(length);
+            offset += length;
+        }
+        return new ModelSource(json, -1, 0);
+    }
+
     private static final class CountingInputStream extends FilterInputStream {
         private long byteCount;
 
@@ -251,6 +290,42 @@ public class ModelUtil {
         }
     }
 
+    /**
+     * Finds buffer indices used exclusively as EXT/KHR Meshopt fallbacks, whose
+     * contents modelc replaces with decoded data. Buffers also used as compressed
+     * sources or by ordinary views remain dependencies, as do unreferenced buffers.
+     * This mirrors modelc's geometry-load requirements using only JSON metadata,
+     * so dependency discovery does not require unused fallback files to exist.
+     */
+    private static Set<Integer> getUnusedMeshoptFallbackBuffers(JsonNode root) {
+        Set<Integer> fallbacks = new HashSet<>();
+        Set<Integer> required = new HashSet<>();
+        JsonNode bufferViews = root.path("bufferViews");
+        if (bufferViews.isArray()) {
+            for (JsonNode view : bufferViews) {
+                JsonNode extensions = view.path("extensions");
+                JsonNode compression = extensions.path("EXT_meshopt_compression");
+                if (!compression.isObject()) {
+                    compression = extensions.path("KHR_meshopt_compression");
+                }
+                int buffer = view.path("buffer").asInt(-1);
+                if (compression.isObject()) {
+                    fallbacks.add(buffer);
+                    required.add(compression.path("buffer").asInt(-1));
+                } else {
+                    required.add(buffer);
+                }
+            }
+        }
+        // A fallback may share its buffer with compressed sources or ordinary data.
+        fallbacks.removeAll(required);
+        return fallbacks;
+    }
+
+    /**
+     * Collects external dependencies in buffer declaration order and detects morph
+     * targets. Geometry validation and decoding are left to the native importer.
+     */
     private static ModelMetadata getModelMetadata(JsonNode root) throws IOException {
         if (root == null || !root.isObject()) {
             throw new IOException("glTF root must be an object");
@@ -259,8 +334,12 @@ public class ModelUtil {
         LinkedHashSet<String> externalBufferUris = new LinkedHashSet<>();
         JsonNode buffers = root.path("buffers");
         if (buffers.isArray()) {
-            for (JsonNode buffer : buffers) {
-                JsonNode uriNode = buffer.get("uri");
+            Set<Integer> unusedFallbacks = getUnusedMeshoptFallbackBuffers(root);
+            for (int i = 0; i < buffers.size(); ++i) {
+                if (unusedFallbacks.contains(i)) {
+                    continue;
+                }
+                JsonNode uriNode = buffers.get(i).get("uri");
                 if (uriNode != null && uriNode.isTextual()) {
                     String uri = uriNode.getTextValue();
                     if (isExternalBufferUri(uri)) {
@@ -712,11 +791,8 @@ public class ModelUtil {
             throw new IOException("Model load returned null");
         }
 
-        for (Modelimporter.Buffer buffer : scene.buffers)
-        {
-            if (buffer.buffer == null || buffer.buffer.length == 0)
-                throw new IOException(String.format("Failed to load buffer '%s' for file '%s", buffer.uri, path));
-        }
+        // The native importer validates required buffers. Optional Meshopt fallbacks
+        // and geometry skipped by material-only imports can remain empty.
         return loadInternal(scene);
     }
 

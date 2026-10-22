@@ -1060,6 +1060,7 @@ static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collectio
     layout->m_MaxGlyphHeight = 0.0f;
     layout->m_Width = 0.0f;
     layout->m_Height = 0.0f;
+    layout->m_MonospacePadding = settings->m_Monospace ? settings->m_Padding : 0.0f;
     layout->m_ElapsedTime = 0.0;
     layout->m_ReleaseObject = 0;
     layout->m_ObjectContext = 0;

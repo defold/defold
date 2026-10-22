@@ -19,9 +19,12 @@
             [editor.console :as console]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
+            [editor.error-reporting :as error-reporting]
+            [editor.future :as future]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.notifications :as notifications]
+            [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.ui :as ui]
@@ -30,7 +33,8 @@
   (:import [com.dynamo.discovery MDNS MDNS$Logger MDNSServiceInfo]
            [java.io ByteArrayOutputStream]
            [java.net InetAddress NetworkInterface URL URLConnection]
-           [java.util UUID]))
+           [java.util UUID]
+           [java.util.concurrent TimeUnit]))
 
 (set! *warn-on-reflection* true)
 
@@ -56,56 +60,44 @@
 (defn- clear-selected-target-hint! []
   (reset! selected-target-atom ::undefined))
 
-(defn- destroy-launched-target-process! [^Process process]
-  (when (.isAlive process)
-    (.destroy process)))
+(defn- invalidate-target-menu! []
+  (ui/invalidate-menubar-item! ::target))
 
-(defn kill-launched-target! [target]
+(defn- kill-launched-target-process! [target]
   (let [^Process process (:process target)]
     (when (.isAlive process)
-      (when-let [_ (:url target)]
+      (when (:url target)
         (try
           (engine/exit! target 0)
-          (.waitFor process graceful-exit-timeout java.util.concurrent.TimeUnit/MILLISECONDS)
-          (catch Exception _
-            (destroy-launched-target-process! process))))
-      (destroy-launched-target-process! process))))
+          (.waitFor process graceful-exit-timeout TimeUnit/MILLISECONDS)
+          (catch Exception _ nil)))
+      (when (.isAlive process)
+        (.destroy process)))))
+
+(defn kill-launched-target! [target]
+  ;; Remove before terminating so the monitor recognizes an intentional exit.
+  (let [[old new] (swap-vals! launched-targets coll/filterv-> #(not= (:id %) (:id target)))]
+    (when (not= old new)
+      (clear-selected-target-hint!)
+      (invalidate-target-menu!)
+      (kill-launched-target-process! target))))
 
 (defn kill-launched-targets! []
-  (doseq [launched-target @launched-targets]
-    (kill-launched-target! launched-target))
-  (reset! launched-targets [])
-  (clear-selected-target-hint!))
+  (let [[targets _] (reset-vals! launched-targets [])]
+    (when (coll/not-empty targets)
+      (clear-selected-target-hint!)
+      (invalidate-target-menu!))
+    (doseq [target targets]
+      (kill-launched-target-process! target))))
 
 (def ^:private kill-lingering-launched-targets-hook
   (Thread. (fn [] (kill-launched-targets!))))
-
-(defn- invalidate-target-menu! []
-  (ui/invalidate-menubar-item! ::target))
 
 (defn launched-target? [target]
   (contains? target :process))
 
 (defn remote-target? [target]
   (not (launched-target? target)))
-
-(defn add-launched-target! [instance-index target]
-  (assert (launched-target? target))
-  (let [launched-target (assoc target
-                          :local-address "127.0.0.1"
-                          :id (str (UUID/randomUUID))
-                          :instance-index instance-index)]
-    (when (= instance-index 0)
-      (kill-launched-targets!))
-    (swap! launched-targets conj launched-target)
-    (clear-selected-target-hint!)
-    (invalidate-target-menu!)
-    (process/on-exit! (:process launched-target)
-                      (fn []
-                        (swap! launched-targets coll/filterv-> #(not= (:id %) (:id launched-target)))
-                        (clear-selected-target-hint!)
-                        (invalidate-target-menu!)))
-    launched-target))
 
 (defn- find-by-id [targets id]
   (coll/first-where #(= (:id %) id) targets))
@@ -371,8 +363,50 @@
 (defn select-target! [prefs target]
   (reset! selected-target-atom target)
   (prefs/set! prefs [:run :selected-target-id] (:id target))
-  (console/set-log-service-stream (engine/get-log-service-stream target))
+  (if (and (remote-target? target) (not (all-launched-targets? target)))
+    (console/set-log-service-stream (engine/get-log-service-stream target))
+    (when-let [log-stream (:log-stream (if (all-launched-targets? target)
+                                         (peek @launched-targets)
+                                         target))]
+      (when-not (console/current-stream? log-stream)
+        (console/reset-console-stream! log-stream))
+      (console/reset-remote-log-pump-thread! nil)))
   target)
+
+(defn add-launched-target! [prefs instance-index target]
+  (assert (launched-target? target))
+  (let [launched-target (assoc target
+                          :local-address "127.0.0.1"
+                          :id (str (UUID/randomUUID))
+                          :instance-index instance-index)]
+    (when (= instance-index 0)
+      (kill-launched-targets!))
+    (swap! launched-targets conj launched-target)
+    (clear-selected-target-hint!)
+    (invalidate-target-menu!)
+    (console/reset-console-stream! (:log-stream launched-target))
+    (select-target! prefs (if (zero? instance-index)
+                            launched-target
+                            {:id :all-launched-targets}))
+    (future/io
+      (error-reporting/catch-all!
+        (try
+          ;; A child may keep stdout open, so do not wait for the log pump.
+          (let [exit-code (process/await-exit-code (:process launched-target))]
+            (when (and (not (zero? exit-code))
+                       (console/current-stream? (:log-stream launched-target))
+                       (coll/any? #(= (:id launched-target) (:id %)) @launched-targets))
+              (console/append-console-line!
+                (format "ERROR:EDITOR: Application exited with code %s."
+                        (if (os/is-win32?)
+                          (format "0x%08X" (bit-and exit-code 0xffffffff))
+                          (str exit-code))))))
+          (finally
+            (let [[old new] (swap-vals! launched-targets coll/filterv-> #(not= (:id %) (:id launched-target)))]
+              (when (not= old new)
+                (clear-selected-target-hint!)
+                (invalidate-target-menu!)))))))
+    launched-target))
 
 (defn- url-message
   "Returns localization MessagePattern (or string)"

@@ -77,6 +77,25 @@ namespace dmWebServer
 
     // Write the registered OpenAPI Paths Object, including a terminating zero.
     void GetOpenAPIPaths(HServer server, dmArray<char>* paths);
+
+    // Close after sending the response, without draining unread request data.
+    // Call before sending any response headers or data.
+    Result CloseConnection(Request* request);
+
+    // Receive the entire body without waiting. Call before any Receive/Send.
+    // The buffer must hold Content-Length bytes; headers plus body must fit in 64 KiB.
+    // On RESULT_TRY_AGAIN, return from the handler without side effects. The server
+    // retains the request and calls the handler again when more data arrives.
+    Result ReceiveBuffered(Request* request, void* buffer, uint32_t buffer_size);
+
+    typedef uint32_t (*StreamRead)(void* context, void* buffer, uint32_t size);
+    typedef void (*StreamClose)(void* context);
+
+    // Send a bounded-buffer stream with Content-Length, after setting headers.
+    // Read runs on the response worker (Update on platforms without threads).
+    // Return zero on read failure. On success, close releases context exactly once,
+    // including disconnect/shutdown; on failure the caller retains ownership.
+    Result SendStream(Request* request, uint64_t length, StreamRead read, StreamClose close, void* context);
 }
 
 #endif // DM_WEBSERVER_H

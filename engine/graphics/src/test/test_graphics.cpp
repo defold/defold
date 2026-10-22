@@ -1032,6 +1032,107 @@ static void RunAllAttributeTest(float* values, uint32_t num_values, dmGraphics::
     DestroyVertexAttributeInfos(attribute_infos);
 }
 
+// Verifies normalized engine colors, defaults and packed overrides without changing raw integer conversion.
+TEST_F(dmGraphicsTest, VertexAttributeNormalizedColor)
+{
+    dmGraphics::VertexAttributeInfos infos;
+    InitializeVertexAttributeInfos(infos, 1);
+    AddAttribute(infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,
+        dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4,
+        dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+    dmGraphics::VertexAttributeInfo& info = ((dmGraphics::VertexAttributeInfo*) infos.m_Infos)[0];
+    info.m_Normalize = true;
+    infos.m_VertexStride = 4;
+    dmGraphics::WriteAttributeParams params = {};
+    params.m_VertexAttributeInfos = &infos;
+    float colors[] = { -0.5f, 0.5f, 1.5f, 0.0f, 0.25f, 0.75f, 0.0f, 1.0f };
+    const float* channels[] = { colors };
+    dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, channels, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
+    uint8_t actual[8] = {};
+    uint8_t expected[] = { 0, 128, 255, 0, 64, 191, 0, 255 };
+    ASSERT_EQ(actual + sizeof(actual), dmGraphics::WriteAttributes(actual, 0, 2, params));
+    ASSERT_VEC(expected, actual, 8);
+
+    // Missing alpha must be opaque in normalized storage too.
+    dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, channels, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, true);
+    uint8_t expected_rgb[] = { 0, 128, 255, 255 };
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(expected_rgb, actual, 4);
+
+    info.m_Normalize = false;
+    uint8_t expected_raw[] = { 0, 0, 1, 1 };
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(expected_raw, actual, 4);
+    info.m_Normalize = true;
+
+    memset(&params.m_Colors, 0, sizeof(params.m_Colors));
+    uint8_t expected_default[] = { 255, 255, 255, 255 };
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(expected_default, actual, 4);
+
+    uint8_t packed[] = { 17, 128, 231, 64 };
+    info.m_ValuePtr = packed;
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(packed, actual, 4);
+    info.m_ValueVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
+    uint8_t expected_packed_rgb[] = { 17, 128, 231, 255 };
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(expected_packed_rgb, actual, 4);
+    DestroyVertexAttributeInfos(infos);
+}
+
+// Verifies scalar normalization, rounding and clamped 32-bit endpoints without overflow or double-packing.
+TEST_F(dmGraphicsTest, VertexAttributeNormalizedIntegerEndpoints)
+{
+    dmGraphics::VertexAttributeInfos infos;
+    InitializeVertexAttributeInfos(infos, 1);
+    AddAttribute(infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,
+        dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR,
+        dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+    dmGraphics::VertexAttributeInfo& info = ((dmGraphics::VertexAttributeInfo*) infos.m_Infos)[0];
+    info.m_Normalize = true;
+    infos.m_VertexStride = 16;
+    dmGraphics::WriteAttributeParams params = {};
+    params.m_VertexAttributeInfos = &infos;
+    float color[] = { 1.0f };
+    const float* channels[] = { color };
+    dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, channels, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, 1, true);
+    uint32_t actual[4] = {};
+    const float values[] = { -2.0f, -1.0f, -0.99999994f, -0.5f, 0.0f, 0.5f, 0.99999994f, 1.0f, 2.0f };
+    const uint32_t expected_unsigned[] = { 0, 0, 0, 0, 0, 0x80000000u, 0xfffffeffu, 0xffffffffu, 0xffffffffu };
+    const uint32_t expected_signed[] = { 0x80000000u, 0x80000000u, 0x80000080u, 0xc0000000u, 0, 0x40000000u, 0x7fffff7fu, 0x7fffffffu, 0x7fffffffu };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(values); ++i)
+    {
+        color[0] = values[i];
+        info.m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(actual); ++j)
+            ASSERT_EQ(expected_unsigned[i], actual[j]);
+        info.m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(actual); ++j)
+            ASSERT_EQ(expected_signed[i], actual[j]);
+    }
+    const dmGraphics::VertexAttribute::DataType types[] = {
+        dmGraphics::VertexAttribute::TYPE_BYTE, dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE,
+        dmGraphics::VertexAttribute::TYPE_SHORT, dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT,
+        dmGraphics::VertexAttribute::TYPE_FLOAT
+    };
+    const float positive[] = { 64.0f, 128.0f, 16384.0f, 32768.0f, 0.5f };
+    const float negative[] = { -64.0f, 0.0f, -16384.0f, 0.0f, -0.5f };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(types); ++i)
+    {
+        info.m_DataType = types[i];
+        color[0] = 0.5f;
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+        ASSERT_EQ(positive[i], dmGraphics::VertexAttributeDataTypeToFloat(types[i], (uint8_t*) actual));
+        color[0] = -0.5f;
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+        ASSERT_EQ(negative[i], dmGraphics::VertexAttributeDataTypeToFloat(types[i], (uint8_t*) actual));
+    }
+    DestroyVertexAttributeInfos(infos);
+}
+
 TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 {
     dmGraphics::VertexAttributeInfos attribute_infos;
@@ -2219,6 +2320,62 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
+// Reject empty targets and every zero-sized selected attachment before reaching an adapter.
+TEST_F(dmGraphicsTest, TestRenderTargetAttachmentValidation)
+{
+    const dmGraphics::TextureType texture_types[] = {dmGraphics::TEXTURE_TYPE_2D, dmGraphics::TEXTURE_TYPE_CUBE_MAP};
+    for (uint32_t type = 0; type < DM_ARRAY_SIZE(texture_types); ++type)
+    {
+        dmGraphics::RenderTargetCreationParams params = {};
+        params.m_TextureType = texture_types[type];
+        ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, 0, params));
+
+        const uint32_t dimensions[][2] = {{0, 0}, {0, HEIGHT}, {WIDTH, 0}};
+        for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 2; ++i)
+        {
+            dmGraphics::BufferType buffer_type = dmGraphics::GetBufferTypeFromIndex(i);
+            for (uint32_t j = 0; j < DM_ARRAY_SIZE(dimensions); ++j)
+            {
+                params = InitializeRenderTargetParams(WIDTH, texture_types[type] == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? WIDTH : HEIGHT);
+                params.m_TextureType = texture_types[type];
+                dmGraphics::TextureParams* attachment = i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS ? &params.m_ColorBufferParams[i] :
+                    (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT ? &params.m_DepthBufferParams : &params.m_StencilBufferParams);
+                attachment->m_Width = dimensions[j][0];
+                attachment->m_Height = dimensions[j][1];
+                ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, buffer_type, params));
+                // A valid color attachment must not hide an invalid later attachment.
+                ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, buffer_type | dmGraphics::BUFFER_TYPE_COLOR0_BIT, params));
+                if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT || buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+                    ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, params));
+            }
+        }
+
+        // Unselected zero-sized slots are valid, including disabled depth/stencil.
+        const uint32_t valid_dimensions[][2] = {{1, 1}, {WIDTH, HEIGHT}};
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(valid_dimensions); ++i)
+        {
+            params = InitializeRenderTargetParams(valid_dimensions[i][0], texture_types[type] == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? valid_dimensions[i][0] : valid_dimensions[i][1]);
+            params.m_TextureType = texture_types[type];
+            params.m_DepthBufferParams.m_Width = params.m_DepthBufferParams.m_Height = 0;
+            params.m_StencilBufferParams.m_Width = params.m_StencilBufferParams.m_Height = 0;
+            for (uint32_t j = 1; j < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++j)
+                params.m_ColorBufferParams[j].m_Width = params.m_ColorBufferParams[j].m_Height = 0;
+            dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
+            ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+            dmGraphics::DeleteRenderTarget(m_Context, target);
+
+            params = InitializeRenderTargetParams(valid_dimensions[i][0], texture_types[type] == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? valid_dimensions[i][0] : valid_dimensions[i][1]);
+            params.m_TextureType = texture_types[type];
+            for (uint32_t j = 0; j < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++j)
+                params.m_ColorBufferParams[j].m_Width = params.m_ColorBufferParams[j].m_Height = 0;
+            target = dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, params);
+            ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+            dmGraphics::DeleteRenderTarget(m_Context, target);
+        }
+    }
+}
+
+// Verify cubemap face storage, resizing, and square, equally sized selected attachments.
 TEST_F(dmGraphicsTest, TestCubeMapRenderTarget)
 {
     dmGraphics::RenderTargetCreationParams params = InitializeRenderTargetParams(WIDTH, WIDTH);
@@ -2269,6 +2426,26 @@ TEST_F(dmGraphicsTest, TestCubeMapRenderTarget)
     params.m_ColorBufferParams[0].m_Height = WIDTH + 1;
     ASSERT_EQ((dmGraphics::HRenderTarget) 0,
         dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params));
+
+    // Every selected attachment must be square and match the other cubemap attachments.
+    const uint32_t invalid_dimensions[][2] = {{WIDTH, WIDTH + 1}, {WIDTH + 1, WIDTH + 1}};
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 2; ++i)
+    {
+        dmGraphics::BufferType buffer_type = dmGraphics::GetBufferTypeFromIndex(i);
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(invalid_dimensions); ++j)
+        {
+            params = InitializeRenderTargetParams(WIDTH, WIDTH);
+            params.m_TextureType = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+            dmGraphics::TextureParams* attachment = i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS ? &params.m_ColorBufferParams[i] :
+                (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT ? &params.m_DepthBufferParams : &params.m_StencilBufferParams);
+            attachment->m_Width = invalid_dimensions[j][0];
+            attachment->m_Height = invalid_dimensions[j][1];
+            uint32_t flags = buffer_type | dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+            ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, flags, params));
+            if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT || buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+                ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, params));
+        }
+    }
 }
 
 TEST_F(dmGraphicsTest, TestGetRTAttachment)

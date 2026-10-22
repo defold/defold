@@ -16,6 +16,7 @@
 
 #include "native/native_handles.h"
 
+#include <dlib/array.h>
 #include <math.h>
 #include <UIKit/UIKit.h>
 
@@ -72,6 +73,37 @@ namespace dmPlatform
         out->m_InsetBottom = inset_bottom;
 
         return true;
+    }
+
+    void GetReservedAreas(HWindow window, dmArray<WindowReservedArea>& areas)
+    {
+        areas.SetSize(0);
+        if (@available(iOS 27.1, *))
+        {
+            UIView* view = (UIView*)dmNativeGetiOSUIView();
+            if (!view || !view.window)
+                return;
+
+            NSArray<UIViewReservedRegion*>* regions = [view reservedRegionsOfKind:[UIViewReservedRegionKind occlusionRegionKind]
+                                                                         options:UIViewReservedRegionQueryOptionsNone];
+            if (areas.Capacity() < regions.count)
+                areas.SetCapacity((uint32_t)regions.count);
+
+            const CGRect bounds = view.bounds;
+            for (UIViewReservedRegion* region in regions)
+            {
+                if (!region.isActive)
+                    continue;
+
+                // UIKit's frame already includes the interaction margins.
+                const CGRect frame = region.frame;
+                WindowReservedArea area;
+                if (ConvertReservedArea(CGRectGetMinX(frame) - bounds.origin.x, CGRectGetMinY(frame) - bounds.origin.y,
+                                        CGRectGetMaxX(frame) - bounds.origin.x, CGRectGetMaxY(frame) - bounds.origin.y,
+                                        bounds.size.width, bounds.size.height, GetWindowWidth(window), GetWindowHeight(window), &area))
+                    areas.Push(area);
+            }
+        }
     }
 
 }

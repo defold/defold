@@ -31,11 +31,13 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateTexture;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetEffectTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetGlyphMetrics;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetMarkupData;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetSupportedGlyphMetrics;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertexBufferSize;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertices;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVectorTextures;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcHash;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasure;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasureParsedMarkup;
@@ -125,6 +127,7 @@ public final class FontRenderer implements AutoCloseable {
         public boolean hasOutline;
         public boolean hasShadow;
         public boolean useTextShaping;
+        public boolean vector;
     }
 
     /** One prebaked glyph and its byte range in a {@link GlyphBank}. */
@@ -188,6 +191,9 @@ public final class FontRenderer implements AutoCloseable {
         public float sdfScale;
         public long baseStyle;
         public boolean useBaseStyle;
+        public boolean useGpuEffects;
+        /** Vector layout size in pixels; zero uses Params.size without changing the atlas. */
+        public float fontSize;
     }
 
     /** Font-independent compiled resource style; native setters copy these values. */
@@ -233,6 +239,10 @@ public final class FontRenderer implements AutoCloseable {
         public int type;
         public int fit;
         public int gradientMode;
+        public float[] positions = new float[4];
+        public float[] parameters = new float[6];
+        public int colorType;
+        public int stopCount;
     }
 
     /** Compile opening-only markup, including static resource decorations. */
@@ -242,8 +252,9 @@ public final class FontRenderer implements AutoCloseable {
             MemorySegment data = FontcStyleData.allocate(arena);
             MemorySegment error = FontcMarkupError.allocate(arena);
             int result = FontRendererFFM.FontcCompileStyle(arena.allocateFrom(JAVA_BYTE, bytes), bytes.length, data, error);
-            if (result != 0)
-                throw new IllegalArgumentException("Invalid style markup at byte " + FontcMarkupError.m_ByteOffset(error));
+            if (result == FontRendererFFM.FONT_RENDERER_RESULT_TEXT_ERROR())
+                throw new MarkupException(markupError(bytes, FontcMarkupError.m_ByteOffset(error), FontcMarkupError.m_Type(error)));
+            checkResult(result, "Native style compilation failed");
             try {
                 Style style = new Style();
                 MemorySegment values = FontcStyleData.m_Style(data);
@@ -273,9 +284,14 @@ public final class FontRenderer implements AutoCloseable {
                         effect.amplitude = FontcStyleEffect.m_Amplitude(item);
                         effect.hz = FontcStyleEffect.m_Hz(item);
                         effect.wavelength = FontcStyleEffect.m_Wavelength(item);
-                        effect.type = FontcStyleEffect.m_Type(item);
-                        effect.fit = FontcStyleEffect.m_Fit(item);
-                        effect.gradientMode = FontcStyleEffect.m_GradientMode(item);
+                        int bits = Short.toUnsignedInt(FontcStyleEffect.m_Bits(item));
+                        effect.type = bits & 3;
+                        effect.fit = (bits >>> 2) & 3;
+                        effect.gradientMode = (bits >>> 4) & 3;
+                        effect.colorType = (bits >>> 6) & 3;
+                        effect.stopCount = (bits >>> 8) & 7;
+                        effect.parameters = FontcStyleEffect.m_Parameters(item).toArray(JAVA_FLOAT);
+                        effect.positions = FontcStyleEffect.m_Positions(item).toArray(JAVA_FLOAT);
                         style.effects[i] = effect;
                     }
                 }
@@ -317,9 +333,14 @@ public final class FontRenderer implements AutoCloseable {
                     FontcStyleEffect.m_Amplitude(item, effect.amplitude);
                     FontcStyleEffect.m_Hz(item, effect.hz);
                     FontcStyleEffect.m_Wavelength(item, effect.wavelength);
-                    FontcStyleEffect.m_Type(item, effect.type);
-                    FontcStyleEffect.m_Fit(item, effect.fit);
-                    FontcStyleEffect.m_GradientMode(item, effect.gradientMode);
+                    // Check representability before packing the native bit fields.
+                    if (((effect.type | effect.fit | effect.gradientMode | effect.colorType) & ~3) != 0 ||
+                            (effect.stopCount & ~7) != 0)
+                        throw new IllegalArgumentException("Invalid font style effect fields");
+                    FontcStyleEffect.m_Bits(item, (short)(effect.type | (effect.fit << 2) |
+                            (effect.gradientMode << 4) | (effect.colorType << 6) | (effect.stopCount << 8)));
+                    FontcStyleEffect.m_Parameters(item, arena.allocateFrom(JAVA_FLOAT, effect.parameters));
+                    FontcStyleEffect.m_Positions(item, arena.allocateFrom(JAVA_FLOAT, effect.positions));
                 }
             }
             checkResult(FontRendererFFM.FontcSetStyle(requireHandle(), name, data), "Unable to register font style");
@@ -341,10 +362,6 @@ public final class FontRenderer implements AutoCloseable {
 
         private Layout(MemorySegment values, MarkupError markupError) {
             this(values, markupError, null);
-        }
-
-        private Layout(MemorySegment values, MarkupDocument markupDocument) {
-            this(values, null, markupDocument);
         }
 
         private Layout(MemorySegment values, MarkupError markupError, MarkupDocument markupDocument) {
@@ -371,6 +388,16 @@ public final class FontRenderer implements AutoCloseable {
             this.column = column;
             this.errorType = errorType;
             this.message = "Invalid rich text markup at line " + line + ", column " + column + ": " + description;
+        }
+    }
+
+    /** Style compilation failed at the source location described by error. */
+    public static final class MarkupException extends IllegalArgumentException {
+        public final MarkupError error;
+
+        private MarkupException(MarkupError error) {
+            super(error.message);
+            this.error = error;
         }
     }
 
@@ -454,15 +481,17 @@ public final class FontRenderer implements AutoCloseable {
         public final int width;
         public final int height;
         public final int channels;
+        public final int componentSize;
         public final ByteBuffer pixels;
 
-        private Texture(MemorySegment values) {
+        private Texture(MemorySegment values, int componentSize) {
             atlasVersion = FontcTexture.m_AtlasVersion(values);
             x = FontcTexture.m_X(values);
             y = FontcTexture.m_Y(values);
             width = FontcTexture.m_Width(values);
             height = FontcTexture.m_Height(values);
             channels = FontcTexture.m_Channels(values);
+            this.componentSize = componentSize;
             int pixelCount = FontcTexture.m_PixelCount(values);
             pixels = pixelCount == 0 ? null : copyNativeBytes(FontcTexture.m_Pixels(values), pixelCount);
         }
@@ -490,8 +519,13 @@ public final class FontRenderer implements AutoCloseable {
         public final float ascent;
         public final float descent;
         public final ByteBuffer pixels;
+        public final ByteBuffer vectorData;
+        public final float outlineWidth;
+        public final float outlineLeftBearing;
+        public final float outlineAscent;
+        public final float outlineDescent;
 
-        private GeneratedGlyph(MemorySegment values) {
+        private GeneratedGlyph(MemorySegment values, boolean vector) {
             glyphIndex = FontcGlyph.m_GlyphIndex(values);
             width = FontcGlyph.m_Width(values);
             height = FontcGlyph.m_Height(values);
@@ -500,7 +534,26 @@ public final class FontRenderer implements AutoCloseable {
             leftBearing = FontcGlyph.m_LeftBearing(values);
             ascent = FontcGlyph.m_Ascent(values);
             descent = FontcGlyph.m_Descent(values);
-            pixels = copyNativeBytes(FontcGlyph.m_Pixels(values), FontcGlyph.m_PixelCount(values));
+            ByteBuffer payload = copyNativeBytes(FontcGlyph.m_Pixels(values), FontcGlyph.m_PixelCount(values));
+            if (vector && payload.remaining() >= Integer.BYTES + Float.BYTES * 4) {
+                int vectorDataSize = payload.getInt();
+                if (vectorDataSize < 0 || vectorDataSize > payload.remaining() - Float.BYTES * 4)
+                    throw new IllegalStateException("Invalid native vector glyph data size");
+                outlineWidth = payload.getFloat();
+                outlineLeftBearing = payload.getFloat();
+                outlineAscent = payload.getFloat();
+                outlineDescent = payload.getFloat();
+                vectorData = payload.slice(payload.position(), vectorDataSize).order(ByteOrder.nativeOrder());
+                payload.position(payload.position() + vectorDataSize);
+                pixels = payload.slice().order(ByteOrder.nativeOrder());
+            } else {
+                pixels = payload;
+                vectorData = null;
+                outlineWidth = 0.0f;
+                outlineLeftBearing = 0.0f;
+                outlineAscent = 0.0f;
+                outlineDescent = 0.0f;
+            }
         }
     }
 
@@ -514,6 +567,12 @@ public final class FontRenderer implements AutoCloseable {
         public final float leftBearing;
         public final float ascent;
         public final float descent;
+        /** Unpadded outline width used for gradient fitting. */
+        public final float unpaddedWidth;
+        /** Unpadded outline ascent used for gradient fitting. */
+        public final float unpaddedAscent;
+        /** Unpadded outline descent used for gradient fitting. */
+        public final float unpaddedDescent;
         /** Width used for text measurement, excluding bitmap sampling bounds. */
         public final float layoutWidth;
         /** Bearing used for text measurement, excluding bitmap sampling bounds. */
@@ -528,6 +587,9 @@ public final class FontRenderer implements AutoCloseable {
             leftBearing = FontcGlyphMetrics.m_LeftBearing(values);
             ascent = FontcGlyphMetrics.m_Ascent(values);
             descent = FontcGlyphMetrics.m_Descent(values);
+            unpaddedWidth = FontcGlyphMetrics.m_UnpaddedWidth(values);
+            unpaddedAscent = FontcGlyphMetrics.m_UnpaddedAscent(values);
+            unpaddedDescent = FontcGlyphMetrics.m_UnpaddedDescent(values);
             layoutWidth = FontcGlyphMetrics.m_LayoutWidth(values);
             layoutLeftBearing = FontcGlyphMetrics.m_LayoutLeftBearing(values);
         }
@@ -568,6 +630,7 @@ public final class FontRenderer implements AutoCloseable {
     private final State state;
     private final Cleaner.Cleanable cleanable;
     private long atlasVersion;
+    private final boolean vector;
 
     /**
      * Creates a native renderer and its glyph atlas from the supplied font data.
@@ -590,6 +653,7 @@ public final class FontRenderer implements AutoCloseable {
                 (params.layerMask & LAYER_FACE) == 0)
             throw new IllegalArgumentException("Invalid native font renderer parameters");
 
+        vector = params.vector;
         MemorySegment handle;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment nativeParams = FontcParams.allocate(arena);
@@ -627,6 +691,7 @@ public final class FontRenderer implements AutoCloseable {
                 (params.layerMask & LAYER_FACE) == 0)
             throw new IllegalArgumentException("Invalid native glyph-bank renderer parameters");
 
+        vector = false;
         MemorySegment handle;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment nativeGlyphs = FontcGlyphBankGlyph.allocateArray(glyphBank.glyphs.length, arena);
@@ -732,7 +797,9 @@ public final class FontRenderer implements AutoCloseable {
                         flag(lineBreak), width, leading, tracking, result);
                 checkResult(status, "Native rich-text shaping failed");
                 return includeDocument
-                        ? new Layout(result, copyMarkupDocument(parsedMarkup, arena))
+                        ? new Layout(result, FontcMarkupError.m_Type(parseError) == 0 ? null : markupError(bytes,
+                                FontcMarkupError.m_ByteOffset(parseError), FontcMarkupError.m_Type(parseError)),
+                                copyMarkupDocument(parsedMarkup, arena))
                         : new Layout(result);
             } finally {
                 FontcDestroyMarkup(parsedMarkup);
@@ -743,7 +810,7 @@ public final class FontRenderer implements AutoCloseable {
     /**
      * Parses UTF-8 rich text without requiring a font renderer.
      *
-     * @return a font-independent document on success, or a structured parser error
+     * @return a font-independent document on success, with an optional effect warning; parser errors have no document
      */
     public static MarkupParseResult parseMarkup(String markup) {
         if (markup == null)
@@ -761,7 +828,9 @@ public final class FontRenderer implements AutoCloseable {
 
             MemorySegment parsedMarkup = parsedMarkupPointer.get(ADDRESS, 0);
             try {
-                return new MarkupParseResult(copyMarkupDocument(parsedMarkup, arena), null);
+                return new MarkupParseResult(copyMarkupDocument(parsedMarkup, arena),
+                        FontcMarkupError.m_Type(parseError) == 0 ? null : markupError(bytes,
+                                FontcMarkupError.m_ByteOffset(parseError), FontcMarkupError.m_Type(parseError)));
             } finally {
                 FontcDestroyMarkup(parsedMarkup);
             }
@@ -815,7 +884,7 @@ public final class FontRenderer implements AutoCloseable {
             int status = FontcGenerateGlyph(requireHandle(), codepoint, result);
             checkResult(status, "Native glyph generation failed");
             try {
-                return new GeneratedGlyph(result);
+                return new GeneratedGlyph(result, vector);
             } finally {
                 FontcFreeGlyph(result);
             }
@@ -893,6 +962,8 @@ public final class FontRenderer implements AutoCloseable {
             throw new NullPointerException();
         if (properties.faceColor.length != 4 || properties.outlineColor.length != 4 || properties.shadowColor.length != 4)
             throw new IllegalArgumentException("Invalid color array size");
+        if (((properties.align | properties.verticalAlign) & ~3) != 0)
+            throw new IllegalArgumentException("Invalid font alignment");
 
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment values = FontcProperties.allocate(arena);
@@ -905,11 +976,12 @@ public final class FontRenderer implements AutoCloseable {
             FontcProperties.m_Leading(values, properties.leading);
             FontcProperties.m_Tracking(values, properties.tracking);
             FontcProperties.m_SdfScale(values, properties.sdfScale);
-            FontcProperties.m_LineBreak(values, flag(properties.lineBreak));
-            FontcProperties.m_Align(values, properties.align);
-            FontcProperties.m_VerticalAlign(values, properties.verticalAlign);
             FontcProperties.m_BaseStyle(values, properties.baseStyle);
-            FontcProperties.m_UseBaseStyle(values, flag(properties.useBaseStyle));
+            // Matches the low-to-high bit fields in FontcProperties.
+            FontcProperties.m_Bits(values, (byte)(flag(properties.lineBreak) | (properties.align << 1) |
+                    (properties.verticalAlign << 3) | (flag(properties.useBaseStyle) << 5) |
+                    (flag(properties.useGpuEffects) << 6)));
+            FontcProperties.m_FontSize(values, properties.fontSize);
             checkResult(FontcSetProperties(requireHandle(), values), "Unable to set native font renderer properties");
         }
     }
@@ -962,7 +1034,7 @@ public final class FontRenderer implements AutoCloseable {
     }
 
     /**
-     * Starts a render batch and protects glyphs used in it from atlas eviction.
+     * Starts a render batch, clears its gradient records, and protects glyphs from atlas eviction.
      *
      * <p>Used by the Editor before generating textures for all text entries in a render batch.</p>
      */
@@ -981,13 +1053,56 @@ public final class FontRenderer implements AutoCloseable {
             int status = FontcGenerateTexture(requireHandle(), knownAtlasVersion, texture);
             checkResult(status, "Native font texture generation failed");
             try {
-                Texture result = new Texture(texture);
+                Texture result = new Texture(texture, Byte.BYTES);
                 atlasVersion = result.atlasVersion;
                 return result;
             } finally {
                 FontcFreeTexture(texture);
             }
         }
+    }
+
+    /**
+     * Copies the lookup texture for GPU effects emitted since {@link #beginBatch()}.
+     * Keep this snapshot with its vertex buffer when caching editor render batches.
+     * Batches without GPU effects return an empty texture with null pixels.
+     */
+    public synchronized Texture getEffectTexture() {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment texture = FontcTexture.allocate(arena);
+            checkResult(FontcGetEffectTexture(requireHandle(), texture), "Unable to get font effect texture");
+            try {
+                return new Texture(texture, Byte.BYTES);
+            } finally {
+                FontcFreeTexture(texture);
+            }
+        }
+    }
+
+    /**
+     * Returns complete Slug curve (RGBA16F) and band (R32UI) texture updates.
+     * Call generateTexture for every entry in the batch first, then request these
+     * textures once. Both textures share the final atlas version; null
+     * pixels mean the caller's textures are current. Returned buffers are owned
+     * by Java, and native allocations are released before returning.
+     */
+    public synchronized Texture[] getVectorTextures(long knownAtlasVersion) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment curves = FontcTexture.allocate(arena);
+            MemorySegment bands = FontcTexture.allocate(arena);
+            try {
+                checkResult(FontcGetVectorTextures(requireHandle(), knownAtlasVersion, curves, bands),
+                        "Native Vector texture generation failed");
+                return new Texture[] {new Texture(curves, Short.BYTES), new Texture(bands, Integer.BYTES)};
+            } finally {
+                FontcFreeTexture(curves);
+                FontcFreeTexture(bands);
+            }
+        }
+    }
+
+    public boolean isVector() {
+        return vector;
     }
 
     /**
@@ -1069,7 +1184,7 @@ public final class FontRenderer implements AutoCloseable {
         FontcParams.m_ShadowX(values, params.shadowX);
         FontcParams.m_ShadowY(values, params.shadowY);
         FontcParams.m_LayerMask(values, params.layerMask);
-        FontcParams.m_OutputBitmap(values, flag(params.outputBitmap));
+        FontcParams.m_OutputBitmap(values, params.vector ? 2 : flag(params.outputBitmap));
         FontcParams.m_Antialias(values, flag(params.antialias));
         FontcParams.m_HasOutline(values, flag(params.hasOutline));
         FontcParams.m_HasShadow(values, flag(params.hasShadow));
@@ -1180,7 +1295,8 @@ public final class FontRenderer implements AutoCloseable {
             case 11 -> "markup is unsupported";
             case 12 -> "unknown tag";
             case 13 -> "unknown attribute";
-            case 14 -> "unknown value for attribute";
+            case 14 -> "invalid attribute value";
+            case 15 -> "gradient radius must be greater than zero";
             default -> "parse error";
         };
     }

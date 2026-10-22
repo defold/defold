@@ -1,21 +1,37 @@
-{:hooks {:analyze-call {clojure.core/boolean hooks.clojure-core/boolean
+{:lint-as {util.fn/defn-cached clojure.core/defn
+           util.task/scope clojure.core/do
+           util.task/fork clojure.core/do
+           util.task/with-open clojure.core/with-open}
+ :config-in-call {util.task/scope {:linters {:redundant-do {:level :off}}}
+                  util.task/fork {:linters {:redundant-do {:level :off}}}}
+ :hooks {:analyze-call {clojure.core/boolean hooks.clojure-core/boolean
                         clojure.core/bounded-count hooks.clojure-core/bounded-count
+                        clojure.core/declare hooks.docstrings/declare-call
+                        clojure.core/def hooks.docstrings/def-call
+                        clojure.core/definline hooks.docstrings/declaration
+                        clojure.core/defmacro hooks.docstrings/declaration
+                        clojure.core/defmulti hooks.docstrings/declaration
                         clojure.core/defn hooks.clojure-core/defn-call
                         clojure.core/defn- hooks.clojure-core/defn-call
+                        clojure.core/defonce hooks.docstrings/metadata
                         clojure.core/definterface hooks.clojure-core/definterface
                         clojure.core/defprotocol hooks.clojure-core/defprotocol
                         clojure.core/defrecord hooks.clojure-core/defrecord
+                        clojure.core/defstruct hooks.docstrings/metadata
                         clojure.core/deftype hooks.clojure-core/deftype
                         clojure.core/empty? hooks.clojure-core/empty?
                         clojure.core/every? hooks.clojure-core/every?
                         clojure.core/fn hooks.clojure-core/fn-call
                         clojure.core/fn* hooks.clojure-core/fn-call
+                        clojure.core/into hooks.clojure-core/into
                         clojure.core/keys hooks.clojure-core/keys
                         clojure.core/map hooks.clojure-core/map
                         clojure.core.cache/defcache hooks.clojure-core-cache/defcache
+                        clojure.core/not hooks.clojure-core/not-call
                         clojure.core/not-any? hooks.clojure-core/not-any?
                         clojure.core/not-empty hooks.clojure-core/not-empty
                         clojure.core/not-every? hooks.clojure-core/not-every?
+                        clojure.core/ns hooks.docstrings/declaration
                         clojure.core/some hooks.clojure-core/some
                         clojure.core/vals hooks.clojure-core/vals
                         clojure.string/join hooks.clojure-string/join
@@ -28,6 +44,7 @@
                         dynamo.graph/make-nodes hooks.dynamo-graph/make-nodes
                         dynamo.graph/with-auto-or-fake-evaluation-context hooks.dynamo-graph/with-auto-or-fake-evaluation-context
                         dynamo.graph/with-auto-evaluation-context hooks.dynamo-graph/with-auto-evaluation-context
+                        editor.debugging.variables-test/with-view hooks.editor-debugging-variables-test/with-view
                         editor.editor-extensions.commands/gen-query hooks.editor-editor-extensions-commands/gen-query
                         editor.editor-extensions.runtime/lua-fn hooks.editor-editor-extensions-runtime/lua-fn
                         editor.editor-extensions.runtime/suspendable-lua-fn hooks.editor-editor-extensions-runtime/suspendable-lua-fn
@@ -51,6 +68,7 @@
                         editor.handler/defhandler hooks.editor-handler/defhandler
                         editor.image-util/with-graphics hooks.editor-image-util/with-graphics
                         editor.lsp.async/with-auto-evaluation-context hooks.editor-lsp-async/with-auto-evaluation-context
+                        editor.targets-test/with-launched-target hooks.editor-targets-test/with-launched-target
                         editor.ui/change-listener hooks.editor-ui/change-listener
                         editor.ui/defc hooks.editor-ui/defc
                         editor.ui/event-dispatcher hooks.editor-ui/event-dispatcher
@@ -69,23 +87,37 @@
                         potemkin.namespaces/import-fn hooks.potemkin-namespaces/import-fn
                         potemkin.namespaces/import-macro hooks.potemkin-namespaces/import-macro
                         potemkin.namespaces/import-vars hooks.potemkin-namespaces/import-vars
+                        support.dap-util/with-adapter hooks.support-dap-util/with-adapter
+                        support.dap-util/with-server hooks.support-dap-util/with-server
+                        support.gl-support/with-offscreen-gl hooks.support-gl-support/with-offscreen-gl
+                        support.process-util/with-child-process hooks.support-process-util/with-child-process
                         support.test-support/with-clean-system hooks.support-test-support/with-clean-system
                         util.defonce/interface hooks.util-defonce/interface
                         util.defonce/protocol hooks.util-defonce/protocol
                         util.defonce/record hooks.util-defonce/record
                         util.defonce/type hooks.util-defonce/type
+                        util.fn/defn-cached hooks.docstrings/declaration
                         util.fn/defamong hooks.util-fn/defamong}}
  :linters {:defold/defn-return-type-hint-placement {:level :warning}
            :defold/deprecated-make-nodes-graph-id {:level :warning}
+           :defold/docstring-line-length {:level :warning
+                                          :max-line-length 80}
+           :defold/prefer-coll-into-> {:level :warning}
            :defold/prefer-coll-join-to-string {:level :warning}
            :defold/prefer-defonce {:level :warning}
            :defold/prefer-util-coll {:level :warning}
            :deprecated-var {:exclude {internal.graph.types/node-id->graph-id
                                       {:namespaces [dynamo.graph]}}}
-           :discouraged-var {dynamo.graph/node-id->graph-id
+           :discouraged-var {clojure.core/with-redefs
+                             {:message "Avoid redefining Vars; exercise the real code instead."}
+                             clojure.core/with-redefs-fn
+                             {:message "Avoid redefining Vars; exercise the real code instead."}
+                             dynamo.graph/node-id->graph-id
                              {:message "node-id->graph-id is deprecated."}
                              editor.defold-project/get-project
                              {:arities #{2}
                               :message "The two-argument get-project arity is deprecated."}}
+           :line-length {:max-line-length 80
+                         :exclude-pattern "^(?!\\s*;)|https?://\\S+|^\\s*;+ (?:Licensed under the Defold License version 1\\.0 \\(the \"License\"\\); you may not use|Unless required by applicable law or agreed to in writing, software distributed)\\s*$"}
            :refer-all {:exclude [clojure.test]}}
  :config-in-ns {editor.gl.translate-test {:linters {:inline-def {:level :off}}}}}

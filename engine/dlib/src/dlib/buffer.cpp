@@ -322,6 +322,10 @@ namespace dmBuffer
         buffer_size = DM_ALIGN(buffer_size, ADDR_ALIGNMENT);
         assert(buffer_size % ADDR_ALIGNMENT == 0);
 
+        uint64_t allocation_size = buffer_size + (uint64_t)struct_size * count + GUARD_SIZE;
+        if (allocation_size > UINT32_MAX) {
+            return RESULT_BUFFER_SIZE_ERROR;
+        }
         buffer_size += struct_size * count;
 
         // Add some guard bytes at the end

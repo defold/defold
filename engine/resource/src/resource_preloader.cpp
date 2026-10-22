@@ -111,6 +111,8 @@ struct ResourcePostCreateParamsInternal
     ResourcePostCreateParams m_Params;
     ResourceDescriptor m_ResourceDesc;
     bool m_Destroy;
+    dmResource::LoadProfile  m_Profile;
+    dmResource::Result       m_CreateResult;
 };
 
 struct PendingHint
@@ -142,6 +144,7 @@ struct PreloadRequest
     // Set once load has completed
     dmResource::Result m_LoadResult;
     void* m_Resource;
+    dmResource::LoadProfile m_Profile;
 };
 
 struct ResourcePreloader
@@ -514,6 +517,9 @@ namespace dmResource
     // If buffer is null it means to use the items internal buffer
     static void CreateResource(HPreloader preloader, PreloadRequest* req, void* buffer, uint32_t buffer_size, uint32_t resource_size)
     {
+        DM_PROFILE("PreloaderCreateResource");
+        DM_PROFILE_DYN(req->m_PathDescriptor.m_InternalizedName, 0);
+
         assert(req->m_LoadResult == RESULT_PENDING);
         assert(req->m_PendingChildCount == 0);
 
@@ -523,6 +529,7 @@ namespace dmResource
         memset(&tmp_resource, 0, sizeof(tmp_resource));
 
         ResourceType* resource_type = req->m_PathDescriptor.m_ResourceType;
+        uint32_t      post_create_index = ~0u;
 
         // We must call CreateFunction if Preload function has been called, so always do this even when an error has occured
         tmp_resource.m_NameHash       = req->m_PathDescriptor.m_CanonicalPathHash;
@@ -546,7 +553,12 @@ namespace dmResource
             params.m_BufferSize               = req->m_BufferSize;
             params.m_FileSize                 = req->m_FileSize;
             params.m_IsBufferPartial          = req->m_BufferSize != req->m_FileSize;
-            req->m_LoadResult                 = (Result)resource_type->m_CreateFunction(&params);
+            {
+                DM_PROFILE("ResourceCreate");
+                uint64_t start = LoadProfileTime(&req->m_Profile);
+                req->m_LoadResult = (Result)resource_type->m_CreateFunction(&params);
+                LoadProfileAddTime(&req->m_Profile, LOAD_PROFILE_CREATE, start);
+            }
 
             dmBlockAllocator::Free(preloader->m_BlockAllocator, req->m_Buffer, req->m_BufferSize);
 
@@ -559,7 +571,12 @@ namespace dmResource
             params.m_BufferSize               = buffer_size;
             params.m_FileSize                 = resource_size;
             params.m_IsBufferPartial          = buffer_size != resource_size;
-            req->m_LoadResult                 = (Result)resource_type->m_CreateFunction(&params);
+            {
+                DM_PROFILE("ResourceCreate");
+                uint64_t start = LoadProfileTime(&req->m_Profile);
+                req->m_LoadResult = (Result)resource_type->m_CreateFunction(&params);
+                LoadProfileAddTime(&req->m_Profile, LOAD_PROFILE_CREATE, start);
+            }
         }
 
         if (req->m_LoadResult == RESULT_OK)
@@ -570,6 +587,7 @@ namespace dmResource
                 {
                     preloader->m_PostCreateCallbacks.OffsetCapacity(MAX_PRELOADER_REQUESTS / 8);
                 }
+                post_create_index = preloader->m_PostCreateCallbacks.Size();
                 preloader->m_PostCreateCallbacks.SetSize(preloader->m_PostCreateCallbacks.Size() + 1);
                 ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks.Back();
                 ip.m_Destroy                         = false;
@@ -577,6 +595,7 @@ namespace dmResource
                 ip.m_Params.m_Type                   = resource_type;
                 ip.m_Params.m_Context                = resource_type->m_Context;
                 ip.m_Params.m_PreloadData            = req->m_PreloadData;
+                ip.m_Params.m_Filename               = req->m_PathDescriptor.m_InternalizedName;
                 ip.m_Params.m_Resource               = 0;
                 memcpy(&ip.m_ResourceDesc, &tmp_resource, sizeof(ResourceDescriptor));
             }
@@ -595,6 +614,7 @@ namespace dmResource
         if (req->m_LoadResult != RESULT_OK)
         {
             // Continue up to parent. All the stuff below is only for resources that were created
+            LogLoadProfile(&req->m_Profile, req->m_PathDescriptor.m_InternalizedName, req->m_LoadResult);
             return;
         }
 
@@ -668,8 +688,23 @@ namespace dmResource
                 params.m_Type     = resource_type;
                 params.m_Context  = resource_type->m_Context;
                 params.m_Resource = &tmp_resource;
-                resource_type->m_DestroyFunction(&params);
+                {
+                    DM_PROFILE("ResourceDestroy");
+                    resource_type->m_DestroyFunction(&params);
+                }
             }
+        }
+
+        if (post_create_index != ~0u)
+        {
+            ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[post_create_index];
+            ip.m_Profile = req->m_Profile;
+            ip.m_CreateResult = req->m_LoadResult;
+        }
+        else
+        {
+            ResourceDescriptor* stored = destroy ? 0 : FindByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
+            LogLoadProfile(&req->m_Profile, req->m_PathDescriptor.m_InternalizedName, req->m_LoadResult, stored ? &stored->m_LoadTimings : 0);
         }
     }
 
@@ -702,6 +737,7 @@ namespace dmResource
     // Returns true if the resource was created
     static bool FinishLoad(HPreloader preloader, PreloadRequest* req, dmLoadQueue::LoadResult& load_result, void* buffer, uint32_t buffer_size, uint32_t resource_size)
     {
+        req->m_Profile = load_result.m_Profile;
         // Pop any hints the load/preload of the item that may have been generated
         PopHints(preloader);
 
@@ -720,6 +756,7 @@ namespace dmResource
         {
             RemoveChildren(preloader, req);
             RemoveFromParentPendingCount(preloader, req);
+            LogLoadProfile(&req->m_Profile, req->m_PathDescriptor.m_InternalizedName, req->m_LoadResult);
         }
 
         req->m_PreloadData = load_result.m_PreloadData;
@@ -893,13 +930,22 @@ namespace dmResource
         ResourcePostCreateParams& params     = ip.m_Params;
         params.m_Resource                    = &ip.m_ResourceDesc;
         ResourceType* resource_type          = params.m_Resource->m_ResourceType;
-        Result ret                           = (Result)resource_type->m_PostCreateFunction(&params);
+        Result        ret;
+        {
+            DM_PROFILE("ResourcePostCreate");
+            DM_PROFILE_DYN(params.m_Filename, 0);
+            uint64_t start = LoadProfileTime(&ip.m_Profile);
+            ret = (Result)resource_type->m_PostCreateFunction(&params);
+            LoadProfileAddTime(&ip.m_Profile, LOAD_PROFILE_POST_CREATE, start);
+        }
 
         if (ret == RESULT_PENDING)
         {
             return ret;
         }
         ++preloader->m_PostCreateCallbackIndex;
+        LoadTimings timings = {};
+        LogLoadProfile(&ip.m_Profile, params.m_Filename, ip.m_CreateResult != RESULT_OK ? ip.m_CreateResult : ret, &timings);
 
         // Resource has been marked for delayed destroy after PostCreate function has been run.
         if (ip.m_Destroy)
@@ -909,13 +955,19 @@ namespace dmResource
             params.m_Type     = resource_type;
             params.m_Context  = resource_type->m_Context;
             params.m_Resource = &ip.m_ResourceDesc;
-            resource_type->m_DestroyFunction(&params);
+            {
+                DM_PROFILE("ResourceDestroy");
+                DM_PROFILE_DYN(ip.m_Params.m_Filename, 0);
+                resource_type->m_DestroyFunction(&params);
+            }
             ip.m_Destroy = false;
         }
         else {
             ResourceDescriptor* rd = FindByHash(preloader->m_Factory, params.m_Resource->m_NameHash);
             if (rd)
             {
+                if (ret == RESULT_OK)
+                    rd->m_LoadTimings = timings;
                 if (params.m_Resource->m_ResourceSize != 0)
                     rd->m_ResourceSize = params.m_Resource->m_ResourceSize;
             }

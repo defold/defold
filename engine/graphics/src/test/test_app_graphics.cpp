@@ -33,6 +33,9 @@
 #endif
 
 #include <dmsdk/graphics/graphics_vulkan.h>
+#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
+#include "../vulkan/graphics_vulkan_private.h"
+#endif
 #include <platform/window.hpp>
 
 #include "test_app_graphics_assets.h"
@@ -339,6 +342,84 @@ struct WebGPURenderingTest : ClearBackbufferTest
 };
 #endif
 
+// Run with "opengl packed-depth-stencil-texture" to verify depth sampling with
+// unsampled stencil and packed depth/stencil allocation/resize without misleading warnings.
+struct PackedDepthStencilTextureTest : ClearBackbufferTest
+{
+    void Execute(EngineCtx* engine) override
+    {
+        ClearBackbufferTest::Execute(engine);
+        if (engine->m_WasRun != 1)
+            return;
+
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        for (uint32_t attachments = 2; attachments < 4; ++attachments)
+        {
+            const bool color = (attachments & 1) != 0;
+            const bool stencil = (attachments & 2) != 0;
+            dmGraphics::RenderTargetCreationParams params = {};
+            params.m_DepthTexture                         = 1;
+            params.m_StencilTexture                       = false;
+            params.m_DepthBufferParams.m_Format           = dmGraphics::TEXTURE_FORMAT_DEPTH;
+            params.m_DepthBufferParams.m_Width            = 64;
+            params.m_DepthBufferParams.m_Height           = 32;
+            params.m_DepthBufferCreationParams.m_Width    = 64;
+            params.m_DepthBufferCreationParams.m_Height   = 32;
+            params.m_StencilBufferParams.m_Format         = dmGraphics::TEXTURE_FORMAT_STENCIL;
+            params.m_StencilBufferParams.m_Width          = 64;
+            params.m_StencilBufferParams.m_Height         = 32;
+            params.m_StencilBufferCreationParams.m_Width  = 64;
+            params.m_StencilBufferCreationParams.m_Height = 32;
+            params.m_ColorBufferParams[0].m_Format        = dmGraphics::TEXTURE_FORMAT_RGBA;
+            params.m_ColorBufferParams[0].m_Width         = 64;
+            params.m_ColorBufferParams[0].m_Height        = 32;
+            params.m_ColorBufferCreationParams[0].m_Width  = 64;
+            params.m_ColorBufferCreationParams[0].m_Height = 32;
+
+            uint32_t flags = dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+            if (color)
+            {
+                flags |= dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+            }
+            if (stencil)
+            {
+                flags |= dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+            }
+
+            dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(context, flags, params);
+            ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+            for (uint32_t size = 64; size <= 128; size *= 2)
+            {
+                const uint32_t height = size - 32;
+                if (size != 64)
+                {
+                    dmGraphics::SetRenderTargetSize(context, target, size, height);
+                }
+
+                dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
+                dmGraphics::Clear(context, flags, 0, 0, 0, 255, 0.5f, 0);
+                dmGraphics::HTexture depth = dmGraphics::GetRenderTargetTexture(context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
+                if (!dmGraphics::IsAssetHandleValid(context, depth) ||
+                    dmGraphics::GetTextureWidth(context, depth) != size ||
+                    dmGraphics::GetTextureHeight(context, depth) != height)
+                {
+                    dmLogError("Depth texture allocation/resize failed (attachments=%u, size=%ux%u)", attachments, size, height);
+                    engine->m_Failed = true;
+                }
+                dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+            }
+            dmGraphics::DeleteRenderTarget(context, target);
+        }
+    }
+
+    void AfterFlip(EngineCtx* engine) override
+    {
+        // Finish after the work has been submitted and presented.
+        if (ShouldAutoExit())
+            engine->m_Running = 0;
+    }
+};
+
 // Run with "opengles depth-texture" to exercise a real depth attachment, not
 // the null adapter used by test_graphics. Graphics-call verification is enabled.
 struct DepthTextureTest : ClearBackbufferTest
@@ -389,6 +470,95 @@ struct DepthTextureTest : ClearBackbufferTest
             }
             dmGraphics::DeleteRenderTarget(context, target);
         }
+    }
+};
+
+// Run with "vulkan depth-only-render-target". Guards against the Vulkan crash
+// when creating depth-only or depth/stencil render targets without color attachments.
+// Verifies creation, clear, framebuffer extent and resize for non-square targets,
+// both with and without a color attachment.
+struct DepthOnlyRenderTargetTest : ClearBackbufferTest
+{
+    void Execute(EngineCtx* engine) override
+    {
+        ClearBackbufferTest::Execute(engine);
+        if (engine->m_WasRun != 1)
+            return;
+
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        for (uint32_t attachments = 0; attachments < 4; ++attachments)
+        {
+            const bool color = (attachments & 1) != 0;
+            const bool stencil = (attachments & 2) != 0;
+            dmGraphics::RenderTargetCreationParams params = {};
+            params.m_DepthTexture                         = 1;
+            params.m_StencilTexture                       = stencil;
+            params.m_DepthBufferParams.m_Format           = dmGraphics::TEXTURE_FORMAT_DEPTH;
+            params.m_DepthBufferParams.m_Width            = 64;
+            params.m_DepthBufferParams.m_Height           = 32;
+            params.m_DepthBufferCreationParams.m_Width    = 64;
+            params.m_DepthBufferCreationParams.m_Height   = 32;
+            params.m_StencilBufferParams.m_Format         = dmGraphics::TEXTURE_FORMAT_STENCIL;
+            params.m_StencilBufferParams.m_Width          = 64;
+            params.m_StencilBufferParams.m_Height         = 32;
+            params.m_StencilBufferCreationParams.m_Width  = 64;
+            params.m_StencilBufferCreationParams.m_Height = 32;
+            params.m_ColorBufferParams[0].m_Format        = dmGraphics::TEXTURE_FORMAT_RGBA;
+            params.m_ColorBufferParams[0].m_Width         = 64;
+            params.m_ColorBufferParams[0].m_Height        = 32;
+            params.m_ColorBufferCreationParams[0].m_Width  = 64;
+            params.m_ColorBufferCreationParams[0].m_Height = 32;
+
+            uint32_t flags = dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+            if (color)
+            {
+                flags |= dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+            }
+            if (stencil)
+            {
+                flags |= dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+            }
+
+            dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(context, flags, params);
+            ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+            for (uint32_t size = 64; size <= 128; size *= 2)
+            {
+                const uint32_t height = size - 32;
+                if (size != 64)
+                {
+                    dmGraphics::SetRenderTargetSize(context, target, size, height);
+                }
+
+#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
+                if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_VULKAN)
+                {
+                    dmGraphics::VulkanContext* vk_context = (dmGraphics::VulkanContext*) context;
+                    dmGraphics::VulkanRenderTarget* vk_target = dmGraphics::GetAssetFromContainer<dmGraphics::VulkanRenderTarget>(vk_context->m_BaseContext.m_AssetHandleContainer, target);
+                    ASSERT_EQ(size, vk_target->m_Extent.width);
+                    ASSERT_EQ(height, vk_target->m_Extent.height);
+                }
+#endif
+                dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
+                dmGraphics::Clear(context, flags, 0, 0, 0, 255, 0.5f, 0);
+                dmGraphics::HTexture depth = dmGraphics::GetRenderTargetTexture(context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
+                if (!dmGraphics::IsAssetHandleValid(context, depth) ||
+                    dmGraphics::GetTextureWidth(context, depth) != size ||
+                    dmGraphics::GetTextureHeight(context, depth) != height)
+                {
+                    dmLogError("Depth texture allocation/resize failed (attachments=%u, size=%ux%u)", attachments, size, height);
+                    engine->m_Failed = true;
+                }
+                dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+            }
+            dmGraphics::DeleteRenderTarget(context, target);
+        }
+    }
+
+    void AfterFlip(EngineCtx* engine) override
+    {
+        // Finish after the work has been submitted and presented.
+        if (ShouldAutoExit())
+            engine->m_Running = 0;
     }
 };
 
@@ -1984,6 +2154,11 @@ static void* EngineCreate(int argc, char** argv)
         dmLogInfo("test_app_graphics: running StorageBufferTest%s", HasArgument("ssbo-hazards") ? " (GPU hazards)" : HasArgument("ssbo-updates") ? " (update ordering)" : "");
         engine->m_Test = new StorageBufferTest();
     }
+    else if (HasArgument("depth-only-render-target"))
+    {
+        dmLogInfo("test_app_graphics: running DepthOnlyRenderTargetTest");
+        engine->m_Test = new DepthOnlyRenderTargetTest();
+    }
     else if (HasArgument("depth-texture"))
     {
         dmLogInfo("test_app_graphics: running DepthTextureTest");
@@ -1993,6 +2168,11 @@ static void* EngineCreate(int argc, char** argv)
     {
         dmLogInfo("test_app_graphics: running CubemapFaceOrderTest");
         engine->m_Test = new CubemapFaceOrderTest();
+    }
+    else if (HasArgument("packed-depth-stencil-texture"))
+    {
+        dmLogInfo("test_app_graphics: running PackedDepthStencilTextureTest");
+        engine->m_Test = new PackedDepthStencilTextureTest();
     }
     else if (HasArgument("issue-12878"))
     {
@@ -2253,6 +2433,8 @@ int main(int argc, char **argv)
     dmExportedSymbols();
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
+    // Stop the log thread before process teardown destroys its locks.
+    atexit(dmLog::LogFinalize);
 
 #if defined(DM_TEST_GRAPHICS_CAPTURE)
     int capture_result = RunGraphicsCapture(argc, argv);

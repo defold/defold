@@ -339,6 +339,19 @@
          :is_file false
          :is_directory false}))))
 
+(def ^:private resource-children-args-coercer
+  (coerce/regex :resource-path graph/resource-path-coercer))
+
+(defn- make-ext-resource-children-fn [project]
+  (rt/varargs-lua-fn ext-resource-children [{:keys [rt evaluation-context]} varargs]
+    (let [{:keys [resource-path]} (rt/->clj rt resource-children-args-coercer varargs)
+          basis (:basis evaluation-context)
+          workspace (project/workspace project evaluation-context)
+          resource (workspace/find-resource basis workspace resource-path)]
+      (when-not resource
+        (throw (LuaError. (str resource-path " not found"))))
+      (mapv resource/proj-path (resource/children resource)))))
+
 (def ^:private empty-lua-string
   (rt/->lua ""))
 
@@ -998,13 +1011,20 @@
 
 (defn line-writer [f]
   (let [sb (StringBuilder.)]
-    (PrintWriter-on #(doseq [^char ch %]
-                       (if (= \newline ch)
-                         (let [str (.toString sb)]
-                           (.delete sb 0 (.length sb))
-                           (f str))
-                         (.append sb ch)))
-                    nil)))
+    (PrintWriter-on
+      (fn flush-lines [^String s]
+        (.append sb s)
+        (loop [start 0]
+          (let [end (.indexOf sb "\n" start)]
+            (if (neg? end)
+              (.delete sb 0 start)
+              (let [line-end (if (and (< start end)
+                                      (= \return (.charAt sb (dec end))))
+                               (dec end)
+                               end)]
+                (f (.substring sb start line-end))
+                (recur (inc end)))))))
+      nil)))
 
 (defn- find-resource [project {:keys [evaluation-context]} proj-path]
   (when-let [node (project/get-resource-node project proj-path evaluation-context)]
@@ -1102,6 +1122,7 @@
                                   "create_resources" (make-ext-create-resources-fn project reload-resources!)
                                   "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
                                   "resource_attributes" (make-ext-resource-attributes-fn project)
+                                  "resource_children" (make-ext-resource-children-fn project)
                                   "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
                                   "execute" (make-ext-execute-fn project-path reload-resources!)
                                   "bob" (make-ext-bob-fn invoke-bob!)

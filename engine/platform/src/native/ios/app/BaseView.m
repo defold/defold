@@ -702,7 +702,7 @@ void dmNativeOSPollEvents( void )
         int height = [view getWindowHeight];
         if (width > 0 && height > 0)
         {
-            // Insets can change after layout, including rotations that preserve the window size.
+            // Insets or reserved regions can change while the window size stays the same.
             view.safeAreaChanged = NO;
             dmNativeWin.windowSizeCallback(width, height);
         }

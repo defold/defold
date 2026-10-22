@@ -18,10 +18,22 @@ outside the build directories are retained.
 Use `./scripts/build.py build_ext --platform=<platform>` to rebuild and install
 the source dependencies directly. This builds Basis Universal, both Box2D
 versions, Bullet, HarfBuzz, libunibreak, LZ4, Opus, SheenBidi, and Skribidi on all
-platforms. Protobuf is built for desktop platforms; mobile and web builds use the
-host's Protobuf tools. Protobuf and Abseil use the same CMake toolchain and build
-graph as the other source dependencies and install directly into `ext`.
+platforms. LuaJIT is built for non-web platforms. [Draco](draco/README.md),
+[meshoptimizer](meshoptimizer/README.md), [Ogg](ogg/README.md), and Protobuf are
+built for desktop platforms; mobile and web builds use the host's tools.
+Protobuf and Abseil use the same CMake toolchain and build graph as the other
+source dependencies and install directly into `ext`.
+Linux additionally builds [OpenH264](openh264/README.md) for video recording.
+The recording MP4 writer is the pinned header in [minimp4](minimp4/README.md).
 `external/build` itself is generated build output.
+
+CI caches built external dependencies for engine, Bob, and editor jobs using the
+[`build-external`](../.github/actions/build-external/action.yml) action.
+
+Whenever a source dependency is added, removed, or moved in
+[`external/CMakeLists.txt`](CMakeLists.txt), update `SOURCE_PATHS` in
+[`ci/ext_cache.py`](../ci/ext_cache.py) as part of the same change. This ensures
+changes to every source-built library invalidate the CI cache.
 
 To force a fresh build, run
 `./scripts/build.py clean_ext install_ext --platform=<platform>`.

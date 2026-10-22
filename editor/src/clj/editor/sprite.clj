@@ -247,7 +247,7 @@
 
 (g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count exclude-gles-sm100 material-samplers material-shader blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
   (g/precluding-errors
-    (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler texture-binding-infos)
+    (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler identity texture-binding-infos)
           is-paged-material (and (shader/shader-lifecycle? material-shader)
                                  (shader/is-using-array-samplers? material-shader))
           unassigned-default-animation-error (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation default-animation-message)]
@@ -298,7 +298,7 @@
   (reify resource/Resource
     (children [_])
     (ext [_] "")
-    (resource-type [_])
+    (lookup-resource-type [_ _editable->type-ext->resource-type])
     (source-type [_])
     (exists? [_] false)
     (read-only? [_] true)

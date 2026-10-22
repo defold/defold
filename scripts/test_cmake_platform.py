@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -26,6 +27,42 @@ class PlatformLinkTests(unittest.TestCase):
         target = next(target for target in codemodel['configurations'][0]['targets']
                       if target['name'] == target_name)
         return json.loads((reply / target['jsonFile']).read_text())
+
+    # Host tools must compile and link for their own macOS minimum, even when the engine targets a newer OS.
+    def test_macos_deployment_target_override(self):
+        cases = (('', '', '12.0'), ('11.0', '', '11.0'), ('13.0', '11.0', '11.0'))
+        for platform in ('arm64-macos', 'x86_64-macos'):
+            for default, override, expected in cases:
+                with self.subTest(platform=platform, default=default, override=override), \
+                        tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(macos_deployment_test LANGUAGES C)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+set(SDK_VERSION_MACOSX_MIN 12.0)
+set(CMAKE_OSX_DEPLOYMENT_TARGET "${DEFAULT_DEPLOYMENT_TARGET}")
+add_library(defold_sdk INTERFACE)
+include(platform_macos)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.c" "int main() { return 0; }\\n")
+add_executable(macos_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
+target_link_libraries(macos_consumer PRIVATE defold_sdk)
+if(TARGET_DEPLOYMENT_TARGET)
+    set_target_properties(macos_consumer PROPERTIES
+        DEFOLD_MACOS_DEPLOYMENT_TARGET "${TARGET_DEPLOYMENT_TARGET}")
+endif()
+''')
+                    consumer = self.configure_target(
+                        root, 'macos_consumer', TARGET_PLATFORM=platform,
+                        DEFAULT_DEPLOYMENT_TARGET=default, TARGET_DEPLOYMENT_TARGET=override)
+                    fragments = (consumer['compileGroups'][0]['compileCommandFragments'],
+                                 consumer['link']['commandFragments'])
+                    for command_fragments in fragments:
+                        command = ' '.join(fragment['fragment'] for fragment in command_fragments)
+                        versions = re.findall(r'-mmacosx-version-min=([0-9.]+)', command)
+                        self.assertTrue(versions, command)
+                        self.assertEqual(expected, versions[-1], command)
 
     def configure_consumer(self, root, vulkan, opengl):
         # Generate the real platform/HID/graphics dependency graph with the host compiler.

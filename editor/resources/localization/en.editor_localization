@@ -167,6 +167,15 @@ dialog.button.cancel = Cancel
 dialog.button.delete = Delete
 dialog.button.apply = Apply
 
+# Model glTF Auto Fill Dialog
+
+dialog.model-auto-fill.title = Auto Fill Model Fields?
+dialog.model-auto-fill.header = Use materials and textures from "{file}"?
+dialog.model-auto-fill.content = This assigns the materials and referenced textures exposed by the glTF file.
+dialog.model-auto-fill.content-replace = This replaces the model's existing material and texture assignments with the resources exposed by the glTF file.
+dialog.model-auto-fill.button.keep-current = Keep Current
+dialog.model-auto-fill.button.auto-fill = Auto Fill
+
 # Error Dialog
 
 dialog.error.title = Error
@@ -1088,11 +1097,12 @@ code.replace.all = Replace All
 
 dialog.about.label.version = Version:
 dialog.about.label.channel = Channel:
+dialog.about.label.architecture = Architecture:
 dialog.about.label.build-time = Build time:
 dialog.about.label.editor-sha1 = Editor SHA1:
 dialog.about.label.engine-sha1 = Engine SHA1:
 dialog.about.value.unavailable = Not available
-dialog.about.footer.copyright = Copyright © 2009-2025
+dialog.about.footer.copyright = Copyright © 2009-{year}
 dialog.about.footer.foundation = Defold Foundation
 dialog.about.sponsor = Defold Foundation Development Fund
 
@@ -1213,7 +1223,7 @@ property.appmanifest.physics-3d.tooltip = Include the Bullet 3D physics engine. 
 property.appmanifest.rig+model = Rig + Model
 property.appmanifest.rig+model.tooltip = Choose whether to include both model rendering and rig animation, rig functionality only, or neither. Excluding unused functionality reduces the engine size.
 property.appmanifest.exclude-record = Exclude Record
-property.appmanifest.exclude-record.tooltip = Remove desktop video-recording support used by the `start_record` system message. Enable this when the project does not record gameplay to reduce the engine size.
+property.appmanifest.exclude-record.tooltip = Remove the `recorder` Lua API and desktop video-recording HTTP service. Enable this when the project does not record gameplay to reduce the engine size.
 property.appmanifest.profiler = Profiler
 property.appmanifest.profiler.tooltip = Choose which builds include profiler functionality. **Debug Only** excludes it from release builds, **None** excludes it entirely, and **Always** also includes it in release builds.
 property.appmanifest.exclude-sound = Exclude Sound
@@ -1255,7 +1265,7 @@ property.appmanifest.graphics-android.tooltip = Select the graphics backend incl
 property.appmanifest.graphics-web = Graphics (HTML5)
 property.appmanifest.graphics-web.tooltip = Select the graphics backend included in HTML5 builds. WebGL is the default; including both WebGL and WebGPU permits fallback but increases engine size.
 property.appmanifest.use-font-layout = Use full text layout system
-property.appmanifest.use-font-layout.tooltip = Include the full text layout system required for runtime SDF font generation from TrueType fonts. Runtime glyph rasterization also requires `font.runtime_generation` in `game.project`; it supports features such as right-to-left text.
+property.appmanifest.use-font-layout.tooltip = Include the full text layout system for dynamic SDF and Vector fonts and features such as right-to-left text. To generate glyphs at runtime, set **Glyph Generation** to **Dynamic** in each font resource.
 property.appmanifest.use-rich-text = Use Rich Text
 property.appmanifest.use-rich-text.tooltip = Include rich text parsing and style effects for labels and GUI text. Disable this to reduce engine size; markup will then render as plain text.
 
@@ -1287,6 +1297,19 @@ property.atlas.max-page-size = Max Page Size
 property.atlas.max-page-size.tooltip = The maximum width and height of each page in a multi-page atlas. Set both values above zero to enable paging; components that use the atlas must use a paged-atlas material.
 property.atlas.rename-patterns = Rename Patterns
 property.atlas.rename-patterns.tooltip = Comma-separated `search=replace` patterns applied to every image's base name. For example, `hat=cat,_normal=` changes `hat_normal` to `cat`; matching names are useful when corresponding frames come from multiple atlases.
+
+# Properties: KTX2
+
+property.ktx2.dimensions = Size
+property.ktx2.format = Compression Format
+property.ktx2.supercompression = Supercompression
+property.ktx2.mip-count = Mip Count
+property.ktx2.level = Mip Level
+property.ktx2.channels = Channels
+property.ktx2.color-space = Color Space
+property.ktx2.premultiplied-alpha = Premultiplied Alpha
+property.ktx2.orientation = Orientation
+property.ktx2.orientation.tooltip = Source axis directions: `r`/`l` means right/left and `d`/`u` means down/up. The preview and build apply this orientation automatically.
 
 # Properties: camera
 
@@ -1391,12 +1414,16 @@ property.font.font = Font
 property.font.font.tooltip = Selects the source font: a TrueType (`.ttf`), OpenType (`.otf`), or BMFont (`.fnt`) file.
 property.font.texture = Texture
 property.font.texture.tooltip = The PNG glyph sheet referenced by this BMFont (`.fnt`) file. The texture must be in the same folder and match the filename declared by the BMFont.
+property.font.vector-font-mode = Mode
+property.font.glyph-generation = Glyph Generation
+property.font.glyph-generation.tooltip = Bitmap fonts use **Static** generation. **Static** bakes the selected glyphs into the build and excludes the source TTF/OTF file. **Dynamic** includes the source font and generates glyphs on demand at runtime; **Prewarm Text** generates common glyphs when the font is loaded. Dynamic fonts require **Use full text layout system** in the App Manifest for target builds.
 property.font.output-format = Output Format
 property.font.output-format.tooltip = **Bitmap** rasterizes TTF/OTF glyphs and is required for BMFont (`.fnt`) sources. **Distance Field** stores distance-to-edge data for cleaner scaling and requires a compatible distance-field material.
 property.font.render-mode = Render Mode
 property.font.render-mode.tooltip = **Single Layer** renders one quad per character. **Multi Layer** renders shadow, outline, and face separately, preventing wide outlines from covering neighboring glyphs and enabling **Shadow X/Y** offsets.
 property.font.size = Size
-property.font.size.tooltip = Target glyph size in pixels when generating the font. Bitmap fonts look best near this size; distance-field fonts need enough size to preserve shape detail when scaled up.
+property.font.vector-effect-size = Outline/Shadow Bitmap Size
+property.font.size.tooltip = Target glyph size in pixels when generating the font; defaults to 15 in the editor. For BMFont sources, this is inferred from the `.fnt` file. For Vector fonts, Outline/Shadow Bitmap Size controls the bitmap resolution of enabled outline and shadow effects for both Static and Dynamic glyph generation. Label/GUI Font Size controls display size without changing this shared generation size.
 property.font.antialias = Antialias
 property.font.antialias.tooltip = Smooths glyph edges when the font is rasterized. Disable it for pixel-perfect font rendering.
 property.font.alpha = Alpha
@@ -1419,12 +1446,35 @@ property.font.cache-height = Cache Height
 property.font.cache-height.tooltip = Height in pixels of the glyph-cache texture used for rendering. Increase it if the cache runs out of cells; `0` uses automatic sizing.
 property.font.characters = Characters
 property.font.characters.tooltip = Characters included when building an offline font; limiting this set reduces font size. For runtime fonts, these characters are generated up front to prewarm the glyph cache. Clearing the field restores printable ASCII.
+property.font.prewarm-text = Prewarm Text
 property.font.all-chars = All Chars
-property.font.all-chars.tooltip = For offline fonts, includes every glyph from the source instead of only **Characters**, which can greatly increase font size. For runtime fonts, glyphs are generated on demand and enabling this skips **Characters** prewarming.
+property.font.all-chars.tooltip = Includes every glyph from the source instead of only **Characters**. For BMFont sources, this means every glyph declared by the `.fnt` file.
 property.font.style = Style
 property.font.style.tooltip = The base style from the selected font. Leave empty for no base style. Inline markup overrides the selected style.
 property.font.markup = Markup
 property.font.markup.tooltip = Opening rich-text tags that define this style. Supports all rich-text tags, including size, links, and sprites.
+
+# Properties: glTF
+
+property.gltf.index = Index
+property.gltf.index.tooltip = The zero-based index of this asset in the corresponding glTF array.
+property.gltf.name.tooltip = The asset name from the glTF file, or a generated name when the source asset is unnamed.
+property.gltf.primitive-count = Primitive Count
+property.gltf.primitive-count.tooltip = The number of primitives contained in this glTF mesh.
+property.gltf.vertex-count = Vertex Count
+property.gltf.vertex-count.tooltip = The total number of vertices across this glTF mesh's primitives.
+property.gltf.material.tooltip = The read-only Material resource generated from this glTF material.
+property.gltf.samplers = Samplers
+property.gltf.samplers.tooltip = The sampler-to-texture bindings referenced by this glTF material.
+property.gltf.image.tooltip = The embedded or external image resource sampled by this glTF texture.
+property.gltf.min-filter = Min Filter
+property.gltf.min-filter.tooltip = The sampling filter used when this glTF texture is displayed smaller than its source image.
+property.gltf.mag-filter = Mag Filter
+property.gltf.mag-filter.tooltip = The sampling filter used when this glTF texture is displayed larger than its source image.
+property.gltf.wrap-s = Wrap S
+property.gltf.wrap-s.tooltip = Controls sampling outside the texture's horizontal coordinate range.
+property.gltf.wrap-t = Wrap T
+property.gltf.wrap-t.tooltip = Controls sampling outside the texture's vertical coordinate range.
 
 # Properties: gui
 
@@ -1451,6 +1501,7 @@ property.gui.font = Font
 property.gui.font.tooltip = Selects the font used to render this text node. The font must first be added under the GUI scene's **Fonts** section.
 property.gui.resource.font = Font
 property.gui.resource.font.tooltip = Selects the font resource exposed by this entry in the GUI scene's **Fonts** section. Text nodes select the entry by its **Name**.
+property.gui.font-size = Font Size
 property.gui.inherit-alpha = Inherit Alpha
 property.gui.inherit-alpha.tooltip = Multiplies this node's alpha by its parent's alpha. Enable it when fading a parent should also fade this node.
 property.gui.inner-radius = Inner Radius
@@ -1514,6 +1565,7 @@ property.label.color = Color
 property.label.color.tooltip = Sets the text's RGBA color. Use the alpha channel to control opacity.
 property.label.font = Font
 property.label.font.tooltip = Selects the font resource used to render the label. The label's material must be compatible with the font type: bitmap, distance field, or BMFont.
+property.label.font-size = Font Size
 property.label.leading = Leading
 property.label.leading.tooltip = Scales the spacing between lines of text. `1` is normal line spacing and `0` removes the spacing.
 property.label.line-break = Line Break
@@ -1717,6 +1769,8 @@ property.tile-source.flip-vertical = Flip Vertical
 property.tile-source.flip-vertical.tooltip = Mirror every animation frame vertically during playback.
 property.tile-source.fps = FPS
 property.tile-source.fps.tooltip = The animation playback speed in frames per second. Higher values display the tiles more quickly.
+property.tile-source.frames = Frames
+property.tile-source.frames.tooltip = Tile numbers in animation order, separated by commas, for example `1, 3, 6, 10, 3`. Inclusive ranges such as `1-4, 8, 12` are supported; `4-1` lists tiles in reverse order. Tiles are numbered from `1` at the top-left, proceeding left-to-right and then downward. Repeated tiles are allowed. Empty entries between commas are ignored.
 property.tile-source.inner-padding = Inner Padding
 property.tile-source.inner-padding.tooltip = The number of empty pixels added around each tile in the generated runtime texture. This does not describe spacing already present in the source image.
 property.tile-source.playback = Playback
@@ -1738,12 +1792,17 @@ property.tile-source.tile-width.tooltip = The width in pixels of each tile's ima
 
 outline.atlas.no-image = <No Image>
 outline.atlas = Atlas
+outline.ktx2 = KTX2 Texture
+outline.ktx2.mip = Mip {level} ({width} x {height})
 outline.camera = Camera
 outline.collection = Collection
 outline.collection-proxy = Collection Proxy
 outline.collision-object = Collision Object
 outline.font.styles = Styles
 outline.game-object = Game Object
+outline.gltf.materials = Materials
+outline.gltf.meshes = Meshes
+outline.gltf.textures = Textures
 outline.gui.box = Box
 outline.gui.fonts = Fonts
 outline.gui.layouts = Layouts
@@ -1812,6 +1871,7 @@ resource.type.gui-script = GUI Script
 resource.type.h = C/C++ Header
 resource.type.html = HTML
 resource.type.image = Image
+resource.type.ktx2 = KTX2 Texture
 resource.type.ini = INI
 resource.type.input-binding = Input Binding
 resource.type.jar = JAR
@@ -1981,6 +2041,8 @@ form.label.project.android.fcm_application_id = FCM Application ID
 form.help.project.android.fcm_application_id = Firebase application ID for this Android app, used by Firebase Cloud Messaging. It identifies the registered Firebase app and is distinct from both the package name and sender ID. Leave empty when push messaging is not configured.
 form.label.project.android.manifest = Manifest
 form.help.project.android.manifest = Android manifest XML template used when bundling. A custom file replaces Defold's built-in base manifest, while native-extension fragments are still merged into it; maintain required entries when upgrading.
+form.label.project.android.vkquality_database = VkQuality Database
+form.help.project.android.vkquality_database = VkQuality database used to select between Vulkan and OpenGL ES on Android. Select a custom `.vkq` file to replace the built-in database.
 form.label.project.android.iap_provider = IAP Provider
 form.help.project.android.iap_provider = Store backend used by the in-app purchase integration. Choose **GooglePlay** for Google Play or **Amazon** for the Amazon Appstore.
 form.label.project.android.input_method = Input Method
@@ -2028,6 +2090,10 @@ form.label.project.html5.show_console_banner = Show Console Banner
 form.help.project.html5.show_console_banner = Prints the **Made with Defold** banner in the browser developer console when the engine starts.
 form.label.project.html5.scale_mode = Scale Mode
 form.help.project.html5.scale_mode = Controls canvas resizing. **Downscale Fit** preserves aspect ratio and only shrinks. **Fit** preserves aspect ratio and can shrink or grow. **Stretch** fills the page and may distort. **No Scale** keeps the configured display dimensions.
+form.label.project.html5.min_pixel_ratio = Min Pixel Ratio
+form.help.project.html5.min_pixel_ratio = Minimum number of canvas pixels per CSS pixel when **Display > High DPI** is enabled. `0` means no lower bound. Values above the browser's pixel ratio enable supersampling. Must not exceed **Max Pixel Ratio** when both bounds are enabled.
+form.label.project.html5.max_pixel_ratio = Max Pixel Ratio
+form.help.project.html5.max_pixel_ratio = Maximum number of canvas pixels per CSS pixel when **Display > High DPI** is enabled. `0` means no upper bound. Lower values reduce rendering resolution without changing the displayed canvas size. Fractional values, including values below `1`, are supported.
 form.label.project.html5.retry_count = Retry Count
 form.help.project.html5.retry_count = Number of retries after a network error or a failed HTTP status while loading bundle files. The initial request is separate.
 form.label.project.html5.retry_time = Retry Time
@@ -2262,7 +2328,7 @@ form.help.project.engine.max_time_step = Limits elapsed time accounted for by re
 form.label.project.font = Font
 form.help.project.font = Font related settings
 form.label.project.font.runtime_generation = Runtime Generation
-form.help.project.font.runtime_generation = Generates TrueType glyphs on demand instead of baking them into textures. Applies to **Distance Field** fonts with a compatible material; runtime font collections can add further TTF sources. Target builds require **Use Full Text Layout System** in the App Manifest. Put representative shaped text in **Characters** to prewarm common glyphs. This can reduce bundle size and runtime memory.
+form.help.project.font.runtime_generation = Deprecated. This setting has no effect. Set **Glyph Generation** to **Dynamic** (`runtime: true`) in each SDF or Vector font resource instead. Dynamic fonts require **Use full text layout system** in the App Manifest for target builds.
 
 form.label.project.graphics = Graphics
 form.help.project.graphics = Graphics related settings
@@ -2398,6 +2464,8 @@ form.label.project.resource.uri = URI
 form.help.project.resource.uri = Base URI from which the running engine loads compiled project resources. Leave it unset to use the project build location or bundled archive; an explicitly empty value can override fallback behavior. Use a network URI only when serving build data remotely.
 form.label.project.resource.max_resources = Max Resources
 form.help.project.resource.max_resources = Maximum number of distinct resources the engine can keep loaded at once. Further resource loads fail with **Out of Resources** when the limit is reached. Increasing it allows more resources at the cost of additional memory.
+form.label.project.resource.profile = Profile
+form.help.project.resource.profile = Records initial resource loading times for the resource profiler and logs total and per-stage timings at INFO level. Enable before launching to capture startup loads. Adds profiling and logging overhead.
 
 form.label.project.shader = Shader
 form.help.project.shader = Shader related settings
@@ -2545,7 +2613,10 @@ form.label.texture-profiles.path-settings.profile = Profile
 form.label.texture-profiles.profiles = Profiles
 form.help.texture-profiles.profiles = Defines named processing profiles selected by Path Settings. Each platform entry contains alternative output formats plus settings for compression, mipmaps, maximum size, and alpha premultiplication. `OS_ID_GENERIC` applies on every platform. The engine selects a supported format at runtime; max size `0` disables only the profile's size limit.
 form.label.texture-profiles.profiles.platforms = Platforms
+form.label.texture-profiles.profiles.platforms.keep-ktx2-format = Keep KTX2 Format
+form.help.texture-profiles.profiles.platforms.keep-ktx2-format = Keeps the source KTX2 compression format instead of using Formats. Reuses encoded data when possible. Orientation, alpha, resizing, and mipmap processing can require lossy re-encoding into the same format. Formats still applies to other image types, such as PNG and JPEG. Applies when texture compression is enabled; runtime format support is the project's responsibility.
 form.label.texture-profiles.profiles.platforms.formats = Formats
+form.help.texture-profiles.profiles.platforms.formats = Output format and compressor settings. When Keep KTX2 Format is enabled, these settings apply to other image types, such as PNG and JPEG.
 form.label.texture-profiles.profiles.platforms.formats.format = Format
 form.label.texture-profiles.profiles.platforms.formats.compressor = Compressor
 form.label.texture-profiles.profiles.platforms.formats.compressor-preset = Compressor Preset
@@ -2733,6 +2804,7 @@ error.property-must-be-greater-than-zero = "{property}" must be greater than zer
 error.property-must-be-at-least = "{property}" must be at least {min}.
 error.property-must-be-at-most = "{property}" must be at most {max}.
 error.render-target.color-attachments-cannot-exceed = "{property}" cannot have more than {max} color attachments.
+error.render-target.must-have-attachment = Render targets must have at least one attachment.
 error.render-target.texture-type-must-be-supported = Texture type must be 2D or Cubemap.
 error.render-target.sample-count-must-be-supported = Sample count must be one of 1, 2, 4, 8, or 16.
 error.render-target.cubemap-sample-count-must-be-one = Cubemap render targets only support a sample count of 1.
@@ -2785,6 +2857,7 @@ error.material-expects-paged-atlas = The Material expects a paged Atlas, but the
 error.material-does-not-support-paged-atlases = The Material does not support paged Atlases, but the selected {property} is paged.
 error.material-max-page-count-insufficient = The Material's "Max Page Count" is not sufficient for the number of pages in the selected {property}.
 error.model-unsupported-file-format = {property} "{resource}" has unsupported format {format}. Defold supports only {supported_formats} files for {property}.
+error.model-skinned-material = Material "{material}" in slot "{slot}" requires skinning attributes ({attributes}), but mesh {mesh_index} in "{scene}" has no skin data. Use a non-skinned material.
 error.model-load-failed = The file "{file}" failed to load:\n{error}
 error.model-mesh-selection-file-type = Mesh is only available for glTF and GLB scenes.
 error.model-mesh-selection-name-required = The selected mesh index does not have a mesh name.
@@ -2794,9 +2867,12 @@ error.buffer-syntax-error = Syntax error in buffer file.
 error.editor-extension-compilation-failed = Could not compile editor extension.
 error.font-bitmap-generation-failed = Failed to generate bitmap from Font. {error}
 error.font.style-not-found = Font style ''{style}'' does not exist.
+error.font.invalid-gradient-radius = Invalid rich text markup at line {line}, column {column}: gradient radius must be greater than zero.
 error.font.invalid-style-name = Style names must be unique and non-empty; default is reserved.
 error.font.authored-default-style = The default style is generated and cannot contain markup.
 error.font.rich-text-outline-and-shadow-not-supported-by-bmfont = Rich-text outline and shadow tags are not supported by BMFont fonts.
+error.font.vector-material-samplers = Vector font mode requires curve_texture and band_texture samplers.
+error.font.sdf-material-samplers = Bitmap and SDF font modes do not support vector curve texture samplers.
 error.font.no-reserved-data-for-rich-text-outlines = This font has no reserved data for rich-text outlines; the outline will not be rendered.
 error.font.bitmap-shadow-blur-includes-outline = This bitmap font's shadow blur includes its outline; rich-text shadow spans without an outline tag render crisp.
 error.font.per-span-shadow-blur-not-supported-by-bitmap-fonts = Per-span shadow blur is not supported by bitmap fonts; the shadow uses the available bitmap coverage.

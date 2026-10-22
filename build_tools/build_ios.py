@@ -615,6 +615,30 @@ def _create_app_bundle(program, app_dir, bundle_id, supported_platform):
     _write_test_info_plist(app_dir, bundle_id, executable_name, supported_platform)
 
 
+def _apply_test_info_plist(app_dir, info_plist):
+    if not info_plist:
+        return
+    destination = os.path.join(app_dir, 'Info.plist')
+    with open(destination, 'rb') as f:
+        generated = plistlib.load(f)
+    with open(info_plist, 'rb') as f:
+        info = plistlib.load(f)
+    # Bundle identity and platform must match the runner's signing/install target.
+    for key in ('CFBundleExecutable', 'CFBundleIdentifier', 'CFBundleSupportedPlatforms'):
+        info[key] = generated[key]
+    with open(destination, 'wb') as f:
+        plistlib.dump(info, f)
+
+
+def _copy_bundle_resources(app_dir, resources):
+    for source in resources or []:
+        destination = os.path.join(app_dir, os.path.basename(os.path.normpath(source)))
+        if os.path.isdir(source):
+            shutil.copytree(source, destination)
+        else:
+            shutil.copy2(source, destination)
+
+
 def _copy_stage_source(cwd, source, target, stage_root, log_fn=None):
     source_path = source if os.path.isabs(source) else os.path.join(cwd, source)
     source_path = os.path.normpath(source_path)
@@ -1359,7 +1383,7 @@ class IOSTestRunner(object):
         except FileNotFoundError as e:
             raise IOSTestError('xcrun not found') from e
 
-    def run_test(self, program, cwd, configfile=None, folders=None, target_name=None):
+    def run_test(self, program, cwd, configfile=None, folders=None, target_name=None, info_plist=None, bundle_resources=None):
         cwd = os.path.abspath(cwd)
         program = os.path.abspath(program)
         if not os.path.exists(program):
@@ -1378,6 +1402,8 @@ class IOSTestRunner(object):
         with tempfile.TemporaryDirectory(prefix='defold-ios-test-') as tmp:
             app_dir = os.path.join(tmp, '%s.app' % os.path.splitext(os.path.basename(program))[0])
             self._create_app_bundle(program, app_dir, bundle_id)
+            _apply_test_info_plist(app_dir, info_plist)
+            _copy_bundle_resources(app_dir, bundle_resources)
             self._sign_app_bundle(app_dir, profile, identity, bundle_id, tmp)
             stage_workdir = bool(configfile or folders)
             copied_targets = []
@@ -1571,7 +1597,7 @@ class IOSSimulatorTestRunner(object):
             raise IOSTestError('iOS simulator test exited without a completed jc_test result')
         return 0
 
-    def run_test(self, program, cwd, configfile=None, folders=None, target_name=None):
+    def run_test(self, program, cwd, configfile=None, folders=None, target_name=None, info_plist=None, bundle_resources=None):
         cwd = os.path.abspath(cwd)
         program = os.path.abspath(program)
         if not os.path.exists(program):
@@ -1586,6 +1612,8 @@ class IOSSimulatorTestRunner(object):
         with tempfile.TemporaryDirectory(prefix='defold-ios-sim-test-') as tmp:
             app_dir = os.path.join(tmp, '%s.app' % os.path.splitext(os.path.basename(program))[0])
             self._create_app_bundle(program, app_dir, bundle_id)
+            _apply_test_info_plist(app_dir, info_plist)
+            _copy_bundle_resources(app_dir, bundle_resources)
             self._sign_app_bundle(app_dir)
 
             self._boot_simulator_if_needed(simulator)
@@ -1842,6 +1870,9 @@ def _create_argument_parser():
     parser_run.add_argument('--program', required=True, help='Path to the built test program')
     parser_run.add_argument('--target', help='CMake target name used for the generated bundle id')
     parser_run.add_argument('--config', help='Optional test config file path relative to cwd')
+    parser_run.add_argument('--info-plist', help='Custom test app Info.plist; bundle identity and platform are supplied by the runner')
+    parser_run.add_argument('--bundle-resource', action='append', dest='bundle_resources',
+        help='Copy a file or directory into the app bundle before signing; may be repeated')
     parser_run.add_argument('--device', help='iOS device or simulator identifier, name, serial number or UDID')
     parser_run.add_argument('--identity', help='iOS code signing identity name or SHA-1')
     parser_run.add_argument('--mobileprovision', help='Path to a .mobileprovision file')
@@ -1955,7 +1986,9 @@ def main(argv=None):
                 args.cwd,
                 configfile=args.config,
                 folders=_parse_stage_args(args.stage),
-                target_name=args.target)
+                target_name=args.target,
+                info_plist=args.info_plist,
+                bundle_resources=args.bundle_resources)
     except IOSTestError as e:
         print(e, file=sys.stderr)
         return 1
