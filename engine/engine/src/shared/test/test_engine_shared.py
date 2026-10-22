@@ -4,8 +4,9 @@ import sys
 import unittest
 
 
-# Verifies the installed jar entry point emits usable geometry through the native library.
 class EngineSharedMainTest(unittest.TestCase):
+    # Verifies the jar entry point loads JNI and emits the expected slice-9
+    # geometry, guarding against packaging and native binding regressions.
     def test_slice9_fixture(self):
         result = subprocess.run(JAVA_COMMAND, check=True, capture_output=True, text=True)
         data = json.loads(result.stdout)

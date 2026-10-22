@@ -30,7 +30,7 @@
   (coll/any? pos? slice9))
 
 (defn vertex-data
-  [{:keys [texture-width texture-height tex-coords-raw flip-horizontal flip-vertical]
+  [{:keys [texture-width texture-height width height tex-coords-raw flip-horizontal flip-vertical]
     image-pivot :pivot}
    [^double box-width ^double box-height] slice9 pivot]
   (let [indices @indices
@@ -52,9 +52,10 @@
     (set! (.flipVertical params) (byte (if flip-vertical 1 0)))
 
     (let [xy (GeometryJni/GenerateSlice9Positions params)
+          ;; Legacy standalone-image frames omit texture dimensions.
           uv (GeometryJni/GenerateSlice9TexCoords params
-                                                  (float texture-width)
-                                                  (float texture-height)
+                                                  (float (or texture-width (max 1.0 (double (or width box-width)))))
+                                                  (float (or texture-height (max 1.0 (double (or height box-height)))))
                                                   (float-array (coll/into-> tex-coords-raw [] cat)))
 
           positions (mapv (fn [^long vertex]

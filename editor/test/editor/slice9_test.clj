@@ -88,6 +88,42 @@
           (is (near (us (if rotated y x)) u))
           (is (near (vs (if rotated x y)) v)))))))
 
+;; Verifies legacy standalone-image frames retain frame/box UV sizing without
+;; missing-dimension exceptions, including the minimum size for zero dimensions.
+(deftest legacy-dimension-fallback-test
+  (doseq [[description dimensions size us vs]
+          [["Box dimensions when the frame has no dimensions"
+            {} [64.0 32.0]
+            [0.0 0.03125 0.9375 1.0] [0.0 0.15625 0.90625 1.0]]
+           ["Frame dimensions take precedence over box dimensions"
+            {:width 128.0 :height 64.0} [64.0 32.0]
+            [0.0 0.015625 0.96875 1.0] [0.0 0.078125 0.953125 1.0]]
+           ["Each dimension falls back independently"
+            {:width 128.0} [64.0 32.0]
+            [0.0 0.015625 0.96875 1.0] [0.0 0.15625 0.90625 1.0]]
+           ["Zero box dimensions use the legacy minimum"
+            {} [0.0 0.0]
+            [0.0 2.0 -3.0 1.0] [0.0 5.0 -2.0 1.0]]
+           ["Zero frame dimensions use the legacy minimum"
+            {:width 0.0 :height 0.0} [64.0 32.0]
+            [0.0 2.0 -3.0 1.0] [0.0 5.0 -2.0 1.0]]]
+          pivot [:pivot-center :pivot-nw]]
+    (testing (str description " with " pivot)
+      (let [animation-frame (merge {:tex-coords [[0 1] [0 0] [1 0] [1 1]]
+                                    :tex-coords-raw [[0.0 0.0] [0.0 1.0] [1.0 1.0] [1.0 0.0]]
+                                    :atlas-rotated false}
+                                   dimensions)
+            {:keys [position-data uv-data line-data]}
+            (texture-set/vertex-data animation-frame :size-mode-manual size [2.0 3.0 4.0 5.0] pivot)]
+        (is (= 54 (count position-data) (count uv-data)))
+        (is (= 72 (count line-data)))
+        (doseq [[i [u v]] (eduction (map-indexed vector) uv-data)]
+          (let [vertex (indices i)]
+            (is (near (us (mod vertex 4)) u))
+            (is (near (vs (quot vertex 4)) v))))
+        (doseq [value (eduction cat cat [position-data uv-data line-data])]
+          (is (Double/isFinite (double value))))))))
+
 ;; Verifies zero dimensions, collapsed cells and oversized margins retain the
 ;; native topology without NaNs.
 (deftest shared-degenerate-geometry-test
