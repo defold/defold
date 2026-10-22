@@ -185,7 +185,7 @@ static void SemaphoreReleased(void* context)
 // Both delegate semaphores must be destroyed when the recording releases its delegate.
 TEST(RecordOwnership, DelegateSemaphores)
 {
-    dispatch_semaphore_t     released = dispatch_semaphore_create(0);
+    dispatch_semaphore_t released = dispatch_semaphore_create(0);
     DefoldRecordingDelegate* delegate = [[DefoldRecordingDelegate alloc] init];
     dispatch_set_context(delegate->m_Started, released);
     dispatch_set_finalizer_f(delegate->m_Started, SemaphoreReleased);
@@ -200,7 +200,7 @@ TEST(RecordOwnership, DelegateSemaphores)
 // A late completion must keep its semaphore alive after a timeout, then release it.
 TEST(RecordOwnership, CompletionAfterTimeout)
 {
-    dispatch_semaphore_t       released = dispatch_semaphore_create(0);
+    dispatch_semaphore_t released = dispatch_semaphore_create(0);
     DefoldRecordingCompletion* completion = [[DefoldRecordingCompletion alloc] init];
     dispatch_set_context(completion->m_Completed, released);
     dispatch_set_finalizer_f(completion->m_Completed, SemaphoreReleased);

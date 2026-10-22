@@ -200,9 +200,9 @@ namespace dmRecord
                 SetFailure(status, @"recording path must be valid UTF-8");
                 return false;
             }
-            NSURL*         output_url = [NSURL fileURLWithPath:output_path];
+            NSURL* output_url = [NSURL fileURLWithPath:output_path];
             NSFileManager* files = [NSFileManager defaultManager];
-            NSError*       error = nil;
+            NSError* error = nil;
             if (![files createDirectoryAtURL:[output_url URLByDeletingLastPathComponent]
                     withIntermediateDirectories:YES
                                      attributes:nil
@@ -274,7 +274,7 @@ namespace dmRecord
     {
         // Keep the rendered content at the same screen position and size while
         // AppKit rebuilds the surrounding frame. Preserve keyboard input too.
-        NSRect       content = [window contentRectForFrameRect:[window frame]];
+        NSRect content = [window contentRectForFrameRect:[window frame]];
         NSResponder* responder = [[window firstResponder] retain];
         [window setStyleMask:style];
         [window setFrame:[window frameRectForContentRect:content] display:YES];
@@ -412,7 +412,7 @@ namespace dmRecord
                                                            [content_ready completeWithResult:content error:error];
                                                          }];
 
-            NSString*           failure = nil;
+            NSString* failure = nil;
             SCShareableContent* shareable = nil;
             if (!Wait(content_ready->m_Completed, 15))
             {
@@ -444,11 +444,11 @@ namespace dmRecord
                 }
             }
 
-            SCStream*                stream = nil;
-            SCRecordingOutput*       output = nil;
+            SCStream* stream = nil;
+            SCRecordingOutput* output = nil;
             DefoldRecordingDelegate* delegate = nil;
-            uint32_t                 width = (uint32_t)llround(target->m_Width * target->m_Scale) & ~1U;
-            uint32_t                 height = (uint32_t)llround(target->m_Height * target->m_Scale) & ~1U;
+            uint32_t width = (uint32_t)llround(target->m_Width * target->m_Scale) & ~1U;
+            uint32_t height = (uint32_t)llround(target->m_Height * target->m_Scale) & ~1U;
             if (!failure && (!width || !height))
             {
                 failure = @"recording requires a content area of at least 2x2 pixels";
@@ -489,7 +489,7 @@ namespace dmRecord
 
             if (!failure)
             {
-                NSURL*                          output_url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];
+                NSURL* output_url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];
                 SCRecordingOutputConfiguration* recording_configuration = [[SCRecordingOutputConfiguration alloc] init];
                 [recording_configuration setOutputURL:output_url];
                 [recording_configuration setOutputFileType:AVFileTypeMPEG4];
@@ -583,13 +583,13 @@ namespace dmRecord
                 [RecordingLock() unlock];
                 return false;
             }
-            SCStream*                stream = [g_Stream retain];
-            SCRecordingOutput*       output = [g_Output retain];
+            SCStream* stream = [g_Stream retain];
+            SCRecordingOutput* output = [g_Output retain];
             DefoldRecordingDelegate* delegate = [g_Delegate retain];
             [RecordingLock() unlock];
 
             NSString* failure = nil;
-            NSError*  remove_error = nil;
+            NSError* remove_error = nil;
             if (!RecordingFinished(delegate) && !StreamStopped(delegate) &&
                 ![stream removeRecordingOutput:output error:&remove_error] &&
                 !RecordingFinished(delegate) && !StreamStopped(delegate))
@@ -618,7 +618,7 @@ namespace dmRecord
                 {
                     // A completed output can precede the stream's stop callback.
                     NSError* stop_error = capture_stopped->m_Error;
-                    bool     already_stopped = RecordingFinished(delegate) &&
+                    bool already_stopped = RecordingFinished(delegate) &&
                         [[stop_error domain] isEqualToString:SCStreamErrorDomain] &&
                         [stop_error code] == SCStreamErrorAttemptToStopStreamState;
                     if (!already_stopped)

@@ -31,7 +31,7 @@ TEST(RecordFile, HostPathEncoding)
     // Use the actual roundtrip value: characters outside the active code page
     // may be substituted, while UTF-8 system locales preserve all of them.
     const wchar_t path[] = L"record-\x00e9-\x0416-\x65e5";
-    wchar_t       wide[128];
+    wchar_t wide[128];
     ASSERT_GT(WideCharToMultiByte(CP_ACP, 0, path, -1, host, sizeof(host), 0, 0), 0);
     ASSERT_GT(MultiByteToWideChar(CP_ACP, 0, host, -1, wide, sizeof(wide) / sizeof(wide[0])), 0);
     ASSERT_GT(WideCharToMultiByte(CP_UTF8, 0, wide, -1, expected, sizeof(expected), 0, 0), 0);
@@ -51,7 +51,7 @@ TEST(RecordFile, UnicodeFileRoundtrip)
 {
     const char path[] = "record-file-\xc3\xa9-\xe5\xbd\x95\xe5\x83\x8f.tmp";
     const char contents[] = "recording data";
-    FILE*      file = dmRecord::FileOpen(path, "wb");
+    FILE* file = dmRecord::FileOpen(path, "wb");
     ASSERT_NE((FILE*)0, file);
     ASSERT_EQ(sizeof(contents), fwrite(contents, 1, sizeof(contents), file));
     ASSERT_EQ(0, fclose(file));

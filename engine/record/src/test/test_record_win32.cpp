@@ -58,16 +58,16 @@ static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPA
     if (message == WM_PAINT)
     {
         PAINTSTRUCT paint;
-        HDC         dc = BeginPaint(window, &paint);
-        RECT        rect;
+        HDC dc = BeginPaint(window, &paint);
+        RECT rect;
         GetClientRect(window, &rect);
         FillRect(dc, &rect, (HBRUSH)GetStockObject(g_White ? WHITE_BRUSH : BLACK_BRUSH));
         const COLORREF colors[] = { RGB(224, 32, 32), RGB(32, 224, 32), RGB(32, 32, 224), RGB(224, 224, 32) };
         for (uint32_t i = 0; i < 4; ++i)
         {
-            LONG   x = (i & 1) ? rect.right - 24 : 0;
-            LONG   y = (i & 2) ? rect.bottom - 24 : 0;
-            RECT   corner = { x, y, x + 24, y + 24 };
+            LONG x = (i & 1) ? rect.right - 24 : 0;
+            LONG y = (i & 2) ? rect.bottom - 24 : 0;
+            RECT corner = { x, y, x + 24, y + 24 };
             HBRUSH brush = CreateSolidBrush(colors[i]);
             FillRect(dc, &corner, brush);
             DeleteObject(brush);
@@ -98,7 +98,7 @@ static bool PumpUntil(HANDLE event)
     while (GetTickCount64() < deadline)
     {
         ULONGLONG now = GetTickCount64();
-        DWORD     result = MsgWaitForMultipleObjects(1, &event, FALSE, now < deadline ? (DWORD)(deadline - now) : 0, QS_ALLINPUT);
+        DWORD result = MsgWaitForMultipleObjects(1, &event, FALSE, now < deadline ? (DWORD)(deadline - now) : 0, QS_ALLINPUT);
         if (result == WAIT_OBJECT_0)
         {
             return true;
@@ -133,7 +133,7 @@ struct Recording
 
 static DWORD WINAPI RecordWorker(void* context)
 {
-    Recording*            recording = (Recording*)context;
+    Recording* recording = (Recording*)context;
     DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(recording->m_DpiContext);
     recording->m_StartBefore = dmTime::GetMonotonicTime();
     recording->m_StartResult = dmRecord::StartNative(&recording->m_Window, recording->m_Path, 30, recording->m_Audio, &recording->m_Status);
@@ -312,8 +312,8 @@ protected:
         uint32_t frames = 0;
         for (;;)
         {
-            DWORD             flags;
-            LONGLONG          time;
+            DWORD flags;
+            LONGLONG time;
             ComPtr<IMFSample> sample;
             ASSERT_EQ(S_OK, reader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, 0, &flags, &time, &sample));
             if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
@@ -393,11 +393,11 @@ protected:
         ASSERT_EQ(S_OK, reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, type.Get()));
         uint64_t audio_frames = 0;
         LONGLONG audio_end = 0, audio_onset = -1;
-        int      peak = 0;
+        int peak = 0;
         for (;;)
         {
-            DWORD             flags;
-            LONGLONG          time;
+            DWORD flags;
+            LONGLONG time;
             ComPtr<IMFSample> sample;
             ASSERT_EQ(S_OK, reader->ReadSample(MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, 0, &flags, &time, &sample));
             if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
@@ -482,11 +482,11 @@ protected:
         ASSERT_EQ(S_OK, MFGetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, &width, &height));
         ASSERT_EQ(m_Recording.m_Status.m_Width, width);
         ASSERT_EQ(m_Recording.m_Status.m_Height, height);
-        LONG     stride = (LONG)MFGetAttributeUINT32(type.Get(), MF_MT_DEFAULT_STRIDE, width * 4);
+        LONG stride = (LONG)MFGetAttributeUINT32(type.Get(), MF_MT_DEFAULT_STRIDE, width * 4);
         uint32_t frames = 0;
         for (;;)
         {
-            DWORD             flags;
+            DWORD flags;
             ComPtr<IMFSample> sample;
             ASSERT_EQ(S_OK, reader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, 0, &flags, 0, &sample));
             if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
@@ -502,7 +502,7 @@ protected:
             BYTE* data;
             DWORD bytes;
             ASSERT_EQ(S_OK, buffer->Lock(&data, 0, &bytes));
-            bool       valid = bytes >= abs(stride) * height;
+            bool valid = bytes >= abs(stride) * height;
             const BYTE expected[4][3] = { { 32, 32, 224 }, { 32, 224, 32 }, { 224, 32, 32 }, { 32, 224, 224 } };
             // Sample just inside each client corner, allowing H.264 color loss.
             // All four must survive: checking only the center misses title bars,
@@ -546,14 +546,14 @@ TEST_F(RecordWindowsTest, ClientAreaCropping)
     const DPI_AWARENESS_CONTEXT contexts[] = { DPI_AWARENESS_CONTEXT_UNAWARE,
                                                DPI_AWARENESS_CONTEXT_SYSTEM_AWARE,
                                                DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE };
-    const char*                 suffixes[] = { "crop-unaware", "crop-system", "crop-per-monitor" };
+    const char* suffixes[] = { "crop-unaware", "crop-system", "crop-per-monitor" };
     for (uint32_t i = 0; i < 3; ++i)
     {
         DestroyWindow(m_Window);
         CreateTestWindow(contexts[i]);
         ASSERT_TRUE(Begin(false, suffixes[i], false, contexts[i]));
         DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
-        RECT                  client;
+        RECT client;
         ASSERT_TRUE(GetClientRect(m_Window, &client));
         SetThreadDpiAwarenessContext(previous);
         ASSERT_EQ((uint32_t)(client.right - client.left) & ~1U, m_Recording.m_Status.m_Width);
@@ -574,12 +574,12 @@ TEST_F(RecordWindowsTest, ResizeStopsCapture)
     CreateTestWindow(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
     ASSERT_TRUE(Begin(false, "resize", false, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE));
     DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
-    RECT                  rect = { 0, 0, 480, 360 };
+    RECT rect = { 0, 0, 480, 360 };
     ASSERT_TRUE(AdjustWindowRectExForDpi(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0, GetDpiForWindow(m_Window)));
     ASSERT_TRUE(SetWindowPos(m_Window, 0, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE));
     SetThreadDpiAwarenessContext(previous);
     dmRecord::Status status;
-    uint64_t         deadline = dmTime::GetMonotonicTime() + 15000000;
+    uint64_t deadline = dmTime::GetMonotonicTime() + 15000000;
     do
     {
         ResetEvent(g_Painted);

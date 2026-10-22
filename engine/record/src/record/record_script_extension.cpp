@@ -175,7 +175,7 @@ namespace dmRecord
         StartParams params;
         lua_getfield(L, 1, "path");
         luaL_checktype(L, -1, LUA_TSTRING);
-        size_t      path_size;
+        size_t path_size;
         const char* path = lua_tolstring(L, -1, &path_size);
         if (!path_size || path_size >= sizeof(Status().m_Path) || strlen(path) != path_size)
         {
@@ -313,7 +313,7 @@ namespace dmRecord
         {
             // Detach before invoking Lua: a completion callback may start a new recording.
             dmScript::LuaCallbackInfo* callback = g_Callback;
-            Status                     completed = g_EndStatus;
+            Status completed = g_EndStatus;
             g_Callback = 0;
             g_EndPending = false;
             Invoke(callback, completed.m_Finalized ? EVENT_STOPPED : EVENT_ERROR, &completed);

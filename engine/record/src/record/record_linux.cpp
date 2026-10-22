@@ -218,7 +218,7 @@ namespace dmRecord
             return true;
         }
         uint64_t time = (frame->m_Time - recording->m_Status.m_StartedMonotonicTime) * MP4_TIMESCALE / 1000000;
-        bool     first = recording->m_PendingSize == 0;
+        bool first = recording->m_PendingSize == 0;
         if (!WritePending(recording, time))
         {
             return false;
@@ -237,7 +237,7 @@ namespace dmRecord
         for (int i = 0; i < encoded.iLayerNum; ++i)
         {
             SLayerBSInfo* layer = &encoded.sLayerInfo[i];
-            uint32_t      size = 0;
+            uint32_t size = 0;
             for (int j = 0; j < layer->iNalCount; ++j)
             {
                 size += layer->pNalLengthInByte[j];
@@ -325,8 +325,8 @@ namespace dmRecord
             }
         }
         uint64_t end = (recording->m_Status.m_StoppedMonotonicTime - recording->m_Status.m_StartedMonotonicTime) * MP4_TIMESCALE / 1000000;
-        bool     frames = recording->m_PendingSize != 0;
-        bool     ok = WritePending(recording, end);
+        bool frames = recording->m_PendingSize != 0;
+        bool ok = WritePending(recording, end);
         if (!CloseResources(recording))
         {
             ok = false;
@@ -490,7 +490,7 @@ namespace dmRecord
         // Crop at most one row/column for I420; never scale the captured pixels.
         width = recording->m_Status.m_Width;
         height = recording->m_Status.m_Height;
-        Frame*   frame = &recording->m_Frames[recording->m_Write];
+        Frame* frame = &recording->m_Frames[recording->m_Write];
         uint32_t bytes = width * height * 4;
         if (frame->m_Capacity < bytes)
         {

@@ -103,7 +103,7 @@ protected:
     static dmRecord::Status Complete()
     {
         dmRecord::Status status;
-        uint64_t         deadline = dmTime::GetMonotonicTime() + 10000000;
+        uint64_t deadline = dmTime::GetMonotonicTime() + 10000000;
         do
         {
             dmRecord::GetStatus(&status);
@@ -125,7 +125,7 @@ protected:
     void Start()
     {
         dmRecord::StartParams params = Params();
-        dmRecord::Status      status;
+        dmRecord::Status status;
         ASSERT_TRUE(dmRecord::Start(&params, &status));
         status = Complete();
         ASSERT_TRUE(status.m_Active);
@@ -157,7 +157,7 @@ protected:
         nal[0] = nal[1] = nal[2] = 0;
         nal[3] = 1;
         memcpy(nal + 4, data, size);
-        uint8_t*    planes[3];
+        uint8_t* planes[3];
         SBufferInfo info = {};
         ASSERT_EQ(dsErrorFree, decoder->DecodeFrameNoDelay(nal, size + 4, planes, &info));
         free(nal);
@@ -189,7 +189,7 @@ protected:
         SDecodingParam params = {};
         params.sVideoProperty.eVideoBsType = VIDEO_BITSTREAM_AVC;
         ASSERT_EQ(0, decoder->Initialize(&params));
-        int         size = 0;
+        int size = 0;
         const void* data = MP4D_read_sps(&mp4, 0, 0, &size);
         ParameterSet(decoder, data, size);
         data = MP4D_read_pps(&mp4, 0, 0, &size);
@@ -197,7 +197,7 @@ protected:
         uint32_t next_timestamp = 0;
         for (uint32_t i = 0; i < frames; ++i)
         {
-            unsigned           bytes, timestamp, duration;
+            unsigned bytes, timestamp, duration;
             MP4D_file_offset_t offset = MP4D_frame_offset(&mp4, 0, i, &bytes, &timestamp, &duration);
             ASSERT_EQ(next_timestamp, timestamp);
             ASSERT_GT(duration, 0U);
@@ -213,7 +213,7 @@ protected:
                 sample[n + 3] = 1;
                 n += length + 4;
             }
-            uint8_t*    planes[3];
+            uint8_t* planes[3];
             SBufferInfo info = {};
             ASSERT_EQ(dsErrorFree, decoder->DecodeFrameNoDelay(sample, bytes, planes, &info));
             ASSERT_EQ(1, info.iBufferStatus);
@@ -227,7 +227,7 @@ protected:
                 for (uint32_t plane = 0; plane < 3; ++plane)
                 {
                     uint32_t scale = plane ? 2 : 1;
-                    int      pixel = planes[plane][(y / scale) * info.UsrData.sSystemBuffer.iStride[plane ? 1 : 0] + x / scale];
+                    int pixel = planes[plane][(y / scale) * info.UsrData.sSystemBuffer.iStride[plane ? 1 : 0] + x / scale];
                     ASSERT_LE(abs(pixel - expected[corner][plane]), 12);
                 }
             }
@@ -261,7 +261,7 @@ TEST_F(LinuxRecordingTest, VideoOnly)
         FILE* target = fopen(output, "wb");
         ASSERT_NE((FILE*)0, target);
         uint8_t buffer[4096];
-        size_t  bytes;
+        size_t bytes;
         while ((bytes = fread(buffer, 1, sizeof(buffer), source)))
         {
             ASSERT_EQ(bytes, fwrite(buffer, 1, bytes, target));
@@ -286,7 +286,7 @@ TEST_F(LinuxRecordingTest, ResizeFinalizesAndRestarts)
         g_Width = widths[i];
         g_Height = heights[i];
         dmRecord::Status status;
-        uint64_t         deadline = dmTime::GetMonotonicTime() + 10000000;
+        uint64_t deadline = dmTime::GetMonotonicTime() + 10000000;
         do
         {
             dmRecord::CaptureFrame();
@@ -340,7 +340,7 @@ TEST_F(LinuxRecordingTest, CapabilitiesAndAudio)
 TEST_F(LinuxRecordingTest, FailedStartCanRetry)
 {
     dmRecord::StartParams params = Params();
-    char                  invalid_path[512];
+    char invalid_path[512];
     snprintf(invalid_path, sizeof(invalid_path), "%s/missing.mp4", m_Path);
     params.m_Path = invalid_path;
     dmRecord::Status status;
@@ -374,7 +374,7 @@ TEST_F(LinuxRecordingTest, OddNativeDimensions)
     g_Width = 319;
     g_Height = 239;
     dmRecord::StartParams params = Params();
-    dmRecord::Status      status;
+    dmRecord::Status status;
     ASSERT_TRUE(dmRecord::Start(&params, &status));
     status = Complete();
     ASSERT_TRUE(status.m_Active);
@@ -392,7 +392,7 @@ TEST_F(LinuxRecordingTest, OversizedFramebufferCanRetry)
 {
     g_Width = g_Height = 8192;
     dmRecord::StartParams params = Params();
-    dmRecord::Status      status;
+    dmRecord::Status status;
     ASSERT_TRUE(dmRecord::Start(&params, &status));
     status = Complete();
     ASSERT_FALSE(status.m_Active);
@@ -415,7 +415,7 @@ TEST_F(LinuxRecordingTest, OversizedOutputFails)
     g_Width = 4096;
     g_Height = 2306;
     dmRecord::StartParams params = Params();
-    dmRecord::Status      status;
+    dmRecord::Status status;
     ASSERT_TRUE(dmRecord::Start(&params, &status));
     status = Complete();
     ASSERT_FALSE(status.m_Active);
@@ -427,7 +427,7 @@ TEST_F(LinuxRecordingTest, SmallFramebufferFails)
 {
     g_Width = 15;
     dmRecord::StartParams params = Params();
-    dmRecord::Status      status;
+    dmRecord::Status status;
     ASSERT_TRUE(dmRecord::Start(&params, &status));
     status = Complete();
     ASSERT_FALSE(status.m_Active);

@@ -710,7 +710,7 @@ namespace dmHttpServer
 
         // Update selects readable sockets. Read once, then yield if the headers
         // or a buffered body are incomplete, so other connections and frames run.
-        int              received_bytes;
+        int received_bytes;
         dmSocket::Result r = dmSocket::Receive(connection->m_Socket,
                                                connection->m_RequestBuffer + connection->m_RequestBufferSize,
                                                connection->m_RequestBufferCapacity - 1 - connection->m_RequestBufferSize,
@@ -847,7 +847,7 @@ namespace dmHttpServer
             response->m_Size = read;
             response->m_Remaining -= read;
         }
-        int              sent_bytes;
+        int sent_bytes;
         dmSocket::Result r = dmSocket::Send(response->m_Socket,
                                             response->m_Buffer + response->m_Offset,
                                             dmMath::Min(response->m_Size - response->m_Offset, BUFFER_SIZE),
@@ -896,11 +896,11 @@ namespace dmHttpServer
             return true;
         }
         uint64_t now = dmTime::GetMonotonicTime();
-        bool     progress = false;
+        bool progress = false;
         for (uint32_t i = 0; i < sender->m_Active.Size();)
         {
             AsyncResponse* response = sender->m_Active[i];
-            Result         result = RESULT_TRY_AGAIN;
+            Result result = RESULT_TRY_AGAIN;
             if (now >= response->m_Deadline ||
                 (selected != dmSocket::RESULT_OK && selected != dmSocket::RESULT_WOULDBLOCK))
             {
@@ -956,7 +956,7 @@ namespace dmHttpServer
         for (uint32_t i = 0; i < server->m_Connections.Size(); ++i)
         {
             Connection* connection = &server->m_Connections[i];
-            bool        keep_connection = true;
+            bool keep_connection = true;
             if (connection->m_Response)
             {
                 if (!dmAtomicGet32(&connection->m_Response->m_Done))

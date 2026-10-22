@@ -71,8 +71,8 @@ namespace dmRecord
         for (;;)
         {
             RecordingRequest request;
-            Status           pending;
-            Window           window;
+            Status pending;
+            Window window;
             {
                 DM_MUTEX_SCOPED_LOCK(operation->m_Mutex);
                 while (operation->m_Request == RECORDING_REQUEST_NONE)

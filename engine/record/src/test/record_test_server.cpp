@@ -353,8 +353,8 @@ static void TestHandler(void*, dmWebServer::Request* request)
         // A non-HTTP caller stops the service recording and immediately starts
         // its own, before another Update can consume the old receipt.
         dmRecord::Status status;
-        bool             stopped = dmRecord::Stop(&status);
-        uint64_t         deadline = dmTime::GetMonotonicTime() + 5000000;
+        bool stopped = dmRecord::Stop(&status);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
         while (status.m_Pending && dmTime::GetMonotonicTime() < deadline)
         {
             dmRecord::GetStatus(&status);
@@ -470,7 +470,7 @@ int main(int argc, char** argv)
         return 4;
     }
     dmSocket::Address address;
-    uint16_t          port;
+    uint16_t port;
     dmWebServer::GetName(g_Server, &address, &port);
     printf("RECORD_TEST_PORT=%u\n", port);
     fflush(stdout);

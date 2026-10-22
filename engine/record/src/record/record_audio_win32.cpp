@@ -43,7 +43,7 @@ namespace dmRecord
         // separately from video capture so older Windows can still record video.
         typedef LONG(WINAPI * RtlGetVersionFn)(OSVERSIONINFOW*);
         RtlGetVersionFn get_version = (RtlGetVersionFn)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlGetVersion");
-        OSVERSIONINFOW  version = {};
+        OSVERSIONINFOW version = {};
         version.dwOSVersionInfoSize = sizeof(version);
         if (!get_version || get_version(&version) != 0 || version.dwBuildNumber < 20348)
         {
@@ -105,7 +105,7 @@ namespace dmRecord
         IFACEMETHODIMP ActivateCompleted(IActivateAudioInterfaceAsyncOperation* operation) override
         {
             ComPtr<IUnknown> object;
-            HRESULT          activation_result = E_FAIL;
+            HRESULT activation_result = E_FAIL;
             m_Result = operation->GetActivateResult(&activation_result, &object);
             if (SUCCEEDED(m_Result))
             {
@@ -133,7 +133,7 @@ namespace dmRecord
 
     static HRESULT CapturePackets(AudioCapture* capture, IAudioCaptureClient* client, int16_t* copy, uint32_t capacity, bool draining)
     {
-        UINT32  frames = 0;
+        UINT32 frames = 0;
         HRESULT result = client->GetNextPacketSize(&frames);
         while (SUCCEEDED(result) && frames)
         {
@@ -143,8 +143,8 @@ namespace dmRecord
             {
                 break;
             }
-            BYTE*  data = 0;
-            DWORD  flags = 0;
+            BYTE* data = 0;
+            DWORD flags = 0;
             UINT64 time = 0;
             result = client->GetBuffer(&data, &frames, &flags, 0, &time);
             if (FAILED(result))
@@ -193,13 +193,13 @@ namespace dmRecord
             return E_OUTOFMEMORY;
         }
         ComPtr<IActivateAudioInterfaceAsyncOperation> operation;
-        HRESULT                                       result = pActivateAudioInterfaceAsync(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK, __uuidof(IAudioClient), &activation->m_Variant, activation.Get(), &operation);
+        HRESULT result = pActivateAudioInterfaceAsync(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK, __uuidof(IAudioClient), &activation->m_Variant, activation.Get(), &operation);
         if (FAILED(result))
         {
             return result;
         }
         HANDLE activation_events[] = { capture->m_Stop, activation->m_Completed };
-        DWORD  wait = WaitForMultipleObjects(2, activation_events, FALSE, 15000);
+        DWORD wait = WaitForMultipleObjects(2, activation_events, FALSE, 15000);
         if (wait != WAIT_OBJECT_0 + 1)
         {
             return HRESULT_FROM_WIN32(wait == WAIT_TIMEOUT ? ERROR_TIMEOUT : ERROR_CANCELLED);
@@ -209,7 +209,7 @@ namespace dmRecord
             return activation->m_Result;
         }
         ComPtr<IAudioClient> client = activation->m_Client;
-        WAVEFORMATEX         format = {};
+        WAVEFORMATEX format = {};
         format.wFormatTag = WAVE_FORMAT_PCM;
         format.nChannels = RECORD_AUDIO_CHANNELS;
         format.nSamplesPerSec = RECORD_AUDIO_RATE;
@@ -285,7 +285,7 @@ namespace dmRecord
     static DWORD WINAPI CaptureThread(void* context)
     {
         AudioCapture* capture = (AudioCapture*)context;
-        HRESULT       initialized = CoInitializeEx(0, COINIT_MULTITHREADED);
+        HRESULT initialized = CoInitializeEx(0, COINIT_MULTITHREADED);
         capture->m_Result = FAILED(initialized) ? initialized : RunCapture(capture);
         // Also signal on initialization failure, so NewAudioCapture can return.
         SetEvent(capture->m_Ready);

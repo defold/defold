@@ -305,7 +305,7 @@ protected:
     void Complete(bool update = true)
     {
         dmRecord::Status status;
-        uint64_t         deadline = dmTime::GetMonotonicTime() + 5000000;
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
         do
         {
             dmRecord::GetStatus(&status);
@@ -368,7 +368,7 @@ TEST_F(RecordScriptTest, HostPathEncoding)
     char expected[128];
 #if defined(_WIN32)
     const wchar_t path[] = L"capture-\x00e9-\x0416-\x65e5.mp4";
-    wchar_t       wide[128];
+    wchar_t wide[128];
     ASSERT_GT(WideCharToMultiByte(CP_ACP, 0, path, -1, host, sizeof(host), 0, 0), 0);
     ASSERT_GT(MultiByteToWideChar(CP_ACP, 0, host, -1, wide, sizeof(wide) / sizeof(wide[0])), 0);
     ASSERT_GT(WideCharToMultiByte(CP_UTF8, 0, wide, -1, expected, sizeof(expected), 0, 0), 0);
@@ -397,14 +397,14 @@ TEST_F(RecordScriptTest, HostPathEncoding)
 TEST_F(RecordScriptTest, ExpandedHostPathLimit)
 {
     const wchar_t candidates[] = { 0x00e9, 0x0416, 0x65e5, 0xac00, 0x03a9, 0x0e01, 0x05d0, 0x0633 };
-    char          host_character[8];
-    size_t        host_size = 0;
+    char host_character[8];
+    size_t host_size = 0;
     for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i)
     {
         wchar_t wide[] = { candidates[i], 0 };
         wchar_t roundtrip[2];
-        char    utf8[8];
-        int     size = WideCharToMultiByte(CP_ACP, 0, wide, -1, host_character, sizeof(host_character), 0, 0);
+        char utf8[8];
+        int size = WideCharToMultiByte(CP_ACP, 0, wide, -1, host_character, sizeof(host_character), 0, 0);
         if (size <= 1 || !MultiByteToWideChar(CP_ACP, 0, host_character, -1, roundtrip, 2) || roundtrip[0] != wide[0])
         {
             continue;
@@ -420,7 +420,7 @@ TEST_F(RecordScriptTest, ExpandedHostPathLimit)
     {
         SKIP(); // UTF-8 system locales cannot expand during this conversion.
     }
-    char   path[1024];
+    char path[1024];
     size_t length = 0;
     while (length + host_size + sizeof(".mp4") <= sizeof(path))
     {
@@ -673,7 +673,7 @@ TEST_F(RecordScriptTest, FinalizeWithoutEngineDelete)
 TEST(RecordScriptExtension, ShutdownBeforeLuaInitialization)
 {
     dmExtension::AppParams app_params;
-    dmExtension::Params    params;
+    dmExtension::Params params;
     ExtensionAppParamsInitialize(&app_params);
     ExtensionParamsInitialize(&params);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&app_params));

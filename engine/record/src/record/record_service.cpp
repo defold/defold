@@ -128,13 +128,13 @@ namespace dmRecord
 
     static void PrepareFile(void* arg)
     {
-        RecordingFile*       recording = (RecordingFile*)arg;
+        RecordingFile* recording = (RecordingFile*)arg;
         mbedtls_md_context_t hash;
         mbedtls_md_init(&hash);
         const mbedtls_md_info_t* info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-        bool                     failed = !info || mbedtls_md_setup(&hash, info, 0) != 0 || mbedtls_md_starts(&hash) != 0;
-        FILE*                    file = failed ? 0 : FileOpen(recording->m_Path, "rb");
-        uint64_t                 size = 0;
+        bool failed = !info || mbedtls_md_setup(&hash, info, 0) != 0 || mbedtls_md_starts(&hash) != 0;
+        FILE* file = failed ? 0 : FileOpen(recording->m_Path, "rb");
+        uint64_t size = 0;
         if (!file)
         {
             failed = true;
@@ -142,7 +142,7 @@ namespace dmRecord
         else
         {
             uint8_t buffer[65536];
-            size_t  count;
+            size_t count;
             while ((count = fread(buffer, 1, sizeof(buffer), file)) != 0)
             {
                 size += count;
@@ -260,7 +260,7 @@ namespace dmRecord
         }
         const char* state = status->m_Pending ? (status->m_Stopping ? "stopping" : "starting") :
                                                 (status->m_Failure[0] ? "failed" : (status->m_Active ? "recording" : (status->m_Finalized ? "complete" : "idle")));
-        char        failure[sizeof(status->m_Failure) * 6 + 1];
+        char failure[sizeof(status->m_Failure) * 6 + 1];
         EscapeJson(status->m_Failure, failure);
         char body[8192];
         dmSnPrintf(body, sizeof(body), "{\"instance_id\":\"%s\",\"operation_id\":%llu,\"state\":\"%s\",\"pending\":%s,\"supported\":%s,\"active\":%s,\"finalized\":%s,"
@@ -472,7 +472,7 @@ namespace dmRecord
             return;
         }
         RecordingFile* file = g_Files[index];
-        FileState      state;
+        FileState state;
         {
             DM_MUTEX_SCOPED_LOCK(file->m_Mutex);
             state = file->m_State;
@@ -493,9 +493,9 @@ namespace dmRecord
             Error(request, 500, "file_failed", "recording file could not be prepared");
             return;
         }
-        const char*        range = dmWebServer::GetHeader(request, "Range");
+        const char* range = dmWebServer::GetHeader(request, "Range");
         unsigned long long start = 0, end = file->m_Size - 1;
-        int                consumed = 0;
+        int consumed = 0;
         if (range && (sscanf(range, "bytes=%llu-%llu%n", &start, &end, &consumed) != 2 || range[consumed] || end < start || start >= file->m_Size || end >= file->m_Size))
         {
             Error(request, 416, "invalid_range", "provide a closed byte range within the file");
@@ -577,7 +577,7 @@ namespace dmRecord
             return;
         }
         const char* allowed = file ? "GET, DELETE" : ((start || stop) ? "POST" : "GET");
-        bool        method_ok = file ? (!strcmp(request->m_Method, "GET") || !strcmp(request->m_Method, "DELETE")) : !strcmp(request->m_Method, allowed);
+        bool method_ok = file ? (!strcmp(request->m_Method, "GET") || !strcmp(request->m_Method, "DELETE")) : !strcmp(request->m_Method, allowed);
         if (!method_ok)
         {
             dmWebServer::SetStatusCode(request, 405);
@@ -591,7 +591,7 @@ namespace dmRecord
             return;
         }
         const char* instance = dmWebServer::GetHeader(request, "X-Recording-Instance");
-        const bool  mutation = start || stop || (file && !strcmp(request->m_Method, "DELETE"));
+        const bool mutation = start || stop || (file && !strcmp(request->m_Method, "DELETE"));
         if (mutation && (!instance || !instance[0]))
         {
             Error(request, 400, "missing_instance", "X-Recording-Instance from /recording/capabilities is required");

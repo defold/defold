@@ -28,7 +28,7 @@ TEST(RecordTimeline, ContiguousPackets)
         uint64_t written = 0;
         for (uint32_t i = 0; i < 100000; ++i)
         {
-            uint32_t         frames = i % 3 == 0 ? 127 : 480;
+            uint32_t frames = i % 3 == 0 ? 127 : 480;
             AudioPacketRange range = GetAudioPacketRange(origin, origin + FramesToTime(written, rates[r]), frames, rates[r], written, UINT64_MAX);
             ASSERT_EQ(0ULL, range.m_SilenceFrames);
             ASSERT_EQ(0u, range.m_SkipFrames);

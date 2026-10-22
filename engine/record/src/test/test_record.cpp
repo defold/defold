@@ -28,7 +28,7 @@ using namespace dmRecord;
 TEST(RecordingText, UnicodeMessage)
 {
     const char message[] = "Error: \xc3\xa9\xd0\x96\xe6\x97\xa5\xf0\x9f\x8e\xa5";
-    char       output[sizeof(message)];
+    char output[sizeof(message)];
     CopyTextUtf8(output, sizeof(output), message);
     ASSERT_STREQ(message, output);
     CopyTextUtf8(output, sizeof(output), 0);
@@ -41,7 +41,7 @@ TEST(RecordingText, UnicodeMessage)
 // Truncating two-, three- or four-byte characters must not corrupt JSON UTF-8.
 TEST(RecordingText, TruncateAtCharacterBoundary)
 {
-    const char  message[] = "\xc3\xa9\xe6\x97\xa5\xf0\x9f\x8e\xa5";
+    const char message[] = "\xc3\xa9\xe6\x97\xa5\xf0\x9f\x8e\xa5";
     const char* expected[] = {
         "", "", "\xc3\xa9", "\xc3\xa9", "\xc3\xa9", "\xc3\xa9\xe6\x97\xa5", "\xc3\xa9\xe6\x97\xa5", "\xc3\xa9\xe6\x97\xa5", "\xc3\xa9\xe6\x97\xa5", message
     };
@@ -59,7 +59,7 @@ TEST(RecordingText, TruncateAtCharacterBoundary)
 TEST(RecordingText, StatusFailureLimit)
 {
     Status status = {};
-    char   message[sizeof(status.m_Failure) + 2];
+    char message[sizeof(status.m_Failure) + 2];
     memset(message, 'x', sizeof(message));
     memcpy(message + sizeof(status.m_Failure) - 2, "\xe6\x97\xa5", 4);
     CopyTextUtf8(status.m_Failure, sizeof(status.m_Failure), message);
@@ -299,7 +299,7 @@ protected:
 
     static Status WaitForCompletion(bool update = true)
     {
-        Status   status;
+        Status status;
         uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
         // Wait for the public completion receipt, without assuming an operation duration.
         do

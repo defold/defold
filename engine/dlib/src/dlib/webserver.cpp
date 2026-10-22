@@ -359,7 +359,7 @@ namespace dmWebServer
 
     const char* GetHeader(Request* request, const char* name)
     {
-        uint32_t         name_hash = HashHeaderName(name);
+        uint32_t name_hash = HashHeaderName(name);
         InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
         const char** value = internal_request->m_Server->m_Headers.Get(name_hash);
         if (value)
