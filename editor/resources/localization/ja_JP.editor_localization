@@ -1212,7 +1212,6 @@ property.appmanifest.physics-3d.tooltip = Bullet 3D物理エンジンを含め�
 property.appmanifest.rig+model = リグ+モデル
 property.appmanifest.rig+model.tooltip = モデルのレンダリングとリグアニメーションの両方を含めるか、リグ機能のみを含めるか、あるいはそのどちらも含めないかを選択します。使用しない機能を除外することで、エンジンのサイズを削減できます。
 property.appmanifest.exclude-record = 録画機能の除外
-property.appmanifest.exclude-record.tooltip = `start_record` システムメッセージで使用されるデスクトップ動画録画機能を削除します。ゲームプレイを録画しないプロジェクトで、エンジンサイズを削減したい場合に有効にしてください。
 property.appmanifest.profiler = プロファイラ
 property.appmanifest.profiler.tooltip = プロファイラ機能を含めるビルド構成を選択します。「Debug Only」はリリースビルドから除外し、「None」は完全に除外します。「Always」はリリースビルドにも含めます。
 property.appmanifest.exclude-sound = 音声を除外する
