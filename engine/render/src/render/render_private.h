@@ -149,6 +149,7 @@ namespace dmRender
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         uint32_t                        m_MaxVertexCount;
         uint32_t                        m_RenderBatchVersion;
+        uint32_t                        m_UploadedVertexCount;
     };
 
     const int MAX_TEXT_RENDER_CONSTANTS = 16;

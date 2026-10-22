@@ -39,6 +39,7 @@
 
 #include "render/render.h"
 #include "render/render_private.h"
+#include "render/debug_renderer.h"
 #include "render/font/fontmap.h"
 #include "render/font/fontmap_private.h"
 #include "render/font/font_renderer_private.h"
@@ -91,6 +92,7 @@ static void AssertDefaultFontVerticesMatch(const FontGlyphVertex* packed_vertice
             ASSERT_NEAR(packed_vertices[i].m_OutlineColor[component] * recip_255, backend_vertices[i].m_OutlineColor[component], EPSILON);
             ASSERT_NEAR(packed_vertices[i].m_ShadowColor[component] * recip_255, backend_vertices[i].m_ShadowColor[component], EPSILON);
             ASSERT_EQ(packed_vertices[i].m_SdfParams[component], backend_vertices[i].m_SdfParams[component]);
+            ASSERT_EQ(packed_vertices[i].m_Effect[component], backend_vertices[i].m_Effect[component]);
             ASSERT_EQ(0.0f, backend_vertices[i].m_VectorTexcoord[component]);
             ASSERT_EQ(0.0f, backend_vertices[i].m_VectorEffectParams[component]);
             ASSERT_EQ(0u, backend_vertices[i].m_VectorColor[component]);
@@ -273,6 +275,49 @@ protected:
         dmPlatform::DeleteWindow(m_Window);
     }
 };
+
+// Effects stay immutable within a frame, grow when pinned, and reuse unpinned rows later.
+TEST_F(dmRenderTest, FontEffectCachePinsRecordsUntilNextFrame)
+{
+    FontEffectCache* cache = FontCreateEffectCache(m_GraphicsContext);
+    FontColorEffect  effect = {};
+    effect.m_StopCount = 1;
+    effect.m_Colors[0][3] = 255;
+    FontEffectRecord record;
+    for (uint32_t i = 1; i < FONT_EFFECT_TEXTURE_HEIGHT; ++i)
+    {
+        effect.m_Colors[0][0] = (uint8_t)i;
+        FontPackEffect(effect, &record);
+        ASSERT_EQ(i, FontCacheEffect(cache, record, 7));
+    }
+    effect.m_Colors[0][0] = 1;
+    FontPackEffect(effect, &record);
+    ASSERT_EQ(1u, FontCacheEffect(cache, record, 7));
+    effect.m_Colors[0][1] = 255;
+    FontPackEffect(effect, &record);
+    ASSERT_EQ(FONT_EFFECT_TEXTURE_HEIGHT, FontCacheEffect(cache, record, 7));
+    ASSERT_EQ(FONT_EFFECT_TEXTURE_HEIGHT, FontCacheEffect(cache, record, 8));
+    for (uint32_t i = FONT_EFFECT_TEXTURE_HEIGHT + 1; i < FONT_EFFECT_TEXTURE_HEIGHT * 2; ++i)
+    {
+        effect.m_Colors[0][0] = (uint8_t)(i - FONT_EFFECT_TEXTURE_HEIGHT + 1);
+        FontPackEffect(effect, &record);
+        ASSERT_EQ(i, FontCacheEffect(cache, record, 7));
+    }
+    effect.m_Colors[0][2] = 1;
+    FontPackEffect(effect, &record);
+    ASSERT_EQ(1u, FontCacheEffect(cache, record, 8));
+    const FontEffectRecord replacement = record;
+    effect.m_Colors[0][0] = 1;
+    effect.m_Colors[0][1] = effect.m_Colors[0][2] = 0;
+    FontPackEffect(effect, &record);
+    // The evicted content must be inserted again without aliasing its replacement.
+    ASSERT_EQ(2u, FontCacheEffect(cache, record, 8));
+    ASSERT_EQ(1u, FontCacheEffect(cache, replacement, 8));
+    FontUploadEffects(cache);
+    ASSERT_EQ(FONT_EFFECT_TEXTURE_WIDTH, dmGraphics::GetTextureWidth(m_GraphicsContext, FontGetEffectTexture(cache)));
+    ASSERT_EQ(FONT_EFFECT_TEXTURE_HEIGHT * 2, dmGraphics::GetTextureHeight(m_GraphicsContext, FontGetEffectTexture(cache)));
+    FontDeleteEffectCache(cache);
+}
 
 TEST_F(dmRenderTest, TestFontMapTextureFiltering)
 {
@@ -2729,6 +2774,134 @@ TEST_F(dmRenderTest, TestRenderListDebug)
     dmRender::DrawDebug3d(m_Context, 0);
 }
 
+static void InitializeTestDebugRenderer(dmRender::HRenderContext context)
+{
+    dmGraphics::ShaderDescBuilder shader_desc;
+    shader_desc.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmArray<uint8_t> shader_data;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(shader_desc.Get(), dmGraphics::ShaderDesc::m_DDFDescriptor, shader_data));
+    dmRender::InitializeDebugRenderer(context, 256, shader_data.Begin(), shader_data.Size());
+}
+
+// Verifies that empty and unrelated passes do not upload debug geometry, and repeated debug draws reuse it.
+// Each upload must resize the buffer once without a redundant zero-sized update.
+TEST_F(dmRenderTest, DebugGeometryUploadDeferred)
+{
+    InitializeTestDebugRenderer(m_Context);
+    dmGraphics::VertexBuffer* vertex_buffer = (dmGraphics::VertexBuffer*) m_Context->m_DebugRenderer.m_VertexBuffer;
+    dmRender::Predicate unrelated_predicate = {};
+    unrelated_predicate.m_Tags[0] = dmHashString64("unrelated");
+    unrelated_predicate.m_TagCount = 1;
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(0U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ(0U, vertex_buffer->m_SubDataSetCount);
+
+    dmRender::Square2d(m_Context, 0, 0, 100, 100, Vector4(1, 0, 0, 1));
+    dmRender::Line3D(m_Context, Point3(1, 2, 3), Point3(4, 5, 6), Vector4(0, 1, 0, 1), Vector4(0, 0, 1, 1));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, &unrelated_predicate, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(0U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ(0U, vertex_buffer->m_SubDataSetCount);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ(2U, vertex_buffer->m_SubDataSetCount);
+    ASSERT_EQ((uint64_t)(8 * 2 * sizeof(Vector4)), vertex_buffer->m_SubDataSetBytes);
+    const uint32_t data_set_count = vertex_buffer->m_DataSetCount;
+
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, &unrelated_predicate, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+        ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+        ASSERT_EQ(data_set_count, vertex_buffer->m_DataSetCount);
+        ASSERT_EQ(2U, vertex_buffer->m_SubDataSetCount);
+        ASSERT_EQ((uint64_t)(8 * 2 * sizeof(Vector4)), vertex_buffer->m_SubDataSetBytes);
+    }
+}
+
+// Verifies that geometry added between passes is uploaded before drawing, including shifted line offsets.
+TEST_F(dmRenderTest, DebugGeometryAddedBetweenPasses)
+{
+    InitializeTestDebugRenderer(m_Context);
+    dmRender::DebugRenderer& debug_renderer = m_Context->m_DebugRenderer;
+    dmGraphics::VertexBuffer* vertex_buffer = (dmGraphics::VertexBuffer*) debug_renderer.m_VertexBuffer;
+    const uint32_t vertex_stride = 2 * sizeof(Vector4);
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::Line3D(m_Context, Point3(1, 2, 3), Point3(4, 5, 6), Vector4(1, 0, 0, 1), Vector4(0, 1, 0, 1));
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+
+    Point3 triangle[3] = {Point3(10, 0, 0), Point3(0, 10, 0), Point3(0, 0, 10)};
+    dmRender::Triangle3d(m_Context, triangle, Vector4(0, 0, 1, 1));
+    dmRender::Predicate unrelated_predicate = {};
+    unrelated_predicate.m_Tags[0] = dmHashString64("unrelated");
+    unrelated_predicate.m_TagCount = 1;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, &unrelated_predicate, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+
+    dmRender::Line2D(m_Context, 20, 30, 40, 50, Vector4(1, 1, 0, 1), Vector4(0, 1, 1, 1));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(2U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ((uint64_t)((2 + 7) * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+
+    const dmRender::DebugRenderTypeData& faces = debug_renderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_FACE_3D];
+    const dmRender::DebugRenderTypeData& lines = debug_renderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_LINE_3D];
+    ASSERT_EQ(0U, faces.m_RenderObject.m_VertexStart);
+    ASSERT_EQ(3U, faces.m_RenderObject.m_VertexCount);
+    ASSERT_EQ(3U, lines.m_RenderObject.m_VertexStart);
+    ASSERT_EQ(4U, lines.m_RenderObject.m_VertexCount);
+    ASSERT_EQ(0, memcmp(vertex_buffer->m_Buffer, faces.m_ClientBuffer, 3 * vertex_stride));
+    ASSERT_EQ(0, memcmp(vertex_buffer->m_Buffer + 3 * vertex_stride, lines.m_ClientBuffer, 4 * vertex_stride));
+
+    const uint32_t data_set_count = vertex_buffer->m_DataSetCount;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(data_set_count, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ((uint64_t)((2 + 7) * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+}
+
+// Verifies that a new frame with the same vertex count uploads fresh data and empty frames do not upload.
+TEST_F(dmRenderTest, DebugGeometryUploadResetPerFrame)
+{
+    InitializeTestDebugRenderer(m_Context);
+    dmRender::DebugRenderer& debug_renderer = m_Context->m_DebugRenderer;
+    dmGraphics::VertexBuffer* vertex_buffer = (dmGraphics::VertexBuffer*) debug_renderer.m_VertexBuffer;
+    const uint32_t vertex_stride = 2 * sizeof(Vector4);
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::Line3D(m_Context, Point3(1, 2, 3), Point3(4, 5, 6), Vector4(1, 0, 0, 1), Vector4(0, 1, 0, 1));
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
+    const uint32_t data_set_count = vertex_buffer->m_DataSetCount;
+    ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    dmRender::RenderListBegin(m_Context);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(0U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(data_set_count, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+
+    dmRender::Line3D(m_Context, Point3(7, 8, 9), Point3(10, 11, 12), Vector4(0, 0, 1, 1), Vector4(1, 1, 0, 1));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(1U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(2U, vertex_buffer->m_DataSetCount);
+    ASSERT_EQ((uint64_t)(4 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+    ASSERT_EQ(0, memcmp(vertex_buffer->m_Buffer, debug_renderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_LINE_3D].m_ClientBuffer, 2 * vertex_stride));
+}
+
 struct TestSortFrontToBackCtx
 {
     int   m_BeginCalls;
@@ -4344,6 +4517,7 @@ protected:
         te.m_Align = dmRender::TEXT_ALIGN_LEFT;
         te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
         te.m_TextLayout = layout;
+        te.m_Material = m_Material;
         const uint32_t count = dmRender::CreateFontVertexData(m_SystemFontMap, 1, "", te, 1.0f, 1.0f, 1.0f, (uint8_t*)vertices, capacity);
         TextLayoutRelease(layout);
         if (document)
@@ -4624,6 +4798,63 @@ TEST_F(VectorFontTest, RichTextPreservesCornerColorsAndAnimatedOffsets)
     ASSERT_EQ(6u, Render(source, true, after, 6, 0.25f));
     ASSERT_TRUE(before[0].m_Position[0] != after[0].m_Position[0] || before[0].m_Position[1] != after[0].m_Position[1]);
     ASSERT_NEAR(before[2].m_Position[0] - before[0].m_Position[0], after[2].m_Position[0] - after[0].m_Position[0], EPSILON);
+}
+
+// Spatial gradients must reach vector face vertices even with a custom material lacking the metadata sampler.
+TEST_F(VectorFontTest, SpatialGradientCpuFallback)
+{
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    dmRender::FontDefaultVertex vertices[6];
+    ASSERT_EQ(6u, Render("<gradient type=color color0=#ff0000>A</gradient>", true, vertices, 6, 0.0f, 1.0f));
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        ASSERT_EQ(255u, vertices[i].m_VectorColor[0]);
+        ASSERT_EQ(0u, vertices[i].m_VectorColor[1]);
+        ASSERT_EQ(0u, vertices[i].m_VectorColor[2]);
+        ASSERT_EQ(0.0f, vertices[i].m_Effect[2]);
+    }
+    ASSERT_EQ(6u, Render("<gradient type=linear angle=90 color0=#ff0000 color1=#0000ff>A</gradient>", true, vertices, 6, 0.0f, 1.0f));
+    ASSERT_EQ(255u, vertices[0].m_VectorColor[2]); // Left ends at blue.
+    ASSERT_EQ(255u, vertices[2].m_VectorColor[0]); // Right starts at red.
+}
+
+// Every fit carries its metadata and bounded animation phase through the vector vertex path.
+TEST_F(VectorFontTest, SpatialGradientGpuMetadata)
+{
+    dmGraphics::ShaderDescBuilder shaders;
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shaders.AddTexture("font_effects", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shaders.Get(), 0, 0);
+    dmRender::HMaterial  material = dmRender::NewMaterial(m_Context, program);
+    ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64("font_effects"), 0, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+    dmRender::HMaterial original = m_Material;
+    m_Material = material;
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    const char* fits[] = { "glyph", "span", "block" };
+    const char* types[] = { "linear", "radial" };
+    for (uint32_t type = 0; type < 2; ++type)
+    {
+        for (uint32_t fit = 0; fit < 3; ++fit)
+        {
+            char markup[256];
+            dmSnPrintf(markup, sizeof(markup), "<gradient type=%s fit=%s angle=45 hz=0.5 color0=#ff0000 color1=#00ff00 color2=#0000ff color3=#ffff00>AA</gradient>", types[type], fits[fit]);
+            dmRender::FontDefaultVertex vertices[12];
+            ASSERT_EQ(12u, Render(markup, true, vertices, 12, 0.25f, 1.0f));
+            ASSERT_GT(vertices[0].m_Effect[2], 0.0f);
+            ASSERT_NEAR(0.25f, vertices[0].m_Effect[3], EPSILON);
+            ASSERT_EQ(vertices[0].m_Effect[2], vertices[6].m_Effect[2]);
+            ASSERT_LT(vertices[0].m_Effect[0], vertices[2].m_Effect[0]);
+            ASSERT_LT(vertices[0].m_Effect[1], vertices[1].m_Effect[1]);
+            if (fit == 0)
+                ASSERT_NEAR(vertices[0].m_Effect[0], vertices[6].m_Effect[0], EPSILON);
+            else
+                ASSERT_LT(vertices[0].m_Effect[0], vertices[6].m_Effect[0]);
+        }
+    }
+    m_Material = original;
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
 // Vector rich text emits outline and shadow layers only for spans that enable them.
@@ -5285,13 +5516,83 @@ TEST_F(dmRenderTest, DrawTextPreparedTextLayoutRetainedUntilClear)
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
+// Gradients share one batch, and reusing it without GPU effects clears the metadata binding.
+TEST_F(dmRenderTest, GradientRecordsDoNotSplitFontBatch)
+{
+    dmGraphics::ShaderDescBuilder shaders;
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shaders.AddTexture("texture_sampler", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shaders.AddTexture("font_effects", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shaders.Get(), 0, 0);
+    dmRender::HMaterial  material = dmRender::NewMaterial(m_Context, program);
+    ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64("font_effects"), 1, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+    const char* sources[] = {
+        "<gradient hz=0.5 left=#ff0000 right=#0000ff>A</gradient>",
+        "<gradient hz=0.5 left=#00ff00 right=#ffffff>B</gradient>"
+    };
+    HTextLayout        layouts[2];
+    TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
+    settings.m_Leading = 1.0f;
+    dmRender::RenderListBegin(m_Context);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        HMarkup markup = 0;
+        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(sources[i], strlen(sources[i]), &markup, 0));
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), markup, &settings, &layouts[i]));
+        MarkupDestroy(markup);
+        TextLayoutUpdate(layouts[i], i * 0.25f);
+        dmRender::DrawTextParams params;
+        params.m_TextLayout = layouts[i];
+        params.m_FaceColor = Vector4(1.0f);
+        params.m_WorldTransform = Matrix4::identity();
+        dmRender::DrawText(m_Context, m_SystemFontMap, material, 0, params);
+    }
+    dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_RenderObjectIndex);
+    const dmRender::FontDefaultVertex* vertices = (const dmRender::FontDefaultVertex*)m_Context->m_TextContext.m_ClientBuffer;
+    ASSERT_NE(0.0f, vertices[0].m_Effect[2]);
+    ASSERT_NE(vertices[0].m_Effect[2], vertices[6].m_Effect[2]);
+    ASSERT_NEAR(0.0f, vertices[0].m_Effect[3], 0.00001f);
+    ASSERT_NEAR(0.25f, vertices[6].m_Effect[3], 0.00001f);
+    ASSERT_EQ(FontGetEffectTexture(m_SystemFontMap->m_EffectCache), m_Context->m_TextContext.m_RenderObjects[0].m_Textures[1]);
+    dmRender::ClearRenderObjects(m_Context);
+
+    dmRender::HMaterial      fallback_material = dmRender::NewMaterial(m_Context, program);
+    dmRender::DrawTextParams params;
+    params.m_TextLayout = layouts[0];
+    params.m_FaceColor = Vector4(1.0f);
+    params.m_WorldTransform = Matrix4::identity();
+    dmRender::RenderListBegin(m_Context);
+    dmRender::DrawText(m_Context, m_SystemFontMap, fallback_material, 0, params);
+    dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_RenderObjectIndex);
+    const dmRender::RenderObject& render_object = m_Context->m_TextContext.m_RenderObjects[0];
+    ASSERT_EQ(m_SystemFontMap->m_Texture, render_object.m_Textures[0]);
+    for (uint32_t i = 1; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+    {
+        ASSERT_EQ((dmGraphics::HTexture)0, render_object.m_Textures[i]);
+    }
+    dmRender::ClearRenderObjects(m_Context);
+    TextLayoutRelease(layouts[0]);
+    TextLayoutRelease(layouts[1]);
+    dmRender::DeleteMaterial(m_Context, fallback_material);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
 TEST_F(dmRenderTest, FontVertexDeclaration)
 {
     ASSERT_NE((dmGraphics::HVertexDeclaration)0, m_Context->m_TextContext.m_VertexDecl);
     ASSERT_EQ(sizeof(dmRender::FontDefaultVertex), dmGraphics::GetVertexDeclarationStride(m_Context->m_TextContext.m_VertexDecl));
 
     dmGraphics::VertexDeclaration* declaration = (dmGraphics::VertexDeclaration*)m_Context->m_TextContext.m_VertexDecl;
-    ASSERT_EQ(10u, declaration->m_StreamCount);
+    ASSERT_EQ(11u, declaration->m_StreamCount);
     for (uint32_t i = 0; i <= 2; ++i)
     {
         ASSERT_EQ(4u, declaration->m_Streams[i].m_Size);
@@ -5331,6 +5632,10 @@ TEST_F(dmRenderTest, FontVertexDeclaration)
     ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_ShadowColor), declaration->m_Streams[7].m_Offset);
     ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_SdfParams), declaration->m_Streams[8].m_Offset);
     ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_LayerMasks), declaration->m_Streams[9].m_Offset);
+    ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_Effect), declaration->m_Streams[10].m_Offset);
+    ASSERT_EQ(4u, declaration->m_Streams[10].m_Size);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT, declaration->m_Streams[10].m_Type);
+    ASSERT_FALSE(declaration->m_Streams[10].m_Normalize);
 }
 
 // TEST_F(dmRenderTest, GetTextMetricsMeasureTrailingSpace)

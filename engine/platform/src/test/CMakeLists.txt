@@ -30,6 +30,21 @@ add_dependencies(test_platform platform_null)
 # Register into global build_tests and run_tests with working directory set to engine/input
 defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
+if(TARGET_PLATFORM STREQUAL "x86_64-win32")
+    defold_add_executable(test_platform_win32
+        "${CMAKE_CURRENT_LIST_DIR}/test_platform_win32.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../../../engine/src/engine.rc")
+    target_include_directories(test_platform_win32 PRIVATE
+        "${CMAKE_CURRENT_LIST_DIR}/../../../engine/src")
+    defold_target_link_libraries(test_platform_win32 "${TARGET_PLATFORM}"
+        dlib profile_null testmain platform)
+    target_link_libraries(test_platform_win32 PRIVATE user32 gdi32 shell32)
+    defold_target_link_opengl(test_platform_win32 "${TARGET_PLATFORM}")
+    defold_target_link_glfw(test_platform_win32 "${TARGET_PLATFORM}")
+    defold_target_link_socket(test_platform_win32 "${TARGET_PLATFORM}")
+    defold_register_test_target(test_platform_win32 ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+endif()
+
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
     defold_add_executable(test_native_web "${CMAKE_CURRENT_LIST_DIR}/test_native_web.cpp")
     defold_target_link_libraries(test_native_web "${TARGET_PLATFORM}"

@@ -1975,14 +1975,14 @@ TEST_F(GuiTest, GuiSelectedBaseStyle)
     ASSERT_GT(TextLayoutGetDecorationCount(layout), 0u);
     const float         color[] = { 1.0f, 1.0f, 1.0f, 1.0f };
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data, true);
     ASSERT_EQ(1.0f, data.m_FaceColors.m_BottomLeft[0]);
     ASSERT_EQ(0.0f, data.m_FaceColors.m_BottomLeft[1]);
     dmGui::SetNodeTextStyle(scene, node, 0);
     layout = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout;
     ASSERT_EQ((dmhash_t)0, layout->m_BaseStyleName);
     ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], color, &data, true);
     ASSERT_EQ(1.0f, data.m_FaceColors.m_BottomLeft[0]);
     ASSERT_EQ(0.0f, data.m_FaceColors.m_BottomLeft[1]);
     dmGui::SetNodeTextStyle(scene, node, dmHashString64("missing"));
@@ -2134,7 +2134,7 @@ TEST_F(GuiTest, GuiRichTextLinkInteraction)
     ASSERT_EQ(1u, TextLayoutGetDecorationCount(initial.m_TextLayout));
 
     TextGlyphRenderData before = {};
-    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &before);
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &before, true);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
     dmGameObject::InputAction input_action = {};
@@ -2144,7 +2144,7 @@ TEST_F(GuiTest, GuiRichTextLinkInteraction)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
 
     TextGlyphRenderData hovered = {};
-    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &hovered);
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &hovered, true);
     ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
     ASSERT_EQ(0u, TextLayoutGetDecorationCount(initial.m_TextLayout));
     ASSERT_NEAR(0.25f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
@@ -2162,7 +2162,7 @@ TEST_F(GuiTest, GuiRichTextLinkInteraction)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
 
     TextGlyphRenderData unhovered = {};
-    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &unhovered);
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &unhovered, true);
     ASSERT_NEAR(before.m_FaceColors.m_BottomLeft[0], unhovered.m_FaceColors.m_BottomLeft[0], 0.0001f);
     ASSERT_EQ(1u, TextLayoutGetDecorationCount(initial.m_TextLayout));
     ASSERT_NEAR(0.5f, dmGui::GetNodeProperty(gui_component->m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 0.0001f);
@@ -2338,14 +2338,14 @@ TEST_F(GuiTest, GuiRichTextAnimationAdvances)
     GuiTextSubmitResult initial = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
     TextGlyphRenderData before = {};
-    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &before);
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &before, true);
 
     m_UpdateContext.m_DT = 0.25f;
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
     TextGlyphRenderData after = {};
-    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &after);
+    TextLayoutGetGlyphRenderData(initial.m_TextLayout, TextLayoutGetGlyphs(initial.m_TextLayout)[0], white, &after, true);
     ASSERT_NE(before.m_OffsetY, after.m_OffsetY);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -2530,7 +2530,7 @@ TEST_F(LabelComponentTest, LabelUserDataSurvivesPoolCompaction)
     ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
 
     TextGlyphRenderData before = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before, true);
 
     dmGameObject::AcquireInputFocus(m_Collection, target);
     dmGameObject::InputAction input_action = {};
@@ -2540,7 +2540,7 @@ TEST_F(LabelComponentTest, LabelUserDataSurvivesPoolCompaction)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
 
     TextGlyphRenderData hovered = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &hovered);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &hovered, true);
     ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
 
     DeleteInstance(m_Collection, target);
@@ -2567,7 +2567,7 @@ TEST_F(LabelComponentTest, LabelSelectedBaseStyles)
         ASSERT_EQ(styles[i], layout->m_BaseStyleName);
         ASSERT_EQ(i == 2, TextLayoutGetDecorationCount(layout) > 0);
         TextGlyphRenderData data;
-        TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], white, &data);
+        TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[1], white, &data, true);
         ASSERT_EQ(1.0f, data.m_FaceColors.m_BottomLeft[0]);
         ASSERT_EQ(0.0f, data.m_FaceColors.m_BottomLeft[1]);
         ASSERT_EQ(i == 0, (data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) != 0);
@@ -2747,14 +2747,14 @@ TEST_F(LabelComponentTest, LabelRichTextAnimationAdvances)
     ASSERT_GT(TextLayoutGetGlyphCount(layout), 0u);
 
     TextGlyphRenderData before = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before, true);
 
     m_UpdateContext.m_DT = 0.25f;
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
     TextGlyphRenderData after = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &after);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &after, true);
     ASSERT_NE(before.m_OffsetY, after.m_OffsetY);
 
     DeleteInstance(m_Collection, go);
@@ -2784,7 +2784,7 @@ TEST_F(LabelComponentTest, LabelRichTextLinkHover)
     ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
 
     TextGlyphRenderData before = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &before, true);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
     dmGameObject::InputAction input_action = {};
@@ -2794,7 +2794,7 @@ TEST_F(LabelComponentTest, LabelRichTextLinkHover)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
 
     TextGlyphRenderData hovered = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &hovered);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &hovered, true);
     ASSERT_NE(before.m_FaceColors.m_BottomLeft[0], hovered.m_FaceColors.m_BottomLeft[0]);
     ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
 
@@ -2810,7 +2810,7 @@ TEST_F(LabelComponentTest, LabelRichTextLinkHover)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
 
     TextGlyphRenderData unhovered = {};
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &unhovered);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], white, &unhovered, true);
     ASSERT_NEAR(before.m_FaceColors.m_BottomLeft[0], unhovered.m_FaceColors.m_BottomLeft[0], 0.0001f);
     ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
 

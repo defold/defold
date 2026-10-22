@@ -53,6 +53,7 @@ namespace dmWebServer
      * @member RESULT_ERROR_INVAL
      * @member RESULT_HANDLER_ALREADY_REGISTRED
      * @member RESULT_HANDLER_NOT_REGISTRED
+     * @member RESULT_TRY_AGAIN
      * @member RESULT_INTERNAL_ERROR
      * @member RESULT_UNKNOWN
      */
@@ -64,6 +65,7 @@ namespace dmWebServer
         RESULT_ERROR_INVAL = -3,
         RESULT_HANDLER_ALREADY_REGISTRED = -4,
         RESULT_HANDLER_NOT_REGISTRED = -5,
+        RESULT_TRY_AGAIN = -6,
         RESULT_INTERNAL_ERROR = -100,
         RESULT_UNKNOWN = -1000,
     };
@@ -158,7 +160,7 @@ namespace dmWebServer
      */
     Result SetStatusCode(Request* request, int status_code);
 
-    /*# Get http header value for key
+    /*# Get http header value for key, ignoring ASCII case in the header name
      * @name GetHeader
      * @param request [type:Request*] Request
      * @param name [type:const char*] Header key
@@ -167,6 +169,8 @@ namespace dmWebServer
     const char* GetHeader(Request* request, const char* name);
 
     /*# Send response data
+     * Copies data into an owned response sent asynchronously after the handler returns.
+     * Socket errors are handled by the server; RESULT_OK means the data was queued.
      * @name Send
      * @param request [type:Request] Request handle
      * @param data [type:void*] Data to send

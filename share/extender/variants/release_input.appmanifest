@@ -1,21 +1,21 @@
-# Derived from src/engine/wscript, release target: Removes Engine Service
+# Release engines omit recording, debugging, and the engine service.
 platforms:
     common:
         context:
             defines: ["DM_RELEASE"]
-            excludeLibs: ["debugger"]
-            excludeSymbols: ["LuaDebugger"]
+            excludeLibs: ["debugger", "record", "record_script", "record_service", "openh264"]
+            excludeSymbols: ["LuaDebugger", "ScriptRecord", "EngineRecord"]
 
     osx:
         context:
-            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery", "record", "vpx"]
-            libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null", "record_null"]
+            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null"]
             excludeSymbols: ['LuaDebugger', 'ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
 
     linux:
         context:
-            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery", "record", "vpx"]
-            libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null", "record_null"]
+            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null"]
             excludeSymbols: ['LuaDebugger', 'ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
 
     web:
@@ -26,8 +26,8 @@ platforms:
 
     win32:
         context:
-            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery", "record", "vpx"]
-            libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null", "record_null"]
+            excludeLibs: ["debugger", "engine", "engine_service", "profile", "profilerext", "profiler_remotery"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null"]
             linkFlags: ["-Wl,/subsystem:windows"]
             excludeSymbols: ['LuaDebugger', 'ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
 

@@ -49,6 +49,7 @@ namespace dmRender
     using namespace dmVMath;
 
     static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
+    static const dmhash_t FONT_EFFECTS_HASH = dmHashString64("font_effects");
 
     static CacheGlyph* GetDecorationCacheGlyph(HFontMap font_map, uint32_t frame)
     {
@@ -450,6 +451,12 @@ namespace dmRender
         return true;
     }
 
+    static uint32_t ResolveLayoutEffect(void* context, const FontEffectRecord& record)
+    {
+        LayoutGlyphContext* glyph_context = (LayoutGlyphContext*)context;
+        return FontCacheEffect(glyph_context->m_FontMap->m_EffectCache, record, glyph_context->m_Frame);
+    }
+
     static uint32_t CreateFontVertexDataFromTextLayout(HFontMap font_map, uint32_t frame, HTextLayout layout, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, FontGlyphVertex* vertices, uint32_t max_vertices)
     {
         assert(layout->m_FontCollection == GetFontCollection(font_map));
@@ -463,6 +470,15 @@ namespace dmRender
         config.m_Layout = layout;
         config.m_ResolveGlyph = ResolveLayoutGlyph;
         config.m_ResolveGlyphContext = &glyph_context;
+        if (te.m_Material && GetMaterialSamplerUnit(te.m_Material, FONT_EFFECTS_HASH) != INVALID_SAMPLER_UNIT)
+        {
+            if (!font_map->m_EffectCache)
+            {
+                font_map->m_EffectCache = FontCreateEffectCache(font_map->m_GraphicsContext);
+            }
+            config.m_ResolveEffect = ResolveLayoutEffect;
+            config.m_ResolveEffectContext = &glyph_context;
+        }
         config.m_Transform = te.m_Transform;
         config.m_OutlineColor = dmGraphics::UnpackRGBA(te.m_OutlineColor);
         config.m_ShadowColor = dmGraphics::UnpackRGBA(te.m_ShadowColor);
@@ -617,6 +633,15 @@ namespace dmRender
             ro->m_Textures[texture_unit] = font_map->m_Texture;
         else
             ro->m_Textures[0] = font_map->m_Texture;
+        const uint32_t effect_unit = GetMaterialSamplerUnit(material, FONT_EFFECTS_HASH);
+        if (effect_unit != INVALID_SAMPLER_UNIT)
+        {
+            if (!font_map->m_EffectCache)
+            {
+                font_map->m_EffectCache = FontCreateEffectCache(font_map->m_GraphicsContext);
+            }
+            ro->m_Textures[effect_unit] = FontGetEffectTexture(font_map->m_EffectCache);
+        }
         ro->m_VertexBuffer = text_context.m_VertexBuffer;
         ro->m_VertexDeclaration = text_context.m_VertexDecl;
         ro->m_VertexBufferOffsets[0] = 0;
@@ -687,6 +712,10 @@ namespace dmRender
             text_context.m_VertexIndex += num_vertices;
         }
 
+        if (effect_unit != INVALID_SAMPLER_UNIT)
+        {
+            FontUploadEffects(font_map->m_EffectCache);
+        }
         ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
         if (ro->m_VertexCount > 0)
         {
