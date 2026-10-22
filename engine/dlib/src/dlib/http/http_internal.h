@@ -20,6 +20,35 @@
 #include <dmsdk/dlib/http.h>
 
 #ifdef __cplusplus
+#include <dlib/array.h>
+#include <dlib/math.h>
+
+namespace dmHttpService
+{
+    inline uint32_t GetResponseBufferCapacity(uint32_t capacity, uint64_t required_capacity)
+    {
+        assert(required_capacity <= UINT32_MAX);
+        // Double capacity to keep cumulative allocation and copying linear in the response size.
+        uint64_t grown_capacity = dmMath::Max((uint64_t)capacity * 2, (uint64_t)1024);
+        return (uint32_t)dmMath::Min(dmMath::Max(required_capacity, grown_capacity), (uint64_t)UINT32_MAX);
+    }
+
+    inline void AppendResponseBuffer(dmArray<char>& buffer, const void* data, uint32_t data_size)
+    {
+        if (!data || data_size == 0)
+        {
+            return;
+        }
+
+        uint32_t left = buffer.Capacity() - buffer.Size();
+        if (left < data_size)
+        {
+            buffer.SetCapacity(GetResponseBufferCapacity(buffer.Capacity(), (uint64_t)buffer.Size() + data_size));
+        }
+        buffer.PushArray((const char*)data, data_size);
+    }
+}
+
 extern "C"
 {
 #endif

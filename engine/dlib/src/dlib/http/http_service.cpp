@@ -296,13 +296,7 @@ namespace dmHttpService
         if (!method_is_head)
         {
             dmArray<char>& r = worker->m_Response;
-            // do we have enough room to fit the content? if not, grow the array
-            uint32_t left = r.Capacity() - r.Size();
-            if (content_data_size > left)
-            {
-                r.OffsetCapacity(content_data_size - left);
-            }
-            r.PushArray((char*)content_data, content_data_size);
+            AppendResponseBuffer(r, content_data, content_data_size);
             bytes_received = r.Size();
             worker->m_BytesReceived = bytes_received;
         }
