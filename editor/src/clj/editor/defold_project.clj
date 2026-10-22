@@ -1321,38 +1321,34 @@
     (when (coll/any? coll/not-empty (vals (dissoc plan :invalidate-outputs :kept)))
       (g/reset-undo! :undo/global))
 
-    ;; Create the new nodes in the graph.
-    (du/measuring process-metrics :make-new-nodes
-      (g/transact transact-opts
-        (make-resource-nodes-tx-data project new-node-id+resource-pairs)))
+    (let [prelude-tx-data
+          (e/concat
+            ;; Create the new nodes in the graph.
+            (make-resource-nodes-tx-data project new-node-id+resource-pairs)
 
-    ;; Transfer of overrides must happen before we delete the original nodes below.
-    ;; The new target nodes do not need to be loaded. When loading the new targets,
-    ;; corresponding override-nodes for the incoming connections will be created in the
-    ;; overrides.
-    (du/measuring process-metrics :transfer-overrides
-      (g/transact transact-opts
-        (du/if-metrics
-          ;; Doing metrics - Submit separate transaction steps for each resource.
-          (for [[resource old-node-id] (:transfer-overrides plan)]
-            (g/transfer-overrides {old-node-id (resource->node-id resource)}))
+            ;; Transfer of overrides must happen before we delete the original
+            ;; nodes below. The new target nodes do not need to be loaded. When
+            ;; loading the new targets, corresponding override-nodes for the
+            ;; incoming connections will be created in the overrides.
+            (du/if-metrics
+              ;; Doing metrics - Submit separate transaction steps for each
+              ;; resource.
+              (e/map (fn make-transfer-overrides-tx-data [[resource old-node-id]]
+                       (g/transfer-overrides {old-node-id (resource->node-id resource)}))
+                     (:transfer-overrides plan))
 
-          ;; Not doing metrics - submit as a single transaction step.
-          (g/transfer-overrides
-            (into {}
+              ;; Not doing metrics - submit as a single transaction step.
+              (g/transfer-overrides
+                (coll/into-> (:transfer-overrides plan) {}
                   (map (fn [[resource old-node-id]]
-                         (pair old-node-id
-                               (resource->node-id resource))))
-                  (:transfer-overrides plan))))))
+                         (pair old-node-id (resource->node-id resource)))))))
 
-    ;; must delete old versions of resource nodes before loading to avoid
-    ;; load functions finding these when doing lookups of dependencies...
-    (du/measuring process-metrics :delete-old-nodes
-      (g/transact transact-opts
-        (for [node-id (:delete plan)]
-          (g/delete-node node-id))))
+            ;; Must delete old versions of resource nodes before loading to
+            ;; avoid load functions finding these when doing lookups of
+            ;; dependencies.
+            (e/map g/delete-node (:delete plan)))
 
-    (let [read-progress-span 1
+          read-progress-span 1
           load-progress-span 3
           total-progress-span (+ read-progress-span load-progress-span)
           total-progress (progress/make localization/empty-message total-progress-span 0)
@@ -1399,7 +1395,7 @@
           migrated-node-ids
           (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
             (du/measuring process-metrics :load-new-nodes
-              (load-nodes! project nil node-load-infos render-progress! resource-metrics transact-opts)))]
+              (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
 
       (du/measuring process-metrics :update-cache-with-dependencies
         ;; Write any cached values created for old non-replaced resource node
@@ -1578,7 +1574,8 @@
 
     ;; For debugging resource loading / reloading issues:
     ;; (resource-update/print-plan resource-change-plan)
-    (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))
+    (du/log-time "Perform resource change plan"
+      (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!)))
     (lsp/apply-resource-changes! (lsp/get-lsp) changes)
     ;; Suggest fetching libraries if dependencies changed externally.
     (update-fetch-libraries-notification! project)))
