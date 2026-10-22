@@ -58,6 +58,27 @@
                 (is (= ::texture/array-texture (:cache-id native-texture)))
                 (is (= expected-page-count (count (first (:texture-request-datas native-texture)))))))))))))
 
+;; Verifies the runtime ES2 page limit still blocks builds while native atlas,
+;; GUI, particle and collection previews remain available above eight pages.
+(deftest native-atlas-preview-independent-of-es2-page-limit-test
+  (test-util/with-loaded-project "test/resources/max_paged_count_project"
+    (let [atlas (test-util/resource-node project "/assets/paged_atlas.atlas")
+          game-project (test-util/resource-node project "/game.project")
+          preview-texture (g/valid-node-value atlas :gpu-texture)]
+      (is (= 9 (g/valid-node-value atlas :texture-page-count)))
+      (is (texture/array-texture? preview-texture))
+      (is (= [0] (:texture-units preview-texture)))
+      (doseq [exclude-gles-sm100 [false true false]]
+        (test-util/set-setting! game-project ["shader" "exclude_gles_sm100"] exclude-gles-sm100)
+        (is (= (not exclude-gles-sm100) (boolean (g/error? (g/node-value atlas :build-targets)))))
+        (is (identical? preview-texture (g/valid-node-value atlas :gpu-texture)))
+        (doseq [resource-path ["/assets/paged_atlas.atlas"
+                               "/assets/paged_gui.gui"
+                               "/assets/paged_particlefx.particlefx"
+                               "/main/main.collection"]]
+          (testing resource-path
+            (is (map? (g/valid-node-value (test-util/resource-node project resource-path) :scene)))))))))
+
 (deftest valid-fps
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/graphics/atlas.atlas")

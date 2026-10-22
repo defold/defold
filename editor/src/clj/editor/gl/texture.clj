@@ -728,7 +728,8 @@
     (when (or (> width max-texture-size)
               (> height max-texture-size)
               (> layer-count max-layers))
-      (throw (ex-info "Texture array dimensions exceed the OpenGL context limits."
+      (throw (ex-info (format "Texture array %d x %d with %d layers exceeds the OpenGL context limits: %d x %d and %d layers."
+                              width height layer-count max-texture-size max-texture-size max-layers)
                       {:width width :height height :layer-count layer-count
                        :max-texture-size max-texture-size :max-layers max-layers})))
     (let [previous-texture (gl-integer gl GL3/GL_TEXTURE_BINDING_2D_ARRAY)

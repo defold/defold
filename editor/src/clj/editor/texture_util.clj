@@ -23,7 +23,8 @@
             [internal.java :as java]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest])
-  (:import [editor.gl.texture TextureLifecycle TextureRequestData]
+  (:import [com.dynamo.bob.util TextureUtil]
+           [editor.gl.texture TextureLifecycle TextureRequestData]
            [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
@@ -226,19 +227,63 @@
               (texture/texture-lifecycle? %))]}
   (call-generator gpu-texture-generator))
 
-(defn construct-gpu-texture
-  "Construct a preview texture with an explicit :type-2d or :type-2d-array
-  target. The target is independent of the number of generated page images."
-  ^TextureLifecycle [request-id content-generatable texture-profile texture-type]
-  {:pre [(contains? #{:type-2d :type-2d-array} texture-type)]
-   :post [(or (g/error-value? %)
-              (texture/texture-lifecycle? %))]}
-  (let [texture-request-datas (make-texture-request-datas content-generatable texture-profile true)]
+(defn- generate-preview-page-images [{:keys [content-generatable texture-type]}]
+  (let [images (if (sequential? content-generatable)
+                 (mapv call-generator content-generatable)
+                 (let [content (call-generator content-generatable)]
+                   (if (sequential? content) content [content])))]
+    (g/precluding-errors images
+      (if (or (= :type-2d texture-type) (<= (count images) 1))
+        images
+        ;; Match TextureUtil.createMultiPageTexture: external atlas pages can
+        ;; have different dimensions and image types. Resize pads the smaller
+        ;; pages, preserving their pixels rather than stretching them.
+        (let [width (reduce max 0 (eduction (map #(.getWidth ^BufferedImage %)) images))
+              height (reduce max 0 (eduction (map #(.getHeight ^BufferedImage %)) images))
+              image-type (.getType ^BufferedImage (first images))]
+          (mapv (fn [^BufferedImage image]
+                  (if (and (= width (.getWidth image))
+                           (= height (.getHeight image))
+                           (= image-type (.getType image)))
+                    image
+                    (TextureUtil/Resize image width height image-type)))
+                images))))))
+
+(defn- construct-gpu-texture-impl
+  [request-id content-generatable texture-profile texture-type]
+  (let [page-generator {:f generate-preview-page-images
+                        :args {:content-generatable content-generatable
+                               :texture-type texture-type}
+                        :sha1 (digest/string->sha1-hex
+                                (pr-str (if (sequential? content-generatable)
+                                          (mapv :sha1 content-generatable)
+                                          (:sha1 content-generatable))))}
+        texture-request-datas (make-texture-request-datas page-generator texture-profile true)]
     (if (g/error-value? texture-request-datas)
       texture-request-datas
-      (case texture-type
+      (case (or texture-type (if (<= (count texture-request-datas) 1) :type-2d :type-2d-array))
         :type-2d (make-gpu-texture request-id texture-request-datas)
         :type-2d-array (texture/make-gpu-array-texture request-id texture-request-datas 0 texture/default-image-texture-params)))))
+
+(defn construct-gpu-texture-with-type
+  "Construct a preview texture with an explicit :type-2d or :type-2d-array
+  target. The target is independent of the number of generated page images.
+  Array pages are padded to matching dimensions, as in the runtime build."
+  ^TextureLifecycle [request-id content-generatable texture-profile texture-type]
+  {:pre [(content-generatable? content-generatable)
+         (contains? #{:type-2d :type-2d-array} texture-type)]
+   :post [(or (g/error-value? %)
+              (texture/texture-lifecycle? %))]}
+  (construct-gpu-texture-impl request-id content-generatable texture-profile texture-type))
+
+(defn construct-gpu-texture
+  "Compatibility entry point for editor extensions. Multiple generated images
+  become one array texture; a single image remains a 2D texture. Extensions with
+  an explicit paging setting should use construct-gpu-texture-with-type so a
+  single-page paged atlas also produces an array."
+  ^TextureLifecycle [request-id content-generatable texture-profile]
+  {:pre [(content-generatable? content-generatable)]}
+  (construct-gpu-texture-impl request-id content-generatable texture-profile nil))
 
 (def placeholder-gpu-texture-generator
   {:f gpu-texture-gen-fn

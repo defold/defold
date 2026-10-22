@@ -134,6 +134,34 @@
                        (texture/make-gpu-array-texture
                          ::invalid-metadata [layer (wrap-texture-data texture-data 0)] 0 {}))))))))
 
+;; Verifies hardware limits reject oversized arrays before changing existing
+;; storage or GL state, and report the requested dimensions and actual limits.
+(deftest array-texture-hardware-limits-test
+  (gl-support/with-offscreen-gl
+    (let [max-size (gl-integer gl GL3/GL_MAX_TEXTURE_SIZE)
+          max-layers (gl-integer gl GL3/GL_MAX_ARRAY_TEXTURE_LAYERS)
+          layer (solid-layer 1 1 [17 33 65 255] 0 false)
+          lifecycle (texture/make-gpu-array-texture ::limits [layer] 0 {})
+          gpu-texture (texture/->texture lifecycle gl 0)
+          binding (gl-integer gl GL3/GL_TEXTURE_BINDING_2D_ARRAY)]
+      (doseq [[width height layer-count] [[(inc max-size) 1 1]
+                                          [1 (inc max-size) 1]
+                                          [1 1 (inc max-layers)]]]
+        (let [oversized-layer (texture/make-texture-request-data nil 1 :rgba width height false)
+              oversized (texture/make-gpu-array-texture ::limits (vec (repeat layer-count oversized-layer)) 0 {})
+              error (try
+                      (texture/->texture oversized gl 0)
+                      nil
+                      (catch ExceptionInfo error error))]
+          (is (= {:width width :height height :layer-count layer-count
+                  :max-texture-size max-size :max-layers max-layers}
+                 (ex-data error)))
+          (is (= binding (gl-integer gl GL3/GL_TEXTURE_BINDING_2D_ARRAY)))
+          (is (= [1 1 1] (texture-level-shape gl gpu-texture 0)))
+          (is (= [17 33 65 255] (texture-level-pixels gl gpu-texture 0)))
+          (is (= GL3/GL_NO_ERROR (.glGetError gl)))
+          (.glBindTexture gl GL3/GL_TEXTURE_2D_ARRAY binding))))))
+
 ;; Verifies actual array storage, including one-page arrays and layers beyond
 ;; the ES2 sampler limit, while preserving row order and alpha bytes.
 (deftest array-texture-layer-upload-test
