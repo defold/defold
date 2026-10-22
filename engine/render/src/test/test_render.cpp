@@ -2784,6 +2784,34 @@ static void InitializeTestDebugRenderer(dmRender::HRenderContext context)
     dmRender::InitializeDebugRenderer(context, 256, shader_data.Begin(), shader_data.Size());
 }
 
+// Faces must precede outlines even when a line-only frame allocated its persistent item first.
+TEST_F(dmRenderTest, DebugFacesBeforeLinesAfterLazyAllocation)
+{
+    InitializeTestDebugRenderer(m_Context);
+    dmRender::RenderListBegin(m_Context);
+    dmRender::Line2D(m_Context, 0, 0, 10, 10, Vector4(1), Vector4(1));
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+    ASSERT_EQ(1U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(dmGraphics::PRIMITIVE_LINES, m_Context->m_RenderObjects[0]->m_PrimitiveType);
+
+    for (uint32_t frame = 0; frame < 2; ++frame)
+    {
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+        dmRender::RenderListBegin(m_Context);
+        dmRender::Square2d(m_Context, 0, 0, 10, 10, Vector4(1));
+        dmRender::Line2D(m_Context, 0, 0, 10, 10, Vector4(1), Vector4(1));
+        dmRender::RenderListEnd(m_Context);
+        for (uint32_t pass = 0; pass < 2; ++pass)
+        {
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
+            ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+            ASSERT_EQ(dmGraphics::PRIMITIVE_TRIANGLES, m_Context->m_RenderObjects[0]->m_PrimitiveType);
+            ASSERT_EQ(dmGraphics::PRIMITIVE_LINES, m_Context->m_RenderObjects[1]->m_PrimitiveType);
+        }
+    }
+}
+
 // Verifies that empty and unrelated passes do not upload debug geometry, and repeated debug draws reuse it.
 // Each upload must resize the buffer once without a redundant zero-sized update.
 TEST_F(dmRenderTest, DebugGeometryUploadDeferred)
@@ -5372,6 +5400,74 @@ TEST_F(dmRenderTest, CreateFontVertexDataUsesPreparedTextLayout)
     ASSERT_NE(0, memcmp(raw_vertices.Begin(), prepared_vertices.Begin(), raw_count * vertex_stride));
 
     TextLayoutRelease(wrapped_layout);
+}
+
+// Reused persistent slots must not reverse text vertices with equal keys or override explicit render order.
+TEST_F(dmRenderTest, DrawTextOrderAfterRenderItemSlotReuse)
+{
+    dmGraphics::ShaderDescBuilder shader_desc;
+    shader_desc.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc.Get(), 0, 0);
+    dmRender::HMaterial old_material = dmRender::GetFontMapMaterial(m_SystemFontMap);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+    dmRender::SetMaterialTags(material, 0, 0);
+    dmRender::SetFontMapMaterial(m_SystemFontMap, material);
+
+    const uint32_t count = 32;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+    dmRender::HRenderItem items[count];
+    for (uint32_t i = 0; i < count; ++i)
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
+    for (uint32_t i = 0; i < count; ++i)
+        dmRender::DeleteRenderItem(m_Context, items[i]);
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+
+    const dmRender::SortOrder sort_orders[] = { dmRender::SORT_BACK_TO_FRONT, dmRender::SORT_FRONT_TO_BACK, dmRender::SORT_NONE };
+    for (uint32_t pass = 0; pass < DM_ARRAY_SIZE(sort_orders); ++pass)
+    {
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+        dmRender::RenderListBegin(m_Context);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmRender::DrawTextParams params;
+            params.m_Text = "A";
+            params.m_FaceColor = Vector4(i / 255.0f, 0, 0, 1);
+            dmRender::DrawText(m_Context, m_SystemFontMap, 0, 123, params);
+        }
+        dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+        dmRender::RenderListEnd(m_Context);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, sort_orders[pass]));
+        ASSERT_EQ(1U, m_Context->m_RenderObjects.Size());
+        ASSERT_EQ(count * 6, m_Context->m_RenderObjects[0]->m_VertexCount);
+        const dmRender::FontDefaultVertex* vertices = (const dmRender::FontDefaultVertex*)m_Context->m_TextContext.m_ClientBuffer;
+        for (uint32_t i = 0; i < count; ++i)
+            ASSERT_NEAR(i / 255.0f, vertices[i * 6].m_FaceColor[0], EPSILON);
+    }
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    dmRender::RenderListBegin(m_Context);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        dmRender::DrawTextParams params;
+        params.m_Text = "A";
+        params.m_FaceColor = Vector4((float)i, 0, 0, 1);
+        params.m_RenderOrder = 1 - i;
+        dmRender::DrawText(m_Context, m_SystemFontMap, 0, 123, params);
+    }
+    dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(1U, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(12U, m_Context->m_RenderObjects[0]->m_VertexCount);
+    const dmRender::FontDefaultVertex* vertices = (const dmRender::FontDefaultVertex*)m_Context->m_TextContext.m_ClientBuffer;
+    ASSERT_EQ(1.0f, vertices[0].m_FaceColor[0]);
+    ASSERT_EQ(0.0f, vertices[6].m_FaceColor[0]);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    dmRender::SetFontMapMaterial(m_SystemFontMap, old_material);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
 TEST_F(dmRenderTest, DrawTextUsesPreparedTextLayoutThroughRenderQueue)

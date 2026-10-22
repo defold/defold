@@ -759,6 +759,7 @@ namespace dmRender
                 }
                 break;
             case dmRender::RENDER_LIST_OPERATION_BATCH:
+                SortRenderListBatchByUserData(params);
                 CreateFontRenderBatch(render_context, params.m_Buf, params.m_Begin, params.m_End);
                 break;
             default:

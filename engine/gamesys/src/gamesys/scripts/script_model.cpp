@@ -508,7 +508,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    static void LuaModelComp_GetSetMeshEnabled_Internal(lua_State* L, ModelComponent** out_component, dmhash_t* out_mesh_id, ModelWorld** out_world = 0)
+    static void LuaModelComp_GetSetMeshEnabled_Internal(lua_State* L, ModelComponent** out_component, dmhash_t* out_mesh_id, ModelWorld** out_world)
     {
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -579,7 +579,7 @@ namespace dmGameSystem
 
         ModelComponent* component = 0;
         dmhash_t mesh_id = 0;
-        LuaModelComp_GetSetMeshEnabled_Internal(L, &component, &mesh_id);
+        LuaModelComp_GetSetMeshEnabled_Internal(L, &component, &mesh_id, 0);
         if (!component)
         {
             return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));

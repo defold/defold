@@ -577,6 +577,9 @@ namespace dmRender
 
     bool FindTagListRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_list_key, RenderListRange& range);
 
+    // Restore logical text/debug order for equal sort keys, independent of persistent slot reuse.
+    void SortRenderListBatchByUserData(const RenderListDispatchParams& params);
+
     /*
     * Possible event_type see in dmRender::RenderContextEvent enum.
     * Values matches "context_lost"/"context_restored" events from JS code.

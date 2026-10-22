@@ -268,12 +268,13 @@ namespace dmRender
 
         if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
         {
+            SortRenderListBatchByUserData(params);
             for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
             {
                 if (params.m_Buf[*i].m_BatchKey == debug_renderer->m_RenderBatchVersion)
                 {
                     UploadDebugVertices(*debug_renderer);
-                    dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
+                    dmRender::RenderObject* ro = &debug_renderer->m_TypeData[params.m_Buf[*i].m_UserData].m_RenderObject;
                     dmRender::AddToRender(params.m_Context, ro);
                 }
             }
@@ -322,7 +323,7 @@ namespace dmRender
             if (vertex_count > 0)
             {
                 if (!type_data.m_RenderItem)
-                    type_data.m_RenderItem = NewRenderItem(render_context, debug_renderer.m_RenderDispatch, (uintptr_t)&ro);
+                    type_data.m_RenderItem = NewRenderItem(render_context, debug_renderer.m_RenderDispatch, i);
                 SetMaterial(render_context, type_data.m_RenderItem, ro.m_Material);
                 SetOrder(render_context, type_data.m_RenderItem, RENDER_ORDER_AFTER_WORLD, render_order);
                 SetBatchKey(render_context, type_data.m_RenderItem, debug_renderer.m_RenderBatchVersion);

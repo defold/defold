@@ -3246,7 +3246,7 @@ namespace dmGameSystem
         {
             for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
             {
-                GuiWorld*               world = (GuiWorld*)params.m_UserData;
+                GuiWorld*              world = (GuiWorld*)params.m_UserData;
                 dmRender::RenderObject* ro = &world->m_GuiRenderObjects[params.m_Buf[*i].m_UserData].m_RenderObject;
                 dmRender::AddToRender(params.m_Context, ro);
             }

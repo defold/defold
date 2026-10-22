@@ -769,6 +769,31 @@ namespace dmRender
         }
     }
 
+    struct RenderListUserDataSorter
+    {
+        bool operator()(uint32_t a, uint32_t b) const
+        {
+            return m_Entries[a].m_UserData < m_Entries[b].m_UserData;
+        }
+        const RenderListEntry* m_Entries;
+    };
+
+    void SortRenderListBatchByUserData(const RenderListDispatchParams& params)
+    {
+        RenderListUserDataSorter sort;
+        sort.m_Entries = params.m_Buf;
+        const RenderListSortValue* values = params.m_Context->m_RenderListSortValues.Begin();
+        uint32_t* begin = params.m_Begin;
+        while (begin != params.m_End)
+        {
+            uint32_t* end = begin + 1;
+            while (end != params.m_End && values[*begin].m_SortKey == values[*end].m_SortKey)
+                ++end;
+            StableSortRenderListIndices(begin, end - begin, sort);
+            begin = end;
+        }
+    }
+
     static void CollectMergedRenderListRanges(const RenderListRange* ranges, uint32_t offset, uint32_t count, dmArray<RenderListRange>& result)
     {
         if (count == 0)
