@@ -17,6 +17,7 @@
 
 #include <dlib/vmath.h>
 #include <text_layout.h>
+#include <layout_vertex.h>
 #include <dmsdk/graphics/graphics.h>
 
 // Borrows fonts until Clear/Destroy. Owns Slug numeric textures and geometry.
@@ -28,10 +29,10 @@ void                  FontViewerVectorFontClear(FontViewerVectorFont* font);
 bool FontViewerVectorFontAddGlyph(FontViewerVectorFont* font, HFont source, uint32_t glyph, uint32_t* index, bool* has_color);
 void FontViewerVectorFontBegin(FontViewerVectorFont* font);
 // Scale maps font units to pixels. Pixel scale also includes preview zoom for AA.
-// Transform maps the unzoomed pixels to clip space.
+// Transform maps layout-local pixels to clip space.
 // Clip is an axis-aligned rectangle in clip space (min x/y, max x/y).
-void FontViewerVectorFontPack(FontViewerVectorFont* font, uint32_t index, float scale, float pixel_scale, float x, float y, const dmVMath::Matrix4& transform, const dmVMath::Vector4& clip, const TextGlyphFaceColors& colors);
+void FontViewerVectorFontPack(FontViewerVectorFont* font, uint32_t index, float scale, float pixel_scale, float x, float y, const dmVMath::Matrix4& transform, const dmVMath::Vector4& clip, const FontLayoutVertexConfig& config, const TextLine& line, const TextGlyph& glyph, const TextGlyphRenderData& render_data, FontSpatialGradientCache* spatial_cache);
 bool FontViewerVectorFontUpload(FontViewerVectorFont* font, dmGraphics::HContext context);
-void FontViewerVectorFontDraw(FontViewerVectorFont* font);
+void FontViewerVectorFontDraw(FontViewerVectorFont* font, dmGraphics::HTexture effects);
 
 #endif

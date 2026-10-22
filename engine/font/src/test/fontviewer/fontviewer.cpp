@@ -1237,6 +1237,8 @@ static void ClipPackedQuad(Viewer* viewer, uint32_t vertex_index, const FontView
     float uv_at_max_x = 0.0f;
     float uv_at_min_y = 0.0f;
     float uv_at_max_y = 0.0f;
+    float effect_at_min_x = 0.0f, effect_at_max_x = 0.0f;
+    float effect_at_min_y = 0.0f, effect_at_max_y = 0.0f;
     for (uint32_t vertex_offset = 0; vertex_offset < 6; ++vertex_offset)
     {
         FontGlyphVertex& vertex = viewer->m_Vertices[vertex_index + vertex_offset];
@@ -1246,21 +1248,25 @@ static void ClipPackedQuad(Viewer* viewer, uint32_t vertex_index, const FontView
         {
             min_x = x;
             uv_at_min_x = FontUnpackGlyphUV(vertex.m_UV[0]);
+            effect_at_min_x = vertex.m_Effect[0];
         }
         if (x >= max_x)
         {
             max_x = x;
             uv_at_max_x = FontUnpackGlyphUV(vertex.m_UV[0]);
+            effect_at_max_x = vertex.m_Effect[0];
         }
         if (y <= min_y)
         {
             min_y = y;
             uv_at_min_y = FontUnpackGlyphUV(vertex.m_UV[1]);
+            effect_at_min_y = vertex.m_Effect[1];
         }
         if (y >= max_y)
         {
             max_y = y;
             uv_at_max_y = FontUnpackGlyphUV(vertex.m_UV[1]);
+            effect_at_max_y = vertex.m_Effect[1];
         }
     }
     const float clip_max_x = clip_box.m_X + clip_box.m_Width;
@@ -1285,6 +1291,8 @@ static void ClipPackedQuad(Viewer* viewer, uint32_t vertex_index, const FontView
         const float      clipped_y = dmMath::Max(clip_box.m_Y, dmMath::Min(clip_max_y, y));
         vertex.m_UV[0] = FontPackGlyphUV(uv_at_min_x + (clipped_x - min_x) * (uv_at_max_x - uv_at_min_x) / (max_x - min_x));
         vertex.m_UV[1] = FontPackGlyphUV(uv_at_min_y + (clipped_y - min_y) * (uv_at_max_y - uv_at_min_y) / (max_y - min_y));
+        vertex.m_Effect[0] = effect_at_min_x + (clipped_x - min_x) * (effect_at_max_x - effect_at_min_x) / (max_x - min_x);
+        vertex.m_Effect[1] = effect_at_min_y + (clipped_y - min_y) * (effect_at_max_y - effect_at_min_y) / (max_y - min_y);
         vertex.m_Position[0] = 2.0f * clipped_x / WINDOW_WIDTH - 1.0f;
         vertex.m_Position[1] = 2.0f * clipped_y / WINDOW_HEIGHT - 1.0f;
     }
@@ -1293,6 +1301,12 @@ static void ClipPackedQuad(Viewer* viewer, uint32_t vertex_index, const FontView
 static void PushTransformedClippedGradientRectangle(Viewer* viewer, const Matrix4& transform, const FontViewerNuklearBox& clip,
                                                      float x, float y, float width, float height, const TextGlyphFaceColors& colors,
                                                      float pattern_start, float pattern_end, float pattern_duty);
+
+static uint32_t ResolveLayoutEffect(void* context, const FontEffectRecord& record)
+{
+    Viewer* viewer = (Viewer*)context;
+    return FontCacheEffect(viewer->m_EffectCache, record, viewer->m_EffectFrame);
+}
 
 static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, float paragraph_top, float font_size, float paragraph_width, const FontViewerNuklearBox& clip_box, bool bold, bool apply_properties, uint32_t layer_count, uint32_t layer_stride, uint32_t* vertex_index)
 {
@@ -1339,6 +1353,14 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
     const float   shadow_alpha = apply_properties ? overall_alpha * viewer->m_Properties.m_ShadowAlpha : 0.0f;
     const Vector4 outline_color(viewer->m_Properties.m_OutlineColor[0], viewer->m_Properties.m_OutlineColor[1], viewer->m_Properties.m_OutlineColor[2], outline_alpha);
     const Vector4 shadow_color(viewer->m_Properties.m_ShadowColor[0], viewer->m_Properties.m_ShadowColor[1], viewer->m_Properties.m_ShadowColor[2], shadow_alpha);
+    FontLayoutVertexConfig gradient_config = {};
+    gradient_config.m_Layout = layout;
+    gradient_config.m_Width = paragraph_width;
+    gradient_config.m_ResolveEffect = ResolveLayoutEffect;
+    gradient_config.m_ResolveEffectContext = viewer;
+    FontSpatialGradientCache spatial_cache = {};
+    FontPrepareSpatialGradientBounds(gradient_config);
+    const Matrix4 vector_transform = transform * Matrix4::translation(Vector3(paragraph_x, paragraph_top, 0.0f));
     for (uint32_t line_index = 0; line_index < TextLayoutGetLineCount(layout); ++line_index)
     {
         TextLine& line = lines[line_index];
@@ -1380,9 +1402,9 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
                 const float scale = FontGetScaleFromSize(text_glyph.m_Font, font_size) * text_glyph.m_RenderScale;
                 FontViewerVectorFontPack(viewer->m_VectorFont, glyph->m_VectorGlyph, scale,
                                         scale * (apply_properties ? viewer->m_Zoom : 1.0f),
-                                        line_x + text_glyph.m_X - first_x + glyph_render_data.m_OffsetX,
-                                        line_y + text_glyph.m_Y - first_y + glyph_render_data.m_OffsetY,
-                                        transform, clip, glyph_render_data.m_FaceColors);
+                                        line_x - paragraph_x + text_glyph.m_X - first_x,
+                                        line_y - paragraph_top + text_glyph.m_Y - first_y,
+                                        vector_transform, clip, gradient_config, line, text_glyph, glyph_render_data, &spatial_cache);
                 if (glyph->m_HasColor)
                 {
                     *vertex_index += 6;
@@ -1474,6 +1496,22 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
             layers.m_LayerCount = layer_count;
             layers.m_FaceOnly = false;
             FontPackGlyphVertices(glyph_params, layers);
+            if (!layout->m_Effects.Empty())
+            {
+                const float              x = line_x - paragraph_x + text_glyph.m_X - first_x;
+                const float              y = line_y - paragraph_top + text_glyph.m_Y - first_y;
+                const float              scale = text_glyph.m_RenderScale;
+                const float              width = glyph->m_Glyph.m_Bitmap.m_Width;
+                const float              left = x + (glyph->m_Glyph.m_LeftBearing - (width - glyph->m_Glyph.m_Width) * 0.5f) * scale;
+                const TextGradientBounds quad = { left, y - glyph->m_Glyph.m_Descent * scale, left + width * scale, y + glyph->m_Glyph.m_Ascent * scale };
+                FontGlyphOptions         options;
+                options.m_Scale = FontGetScaleFromSize(text_glyph.m_Font, font_size) * scale;
+                options.m_UseUnpaddedBounds = true;
+                FontGlyph metrics = {};
+                FontGetGlyphByIndex(text_glyph.m_Font, text_glyph.m_GlyphIndex, &options, &metrics);
+                const TextGradientBounds bounds = { x + metrics.m_LeftBearing, y - metrics.m_Descent, x + metrics.m_LeftBearing + metrics.m_Width, y + metrics.m_Ascent };
+                FontApplySpatialGradient(gradient_config, line, text_glyph, bounds, quad, &spatial_cache, layers);
+            }
             for (uint32_t layer = 0; layer < layer_count; ++layer)
                 ClipPackedQuad(viewer, *vertex_index + layer * layer_stride, clip_box);
             *vertex_index += 6;
@@ -2571,22 +2609,10 @@ static bool ResolveExportGlyph(void* context, const TextGlyph& text_glyph, FontL
     return true;
 }
 
-static uint32_t ResolveExportEffect(void* context, const FontEffectRecord& record)
-{
-    Viewer* viewer = (Viewer*)context;
-    return FontCacheEffect(viewer->m_EffectCache, record, viewer->m_EffectFrame);
-}
-
 static bool PackExportLayout(Viewer* viewer)
 {
     // Documentation captures use the engine's layout packer, including effect
     // coordinates and metadata for GPU gradients.
-    if (!viewer->m_EffectCache)
-    {
-        viewer->m_EffectCache = FontCreateEffectCache(viewer->m_Context);
-    }
-    ++viewer->m_EffectFrame;
-
     HTextLayout                 layout = viewer->m_Layouts[0];
     const FontViewerProperties& properties = viewer->m_Properties;
     const float                 outline_width = dmMath::Max(properties.m_OutlineWidth, TextLayoutGetMaxMarkupOutlineWidth(layout));
@@ -2595,7 +2621,7 @@ static bool PackExportLayout(Viewer* viewer)
     config.m_Layout = layout;
     config.m_ResolveGlyph = ResolveExportGlyph;
     config.m_ResolveGlyphContext = viewer;
-    config.m_ResolveEffect = ResolveExportEffect;
+    config.m_ResolveEffect = ResolveLayoutEffect;
     config.m_ResolveEffectContext = viewer;
     config.m_Transform = Matrix4::orthographic(0.0f, (float)WINDOW_WIDTH, 0.0f, (float)WINDOW_HEIGHT, -1.0f, 1.0f) *
                          Matrix4::translation(Vector3(viewer->m_LayoutXs[0], viewer->m_LayoutTops[0], 0.0f));
@@ -2644,6 +2670,12 @@ static bool PackExportLayout(Viewer* viewer)
 
 static bool PackAllLayouts(Viewer* viewer)
 {
+    if (!viewer->m_EffectCache)
+    {
+        viewer->m_EffectCache = FontCreateEffectCache(viewer->m_Context);
+    }
+    ++viewer->m_EffectFrame;
+
     if (viewer->m_ExportMode && viewer->m_Properties.m_RenderMode == FONT_VIEWER_RENDER_SDF)
     {
         return PackExportLayout(viewer);
@@ -3547,7 +3579,7 @@ static void Draw(Viewer* viewer, void* capture_buffer, uint32_t capture_buffer_s
     dmGraphics::DisableVertexDeclaration(viewer->m_Context, viewer->m_VertexDeclaration);
     dmGraphics::DisableVertexBuffer(viewer->m_Context, viewer->m_VertexBuffer);
 
-    FontViewerVectorFontDraw(viewer->m_VectorFont);
+    FontViewerVectorFontDraw(viewer->m_VectorFont, FontGetEffectTexture(viewer->m_EffectCache));
     dmGraphics::SetBlendFunc(viewer->m_Context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
 
     if (viewer->m_ColorDecorationVertexCount || viewer->m_ColorDebugVertexCount)

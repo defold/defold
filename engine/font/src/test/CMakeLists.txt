@@ -299,6 +299,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_font_effect_shader}")
   file(READ "${_font_effect_shader}" _font_effect_source)
   foreach(_font_shader_base IN ITEMS
+      "${FONT_TEST_ROOT}/fontviewer/fontviewer_vector_font"
       "${FONT_ROOT}/content/builtins/fonts/font-df"
       "${DEFOLD_HOME}/engine/engine/content/builtins/fonts/font")
     get_filename_component(_font_shader_name "${_font_shader_base}" NAME)
@@ -326,8 +327,8 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
       "${FONTVIEWER_GENERATED_DIR}/font.vp|FONTVIEWER_FONT_BITMAP_VP"
       "${FONTVIEWER_GENERATED_DIR}/font.fp|FONTVIEWER_FONT_BITMAP_FP"
       "${FONT_TEST_ROOT}/data/NotoColorEmoji-Regular.ttf|FONTVIEWER_NOTO_COLOR_EMOJI"
-      "${FONT_TEST_ROOT}/fontviewer/fontviewer_vector_font.vp|FONTVIEWER_VECTOR_VP"
-      "${FONT_TEST_ROOT}/fontviewer/fontviewer_vector_font.fp|FONTVIEWER_VECTOR_FP"
+      "${FONTVIEWER_GENERATED_DIR}/fontviewer_vector_font.vp|FONTVIEWER_VECTOR_VP"
+      "${FONTVIEWER_GENERATED_DIR}/fontviewer_vector_font.fp|FONTVIEWER_VECTOR_FP"
       "${FONT_ROOT}/content/builtins/fonts/font-vector-slug.glsl|FONTVIEWER_SLUG"
       "${FONT_ROOT}/content/builtins/fonts/font-vector-paint.glsl|FONTVIEWER_PAINT")
     string(REPLACE "|" ";" _parts "${_entry}")

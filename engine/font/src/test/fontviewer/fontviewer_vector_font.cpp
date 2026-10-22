@@ -32,11 +32,17 @@
 using dmVMath::Matrix4;
 using dmVMath::Vector4;
 
+struct FontViewerVectorVertex
+{
+    float                 m_Effect[4];
+    FontVectorPaintVertex m_Glyph;
+};
+
 struct FontViewerVectorFont
 {
     FontVectorSlugData             m_Slug;
     FontVectorPaintCache           m_Paint;
-    dmArray<FontVectorPaintVertex> m_Vertices;
+    dmArray<FontViewerVectorVertex> m_Vertices;
     dmGraphics::HContext           m_Context;
     dmGraphics::HProgram           m_Program;
     dmGraphics::HTexture           m_Textures[3];
@@ -104,7 +110,7 @@ void FontViewerVectorFontBegin(FontViewerVectorFont* cache)
     cache->m_Vertices.SetSize(0);
 }
 
-void FontViewerVectorFontPack(FontViewerVectorFont* cache, uint32_t index, float scale, float pixel_scale, float x, float y, const Matrix4& transform, const Vector4& clip, const TextGlyphFaceColors& colors)
+void FontViewerVectorFontPack(FontViewerVectorFont* cache, uint32_t index, float scale, float pixel_scale, float x, float y, const Matrix4& transform, const Vector4& clip, const FontLayoutVertexConfig& config, const TextLine& line, const TextGlyph& text_glyph, const TextGlyphRenderData& render_data, FontSpatialGradientCache* spatial_cache)
 {
     const FontVectorPaintGlyph& glyph = cache->m_Paint.m_Glyphs[index];
     uint32_t                    first = cache->m_Vertices.Size();
@@ -112,7 +118,41 @@ void FontViewerVectorFontPack(FontViewerVectorFont* cache, uint32_t index, float
     if (cache->m_Vertices.Capacity() < end)
         cache->m_Vertices.SetCapacity(end + 192);
     cache->m_Vertices.SetSize(end);
-    FontVectorPaintPackGlyph(glyph, scale, pixel_scale, x, y, transform, clip, colors, &cache->m_Vertices[first]);
+    FontVectorPaintVertex packed[6];
+    FontVectorPaintPackGlyph(glyph, scale, pixel_scale, x + render_data.m_OffsetX, y + render_data.m_OffsetY, transform, clip, render_data.m_FaceColors, packed);
+    FontGlyphVertex gradient_vertices[6] = {};
+    if (!config.m_Layout->m_Effects.Empty())
+    {
+        // Slug's clockwise triangles use the opposite winding to the shared packer.
+        static const uint32_t shared[] = { 0, 2, 1, 1, 2, 5 };
+        for (uint32_t i = 0; i < 6; ++i)
+        {
+            const uint32_t color = FontPackColor(packed[shared[i]].m_Color);
+            memcpy(gradient_vertices[i].m_FaceColor, &color, sizeof(color));
+        }
+        const TextGradientBounds bounds = { x + glyph.m_Bounds.getX() * scale, y + glyph.m_Bounds.getY() * scale, x + glyph.m_Bounds.getZ() * scale, y + glyph.m_Bounds.getW() * scale };
+        const TextGradientBounds quad = { x + packed[0].m_FontPosition[0] * scale, y + packed[0].m_FontPosition[1] * scale, x + packed[5].m_FontPosition[0] * scale, y + packed[5].m_FontPosition[1] * scale };
+        FontVertexLayerParams    layers = {};
+        layers.m_FaceVertices = gradient_vertices;
+        FontApplySpatialGradient(config, line, text_glyph, bounds, quad, spatial_cache, layers);
+        for (uint32_t i = 0; i < 6; ++i)
+        {
+            FontViewerVectorVertex& vertex = cache->m_Vertices[first + i];
+            memcpy(vertex.m_Effect, gradient_vertices[shared[i]].m_Effect, sizeof(vertex.m_Effect));
+            if (!vertex.m_Effect[2])
+            {
+                const uint8_t* color = gradient_vertices[shared[i]].m_FaceColor;
+                packed[i].m_Color = Vector4(color[0], color[1], color[2], color[3]) * (1.0f / 255.0f);
+            }
+        }
+    }
+    else
+    {
+        for (uint32_t i = 0; i < 6; ++i)
+            memset(cache->m_Vertices[first + i].m_Effect, 0, sizeof(cache->m_Vertices[first + i].m_Effect));
+    }
+    for (uint32_t i = 0; i < 6; ++i)
+        cache->m_Vertices[first + i].m_Glyph = packed[i];
 }
 
 static bool CreateProgram(FontViewerVectorFont* cache)
@@ -142,24 +182,28 @@ static bool CreateProgram(FontViewerVectorFont* cache)
     dmGraphics::ShaderDescBuilder shaders;
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, (const char*)FONTVIEWER_VECTOR_VP, FONTVIEWER_VECTOR_VP_SIZE);
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment.Begin(), fragment.Size() - 1);
-    const char*                                attributes[] = { "position", "color", "clip", "font_position", "paint" };
-    const uint32_t                             components[] = { 4, 4, 4, 2, 1 };
+    const char*                                attributes[] = { "effect", "position", "color", "clip", "font_position", "paint" };
+    const uint32_t                             components[] = { 4, 4, 4, 4, 2, 1 };
     const dmGraphics::ShaderDesc::ShaderDataType types[] = {
-        dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4,
-        dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC2,
+        dmGraphics::ShaderDesc::SHADER_TYPE_VEC4,
+        dmGraphics::ShaderDesc::SHADER_TYPE_VEC4,
+        dmGraphics::ShaderDesc::SHADER_TYPE_VEC4,
+        dmGraphics::ShaderDesc::SHADER_TYPE_VEC4,
+        dmGraphics::ShaderDesc::SHADER_TYPE_VEC2,
         dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT
     };
     dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(cache->m_Context);
-    for (uint32_t i = 0; i < 5; ++i)
+    for (uint32_t i = 0; i < 6; ++i)
     {
         shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, attributes[i], i, types[i]);
         dmGraphics::AddVertexStream(streams, attributes[i], components[i], dmGraphics::TYPE_FLOAT, false);
     }
-    cache->m_Declaration = dmGraphics::NewVertexDeclaration(cache->m_Context, streams, sizeof(FontVectorPaintVertex));
+    cache->m_Declaration = dmGraphics::NewVertexDeclaration(cache->m_Context, streams, sizeof(FontViewerVectorVertex));
     dmGraphics::DeleteVertexStreamDeclaration(streams);
     shaders.AddTexture("curve_texture", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
     shaders.AddTexture("band_texture", 1, dmGraphics::ShaderDesc::SHADER_TYPE_UTEXTURE2D);
     shaders.AddTexture("paint_texture", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shaders.AddTexture("font_effects", 3, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
     char error[1024] = {};
     cache->m_Program = dmGraphics::NewProgram(cache->m_Context, shaders.Get(), error, sizeof(error));
     if (!cache->m_Program)
@@ -214,11 +258,11 @@ bool FontViewerVectorFontUpload(FontViewerVectorFont* cache, dmGraphics::HContex
     }
     if (!cache->m_VertexBuffer)
         cache->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, 0, 0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-    dmGraphics::SetVertexBufferData(cache->m_VertexBuffer, cache->m_Vertices.Size() * sizeof(FontVectorPaintVertex), cache->m_Vertices.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    dmGraphics::SetVertexBufferData(cache->m_VertexBuffer, cache->m_Vertices.Size() * sizeof(FontViewerVectorVertex), cache->m_Vertices.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
     return cache->m_VertexBuffer != 0;
 }
 
-void FontViewerVectorFontDraw(FontViewerVectorFont* cache)
+void FontViewerVectorFontDraw(FontViewerVectorFont* cache, dmGraphics::HTexture effects)
 {
     if (cache->m_Vertices.Empty())
         return;
@@ -231,11 +275,14 @@ void FontViewerVectorFontDraw(FontViewerVectorFont* cache)
         dmGraphics::SetSampler(context, dmGraphics::FindUniformLocation(cache->m_Program, samplers[i]), i);
         dmGraphics::EnableTexture(context, i, 0, cache->m_Textures[i]);
     }
+    dmGraphics::SetSampler(context, dmGraphics::FindUniformLocation(cache->m_Program, "font_effects"), 3);
+    dmGraphics::EnableTexture(context, 3, 0, effects);
     dmGraphics::EnableVertexBuffer(context, cache->m_VertexBuffer, 0);
     dmGraphics::EnableVertexDeclaration(context, cache->m_Declaration, 0, 0, cache->m_Program);
     dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, cache->m_Vertices.Size(), 1);
     dmGraphics::DisableVertexDeclaration(context, cache->m_Declaration);
     dmGraphics::DisableVertexBuffer(context, cache->m_VertexBuffer);
+    dmGraphics::DisableTexture(context, 3, effects);
     for (uint32_t i = 0; i < 3; ++i)
         dmGraphics::DisableTexture(context, i, cache->m_Textures[i]);
     dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
