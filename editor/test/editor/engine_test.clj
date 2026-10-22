@@ -129,3 +129,54 @@
             (is (= "POST" method))
             (is (= expected arguments)))))
       (finally (.stop server 0)))))
+
+;; Real child processes receive separate project/slot prefixes, preserving the
+;; first player's placement when switching between one and several instances.
+(deftest window-state-launch-test
+  (let [directory (fs/create-temp-directory! "window state launch")
+        binary (io/file directory (if (os/is-win32?) "engine.cmd" "engine.sh"))
+        settings (prefs/make :scopes {:project (io/file directory "editor_settings")}
+                             :schemas [:default])]
+    (try
+      (spit binary
+            (if (os/is-win32?)
+              "@echo off\r\necho %DM_WINDOW_STATE%\r\n"
+              "#!/bin/sh\nprintf '%s' \"$DM_WINDOW_STATE\"\n"))
+      (fs/set-executable! binary true)
+      (let [prefixes
+            (mapv (fn [index]
+                    (let [{:keys [process log-stream]}
+                          (engine/launch! binary directory settings false index false)]
+                      (try
+                        (with-open [^InputStream stream log-stream]
+                          (let [prefix (string/trim (process/capture! stream))]
+                            (.waitFor ^Process process)
+                            (is (zero? (.exitValue ^Process process)))
+                            (is (= (io/file directory ".internal" "window-state")
+                                   (.getParentFile (io/file prefix))))
+                            (is (.isDirectory (.getParentFile (io/file prefix))))
+                            prefix))
+                        (finally
+                          (.destroyForcibly ^Process process)))))
+                  [0 1 2])]
+        (is (= (prefixes 0) (prefixes 1)))
+        (is (not= (prefixes 1) (prefixes 2))))
+      (finally
+        (fs/delete-directory! directory)))))
+
+;; Reset with no running player leaves a new token and preserves saved geometry.
+(deftest reset-window-size-test
+  (let [directory (fs/create-temp-directory! "window-state-reset")
+        state-directory (io/file directory ".internal" "window-state")
+        token-file (io/file state-directory "reset-size")
+        state-file (io/file state-directory "macos-0-cocoa.ini")]
+    (try
+      (engine/reset-window-size! directory)
+      (spit state-file "engine-owned geometry")
+      (let [first-token (slurp token-file)]
+        (is (re-matches #"[0-9a-f-]{36}" first-token))
+        (engine/reset-window-size! directory)
+        (is (not= first-token (slurp token-file)))
+        (is (= "engine-owned geometry" (slurp state-file))))
+      (finally
+        (fs/delete-directory! directory)))))
