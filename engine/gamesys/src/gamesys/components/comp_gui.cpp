@@ -50,6 +50,7 @@
 #include "../resources/res_texture.h"
 #include "../resources/res_textureset.h"
 #include "../gamesys.h"
+#include "../geometry.h"
 #include "../gamesys_private.h"
 #include <particle/particle.h>
 #include <gui/gui_script.h>
@@ -2181,7 +2182,7 @@ namespace dmGameSystem
             }
             else // slice 9
             {
-                num_vertices += 9 * 6; // 9 cells in the slice9, each with 6 vertices
+                num_vertices += SLICE9_INDEX_COUNT;
             }
         }
         return num_vertices;
@@ -2260,7 +2261,7 @@ namespace dmGameSystem
             Vector4 pm_color(color.getXYZ(), node_opacities[i]);
 
             // default not uv_rotated texture coords
-            const float default_tc[6] = {0, 0, 0, 1, 1, 1};
+            const float default_tc[8] = {0, 0, 0, 1, 1, 1, 1, 0};
             const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
 
             // tc equals 0 when texture is set from lua script directly with gui.set_texture(...) method
@@ -2382,129 +2383,37 @@ namespace dmGameSystem
                 continue;
             }
 
-            // render 9-sliced node
+            const Point3 size = dmGui::GetNodeSize(scene, node);
+            Slice9Params slice9_params = {};
+            slice9_params.m_Width = size.getX();
+            slice9_params.m_Height = size.getY();
+            slice9_params.m_Slice9[0] = slice9.getX();
+            slice9_params.m_Slice9[1] = slice9.getY();
+            slice9_params.m_Slice9[2] = slice9.getZ();
+            slice9_params.m_Slice9[3] = slice9.getW();
+            slice9_params.m_PivotX = pivot_x;
+            slice9_params.m_PivotY = pivot_y;
+            slice9_params.m_FlipHorizontal = flip_u;
+            slice9_params.m_FlipVertical = flip_v;
+            float positions[SLICE9_VERTEX_COUNT * 2];
+            float uvs[SLICE9_VERTEX_COUNT * 2];
+            GenerateSlice9Positions(slice9_params, positions);
+            GenerateSlice9TexCoords(slice9_params, org_width, org_height, tc, uvs);
 
-            //   0 1     2 3
-            // 0 *-*-----*-*
-            //   | |  y  | |
-            // 1 *-*-----*-*
-            //   | |     | |
-            //   |x|     |z|
-            //   | |     | |
-            // 2 *-*-----*-*
-            //   | |  w  | |
-            // 3 *-*-----*-*
-            const int verts_per_slice9 = 6*9;
-            float us[4], vs[4], xs[4], ys[4];
-
-            // v are '1-v'
-            xs[0] = ys[0] = 0;
-            xs[3] = ys[3] = 1;
-
-            // disable slice9 computation below a certain dimension
-            // (avoid div by zero)
-            const float s9_min_dim = 0.001f;
-
-            const float su = 1.0f / org_width;
-            const float sv = 1.0f / org_height;
-
-            Point3 size = dmGui::GetNodeSize(scene, node);
-            const float sx = size.getX() > s9_min_dim ? 1.0f / size.getX() : 0;
-            const float sy = size.getY() > s9_min_dim ? 1.0f / size.getY() : 0;
-
-            static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
-            bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
-            if(uv_rotated)
+            // Node transforms already include size and the GUI node pivot.
+            Vector4 points[SLICE9_VERTEX_COUNT];
+            for (uint32_t vertex = 0; vertex < SLICE9_VERTEX_COUNT; ++vertex)
             {
-                const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
-                const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
-                us[uI[0]] = tc[0];
-                us[uI[1]] = tc[0] + (su * slice9.getW());
-                us[uI[2]] = tc[2] - (su * slice9.getY());
-                us[uI[3]] = tc[2];
-                vs[vI[0]] = tc[1];
-                vs[vI[1]] = tc[1] - (sv * slice9.getX());
-                vs[vI[2]] = tc[5] + (sv * slice9.getZ());
-                vs[vI[3]] = tc[5];
-            }
-            else
-            {
-                const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
-                const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
-                us[uI[0]] = tc[0];
-                us[uI[1]] = tc[0] + (su * slice9.getX());
-                us[uI[2]] = tc[4] - (su * slice9.getZ());
-                us[uI[3]] = tc[4];
-                vs[vI[0]] = tc[1];
-                vs[vI[1]] = tc[1] + (sv * slice9.getW());
-                vs[vI[2]] = tc[3] - (sv * slice9.getY());
-                vs[vI[3]] = tc[3];
+                points[vertex] = node_transforms[i] * Point3(positions[vertex * 2], positions[vertex * 2 + 1], 0.0f);
             }
 
-            // Keep the geometry subdivisions aligned with the reversed UV
-            // subdivisions when an asymmetric 9-slice is flipped.
-            xs[1] = sx * (flip_u ? slice9.getZ() : slice9.getX());
-            xs[2] = 1 - sx * (flip_u ? slice9.getX() : slice9.getZ());
-            ys[1] = sy * (flip_v ? slice9.getY() : slice9.getW());
-            ys[2] = 1 - sy * (flip_v ? slice9.getW() : slice9.getY());
-
-            const Matrix4* transform = &node_transforms[i];
-            Vector4 pts[4][4];
-            for (int y=0;y<4;y++)
+            const uint16_t* indices = GetSlice9Indices();
+            for (uint32_t index = 0; index < SLICE9_INDEX_COUNT; ++index)
             {
-                for (int x=0;x<4;x++)
-                {
-                    pts[y][x] = (*transform * Point3(xs[x], ys[y], 0));
-                }
+                const uint32_t vertex = indices[index];
+                gui_world->m_ClientVertexBuffer.Push(BoxVertex(points[vertex], uvs[vertex * 2], uvs[vertex * 2 + 1], pm_color, page_index));
             }
-
-            BoxVertex v00, v10, v01, v11;
-            v00.SetColor(pm_color);
-            v10.SetColor(pm_color);
-            v01.SetColor(pm_color);
-            v11.SetColor(pm_color);
-
-            v00.SetPageIndex(page_index);
-            v10.SetPageIndex(page_index);
-            v01.SetPageIndex(page_index);
-            v11.SetPageIndex(page_index);
-
-            for (int y=0;y<3;y++)
-            {
-                for (int x=0;x<3;x++)
-                {
-                    const int x0 = x   - pivot_x;
-                    const int x1 = x+1 - pivot_x;
-                    const int y0 = y   - pivot_y;
-                    const int y1 = y+1 - pivot_y;
-
-                    v00.SetPosition(pts[y0][x0]);
-                    v10.SetPosition(pts[y0][x1]);
-                    v01.SetPosition(pts[y1][x0]);
-                    v11.SetPosition(pts[y1][x1]);
-                    if(uv_rotated)
-                    {
-                        v00.SetUV(us[y0], vs[x0]);
-                        v10.SetUV(us[y0], vs[x1]);
-                        v01.SetUV(us[y1], vs[x0]);
-                        v11.SetUV(us[y1], vs[x1]);
-                    }
-                    else
-                    {
-                        v00.SetUV(us[x0], vs[y0]);
-                        v10.SetUV(us[x1], vs[y0]);
-                        v01.SetUV(us[x0], vs[y1]);
-                        v11.SetUV(us[x1], vs[y1]);
-                    }
-                    gui_world->m_ClientVertexBuffer.Push(v00);
-                    gui_world->m_ClientVertexBuffer.Push(v10);
-                    gui_world->m_ClientVertexBuffer.Push(v11);
-                    gui_world->m_ClientVertexBuffer.Push(v00);
-                    gui_world->m_ClientVertexBuffer.Push(v11);
-                    gui_world->m_ClientVertexBuffer.Push(v01);
-                }
-            }
-            rendered_vert_count += verts_per_slice9;
+            rendered_vert_count += SLICE9_INDEX_COUNT;
         }
 
         ro.m_VertexCount = rendered_vert_count;

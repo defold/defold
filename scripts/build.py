@@ -1678,6 +1678,8 @@ class Configuration(object):
 
         if self.target_platform in ['x86_64-linux']:
             # Archive the platform-independent JARs once, from the Linux build.
+            self.upload_to_archive(join(dynamo_home, 'share/java/dmengine.jar'),
+                                   join(sha1, 'engine/share/java/dmengine.jar').replace('\\', '/'))
             for path in self._bob_archive_artifacts():
                 if path.startswith('share/java/') and path.endswith('.jar'):
                     self.upload_to_archive(join(dynamo_home, path), join(sha1, 'engine', path).replace('\\', '/'))
@@ -1695,7 +1697,7 @@ class Configuration(object):
             self.upload_to_archive(resources, '%s/android-resources.zip' % (full_archive_path))
 
         if self.is_desktop_target():
-            libs = ['dlib', 'texc', 'particle', 'modelc', 'shaderc']
+            libs = ['dlib', 'texc', 'particle', 'modelc', 'shaderc', 'dmengine']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
                 lib_path = join(dynamo_home, 'lib', self.target_platform, lib_name)

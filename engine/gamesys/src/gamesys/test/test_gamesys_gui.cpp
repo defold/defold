@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include "../geometry.h"
 #include <dlib/thread.h>
 
 using namespace dmVMath;
@@ -3060,6 +3061,70 @@ void AssertVertexEqual(const dmGameSystem::BoxVertex& lhs, const dmGameSystem::B
     EXPECT_NEAR(lhs.m_UV[0], rhs.m_UV[0], EPSILON);
     EXPECT_NEAR(lhs.m_UV[1], rhs.m_UV[1], EPSILON);
     EXPECT_NEAR(lhs.m_PageIndex, rhs.m_PageIndex, EPSILON);
+}
+
+// Verifies GUI slice-9 applies image pivots to coordinates, preserves fractional size,
+// and keeps asymmetric geometry and UV borders aligned for every animation flip.
+TEST_F(GuiTest, Slice9PivotSizeAndFlips)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/render_box_test1.goc", dmHashString64("/go"));
+    ASSERT_NE(0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmGameSystem::GuiComponent* component = GetGuiComponent(m_Collection);
+    dmGui::HScene scene = component->m_Scene;
+    dmGui::HNode node = dmGui::GetNodeById(scene, "box");
+    ASSERT_NE(0, node);
+    dmGui::SetSceneAdjustReference(scene, dmGui::ADJUST_REFERENCE_DISABLED);
+    dmGui::SetNodeSizeMode(scene, node, dmGui::SIZE_MODE_MANUAL);
+    dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_SIZE, Vector4(32.5f, 24.25f, 0, 0));
+    dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_SLICE9, Vector4(2, 3, 4, 5));
+
+    dmGui::TextureSetAnimDesc* animation = dmGui::GetNodeTextureSet(scene, node);
+    dmGameSystem::TextureSetResource* resource = (dmGameSystem::TextureSetResource*) animation->m_TextureSet;
+    dmGameSystemDDF::TextureSet* texture_set = resource->m_TextureSet;
+    const uint32_t frame = texture_set->m_FrameIndices[dmGui::GetNodeAnimationFrame(scene, node)];
+    dmGameSystemDDF::SpriteGeometry& geometry = texture_set->m_Geometries[frame];
+    const float old_pivot_x = geometry.m_PivotX;
+    const float old_pivot_y = geometry.m_PivotY;
+    geometry.m_PivotX = 0.25f;
+    geometry.m_PivotY = -0.25f;
+
+    const float expected_x[2][4] = {
+        {-24.375f, -22.375f, 4.125f, 8.125f},
+        {-24.375f, -20.375f, 6.125f, 8.125f}
+    };
+    const float expected_y[2][4] = {
+        {-6.0625f, -1.0625f, 15.1875f, 18.1875f},
+        {-6.0625f, -3.0625f, 13.1875f, 18.1875f}
+    };
+    const float expected_u[4] = {0, 0.03125f, 0.4375f, 0.5f};
+    const float expected_v[4] = {0.5f, 0.578125f, 0.953125f, 1};
+    const uint32_t component_type = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("guic"));
+    dmGameSystem::GuiWorld* world = (dmGameSystem::GuiWorld*) dmGameObject::GetWorld(m_Collection, component_type);
+    for (uint32_t flip = 0; flip < 4; ++flip)
+    {
+        animation->m_FlipHorizontal = (flip & 1) != 0;
+        animation->m_FlipVertical = (flip & 2) != 0;
+        RenderCollection(m_RenderContext, m_Collection);
+        ASSERT_EQ(dmGameSystem::SLICE9_INDEX_COUNT, world->m_ClientVertexBuffer.Size());
+        const uint16_t* indices = dmGameSystem::GetSlice9Indices();
+        for (uint32_t i = 0; i < dmGameSystem::SLICE9_INDEX_COUNT; ++i)
+        {
+            const uint32_t x = indices[i] % 4;
+            const uint32_t y = indices[i] / 4;
+            const dmGameSystem::BoxVertex& vertex = world->m_ClientVertexBuffer[i];
+            ASSERT_NEAR(expected_x[(flip & 1) != 0][x], vertex.m_Position[0], EPSILON);
+            ASSERT_NEAR(expected_y[(flip & 2) != 0][y], vertex.m_Position[1], EPSILON);
+            ASSERT_NEAR(expected_u[(flip & 1) ? 3 - x : x], vertex.m_UV[0], EPSILON);
+            ASSERT_NEAR(expected_v[(flip & 2) ? 3 - y : y], vertex.m_UV[1], EPSILON);
+        }
+    }
+
+    geometry.m_PivotX = old_pivot_x;
+    geometry.m_PivotY = old_pivot_y;
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 TEST_P(BoxRenderTest, BoxRender)

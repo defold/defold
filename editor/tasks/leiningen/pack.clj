@@ -32,16 +32,20 @@
 ;; these can be sourced either from a local build of engine, or downloaded from an archived build on s3
 (def engine-artifacts
   {"x86_64-macos" {"bin" ["dmengine"]
-                   "lib" ["libparticle_shared.dylib"
+                   "lib" ["libdmengine_shared.dylib"
+                          "libparticle_shared.dylib"
                           "libmouse_capture_shared.dylib"]}
    "arm64-macos" {"bin" ["dmengine"]
-                  "lib" ["libparticle_shared.dylib"
+                  "lib" ["libdmengine_shared.dylib"
+                         "libparticle_shared.dylib"
                          "libmouse_capture_shared.dylib"]}
    "x86_64-win32"  {"bin" ["dmengine.pdb"]
-                    "lib" ["particle_shared.dll"
+                    "lib" ["dmengine_shared.dll"
+                           "particle_shared.dll"
                            "mouse_capture_shared.dll"]}
    "x86_64-linux"  {"bin" ["dmengine"]
-                    "lib" ["libparticle_shared.so"
+                    "lib" ["libdmengine_shared.so"
+                           "libparticle_shared.so"
                            "libmouse_capture_shared.so"]}})
 
 (def known-platforms (vec (keys engine-artifacts)))
@@ -59,8 +63,7 @@
     known-platforms))
 
 (def artifacts
-  {
-   ; These artifacts are equal to the artifacts from bob
+  {   ; These artifacts are equal to the artifacts from bob
    ; see ResourceUnpacker.java for more info
    ; "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit-64.exe"  "x86_64-win32/bin/luajit-64.exe"
    ; "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"   "x86_64-win32/bin/OpenAL32.dll"
