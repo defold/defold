@@ -2276,11 +2276,9 @@ namespace dmGraphics
         {
             return;
         }
-        if (size != buffer->m_Base.m_Size)
-        {
-            DestroyResourceDeferred(context, buffer);
-        }
-
+        // Full replacements must preserve storage referenced by recorded or
+        // in-flight draws, including when the new data has the same size.
+        DestroyResourceDeferred(context, buffer);
         DeviceBufferUploadHelper(context, data, size, 0, buffer);
     }
 

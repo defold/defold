@@ -892,6 +892,177 @@ struct DrawTriangleTest : ITest
     }
 };
 
+// Verify equal-sized vertex/index replacements preserve earlier recorded draws,
+// guarding against shared Metal buffer overwrites when text buffers are reused (#13474).
+struct BufferReplacementTest : ITest
+{
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+    dmGraphics::HVertexBuffer      m_IndexedVertexBuffer;
+    dmGraphics::HIndexBuffer       m_IndexBuffer;
+    uint32_t                       m_CompletedFrames;
+
+    BufferReplacementTest()
+    : m_Program(0), m_VertexDeclaration(0), m_VertexBuffer(0), m_IndexedVertexBuffer(0), m_IndexBuffer(0), m_CompletedFrames(0)
+    {
+    }
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
+
+        if (family != dmGraphics::ADAPTER_FAMILY_METAL && family != dmGraphics::ADAPTER_FAMILY_OPENGL)
+        {
+            dmLogError("Buffer replacement test requires the Metal or OpenGL adapter");
+            engine->m_Failed = true;
+            return;
+        }
+
+        dmGraphics::ShaderDesc desc = {};
+        if (family == dmGraphics::ADAPTER_FAMILY_METAL)
+        {
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_MSL_22,
+                (uint8_t*) graphics_assets::msl_vertex_program_buffer_replacement, sizeof(graphics_assets::msl_vertex_program_buffer_replacement));
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_MSL_22,
+                (uint8_t*) graphics_assets::msl_fragment_program_buffer_replacement, sizeof(graphics_assets::msl_fragment_program_buffer_replacement));
+        }
+        else
+        {
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+                (uint8_t*) graphics_assets::glsl_vertex_program_buffer_replacement, sizeof(graphics_assets::glsl_vertex_program_buffer_replacement));
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+                (uint8_t*) graphics_assets::glsl_fragment_program_buffer_replacement, sizeof(graphics_assets::glsl_fragment_program_buffer_replacement));
+        }
+        AddShaderResource(&desc, "pos", dmGraphics::ShaderDesc::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        char error_buffer[1024] = {};
+        m_Program = dmGraphics::NewProgram(context, &desc, error_buffer, sizeof(error_buffer));
+        DeleteShaderDesc(&desc);
+        if (!m_Program)
+        {
+            dmLogError("Buffer replacement test program creation failed: %s", error_buffer);
+            engine->m_Failed = true;
+            return;
+        }
+
+        // The first triangle covers the viewport; the second lies outside it.
+        const float vertices[] = { -1, -1, 3, -1, -1, 3, 7, -1, 11, -1, 7, 3 };
+        const uint16_t indices[] = { 0, 1, 2 };
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices) / 2, vertices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        m_IndexedVertexBuffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        m_IndexBuffer = dmGraphics::NewIndexBuffer(context, sizeof(indices), indices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(context);
+        dmGraphics::AddVertexStream(streams, "pos", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, streams);
+        dmGraphics::DeleteVertexStreamDeclaration(streams);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        const float vertices[][6] = { { -1, -1, 3, -1, -1, 3 }, { 7, -1, 11, -1, 7, 3 } };
+        const uint16_t indices[][3] = { { 0, 1, 2 }, { 3, 4, 5 } };
+        const uint32_t cell_width = dmGraphics::GetWindowWidth(context) / 4;
+        dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1.0f, 0);
+        dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
+        dmGraphics::EnableProgram(context, m_Program);
+
+        for (uint32_t cell = 0; cell < 4; ++cell)
+        {
+            const uint32_t data_index = (cell + m_CompletedFrames) % 2;
+            dmGraphics::HVertexBuffer vertex_buffer = cell < 2 ? m_VertexBuffer : m_IndexedVertexBuffer;
+            if (cell < 2)
+            {
+                dmGraphics::SetVertexBufferData(m_VertexBuffer, sizeof(vertices[0]), vertices[data_index], dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            }
+            else
+            {
+                dmGraphics::SetIndexBufferData(m_IndexBuffer, sizeof(indices[0]), indices[data_index], dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            }
+
+            dmGraphics::SetViewport(context, cell * cell_width, 0, cell_width, dmGraphics::GetWindowHeight(context));
+            dmGraphics::EnableVertexBuffer(context, vertex_buffer, 0);
+            dmGraphics::EnableVertexDeclaration(context, m_VertexDeclaration, 0, 0, m_Program);
+            if (cell < 2)
+            {
+                dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            }
+            else
+            {
+                dmGraphics::DrawElements(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, dmGraphics::TYPE_UNSIGNED_SHORT, m_IndexBuffer, 1);
+            }
+        }
+        dmGraphics::DisableVertexDeclaration(context, m_VertexDeclaration);
+        dmGraphics::DisableVertexBuffer(context, m_IndexedVertexBuffer);
+        dmGraphics::DisableProgram(context);
+        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_METAL)
+        {
+            CheckPixels(engine);
+        }
+    }
+
+    void AfterFlip(EngineCtx* engine) override
+    {
+        if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL)
+        {
+            CheckPixels(engine);
+        }
+    }
+
+    void CheckPixels(EngineCtx* engine)
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        const uint32_t cell_width = dmGraphics::GetWindowWidth(context) / 4;
+        for (uint32_t cell = 0; cell < 4; ++cell)
+        {
+            uint8_t pixel[4] = {};
+            dmGraphics::ReadPixels(context, cell * cell_width + cell_width / 2, dmGraphics::GetWindowHeight(context) / 2, 1, 1, pixel, sizeof(pixel));
+            const uint8_t expected = (cell + m_CompletedFrames) % 2 ? 0 : 255;
+            if (pixel[0] != expected || pixel[1] != expected || pixel[2] != expected || pixel[3] != 255)
+            {
+                dmLogError("Buffer replacement frame %u, %s cell %u: expected %u,%u,%u,255, got %u,%u,%u,%u",
+                    m_CompletedFrames, cell < 2 ? "vertex" : "index", cell, expected, expected, expected, pixel[0], pixel[1], pixel[2], pixel[3]);
+                engine->m_Failed = true;
+            }
+        }
+        ++m_CompletedFrames;
+        if (engine->m_Failed || m_CompletedFrames == 3)
+        {
+            if (!engine->m_Failed)
+            {
+                dmLogInfo("Buffer replacements: vertex and index draws preserved across %u frames", m_CompletedFrames);
+            }
+            engine->m_Running = 0;
+        }
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        if (m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(m_VertexDeclaration);
+        }
+        if (m_VertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(m_VertexBuffer);
+        }
+        if (m_IndexedVertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(m_IndexedVertexBuffer);
+        }
+        if (m_IndexBuffer)
+        {
+            dmGraphics::DeleteIndexBuffer(m_IndexBuffer);
+        }
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
+        }
+    }
+};
+
 struct ReadPixelsTest : ITest
 {
     uint8_t m_Buffer[512 * 512 * 4];
@@ -2153,6 +2324,11 @@ static void* EngineCreate(int argc, char** argv)
     {
         dmLogInfo("test_app_graphics: running StorageBufferTest%s", HasArgument("ssbo-hazards") ? " (GPU hazards)" : HasArgument("ssbo-updates") ? " (update ordering)" : "");
         engine->m_Test = new StorageBufferTest();
+    }
+    else if (HasArgument("buffer-replacement"))
+    {
+        dmLogInfo("test_app_graphics: running BufferReplacementTest");
+        engine->m_Test = new BufferReplacementTest();
     }
     else if (HasArgument("depth-only-render-target"))
     {
