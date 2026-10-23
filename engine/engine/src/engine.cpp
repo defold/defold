@@ -450,7 +450,6 @@ namespace dmEngine
         , m_MouseSensitivity(1.0f)
         , m_DataStore(0)
         , m_DataStoreJobs(0)
-        , m_DataStorePreUpdate(DS_EVENT_GAMEOBJECT_PRE_UPDATE)
         , m_GraphicsContext(0)
         , m_RenderContext(0)
         , m_ScriptContext(0x0)
@@ -518,7 +517,7 @@ namespace dmEngine
         return dmGameObject::ResCollectionGetCollection(engine->m_MainCollectionResource);
     }
 
-    static void UpdateDataStore(HEngine engine)
+    static void UpdateDataStore(HEngine engine, const char* event)
     {
         DM_PROFILE("DataStorePreUpdate");
         DSResult result = DSBeginSchedule(engine->m_DataStore, engine->m_DataStoreJobs);
@@ -528,14 +527,18 @@ namespace dmEngine
             return;
         }
 
-        result = DSSchedulerEvent(engine->m_DataStore, engine->m_DataStorePreUpdate);
+        result = DSSchedulerEvent(engine->m_DataStore, dmHashString64(event));
         if (result != DS_RESULT_OK)
-            dmLogError("Failed to signal %s (%d)", dmHashReverseSafe64(engine->m_DataStorePreUpdate), result);
+        {
+            dmLogError("Failed to signal %s (%d)", event, result);
+        }
 
         // Finish running and ready functions before components access their output.
         // Functions behind unsignaled custom events do not hold this boundary open.
         while (DSEndSchedule(engine->m_DataStore) == DS_RESULT_BUSY)
+        {
             DSSchedulerUpdate(engine->m_DataStore);
+        }
     }
 
     void Delete(HEngine engine)
@@ -1229,7 +1232,7 @@ namespace dmEngine
         if (dmConfigFile::GetInt(engine->m_Config, "engine.datastore", 1))
         {
             engine->m_DataStore = DSCreateStore(0);
-            DSEventDesc event = { .m_Name = engine->m_DataStorePreUpdate };
+            DSEventDesc event = { .m_Name = DS_EVENT_GAMEOBJECT_PRE_UPDATE };
             DSRegisterEvent(engine->m_DataStore, &event);
 
             // Frame-critical queries must not wait behind resource streaming jobs.
@@ -2154,7 +2157,7 @@ bail:
                 }
 
                 if (engine->m_DataStore)
-                    UpdateDataStore(engine);
+                    UpdateDataStore(engine, "engine.gameobject.pre_update");
 
                 dmGameObject::UpdateContext update_context;
                 update_context.m_TimeScale = 1.0f;

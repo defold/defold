@@ -115,7 +115,6 @@ namespace dmEngine
         HJobContext                                 m_JobThreadContext;
         HDSContext                                  m_DataStore;
         HJobContext                                 m_DataStoreJobs;
-        dmhash_t                                    m_DataStorePreUpdate;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
