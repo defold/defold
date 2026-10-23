@@ -308,6 +308,24 @@
       (copy-paste! project app-view root path)
       (is (= texture (prop root [0 2] :texture))))))
 
+;; GUI copy/paste increments the copied node's number, skips occupied numbers,
+;; and does not reuse lower gaps (regression for #11868).
+(deftest copy-paste-numbered-gui-node
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/gui/simple.gui")]
+      (g/set-property! (:node-id (outline root [0 0])) :id "node_1")
+      (g/set-property! (:node-id (outline root [0 1])) :id "node_3")
+
+      (copy-paste! project app-view root [0 0])
+      (is (= "node_2" (prop root [0 2] :id)))
+
+      (paste! project app-view root [0])
+      (is (= "node_4" (prop root [0 3] :id)))
+
+      (delete! root [0 2])
+      (copy-paste! project app-view root [0 2])
+      (is (= "node_5" (prop root [0 3] :id))))))
+
 (deftest copy-paste-gui-text-utf-16
   (test-util/with-loaded-project
     (let [root (test-util/resource-node project "/gui/simple.gui")
