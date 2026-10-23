@@ -2,6 +2,7 @@
 /sprite/atlas_valid_64x64.atlas
 /sprite/attribute_stride.go
 /sprite/attribute_stride_mat4.material
+/sprite/cross_collection.go
 /sprite/cursor.go
 /sprite/flipbook_cursor.script
 /sprite/frame_count_sprite_frame_count.go
@@ -10,6 +11,7 @@
 /sprite/image_stale_animation_id_in_range.atlas
 /sprite/invalid_sprite.go
 /sprite/invalid_vertexspace.sprite
+/sprite/script_api.go
 /sprite/sprite_flipbook_anim.go
 /sprite/sprite_property_anim.go
 /sprite/sprite_slice9.go

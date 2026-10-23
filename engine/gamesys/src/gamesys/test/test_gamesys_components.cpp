@@ -808,6 +808,70 @@ TEST_F(SpriteTest, FlipbookAnim)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verify synchronous sprite bindings, target validation, callback ownership and legacy animation messages.
+TEST_F(SpriteTest, DirectScriptCalls)
+{
+    dmMessage::HSocket other_socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("sprite_other", &other_socket));
+
+    dmGameObject::HInstance owner = Spawn(m_Factory, m_Collection, "/sprite/script_api.goc", dmHashString64("/owner"));
+    ASSERT_NE(0, owner);
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/script_api.goc", dmHashString64("/go"));
+    ASSERT_NE(0, go);
+
+    WaitForTestsDone(10, true, 0);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(other_socket));
+}
+
+// Verify direct calls reach another collection and completion resolves the caller in its own collection.
+TEST_F(SpriteTest, DirectScriptCallsAcrossCollections)
+{
+    dmGameObject::HCollection other_collection = dmGameObject::NewCollection("sprite_other", m_Factory, m_Register, m_projectOptions.m_MaxInstances, 0);
+    ASSERT_NE(0, other_collection);
+    ASSERT_TRUE(dmGameObject::Init(other_collection));
+
+    dmGameObject::HInstance target = Spawn(m_Factory, other_collection, "/sprite/cross_collection.goc", dmHashString64("/target"));
+    ASSERT_NE(0, target);
+    dmGameObject::HInstance caller = Spawn(m_Factory, m_Collection, "/sprite/cross_collection.goc", dmHashString64("/caller"));
+    ASSERT_NE(0, caller);
+
+    // These changes must be visible before either collection dispatches messages.
+    dmhash_t sprite_id = dmHashString64("sprite");
+    ASSERT_EQ(dmHashString64("anim_once"), GetHashProperty(target, sprite_id, dmHashString64("animation")));
+    const char* properties[] = {"scale.x", "scale.y", "scale.z", "tint.x", "tint.y", "tint.z", "tint.w", "cursor", "playback_rate"};
+    const double values[] = {2, 3, 4, 1, 1, 1, 1, 1, 2};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(properties); ++i)
+    {
+        dmGameObject::PropertyOptions options;
+        dmGameObject::PropertyDesc desc;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(target, sprite_id, dmHashString64(properties[i]), options, desc));
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);
+        ASSERT_EQ(values[i], desc.m_Variant.m_Number);
+    }
+
+    // The listener's path deliberately does not exist in the sprite's collection.
+    ASSERT_EQ((dmGameObject::HInstance)0, dmGameObject::GetInstanceFromIdentifier(other_collection, dmHashString64("/caller")));
+    bool tests_done = false;
+    lua_State* L = m_Scriptlibcontext.m_LuaState;
+    for (uint32_t i = 0; i < 10 && !tests_done; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(other_collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(other_collection));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    ASSERT_TRUE(tests_done);
+
+    ASSERT_TRUE(dmGameObject::Final(other_collection));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameObject::DeleteCollection(other_collection);
+}
+
 TEST_F(SpriteTest, FrameCount)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count_sprite_frame_count.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));

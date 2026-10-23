@@ -1,0 +1,52 @@
+-- Shared by /caller and /target, which the test creates in separate collections.
+tests_done = false
+
+-- Weak values let us verify that replacing an animation releases its old callback.
+local callbacks = setmetatable({}, { __mode = "v" })
+local target = "sprite_other:/target#sprite"
+
+function init(self)
+    self.id = go.get_id()
+    if self.id == hash("/target") then
+        -- Start an animation in the target's script context for the caller to replace.
+        go.set("#sprite", "tint", vmath.vector4(0.25))
+        callbacks.previous = function() error("Replaced callback for " .. tostring(self.id)) end
+        sprite.play_flipbook("#sprite", "anim_loop", callbacks.previous)
+        return
+    end
+
+    -- The full URL addresses the sprite in the other collection.
+    sprite.set_hflip(target, true)
+    sprite.set_vflip(target, true)
+
+    -- Cross-collection lookup must still reject wrong component types and missing instances.
+    local ok, err = pcall(sprite.play_flipbook, "sprite_other:/target#script", "anim_once")
+    assert(not ok and string.find(err, "Component expected to be of type 'spritec'", 1, true), err)
+    ok, err = pcall(sprite.play_flipbook, "sprite_other:/missing#sprite", "anim_once")
+    assert(not ok and string.find(err, "Instance '/missing' not found", 1, true), err)
+
+    -- Start at the end so completion needs an update, without waiting for the animation duration.
+    sprite.play_flipbook(msg.url(target), "anim_once", function(self, message_id, message, sender)
+        -- Completion runs in the caller's context, with the target sprite as sender.
+        assert(self.id == hash("/caller"))
+        assert(message_id == hash("animation_done"))
+        assert(message.id == hash("anim_once"))
+        assert(sender == msg.url(target))
+        collectgarbage("collect")
+        assert(callbacks.previous == nil)
+        self.callback_received = true
+
+        -- Also verify completion delivery without a callback across collections.
+        sprite.play_flipbook(target, "anim_once", nil, { offset = 1 })
+    end, { offset = 1, playback_rate = 2 })
+end
+
+-- The second playback has no callback, so its completion arrives as a regular message.
+function on_message(self, message_id, message, sender)
+    assert(self.id == hash("/caller"))
+    assert(self.callback_received)
+    assert(message_id == hash("animation_done"))
+    assert(message.id == hash("anim_once"))
+    assert(sender == msg.url(target))
+    tests_done = true
+end
