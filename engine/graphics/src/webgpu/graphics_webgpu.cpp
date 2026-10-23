@@ -3400,6 +3400,9 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                             else
                                 binding.texture.sampleType = WGPUTextureSampleType_Float;
                             break;
+                        case ShaderDesc::SHADER_TYPE_UTEXTURE2D:
+                            binding.texture.sampleType = WGPUTextureSampleType_Uint;
+                            break;
                         default:
                             if (res.m_StageFlags & WGPUShaderStage_Compute)
                                 binding.texture.sampleType = WGPUTextureSampleType_UnfilterableFloat;

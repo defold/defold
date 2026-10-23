@@ -16,8 +16,10 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -135,6 +137,28 @@ public class TextureGeneratorTest extends AbstractProtoBuilderTest {
         assertEquals((byte) (color >> 8), data[offset+1]);  // G
         assertEquals((byte) (color >> 0), data[offset+2]);  // R
         assertEquals((byte) (color >> 24), data[offset+3]); // A
+    }
+
+    // Unreadable streams report a texture format error instead of dereferencing a null image.
+    @Test
+    public void testUnknownTextureFormatFromStream() throws IOException {
+        try {
+            TextureGenerator.generate(new ByteArrayInputStream(new byte[12]), null, false, EnumSet.noneOf(FlipAxis.class));
+            fail("Expected an unknown texture format error");
+        } catch (TextureGeneratorException e) {
+            assertEquals("Unknown texture format.", e.getMessage());
+        }
+    }
+
+    // Bytes with an unrecognized signature use the same diagnostic through the ImageIO fallback.
+    @Test
+    public void testUnknownTextureFormatFromBytes() throws IOException {
+        try {
+            TextureGenerator.generate(new byte[12], null, false);
+            fail("Expected an unknown texture format error");
+        } catch (TextureGeneratorException e) {
+            assertEquals("Unknown texture format.", e.getMessage());
+        }
     }
 
     @Test

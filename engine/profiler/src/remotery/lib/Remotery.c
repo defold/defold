@@ -3947,7 +3947,14 @@ static rmtError WebSocket_AcceptConnection(WebSocket* web_socket, WebSocket** cl
 
     // Need a successful handshake between client/server before allowing the connection
     // TODO: Specify limit_host
-    rmtTry(WebSocketHandshake(tcp_socket, NULL));
+/// DEFOLD
+    rmtError handshake_error = WebSocketHandshake(tcp_socket, NULL);
+    if (handshake_error != RMT_ERROR_NONE)
+    {
+        rmtDelete(TCPSocket, tcp_socket);
+        return handshake_error;
+    }
+/// END DEFOLD
 
     // Allocate and return a new client socket
     assert(client_socket != NULL);

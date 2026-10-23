@@ -382,6 +382,7 @@
   (input active-outline g/Any)
   (input active-scene g/Any)
   (input project-id g/NodeID)
+  (input outline-selection-by-resource-node g/Any)
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
   (input sub-selections-by-resource-node g/Any)
@@ -422,6 +423,8 @@
   ;; NOTE: Empty rather than nil when nothing is selected. Command contexts with a nil
   ;; selection stop the context chain in handler/eval-contexts, which leaves a
   ;; context menu opened over a tab without a resource with nothing to show.
+  (output outline-selection g/Any (g/fnk [outline-selection-by-resource-node active-resource-node]
+                                    (get outline-selection-by-resource-node active-resource-node [])))
   (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource-node active-resource-node]
                                     (get selected-node-ids-by-resource-node active-resource-node [])))
   (output selected-node-properties g/Any (g/fnk [selected-node-properties-by-resource-node active-resource-node]
@@ -977,14 +980,11 @@
                                    instance-debug (and debug last-instance?)
                                    launched-target (->> (engine/launch! engine project-directory prefs instance-debug instance-index focus)
                                                         (decorate-target engine-descriptor)
-                                                        (targets/add-launched-target! instance-index))]
+                                                        (targets/add-launched-target! prefs instance-index))]
                                (when (not last-instance?)
                                  (Thread/sleep pause-ms))        ;pause needed to make sure the launch order of instances is right
                                launched-target))
           last-launched-target (last launched-targets)]
-      (if (= count 1)
-        (targets/select-target! prefs last-launched-target)
-        (targets/select-target! prefs {:id :all-launched-targets}))
       (report-build-launch-progress! (localization/message "progress.launched-engine" {"engine" (targets/target-message last-launched-target)}))
       launched-targets)
     (catch Exception e
@@ -1050,17 +1050,17 @@
 
 (defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug focus]
   (let [selected-target (targets/selected-target prefs)
-        launch-new-engine! (fn []
+        launch-new-engine! (fn launch-new-engine! []
                              (targets/kill-launched-targets!)
                              (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
                                    last-launched-target (last launched-targets)]
                                (doseq [launched-target launched-targets]
                                  (targets/when-url (:id launched-target)
-                                                   #(on-launched-hook! project (:process launched-target) %))
-                                 (let [log-stream (:log-stream launched-target)]
-                                   (console/reset-console-stream! log-stream)
-                                   (console/reset-remote-log-pump-thread! nil)
-                                   (console/start-log-pump! log-stream (make-launched-log-sink launched-target (partial on-service-url-found prefs)))))
+                                                   (fn on-target-url-found [url]
+                                                     (on-launched-hook! project (:process launched-target) url)))
+                                 (console/start-log-pump!
+                                   (:log-stream launched-target)
+                                   (make-launched-log-sink launched-target (partial on-service-url-found prefs))))
                                last-launched-target))]
     (try
       {:target

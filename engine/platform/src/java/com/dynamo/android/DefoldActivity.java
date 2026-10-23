@@ -23,6 +23,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Rect;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
@@ -49,8 +50,14 @@ import android.text.InputType;
 import android.view.inputmethod.CompletionInfo;
 import android.view.ViewGroup;
 import android.view.InputDevice;
+import android.view.MotionEvent;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
 
 import android.content.pm.PackageInfo;
 
@@ -83,6 +90,10 @@ public class DefoldActivity extends NativeActivity {
 
     private boolean mImmersiveMode = false;
     private boolean mDisplayCutout = false;
+
+    // Published on the UI thread and read through JNI on the engine thread.
+    // Entries are decor width/height followed by window-local cutout bounds.
+    private volatile int[] mReservedAreas = new int[0];
 
     private ArrayList<Integer> mGameControllerDeviceIds = new ArrayList<Integer>();
 
@@ -292,11 +303,23 @@ public class DefoldActivity extends NativeActivity {
             decorView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
                 @Override
                 public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                    updateReservedAreas(insets);
                     dmNativeSetPendingResizeBecauseOfInsets();
                     return v.onApplyWindowInsets(insets);
                 }
             });
             decorView.requestApplyInsets();
+        }
+    }
+
+    @Override
+    public void onGlobalLayout() {
+        View decor = getWindow().getDecorView();
+        boolean changed = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                && updateReservedAreas(decor.getRootWindowInsets());
+        super.onGlobalLayout();
+        if (changed) {
+            dmNativeSetPendingResizeBecauseOfInsets();
         }
     }
 
@@ -555,6 +578,41 @@ public class DefoldActivity extends NativeActivity {
         return new int[] { 0, 0, 0, 0 };
     }
 
+    private boolean updateReservedAreas(WindowInsets insets) {
+        int[] snapshot = new int[0];
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && insets != null) {
+            DisplayCutout cutout = insets.getDisplayCutout();
+            if (cutout != null) {
+                List<Rect> rects = cutout.getBoundingRects();
+                View decor = getWindow().getDecorView();
+                // NativeActivity takes the window surface, not the inset content
+                // view. Root WindowInsets already accounts for window placement.
+                int[] location = new int[2];
+                decor.getLocationInWindow(location);
+                snapshot = new int[2 + rects.size() * 4];
+                snapshot[0] = decor.getWidth();
+                snapshot[1] = decor.getHeight();
+                for (int i = 0; i < rects.size(); ++i) {
+                    Rect rect = rects.get(i);
+                    int offset = 2 + i * 4;
+                    snapshot[offset] = rect.left - location[0];
+                    snapshot[offset + 1] = rect.top - location[1];
+                    snapshot[offset + 2] = rect.right - location[0];
+                    snapshot[offset + 3] = rect.bottom - location[1];
+                }
+            }
+        }
+        if (Arrays.equals(mReservedAreas, snapshot)) {
+            return false;
+        }
+        mReservedAreas = snapshot;
+        return true;
+    }
+
+    public int[] getReservedAreas() {
+        return mReservedAreas;
+    }
+
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         nativeOnActivityResult(this, requestCode,resultCode, data);
     }
@@ -658,6 +716,102 @@ public class DefoldActivity extends NativeActivity {
             return device.getProductId();
         }
         return 0;
+    }
+
+    /** SDL Android button capability bits, including hats represented as D-pad buttons. */
+    public int getGameControllerDeviceButtonMask(int deviceId) {
+        InputDevice device = InputDevice.getDevice(deviceId);
+        if (device == null) {
+            return 0;
+        }
+        // Key order follows SDL's Android raw button slots, not Defold's legacy layout.
+        int[] keys = {
+            KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B,
+            KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_Y,
+            KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_BUTTON_MODE,
+            KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_BUTTON_THUMBL,
+            KeyEvent.KEYCODE_BUTTON_THUMBR, KeyEvent.KEYCODE_BUTTON_L1,
+            KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_BUTTON_L2,
+            KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_BUTTON_C,
+            KeyEvent.KEYCODE_BUTTON_Z, KeyEvent.KEYCODE_UNKNOWN,
+            KeyEvent.KEYCODE_BUTTON_1, KeyEvent.KEYCODE_BUTTON_2,
+            KeyEvent.KEYCODE_BUTTON_3, KeyEvent.KEYCODE_BUTTON_4,
+            KeyEvent.KEYCODE_BUTTON_5, KeyEvent.KEYCODE_BUTTON_6,
+            KeyEvent.KEYCODE_BUTTON_7, KeyEvent.KEYCODE_BUTTON_8,
+            KeyEvent.KEYCODE_BUTTON_9, KeyEvent.KEYCODE_BUTTON_10,
+            KeyEvent.KEYCODE_BUTTON_11, KeyEvent.KEYCODE_BUTTON_12,
+            KeyEvent.KEYCODE_BUTTON_13, KeyEvent.KEYCODE_BUTTON_14,
+            KeyEvent.KEYCODE_BUTTON_15, KeyEvent.KEYCODE_BUTTON_16,
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_MENU
+        };
+        boolean[] supported = device.hasKeys(keys);
+        int mask = 0;
+        for (int i = 0; i < 36; ++i) {
+            if (i != 19 && supported[i]) {
+                if (i >= 32) {
+                    return -1;
+                }
+                mask |= 1 << i;
+            }
+        }
+        if (supported[36]) mask |= 1;
+        if (supported[37]) mask |= 1 << 4;
+        if (supported[38]) mask |= 1 << 6;
+        if (device.getMotionRange(MotionEvent.AXIS_HAT_X) != null &&
+            device.getMotionRange(MotionEvent.AXIS_HAT_Y) != null) {
+            mask |= 0x7800;
+        }
+        return mask;
+    }
+
+    private static int getGameControllerAxisSortKey(int axis) {
+        if (axis == MotionEvent.AXIS_GAS) {
+            return MotionEvent.AXIS_BRAKE;
+        }
+        if (axis == MotionEvent.AXIS_BRAKE) {
+            return MotionEvent.AXIS_GAS;
+        }
+        // SDL groups X/Y, RX/RY, Z/RZ, then the remaining axes.
+        if (axis == MotionEvent.AXIS_Z) {
+            return MotionEvent.AXIS_RZ - 1;
+        }
+        if (axis > MotionEvent.AXIS_Z && axis < MotionEvent.AXIS_RZ) {
+            return axis - 1;
+        }
+        return axis;
+    }
+
+    /** Sorted SDL Android axes as triples of Android axis id, minimum and range. */
+    public float[] getGameControllerDeviceAxes(int deviceId) {
+        InputDevice device = InputDevice.getDevice(deviceId);
+        if (device == null) {
+            return new float[0];
+        }
+        ArrayList<InputDevice.MotionRange> axes = new ArrayList<>();
+        HashSet<Integer> axisIds = new HashSet<>();
+        for (InputDevice.MotionRange range : device.getMotionRanges()) {
+            if ((range.getSource() & InputDevice.SOURCE_CLASS_JOYSTICK) != 0 &&
+                range.getAxis() != MotionEvent.AXIS_HAT_X && range.getAxis() != MotionEvent.AXIS_HAT_Y &&
+                axisIds.add(range.getAxis())) {
+                axes.add(range);
+            }
+        }
+        Collections.sort(axes, new Comparator<InputDevice.MotionRange>() {
+            @Override
+            public int compare(InputDevice.MotionRange a, InputDevice.MotionRange b) {
+                return Integer.compare(getGameControllerAxisSortKey(a.getAxis()), getGameControllerAxisSortKey(b.getAxis()));
+            }
+        });
+        float[] result = new float[axes.size() * 3];
+        for (int i = 0; i < axes.size(); ++i) {
+            InputDevice.MotionRange range = axes.get(i);
+            result[i * 3] = range.getAxis();
+            result[i * 3 + 1] = range.getMin();
+            result[i * 3 + 2] = range.getRange();
+        }
+        return result;
     }
 
     /**

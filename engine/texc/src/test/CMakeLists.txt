@@ -12,7 +12,7 @@ function(texc_add_test target)
   defold_register_test_target(${target} ON "${TEXC_ROOT}" RUN_GROUP texc)
 endfunction()
 
-texc_add_test(test_texc "${TEXC_TEST_DIR}/test_texc.cpp")
+texc_add_test(test_texc "${TEXC_TEST_DIR}/test_texc.cpp" "${TEXC_TEST_DIR}/test_texc_ktx2.cpp")
 texc_add_test(test_texc_image_ops "${TEXC_TEST_DIR}/test_texc_image_ops.cpp")
 
 # The in-repo SIMDe scalar subset also exercises AVX kernels through emulation.
