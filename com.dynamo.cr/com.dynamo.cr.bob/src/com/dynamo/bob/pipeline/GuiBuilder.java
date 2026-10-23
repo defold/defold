@@ -207,7 +207,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private static void validateCustomNodeResources(NodeDesc n, GuiBuilder builder, String input, String layoutName, Set<String> resourceNames) throws CompileExceptionError {
+    private static void validateCustomNodeProperties(NodeDesc n, GuiBuilder builder, String input, String layoutName, Set<String> resourceNames) throws CompileExceptionError {
         List<String> nodeResources = new ArrayList<>();
 
         if (n.getType() == Type.TYPE_CUSTOM) {
@@ -218,6 +218,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             ? customType.getProperty(property.getId())
                             : customType.getProperty(property.getIdHash());
 
+                    if (propertyDefinition != null && property.getType() != propertyDefinition.getPropertyType()) {
+                        throw new CompileExceptionError(builder.project.getResource(input), 0,
+                                GuiBuildContext.formatNodeLocation(n, layoutName) + "Property '" + propertyDefinition.getName()
+                                + "' must have type " + propertyDefinition.getPropertyType() + " (got " + property.getType() + ")");
+                    }
                     if (propertyDefinition != null && propertyDefinition.isResource() && property.hasString() && !property.getString().isEmpty()) {
                         nodeResources.add(property.getString());
                     }
@@ -872,14 +877,14 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         if (builder != null) {
             if (flattenTemplates) {
-                // Validate named custom resources only after parent overrides and
+                // Validate custom property types and resources only after parent overrides and
                 // inherited resource lists have been resolved.
                 for (NodeDesc node : sceneBuilder.getNodesList()) {
-                    validateCustomNodeResources(node, builder, input, "", sourceResources.keySet());
+                    validateCustomNodeProperties(node, builder, input, "", sourceResources.keySet());
                 }
                 for (LayoutDesc layout : sceneBuilder.getLayoutsList()) {
                     for (NodeDesc node : layout.getNodesList()) {
-                        validateCustomNodeResources(node, builder, input, layout.getName(), sourceResources.keySet());
+                        validateCustomNodeProperties(node, builder, input, layout.getName(), sourceResources.keySet());
                     }
                 }
             }
@@ -1037,7 +1042,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         Task.TaskBuilder<?> taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
+                .addOutput(input.changeExt(params.outExt()))
+                // Revalidate outputs cached before registered property types were checked.
+                .addExtraCacheKey("gui-custom-property-types-v1");
         SceneDesc.Builder sourceScene = getSrcBuilder(input);
         createSubTasks(sourceScene, taskBuilder);
         for (String key : migrationCacheKeys) {

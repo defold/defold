@@ -115,7 +115,9 @@ and resource map. The task, node and layout name are passed as callback argument
 directly, without allocating a context or node snapshot for each callback.
 
 Both callbacks receive the node after defaults, template inheritance and layout
-overrides have been resolved. Template children have their instance prefix in
+overrides have been resolved and Bob has checked custom property types against
+their registration. Plugins only need to validate domain rules, such as whether
+an animation exists. Template children have their instance prefix in
 the node ID. The default layout name is an empty string.
 `GuiBuildContext.getProperty(node, name)` looks up a resolved custom property on
 either a node or its builder. `context.getResources()` maps generic GUI resource

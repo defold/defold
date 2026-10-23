@@ -113,6 +113,15 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         return getMessage(build(path, src.toString()), Gui.SceneDesc.class);
     }
 
+    private void assertGuiError(StringBuilder src, String expected) throws Exception {
+        try {
+            buildGui(src, "/test.gui");
+            Assert.fail("Expected GUI build to fail: " + expected);
+        } catch (CompileExceptionError error) {
+            Assert.assertEquals(expected, error.getMessage());
+        }
+    }
+
     private static void startBoxNode(StringBuilder src, String id, String parent) {
         src.append("nodes {\n");
         src.append("  type: TYPE_BOX\n");
@@ -342,6 +351,55 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals(7.0f, findCustomProperty(node, "vector4").getVector4().getW(), EPSILON);
         Assert.assertEquals(PropertyType.TYPE_QUAT, findCustomProperty(node, "quat").getType());
         Assert.assertEquals(11.0f, findCustomProperty(node, "quat").getQuat().getW(), EPSILON);
+    }
+
+    // Every registered property type is checked, including properties identified only by hash.
+    @Test
+    public void testCustomPropertyTypesMustMatchRegistration() throws Exception {
+        for (PropertyType expected : PropertyType.values()) {
+            String name = expected.name().substring("TYPE_".length()).toLowerCase(Locale.ROOT);
+            PropertyType actual = expected == PropertyType.TYPE_BOOLEAN ? PropertyType.TYPE_STRING : PropertyType.TYPE_BOOLEAN;
+            for (boolean hashed : List.of(false, true)) {
+                StringBuilder src = createGui();
+                startCustomNode(src, "typed", "Typed");
+                src.append("custom_properties { ");
+                src.append(hashed ? "id_hash: " + Long.toUnsignedString(MurmurHash.hash64(name)) : "id: \"" + name + "\"");
+                src.append(" type: ").append(actual).append(" }\n");
+                finishNode(src);
+                assertGuiError(src, "Node 'typed': Property '" + name + "' must have type " + expected + " (got " + actual + ")");
+            }
+        }
+    }
+
+    // A containing GUI can correct a template property's type before the resolved node is validated.
+    @Test
+    public void testCustomPropertyTypesAreCheckedAfterTemplateOverrides() throws Exception {
+        StringBuilder template = createGui();
+        startCustomNode(template, "typed", "Typed");
+        template.append("custom_properties { id: \"boolean\" type: TYPE_STRING string: \"false\" }\n");
+        finishNode(template);
+        addFile("/template.gui", template.toString());
+
+        StringBuilder src = createGui();
+        addTemplateNode(src, "template", "", "/template.gui");
+        assertGuiError(src, "Node 'template/typed': Property 'boolean' must have type TYPE_BOOLEAN (got TYPE_STRING)");
+
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "template/typed", "template", true, List.of());
+        src.append("custom_properties { id: \"boolean\" type: TYPE_BOOLEAN boolean: false }\n");
+        finishNode(src);
+        NodeDesc node = findNode(buildGui(src, "/test.gui"), "", "template/typed");
+        Assert.assertFalse(findCustomProperty(node, "boolean").getBoolean());
+    }
+
+    // Sparse layout overrides are validated using the inherited type and report the resolved layout.
+    @Test
+    public void testCustomPropertyTypeErrorsIdentifyLayout() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNode(src, "typed", "Typed");
+        finishNode(src);
+        src.append("layouts { name: \"Landscape\" nodes { type: TYPE_CUSTOM id: \"typed\"\n");
+        src.append("custom_properties { id: \"boolean\" type: TYPE_STRING string: \"false\" } } }\n");
+        assertGuiError(src, "Node 'typed', layout 'Landscape': Property 'boolean' must have type TYPE_BOOLEAN (got TYPE_STRING)");
     }
 
     @Test
