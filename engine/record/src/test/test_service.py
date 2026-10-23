@@ -207,6 +207,41 @@ class RecordingServiceTest(unittest.TestCase):
         self.request("GET", url, expected=410)
         self.assertEqual([], list(pathlib.Path(self.directory.name).iterdir()))
 
+    # Hash preparation must include the last bytes on either side of its 64 KiB read boundary.
+    def test_recording_hash_chunk_boundaries(self):
+        for size in (65535, 65536, 65537, 2 * 65536 + 17):
+            with self.subTest(size=size):
+                receipt = self.request("POST", "/recording/start", {}, 202)
+                self.wait_status()
+                recording, = pathlib.Path(self.directory.name).glob("*.mp4")
+                data = (bytes(range(256)) * ((size + 255) // 256))[:size]
+                recording.write_bytes(data)
+                self.request("POST", "/recording/stop", {"operation_id": receipt["operation_id"]}, 202)
+                file = self.wait_status(complete_file=True)["file"]
+                self.assertEqual("complete", file["state"])
+                self.assertEqual(size, file["size"])
+                self.assertEqual(hashlib.sha256(data).hexdigest(), file["sha256"])
+                self.request("DELETE", file["url"], expected=204)
+
+    # Failed file preparation must release its unfinished hash context and leave a deletable receipt.
+    def test_recording_hash_missing_or_empty_file(self):
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                receipt = self.request("POST", "/recording/start", {}, 202)
+                self.wait_status()
+                recording, = pathlib.Path(self.directory.name).glob("*.mp4")
+                if missing:
+                    recording.unlink()
+                else:
+                    recording.write_bytes(b"")
+                self.request("POST", "/recording/stop", {"operation_id": receipt["operation_id"]}, 202)
+                file = self.wait_status(complete_file=True)["file"]
+                self.assertEqual("failed", file["state"])
+                self.assertEqual("", file["sha256"])
+                self.assertEqual(0, file["size"])
+                self.request("GET", file["url"], expected=500)
+                self.request("DELETE", file["url"], expected=204)
+
     # Whole files and ranges larger than 1 MiB must stream with correct headers on a reused connection.
     def test_full_file_and_large_ranges(self):
         size = 4 * 1024 * 1024 + 17

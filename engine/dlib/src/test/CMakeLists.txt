@@ -84,7 +84,7 @@ function(dlib_add_test name)
     "${DLIB_SRC_DIR}"
     ${DTEST_INCLUDES})
   target_compile_definitions(${_target} PRIVATE ${DLIB_TEST_DEFINES} ${DTEST_DEFINES})
-  target_link_libraries(${_target} PRIVATE
+  defold_target_link_libraries(${_target} "${TARGET_PLATFORM}"
     testmain
     dlib
     zip

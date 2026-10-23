@@ -20,6 +20,21 @@
 
 namespace dmCrypt
 {
+    struct HashSha256Context;
+    typedef HashSha256Context* HHashSha256;
+
+    // Creates an initialized streaming SHA-256 context, or returns 0 on failure.
+    HHashSha256 NewHashSha256();
+
+    // Appends a chunk. A zero-length chunk is a no-op and may have a null buffer.
+    // After an error, the context must be deleted.
+    Result UpdateHashSha256(HHashSha256 context, const uint8_t* buf, uint32_t buflen);
+
+    // Writes the 32-byte digest on success. The context must then be deleted.
+    Result FinalHashSha256(HHashSha256 context, uint8_t* digest);
+
+    // Releases a context, including an unfinished one. Accepts 0.
+    void DeleteHashSha256(HHashSha256 context);
 }
 
 #endif /* DM_CRYPT_H */
