@@ -155,8 +155,9 @@ TEST_F(WindowStateTest, RoundTripAndReplace)
 TEST_F(WindowStateTest, SizeOnly)
 {
     State state = MakeState(), loaded = {};
+    Rect empty_work_area = {};
     state.m_HasPosition = false;
-    memset(&state.m_Monitor.m_WorkArea, 0, sizeof(Rect));
+    state.m_Monitor.m_WorkArea = empty_work_area;
     ASSERT_TRUE(Save(m_Path, state));
     ASSERT_EQ(LOAD_OK, Load(m_Path, &loaded));
     ASSERT_FALSE(loaded.m_HasPosition);

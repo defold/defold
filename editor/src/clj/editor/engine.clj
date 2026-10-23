@@ -331,12 +331,15 @@
 (defn- window-state-prefix!
   [project-directory instance-index]
   (try
-    (let [directory (fs/create-directories! (io/file project-directory ".internal" "window-state"))
+    (let [directory (io/file ".internal" "window-state")
           ;; Single launches use index 0, multiple instances start at 1.
           slot (max 0 (dec (long instance-index)))
           platform (current-platform)
           operating-system (subs platform (inc (.indexOf ^String platform "-")))]
-      (.getAbsolutePath (io/file directory (str operating-system "-" slot))))
+      (fs/create-directories! (io/file project-directory directory))
+      ;; The player runs in the project directory. Keep its state prefix ASCII
+      ;; so Windows' narrow file APIs never encode the Unicode project path.
+      (.getPath (io/file directory (str operating-system "-" slot))))
     (catch IOException error
       (log/warn :message "Unable to create player window state directory" :exception error)
       nil)))
