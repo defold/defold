@@ -1490,7 +1490,9 @@ async function testLoaderStreamingWasm() {
             const progress = [];
             context.ProgressUpdater.addListener(value => progress.push(value));
             let fetched = 0, instantiated = 0;
-            context.fetch = async () => {
+            let fetchSignal;
+            context.fetch = async (url, { signal }) => {
+                fetchSignal = signal;
                 ++fetched;
                 if (scenario === "network") throw new TypeError("Failed to fetch");
                 // A valid extra custom section makes the module larger than the manifest.
@@ -1510,12 +1512,14 @@ async function testLoaderStreamingWasm() {
                 (verifySize && ["size", "no-streams"].includes(scenario));
             if (fallback) {
                 await Promise.race([waitFor(() => requests.length === 1), completion]);
+                if (fetchSignal) assert.strictEqual(fetchSignal.aborted, true, "release streaming before the fallback completes");
                 if (scenario === "status" || scenario === "network") {
                     assert(progress.every(value => value === 0), "failed fetches must not count as downloaded WASM");
                 }
                 requests[0].complete(wasm.buffer);
             }
             await completion;
+            if (fetchSignal) assert.strictEqual(fetchSignal.aborted, true, "release streaming after completion");
             assert.strictEqual(instantiated, 1, scenario);
             assert.strictEqual(requests.length, fallback ? 1 : 0, scenario);
             assert.strictEqual(fetched, scenario === "hash" || (verifySize && scenario === "no-streams") ? 0 : 1);

@@ -548,9 +548,9 @@ var EngineLoader = {
             {{/html5.verify_downloaded_file_size}}
         } catch (error) {
             scope.check();
-            streamScope.cancel();
             console.log('wasm streaming instantiation failed, falling back to XHR: ' + error);
             ProgressUpdater.updateCurrent(-streamedSize);
+            // Return without awaiting so finally cancels the stream while the fallback downloads.
             return EngineLoader.loadAndInstantiateWasmAsync(asset, imports, scope);
         } finally {
             streamScope.cancel();
