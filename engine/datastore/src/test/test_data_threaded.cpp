@@ -70,6 +70,15 @@ struct ScheduledJobState
     double            m_Values[12];
 };
 
+struct ScheduledRangeState
+{
+    ScheduledJobState m_Reader;
+    dmMutex::HMutex m_Mutex;
+    dmConditionVariable::HConditionVariable m_Condition;
+    uint32_t m_Finished;
+    bool m_Release;
+};
+
 struct SchedulerAdmissionGate
 {
     HDSContext       m_Store;
@@ -545,6 +554,96 @@ static void RegenerateScheduledHealth(HDSQuery query, uint32_t first, uint32_t c
         while (DSRowIterNext(&rows))
             *DSRowIterGetNumberMut(&rows, state->m_Field) += 1;
     }
+}
+
+static void ReadScheduledRange(HDSQuery query, uint32_t first, uint32_t count, void* context)
+{
+    ScheduledRangeState* state = (ScheduledRangeState*)context;
+    if (!first)
+    {
+        DM_MUTEX_SCOPED_LOCK(state->m_Mutex);
+        while (!state->m_Release)
+            dmConditionVariable::Wait(state->m_Condition, state->m_Mutex);
+    }
+    ReadScheduledHealth(query, first, count, &state->m_Reader);
+    if (first)
+    {
+        DM_MUTEX_SCOPED_LOCK(state->m_Mutex);
+        ++state->m_Finished;
+        dmConditionVariable::Broadcast(state->m_Condition);
+    }
+}
+
+// Hold the first range while later ranges finish on another worker. Neither an
+// explicit read-only dependent nor a conflicting writer may start before it finishes.
+TEST(DataThreaded, SchedulerSplitRangesCompleteOutOfOrder)
+{
+    ThreadFixture       fixture = CreateFixture();
+    ScheduledRangeState ranges = { .m_Mutex = dmMutex::New(), .m_Condition = dmConditionVariable::New() };
+    ScheduledJobState   observer = {}, writer = {};
+    HDSQuery            queries[] = {
+        Query(fixture.m_Store, HEALTH, DS_TYPE_NUMBER, 0),
+        Query(fixture.m_Store, HEALTH, DS_TYPE_NUMBER, 0),
+        Query(fixture.m_Store, HEALTH, DS_TYPE_NUMBER, DS_FIELD_MUTABLE)
+    };
+    DSQueryItem field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
+    ranges.m_Reader.m_Field = DSQueryFindField(queries[0], &field);
+    observer.m_Field = DSQueryFindField(queries[1], &field);
+    field.m_Access = DS_FIELD_MUTABLE;
+    writer.m_Field = DSQueryFindField(queries[2], &field);
+    DSSystemDesc systems[] = {
+        { .m_Name = dmHashString64("observe"), .m_DependsOn = { dmHashString64("read_ranges") }, .m_Query = queries[1], .m_Process = ReadScheduledHealth, .m_Context = &observer },
+        { .m_Name = dmHashString64("read_ranges"), .m_Query = queries[0], .m_Process = ReadScheduledRange, .m_Context = &ranges, .m_RowsPerJob = 5 },
+        { .m_Name = dmHashString64("regenerate"), .m_Query = queries[2], .m_Process = RegenerateScheduledHealth, .m_Context = &writer, .m_RowsPerJob = 5 }
+    };
+    for (uint32_t i = 0; i < 3; ++i)
+        ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(fixture.m_Store, &systems[i]));
+    JobSystemCreateParams params = { .m_ThreadNamePrefix = "ds-ranges", .m_ThreadCount = 2 };
+    HJobContext           jobs = JobSystemCreate(&params);
+    for (uint32_t frame = 0; frame < 20; ++frame)
+    {
+        ranges.m_Finished = 0;
+        ranges.m_Release = false;
+        ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(fixture.m_Store, jobs));
+        {
+            DM_MUTEX_SCOPED_LOCK(ranges.m_Mutex);
+            while (ranges.m_Finished != 2)
+                dmConditionVariable::Wait(ranges.m_Condition, ranges.m_Mutex);
+        }
+        EXPECT_EQ(DS_RESULT_BUSY, DSSchedulerUpdate(fixture.m_Store));
+        EXPECT_EQ((int32_t)(3 * frame + 2), dmAtomicGet32(&ranges.m_Reader.m_Calls));
+        EXPECT_EQ((int32_t)frame, dmAtomicGet32(&observer.m_Calls));
+        EXPECT_EQ((int32_t)(3 * frame), dmAtomicGet32(&writer.m_Calls));
+        EXPECT_EQ(DS_RESULT_BUSY, DSQueryTryBegin(queries[2]));
+        EXPECT_EQ(DS_RESULT_BUSY, DSEndSchedule(fixture.m_Store));
+        EXPECT_EQ(DS_RESULT_LOCKED, DSRemoveRow(fixture.m_Store, fixture.m_Ids[0]));
+        {
+            DM_MUTEX_SCOPED_LOCK(ranges.m_Mutex);
+            ranges.m_Release = true;
+            dmConditionVariable::Signal(ranges.m_Condition);
+        }
+        DSResult result;
+        do
+        {
+            result = DSSchedulerUpdate(fixture.m_Store);
+        } while (result == DS_RESULT_BUSY);
+        ASSERT_EQ(DS_RESULT_OK, result);
+        ASSERT_EQ(DS_RESULT_OK, DSEndSchedule(fixture.m_Store));
+        ASSERT_EQ((int32_t)(3 * (frame + 1)), dmAtomicGet32(&ranges.m_Reader.m_Calls));
+        ASSERT_EQ((int32_t)frame + 1, dmAtomicGet32(&observer.m_Calls));
+        ASSERT_EQ((int32_t)(3 * (frame + 1)), dmAtomicGet32(&writer.m_Calls));
+        for (uint32_t row = 0; row < 12; ++row)
+        {
+            ASSERT_EQ(50.0 + frame, ranges.m_Reader.m_Values[row]);
+            ASSERT_EQ(50.0 + frame, observer.m_Values[row]);
+        }
+    }
+    JobSystemDestroy(jobs);
+    dmConditionVariable::Delete(ranges.m_Condition);
+    dmMutex::Delete(ranges.m_Mutex);
+    for (uint32_t i = 0; i < 3; ++i)
+        ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(queries[i]));
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(fixture.m_Store));
 }
 
 // One event launches both readers on workers. Their reservations exclude the writer;

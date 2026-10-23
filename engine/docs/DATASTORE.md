@@ -674,6 +674,7 @@ DSSystemDesc desc = {
     .m_Query = boids_query,
     .m_Process = SteerBoids,
     .m_Context = boids_context,
+    .m_RowsPerJob = 4096,
 };
 DSResult result = DSRegisterFunction(store, &desc);
 ```
@@ -689,10 +690,29 @@ user context remain caller-owned.
 
 The callback signature is `void SteerBoids(HDSQuery query, uint32_t first,
 uint32_t num_rows, void* context)`. The scheduler reserves the query and submits
-**one job per ready function**, covering the whole query, including an empty query.
-The callback uses `DSQueryIterRange`. Returning finishes its work; it must not
-leave child jobs running or retain iterators/pointers. Job completion releases the
-reservation and automatically submits newly unblocked functions.
+one job for the whole query by default (`m_RowsPerJob = 0`). Set `m_RowsPerJob`
+to split the query into disjoint ranges with at most that many rows per job.
+For 8,500 matches and 4,096 rows per job, the scheduler calls the function with
+`(first, num_rows)` values `(0, 4096)`, `(4096, 4096)` and `(8192, 308)`.
+An empty query still invokes one job with `(0, 0)`.
+
+Each callback uses `DSQueryIterRange(query, first, num_rows)`, not `DSQueryIter`
+over the whole query. `first` is an index in the reserved results, not a row ID;
+a range can cross tables. Jobs may run and finish in any order. Returning finishes
+only that range; do not leave child jobs running or retain iterators/pointers.
+The scheduler keeps one query reservation until **every range finishes**, then
+releases it and submits newly unblocked functions. The job system reuses its job
+storage; the datastore allocates no per-range descriptors.
+
+Opt in only when ranges can run independently. All jobs receive the same user
+context, so use disjoint output slots or synchronize shared writes. Aliased
+external data and shared references still need synchronization. For Boids, use
+separate callbacks for snapshot collection, cell construction and steering:
+`snapshot → cells → steer`. Split the snapshot and steering callbacks; leave
+cell construction as one job. Each dependency waits for every range of its
+prerequisite, so steering sees a complete snapshot and spatial index.
+Keep the population and snapshot storage stable across these stages; apply
+population changes between schedules.
 
 | Operation | Responsibility |
 | --- | --- |

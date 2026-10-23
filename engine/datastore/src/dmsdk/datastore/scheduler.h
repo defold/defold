@@ -36,6 +36,7 @@ extern "C"
         HDSQuery        m_Query;
         DSSystemProcess m_Process;
         void*           m_Context;
+        uint32_t        m_RowsPerJob;
     } DSSystemDesc;
 
     typedef struct DSEventDesc
@@ -96,18 +97,21 @@ extern "C"
 
 /*# Process a query range
  *
- * The scheduler reserves the query and submits one job calling this function for all
- * matching rows, including an empty query. Create a DSQueryIterRange iterator for
- * the supplied range. Compatible registered functions may run concurrently.
- * Returning finishes this function's work; do not leave child jobs running or retain
- * iterators/pointers. The scheduler releases query access and schedules dependents.
+ * The scheduler reserves the query and calls this function once per job. With
+ * m_RowsPerJob set, jobs may run concurrently over disjoint ranges. Otherwise one
+ * job covers all matching rows. An empty query still invokes one job with zero rows.
+ * Use DSQueryIterRange for the supplied range, not DSQueryIter for the whole query.
+ * Returning finishes this range; do not leave child jobs running or retain
+ * iterators/pointers. Query access is released and dependents are scheduled only
+ * after every range finishes. Compatible registered functions may run concurrently.
  * Synchronize shared context writes and do not call scheduler operations from workers.
+ * Disjoint row ranges do not make aliased external or referenced data independent.
  *
  * @typedef
  * @name DSSystemProcess
  * @param query [type:HDSQuery] Registered query with active access.
- * @param first [type:uint32_t] First row in the query's reserved range; currently zero.
- * @param num_rows [type:uint32_t] Number of rows to process; currently the complete query.
+ * @param first [type:uint32_t] Zero-based index in the query's reserved matching rows, not a row ID.
+ * @param num_rows [type:uint32_t] Number of rows in this job's range, possibly spanning tables.
  * @param context [type:void*] Borrowed user context from registration; may be zero.
  */
 
@@ -129,6 +133,7 @@ extern "C"
  * @member m_Query [type:HDSQuery] Borrowed query.
  * @member m_Process [type:DSSystemProcess] Required processing callback.
  * @member m_Context [type:void*] Borrowed user context passed unchanged to the callback.
+ * @member m_RowsPerJob [type:uint32_t] Maximum rows per job. Zero (default) submits one job for the complete query. Nonzero opts into concurrent calls sharing m_Context; callbacks must process only their supplied range and synchronize shared state.
  */
 
 /*# Engine event registration
@@ -189,7 +194,7 @@ extern "C"
  *
  * Starts one invocation of all registered functions and events. Resolves dependencies
  * after registration changes and clears function completion and event signals from the previous invocation.
- * Reserves and submits one job for each ready function. Borrowed job context must
+ * Reserves each ready function's query and submits its jobs. Borrowed job context must
  * outlive this invocation. Zero-worker contexts execute work during DSSchedulerUpdate.
  * Pair success with DSEndSchedule; no threads are created or destroyed here.
  *
@@ -221,7 +226,7 @@ extern "C"
  * zero-worker context, also executes at most one queued job. This may service other
  * users of the same job context. Do not call recursively from a job or completion callback.
  *
- * Job completion releases query access and automatically submits newly ready functions.
+ * The last job of each function releases query access and submits newly ready functions.
  * Also retries functions blocked by external query reservations. Read/read and disjoint
  * writes may overlap; conflicting accesses wait. Use m_DependsOn when order matters.
  * The same query handle cannot have two active reservations. Unsignaled events do

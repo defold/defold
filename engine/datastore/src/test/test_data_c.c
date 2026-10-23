@@ -54,7 +54,8 @@ int TestDataSchedulerFromC(void)
         .m_DependsOn = { dmHashString64("engine.update.begin") },
         .m_Query = query,
         .m_Process = CountScheduledRowsFromC,
-        .m_Context = &count
+        .m_Context = &count,
+        .m_RowsPerJob = 64
     };
     DSEventDesc                  begin = { .m_Name = dmHashString64("engine.update.begin") };
     DSEventDesc                  end = { .m_Name = dmHashString64("engine.update.end"), .m_DependsOn = { dmHashString64("game.count") } };

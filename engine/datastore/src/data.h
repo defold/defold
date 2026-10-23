@@ -416,6 +416,7 @@ struct DSSystemRegistration
 {
     DSSystemDesc m_Desc;            // Copied declaration; event nodes have no query/process. Query/context are borrowed.
     uint32_t     m_DependencyStart; // First resolved index in DSStore::m_SystemDependencies.
+    uint32_t     m_PendingJobs;     // Range completions remaining; updated only by the main thread.
     uint8_t      m_DependencyCount; // Number of packed dependency hashes, at most DS_SYSTEM_MAX_DEPENDENCIES.
     uint8_t      m_State;           // Pending, running or complete in the current schedule.
 };

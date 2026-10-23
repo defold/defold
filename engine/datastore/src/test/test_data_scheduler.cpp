@@ -17,6 +17,7 @@
 #include <string.h>
 #include <jc_test/jc_test.h>
 #include <dmsdk/datastore/datastore.h>
+#include <dmsdk/dlib/math.h>
 #include "test_data_memory.h"
 
 struct ScheduledRow
@@ -38,7 +39,34 @@ struct ScheduledContext
     float    m_Total;
 };
 
+struct ScheduledRanges
+{
+    uint32_t m_Field;
+    uint32_t m_Calls;
+    uint32_t m_Counts[74];
+    uint32_t m_Visits[74];
+};
+
 extern "C" int TestDataSchedulerFromC(void);
+
+static void CountAndHealRanges(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+{
+    ScheduledRanges* state = (ScheduledRanges*)context;
+    ++state->m_Calls;
+    state->m_Counts[first] = num_rows;
+    uint32_t   index = first;
+    DSIterator it = DSQueryIterRange(query, first, num_rows);
+    while (DSIterNext(&it))
+    {
+        DSRowIterator rows = DSIterRows(&it);
+        while (DSRowIterNext(&rows))
+        {
+            ++state->m_Visits[index++];
+            *DSRowIterGetFloatMut(&rows, state->m_Field) += 1;
+        }
+    }
+    EXPECT_EQ(first + num_rows, index);
+}
 
 static void    HealRows(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
 {
@@ -108,12 +136,144 @@ static HJobContext CreateScheduledJobs()
     return JobSystemCreate(&params);
 }
 
-static void FinishSchedule(HDSContext store, uint32_t num_functions)
+static void FinishSchedule(HDSContext store, uint32_t num_jobs)
 {
     // Count deterministic job steps, not retries while waiting for workers.
-    for (uint32_t i = 0; i < num_functions; ++i)
-        ASSERT_EQ(i + 1 == num_functions ? DS_RESULT_OK : DS_RESULT_BUSY, DSSchedulerUpdate(store));
+    for (uint32_t i = 0; i < num_jobs; ++i)
+        ASSERT_EQ(i + 1 == num_jobs ? DS_RESULT_OK : DS_RESULT_BUSY, DSSchedulerUpdate(store));
     ASSERT_EQ(DS_RESULT_OK, DSEndSchedule(store));
+}
+
+// Opt-in ranges must cover every row exactly once, including partial jobs that
+// cross table/chunk boundaries. Zero keeps one job, and large limits cannot overflow.
+TEST(DataScheduler, SplitRangesCoverRowsAcrossTables)
+{
+    DSCreateParams  params = { .m_PageSize = 1024, .m_RowChunkSize = 256 };
+    HDSContext      store = DSCreateStore(&params);
+    DSFieldDesc     field = { .m_Field = dmHashString64("health"), .m_Type = DS_TYPE_FLOAT };
+    DSTableDesc     table = { .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(ScheduledEntity), .m_ResetPolicy = DS_RESET_NONE };
+    ScheduledEntity input[37] = {};
+    DSId            ids[74];
+    for (uint32_t t = 0; t < 2; ++t)
+    {
+        table.m_Type = t + 1;
+        ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+        ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, table.m_Type, 0, 37, input, ids + t * 37));
+    }
+    DSQueryDesc desc = { .m_Items = { DSField("health", DS_TYPE_FLOAT, DS_FIELD_MUTABLE) } };
+    HDSQuery    query = CreateScheduledQuery(store, desc);
+    uint32_t    field_index = DSQueryFindField(query, &desc.m_Items[0]);
+    HJobContext jobs = CreateScheduledJobs();
+    uint32_t    sizes[] = { 0, 1, 16, 17, 74, 75, UINT32_MAX };
+    for (uint32_t s = 0; s < sizeof(sizes) / sizeof(sizes[0]); ++s)
+    {
+        ScheduledRanges ranges = { .m_Field = field_index };
+        DSSystemDesc    function = { .m_Name = dmHashString64("heal"), .m_Query = query, .m_Process = CountAndHealRanges, .m_Context = &ranges, .m_RowsPerJob = sizes[s] };
+        ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &function));
+        ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(store, jobs));
+        uint32_t stride = sizes[s] ? sizes[s] : 74;
+        uint32_t num_jobs = 1 + 73 / stride;
+        FinishSchedule(store, num_jobs);
+        ASSERT_EQ(num_jobs, ranges.m_Calls);
+        for (uint32_t r = 0; r < 74; ++r)
+        {
+            uint32_t expected = r % stride == 0 ? dmMath::Min(stride, 74 - r) : 0;
+            ASSERT_EQ(expected, ranges.m_Counts[r]);
+            ASSERT_EQ(1u, ranges.m_Visits[r]);
+        }
+        float values[74];
+        ASSERT_EQ(DS_RESULT_OK, DSFieldGetFloatBatch(store, 74, ids, field.m_Field, values));
+        for (uint32_t r = 0; r < 74; ++r)
+            ASSERT_EQ((float)(s + 1), values[r]);
+        ASSERT_EQ(DS_RESULT_OK, DSUnregisterFunction(store, function.m_Name));
+    }
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    JobSystemDestroy(jobs);
+}
+
+// Repeated schedules recompute ranges after population changes. Empty queries
+// still call the callback once so dependents can run, with and without splitting.
+TEST(DataScheduler, SplitRangesRefreshAfterPopulationChanges)
+{
+    DSId            ids[3];
+    HDSContext      store = CreateScheduledStore(ids);
+    DSQueryDesc     desc = { .m_Items = { DSField("health", DS_TYPE_FLOAT, DS_FIELD_MUTABLE) } };
+    HDSQuery        query = CreateScheduledQuery(store, desc);
+    ScheduledRanges ranges = { .m_Field = DSQueryFindField(query, &desc.m_Items[0]) };
+    HJobContext     jobs = CreateScheduledJobs();
+    for (uint32_t rows_per_job = 0; rows_per_job <= 2; rows_per_job += 2)
+    {
+        DSSystemDesc function = { .m_Name = dmHashString64("heal"), .m_Query = query, .m_Process = CountAndHealRanges, .m_Context = &ranges, .m_RowsPerJob = rows_per_job };
+        ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &function));
+        for (uint32_t num_rows = 3;; --num_rows)
+        {
+            ranges = { .m_Field = ranges.m_Field };
+            ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(store, jobs));
+            uint32_t num_jobs = rows_per_job && num_rows ? 1 + (num_rows - 1) / rows_per_job : 1;
+            FinishSchedule(store, num_jobs);
+            ASSERT_EQ(num_jobs, ranges.m_Calls);
+            for (uint32_t r = 0; r < 3; ++r)
+                ASSERT_EQ(r < num_rows ? 1u : 0u, ranges.m_Visits[r]);
+            if (!num_rows)
+            {
+                ASSERT_EQ(0u, ranges.m_Counts[0]);
+                break;
+            }
+            ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[num_rows - 1]));
+        }
+        ScheduledEntity input[3] = {};
+        ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 3, input, ids));
+        ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(store, jobs));
+        FinishSchedule(store, rows_per_job ? 2 : 1);
+        ASSERT_EQ(DS_RESULT_OK, DSUnregisterFunction(store, function.m_Name));
+    }
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    JobSystemDestroy(jobs);
+}
+
+// A split function remains reserved and incomplete until its final job finishes.
+// Explicit read-only dependencies need the same completion barrier as conflicting writes.
+TEST(DataScheduler, SplitRangesHoldAccessAndDependencies)
+{
+    HJobContext jobs = CreateScheduledJobs();
+    for (uint32_t writable = 0; writable < 2; ++writable)
+    {
+        DSId             ids[3];
+        HDSContext       store = CreateScheduledStore(ids);
+        DSQueryDesc      desc = { .m_Items = { DSField("health", DS_TYPE_FLOAT, writable ? DS_FIELD_MUTABLE : 0) } };
+        HDSQuery         producer = CreateScheduledQuery(store, desc);
+        ScheduledContext produced = { .m_Field = DSQueryFindField(producer, &desc.m_Items[0]), .m_Amount = 1 };
+        desc.m_Items[0].m_Access = 0;
+        HDSQuery         consumer = CreateScheduledQuery(store, desc);
+        ScheduledContext consumed = { .m_Field = DSQueryFindField(consumer, &desc.m_Items[0]) };
+        DSSystemDesc     read = { .m_Name = dmHashString64("consume"), .m_DependsOn = { dmHashString64("produce") }, .m_Query = consumer, .m_Process = ReadHealthRows, .m_Context = &consumed };
+        DSSystemDesc     write = { .m_Name = dmHashString64("produce"), .m_Query = producer, .m_Process = writable ? HealRows : ReadHealthRows, .m_Context = &produced, .m_RowsPerJob = 1 };
+        DSEventDesc      done = { .m_Name = dmHashString64("done"), .m_DependsOn = { write.m_Name } };
+        ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &read));
+        ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &write));
+        ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &done));
+        ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(store, jobs));
+        for (uint32_t job = 0; job < 3; ++job)
+        {
+            ASSERT_EQ(DS_RESULT_BUSY, DSEndSchedule(store));
+            ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerEvent(store, done.m_Name));
+            ASSERT_EQ(DS_RESULT_BUSY, DSQueryTryBegin(producer));
+            ASSERT_EQ(DS_RESULT_LOCKED, DSRemoveRow(store, ids[0]));
+            ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerUpdate(store));
+            ASSERT_EQ(job + 1, produced.m_Calls);
+            ASSERT_EQ(0u, consumed.m_Calls);
+        }
+        ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(store, done.m_Name));
+        FinishSchedule(store, 1);
+        ASSERT_EQ(1u, consumed.m_Calls);
+        ASSERT_EQ(3.0f * (50 + writable), consumed.m_Total);
+        ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(producer));
+        ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(consumer));
+        ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    }
+    JobSystemDestroy(jobs);
 }
 
 // Registration copies hashes while preserving the callback's

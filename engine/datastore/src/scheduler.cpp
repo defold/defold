@@ -24,19 +24,26 @@ enum DSSystemState
 
 static void    ScheduleFunctions(HDSContext store);
 
-static int32_t ProcessFunction(HJobContext, HJob, void*, void* data)
+static int32_t ProcessFunction(HJobContext, HJob, void* context, void* data)
 {
-    DSSystemRegistration* system = (DSSystemRegistration*)data;
+    DSSystemRegistration* system = (DSSystemRegistration*)context;
     const DSSystemDesc&   desc = system->m_Desc;
-    desc.m_Process(desc.m_Query, 0, DSQueryGetRowCount(desc.m_Query), desc.m_Context);
+    // The job carries its first row as integer user data; no range allocation is needed.
+    uint32_t first = (uint32_t)(uintptr_t)data;
+    uint32_t num_rows = DSQueryGetRowCount(desc.m_Query) - first;
+    if (desc.m_RowsPerJob && num_rows > desc.m_RowsPerJob)
+        num_rows = desc.m_RowsPerJob;
+    desc.m_Process(desc.m_Query, first, num_rows, desc.m_Context);
     return 0;
 }
 
-static void CompleteFunction(HJobContext, HJob, JobSystemStatus status, void* context, void* data, int32_t)
+static void CompleteFunction(HJobContext, HJob, JobSystemStatus status, void* context, void*, int32_t)
 {
     assert(status == JOBSYSTEM_STATUS_FINISHED);
-    HDSContext            store = (HDSContext)context;
-    DSSystemRegistration* system = (DSSystemRegistration*)data;
+    DSSystemRegistration* system = (DSSystemRegistration*)context;
+    if (--system->m_PendingJobs)
+        return;
+    HDSContext store = system->m_Desc.m_Query->m_Store;
     DSQueryEnd(system->m_Desc.m_Query);
     system->m_State = DS_SYSTEM_COMPLETE;
     ScheduleFunctions(store);
@@ -201,11 +208,19 @@ static void ScheduleFunctions(HDSContext store)
         if (DSQueryTryBegin(system.m_Desc.m_Query) == DS_RESULT_BUSY)
             continue;
         system.m_State = DS_SYSTEM_RUNNING;
-        Job             job = { .m_Process = ProcessFunction, .m_Callback = CompleteFunction, .m_Context = store, .m_Data = &system };
-        HJob            handle = JobSystemCreateJob(store->m_ScheduleJobs, &job);
-        JobSystemResult result = JobSystemPushJob(store->m_ScheduleJobs, handle);
-        assert(result == JOBSYSTEM_RESULT_OK);
-        (void)result;
+        uint32_t num_rows = DSQueryGetRowCount(system.m_Desc.m_Query);
+        uint32_t rows_per_job = system.m_Desc.m_RowsPerJob ? system.m_Desc.m_RowsPerJob : num_rows;
+        uint32_t num_jobs = num_rows ? 1 + (num_rows - 1) / rows_per_job : 1;
+        system.m_PendingJobs = num_jobs;
+        for (uint32_t j = 0; j < num_jobs; ++j)
+        {
+            uint32_t        first = j * rows_per_job;
+            Job             job = { .m_Process = ProcessFunction, .m_Callback = CompleteFunction, .m_Context = &system, .m_Data = (void*)(uintptr_t)first };
+            HJob            handle = JobSystemCreateJob(store->m_ScheduleJobs, &job);
+            JobSystemResult result = JobSystemPushJob(store->m_ScheduleJobs, handle);
+            assert(result == JOBSYSTEM_RESULT_OK);
+            (void)result;
+        }
     }
 }
 
