@@ -16,6 +16,19 @@
 
 namespace dmRig
 {
+    HAnimationLayer NewAnimationLayer(const AnimationLayerParams& params)
+    {
+        return 0;
+    }
+
+    void ReleaseAnimationLayer(HAnimationLayer layer)
+    { }
+
+    Result PlayAnimation(HRigInstance instance, HAnimationLayer layer, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate)
+    {
+        return RESULT_ERROR;
+    }
+
     Result NewContext(const NewContextParams& params, HRigContext* out)
     {
         return dmRig::RESULT_OK;

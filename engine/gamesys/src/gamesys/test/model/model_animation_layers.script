@@ -1,0 +1,134 @@
+require "model.lua_test_helpers"
+
+-- Definitions can be created outside a component's script callbacks.
+local options = { order = 1, weight = 0.5, bones = { "b_Spine01_02" } }
+local shared = model.animation_layer("upper_body", options)
+local chained = model.animation_layer(hash("chained"), { order = 2, bones = { hash("b_Tail01_012") } })
+local replaced = model.animation_layer("replaced", { order = 3 })
+local weak_callbacks = setmetatable({}, { __mode = "v" })
+animation_layer_callbacks = weak_callbacks
+
+local function never_complete(key)
+    local token = {}
+    weak_callbacks[key] = token
+    return function()
+        assert(token)
+        error("cancelled/replaced playback must not complete: " .. key)
+    end
+end
+
+local function check_message(self, message_id, message, animation)
+    assert(self.marker == "layers")
+    assert(message_id == hash("model_animation_done"))
+    assert(message.animation_id == hash(animation))
+    assert(message.playback == go.PLAYBACK_ONCE_FORWARD)
+    assert(message.layer == nil and message.play_id == nil)
+    self.completions = self.completions + 1
+end
+
+local function complete(animation)
+    return function(self, message_id, message)
+        check_message(self, message_id, message, animation)
+    end
+end
+
+local function play(layer, url, animation, callback, rate)
+    model.play_anim(url, animation, go.PLAYBACK_ONCE_FORWARD,
+        { layer = layer, playback_rate = rate or 3 }, callback)
+end
+
+function init(self)
+    animation_layers_done = false
+    self.marker = "layers"
+    self.completions = 0
+    self.messages = 0
+    self.cancel_checked = false
+
+    assert_error(function() model.animation_layer("bad", {}) end)
+    for _, order in ipairs({ 0, -1, 0.5, math.huge, 2147483648 }) do
+        assert_error(function() model.animation_layer("bad", { order = order }) end)
+    end
+    for _, weight in ipairs({ -0.1, 1.1, math.huge, 0/0 }) do
+        assert_error(function() model.animation_layer("bad", { order = 1, weight = weight }) end)
+    end
+    assert_error(function() model.animation_layer("base", { order = 1 }) end)
+    assert_error(function() model.animation_layer("bad", { order = 1, bones = "spine" }) end)
+    assert_error(function() model.animation_layer("bad", { order = 1, bones = { false } }) end)
+    assert_error(function() model.animation_layer("bad", { order = 1, bones = { root = "spine" } }) end)
+    assert_error(function() model.animation_layer("bad", { order = 1, bones = { [2] = "spine" } }) end)
+    assert_error(function() model.destroy_animation_layer({}) end)
+    assert_error(function() play({}, "#fox", "Run") end)
+    assert_error(function() model.play_anim("#fox", "Run", go.PLAYBACK_LOOP_FORWARD, { layer = chained, offset = math.huge }) end)
+    assert_error(function() model.play_anim("#fox", "Run", 99, { layer = chained }) end)
+
+    -- Editing the options after creation must not change the shared definition.
+    options.order = 0
+    options.weight = 5
+    options.bones[1] = "missing"
+    play(nil, "#fox", "Run", complete("Run"))
+    play(nil, "#other", "Run", complete("Run"))
+    play(shared, "#fox", "Walk", complete("Walk"))
+    play(shared, "#other", "Survey", complete("Survey"), 5)
+    assert(go.get("#fox", "animation") == hash("Run"))
+
+    local missing = model.animation_layer("missing", { order = 5, bones = { "missing" } })
+    assert_error(function() play(missing, "#fox", "Run") end)
+    model.destroy_animation_layer(missing)
+    local duplicate_name = model.animation_layer("upper_body", { order = 5 })
+    local duplicate_order = model.animation_layer("another", { order = 1 })
+    assert_error(function() play(duplicate_name, "#fox", "Run") end)
+    assert_error(function() play(duplicate_order, "#fox", "Run") end)
+    model.destroy_animation_layer(duplicate_name)
+    model.destroy_animation_layer(duplicate_order)
+
+    -- Releasing the caller's handle must not cancel either model's animation.
+    model.destroy_animation_layer(shared)
+    assert_error(function() play(shared, "#fox", "Run") end)
+    assert_error(function() model.destroy_animation_layer(shared) end)
+
+    play(chained, "#fox", "Run", function(self, message_id, message)
+        check_message(self, message_id, message, "Run")
+        play(chained, "#fox", "Run", complete("Run"))
+    end)
+    -- Empty masks and zero weight still advance and emit completion messages.
+    play(model.animation_layer("empty", { order = 2, weight = 0, bones = {} }), "#other", "Run")
+    model.play_anim("#fox", "Run", go.PLAYBACK_LOOP_FORWARD, { layer = replaced }, never_complete("replaced"))
+    play(replaced, "#fox", "Run", complete("Run"))
+    -- A definition with no remaining Lua handle stays alive while in use.
+    play(model.animation_layer("temporary", { order = 4 }), "#other", "Run", complete("Run"))
+
+    model.play_anim("#cancelled", "Run", go.PLAYBACK_LOOP_FORWARD, {}, never_complete("base_cancelled"))
+    model.play_anim("#cancelled", "Walk", go.PLAYBACK_LOOP_FORWARD, { layer = replaced }, never_complete("layer_cancelled"))
+    model.cancel("#cancelled")
+    collectgarbage("collect")
+    assert(weak_callbacks.replaced == nil)
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("model_animation_done") then
+        assert(message.animation_id == hash("Run"))
+        assert(message.playback == go.PLAYBACK_ONCE_FORWARD)
+        assert(message.layer == nil and message.play_id == nil)
+        self.messages = self.messages + 1
+    end
+end
+
+function update(self, dt)
+    -- Completion signals drive the test; no real-time sleeps or timing assumptions.
+    collectgarbage("collect")
+    if weak_callbacks.base_cancelled == nil and weak_callbacks.layer_cancelled == nil then
+        self.cancel_checked = true
+    end
+    assert(self.completions <= 8 and self.messages <= 1)
+    if self.completions == 8 and self.messages == 1 and self.cancel_checked and not animation_layers_done then
+        -- Leave callbacks active so C++ can verify cleanup on destruction and resource reload.
+        model.play_anim("#cancelled", "Run", go.PLAYBACK_LOOP_FORWARD, {}, never_complete("teardown_base"))
+        model.play_anim("#cancelled", "Walk", go.PLAYBACK_LOOP_FORWARD, { layer = replaced }, never_complete("teardown_layer"))
+        animation_layers_done = true
+    end
+end
+
+function final(self)
+    model.destroy_animation_layer(chained)
+    model.destroy_animation_layer(replaced)
+end

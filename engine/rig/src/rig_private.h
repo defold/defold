@@ -65,9 +65,54 @@ namespace dmRig
         bool m_Positive;
     };
 
+    struct AnimationLayer
+    {
+        dmhash_t          m_Name;
+        dmArray<dmhash_t>  m_Bones;
+        uint32_t          m_RefCount;
+        int32_t           m_Order;
+        float             m_Weight;
+        bool              m_AllBones;
+    };
+
+    struct RigPlaybackState
+    {
+        RigPlayer m_Players[2];
+        float     m_BlendDuration;
+        float     m_BlendTimer;
+        uint64_t  m_Generation;
+        uint8_t   m_CurrentPlayer;
+        uint8_t   m_Blending;
+    };
+
+    struct RigLayer
+    {
+        HAnimationLayer      m_Definition;
+        RigPlaybackState     m_Playback;
+        dmArray<uint8_t>     m_Mask;
+        dmArray<BonePose>    m_Pose;
+    };
+
+    struct PendingRigEvent
+    {
+        RigEventType          m_Type;
+        HAnimationLayer       m_Layer;
+        uint64_t              m_Generation;
+        union
+        {
+            RigCompletedEventData m_Completed;
+            RigKeyframeEventData  m_Keyframe;
+        };
+    };
+
     struct RigInstance
     {
-        RigPlayer                     m_Players[2];
+        RigPlaybackState              m_BasePlayback;
+        dmArray<RigLayer*>             m_Layers;
+        // Allocated only for layered playback. Never reuse the composite as a base pose.
+        dmArray<BonePose>              m_BasePose;
+        dmArray<PendingRigEvent>       m_PendingEvents;
+        uint64_t                      m_PlayGeneration;
         uint32_t                      m_Index;
         /// Rig input data
         const dmArray<RigBone>*         m_BindPose;
@@ -100,20 +145,14 @@ namespace dmRig
         uint32_t                      m_NumModels;
 
         dmhash_t                      m_ModelId;
-        float                         m_BlendDuration;
-        float                         m_BlendTimer;
         // Max bone count used by skeleton (if it is used) and meshset
         uint16_t                      m_MaxBoneCount;
         uint16_t                      m_PoseMatrixCacheIndex;
-        /// Current player index
-        uint8_t                       m_CurrentPlayer : 1;
-        /// Whether we are currently X-fading or not
-        uint8_t                       m_Blending : 1;
         uint8_t                       m_Enabled : 1;
         uint8_t                       m_DoRender : 1;
         uint8_t                       m_HasPoseMatrixCacheAnimatedPose : 1;
         uint8_t                       m_RequiresUpdate : 1;
-        uint8_t : 2;
+        uint8_t : 4;
     };
 
     /** Pose matrix cache

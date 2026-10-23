@@ -41,6 +41,7 @@ namespace dmRig
 
     typedef struct RigContext*  HRigContext;
     typedef struct RigInstance* HRigInstance;
+    typedef struct AnimationLayer* HAnimationLayer;
 
     enum Result
     {
@@ -48,7 +49,9 @@ namespace dmRig
         RESULT_ERROR          = 1,
         RESULT_ERROR_BUFFER_FULL = 2,
         RESULT_ANIM_NOT_FOUND = 3,
-        RESULT_UPDATED_POSE   = 4
+        RESULT_UPDATED_POSE   = 4,
+        RESULT_BONE_NOT_FOUND = 5,
+        RESULT_LAYER_CONFLICT = 6
     };
 
     enum RigPlayback
@@ -92,6 +95,7 @@ namespace dmRig
     {
         uint64_t  m_AnimationId;
         uint32_t  m_Playback;
+        HAnimationLayer m_Layer; // Null for base playback.
     };
 
     struct RigKeyframeEventData
@@ -103,6 +107,7 @@ namespace dmRig
         int32_t   m_Integer;
         float     m_Float;
         uint64_t  m_String;
+        HAnimationLayer m_Layer; // Null for base playback.
     };
 
     struct RigModelVertex

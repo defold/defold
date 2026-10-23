@@ -2121,6 +2121,31 @@ TEST_F(ModelTest, PlayAnim)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verifies reusable Lua layer handles, validation, concurrent callbacks/messages, GC, replacement and cancellation.
+TEST_F(ModelTest, AnimationLayers)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_animation_layers.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+    ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "animation_layers_done", 5));
+    ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState, "assert(animation_layer_callbacks.teardown_base and animation_layer_callbacks.teardown_layer)"));
+    dmGameObject::Delete(m_Collection, go, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState, "collectgarbage('collect'); assert(next(animation_layer_callbacks) == nil)"));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies resource reload releases active layer and base callbacks before recreating the rig.
+TEST_F(ModelTest, AnimationLayersReload)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_animation_layers.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+    ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "animation_layers_done", 5));
+    ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState, "assert(animation_layer_callbacks.teardown_base and animation_layer_callbacks.teardown_layer)"));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/model/fox.modelc", 0));
+    ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState, "collectgarbage('collect'); assert(next(animation_layer_callbacks) == nil)"));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ModelTest, PlayAnimMessage)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_anim_message.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));

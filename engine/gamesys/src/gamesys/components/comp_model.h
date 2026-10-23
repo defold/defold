@@ -57,6 +57,10 @@ namespace dmGameSystem
     struct ModelWorld;
     struct ModelResource;
 
+    typedef void (*FModelAnimationCallbackDestroy)(void* user_ctx);
+    // Script-owned callback contexts are released on completion, replacement, cancellation and destruction.
+    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, FModelAnimationCallback callback, void* callback_ctx, dmRig::HAnimationLayer layer, FModelAnimationCallbackDestroy destroy_callback);
+
     ModelResource*          CompModelGetModelResource(ModelComponent* component);
     dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index);
     bool                    CompModelSetMeshEnabled(ModelWorld* world, ModelComponent* component, dmhash_t mesh_id, bool enabled);
