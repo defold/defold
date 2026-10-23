@@ -39,7 +39,7 @@
 *         Function that is called just before main is called upon successful load.
 *
 *     'start_error':
-*         Function that is called if startup fails or the engine aborts/exits with an error.
+*         Function that is called if startup fails or the engine aborts.
 *
 *     'update_progress':
 *         Function that is called as progress is updated. Parameter progress is updated 0-100.
@@ -1204,7 +1204,7 @@ var Module = {
     setStatus: function(text) { console.log(text); },
 
     reportEngineError: function(error) {
-        // A custom callback must not interrupt Emscripten's abort/exit handling.
+        // A custom callback must not interrupt Emscripten's abort handling.
         try {
             const session = GameStartup._session;
             if (session) {
@@ -1222,12 +1222,6 @@ var Module = {
 
     onAbort: function(reason) {
         Module.reportEngineError(new Error("Engine aborted: " + reason));
-    },
-
-    onExit: function(status) {
-        if (status !== 0) {
-            Module.reportEngineError(new Error("Engine exited with code " + status));
-        }
     },
 
     isDMFSSupported: (function() {
@@ -1552,7 +1546,7 @@ var Module = {
             if (session) session.scope.check();
             const status = Module.callMain(Module.arguments);
             // Emscripten catches ExitStatus internally and returns its code even
-            // when onExit is skipped because the runtime is kept alive.
+            // when the runtime is kept alive.
             if (typeof status === "number" && status !== 0) {
                 throw new Error("Engine exited with code " + status);
             }
