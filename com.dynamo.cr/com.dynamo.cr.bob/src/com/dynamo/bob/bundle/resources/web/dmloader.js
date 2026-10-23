@@ -287,6 +287,13 @@ var FileLoader = {
         }
         return attempt > 0 ? FileLoader.addCacheBuster(url, attempt) : url;
     },
+    notifyProgress: function(callback, delta, xhr, event, previous) {
+        try {
+            if (callback) callback(delta, xhr, event, previous);
+        } catch (error) {
+            console.error(error);
+        }
+    },
     // One XHR attempt. Only network failures are retryable at this layer.
     requestOnce: function(url, options, scope) {
         scope.check();
@@ -301,13 +308,9 @@ var FileLoader = {
             xhr.responseType = options.responseType;
             xhr.onprogress = function(event) {
                 if (!active) return;
-                try {
-                    if (options.progress) options.progress(event.loaded - loaded, xhr, event, loaded);
-                    loaded = event.loaded;
-                } catch (error) {
-                    abort();
-                    reject(error);
-                }
+                const previous = loaded;
+                loaded = event.loaded;
+                FileLoader.notifyProgress(options.progress, loaded - previous, xhr, event, previous);
             };
             xhr.onerror = function(event) {
                 if (!active) return;
@@ -369,7 +372,7 @@ var FileLoader = {
                         { download: true, xhr: error.xhr, event: error.event });
                 }
                 if (options.retry) options.retry(loaded, attempt, error);
-                else if (options.progress) options.progress(-loaded);
+                else FileLoader.notifyProgress(options.progress, -loaded);
                 await scope.delay(FileLoader.options.retryInterval);
             }
         }
@@ -1090,7 +1093,11 @@ var ProgressUpdater = {
 
     notifyListeners: function(percentage) {
         for (var i=0; i<this.listeners.length; ++i) {
-            this.listeners[i](percentage);
+            try {
+                this.listeners[i](percentage);
+            } catch (error) {
+                console.error(error);
+            }
         }
     },
 
@@ -1101,7 +1108,11 @@ var ProgressUpdater = {
     setCurrent: function (current) {
         this.current = current;
         var percentage = this.calculateProgress();
-        ProgressView.updateProgress(percentage);
+        try {
+            ProgressView.updateProgress(percentage);
+        } catch (error) {
+            console.error(error);
+        }
         this.notifyListeners(percentage);
     },
 

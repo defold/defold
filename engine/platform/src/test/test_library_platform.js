@@ -1552,6 +1552,35 @@ async function testLoaderStreamingProgressWithoutLength() {
     }
 }
 
+// Throwing progress listeners must not break WASM streaming, its fallback rollback, or later listeners.
+async function testLoaderStreamingProgressErrors() {
+    const wasm = Uint8Array.of(0, 97, 115, 109, 1, 0, 0, 0);
+    for (const fallback of [false, true]) {
+        const { context, requests, waitFor, calls } = setupArchiveDownloads();
+        Object.assign(context, { WebAssembly, Response, ReadableStream, TransformStream, AbortController });
+        const progressError = new Error("progress listener failed");
+        const percentages = [];
+        context.ProgressUpdater.setupTotal(wasm.length);
+        context.ProgressUpdater.addListener(() => { throw progressError; });
+        context.ProgressUpdater.addListener(value => percentages.push(value));
+        context.fetch = async () => new Response(fallback ? Uint8Array.from([...wasm, 0, 1, 0]) : wasm,
+            { headers: { "Content-Type": "application/wasm" } });
+        const completion = context.EngineLoader.streamAndInstantiateWasmAsync({ url: "game.wasm", size: wasm.length }, {});
+        if (fallback) {
+            await waitFor(() => requests.length === 1);
+            assert.strictEqual(context.ProgressUpdater.current, 0, "discarded stream bytes must be rolled back");
+            requests[0].complete(wasm.buffer);
+        }
+        const output = await completion;
+        assert(output.instance instanceof WebAssembly.Instance);
+        assert.strictEqual(requests.length, fallback ? 1 : 0);
+        assert.strictEqual(context.ProgressUpdater.current, wasm.length);
+        assert.strictEqual(percentages[percentages.length - 1], 100);
+        assert(calls.consoleErrors.length > 0);
+        assert(calls.consoleErrors.every(error => error === progressError));
+    }
+}
+
 // Cancelling a streaming request aborts fetch and must not initiate the XHR fallback.
 async function testLoaderStreamingCancellation() {
     const { context, requests } = setupArchiveDownloads();
@@ -1654,17 +1683,42 @@ async function testLoaderFetchCancellation() {
     }
 }
 
-// Synchronous request setup, validation, and progress failures must settle the promise transport.
+// Progress callback failures must preserve byte deltas, retry rollback, and successful request completion.
+async function testLoaderFetchProgressErrors() {
+    const { context, requests, runRetry, calls } = setupArchiveDownloads();
+    const deltas = [];
+    const progressError = new Error("progress widget failed");
+    const completion = context.FileLoader.fetch("/data", {
+        responseType: "arraybuffer",
+        progress(delta) { deltas.push(delta); throw progressError; }
+    }, context.createLoaderScope());
+    requests[0].progress(2);
+    requests[0].progress(5);
+    assert.strictEqual(requests[0].pending, true);
+    assert(!requests[0].aborted);
+    requests[0].fail();
+    await runRetry();
+    requests[1].progress(1);
+    const bytes = Uint8Array.of(1, 2, 3).buffer;
+    requests[1].complete(bytes);
+    const result = await completion;
+    assert.strictEqual(result.response, bytes);
+    assert.deepStrictEqual(deltas, [2, 3, -5, 1, 2]);
+    assert.strictEqual(calls.consoleErrors.length, deltas.length);
+    assert(calls.consoleErrors.every(error => error === progressError));
+    assert(requests.every(xhr => !xhr.aborted));
+}
+
+// Synchronous request setup and validation failures must settle the promise transport.
 async function testLoaderFetchExceptions() {
-    for (const phase of ["open", "validation", "progress"]) {
+    for (const phase of ["open", "validation"]) {
         const { context, requests } = setupArchiveDownloads();
         const scope = context.createLoaderScope();
         context.FileLoader.options.retryCount = 0;
         if (phase === "open") context.XMLHttpRequest.prototype.open = () => { throw new Error("open failed"); };
         const completion = context.FileLoader.fetch("/data", {
             responseType: "arraybuffer",
-            verify() { if (phase === "validation") throw new Error("validation failed"); },
-            progress() { if (phase === "progress") throw new Error("progress failed"); }
+            verify() { if (phase === "validation") throw new Error("validation failed"); }
         }, scope);
         if (phase !== "open") assert.doesNotThrow(() => requests[0].complete(new ArrayBuffer(0)));
         await assert.rejects(completion, new RegExp(phase + " failed"));
@@ -1765,6 +1819,31 @@ function setupEngineStartup() {
         scripts[0].onload({});
     }
     return { ...state, scripts, files, request, runScript, runtime, restore: () => restore(null) };
+}
+
+// Progress view and custom callback failures must not stop startup or suppress the final update to other listeners.
+async function testLoaderStartupProgressErrors() {
+    const { context, scripts, request, runScript, restore, waitFor, calls } = setupEngineStartup();
+    const viewError = new Error("progress view failed");
+    const callbackError = new Error("custom progress callback failed");
+    const percentages = [];
+    context.ProgressView.updateProgress = () => { throw viewError; };
+    context.CUSTOM_PARAMETERS.update_progress = () => { throw callbackError; };
+    const completion = context.EngineLoader.load("canvas", "game");
+    context.ProgressUpdater.addListener(value => percentages.push(value));
+    request("split/archive_files.json").complete('{"total_size":0,"content":[]}');
+    request("game_wasm.js").complete(Uint8Array.of(120).buffer);
+    await waitFor(() => scripts.length === 1);
+    runScript();
+    restore();
+    request("game.wasm").complete(Uint8Array.of(0, 97, 115, 109, 1, 0, 0, 0).buffer);
+    await completion;
+    assert.strictEqual(context.GameStartup._session.state, "started");
+    assert.strictEqual(calls.main, 1);
+    assert.strictEqual(percentages[percentages.length - 1], 100);
+    assert(calls.consoleErrors.includes(viewError));
+    assert(calls.consoleErrors.includes(callbackError));
+    assert.deepStrictEqual(calls.errors, []);
 }
 
 // Unrelated or unattributed page errors must not cancel downloads or prevent a ready engine from starting.
@@ -2551,8 +2630,10 @@ async function runTests() {
                        testLoaderArchiveDescriptionHash,
                        testLoaderEngineHashFailure, testLoaderScriptBytes, testLoaderEngineSizeRetry,
                        testLoaderStreamingWasm, testLoaderStreamingCancellation, testLoaderStreamingProgressWithoutLength,
+                       testLoaderStreamingProgressErrors,
                        testLoaderArchiveWriteFailure, testLoaderArchiveReplacementDropsFiles,
                        testLoaderArchiveCompletionPromise, testLoaderFetchCancellation, testLoaderFetchExceptions,
+                       testLoaderFetchProgressErrors, testLoaderStartupProgressErrors,
                        testLoaderArchiveDiscardedStorage, testLoaderStartupReadiness, testLoaderStartupFailure,
                        testLoaderUnrelatedPageError, testLoaderEngineScriptError,
                        testLoaderStartupOverlapsManifest, testLoaderStartupEarlyEngineFailure,
