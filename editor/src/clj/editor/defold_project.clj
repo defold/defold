@@ -148,11 +148,11 @@
         not-empty))
     (catch Exception exception
       (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
-      (let [node-type (:node-type resource-type)
+      (let [node-type (resource-type->node-type resource-type)
             error (resource-load-error node-id resource exception)]
         (g/mark-defective node-id node-type error)))
     (catch Throwable throwable
-      (let [node-type (:node-type resource-type)
+      (let [node-type (resource-type->node-type resource-type)
             proj-path (resource/proj-path resource)]
         (throw (ex-info (format "Error when loading resource '%s'" proj-path)
                         {:node-type node-type
@@ -250,7 +250,7 @@
             (catch Throwable throwable
               (let [proj-path (resource/proj-path resource)]
                 (throw (ex-info (format "Error when reading resource '%s'" proj-path)
-                                {:node-type (:node-type resource-type)
+                                {:node-type (resource-type->node-type resource-type)
                                  :proj-path proj-path}
                                 throwable)))))
 
@@ -518,7 +518,7 @@
               (g/error-value? stored-source-value)
               ;; Apply conversion errors after creating the resource nodes.
               (update :error-tx-data into
-                      (let [{:keys [node-type]} resource-type]
+                      (let [node-type (resource-type->node-type resource-type)]
                         (g/mark-defective node-id node-type stored-source-value))))))))))
 
 (defn log-cache-info! [cache message]
