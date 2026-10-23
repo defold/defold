@@ -588,17 +588,17 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     }
 
     public interface ISceneBuilderIO {
-        public SceneDesc.Builder readScene(String resourcePath, HashMap<String, SceneDesc.Builder> sceneResourceCache) throws IOException, CompileExceptionError;
+        public SceneDesc.Builder readScene(String resourcePath) throws IOException, CompileExceptionError;
     }
 
     private record SceneResolution(SceneDesc.Builder scene, Map<String, IResource> resources) {
     }
 
-    public static SceneDesc.Builder transformScene(GuiBuilder builder, String input, SceneDesc.Builder sceneBuilder, ISceneBuilderIO sceneIO, HashMap<String, SceneDesc.Builder> sceneResourceCache, boolean flattenTemplates) throws IOException, CompileExceptionError {
-        return resolveScene(builder, input, sceneBuilder, sceneIO, sceneResourceCache, flattenTemplates).scene();
+    public static SceneDesc.Builder transformScene(GuiBuilder builder, String input, SceneDesc.Builder sceneBuilder, ISceneBuilderIO sceneIO, boolean flattenTemplates) throws IOException, CompileExceptionError {
+        return resolveScene(builder, input, sceneBuilder, sceneIO, flattenTemplates).scene();
     }
 
-    private static SceneResolution resolveScene(GuiBuilder builder, String input, SceneDesc.Builder sceneBuilder, ISceneBuilderIO sceneIO, HashMap<String, SceneDesc.Builder> sceneResourceCache, boolean flattenTemplates) throws IOException, CompileExceptionError {
+    private static SceneResolution resolveScene(GuiBuilder builder, String input, SceneDesc.Builder sceneBuilder, ISceneBuilderIO sceneIO, boolean flattenTemplates) throws IOException, CompileExceptionError {
         // register resources
         Set<String> fontNames = new HashSet<String>();
         List<FontDesc> newFontList = new ArrayList<FontDesc>();
@@ -735,8 +735,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
             // read in template scene (text version) and transform recursively
             if(node.getType() == Type.TYPE_TEMPLATE) {
-                SceneDesc.Builder templateBuilder = sceneIO.readScene(node.getTemplate(), sceneResourceCache);
-                SceneResolution template = resolveScene(builder, node.getTemplate(), templateBuilder, sceneIO, sceneResourceCache, false);
+                SceneDesc.Builder templateBuilder = sceneIO.readScene(node.getTemplate());
+                SceneResolution template = resolveScene(builder, node.getTemplate(), templateBuilder, sceneIO, false);
                 templateBuilder = template.scene();
 
                 // merge template scene nodes with overrides of current scene
@@ -969,7 +969,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     }
 
     private class SceneBuilderIO implements ISceneBuilderIO {
-        public SceneDesc.Builder readScene(String resourcePath, HashMap<String, SceneDesc.Builder> resourceCache) throws IOException, CompileExceptionError {
+        public SceneDesc.Builder readScene(String resourcePath) throws IOException, CompileExceptionError {
             SceneDesc.Builder scene = getSrcBuilder(project.getResource(resourcePath));
             MergeOriginalValuesIntoLayouts(scene);
             return scene;
@@ -1007,7 +1007,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     "Circular GUI template dependency: " + String.join(" -> ", visitingTemplates) + " -> " + path);
         }
         try {
-            SceneDesc.Builder source = new SceneBuilderIO().readScene(node.getTemplate(), sourceSceneCache);
+            SceneDesc.Builder source = new SceneBuilderIO().readScene(node.getTemplate());
             createSubTasks(source, taskBuilder);
             declaredTemplates.add(path);
         } catch (IOException e) {
@@ -1051,7 +1051,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         // Resolve once, before dependency declarations, and retain these exact
         // values for build. Never transform already compiled resource paths again.
         MergeOriginalValuesIntoLayouts(sourceScene);
-        SceneResolution resolution = resolveScene(this, input.getPath(), sourceScene, new SceneBuilderIO(), sourceSceneCache, true);
+        SceneResolution resolution = resolveScene(this, input.getPath(), sourceScene, new SceneBuilderIO(), true);
         resolvedScene = resolution.scene().build();
         customNodeContext = new GuiBuildContext(project, input, resolution.resources());
 
@@ -1097,7 +1097,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
 
         MergeOriginalValuesIntoLayouts(messageBuilder);
-        return transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(), sourceSceneCache, true);
+        return transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(), true);
     }
 
     @Override
