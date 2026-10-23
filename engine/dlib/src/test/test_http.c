@@ -566,6 +566,7 @@ TEST_F(Http, CancelRequest)
     ASSERT_EQ(HTTP_RESULT_INVAL, response->m_Result);
 }
 
+// Verifies callback cancellation stops further data events and reports failure.
 TEST_F(Http, CancelFromCallback)
 {
     HttpRequest*      request = jc_test_fixture->m_Request;
@@ -588,7 +589,30 @@ TEST_F(Http, CancelFromCallback)
 
     ASSERT_GT(response->m_DataEventCount, 0);
     ASSERT_EQ(HTTP_RESULT_INVAL, response->m_Result);
+    ASSERT_EQ(0, response->m_StatusCode);
+    ASSERT_EQ(1, response->m_DataEventCount);
     ASSERT_EQ(response->m_DataEventCount, response->m_CompleteDataEventCount);
+}
+
+// Verifies cancellation on the final data event cannot report a successful HTTP status.
+TEST_F(Http, CancelFromFinalDataCallback)
+{
+    HttpRequest*      request = jc_test_fixture->m_Request;
+    HttpRequestHandle request_handle;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
+    char              url[256];
+    response->m_CancelOnDataEvent = 1;
+
+    snprintf(url, sizeof(url), "http://%s:%d/arb/1", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort);
+
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_EQ(0, WaitForComplete(response, 10));
+
+    ASSERT_EQ(1, response->m_TotalDataSize);
+    ASSERT_EQ(HTTP_RESULT_INVAL, response->m_Result);
+    ASSERT_EQ(0, response->m_StatusCode);
 }
 
 int main(int argc, char** argv)

@@ -25,27 +25,37 @@
 
 namespace dmHttpService
 {
+    // Returns zero if the requested size exceeds the array's capacity limit.
     inline uint32_t GetResponseBufferCapacity(uint32_t capacity, uint64_t required_capacity)
     {
-        assert(required_capacity <= UINT32_MAX);
+        if (required_capacity > UINT32_MAX)
+        {
+            return 0;
+        }
         // Double capacity to keep cumulative allocation and copying linear in the response size.
         uint64_t grown_capacity = dmMath::Max((uint64_t)capacity * 2, (uint64_t)1024);
         return (uint32_t)dmMath::Min(dmMath::Max(required_capacity, grown_capacity), (uint64_t)UINT32_MAX);
     }
 
-    inline void AppendResponseBuffer(dmArray<char>& buffer, const void* data, uint32_t data_size)
+    inline bool AppendResponseBuffer(dmArray<char>& buffer, const void* data, uint32_t data_size)
     {
         if (!data || data_size == 0)
         {
-            return;
+            return true;
         }
 
         uint32_t left = buffer.Capacity() - buffer.Size();
         if (left < data_size)
         {
-            buffer.SetCapacity(GetResponseBufferCapacity(buffer.Capacity(), (uint64_t)buffer.Size() + data_size));
+            uint32_t capacity = GetResponseBufferCapacity(buffer.Capacity(), (uint64_t)buffer.Size() + data_size);
+            if (capacity == 0)
+            {
+                return false;
+            }
+            buffer.SetCapacity(capacity);
         }
         buffer.PushArray((const char*)data, data_size);
+        return true;
     }
 }
 

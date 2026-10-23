@@ -199,14 +199,22 @@ namespace dmGameSystem
         {
             case HTTP_RESPONSE_EVENT_HEADER:
             {
-                dmHttpService::AppendResponseBuffer(request->m_ResponseHeaders, HttpResponseGetHeader(response), HttpResponseGetHeaderSize(response));
                 char newline = '\n';
-                dmHttpService::AppendResponseBuffer(request->m_ResponseHeaders, &newline, 1);
+                if (!dmHttpService::AppendResponseBuffer(request->m_ResponseHeaders, HttpResponseGetHeader(response), HttpResponseGetHeaderSize(response)) ||
+                    !dmHttpService::AppendResponseBuffer(request->m_ResponseHeaders, &newline, 1))
+                {
+                    dmLogError("HTTP response headers exceed the maximum buffer size. Canceling request.");
+                    return HTTP_CALLBACK_RESULT_CANCEL;
+                }
             }
             break;
 
             case HTTP_RESPONSE_EVENT_DATA:
-                dmHttpService::AppendResponseBuffer(request->m_Response, HttpResponseGetData(response), HttpResponseGetDataSize(response));
+                if (!dmHttpService::AppendResponseBuffer(request->m_Response, HttpResponseGetData(response), HttpResponseGetDataSize(response)))
+                {
+                    dmLogError("HTTP response body exceeds the maximum buffer size. Canceling request.");
+                    return HTTP_CALLBACK_RESULT_CANCEL;
+                }
                 break;
 
             case HTTP_RESPONSE_EVENT_PROGRESS:

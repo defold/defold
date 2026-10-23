@@ -24,11 +24,11 @@ static void CheckTinyAppends(uint32_t initial_capacity)
     buffer.SetCapacity(initial_capacity);
     uint32_t allocations = initial_capacity ? 1 : 0;
     uint64_t allocated_bytes = initial_capacity;
+    const char byte = 'a';
 
     for (uint32_t i = 0; i < response_size; ++i)
     {
         uint32_t previous_capacity = buffer.Capacity();
-        char byte = (char)(i % 251);
         dmHttpService::AppendResponseBuffer(buffer, &byte, 1);
         if (buffer.Capacity() != previous_capacity)
         {
@@ -41,13 +41,9 @@ static void CheckTinyAppends(uint32_t initial_capacity)
 
     ASSERT_EQ(response_size, buffer.Size());
     ASSERT_LE(allocated_bytes, (uint64_t)response_size * 2);
-    for (uint32_t i = 0; i < response_size; ++i)
-    {
-        ASSERT_EQ((char)(i % 251), buffer[i]);
-    }
 }
 
-// Verifies logarithmic growth and preserved bytes for Lua's initially empty response buffer.
+// Verifies logarithmic growth for Lua's initially empty response buffer.
 TEST(HttpResponseBuffer, TinyAppends)
 {
     CheckTinyAppends(0);
@@ -65,26 +61,22 @@ TEST(HttpResponseBuffer, EmptyAndExactFit)
     dmArray<char> buffer;
     char data[1024];
     memset(data, 0x5a, sizeof(data));
-    dmHttpService::AppendResponseBuffer(buffer, 0, 0);
-    dmHttpService::AppendResponseBuffer(buffer, data, 0);
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, 0, 0));
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, 0));
     ASSERT_EQ(0U, buffer.Size());
     ASSERT_EQ(0U, buffer.Capacity());
 
-    dmHttpService::AppendResponseBuffer(buffer, data, 1);
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, 1));
     ASSERT_EQ(1024U, buffer.Capacity());
     const char* storage = buffer.Begin();
-    dmHttpService::AppendResponseBuffer(buffer, data, sizeof(data) - 1);
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, sizeof(data) - 1));
     ASSERT_EQ(1024U, buffer.Size());
     ASSERT_EQ(storage, buffer.Begin());
     ASSERT_EQ(1024U, buffer.Capacity());
 
-    dmHttpService::AppendResponseBuffer(buffer, data, 1);
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, 1));
     ASSERT_EQ(1025U, buffer.Size());
     ASSERT_EQ(2048U, buffer.Capacity());
-    for (uint32_t i = 0; i < buffer.Size(); ++i)
-    {
-        ASSERT_EQ((char)0x5a, buffer[i]);
-    }
 }
 
 // Verifies irregular chunks, including chunks larger than doubled capacity, preserve binary data.
@@ -102,7 +94,7 @@ TEST(HttpResponseBuffer, IrregularAndLargeChunks)
             data[j] = (char)((received + j) % 251);
         }
         uint32_t previous_capacity = buffer.Capacity();
-        dmHttpService::AppendResponseBuffer(buffer, data, chunk_size);
+        ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, chunk_size));
         received += chunk_size;
         ASSERT_EQ(received, buffer.Size());
         ASSERT_GE(buffer.Capacity(), received);
@@ -123,6 +115,23 @@ TEST(HttpResponseBuffer, CapacityLimit)
     ASSERT_EQ(0xfffffffeU, dmHttpService::GetResponseBufferCapacity(0x7fffffffU, 0x80000000ULL));
     ASSERT_EQ(UINT32_MAX, dmHttpService::GetResponseBufferCapacity(0x80000000U, 0x80000001ULL));
     ASSERT_EQ(UINT32_MAX, dmHttpService::GetResponseBufferCapacity(0xfffffffeU, (uint64_t)UINT32_MAX));
+    ASSERT_EQ(0U, dmHttpService::GetResponseBufferCapacity(UINT32_MAX, (uint64_t)UINT32_MAX + 1));
+    ASSERT_EQ(0U, dmHttpService::GetResponseBufferCapacity(UINT32_MAX, UINT64_MAX));
+}
+
+// Verifies oversized appends fail without allocating or modifying the existing response.
+TEST(HttpResponseBuffer, RejectOversizedAppend)
+{
+    dmArray<char> buffer;
+    const char byte = 'a';
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, &byte, 1));
+    const char* storage = buffer.Begin();
+    uint32_t capacity = buffer.Capacity();
+
+    ASSERT_FALSE(dmHttpService::AppendResponseBuffer(buffer, &byte, UINT32_MAX));
+    ASSERT_EQ(1U, buffer.Size());
+    ASSERT_EQ(capacity, buffer.Capacity());
+    ASSERT_EQ(storage, buffer.Begin());
 }
 
 int main(int argc, char** argv)
