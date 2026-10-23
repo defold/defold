@@ -17,6 +17,7 @@
 
 #include "modelimporter.h"
 #include "modelimporter_compression.h"
+#include "modelimporter_tangents.h"
 
 // NOTE: https://github.com/jkuhlmann/cgltf/issues/259
 // We need our own locale-independent implementation to avoid a bug where gltf/glb imports break
@@ -267,7 +268,7 @@ static T* AllocStruct(T** ppout)
 // ******************************************************************************************
 
 
-static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_components, float default_value, uint32_t* out_count)
+static float* ReadAccessorFloat(const cgltf_accessor* accessor, uint32_t desired_num_components, float default_value, uint32_t* out_count)
 {
     uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
 
@@ -755,6 +756,7 @@ static void LoadTextureView(cgltf_texture_view* in, TextureView* out, dmHashTabl
     out->m_Scale = in->scale;
 
     out->m_HasTransform = in->has_transform != 0;
+    out->m_TransformBaked = false;
     if (in->has_transform)
         LoadTransform(&in->transform, &out->m_Transform);
     else
@@ -1067,6 +1069,76 @@ static void TransformTexCoords(float* coords, uint32_t vertex_count, uint32_t co
     }
 }
 
+static void MarkMaterialTextureTransformsBaked(Material* material, uint32_t texcoord)
+{
+    TextureView* views[] = {
+        &material->m_NormalTexture,
+        &material->m_OcclusionTexture,
+        &material->m_EmissiveTexture,
+        material->m_PbrMetallicRoughness ? &material->m_PbrMetallicRoughness->m_BaseColorTexture : 0,
+        material->m_PbrMetallicRoughness ? &material->m_PbrMetallicRoughness->m_MetallicRoughnessTexture : 0,
+        material->m_PbrSpecularGlossiness ? &material->m_PbrSpecularGlossiness->m_DiffuseTexture : 0,
+        material->m_PbrSpecularGlossiness ? &material->m_PbrSpecularGlossiness->m_SpecularGlossinessTexture : 0,
+        material->m_Clearcoat ? &material->m_Clearcoat->m_ClearcoatTexture : 0,
+        material->m_Clearcoat ? &material->m_Clearcoat->m_ClearcoatRoughnessTexture : 0,
+        material->m_Clearcoat ? &material->m_Clearcoat->m_ClearcoatNormalTexture : 0,
+        material->m_Transmission ? &material->m_Transmission->m_TransmissionTexture : 0,
+        material->m_Volume ? &material->m_Volume->m_ThicknessTexture : 0,
+        material->m_Specular ? &material->m_Specular->m_SpecularTexture : 0,
+        material->m_Specular ? &material->m_Specular->m_SpecularColorTexture : 0,
+        material->m_Sheen ? &material->m_Sheen->m_SheenColorTexture : 0,
+        material->m_Sheen ? &material->m_Sheen->m_SheenRoughnessTexture : 0,
+        material->m_Iridescence ? &material->m_Iridescence->m_IridescenceTexture : 0,
+        material->m_Iridescence ? &material->m_Iridescence->m_IridescenceThicknessTexture : 0,
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(views); ++i)
+    {
+        TextureView* view = views[i];
+        if (!view || !view->m_Texture)
+            continue;
+        int view_texcoord = view->m_Transform.m_Texcoord >= 0 ? view->m_Transform.m_Texcoord : view->m_Texcoord;
+        if (view_texcoord == (int)texcoord)
+            view->m_TransformBaked = true;
+    }
+}
+
+// Clearcoat-only normal maps lack the base normal texture normally used to
+// derive tangent space. Recover this case using the clearcoat texture's UV set.
+// Authored tangents and the base material's tangent space are left intact.
+static bool GenerateClearcoatTangents(Mesh* mesh, const cgltf_primitive* primitive)
+{
+    const cgltf_material* material = primitive->material;
+    if (!material || !material->clearcoat.clearcoat_normal_texture.texture ||
+        material->normal_texture.texture || !mesh->m_Tangents.Empty())
+        return true;
+
+    const cgltf_texture_view* view = &material->clearcoat.clearcoat_normal_texture;
+    int                       texcoord = view->has_transform && view->transform.has_texcoord ? view->transform.texcoord : view->texcoord;
+    const cgltf_accessor*     accessor = cgltf_find_accessor(primitive, cgltf_attribute_type_texcoord, texcoord);
+    if (!accessor || texcoord < 0 || texcoord > 1 || !mesh->m_VertexCount ||
+        mesh->m_Normals.Size() != mesh->m_VertexCount * 3 ||
+        mesh->m_Positions.Size() != mesh->m_VertexCount * 3)
+        return false;
+
+    // Use the original glTF UV orientation; the importer separately flips V for
+    // Defold's texture storage. Texture transforms belong to the normal map's UVs.
+    uint32_t count;
+    float*   texcoords = ReadAccessorFloat(accessor, 2, 0.0f, &count);
+    if (!texcoords)
+        return false;
+    if (view->has_transform)
+    {
+        UvTransform transform;
+        memcpy(transform.m_Offset, view->transform.offset, sizeof(transform.m_Offset));
+        memcpy(transform.m_Scale, view->transform.scale, sizeof(transform.m_Scale));
+        transform.m_Rotation = view->transform.rotation;
+        TransformTexCoords(texcoords, mesh->m_VertexCount, 2, &transform);
+    }
+    bool result = GenerateTangents(mesh, texcoords);
+    delete[] texcoords;
+    return result;
+}
+
 static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
 {
     InitSize(model->m_Meshes, gltf_mesh->primitives_count, gltf_mesh->primitives_count);
@@ -1192,7 +1264,10 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
                 {
                     UvTransform transform;
                     if (GetSharedMaterialUvTransform(prim->material, attribute->index, &transform))
+                    {
                         TransformTexCoords(fdata, mesh->m_VertexCount, num_components, &transform);
+                        MarkMaterialTextureTransformsBaked(mesh->m_Material, attribute->index);
+                    }
 
                     bool flip_v = true; // Possibly move to the option
                     if (flip_v)
@@ -1309,6 +1384,18 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
             {
                 dmLogWarning("Primitive in mesh %s uses point type which we don't support.", mesh->m_Name);
             }
+        }
+
+        if (!GenerateClearcoatTangents(mesh, prim))
+        {
+            char error[512];
+            dmSnPrintf(error, sizeof(error),
+                       "glTF mesh '%s', primitive %zu: cannot generate clearcoat tangent space; "
+                       "valid triangle geometry, normals and the normal texture's TEXCOORD_0 or TEXCOORD_1 are required.",
+                       model->m_Name,
+                       i);
+            SetLoadError(scene, error);
+            return;
         }
     }
 }

@@ -415,6 +415,28 @@
       explicit-textures
       samplers)))
 
+(defn- texture-transform-rows [texture-view]
+  (let [transform (:transform texture-view)
+        texcoord (if (neg? (long (:texcoord transform)))
+                   (:texcoord texture-view)
+                   (:texcoord transform))
+        uv1 (if (= 1 texcoord) 1.0 0.0)]
+    (if (:transform-baked texture-view)
+      [(Vector4d. 0.0 0.0 0.0 uv1) (Vector4d.)]
+      (let [cosine (Math/cos (double (:rotation transform)))
+            sine (Math/sin (double (:rotation transform)))
+            scale-x (double (:scale-x transform))
+            scale-y (double (:scale-y transform))]
+        ;; Convert the authored transform to Defold's flipped-V coordinates.
+        [(Vector4d. (- (* cosine scale-x) 1.0)
+                    (* sine scale-y)
+                    (- (double (:offset-x transform)) (* sine scale-y))
+                    uv1)
+         (Vector4d. (- (* sine scale-x))
+                    (- (* cosine scale-y) 1.0)
+                    (- 1.0 (double (:offset-y transform)) (* cosine scale-y))
+                    0.0)]))))
+
 (defn- make-renderable-material-data [mesh-material-data]
   (when mesh-material-data
     (let [pbr-metallic-roughness (:pbr-metallic-roughness mesh-material-data)
@@ -424,6 +446,10 @@
           pbr-ior (:ior mesh-material-data)
           pbr-specular (:specular mesh-material-data)
           pbr-volume (:volume mesh-material-data)
+          [transmission-transform-u transmission-transform-v]
+          (texture-transform-rows (:transmission-texture pbr-transmission))
+          [thickness-transform-u thickness-transform-v]
+          (texture-transform-rows (:thickness-texture pbr-volume))
           pbr-sheen (:sheen mesh-material-data)
           pbr-emissive-strength (:emissive-strength mesh-material-data)
           pbr-iridescence (:iridescence mesh-material-data)
@@ -501,6 +527,8 @@
                    0)]
 
        ;; Transmission
+       ["pbrTransmission.transmissionTextureTransformU" transmission-transform-u]
+       ["pbrTransmission.transmissionTextureTransformV" transmission-transform-v]
        ["pbrTransmission.transmissionFactor"
         (Vector4d. (:transmission-factor pbr-transmission) 0 0 0)]
        ["pbrTransmission.transmissionTextures"
@@ -526,6 +554,8 @@
                    0 0)]
 
        ;; Volume
+       ["pbrVolume.thicknessTextureTransformU" thickness-transform-u]
+       ["pbrVolume.thicknessTextureTransformV" thickness-transform-v]
        ["pbrVolume.thicknessFactorAndAttenuationColor"
         (doto (Vector4d.)
           (math/clj->vecmath (into

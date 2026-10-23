@@ -6,6 +6,7 @@ in mediump vec3 normal;
 in mediump vec4 tangent;
 in mediump vec4 color;
 in mediump vec2 texcoord0;
+in mediump vec2 texcoord1;
 
 #ifdef PBR_SKINNED
 in mediump vec4 bone_weights;
@@ -24,11 +25,13 @@ in highp vec4 animation_data;
 out highp vec4 var_position;
 out mediump vec3 var_normal;
 out mediump vec2 var_texcoord0;
+out mediump vec2 var_texcoord1;
 out mediump vec4 var_color;
 out mediump vec3 var_tangent;
 out mediump vec3 var_bitangent;
 out mediump float var_has_tangent;
 out highp mat4 var_view;
+out highp mat3 var_world_to_local;
 
 uniform vs_uniforms
 {

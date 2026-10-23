@@ -1159,6 +1159,8 @@ public class ModelUtil {
 
         builder.setTexcoord(src.texcoord);
         builder.setScale(src.scale);
+        if (src.transformBaked)
+            builder.setTransformBaked(true);
         return builder.build();
     }
 

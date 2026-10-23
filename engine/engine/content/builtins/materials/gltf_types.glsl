@@ -13,6 +13,11 @@ struct PBRMaterial
     float metallic;
     float roughness;
     float occlusion;
+    float ior;
+    float transmission;
+    float thickness;
+    vec3  attenuationColor;
+    float attenuationDistance;
     float alphaCutoff;
     int alphaMode;
     bool doubleSided;

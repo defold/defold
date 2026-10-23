@@ -644,6 +644,14 @@ public class GltfMountPointTest {
         assertEquals("/builtins/materials/gltf.fp", material.getFragmentProgram());
         assertEquals(MaterialDesc.VertexSpace.VERTEX_SPACE_LOCAL, material.getVertexSpace());
         assertEquals(list("model"), material.getTagsList());
+        assertEquals(2, material.getFragmentConstantsCount());
+        assertEquals("mtx_projection", material.getFragmentConstants(0).getName());
+        assertEquals(MaterialDesc.ConstantType.CONSTANT_TYPE_PROJECTION, material.getFragmentConstants(0).getType());
+        // Imported transmission stays opaque until a render pass provides a scene capture.
+        assertEquals("transmission_params", material.getFragmentConstants(1).getName());
+        assertEquals(MaterialDesc.ConstantType.CONSTANT_TYPE_USER, material.getFragmentConstants(1).getType());
+        assertEquals(1, material.getFragmentConstants(1).getValueCount());
+        assertEquals(0.0f, material.getFragmentConstants(1).getValue(0).getX(), 0.0f);
         assertEquals(4, material.getVertexConstantsCount());
 
         Map<String, MaterialDesc.ConstantType> constants = new HashMap<String, MaterialDesc.ConstantType>();
@@ -656,7 +664,8 @@ public class GltfMountPointTest {
         assertEquals(MaterialDesc.ConstantType.CONSTANT_TYPE_PROJECTION, constants.get("mtx_proj"));
         assertEquals(MaterialDesc.ConstantType.CONSTANT_TYPE_NORMAL, constants.get("mtx_normal"));
 
-        assertEquals(5, material.getSamplersCount());
+        assertEquals(6, material.getSamplersCount());
+        assertSceneCaptureSampler(material);
         assertEquals("PbrMetallicRoughness_baseColorTexture", material.getSamplers(0).getName());
         assertEquals(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE, material.getSamplers(0).getWrapU());
         assertEquals(MaterialDesc.WrapMode.WRAP_MODE_MIRRORED_REPEAT, material.getSamplers(0).getWrapV());
@@ -684,6 +693,48 @@ public class GltfMountPointTest {
                 sourceMaterial.pbrMetallicRoughness.baseColorTexture.texture.sampler.minFilter);
         assertEquals(Modelimporter.AlphaMode.ALPHA_MODE_BLEND, sourceMaterial.alphaMode);
         assertTrue(sourceMaterial.doubleSided);
+    }
+
+    // Verifies generated thickness textures retain their sampler settings and image bindings.
+    @Test
+    public void testGeneratedPbrVolumeMaterial() throws Exception {
+        String source = withoutMaterialTextureSlots(gltf("external.png"), false)
+                .replace("\"asset\":{\"version\":\"2.0\"},",
+                         "\"asset\":{\"version\":\"2.0\"},\"extensionsUsed\":[\"KHR_materials_transmission\",\"KHR_materials_volume\"],")
+                .replace("\"name\":\"Paint\",",
+                         "\"name\":\"Paint\",\"extensions\":{"
+                                 + "\"KHR_materials_transmission\":{\"transmissionFactor\":1.0,\"transmissionTexture\":{\"index\":1}},"
+                                 + "\"KHR_materials_volume\":{\"thicknessFactor\":2.0,"
+                                 + "\"attenuationColor\":[0.1,0.5,0.9],\"attenuationDistance\":1.5,"
+                                 + "\"thicknessTexture\":{\"index\":1}}},");
+        fileSystem.addFile("models/volume.gltf", source.getBytes(StandardCharsets.UTF_8));
+        fileSystem.addMountPoint(mountPoint);
+
+        GltfMaterialResource resource = (GltfMaterialResource)fileSystem.get(
+                "models/volume.gltf/materials/Paint_0.material");
+        MaterialDesc material = resource.getMaterialDesc();
+        assertEquals("transmission_params", material.getFragmentConstants(1).getName());
+        assertEquals(0.0f, material.getFragmentConstants(1).getValue(0).getX(), 0.0f);
+        assertEquals(3, material.getSamplersCount());
+        assertSceneCaptureSampler(material);
+        assertEquals("PbrVolume_thicknessTexture", material.getSamplers(1).getName());
+        assertEquals(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE, material.getSamplers(1).getWrapU());
+        assertEquals(MaterialDesc.WrapMode.WRAP_MODE_MIRRORED_REPEAT, material.getSamplers(1).getWrapV());
+        assertEquals(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_NEAREST_MIPMAP_NEAREST,
+                material.getSamplers(1).getFilterMin());
+        assertEquals(MaterialDesc.FilterModeMag.FILTER_MODE_MAG_NEAREST, material.getSamplers(1).getFilterMag());
+        assertEquals("PbrTransmission_transmissionTexture", material.getSamplers(0).getName());
+        assertEquals(2, resource.getSamplerBindings().size());
+        assertSamplerBinding(resource.getSamplerBindings(), "PbrTransmission_transmissionTexture",
+                0, 1, 1, "/models/volume.gltf/images/DataImage_0.png");
+        assertSamplerBinding(resource.getSamplerBindings(), "PbrVolume_thicknessTexture",
+                0, 1, 1, "/models/volume.gltf/images/DataImage_0.png");
+
+        Modelimporter.Material sourceMaterial = resource.getSourceMaterial();
+        assertEquals(1.0f, sourceMaterial.transmission.transmissionFactor, 0.0f);
+        assertEquals(2.0f, sourceMaterial.volume.thicknessFactor, 0.0f);
+        assertArrayEquals(new float[] { 0.1f, 0.5f, 0.9f }, sourceMaterial.volume.attenuationColor, 0.0f);
+        assertEquals(1.5f, sourceMaterial.volume.attenuationDistance, 0.0f);
     }
 
     @Test
@@ -739,8 +790,9 @@ public class GltfMountPointTest {
         assertTrue(preferred.textures().get(0).basisu());
     }
 
+    // The renderer's capture sampler must not add an imported image binding, including on untextured materials.
     @Test
-    public void testGeneratedPbrMaterialOnlyEmitsReferencedSamplers() throws Exception {
+    public void testGeneratedPbrMaterialKeepsImageBindingsSeparateFromSceneCapture() throws Exception {
         String baseColorOnly = withoutMaterialTextureSlots(gltf("external.png"), true)
                 .replace("\"samplers\":[{\"name\":\"NearestSampler\",\"wrapS\":33071,\"wrapT\":33648,"
                                 + "\"minFilter\":9984,\"magFilter\":9728}]",
@@ -754,7 +806,8 @@ public class GltfMountPointTest {
         GltfMaterialResource baseColorResource = (GltfMaterialResource)fileSystem.get(
                 "models/base-color-only.gltf/materials/Paint_0.material");
         MaterialDesc baseColorMaterial = baseColorResource.getMaterialDesc();
-        assertEquals(1, baseColorMaterial.getSamplersCount());
+        assertEquals(2, baseColorMaterial.getSamplersCount());
+        assertSceneCaptureSampler(baseColorMaterial);
         assertEquals("PbrMetallicRoughness_baseColorTexture", baseColorMaterial.getSamplers(0).getName());
         assertEquals(MaterialDesc.WrapMode.WRAP_MODE_REPEAT,
                 baseColorMaterial.getSamplers(0).getWrapU());
@@ -782,7 +835,9 @@ public class GltfMountPointTest {
         GltfMaterialResource untexturedResource = (GltfMaterialResource)fileSystem.get(
                 "models/untextured.gltf/materials/Paint_0.material");
         MaterialDesc untexturedMaterial = untexturedResource.getMaterialDesc();
-        assertEquals(0, untexturedMaterial.getSamplersCount());
+        assertEquals(1, untexturedMaterial.getSamplersCount());
+        assertSceneCaptureSampler(untexturedMaterial);
+        assertTrue(untexturedResource.getSamplerBindings().isEmpty());
         assertEquals("/builtins/materials/gltf.vp", untexturedMaterial.getVertexProgram());
         assertEquals("/builtins/materials/gltf.fp", untexturedMaterial.getFragmentProgram());
         assertArrayEquals(new float[] { 0.25f, 0.5f, 0.75f, 1.0f },
@@ -1251,6 +1306,16 @@ public class GltfMountPointTest {
             result.add(value);
         }
         return result;
+    }
+
+    private static void assertSceneCaptureSampler(MaterialDesc material) {
+        MaterialDesc.Sampler sampler = material.getSamplers(material.getSamplersCount() - 1);
+        assertEquals("tex_scene_color", sampler.getName());
+        assertEquals(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE, sampler.getWrapU());
+        assertEquals(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE, sampler.getWrapV());
+        assertEquals(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_LINEAR, sampler.getFilterMin());
+        assertEquals(MaterialDesc.FilterModeMag.FILTER_MODE_MAG_LINEAR, sampler.getFilterMag());
+        assertTrue(sampler.getTexture().isEmpty());
     }
 
     private static void assertSamplerBinding(

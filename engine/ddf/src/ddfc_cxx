@@ -4,4 +4,5 @@ DDFC=`dirname $0`/ddfc.py
 
 # NOTE: The output here is parsed later on, so don't print invalid code!
 
-python3 $DDFC --cxx $@
+# Use SDK dependencies from PYTHONPATH without mixing in system site packages.
+python3 -S $DDFC --cxx $@
