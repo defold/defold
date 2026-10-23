@@ -115,7 +115,6 @@ dlib_add_test(test_math)
 dlib_add_test(test_transform)
 dlib_add_test(test_hashtable)
 dlib_add_test(test_array)
-dlib_add_test(test_http_buffer)
 dlib_add_test(test_double_linked_list)
 dlib_add_test(test_set)
 dlib_add_test(test_indexpool)
@@ -188,8 +187,8 @@ if(NOT DLIB_TEST_SKIP_HTTP)
         --keystore "${DLIB_TEST_ROOT}/data/keystore"
         "$<TARGET_FILE:${_http_test}>")
       if(_http_test STREQUAL "test_httpclient")
-        # Exercise TLS 1.2 RSA-PSS negotiation and TLS 1.3 using the local server.
-        list(APPEND _http_test_command "--test-filter=dmHttpClient.Tls*")
+        # Exercise response buffer growth and TLS negotiation using the local server.
+        list(APPEND _http_test_command "--test-filter=HttpResponseBuffer.*" "--test-filter=dmHttpClient.Tls*")
       endif()
       defold_test_run_settings(_http_test_runner _http_test_options shared)
       add_custom_target(run_${_http_test}
