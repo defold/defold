@@ -19,7 +19,9 @@
 #include <string.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/math.h>
 
+#include "http_internal.h"
 #include "http_private.h"
 #include "http_service.h"
 
@@ -664,6 +666,42 @@ extern "C"
 
 namespace dmHttpService
 {
+    bool AppendResponseBuffer(dmArray<char>& buffer, const void* data, uint32_t data_size, int32_t content_length)
+    {
+        // The legacy client can deliver empty chunks, including at cache EOF.
+        // Skip these before reserving response storage.
+        if (data_size == 0)
+        {
+            return true;
+        }
+
+        uint64_t required_capacity = (uint64_t)buffer.Size() + data_size;
+        if (required_capacity > UINT32_MAX)
+        {
+            return false;
+        }
+
+        uint64_t capacity = buffer.Capacity();
+        // Reserve the known body size on the first nonempty chunk. Headers use the default -1.
+        if (buffer.Empty() && content_length > 0)
+        {
+            capacity = dmMath::Max(capacity, (uint64_t)content_length);
+        }
+
+        if (required_capacity > capacity)
+        {
+            // Double capacity to keep cumulative allocation and copying linear in the response size.
+            capacity = dmMath::Max(capacity * 2, (uint64_t)1024);
+            capacity = dmMath::Max(capacity, required_capacity);
+        }
+        if (capacity > buffer.Capacity())
+        {
+            buffer.SetCapacity((uint32_t)dmMath::Min(capacity, (uint64_t)UINT32_MAX));
+        }
+        buffer.PushArray((const char*)data, data_size);
+        return true;
+    }
+
     void DirectRequestHeader(HttpRequest* request, int status, const char* key, const char* value)
     {
         if (!request || !key || !value)

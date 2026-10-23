@@ -2041,16 +2041,6 @@ TEST(HttpResponseBuffer, IrregularAndLargeChunks)
     }
 }
 
-// Verifies doubling saturates at the array's capacity limit instead of overflowing.
-TEST(HttpResponseBuffer, CapacityLimit)
-{
-    ASSERT_EQ(0xfffffffeU, dmHttpService::GetResponseBufferCapacity(0x7fffffffU, 0x80000000ULL));
-    ASSERT_EQ(UINT32_MAX, dmHttpService::GetResponseBufferCapacity(0x80000000U, 0x80000001ULL));
-    ASSERT_EQ(UINT32_MAX, dmHttpService::GetResponseBufferCapacity(0xfffffffeU, (uint64_t)UINT32_MAX));
-    ASSERT_EQ(0U, dmHttpService::GetResponseBufferCapacity(UINT32_MAX, (uint64_t)UINT32_MAX + 1));
-    ASSERT_EQ(0U, dmHttpService::GetResponseBufferCapacity(UINT32_MAX, UINT64_MAX));
-}
-
 // Verifies oversized appends fail without allocating or modifying the existing response.
 TEST(HttpResponseBuffer, RejectOversizedAppend)
 {
