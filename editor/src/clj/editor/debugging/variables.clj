@@ -121,12 +121,21 @@
 (defn- variable-at [state path]
   (coll/first-where #(= path (:path %)) (get (:children state) (pop path))))
 
+(def ^:private prop-expanded
+  (fx/make-prop
+    (fx.mutator/setter
+      (fn set-expanded! [^TreeItem item [_table expanded]]
+        (.setExpanded item (boolean expanded))))
+    fx.lifecycle/scalar))
+
 (defn- variable-item [swap-state {:keys [children expanded-paths] :as state} {:keys [path variablesReference] :as variable}]
   (let [table (pos? (long variablesReference))]
     {:fx/type fx.tree-item/lifecycle
      :fx/key path
      :value variable
-     :expanded (and table (contains? expanded-paths path))
+     ;; Alt expansion can set the native flag on leaves without saving their
+     ;; paths. Reapply the flag when a reused leaf becomes a table.
+     prop-expanded [table (and table (contains? expanded-paths path))]
 
      :on-expanded-changed
      (fn on-expanded-changed [expanded]

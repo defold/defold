@@ -286,9 +286,32 @@
       (dap-util/await-ui! view #(item-at view ["self" "nested" "child"]))
       (is (= {1 1, 2 1} (frequencies @variable-requests)))
       (pause! view session events 3)
-      (dap-util/await-ui! view #(item-at view ["self" "nested" "child"]))
+      (dap-util/await-ui! view #(and (= 4 (some-> (item-at view ["self" "scalar"]) .getValue :variablesReference))
+                                     (item-at view ["self" "nested" "child"])))
       (ui/run-now (is (not (.isExpanded (item-at view ["self" "scalar"])))))
       (is (= {1 1, 2 2, 3 1} (frequencies @variable-requests))))))
+
+;; A leaf expanded by Alt-click must become a collapsed table even when the
+;; frame refresh completes before JavaFX renders the cleared tree.
+(deftest coalesced-leaf-to-table-refresh-test
+  (let [variable-requests (atom [])]
+    (with-view
+      (fn root-variables [_ _ frame-id]
+        [(variable "value" "value" (if (= 1 frame-id) 0 2))])
+      (fn child-variables [_ _ reference]
+        (swap! variable-requests conj reference)
+        [])
+      (pause! view session events 1)
+      (dap-util/await-ui! view #(item-at view ["value"]))
+      (ui/run-now
+        (.setExpanded (item-at view ["value"]) true)
+        (dap-util/await!
+          (variables/show-frame! view session (dap/suspension @session) 2)))
+      (dap-util/await-ui! view
+                          #(= 2 (some-> (item-at view ["value"]) .getValue :variablesReference)))
+      (ui/run-now
+        (is (not (.isExpanded (item-at view ["value"])))))
+      (is (= [] @variable-requests)))))
 
 ;; Opened paths reload new references and values across stops; collapsed
 ;; branches stay closed.
