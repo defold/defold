@@ -758,7 +758,8 @@ class RecordingServiceTest(unittest.TestCase):
                     while time.monotonic() < deadline:
                         try:
                             connection.sendall(b" " * 1024)
-                        except (BrokenPipeError, ConnectionResetError):
+                        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                            # Winsock may report a local abort after the close deadline.
                             break
                         self.request("GET", "/recording/capabilities")
                     else:
