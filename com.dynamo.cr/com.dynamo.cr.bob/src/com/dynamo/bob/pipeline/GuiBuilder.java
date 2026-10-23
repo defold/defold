@@ -73,7 +73,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
     private void validateStyleSelection(String input, NodeDesc node, Map<String, Set<String>> styles) throws CompileExceptionError {
         if (node.getType() == Type.TYPE_TEXT && styles.containsKey(node.getFont()) && !styles.get(node.getFont()).contains(node.getStyle()))
-            throw new CompileExceptionError(project.getResource(input), 0, "Node '" + node.getId() + "': font style '" + node.getStyle() + "' does not exist");
+            throw new CompileExceptionError(project.getResource(input), 0,
+                    GuiBuildContext.formatNodeLocation(node, "") + "font style '" + node.getStyle() + "' does not exist");
     }
 
 
@@ -226,12 +227,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         for (String resource : nodeResources) {
             if (!resourceNames.contains(resource)) {
-                String location = "Node '" + n.getId() + "'";
-                if (!layoutName.isEmpty()) {
-                    location += ", layout '" + layoutName + "'";
-                }
                 throw new CompileExceptionError(builder.project.getResource(input), 0,
-                        location + ": " + BobNLS.bind(Messages.BuilderUtil_MISSING_RESOURCE, "resource", resource));
+                        GuiBuildContext.formatNodeLocation(n, layoutName) + BobNLS.bind(Messages.BuilderUtil_MISSING_RESOURCE, "resource", resource));
             }
         }
     }
@@ -422,7 +419,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 return;
             default:
                 throw new CompileExceptionError(resource, 0,
-                        "Node '" + node.getId() + "': unsupported GUI node type '" + node.getType()
+                        GuiBuildContext.formatNodeLocation(node, "") + "unsupported GUI node type '" + node.getType()
                         + "'. Install or update the plugin that migrates this node type.");
         }
     }
@@ -442,11 +439,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
     private static void validateSourceNode(NodeDesc node, IResource resource, String layoutName) throws CompileExceptionError {
         validateNodeType(node, resource);
-        String location = "Node '" + node.getId() + "'";
-        if (!layoutName.isEmpty()) {
-            location += ", layout '" + layoutName + "'";
-        }
-        location += ": ";
+        String location = GuiBuildContext.formatNodeLocation(node, layoutName);
         validateMigratedFields(node, resource, location);
         // Sparse overrides can select a default without storing the field value.
         for (int fieldNumber : node.getOverriddenFieldsList()) {

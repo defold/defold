@@ -64,12 +64,17 @@ public final class GuiBuildContext {
         return resources;
     }
 
-    /** Creates a build error identifying the source GUI, resolved node and layout. */
-    public CompileExceptionError error(NodeDescOrBuilder node, String layoutName, String message) {
+    /** Formats the node and optional layout prefix used in GUI diagnostics. */
+    static String formatNodeLocation(NodeDescOrBuilder node, String layoutName) {
         String location = "Node '" + node.getId() + "'";
         if (!layoutName.isEmpty()) {
             location += ", layout '" + layoutName + "'";
         }
-        return new CompileExceptionError(resource, 0, location + ": " + message);
+        return location + ": ";
+    }
+
+    /** Creates a build error identifying the source GUI, resolved node and layout. */
+    public CompileExceptionError error(NodeDescOrBuilder node, String layoutName, String message) {
+        return new CompileExceptionError(resource, 0, formatNodeLocation(node, layoutName) + message);
     }
 }
