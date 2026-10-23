@@ -15,6 +15,8 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -595,6 +597,34 @@ public class GuiCustomNodeTest extends AbstractProtoBuilderTest {
         getProject().setInputs(List.of("/test.gui"));
         List<TaskResult> results = getProject().build(Progress.discarding(), "build");
         return results.stream().filter(result -> result.getTask().firstInput().getPath().equals("test.gui")).findFirst().orElseThrow();
+    }
+
+    // Completed GUI tasks must stop retaining source scenes, resolved scenes and plugin instances, even when skipped.
+    @Test
+    public void testCompletedTasksReleaseGuiState() throws Exception {
+        addScene("/template.gui", scene().addNodes(node("actor", "MigratingLifecycleTest")));
+        addScene("/test.gui", scene().addNodes(template("template", "/template.gui")));
+        for (TaskResult.Result expected : List.of(TaskResult.Result.SUCCESS, TaskResult.Result.SKIPPED)) {
+            TaskResult result = rebuild();
+            Assert.assertEquals(result.getMessage(), expected, result.getResult());
+            GuiBuilder builder = (GuiBuilder) result.getTask().getBuilder();
+            for (Field field : GuiBuilder.class.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                field.setAccessible(true);
+                Object value = field.get(builder);
+                if (value instanceof Map<?, ?> map) {
+                    Assert.assertTrue(field.getName(), map.isEmpty());
+                } else if (value instanceof Set<?> set) {
+                    Assert.assertTrue(field.getName(), set.isEmpty());
+                } else if (value instanceof Boolean flag) {
+                    Assert.assertFalse(field.getName(), flag);
+                } else {
+                    Assert.assertNull(field.getName(), value);
+                }
+            }
+        }
     }
 
     // Raw inputs and plugin version keys invalidate cached output; compiled inputs finish before build runs.

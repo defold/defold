@@ -1109,4 +1109,18 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         return transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(), sourceSceneCache, true);
     }
 
+    @Override
+    public void clearState() {
+        super.clearState();
+        fontStyleNames.clear();
+        customNodes.clear();
+        sourceSceneCache.clear();
+        migrationCacheKeys.clear();
+        declaredTemplates.clear();
+        visitingTemplates.clear();
+        hasNodeCallbacks = false;
+        customNodeContext = null;
+        resolvedScene = null;
+    }
+
 }
