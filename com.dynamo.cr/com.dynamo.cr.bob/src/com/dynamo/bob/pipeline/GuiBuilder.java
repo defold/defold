@@ -455,7 +455,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     }
 
     private static NodeDesc resolveCustomNode(GuiBuilder builder, String input, NodeDesc node) throws CompileExceptionError {
-        validateNodeType(node, builder.project.getResource(input));
         if (node.getType() != Type.TYPE_CUSTOM) {
             return node;
         }
