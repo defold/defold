@@ -14,6 +14,7 @@
 
 (ns editor.pipeline.tex-gen
   (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [internal.util :as util]
             [util.coll :as coll]
@@ -60,6 +61,12 @@
    ;; least previewing with alpha.
    :texture-format-luminance-alpha   :texture-format-rgba})
 
+(defn- hdr-texture-format? [texture-format]
+  (or (#{:texture-format-rgba16f
+         :texture-format-rgba32f}
+       texture-format)
+      (some-> texture-format name (str/starts-with? "texture-format-rgba-astc-"))))
+
 (defn match-texture-profile-pb
   ^Graphics$TextureProfile [texture-profiles ^String path]
   (let [texture-profiles-data (some->> texture-profiles (protobuf/map->pb Graphics$TextureProfiles))
@@ -72,30 +79,47 @@
     (protobuf/pb->map-with-defaults texture-profile)))
 
 (defn make-texture-image
-  (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile]
+  (^TextureGenerator$GenerateResult [image texture-profile]
    (make-texture-image image texture-profile false))
-  (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile compress?]
-   (make-texture-image image texture-profile compress? true))
-  (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile compress? flip-y?]
+  (^TextureGenerator$GenerateResult [image texture-profile compress]
+   (make-texture-image image texture-profile compress true))
+  (^TextureGenerator$GenerateResult [image texture-profile compress flip-y]
    (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))
-         texture-generator-result (TextureGenerator/generate image texture-profile-data ^boolean compress? (if ^boolean flip-y? (EnumSet/of Texc$FlipAxis/FLIP_AXIS_Y) (EnumSet/noneOf Texc$FlipAxis)))]
-     texture-generator-result)))
+         flip-axis (if ^boolean flip-y (EnumSet/of Texc$FlipAxis/FLIP_AXIS_Y) (EnumSet/noneOf Texc$FlipAxis))]
+     (cond
+       (instance? BufferedImage image)
+       (TextureGenerator/generate ^BufferedImage image texture-profile-data ^boolean compress flip-axis)
+
+       (bytes? image)
+       (TextureGenerator/generate ^bytes image texture-profile-data ^boolean compress flip-axis)
+
+       :else
+       (throw (ex-info "Unsupported texture source" {:source image}))))))
 
 (defn- make-preview-profile
   "Given a texture-profile, return a simplified texture-profile that can be used
   for previewing purposes in editor. Will only produce data for one texture
   format."
-  [texture-profile]
+  [texture-profile hdr]
   (let [platforms (:platforms texture-profile)
         platform-profile (or (coll/first-where #(= :os-id-generic (:os %)) platforms)
                              (first platforms))
-        texture-format (first (:formats platform-profile))]
+        texture-formats (:formats platform-profile)
+        texture-format (if hdr
+                         (or (coll/first-where #(hdr-texture-format? (:format %)) texture-formats)
+                             (first texture-formats))
+                         (first texture-formats))
+        editor-format (if hdr
+                        (if (= :texture-format-rgba16f (:format texture-format))
+                          :texture-format-rgba16f
+                          :texture-format-rgba32f)
+                        (texture-format->editor-format (:format texture-format)))]
     (when (and platform-profile (or texture-format (:keep-ktx2-format platform-profile)))
       {:name      "editor"
        :platforms [{:os                :os-id-generic
                     :formats           (cond-> []
                                          texture-format
-                                         (conj (update texture-format :format texture-format->editor-format)))
+                                         (conj (assoc texture-format :format editor-format)))
                     :keep-ktx2-format  (:keep-ktx2-format platform-profile false)
                     :mipmaps           (:mipmaps platform-profile)
                     :max-texture-size  (:max-texture-size platform-profile)
@@ -103,20 +127,20 @@
 
 (defn make-ktx2-texture-image
   ^TextureGenerator$GenerateResult [^bytes data texture-profile compress preview]
-  (let [texture-profile (if preview (make-preview-profile texture-profile) texture-profile)
+  (let [texture-profile (if preview (make-preview-profile texture-profile false) texture-profile)
         ^Graphics$TextureProfile profile (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))]
     (TextureGenerator/generate data profile (boolean compress))))
 
 ;; SDK api (DEPRECATE 2-arity version with the next release of extension-texturepacker).
 (defn make-preview-texture-image
-  (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile]
-   (let [preview-profile (make-preview-profile texture-profile)]
+  (^TextureGenerator$GenerateResult [image texture-profile]
+   (let [preview-profile (make-preview-profile texture-profile (bytes? image))]
      (make-texture-image image preview-profile false)))
-  (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile flip-y]
-   (if flip-y
+  (^TextureGenerator$GenerateResult [image texture-profile flip-y]
+   (if (and flip-y (instance? BufferedImage image))
      ;; TODO: We might be able to pass a flip-y bool arg to TexcLib.CreatePreviewImage and make this work for all
      (TextureGenerator/generateAtlasPreview image) ;; Fast path
-     (let [preview-profile (make-preview-profile texture-profile)]
+     (let [preview-profile (make-preview-profile texture-profile (bytes? image))]
        (make-texture-image image preview-profile false flip-y)))))
 
 (defn make-cubemap-texture-images

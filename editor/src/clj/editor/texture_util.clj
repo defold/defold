@@ -85,6 +85,25 @@
               :digest-ignored/error-node-id error-node-id
               :digest-ignored/error-label error-label}})))
 
+(defn- resource-bytes-gen-fn
+  [{:keys [digest-ignored/error-label digest-ignored/error-node-id resource]}]
+  (resource-io/with-error-translation resource error-node-id error-label
+    (resource/resource->bytes resource)))
+
+(defn make-resource-bytes-generator
+  [resource error-node-id error-label]
+  {:post [(or (g/error-value? %)
+              (content-generator? %))]}
+  (let [sha1 (resource-io/with-error-translation resource error-node-id error-label
+               (resource/resource->path-inclusive-sha1-hex resource))]
+    (if (g/error-value? sha1)
+      sha1
+      {:f resource-bytes-gen-fn
+       :sha1 sha1
+       :args {:resource resource
+              :digest-ignored/error-node-id error-node-id
+              :digest-ignored/error-label error-label}})))
+
 ;; -----------------------------------------------------------------------------
 ;; TextureRequestData
 ;; -----------------------------------------------------------------------------
@@ -126,8 +145,8 @@
       (g/precluding-errors texture-request-datas texture-request-datas))
 
     ;; This is a single content-generator. In this situation we expect it to
-    ;; return a BufferedImage, an ErrorValue, or a sequence of values that may
-    ;; be a mix of BufferedImages or ErrorValues.
+    ;; return a BufferedImage, HDR bytes, an ErrorValue, or a sequence of values
+    ;; that may be a mix of BufferedImages or ErrorValues.
     (let [content (call-generator content-generatable)
           data-version (java/combine-hashes
                          (hash (:sha1 content-generatable))
@@ -136,7 +155,8 @@
         (g/error-value? content)
         content
 
-        (instance? BufferedImage content)
+        (or (instance? BufferedImage content)
+            (bytes? content))
         (let [texture-image (tex-gen/make-preview-texture-image content texture-profile flip-y)]
           [(texture/texture-image->texture-request-data texture-image data-version)])
 
