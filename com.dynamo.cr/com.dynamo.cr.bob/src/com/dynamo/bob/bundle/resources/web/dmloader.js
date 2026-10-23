@@ -475,23 +475,30 @@ var EngineLoader = {
         };
     },
 
-    // Each engine operation resolves only after its work completes. Its caller
-    // owns failure reporting, so a failed verification cannot continue startup.
-    loadAndInstantiateWasmAsync: async function(asset, imports, scope) {
-        scope = scope || createLoaderScope();
+    // Download and verify either engine asset before its bytes can be executed.
+    fetchAndVerifyAsync: async function(asset, kind, scope) {
         const result = await FileLoader.fetch(asset.url, {
             responseType: "arraybuffer",
             progress: delta => ProgressUpdater.updateCurrent(delta),
-            verify: function(wasm) {
+            verify: function(response) {
                 {{#html5.verify_downloaded_file_size}}
-                if (wasm.byteLength != asset.size) {
-                    return "Unexpected wasm size: " + wasm.byteLength + ", expected: " + asset.size;
+                if (response.byteLength != asset.size) {
+                    return "Unexpected " + kind + " size: " + response.byteLength + ", expected: " + asset.size;
                 }
                 {{/html5.verify_downloaded_file_size}}
             }
         }, scope);
         scope.check();
         await scope.wait(FileLoader.verifyHash(result.response, asset.sha1));
+        scope.check();
+        return result;
+    },
+
+    // Each engine operation resolves only after its work completes. Its caller
+    // owns failure reporting, so a failed verification cannot continue startup.
+    loadAndInstantiateWasmAsync: async function(asset, imports, scope) {
+        scope = scope || createLoaderScope();
+        const result = await EngineLoader.fetchAndVerifyAsync(asset, "wasm", scope);
         // The download can finish before Emscripten supplies the imports.
         const importObject = await scope.wait(imports);
         scope.check();
@@ -590,19 +597,7 @@ var EngineLoader = {
 
     loadAndRunScriptAsync: async function(asset, scope) {
         scope = scope || createLoaderScope();
-        const result = await FileLoader.fetch(asset.url, {
-            responseType: "arraybuffer",
-            progress: delta => ProgressUpdater.updateCurrent(delta),
-            verify: function(response) {
-                {{#html5.verify_downloaded_file_size}}
-                if (response.byteLength != asset.size) {
-                    return "Unexpected JS size: " + response.byteLength + ", expected: " + asset.size;
-                }
-                {{/html5.verify_downloaded_file_size}}
-            }
-        }, scope);
-        scope.check();
-        await scope.wait(FileLoader.verifyHash(result.response, asset.sha1));
+        const result = await EngineLoader.fetchAndVerifyAsync(asset, "JS", scope);
         scope.check();
         // Reuse the URL that passed verification, including any retry cache buster.
         Module["mainScriptUrlOrBlob"] = result.url;
