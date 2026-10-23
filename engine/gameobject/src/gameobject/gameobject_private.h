@@ -27,6 +27,7 @@
 #include "gameobject.h"
 #include "gameobject_props.h"
 #include "component.h"
+#include "component_render.h"
 #include "gameobject_transform_private.h"
 
 extern "C"
@@ -211,6 +212,10 @@ namespace dmGameObject
         uint32_t                    m_ComponentTypeCount;
         ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
         uint16_t                    m_ComponentTypesOrder[MAX_COMPONENT_TYPES];
+        // Internal game/render bridge descriptors; not part of the ComponentType SDK.
+        ComponentRenderCallbacks    m_ComponentRenderCallbacks[MAX_COMPONENT_TYPES];
+        // Synchronous game-owner capture scope, inherited by recursive proxy Render calls.
+        void*                       m_RenderCaptureFrame;
         dmMutex::HMutex             m_Mutex;
 
         // All collections. Protected by m_Mutex
@@ -227,6 +232,8 @@ namespace dmGameObject
         uint32_t                    m_DefaultCollectionCapacity;
         uint32_t                    m_DefaultInputStackCapacity;
         HContextRegistry            m_ContextRegistry;
+        uint8_t                     m_ComponentRenderRegistrationClosed : 1;
+        uint8_t                     m_HasComponentRenderCallbacks : 1;
 
         Register();
         ~Register();
@@ -253,6 +260,12 @@ namespace dmGameObject
 
         // Component type specific worlds
         void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
+        // Optional bridge lifetime handles, allocated for the actual type count only
+        // when rendering has opted in. Legacy collections allocate no handle array.
+        void**                   m_ComponentRenderWorlds;
+        uint32_t                 m_ComponentRenderWorldCount;
+        // Number of type slots initialized, including the current slot on bridge-create failure.
+        uint32_t                 m_ComponentWorldsCreated;
 
         // Array of instances. Zero values for free slots. Order must
         // always be preserved. Slots are allocated using index-pool

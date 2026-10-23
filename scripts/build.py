@@ -47,6 +47,7 @@ SOURCE_BUILT_PACKAGE_PREFIXES = (
     'harfbuzz-', 'SheenBidi-', 'libunibreak-', 'SkriBidi-', 'luajit-', 'ogg-')
 
 _CMAKE_FEATURE_FLAG_MAP = {
+    '--with-threaded-rendering': 'WITH_THREADED_RENDERING',
     '--with-asan': 'WITH_ASAN',
     '--with-hwasan': 'WITH_HWASAN',
     '--with-ubsan': 'WITH_UBSAN',
@@ -3740,6 +3741,7 @@ Multiple commands can be specified
 
 CMake shorthand defaults from build.py shell: CMAKE_GENERATOR=Ninja, omitted --platform uses the host platform, CMAKE_BUILD_TYPE=RelWithDebInfo, and BUILD_TESTS=ON.
 Use -- --opt-level=0 for Debug, -- --skip-build-tests to skip building tests, or --skip-tests to skip running tests.
+Use -- --with-threaded-rendering to enable the internal threaded-rendering build capability (off by default).
 
 To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
 '''

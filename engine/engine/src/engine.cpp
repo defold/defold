@@ -447,8 +447,11 @@ namespace dmEngine
     , m_MainCollectionResource(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
+    , m_JobThreadContext(0)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
+    , m_RenderExecution(0)
+    , m_ComponentRenderContext(0)
     , m_ScriptContext(0x0)
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
@@ -516,6 +519,11 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
+        if (engine->m_RenderExecution)
+        {
+            assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME));
+            assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER));
+        }
         {
             ScopedExtensionParams params(engine);
 
@@ -529,6 +537,14 @@ namespace dmEngine
         dmGameObject::PostUpdate(engine->m_Register);
 
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
+
+        // Game worlds can disappear before their renderer-owned state. Finish renderer
+        // cleanup while type contexts, the resource factory and graphics still exist.
+        if (engine->m_ComponentRenderContext)
+        {
+            dmGameSystem::DeleteComponentRenderContext(engine->m_ComponentRenderContext);
+            engine->m_ComponentRenderContext = 0;
+        }
 
         dmHttpClient::ShutdownConnectionPool();
 
@@ -641,6 +657,9 @@ namespace dmEngine
         free(engine->m_DependenciesJsonResource);
         engine->m_DependenciesJsonResource = 0;
         engine->m_DependenciesJsonSize = 0;
+
+        if (engine->m_RenderExecution)
+            dmRender::DeleteRenderExecution(engine->m_RenderExecution);
 
         delete engine;
     }
@@ -1146,6 +1165,25 @@ namespace dmEngine
             }
         }
 
+        // Select before extensions, graphics ownership and bootstrap resources exist.
+        // The build define is the only selector during development. Threaded builds
+        // reject startup until executor infrastructure and migrated paths are available.
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+        dmRender::ExecutionMode execution_mode = dmRender::EXECUTION_MODE_THREADED;
+#else
+        dmRender::ExecutionMode execution_mode = dmRender::EXECUTION_MODE_INLINE;
+#endif
+        dmRender::ExecutionSelection execution_selection;
+        engine->m_RenderExecution = dmRender::NewRenderExecution(execution_mode, false, &execution_selection);
+        if (!engine->m_RenderExecution)
+        {
+            dmLogError("Render execution: %s (%s)", dmRender::GetExecutionModeName(execution_selection.m_ExecutionMode),
+                dmRender::GetExecutionResultString(execution_selection.m_ExecutionResult));
+            return false;
+        }
+        dmLogInfo("Render execution: %s (%s)", dmRender::GetExecutionModeName(execution_selection.m_ExecutionMode),
+            dmRender::GetExecutionResultString(execution_selection.m_ExecutionResult));
+
         dmBuffer::NewContext();
 
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
@@ -1359,6 +1397,7 @@ namespace dmEngine
             graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 0);
         }
 
+        assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER));
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
         {
@@ -1635,6 +1674,16 @@ namespace dmEngine
 
         // Variables need to be declared up here due to the goto's
         bool has_host_mount = dmSys::GetEnv("DM_HOSTFS") != 0;
+
+        {
+            // Internal foundation budget; no buffers are allocated until a component opts
+            // in. Component migration will size these limits for real captured workloads.
+            dmRender::RenderFrameLimits limits = { 256 * 1024, 1024, 1024 };
+            engine->m_ComponentRenderContext = dmGameSystem::NewComponentRenderContext(engine->m_Register, engine->m_RenderExecution, limits);
+
+            if (!engine->m_ComponentRenderContext)
+                goto bail;
+        }
 
         engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
@@ -1981,6 +2030,7 @@ bail:
 
     static void StepFrame(HEngine engine, float dt)
     {
+        assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME));
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
         if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED)
@@ -2127,6 +2177,7 @@ bail:
                 {
                     // Begin the renderer frame with current time since engine start and frame delta-time.
                     // Use the same dt that is passed into script updates and the accumulated engine time.
+                    assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER));
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
 
                     // Call pre render functions for extensions, if available.
@@ -2137,7 +2188,10 @@ bail:
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmGameObject::Render(GetMainCollection(engine));
+                    // Capture opted-in component inputs after final transforms/PreRender,
+                    // before destructive PostUpdate. Legacy types retain their render path.
+                    if (!dmGameSystem::RenderComponentsInline(engine->m_ComponentRenderContext, GetMainCollection(engine)))
+                        dmLogError("Component rendering or render-input capture failed.");
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -2167,8 +2221,20 @@ bail:
                     }
                 }
 
+                // Keep captured dependencies through render-script/list dispatch, even
+                // while this foundation's component consumer is still invoked inline.
+                dmGameSystem::RetireComponentRenderFrames(engine->m_ComponentRenderContext);
                 dmGameObject::PostUpdate(GetMainCollection(engine));
                 dmGameObject::PostUpdate(engine->m_Register);
+                // World deletion may enqueue renderer cleanup even on a non-drawing frame.
+                dmGameSystem::ServiceComponentRenderContext(engine->m_ComponentRenderContext);
+                dmRender::RenderFrameResult component_render_result = dmGameSystem::GetComponentRenderResult(engine->m_ComponentRenderContext);
+
+                if (component_render_result != dmRender::RENDER_FRAME_OK)
+                {
+                    dmLogError("Component renderer failed (%d); stopping the engine.", component_render_result);
+                    Exit(engine, 1);
+                }
 
                 if (do_render)
                 {

@@ -14,11 +14,13 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <string.h>
 
 #include <testmain/testmain.h>
 #include <dlib/testutil.h>
 
 #include <dlib/array.h>
+#include <dlib/configfile.h>
 #include <dlib/http/http_client.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
@@ -249,6 +251,58 @@ TEST_F(EngineTest, ProjectFail)
     ASSERT_NE(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 
     ProfileFinalize(); // Making sure it is cleaned up
+}
+
+// Verify the development build gate selects inline startup or rejection before graphics,
+// and both partial initialization and public engine creation clean up their contexts.
+TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
+{
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+    const bool expected_success = false;
+#else
+    const bool expected_success = true;
+#endif
+    char project_path[256];
+    const char* argv[] = {
+        "test_engine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=bootstrap.main_collection=/text_input/text_input.collectionc",
+        "--config=input.game_binding=/text_input/text_input.input_bindingc",
+        MAKE_PATH(project_path, "/game.projectc"),
+    };
+
+    dmEngineInitialize();
+
+    // Inspect a rejected partial initialization before Delete can clear its contexts.
+    bool rejected_before_graphics = true;
+    if (!expected_success)
+    {
+        dmEngine::HEngine partial = dmEngine::New(0);
+        bool initialized = dmEngine::Init(partial, DM_ARRAY_SIZE(argv), (char**)argv);
+        // A missing project must not masquerade as execution-mode rejection.
+        rejected_before_graphics = !initialized && partial->m_Config && !partial->m_ConnectionAppMode && !partial->m_Window &&
+            !partial->m_GraphicsContext && !partial->m_RenderExecution;
+        dmEngine::Delete(partial);
+    }
+
+    // Exercise the public creation path too: it owns cleanup on initialization failure.
+    dmEngine::HEngine engine = dmEngineCreate(DM_ARRAY_SIZE(argv), (char**)argv);
+    bool created = engine != 0;
+    bool owns_all_roles = engine && engine->m_RenderExecution &&
+        dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME) &&
+        dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER);
+
+    if (engine)
+        dmEngineDestroy(engine);
+
+    bool graphics_cleaned = dmGraphics::GetInstalledContext() == 0;
+    dmEngineFinalize();
+
+    ASSERT_EQ(expected_success, created);
+    ASSERT_TRUE(graphics_cleaned);
+    ASSERT_TRUE(rejected_before_graphics);
+    if (expected_success)
+        ASSERT_TRUE(owns_all_roles);
 }
 
 TEST_F(EngineTest, NonProjectLastArgumentDoesNotOverrideProjectFile)

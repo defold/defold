@@ -28,6 +28,7 @@
 #include <resource/resource.h>
 
 #include <render/render.h>
+#include <render/render_execution.h>
 
 #include <hid/hid.h>
 #include <input/input.h>
@@ -37,6 +38,7 @@
 #include <gui/gui.h>
 
 #include <gamesys/gamesys.h>
+#include <gamesys/component_render.h>
 
 #include "engine.h"
 #include "engine_service.h"
@@ -114,6 +116,8 @@ namespace dmEngine
         HJobContext                                 m_JobThreadContext;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
+        dmRender::HRenderExecution                  m_RenderExecution;
+        dmGameSystem::HComponentRenderContext       m_ComponentRenderContext;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
         dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
         dmScript::HContext                          m_ScriptContext;
