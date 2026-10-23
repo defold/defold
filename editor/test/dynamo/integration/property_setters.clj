@@ -63,7 +63,8 @@
       #_(is (= provider (g/node-value user :upstream))))))
 
 (defn- modified? [tx-report node property]
-  (coll/any? #(= (g/endpoint node property) %) (:outputs-modified tx-report)))
+  (let [endpoint (g/endpoint node property)]
+    (coll/any? #(= endpoint %) (:outputs-modified tx-report))))
 
 (deftest dependencies-through-properties
   (testing "an output uses a property with a getter, changing the upstream node affects the output"

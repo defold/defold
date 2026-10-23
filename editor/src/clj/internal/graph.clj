@@ -1030,69 +1030,65 @@
       (.maximumSize 32)
       (.build)))
 
-(defn dependencies [basis endpoints]
-  (assert (coll/every? gt/endpoint? endpoints))
+(defmacro ^:private dependencies-impl [basis endpoints initial-nodes]
+  ;; Generate separate runtime walkers for performance. On a project with ~1M
+  ;; graph nodes, a shared function slowed a 5% resource reload from 215.5 s to
+  ;; 230.5 s (+15 s, ~7%). Sharing via this macro restored it to 215 s.
+  (let [initial-nodes-sym (gensym "initial-nodes")
+        node-id-sym (gensym "node-id")]
+    `(do
+       (assert (coll/every? gt/endpoint? ~endpoints))
+       (if (coll/empty? ~endpoints)
+         array/empty-reducible
+         (let [basis# ~basis
+               ~@(when initial-nodes [initial-nodes-sym initial-nodes])
+               node-successors# (gt/successors basis#)
+               pool# (ForkJoinPool/commonPool)
+               all-endpoints# (ConcurrentHashMap.)
+
+               make-task!#
+               (fn make-task!# [endpoints#]
+                 (fn trace-dependency-batch# []
+                   (coll/into-> endpoints# []
+                     (mapcat
+                       (fn trace-endpoint# [endpoint#]
+                         (let [~node-id-sym (gt/endpoint-node-id endpoint#)]
+                           (when (and ~@(when initial-nodes
+                                          [`(contains? ~initial-nodes-sym ~node-id-sym)])
+                                      (nil? (.putIfAbsent all-endpoints# endpoint# true)))
+                             (query-successors node-successors# basis#
+                                               ~node-id-sym (gt/endpoint-label endpoint#)))))))))
+
+               endpoints->tasks-xf# (comp (partition-all 512) (map make-task!#))
+               future->tasks-xf# (comp (mapcat deref) endpoints->tasks-xf#)]
+           (loop [tasks# (coll/into-> ~endpoints [] endpoints->tasks-xf#)]
+             (let [next-tasks#
+                   (if (= 1 (count tasks#))
+                     (coll/into-> ((nth tasks# 0)) [] endpoints->tasks-xf#)
+                     (coll/into-> (.invokeAll pool# tasks#) [] future->tasks-xf#))]
+               (when (pos? (count next-tasks#))
+                 (recur next-tasks#))))
+           (array/reducible (.toArray (.keySet all-endpoints#))))))))
+
+(defn dependencies
+  "Returns the distinct dependent endpoints, including the supplied endpoints.
+
+  The result implements Counted and IReduceInit, but is not seqable. Consume it
+  using reduce, into, or an eduction. Use set to convert it to a set when set
+  operations are needed."
+  [basis endpoints]
   (if (coll/empty? endpoints)
     array/empty-reducible
-    (let [node-successors (gt/successors basis)
-          cache-key (pair endpoints (System/identityHashCode node-successors))]
-      (.get basis-dependencies-cache
-            cache-key
-            (fn [_]
-              (let [pool (ForkJoinPool/commonPool)
-                    all-endpoints (ConcurrentHashMap.)
-                    make-task! (fn [endpoints]
-                                 (fn []
-                                   (into []
-                                         (mapcat
-                                           (fn [endpoint]
-                                             (when (nil? (.putIfAbsent all-endpoints endpoint true))
-                                               (let [node-id (gt/endpoint-node-id endpoint)
-                                                     output (gt/endpoint-label endpoint)]
-                                                 (query-successors node-successors basis node-id output)))))
-                                         endpoints)))
-                    endpoints->tasks-xf (comp (partition-all 512) (map make-task!))
-                    future->tasks-xf (comp (mapcat deref) endpoints->tasks-xf)]
-                (loop [tasks (into [] endpoints->tasks-xf endpoints)]
-                  (let [next-tasks
-                        (if (= 1 (count tasks))
-                          (into [] endpoints->tasks-xf ((nth tasks 0)))
-                          (into [] future->tasks-xf (.invokeAll pool tasks)))]
-                    (when (pos? (count next-tasks))
-                      (recur next-tasks))))
-                (array/reducible (.toArray (.keySet all-endpoints)))))))))
+    (.get basis-dependencies-cache
+          (pair endpoints (System/identityHashCode (gt/successors basis)))
+          (fn compute-dependencies [_]
+            (dependencies-impl basis endpoints nil)))))
 
 (defn invalidation-dependencies [initial-basis basis endpoints]
-  (assert (coll/every? gt/endpoint? endpoints))
-  ;; Unchanged successors allow the ordinary closure cache to be reused.
+  ;; Unchanged successors allow the dependency-result cache to be reused.
   (if (identical? (gt/successors initial-basis) (gt/successors basis))
     (dependencies basis endpoints)
-    (if (coll/empty? endpoints)
-      array/empty-reducible
-      (let [initial-nodes (gt/nodes initial-basis)
-            node-successors (gt/successors basis)
-            pool (ForkJoinPool/commonPool)
-            all-endpoints (ConcurrentHashMap.)
-            make-task!
-            (fn make-task! [endpoints]
-              (fn trace-dependency-batch []
-                (coll/into-> endpoints []
-                  (mapcat
-                    (fn [endpoint]
-                      (let [node-id (gt/endpoint-node-id endpoint)]
-                        (when (and (contains? initial-nodes node-id)
-                                   (nil? (.putIfAbsent all-endpoints endpoint true)))
-                          (query-successors node-successors basis node-id (gt/endpoint-label endpoint)))))))))
-            endpoints->tasks-xf (comp (partition-all 512) (map make-task!))
-            future->tasks-xf (comp (mapcat deref) endpoints->tasks-xf)]
-        (loop [tasks (coll/into-> endpoints [] endpoints->tasks-xf)]
-          (let [next-tasks
-                (if (= 1 (count tasks))
-                  (coll/into-> ((nth tasks 0)) [] endpoints->tasks-xf)
-                  (coll/into-> (.invokeAll pool tasks) [] future->tasks-xf))]
-            (when (pos? (count next-tasks))
-              (recur next-tasks))))
-        (array/reducible (.toArray (.keySet all-endpoints)))))))
+    (dependencies-impl basis endpoints (gt/nodes initial-basis))))
 
 (defn connected?
   [basis source-id source-label target-id target-label]

@@ -184,9 +184,9 @@
       (is (= :overridden (g/node-value target-override-node-id :regular-output)))
       (g/undo! ::add-source-override)
       (is (g/node-by-id target-override-node-id))
-      (is (= :original (g/node-value target-override-node-id :regular-output)))
       (let [old-evaluation-context (g/make-evaluation-context)]
         (is (= :original (g/node-value target-override-node-id :regular-output old-evaluation-context)))
+        (is (= :original (g/node-value target-override-node-id :regular-output)))
         (g/redo! ::add-source-override)
         (g/update-cache-from-evaluation-context! old-evaluation-context)
         (is (= :overridden
@@ -224,9 +224,9 @@
         (g/undo! ::add-original)
         (g/update-cache-from-evaluation-context! old-evaluation-context))
       (is (g/node-by-id override-node-id))
-      (is (nil? (g/node-value override-node-id :regular-output)))
       (let [old-evaluation-context (g/make-evaluation-context)]
         (is (nil? (g/node-value override-node-id :regular-output old-evaluation-context)))
+        (is (nil? (g/node-value override-node-id :regular-output)))
         (g/redo! ::add-original)
         (g/update-cache-from-evaluation-context! old-evaluation-context)
         (is (= :source-value (g/node-value override-node-id :regular-output)))))))
@@ -595,6 +595,48 @@
       (testing "Redo."
         (g/redo! ::add-source)
         (ensure-source-exists!)))))
+
+;; Independent undo histories can leave dormant connections to absent targets.
+;; Undoing an override source must skip those targets instead of querying nil.
+(deftest undo-override-source-creation-with-absent-target-test
+  (test-support/with-clean-system
+    (let [[source-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-node helpers/ConnectionSourceNode :property :source-value)))
+
+          [target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undo-key ::add-target}
+              (g/make-node helpers/ConnectionTargetNode)))
+
+          _ (g/transact
+              {:undoable false}
+              (g/connect source-node-id :property-output target-node-id :regular-input))
+
+          [override-source-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undo-key ::add-override-source}
+              (g/override source-node-id)))]
+      (is (= :source-value (g/node-value target-node-id :regular-output)))
+
+      (g/undo! ::add-target)
+      (is (nil? (g/node-by-id target-node-id)))
+      (is (g/node-by-id override-source-node-id))
+
+      (g/undo! ::add-override-source)
+      (is (nil? (g/node-by-id override-source-node-id)))
+      (is (g/node-by-id source-node-id))
+
+      (g/redo! ::add-override-source)
+      (is (g/node-by-id override-source-node-id))
+      (is (nil? (g/node-by-id target-node-id)))
+
+      (g/redo! ::add-target)
+      (is (= :source-value (g/node-value target-node-id :regular-output))))))
 
 (deftest undo-add-node-with-non-undoable-outgoing-array-connection-test
   (test-support/with-clean-system

@@ -218,10 +218,10 @@
               (coll/into-> (-> node gt/node-type in/output-labels) nodes-affected
                 (map #(gt/endpoint node-id %))))))))))
 
-(defn- mark-added-node-consumers-activated [ctx node-ids new-override-tree]
+(defn- mark-added-node-consumers-activated [ctx node-ids is-new-override-tree]
   ;; Initial creation of a new override tree cannot activate existing consumers.
   ;; Undo/redo resolves its consumers because later additions may survive.
-  (if (or (:full-invalidation ctx) new-override-tree)
+  (if (or (:full-invalidation ctx) is-new-override-tree)
     ctx
     (let [basis (:basis ctx)]
       (-> ctx
@@ -348,7 +348,7 @@
                 arc-target->arc-set)))))
       (distinct))))
 
-(defn- ctx-add-nodes [ctx nodes introduced-node-id->pkid->override-node-id new-override-tree]
+(defn- ctx-add-nodes [ctx nodes introduced-node-id->pkid->override-node-id is-new-override-tree]
   (let [node-ids (mapv gt/node-id nodes)
         ctx (-> ctx
                 (update :basis ig/basis-perform-add-nodes nodes introduced-node-id->pkid->override-node-id)
@@ -360,7 +360,7 @@
             source-arcs (coll/into-> node-ids []
                           (mapcat #(ig/explicit-arcs-by-source new-basis %)))]
         (-> ctx
-            (mark-added-node-consumers-activated node-ids new-override-tree)
+            (mark-added-node-consumers-activated node-ids is-new-override-tree)
             (mark-successor-nodes-changed changed-node-ids)
             (mark-successor-arcs-changed source-arcs))))))
 
@@ -856,29 +856,32 @@
         nodes-by-id (coll/pair-map-by gt/node-id identity added-nodes)
         source-arcs (coll/into-> node-ids []
                       (mapcat #(ig/explicit-arcs-by-source old-basis %)))
-        changed-node-ids (e/concat node-ids (e/map key introduced-node-id->pkid->override-node-id))]
+        changed-node-ids (e/concat node-ids (e/map key introduced-node-id->pkid->override-node-id))
+        override-ids (coll/into-> (coll/vals nodes-by-id) #{} (keep gt/override-id))
+
+        ;; Descendant overrides can survive undoing their original's creation.
+        surviving-override-nodes
+        (->> (ig/pre-traverse old-basis node-ids ig/get-overrides)
+             (e/remove nodes-by-id)
+             (e/keep #(ig/node-by-id-at old-basis %)))]
     (-> ctx
         (mark-nodes-outputs-activated added-nodes)
         (mark-arc-targets-activated source-arcs)
-        (mark-arc-targets-activated
-          (let [override-ids (coll/into-> (coll/vals nodes-by-id) #{} (keep gt/override-id))]
-            (if (coll/empty? override-ids)
-              []
-              (let [originals (coll/into-> node-ids #{} (mapcat #(ig/override-originals old-basis %)))
-                    target-roots (coll/into-> originals #{}
-                                   (mapcat #(ig/explicit-arcs-by-source old-basis %))
-                                   (map gt/target-id))
-                    ;; Removed targets and their surviving overrides already
-                    ;; have every output marked. Inspect other branches only.
-                    candidates (ig/pre-traverse old-basis target-roots ig/get-overrides :seen (set node-ids))]
-                (coll/into-> candidates :eduction
-                  (filter #(contains? override-ids (gt/override-id (ig/node-by-id-at old-basis %))))
-                  (mapcat #(ig/arcs-by-target old-basis %))
-                  (filter #(contains? nodes-by-id (gt/source-id %))))))))
-        ;; Descendant overrides can survive undoing their original's creation.
-        (mark-nodes-outputs-activated
-          (e/keep #(ig/node-by-id-at old-basis %)
-                  (e/remove nodes-by-id (ig/pre-traverse old-basis node-ids ig/get-overrides))))
+        (cond-> (not (coll/empty? override-ids))
+          (mark-arc-targets-activated
+            (let [originals (coll/into-> node-ids #{} (mapcat #(ig/override-originals old-basis %)))
+                  target-roots (coll/into-> originals #{}
+                                 (mapcat #(ig/explicit-arcs-by-source old-basis %))
+                                 (map gt/target-id))
+                  ;; Removed targets and their surviving overrides already
+                  ;; have every output marked. Inspect other branches only.
+                  candidates (ig/pre-traverse old-basis target-roots ig/get-overrides :seen (set node-ids))]
+              (coll/into-> candidates :eduction
+                (keep #(ig/node-by-id-at old-basis %))
+                (filter #(contains? override-ids (gt/override-id %)))
+                (mapcat #(ig/arcs-by-target old-basis (gt/node-id %)))
+                (filter #(contains? nodes-by-id (gt/source-id %)))))))
+        (mark-nodes-outputs-activated surviving-override-nodes)
         (mark-successor-nodes-changed changed-node-ids)
         (mark-successor-arcs-changed source-arcs)
         (update :nodes-deleted into nodes-by-id)
@@ -1072,11 +1075,11 @@
   (revert [_this ctx]
     (ctx-revert-add-nodes ctx added-nodes introduced-node-id->pkid->override-node-id)))
 
-(defn- realize-add-nodes [ctx undoable-changes added-nodes new-override-tree]
+(defn- realize-add-nodes [ctx undoable-changes added-nodes is-new-override-tree]
   (if-let [{:keys [added-nodes
                    introduced-node-id->pkid->override-node-id]}
            (ig/basis-plan-add-nodes (:basis ctx) added-nodes)]
-    (-> (pair (ctx-add-nodes ctx added-nodes introduced-node-id->pkid->override-node-id new-override-tree)
+    (-> (pair (ctx-add-nodes ctx added-nodes introduced-node-id->pkid->override-node-id is-new-override-tree)
               (conj-change undoable-changes (->AddNodesTXC added-nodes introduced-node-id->pkid->override-node-id)))
         (coll/reduce=> added-nodes
           (fn [[ctx undoable-changes] added-node]
