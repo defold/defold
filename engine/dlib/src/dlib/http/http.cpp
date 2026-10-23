@@ -19,6 +19,7 @@
 #include <string.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/math.h>
 
 #include "http_private.h"
 #include "http_service.h"
@@ -45,6 +46,7 @@ HttpRequest::HttpRequest()
     m_Owner = 0;
     m_Handle = InvalidRequestHandle();
     m_Timeout = 0;
+    m_StallTimeout = 0;
     m_IgnoreCache = 0;
     m_ChunkedTransfer = 1;
     m_ReportProgress = 0;
@@ -618,7 +620,18 @@ extern "C"
             return HTTP_RESULT_INVAL;
         }
 
-        request->m_Timeout = timeout_us;
+        request->m_Timeout = dmMath::Min(timeout_us, (uint32_t)INT32_MAX); // The client keeps timeouts as int
+        return HTTP_RESULT_OK;
+    }
+
+    HttpResult HttpSetStallTimeout(HttpRequest* request, uint32_t stall_timeout_us)
+    {
+        if (!CanModifyRequest(request))
+        {
+            return HTTP_RESULT_INVAL;
+        }
+
+        request->m_StallTimeout = dmMath::Min(stall_timeout_us, (uint32_t)INT32_MAX); // The client keeps timeouts as int
         return HTTP_RESULT_OK;
     }
 

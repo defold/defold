@@ -70,6 +70,7 @@ struct HttpRequest
     HttpService*                m_Owner;
     HttpRequestHandle           m_Handle;
     uint32_t                    m_Timeout;
+    uint32_t                    m_StallTimeout;
     int                         m_IgnoreCache;
     int                         m_ChunkedTransfer;
     int                         m_ReportProgress;

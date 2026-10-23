@@ -200,6 +200,7 @@ namespace dmHttpService
         const char*  m_Path;
         const char*  m_Proxy;
         uint32_t     m_Timeout;
+        uint32_t     m_StallTimeout;
         bool         m_IgnoreCache;
         bool         m_ChunkedTransfer;
         bool         m_ReportProgress;
@@ -579,6 +580,7 @@ namespace dmHttpService
             params.m_Userdata = worker;
             params.m_HttpCache = worker->m_Service->m_HttpCache;
             params.m_RequestTimeout = request->m_Timeout;
+            params.m_StallTimeout = request->m_StallTimeout;
 
             worker->m_Client = dmHttpClient::New(&params, &url, &worker->m_Canceled, &proxy_url);
 
@@ -613,6 +615,7 @@ namespace dmHttpService
         if (worker->m_Client)
         {
             dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, request->m_Timeout);
+            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_STALL_TIMEOUT, request->m_StallTimeout);
             dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_IGNORE_CACHE, request->m_IgnoreCache);
             dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_CHUNKED_TRANSFER, request->m_ChunkedTransfer);
 
@@ -695,6 +698,7 @@ namespace dmHttpService
         context->m_Path = request->m_Path;
         context->m_Proxy = request->m_Proxy;
         context->m_Timeout = request->m_Timeout;
+        context->m_StallTimeout = request->m_StallTimeout;
         context->m_IgnoreCache = request->m_IgnoreCache != 0;
         context->m_ChunkedTransfer = request->m_ChunkedTransfer != 0;
         context->m_ReportProgress = request->m_ReportProgress != 0;
