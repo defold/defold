@@ -108,35 +108,39 @@
   [^Stage stage project prefs localization]
   (when (and (enabled?) (compare-and-set! busy false true))
     (future
-      (let [info (fetch-info!)
-            version (:version info)
-            newer (and info (newer-than-running? version))
-            markdown (when newer (release-notes version))]
-        (ui/run-later
-          (try
-            (when (.isShowing stage)
-              (if newer
-                (case (confirm-download! stage project localization version markdown)
-                  :download
-                  (let [platform (Platform/getHostPlatform)
-                        extension (if (= "macos" (.getOs platform)) "dmg" "zip")]
-                    (ui/open-url (updater/download-url (system/defold-archive-domain) (:sha1 info) "beta" platform extension))
-                    (prefs/set! prefs [:versioning :opened-beta-sha1] (:sha1 info)))
+      (try
+        (let [info (fetch-info!)
+              version (:version info)
+              newer (and info (newer-than-running? version))
+              markdown (when newer (release-notes version))]
+          (ui/run-later
+            (try
+              (when (.isShowing stage)
+                (if newer
+                  (case (confirm-download! stage project localization version markdown)
+                    :download
+                    (let [platform (Platform/getHostPlatform)
+                          extension (if (= "macos" (.getOs platform)) "dmg" "zip")]
+                      (ui/open-url (updater/download-url (system/defold-archive-domain) (:sha1 info) "beta" platform extension))
+                      (prefs/set! prefs [:versioning :opened-beta-sha1] (:sha1 info)))
 
-                  :dont-suggest
-                  (prefs/set! prefs [:versioning :beta-suggestions-disabled] true)
+                    :dont-suggest
+                    (prefs/set! prefs [:versioning :beta-suggestions-disabled] true)
 
-                  nil)
-                (dialogs/make-info-dialog
-                  localization
-                  {:title (localization/message "beta.dialog.title")
-                   :icon (if info :icon/circle-info :icon/triangle-error)
-                   :owner stage
-                   :header (localization/message (if info
-                                                   "beta.no-newer-dialog.header"
-                                                   "beta.check-failed-dialog.header"))})))
-            (finally
-              (reset! busy false))))))))
+                    nil)
+                  (dialogs/make-info-dialog
+                    localization
+                    {:title (localization/message "beta.dialog.title")
+                     :icon (if info :icon/circle-info :icon/triangle-error)
+                     :owner stage
+                     :header (localization/message (if info
+                                                     "beta.no-newer-dialog.header"
+                                                     "beta.check-failed-dialog.header"))})))
+              (finally
+                (reset! busy false)))))
+        (catch Throwable e
+          (reset! busy false)
+          (log/warn :message "Failed to check for beta" :exception e))))))
 
 (defn suggest! [^Stage stage notifications-node project prefs localization]
   (future
