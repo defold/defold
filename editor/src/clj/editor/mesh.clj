@@ -26,11 +26,13 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
+            [editor.graphics :as graphics]
             [editor.graphics.types :as graphics.types]
             [editor.image :as image]
             [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
+            [editor.model-util :as model-util]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.render-util :as render-util]
@@ -199,7 +201,11 @@
                     vb (request-vb! gl node-id user-data (:world-transform renderable))
                     vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
         (gl/with-gl-bindings gl render-args [vertex-binding]
-          (gl/gl-draw-arrays gl gl-primitive-type 0 (count vb))))
+          ;; Generated attributes take precedence over equally named streams.
+          (doseq [{:keys [location vector-type]} (:generated-attribute-infos user-data)]
+            (gl/disable-vertex-attrib-arrays! gl location (graphics.types/vector-type-attribute-count vector-type)))
+          (gl/with-gl-bindings gl render-args [(:generated-attribute-bindings user-data)]
+            (gl/gl-draw-arrays gl gl-primitive-type 0 (count vb)))))
       (gl/gl-disable gl GL3/GL_CULL_FACE)
       (.glBlendFunc gl GL3/GL_SRC_ALPHA GL3/GL_ONE_MINUS_SRC_ALPHA)
       (doseq [[_name texture] textures]
@@ -327,12 +333,38 @@
              0
              streams))
 
-(g/defnk produce-scene [_node-id aabb streams primitive-type position-stream normal-stream shader gpu-textures vertex-space]
+(g/defnk produce-scene [_node-id aabb streams primitive-type position-stream normal-stream shader gpu-textures vertex-space material-attribute-infos]
   (if (nil? streams)
     {:aabb aabb
      :renderable {:passes [pass/selection]}}
 
-    (let [vertex-count (max-stream-length streams)
+    (let [matrix-semantic-types #{:semantic-type-world-matrix :semantic-type-normal-matrix}
+          stream-names (coll/into-> streams #{} (map :name))
+
+          shader-attribute-infos
+          (mapv (fn [attribute-info]
+                  ;; Match the runtime's inferred step function. Explicit
+                  ;; material declarations override this in the combined info.
+                  (cond-> attribute-info
+                    (matrix-semantic-types (:semantic-type attribute-info))
+                    (assoc :step-function :vertex-step-function-instance)))
+                (shader/attribute-reflection-infos shader))
+
+          generated-attribute-infos
+          (filterv (fn [{:keys [name semantic-type step-function]}]
+                     (or (= :vertex-step-function-instance step-function)
+                         (and (matrix-semantic-types semantic-type)
+                              (not (contains? stream-names name)))))
+                   (graphics/combined-attribute-infos shader-attribute-infos
+                                                      material-attribute-infos
+                                                      (case vertex-space
+                                                        :vertex-space-local :coordinate-space-local
+                                                        :vertex-space-world :coordinate-space-world)))
+
+          generated-attribute-bindings
+          (model-util/make-attribute-bindings _node-id generated-attribute-infos {} {})
+
+          vertex-count (max-stream-length streams)
           attribute-infos (mapv #(stream->attribute-info % position-stream normal-stream) streams)
           array-streams (mapv (partial buffer/stream->array-stream vertex-count) streams)
           element-types (mapv graphics.types/attribute-info-element-type attribute-infos)
@@ -346,6 +378,8 @@
                     :select-batch-key _node-id
                     :user-data {:array-streams array-streams
                                 :vertex-attributes attribute-infos
+                                :generated-attribute-infos generated-attribute-infos
+                                :generated-attribute-bindings generated-attribute-bindings
                                 :vertex-count vertex-count
                                 :put-vertices-fn put-vertices-fn
                                 :position-stream-name position-stream
@@ -402,6 +436,7 @@
                                             [:samplers :samplers]
                                             [:build-targets :dep-build-targets]
                                             [:shader :shader]
+                                            [:attribute-infos :material-attribute-infos]
                                             [:vertex-space :vertex-space])))
             (dynamic error (g/fnk [_node-id material]
                              (prop-resource-error :fatal _node-id :material material material-message)))
@@ -467,6 +502,7 @@
   (input dep-build-targets g/Any :array)
   (input streams g/Any)
   (input shader ShaderLifecycle)
+  (input material-attribute-infos g/Any)
   (input vertex-space g/Keyword)
 
   (output save-value g/Any :cached produce-save-value)

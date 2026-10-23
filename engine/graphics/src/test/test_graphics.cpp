@@ -441,6 +441,45 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
+// Offset changes must select a distinct pipeline, while identical final layouts
+// retain the same hash regardless of mutation order or cached shader locations.
+TEST_F(dmGraphicsTest, VertexDeclarationOffsetPipelineHash)
+{
+    dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(m_Context, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+    dmGraphics::AddVertexStream(streams, "color", 3, dmGraphics::TYPE_UNSIGNED_BYTE, true);
+    dmGraphics::AddVertexStream(streams, "mtx_world", 16, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::HVertexDeclaration first = dmGraphics::NewVertexDeclaration(m_Context, streams, 72);
+    dmGraphics::HVertexDeclaration second = dmGraphics::NewVertexDeclaration(m_Context, streams, 72);
+    dmGraphics::HVertexDeclaration wider = dmGraphics::NewVertexDeclaration(m_Context, streams, 76);
+
+    ASSERT_TRUE(dmGraphics::SetStreamOffset(first, 0, 0));
+    ASSERT_TRUE(dmGraphics::SetStreamOffset(first, 1, 4));
+    ASSERT_TRUE(dmGraphics::SetStreamOffset(second, 1, 8));
+    ASSERT_NE(first->m_PipelineHash, second->m_PipelineHash);
+    ASSERT_TRUE(dmGraphics::SetStreamOffset(second, 1, 4));
+    ASSERT_TRUE(dmGraphics::SetStreamOffset(second, 0, 0));
+    ASSERT_EQ(first->m_PipelineHash, second->m_PipelineHash);
+
+    second->m_Streams[0].m_Location = 7;
+    ASSERT_TRUE(dmGraphics::SetStreamOffset(second, 0, 0));
+    ASSERT_EQ(first->m_PipelineHash, second->m_PipelineHash);
+    ASSERT_TRUE(dmGraphics::SetStreamOffset(wider, 1, 4));
+    ASSERT_NE(first->m_PipelineHash, wider->m_PipelineHash);
+
+    const dmhash_t instance_hash = second->m_PipelineHash;
+    second->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+    ASSERT_TRUE(dmGraphics::SetStreamOffset(second, 0, 0));
+    ASSERT_NE(instance_hash, second->m_PipelineHash);
+    const dmhash_t vertex_hash = second->m_PipelineHash;
+    ASSERT_FALSE(dmGraphics::SetStreamOffset(second, 2, 0));
+    ASSERT_EQ(vertex_hash, second->m_PipelineHash);
+
+    dmGraphics::DeleteVertexDeclaration(first);
+    dmGraphics::DeleteVertexDeclaration(second);
+    dmGraphics::DeleteVertexDeclaration(wider);
+    dmGraphics::DeleteVertexStreamDeclaration(streams);
+}
+
 TEST_F(dmGraphicsTest, VertexDeclarationMoreThan8Streams)
 {
     // Create a vertex declaration with more than 8 streams (e.g. 10)
