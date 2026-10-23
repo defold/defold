@@ -1058,9 +1058,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
         // Resolve once, before dependency declarations, and retain these exact
         // values for build. Never transform already compiled resource paths again.
-        SceneDesc.Builder scene = sourceScene.clone();
-        MergeOriginalValuesIntoLayouts(scene);
-        SceneResolution resolution = resolveScene(this, input.getPath(), scene, new SceneBuilderIO(), sourceSceneCache, true);
+        MergeOriginalValuesIntoLayouts(sourceScene);
+        SceneResolution resolution = resolveScene(this, input.getPath(), sourceScene, new SceneBuilderIO(), sourceSceneCache, true);
         resolvedScene = resolution.scene().build();
         customNodeContext = new GuiBuildContext(project, input, resolution.resources());
 
