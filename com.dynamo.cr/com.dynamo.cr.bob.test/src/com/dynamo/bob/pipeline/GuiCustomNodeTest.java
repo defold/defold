@@ -387,6 +387,28 @@ public class GuiCustomNodeTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Cached migrations must include later registrations in name order and replace re-registered types.
+    @Test
+    public void testSceneMigrationRegistryUpdatesAfterRegistration() {
+        GuiCustomTypeRegistry registry = new GuiCustomTypeRegistry();
+        Assert.assertTrue(registry.getSceneMigrations().isEmpty());
+        registry.register(LifecycleNode.class);
+        Assert.assertTrue(registry.getSceneMigrations().isEmpty());
+
+        registry.register(SourceMigrationNode.class);
+        List<GuiCustomTypeRegistry.Type> firstMigrations = registry.getSceneMigrations();
+        Assert.assertEquals(List.of(registry.getByName("SourceMigration")), firstMigrations);
+
+        registry.register(MigratingLifecycleNode.class);
+        Assert.assertEquals(List.of(registry.getByName("MigratingLifecycleTest"), registry.getByName("SourceMigration")),
+                registry.getSceneMigrations());
+
+        registry.register(SourceMigrationNode.class);
+        Assert.assertEquals(List.of(registry.getByName("MigratingLifecycleTest"), registry.getByName("SourceMigration")),
+                registry.getSceneMigrations());
+        Assert.assertNotSame(firstMigrations.get(0), registry.getSceneMigrations().get(1));
+    }
+
     // Migrate raw templates and sparse layouts once, before resolving type aliases, defaults and overrides.
     @Test
     public void testSourceMigrationBeforeInheritance() throws Exception {

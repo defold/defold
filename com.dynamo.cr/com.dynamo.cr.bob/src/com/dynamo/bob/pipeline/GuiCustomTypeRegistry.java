@@ -129,6 +129,7 @@ public class GuiCustomTypeRegistry {
 
     private final Map<Integer, Type> typesByHash = new LinkedHashMap<Integer, Type>();
     private final Map<String, Type> typesByName = new LinkedHashMap<String, Type>();
+    private List<Type> sceneMigrations = List.of();
 
     public void register(Class<?> klass) {
         GuiCustomNode annotation = klass.getAnnotation(GuiCustomNode.class);
@@ -158,6 +159,8 @@ public class GuiCustomTypeRegistry {
 
         typesByHash.put(type.getNameHash(), type);
         typesByName.put(type.getName(), type);
+        sceneMigrations = typesByName.values().stream().filter(registeredType -> registeredType.sceneMigration)
+                .sorted(Comparator.comparing(Type::getName)).toList();
     }
 
     public Type getByHash(int nameHash) {
@@ -169,8 +172,7 @@ public class GuiCustomTypeRegistry {
     }
 
     List<Type> getSceneMigrations() {
-        return typesByName.values().stream().filter(type -> type.sceneMigration)
-                .sorted(Comparator.comparing(Type::getName)).toList();
+        return sceneMigrations;
     }
 
     private static void invokeRegisterProperties(Class<?> klass, Type type) {
