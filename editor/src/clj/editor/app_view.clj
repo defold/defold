@@ -2910,8 +2910,8 @@
 
 (handler/defhandler :help.try-beta :global
   (enabled? [] (beta/enabled?))
-  (run [project main-stage prefs localization]
-    (beta/try! main-stage project prefs localization)))
+  (run [workspace project main-stage prefs localization]
+    (beta/try! main-stage (workspace/notifications workspace) project prefs localization)))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [basis (:basis evaluation-context)

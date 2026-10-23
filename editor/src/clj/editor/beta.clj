@@ -105,7 +105,7 @@
 (defn try!
   "Offers to open the beta download link in the web browser. Returns the future
   doing so, or nil if disabled or already busy."
-  [^Stage stage project prefs localization]
+  [^Stage stage notifications-node project prefs localization]
   (when (and (enabled?) (compare-and-set! busy false true))
     (future
       (try
@@ -122,10 +122,12 @@
                     (let [platform (Platform/getHostPlatform)
                           extension (if (= "macos" (.getOs platform)) "dmg" "zip")]
                       (ui/open-url (updater/download-url (system/defold-archive-domain) (:sha1 info) "beta" platform extension))
-                      (prefs/set! prefs [:versioning :opened-beta-sha1] (:sha1 info)))
+                      (prefs/set! prefs [:versioning :opened-beta-sha1] (:sha1 info))
+                      (notifications/close! notifications-node ::suggestion))
 
                     :dont-suggest
-                    (prefs/set! prefs [:versioning :beta-suggestions-disabled] true)
+                    (do (prefs/set! prefs [:versioning :beta-suggestions-disabled] true)
+                        (notifications/close! notifications-node ::suggestion))
 
                     nil)
                   (dialogs/make-info-dialog
@@ -155,7 +157,7 @@
              :message (localization/message "beta.notification.available" {"version" (:version info)})
              :actions [{:message (localization/message "beta.notification.try-it")
                         :on-action (fn try-beta! []
-                                     (when-let [offer (try! stage project prefs localization)]
+                                     (when-let [offer (try! stage notifications-node project prefs localization)]
                                        (notifications/close! notifications-node ::suggestion)
                                        offer))}
                        {:message (localization/message "beta.button.dont-suggest")
