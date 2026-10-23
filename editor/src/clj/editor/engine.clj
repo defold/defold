@@ -322,8 +322,8 @@
   ;; size, including for stopped players and inactive desktop backends.
   (try
     (path/atomic-replace!
-      (io/file project-directory ".internal" "window-state" "reset-size")
-      #(spit (io/file %) (str (UUID/randomUUID))))
+      (path/of project-directory ".internal" "window-state" "reset-size")
+      #(spit % (str (UUID/randomUUID))))
     (catch IOException error
       ;; Persistence must not prevent resetting preferences and a live player.
       (log/warn :message "Unable to save player window size reset" :exception error))))
@@ -331,15 +331,14 @@
 (defn- window-state-prefix!
   [project-directory instance-index]
   (try
-    (let [directory (io/file ".internal" "window-state")
+    (let [directory (path/of ".internal" "window-state")
           ;; Single launches use index 0, multiple instances start at 1.
           slot (max 0 (dec (long instance-index)))
-          platform (current-platform)
-          operating-system (subs platform (inc (.indexOf ^String platform "-")))]
-      (fs/create-directories! (io/file project-directory directory))
+          operating-system (.getOs (Platform/getHostPlatform))]
+      (path/create-directories! (path/of project-directory directory))
       ;; The player runs in the project directory. Keep its state prefix ASCII
       ;; so Windows' narrow file APIs never encode the Unicode project path.
-      (.getPath (io/file directory (str operating-system "-" slot))))
+      (str (path/of directory (str operating-system "-" slot))))
     (catch IOException error
       (log/warn :message "Unable to create player window state directory" :exception error)
       nil)))
