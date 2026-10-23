@@ -127,6 +127,6 @@
         (is (string/includes? markdown "Feature details"))
         (is (string/includes? markdown "https://forum.defold.com/release"))
         (is (not (string/includes? markdown "Duplicate"))))))
-  (doseq [notes [nil [] {} {:issues "bad"}]]
+  (doseq [notes [nil [] {} {:issues "bad"} {:issues [{:repository "defold" :labels 42}]}]]
     (with-redefs [updater/fetch-version-notes! (constantly notes)]
       (is (nil? (#'beta/release-notes "1.14.0"))))))

@@ -23,7 +23,8 @@
             [editor.prefs :as prefs]
             [editor.system :as system]
             [editor.ui :as ui]
-            [editor.updater :as updater])
+            [editor.updater :as updater]
+            [service.log :as log])
   (:import [com.dynamo.bob Platform]
            [javafx.stage Stage]))
 
@@ -65,7 +66,11 @@
 (defn- release-notes [version]
   (when-let [notes (updater/fetch-version-notes! (system/defold-archive-domain) "beta" version)]
     (when (and (map? notes) (vector? (:issues notes)))
-      (updater/release-notes-markdown (assoc notes :version (str version " beta"))))))
+      (try
+        (updater/release-notes-markdown (assoc notes :version (str version " beta")))
+        (catch Exception e
+          (log/warn :message "Failed to render beta release notes" :version version :exception e)
+          nil)))))
 
 (defonce ^:private busy (atom false))
 
