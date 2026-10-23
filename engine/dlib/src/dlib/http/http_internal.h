@@ -37,21 +37,31 @@ namespace dmHttpService
         return (uint32_t)dmMath::Min(dmMath::Max(required_capacity, grown_capacity), (uint64_t)UINT32_MAX);
     }
 
-    inline bool AppendResponseBuffer(dmArray<char>& buffer, const void* data, uint32_t data_size)
+    inline bool AppendResponseBuffer(dmArray<char>& buffer, const void* data, uint32_t data_size, int32_t content_length = -1)
     {
         if (!data || data_size == 0)
         {
             return true;
         }
 
-        uint32_t left = buffer.Capacity() - buffer.Size();
-        if (left < data_size)
+        uint32_t capacity = buffer.Capacity();
+        // Reserve the known body size on the first nonempty chunk. Headers use the default -1.
+        if (buffer.Empty() && content_length > 0)
         {
-            uint32_t capacity = GetResponseBufferCapacity(buffer.Capacity(), (uint64_t)buffer.Size() + data_size);
+            capacity = dmMath::Max(capacity, (uint32_t)content_length);
+        }
+
+        uint64_t required_capacity = (uint64_t)buffer.Size() + data_size;
+        if (required_capacity > capacity)
+        {
+            capacity = GetResponseBufferCapacity(capacity, required_capacity);
             if (capacity == 0)
             {
                 return false;
             }
+        }
+        if (capacity != buffer.Capacity())
+        {
             buffer.SetCapacity(capacity);
         }
         buffer.PushArray((const char*)data, data_size);

@@ -79,6 +79,71 @@ TEST(HttpResponseBuffer, EmptyAndExactFit)
     ASSERT_EQ(2048U, buffer.Capacity());
 }
 
+static void CheckContentLength(uint32_t initial_capacity, int32_t content_length)
+{
+    dmArray<char> buffer;
+    buffer.SetCapacity(initial_capacity);
+    char data[1024] = {};
+
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, 1, content_length));
+    uint32_t capacity = dmMath::Max(initial_capacity, (uint32_t)content_length);
+    ASSERT_EQ(capacity, buffer.Capacity());
+    const char* storage = buffer.Begin();
+
+    while (buffer.Size() < (uint32_t)content_length)
+    {
+        uint32_t chunk_size = dmMath::Min((uint32_t)sizeof(data), (uint32_t)content_length - buffer.Size());
+        ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, chunk_size, content_length));
+    }
+    ASSERT_EQ((uint32_t)content_length, buffer.Size());
+    ASSERT_EQ(capacity, buffer.Capacity());
+    ASSERT_EQ(storage, buffer.Begin());
+}
+
+// Verifies known lengths reserve once for both accumulation paths without shrinking existing storage.
+TEST(HttpResponseBuffer, ContentLength)
+{
+    CheckContentLength(0, 256);
+    CheckContentLength(0, 128 * 1024 + 17);
+    CheckContentLength(64 * 1024, 256);
+    CheckContentLength(64 * 1024, 128 * 1024 + 17);
+}
+
+// Verifies bodyless responses do not allocate, and zero or unknown lengths use geometric growth.
+TEST(HttpResponseBuffer, EmptyAndUnknownContentLength)
+{
+    dmArray<char> buffer;
+    const char byte = 'a';
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, 0, 0, 128 * 1024));
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, &byte, 0, 128 * 1024));
+    ASSERT_EQ(0U, buffer.Capacity());
+
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, &byte, 1, 0));
+    ASSERT_EQ(1024U, buffer.Capacity());
+    buffer.SetSize(0);
+    buffer.SetCapacity(0);
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, &byte, 1, -1));
+    ASSERT_EQ(1024U, buffer.Capacity());
+}
+
+// Verifies an underestimated content length falls back to doubling, including on the first chunk.
+TEST(HttpResponseBuffer, ExceedsContentLength)
+{
+    dmArray<char> buffer;
+    char data[1500] = {};
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, sizeof(data), 1500));
+    ASSERT_EQ(1500U, buffer.Capacity());
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, 1, 1500));
+    ASSERT_EQ(1501U, buffer.Size());
+    ASSERT_EQ(3000U, buffer.Capacity());
+
+    buffer.SetSize(0);
+    buffer.SetCapacity(0);
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, sizeof(data), 1200));
+    ASSERT_EQ(1500U, buffer.Size());
+    ASSERT_EQ(2400U, buffer.Capacity());
+}
+
 // Verifies irregular chunks, including chunks larger than doubled capacity, preserve binary data.
 TEST(HttpResponseBuffer, IrregularAndLargeChunks)
 {

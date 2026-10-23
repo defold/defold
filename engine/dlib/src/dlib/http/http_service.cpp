@@ -304,7 +304,7 @@ namespace dmHttpService
         if (!method_is_head)
         {
             dmArray<char>& r = worker->m_Response;
-            if (!AppendResponseBuffer(r, content_data, content_data_size))
+            if (!AppendResponseBuffer(r, content_data, content_data_size, content_length))
             {
                 dmLogError("HTTP response body exceeds the maximum buffer size. Canceling request.");
                 worker->m_Canceled = 1;

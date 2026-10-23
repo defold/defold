@@ -297,7 +297,7 @@ static void SendHeader(HttpRequest* request, int status, const char* header, uin
     }
 }
 
-static void SendData(HttpRequest* request, int status, const char* data, uint32_t data_size)
+static void SendData(HttpRequest* request, int status, const char* data, uint32_t data_size, int32_t content_length)
 {
     if (request->m_Callback && data && data_size > 0)
     {
@@ -308,6 +308,7 @@ static void SendData(HttpRequest* request, int status, const char* data, uint32_
         response.m_StatusCode = status;
         response.m_Data = data;
         response.m_DataSize = data_size;
+        response.m_BytesTotal = content_length;
         HandleCallbackResult(request, request->m_Callback(request, request->m_UserData, &response));
     }
 }
@@ -698,9 +699,7 @@ namespace dmHttpService
         request->m_RangeStart = range_start;
         request->m_RangeEnd = range_end;
         request->m_DocumentSize = document_size;
-        (void)content_length;
-
-        SendData(request, status, (const char*)content_data, content_data_size);
+        SendData(request, status, (const char*)content_data, content_data_size, content_length);
     }
 
     void DirectRequestProgress(HttpRequest* request, uint32_t bytes_sent, uint32_t bytes_received, int32_t bytes_total)

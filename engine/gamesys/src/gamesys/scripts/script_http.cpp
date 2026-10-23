@@ -210,7 +210,7 @@ namespace dmGameSystem
             break;
 
             case HTTP_RESPONSE_EVENT_DATA:
-                if (!dmHttpService::AppendResponseBuffer(request->m_Response, HttpResponseGetData(response), HttpResponseGetDataSize(response)))
+                if (!dmHttpService::AppendResponseBuffer(request->m_Response, HttpResponseGetData(response), HttpResponseGetDataSize(response), HttpResponseGetBytesTotal(response)))
                 {
                     dmLogError("HTTP response body exceeds the maximum buffer size. Canceling request.");
                     return HTTP_CALLBACK_RESULT_CANCEL;
