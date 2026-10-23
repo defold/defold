@@ -3725,6 +3725,34 @@ TEST_F(GuiLayoutChangedTest, FinalAndReload)
         "assert(#layout_changed_test.messages == 1)"));
 }
 
+// Shared GUI resources must keep old layout descriptors alive through every final() on repeated reloads.
+TEST_F(GuiLayoutChangedTest, ReloadSharedSceneKeepsFinalLayoutsAlive)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/gui/layout_changed.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(RunString(m_L, "layout_changed_test.layout_in_init = 'Square'"));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(RunString(m_L,
+        "assert(layout_changed_test.init_count == 2)\n"
+        "layout_changed_test.messages = {}\n"
+        "layout_changed_test.layout_in_final = 'Portrait'"));
+
+    for (uint32_t i = 0; i < 2; ++i)
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/gui/layout_changed.guic", 0));
+
+    ASSERT_TRUE(RunString(m_L,
+        "assert(layout_changed_test.init_count == 6)\n"
+        "assert(layout_changed_test.final_count == 4)\n"
+        "assert(#layout_changed_test.messages == 4)\n"
+        "for _, message in ipairs(layout_changed_test.messages) do\n"
+        "    assert(message.initialized)\n"
+        "    assert(message.id == hash('Square'))\n"
+        "    assert(message.position == 99)\n"
+        "end"));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_TRUE(RunString(m_L, "assert(layout_changed_test.final_count == 6)"));
+}
+
 TEST_F(GuiTest, GuiCustomPropertiesFromDDF)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));

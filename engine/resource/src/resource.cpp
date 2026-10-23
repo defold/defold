@@ -1177,6 +1177,29 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
     return result;
 }
 
+static Result DestroyPreviousResource(HFactory factory, ResourceDescriptor* rd)
+{
+    if (!rd->m_PrevResource)
+        return RESULT_OK;
+
+    ResourceType* resource_type = rd->m_ResourceType;
+    ResourceDescriptor tmp_resource = *rd;
+    tmp_resource.m_Resource = rd->m_PrevResource;
+    ResourceDestroyParams params;
+    params.m_Factory = factory;
+    params.m_Type = resource_type;
+    params.m_Context = resource_type->m_Context;
+    params.m_Resource = &tmp_resource;
+    Result result;
+    {
+        DM_PROFILE("ResourceDestroy");
+        DM_PROFILE_DYN(resource_type->m_Extension, 0);
+        result = (Result)resource_type->m_DestroyFunction(&params);
+    }
+    rd->m_PrevResource = 0;
+    return result;
+}
+
 static Result DoReloadResource(HFactory factory, const char* name, HResourceDescriptor* out_descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
@@ -1249,25 +1272,7 @@ static Result DoReloadResource(HFactory factory, const char* name, HResourceDesc
                 pair.m_Callback(&reload_params);
             }
         }
-        if (rd->m_PrevResource)
-        {
-            ResourceDescriptor tmp_resource = *rd;
-            tmp_resource.m_Resource = rd->m_PrevResource;
-            ResourceDestroyParams params;
-            params.m_Factory    = factory;
-            params.m_Type       = resource_type;
-            params.m_Context    = resource_type->m_Context;
-            params.m_Resource   = &tmp_resource;
-            Result res;
-            {
-                DM_PROFILE("ResourceDestroy");
-                DM_PROFILE_DYN(resource_type->m_Extension, 0);
-                res = (Result)resource_type->m_DestroyFunction(&params);
-            }
-            rd->m_PrevResource = 0x0;
-            return res;
-        }
-        return RESULT_OK;
+        return DestroyPreviousResource(factory, rd);
     }
     else
     {
@@ -1337,6 +1342,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
     params.m_Resource = rd;
     params.m_Filename = 0;
     params.m_FilenameHash = hashed_name;
+    rd->m_PrevResource = 0;
     Result create_result;
     {
         DM_PROFILE("ResourceRecreate");
@@ -1359,7 +1365,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
                 pair.m_Callback(&params);
             }
         }
-        return RESULT_OK;
+        return DestroyPreviousResource(factory, rd);
     }
     else
     {
@@ -1396,6 +1402,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
     params.m_Resource = rd;
     params.m_Filename = 0;
     params.m_FilenameHash = hashed_name;
+    rd->m_PrevResource = 0;
     Result create_result;
     {
         DM_PROFILE("ResourceRecreate");
@@ -1418,7 +1425,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
                 pair.m_Callback(&params);
             }
         }
-        return RESULT_OK;
+        return DestroyPreviousResource(factory, rd);
     }
     else
     {
