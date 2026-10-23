@@ -53,14 +53,15 @@
 
 (defn- check-once!
   "Checks for a beta suggestion at most once per editor session. Call off the UI
-  thread. Opted-out users and ineligible installations make no requests."
+  thread. Opted-out users, users who have run a beta and ineligible
+  installations make no requests."
   [prefs platform]
   (when (and (eligible? platform)
              (not (prefs/get prefs [:versioning :beta-suggestions-disabled]))
+             (not (prefs/get prefs [:versioning :ran-beta]))
              (compare-and-set! automatic-check-started false true))
     (when-let [info (fetch-info!)]
-      (when (and (newer-than-running? (:version info))
-                 (not= (:sha1 info) (prefs/get prefs [:versioning :opened-beta-sha1])))
+      (when (newer-than-running? (:version info))
         info))))
 
 (defn- release-notes [version]
@@ -125,7 +126,6 @@
                     (let [platform (Platform/getHostPlatform)
                           extension (if (= "macos" (.getOs platform)) "dmg" "zip")]
                       (ui/open-url (updater/download-url (system/defold-archive-domain) (:sha1 info) "beta" platform extension))
-                      (prefs/set! prefs [:versioning :opened-beta-sha1] (:sha1 info))
                       (notifications/close! notifications-node ::suggestion))
 
                     :dont-suggest
@@ -148,6 +148,8 @@
           (log/warn :message "Failed to check for beta" :exception e))))))
 
 (defn suggest! [^Stage stage notifications-node project prefs localization]
+  (when (= "beta" (system/defold-channel))
+    (prefs/set! prefs [:versioning :ran-beta] true))
   (future
     (when-let [info (check-once! prefs (Platform/getHostPlatform))]
       (ui/run-later

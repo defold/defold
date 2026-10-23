@@ -55,9 +55,12 @@
 (deftest automatic-check-respects-eligibility
   (with-redefs [beta/fetch-info! (fn unexpected-request! []
                                    (throw (AssertionError. "Unexpected beta request")))]
-    (testing "Opt-out"
-      (with-redefs [prefs/get (constantly true)]
-        (is (nil? (#'beta/check-once! nil Platform/X86_64Linux)))))
+    (doseq [[label path] [["Opt-out" [:versioning :beta-suggestions-disabled]]
+                          ["Ran a beta" [:versioning :ran-beta]]]]
+      (testing label
+        (with-redefs [prefs/get (fn get-pref [_ pref-path]
+                                  (= path pref-path))]
+          (is (nil? (#'beta/check-once! nil Platform/X86_64Linux))))))
     (with-redefs [prefs/get (constantly nil)]
       (testing "Other channels"
         (doseq [channel ["beta" "alpha" nil]]
@@ -77,13 +80,11 @@
       (is (nil? (#'beta/check-once! nil Platform/X86_64Linux)))
       (is (= 1 @requests)))))
 
-;; Verifies suggestions exclude equal, older and already opened betas.
+;; Verifies suggestions exclude equal and older betas.
 (deftest automatic-check-filters-offers
-  (doseq [[version opened] [["1.13.2" nil] ["1.12.0" nil] ["1.14.0" "B2"]]]
+  (doseq [version ["1.13.2" "1.12.0"]]
     (with-redefs [beta/automatic-check-started (atom false)
-                  prefs/get (fn get-pref [_ path]
-                              (when (= [:versioning :opened-beta-sha1] path)
-                                opened))
+                  prefs/get (constantly nil)
                   beta/fetch-info! (constantly {:version version :sha1 "B2"})]
       (is (nil? (#'beta/check-once! nil Platform/X86_64Linux))))))
 
