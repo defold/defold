@@ -156,11 +156,6 @@
              :id ::suggestion
              :message (localization/message "beta.notification.available" {"version" (:version info)})
              :actions [{:message (localization/message "beta.notification.try-it")
-                        :on-action (fn try-beta! []
-                                     (when-let [offer (try! stage notifications-node project prefs localization)]
-                                       (notifications/close! notifications-node ::suggestion)
-                                       offer))}
+                        :on-action #(try! stage notifications-node project prefs localization)}
                        {:message (localization/message "beta.button.dont-suggest")
-                        :on-action (fn disable-suggestions! []
-                                     (prefs/set! prefs [:versioning :beta-suggestions-disabled] true)
-                                     (notifications/close! notifications-node ::suggestion))}]}))))))
+                        :on-action #(prefs/set! prefs [:versioning :beta-suggestions-disabled] true)}]}))))))
