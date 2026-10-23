@@ -4479,26 +4479,34 @@ protected:
     dmGraphics::HProgram m_Program;
     uint64_t m_Formats;
 
-    void SetUp() override
+    void CreateVectorMaterial(bool color, dmRender::HMaterial* material, dmGraphics::HProgram* program)
     {
-        dmRenderTest::SetUp();
-        dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
-        m_Formats = context->m_BaseContext.m_TextureFormatSupport;
-        context->m_BaseContext.m_TextureFormatSupport |= (1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F) | (1ULL << dmGraphics::TEXTURE_FORMAT_R32UI);
-        const char* shader_src = "uniform sampler2D curve_texture; uniform utexture2D band_texture; uniform sampler2D effect_bitmap;";
+        const char*                   shader_src = color ? "uniform sampler2D curve_texture; uniform utexture2D band_texture; uniform sampler2D effect_bitmap; uniform sampler2D paint_texture;" :
+                                                           "uniform sampler2D curve_texture; uniform utexture2D band_texture; uniform sampler2D effect_bitmap;";
         dmGraphics::ShaderDescBuilder builder;
         builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
         builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
         builder.AddTexture("curve_texture", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
         builder.AddTexture("band_texture", 1, dmGraphics::ShaderDesc::SHADER_TYPE_UTEXTURE2D);
         builder.AddTexture("effect_bitmap", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-        m_Program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
-        m_Material = dmRender::NewMaterial(m_Context, m_Program);
-        const char* samplers[] = { "curve_texture", "band_texture", "effect_bitmap" };
-        for (uint32_t i = 0; i < 3; ++i)
-            ASSERT_TRUE(dmRender::SetMaterialSampler(m_Material, dmHashString64(samplers[i]), i,
+        if (color)
+            builder.AddTexture("paint_texture", 3, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+        *program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
+        *material = dmRender::NewMaterial(m_Context, *program);
+        const char* samplers[] = { "curve_texture", "band_texture", "effect_bitmap", "paint_texture" };
+        for (uint32_t i = 0; i < (color ? 4u : 3u); ++i)
+            ASSERT_TRUE(dmRender::SetMaterialSampler(*material, dmHashString64(samplers[i]), i,
                 dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
                 dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+    }
+
+    void SetUp() override
+    {
+        dmRenderTest::SetUp();
+        dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
+        m_Formats = context->m_BaseContext.m_TextureFormatSupport;
+        context->m_BaseContext.m_TextureFormatSupport |= (1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F) | (1ULL << dmGraphics::TEXTURE_FORMAT_R32UI);
+        CreateVectorMaterial(true, &m_Material, &m_Program);
         m_OriginalMaterial = dmRender::GetFontMapMaterial(m_SystemFontMap);
         m_SystemFontMap->m_Size = 1.0f;
         ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, m_Material));
@@ -4762,6 +4770,135 @@ TEST_F(VectorFontTest, DynamicEffectsWithoutPrewarm)
 {
     RenderWithoutPrewarm("../font/src/test/data/vera_mo_bd.ttf", true);
     RenderWithoutPrewarm("../font/src/test/data/SourceCodePro-Regular.otf", true);
+}
+
+// Curve/band-only Slug materials retain ordinary outlines when switching from
+// color rendering, rather than interpreting color vertices as solid decorations.
+TEST_F(VectorFontTest, ColorRequiresPaintSampler)
+{
+    dmRender::HMaterial  material;
+    dmGraphics::HProgram program;
+    CreateVectorMaterial(false, &material, &program);
+    ASSERT_EQ(dmRender::INVALID_SAMPLER_UNIT, dmRender::GetMaterialSamplerUnit(material, dmHashString64("paint_texture")));
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    dmRender::HMaterial original = m_Material;
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        bool color = pass != 1;
+        EXPECT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, color ? original : material));
+        m_Material = color ? original : material;
+        dmRender::FontDefaultVertex vertices[6];
+        EXPECT_EQ(6u, Render("J", false, vertices, DM_ARRAY_SIZE(vertices)));
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(vertices); ++i)
+            EXPECT_EQ(color ? 4.0f : 0.0f, vertices[i].m_VectorTexcoord[3]);
+        EXPECT_EQ(color ? 1u : 0u, m_SystemFontMap->m_VectorPaint->m_Glyphs.Size());
+    }
+    m_Material = original;
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// A per-draw override must reject paint vertices even after another draw warms the color cache.
+TEST_F(VectorFontTest, ColorRequiresDrawMaterialPaintSampler)
+{
+    dmRender::HMaterial  material;
+    dmGraphics::HProgram program;
+    CreateVectorMaterial(false, &material, &program);
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    dmRender::HMaterial original = m_Material;
+    for (uint32_t pass = 0; pass < 4; ++pass)
+    {
+        const bool color = pass % 2 != 0;
+        m_Material = color ? original : material;
+        dmRender::FontDefaultVertex vertices[6];
+        EXPECT_EQ(6u, Render("J", false, vertices, 6));
+        for (uint32_t i = 0; i < 6; ++i)
+            EXPECT_EQ(color ? 4.0f : 0.0f, vertices[i].m_VectorTexcoord[3]);
+        EXPECT_EQ(pass == 0 ? 0u : 1u, m_SystemFontMap->m_VectorPaint->m_Glyphs.Size());
+        EXPECT_EQ(original, dmRender::GetFontMapMaterial(m_SystemFontMap));
+    }
+    m_Material = original;
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Color paint must honor spatial gradient opacity when the material uses the CPU fallback.
+TEST_F(VectorFontTest, ColorSpatialGradientCpuFallback)
+{
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    dmRender::FontDefaultVertex vertices[6];
+    EXPECT_EQ(6u, Render("<gradient type=linear color0=#ffffff00 color1=#ffffff00>J</gradient>", true, vertices, 6));
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        EXPECT_EQ(4.0f, vertices[i].m_VectorTexcoord[3]);
+        EXPECT_EQ(0u, vertices[i].m_VectorColor[3]);
+    }
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
+}
+
+// Color-cache preparation follows the vertex budget, including whitespace,
+// ordinary outlines and the extra quads consumed by rich-text effects.
+TEST_F(VectorFontTest, TruncationBoundsColorCachePreparation)
+{
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_SHADOW;
+
+    const struct
+    {
+        const char* m_Text;
+        uint32_t    m_Capacity;
+        uint32_t    m_Vertices;
+        uint32_t    m_ColorGlyphs;
+    } cases[] = {
+        { "AB", 0, 0, 0 },
+        { "AB", 5, 0, 0 },
+        { "AB", 6, 6, 1 },
+        { "AB", 12, 12, 2 },
+        { " A B", 6, 6, 1 },
+        { "?AB", 6, 6, 0 },
+        { "? AB", 12, 12, 1 },
+        { "<shadow color=#000000>AB</shadow>", 6, 0, 0 },
+        { "<shadow color=#000000>AB</shadow>", 12, 12, 1 },
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        // Switching material resets both the color and ordinary glyph caches.
+        EXPECT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, m_OriginalMaterial));
+        EXPECT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, m_Material));
+        EXPECT_EQ(0u, m_SystemFontMap->m_VectorPaint->m_Glyphs.Size());
+        dmRender::FontDefaultVertex vertices[12];
+        EXPECT_EQ(cases[i].m_Vertices, Render(cases[i].m_Text, true, vertices, cases[i].m_Capacity));
+        EXPECT_EQ(cases[i].m_ColorGlyphs, m_SystemFontMap->m_VectorPaint->m_Glyphs.Size());
+        EXPECT_FALSE(m_SystemFontMap->m_SlugResetPending);
+    }
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
 }
 
 // Truncated vector text never writes beyond the supplied vertex buffer.

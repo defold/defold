@@ -640,6 +640,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     public void testVectorFontShaderLanguages() throws Exception {
         Path fontDirectory = Path.of("../../engine/font/content/builtins/fonts");
         addFile("/builtins/fonts/font-vector-slug.glsl", Files.readAllBytes(fontDirectory.resolve("font-vector-slug.glsl")));
+        addFile("/builtins/fonts/font-vector-paint.glsl", Files.readAllBytes(fontDirectory.resolve("font-vector-paint.glsl")));
         addFile("/builtins/fonts/font-effect.glsl", Files.readAllBytes(fontDirectory.resolve("font-effect.glsl")));
 
         ShaderDesc.Language[] languages = {
