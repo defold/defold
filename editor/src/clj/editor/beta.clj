@@ -74,8 +74,11 @@
 
 (defonce ^:private busy (atom false))
 
+(defn active? []
+  (eligible? (Platform/getHostPlatform)))
+
 (defn enabled? []
-  (and (eligible? (Platform/getHostPlatform))
+  (and (active?)
        (not @busy)))
 
 (defn- confirm-download! [stage project localization version markdown]

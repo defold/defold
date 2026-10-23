@@ -2909,6 +2909,7 @@
       localization)))
 
 (handler/defhandler :help.try-beta :global
+  (active? [] (beta/active?))
   (enabled? [] (beta/enabled?))
   (run [workspace project main-stage prefs localization]
     (beta/try! main-stage (workspace/notifications workspace) project prefs localization)))
