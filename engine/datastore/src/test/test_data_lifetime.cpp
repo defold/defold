@@ -38,8 +38,10 @@ static DSResult RegisterLifetimeTable(HDSContext store, DSResetPolicy reset)
         { .m_Field = 4, .m_Type = DS_TYPE_LIST, .m_Offset = offsetof(LifetimeRow, m_Loot) }
     };
     DSTableDesc table = {
-        .m_Type = 1, .m_Fields = fields, .m_FieldCount = 4, .m_RowStride = sizeof(LifetimeRow), .m_ResetPolicy = reset
+        .m_Type = 1, .m_Fields = fields, .m_FieldCount = 4, .m_RowStride = sizeof(LifetimeRow)
     };
+    if (reset)
+        table.m_ResetPolicy = reset;
     return DSRegisterTable(store, &table);
 }
 
@@ -103,7 +105,7 @@ static void CheckLifetimeViews(HDSContext store, DSId id)
     EXPECT_EQ(DS_TYPE_NULL, DSViewGetType(&element));
 }
 
-// Native row and field-array inputs copy stack references; reset history is optional.
+// Native row and field-array inputs copy stack references without reset history by default.
 // Views read nested members and mixed lists without exposing internals.
 TEST(DataLifetime, ResetPolicyAndContainerViews)
 {
@@ -118,16 +120,16 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             CheckLifetimeViews(store, ids[0]);
             ASSERT_EQ(DS_RESULT_OK, DSSetFieldNumber(store, ids[0], 1, 42));
             ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, ids[0], 2, "captain"));
-            ASSERT_EQ(history ? DS_RESULT_INVALID_ARGUMENT : DS_RESULT_OK, DSResetRow(store, ids[0]));
-            ASSERT_EQ(history ? DS_RESULT_INVALID_ARGUMENT : DS_RESULT_OK, DSResetField(store, ids[0], 1));
-            ASSERT_EQ(history ? DS_RESULT_INVALID_ARGUMENT : DS_RESULT_OK, DSResetTable(store, 1));
+            ASSERT_EQ(history ? DS_RESULT_OK : DS_RESULT_INVALID_ARGUMENT, DSResetRow(store, ids[0]));
+            ASSERT_EQ(history ? DS_RESULT_OK : DS_RESULT_INVALID_ARGUMENT, DSResetField(store, ids[0], 1));
+            ASSERT_EQ(history ? DS_RESULT_OK : DS_RESULT_INVALID_ARGUMENT, DSResetTable(store, 1));
             double health;
             ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ids[0], 1, &health));
-            ASSERT_EQ(history ? 42.0 : 100.0, health);
+            ASSERT_EQ(history ? 100.0 : 42.0, health);
             DSMemoryStats stats;
             GetDataMemoryStats(store, &stats);
-            ASSERT_EQ(history == 0, FindTable(store, 1)->m_DefaultOffset != 0);
-            if (history)
+            ASSERT_EQ(history != 0, FindTable(store, 1)->m_DefaultOffset != 0);
+            if (!history)
                 ASSERT_EQ(0u, stats.m_BaseRowBytes + stats.m_BaseCapacity);
 
             DSQueryItem requested = { .m_Hash = 4, .m_Type = DS_TYPE_LIST, .m_Kind = DS_QUERY_ITEM_FIELD };
@@ -185,7 +187,7 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             ASSERT_EQ(DS_RESULT_OK, DSSetFieldNumber(loaded, loaded_id, 1, -1));
             ASSERT_EQ(DS_RESULT_OK, DSResetRow(loaded, loaded_id));
             ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(loaded, loaded_id, 1, &health));
-            ASSERT_EQ(history ? 42.0 : 100.0, health);
+            ASSERT_EQ(history ? 100.0 : 42.0, health);
             ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(instance));
             ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
             DSDestroyBlob(blob);

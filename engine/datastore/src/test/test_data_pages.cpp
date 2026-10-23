@@ -194,7 +194,7 @@ TEST(DataPages, OversizedRows)
     input[1][31] = 22;
     input[2][31] = 33;
     DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = 31 * sizeof(double) };
-    DSTableDesc desc = { .m_Type = 10, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(input[0]) };
+    DSTableDesc desc = { .m_Type = 10, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(input[0]), .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
     DSId ids[3];
     ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 10, 0, 3, input, ids));

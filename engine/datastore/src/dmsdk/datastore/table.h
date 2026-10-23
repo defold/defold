@@ -41,8 +41,8 @@ extern "C"
 
     typedef enum DSResetPolicy
     {
-        DS_RESET_RETAIN = 0,
-        DS_RESET_NONE = 1,
+        DS_RESET_NONE = 0,
+        DS_RESET_RETAIN = 1,
     } DSResetPolicy;
 
     typedef struct DSTableDesc
@@ -53,7 +53,7 @@ extern "C"
         const DSFieldDesc* m_Fields;      // Borrowed root field descriptions; copied at registration.
         uint32_t           m_FieldCount;  // Number of root fields.
         uint32_t           m_RowStride;   // Bytes per row, including trailing alignment padding.
-        DSResetPolicy      m_ResetPolicy; // Retain native initial values by default; NONE disables reset.
+        DSResetPolicy      m_ResetPolicy; // Current values only by default; RETAIN keeps initial values for reset.
     } DSTableDesc;
 
     typedef struct DSFieldArray
@@ -131,8 +131,8 @@ extern "C"
  *
  * @enum
  * @name DSResetPolicy
- * @member DS_RESET_RETAIN Keep initial values for row/field reset; the default.
- * @member DS_RESET_NONE Store current values only; reset returns INVALID_ARGUMENT.
+ * @member DS_RESET_NONE Store current values only; the default. Reset returns INVALID_ARGUMENT.
+ * @member DS_RESET_RETAIN Keep an extra copy of initial values for row/field reset.
  */
 
 /*# Data table and row lifecycle
@@ -184,7 +184,7 @@ extern "C"
  * @member m_Fields [type:const DSFieldDesc*] Borrowed root field descriptions.
  * @member m_FieldCount [type:uint32_t] Number of root fields.
  * @member m_RowStride [type:uint32_t] Native row size including trailing alignment padding.
- * @member m_ResetPolicy [type:DSResetPolicy] Retain initial native values, or disable reset with NONE.
+ * @member m_ResetPolicy [type:DSResetPolicy] NONE by default; RETAIN keeps an extra copy of initial native values.
  */
 
 /*# Native reference input
@@ -239,7 +239,8 @@ extern "C"
  *
  * Copies count complete rows using the registered C layout and row size. Assigns
  * group to every row; groups can share a table. DSRemoveGroup removes owned rows.
- * Supplied values become reset defaults unless m_ResetPolicy is DS_RESET_NONE. Native rows have no component name; DSGetComponentId returns zero.
+ * Stores current values only unless m_ResetPolicy is DS_RESET_RETAIN.
+ * Native rows have no component name; DSGetComponentId returns zero.
  * Supports fixed-size values, inline structs and DSReference fields. Strings
  * and dynamic containers are copied into table-owned storage, including nested
  * payloads; all input memory can be released after the call. Dynamic struct fields

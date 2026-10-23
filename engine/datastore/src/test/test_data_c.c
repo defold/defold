@@ -371,7 +371,7 @@ int TestDataNativeRowsFromC(void)
         { .m_Field = 4, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(struct Enemy, m_Position) }
     };
     uint64_t     tag = 7;
-    DSTableDesc  table = { .m_Type = 10, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(struct Enemy) };
+    DSTableDesc  table = { .m_Type = 10, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(struct Enemy), .m_ResetPolicy = DS_RESET_RETAIN };
     struct Enemy input[] = {
         { .m_State = { .m_Health = 50, .m_Enabled = 1 }, .m_Position = { .m_Values = { 1, 2, 3 } } },
         { .m_State = { .m_Health = 75 }, .m_Position = { .m_Values = { 4, 5, 6 } } }
@@ -513,7 +513,7 @@ int TestDataSoARowsFromC(void)
         { .m_Field = 40, .m_Type = DS_TYPE_VECTOR4, .m_Offset = offsetof(struct Enemy, m_Color) },
         { .m_Field = 50, .m_Type = DS_TYPE_MATRIX4, .m_Offset = offsetof(struct Enemy, m_Transform) }
     };
-    DSTableDesc  table = { .m_Type = 10, .m_Fields = layout, .m_FieldCount = 5, .m_RowStride = sizeof(struct Enemy) };
+    DSTableDesc  table = { .m_Type = 10, .m_Fields = layout, .m_FieldCount = 5, .m_RowStride = sizeof(struct Enemy), .m_ResetPolicy = DS_RESET_RETAIN };
     uint8_t      active[] = { 1, 0 };
     DSVector3    positions[] = { { .m_Values = { 1, 2, 3 } }, { .m_Values = { 4, 5, 6 } } };
     struct State states[] = {
@@ -683,7 +683,7 @@ int CreateReferenceRowsFromC(HDSContext store, int soa, DSId ids[2])
         { .m_Field = 12, .m_Type = DS_TYPE_LIST, .m_Offset = offsetof(struct ReferenceEnemy, m_Loot) },
         { .m_Field = 13, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct ReferenceEnemy, m_State), .m_Struct = &layout, .m_Name = "state" }
     };
-    DSTableDesc table = { .m_Type = 93, .m_Fields = fields, .m_FieldCount = 4, .m_RowStride = sizeof(struct ReferenceEnemy) };
+    DSTableDesc table = { .m_Type = 93, .m_Fields = fields, .m_FieldCount = 4, .m_RowStride = sizeof(struct ReferenceEnemy), .m_ResetPolicy = DS_RESET_RETAIN };
     if (DSRegisterTable(store, &table) != DS_RESULT_OK)
         return 1;
 
@@ -746,7 +746,7 @@ int CreateMixedListRowsFromC(HDSContext store, int soa, DSId ids[2])
     DSListInput parent = { .m_Type = DS_TYPE_LIST, .m_Count = 1, .m_Values = &child };
     DSReference rows[] = { { .m_List = &mixed }, { .m_List = &parent } };
     DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_LIST };
-    DSTableDesc table = { .m_Type = 94, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference) };
+    DSTableDesc table = { .m_Type = 94, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference), .m_ResetPolicy = DS_RESET_RETAIN };
     if (DSRegisterTable(store, &table) != DS_RESULT_OK)
         return 1;
     DSResult result;

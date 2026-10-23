@@ -404,11 +404,11 @@ layout and its tags. `DSCreateRows(store, type, group, count, rows, out_ids)`
 copies complete native rows, including inline members, using the registered row
 size. One group is assigned to every row; each receives its own ID. Native rows
 have no component name. The caller prepares defaults and per-instance values.
-Nonzero groups must be live handles created in this store. By default, supplied
-values become reset defaults, kept in the same dense row order as current values. Set
-`DSTableDesc.m_ResetPolicy = DS_RESET_NONE` for generated simulation rows that
-need no history: AoS creation writes directly into current storage and reset returns
-`DS_RESULT_INVALID_ARGUMENT`. With history enabled, swap removal moves current
+Nonzero groups must be live handles created in this store. By default, rows store
+only current values: AoS creation writes directly into current storage and reset
+returns `DS_RESULT_INVALID_ARGUMENT`. Set
+`DSTableDesc.m_ResetPolicy = DS_RESET_RETAIN` to keep an extra copy of supplied
+values for reset. With history enabled, swap removal moves current
 and default rows together and reuses the removed default slot. Inputs live only
 through the call. Native reference fields use
 `DSReference`: a string pointer, `DSStructInput` (member layout plus native
@@ -533,9 +533,10 @@ Numeric and math writes modify these mutable rows directly, without first-write
 allocation or a second private copy of defaults. Replacement strings/containers
 belong to the registration. Runtime reference slots distinguish blob offsets,
 owned string/list pointers and owned child-row indices; file bytes remain unchanged. Rows added without a blob
-retain table-owned defaults unless registered with `DS_RESET_NONE`.
+store only current values unless registered with `DS_RESET_RETAIN`.
 
-Reset restores loaded/added values: `DSResetRow` targets one component,
+Reset restores values from the shared resource or explicitly retained native
+defaults: `DSResetRow` targets one component,
 `DSResetBlob` targets one registration's remaining rows, and field reset
 targets one value. IDs survive reset; added/removed rows are not undone. Resetting
 one game object's registration does not affect another. Component/field reset

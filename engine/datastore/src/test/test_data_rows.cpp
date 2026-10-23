@@ -56,7 +56,7 @@ static DSResult RegisterStorageRows(HDSContext store)
         { .m_Field = 2, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(StorageRow, m_Position) },
         { .m_Field = 3, .m_Type = DS_TYPE_FLOAT, .m_Offset = offsetof(StorageRow, m_Health) }
     };
-    DSTableDesc table = { .m_Type = 100, .m_Fields = fields, .m_FieldCount = 4, .m_RowStride = sizeof(StorageRow) };
+    DSTableDesc table = { .m_Type = 100, .m_Fields = fields, .m_FieldCount = 4, .m_RowStride = sizeof(StorageRow), .m_ResetPolicy = DS_RESET_RETAIN };
     return DSRegisterTable(store, &table);
 }
 
@@ -358,7 +358,7 @@ TEST(DataRows, ReferencesInlineFieldsAndBlobRoundtrip)
         { .m_Field = 4, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(StorageReferences, m_Dynamic) },
         { .m_Field = 5, .m_Type = DS_TYPE_LIST, .m_Offset = offsetof(StorageReferences, m_List) }
     };
-    DSTableDesc table = { .m_Type = 100, .m_Fields = fields, .m_FieldCount = 5, .m_RowStride = sizeof(StorageReferences) };
+    DSTableDesc table = { .m_Type = 100, .m_Fields = fields, .m_FieldCount = 5, .m_RowStride = sizeof(StorageReferences), .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
     StorageLight      child = { .m_Color = UINT32_MAX, .m_Direction = { { 1, 2, 3 } }, .m_Health = -0.0f };
     DSStructInput     dynamic = { .m_Layout = &light, .m_Values = &child };
@@ -425,7 +425,7 @@ TEST(DataRows, ReferencesInlineFieldsAndBlobRoundtrip)
 TEST(DataRows, EmptyRows)
 {
     HDSContext  store = DSCreateStore(0);
-    DSTableDesc table = { .m_Type = 1 };
+    DSTableDesc table = { .m_Type = 1, .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
     DSId ids[2];
     ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 2, 0, ids));

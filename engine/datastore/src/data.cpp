@@ -457,7 +457,7 @@ static DSResult RegisterTable(HDSContext store, const DSTableDesc* desc)
 {
     if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
-    if ((uint32_t)desc->m_ResetPolicy > DS_RESET_NONE || (desc->m_TagCount && !desc->m_Tags) || desc->m_TagCount > DATA_MAX_TAG_COUNT)
+    if ((uint32_t)desc->m_ResetPolicy > DS_RESET_RETAIN || (desc->m_TagCount && !desc->m_Tags) || desc->m_TagCount > DATA_MAX_TAG_COUNT)
         return DS_RESULT_INVALID_ARGUMENT;
 
     uint64_t metadata_count = 0;

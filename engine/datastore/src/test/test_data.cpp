@@ -169,7 +169,7 @@ static DSResult AddTestRow(HDSContext store, uint64_t type, DSGroupId group, con
 static DSResult Register(HDSContext store, uint64_t type, const uint64_t* tags = 0, uint32_t tag_count = 0)
 {
     DSFieldDesc meta[] = { { 10, DS_TYPE_NUMBER, 0 }, { 20, DS_TYPE_STRING, 8 } };
-    DSTableDesc desc = { type, tags, tag_count, meta, 2, 16 };
+    DSTableDesc desc = { .m_Type = type, .m_Tags = tags, .m_TagCount = tag_count, .m_Fields = meta, .m_FieldCount = 2, .m_RowStride = 16, .m_ResetPolicy = DS_RESET_RETAIN };
     return DSRegisterTable(store, &desc);
 }
 
@@ -482,7 +482,7 @@ TEST(Data, BoundFieldQueries)
     fields[0].m_Hash = 999; // Query owns the original filter/binding order.
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1, &tag, 1));
     DSFieldDesc swapped[] = { { 20, DS_TYPE_STRING, 0 }, { 10, DS_TYPE_NUMBER, 8 } };
-    DSTableDesc table = { 2, &tag, 1, swapped, 2, 16 };
+    DSTableDesc table = { .m_Type = 2, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = swapped, .m_FieldCount = 2, .m_RowStride = 16, .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
     DSFieldDesc wrong[] = { { 10, DS_TYPE_STRING, 0 }, { 20, DS_TYPE_STRING, 8 } };
     table.m_Type = 3;
@@ -604,7 +604,7 @@ TEST(Data, SharedMetadataAndDenseRows)
 {
     HDSContext  store = DSCreateStore(0);
     DSFieldDesc meta[] = { { 10, DS_TYPE_VECTOR3, 0 }, { 20, DS_TYPE_NUMBER, 16 }, { 30, DS_TYPE_NUMBER, 24 } };
-    DSTableDesc desc = { 1, 0, 0, meta, 3, 32 };
+    DSTableDesc desc = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = meta, .m_FieldCount = 3, .m_RowStride = 32, .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
     meta[0].m_Field = 999; // The construction descriptor is copied once.
     DSValue values[] = { Vector3(1, 2, 3), Number(4), Number(10) };
@@ -657,6 +657,11 @@ TEST(Data, MetadataAndBulkValidation)
     meta[1].m_Type = (DSValueType)99;
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &desc));
     meta[1].m_Type = DS_TYPE_BOOLEAN;
+    desc.m_ResetPolicy = (DSResetPolicy)-1;
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &desc));
+    desc.m_ResetPolicy = (DSResetPolicy)2;
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &desc));
+    desc.m_ResetPolicy = DS_RESET_NONE;
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
     ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSRegisterTable(store, &desc));
     DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_BOOLEAN };
@@ -710,7 +715,7 @@ TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
         { .m_Field = 50, .m_Type = DS_TYPE_MATRIX4, .m_Offset = 40 }
     };
     const DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_BOOLEAN, DS_TYPE_VECTOR3, DS_TYPE_VECTOR4, DS_TYPE_MATRIX4 };
-    DSTableDesc       table = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 5, .m_RowStride = 104 };
+    DSTableDesc       table = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 5, .m_RowStride = 104, .m_ResetPolicy = DS_RESET_RETAIN };
     HDSContext        store = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
     DSValueData values[3][5] = {};
@@ -851,7 +856,7 @@ TEST(Data, CApiMathAndNestedViews)
     DSGroupId   group = CreateTestGroup(store);
     DSFieldDesc meta[] = { { 42, DS_TYPE_NUMBER, 0 }, { 43, DS_TYPE_VECTOR3, 8 }, { 44, DS_TYPE_VECTOR4, 20 }, { 45, DS_TYPE_MATRIX4, 36 }, { 46, DS_TYPE_STRUCT, 104 }, { 47, DS_TYPE_BOOLEAN, 112 }, { 48, DS_TYPE_STRING, 120 } };
     uint64_t    tag = 7;
-    DSTableDesc desc = { 1, &tag, 1, meta, 7, 128 };
+    DSTableDesc desc = { .m_Type = 1, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = meta, .m_FieldCount = 7, .m_RowStride = 128, .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
     DSValue vec4 = {};
     vec4.m_Type = DS_TYPE_VECTOR4;
@@ -1229,7 +1234,7 @@ TEST(Data, CompactNestedBulkStorageAndBorrowedInsertion)
 {
     HDSContext  store = DSCreateStore(0);
     DSFieldDesc meta = { 1, DS_TYPE_STRUCT, 0 };
-    DSTableDesc desc = { 1, 0, 0, &meta, 1, 8 };
+    DSTableDesc desc = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = &meta, .m_FieldCount = 1, .m_RowStride = 8, .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
     uint64_t          names[] = { 10, 20 };
     const DSValueType types[] = { DS_TYPE_VECTOR3, DS_TYPE_NUMBER };
@@ -1284,7 +1289,7 @@ TEST(Data, OwnedStructRowsShareLayoutsButNotValues)
 {
     HDSContext  store = DSCreateStore(0);
     DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT };
-    DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8 };
+    DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8, .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
     uint64_t    names[] = { 2, 3 };
     DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_VECTOR3 };
@@ -1353,7 +1358,7 @@ TEST(Data, OwnedStructRowsReleaseRecursiveTrees)
 {
     HDSContext  store = DSCreateStore(0);
     DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT };
-    DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8 };
+    DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8, .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
     uint64_t    name = 2;
     DSValueType number_type = DS_TYPE_NUMBER;
@@ -1571,14 +1576,14 @@ TEST(Data, EmptyNullAndBorrowedResourceReuse)
     ASSERT_EQ(1u, blob->m_RefCount);
     DSDestroyBlob(blob);
     DSFieldDesc meta = { 1, DS_TYPE_NULL, 0 };
-    DSTableDesc desc = { 1, 0, 0, &meta, 1, 0 };
+    DSTableDesc desc = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = &meta, .m_FieldCount = 1, .m_RowStride = 0, .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &desc));
     DSValue value = Null();
     DSId    id;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, &value, 1, &id));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(source, id, 1, &value));
     ASSERT_EQ(DS_RESULT_OK, DSSetField(source, id, 1, &value));
-    DSTableDesc empty = { 2, 0, 0, 0, 0, 0 };
+    DSTableDesc empty = { .m_Type = 2, .m_Tags = 0, .m_TagCount = 0, .m_Fields = 0, .m_FieldCount = 0, .m_RowStride = 0, .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &empty));
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 2, 0, 0, 0, &id));
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGet(source, id, 1, &value));
@@ -1706,7 +1711,7 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
     HDSContext source = DSCreateStore(0);
     // Field order differs from query binding order.
     DSFieldDesc meta[] = { { 10, DS_TYPE_VECTOR3, 0 }, { 20, DS_TYPE_STRING, 16 }, { 30, DS_TYPE_BOOLEAN, 24 } };
-    DSTableDesc table = { 1, 0, 0, meta, 3, 32 };
+    DSTableDesc table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = meta, .m_FieldCount = 3, .m_RowStride = 32, .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &table));
     DSValue values[] = { Vector3(1, 2, 3), String("packed"), Boolean(1) };
     DSId    original;
@@ -1909,7 +1914,7 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
     DSFieldDesc  wrapper_fields[] = { { .m_Field = 40, .m_Type = DS_TYPE_STRUCT, .m_Offset = 8, .m_Struct = &light, .m_Name = "40" } };
     DSStructDesc wrapper = { wrapper_fields, 1, 40 };
     DSFieldDesc  fields[] = { { .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = 0, .m_Name = "1" }, { .m_Field = 2, .m_Type = DS_TYPE_STRUCT, .m_Offset = 8, .m_Struct = &wrapper, .m_Name = "2" }, { .m_Field = 3, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = 48, .m_Name = "3" } };
-    DSTableDesc  table = { 1, 0, 0, fields, 3, 56 };
+    DSTableDesc  table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = fields, .m_FieldCount = 3, .m_RowStride = 56, .m_ResetPolicy = DS_RESET_RETAIN };
     HDSContext   source = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &table));
     // Changing a declaration after registration cannot alter the compiled layout.
@@ -2157,7 +2162,7 @@ TEST(Data, InlineNamesBindDifferentTablesAndTrackRegistration)
     for (uint32_t i = 0; i < 3; ++i)
     {
         DSFieldDesc root = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Offset = i * 8, .m_Struct = i < 2 ? &light : 0, .m_Name = "1" };
-        DSTableDesc table = { i + 1, 0, 0, &root, 1, i * 8 + (i < 2 ? 24u : 8u) };
+        DSTableDesc table = { .m_Type = i + 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = &root, .m_FieldCount = 1, .m_RowStride = i * 8 + (i < 2 ? 24u : 8u), .m_ResetPolicy = DS_RESET_RETAIN };
         ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
         ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, i + 1, 0, &value, 1, &ids[i]));
     }
@@ -2214,7 +2219,7 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
         fields[p].m_Offset = p * 8;
         values[p] = Number(p);
     }
-    DSTableDesc table = { 1, 0, 0, fields, 10, 80 };
+    DSTableDesc table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = fields, .m_FieldCount = 10, .m_RowStride = 80, .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
     DSId ids[3];
     for (uint32_t r = 0; r < 3; ++r)
@@ -2274,7 +2279,7 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
     ASSERT_EQ(209.0, number);
     DSDestroyQuery(query);
 
-    DSTableDesc empty = { 2, 0, 0, 0, 0, 0 };
+    DSTableDesc empty = { .m_Type = 2, .m_Tags = 0, .m_TagCount = 0, .m_Fields = 0, .m_FieldCount = 0, .m_RowStride = 0, .m_ResetPolicy = DS_RESET_RETAIN };
     DSId        empty_id;
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &empty));
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 2, 0, 0, 0, &empty_id));
@@ -2557,7 +2562,7 @@ TEST(Data, NativeFieldPointersAndReset)
         { 4, DS_TYPE_VECTOR4, offsetof(NativeRow, m_Vector4) },
         { 5, DS_TYPE_MATRIX4, offsetof(NativeRow, m_Matrix4) }
     };
-    DSTableDesc table = { 1, 0, 0, fields, 5, sizeof(NativeRow) };
+    DSTableDesc table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = fields, .m_FieldCount = 5, .m_RowStride = sizeof(NativeRow), .m_ResetPolicy = DS_RESET_RETAIN };
     HDSContext  source = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &table));
     DSValue values[] = { Number(17), Boolean(0), Vector3(1, 2, 3), {}, Matrix() };
@@ -2639,7 +2644,7 @@ TEST(Data, QueryFieldHandlesSurviveTableChanges)
     for (uint32_t pass = 0; pass < 3; ++pass)
     {
         DSFieldDesc meta[] = { { 10, DS_TYPE_NUMBER, pass * 8 }, { 30, DS_TYPE_VECTOR3, pass * 8 + 8 } };
-        DSTableDesc table = { 1, 0, 0, meta, 2, pass * 8 + 24 };
+        DSTableDesc table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = meta, .m_FieldCount = 2, .m_RowStride = pass * 8 + 24, .m_ResetPolicy = DS_RESET_RETAIN };
         ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
         DSValue values[] = { Number(10 + pass), Vector3(1, 2, 3) };
         DSId    id;
@@ -2682,7 +2687,7 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
     for (uint32_t i = 0; i < 2; ++i)
     {
         DSFieldDesc roots[] = { { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Offset = i * 8, .m_Struct = &light, .m_Name = "1" }, { .m_Field = 2, .m_Type = DS_TYPE_STRUCT, .m_Offset = i * 8 + 32, .m_Struct = &light, .m_Name = "2" } };
-        DSTableDesc table = { i + 1, 0, 0, roots, 2, i * 8 + 64 };
+        DSTableDesc table = { .m_Type = i + 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = roots, .m_FieldCount = 2, .m_RowStride = i * 8 + 64, .m_ResetPolicy = DS_RESET_RETAIN };
         ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &table));
         DSId id;
         ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, i + 1, 0, values, 2, &id));
@@ -3332,7 +3337,7 @@ TEST(Data, NativeRowsShareGroupsWithoutSplittingTables)
 {
     HDSContext  store = DSCreateStore(0);
     DSFieldDesc field = { .m_Field = 10, .m_Type = DS_TYPE_NUMBER };
-    DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double) };
+    DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double), .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
     DSGroupId   group = CreateTestGroup(store);
     DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1 };
@@ -3474,7 +3479,7 @@ TEST(Data, NativeRowsValidateBeforeWritingAcrossBlocks)
         { .m_Field = 1, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(NativeRow, m_Enabled) },
         { .m_Field = 2, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(NativeRow, m_Position) }
     };
-    DSTableDesc table = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(NativeRow) };
+    DSTableDesc table = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(NativeRow), .m_ResetPolicy = DS_RESET_RETAIN };
     HDSContext  store = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
     input[count - 1].m_Enabled = 2;
@@ -3578,7 +3583,7 @@ TEST(Data, SoARowsWithManyFieldsValidateBeforePublishing)
         ids[r] = 99;
     }
     HDSContext  store = DSCreateStore(0);
-    DSTableDesc desc = { .m_Type = 1, .m_Fields = layout, .m_FieldCount = field_count + 1, .m_RowStride = sizeof(Row) };
+    DSTableDesc desc = { .m_Type = 1, .m_Fields = layout, .m_FieldCount = field_count + 1, .m_RowStride = sizeof(Row), .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
     DSTable* table = FindTable(store, 1);
     uint64_t revision = store->m_Revision;
@@ -4014,7 +4019,7 @@ TEST(Data, NativeDefaultsRemainDenseAcrossWaves)
 {
     HDSContext  store = DSCreateStore(0);
     DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_NUMBER };
-    DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double) };
+    DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double), .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
     DSTable* table = FindTable(store, 1);
     double   permanent_value = 99;
@@ -4058,7 +4063,7 @@ TEST(Data, EmptyNativeTableReleasesPayloadArenas)
 {
     HDSContext  store = DSCreateStore(0);
     DSFieldDesc root = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT };
-    DSTableDesc table_desc = { .m_Type = 1, .m_Fields = &root, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference) };
+    DSTableDesc table_desc = { .m_Type = 1, .m_Fields = &root, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference), .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table_desc));
     DSFieldDesc fields[] = {
         { .m_Field = 10, .m_Type = DS_TYPE_STRING },
