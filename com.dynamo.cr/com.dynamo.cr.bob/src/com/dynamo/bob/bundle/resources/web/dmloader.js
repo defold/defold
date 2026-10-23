@@ -605,6 +605,8 @@ var EngineLoader = {
         Module["mainScriptUrlOrBlob"] = result.url;
         const script = document.createElement('script');
         script.src = result.url;
+        // The DOM resolves relative URLs, matching the filename in window error events.
+        asset.resolvedUrl = script.src;
         script.type = "text/javascript";
         try {
             await scope.wait(new Promise(function(resolve, reject) {
@@ -1606,9 +1608,11 @@ Module["isWASMSupported"] = false;
 
 window.addEventListener("error", (errorEvent) => {
     const session = GameStartup._session;
-    if (session && session.state !== "started") {
+    const engineScript = session && session.engine && session.engine.script;
+    if (session && session.state !== "started" && engineScript && engineScript.resolvedUrl &&
+        errorEvent.filename === engineScript.resolvedUrl) {
         GameStartup.fail(session, errorEvent);
-    } else if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
+    } else if ((!session || session.state !== "failed") && typeof CUSTOM_PARAMETERS["start_error"] === "function") {
         CUSTOM_PARAMETERS["start_error"](errorEvent);
     }
     Module.setStatus('Exception thrown, see JavaScript console');

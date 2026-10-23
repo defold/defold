@@ -1767,6 +1767,64 @@ function setupEngineStartup() {
     return { ...state, scripts, files, request, runScript, runtime, restore: () => restore(null) };
 }
 
+// Unrelated or unattributed page errors must not cancel downloads or prevent a ready engine from starting.
+async function testLoaderUnrelatedPageError() {
+    for (const phase of ["downloading", "initializing"]) {
+        for (const filename of ["https://example.com/analytics.js", undefined]) {
+            const { context, requests, scripts, request, runScript, restore, waitFor, calls } = setupEngineStartup();
+            const completion = context.EngineLoader.load("canvas", "game");
+            const error = { type: "error", message: "unrelated page error", filename };
+            if (phase === "downloading") context.window.dispatchEvent(error);
+            request("split/archive_files.json").complete('{"total_size":0,"content":[]}');
+            request("game_wasm.js").complete(Uint8Array.of(120).buffer);
+            await waitFor(() => scripts.length === 1);
+            runScript();
+            if (phase === "initializing") context.window.dispatchEvent(error);
+            assert.strictEqual(context.GameStartup._session.state, "loading");
+            assert(requests.every(xhr => !xhr.aborted));
+            assert.strictEqual(calls.errors.length, 1, "page errors still reach the custom error callback");
+            restore();
+            request("game.wasm").complete(Uint8Array.of(0, 97, 115, 109, 1, 0, 0, 0).buffer);
+            await completion;
+            assert.strictEqual(context.GameStartup._session.state, "started");
+            assert.strictEqual(calls.main, 1);
+        }
+    }
+}
+
+// Engine script errors must still reject startup, including absolute browser URLs after a download retry.
+async function testLoaderEngineScriptError() {
+    for (const retry of [false, true]) {
+        const { context, scripts, request, runRetry, waitFor, calls } = setupEngineStartup();
+        context.CUSTOM_PARAMETERS.retry_count = 1;
+        context.document.createElement = () => ({
+            set src(url) { this.url = new URL(url, "https://example.com/game/").href; },
+            get src() { return this.url; },
+            remove() { this.removed = true; }
+        });
+        const completion = context.EngineLoader.load("canvas", "game");
+        const manifest = request("split/archive_files.json");
+        const wasm = request("game.wasm");
+        if (retry) {
+            request("game_wasm.js").complete(new ArrayBuffer(0));
+            await runRetry();
+        }
+        request("game_wasm.js" + (retry ? "?dmretry=1" : "")).complete(Uint8Array.of(120).buffer);
+        await waitFor(() => scripts.length === 1);
+        const error = { type: "error", filename: scripts[0].src, error: new SyntaxError("invalid engine script") };
+        context.window.dispatchEvent(error);
+        await assert.rejects(completion, reason => reason === error);
+        assert.strictEqual(context.GameStartup._session.state, "failed");
+        assert.strictEqual(manifest.aborted, true);
+        assert.strictEqual(wasm.aborted, true);
+        assert.strictEqual(scripts[0].removed, true);
+        context.window.dispatchEvent(error);
+        assert.strictEqual(calls.errors.length, 1, "the engine failure must be reported only once");
+        assert.strictEqual(calls.consoleErrors.filter(value => value === error).length, 1);
+        assert.strictEqual(calls.main, 0);
+    }
+}
+
 // Engine startup overlaps a pending manifest, retains early progress, and still waits for archive data before main.
 async function testLoaderStartupOverlapsManifest() {
     const { context, requests, scripts, request, runScript, runtime, restore, waitFor, calls } = setupEngineStartup();
@@ -2496,6 +2554,7 @@ async function runTests() {
                        testLoaderArchiveWriteFailure, testLoaderArchiveReplacementDropsFiles,
                        testLoaderArchiveCompletionPromise, testLoaderFetchCancellation, testLoaderFetchExceptions,
                        testLoaderArchiveDiscardedStorage, testLoaderStartupReadiness, testLoaderStartupFailure,
+                       testLoaderUnrelatedPageError, testLoaderEngineScriptError,
                        testLoaderStartupOverlapsManifest, testLoaderStartupEarlyEngineFailure,
                        testLoaderStartupEarlyWasm, testLoaderStartupEarlyStreamingWasm, testLoaderStartupEarlyStreamCancellation,
                        testLoaderStartupErrorCallbacks, testLoaderHandledStartupFailure,
