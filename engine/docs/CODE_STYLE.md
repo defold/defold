@@ -2,7 +2,13 @@
 
 ## Formatting
 
-Follow current code style as defined in `.clang-format`, or follow the existing style of the file you're editing.
+Use the repository's `.clang-format` with clang-format 23+ (validated with 23.1.4).
+
+- **New files:** always run clang-format on the entire file first.
+- **Existing files:** format only changed lines using `--lines=START:END`, passing
+  the full file for context.
+
+Review the result and preserve intentional alignment and line breaks.
 
 ## C-like C++
 

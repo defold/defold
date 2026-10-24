@@ -1,15 +1,21 @@
+# Validated with clang-format 23.1.4. PackArguments/PackParameters require 23+.
 ---
 Language:        Cpp
 BasedOnStyle:  LLVM
 AccessModifierOffset: 0
-AlignAfterOpenBracket: Align
-AlignConsecutiveAssignments: false
+AlignAfterOpenBracket: true
+AlignConsecutiveAssignments:
+  Enabled: false
+  EnumAssignments: true
 AlignConsecutiveDeclarations:
   Enabled: true
-  AcrossEmptyLines: true
+  AcrossEmptyLines: false
+  AcrossComments: true
+  AlignFunctionPointers: true
 AlignEscapedNewlines: DontAlign
-AlignOperands:   false
-AlignTrailingComments: true
+AlignOperands: Align
+AlignTrailingComments:
+  Kind: Leave
 AllowAllParametersOfDeclarationOnNextLine: false
 AllowShortBlocksOnASingleLine: false
 AllowShortCaseLabelsOnASingleLine: false
@@ -20,8 +26,10 @@ AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: true
 AlwaysBreakTemplateDeclarations: MultiLine
-BinPackArguments: false
-BinPackParameters: false
+PackArguments:
+  BinPack: BinPack
+PackParameters:
+  BinPack: BinPack
 BraceWrapping:
   AfterCaseLabel:  true
   AfterClass:      true
@@ -43,7 +51,7 @@ BreakBeforeBinaryOperators: None
 BreakBeforeBraces: Custom
 BreakBeforeInheritanceComma: false
 BreakInheritanceList: BeforeComma
-BreakBeforeTernaryOperators: false
+BreakBeforeTernaryOperators: true
 BreakConstructorInitializersBeforeComma: true
 BreakConstructorInitializers: BeforeComma
 BreakAfterJavaFieldAnnotations: false
@@ -51,14 +59,14 @@ BreakStringLiterals: true
 ColumnLimit:     0
 CommentPragmas:  '^ IWYU pragma:'
 CompactNamespaces: false
-ConstructorInitializerAllOnOneLineOrOnePerLine: false
-ConstructorInitializerIndentWidth: 4
-ContinuationIndentWidth: 0
+PackConstructorInitializers: CurrentLine
+ConstructorInitializerIndentWidth: 0
+ContinuationIndentWidth: 4
 Cpp11BracedListStyle: false
 DerivePointerAlignment: false
 DisableFormat:   false
 ExperimentalAutoDetectBinPacking: false
-FixNamespaceComments: true
+FixNamespaceComments: false
 ForEachMacros:
   - foreach
   - Q_FOREACH
@@ -78,10 +86,11 @@ IndentWidth:     4
 IndentWrappedFunctionNames: false
 JavaScriptQuotes: Leave
 JavaScriptWrapImports: true
-KeepEmptyLinesAtTheStartOfBlocks: false
+KeepEmptyLines:
+  AtStartOfBlock: true
 MacroBlockBegin: ''
 MacroBlockEnd:   ''
-MaxEmptyLinesToKeep: 1
+MaxEmptyLinesToKeep: 2
 NamespaceIndentation: All
 ObjCBinPackProtocolList: Auto
 ObjCBlockIndentWidth: 2
@@ -96,7 +105,8 @@ PenaltyBreakTemplateDeclaration: 10
 PenaltyExcessCharacter: 1000000
 PenaltyReturnTypeOnItsOwnLine: 60
 PointerAlignment: Left
-ReflowComments:  true
+ReflowComments: Never
+SkipMacroDefinitionBody: true
 SortIncludes:    false
 SortUsingDeclarations: false
 SpaceAfterCStyleCast: false
@@ -114,7 +124,7 @@ SpacesInContainerLiterals: true
 SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
-Standard:        Cpp11
+Standard: Latest
 StatementMacros:
   - Q_UNUSED
   - QT_REQUIRE_VERSION
