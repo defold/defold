@@ -486,6 +486,45 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
                 max_error = dmMath::Max(max_error, (uint32_t)abs((int)faded[i] - (int)(pixels[i] * 128 / 255)));
         ASSERT_LE(max_error, 2u);
     }
+    if (color && c.m_Markup)
+    {
+        // Exercise the production shader: a spatial gradient must hide the composed emoji.
+        const char* types[] = { "linear", "radial" };
+        for (uint32_t type = 0; type < DM_ARRAY_SIZE(types); ++type)
+        {
+            char text[256];
+            dmSnPrintf(text, sizeof(text), "<gradient type=%s color0=#ffffff00 color1=#ffffff00>😀</gradient>", types[type]);
+            HMarkup     markup = 0;
+            HTextLayout transparent = 0;
+            ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, strlen(text), &markup, 0));
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(collection, markup, &settings, &transparent));
+            MarkupDestroy(markup);
+            entry.m_TextLayout = transparent;
+            entry.m_FaceColor = dmGraphics::PackRGBA(dmVMath::Vector4(1, 1, 1, 1));
+            uint32_t transparent_count = dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
+            ASSERT_EQ(6u, transparent_count);
+            ASSERT_EQ(4.0f, vertices[0].m_VectorTexcoord[3]);
+            ASSERT_GT(vertices[0].m_Effect[2], 0.0f);
+            ASSERT_LT(vertices[0].m_Effect[0], vertices[2].m_Effect[0]);
+            ASSERT_LT(vertices[0].m_Effect[1], vertices[1].m_Effect[1]);
+            FontUploadEffects(map->m_EffectCache);
+            textures[4] = FontGetEffectTexture(map->m_EffectCache);
+            dmGraphics::EnableTexture(context, 4, 0, textures[4]);
+            dmGraphics::SetVertexBufferData(buffer, transparent_count * sizeof(vertices[0]), vertices.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            dmGraphics::Clear(context, buffer_flags, 0, 0, 0, 255, 1, 0);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, transparent_count, 1);
+            dmArray<uint8_t> hidden;
+            hidden.SetCapacity(pixels.Size());
+            hidden.SetSize(pixels.Size());
+            dmGraphics::ReadPixels(context, 0, 0, width, height, hidden.Begin(), hidden.Size());
+            uint32_t max_error = 0;
+            for (uint32_t i = 0; i < hidden.Size(); ++i)
+                max_error = dmMath::Max(max_error, (uint32_t)abs((int)hidden[i] - (i % 4 == 3 ? 255 : 0)));
+            EXPECT_EQ(0u, max_error);
+            TextLayoutRelease(transparent);
+        }
+        entry.m_TextLayout = layout;
+    }
     dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
     dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
     dmGraphics::DisableVertexDeclaration(context, declaration);

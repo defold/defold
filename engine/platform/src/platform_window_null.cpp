@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dlib/array.h>
 #include <dlib/log.h>
 
 #include "window.hpp"
@@ -95,6 +96,17 @@ namespace dmPlatform
         out->m_InsetBottom = 0;
 
         return true;
+    }
+
+    void GetReservedAreas(HWindow window, dmArray<WindowReservedArea>& areas)
+    {
+        areas.SetSize(0);
+    }
+
+    uint32_t GetReservedAreas(HWindow window, const WindowReservedArea** areas)
+    {
+        *areas = 0;
+        return 0;
     }
 
     uint32_t GetWindowStateParam(HWindow window, WindowState state)

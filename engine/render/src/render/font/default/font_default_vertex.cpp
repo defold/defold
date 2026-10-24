@@ -224,6 +224,26 @@ static void OutputGlyphVector(uint32_t vertexindex,
     v5 = v2;
 }
 
+static void ApplyVectorSpatialGradient(const FontLayoutVertexConfig& config, const TextLine& line, const TextGlyph& glyph, const TextGradientBounds& bounds, const TextGradientBounds& quad, FontSpatialGradientCache* cache, GlyphVertex* vertices)
+{
+    if (config.m_Layout->m_Effects.Empty())
+        return;
+    // Slug uses clockwise quads; the shared gradient path uses bitmap/SDF vertex order.
+    static const uint32_t source_order[6] = { 0, 2, 1, 1, 2, 5 };
+    FontGlyphVertex       color_vertices[6] = {};
+    for (uint32_t v = 0; v < 6; ++v)
+        memcpy(color_vertices[source_order[v]].m_FaceColor, vertices[v].m_VectorColor, 4);
+    FontVertexLayerParams layers = {};
+    layers.m_FaceVertices = color_vertices;
+    FontApplySpatialGradient(config, line, glyph, bounds, quad, cache, layers);
+    for (uint32_t v = 0; v < 6; ++v)
+    {
+        const FontGlyphVertex& source = color_vertices[source_order[v]];
+        memcpy(vertices[v].m_VectorColor, source.m_FaceColor, 4);
+        memcpy(vertices[v].m_Effect, source.m_Effect, sizeof(source.m_Effect));
+    }
+}
+
 static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                            uint32_t frame,
                                            TextLayout* layout,
@@ -288,7 +308,10 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
     if (metrics.m_Truncated)
         dmLogWarning("Character buffer exceeded (size: %u), increase the \"graphics.max_characters\" property in your game.project file.", num_vertices / 6);
 
-    PrepareVectorPaintGlyphs(font_map, layout, frame, metrics.m_GlyphQuadCount);
+    const HMaterial material = te.m_Material ? te.m_Material : font_map->m_Material;
+    const bool      color_enabled = GetMaterialSamplerUnit(material, dmHashString64("paint_texture")) != INVALID_SAMPLER_UNIT;
+    if (color_enabled)
+        PrepareVectorPaintGlyphs(font_map, layout, frame, metrics.m_GlyphQuadCount);
     // Layer offsets come from the bounded shared plan, including span effects.
     // Missing glyphs leave transparent quads.
     memset(vertices, 0, metrics.m_VertexCount * sizeof(*vertices));
@@ -350,7 +373,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             face_vertexindex += 6;
             ++glyph_slot;
 
-            const FontVectorPaintGlyph* paint = GetVectorPaintGlyph(font_map, g->m_Font, g->m_GlyphIndex);
+            const FontVectorPaintGlyph* paint = color_enabled ? GetVectorPaintGlyph(font_map, g->m_Font, g->m_GlyphIndex) : 0;
             if (paint)
             {
                 if (!emit_face)
@@ -373,6 +396,11 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                     memcpy(dst.m_UV, src.m_FontPosition, sizeof(dst.m_UV));
                     dst.m_FaceColor[2] = src.m_Paint;
                 }
+                const float              origin_x = x - render_data.m_OffsetX;
+                const float              origin_y = y - render_data.m_OffsetY;
+                const TextGradientBounds bounds = { origin_x + paint->m_Bounds.getX() * scale, origin_y + paint->m_Bounds.getY() * scale, origin_x + paint->m_Bounds.getZ() * scale, origin_y + paint->m_Bounds.getW() * scale };
+                const TextGradientBounds quad = { origin_x + packed[0].m_FontPosition[0] * scale, origin_y + packed[0].m_FontPosition[1] * scale, origin_x + packed[5].m_FontPosition[0] * scale, origin_y + packed[5].m_FontPosition[1] * scale };
+                ApplyVectorSpatialGradient(config, line, *g, bounds, quad, &spatial_cache, vertices + glyph_face_vertexindex);
                 continue;
             }
 
@@ -517,30 +545,11 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   colors,
                                   vertices);
 
-                if (!layout->m_Effects.Empty())
-                {
-                    // Share fit bounds, projection, and CPU fallback with bitmap/SDF fonts.
-                    FontGlyphVertex       color_vertices[6] = {};
-                    static const uint32_t source_order[6] = { 0, 2, 1, 1, 2, 5 };
-                    for (uint32_t v = 0; v < 6; ++v)
-                    {
-                        memcpy(color_vertices[source_order[v]].m_FaceColor, vertices[glyph_face_vertexindex + v].m_VectorColor, 4);
-                    }
-                    const float              origin_x = x - render_data.m_OffsetX;
-                    const float              origin_y = y - render_data.m_OffsetY;
-                    const float              left = origin_x + glyph->m_Outline.m_LeftBearing * font_scale;
-                    const TextGradientBounds bounds = { left, origin_y - glyph->m_Outline.m_Descent * font_scale, left + glyph->m_Outline.m_Width * font_scale, origin_y + glyph->m_Outline.m_Ascent * font_scale };
-                    FontVertexLayerParams    layers = {};
-                    layers.m_FaceVertices = color_vertices;
-                    FontApplySpatialGradient(config, line, *g, bounds, bounds, &spatial_cache, layers);
-                    for (uint32_t v = 0; v < 6; ++v)
-                    {
-                        const FontGlyphVertex& source = color_vertices[source_order[v]];
-                        GlyphVertex&           destination = vertices[glyph_face_vertexindex + v];
-                        memcpy(destination.m_VectorColor, source.m_FaceColor, 4);
-                        memcpy(destination.m_Effect, source.m_Effect, sizeof(source.m_Effect));
-                    }
-                }
+                const float              origin_x = x - render_data.m_OffsetX;
+                const float              origin_y = y - render_data.m_OffsetY;
+                const float              left = origin_x + glyph->m_Outline.m_LeftBearing * font_scale;
+                const TextGradientBounds bounds = { left, origin_y - glyph->m_Outline.m_Descent * font_scale, left + glyph->m_Outline.m_Width * font_scale, origin_y + glyph->m_Outline.m_Ascent * font_scale };
+                ApplyVectorSpatialGradient(config, line, *g, bounds, bounds, &spatial_cache, vertices + glyph_face_vertexindex);
             }
         }
     }

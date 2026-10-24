@@ -1,3 +1,6 @@
+#ifndef DEFOLD_FONT_VECTOR_PAINT
+#define DEFOLD_FONT_VECTOR_PAINT
+
 // Font adapter for the shared vector paint format.
 #include "/builtins/materials/slug-paint.glsl"
 
@@ -5,3 +8,5 @@ vec4 FontVectorPaintGlyphColor(int glyph, vec2 p, vec2 dx, vec2 dy, vec4 foregro
 {
     return SlugPaintImageColor(glyph, p, dx, dy, foreground);
 }
+
+#endif

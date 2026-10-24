@@ -17,6 +17,7 @@
 #include <float.h>
 #include <stdio.h>
 #include <assert.h>
+#include <math.h>
 
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gameobject/gameobject.h>
@@ -90,8 +91,17 @@ namespace dmGameSystem
         uint16_t : 15;
     };
 
+    struct ParticleFXRenderItem
+    {
+        dmRender::HRenderItem          m_Item;
+        dmParticle::EmitterRenderData* m_RenderData;
+    };
+
     struct ParticleFXWorld
     {
+        dmRender::HRenderItemDispatch           m_RenderDispatch;
+        dmArray<ParticleFXRenderItem>           m_RenderItems;
+        uint32_t                                m_ActiveRenderItemCount;
         dmArray<ParticleFXComponent>            m_Components;
         dmArray<dmRender::RenderObject>         m_RenderObjects;
         dmArray<dmRender::HNamedConstantBuffer> m_ConstantBuffers;
@@ -137,6 +147,8 @@ namespace dmGameSystem
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
         ParticleFXWorld* world = new ParticleFXWorld();
         world->m_Context = ctx;
+        world->m_RenderDispatch = 0;
+        world->m_ActiveRenderItemCount = 0;
         uint32_t particle_fx_count = dmMath::Min(params.m_MaxComponentInstances, ctx->m_MaxParticleFXCount);
         world->m_ParticleContext = dmParticle::CreateContext(ctx->m_MaxParticleFXCount, ctx->m_MaxParticleCount);
         world->m_Components.SetCapacity(particle_fx_count);
@@ -179,6 +191,10 @@ namespace dmGameSystem
             }
         }
 
+        for (uint32_t i = 0; i < pfx_world->m_RenderItems.Size(); ++i)
+            dmRender::DeleteRenderItem(ctx->m_RenderContext, pfx_world->m_RenderItems[i].m_Item);
+        if (pfx_world->m_RenderDispatch != 0)
+            dmRender::UnregisterRenderListDispatch(ctx->m_RenderContext, pfx_world->m_RenderDispatch);
         dmParticle::DestroyContext(pfx_world->m_ParticleContext);
         dmRender::DeleteBufferedRenderBuffer(ctx->m_RenderContext, pfx_world->m_VertexBuffer);
 
@@ -342,7 +358,7 @@ namespace dmGameSystem
     static void RenderBatch(ParticleFXWorld* pfx_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("ParticleRenderBatch");
-        const dmParticle::EmitterRenderData* first = (dmParticle::EmitterRenderData*) buf[*begin].m_UserData;
+        const dmParticle::EmitterRenderData* first = pfx_world->m_RenderItems[buf[*begin].m_UserData].m_RenderData;
         ParticleFXContext* pfx_context = pfx_world->m_Context;
         dmParticle::HParticleContext particle_context = pfx_world->m_ParticleContext;
 
@@ -387,7 +403,7 @@ namespace dmGameSystem
 
         for (uint32_t *i = begin; gpu_vb_offset < max_gpu_size && i != end; ++i)
         {
-            const dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*) buf[*i].m_UserData;
+            const dmParticle::EmitterRenderData* emitter_render_data = pfx_world->m_RenderItems[buf[*i].m_UserData].m_RenderData;
 
             FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Not supported yet
                     emitter_render_data->m_Attributes,
@@ -593,23 +609,6 @@ namespace dmGameSystem
         }
     }
 
-    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
-    {
-        for (uint32_t i = 0; i < params.m_NumEntries; ++i)
-        {
-            dmRender::RenderListEntry* entry = &params.m_Entries[i];
-            dmParticle::EmitterRenderData* render_data = (dmParticle::EmitterRenderData*)entry->m_UserData;
-            if (dmIntersection::TestFrustumSphereSq(*params.m_Frustum, render_data->m_FrustumCullingCenter, render_data->m_FrustumCullingRadiusSq))
-            {
-                entry->m_Visibility = dmRender::VISIBILITY_FULL;
-            }
-            else
-            {
-                entry->m_Visibility = dmRender::VISIBILITY_NONE;
-            }
-        }
-    }
-
     dmGameObject::UpdateResult CompParticleFXRender(const dmGameObject::ComponentsRenderParams& params)
     {
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
@@ -631,9 +630,9 @@ namespace dmGameSystem
             dmParticle::DebugRender(particle_context, ctx->m_RenderContext, RenderLineCallback);
         }
 
-        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(ctx->m_RenderContext, world_emitter_count);
-        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(ctx->m_RenderContext, &RenderListDispatch, &RenderListFrustumCulling, pfx_world);
-        dmRender::RenderListEntry* write_ptr = render_list;
+        if (pfx_world->m_RenderDispatch == 0 && world_emitter_count)
+            pfx_world->m_RenderDispatch = dmRender::RegisterRenderListDispatch(ctx->m_RenderContext, RenderListDispatch, 0, pfx_world);
+        uint32_t render_item_count = 0;
 
         for (uint32_t i = 0; i < count; ++i)
         {
@@ -650,19 +649,29 @@ namespace dmGameSystem
 
                     dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) render_data->m_Material;
 
-                    write_ptr->m_WorldPosition = Point3(render_data->m_Transform.getTranslation());
-                    write_ptr->m_UserData = (uintptr_t) render_data;
-                    write_ptr->m_BatchKey = render_data->m_MixedHash;
-                    write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(material_res->m_Material);
-                    write_ptr->m_Dispatch = dispatch;
-                    write_ptr->m_MinorOrder = 0;
-                    write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
-                    ++write_ptr;
+                    if (render_item_count == pfx_world->m_RenderItems.Size())
+                    {
+                        if (pfx_world->m_RenderItems.Full())
+                            pfx_world->m_RenderItems.OffsetCapacity(8);
+                        ParticleFXRenderItem item = { dmRender::NewRenderItem(ctx->m_RenderContext, pfx_world->m_RenderDispatch, render_item_count), 0 };
+                        pfx_world->m_RenderItems.Push(item);
+                    }
+                    ParticleFXRenderItem& item = pfx_world->m_RenderItems[render_item_count++];
+                    item.m_RenderData = render_data;
+                    dmRender::SetWorldTransform(ctx->m_RenderContext, item.m_Item, render_data->m_Transform);
+                    dmRender::SetBoundingSphere(ctx->m_RenderContext, item.m_Item, render_data->m_FrustumCullingCenter, sqrtf(render_data->m_FrustumCullingRadiusSq));
+                    dmRender::SetMaterial(ctx->m_RenderContext, item.m_Item, material_res->m_Material);
+                    dmRender::SetBatchKey(ctx->m_RenderContext, item.m_Item, render_data->m_MixedHash);
+                    dmRender::Enable(ctx->m_RenderContext, item.m_Item, true);
                 }
             }
         }
 
-        dmRender::RenderListSubmit(ctx->m_RenderContext, render_list, write_ptr);
+        for (uint32_t i = render_item_count; i < pfx_world->m_ActiveRenderItemCount; ++i)
+            dmRender::Enable(ctx->m_RenderContext, pfx_world->m_RenderItems[i].m_Item, false);
+        pfx_world->m_ActiveRenderItemCount = render_item_count;
+        if (render_item_count)
+            dmRender::SubmitRenderListDispatch(ctx->m_RenderContext, pfx_world->m_RenderDispatch);
 
         return dmGameObject::UPDATE_RESULT_OK;
     }

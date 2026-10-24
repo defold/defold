@@ -1454,9 +1454,14 @@ uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints)
     const char* cursor = safe_text;
     while (uint32_t c = dmUtf8::NextChar(&cursor))
     {
+        // StrLen skips leading continuation bytes that NextChar still decodes.
+        if (codepoints.Full())
+        {
+            codepoints.OffsetCapacity(1);
+        }
         codepoints.Push(c);
     }
-    return len;
+    return codepoints.Size();
 }
 
 TextResult TextLayoutCreate(HFontCollection collection,

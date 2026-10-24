@@ -149,6 +149,9 @@ namespace dmGameSystem
 
     struct GuiWorld
     {
+        dmRender::HRenderItemDispatch            m_RenderDispatch;
+        dmArray<dmRender::HRenderItem>           m_RenderItems;
+        uint32_t                                 m_ActiveRenderItemCount;
         dmArray<GuiRenderObject>                 m_GuiRenderObjects;
         dmArray<HComponentRenderConstants>       m_RenderConstants;
         dmArray<GuiComponent*>                   m_Components;

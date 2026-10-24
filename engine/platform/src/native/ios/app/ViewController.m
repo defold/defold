@@ -27,6 +27,7 @@ static int g_view_type = NATIVE_NO_API;
 @implementation ViewController
 
 @synthesize baseView;
+@synthesize homeIndicatorMode;
 
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations
 {
@@ -97,6 +98,16 @@ static int g_view_type = NATIVE_NO_API;
         // According to Apple glFinish() should be called here (Comment moved from AppDelegate applicationWillResignActive)
         glFinish();
     }
+}
+
+- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
+{
+    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+    [coordinator animateAlongsideTransition:nil completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+        // A 180-degree rotation can move reserved regions without changing size or insets.
+        // Notify during event polling after UIKit has finished updating the geometry.
+        self.baseView.safeAreaChanged = YES;
+    }];
 }
 
 - (BOOL)shouldUpdateViewFrame
@@ -188,8 +199,21 @@ static int g_view_type = NATIVE_NO_API;
     [super viewDidAppear: animated];
 }
 
-- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {
-    return UIRectEdgeAll;
+- (void)setHomeIndicatorMode:(HomeIndicatorMode)mode
+{
+    homeIndicatorMode = mode;
+    [self setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
+    [self setNeedsUpdateOfHomeIndicatorAutoHidden];
+}
+
+- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures
+{
+    return homeIndicatorMode == HOME_INDICATOR_MODE_DEFERRED ? UIRectEdgeAll : UIRectEdgeNone;
+}
+
+- (BOOL)prefersHomeIndicatorAutoHidden
+{
+    return homeIndicatorMode == HOME_INDICATOR_MODE_AUTO_HIDE;
 }
 
 @end

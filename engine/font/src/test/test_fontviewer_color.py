@@ -73,6 +73,27 @@ class ColorEmojiTest(unittest.TestCase):
         background = Image.new("RGB", image.size, image.getpixel((0, 0)))
         return ImageChops.difference(image, background).getbbox()
 
+    # Export modes must retain spatial color/alpha and evaluate radial gradients per pixel.
+    def test_spatial_gradient_exports(self):
+        for mode in ("vector", "bitmap", "sdf"):
+            for kind in ("linear", "radial"):
+                with self.subTest(mode=mode, kind=kind):
+                    text = f"<gradient type={kind} color0=#ff0000 color1=#0000ff>MMMM</gradient>"
+                    image = self.render(text, size=80, mode=mode)[0]
+                    pixels = list(image.getdata())
+                    self.assertGreater(sum(r > b + 40 and r > g + 40 for r, g, b in pixels), 20)
+                    self.assertGreater(sum(b > r + 40 and b > g + 40 for r, g, b in pixels), 20)
+                    image = self.render(f"A<shadow color=#00000000><gradient type={kind} color0=#ffffff00 color1=#ffffff00>MMMM</gradient></shadow>", mode=mode)[0]
+                    expected = self.render("A", mode=mode)[0]
+                    self.assertEqual(expected.size, image.size)
+                    self.assertIsNone(ImageChops.difference(expected, image).getbbox())
+        for kind in ("linear", "radial"):
+            with self.subTest(emoji_gradient=kind):
+                image = self.render(f"A<gradient type={kind} color0=#ffffff00 color1=#ffffff00>😀</gradient>")[0]
+                expected = self.render("A")[0]
+                self.assertEqual(expected.size, image.size)
+                self.assertIsNone(ImageChops.difference(expected, image).getbbox())
+
     # Known sRGB samples catch nonlinear interpolation/composition and lost alpha.
     def test_linear_light_colors(self):
         cases = [
