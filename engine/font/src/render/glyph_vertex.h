@@ -25,9 +25,9 @@
 
 enum FontRenderLayerMask
 {
-    FONT_RENDER_LAYER_FACE = 0x1,
+    FONT_RENDER_LAYER_FACE    = 0x1,
     FONT_RENDER_LAYER_OUTLINE = 0x2,
-    FONT_RENDER_LAYER_SHADOW = 0x4,
+    FONT_RENDER_LAYER_SHADOW  = 0x4,
 };
 
 // Packs a normalized texture coordinate into the font vertex UV format.
@@ -72,8 +72,8 @@ struct FontDecorationPattern
 struct FontDecorationSegment
 {
     uint32_t m_GlyphIndex;
-    float m_X;
-    float m_Length;
+    float    m_X;
+    float    m_Length;
 };
 
 // Converts a final RGBA color to the normalized byte format used by font

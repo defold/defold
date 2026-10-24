@@ -76,17 +76,17 @@ static inline uint32_t SkipWS(TextGlyph* glyphs, uint32_t num_glyphs, uint32_t* 
  * and should be skipped when rendering
  */
 template <typename Metric>
-void Layout(TextLayout*     layout,
-                float       width,
-                float*      text_width,
-                Metric      metrics,
-                bool        measure_trailing_space)
+void Layout(TextLayout* layout,
+            float       width,
+            float*      text_width,
+            Metric      metrics,
+            bool        measure_trailing_space)
 {
-    TextGlyph*  glyphs = layout->m_Glyphs.Begin();
-    uint32_t    num_glyphs = layout->m_Glyphs.Size();
-    uint32_t    cursor = 0;
-    float       max_width = 0;
-    uint32_t    c;
+    TextGlyph* glyphs = layout->m_Glyphs.Begin();
+    uint32_t   num_glyphs = layout->m_Glyphs.Size();
+    uint32_t   cursor = 0;
+    float      max_width = 0;
+    uint32_t   c;
     do
     {
         uint32_t n = 0, last_n = 0;
@@ -132,7 +132,7 @@ void Layout(TextLayout*     layout,
             if (layout->m_Lines.Full())
                 layout->m_Lines.OffsetCapacity(8);
 
-            TextLine line = {0};
+            TextLine line = { 0 };
             line.m_Width = last_w;
             line.m_Index = row_start;
             line.m_Length = last_n;
@@ -156,7 +156,7 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
     glyphs += row_start;
     if (!measure_trailing_space)
     {
-        if (glyphs[n-1].m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE)
+        if (glyphs[n - 1].m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE)
         {
             --n;
             if (n <= 0)
@@ -167,7 +167,7 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
     // note: tracking is ignored since it's already added in TextLayoutLegacyCreate
     // note: padding is only intended for monospaced fonts, see comment in fontmap.h
 
-    TextGlyph last = glyphs[n-1];
+    TextGlyph last = glyphs[n - 1];
 
     float row_start_x = glyphs[0].m_X;
 
@@ -201,16 +201,17 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
 
 struct LayoutMetrics
 {
-    TextGlyph*  m_Glyphs;
-    bool        m_Monospace;
-    float       m_Padding;
-    float       m_Tracking;
+    TextGlyph* m_Glyphs;
+    bool       m_Monospace;
+    float      m_Padding;
+    float      m_Tracking;
     LayoutMetrics(TextGlyph* glyphs, bool monospace, float padding, float tracking)
     : m_Glyphs(glyphs)
     , m_Monospace(monospace)
     , m_Padding(padding)
     , m_Tracking(tracking)
-    {}
+    {
+    }
     float operator()(uint32_t row_start, uint32_t n, bool measure_trailing_space)
     {
         return GetLineTextMetrics(m_Glyphs, row_start, n, m_Monospace, m_Padding, m_Tracking, measure_trailing_space);
@@ -288,12 +289,12 @@ static void CreateDecorations(TextLayout* layout, TextLayoutSettings* settings)
     for (uint32_t line_index = 0; line_index < layout->m_Lines.Size(); ++line_index)
     {
         const TextLine& line = layout->m_Lines[line_index];
-        const uint32_t line_end = line.m_Index + line.m_Length;
+        const uint32_t  line_end = line.m_Index + line.m_Length;
 
         for (uint32_t span_index = 0; span_index < layout->m_ResolvedSpans.Size(); ++span_index)
         {
             const TextResolvedSpan& span = layout->m_ResolvedSpans[span_index];
-            const uint8_t flags = span.m_DecorationFlags | (span.m_HasObjectStyle ? TEXT_RESOLVED_DECORATION_UNDERLINE | TEXT_RESOLVED_DECORATION_STRIKE : 0);
+            const uint8_t           flags = span.m_DecorationFlags | (span.m_HasObjectStyle ? TEXT_RESOLVED_DECORATION_UNDERLINE | TEXT_RESOLVED_DECORATION_STRIKE : 0);
 
             if (flags == 0)
             {
@@ -311,11 +312,11 @@ static void CreateDecorations(TextLayout* layout, TextLayoutSettings* settings)
 
             const TextGlyph& first = layout->m_Glyphs[start];
             const TextGlyph& last = layout->m_Glyphs[end - 1];
-            const float font_size = settings->m_Size * first.m_RenderScale;
-            const float thickness = fmaxf(1.0f, font_size * 0.05f);
-            const float padded_length = last.m_X + last.m_Advance - first.m_X;
-            const float decoration_inset = padded_length > settings->m_Padding ? (float)settings->m_Padding : 0.0f;
-            const float length = padded_length;
+            const float      font_size = settings->m_Size * first.m_RenderScale;
+            const float      thickness = fmaxf(1.0f, font_size * 0.05f);
+            const float      padded_length = last.m_X + last.m_Advance - first.m_X;
+            const float      decoration_inset = padded_length > settings->m_Padding ? (float)settings->m_Padding : 0.0f;
+            const float      length = padded_length;
 
             for (uint32_t flag = TEXT_RESOLVED_DECORATION_UNDERLINE; flag <= TEXT_RESOLVED_DECORATION_STRIKE; flag <<= 1)
             {
@@ -387,8 +388,8 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     int32_t ascent = (int32_t)FontGetAscent(font, 1.0f);
     int32_t descent = (int32_t)fabsf(FontGetDescent(font, 1.0f));
     int32_t line_height = ascent + descent;
-    float line_height_scaled = line_height * scale;
-    float tracking = line_height_scaled * settings->m_Tracking;
+    float   line_height_scaled = line_height * scale;
+    float   tracking = line_height_scaled * settings->m_Tracking;
 
     FontGlyphOptions options;
     options.m_Scale = 1.0f; // Return in points
@@ -396,14 +397,14 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
 
     uint32_t num_whitespaces = 0;
     // Lay them all out in a single line, using points
-// TODO: Make this optional, so that user can choose to use pixel alignment
-    float x = 0;
-    float y = 0; // the legacy "shaping" doesn't support Y offsets
+    // TODO: Make this optional, so that user can choose to use pixel alignment
+    float     x = 0;
+    float     y = 0; // the legacy "shaping" doesn't support Y offsets
     FontGlyph font_glyph;
     for (uint32_t i = 0; i < num_codepoints; ++i)
     {
-        uint32_t c = codepoints[i];
-        TextGlyph g = {0};
+        uint32_t  c = codepoints[i];
+        TextGlyph g = { 0 };
         g.m_Font = font;
         g.m_Codepoint = c;
         g.m_Cluster = i;
@@ -465,7 +466,7 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
         {
             while (resolved_span_index < layout->m_ResolvedSpans.Size() &&
                    i >= layout->m_ResolvedSpans[resolved_span_index].m_TextOffset +
-                        layout->m_ResolvedSpans[resolved_span_index].m_TextLength)
+                            layout->m_ResolvedSpans[resolved_span_index].m_TextLength)
             {
                 ++resolved_span_index;
             }
@@ -505,7 +506,7 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     layout->m_NumValidGlyphs = layout->m_Glyphs.Size() - num_whitespaces;
 
     LayoutMetrics lm(layout->m_Glyphs.Begin(), settings->m_Monospace, settings->m_Padding, settings->m_Tracking);
-    float max_line_width;
+    float         max_line_width;
 
     float width = settings->m_Width;
     if (!settings->m_LineBreak)

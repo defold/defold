@@ -31,7 +31,7 @@ struct FontHarfbuzz
 static bool HasTable(hb_face_t* face, hb_tag_t tag)
 {
     hb_blob_t* table = hb_face_reference_table(face, tag);
-    bool has_table = table && hb_blob_get_length(table) != 0;
+    bool       has_table = table && hb_blob_get_length(table) != 0;
     hb_blob_destroy(table);
     return has_table;
 }
@@ -69,7 +69,7 @@ static FontOutlineCommand* PushOutlineCommand(FontHarfbuzzOutlineContext* contex
     if (context->m_Outline->m_CommandCount == context->m_Capacity)
     {
         uint32_t capacity = context->m_Capacity + 32;
-        void* commands = realloc(context->m_Outline->m_Commands, capacity * sizeof(FontOutlineCommand));
+        void*    commands = realloc(context->m_Outline->m_Commands, capacity * sizeof(FontOutlineCommand));
         if (!commands)
         {
             context->m_Failed = true;
@@ -170,7 +170,7 @@ FontResult FontHarfbuzzGetGlyphOutline(FontHarfbuzz* font, uint32_t glyph_index,
 {
     memset(outline, 0, sizeof(*outline));
     FontHarfbuzzOutlineContext context = { outline, 0, false };
-    bool drawn = hb_font_draw_glyph_or_fail(font->m_Font, glyph_index, font->m_DrawFuncs, &context);
+    bool                       drawn = hb_font_draw_glyph_or_fail(font->m_Font, glyph_index, font->m_DrawFuncs, &context);
     if (!drawn || context.m_Failed)
     {
         FontFreeGlyphOutline(outline);

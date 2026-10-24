@@ -79,19 +79,19 @@ typedef void (*FFontGenComplete)(void* context, int result, const char* error_me
  */
 struct FontGenParams
 {
-    void*                   m_UserContext;
-    FFontGenIsGlyphCached   m_IsGlyphCached;
-    FFontGenAddGlyph        m_AddGlyph;
-    FFontGenComplete        m_Complete;
-    HJobContext             m_Jobs;
-    float                   m_Size;
-    float                   m_OutlineWidth;
-    float                   m_ShadowBlur;
-    uint8_t                 m_IsSdf;
-    uint8_t                 m_IsVector;
-    uint8_t                 m_BitmapEffects;
-    uint8_t                 m_HasOutline;
-    uint8_t                 m_HasShadow;
+    void*                 m_UserContext;
+    FFontGenIsGlyphCached m_IsGlyphCached;
+    FFontGenAddGlyph      m_AddGlyph;
+    FFontGenComplete      m_Complete;
+    HJobContext           m_Jobs;
+    float                 m_Size;
+    float                 m_OutlineWidth;
+    float                 m_ShadowBlur;
+    uint8_t               m_IsSdf;
+    uint8_t               m_IsVector;
+    uint8_t               m_BitmapEffects;
+    uint8_t               m_HasOutline;
+    uint8_t               m_HasShadow;
 };
 
 dmExtension::Result FontGenInitialize(dmExtension::Params* params);

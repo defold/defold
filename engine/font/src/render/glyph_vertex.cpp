@@ -167,8 +167,8 @@ void FontGetDecorationPattern(const TextDecoration& decoration, const FontDecora
 void FontGetDecorationEndGlyphs(HTextLayout layout, const TextDecoration& decoration, uint32_t* left, uint32_t* right)
 {
     const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
-    uint32_t left_index = decoration.m_GlyphStart;
-    uint32_t right_index = left_index;
+    uint32_t         left_index = decoration.m_GlyphStart;
+    uint32_t         right_index = left_index;
 
     for (uint32_t i = 1; i < decoration.m_GlyphCount; ++i)
     {
@@ -268,15 +268,15 @@ void FontPackGlyphVertices(const FontGlyphVertexParams& params, const FontVertex
         source_size_difference = 0.0f;
     }
 
-    const int32_t    width = (int32_t)source_width;
-    const int32_t    descent = (int32_t)source_descent;
-    const int32_t    ascent = (int32_t)source_ascent;
-    const int32_t    cell_offset_y = cache_cell_max_ascent - ascent;
-    const float      glyph_width = source_width * render_scale;
-    const float      glyph_descent = source_descent * render_scale;
-    const float      glyph_ascent = source_ascent * render_scale;
-    const float      glyph_left_bearing = source_left_bearing * render_scale;
-    const float      local_x = x - source_size_difference * render_scale * 0.5f;
+    const int32_t width = (int32_t)source_width;
+    const int32_t descent = (int32_t)source_descent;
+    const int32_t ascent = (int32_t)source_ascent;
+    const int32_t cell_offset_y = cache_cell_max_ascent - ascent;
+    const float   glyph_width = source_width * render_scale;
+    const float   glyph_descent = source_descent * render_scale;
+    const float   glyph_ascent = source_ascent * render_scale;
+    const float   glyph_left_bearing = source_left_bearing * render_scale;
+    const float   local_x = x - source_size_difference * render_scale * 0.5f;
 
     FontGlyphVertex& face_1 = face_vertices[0];
     FontGlyphVertex& face_2 = face_vertices[1];
@@ -437,11 +437,11 @@ void FontPackDecorationVertices(const FontDecorationVertexParams& params, const 
     {
         memcpy(outline_vertices, face_vertices, sizeof(FontGlyphVertex) * FONT_GLYPH_VERTICES_PER_QUAD);
 
-        const float tangent_x = length > 0.0f ? delta_x / length : 0.0f;
-        const float tangent_y = length > 0.0f ? delta_y / length : 0.0f;
-        const float outline_normal_scale = length > 0.0f ? (thickness * 0.5f + outline_width) / length : 0.0f;
-        const float outline_normal_x = -delta_y * outline_normal_scale;
-        const float outline_normal_y = delta_x * outline_normal_scale;
+        const float   tangent_x = length > 0.0f ? delta_x / length : 0.0f;
+        const float   tangent_y = length > 0.0f ? delta_y / length : 0.0f;
+        const float   outline_normal_scale = length > 0.0f ? (thickness * 0.5f + outline_width) / length : 0.0f;
+        const float   outline_normal_x = -delta_y * outline_normal_scale;
+        const float   outline_normal_y = delta_x * outline_normal_scale;
         QuadPositions outline_positions;
         CalculateQuadPositions(transform,
                                x0 - tangent_x * outline_width - outline_normal_x,
@@ -470,9 +470,9 @@ void FontPackDecorationVertices(const FontDecorationVertexParams& params, const 
         shadow_vertices[4] = shadow_vertices[1];
     }
 
-    const float cycles_per_unit = length > 0.0f ? (pattern_end - pattern_start) / length : 0.0f;
-    const float layer_pattern_start[3] = { pattern_start, pattern_start - outline_width * cycles_per_unit, pattern_start };
-    const float layer_pattern_end[3] = { pattern_end, pattern_end + outline_width * cycles_per_unit, pattern_end };
+    const float      cycles_per_unit = length > 0.0f ? (pattern_end - pattern_start) / length : 0.0f;
+    const float      layer_pattern_start[3] = { pattern_start, pattern_start - outline_width * cycles_per_unit, pattern_start };
+    const float      layer_pattern_end[3] = { pattern_end, pattern_end + outline_width * cycles_per_unit, pattern_end };
     FontGlyphVertex* layer_vertices[3] = { face_vertices, outline_vertices, shadow_vertices };
     const float      single_layer_effects = layer_count == 1 && !layers.m_FaceOnly ? 1.0f : 0.0f;
     const float      solid_masks[3][3] = {

@@ -29,19 +29,19 @@ extern "C"
 
     typedef enum FontRendererResult
     {
-        FONT_RENDERER_RESULT_OK = 0,
+        FONT_RENDERER_RESULT_OK               = 0,
         FONT_RENDERER_RESULT_INVALID_ARGUMENT = -1,
-        FONT_RENDERER_RESULT_FONT_ERROR = -2,
-        FONT_RENDERER_RESULT_TEXT_ERROR = -3,
-        FONT_RENDERER_RESULT_GLYPH_ERROR = -4,
-        FONT_RENDERER_RESULT_OUT_OF_MEMORY = -5,
+        FONT_RENDERER_RESULT_FONT_ERROR       = -2,
+        FONT_RENDERER_RESULT_TEXT_ERROR       = -3,
+        FONT_RENDERER_RESULT_GLYPH_ERROR      = -4,
+        FONT_RENDERER_RESULT_OUT_OF_MEMORY    = -5,
     } FontRendererResult;
 
     typedef enum FontRendererLayer
     {
-        FONT_RENDERER_LAYER_FACE = 1,
+        FONT_RENDERER_LAYER_FACE    = 1,
         FONT_RENDERER_LAYER_OUTLINE = 2,
-        FONT_RENDERER_LAYER_SHADOW = 4,
+        FONT_RENDERER_LAYER_SHADOW  = 4,
     } FontRendererLayer;
 
     /* Rich-text diagnostic classification returned by FontcParseMarkup and FontcCompileStyle. */
@@ -174,39 +174,39 @@ extern "C"
             uint8_t m_Bits;
         };
         // Vector layout size in pixels; zero uses the glyph generation size.
-        float    m_FontSize;
+        float m_FontSize;
     } FontcProperties;
 
     /* Compiled style data. Color arrays are RGBA; flags distinguish inherited
      * properties from explicit overrides. No pointers are retained by SetStyle. */
     typedef struct FontcStyle
     {
-        float m_FaceColor[4];
-        float m_OutlineColor[4];
-        float m_ShadowColor[4];
-        float m_OutlineWidth;
-        float m_ShadowX;
-        float m_ShadowY;
-        float m_ShadowBlur;
-        float m_OutlineAlpha;
-        float m_ShadowAlpha;
+        float    m_FaceColor[4];
+        float    m_OutlineColor[4];
+        float    m_ShadowColor[4];
+        float    m_OutlineWidth;
+        float    m_ShadowX;
+        float    m_ShadowY;
+        float    m_ShadowBlur;
+        float    m_OutlineAlpha;
+        float    m_ShadowAlpha;
         uint32_t m_Flags;
         uint32_t m_DecorationFlags;
         uint32_t m_UnderlinePattern;
         uint32_t m_StrikePattern;
-        float m_FontSize;
+        float    m_FontSize;
         uint32_t m_FontSizeUnit;
     } FontcStyle;
 
     typedef struct FontcStyleEffect
     {
-        float    m_Colors[16];
-        float    m_Amplitude;
-        float    m_Hz;
-        float    m_Wavelength;
-        float    m_Positions[4];
+        float m_Colors[16];
+        float m_Amplitude;
+        float m_Hz;
+        float m_Wavelength;
+        float m_Positions[4];
         // Authored linear angle, or radial pivot x/y, radius x/y, angle, and unused.
-        float    m_Parameters[6];
+        float m_Parameters[6];
         // Low-to-high bits of m_Bits on editor hosts; also read/written by Java.
         union
         {
@@ -224,9 +224,9 @@ extern "C"
 
     typedef struct FontcStyleData
     {
-        FontcStyle m_Style;
+        FontcStyle        m_Style;
         FontcStyleEffect* m_Effects;
-        uint32_t m_EffectCount;
+        uint32_t          m_EffectCount;
     } FontcStyleData;
 
     typedef struct FontcTexture
@@ -313,7 +313,7 @@ extern "C"
     /* Compile an opening-only resource style. The caller owns the returned
      * effect array and must release it with FontcFreeStyle after success. */
     DM_DLLEXPORT FontRendererResult FontcCompileStyle(const char* markup, uint32_t length, FontcStyleData* output, FontcMarkupError* error);
-    DM_DLLEXPORT void FontcFreeStyle(FontcStyleData* style);
+    DM_DLLEXPORT void               FontcFreeStyle(FontcStyleData* style);
     /* Copy a compiled style into the renderer's font collection. */
     DM_DLLEXPORT FontRendererResult FontcSetStyle(HFontRenderer renderer, uint64_t name, const FontcStyleData* style);
 
@@ -702,7 +702,7 @@ extern "C"
      * heights grow with the active glyph set. Release both with FontcFreeTexture.
      * The existing atlas version covers all three textures. */
     DM_DLLEXPORT FontRendererResult FontcGetVectorTextures(HFontRenderer renderer, uint64_t known_atlas_version,
-                                                          FontcTexture* curves, FontcTexture* bands);
+                                                           FontcTexture* curves, FontcTexture* bands);
 
     /*#
      * Copies the gradient lookup texture for vertices generated since FontcBeginBatch.

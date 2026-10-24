@@ -161,24 +161,24 @@ static HFont CreateFontcGlyphBank(const char*                name,
 
 struct CachedGlyph
 {
-    FontGlyph m_Glyph;
-    HFont     m_Font;
-    uint64_t  m_Frame;
-    uint32_t  m_GlyphIndex;
-    uint16_t  m_X;
-    uint16_t  m_Y;
-    FontGlyph m_VectorFace; // Borrows the owning glyph's outline; exact face metrics.
+    FontGlyph           m_Glyph;
+    HFont               m_Font;
+    uint64_t            m_Frame;
+    uint32_t            m_GlyphIndex;
+    uint16_t            m_X;
+    uint16_t            m_Y;
+    FontGlyph           m_VectorFace; // Borrows the owning glyph's outline; exact face metrics.
     FontVectorSlugGlyph m_VectorGlyph;
 };
 
 struct TextureUpdateState
 {
     TextureUpdateState()
-        : m_X(0)
-        , m_Y(0)
-        , m_Width(0)
-        , m_Height(0)
-        , m_Full(false)
+    : m_X(0)
+    , m_Y(0)
+    , m_Width(0)
+    , m_Height(0)
+    , m_Full(false)
     {
     }
 
@@ -199,24 +199,24 @@ enum FontcMode
 struct FontcContext
 {
     FontcContext()
-        : m_Font(0)
-        , m_Collection(0)
-        , m_Atlas(0)
-        , m_AtlasVersion(1)
-        , m_Frame(0)
-        , m_EffectCount(1)
-        , m_Hash(0)
-        , m_TextLayout(0)
-        , m_TextLayoutHash(0)
-        , m_Properties()
-        , m_HasProperties(false)
-        , m_HasText(false)
-        , m_TextIsMarkup(false)
-        , m_CellWidth(1)
-        , m_CellHeight(1)
-        , m_CellMaxAscent(0)
-        , m_Mode(FONTC_MODE_RASTER)
-        , m_VectorDataDirty(1)
+    : m_Font(0)
+    , m_Collection(0)
+    , m_Atlas(0)
+    , m_AtlasVersion(1)
+    , m_Frame(0)
+    , m_EffectCount(1)
+    , m_Hash(0)
+    , m_TextLayout(0)
+    , m_TextLayoutHash(0)
+    , m_Properties()
+    , m_HasProperties(false)
+    , m_HasText(false)
+    , m_TextIsMarkup(false)
+    , m_CellWidth(1)
+    , m_CellHeight(1)
+    , m_CellMaxAscent(0)
+    , m_Mode(FONTC_MODE_RASTER)
+    , m_VectorDataDirty(1)
     {
         m_Effects.EnsureSize(FONT_EFFECT_TEXTURE_HEIGHT);
         FontResizeEffectIndex(&m_EffectIndex, m_Effects.Size());
@@ -238,41 +238,41 @@ struct FontcContext
     HTextLayout               m_TextLayout;
     uint64_t                  m_TextLayoutHash;
 
-    FontcProperties           m_Properties;
-    bool                      m_HasProperties;
-    dmArray<uint32_t>         m_Codepoints;
-    dmArray<char>             m_Markup;
-    bool                      m_HasText;
-    bool                      m_TextIsMarkup;
+    FontcProperties   m_Properties;
+    bool              m_HasProperties;
+    dmArray<uint32_t> m_Codepoints;
+    dmArray<char>     m_Markup;
+    bool              m_HasText;
+    bool              m_TextIsMarkup;
 
-    float                m_Size;
-    float                m_SdfBasePadding;
-    float                m_SdfSpread;
-    float                m_SdfOutline;
-    float                m_SdfShadow;
-    float                m_OutlineWidth;
-    float                m_ShadowBlur;
-    float                m_ShadowX;
-    float                m_ShadowY;
-    uint16_t             m_AtlasWidth;
-    uint16_t             m_AtlasHeight;
-    uint16_t             m_CellWidth;
-    uint16_t             m_CellHeight;
-    int32_t              m_CellMaxAscent;
-    FontVectorSlugData   m_VectorData;
+    float                    m_Size;
+    float                    m_SdfBasePadding;
+    float                    m_SdfSpread;
+    float                    m_SdfOutline;
+    float                    m_SdfShadow;
+    float                    m_OutlineWidth;
+    float                    m_ShadowBlur;
+    float                    m_ShadowX;
+    float                    m_ShadowY;
+    uint16_t                 m_AtlasWidth;
+    uint16_t                 m_AtlasHeight;
+    uint16_t                 m_CellWidth;
+    uint16_t                 m_CellHeight;
+    int32_t                  m_CellMaxAscent;
+    FontVectorSlugData       m_VectorData;
     dmArray<FontGlyphVertex> m_LayoutVertices;
-    uint8_t              m_CellPadding;
-    uint8_t              m_SdfEdgeValue;
-    uint8_t              m_Channels;
-    uint8_t              m_LayerMask;
-    bool                 m_OutputBitmap;
-    bool                 m_Antialias;
-    bool                 m_HasOutline;
-    bool                 m_HasShadow;
-    bool                 m_UseTextShaping;
-    FontcMode            m_Mode;
-    uint8_t              m_VectorDataDirty:1; // Glyph changes require repacking the curve/band textures.
-    uint8_t              :7;
+    uint8_t                  m_CellPadding;
+    uint8_t                  m_SdfEdgeValue;
+    uint8_t                  m_Channels;
+    uint8_t                  m_LayerMask;
+    bool                     m_OutputBitmap;
+    bool                     m_Antialias;
+    bool                     m_HasOutline;
+    bool                     m_HasShadow;
+    bool                     m_UseTextShaping;
+    FontcMode                m_Mode;
+    uint8_t                  m_VectorDataDirty : 1; // Glyph changes require repacking the curve/band textures.
+    uint8_t : 7;
 };
 
 struct VectorPreviewVertex
@@ -308,8 +308,8 @@ static FontCurvePoint LerpOutlinePoint(const FontCurvePoint& a, const FontCurveP
 
 static FontCurvePoint NormalizeOutlinePoint(const FontGlyph& glyph, const FontCurvePoint& point)
 {
-    const float width = dmMath::Max(0.0001f, glyph.m_Outline.m_Width);
-    const float height = dmMath::Max(0.0001f, glyph.m_Outline.m_Ascent + glyph.m_Outline.m_Descent);
+    const float    width = dmMath::Max(0.0001f, glyph.m_Outline.m_Width);
+    const float    height = dmMath::Max(0.0001f, glyph.m_Outline.m_Ascent + glyph.m_Outline.m_Descent);
     FontCurvePoint result = {
         (point.m_X - glyph.m_Outline.m_LeftBearing) / width,
         (point.m_Y + glyph.m_Outline.m_Descent) / height
@@ -352,16 +352,16 @@ static void PushEncodedCurve(dmArray<EncodedVectorCurve>& curves, const FontGlyp
 static void PushMonotonicCurve(dmArray<EncodedVectorCurve>& curves, const FontGlyph& glyph,
                                const FontCurvePoint& p0, const FontCurvePoint& p1, const FontCurvePoint& p2)
 {
-    float splits[4] = { 0.0f, 1.0f, 0.0f, 0.0f };
+    float    splits[4] = { 0.0f, 1.0f, 0.0f, 0.0f };
     uint32_t split_count = 2;
-    float t;
+    float    t;
     if (FindInteriorAxisExtremum(p0.m_X, p1.m_X, p2.m_X, &t))
         AddUniqueSplit(splits, &split_count, t);
     if (FindInteriorAxisExtremum(p0.m_Y, p1.m_Y, p2.m_Y, &t))
         AddUniqueSplit(splits, &split_count, t);
     for (uint32_t i = 1; i < split_count; ++i)
     {
-        float value = splits[i];
+        float    value = splits[i];
         uint32_t j = i;
         while (j > 0 && splits[j - 1] > value)
         {
@@ -374,10 +374,10 @@ static void PushMonotonicCurve(dmArray<EncodedVectorCurve>& curves, const FontGl
     FontCurvePoint r0 = p0;
     FontCurvePoint r1 = p1;
     FontCurvePoint r2 = p2;
-    float previous_t = 0.0f;
+    float          previous_t = 0.0f;
     for (uint32_t i = 1; i + 1 < split_count; ++i)
     {
-        const float local_t = (splits[i] - previous_t) / (1.0f - previous_t);
+        const float          local_t = (splits[i] - previous_t) / (1.0f - previous_t);
         const FontCurvePoint p01 = LerpOutlinePoint(r0, r1, local_t);
         const FontCurvePoint p12 = LerpOutlinePoint(r1, r2, local_t);
         const FontCurvePoint middle = LerpOutlinePoint(p01, p12, local_t);
@@ -393,8 +393,8 @@ static void CollectEncodedCurves(const FontGlyph& glyph, dmArray<EncodedVectorCu
 {
     FontCurvePoint current = { 0.0f, 0.0f };
     FontCurvePoint contour_start = current;
-    bool has_current = false;
-    bool has_contour = false;
+    bool           has_current = false;
+    bool           has_contour = false;
     for (uint32_t i = 0; i < glyph.m_Outline.m_CommandCount; ++i)
     {
         const FontCurveCommand& command = glyph.m_Outline.m_Commands[i];
@@ -431,7 +431,7 @@ static FontCurvePoint NormalizeCurveDirection(const FontCurvePoint& direction)
         FontCurvePoint fallback = { 1.0f, 0.0f };
         return fallback;
     }
-    const float inv_length = 1.0f / sqrtf(length_sq);
+    const float    inv_length = 1.0f / sqrtf(length_sq);
     FontCurvePoint normalized = { direction.m_X * inv_length, direction.m_Y * inv_length };
     return normalized;
 }
@@ -664,7 +664,7 @@ static bool UpdateCellMetrics(FontcContext* session)
         cell_max_ascent = i == 0 ? (int32_t)glyph.m_Ascent : dmMath::Max(cell_max_ascent, (int32_t)glyph.m_Ascent);
         cell_max_descent = i == 0 ? (int32_t)glyph.m_Descent : dmMath::Max(cell_max_descent, (int32_t)glyph.m_Descent);
     }
-    const int64_t  cell_height = dmMath::Max((int64_t)1, (int64_t)cell_max_ascent + cell_max_descent + session->m_CellPadding * 2);
+    const int64_t cell_height = dmMath::Max((int64_t)1, (int64_t)cell_max_ascent + cell_max_descent + session->m_CellPadding * 2);
     if (cell_width > UINT16_MAX || cell_height > UINT16_MAX)
         return false;
     session->m_CellWidth = (uint16_t)cell_width;
@@ -833,7 +833,8 @@ static CachedGlyph* GetOrCreateGlyph(FontcContext* session, HFont font, uint32_t
 static float GetLayoutFontSize(FontcContext* session)
 {
     return session->m_Mode == FONTC_MODE_VECTOR && session->m_Properties.m_FontSize > 0.0f
-           ? session->m_Properties.m_FontSize : session->m_Size;
+               ? session->m_Properties.m_FontSize
+               : session->m_Size;
 }
 
 static TextResult CreateLayout(FontcContext* session, const uint32_t* codepoints, uint32_t count, bool line_break, float width, float leading, float tracking, HTextLayout* layout)
@@ -851,12 +852,12 @@ static TextResult CreateLayout(FontcContext* session, const uint32_t* codepoints
     return TextLayoutCreate(session->m_Collection, const_cast<uint32_t*>(codepoints), count, &settings, layout);
 }
 
-static uint8_t ResolvePreviewLayoutObject(void* context,
-                                          const char* source,
+static uint8_t ResolvePreviewLayoutObject(void*                            context,
+                                          const char*                      source,
                                           const TextLayoutObjectAttribute* attributes,
-                                          float proposed_width,
-                                          float proposed_height,
-                                          TextLayoutObject* object)
+                                          float                            proposed_width,
+                                          float                            proposed_height,
+                                          TextLayoutObject*                object)
 {
     (void)context;
     (void)source;
@@ -1031,7 +1032,7 @@ static FontRendererResult CreateRenderer(HFont              font,
 {
     *renderer = 0;
 
-    const bool vector = !is_glyph_bank && params->m_OutputBitmap == 2;
+    const bool     vector = !is_glyph_bank && params->m_OutputBitmap == 2;
     const uint32_t component_size = sizeof(uint8_t);
 
     FontcContext* session = new FontcContext;
@@ -1081,7 +1082,7 @@ FontRendererResult FontcCreate(const char*        name,
                                const FontcParams* params,
                                HFontRenderer*     renderer)
 {
-    const bool vector = params && params->m_OutputBitmap == 2;
+    const bool     vector = params && params->m_OutputBitmap == 2;
     const uint32_t channels = params ? FontGetGlyphChannelCount(params->m_OutputBitmap != 0, params->m_OutlineWidth > 0.0f, params->m_HasShadow, vector ? 0.0f : params->m_ShadowBlur) : 1;
     if (!name || !font_bytes || font_byte_count == 0 || !ValidateRendererParams(params, channels, renderer))
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
@@ -1333,7 +1334,7 @@ FontRendererResult FontcFilterMarkup(const char*     markup,
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
     }
 
-    MarkupError error = {};
+    MarkupError        error = {};
     const MarkupResult result = MarkupFilterText(markup, markup_byte_count,
                                                  allowed_codepoints, allowed_codepoint_count,
                                                  output, output_capacity,
@@ -1352,7 +1353,7 @@ FontRendererResult FontcGenerateGlyph(HFontRenderer renderer, uint32_t codepoint
     if (glyph_index == 0)
         return FONT_RENDERER_RESULT_OK;
 
-    FontGlyph glyph;
+    FontGlyph  glyph;
     FontResult glyph_result;
     if (renderer->m_Mode == FONTC_MODE_VECTOR)
     {
@@ -1381,7 +1382,7 @@ FontRendererResult FontcGenerateGlyph(HFontRenderer renderer, uint32_t codepoint
         // Preserve the runtime quad's centering in the exported bearing.
         output->m_LeftBearing -= (glyph.m_Bitmap.m_Width - glyph.m_Width) * 0.5f;
     }
-    const uint32_t vector_header_size = renderer->m_Mode == FONTC_MODE_VECTOR ? sizeof(uint32_t) + sizeof(float) * 4 : 0;
+    const uint32_t              vector_header_size = renderer->m_Mode == FONTC_MODE_VECTOR ? sizeof(uint32_t) + sizeof(float) * 4 : 0;
     dmArray<EncodedVectorCurve> curves;
     if (renderer->m_Mode == FONTC_MODE_VECTOR)
     {
@@ -1398,7 +1399,7 @@ FontRendererResult FontcGenerateGlyph(HFontRenderer renderer, uint32_t codepoint
     }
     if (renderer->m_Mode == FONTC_MODE_VECTOR)
     {
-        uint8_t* cursor = output->m_Pixels;
+        uint8_t*    cursor = output->m_Pixels;
         const float outline_metrics[] = { glyph.m_Outline.m_Width,
                                           glyph.m_Outline.m_LeftBearing,
                                           glyph.m_Outline.m_Ascent,
@@ -1469,7 +1470,7 @@ static FontRendererResult GetGlyphMetrics(HFontRenderer renderer, uint32_t codep
     // Match the legacy layout's metrics query and scaling order. The bitmap
     // bounds above remain available for atlas allocation and image placement.
     FontGlyphOptions options;
-    FontGlyph layout_glyph;
+    FontGlyph        layout_glyph;
     if (FontGetGlyphByIndex(renderer->m_Font, glyph_index, &options, &layout_glyph) != FONT_RESULT_OK)
         return FONT_RENDERER_RESULT_GLYPH_ERROR;
     const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
@@ -1536,7 +1537,7 @@ FontRendererResult FontcGetSupportedGlyphMetrics(HFontRenderer      renderer,
     }
 
     hb_codepoint_t codepoint = HB_SET_VALUE_INVALID;
-    uint32_t output_count = 0;
+    uint32_t       output_count = 0;
     while (hb_set_next(unicodes, &codepoint))
     {
         FontcGlyphMetrics& output = metrics[output_count];
@@ -1694,9 +1695,9 @@ FontRendererResult FontcGenerateTexture(HFontRenderer renderer,
     if (layout_result != TEXT_RESULT_OK)
         return FONT_RENDERER_RESULT_TEXT_ERROR;
 
-    TextGlyph*         glyphs = TextLayoutGetGlyphs(layout);
-    const uint32_t     glyph_count = TextLayoutGetGlyphCount(layout);
-    const uint64_t     initial_atlas_version = renderer->m_AtlasVersion;
+    TextGlyph*     glyphs = TextLayoutGetGlyphs(layout);
+    const uint32_t glyph_count = TextLayoutGetGlyphCount(layout);
+    const uint64_t initial_atlas_version = renderer->m_AtlasVersion;
 
     TextureUpdateState texture_update = {};
     for (uint32_t i = 0; i < glyph_count; ++i)
@@ -1790,7 +1791,7 @@ static FontRendererResult PrepareVectorData(HFontRenderer renderer)
 }
 
 FontRendererResult FontcGetVectorTextures(HFontRenderer renderer, uint64_t known_atlas_version,
-                                         FontcTexture* curves, FontcTexture* bands)
+                                          FontcTexture* curves, FontcTexture* bands)
 {
     if (!renderer || renderer->m_Mode != FONTC_MODE_VECTOR || !curves || !bands || curves == bands)
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
@@ -1842,7 +1843,7 @@ void FontcFreeTexture(FontcTexture* texture)
 static bool ResolveLayoutGlyph(void* context, const TextGlyph& text_glyph, FontLayoutCachedGlyph* output)
 {
     HFontRenderer renderer = (HFontRenderer)context;
-    CachedGlyph* cached = FindGlyph(renderer, text_glyph.m_Font, text_glyph.m_GlyphIndex);
+    CachedGlyph*  cached = FindGlyph(renderer, text_glyph.m_Font, text_glyph.m_GlyphIndex);
 
     if (!cached)
     {
@@ -1968,8 +1969,8 @@ FontRendererResult FontcGetVertexBufferSize(HFontRenderer renderer,
     {
         *vertex_count = metrics.m_VertexCount;
         const uint64_t byte_count = renderer->m_Mode == FONTC_MODE_VECTOR
-                                  ? (uint64_t)metrics.m_VertexCount * sizeof(VectorPreviewVertex)
-                                  : metrics.m_VertexBufferSize;
+                                        ? (uint64_t)metrics.m_VertexCount * sizeof(VectorPreviewVertex)
+                                        : metrics.m_VertexBufferSize;
         if (byte_count > UINT32_MAX)
         {
             return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
@@ -2025,8 +2026,8 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
         return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
     }
     const uint64_t required_size = renderer->m_Mode == FONTC_MODE_VECTOR
-                                 ? (uint64_t)metrics.m_VertexCount * sizeof(VectorPreviewVertex)
-                                 : metrics.m_VertexBufferSize;
+                                       ? (uint64_t)metrics.m_VertexCount * sizeof(VectorPreviewVertex)
+                                       : metrics.m_VertexBufferSize;
     if (required_size > vertex_buffer_size || (required_size != 0 && !vertex_buffer))
     {
         TextLayoutRelease(layout);
@@ -2076,10 +2077,10 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
         for (uint32_t i = 0; i < effect_count; ++i)
         {
             const FontGlyphVertex& source = layout_vertices[i / 6 * 6 + source_order[i % 6]];
-            VectorPreviewVertex& destination = vector_vertices[i];
-            const bool shadow = i < metrics.m_ShadowQuadCount * 6;
-            const bool decoration = shadow ? i >= glyph_metrics.m_ShadowQuadCount * 6
-                                           : i >= (metrics.m_ShadowQuadCount + glyph_metrics.m_OutlineQuadCount) * 6;
+            VectorPreviewVertex&   destination = vector_vertices[i];
+            const bool             shadow = i < metrics.m_ShadowQuadCount * 6;
+            const bool             decoration = shadow ? i >= glyph_metrics.m_ShadowQuadCount * 6
+                                                       : i >= (metrics.m_ShadowQuadCount + glyph_metrics.m_OutlineQuadCount) * 6;
             if (decoration)
             {
                 WriteVectorDecorationVertex(source, shadow ? source.m_ShadowColor : source.m_OutlineColor, &destination);
@@ -2094,10 +2095,10 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
             destination.m_EffectParams[0] = source.m_SdfParams[1];
             memcpy(destination.m_Color, shadow ? source.m_ShadowColor : source.m_OutlineColor, 4);
         }
-        TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+        TextGlyph*     glyphs = TextLayoutGetGlyphs(layout);
         const uint32_t glyph_count = TextLayoutGetGlyphCount(layout);
-        const float texcoords[6][2] = { {0, 0}, {0, 1}, {1, 0}, {1, 0}, {0, 1}, {1, 1} };
-        uint32_t quad_index = 0;
+        const float    texcoords[6][2] = { { 0, 0 }, { 0, 1 }, { 1, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } };
+        uint32_t       quad_index = 0;
         for (uint32_t glyph_index = 0; glyph_index < glyph_count; ++glyph_index)
         {
             const TextGlyph& text_glyph = glyphs[glyph_index];
@@ -2109,7 +2110,7 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
             for (uint32_t vertex_index = 0; vertex_index < 6; ++vertex_index)
             {
                 const FontGlyphVertex& source = face_vertices[quad_index * 6 + source_order[vertex_index]];
-                VectorPreviewVertex& destination = vector_vertices[effect_count + quad_index * 6 + vertex_index];
+                VectorPreviewVertex&   destination = vector_vertices[effect_count + quad_index * 6 + vertex_index];
                 destination.m_Position[0] = source.m_Position[0];
                 destination.m_Position[1] = source.m_Position[1];
                 destination.m_Position[2] = (float)cached->m_VectorGlyph.m_BandTexel;

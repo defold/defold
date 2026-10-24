@@ -81,7 +81,7 @@ struct FontLayoutVertexConfig
     FontLayoutResolveEffect m_ResolveEffect;
     void*                   m_ResolveEffectContext;
     // Curve previews render SDF effects in a separate pass.
-    bool                   m_FaceOnly;
+    bool                    m_FaceOnly;
 };
 
 struct FontLayoutVertexMetrics
@@ -137,9 +137,9 @@ void FontPrepareSpatialGradientBounds(const FontLayoutVertexConfig& config);
 
 // Apply a spatial gradient to the supplied quad layers in shared vertex winding.
 // Bounds are in untransformed layout space; null layer outputs are skipped.
-void     FontApplySpatialGradient(const FontLayoutVertexConfig& config, const TextLine& line, const TextGlyph& glyph, const TextGradientBounds& unpadded, const TextGradientBounds& quad, FontSpatialGradientCache* cache, const FontVertexLayerParams& layers);
+void FontApplySpatialGradient(const FontLayoutVertexConfig& config, const TextLine& line, const TextGlyph& glyph, const TextGradientBounds& unpadded, const TextGradientBounds& quad, FontSpatialGradientCache* cache, const FontVertexLayerParams& layers);
 
-bool     FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayoutVertexMetrics* metrics);
+bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayoutVertexMetrics* metrics);
 
 uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
                                   const FontLayoutVertexMetrics& metrics,

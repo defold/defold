@@ -22,10 +22,10 @@
 #include <string.h>
 
 #if defined(FONT_USE_SKRIBIDI)
-    #include <dmsdk/dlib/hashtable.h>
-    #include <skribidi/skb_font_collection.h>
-    #include <skribidi/skb_layout.h>
-    #include "harfbuzz/font_harfbuzz.h"
+#include <dmsdk/dlib/hashtable.h>
+#include <skribidi/skb_font_collection.h>
+#include <skribidi/skb_layout.h>
+#include "harfbuzz/font_harfbuzz.h"
 #endif
 
 struct TextNamedStyle
@@ -39,12 +39,12 @@ struct TextNamedStyle
 
 struct FontCollection
 {
-    dmArray<HFont>                  m_Fonts;
-    dmArray<TextNamedStyle*>        m_NamedStyles;
-    TextLayoutType                  m_LayoutType;
-    uint32_t                        m_NamedStyleRevision;
-    FontCollectionFallbackCallback  m_FallbackCallback;
-    void*                           m_FallbackContext;
+    dmArray<HFont>                 m_Fonts;
+    dmArray<TextNamedStyle*>       m_NamedStyles;
+    TextLayoutType                 m_LayoutType;
+    uint32_t                       m_NamedStyleRevision;
+    FontCollectionFallbackCallback m_FallbackCallback;
+    void*                          m_FallbackContext;
 
 #if defined(FONT_USE_SKRIBIDI)
     skb_font_collection_t*                m_Collection;
@@ -132,7 +132,7 @@ FontResult FontCollectionAddFont(HFontCollection coll, HFont hfont)
     }
 
 #if defined(FONT_USE_SKRIBIDI)
-    hb_font_t* hb_font = FontGetHarfbuzzFontFromTTF(hfont);
+    hb_font_t*        hb_font = FontGetHarfbuzzFontFromTTF(hfont);
     skb_font_handle_t skbfont = skb_font_collection_add_hb_font(coll->m_Collection,
                                                                 FontGetPath(hfont),
                                                                 hb_font,
@@ -166,16 +166,16 @@ FontResult FontCollectionRemoveFont(HFontCollection coll, HFont hfont)
     }
 
 #if defined(FONT_USE_SKRIBIDI)
-     dmHashTable<skb_font_handle_t, HFont>::Iterator iter = coll->m_FontLookup.GetIterator();
-     while(iter.Next())
-     {
+    dmHashTable<skb_font_handle_t, HFont>::Iterator iter = coll->m_FontLookup.GetIterator();
+    while (iter.Next())
+    {
         if (iter.GetValue() == hfont)
         {
             skb_font_collection_remove_font(coll->m_Collection, iter.GetKey());
             coll->m_FontLookup.Erase(iter.GetKey());
             break;
         }
-     }
+    }
 #endif
     return FONT_RESULT_OK;
 }
@@ -279,8 +279,8 @@ static bool OnFontFallback(skb_font_collection_t* collection, const char* langua
     FontCollection* font_collection = (FontCollection*)context;
 
     return font_collection->m_FallbackCallback(font_collection, language,
-                                                skb_script_to_iso15924_tag(script), font_family,
-                                                font_collection->m_FallbackContext);
+                                               skb_script_to_iso15924_tag(script), font_family,
+                                               font_collection->m_FallbackContext);
 }
 #endif
 
