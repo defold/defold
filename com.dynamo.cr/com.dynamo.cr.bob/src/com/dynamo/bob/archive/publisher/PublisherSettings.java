@@ -142,9 +142,14 @@ public class PublisherSettings {
         return value != null && value.equals("1");
     }
 
+    /** Raw legacy value, so manifest providers can apply their own defaults and validation. */
+    public String getCompressionLevelValue() {
+        return this.getValue("liveupdate", "zip-compression-level");
+    }
+
     public int getCompressionLevel() {
-        if (this.getValue("liveupdate", "zip-compression-level") != null) {
-            return Integer.parseInt(this.getValue("liveupdate", "zip-compression-level"));
+        if (getCompressionLevelValue() != null) {
+            return Integer.parseInt(getCompressionLevelValue());
         }
         return 1;
     }

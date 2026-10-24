@@ -78,6 +78,17 @@ public class ArchiveBuilder {
     private int resourcePadding = 4;
     private boolean forceCompression = false; // for building unit tests to create test content
 
+    @FunctionalInterface
+    public interface PreparedResourceConsumer {
+        void accept(ArchiveEntry entry, byte[] payload) throws IOException;
+    }
+
+    private PreparedResourceConsumer preparedResourceConsumer;
+
+    public void setPreparedResourceConsumer(PreparedResourceConsumer consumer) {
+        preparedResourceConsumer = consumer;
+    }
+
     private Project project;
     private Publisher publisher;
     private int nThreads;
@@ -89,7 +100,8 @@ public class ArchiveBuilder {
         this.manifestBuilder = manifestBuilder;
         this.resourcePadding = resourcePadding;
         this.project = project;
-        this.publisher = project.getPublisher();
+        this.publisher = com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(project).isEmpty()
+                ? project.getPublisher() : null;
         Arrays.fill(archiveEntryPadding, (byte)0xED);
     }
 
@@ -188,6 +200,8 @@ public class ArchiveBuilder {
 
         entry.setHexDigest(hexDigest);
         hexDigestCache.put(entry.getRelativeFilename(), hexDigest);
+
+        if (preparedResourceConsumer != null) preparedResourceConsumer.accept(entry, buffer);
 
         // Write resource to resource pack or data archive
         if (excludedResources.contains(normalisedPath)) {

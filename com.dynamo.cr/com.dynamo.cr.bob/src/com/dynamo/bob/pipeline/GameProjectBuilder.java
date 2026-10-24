@@ -43,6 +43,9 @@ import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.Publisher;
+import com.dynamo.bob.archive.liveupdate.PackageBuilder;
+import com.dynamo.bob.archive.liveupdate.PackageResolver;
+import com.dynamo.bob.archive.liveupdate.PackageWriter;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultResource;
 import com.dynamo.bob.fs.IResource;
@@ -64,7 +67,7 @@ import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", paramsForSignature = {"liveupdate", "variant", "archive", "archive-resource-padding",
-                "platform", "build-report-json", "build-report-html", "sound-stream-enabled"})
+                "platform", "architectures", "build-report-json", "build-report-html", "sound-stream-enabled"})
 public class GameProjectBuilder extends Builder {
 
     // Root nodes to follow (default values from engine.cpp)
@@ -82,7 +85,8 @@ public class GameProjectBuilder extends Builder {
             {"input", "gamepads", DEFAULT_GAMEPADS},
             {"display", "display_profiles", "/builtins/render/default.display_profilesc"}};
 
-    static String[] gameProjectDependencies;
+    private String[] gameProjectDependencies;
+    private PackageBuilder packages;
 
     private static final Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
 
@@ -204,6 +208,19 @@ public class GameProjectBuilder extends Builder {
             builder.addInput(publisherSettingsResorce);
         }
 
+        if (!PackageBuilder.manifestPath(project).isEmpty()) {
+            packages = new PackageBuilder(project, builder);
+            builder.addExtraCacheKey("package-preview=" + project.option("package-preview", "false"));
+            builder.addExtraCacheKey("package-manifest=" + project.option("package-manifest", ""));
+            if (project.option("archive", "false").equals("true")) {
+                builder.addOutput(PackageWriter.receipt(project).disableCache());
+                // A preview needs a fresh in-memory plan even when every compiler task is cached.
+                if (project.option("package-preview", "false").equals("true") ||
+                        (project.option("liveupdate", "false").equals("true") && !PackageWriter.outputsAreCurrent(project))) {
+                    project.getState().removeSignature(PackageWriter.receipt(project).getAbsPath());
+                }
+            }
+        }
         return builder.build();
     }
 
@@ -242,7 +259,7 @@ public class GameProjectBuilder extends Builder {
         TimeProfiler.start("writeArchive");
 
         Publisher publisher = project.getPublisher();
-        if (publisher != null) publisher.start();
+        if (packages == null && publisher != null) publisher.start();
         archiveBuilder.write(archiveIndex, archiveData, excludedResources);
         archiveIndex.close();
         archiveData.close();
@@ -353,6 +370,46 @@ public class GameProjectBuilder extends Builder {
         }
     }
 
+    private void buildPackages(Task task, String root) throws IOException, CompileExceptionError {
+        ResourceGraph graph = createResourceGraph(project);
+        java.util.List<String> bootstrap = graph.getRootNode().getChildren().stream().map(node -> node.getPath()).toList();
+        Set<IResource> custom = getCustomResources(project);
+        boolean export = project.option("liveupdate", "false").equals("true");
+        PackageResolver.Plan plan = packages.resolve(project, graph, bootstrap, custom, export);
+        project.setLiveUpdatePlan(plan);
+        packages.validate(plan.diagnostics());
+        for (PackageResolver.Diagnostic diagnostic : plan.diagnostics()) logger.warning("%s", diagnostic.message());
+        Set<IResource> resources = new HashSet<>(custom);
+        resources.addAll(graph.getResources());
+        Set<String> emitted = plan.emittedResources();
+        resources.removeIf(resource -> !emitted.contains(PackageBuilder.outputPath(project, resource)));
+        Set<String> excluded = new HashSet<>(emitted);
+        excluded.removeAll(plan.base());
+        ManifestBuilder manifest = createManifestBuilder(graph);
+        ArchiveBuilder archive = new ArchiveBuilder(root, manifest, getResourcePadding(), project);
+        File indexFile = project.createTempFile("defold.index_", ".arci");
+        File dataFile = project.createTempFile("defold.data_", ".arcd");
+        boolean writePackages = export && !project.option("package-preview", "false").equals("true");
+        try (PackageWriter writer = writePackages ? new PackageWriter(project, plan) : null) {
+            if (writer != null) archive.setPreparedResourceConsumer(writer);
+            try (RandomAccessFile index = createRandomAccessFile(indexFile);
+                 RandomAccessFile data = createRandomAccessFile(dataFile)) {
+                createArchive(archive, resources, index, data, excluded);
+            }
+            project.setArchiveBuilder(archive);
+            setOutputContentFromFile(task.output(1), indexFile);
+            setOutputContentFromFile(task.output(2), dataFile);
+            task.output(3).setContent(manifest.buildManifest(true));
+            graph.setHexDigests(archive.getCachedHexDigests());
+            task.output(4).setContent(graph.toJSON().getBytes(StandardCharsets.UTF_8));
+            java.util.List<PackageWriter.Output> outputs = writer == null ? java.util.List.of() : writer.write(manifest);
+            task.output(5).setContent(PackageWriter.serializeOutputs(project, outputs));
+        } finally {
+            Files.deleteIfExists(indexFile.toPath());
+            Files.deleteIfExists(dataFile.toPath());
+        }
+    }
+
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         IResource input = task.input(0);
@@ -360,7 +417,9 @@ public class GameProjectBuilder extends Builder {
         BobProjectProperties properties = Project.loadProperties(project, input, project.getPropertyFiles(), true);
         final String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
 
-        if (project.option("archive", "false").equals("true")) {
+        if (project.option("archive", "false").equals("true") && packages != null) {
+            buildPackages(task, root);
+        } else if (project.option("archive", "false").equals("true")) {
             // create the resource graphs
             // the full graph contains all resources in the project
             TimeProfiler.start("Generate resource graph");
@@ -441,7 +500,11 @@ public class GameProjectBuilder extends Builder {
             project.getPublisher().publish(manifestArchiveEntry, manifestTmpFileHandle);
             project.getPublisher().stop();
 
-            // Copy SSL public keys if specified
+            manifestTmpFileHandle.delete();
+        }
+
+        if (project.option("archive", "false").equals("true")) {
+            // Both legacy and package archives need the configured SSL public keys.
             String sslCertificatesPath = project.getProjectProperties().getStringValue("network", "ssl_certificates");
             if (sslCertificatesPath != null && !sslCertificatesPath.isEmpty())
             {
@@ -451,7 +514,6 @@ public class GameProjectBuilder extends Builder {
                 FileUtils.copyFile(source, dist);
             }
 
-            manifestTmpFileHandle.delete();
         }
 
         transformGameProjectFile(properties);

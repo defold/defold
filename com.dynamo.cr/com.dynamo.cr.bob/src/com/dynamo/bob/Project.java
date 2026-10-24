@@ -100,6 +100,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
@@ -122,6 +123,10 @@ public class Project implements AutoCloseable {
     public final static String CACHE_DIR = ".internal/cache";
     public final static String PLUGINS_DIR = "./build/plugins";
     private static ClassLoaderScanner scanner = null;
+    // Compiler registries and parameter digests are shared within the JVM.
+    // Editor previews must use the same gate as ordinary Bob builds.
+    private static final java.util.concurrent.locks.ReentrantLock buildLock = new java.util.concurrent.locks.ReentrantLock(true);
+    private ClassLoaderScanner projectScanner;
 
     private ExecutorService executor = Executors.newCachedThreadPool();
     private ResourceCache resourceCache = new ResourceCache();
@@ -337,8 +342,13 @@ public class Project implements AutoCloseable {
     }
 
     private ClassLoaderScanner createClassLoaderScanner() throws IOException {
-        scanner = new ClassLoaderScanner(getClassLoader());
+        projectScanner = new ClassLoaderScanner(getClassLoader());
+        scanner = projectScanner;
         return scanner;
+    }
+
+    public IClassScanner getProjectClassLoaderScanner() {
+        return projectScanner;
     }
 
     public ClassLoader getClassLoader() {
@@ -648,13 +658,24 @@ public class Project implements AutoCloseable {
         System.out.printf((fmt) + "%n", args);
     }
 
+    private volatile IProgress buildProgress;
+    private com.dynamo.bob.archive.liveupdate.PackageResolver.Plan liveUpdatePlan;
+
+    public boolean isBuildCanceled() {
+        return buildProgress != null && buildProgress.isCanceled();
+    }
+
+    public com.dynamo.bob.archive.liveupdate.PackageResolver.Plan getLiveUpdatePlan() { return liveUpdatePlan; }
+    public void setLiveUpdatePlan(com.dynamo.bob.archive.liveupdate.PackageResolver.Plan plan) { liveUpdatePlan = plan; }
+
     public void createPublisher() throws CompileExceptionError {
         boolean shouldPublish = this.option("liveupdate", "false").equals("true");
+        boolean manifestMode = !com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(this).isEmpty();
         try {
             String settingsPath = this.getProjectProperties().getStringValue("liveupdate", "settings", "/liveupdate.settings"); // if no value set use old hardcoded path (backward compatability)
             IResource publisherSettings = this.fileSystem.get(settingsPath);
             if (!publisherSettings.exists()) {
-                if (shouldPublish) {
+                if (shouldPublish && !manifestMode) {
                     IResource gameProject = getGameProjectResource();
                     throw new CompileExceptionError(gameProject, 0, "There is no liveupdate.settings file specified in game.project or the file is missing from disk.");
                 } else {
@@ -665,6 +686,8 @@ public class Project implements AutoCloseable {
                 if (shouldPublish) {
                     if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
                         this.publisher = new AWSPublisher(settings);
+                    } else if (manifestMode) {
+                        this.publisher = new NullPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
                         this.publisher = new ZipPublisher(this, getRootDirectory(), settings);
                     } else if (PublisherSettings.PublishMode.Folder.equals(settings.getMode())) {
@@ -812,7 +835,14 @@ public class Project implements AutoCloseable {
      * @throws CompileExceptionError
      */
     public List<TaskResult> build(IProgress progress, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
+        boolean locked = false;
         try (progress) {
+            do {
+                BundleHelper.throwIfCanceled(progress);
+                locked = buildLock.tryLock(100, TimeUnit.MILLISECONDS);
+            } while (!locked);
+            BundleHelper.throwIfCanceled(progress);
+            buildProgress = progress;
             if (Arrays.asList(commands).contains("bundle")) {
                 File bundleDir = getBundleOutputDirectory();
                 validateBundleOutputDirectory(bundleDir);
@@ -839,8 +869,16 @@ public class Project implements AutoCloseable {
         } catch (MultipleCompileException e) {
             // Pass on unmodified
             throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new java.io.InterruptedIOException("Build cancelled while waiting for another Bob build");
         } catch (Throwable e) {
             throw new CompileExceptionError(null, 0, e.getMessage(), e);
+        } finally {
+            if (locked) {
+                buildProgress = null;
+                buildLock.unlock();
+            }
         }
     }
 
@@ -1998,7 +2036,8 @@ public class Project implements AutoCloseable {
             BundleHelper.throwIfCanceled(progress);
 
             progress.message(IProgress.Message.Working.INSTANCE);
-            var split = progress.split(commands.length + 1L); // + 1 for reading classes
+            boolean publishPackages = Arrays.asList(commands).contains("bundle") || Arrays.asList(commands).contains("publish");
+            var split = progress.split(commands.length + (publishPackages ? 2L : 1L)); // Reading classes and optional final publishing.
             // it should be done before scanJavaClasses to have updated options
             configurePreBuildProjectOptions();
             {
@@ -2044,7 +2083,7 @@ public class Project implements AutoCloseable {
                             final String[] platforms = getPlatformStrings();
                             Future<Void> remoteBuildFuture = null;
                             // Get or build engine binary
-                            boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this, getPlatform());
+                            boolean shouldBuildRemoteEngine = !option("package-preview", "false").equals("true") && ExtenderUtil.hasNativeExtensions(this, getPlatform());
                             boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
                             TimeProfiler.stop();
                             var buildPhases = commandProgress.split(3);
@@ -2128,6 +2167,10 @@ public class Project implements AutoCloseable {
                             bundle(commandProgress);
                             break;
                         }
+                        case "publish": {
+                            // Publishing is deferred until every requested command has succeeded.
+                            break;
+                        }
                         default:
                             break;
                     }
@@ -2145,6 +2188,20 @@ public class Project implements AutoCloseable {
             state.save(stateResource);
             fileSystem.saveCache();
             TimeProfiler.stop();
+            // Save the successful build state before uploading so publication can be retried independently.
+            if (publishPackages && !anyFailing(result)) {
+                try (var publishProgress = split.subtask()) {
+                    BundleHelper.throwIfCanceled(publishProgress);
+                    if (option("liveupdate", "false").equals("true") &&
+                            !option("package-preview", "false").equals("true") &&
+                            !com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(this).isEmpty()) {
+                        createPublisher();
+                        if (publisher instanceof AWSPublisher awsPublisher) {
+                            awsPublisher.publishPackages(this, publishProgress);
+                        }
+                    }
+                }
+            }
             return result;
         }
     }

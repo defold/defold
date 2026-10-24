@@ -136,6 +136,6 @@ public class Win32Bundler implements IBundler {
             }
         }
 
-        BundleHelper.moveBundleIfNeed(project, bundleDir);
+        BundleHelper.moveBundleIfNeed(project, bundleDir, appDir);
     }
 }

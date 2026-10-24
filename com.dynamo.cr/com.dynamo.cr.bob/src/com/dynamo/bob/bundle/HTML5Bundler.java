@@ -32,6 +32,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +54,8 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.archive.EngineVersion;
+import com.dynamo.bob.archive.liveupdate.PackageBuilder;
+import com.dynamo.bob.archive.liveupdate.PackageWriter;
 
 @BundlerParams(platforms = {"wasm-web", "wasm_pthread-web"})
 public class HTML5Bundler implements IBundler {
@@ -470,87 +473,95 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        File appDir = new File(bundleDirectory, enginePrefix);
-        File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
+        File destination = new File(bundleDirectory, enginePrefix);
+        boolean packages = !PackageBuilder.manifestPath(project).isEmpty();
+        Files.createDirectories(bundleDirectory.toPath());
+        File appDir = packages ? Files.createTempDirectory(bundleDirectory.toPath(), ".liveupdate-html5-").toFile() : destination;
+        try {
+            File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
-        FileUtils.deleteDirectory(appDir);
-        File splitDir = new File(appDir, SplitFileDir);
-        splitDir.mkdirs();
-        createSplitFiles(project, buildDir, splitDir);
-        // Before the bundle resources, so a project shipping its own wins.
-        createGitAttributes(appDir);
+            FileUtils.deleteDirectory(appDir);
+            File splitDir = new File(appDir, SplitFileDir);
+            splitDir.mkdirs();
+            createSplitFiles(project, buildDir, splitDir);
+            // Before the bundle resources, so a project shipping its own wins.
+            createGitAttributes(appDir);
 
-        BundleHelper.throwIfCanceled(canceled);
-        // Copy bundle resources into bundle directory
-        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
+            BundleHelper.throwIfCanceled(canceled);
+            // Copy bundle resources into bundle directory
+            ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
 
-        BundleHelper.throwIfCanceled(canceled);
+            BundleHelper.throwIfCanceled(canceled);
 
-        // Copy symbols for relevant web pairs.
-        String[] webSymbolPairs = new String[] {
-            Platform.WasmWeb.getExtenderPair(),
-            Platform.WasmPthreadWeb.getExtenderPair()
-        };
-        for (String pair : webSymbolPairs) {
-            String dir = FilenameUtils.concat(project.getBinaryOutputDirectory(), pair);
+            // Copy symbols for relevant web pairs.
+            String[] webSymbolPairs = new String[] {
+                Platform.WasmWeb.getExtenderPair(),
+                Platform.WasmPthreadWeb.getExtenderPair()
+            };
+            for (String pair : webSymbolPairs) {
+                String dir = FilenameUtils.concat(project.getBinaryOutputDirectory(), pair);
 
-            File srcSymbols = null;
-            // Try to discover any *.js.symbols in the platform directory
-            File platformDir = new File(dir);
-            File[] matches = platformDir.listFiles(new FilenameFilter() {
-                @Override
-                public boolean accept(File d, String name) {
-                    return name.endsWith(".js.symbols");
+                File srcSymbols = null;
+                // Try to discover any *.js.symbols in the platform directory
+                File platformDir = new File(dir);
+                File[] matches = platformDir.listFiles(new FilenameFilter() {
+                    @Override
+                    public boolean accept(File d, String name) {
+                        return name.endsWith(".js.symbols");
+                    }
+                });
+                if (matches != null && matches.length > 0) {
+                    srcSymbols = matches[0];
                 }
-            });
-            if (matches != null && matches.length > 0) {
-                srcSymbols = matches[0];
-            }
 
-            if (srcSymbols != null) {
-                // Put all HTML5 symbols into a single folder named <ExeName>_symbols
-                File symbolsDir = new File(appDir.getParentFile(), enginePrefix + "_symbols");
-                symbolsDir.mkdirs();
-                String destName;
-                if (pair.equals(Platform.WasmWeb.getExtenderPair())) {
-                    destName = enginePrefix + "_wasm.js.symbols";
-                } else if (pair.equals(Platform.WasmPthreadWeb.getExtenderPair())) {
-                    destName = enginePrefix + "_pthread_wasm.js.symbols";
-                } else {
-                    destName = srcSymbols.getName();
+                if (srcSymbols != null) {
+                    // Put all HTML5 symbols into a single folder named <ExeName>_symbols
+                    File symbolsDir = new File(appDir.getParentFile(), enginePrefix + "_symbols");
+                    symbolsDir.mkdirs();
+                    String destName;
+                    if (pair.equals(Platform.WasmWeb.getExtenderPair())) {
+                        destName = enginePrefix + "_wasm.js.symbols";
+                    } else if (pair.equals(Platform.WasmPthreadWeb.getExtenderPair())) {
+                        destName = enginePrefix + "_pthread_wasm.js.symbols";
+                    } else {
+                        destName = srcSymbols.getName();
+                    }
+                    File destSymbols = new File(symbolsDir, destName);
+                    FileUtils.copyFile(srcSymbols, destSymbols);
                 }
-                File destSymbols = new File(symbolsDir, destName);
-                FileUtils.copyFile(srcSymbols, destSymbols);
             }
-        }
 
 
-        if (architectures.contains(Platform.WasmWeb)) {
-            buildWasm(project, canceled, Platform.WasmWeb, appDir, variant, enginePrefix, "");
-        }
-
-        if (architectures.contains(Platform.WasmPthreadWeb)) {
-            buildWasm(project, canceled, Platform.WasmPthreadWeb, appDir, variant, enginePrefix, "_pthread");
-        }
-
-        BundleHelper.throwIfCanceled(canceled);
-
-        BundleHelper helper = new BundleHelper(project, platform, appDir, variant, this);
-
-        helper.copyOrWriteManifestFile(architectures.get(0), appDir);
-
-        helper.updateTemplateProperties();
-        createDmLoader(helper, getResource("dmloader.js"), new File(appDir, "dmloader.js"));
-
-        String splashImageName = projectProperties.getStringValue("html5", "splash_image");
-        if (splashImageName != null && !splashImageName.isEmpty()) {
-            File splashImage = new File(project.getRootDirectory(), splashImageName);
-            if (splashImage.exists()) {
-                FileUtils.copyFile(splashImage, new File(appDir, splashImage.getName()));
+            if (architectures.contains(Platform.WasmWeb)) {
+                buildWasm(project, canceled, Platform.WasmWeb, appDir, variant, enginePrefix, "");
             }
+
+            if (architectures.contains(Platform.WasmPthreadWeb)) {
+                buildWasm(project, canceled, Platform.WasmPthreadWeb, appDir, variant, enginePrefix, "_pthread");
+            }
+
+            BundleHelper.throwIfCanceled(canceled);
+
+            BundleHelper helper = new BundleHelper(project, platform, appDir, variant, this);
+
+            helper.copyOrWriteManifestFile(architectures.get(0), appDir);
+
+            helper.updateTemplateProperties();
+            createDmLoader(helper, getResource("dmloader.js"), new File(appDir, "dmloader.js"));
+
+            String splashImageName = projectProperties.getStringValue("html5", "splash_image");
+            if (splashImageName != null && !splashImageName.isEmpty()) {
+                File splashImage = new File(project.getRootDirectory(), splashImageName);
+                if (splashImage.exists()) {
+                    FileUtils.copyFile(splashImage, new File(appDir, splashImage.getName()));
+                }
+            }
+            if (packages) PackageWriter.publishBundle(project, appDir.toPath(), destination.toPath());
+            else BundleHelper.moveBundleIfNeed(project, appDir, appDir.listFiles());
+        } finally {
+            if (packages) FileUtils.deleteDirectory(appDir);
         }
-        BundleHelper.moveBundleIfNeed(project, appDir);
     }
 
     private void createGitAttributes(File appDir) throws IOException {

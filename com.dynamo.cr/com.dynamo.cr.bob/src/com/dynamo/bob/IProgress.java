@@ -66,9 +66,13 @@ public interface IProgress extends ICanceled, AutoCloseable {
     }
 
     /// Marker type for progress messages reported by `IProgress`
-    sealed interface Message permits IProgress.Message.Building, IProgress.Message.BuildingEngine, IProgress.Message.Bundling, IProgress.Message.Cleaning, IProgress.Message.CleaningEngine, IProgress.Message.DownloadingArchive, IProgress.Message.DownloadingArchives, IProgress.Message.DownloadingSymbols, IProgress.Message.GeneratingReport, IProgress.Message.ReadingClasses, IProgress.Message.ReadingTasks, IProgress.Message.TranspilingToLua, IProgress.Message.Working {
+    sealed interface Message permits IProgress.Message.Building, IProgress.Message.BuildingEngine, IProgress.Message.Bundling, IProgress.Message.Cleaning, IProgress.Message.CleaningEngine, IProgress.Message.DownloadingArchive, IProgress.Message.DownloadingArchives, IProgress.Message.DownloadingSymbols, IProgress.Message.GeneratingReport, IProgress.Message.PublishingLiveUpdate, IProgress.Message.ReadingClasses, IProgress.Message.ReadingTasks, IProgress.Message.TranspilingToLua, IProgress.Message.Working {
         record Bundling() implements IProgress.Message {
             public static final Bundling INSTANCE = new Bundling();
+        }
+
+        record PublishingLiveUpdate() implements IProgress.Message {
+            public static final PublishingLiveUpdate INSTANCE = new PublishingLiveUpdate();
         }
 
         record BuildingEngine() implements IProgress.Message {

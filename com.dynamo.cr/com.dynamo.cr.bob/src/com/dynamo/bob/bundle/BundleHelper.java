@@ -992,6 +992,15 @@ public class BundleHelper {
 
     // move archive into bundle folder if it's requested by a user
     public static void moveBundleIfNeed(Project project, File bundleDir) throws IOException {
+        moveBundleIfNeed(project, bundleDir, new File[0]);
+    }
+
+    public static void moveBundleIfNeed(Project project, File bundleDir, File... applicationOutputs) throws IOException {
+        if (!com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(project).isEmpty()) {
+            com.dynamo.bob.archive.liveupdate.PackageWriter.copyOutputs(project, bundleDir.toPath(),
+                    java.util.Arrays.stream(applicationOutputs).map(File::toPath).toList());
+            return;
+        }
         Publisher publisher = project.getPublisher();
         if (publisher != null)  {
             if (publisher.shouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {

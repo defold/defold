@@ -129,6 +129,6 @@ public class LinuxBundler implements IBundler {
         // Copy bundle resources into bundle directory
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
-        BundleHelper.moveBundleIfNeed(project, bundleDir);
+        BundleHelper.moveBundleIfNeed(project, bundleDir, appDir);
     }
 }

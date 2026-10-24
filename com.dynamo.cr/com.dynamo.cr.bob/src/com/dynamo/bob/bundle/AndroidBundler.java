@@ -982,6 +982,6 @@ public class AndroidBundler implements IBundler {
             throw new CompileExceptionError("Unknown bundle format: " + bundleFormat);
         }
 
-        BundleHelper.moveBundleIfNeed(project, bundleDir);
+        BundleHelper.moveBundleIfNeed(project, bundleDir, outDir);
     }
 }
