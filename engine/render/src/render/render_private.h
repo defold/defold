@@ -200,7 +200,7 @@ namespace dmRender
         dmArray<char>                           m_TextBuffer;
         // Map from batch id (hash of font-map etc) to index into m_TextEntries
         dmArray<TextEntry>                      m_TextEntries;
-        dmGraphics::HVertexBuffer               m_VertexBuffer;
+        HBufferedRenderBuffer                   m_VertexBuffer;
         dmGraphics::HVertexDeclaration          m_VertexDecl;
         uint32_t                                m_RenderObjectIndex;
         uint32_t                                m_VertexIndex;

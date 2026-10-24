@@ -81,7 +81,9 @@ namespace dmRender
         {
             buffer->m_BufferIndex++;
 
-            if (buffer->m_BufferIndex > 0)
+            // Reuse buffers from previous frames after rewinding; only grow the pool
+            // when the next buffer does not already exist.
+            if (buffer->m_BufferIndex == buffer->m_Buffers.Size())
             {
                 if (buffer->m_Buffers.Full())
                 {
