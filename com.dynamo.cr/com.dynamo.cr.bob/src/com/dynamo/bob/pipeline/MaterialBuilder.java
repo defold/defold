@@ -19,8 +19,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
@@ -43,6 +46,41 @@ import com.google.protobuf.TextFormat;
 @ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
 @BuilderParams(name = "Material", inExts = {".material"}, outExt = ".materialc")
 public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
+
+    private static final List<String> VECTOR_SAMPLERS = List.of("curve_texture", "band_texture", "paint_texture");
+
+    /** A sampler contract problem shared by Bob and editor validation. */
+    public record VectorMaterialProblem(String sampler, boolean samplerType) {
+        public String message() {
+            return "Vector material sampler '" + sampler + "' must use " + (samplerType
+                    ? (sampler.equals("band_texture") ? "an unsigned 2D texture" : "a floating-point 2D texture")
+                    : "nearest filtering and clamp-to-edge wrapping");
+        }
+    }
+
+    /** Identifies materials exposing the three internal Slug texture bindings. */
+    public static boolean isVectorMaterial(Collection<String> samplerNames) {
+        return new HashSet<>(samplerNames).containsAll(VECTOR_SAMPLERS);
+    }
+
+    /** Checks the numeric texture contract for a material used by SVG sprites or GUI boxes. */
+    public static VectorMaterialProblem vectorMaterialProblem(List<MaterialDesc.Sampler> samplers, Map<String, ShaderDesc.ShaderDataType> shaderTypes) {
+        if (!isVectorMaterial(samplers.stream().map(MaterialDesc.Sampler::getName).toList())) return null;
+        for (MaterialDesc.Sampler sampler : samplers) {
+            String name = sampler.getName();
+            if (!VECTOR_SAMPLERS.contains(name)) continue;
+            ShaderDesc.ShaderDataType type = shaderTypes.get(name);
+            boolean validType = name.equals("band_texture") ? type == ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D
+                    : type == ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D || type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
+            if (!validType) return new VectorMaterialProblem(name, true);
+            if (sampler.getFilterMin() != MaterialDesc.FilterModeMin.FILTER_MODE_MIN_NEAREST ||
+                    sampler.getFilterMag() != MaterialDesc.FilterModeMag.FILTER_MODE_MAG_NEAREST ||
+                    sampler.getWrapU() != MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE ||
+                    sampler.getWrapV() != MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE)
+                return new VectorMaterialProblem(name, false);
+        }
+        return null;
+    }
 
 
     // This is the uniform name we are looking for in the reflection:

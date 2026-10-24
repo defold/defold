@@ -35,6 +35,10 @@ message TextureSetAnimation
     optional Playback playback      = 7 [default = PLAYBACK_ONCE_FORWARD];
     optional uint32 flip_horizontal = 8 [default = 0];
     optional uint32 flip_vertical   = 9 [default = 0];
+
+    // Continuous SVG clip timing; absent for ordinary raster flipbooks.
+    optional float duration = 10 [default = 0];
+    repeated float frame_durations = 11;
 }
 
 // * Vertices are relative to the center of the sprite
@@ -67,6 +71,32 @@ message SpriteGeometry
     // In unit coords [-0.5, 0.5]. Default [0, 0]
     optional float pivot_x  = 10 [default = 0];
     optional float pivot_y  = 11 [default = 0];
+}
+
+enum TextureSetMode
+{
+    TEXTURE_SET_MODE_RASTER = 0;
+    TEXTURE_SET_MODE_VECTOR = 1;
+}
+
+message VectorImage
+{
+    required float width = 1;
+    required float height = 2;
+    required uint32 paint = 3; // Header texel in VectorAtlas.paints.
+    optional float duration = 4 [default = 0]; // Embedded SVG timeline, in seconds.
+    optional bool loop = 5 [default = false];
+}
+
+message VectorAtlas
+{
+    // Little-endian numeric textures, 4096 texels wide, at most 256 rows.
+    // Whole rows are stored. These buffers never use texture compression,
+    // color conversion, mipmaps, or linear texture filtering.
+    optional bytes curves = 1; // RGBA16F. Required when mode is VECTOR.
+    optional bytes bands = 2;  // R32UI. Required when mode is VECTOR.
+    optional bytes paints = 3; // RGBA32F. Required when mode is VECTOR.
+    repeated VectorImage images = 4; // One per geometry, in the same order.
 }
 
 message TextureSet
@@ -125,4 +155,7 @@ message TextureSet
     // Note: We currently only need this for validation in bob, the engine can get this
     //       value from the number of images in the texture resource
     optional uint32 page_count              = 19 [default = 0];
+
+    optional TextureSetMode mode            = 20 [default = TEXTURE_SET_MODE_RASTER];
+    optional VectorAtlas vector             = 21;
 }
