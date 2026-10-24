@@ -19,6 +19,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/message.h>
+#include <dlib/mutex.h>
 #include <dlib/socket.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
@@ -1836,6 +1837,7 @@ static dmResource::Result StreamResourceDestroy(const dmResource::ResourceDestro
 }
 
 
+// Verifies streamed reads finish under the load mutex, guarding against texture upload deadlocks.
 TEST_F(ResourceTest, PartialReadTest)
 {
     dmResource::Result e;
@@ -1881,6 +1883,7 @@ TEST_F(ResourceTest, PartialReadTest)
     uint32_t preload_size = 14;
     ResourceTypeSetStreaming(type, preload_size);
 
+    bool streamed_with_load_mutex_held = false;
     {
         // Get the first preload data chunk
         StreamTestResource* resource;
@@ -1892,6 +1895,17 @@ TEST_F(ResourceTest, PartialReadTest)
         ASSERT_EQ(true, resource->m_IsBufferPartial);
         ASSERT_ARRAY_EQ_LEN(expected_data, resource->m_Data, preload_size);
 
+        {
+            dmMutex::ScopedLock lock(dmResource::GetLoadMutex(factory));
+            uint64_t stop_time = dmTime::GetMonotonicTime() + 5 * 1000000;
+            while (resource->m_Offset < expected_data_len && dmTime::GetMonotonicTime() < stop_time)
+            {
+                JobSystemUpdate(m_JobContext, 2000);
+            }
+            streamed_with_load_mutex_held = resource->m_Offset == expected_data_len;
+        }
+
+        // Drain any blocked reads after releasing the mutex so a regression can fail cleanly.
         uint64_t tstart = dmTime::GetMonotonicTime();
         uint32_t total_size = preload_size;
         while (total_size < expected_data_len)
@@ -1914,6 +1928,7 @@ TEST_F(ResourceTest, PartialReadTest)
     }
 
     dmSys::Unlink(path);
+    ASSERT_TRUE(streamed_with_load_mutex_held);
 }
 
 static dmArray<char> g_ResourceProfileOutput;
