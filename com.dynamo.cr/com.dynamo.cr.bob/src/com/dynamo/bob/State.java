@@ -42,7 +42,7 @@ public class State implements Serializable {
      * @param path path to get sha1 for
      * @return signature or null of no mapping exists
      */
-    public byte[] getSignature(String path) {
+    public synchronized byte[] getSignature(String path) {
         return signatures.get(path);
     }
 
@@ -51,7 +51,8 @@ public class State implements Serializable {
      * @param path path to set sha1 for
      * @param signature signature to set
      */
-    public void putSignature(String path, byte[] signature) {
+    // TaskBuilder workers read and update the same state concurrently.
+    public synchronized void putSignature(String path, byte[] signature) {
         signatures.put(path, signature);
     }
 
@@ -59,7 +60,7 @@ public class State implements Serializable {
      * Remove signature
      * @param path path to set sha1 for
      */
-    public void removeSignature(String path) {
+    public synchronized void removeSignature(String path) {
         signatures.remove(path);
     }
 
@@ -67,7 +68,7 @@ public class State implements Serializable {
      * Get all registered paths
      * @return list of all registered paths
      */
-    public List<String> getPaths() {
+    public synchronized List<String> getPaths() {
         return new ArrayList<>(signatures.keySet());
     }
 
@@ -99,7 +100,7 @@ public class State implements Serializable {
      * @param resource state resource
      * @throws IOException
      */
-    public void save(IResource resource) throws IOException {
+    public synchronized void save(IResource resource) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream(128 * 1024);
         ObjectOutputStream os = new ObjectOutputStream(bos);
         os.writeObject(this);
