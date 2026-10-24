@@ -106,6 +106,17 @@ welcome.new-project.perspective-parallax.description = This sample shows a persp
 welcome.new-project.lightning-vfx.title = Lightning VFX
 welcome.new-project.lightning-vfx.description = The sample shows a lightning effect in a 2d scrolling shooter and how the mesh component is setup to be manipulated during gameplay.
 
+# Beta suggestions
+beta.notification.available = Defold {version} beta is out.
+beta.notification.try-it = Try It
+beta.button.dont-suggest = Not Interested
+beta.dialog.title = Try the Beta
+beta.dialog.header = Try Defold {version} beta?
+beta.dialog.button.later = Later
+beta.dialog.button.download = Download Beta
+beta.no-newer-dialog.header = There is no Beta version available at this time
+beta.check-failed-dialog.header = Couldn''t check for a beta version
+
 # Updater
 updater.button.update-available = Update Available
 updater.button.restart-to-update = Restart to Update
@@ -1079,6 +1090,7 @@ command.help.open-issues = Search Issues
 command.help.open-donations = Development Fund
 command.help.open-release-notes = Release Notes
 command.help.check-for-updates = Check for Updates
+command.help.try-beta = Try the Beta Version…
 command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert

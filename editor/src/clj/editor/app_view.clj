@@ -27,6 +27,7 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.beta :as beta]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.camera :as camera]
@@ -2091,6 +2092,8 @@
                 :command :help.open-release-notes}
                {:label (localization/message "command.help.check-for-updates")
                 :command :help.check-for-updates}
+               {:label (localization/message "command.help.try-beta")
+                :command :help.try-beta}
                {:label (localization/message "command.help.open-forum")
                 :command :help.open-forum}
                {:label (localization/message "command.help.open-editor-server")
@@ -2904,6 +2907,12 @@
       main-stage project updater
       (ui/user-data main-stage ::ui.updater/install-and-restart!)
       localization)))
+
+(handler/defhandler :help.try-beta :global
+  (active? [] (beta/active?))
+  (enabled? [] (beta/enabled?))
+  (run [workspace project main-stage prefs localization]
+    (beta/try! main-stage (workspace/notifications workspace) project prefs localization)))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [basis (:basis evaluation-context)

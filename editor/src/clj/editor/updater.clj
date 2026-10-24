@@ -38,8 +38,8 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- download-url [archive-domain sha1 channel ^Platform platform]
-  (format (get-in connection-properties [:updater :download-url-template]) archive-domain sha1 channel (.getPair platform)))
+(defn download-url [archive-domain sha1 channel ^Platform platform extension]
+  (format (get-in connection-properties [:updater :download-url-template]) archive-domain sha1 channel (.getPair platform) extension))
 
 (defn- update-url [archive-domain channel]
   (format (get-in connection-properties [:updater :update-url-template]) archive-domain channel))
@@ -120,10 +120,10 @@
   behind. Each one links to its full notes online, so nothing older is lost."
   5)
 
-(defn- version-string? [s]
+(defn version-string? [s]
   (boolean (and (string? s) (re-matches #"\d+(\.\d+)*" s))))
 
-(defn- newer-version? [^String a ^String b]
+(defn newer-version? [^String a ^String b]
   (pos? (.compare util/natural-order a b)))
 
 (def ^:private descending-version-order (.reversed util/natural-order))
@@ -142,7 +142,7 @@
                                 (or (nil? current) (not (newer-version? current %))))
                           manifest-versions)))))
 
-(defn- fetch-json!
+(defn fetch-json!
   "GETs `url` and parses the body as JSON with keyword keys, or nil on failure."
   [url]
   (let [out (ByteArrayOutputStream.)]
@@ -156,7 +156,7 @@
 (defn- fetch-manifest! [archive-domain channel]
   (fetch-json! (release-notes-manifest-url archive-domain channel)))
 
-(defn- fetch-version-notes! [archive-domain channel version]
+(defn fetch-version-notes! [archive-domain channel version]
   (fetch-json! (release-notes-version-url archive-domain channel version)))
 
 (defn fetch-release-notes!
@@ -318,12 +318,12 @@
 (defn download-in-progress? [updater]
   (some? (:current-download @(:state-atom updater))))
 
-(defn platform-supported? [updater]
+(defn platform-supported? [platform]
   (contains? #{Platform/X86_64Linux
                Platform/Arm64MacOS
                Platform/X86_64MacOS
                Platform/X86_64Win32}
-             (:platform updater)))
+             platform))
 
 (defn- create-temp-zip-file ^File []
   (let [empty-attrs (into-array FileAttribute [])
@@ -403,7 +403,7 @@
   (let [{:keys [state-atom platform channel]} updater
         {:keys [current-download server-sha1]} @state-atom
         archive-domain (system/defold-archive-domain)
-        url (download-url archive-domain server-sha1 channel platform)
+        url (download-url archive-domain server-sha1 channel platform "zip")
         zip-file (create-temp-zip-file)
         cancelled-atom (atom false)
         track-progress! (fn [progress]

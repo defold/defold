@@ -117,7 +117,7 @@
         update-exists (if ignore-skip
                         (updater/can-download-update? updater)
                         (updater/update-advertised? updater))
-        can-get-new (and update-exists (updater/platform-supported? updater))]
+        can-get-new (and update-exists (updater/platform-supported? (:platform updater)))]
     (cond
       (and can-install can-get-new)
       (case (dialogs/make-download-update-or-restart-dialog stage localization)
