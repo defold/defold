@@ -2935,3 +2935,5 @@ form.label.project.liveupdate.manifest = Package Manifest
 form.help.project.liveupdate.manifest = Select a Live Update package manifest to control resource membership and output providers. Leave empty to use proxy Exclude and the legacy publisher.
 form.label.collectionproxy.exclude-manifest = Exclude (legacy)
 form.help.collectionproxy.exclude-manifest = Package membership is controlled by the Live Update manifest. This serialized value is retained for compatibility.
+liveupdate.migrated = Created {manifest} from excluded collection proxies and selected it in game.project. Package membership is now controlled by the manifest.
+liveupdate.migration-failed = Could not save the Live Update manifest migration: {error}
