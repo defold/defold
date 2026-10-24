@@ -1668,7 +1668,7 @@ namespace dmGameSystem
         if (vector)
         {
             const dmGraphics::VertexAttributeInfo& paint = infos.m_Infos[2];
-            const dmGraphics::VertexAttributeInfo& time = infos.m_Infos[3];
+            const dmGraphics::VertexAttributeInfo& time  = infos.m_Infos[3];
             if (paint.m_SemanticType != dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX ||
                 time.m_SemanticType != dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE)
                 return false;
@@ -1684,7 +1684,7 @@ namespace dmGameSystem
         }
 
         const dmGraphics::VertexAttributeInfo& position = infos.m_Infos[0];
-        const dmGraphics::VertexAttributeInfo& uv = infos.m_Infos[1];
+        const dmGraphics::VertexAttributeInfo& uv       = infos.m_Infos[1];
         return position.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION &&
                position.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD &&
                position.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4 &&
@@ -1750,7 +1750,7 @@ namespace dmGameSystem
         }
         const bool has_default_quad_vertex_format = HasDefaultQuadVertexFormat(*scratch_attribute_infos, false);
         const bool has_vector_quad_vertex_format = svg_time_attribute == 3 && HasDefaultQuadVertexFormat(*scratch_attribute_infos, true);
-        bool has_default_attribute_infos = true;
+        bool       has_default_attribute_infos = true;
         // Keep the generated attribute's address stable across sprites in this batch.
         float svg_time = 0;
 
@@ -1796,7 +1796,7 @@ namespace dmGameSystem
             if (vector && svg_time_attribute >= 0)
             {
                 dmGraphics::VertexAttributeInfo& info = ((dmGraphics::VertexAttributeInfo*)scratch_attribute_infos->m_Infos)[svg_time_attribute];
-                info.m_ValuePtr = (const uint8_t*)&svg_time;
+                info.m_ValuePtr        = (const uint8_t*)&svg_time;
                 info.m_ValueVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
             }
 

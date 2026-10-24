@@ -652,9 +652,9 @@ TEST_F(SpriteTest, VectorCustomVertexLayouts)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     m_UpdateContext.m_DT = 0;
-    dmGameObject::HInstance sprites[3];
+    dmGameObject::HInstance       sprites[3];
     dmGameObject::PropertyOptions options;
-    const dmhash_t sprite_id = dmHashString64("sprite");
+    const dmhash_t                sprite_id = dmHashString64("sprite");
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(sprites); ++i)
     {
         sprites[i] = Spawn(m_Factory, m_Collection, "/sprite/vector_animation.goc", i + 1, 0, Point3(0, 0, (float)i), Quat::identity(), Vector3(1.0f));
@@ -666,7 +666,7 @@ TEST_F(SpriteTest, VectorCustomVertexLayouts)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
-    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    void*                  world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
     for (uint32_t layout = 0; layout < 3; ++layout)
     {
         dmGraphics::ShaderDescBuilder shaders;
@@ -692,23 +692,23 @@ TEST_F(SpriteTest, VectorCustomVertexLayouts)
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(samplers); ++i)
             ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64(samplers[i]), i, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
 
-        const Vector4 position(0, 0, 0, 1);
-        const float custom = 0.375f;
+        const Vector4               position(0, 0, 0, 1);
+        const float                 custom = 0.375f;
         dmGraphics::VertexAttribute attributes[2] = {};
-        attributes[0].m_NameHash = dmHashString64("position");
-        attributes[0].m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
-        attributes[0].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
-        attributes[0].m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
-        attributes[0].m_CoordinateSpace = layout == 1 ? dmGraphics::COORDINATE_SPACE_LOCAL : dmGraphics::COORDINATE_SPACE_WORLD;
-        attributes[0].m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
-        attributes[0].m_Values.m_BinaryValues.m_Data = (uint8_t*)&position;
+        attributes[0].m_NameHash                      = dmHashString64("position");
+        attributes[0].m_SemanticType                  = dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
+        attributes[0].m_VectorType                    = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+        attributes[0].m_DataType                      = dmGraphics::VertexAttribute::TYPE_FLOAT;
+        attributes[0].m_CoordinateSpace               = layout == 1 ? dmGraphics::COORDINATE_SPACE_LOCAL : dmGraphics::COORDINATE_SPACE_WORLD;
+        attributes[0].m_StepFunction                  = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+        attributes[0].m_Values.m_BinaryValues.m_Data  = (uint8_t*)&position;
         attributes[0].m_Values.m_BinaryValues.m_Count = sizeof(position);
-        attributes[1].m_NameHash = dmHashString64("custom");
-        attributes[1].m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
-        attributes[1].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
-        attributes[1].m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
-        attributes[1].m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
-        attributes[1].m_Values.m_BinaryValues.m_Data = (uint8_t*)&custom;
+        attributes[1].m_NameHash                      = dmHashString64("custom");
+        attributes[1].m_SemanticType                  = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
+        attributes[1].m_VectorType                    = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
+        attributes[1].m_DataType                      = dmGraphics::VertexAttribute::TYPE_FLOAT;
+        attributes[1].m_StepFunction                  = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+        attributes[1].m_Values.m_BinaryValues.m_Data  = (uint8_t*)&custom;
         attributes[1].m_Values.m_BinaryValues.m_Count = sizeof(custom);
         dmRender::SetMaterialProgramAttributes(material, attributes, layout == 2 ? 2 : 1);
         context->m_Material = material;
@@ -718,16 +718,16 @@ TEST_F(SpriteTest, VectorCustomVertexLayouts)
         dmRender::BufferedRenderBuffer* indices = 0;
         dmGameSystem::GetSpriteWorldRenderBuffers(world, &vertices, &indices);
         dmGraphics::HVertexDeclaration declaration = dmRender::GetVertexDeclaration(material);
-        uint32_t stride = dmGraphics::GetVertexDeclarationStride(declaration);
-        uint32_t time_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("svg_time"));
-        uint32_t position_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("position"));
-        uint32_t custom_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("custom"));
-        const char* data = ((dmGraphics::VertexBuffer*)vertices->m_Buffers[0])->m_Buffer;
+        uint32_t                       stride = dmGraphics::GetVertexDeclarationStride(declaration);
+        uint32_t                       time_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("svg_time"));
+        uint32_t                       position_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("position"));
+        uint32_t                       custom_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("custom"));
+        const char*                    data = ((dmGraphics::VertexBuffer*)vertices->m_Buffers[0])->m_Buffer;
         ASSERT_EQ(12u * stride, dmGraphics::GetVertexBufferSize(vertices->m_Buffers[0]));
         uint32_t seen = 0;
         for (uint32_t quad = 0; quad < 3; ++quad)
         {
-            float time = ReadUnalignedFloat(data + quad * 4 * stride + time_offset);
+            float    time = ReadUnalignedFloat(data + quad * 4 * stride + time_offset);
             uint32_t instance = (uint32_t)((time - 0.4f) / 0.5f + 0.5f);
             ASSERT_LT(instance, 3u);
             ASSERT_NEAR(0.4f + instance * 0.5f, time, EPSILON);
