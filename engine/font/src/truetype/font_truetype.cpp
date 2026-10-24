@@ -29,11 +29,11 @@
 // operators it implements instead of their serialized numeric encodings.
 enum FontTrueTypeCmapFormat
 {
-    CMAP_FORMAT_BYTE_ENCODING          = 0,
-    CMAP_FORMAT_SEGMENT_MAPPING        = 4,
-    CMAP_FORMAT_TRIMMED_TABLE          = 6,
-    CMAP_FORMAT_SEGMENTED_COVERAGE     = 12,
-    CMAP_FORMAT_MANY_TO_ONE_RANGE      = 13,
+    CMAP_FORMAT_BYTE_ENCODING      = 0,
+    CMAP_FORMAT_SEGMENT_MAPPING    = 4,
+    CMAP_FORMAT_TRIMMED_TABLE      = 6,
+    CMAP_FORMAT_SEGMENTED_COVERAGE = 12,
+    CMAP_FORMAT_MANY_TO_ONE_RANGE  = 13,
 };
 
 enum FontTrueTypeCmapPlatform
@@ -77,52 +77,52 @@ enum FontTrueTypeCFFDictOperator
     CFF_DICT_VSINDEX      = 22,
     CFF_DICT_VSTORE       = 24,
     // Escaped DICT operators are represented internally as 0x100 | byte 2.
-    CFF_DICT_FD_ARRAY     = 0x100 | 36,
-    CFF_DICT_FD_SELECT    = 0x100 | 37,
+    CFF_DICT_FD_ARRAY  = 0x100 | 36,
+    CFF_DICT_FD_SELECT = 0x100 | 37,
 };
 
 enum FontTrueTypeCFFNumberEncoding
 {
-    CFF_NUMBER_SHORT_INT       = 28,
-    CFF_NUMBER_LONG_INT        = 29,
-    CFF_NUMBER_REAL            = 30,
-    CFF_NUMBER_FIRST_COMPACT   = 32,
-    CFF_NUMBER_LAST_COMPACT    = 246,
-    CFF_NUMBER_FIRST_POSITIVE  = 247,
-    CFF_NUMBER_LAST_POSITIVE   = 250,
-    CFF_NUMBER_FIRST_NEGATIVE  = 251,
-    CFF_NUMBER_LAST_NEGATIVE   = 254,
-    CFF_NUMBER_FIXED_16_16     = 255,
+    CFF_NUMBER_SHORT_INT      = 28,
+    CFF_NUMBER_LONG_INT       = 29,
+    CFF_NUMBER_REAL           = 30,
+    CFF_NUMBER_FIRST_COMPACT  = 32,
+    CFF_NUMBER_LAST_COMPACT   = 246,
+    CFF_NUMBER_FIRST_POSITIVE = 247,
+    CFF_NUMBER_LAST_POSITIVE  = 250,
+    CFF_NUMBER_FIRST_NEGATIVE = 251,
+    CFF_NUMBER_LAST_NEGATIVE  = 254,
+    CFF_NUMBER_FIXED_16_16    = 255,
 };
 
 enum FontTrueTypeType2Operator
 {
-    TYPE2_HSTEM       = 1,
-    TYPE2_VSTEM       = 3,
-    TYPE2_VMOVETO     = 4,
-    TYPE2_RLINETO     = 5,
-    TYPE2_HLINETO     = 6,
-    TYPE2_VLINETO     = 7,
-    TYPE2_RRCURVETO   = 8,
-    TYPE2_CALLSUBR    = 10,
-    TYPE2_RETURN      = 11,
-    TYPE2_ESCAPE      = 12,
-    TYPE2_ENDCHAR     = 14,
-    TYPE2_VSINDEX     = 15,
-    TYPE2_BLEND       = 16,
-    TYPE2_HSTEMHM     = 18,
-    TYPE2_HINTMASK    = 19,
-    TYPE2_CNTRMASK    = 20,
-    TYPE2_RMOVETO     = 21,
-    TYPE2_HMOVETO     = 22,
-    TYPE2_VSTEMHM     = 23,
-    TYPE2_RCURVELINE  = 24,
-    TYPE2_RLINECURVE  = 25,
-    TYPE2_VVCURVETO   = 26,
-    TYPE2_HHCURVETO   = 27,
-    TYPE2_CALLGSUBR   = 29,
-    TYPE2_VHCURVETO   = 30,
-    TYPE2_HVCURVETO   = 31,
+    TYPE2_HSTEM      = 1,
+    TYPE2_VSTEM      = 3,
+    TYPE2_VMOVETO    = 4,
+    TYPE2_RLINETO    = 5,
+    TYPE2_HLINETO    = 6,
+    TYPE2_VLINETO    = 7,
+    TYPE2_RRCURVETO  = 8,
+    TYPE2_CALLSUBR   = 10,
+    TYPE2_RETURN     = 11,
+    TYPE2_ESCAPE     = 12,
+    TYPE2_ENDCHAR    = 14,
+    TYPE2_VSINDEX    = 15,
+    TYPE2_BLEND      = 16,
+    TYPE2_HSTEMHM    = 18,
+    TYPE2_HINTMASK   = 19,
+    TYPE2_CNTRMASK   = 20,
+    TYPE2_RMOVETO    = 21,
+    TYPE2_HMOVETO    = 22,
+    TYPE2_VSTEMHM    = 23,
+    TYPE2_RCURVELINE = 24,
+    TYPE2_RLINECURVE = 25,
+    TYPE2_VVCURVETO  = 26,
+    TYPE2_HHCURVETO  = 27,
+    TYPE2_CALLGSUBR  = 29,
+    TYPE2_VHCURVETO  = 30,
+    TYPE2_HVCURVETO  = 31,
 };
 
 enum FontTrueTypeType2EscapedOperator
@@ -135,24 +135,24 @@ enum FontTrueTypeType2EscapedOperator
 
 enum FontTrueTypeGlyfFlag
 {
-    GLYF_FLAG_ON_CURVE       = 0x01,
-    GLYF_FLAG_X_SHORT        = 0x02,
-    GLYF_FLAG_Y_SHORT        = 0x04,
-    GLYF_FLAG_REPEAT         = 0x08,
-    GLYF_FLAG_X_SAME         = 0x10,
-    GLYF_FLAG_Y_SAME         = 0x20,
+    GLYF_FLAG_ON_CURVE = 0x01,
+    GLYF_FLAG_X_SHORT  = 0x02,
+    GLYF_FLAG_Y_SHORT  = 0x04,
+    GLYF_FLAG_REPEAT   = 0x08,
+    GLYF_FLAG_X_SAME   = 0x10,
+    GLYF_FLAG_Y_SAME   = 0x20,
 };
 
 enum FontTrueTypeCompositeFlag
 {
-    GLYF_COMPOSITE_WORD_ARGUMENTS       = 0x0001,
-    GLYF_COMPOSITE_ARGUMENTS_ARE_XY     = 0x0002,
-    GLYF_COMPOSITE_UNIFORM_SCALE        = 0x0008,
-    GLYF_COMPOSITE_MORE_COMPONENTS      = 0x0020,
-    GLYF_COMPOSITE_SEPARATE_XY_SCALE    = 0x0040,
-    GLYF_COMPOSITE_MATRIX                = 0x0080,
-    GLYF_COMPOSITE_SCALED_OFFSET         = 0x0800,
-    GLYF_COMPOSITE_UNSCALED_OFFSET       = 0x1000,
+    GLYF_COMPOSITE_WORD_ARGUMENTS    = 0x0001,
+    GLYF_COMPOSITE_ARGUMENTS_ARE_XY  = 0x0002,
+    GLYF_COMPOSITE_UNIFORM_SCALE     = 0x0008,
+    GLYF_COMPOSITE_MORE_COMPONENTS   = 0x0020,
+    GLYF_COMPOSITE_SEPARATE_XY_SCALE = 0x0040,
+    GLYF_COMPOSITE_MATRIX            = 0x0080,
+    GLYF_COMPOSITE_SCALED_OFFSET     = 0x0800,
+    GLYF_COMPOSITE_UNSCALED_OFFSET   = 0x1000,
 };
 
 // Unicode range limits used by cmap validation and lookup.
@@ -549,7 +549,7 @@ static bool SelectCmap(FontTrueType* font, uint32_t table_offset, uint32_t table
             encoding_priority = 1;
         if (encoding_priority == 0)
             continue;
-        uint32_t       relative = ReadU32(record + 4);
+        uint32_t relative = ReadU32(record + 4);
         if (relative > table_size || table_size - relative < 4)
             continue;
         const uint8_t* subtable = data + table_offset + relative;
@@ -1304,6 +1304,7 @@ static bool Blend(const FontTrueType* font, uint32_t vsindex, float* stack, uint
 
 // Adobe StandardEncoding code to CFF standard string identifier. The table is
 // used only by the deprecated CFF1 endchar composition form.
+// clang-format off: manual rows
 static const uint8_t STANDARD_ENCODING_SIDS[CFF_STANDARD_ENCODING_CODE_COUNT] = {
       0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
@@ -1345,6 +1346,7 @@ static const uint16_t EXPERT_SUBSET_CHARSET_SIDS[] = {
     150, 164, 169, 327, 328, 329, 330, 331, 332, 333, 334, 335, 336, 337, 338, 339,
     340, 341, 342, 343, 344, 345, 346,
 };
+// clang-format on
 
 static uint32_t GetCFFGlyphForSID(const FontTrueType* font, uint32_t sid)
 {
@@ -1418,11 +1420,16 @@ static uint32_t GetOutlinePointCount(FontOutlineCommandType type)
 {
     switch (type)
     {
-        case FONT_OUTLINE_MOVE_TO:      return 1;
-        case FONT_OUTLINE_LINE_TO:      return 1;
-        case FONT_OUTLINE_QUADRATIC_TO: return 2;
-        case FONT_OUTLINE_CUBIC_TO:     return 3;
-        case FONT_OUTLINE_CLOSE:        return 0;
+        case FONT_OUTLINE_MOVE_TO:
+            return 1;
+        case FONT_OUTLINE_LINE_TO:
+            return 1;
+        case FONT_OUTLINE_QUADRATIC_TO:
+            return 2;
+        case FONT_OUTLINE_CUBIC_TO:
+            return 3;
+        case FONT_OUTLINE_CLOSE:
+            return 0;
     }
     return 0;
 }
@@ -1439,7 +1446,7 @@ static void AppendOutline(FontTrueTypeOutlineBuilder* builder, const FontTrueTyp
     for (uint32_t i = 0; i < source.m_Commands.Size(); ++i)
     {
         FontOutlineCommand command = source.m_Commands[i];
-        uint32_t point_count = GetOutlinePointCount(command.m_Type);
+        uint32_t           point_count = GetOutlinePointCount(command.m_Type);
         for (uint32_t point = 0; point < point_count; ++point)
         {
             command.m_Points[point].m_X += dx;
@@ -1513,13 +1520,13 @@ static bool InterpretCharString(FontTrueType* font, uint32_t glyph_index, FontTr
 
     // The Type 2 specification limits subroutine nesting to ten and the CFF2
     // operand stack to 513 values.
-    FontTrueTypeBuffer   return_stack[MAX_TYPE2_SUBROUTINE_DEPTH];
-    uint32_t             return_count = 0;
-    float                stack[MAX_TYPE2_OPERANDS];
-    uint32_t             stack_size = 0;
-    uint32_t             mask_bits = 0;
-    uint32_t             vsindex = private_data->m_VSIndex;
-    bool                 width_parsed = font->m_OutlineType != FONT_OUTLINE_TYPE_CFF1;
+    FontTrueTypeBuffer return_stack[MAX_TYPE2_SUBROUTINE_DEPTH];
+    uint32_t           return_count = 0;
+    float              stack[MAX_TYPE2_OPERANDS];
+    uint32_t           stack_size = 0;
+    uint32_t           mask_bits = 0;
+    uint32_t           vsindex = private_data->m_VSIndex;
+    bool               width_parsed = font->m_OutlineType != FONT_OUTLINE_TYPE_CFF1;
     while (true)
     {
         if (buffer.m_Position == buffer.m_Size)
@@ -1703,8 +1710,8 @@ static bool InterpretCharString(FontTrueType* font, uint32_t glyph_index, FontTr
                         return false;
                     FontTrueTypeOutlineBuilder base = {};
                     FontTrueTypeOutlineBuilder accent = {};
-                    FontOutlineBounds base_bounds = {};
-                    FontOutlineBounds accent_bounds = {};
+                    FontOutlineBounds          base_bounds = {};
+                    FontOutlineBounds          accent_bounds = {};
                     if (builder->m_Bounds)
                     {
                         base.m_Bounds = &base_bounds;
@@ -2299,7 +2306,7 @@ bool FontTrueTypeGetGlyphBox(FontTrueType* font, uint32_t glyph_index, int32_t* 
     if (font->m_OutlineType == FONT_OUTLINE_TYPE_GLYF)
     {
         const uint8_t* data;
-        uint32_t data_size;
+        uint32_t       data_size;
         if (!GetGlyphData(font, glyph_index, &data, &data_size) || data_size < GLYF_HEADER_SIZE)
             return false;
 
@@ -2315,7 +2322,7 @@ bool FontTrueTypeGetGlyphBox(FontTrueType* font, uint32_t glyph_index, int32_t* 
     // CFF charstrings have no per-glyph bounds field. Interpret drawing
     // commands directly into an exact bounds accumulator without allocating
     // or copying a temporary outline.
-    FontOutlineBounds bounds = {};
+    FontOutlineBounds          bounds = {};
     FontTrueTypeOutlineBuilder builder = {};
     builder.m_Bounds = &bounds;
     if (!InterpretCharString(font, glyph_index, &builder, 0))

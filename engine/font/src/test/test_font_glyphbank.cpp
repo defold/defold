@@ -139,7 +139,7 @@ TEST(FontGlyphBank, LookupMetricsBitmapAndOwnership)
     ASSERT_EQ(1.0f, FontGetScaleFromSize(font, 42.0f));
 
     const uint32_t provider_resource_size = (uint32_t)(sizeof(*glyph_bank) +
-                                                        sizeof(FontGlyphBankGlyph) * 3);
+                                                       sizeof(FontGlyphBankGlyph) * 3);
     ASSERT_EQ(provider_resource_size, (uint32_t)glyph_bank->m_Provider.m_ResourceSize);
     const uint32_t resource_size = FontGetResourceSize(font);
     ASSERT_GT(resource_size, provider_resource_size);
@@ -249,9 +249,9 @@ TEST(FontGlyphBank, LayoutMetrics)
 // Vector glyph-bank layout scales from the size used to bake its metrics.
 TEST(FontGlyphBank, VectorLayoutScalesFromBakedSize)
 {
-    bool destroyed = false;
+    bool                   destroyed = false;
     TestGlyphBankProvider* glyph_bank = CreateTestGlyphBank(1, &destroyed);
-    FontGlyphBankGlyph& glyph = glyph_bank->m_Glyphs[0];
+    FontGlyphBankGlyph&    glyph = glyph_bank->m_Glyphs[0];
     glyph.m_Codepoint = 'A';
     glyph.m_Width = glyph.m_Advance = 8.0f;
     glyph.m_Ascent = 10.0f;
@@ -280,10 +280,10 @@ TEST(FontGlyphBank, VectorLayoutScalesFromBakedSize)
 // previous metrics. Guards against #13339 without changing glyph rasterization.
 TEST(FontGlyphBank, SeparateLayoutAndBitmapMetrics)
 {
-    bool destroyed = false;
+    bool                   destroyed = false;
     TestGlyphBankProvider* bank = CreateTestGlyphBank(1, &destroyed);
-    const uint8_t pixels[] = { 0 };
-    FontGlyphBankGlyph& source = bank->m_Glyphs[0];
+    const uint8_t          pixels[] = { 0 };
+    FontGlyphBankGlyph&    source = bank->m_Glyphs[0];
     source.m_Codepoint = 'A';
     source.m_Width = 14;
     source.m_LeftBearing = -2;
@@ -303,7 +303,7 @@ TEST(FontGlyphBank, SeparateLayoutAndBitmapMetrics)
     ASSERT_NE((HFont)0, font);
 
     FontGlyphOptions options;
-    FontGlyph glyph;
+    FontGlyph        glyph;
     ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
     ASSERT_EQ(14.0f, glyph.m_Width);
     ASSERT_EQ(-2.0f, glyph.m_LeftBearing);
@@ -380,8 +380,8 @@ TEST(FontAlignment, CompiledFontMatchesPreviewAtEveryPivot)
                 max_difference = dmMath::Max(max_difference, fabsf(compiled.m_Vertices[vertex].m_Position[axis] - preview.m_Vertices[vertex].m_Position[axis]));
         }
         printf("pivot=%s compiled-preview=(%.6f, %.6f) max_error=%.6f px\n", FONT_ALIGNMENT_PIVOTS[pivot].m_Name,
-            compiled.m_Vertices[0].m_Position[0] - preview.m_Vertices[0].m_Position[0],
-            compiled.m_Vertices[0].m_Position[1] - preview.m_Vertices[0].m_Position[1], max_difference);
+               compiled.m_Vertices[0].m_Position[0] - preview.m_Vertices[0].m_Position[0],
+               compiled.m_Vertices[0].m_Position[1] - preview.m_Vertices[0].m_Position[1], max_difference);
         mismatched_pivots += max_difference > 0.01f;
     }
     ASSERT_EQ(0u, mismatched_pivots);

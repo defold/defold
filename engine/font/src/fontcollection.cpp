@@ -335,8 +335,8 @@ static bool OnFontFallback(skb_font_collection_t* collection, const char* langua
     FontCollection* font_collection = (FontCollection*)context;
 
     return font_collection->m_FallbackCallback(font_collection, language,
-                                                skb_script_to_iso15924_tag(script), font_family,
-                                                font_collection->m_FallbackContext);
+                                               skb_script_to_iso15924_tag(script), font_family,
+                                               font_collection->m_FallbackContext);
 }
 #endif
 

@@ -26,15 +26,15 @@
 static const float SDF_EDGE = 0.75f;
 
 FontGlyphGenParams::FontGlyphGenParams()
-    : m_Scale(1.0f)
-    , m_SdfPadding(3.0f)
-    , m_OutlineWidth(0.0f)
-    , m_ShadowBlur(0.0f)
-    , m_SdfEdgeValue(191)
-    , m_OutputBitmap(false)
-    , m_Antialias(true)
-    , m_HasOutline(false)
-    , m_HasShadow(false)
+: m_Scale(1.0f)
+, m_SdfPadding(3.0f)
+, m_OutlineWidth(0.0f)
+, m_ShadowBlur(0.0f)
+, m_SdfEdgeValue(191)
+, m_OutputBitmap(false)
+, m_Antialias(true)
+, m_HasOutline(false)
+, m_HasShadow(false)
 {
 }
 
@@ -133,8 +133,8 @@ static bool BlurVectorShadow(FontGlyph* glyph, float sigma)
     const uint32_t width = glyph->m_Bitmap.m_Width;
     const uint32_t height = glyph->m_Bitmap.m_Height;
     const uint32_t count = width * height;
-    float* source = (float*)malloc((size_t)count * sizeof(float));
-    float* target = (float*)malloc((size_t)count * sizeof(float));
+    float*         source = (float*)malloc((size_t)count * sizeof(float));
+    float*         target = (float*)malloc((size_t)count * sizeof(float));
     if (!source || !target)
     {
         free(source);
@@ -150,7 +150,7 @@ static bool BlurVectorShadow(FontGlyph* glyph, float sigma)
     const int smaller = (int)floorf((12.0f * sigma * sigma - 3.0f * lower * lower - 12.0f * lower - 9.0f) / (-4.0f * lower - 4.0f) + 0.5f);
     for (int pass = 0; pass < 3; ++pass)
     {
-        const int radius = ((pass < smaller ? lower : lower + 2) - 1) / 2;
+        const int   radius = ((pass < smaller ? lower : lower + 2) - 1) / 2;
         const float divisor = 1.0f / (2 * radius + 1);
         for (uint32_t axis = 0; axis < 2; ++axis)
         {
@@ -160,7 +160,7 @@ static bool BlurVectorShadow(FontGlyph* glyph, float sigma)
             for (uint32_t line = 0; line < lines; ++line)
             {
                 const uint32_t base = axis ? line : line * width;
-                float sum = 0.0f;
+                float          sum = 0.0f;
                 for (int k = 0; k <= radius && k < (int)length; ++k)
                     sum += source[base + k * step];
                 for (uint32_t k = 0; k < length; ++k)
@@ -271,8 +271,8 @@ static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* param
         return FONT_RESULT_ERROR;
     }
 
-    const float pixel_dist_scale = FONT_SDF_DISTANCE_SCALE * 255.0f / params->m_SdfPadding;
-    const float outline_edge = CalcSdfValueU8(params->m_SdfPadding, params->m_OutlineWidth);
+    const float    pixel_dist_scale = FONT_SDF_DISTANCE_SCALE * 255.0f / params->m_SdfPadding;
+    const float    outline_edge = CalcSdfValueU8(params->m_SdfPadding, params->m_OutlineWidth);
     const uint32_t source_channels = glyph->m_Bitmap.m_Channels;
     for (uint32_t y = 0; y < height; ++y)
     {

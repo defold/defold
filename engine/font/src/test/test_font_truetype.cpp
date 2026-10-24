@@ -153,11 +153,16 @@ static uint32_t GetCommandPointCount(FontOutlineCommandType type)
 {
     switch (type)
     {
-        case FONT_OUTLINE_MOVE_TO:      return 1;
-        case FONT_OUTLINE_LINE_TO:      return 1;
-        case FONT_OUTLINE_QUADRATIC_TO: return 2;
-        case FONT_OUTLINE_CUBIC_TO:     return 3;
-        case FONT_OUTLINE_CLOSE:        return 0;
+        case FONT_OUTLINE_MOVE_TO:
+            return 1;
+        case FONT_OUTLINE_LINE_TO:
+            return 1;
+        case FONT_OUTLINE_QUADRATIC_TO:
+            return 2;
+        case FONT_OUTLINE_CUBIC_TO:
+            return 3;
+        case FONT_OUTLINE_CLOSE:
+            return 0;
     }
     return 0;
 }
@@ -274,10 +279,10 @@ static void CompareAllGlyphBoundsWithOutlines(ReferenceFont* font)
         FontOutline outline = {};
         ASSERT_EQ(FONT_RESULT_OK, FontTrueTypeGetGlyphOutline(font->m_TrueType, glyph_index, &outline));
 
-        float fx0, fy0, fx1, fy1;
-        bool outline_has_bounds = FontGetOutlineBounds(&outline, &fx0, &fy0, &fx1, &fy1);
+        float   fx0, fy0, fx1, fy1;
+        bool    outline_has_bounds = FontGetOutlineBounds(&outline, &fx0, &fy0, &fx1, &fy1);
         int32_t x0, y0, x1, y1;
-        bool box_has_bounds = FontTrueTypeGetGlyphBox(font->m_TrueType, glyph_index, &x0, &y0, &x1, &y1);
+        bool    box_has_bounds = FontTrueTypeGetGlyphBox(font->m_TrueType, glyph_index, &x0, &y0, &x1, &y1);
         ASSERT_EQ(outline_has_bounds, box_has_bounds);
         if (outline_has_bounds)
         {

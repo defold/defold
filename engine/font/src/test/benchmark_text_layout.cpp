@@ -40,12 +40,12 @@
 // can be compared without making timing-sensitive assertions part of unit tests.
 // By default, each operation is calibrated independently to the target sample
 // duration. Pass --iterations=N to replace calibration with a fixed iteration count.
-static const uint32_t    BENCHMARK_TEXT_LENGTH = 32000;
-static const uint32_t    DEFAULT_ITERATIONS = 0;
-static const uint32_t    DEFAULT_SAMPLES = 11;
-static const uint32_t    DEFAULT_TARGET_MILLISECONDS = 100;
-static const uint32_t    DEFAULT_WARMUP_MILLISECONDS = 20;
-static const uint32_t    MAX_ITERATIONS = 100000;
+static const uint32_t BENCHMARK_TEXT_LENGTH = 32000;
+static const uint32_t DEFAULT_ITERATIONS = 0;
+static const uint32_t DEFAULT_SAMPLES = 11;
+static const uint32_t DEFAULT_TARGET_MILLISECONDS = 100;
+static const uint32_t DEFAULT_WARMUP_MILLISECONDS = 20;
+static const uint32_t MAX_ITERATIONS = 100000;
 
 static volatile uint64_t g_BenchmarkChecksum = 0;
 
@@ -497,10 +497,10 @@ static bool RunPlainLayoutAndVertices(void* context)
     PlainLayoutAndVerticesContext* end_to_end = (PlainLayoutAndVerticesContext*)context;
     HTextLayout                    layout = 0;
     TextResult                     result = TextLayoutCreate(end_to_end->m_Layout.m_Collection,
-                                         end_to_end->m_Layout.m_Codepoints,
-                                         end_to_end->m_Layout.m_CodepointCount,
-                                         &end_to_end->m_Layout.m_Settings,
-                                         &layout);
+                                                             end_to_end->m_Layout.m_Codepoints,
+                                                             end_to_end->m_Layout.m_CodepointCount,
+                                                             &end_to_end->m_Layout.m_Settings,
+                                                             &layout);
     if (result != TEXT_RESULT_OK || !layout)
     {
         return false;
@@ -525,7 +525,7 @@ static void FreeCachedGlyphs(dmArray<CachedVertexGlyph>& glyph_cache)
 static void BuildPlainText(dmArray<char>& text)
 {
     static const char seed[] =
-    "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ";
+        "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ";
     const uint32_t seed_length = sizeof(seed) - 1;
     text.SetCapacity(BENCHMARK_TEXT_LENGTH + 1);
     text.SetSize(0);
@@ -707,8 +707,8 @@ static void AppendBytes(dmArray<char>& destination, const char* source, uint32_t
 
 static void BuildNestedMarkupSource(const dmArray<char>& plain_text, MarkupStyleType style, uint32_t depth, MarkupSource* source)
 {
-    const char* opening_tag = GetOpeningTag(style);
-    const char* closing_tag = GetClosingTag(style);
+    const char*    opening_tag = GetOpeningTag(style);
+    const char*    closing_tag = GetClosingTag(style);
     const uint32_t opening_tag_length = (uint32_t)strlen(opening_tag);
     const uint32_t closing_tag_length = (uint32_t)strlen(closing_tag);
     source->m_Bytes.SetCapacity(BENCHMARK_TEXT_LENGTH + depth * (opening_tag_length + closing_tag_length) + 1);
@@ -740,8 +740,8 @@ static void BuildMarkupSource(const dmArray<char>& plain_text, MarkupStyleType s
         return;
     }
 
-    const char* opening_tag = GetOpeningTag(style);
-    const char* closing_tag = GetClosingTag(style);
+    const char*    opening_tag = GetOpeningTag(style);
+    const char*    closing_tag = GetClosingTag(style);
     const uint32_t tag_bytes = (uint32_t)strlen(opening_tag) + (uint32_t)strlen(closing_tag);
     source->m_Bytes.SetCapacity(BENCHMARK_TEXT_LENGTH + tag_count * tag_bytes + 1);
     source->m_Bytes.SetSize(0);
@@ -775,7 +775,7 @@ static void BuildMarkupSource(const dmArray<char>& plain_text, MarkupStyleType s
             ++source->m_SelectedWordCount;
         }
 
-        const bool sprite = selected && style == MARKUP_STYLE_SPRITE;
+        const bool     sprite = selected && style == MARKUP_STYLE_SPRITE;
         const uint32_t text_offset = offset + (sprite ? 1 : 0);
         AppendBytes(source->m_Bytes, plain_text.Begin() + text_offset, word_end - text_offset);
 
@@ -922,8 +922,8 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
         return false;
     }
 
-    uint32_t           span_count = MarkupGetSpanCount(markup);
-    uint32_t           style_node_count = MarkupGetStyleNodeCount(markup);
+    uint32_t span_count = MarkupGetSpanCount(markup);
+    uint32_t style_node_count = MarkupGetStyleNodeCount(markup);
 
     HTextLayout        vertex_layout = 0;
     TextLayoutSettings vertex_settings = settings;
@@ -1365,7 +1365,7 @@ int main(int argc, char** argv)
         uint32_t        m_TagCount;
     };
     BenchmarkCase cases[DM_ARRAY_SIZE(styles) * DM_ARRAY_SIZE(tag_counts)];
-    uint32_t case_count = 0;
+    uint32_t      case_count = 0;
 
     for (uint32_t style_index = 0; style_index < DM_ARRAY_SIZE(styles); ++style_index)
     {
@@ -1403,8 +1403,8 @@ int main(int argc, char** argv)
     for (uint32_t count = case_count; count > 1; --count)
     {
         order_state = order_state * 1664525u + 1013904223u;
-        const uint32_t index = count - 1;
-        const uint32_t other = order_state % count;
+        const uint32_t      index = count - 1;
+        const uint32_t      other = order_state % count;
         const BenchmarkCase temporary = cases[index];
         cases[index] = cases[other];
         cases[other] = temporary;

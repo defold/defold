@@ -136,7 +136,7 @@ static bool DecorationRequiresGlyphSegments(HTextLayout layout, const TextDecora
     }
 
     const TextResolvedSpan& span = layout->m_ResolvedSpans[first.m_MarkupSpanIndex];
-    const TextEffect* gradient_effect = 0;
+    const TextEffect*       gradient_effect = 0;
 
     for (uint32_t i = 0; i < span.m_EffectCount; ++i)
     {
@@ -206,11 +206,11 @@ void TextLayoutInitializeDecorationGeometry(HTextLayout layout)
 
         for (uint32_t glyph_offset = 0; glyph_offset < decoration.m_GlyphCount; ++glyph_offset)
         {
-            const uint32_t   glyph_index = decoration.m_GlyphStart + glyph_offset;
-            const TextGlyph& glyph = layout->m_Glyphs[glyph_index];
-            const float      glyph_end = glyph.m_X + glyph.m_Advance;
-            const float      glyph_x0 = fminf(glyph.m_X, glyph_end);
-            const float      glyph_x1 = fmaxf(glyph.m_X, glyph_end);
+            const uint32_t         glyph_index = decoration.m_GlyphStart + glyph_offset;
+            const TextGlyph&       glyph = layout->m_Glyphs[glyph_index];
+            const float            glyph_end = glyph.m_X + glyph.m_Advance;
+            const float            glyph_x0 = fminf(glyph.m_X, glyph_end);
+            const float            glyph_x1 = fmaxf(glyph.m_X, glyph_end);
             TextDecorationGeometry geometry;
             geometry.m_GlyphIndex = glyph_index;
             geometry.m_X = fmaxf(decoration.m_X, fminf(decoration_end, glyph_x0));
@@ -315,9 +315,9 @@ static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* obj
 
     for (uint32_t line_index = 0; line_index < layout->m_Lines.Size(); ++line_index)
     {
-        const TextLine& line = layout->m_Lines[line_index];
+        const TextLine&      line = layout->m_Lines[line_index];
         const TextParagraph& paragraph = layout->m_Paragraphs[line.m_ParagraphIndex];
-        const uint32_t paragraph_end = paragraph.m_TextIndex + paragraph.m_TextLength;
+        const uint32_t       paragraph_end = paragraph.m_TextIndex + paragraph.m_TextLength;
 
         if (object->m_TextOffset < paragraph.m_TextIndex || object->m_TextOffset > paragraph_end)
         {
@@ -325,8 +325,8 @@ static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* obj
         }
 
         const bool right_to_left = paragraph.m_Direction == TEXT_DIRECTION_RTL;
-        float line_x = paragraph_x + (right_to_left ? paragraph_width - line.m_Width : 0.0f);
-        float layout_y = paragraph_top - layout->m_Height;
+        float      line_x = paragraph_x + (right_to_left ? paragraph_width - line.m_Width : 0.0f);
+        float      layout_y = paragraph_top - layout->m_Height;
         if (pivot_relative)
         {
             // Match rendering's direction-aware line alignment, then move the box origin to its pivot.
@@ -348,8 +348,8 @@ static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* obj
             continue;
         }
 
-        uint32_t first_cluster = layout->m_Glyphs[line.m_Index].m_Cluster;
-        uint32_t last_cluster = first_cluster;
+        uint32_t    first_cluster = layout->m_Glyphs[line.m_Index].m_Cluster;
+        uint32_t    last_cluster = first_cluster;
         const float first_x = TextLayoutGetLineOriginX(layout, line_index);
 
         for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
@@ -364,8 +364,8 @@ static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* obj
             continue;
         }
 
-        float object_x = line_x + line.m_Width;
-        bool found_glyph = false;
+        float    object_x = line_x + line.m_Width;
+        bool     found_glyph = false;
         uint32_t nearest_cluster = UINT32_MAX;
 
         for (uint32_t i = line.m_Index; i < line.m_Index + line.m_Length; ++i)
@@ -647,7 +647,7 @@ static void ApplyBaseStyle(HTextLayout layout)
     }
 
     const uint32_t effect_start = layout->m_Effects.Size();
-    uint32_t text_length = 0;
+    uint32_t       text_length = 0;
     for (uint32_t i = 0; i < layout->m_BaseResolvedSpanCount; ++i)
     {
         const TextResolvedSpan& span = layout->m_ResolvedSpans[i];
@@ -719,8 +719,8 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
     ApplyBaseStyle(layout);
 
     dmArray<TextObjectStyle> object_styles;
-    uint32_t text_length = 0;
-    bool     has_object_styles = false;
+    uint32_t                 text_length = 0;
+    bool                     has_object_styles = false;
 
     for (uint32_t object_index = 0; object_index < layout->m_Objects.Size(); ++object_index)
     {
@@ -731,7 +731,7 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
             continue;
         }
 
-        const dmhash_t style_override = layout->m_ObjectStyleOverrides[object_index];
+        const dmhash_t        style_override = layout->m_ObjectStyleOverrides[object_index];
         const TextObjectStyle object_style = ResolveObjectStyle(layout, object, style_override);
 
         if (object_style.m_Style.m_Flags != 0 || object_style.m_EffectCount != 0 || object_style.m_Decoration.m_Flags != 0)
@@ -829,7 +829,8 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
                 span = layout->m_ResolvedSpans[glyph.m_MarkupSpanIndex];
             }
             const uint32_t inline_count = glyph.m_BaseMarkupSpanIndex < layout->m_BaseResolvedSpanCount
-                                          ? layout->m_ResolvedSpans[glyph.m_BaseMarkupSpanIndex].m_EffectCount : 0;
+                                              ? layout->m_ResolvedSpans[glyph.m_BaseMarkupSpanIndex].m_EffectCount
+                                              : 0;
             const uint32_t base_count = span.m_EffectCount - inline_count;
             // Solid colors only need a new span when they remove an inherited gradient.
             if (object_style.m_EffectCount == 0 && object_style.m_Decoration.m_Flags == 0)
@@ -853,8 +854,8 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
             }
 
             const uint32_t effect_start = layout->m_SpanEffects.Size();
-            const bool inline_color = (layout->m_StyleOverrideFlags[glyph.m_BaseStyleIndex] & TEXT_RENDER_STYLE_FACE_COLOR) != 0;
-            const bool object_color = (object_style.m_Style.m_Flags & TEXT_RENDER_STYLE_FACE_COLOR) != 0;
+            const bool     inline_color = (layout->m_StyleOverrideFlags[glyph.m_BaseStyleIndex] & TEXT_RENDER_STYLE_FACE_COLOR) != 0;
+            const bool     object_color = (object_style.m_Style.m_Flags & TEXT_RENDER_STYLE_FACE_COLOR) != 0;
             if (layout->m_SpanEffects.Remaining() < span.m_EffectCount + object_style.m_EffectCount)
             {
                 layout->m_SpanEffects.OffsetCapacity(span.m_EffectCount + object_style.m_EffectCount);
@@ -928,10 +929,10 @@ static void RefreshDecorations(HTextLayout layout)
     for (uint32_t i = 0; i < layout->m_DecorationSources.Size(); ++i)
     {
         const TextDecorationSource& source = layout->m_DecorationSources[i];
-        const TextDecoration& original = source.m_Decoration;
-        const uint32_t source_end = original.m_GlyphStart + original.m_GlyphCount;
-        float source_x0 = INFINITY;
-        float source_x1 = -INFINITY;
+        const TextDecoration&       original = source.m_Decoration;
+        const uint32_t              source_end = original.m_GlyphStart + original.m_GlyphCount;
+        float                       source_x0 = INFINITY;
+        float                       source_x1 = -INFINITY;
         for (uint32_t j = original.m_GlyphStart; j < source_end; ++j)
         {
             const TextGlyph& glyph = layout->m_Glyphs[j];
@@ -950,8 +951,8 @@ static void RefreshDecorations(HTextLayout layout)
             }
 
             uint32_t end = start;
-            float x0 = INFINITY;
-            float x1 = -INFINITY;
+            float    x0 = INFINITY;
+            float    x1 = -INFINITY;
             do
             {
                 const TextGlyph& glyph = layout->m_Glyphs[end++];
@@ -1373,24 +1374,24 @@ void TextLayoutUpdate(HTextLayout layout, float delta_time)
 
 void TextLayoutFinalizeLineBaselines(HTextLayout layout, TextLayoutSettings* settings)
 {
-    TextLine* lines = layout->m_Lines.Begin();
-    TextGlyph* glyphs = layout->m_Glyphs.Begin();
-    HFont default_font = FontCollectionGetFont(layout->m_FontCollection, 0);
+    TextLine*   lines = layout->m_Lines.Begin();
+    TextGlyph*  glyphs = layout->m_Glyphs.Begin();
+    HFont       default_font = FontCollectionGetFont(layout->m_FontCollection, 0);
     const float default_scale = FontGetScaleFromSize(default_font, settings->m_Size);
     const float default_ascent = FontGetAscent(default_font, default_scale);
     const float default_descent = fabsf(FontGetDescent(default_font, default_scale));
-    float layout_height = 0.0f;
-    float last_line_height = 0.0f;
-    HFont measured_font = 0;
-    float measured_render_scale = 0.0f;
-    float measured_ascent = 0.0f;
-    float measured_descent = 0.0f;
+    float       layout_height = 0.0f;
+    float       last_line_height = 0.0f;
+    HFont       measured_font = 0;
+    float       measured_render_scale = 0.0f;
+    float       measured_ascent = 0.0f;
+    float       measured_descent = 0.0f;
 
     for (uint32_t line_index = 0; line_index < layout->m_Lines.Size(); ++line_index)
     {
         TextLine& line = lines[line_index];
-        float line_ascent = 0.0f;
-        float line_descent = 0.0f;
+        float     line_ascent = 0.0f;
+        float     line_descent = 0.0f;
 
         // The first glyph establishes the maxima so a negative ascent is preserved.
         for (uint32_t glyph_index = line.m_Index; glyph_index < line.m_Index + line.m_Length; ++glyph_index)
@@ -1444,7 +1445,7 @@ void TextLayoutFinalizeLineBaselines(HTextLayout layout, TextLayoutSettings* set
 uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints)
 {
     const char* safe_text = text ? text : "";
-    uint32_t len = dmUtf8::StrLen(safe_text);
+    uint32_t    len = dmUtf8::StrLen(safe_text);
     if (codepoints.Capacity() < len)
     {
         codepoints.SetCapacity(len);
@@ -1687,7 +1688,7 @@ static void ApplyWaveEffect(const TextLayout* layout, const TextGlyph& glyph, co
 
 void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data, bool apply_gradients)
 {
-    TextLayout* internal = (TextLayout*)layout;
+    TextLayout*            internal = (TextLayout*)layout;
     const TextRenderStyle* style = internal && glyph.m_StyleIndex < internal->m_Styles.Size() ? &internal->m_Styles[glyph.m_StyleIndex] : 0;
     InitializeGlyphRenderData(style, base_color, data);
 
@@ -1741,7 +1742,7 @@ bool TextLayoutHasMarkupOutline(HTextLayout layout)
 {
     if (!layout)
         return false;
-    TextLayout* internal = (TextLayout*)layout;
+    TextLayout*    internal = (TextLayout*)layout;
     const uint32_t outline_flags = TEXT_RENDER_STYLE_OUTLINE_COLOR | TEXT_RENDER_STYLE_OUTLINE_WIDTH;
 
     for (uint32_t i = 0; i < internal->m_Styles.Size(); ++i)
@@ -1782,7 +1783,7 @@ bool TextLayoutHasMarkupShadow(HTextLayout layout)
 {
     if (!layout)
         return false;
-    TextLayout* internal = (TextLayout*)layout;
+    TextLayout*    internal = (TextLayout*)layout;
     const uint32_t shadow_flags = TEXT_RENDER_STYLE_SHADOW_COLOR | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y | TEXT_RENDER_STYLE_SHADOW_BLUR;
 
     for (uint32_t i = 0; i < internal->m_Styles.Size(); ++i)

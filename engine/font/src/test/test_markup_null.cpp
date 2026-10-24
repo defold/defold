@@ -40,8 +40,8 @@ TEST(MarkupNull, ReportsUnsupported)
 
 TEST(MarkupNull, ResolvesPlainRenderData)
 {
-    const float base_color[4] = { 0.25f, 0.5f, 0.75f, 0.125f };
-    TextGlyph   glyph = {};
+    const float         base_color[4] = { 0.25f, 0.5f, 0.75f, 0.125f };
+    TextGlyph           glyph = {};
     TextGlyphRenderData data;
     TextLayoutGetGlyphRenderData(0, glyph, base_color, &data, true);
 
@@ -78,7 +78,7 @@ TEST(MarkupNull, LinksPlainTextLayout)
 // Verify that precompiled styles render with a staged font even when the parser is disabled.
 TEST(MarkupNull, PrecompiledBaseStyleRendersWithoutParser)
 {
-    char font_path[512];
+    char  font_path[512];
     HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(font_path, sizeof(font_path), "src/test/data/vera_mo_bd.ttf"));
     ASSERT_NE((HFont)0, font);
     HFontCollection collection = FontCollectionCreate();
@@ -100,7 +100,7 @@ TEST(MarkupNull, PrecompiledBaseStyleRendersWithoutParser)
     dmhash_t name = dmHashString64("compiled");
     FontCollectionSetNamedStyle(collection, name, style, &effect, 1);
     FontCollectionSetNamedStyleDecoration(collection, name, decoration);
-    const char markup[] = "<outline size=7><size=25%><link id=target>";
+    const char  markup[] = "<outline size=7><size=25%><link id=target>";
     MarkupError error = {};
     ASSERT_FALSE(FontCollectionSetNamedStyleMarkup(collection, name, markup, sizeof(markup) - 1, &error));
     ASSERT_EQ(MARKUP_ERROR_UNSUPPORTED, error.m_Type);

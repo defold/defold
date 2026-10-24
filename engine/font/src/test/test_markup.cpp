@@ -69,20 +69,20 @@ TEST(Markup, NestedTagsAndAttributes)
     ASSERT_EQ(3u, MarkupGetStyleNodeCount(markup));
     const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
     AssertString(markup, nodes[1].m_Tag, "wave");
-    ASSERT_EQ((uint8_t)MARKUP_TAG_WAVE,   nodes[1].m_Type);
-    ASSERT_EQ(0u,                         nodes[1].m_Parent);
-    ASSERT_EQ(1u,                         nodes[1].m_AttributeCount);
+    ASSERT_EQ((uint8_t)MARKUP_TAG_WAVE, nodes[1].m_Type);
+    ASSERT_EQ(0u, nodes[1].m_Parent);
+    ASSERT_EQ(1u, nodes[1].m_AttributeCount);
     AssertString(markup, nodes[2].m_Tag, "gradient");
-    ASSERT_EQ((uint8_t)MARKUP_TAG_GRADIENT,   nodes[2].m_Type);
-    ASSERT_EQ(1u,                             nodes[2].m_Parent);
-    ASSERT_EQ(2u,                             nodes[2].m_AttributeCount);
+    ASSERT_EQ((uint8_t)MARKUP_TAG_GRADIENT, nodes[2].m_Type);
+    ASSERT_EQ(1u, nodes[2].m_Parent);
+    ASSERT_EQ(2u, nodes[2].m_AttributeCount);
 
     ASSERT_EQ(3u, MarkupGetAttributeCount(markup));
     const MarkupAttribute* attributes = MarkupGetAttributes(markup);
     AssertString(markup, attributes[0].m_Name, "amplitude");
     AssertString(markup, attributes[0].m_Value, "4");
     ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_AMPLITUDE, attributes[0].m_Type);
-    ASSERT_EQ((uint8_t)MARKUP_CONSTANT_NONE,       attributes[0].m_Constant);
+    ASSERT_EQ((uint8_t)MARKUP_CONSTANT_NONE, attributes[0].m_Constant);
     AssertString(markup, attributes[1].m_Name, "left");
     AssertString(markup, attributes[1].m_Value, "#FF00FF");
     ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_LEFT, attributes[1].m_Type);
@@ -109,13 +109,13 @@ TEST(Markup, ShorthandAndQuotedValue)
 
     const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
     const MarkupAttribute* attributes = MarkupGetAttributes(markup);
-    ASSERT_EQ((uint8_t)MARKUP_TAG_COLOR,            nodes[1].m_Type);
-    ASSERT_EQ(0u,                                   attributes[nodes[1].m_AttributeIndex].m_Name.m_Length);
-    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_SHORTHAND,  attributes[nodes[1].m_AttributeIndex].m_Type);
+    ASSERT_EQ((uint8_t)MARKUP_TAG_COLOR, nodes[1].m_Type);
+    ASSERT_EQ(0u, attributes[nodes[1].m_AttributeIndex].m_Name.m_Length);
+    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_SHORTHAND, attributes[nodes[1].m_AttributeIndex].m_Type);
     AssertString(markup, attributes[nodes[1].m_AttributeIndex].m_Value, "red");
-    ASSERT_EQ((uint8_t)MARKUP_TAG_SIZE,             nodes[2].m_Type);
-    ASSERT_EQ(0u,                                   attributes[nodes[2].m_AttributeIndex].m_Name.m_Length);
-    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_SHORTHAND,  attributes[nodes[2].m_AttributeIndex].m_Type);
+    ASSERT_EQ((uint8_t)MARKUP_TAG_SIZE, nodes[2].m_Type);
+    ASSERT_EQ(0u, attributes[nodes[2].m_AttributeIndex].m_Name.m_Length);
+    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_SHORTHAND, attributes[nodes[2].m_AttributeIndex].m_Type);
     AssertString(markup, attributes[nodes[2].m_AttributeIndex].m_Value, "14");
     MarkupDestroy(markup);
 }
@@ -245,12 +245,12 @@ TEST(Markup, EntityPrefixesAreLiteral)
 // Verifies that filtering escapes literal ampersands and preserves existing entities and tags (issue #13374).
 TEST(Markup, FilterTextWithLiteralAmpersands)
 {
-    const char source[] = "A&<color=#FF0000>B&amp;C</color>D&";
+    const char     source[] = "A&<color=#FF0000>B&amp;C</color>D&";
     const uint32_t allowed[] = { '&' };
-    const char expected[] = "&amp;<color=#FF0000>&amp;</color>&amp;";
-    char output[5 * (sizeof(source) - 1)];
-    uint32_t output_length = 0;
-    MarkupError error = {};
+    const char     expected[] = "&amp;<color=#FF0000>&amp;</color>&amp;";
+    char           output[5 * (sizeof(source) - 1)];
+    uint32_t       output_length = 0;
+    MarkupError    error = {};
 
     ASSERT_EQ(MARKUP_RESULT_OK,
               MarkupFilterText(source, sizeof(source) - 1,
@@ -265,13 +265,13 @@ TEST(Markup, FilterTextWithLiteralAmpersands)
 // Verifies that removing an unsupported codepoint cannot turn literal text into a decoded entity.
 TEST(Markup, FilterTextCannotIntroduceEntities)
 {
-    const char source[] = "<color=#FF0000>&am\xE4\xB8\xADp;</color>";
+    const char     source[] = "<color=#FF0000>&am\xE4\xB8\xADp;</color>";
     const uint32_t allowed[] = { '&', 'a', 'm', 'p', ';' };
-    const char expected_source[] = "<color=#FF0000>&amp;amp;</color>";
+    const char     expected_source[] = "<color=#FF0000>&amp;amp;</color>";
     const uint32_t expected_text[] = { '&', 'a', 'm', 'p', ';' };
-    char output[5 * (sizeof(source) - 1)];
-    uint32_t output_length = 0;
-    MarkupError error = {};
+    char           output[5 * (sizeof(source) - 1)];
+    uint32_t       output_length = 0;
+    MarkupError    error = {};
 
     ASSERT_EQ(MARKUP_RESULT_OK,
               MarkupFilterText(source, sizeof(source) - 1,
@@ -303,7 +303,7 @@ TEST(Markup, FilterTextChecksEscapedCapacity)
         { "<color=#FF0000>&</color>", "<color=#FF0000>&amp;</color>" },
     };
     const uint32_t allowed[] = { '&' };
-    char output[64];
+    char           output[64];
 
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
     {
@@ -312,8 +312,8 @@ TEST(Markup, FilterTextChecksEscapedCapacity)
         for (uint32_t capacity = source_length; capacity <= expected_length; ++capacity)
         {
             memset(output, '?', sizeof(output));
-            uint32_t output_length = 123;
-            MarkupError error = {};
+            uint32_t     output_length = 123;
+            MarkupError  error = {};
             MarkupResult result = MarkupFilterText(cases[i].m_Source, source_length,
                                                    allowed, DM_ARRAY_SIZE(allowed),
                                                    output, capacity, &output_length, &error);
@@ -337,12 +337,12 @@ TEST(Markup, FilterTextChecksEscapedCapacity)
 
 TEST(Markup, FilterTextPreservesSyntax)
 {
-    const char source[] = "<link id=\"<shadow blur=2>\">A&amp;B\xE4\xB8\xAD<sprite/></link>C";
+    const char     source[] = "<link id=\"<shadow blur=2>\">A&amp;B\xE4\xB8\xAD<sprite/></link>C";
     const uint32_t allowed[] = { 'A', '&', 'C' };
-    const char expected[] = "<link id=\"<shadow blur=2>\">A&amp;<sprite/></link>C";
-    char output[sizeof(source) - 1];
-    uint32_t output_length = 0;
-    MarkupError error = {};
+    const char     expected[] = "<link id=\"<shadow blur=2>\">A&amp;<sprite/></link>C";
+    char           output[sizeof(source) - 1];
+    uint32_t       output_length = 0;
+    MarkupError    error = {};
 
     ASSERT_EQ(MARKUP_RESULT_OK,
               MarkupFilterText(source, sizeof(source) - 1,
@@ -432,22 +432,22 @@ TEST(Markup, SelfClosingTag)
     ASSERT_EQ(2u, MarkupGetStyleNodeCount(markup));
     const MarkupStyleNode& node = MarkupGetStyleNodes(markup)[1];
     AssertString(markup, node.m_Tag, "sprite");
-    ASSERT_EQ((uint8_t)MARKUP_TAG_SPRITE,  node.m_Type);
-    ASSERT_EQ(1u,                          node.m_TextOffset);
-    ASSERT_EQ(1u,                          node.m_TextLength);
-    ASSERT_EQ(2u,                          node.m_AttributeCount);
+    ASSERT_EQ((uint8_t)MARKUP_TAG_SPRITE, node.m_Type);
+    ASSERT_EQ(1u, node.m_TextOffset);
+    ASSERT_EQ(1u, node.m_TextLength);
+    ASSERT_EQ(2u, node.m_AttributeCount);
     const MarkupAttribute* attributes = MarkupGetAttributes(markup);
     ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_CUSTOM, attributes[node.m_AttributeIndex].m_Type);
-    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_WIDTH,  attributes[node.m_AttributeIndex + 1].m_Type);
+    ASSERT_EQ((uint8_t)MARKUP_ATTRIBUTE_WIDTH, attributes[node.m_AttributeIndex + 1].m_Type);
     MarkupDestroy(markup);
 }
 
 TEST(Markup, EmptyPairedSpriteMatchesSelfClosingTag)
 {
     const char self_closing_source[] = "A<sprite src=/icon.atlas width=2em/>B";
-    const char paired_source[]       = "A<sprite src=/icon.atlas width=2em></sprite>B";
-    HMarkup   self_closing_markup    = 0;
-    HMarkup   paired_markup          = 0;
+    const char paired_source[] = "A<sprite src=/icon.atlas width=2em></sprite>B";
+    HMarkup    self_closing_markup = 0;
+    HMarkup    paired_markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(self_closing_source, sizeof(self_closing_source) - 1, &self_closing_markup, 0));
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(paired_source, sizeof(paired_source) - 1, &paired_markup, 0));
 
@@ -458,7 +458,7 @@ TEST(Markup, EmptyPairedSpriteMatchesSelfClosingTag)
     ASSERT_EQ(MarkupGetStyleNodeCount(self_closing_markup), MarkupGetStyleNodeCount(paired_markup));
 
     const MarkupStyleNode& self_closing_node = MarkupGetStyleNodes(self_closing_markup)[1];
-    const MarkupStyleNode& paired_node       = MarkupGetStyleNodes(paired_markup)[1];
+    const MarkupStyleNode& paired_node = MarkupGetStyleNodes(paired_markup)[1];
     ASSERT_EQ(self_closing_node.m_Type, paired_node.m_Type);
     ASSERT_EQ(self_closing_node.m_Parent, paired_node.m_Parent);
     ASSERT_EQ(self_closing_node.m_TextOffset, paired_node.m_TextOffset);
@@ -477,9 +477,9 @@ TEST(Markup, NamedConstants)
 
     const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
     const MarkupAttribute* attributes = MarkupGetAttributes(markup);
-    ASSERT_EQ((uint8_t)MARKUP_CONSTANT_SPAN,    attributes[nodes[1].m_AttributeIndex].m_Constant);
+    ASSERT_EQ((uint8_t)MARKUP_CONSTANT_SPAN, attributes[nodes[1].m_AttributeIndex].m_Constant);
     ASSERT_EQ((uint8_t)MARKUP_CONSTANT_REVERSE, attributes[nodes[1].m_AttributeIndex + 1].m_Constant);
-    ASSERT_EQ((uint8_t)MARKUP_CONSTANT_DASHED,  attributes[nodes[2].m_AttributeIndex].m_Constant);
+    ASSERT_EQ((uint8_t)MARKUP_CONSTANT_DASHED, attributes[nodes[2].m_AttributeIndex].m_Constant);
     MarkupDestroy(markup);
 }
 
@@ -494,8 +494,8 @@ TEST(Markup, StrictLifo)
 
 TEST(Markup, StyleFragmentAcceptsOpeningTagsOnly)
 {
-    const char source[] = "<color=#ff0000>\n    <shake amplitude=2>";
-    HMarkup markup = 0;
+    const char  source[] = "<color=#ff0000>\n    <shake amplitude=2>";
+    HMarkup     markup = 0;
     MarkupError error = {};
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreateStyleFragment(source, sizeof(source) - 1, &markup, &error));
     ASSERT_EQ(MARKUP_ERROR_NONE, error.m_Type);
@@ -526,9 +526,9 @@ TEST(Markup, InvalidUtf8)
 TEST(Markup, EveryPrefixOfLongValidText)
 {
     const char text[] =
-    "Start <wave amplitude=4 hz=2 wavelength=6>"
-    "This <gradient left=#FF00FF right=#FFFFFF>Whole</gradient> Text Wobbles!"
-    "</wave> End \xF0\x9F\x98\x80";
+        "Start <wave amplitude=4 hz=2 wavelength=6>"
+        "This <gradient left=#FF00FF right=#FFFFFF>Whole</gradient> Text Wobbles!"
+        "</wave> End \xF0\x9F\x98\x80";
     const uint32_t text_length = sizeof(text) - 1;
 
     for (uint32_t length = 0; length <= text_length; ++length)
@@ -572,7 +572,7 @@ TEST(Markup, ExplicitLengthDoesNotRequireTerminator)
 TEST(Markup, EveryPrefixOfLongTextWithManyTags)
 {
     static const char segment[] =
-    "<wave amplitude=4>A<gradient left=#FF00FF right=#FFFFFF>BC</gradient>D</wave>";
+        "<wave amplitude=4>A<gradient left=#FF00FF right=#FFFFFF>BC</gradient>D</wave>";
     static const uint32_t segment_count = 64;
     static const uint32_t segment_length = sizeof(segment) - 1;
     char                  text[segment_count * segment_length];

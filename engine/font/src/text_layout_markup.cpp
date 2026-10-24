@@ -31,7 +31,7 @@ static void EnsurePushCapacity(dmArray<T>& array)
     }
 }
 
-static const dmhash_t TAG_LINK   = dmHashString64("link");
+static const dmhash_t TAG_LINK = dmHashString64("link");
 static const dmhash_t TAG_SPRITE = dmHashString64("sprite");
 
 static bool ParseFloat(const char* source, MarkupString string, float* value)
@@ -365,8 +365,8 @@ static bool ResolveObjects(HMarkup markup, TextLayoutSettings* settings, Resolve
     const MarkupAttribute* attributes = MarkupGetAttributes(markup);
     const uint32_t         node_count = MarkupGetStyleNodeCount(markup);
 
-    uint32_t               object_count = 0;
-    uint32_t               object_attribute_count = 0;
+    uint32_t object_count = 0;
+    uint32_t object_attribute_count = 0;
 
     for (uint32_t i = 1; i < node_count; ++i)
     {
@@ -862,18 +862,18 @@ static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t t
         {
             return CreateSpatialGradient(markup, node, effect, error);
         }
-        const MarkupAttribute* left                = 0;
-        const MarkupAttribute* right               = 0;
-        const MarkupAttribute* top                 = 0;
-        const MarkupAttribute* bottom              = 0;
-        const MarkupAttribute* bl                  = 0;
-        const MarkupAttribute* br                  = 0;
-        const MarkupAttribute* tl                  = 0;
-        const MarkupAttribute* tr                  = 0;
-        const MarkupAttribute* fit                 = 0;
-        const MarkupAttribute* hz                  = 0;
+        const MarkupAttribute* left = 0;
+        const MarkupAttribute* right = 0;
+        const MarkupAttribute* top = 0;
+        const MarkupAttribute* bottom = 0;
+        const MarkupAttribute* bl = 0;
+        const MarkupAttribute* br = 0;
+        const MarkupAttribute* tl = 0;
+        const MarkupAttribute* tr = 0;
+        const MarkupAttribute* fit = 0;
+        const MarkupAttribute* hz = 0;
         const MarkupAttribute* direction_attribute = 0;
-        const MarkupAttribute* attributes          = MarkupGetAttributes(markup) + node.m_AttributeIndex;
+        const MarkupAttribute* attributes = MarkupGetAttributes(markup) + node.m_AttributeIndex;
 
         for (uint32_t i = 0; i < node.m_AttributeCount; ++i)
         {
@@ -881,26 +881,48 @@ static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t t
 
             switch (attribute->m_Type)
             {
-                case MARKUP_ATTRIBUTE_LEFT:      left = attribute; break;
-                case MARKUP_ATTRIBUTE_RIGHT:     right = attribute; break;
-                case MARKUP_ATTRIBUTE_TOP:       top = attribute; break;
-                case MARKUP_ATTRIBUTE_BOTTOM:    bottom = attribute; break;
-                case MARKUP_ATTRIBUTE_BL:        bl = attribute; break;
-                case MARKUP_ATTRIBUTE_BR:        br = attribute; break;
-                case MARKUP_ATTRIBUTE_TL:        tl = attribute; break;
-                case MARKUP_ATTRIBUTE_TR:        tr = attribute; break;
-                case MARKUP_ATTRIBUTE_FIT:       fit = attribute; break;
-                case MARKUP_ATTRIBUTE_HZ:        hz = attribute; break;
-                case MARKUP_ATTRIBUTE_DIRECTION: direction_attribute = attribute; break;
+                case MARKUP_ATTRIBUTE_LEFT:
+                    left = attribute;
+                    break;
+                case MARKUP_ATTRIBUTE_RIGHT:
+                    right = attribute;
+                    break;
+                case MARKUP_ATTRIBUTE_TOP:
+                    top = attribute;
+                    break;
+                case MARKUP_ATTRIBUTE_BOTTOM:
+                    bottom = attribute;
+                    break;
+                case MARKUP_ATTRIBUTE_BL:
+                    bl = attribute;
+                    break;
+                case MARKUP_ATTRIBUTE_BR:
+                    br = attribute;
+                    break;
+                case MARKUP_ATTRIBUTE_TL:
+                    tl = attribute;
+                    break;
+                case MARKUP_ATTRIBUTE_TR:
+                    tr = attribute;
+                    break;
+                case MARKUP_ATTRIBUTE_FIT:
+                    fit = attribute;
+                    break;
+                case MARKUP_ATTRIBUTE_HZ:
+                    hz = attribute;
+                    break;
+                case MARKUP_ATTRIBUTE_DIRECTION:
+                    direction_attribute = attribute;
+                    break;
                 default:
                     return false;
             }
         }
 
-        float direction;
+        float      direction;
         const bool horizontal = left && right && !top && !bottom && !bl && !br && !tl && !tr;
-        const bool vertical   = top && bottom && !left && !right && !bl && !br && !tl && !tr;
-        const bool quad       = bl && br && tl && tr && !left && !right && !top && !bottom;
+        const bool vertical = top && bottom && !left && !right && !bl && !br && !tl && !tr;
+        const bool quad = bl && br && tl && tr && !left && !right && !top && !bottom;
 
         if (!horizontal && !vertical && !quad)
         {
@@ -988,7 +1010,7 @@ static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t t
         const MarkupAttribute* wavelength = FindAttribute(markup, node, MARKUP_ATTRIBUTE_WAVELENGTH);
         const MarkupAttribute* fit = FindAttribute(markup, node, MARKUP_ATTRIBUTE_FIT);
         const MarkupAttribute* direction_attribute = FindAttribute(markup, node, MARKUP_ATTRIBUTE_DIRECTION);
-        float direction;
+        float                  direction;
 
         if ((amplitude && !ParseFloat(source, amplitude->m_Value, &effect->m_Wave.m_Amplitude)) ||
             (hz && !ParseFloat(source, hz->m_Value, &effect->m_Wave.m_Hz)) ||
@@ -1180,8 +1202,8 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
         else if (IsStyleNode(nodes[i]))
         {
             bool valid_node = nodes[i].m_Type == MARKUP_TAG_SIZE
-                ? ParseSize(markup, nodes[i], &style->m_FontSize, &style->m_FontSizeUnit)
-                : ApplyStyleNode(markup, nodes[i], 1.0f, style);
+                                  ? ParseSize(markup, nodes[i], &style->m_FontSize, &style->m_FontSizeUnit)
+                                  : ApplyStyleNode(markup, nodes[i], 1.0f, style);
             if (!valid_node)
             {
                 if (error)
@@ -1341,7 +1363,7 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
 
     for (uint32_t i = 1; i < node_count; ++i)
     {
-        const uint16_t parent = nodes[i].m_Parent;
+        const uint16_t          parent = nodes[i].m_Parent;
         ResolvedMarkupNodeState state = parent == MARKUP_INVALID_INDEX ? root : node_states[parent];
         node_effect_parents[i] = state.m_EffectNode;
 
@@ -1458,10 +1480,10 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
 
     for (uint32_t i = 0; i < span_count; ++i)
     {
-        const uint16_t node_index = spans[i].m_StyleNodeIndex;
+        const uint16_t                 node_index = spans[i].m_StyleNodeIndex;
         const ResolvedMarkupNodeState& state = node_index == MARKUP_INVALID_INDEX ? root : node_states[node_index];
-        uint16_t effect_index = MARKUP_INVALID_INDEX;
-        uint16_t effect_count = state.m_EffectCount;
+        uint16_t                       effect_index = MARKUP_INVALID_INDEX;
+        uint16_t                       effect_count = state.m_EffectCount;
 
         // Parent-first node indices preserve nesting order. Colors suppress only enclosing gradients.
         if (state.m_ColorNode != MARKUP_INVALID_INDEX)

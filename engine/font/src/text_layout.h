@@ -175,8 +175,8 @@ struct ResolvedMarkup
 struct TextDecorationGeometry
 {
     uint32_t m_GlyphIndex;
-    float m_X;
-    float m_Length;
+    float    m_X;
+    float    m_Length;
 };
 
 // Retain shaped metrics for decorations that an object style can enable later.
@@ -246,17 +246,17 @@ struct TextLayout
     dmArray<TextLayoutObjectBounds>    m_ObjectBounds;
     TextLayoutHitTestParams            m_ObjectBoundsParams;
 
-    HFontCollection                    m_FontCollection;
-    dmhash_t                           m_BaseStyleName;
+    HFontCollection m_FontCollection;
+    dmhash_t        m_BaseStyleName;
 
-    uint32_t                           m_NamedStyleRevision;
-    uint16_t                           m_BaseStyleCount;
-    uint16_t                           m_BaseEffectCount;
-    uint16_t                           m_BaseSpanEffectCount;
-    uint16_t                           m_BaseResolvedSpanCount;
+    uint32_t m_NamedStyleRevision;
+    uint16_t m_BaseStyleCount;
+    uint16_t m_BaseEffectCount;
+    uint16_t m_BaseSpanEffectCount;
+    uint16_t m_BaseResolvedSpanCount;
 
-    uint16_t                           m_NumValidGlyphs; // TODO: Remove non renderable glyphs
-    bool                               m_UseRichText;
+    uint16_t m_NumValidGlyphs; // TODO: Remove non renderable glyphs
+    bool     m_UseRichText;
 
     // Used for creating a cell in the glyph image cache texture
     float m_MaxGlyphWidth;

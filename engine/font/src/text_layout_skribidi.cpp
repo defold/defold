@@ -39,14 +39,14 @@ static const dmhash_t TAG_SPRITE = dmHashString64("sprite");
 
 struct LayoutContext
 {
-    skb_temp_alloc_t*   m_Alloc;
-    skb_layout_t*       m_Layout;
+    skb_temp_alloc_t* m_Alloc;
+    skb_layout_t*     m_Layout;
 };
 
 static const char* GetSystemLanguage()
 {
     static dmSys::SystemInfo info;
-    static bool initialized = false;
+    static bool              initialized = false;
 
     if (!initialized)
     {
@@ -189,8 +189,8 @@ static const char* SegmentParagraph(uint32_t* codepoints, uint32_t paragraph_sta
     while (SBScriptLocatorMoveNext(locator))
     {
         const SBScriptAgent* agent = SBScriptLocatorGetAgent(locator);
-        TextLayoutRun run = { paragraph_start + (uint32_t)agent->offset,
-                              (uint32_t)agent->length, agent->script, default_language };
+        TextLayoutRun        run = { paragraph_start + (uint32_t)agent->offset,
+                                     (uint32_t)agent->length, agent->script, default_language };
         runs.Push(run);
     }
 
@@ -218,7 +218,7 @@ static bool IsAsciiText(const uint32_t* codepoints, uint32_t num_codepoints)
 }
 
 static void TextLayoutSegmentAsciiRuns(uint32_t* codepoints, uint32_t num_codepoints,
-                                       const char* default_language,
+                                       const char*             default_language,
                                        dmArray<TextLayoutRun>& runs, dmArray<TextParagraph>& paragraphs)
 {
     uint32_t paragraph_start = 0;
@@ -261,7 +261,7 @@ static void TextLayoutSegmentAsciiRuns(uint32_t* codepoints, uint32_t num_codepo
 }
 
 static void TextLayoutSegmentSingleParagraphRuns(uint32_t* codepoints, uint32_t num_codepoints,
-                                                 const char* default_language,
+                                                 const char*             default_language,
                                                  dmArray<TextLayoutRun>& runs, dmArray<TextParagraph>& paragraphs)
 {
     runs.SetSize(0);
@@ -302,7 +302,7 @@ static bool IsSingleParagraphUnicodeText(const uint32_t* codepoints, uint32_t nu
 }
 
 void TextLayoutSegmentRuns(uint32_t* codepoints, uint32_t num_codepoints,
-                           const char* default_language,
+                           const char*             default_language,
                            dmArray<TextLayoutRun>& runs, dmArray<TextParagraph>& paragraphs)
 {
     runs.SetSize(0);
@@ -325,12 +325,12 @@ void TextLayoutSegmentRuns(uint32_t* codepoints, uint32_t num_codepoints,
         return;
     }
 
-    SBScriptLocatorRef locator = SBScriptLocatorCreate();
+    SBScriptLocatorRef  locator = SBScriptLocatorCreate();
     SBCodepointSequence sequence = { SBStringEncodingUTF32, codepoints, num_codepoints };
-    SBAlgorithmRef bidi_algorithm = SBAlgorithmCreate(&sequence);
-    uint32_t paragraph_start = 0;
-    const char* previous_paragraph_language = default_language;
-    TextDirection previous_paragraph_direction = TEXT_DIRECTION_LTR;
+    SBAlgorithmRef      bidi_algorithm = SBAlgorithmCreate(&sequence);
+    uint32_t            paragraph_start = 0;
+    const char*         previous_paragraph_language = default_language;
+    TextDirection       previous_paragraph_direction = TEXT_DIRECTION_LTR;
 
     while (paragraph_start < num_codepoints)
     {
@@ -347,10 +347,11 @@ void TextLayoutSegmentRuns(uint32_t* codepoints, uint32_t num_codepoints,
         if (paragraph_end > paragraph_start)
         {
             SBParagraphRef bidi_paragraph = SBAlgorithmCreateParagraph(bidi_algorithm, paragraph_start,
-                                                                        paragraph_end - paragraph_start,
-                                                                        SBLevelDefaultLTR);
+                                                                       paragraph_end - paragraph_start,
+                                                                       SBLevelDefaultLTR);
             paragraph_direction = (SBParagraphGetBaseLevel(bidi_paragraph) & 1)
-                                ? TEXT_DIRECTION_RTL : TEXT_DIRECTION_LTR;
+                                      ? TEXT_DIRECTION_RTL
+                                      : TEXT_DIRECTION_LTR;
             SBParagraphRelease(bidi_paragraph);
             paragraph_language = SegmentParagraph(codepoints, paragraph_start, paragraph_end - paragraph_start, default_language, locator, runs);
         }
@@ -415,10 +416,10 @@ static skb_rect2_t GetGlyphBounds(dmHashTable64<CachedGlyphBounds>& cache,
         uint32_t          m_Size;
         uint16_t          m_Glyph;
     } key = {};
-    key.m_Font  = font;
-    key.m_Size  = size_bits;
+    key.m_Font = font;
+    key.m_Size = size_bits;
     key.m_Glyph = glyph;
-    const dmhash_t hash = dmHashBuffer64(&key, sizeof(key));
+    const dmhash_t     hash = dmHashBuffer64(&key, sizeof(key));
     CachedGlyphBounds* cached = cache.Get(hash);
 
     if (cached && cached->m_Font == font && cached->m_Size == size_bits && cached->m_Glyph == glyph)
@@ -440,9 +441,9 @@ static skb_rect2_t GetGlyphBounds(dmHashTable64<CachedGlyphBounds>& cache,
 
 static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
                                const skb_layout_line_t& source_line,
-                               const skb_layout_run_t* source_runs,
-                               const skb_glyph_t* source_glyphs,
-                               const skb_decoration_t* source_decorations,
+                               const skb_layout_run_t*  source_runs,
+                               const skb_glyph_t*       source_glyphs,
+                               const skb_decoration_t*  source_decorations,
                                const dmArray<uint32_t>& source_glyph_to_output,
                                float origin_x, uint16_t padding)
 {
@@ -459,8 +460,8 @@ static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
         }
 
         const skb_layout_run_t& source_run = source_runs[source.line.layout_run_idx];
-        uint32_t glyph_start = UINT32_MAX;
-        uint32_t glyph_end = 0;
+        uint32_t                glyph_start = UINT32_MAX;
+        uint32_t                glyph_end = 0;
 
         // SkriBidi can merge decorations across runs, but only reports the
         // first run. Include every run up to the decoration's visual end.
@@ -488,15 +489,15 @@ static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
             }
         }
 
-        const float decoration_x      = source.line.x;
+        const float decoration_x = source.line.x;
         const float decoration_length = source.line.length;
 
         if (!isfinite(decoration_x) || !isfinite(decoration_length) || decoration_length <= 0.0f ||
             glyph_start == UINT32_MAX || glyph_end - glyph_start > UINT16_MAX)
             continue;
-        const float                         pattern_offset   = decoration_x - origin_x;
-        const float                         decoration_inset = decoration_length > padding ? (float)padding : 0.0f;
-        float                               decoration_y     = source.line.y;
+        const float pattern_offset = decoration_x - origin_x;
+        const float decoration_inset = decoration_length > padding ? (float)padding : 0.0f;
+        float       decoration_y = source.line.y;
 
         if (source.line.position != SKB_DECORATION_LINE_THROUGH)
         {
@@ -506,21 +507,21 @@ static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
         TextDecorationSource decoration_source = {};
         decoration_source.m_Flag = source.line.position == SKB_DECORATION_LINE_THROUGH ? TEXT_RESOLVED_DECORATION_STRIKE : TEXT_RESOLVED_DECORATION_UNDERLINE;
         TextDecoration& decoration = decoration_source.m_Decoration;
-        decoration.m_X             = decoration_x + decoration_inset;
-        decoration.m_Y             = -(decoration_y - source_run.ref_baseline);
-        decoration.m_Length        = decoration_length;
-        decoration.m_Thickness     = source.line.thickness;
+        decoration.m_X = decoration_x + decoration_inset;
+        decoration.m_Y = -(decoration_y - source_run.ref_baseline);
+        decoration.m_Length = decoration_length;
+        decoration.m_Thickness = source.line.thickness;
         decoration.m_PatternOffset = pattern_offset + decoration_inset;
-        decoration.m_GlyphStart    = glyph_start;
-        decoration.m_GlyphCount    = (uint16_t)(glyph_end - glyph_start);
-        decoration.m_LineIndex     = line_index;
-        decoration.m_Pattern       = source.line.style == SKB_DECORATION_STYLE_DASHED ? TEXT_DECORATION_PATTERN_DASHED : TEXT_DECORATION_PATTERN_SOLID;
+        decoration.m_GlyphStart = glyph_start;
+        decoration.m_GlyphCount = (uint16_t)(glyph_end - glyph_start);
+        decoration.m_LineIndex = line_index;
+        decoration.m_Pattern = source.line.style == SKB_DECORATION_STYLE_DASHED ? TEXT_DECORATION_PATTERN_DASHED : TEXT_DECORATION_PATTERN_SOLID;
         bool duplicate = false;
 
         for (uint32_t i = line_decoration_start; i < layout->m_DecorationSources.Size(); ++i)
         {
             const TextDecorationSource& existing_source = layout->m_DecorationSources[i];
-            const TextDecoration& existing = existing_source.m_Decoration;
+            const TextDecoration&       existing = existing_source.m_Decoration;
 
             if (existing_source.m_Flag == decoration_source.m_Flag &&
                 existing.m_LineIndex == decoration.m_LineIndex &&
@@ -563,7 +564,7 @@ static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
 
 static void AllocLayout(LayoutContext* ctx, HFontCollection collection)
 {
-    ctx->m_Alloc = skb_temp_alloc_create(4*1024);
+    ctx->m_Alloc = skb_temp_alloc_create(4 * 1024);
 }
 
 static void FreeLayout(LayoutContext* ctx)
@@ -573,13 +574,13 @@ static void FreeLayout(LayoutContext* ctx)
 }
 
 static bool LayoutText(LayoutContext* ctx,
-                        uint32_t* codepoints, uint32_t num_codepoints,
-                        TextLayoutSettings* settings,
-                        TextLayout* layout)
+                       uint32_t* codepoints, uint32_t num_codepoints,
+                       TextLayoutSettings* settings,
+                       TextLayout*         layout)
 {
     HFontCollection font_collection = layout->m_FontCollection;
 
-    const bool wrap_text = settings->m_LineBreak && settings->m_Width > 0.0f;
+    const bool  wrap_text = settings->m_LineBreak && settings->m_Width > 0.0f;
     const float line_width = wrap_text ? settings->m_Width : SKB_SIZE_AUTO;
     const float tracking = settings->m_Tracking * settings->m_Size;
 
@@ -600,17 +601,17 @@ static bool LayoutText(LayoutContext* ctx,
         skb_attribute_make_baseline_align(SKB_BASELINE_MIDDLE),
     };
 
-    skb_layout_params_t params = {0};
-    params.font_collection  = FontCollectionGetSkribidiPtr(font_collection);
-    params.layout_width     = line_width;
-    params.layout_height    = SKB_SIZE_AUTO;
+    skb_layout_params_t params = { 0 };
+    params.font_collection = FontCollectionGetSkribidiPtr(font_collection);
+    params.layout_width = line_width;
+    params.layout_height = SKB_SIZE_AUTO;
 
-    params.layout_attributes.attributes       = layout_attributes;
+    params.layout_attributes.attributes = layout_attributes;
     params.layout_attributes.attributes_count = sizeof(layout_attributes) / sizeof(layout_attributes[0]);
 
     dmArray<TextLayoutRun> segments;
-    const char* default_language = GetSystemLanguage();
-    const bool resolve_single_paragraph_direction = IsSingleParagraphUnicodeText(codepoints, num_codepoints);
+    const char*            default_language = GetSystemLanguage();
+    const bool             resolve_single_paragraph_direction = IsSingleParagraphUnicodeText(codepoints, num_codepoints);
 
     if (resolve_single_paragraph_direction)
     {
@@ -650,9 +651,9 @@ static bool LayoutText(LayoutContext* ctx,
         skb_attribute_t m_Attributes[5];
     };
 
-    dmArray<SkribidiAttributes>   attributes;
-    dmArray<skb_content_run_t>    runs;
-    uint32_t                      sprite_count = 0;
+    dmArray<SkribidiAttributes> attributes;
+    dmArray<skb_content_run_t>  runs;
+    uint32_t                    sprite_count = 0;
 
     for (uint32_t i = 0; i < layout->m_Objects.Size(); ++i)
     {
@@ -676,7 +677,7 @@ static bool LayoutText(LayoutContext* ctx,
         {
             while (resolved_span_index + 1 < layout->m_ResolvedSpans.Size() &&
                    run_offset >= layout->m_ResolvedSpans[resolved_span_index].m_TextOffset +
-                   layout->m_ResolvedSpans[resolved_span_index].m_TextLength)
+                                     layout->m_ResolvedSpans[resolved_span_index].m_TextLength)
             {
                 ++resolved_span_index;
             }
@@ -762,9 +763,9 @@ static bool LayoutText(LayoutContext* ctx,
 
             attributes.Push(run_attributes);
             skb_attribute_set_t run_attribute_set = { attributes.Back().m_Attributes, (int32_t)attribute_count };
-            skb_content_run_t run = object
-                                  ? skb_content_run_make_object((intptr_t)object->m_Id, object->m_Width, object->m_Height, run_attribute_set, (intptr_t)object->m_Id)
-                                  : skb_content_run_make_utf32(codepoints + run_offset, (int32_t)(run_end - run_offset), run_attribute_set, (intptr_t)run_offset + 1);
+            skb_content_run_t   run = object
+                                          ? skb_content_run_make_object((intptr_t)object->m_Id, object->m_Width, object->m_Height, run_attribute_set, (intptr_t)object->m_Id)
+                                          : skb_content_run_make_utf32(codepoints + run_offset, (int32_t)(run_end - run_offset), run_attribute_set, (intptr_t)run_offset + 1);
             runs.Push(run);
             run_offset = run_end;
         }
@@ -781,17 +782,18 @@ static bool LayoutText(LayoutContext* ctx,
     if (resolve_single_paragraph_direction)
     {
         layout->m_Paragraphs[0].m_Direction = skb_layout_get_resolved_direction(skblayout) == SKB_DIRECTION_RTL
-                                            ? TEXT_DIRECTION_RTL : TEXT_DIRECTION_LTR;
+                                                  ? TEXT_DIRECTION_RTL
+                                                  : TEXT_DIRECTION_LTR;
     }
 
-    const int32_t glyphs_count = skb_layout_get_glyphs_count(skblayout);
-    const skb_glyph_t* glyphs = skb_layout_get_glyphs(skblayout);
-    const skb_cluster_t* clusters = skb_layout_get_clusters(skblayout);
-    const skb_layout_run_t* layout_runs = skb_layout_get_layout_runs(skblayout);
+    const int32_t            glyphs_count = skb_layout_get_glyphs_count(skblayout);
+    const skb_glyph_t*       glyphs = skb_layout_get_glyphs(skblayout);
+    const skb_cluster_t*     clusters = skb_layout_get_clusters(skblayout);
+    const skb_layout_run_t*  layout_runs = skb_layout_get_layout_runs(skblayout);
     const skb_layout_line_t* layout_lines = skb_layout_get_lines(skblayout);
-    int32_t lines_count = skb_layout_get_lines_count(skblayout);
-    const int32_t decoration_count = skb_layout_get_decorations_count(skblayout);
-    const skb_decoration_t* decorations = skb_layout_get_decorations(skblayout);
+    int32_t                  lines_count = skb_layout_get_lines_count(skblayout);
+    const int32_t            decoration_count = skb_layout_get_decorations_count(skblayout);
+    const skb_decoration_t*  decorations = skb_layout_get_decorations(skblayout);
 
     // alloc
     uint32_t remaining_glyphs = layout->m_Glyphs.Remaining();
@@ -807,9 +809,9 @@ static bool LayoutText(LayoutContext* ctx,
     }
     layout->m_LineOrigins.SetCapacity(lines_count);
 
-    uint32_t num_whitespaces = 0;
-    uint32_t paragraph_index = 0;
-    const skb_text_property_t* text_properties = skb_layout_get_text_properties(skblayout);
+    uint32_t                         num_whitespaces = 0;
+    uint32_t                         paragraph_index = 0;
+    const skb_text_property_t*       text_properties = skb_layout_get_text_properties(skblayout);
     dmHashTable64<CachedGlyphBounds> glyph_bounds_cache;
     glyph_bounds_cache.SetCapacity(64);
     layout->m_DecorationSources.SetCapacity(decoration_count);
@@ -825,15 +827,15 @@ static bool LayoutText(LayoutContext* ctx,
     // From example_testbed.c
     for (int li = 0; li < lines_count; li++)
     {
-        const skb_layout_line_t* line            = &layout_lines[li];
+        const skb_layout_line_t* line = &layout_lines[li];
         const bool               has_decorations = line->decorations_range.start != line->decorations_range.end;
 
-        uint32_t prev_glyph_index    = layout->m_Glyphs.Size();
-        float    content_advance     = 0.0f;
-        float    content_start_x     = FLT_MAX;
+        uint32_t prev_glyph_index = layout->m_Glyphs.Size();
+        float    content_advance = 0.0f;
+        float    content_start_x = FLT_MAX;
         uint32_t content_first_glyph = UINT32_MAX;
-        uint32_t content_last_glyph  = 0;
-        uint32_t content_end         = (uint32_t)line->text_range.end;
+        uint32_t content_last_glyph = 0;
+        uint32_t content_end = (uint32_t)line->text_range.end;
         if (settings->m_LineBreak)
         {
             // Wrapped metrics trim logical trailing whitespace at the visual edges, including across runs before a separator.
@@ -848,11 +850,11 @@ static bool LayoutText(LayoutContext* ctx,
         for (int32_t ri = line->layout_run_range.start; ri < line->layout_run_range.end; ri++)
         {
             const skb_layout_run_t* source_run = &layout_runs[ri];
-            const bool object_run = source_run->type == SKB_CONTENT_RUN_OBJECT || source_run->type == SKB_CONTENT_RUN_ICON;
-            const float font_size = object_run ? settings->m_Size : source_run->font_size;
-            const skb_rect2_t content_bounds = object_run
-                                             ? skb_layout_get_layout_run_content_bounds(skblayout, source_run)
-                                             : skb_rect2_t{};
+            const bool              object_run = source_run->type == SKB_CONTENT_RUN_OBJECT || source_run->type == SKB_CONTENT_RUN_ICON;
+            const float             font_size = object_run ? settings->m_Size : source_run->font_size;
+            const skb_rect2_t       content_bounds = object_run
+                                                         ? skb_layout_get_layout_run_content_bounds(skblayout, source_run)
+                                                         : skb_rect2_t {};
             for (int32_t gi = source_run->glyph_range.start; gi < source_run->glyph_range.end; gi++)
             {
                 const skb_glyph_t* skbglyph = &glyphs[gi];
@@ -892,18 +894,18 @@ static bool LayoutText(LayoutContext* ctx,
                     content_last_glyph = layout->m_Glyphs.Size();
                 }
 
-                TextGlyph glyph = {0};
-                glyph.m_X               = gx;
-                glyph.m_Y               = gy;
-                glyph.m_GlyphIndex      = skbglyph->gid;
-                glyph.m_Cluster         = codepoint_index;
-                glyph.m_Codepoint       = cp;
-                glyph.m_Width           = bounds.width;
-                glyph.m_Height          = bounds.height;
-                glyph.m_RenderScale     = font_size / settings->m_Size;
-                glyph.m_Advance         = skbglyph->advance_x;
-                glyph.m_Font            = object_run ? FontCollectionGetFont(font_collection, 0) : FontCollectionGetFontFromHandle(font_collection, source_run->font_handle);
-                glyph.m_Flags           = object_run ? TEXT_GLYPH_FLAG_OBJECT : 0;
+                TextGlyph glyph = { 0 };
+                glyph.m_X = gx;
+                glyph.m_Y = gy;
+                glyph.m_GlyphIndex = skbglyph->gid;
+                glyph.m_Cluster = codepoint_index;
+                glyph.m_Codepoint = cp;
+                glyph.m_Width = bounds.width;
+                glyph.m_Height = bounds.height;
+                glyph.m_RenderScale = font_size / settings->m_Size;
+                glyph.m_Advance = skbglyph->advance_x;
+                glyph.m_Font = object_run ? FontCollectionGetFont(font_collection, 0) : FontCollectionGetFontFromHandle(font_collection, source_run->font_handle);
+                glyph.m_Flags = object_run ? TEXT_GLYPH_FLAG_OBJECT : 0;
                 glyph.m_MarkupSpanIndex = resolved_span_indices.Empty() ? MARKUP_INVALID_INDEX : resolved_span_indices[codepoint_index];
 
                 if (glyph.m_MarkupSpanIndex != MARKUP_INVALID_INDEX)
@@ -918,14 +920,14 @@ static bool LayoutText(LayoutContext* ctx,
 
 #if defined(DM_DEBUG_TEXT_LAYOUT_SKRIBIDI)
                 {
-                    printf ("gid: %d  c: '%c'  x/y: (%.3f, %.3f)  idx: %d  w/h: %.2f, %.2f\n",
-                            glyph.m_GlyphIndex,
-                            glyph.m_Codepoint,
-                            glyph.m_X,
-                            glyph.m_Y,
-                            glyph.m_Cluster,
-                            glyph.m_Width,
-                            glyph.m_Height);
+                    printf("gid: %d  c: '%c'  x/y: (%.3f, %.3f)  idx: %d  w/h: %.2f, %.2f\n",
+                           glyph.m_GlyphIndex,
+                           glyph.m_Codepoint,
+                           glyph.m_X,
+                           glyph.m_Y,
+                           glyph.m_Cluster,
+                           glyph.m_Width,
+                           glyph.m_Height);
                 }
 #endif
             }
@@ -961,8 +963,8 @@ static bool LayoutText(LayoutContext* ctx,
         TextLine l;
         // Unwrapped widths include real whitespace, but no separator advances.
         l.m_Width = fmaxf(0.0f, content_advance - (tracking > 0 ? tracking : 0));
-        l.m_Index          = prev_glyph_index;
-        l.m_Length         = glyph_index - prev_glyph_index;
+        l.m_Index = prev_glyph_index;
+        l.m_Length = glyph_index - prev_glyph_index;
 
         while (paragraph_index + 1 < layout->m_Paragraphs.Size() &&
                line->text_range.start >= (int32_t)layout->m_Paragraphs[paragraph_index + 1].m_TextIndex)
@@ -1077,13 +1079,13 @@ static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collectio
         return TEXT_RESULT_OK;
     }
 
-    LayoutContext ctx = {0};
+    LayoutContext ctx = { 0 };
     AllocLayout(&ctx, collection);
 
     bool result = LayoutText(&ctx,
-                                codepoints, num_codepoints,
-                                settings,
-                                layout);
+                             codepoints, num_codepoints,
+                             settings,
+                             layout);
 
     FreeLayout(&ctx);
 
@@ -1103,8 +1105,8 @@ static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collectio
 }
 
 TextResult TextLayoutSkribidiCreate(HFontCollection collection,
-                            uint32_t* codepoints, uint32_t num_codepoints,
-                            TextLayoutSettings* settings, TextLayout** outlayout)
+                                    uint32_t* codepoints, uint32_t num_codepoints,
+                                    TextLayoutSettings* settings, TextLayout** outlayout)
 {
     return TextLayoutSkribidiCreateInternal(collection, codepoints, num_codepoints, settings, 0, outlayout);
 }
