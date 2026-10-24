@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="1504" viewBox="0 0 1100 1504" role="img" aria-labelledby="title desc">
+<!-- Copyright 2026 The Defold Foundation
+Licensed under the Defold License version 1.0 (the "License"); you may not use
+this file except in compliance with the License.
+
+You may obtain a copy of the License, together with FAQs at
+https://www.defold.com/license
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License. -->
+<title id="title">File format: one blob, many tables</title>
+<desc id="desc">The blob contains an eight-byte DFDS/version header, an eight-byte directory, table offsets, tables and a shared string area. Each fixed structure lists its typed fields and byte offsets. Row records use the same 32-byte layout on disk and at runtime, separate from value rows. Solid arrows follow blob offsets; dashed arrows expand structures. Padding is omitted.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#237c76"/></marker>
+<marker id="expand" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52657a"/></marker>
+</defs>
+<style>
+text { font-family: Arial, Helvetica, sans-serif; fill: #172b42; font-size: 18px; }
+.title { font-size: 26px; font-weight: 700; }
+.label { font-size: 19px; font-weight: 700; }
+.small { font-size: 16px; fill: #52657a; }
+.mono { font-family: Menlo, Consolas, monospace; font-size: 16px; }
+.reference { fill: none; stroke: #237c76; stroke-width: 2; marker-end: url(#arrow); }
+.expansion { fill: none; stroke: #52657a; stroke-width: 1.8; stroke-dasharray: 5 4; marker-end: url(#expand); }
+</style>
+<rect width="1100" height="1504" rx="12" fill="#f5f8fc"/>
+<text x="32" y="42" class="title">File format: one blob, many tables</text>
+<text x="32" y="72" class="small">Version 1 · little-endian · references use blob offsets</text>
+<text x="64" y="112" class="label">Blob order</text>
+<text x="580" y="112" class="label">One table, expanded</text>
+<rect x="64" y="132" width="350" height="96" rx="7" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="82" y="160" class="label">DSFileHeader · 8 bytes</text>
+<text x="394" y="160" class="small" text-anchor="end">Byte</text>
+<text x="82" y="187" class="mono">char m_Magic[4]; // DFDS</text>
+<text x="82" y="212" class="mono">uint32_t m_Version; // 1</text>
+<text x="394" y="187" class="mono" text-anchor="end">0</text>
+<text x="394" y="212" class="mono" text-anchor="end">4</text>
+<rect x="64" y="240" width="350" height="96" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="82" y="268" class="label">DSFileDirectory · 8 bytes</text>
+<text x="394" y="268" class="small" text-anchor="end">Byte</text>
+<text x="82" y="295" class="mono">uint32_t m_TableCount;</text>
+<text x="82" y="320" class="mono">uint32_t m_StringsOffset;</text>
+<text x="394" y="295" class="mono" text-anchor="end">0</text>
+<text x="394" y="320" class="mono" text-anchor="end">4</text>
+<rect x="64" y="348" width="350" height="74" rx="7" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="82" y="374" class="label">Table offsets</text>
+<text x="82" y="402" class="mono">uint32_t table_offsets[N];</text>
+<rect x="64" y="446" width="350" height="62" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="82" y="473" class="label">Table 0</text>
+<text x="82" y="498" class="small">Metadata + rows + payloads</text>
+<rect x="64" y="520" width="350" height="62" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="82" y="547" class="label">Table 1 … table N − 1</text>
+<text x="82" y="572" class="small">Each has its own layout</text>
+<rect x="64" y="610" width="350" height="68" rx="7" fill="#fff1da" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="82" y="638" class="label">Shared string area</text>
+<text x="82" y="664" class="small">NUL-terminated, deduplicated bytes</text>
+<path d="M 64 392 H 44 V 477 H 64" class="reference"/>
+<path d="M 44 477 V 551 H 64" class="reference"/>
+<path d="M 64 320 H 24 V 644 H 64" class="reference"/>
+<path d="M 414 477 H 502 V 166 H 580" class="expansion"/>
+<rect x="580" y="132" width="488" height="220" rx="0" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="598" y="158" class="label">DSTableHeader · 24 bytes</text>
+<text x="1048" y="158" class="small" text-anchor="end">Byte</text>
+<text x="598" y="185" class="mono">uint64_t m_TypeHash;</text>
+<text x="1048" y="185" class="mono" text-anchor="end">0</text>
+<text x="598" y="209" class="mono">uint16_t m_TagCount;</text>
+<text x="1048" y="209" class="mono" text-anchor="end">8</text>
+<text x="598" y="233" class="mono">uint16_t m_FieldCount;</text>
+<text x="1048" y="233" class="mono" text-anchor="end">10</text>
+<text x="598" y="257" class="mono">uint32_t m_RowCount;</text>
+<text x="1048" y="257" class="mono" text-anchor="end">12</text>
+<text x="598" y="281" class="mono">uint32_t m_RowStride;</text>
+<text x="1048" y="281" class="mono" text-anchor="end">16</text>
+<text x="598" y="305" class="mono">uint16_t m_MetadataCount;</text>
+<text x="1048" y="305" class="mono" text-anchor="end">20</text>
+<text x="598" y="329" class="mono">uint16_t m_Reserved; // 0</text>
+<text x="1048" y="329" class="mono" text-anchor="end">22</text>
+<rect x="580" y="352" width="488" height="58" rx="0" fill="#ffffff" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="598" y="378" class="label">Tags</text>
+<text x="598" y="403" class="mono">uint64_t tags[m_TagCount];</text>
+<rect x="580" y="410" width="488" height="68" rx="0" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="598" y="436" class="label">Shared field metadata</text>
+<text x="598" y="461" class="mono">DSFileFieldMeta fields[m_MetadataCount];</text>
+<rect x="580" y="478" width="488" height="58" rx="0" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="598" y="504" class="label">Row records</text>
+<text x="598" y="529" class="mono">DSRow records[m_RowCount];</text>
+<rect x="580" y="536" width="488" height="68" rx="0" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="598" y="562" class="label">Component values: row 0  |  row 1  |  …</text>
+<text x="598" y="587" class="mono">uint8_t values[m_RowCount][m_RowStride];</text>
+<rect x="580" y="604" width="488" height="68" rx="0" fill="#fff1da" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="598" y="630" class="label">Dynamic payloads</text>
+<text x="598" y="655" class="small">Structs and lists, when present</text>
+<text x="64" y="709" class="mono">N = m_TableCount</text>
+<text x="580" y="709" class="small">Field offsets are measured from the row start.</text>
+<text x="580" y="736" class="small">Strings reference the blob’s shared string area.</text>
+<path d="M 580 506 H 554 V 760 H 504 V 800" class="expansion"/>
+<path d="M 1068 444 H 1080 V 760 H 824 V 800" class="expansion"/>
+<path d="M 1068 638 H 1090 V 1152 H 304 V 1192" class="expansion"/>
+<text x="64" y="780" class="label">Shared file / runtime row record</text>
+<text x="580" y="780" class="label">One metadata entry</text>
+<rect x="64" y="800" width="480" height="330" rx="7" fill="#e5ecfa" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="82" y="828" class="label">DSRow · 32 bytes</text>
+<text x="524" y="828" class="small" text-anchor="end">Byte</text>
+<text x="82" y="862" class="mono">uint64_t m_Group;</text>
+<text x="524" y="862" class="mono" text-anchor="end">0</text>
+<text x="82" y="886" class="mono">uint64_t m_ComponentId;</text>
+<text x="524" y="886" class="mono" text-anchor="end">8</text>
+<text x="82" y="910" class="mono">uint32_t m_Slot;</text>
+<text x="524" y="910" class="mono" text-anchor="end">16</text>
+<text x="82" y="934" class="mono">uint32_t m_BaseIndex;</text>
+<text x="524" y="934" class="mono" text-anchor="end">20</text>
+<text x="82" y="958" class="mono">uint32_t m_InstanceIndex;</text>
+<text x="524" y="958" class="mono" text-anchor="end">24</text>
+<text x="82" y="982" class="mono">uint32_t m_Reserved;</text>
+<text x="524" y="982" class="mono" text-anchor="end">28</text>
+<text x="82" y="1018" class="small">File: component name hash; all other fields are zero.</text>
+<text x="82" y="1044" class="small">Runtime: Group = managed datastore group handle;</text>
+<text x="82" y="1070" class="small">Slot = stable ID slot; BaseIndex = source/default row;</text>
+<text x="82" y="1096" class="small">InstanceIndex = blob registration. Reserved stays zero.</text>
+<rect x="580" y="800" width="488" height="330" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="598" y="828" class="label">DSFileFieldMeta · 32 bytes</text>
+<text x="1048" y="828" class="small" text-anchor="end">Byte</text>
+<text x="598" y="862" class="mono">uint64_t m_NameHash;</text>
+<text x="1048" y="862" class="mono" text-anchor="end">0</text>
+<text x="598" y="886" class="mono">uint32_t m_Kind;</text>
+<text x="1048" y="886" class="mono" text-anchor="end">8</text>
+<text x="598" y="910" class="mono">uint32_t m_ByteOffset;</text>
+<text x="1048" y="910" class="mono" text-anchor="end">12</text>
+<text x="598" y="934" class="mono">uint16_t m_ChildIndex;</text>
+<text x="1048" y="934" class="mono" text-anchor="end">16</text>
+<text x="598" y="958" class="mono">uint16_t m_ChildCount;</text>
+<text x="1048" y="958" class="mono" text-anchor="end">18</text>
+<text x="598" y="982" class="mono">uint32_t m_ByteSize;</text>
+<text x="1048" y="982" class="mono" text-anchor="end">20</text>
+<text x="598" y="1006" class="mono">uint64_t m_MemberNameHash;</text>
+<text x="1048" y="1006" class="mono" text-anchor="end">24</text>
+<text x="598" y="1040" class="small">NameHash: full name. MemberNameHash: local name.</text>
+<text x="598" y="1066" class="small">ChildIndex / ChildCount: inline member range.</text>
+<text x="598" y="1092" class="small">Root entries come first; inline member entries follow.</text>
+<text x="64" y="1172" class="label">One dynamic container</text>
+<text x="580" y="1172" class="label">Followed by m_Count entries in each array</text>
+<rect x="64" y="1192" width="480" height="206" rx="7" fill="#fff1da" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="82" y="1220" class="label">DSFileContainerHeader · 8 bytes</text>
+<text x="524" y="1220" class="small" text-anchor="end">Byte</text>
+<text x="82" y="1254" class="mono">uint32_t m_ByteSize;</text>
+<text x="82" y="1278" class="mono">uint32_t m_Count;</text>
+<text x="524" y="1254" class="mono" text-anchor="end">0</text>
+<text x="524" y="1278" class="mono" text-anchor="end">4</text>
+<text x="82" y="1320" class="small">ByteSize includes header, arrays, payloads and padding.</text>
+<text x="82" y="1346" class="small">Count is the number of immediate children.</text>
+<text x="82" y="1372" class="small">Children may have different kinds.</text>
+<rect x="580" y="1192" width="488" height="206" rx="7" fill="#fff8ec" stroke="#c3d0dd" stroke-width="1.5"/>
+<text x="598" y="1220" class="mono">uint64_t names[m_Count];</text>
+<text x="598" y="1246" class="small">Structs only; lists omit the names array.</text>
+<text x="598" y="1274" class="mono">uint32_t kinds[m_Count];</text>
+<text x="598" y="1298" class="mono">uint32_t offsets[m_Count];</text>
+<text x="598" y="1328" class="label">Child payloads + padding</text>
+<text x="598" y="1356" class="small">Offsets are blob-relative; strings use the shared area.</text>
+<path d="M 544 1266 H 580" class="expansion"/>
+<text x="32" y="1430" class="small">Byte columns are relative to each struct. Solid arrows: blob references. Dashed arrows: expansions.</text>
+<text x="32" y="1458" class="small">Metadata and tags: at most 65,535 each. Row counts, byte offsets and blob size: uint32.</text>
+<text x="32" y="1486" class="small">Blob, row-record arrays and value arrays start on eight-byte boundaries. Padding is omitted.</text>
+</svg>
