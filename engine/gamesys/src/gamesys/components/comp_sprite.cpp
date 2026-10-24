@@ -215,6 +215,8 @@ namespace dmGameSystem
     static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
     static const dmhash_t SPRITE_PROP_FRAME_COUNT   = dmHashString64("frame_count");
 
+    static const dmhash_t VECTOR_TEXTURE_HASHES[] = { dmHashString64("curve_texture"), dmHashString64("band_texture"), dmHashString64("paint_texture") };
+
     // The 9 slice function produces 16 vertices (4 rows 4 columns)
     // and since there's 2 triangles per quad and 9 quads in total,
     // the amount of indices is 6 per quad and 9 quads = 54 indices in total
@@ -422,7 +424,7 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < num_textures; ++i)
         {
-            textures[i].m_SamplerNameHash = vector ? dmHashString64("curve_texture") : material->m_SamplerNames[i];
+            textures[i].m_SamplerNameHash = vector ? VECTOR_TEXTURE_HASHES[0] : material->m_SamplerNames[i];
             textures[i].m_TextureSet = 0;
         }
 
@@ -2129,10 +2131,9 @@ namespace dmGameSystem
         ro.m_Material = GetComponentMaterial(first);
         if (IsVectorTextureSet(GetFirstTextureSet(first)))
         {
-            static const dmhash_t samplers[] = { dmHashString64("curve_texture"), dmHashString64("band_texture"), dmHashString64("paint_texture") };
-            for (uint32_t i = 0; i < 3; ++i)
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(VECTOR_TEXTURE_HASHES); ++i)
             {
-                uint32_t unit = dmRender::GetMaterialSamplerUnit(material, samplers[i]);
+                uint32_t unit = dmRender::GetMaterialSamplerUnit(material, VECTOR_TEXTURE_HASHES[i]);
                 ro.m_Textures[unit] = GetVectorAtlasTexture(GetFirstTextureSet(first), i);
             }
         }

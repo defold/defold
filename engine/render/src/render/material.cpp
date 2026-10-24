@@ -29,6 +29,10 @@ namespace dmRender
 {
     using namespace dmVMath;
 
+    static const dmhash_t CURVE_TEXTURE_HASH = dmHashString64("curve_texture");
+    static const dmhash_t BAND_TEXTURE_HASH  = dmHashString64("band_texture");
+    static const dmhash_t PAINT_TEXTURE_HASH = dmHashString64("paint_texture");
+
     static inline dmGraphics::VertexAttribute::VectorType GetAttributeVectorType(dmGraphics::Type from_type)
     {
         switch(from_type)
@@ -400,9 +404,9 @@ namespace dmRender
 
     bool IsVectorMaterial(HMaterial material)
     {
-        return GetMaterialSamplerUnit(material, dmHashString64("curve_texture")) != INVALID_SAMPLER_UNIT &&
-        GetMaterialSamplerUnit(material, dmHashString64("band_texture")) != INVALID_SAMPLER_UNIT &&
-        GetMaterialSamplerUnit(material, dmHashString64("paint_texture")) != INVALID_SAMPLER_UNIT;
+        return GetMaterialSamplerUnit(material, CURVE_TEXTURE_HASH) != INVALID_SAMPLER_UNIT &&
+               GetMaterialSamplerUnit(material, BAND_TEXTURE_HASH) != INVALID_SAMPLER_UNIT &&
+               GetMaterialSamplerUnit(material, PAINT_TEXTURE_HASH) != INVALID_SAMPLER_UNIT;
     }
 
     HSampler GetMaterialSampler(HMaterial material, uint32_t unit)

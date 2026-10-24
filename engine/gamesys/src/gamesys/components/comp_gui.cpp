@@ -68,6 +68,9 @@ namespace dmGameSystem
     static const dmhash_t STYLE_LINK_HOVER  = dmHashString64("link:hover");
     static const dmhash_t STYLE_LINK_ACTIVE = dmHashString64("link:active");
 
+    static const dmhash_t SVG_TIME_HASH = dmHashString64("svg_time");
+    static const dmhash_t VECTOR_TEXTURE_HASHES[] = { dmHashString64("curve_texture"), dmHashString64("band_texture"), dmHashString64("paint_texture") };
+
     static const char* GUI_MAX_COUNT_KEY = "gui.max_count";
 
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
@@ -720,7 +723,7 @@ namespace dmGameSystem
         gui_world->m_ClientVertexBuffer.SetCapacity(512);
         gui_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
-        dmGraphics::AddVertexStream(stream_declaration, dmHashString64("svg_time"), 1, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, SVG_TIME_HASH, 1, dmGraphics::TYPE_FLOAT, false);
         gui_world->m_VectorTimeDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
         gui_world->m_VectorTimeBuffer = dmGraphics::NewVertexBuffer(graphics_context, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
@@ -2311,7 +2314,7 @@ namespace dmGameSystem
         {
             // A second stream carries only vector-node playback time. Raster/custom vertex layouts are unchanged.
             dmRender::MaterialProgramAttributeInfo time_attribute;
-            if (dmRender::GetMaterialProgramAttributeInfo(material, dmHashString64("svg_time"), time_attribute))
+            if (dmRender::GetMaterialProgramAttributeInfo(material, SVG_TIME_HASH, time_attribute))
             {
                 ro.m_VertexBufferOffsets[0] = ro.m_VertexStart * sizeof(BoxVertex);
                 ro.m_VertexBufferOffsets[1] = gui_world->m_VectorTimes.Size() * sizeof(float);
@@ -2319,9 +2322,8 @@ namespace dmGameSystem
                 ro.m_VertexBuffers[1] = gui_world->m_VectorTimeBuffer;
                 ro.m_VertexDeclarations[1] = gui_world->m_VectorTimeDeclaration;
             }
-            const char* names[] = { "curve_texture", "band_texture", "paint_texture" };
-            for (uint32_t i = 0; i < 3; ++i)
-                ro.m_Textures[dmRender::GetMaterialSamplerUnit(material, dmHashString64(names[i]))] = GetVectorAtlasTexture(atlas, i);
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(VECTOR_TEXTURE_HASHES); ++i)
+                ro.m_Textures[dmRender::GetMaterialSamplerUnit(material, VECTOR_TEXTURE_HASHES[i])] = GetVectorAtlasTexture(atlas, i);
         }
 
         const uint32_t max_total_vertices = CalcVertexCount(scene, gui_world, texture, entries, node_count);

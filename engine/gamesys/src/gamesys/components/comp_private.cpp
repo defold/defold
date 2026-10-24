@@ -318,8 +318,9 @@ dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, c
 
 dmGameObject::PropertyResult SetRasterAtlasProperty(dmResource::HFactory factory, const dmGameObject::PropertyVar& value, void** resource)
 {
+    static const dmhash_t        textureset_ext_hash = dmHashString64("texturesetc");
     TextureSetResource*          candidate = 0;
-    dmGameObject::PropertyResult result = SetResourceProperty(factory, value, dmHashString64("texturesetc"), (void**)&candidate);
+    dmGameObject::PropertyResult result = SetResourceProperty(factory, value, textureset_ext_hash, (void**)&candidate);
     if (result != dmGameObject::PROPERTY_RESULT_OK)
         return result;
     if (IsVectorTextureSet(candidate))
