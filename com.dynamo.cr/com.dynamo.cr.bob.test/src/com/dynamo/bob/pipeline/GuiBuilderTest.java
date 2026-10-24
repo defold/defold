@@ -723,6 +723,39 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Template child overrides, including layout overrides, must validate the final arc values.
+    @Test
+    public void testInvalidTextArcTemplateOverrides() throws Exception {
+        StringBuilder template = createGui();
+        template.append("nodes { type: TYPE_TEXT id: \"text\" text: \"Arc\" arc_radius: -200 arc_angle: 120 }\n");
+        addFile("/arcTemplate.gui", template.toString());
+        Map<Integer, String> invalidOverrides = Map.of(
+                NodeDesc.ARC_ANGLE_FIELD_NUMBER, "arc_angle: 361\n",
+                NodeDesc.ARC_RADIUS_FIELD_NUMBER, "arc_radius: nan\n");
+        for (Map.Entry<Integer, String> invalid : invalidOverrides.entrySet()) {
+            for (boolean layoutOverride : new boolean[] {false, true}) {
+                StringBuilder src = createGui();
+                addTemplateNode(src, "template", "", "/arcTemplate.gui");
+                if (layoutOverride) {
+                    addOverriddenNode(src, NodeDesc.Type.TYPE_TEXT, "template/text", "template", true);
+                    startLayout(src, "Portrait");
+                }
+                startOverriddenNode(src, NodeDesc.Type.TYPE_TEXT, "template/text", "template", true, List.of(invalid.getKey()));
+                src.append(invalid.getValue());
+                finishNode(src);
+                if (layoutOverride) {
+                    finishLayout(src);
+                }
+                try {
+                    buildGui(src, "/invalidArcOverride" + invalid.getKey() + layoutOverride + ".gui");
+                    Assert.fail("Accepted invalid template arc override: " + invalid.getValue() + "layout=" + layoutOverride);
+                } catch (CompileExceptionError expected) {
+                    Assert.assertTrue(expected.getMessage().contains("arc"));
+                }
+            }
+        }
+    }
+
     @Test
     public void testSparseLayoutOverrides() throws Exception {
         StringBuilder src = createSparseTemplateGui();
