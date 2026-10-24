@@ -81,26 +81,47 @@ namespace dmGameSystem
         return (dmGraphics::PrimitiveType) -1;
     }
 
-    bool BuildVertexDeclaration(BufferResource* buffer_resource, dmGraphics::HVertexDeclaration* out_vert_decl)
+    static bool IsExcludedStream(dmhash_t stream_name, const dmhash_t* excluded_streams, uint32_t excluded_stream_count)
+    {
+        for (uint32_t i = 0; i < excluded_stream_count; ++i)
+        {
+            if (stream_name == excluded_streams[i])
+                return true;
+        }
+        return false;
+    }
+
+    bool BuildVertexDeclaration(BufferResource* buffer_resource, const dmhash_t* excluded_streams, uint32_t excluded_stream_count, dmGraphics::HVertexDeclaration* out_vert_decl)
     {
         #define CHECK_BUFFER_RESULT_OR_RETURN(res) \
-            if (res != dmBuffer::RESULT_OK) \
-                return false;
+            if (res != dmBuffer::RESULT_OK) { \
+                if (stream_declaration) \
+                    dmGraphics::DeleteVertexStreamDeclaration(stream_declaration); \
+                if (vertex_declaration) \
+                    dmGraphics::DeleteVertexDeclaration(vertex_declaration); \
+                return false; \
+            }
 
         assert(buffer_resource);
 
         dmBuffer::HBuffer buffer = buffer_resource->m_Buffer;
+        dmGraphics::HVertexStreamDeclaration stream_declaration = 0;
+        dmGraphics::HVertexDeclaration vertex_declaration = 0;
+        *out_vert_decl = 0;
 
         uint32_t stream_count;
         dmBuffer::Result buffer_res = dmBuffer::GetNumStreams(buffer, &stream_count);
         CHECK_BUFFER_RESULT_OR_RETURN(buffer_res);
-        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(g_GraphicsContext);
+        stream_declaration = dmGraphics::NewVertexStreamDeclaration(g_GraphicsContext);
 
         for (uint32_t i = 0; i < stream_count; ++i)
         {
             dmhash_t stream_name;
             buffer_res = dmBuffer::GetStreamName(buffer, i, &stream_name);
             CHECK_BUFFER_RESULT_OR_RETURN(buffer_res);
+
+            if (IsExcludedStream(stream_name, excluded_streams, excluded_stream_count))
+                continue;
 
             dmBuffer::ValueType stream_value_type;
             uint32_t stream_value_count;
@@ -120,23 +141,38 @@ namespace dmGameSystem
         uint32_t stride = dmBuffer::GetStructSize(buffer);
 
         // Init vertex declaration
-        *out_vert_decl = dmGraphics::NewVertexDeclaration(g_GraphicsContext, stream_declaration, stride);
+        vertex_declaration = dmGraphics::NewVertexDeclaration(g_GraphicsContext, stream_declaration, stride);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+        stream_declaration = 0;
 
         // Update vertex declaration with exact offsets (since streams in buffers can be aligned).
+        uint32_t declaration_stream_index = 0;
         for (uint32_t i = 0; i < stream_count; ++i)
         {
+            dmhash_t stream_name;
+            buffer_res = dmBuffer::GetStreamName(buffer, i, &stream_name);
+            CHECK_BUFFER_RESULT_OR_RETURN(buffer_res);
+
+            if (IsExcludedStream(stream_name, excluded_streams, excluded_stream_count))
+                continue;
+
             uint32_t offset = 0;
             buffer_res = dmBuffer::GetStreamOffset(buffer, i, &offset);
             CHECK_BUFFER_RESULT_OR_RETURN(buffer_res)
 
-            bool b2 = dmGraphics::SetStreamOffset(*out_vert_decl, i, offset);
+            bool b2 = dmGraphics::SetStreamOffset(vertex_declaration, declaration_stream_index++, offset);
             assert(b2);
         }
 
         #undef CHECK_BUFFER_RESULT_OR_RETURN
 
+        *out_vert_decl = vertex_declaration;
         return true;
+    }
+
+    bool BuildVertexDeclaration(BufferResource* buffer_resource, dmGraphics::HVertexDeclaration* out_vert_decl)
+    {
+        return BuildVertexDeclaration(buffer_resource, 0, 0, out_vert_decl);
     }
 
     static bool BuildVertices(MeshResource* mesh_resource)

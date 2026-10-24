@@ -1,3 +1,6 @@
 /mesh/no_data.mesh
 /mesh/test_comp.go
 /mesh/profile_counts.go
+/mesh/instancing_offset.go
+/mesh/instancing_other.buffer
+/mesh/instancing_packed.buffer

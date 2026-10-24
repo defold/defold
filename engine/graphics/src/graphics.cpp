@@ -741,7 +741,20 @@ namespace dmGraphics
 
     void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
     {
-        dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
+        // Hash only the layout, not uninitialized struct padding or shader
+        // locations that change when the declaration is bound to a program.
+        dmHashUpdateBuffer32(state, &vertex_declaration->m_Stride, sizeof(vertex_declaration->m_Stride));
+        dmHashUpdateBuffer32(state, &vertex_declaration->m_StepFunction, sizeof(vertex_declaration->m_StepFunction));
+        dmHashUpdateBuffer32(state, &vertex_declaration->m_StreamCount, sizeof(vertex_declaration->m_StreamCount));
+        for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; ++i)
+        {
+            const VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
+            dmHashUpdateBuffer32(state, &stream.m_NameHash, sizeof(stream.m_NameHash));
+            dmHashUpdateBuffer32(state, &stream.m_Size, sizeof(stream.m_Size));
+            dmHashUpdateBuffer32(state, &stream.m_Offset, sizeof(stream.m_Offset));
+            dmHashUpdateBuffer32(state, &stream.m_Type, sizeof(stream.m_Type));
+            dmHashUpdateBuffer32(state, &stream.m_Normalize, sizeof(stream.m_Normalize));
+        }
     }
 
     bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
@@ -750,6 +763,24 @@ namespace dmGraphics
             return false;
         }
         vertex_declaration->m_Streams[stream_index].m_Offset = offset;
+
+        // Offsets are part of the pipeline input layout. Rebuild the hash from
+        // stable fields so changing offsets cannot reuse an incompatible pipeline.
+        HashState64 state;
+        dmHashInit64(&state, false);
+        dmHashUpdateBuffer64(&state, &vertex_declaration->m_Stride, sizeof(vertex_declaration->m_Stride));
+        dmHashUpdateBuffer64(&state, &vertex_declaration->m_StepFunction, sizeof(vertex_declaration->m_StepFunction));
+        dmHashUpdateBuffer64(&state, &vertex_declaration->m_StreamCount, sizeof(vertex_declaration->m_StreamCount));
+        for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; ++i)
+        {
+            const VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
+            dmHashUpdateBuffer64(&state, &stream.m_NameHash, sizeof(stream.m_NameHash));
+            dmHashUpdateBuffer64(&state, &stream.m_Size, sizeof(stream.m_Size));
+            dmHashUpdateBuffer64(&state, &stream.m_Offset, sizeof(stream.m_Offset));
+            dmHashUpdateBuffer64(&state, &stream.m_Type, sizeof(stream.m_Type));
+            dmHashUpdateBuffer64(&state, &stream.m_Normalize, sizeof(stream.m_Normalize));
+        }
+        vertex_declaration->m_PipelineHash = dmHashFinal64(&state);
         return true;
     }
 
