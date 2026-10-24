@@ -144,6 +144,9 @@ file(GLOB DLIB_BASE_SOURCES CONFIGURE_DEPENDS
      "${DLIB_CORE_DIR}/http/*.cpp"
      "${DLIB_SRC_DIR}/zlib/*.c")
 
+file(GLOB DLIB_SLUG_SOURCES CONFIGURE_DEPENDS "${DLIB_SRC_DIR}/slug/*.cpp")
+list(APPEND DLIB_BASE_SOURCES ${DLIB_SLUG_SOURCES})
+
 set(DLIB_FEATURE_SOURCES)
 set(DLIB_FEATURE_FILES)
 foreach(_feature IN ITEMS
@@ -449,7 +452,12 @@ set(DLIB_SDK_HEADER_TARGETS
   dlib_public_sdk_headers
   dlib_http_sdk_headers
   dlib_profile_sdk_headers
+  dlib_slug_sdk_headers
   dlib_dmsdk_sdk_headers)
+defold_add_sdk_headers_target(dlib_slug_sdk_headers
+  DESTINATION include/slug
+  FILES "${DLIB_SRC_DIR}/slug/slug.hpp" "${DLIB_SRC_DIR}/slug/slugc.h"
+  DEPENDS dlib)
 defold_add_sdk_headers_target(dlib_dmsdk_sdk_headers
   DESTINATION sdk/include/dmsdk
   SOURCE_ROOT "${DLIB_SRC_DIR}/dmsdk"
@@ -460,6 +468,7 @@ add_custom_target(dlib_sdk_headers
   DEPENDS ${DLIB_SDK_HEADER_TARGETS})
 
 install(FILES ${DLIB_PUBLIC_HEADERS} DESTINATION include/dlib)
+install(FILES "${DLIB_SRC_DIR}/slug/slug.hpp" "${DLIB_SRC_DIR}/slug/slugc.h" DESTINATION include/slug)
 install(FILES ${DLIB_HTTP_PUBLIC_HEADERS} DESTINATION include/dlib/http)
 
 install(FILES "${DLIB_CORE_DIR}/profile/profile.h" DESTINATION include/dlib/profile)
@@ -488,6 +497,53 @@ add_custom_command(
   VERBATIM)
 add_custom_target(dlib_java ALL DEPENDS "${DLIB_JAR}")
 install(FILES "${DLIB_JAR}" DESTINATION share/java)
+
+# Slug's Java 25 tool bridge is separate from the Java 8 Android dlib.jar.
+if(TARGET dlib_shared)
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  set(DEFOLD_JEXTRACT_EXECUTABLE "jextract" CACHE FILEPATH "Java 25 jextract executable")
+  set(SLUG_JAVA_ROOT "${DLIB_SRC_DIR}/java")
+  set(SLUG_JAVA_PACKAGE "${SLUG_JAVA_ROOT}/com/dynamo/bob/slug")
+  set(SLUG_BINDING_GENERATOR "${DLIB_ROOT}/scripts/generate_slug_bindings.py")
+  set(SLUG_BINDING_COMMON "${DLIB_ROOT}/scripts/generate_java_bindings.py")
+  set(SLUG_BINDINGS_MANIFEST "${SLUG_JAVA_PACKAGE}/generated/bindings.json")
+  set(SLUG_GENERATED_JAVA
+    "${SLUG_JAVA_PACKAGE}/generated/SlugFFM.java"
+    "${SLUG_JAVA_PACKAGE}/generated/SlugSymbols.java"
+    "${SLUG_JAVA_PACKAGE}/generated/SlugPath.java"
+    "${SLUG_JAVA_PACKAGE}/generated/SlugImage.java"
+    "${SLUG_JAVA_PACKAGE}/generated/SlugTexture.java")
+  add_custom_target(generate_slug_ffm
+    COMMAND "${Python3_EXECUTABLE}" "${SLUG_BINDING_GENERATOR}"
+            --jextract "${DEFOLD_JEXTRACT_EXECUTABLE}"
+            --header "${DLIB_SRC_DIR}/slug/slugc.h"
+            --include-dir "${DLIB_SRC_DIR}" --output "${SLUG_JAVA_ROOT}"
+    DEPENDS "${DLIB_SRC_DIR}/slug/slugc.h" "${SLUG_BINDING_GENERATOR}" "${SLUG_BINDING_COMMON}"
+    COMMENT "Generating Java 25 FFM bindings for Slug")
+  set(SLUG_BINDINGS_STAMP "${CMAKE_CURRENT_BINARY_DIR}/slug-bindings.stamp")
+  add_custom_command(OUTPUT "${SLUG_BINDINGS_STAMP}"
+    COMMAND "${Python3_EXECUTABLE}" "${SLUG_BINDING_GENERATOR}" --check
+            --header "${DLIB_SRC_DIR}/slug/slugc.h"
+            --include-dir "${DLIB_SRC_DIR}" --output "${SLUG_JAVA_ROOT}"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${SLUG_BINDINGS_STAMP}"
+    DEPENDS "${DLIB_SRC_DIR}/slug/slugc.h" "${SLUG_BINDING_GENERATOR}" "${SLUG_BINDING_COMMON}"
+            "${SLUG_BINDINGS_MANIFEST}" ${SLUG_GENERATED_JAVA}
+    COMMENT "Verifying Java 25 FFM bindings for Slug")
+  add_custom_target(verify_slug_ffm DEPENDS "${SLUG_BINDINGS_STAMP}")
+  set(SLUG_JAR "${CMAKE_CURRENT_BINARY_DIR}/slug.jar")
+  set(SLUG_JAVA_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/slug-classes")
+  add_custom_command(OUTPUT "${SLUG_JAR}"
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${SLUG_JAVA_BUILD_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${SLUG_JAVA_BUILD_DIR}"
+    COMMAND "${DEFOLD_JAVAC_EXECUTABLE}" -g --release 25 -Xlint:-options -d "${SLUG_JAVA_BUILD_DIR}"
+            "${SLUG_JAVA_PACKAGE}/SlugCompiler.java" ${SLUG_GENERATED_JAVA}
+    COMMAND "${Java_JAR_EXECUTABLE}" cf "${SLUG_JAR}" -C "${SLUG_JAVA_BUILD_DIR}" .
+    DEPENDS "${SLUG_JAVA_PACKAGE}/SlugCompiler.java" ${SLUG_GENERATED_JAVA}
+    COMMENT "Packaging slug.jar")
+  add_custom_target(slug_jar ALL DEPENDS "${SLUG_JAR}")
+  add_dependencies(slug_jar verify_slug_ffm)
+  install(FILES "${SLUG_JAR}" DESTINATION share/java)
+endif()
 
 if(BUILD_TESTS)
   add_subdirectory(src/test)

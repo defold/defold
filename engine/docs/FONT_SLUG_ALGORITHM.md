@@ -119,7 +119,8 @@ does not provide a GLES 2 / WebGL 1 fallback. Projects using vector fonts must
 explicitly enable **Shader > Exclude GLES 2.0** (`shader.exclude_gles_sm100`) in
 `game.project`. Otherwise, compiling the GLES 2 shader variant reports an error.
 
-The CPU packing code is in [font_vector_slug.cpp](../font/src/font_vector_slug.cpp).
-The shared coverage shader is [font-vector-slug.glsl](../font/content/builtins/fonts/font-vector-slug.glsl),
+The shared CPU packing code is in [dlib/slug](../dlib/src/slug/slug.cpp);
+[font_vector_slug.cpp](../font/src/font_vector_slug.cpp) adapts font glyphs to it.
+The shared coverage shader is [slug.glsl](../engine/content/builtins/materials/slug.glsl),
 adapted from Eric Lengyel's Slug reference implementation with its MIT license
 retained in the source.

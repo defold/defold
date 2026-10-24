@@ -26,8 +26,8 @@
 #include <font_vector_slug.h>
 #include "fontviewer_vector_font.vp.embed.h"
 #include "fontviewer_vector_font.fp.embed.h"
-#include "font-vector-slug.glsl.embed.h"
-#include "font-vector-paint.glsl.embed.h"
+#include "slug.glsl.embed.h"
+#include "slug-paint.glsl.embed.h"
 
 using dmVMath::Matrix4;
 using dmVMath::Vector4;

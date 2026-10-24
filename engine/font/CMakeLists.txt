@@ -230,6 +230,7 @@ if(FONT_RENDERER_IS_DESKTOP)
             --include-dir "${FONT_ROOT}/../dlib/src"
             --output "${FONT_RENDERER_GENERATED_JAVA_ROOT}"
     DEPENDS "${FONTC_SRC_DIR}/fontc.h" "${FONT_RENDERER_BINDING_GENERATOR}"
+            "${FONT_ROOT}/../dlib/scripts/generate_java_bindings.py"
     COMMENT "Generating Java 25 FFM bindings for fontc.h")
   # Generated bindings are committed. Normal builds only verify their manifest
   # hashes so jextract is needed solely when regenerating them explicitly.
@@ -243,6 +244,7 @@ if(FONT_RENDERER_IS_DESKTOP)
             --output "${FONT_RENDERER_GENERATED_JAVA_ROOT}"
     COMMAND "${CMAKE_COMMAND}" -E touch "${FONT_RENDERER_BINDINGS_STAMP}"
     DEPENDS "${FONTC_SRC_DIR}/fontc.h" "${FONT_RENDERER_BINDING_GENERATOR}"
+            "${FONT_ROOT}/../dlib/scripts/generate_java_bindings.py"
             "${FONT_RENDERER_BINDINGS_MANIFEST}" ${FONT_RENDERER_GENERATED_JAVA}
     COMMENT "Verifying Java 25 FFM bindings for fontc.h")
   add_custom_target(verify_font_renderer_ffm DEPENDS "${FONT_RENDERER_BINDINGS_STAMP}")

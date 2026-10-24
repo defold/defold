@@ -16,5 +16,5 @@ void main()
     vec2 dy = dFdy(var_font_position);
     if (any(lessThan(var_position, var_clip.xy)) || any(greaterThan(var_position, var_clip.zw)))
         discard;
-    out_fragColor = FontVectorPaintGlyphColor(var_paint, var_font_position, dx, dy, var_color);
+    out_fragColor = SlugPaintImageColor(var_paint, var_font_position, dx, dy, var_color);
 }

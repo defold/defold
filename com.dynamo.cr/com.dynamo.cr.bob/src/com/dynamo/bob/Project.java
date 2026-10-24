@@ -410,6 +410,8 @@ public class Project implements AutoCloseable {
                         !className.startsWith("com.dynamo.bob.pipeline.ModelImporter") &&
                         !className.startsWith("com.dynamo.bob.font.FontRenderer") &&
                         !className.startsWith("com.dynamo.bob.font.generated.") &&
+                        !className.startsWith("com.dynamo.bob.slug.SlugCompiler") &&
+                        !className.startsWith("com.dynamo.bob.slug.generated.") &&
                         // namespaces we don't need to scan
                         !className.startsWith("com.dynamo.bob.pipeline.antlr") &&
                         // classes we don't need to bob light
