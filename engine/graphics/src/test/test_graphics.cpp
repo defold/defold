@@ -441,6 +441,65 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
+static uint32_t GetVertexDeclarationHash(dmGraphics::HVertexDeclaration declaration)
+{
+    HashState32 state;
+    dmHashInit32(&state, false);
+    dmGraphics::HashVertexDeclaration(&state, declaration);
+    return dmHashFinal32(&state);
+}
+
+// Rebuilt declarations must batch identically despite allocator padding and cached
+// shader locations, while differences in the actual vertex layout must split batches.
+TEST_F(dmGraphicsTest, VertexDeclarationHash)
+{
+    dmGraphics::VertexDeclaration::Stream streams[2][2];
+    memset(streams[0], 0, sizeof(streams[0]));
+    memset(streams[1], 0xcd, sizeof(streams[1]));
+    dmGraphics::VertexDeclaration declarations[2] = {};
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        declarations[i].m_Streams = streams[i];
+        declarations[i].m_StreamCount = 2;
+        declarations[i].m_Stride = 5 * sizeof(float);
+        declarations[i].m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+        for (uint32_t j = 0; j < 2; ++j)
+        {
+            streams[i][j].m_NameHash = dmHashString64(j == 0 ? "position" : "uv");
+            streams[i][j].m_Location = -1;
+            streams[i][j].m_Size = j == 0 ? 3 : 2;
+            streams[i][j].m_Offset = j == 0 ? 0 : 3 * sizeof(float);
+            streams[i][j].m_Type = dmGraphics::TYPE_FLOAT;
+            streams[i][j].m_Normalize = false;
+        }
+    }
+
+    const uint32_t hash = GetVertexDeclarationHash(&declarations[0]);
+    ASSERT_EQ(hash, GetVertexDeclarationHash(&declarations[1]));
+    streams[1][0].m_Location = 7;
+    ASSERT_EQ(hash, GetVertexDeclarationHash(&declarations[1]));
+
+    for (uint32_t field = 0; field < 8; ++field)
+    {
+        dmGraphics::VertexDeclaration changed = declarations[0];
+        dmGraphics::VertexDeclaration::Stream changed_streams[2];
+        memcpy(changed_streams, streams[0], sizeof(changed_streams));
+        changed.m_Streams = changed_streams;
+        switch (field)
+        {
+            case 0: changed_streams[0].m_NameHash = dmHashString64("other"); break;
+            case 1: changed_streams[0].m_Size = 2; break;
+            case 2: changed_streams[0].m_Offset = sizeof(float); break;
+            case 3: changed_streams[0].m_Type = dmGraphics::TYPE_INT; break;
+            case 4: changed_streams[0].m_Normalize = true; break;
+            case 5: changed.m_Stride += sizeof(float); break;
+            case 6: changed.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE; break;
+            case 7: changed.m_StreamCount = 1; break;
+        }
+        ASSERT_NE(hash, GetVertexDeclarationHash(&changed));
+    }
+}
+
 // Offset changes must select a distinct pipeline, while identical final layouts
 // retain the same hash regardless of mutation order or cached shader locations.
 TEST_F(dmGraphicsTest, VertexDeclarationOffsetPipelineHash)
