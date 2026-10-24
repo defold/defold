@@ -194,6 +194,7 @@ struct EngineCtx;
 struct ITest
 {
     virtual void Initialize(EngineCtx*) {};
+    virtual void BeforeFrame(EngineCtx*) {};
     virtual void Execute(EngineCtx*) {};
     virtual void AfterFlip(EngineCtx*) {};
     virtual void OnGraphicsClosing(EngineCtx*) {};
@@ -894,6 +895,7 @@ struct DrawTriangleTest : ITest
 
 // Verify equal-sized vertex/index replacements preserve earlier recorded draws,
 // guarding against shared Metal buffer overwrites when text buffers are reused (#13474).
+// Pre-frame updates exercise retirement while earlier frames may still be in flight.
 struct BufferReplacementTest : ITest
 {
     dmGraphics::HProgram           m_Program;
@@ -901,10 +903,10 @@ struct BufferReplacementTest : ITest
     dmGraphics::HVertexBuffer      m_VertexBuffer;
     dmGraphics::HVertexBuffer      m_IndexedVertexBuffer;
     dmGraphics::HIndexBuffer       m_IndexBuffer;
-    uint32_t                       m_CompletedFrames;
+    uint32_t                       m_FrameIndex;
 
     BufferReplacementTest()
-    : m_Program(0), m_VertexDeclaration(0), m_VertexBuffer(0), m_IndexedVertexBuffer(0), m_IndexBuffer(0), m_CompletedFrames(0)
+    : m_Program(0), m_VertexDeclaration(0), m_VertexBuffer(0), m_IndexedVertexBuffer(0), m_IndexBuffer(0), m_FrameIndex(0)
     {
     }
 
@@ -958,6 +960,19 @@ struct BufferReplacementTest : ITest
         dmGraphics::DeleteVertexStreamDeclaration(streams);
     }
 
+    void BeforeFrame(EngineCtx* engine) override
+    {
+        // Match mesh updates in dmGameObject::Update, before BeginFrame waits.
+        // Multiple replacements also exercise growth of the retirement queue.
+        const float vertices[] = { -1, -1, 3, -1, -1, 3 };
+        const uint16_t indices[] = { 0, 1, 2 };
+        for (uint32_t i = 0; i < 16; ++i)
+        {
+            dmGraphics::SetVertexBufferData(m_VertexBuffer, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            dmGraphics::SetIndexBufferData(m_IndexBuffer, sizeof(indices), indices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        }
+    }
+
     void Execute(EngineCtx* engine) override
     {
         dmGraphics::HContext context = engine->m_GraphicsContext;
@@ -971,7 +986,7 @@ struct BufferReplacementTest : ITest
 
         for (uint32_t cell = 0; cell < 4; ++cell)
         {
-            const uint32_t data_index = (cell + m_CompletedFrames) % 2;
+            const uint32_t data_index = (cell + m_FrameIndex) % 2;
             dmGraphics::HVertexBuffer vertex_buffer = cell < 2 ? m_VertexBuffer : m_IndexedVertexBuffer;
             if (cell < 2)
             {
@@ -997,7 +1012,8 @@ struct BufferReplacementTest : ITest
         dmGraphics::DisableVertexDeclaration(context, m_VertexDeclaration);
         dmGraphics::DisableVertexBuffer(context, m_IndexedVertexBuffer);
         dmGraphics::DisableProgram(context);
-        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_METAL)
+        // Keep the first four submissions free of synchronous readback.
+        if (m_FrameIndex >= 4)
         {
             CheckPixels(engine);
         }
@@ -1005,9 +1021,14 @@ struct BufferReplacementTest : ITest
 
     void AfterFlip(EngineCtx* engine) override
     {
-        if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL)
+        ++m_FrameIndex;
+        if (engine->m_Failed || m_FrameIndex == 7)
         {
-            CheckPixels(engine);
+            if (!engine->m_Failed)
+            {
+                dmLogInfo("Buffer replacements: vertex and index draws preserved across %u frames", m_FrameIndex);
+            }
+            engine->m_Running = 0;
         }
     }
 
@@ -1019,22 +1040,13 @@ struct BufferReplacementTest : ITest
         {
             uint8_t pixel[4] = {};
             dmGraphics::ReadPixels(context, cell * cell_width + cell_width / 2, dmGraphics::GetWindowHeight(context) / 2, 1, 1, pixel, sizeof(pixel));
-            const uint8_t expected = (cell + m_CompletedFrames) % 2 ? 0 : 255;
+            const uint8_t expected = (cell + m_FrameIndex) % 2 ? 0 : 255;
             if (pixel[0] != expected || pixel[1] != expected || pixel[2] != expected || pixel[3] != 255)
             {
                 dmLogError("Buffer replacement frame %u, %s cell %u: expected %u,%u,%u,255, got %u,%u,%u,%u",
-                    m_CompletedFrames, cell < 2 ? "vertex" : "index", cell, expected, expected, expected, pixel[0], pixel[1], pixel[2], pixel[3]);
+                    m_FrameIndex, cell < 2 ? "vertex" : "index", cell, expected, expected, expected, pixel[0], pixel[1], pixel[2], pixel[3]);
                 engine->m_Failed = true;
             }
-        }
-        ++m_CompletedFrames;
-        if (engine->m_Failed || m_CompletedFrames == 3)
-        {
-            if (!engine->m_Failed)
-            {
-                dmLogInfo("Buffer replacements: vertex and index draws preserved across %u frames", m_CompletedFrames);
-            }
-            engine->m_Running = 0;
         }
     }
 
@@ -2449,6 +2461,7 @@ static UpdateResult EngineUpdate(void* _engine)
 
     JobSystemUpdate(engine->m_JobContext, 0);
 
+    engine->m_Test->BeforeFrame(engine);
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 
     engine->m_Test->Execute(engine);
@@ -2622,5 +2635,11 @@ int main(int argc, char **argv)
     if (!InstallAdapter(argc, argv))
         return 1;
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+    if (HasArgument("buffer-replacement"))
+    {
+        printf("GRAPHICS_BUFFER_REPLACEMENT_RESULT=%d\n", result);
+        fflush(stdout);
+    }
+    return result;
 }
