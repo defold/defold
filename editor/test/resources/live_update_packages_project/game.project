@@ -1,0 +1,11 @@
+[project]
+title = Live Update packages
+
+[bootstrap]
+main_collection = /main.collectionc
+
+[input]
+game_binding = /game.input_bindingc
+
+[liveupdate]
+manifest = /liveupdate.lumanifest

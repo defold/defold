@@ -42,7 +42,8 @@ ordinary paths."
             [util.path :as path]
             [util.text-util :as text-util])
   (:import [clojure.lang DynamicClassLoader]
-           [com.dynamo.bob Platform]
+           [com.dynamo.bob ClassLoaderScanner Platform]
+           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageProviders]
            [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Problem$FailedHTTPRequest Library$Problem$FetchFailed Library$Problem$HttpConnectTimeout Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
            [editor.resource FileResource]
            [java.io File FileNotFoundException PushbackReader]
@@ -697,7 +698,9 @@ ordinary paths."
    (g/node-value workspace :dependency-uris evaluation-context)))
 
 (defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
-  (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
+  (let [snapshot-info (assoc-in (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)
+                               [:snapshot :live-update-output-paths]
+                               (set (PackageArtifacts/generatedPaths (.toPath (io/file project-path)))))]
     (assoc snapshot-info :map (resource-watch/make-resource-map (:snapshot snapshot-info)))))
 
 (defn update-snapshot-cache! [workspace snapshot-cache]
@@ -909,7 +912,12 @@ ordinary paths."
              (sort-by plugin-zip-priority))]
 
     (run! #(unpack-plugin-zip! workspace %) plugin-zips)
-    (run! #(unpack-resource! workspace %) resources)))
+    (run! #(unpack-resource! workspace %) resources)
+    (let [schemas (try
+                    (into {} (PackageProviders/describe (ClassLoaderScanner. java/class-loader)))
+                    (catch Exception error
+                      (g/error-fatal (ex-message error))))]
+      (g/transact {:undoable false} (g/set-property workspace :live-update-provider-schemas schemas)))))
 
 (defn- sync-snapshot-errors-notifications! [workspace old-errors new-errors]
   (when (or old-errors new-errors)
@@ -970,7 +978,9 @@ ordinary paths."
          moved-proj-paths (resource/expand-resource-moves physical-moved-proj-paths old-map new-map)
          changes (resource-watch/diff old-snapshot new-snapshot)]
      (sync-snapshot-errors-notifications! workspace (:errors old-snapshot) (:errors new-snapshot))
-     (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))
+     (when (or (not (resource-watch/empty-diff? changes))
+               (coll/not-empty moved-proj-paths)
+               (not= (:live-update-output-paths old-snapshot) (:live-update-output-paths new-snapshot)))
        (g/transact
          {:undoable false}
          (g/set-property workspace :resource-snapshot new-snapshot))
@@ -1069,12 +1079,15 @@ ordinary paths."
                            resource-list (vec (sort-by resource/proj-path util/natural-order (resource/resource-seq resource-tree)))
                            resource-map (coll/pair-map-by resource/proj-path identity resource-list)]
                        (g/set-properties self
+                         :live-update-output-paths (get new-value :live-update-output-paths #{})
                          :resource-tree resource-tree
                          :resource-list resource-list
                          :resource-map resource-map))))))
   (property resource-tree FileResource) ; Assigned from resource-snapshot property setter.
   (property resource-list g/Any) ; Assigned from resource-snapshot property setter.
   (property resource-map g/Any) ; Assigned from resource-snapshot property setter.
+  (property live-update-output-paths g/Any (default #{})) ; Captured with the resource snapshot.
+  (property live-update-provider-schemas g/Any (default {})) ; Updated when pipeline plugins are loaded.
   (property resource-listeners g/Any)
   (property disk-sha256s-by-node-id g/Any (default {}))
   (property view-types g/Any (default {:default {:id :default}}))

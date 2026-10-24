@@ -175,6 +175,9 @@
              :properties
              {:last-bundle-command {:type :one-of :schemas [{:type :enum :values [nil]}
                                                             {:type :keyword}]}
+              :last-bob-options {:type :object-of
+                                 :key {:type :string}
+                                 :val {:type :string}}
               :output-directory {:type :string}
               :open-output-directory {:type :boolean
                                       :default true}}}

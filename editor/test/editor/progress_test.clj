@@ -17,13 +17,22 @@
   (:require [clojure.test :refer :all]
             [editor.localization :as localization]
             [editor.progress :as progress])
-  (:import [editor.progress Progress]))
+  (:import [com.dynamo.bob IProgress$Message$PublishingLiveUpdate]
+           [editor.progress Progress]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (defn- to-map [^Progress progress]
   (into {} progress))
+
+;; Bob's publishing phase uses the ordinary localized, cancellable progress UI.
+(deftest bob-publishing-live-update-test
+  (let [actual (progress/bob IProgress$Message$PublishingLiveUpdate/INSTANCE 0.5 true)]
+    (is (= (localization/message "progress.publishing-live-update") (progress/message actual)))
+    (is (= 50 (progress/percentage actual)))
+    (is (progress/cancellable? actual))
+    (is (progress/cancelled? (progress/cancel actual)))))
 
 (deftest make-test
   (are [expected-fields progress]

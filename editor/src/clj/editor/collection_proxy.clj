@@ -34,7 +34,7 @@
 (def ^:private collection-message (properties/label-message :collection-proxy :collection))
 
 (g/defnk produce-form-data
-  [_node-id collection-resource exclude]
+  [_node-id collection-resource exclude project-settings]
   {:form-ops {:user-data {:node-id _node-id}
               :set protobuf-forms-util/set-form-op
               :clear protobuf-forms-util/clear-form-op}
@@ -45,7 +45,7 @@
                          :type :resource
                          :filter "collection"}
                         {:path [:exclude]
-                         :localization-key "collectionproxy.exclude"
+                         :localization-key (if (get project-settings ["liveupdate" "manifest"]) "collectionproxy.exclude-manifest" "collectionproxy.exclude")
                          :type :boolean}]}]
    :values {[:collection] collection-resource
             [:exclude] exclude}})
@@ -78,16 +78,18 @@
                         :dep-resources dep-resources}
             :deps dep-build-targets})])))
 
-(defn load-collection-proxy [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id collection-proxy-desc :source-value}]
+(defn load-collection-proxy [{:keys [resolve-resource-fn project]} {:keys [owner-resource] self :node-id collection-proxy-desc :source-value}]
   {:pre [(map? collection-proxy-desc)]} ; CollectionProxy$CollectionProxyDesc in map format.
   (let [resolve-resource #(resolve-resource-fn owner-resource %)]
-    (gu/set-properties-from-pb-map self CollectionProxy$CollectionProxyDesc collection-proxy-desc
+    [(g/connect project :settings self :project-settings)
+     (gu/set-properties-from-pb-map self CollectionProxy$CollectionProxyDesc collection-proxy-desc
       collection (resolve-resource :collection)
-      exclude :exclude)))
+      exclude :exclude)]))
 
 (g/defnode CollectionProxyNode
   (inherits resource-node/ResourceNode)
 
+  (input project-settings g/Any)
   (input dep-build-targets g/Any)
   (input collection-resource resource/Resource)
 
@@ -108,7 +110,10 @@
   (property exclude g/Bool
             (default (protobuf/default CollectionProxy$CollectionProxyDesc :exclude))
             (dynamic label (properties/label-dynamic :collection-proxy :exclude))
-            (dynamic tooltip (properties/tooltip-dynamic :collection-proxy :exclude)))
+            (dynamic tooltip (g/fnk [project-settings]
+                               (if (get project-settings ["liveupdate" "manifest"])
+                                 (localization/message "liveupdate.proxy-exclude")
+                                 (localization/message "property.collection-proxy.exclude.tooltip")))))
 
   (output form-data g/Any produce-form-data)
 

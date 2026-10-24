@@ -18,8 +18,8 @@
             [dynamo.graph :as g]
             [editor.build :as build]
             [editor.defold-project :as project]
-            [editor.game-project :as game-project]
             [editor.placeholder-resource :refer [PlaceholderResourceNode]]
+            [editor.pipeline :as pipeline]
             [editor.resource :as resource]
             [editor.system :as system]
             [editor.workspace :as workspace]
@@ -65,7 +65,7 @@
           memory-resource (workspace/make-memory-resource workspace :editable "lua" "return {key = 123}")
           build-resource (workspace/make-build-resource memory-resource)
           fake-file-resource (make-fake-file-resource workspace "docs/readme.txt" "Defold")
-          custom-resource (game-project/->CustomResource fake-file-resource)]
+          custom-resource (pipeline/->CustomResource fake-file-resource)]
       (is (resource/exists? file-resource))
       (is (g/node-id? file-resource-node))
       (is (resource/exists? zip-resource))

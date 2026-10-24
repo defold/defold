@@ -61,6 +61,7 @@
   (inherits resource-node/ResourceNode)
 
   (input settings-map g/Any)
+  (output settings-map g/Any (gu/passthrough settings-map))
 
   (output amazon-creds g/Any :cached
           (g/fnk [settings-map]

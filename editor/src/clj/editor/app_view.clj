@@ -786,7 +786,8 @@
    :resource-sync progress/done
    :save-all progress/done
    :fetch-libraries progress/done
-   :download-update progress/done})
+   :download-update progress/done
+   :live-update-preview progress/done})
 
 (def ^:private app-task-state
   (atom {:progress initial-app-task-progress
@@ -794,7 +795,7 @@
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
-  [:save-all :resource-sync :fetch-libraries :build :download-update :main])
+  [:save-all :resource-sync :fetch-libraries :build :download-update :live-update-preview :main])
 
 (def status-bar-controls-delay
   (delay
@@ -1637,6 +1638,11 @@
   (if-not (compare-and-set! bob-task-in-progress-atom false true)
     {:error (g/error-fatal (localization/message "error.bob.project-operation-in-progress"))}
     (try
+      (when (coll/any? #{"bundle"} commands)
+        (prefs/set! prefs [:bundle :last-bob-options]
+                    (coll/into-> (select-keys (assoc options "variant" (get options "variant" "release"))
+                                             ["platform" "architectures" "variant" "texture-compression"]) {}
+                      (map (fn [[key value]] [key (str value)])))))
       (let [evaluation-context (g/make-evaluation-context)
             options (cond-> options
                       (not (contains? options "build-server"))

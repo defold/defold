@@ -284,6 +284,7 @@ include_dirs = library
 defold_min_version = 1.10.0
 
 [liveupdate]
+manifest = /packages.lumanifest
 enabled = 1
 settings = /liveupdate.settings
 

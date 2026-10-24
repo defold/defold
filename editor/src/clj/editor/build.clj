@@ -24,6 +24,7 @@
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [util.coll :as coll]
             [util.fn :as fn])
@@ -60,6 +61,21 @@
                  acc
                  batch))
         (persistent! acc)))))
+
+(defn- resolve-resource-dependency [project proj-path compile evaluation-context]
+  (if-let [node (project/get-resource-node project proj-path evaluation-context)]
+    (let [source (g/node-value node :resource evaluation-context)
+          ;; Unknown types have a placeholder build error, but explicitly
+          ;; selected resource dependencies are allowed to copy their contents.
+          targets (when (and compile (not (resource/placeholder-resource-type? (resource/resource-type source))))
+                    (g/node-value node :build-targets evaluation-context))]
+      (if (or (g/error-value? targets) (coll/not-empty targets))
+        targets
+        (let [save-data (g/node-value node :save-data evaluation-context)
+              content (when (:dirty save-data) (resource-node/save-data-content save-data))]
+          [(pipeline/make-source-content-build-target
+             node source (if content (.getBytes ^String content java.nio.charset.StandardCharsets/UTF_8) (resource/resource->bytes source)))])))
+    (resource-io/file-not-found-error nil nil :fatal (project/resolve-path-or-resource project proj-path evaluation-context))))
 
 (defn- resolve-deps-impl
   ([build-targets project report-node-id-progress! evaluation-context]
@@ -112,7 +128,11 @@
                                                       (or
                                                         (proj-path->dynamic-build-targets proj-path)
                                                         (resource-io/file-not-found-error node-id nil :fatal (project/resolve-path-or-resource project proj-path evaluation-context))))))
-                                             dynamic-deps)]
+                                             dynamic-deps)
+                                           (coll/into-> (:dynamic-resource-deps build-target) []
+                                             (map #(resolve-resource-dependency project % true evaluation-context)))
+                                           (coll/into-> (:dynamic-custom-resource-deps build-target) []
+                                             (map #(resolve-resource-dependency project % false evaluation-context)))]
                                           project
                                           proj-path->dynamic-build-targets
                                           report-node-id-progress!
@@ -121,7 +141,7 @@
                                       resolved-deps
                                       (-> build-target
                                           (assoc :deps resolved-deps)
-                                          (dissoc :dynamic-deps)))))]
+                                          (dissoc :dynamic-deps :dynamic-resource-deps :dynamic-custom-resource-deps)))))]
                             (.put seen content-hash result)
                             result))))))))]
      (or (g/flatten-errors ret) ret))))

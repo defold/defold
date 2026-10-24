@@ -26,6 +26,7 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce]
             [util.digest :as digest])
   (:import [java.io File]))
 
@@ -99,6 +100,36 @@
 
 ;;--------------------------------------------------------------------
 
+(defonce/record CustomResource [resource]
+  ;; Only purpose is to provide resource-type with :build-ext = :ext
+  resource/Resource
+  (children [_] (resource/children resource))
+  (ext [_] (resource/ext resource))
+  (lookup-resource-type [_ _editable->type-ext->resource-type]
+    (let [ext (resource/ext resource)]
+      {:ext ext
+       :label (localization/message "resource.type.custom")
+       :build-ext ext}))
+  (source-type [_] (resource/source-type resource))
+  (exists? [_] (resource/exists? resource))
+  (read-only? [_] (resource/read-only? resource))
+  (symlink? [_] (resource/symlink? resource))
+  (path [_] (resource/path resource))
+  (abs-path [_] (resource/abs-path resource))
+  (proj-path [_] (resource/proj-path resource))
+  (resource-name [_] (resource/resource-name resource))
+  (workspace [_] (resource/workspace resource))
+  (resource-hash [_] (resource/resource-hash resource))
+  (openable? [_] (resource/openable? resource))
+  (editable? [_] (resource/editable? resource))
+  (loaded? [_] (resource/loaded? resource))
+
+  io/IOFactory
+  (make-input-stream  [_ _opts] (io/input-stream resource))
+  (make-reader        [_ _opts] (io/reader resource))
+  (make-output-stream [_ _opts] (io/output-stream resource))
+  (make-writer        [_ _opts] (io/writer resource)))
+
 (defn- build-source-bytes [build-resource _dep-resources _user-data]
   (let [source-resource (:resource build-resource)
         source-bytes (resource/resource->bytes source-resource)]
@@ -116,6 +147,16 @@
        :resource build-resource
        :build-fn build-source-bytes
        :user-data {:source-hash source-hash}})))
+
+(defn- build-source-content [build-resource _dep-resources content]
+  {:resource build-resource :content content})
+
+(defn make-source-content-build-target [node-id source-resource content]
+  (bt/with-content-hash
+    {:node-id node-id
+     :resource (workspace/make-build-resource (->CustomResource source-resource))
+     :build-fn build-source-content
+     :user-data content}))
 
 ;;--------------------------------------------------------------------
 

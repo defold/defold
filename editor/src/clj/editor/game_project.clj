@@ -24,7 +24,6 @@
             [editor.gamepads :as gamepads]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
-            [editor.pipeline :as pipeline]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings :as settings]
@@ -50,7 +49,8 @@
 (defn- ignored-setting?
   [{:keys [path]}]
   (or (= ["project" "dependencies"] path)
-      (= ["input" "gamepad_database"] path)))
+      (= ["input" "gamepad_database"] path)
+      (= ["liveupdate" "manifest"] path)))
 
 ;; Transform a settings map with build-time settings conversions.
 (defn- transform-settings! [settings]
@@ -132,36 +132,6 @@
   (make-output-stream [_ opts] (io/make-output-stream (ByteArrayOutputStream.) opts))
   (make-writer [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
 
-(defonce/record CustomResource [resource]
-  ;; Only purpose is to provide resource-type with :build-ext = :ext
-  resource/Resource
-  (children [this] (resource/children resource))
-  (ext [this] (resource/ext resource))
-  (lookup-resource-type [this _editable->type-ext->resource-type]
-    (let [ext (resource/ext this)]
-      {:ext ext
-       :label (localization/message "resource.type.custom")
-       :build-ext ext}))
-  (source-type [this] (resource/source-type resource))
-  (exists? [this] (resource/exists? resource))
-  (read-only? [this] (resource/read-only? resource))
-  (symlink? [this] (resource/symlink? resource))
-  (path [this] (resource/path resource))
-  (abs-path [this] (resource/abs-path resource))
-  (proj-path [this] (resource/proj-path resource))
-  (resource-name [this] (resource/resource-name resource))
-  (workspace [this] (resource/workspace resource))
-  (resource-hash [this] (resource/resource-hash resource))
-  (openable? [this] (resource/openable? resource))
-  (editable? [this] (resource/editable? resource))
-  (loaded? [this] (resource/loaded? resource))
-
-  io/IOFactory
-  (make-input-stream  [this opts] (io/input-stream resource))
-  (make-reader        [this opts] (io/reader resource))
-  (make-output-stream [this opts] (io/output-stream resource))
-  (make-writer        [this opts] (io/writer resource)))
-
 (defn- strip-trailing-slash [path]
   (string/replace path #"/*$" ""))
 
@@ -207,11 +177,14 @@
    ["input" "gamepad_database"] [[:resource :gamepad-database-resource]
                                  [:lines :gamepad-database-lines]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]
+   ["liveupdate" "manifest"] [[:selected-paths :manifest-selected-paths]]
+   ["liveupdate" "settings"] [[:settings-map :live-update-settings-map]]
    ["native_extension" "app_manifest"] [[:use-font-layout :use-font-layout]
                                         [:use-rich-text :use-rich-text]]})
 
-(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets custom-resources-setting resource-settings dep-build-targets dependencies gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
-  (g/precluding-errors [(some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
+(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info manifest-selected-paths custom-resource+versions custom-resources-setting resource-settings dep-build-targets dependencies gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
+  (g/precluding-errors [manifest-selected-paths
+                        (some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
                         gamepads-pb
                         gamepad-database-lines
                         (when (and gamepad-database-resource
@@ -219,10 +192,11 @@
                                    (not= "txt" (resource/ext gamepad-database-resource)))
                           (g/->error _node-id :build-targets :fatal gamepad-database-resource
                                      (localization/message "error.game-project.gamepad-database-must-be-txt")))]
-    (let [gamepads-build-target (if (and gamepads-build-targets (not gamepad-database-resource))
+    (let [custom-resource-paths (coll/into-> custom-resource+versions #{} (map (comp resource/proj-path first)))
+          gamepads-build-target (if (and gamepads-build-targets (not gamepad-database-resource))
                                   (peek gamepads-build-targets)
                                   (gamepads/make-build-target _node-id gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines))
-          dep-build-targets (cond-> (vec (into (flatten dep-build-targets) custom-build-targets))
+          dep-build-targets (cond-> (vec (flatten dep-build-targets))
                               gamepads-build-target (conj gamepads-build-target))
           deps-by-source (into {}
                                (map (fn [{build-resource :resource}]
@@ -242,7 +216,9 @@
                                        :user-data {:settings-map (assoc settings-map ["project" "custom_resources"] custom-resources-setting)
                                                    :meta-settings (:settings meta-info)
                                                    :path->built-resource-settings path->built-resource-settings}
-                                       :deps dep-build-targets})]
+                                       :deps dep-build-targets
+                                       :dynamic-resource-deps (filterv (complement custom-resource-paths) manifest-selected-paths)
+                                       :dynamic-custom-resource-deps (vec (sort custom-resource-paths))})]
       (cond-> [game-project-build-target]
         (and (get settings-map dependencies-metadata-setting-path)
              (coll/not-empty dependencies))
@@ -273,6 +249,11 @@
   ;; settings-map already cached in SettingsNode
   (output settings-map g/Any (gu/passthrough settings-map))
 
+  (input live-update-settings-map g/Any :substitute nil)
+  (output live-update-zip-compression g/Any
+          (g/fnk [live-update-settings-map]
+            (some-> (get live-update-settings-map ["liveupdate" "zip-compression-level"]) str)))
+
   (input form-data g/Any)
   (output form-data g/Any :cached (gu/passthrough form-data))
 
@@ -285,6 +266,7 @@
   (input gamepad-database-resource resource/Resource)
   (input gamepad-database-lines g/Any)
 
+  (input manifest-selected-paths g/Any)
   (input resource-map g/Any)
   (input resource-snapshot g/Any)
   (input dep-build-targets g/Any :array)
@@ -351,21 +333,6 @@
                              version (:version resource-status)]
                          (pair resource version))))))))
 
-  (output custom-build-targets g/Any :cached
-          (g/fnk [_node-id custom-resource+versions]
-            (try
-              (mapv (fn [[source-resource _version]]
-                      ;; We don't actually need the version here, since we will
-                      ;; generate a hash from the contents of each file.
-                      (pipeline/make-source-bytes-build-target _node-id (->CustomResource source-resource)))
-                    custom-resource+versions)
-              (catch Throwable error
-                (g/map->error
-                  {:_node-id _node-id
-                   :_label :custom-build-targets
-                   :message (ex-message error)
-                   :severity :fatal})))))
-
   (input save-value g/Any)
   (output save-value g/Any (gu/passthrough save-value))
 
@@ -385,6 +352,7 @@
         (g/connect self :texture-profiles-data project :texture-profiles)
         (g/connect self :use-font-layout project :use-font-layout)
         (g/connect self :use-rich-text project :use-rich-text)
+        (g/connect self :live-update-zip-compression project :live-update-zip-compression)
         (g/connect self :settings-map project :settings)))))
 
 (defn- load-game-project [{:keys [workspace] :as load-opts} {:keys [owner-resource source-value] self :node-id}]
