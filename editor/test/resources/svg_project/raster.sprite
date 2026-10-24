@@ -1,0 +1,6 @@
+default_animation: "raster"
+material: "/builtins/materials/sprite.material"
+size_mode: SIZE_MODE_MANUAL
+size { x: 100 y: 80 }
+slice9 { x: 8 y: 8 z: 8 w: 8 }
+textures { sampler: "texture_sampler" texture: "/raster.atlas" }

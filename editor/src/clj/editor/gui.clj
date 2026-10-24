@@ -55,6 +55,7 @@
             [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
             [editor.shaders :as shaders]
+            [editor.svg :as svg]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.util :as eutil]
@@ -72,7 +73,6 @@
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$SceneDesc$FontDesc Gui$SceneDesc$LayerDesc Gui$SceneDesc$LayoutDesc Gui$SceneDesc$MaterialDesc Gui$SceneDesc$ParticleFXDesc Gui$SceneDesc$TextureDesc]
            [com.jogamp.opengl GL GL3]
            [editor.gl.shader ShaderLifecycle]
-           [editor.gl.texture TextureLifecycle]
            [internal.graph.types Arc]
            [java.awt.image BufferedImage]
            [javax.vecmath Quat4d Vector3d]
@@ -112,7 +112,8 @@
   (vec3 position)
   (vec2 texcoord0)
   (vec4 color)
-  (vec1 page_index))
+  (vec1 page_index)
+  (vec1 svg_time))
 
 (def shader shaders/basic-texture-color-straight-alpha-world-space)
 (def id-shader shaders/selection-uniform-world-space)
@@ -153,13 +154,15 @@
     (when (pos? vcount)
       (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data] :as renderable}]
                             (if-let [geom-data (seq (:geom-data user-data))]
-                              (let [[r g b a] (premul (:color user-data))
+                              (let [[r g b a] (if (svg/vector-texture? (:gpu-texture user-data))
+                                                (:color user-data)
+                                                (premul (:color user-data)))
                                     page-index (:page-index user-data)]
                                 (loop [vb vb
                                        [[x y z :as vtx] & vs] (geom/transf-p world-transform geom-data)
                                        [[u v :as uv] & uvs] (:uv-data user-data)]
                                   (if vtx
-                                    (recur (uv-color-vtx-put! vb x y z u v r g b a page-index) vs uvs)
+                                    (recur (uv-color-vtx-put! vb x y z u v r g b a page-index 0.0) vs uvs)
                                     vb)))
                               vb))
                           (->uv-color-vtx vcount)
@@ -197,6 +200,7 @@
         font-data (get-in user-data [:text-data :font-data])
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
         material-shader (or (:material-shader user-data) shader)
+        vector-texture (when (svg/vector-texture? gpu-texture) gpu-texture)
         blend-mode (get user-data :blend-mode)
         render-pass (:pass render-args)
         {vb :vertex-buffer effect-texture :effect-texture} (gen-render-data gl renderables render-args material-shader)
@@ -208,28 +212,36 @@
               vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
                                (vtx2/use-with ::tris vb shader)
                                (vtx/use-with ::tris vb shader))]
-          (gl/with-gl-bindings gl render-args (into [shader vertex-binding gpu-texture effect-texture] (:vector-textures font-data))
-            (when-not (:vector? font-data)
-              (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture)))
+          (gl/with-gl-bindings gl render-args (into [shader vertex-binding (when-not vector-texture gpu-texture) effect-texture] (:vector-textures font-data))
+            (if vector-texture
+              (svg/bind-textures! gl render-args shader vector-texture)
+              (when-not (:vector? font-data)
+                (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))))
             (when effect-texture
               (shader/set-samplers-by-name shader gl "font_effects" (:texture-units effect-texture)))
             (clipping/setup-gl gl clipping-state)
             (gl/set-blend-mode gl blend-mode)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
             (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
-            (clipping/restore-gl gl clipping-state)))
+            (clipping/restore-gl gl clipping-state)
+            (when vector-texture
+              (svg/unbind-textures! gl render-args vector-texture))))
 
         pass/selection
-        (let [id-shader (or (:selection-shader font-data) id-shader)
+        (let [id-shader (or (:selection-shader vector-texture) (:selection-shader font-data) id-shader)
               vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
                                (vtx2/use-with ::tris vb id-shader)
                                (vtx/use-with ::tris vb id-shader))]
-          (gl/with-gl-bindings gl (assoc render-args (if (:vector? font-data) :id :id-color) (scene-picking/renderable-picking-id-uniform (first renderables))) (into [id-shader vertex-binding gpu-texture] (:vector-textures font-data))
-            (when-not (:vector? font-data)
-              (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture)))
+          (gl/with-gl-bindings gl (assoc render-args (if (:vector? font-data) :id :id-color) (scene-picking/renderable-picking-id-uniform (first renderables))) (into [id-shader vertex-binding (when-not vector-texture gpu-texture)] (:vector-textures font-data))
+            (if vector-texture
+              (svg/bind-textures! gl render-args id-shader vector-texture)
+              (when-not (:vector? font-data)
+                (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))))
             (clipping/setup-gl gl clipping-state)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
-            (clipping/restore-gl gl clipping-state)))))))
+            (clipping/restore-gl gl clipping-state)
+            (when vector-texture
+              (svg/unbind-textures! gl render-args vector-texture))))))))
 
 (defn- pivot->h-align [pivot]
   (case pivot
@@ -567,7 +579,9 @@
 (def ^:private TNameIndices TNameIntMap)
 
 (s/def ^:private TMaterialInfo {(s/required-key :paged) s/Bool
-                                (s/optional-key :max-page-count) s/Int})
+                                (s/optional-key :max-page-count) s/Int
+                                (s/optional-key :vector) s/Bool
+                                (s/optional-key :vector-problem) s/Any})
 
 (s/def ^:private TTextureInfo {(s/optional-key :anim-data) {s/Keyword s/Any}})
 
@@ -594,6 +608,7 @@
                                      (s/optional-key :material-infos) TGuiResourceMaterialInfos
                                      (s/optional-key :particlefx-resource-names) TGuiResourceNames
                                      (s/optional-key :texture-page-counts) TGuiResourcePageCounts
+                                     (s/optional-key :texture-vector-modes) {s/Str s/Bool}
                                      (s/optional-key :exclude-gles-sm100) s/Any
                                      (s/optional-key :texture-resource-names) TGuiResourceNames})
 (s/def ^:private TCostlyGuiSceneInfo {(s/optional-key :font-datas) TFontDatas
@@ -1591,13 +1606,27 @@
 
 (def ^:private validate-material-resource (partial validate-optional-gui-resource-localized error-gui-material-not-found-in-scene-message-fn :material))
 
-(defn- validate-material-capabilities [_node-id material-infos material texture-page-counts exclude-gles-sm100 texture]
+(defn- validate-material-capabilities [_node-id material-infos material texture-page-counts exclude-gles-sm100 texture texture-vector-modes type]
   (let [material-info (or (get material-infos material)
                           (get material-infos ""))
         is-paged-material (:paged material-info)
         material-max-page-count (:max-page-count material-info)
-        texture-page-count (get texture-page-counts texture)]
-    (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 texture-message)))
+        texture-page-count (get texture-page-counts texture)
+        vector-texture (true? (get texture-vector-modes texture))
+        vector-material (true? (:vector material-info))]
+    (cond
+      (and vector-texture (not= :type-box type))
+      (g/->error _node-id :texture :fatal texture (localization/message "error.gui.vector-box-required"))
+
+      (not= vector-texture vector-material)
+      (g/->error _node-id :material :fatal material (localization/message "error.gui.vector-material-mismatch"))
+
+      vector-texture
+      (when-let [message (:vector-problem material-info)]
+        (g/->error _node-id :material :fatal material message))
+
+      :else
+      (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 texture-message))))
 
 (g/defnk produce-visual-base-node-msg [gui-base-node-msg ^:raw visible ^:raw blend-mode ^:raw adjust-mode ^:raw material ^:raw pivot ^:raw x-anchor ^:raw y-anchor]
   (assoc gui-base-node-msg
@@ -1665,7 +1694,7 @@
                                             (let [material-shaders (:material-shaders costly-gui-scene-info)]
                                               (or (get material-shaders material)
                                                   (get material-shaders "")))))
-  (output gpu-texture TextureLifecycle (g/constantly nil))
+  (output gpu-texture g/Any (g/constantly nil))
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
           (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data visible enabled]
@@ -1875,12 +1904,12 @@
                                  (let [material-infos (:material-infos basic-gui-scene-info)
                                        material-names (some-> material-infos keys)]
                                    (wrap-layout-property-edit-type material (optional-gui-resource-choicebox material-names)))))
-            (dynamic error (g/fnk [_node-id basic-gui-scene-info material texture]
+            (dynamic error (g/fnk [_node-id basic-gui-scene-info material texture type]
                              (let [material-infos (:material-infos basic-gui-scene-info)
                                    texture-page-counts (:texture-page-counts basic-gui-scene-info)
                                    exclude-gles-sm100 (:exclude-gles-sm100 basic-gui-scene-info)]
                                (or (validate-material-resource _node-id material-infos material)
-                                   (validate-material-capabilities _node-id material-infos material texture-page-counts exclude-gles-sm100 texture)))))
+                                   (validate-material-capabilities _node-id material-infos material texture-page-counts exclude-gles-sm100 texture (:texture-vector-modes basic-gui-scene-info) type)))))
             (value (layout-property-getter material))
             (set (layout-property-setter material)))
   (property texture g/Str (default (protobuf/default Gui$NodeDesc :texture))
@@ -1922,17 +1951,17 @@
             (let [texture-infos (:texture-infos costly-gui-scene-info)
                   texture-info (get texture-infos texture)]
               (:anim-data texture-info))))
-  (output gpu-texture TextureLifecycle (g/fnk [costly-gui-scene-info texture]
-                                         (let [texture-gpu-textures (:texture-gpu-textures costly-gui-scene-info)]
-                                           (or (get texture-gpu-textures texture)
-                                               @texture/white-pixel))))
+  (output gpu-texture g/Any (g/fnk [costly-gui-scene-info texture]
+                              (let [texture-gpu-textures (:texture-gpu-textures costly-gui-scene-info)]
+                                (or (get texture-gpu-textures texture)
+                                    @texture/white-pixel))))
   (output size types/Vec3 (g/fnk [manual-size size-mode texture texture-size]
                             (if (or (= :size-mode-manual size-mode)
                                     (coll/empty? texture))
                               manual-size
                               texture-size)))
   (output build-errors-shape-node g/Any
-          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node material texture]
+          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node material texture type]
             (let [material-infos (:material-infos basic-gui-scene-info)
                   texture-page-counts (:texture-page-counts basic-gui-scene-info)
                   exclude-gles-sm100 (:exclude-gles-sm100 basic-gui-scene-info)]
@@ -1940,7 +1969,7 @@
                 _node-id
                 build-errors-visual-node ; Validates material name.
                 (validate-texture-resource _node-id texture-page-counts texture)
-                (validate-material-capabilities _node-id material-infos material texture-page-counts exclude-gles-sm100 texture)))))
+                (validate-material-capabilities _node-id material-infos material texture-page-counts exclude-gles-sm100 texture (:texture-vector-modes basic-gui-scene-info) type)))))
   (output own-build-errors g/Any (gu/passthrough build-errors-shape-node)))
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
@@ -2238,7 +2267,7 @@
 
   ;; Overloaded outputs
   (output node-msg g/Any :cached produce-text-node-msg)
-  (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
+  (output gpu-texture g/Any (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [costly-gui-scene-info manual-size font material material-shader pivot text-data color+alpha]
             (let [[w h] manual-size
@@ -2559,7 +2588,7 @@
                                                                                     (assoc :color color+alpha))))
                                                            (cond->
                                                              layer-index (assoc :layer-index layer-index)))))))))
-  (output gpu-texture TextureLifecycle (g/constantly nil))
+  (output gpu-texture g/Any (g/constantly nil))
   (output aabb g/Any (g/fnk [source-scene]
                        (if (some? source-scene)
                          (:aabb source-scene)
@@ -2594,9 +2623,11 @@
 (g/defnk produce-texture-gpu-textures [_node-id texture-names gpu-texture default-tex-params samplers]
   ;; If the referenced texture-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-texture entry for "".
-  (when (some? gpu-texture)
-    (let [gpu-texture (let [params (material/sampler->tex-params (first samplers) default-tex-params)]
-                        (texture/set-params gpu-texture params))]
+  (when gpu-texture
+    (let [gpu-texture (if (svg/vector-texture? gpu-texture)
+                        gpu-texture
+                        (let [params (material/sampler->tex-params (first samplers) default-tex-params)]
+                          (texture/set-params gpu-texture params)))]
       (into {}
             (map (fn [texture-name]
                    (pair texture-name gpu-texture)))
@@ -2653,6 +2684,7 @@
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :texture-resource]
+                                            [:atlas-mode :atlas-mode]
                                             [:gpu-texture :gpu-texture]
                                             [:texture-page-count :texture-page-count]
                                             [:anim-data :anim-data]
@@ -2672,6 +2704,7 @@
 
   (input name-counts NameCounts)
   (input default-tex-params g/Any)
+  (input atlas-mode g/Keyword)
   (input texture-resource resource/Resource)
   (input image BufferedImage :substitute nil)
   (input gpu-texture g/Any :substitute nil)
@@ -2698,6 +2731,9 @@
   (output texture-infos GuiResourceTextureInfos :cached produce-texture-infos)
   (output texture-names NameSet :cached produce-texture-names)
   (output texture-page-counts GuiResourcePageCounts :cached produce-texture-page-counts)
+  (output texture-vector-modes g/Any
+          (g/fnk [texture-names atlas-mode]
+            (coll/into-> texture-names {} (map #(pair % (= :vector atlas-mode))))))
   (output build-errors g/Any (g/fnk [_node-id name name-counts texture]
                                (g/package-errors _node-id
                                  (prop-unique-id-error _node-id :name name name-counts name-message)
@@ -2774,6 +2810,8 @@
                      [:resource :material-resource]
                      [:shader :material-shader]
                      [:max-page-count :material-max-page-count]
+                     [:samplers :samplers]
+                     [:sampler-types :sampler-types]
                      [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id material]
                              (prop-resource-error _node-id :material material material-message)))
@@ -2783,6 +2821,8 @@
 
   (input name-counts NameCounts)
 
+  (input samplers [g/KeywordMap])
+  (input sampler-types g/Any)
   (input material-max-page-count g/Int :substitute nil)
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle :substitute nil)
@@ -2806,13 +2846,15 @@
                                                         ;; If the referenced material-resource is missing, we don't return an entry.
                                                         (when (some? material-shader)
                                                           {name material-shader})))
-  (output material-infos GuiResourceMaterialInfos (g/fnk [name material-max-page-count material-shader]
+  (output material-infos GuiResourceMaterialInfos (g/fnk [name material-max-page-count material-shader samplers sampler-types]
                                                     ;; If the referenced material-resource is missing, material-max-page-count and material-shader will be nil.
                                                     ;; We still want an entry in the map, but we will not attempt to validate the page count against the texture.
                                                     ;; TODO: Depending on the material-shader here to figure out if the material is paged is a bit costly.
                                                     (let [is-paged-material (and (some? material-shader)
                                                                                  (shader/is-using-array-samplers? material-shader))
-                                                          material-info (cond-> {:paged is-paged-material}
+                                                          material-info (cond-> {:paged is-paged-material
+                                                                                 :vector (svg/vector-material? samplers)
+                                                                                 :vector-problem (svg/prop-vector-material-contract? nil samplers sampler-types)}
                                                                           material-max-page-count (assoc :max-page-count material-max-page-count))]
                                                       (sorted-map name material-info))))
   (output build-errors g/Any (g/fnk [_node-id name name-counts material]
@@ -3011,6 +3053,7 @@
     (g/connect texture :build-errors textures-node :build-errors)
     (g/connect texture :node-outline textures-node :child-outlines)
     (g/connect texture :texture-page-counts textures-node :texture-page-counts)
+    (g/connect texture :texture-vector-modes textures-node :texture-vector-modes)
     (g/connect texture :name textures-node :names)
     (g/connect textures-node :name-counts texture :name-counts)
     (g/connect self :samplers texture :samplers)
@@ -3036,6 +3079,8 @@
   (output texture-resource-names GuiResourceNames :cached (g/fnk [names] (into (sorted-set) names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
+  (input texture-vector-modes g/Any :array)
+  (output texture-vector-modes g/Any (g/fnk [texture-vector-modes] (coll/into-> texture-vector-modes {} cat)))
   (input texture-page-counts g/Any :array)
   (output texture-page-counts g/Any :cached (g/fnk [texture-page-counts]
                                               (into {} cat texture-page-counts)))
@@ -3805,6 +3850,7 @@
                      [:shader :material-shader]
                      [:max-page-count :material-max-page-count]
                      [:samplers :samplers]
+                     [:sampler-types :sampler-types]
                      [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id material]
                              (prop-resource-error _node-id :material material material-message)))
@@ -3875,6 +3921,7 @@
             (into (sorted-set)
                   layout-names)))
 
+  (input texture-vector-modes g/Any)
   (input texture-page-counts GuiResourcePageCounts)
   (output texture-page-counts GuiResourcePageCounts (gu/passthrough texture-page-counts))
 
@@ -3885,8 +3932,10 @@
 
   (input material-infos GuiResourceMaterialInfos :array)
   (output material-infos GuiResourceMaterialInfos
-          (g/fnk [material-infos material-max-page-count]
-            (into (sorted-map "" {:max-page-count material-max-page-count})
+          (g/fnk [material-infos material-max-page-count samplers sampler-types]
+            (into (sorted-map "" {:max-page-count material-max-page-count
+                                  :vector (svg/vector-material? samplers)
+                                  :vector-problem (svg/prop-vector-material-contract? nil samplers sampler-types)})
                   cat
                   material-infos)))
 
@@ -3924,6 +3973,7 @@
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (input samplers [g/KeywordMap])
+  (input sampler-types g/Any)
   (output samplers [g/KeywordMap] (gu/passthrough samplers))
 
   (output aux-gui-resource-type-names GuiResourceTypeNames :cached
@@ -4005,7 +4055,7 @@
 
   (input aux-basic-gui-scene-info BasicGuiSceneInfo)
   (output own-basic-gui-scene-info BasicGuiSceneInfo :cached
-          (g/fnk [font-names gui-resource-kind-basic-info gui-resource-kind-names layer->index layer-names material-infos particlefx-resource-names texture-page-counts exclude-gles-sm100 texture-resource-names]
+          (g/fnk [font-names gui-resource-kind-basic-info gui-resource-kind-names layer->index layer-names material-infos particlefx-resource-names texture-page-counts exclude-gles-sm100 texture-resource-names texture-vector-modes]
             {:font-names font-names
              :gui-resource-kind-basic-info gui-resource-kind-basic-info
              :gui-resource-kind-names gui-resource-kind-names
@@ -4014,6 +4064,7 @@
              :material-infos material-infos
              :particlefx-resource-names particlefx-resource-names
              :texture-page-counts texture-page-counts
+             :texture-vector-modes texture-vector-modes
              :exclude-gles-sm100 exclude-gles-sm100
              :texture-resource-names texture-resource-names}))
   (output basic-gui-scene-info BasicGuiSceneInfo :cached
@@ -4336,6 +4387,7 @@
             (attach-font self fonts-node font))))
       (g/make-nodes [textures-node TexturesNode]
         (g/connect textures-node :texture-page-counts self :texture-page-counts)
+        (g/connect textures-node :texture-vector-modes self :texture-vector-modes)
         (g/connect textures-node :_node-id self :textures-node)
         (g/connect textures-node :_node-id self :nodes)
         (g/connect textures-node :build-errors self :build-errors)

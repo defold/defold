@@ -660,6 +660,7 @@
   (output save-value g/Any produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output combined-shader-info g/Any :cached produce-combined-shader-info)
+  (output sampler-types g/Any (g/fnk [combined-shader-info] (:sampler-types combined-shader-info)))
   (output shader-request-data g/Any :cached produce-shader-request-data)
   (output shader ShaderLifecycle :cached produce-shader)
   (output samplers [g/KeywordMap] :cached produce-samplers)

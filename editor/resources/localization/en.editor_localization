@@ -2880,3 +2880,15 @@ error.gui.layer-from-template-not-found-in-scene = Layer "{layer}" from template
 error.gui.adjust-mode-stretch-not-supported-for-particlefx = Adjust mode "Stretch" is not supported for ParticleFX nodes.
 error.gui.template-resource-conflicting-values = {type} "{resource}" has conflicting values in templates: {values}.
 error.gui.max-nodes-exceeded = The actual number of nodes ({count}) exceeds "{property}" ({max}).
+
+resource.type.svg = SVG Image
+error.svg.trimming = SVG images do not support sprite trimming. Set Sprite Trim Mode to Off.
+error.atlas.mixed = An atlas cannot contain both SVG and raster images. Use a separate atlas for each type.
+scene.atlas.vector = Vector atlas
+error.sprite.vector-material = SVG atlases require a material with curve_texture, band_texture and paint_texture samplers. Raster atlases require a raster material.
+error.sprite.vector-sampler-type = Vector material sampler "{sampler}" must use a 2D texture: unsigned integer for band_texture, floating-point for curve_texture and paint_texture.
+error.sprite.vector-sampler-filter = Vector material sampler "{sampler}" must use nearest filtering and clamp-to-edge wrapping.
+error.atlas.vector-unsupported = SVG atlases are only supported by sprites and GUI box nodes.
+
+error.gui.vector-box-required = SVG atlas textures require a GUI box node.
+error.gui.vector-material-mismatch = GUI textures and materials must both use raster content or both use vector content. For SVG textures, select a material with curve_texture, band_texture and paint_texture samplers.

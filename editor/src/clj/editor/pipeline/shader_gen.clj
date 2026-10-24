@@ -223,6 +223,9 @@
      :resource-binding-namespaces resource-binding-namespaces
      :preview-light-capacity preview-light-capacity
      :array-sampler-names array-sampler-names
+     :sampler-types (coll/into-> (.getTextures spirv-reflector) {}
+                      (map (fn [^Shaderc$ShaderResource texture]
+                             (pair (.-name texture) (ShaderProgramBuilder/resourceTypeToShaderDataType (.-type texture))))))
      :attribute-reflection-infos attribute-reflection-infos}))
 
 (defn- resource-binding-namespaces->regex-str
@@ -293,6 +296,7 @@
         (reduce max 0 (map :preview-light-capacity augmented-shader-infos))]
 
     {:array-sampler-name->slice-sampler-names array-sampler-name->slice-sampler-names
+     :sampler-types (coll/into-> augmented-shader-infos {} (mapcat :sampler-types))
      :attribute-reflection-infos attribute-reflection-infos
      :location+attribute-name-pairs location+attribute-name-pairs
      :max-page-count max-page-count

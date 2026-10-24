@@ -61,6 +61,7 @@
             [editor.shared-editor-settings :as shared-editor-settings]
             [editor.sound :as sound]
             [editor.sprite :as sprite]
+            [editor.svg :as svg]
             [editor.tile-map :as tile-map]
             [editor.tile-source :as tile-source]))
 
@@ -110,6 +111,7 @@
       (shared-editor-settings/register-resource-types workspace)
       (sound/register-resource-types workspace)
       (sprite/register-resource-types workspace)
+      (svg/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
       (tile-source/register-resource-types workspace)
       (data-text/register-resource-types workspace)
