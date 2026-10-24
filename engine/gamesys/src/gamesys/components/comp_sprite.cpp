@@ -1660,10 +1660,28 @@ namespace dmGameSystem
         return anim_data;
     }
 
-    static bool HasDefaultQuadVertexFormat(const dmGraphics::VertexAttributeInfos& infos)
+    static bool HasDefaultQuadVertexFormat(const dmGraphics::VertexAttributeInfos& infos, bool vector)
     {
-        if (infos.m_NumInfos != 2 || infos.m_VertexStride != 6 * sizeof(float))
+        if (infos.m_NumInfos != (vector ? 4 : 2) || infos.m_VertexStride != (vector ? 8 : 6) * sizeof(float))
             return false;
+
+        if (vector)
+        {
+            const dmGraphics::VertexAttributeInfo& paint = infos.m_Infos[2];
+            const dmGraphics::VertexAttributeInfo& time = infos.m_Infos[3];
+            if (paint.m_SemanticType != dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX ||
+                time.m_SemanticType != dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE)
+                return false;
+            for (uint32_t i = 2; i < 4; ++i)
+            {
+                const dmGraphics::VertexAttributeInfo& info = infos.m_Infos[i];
+                if (info.m_VectorType != dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR ||
+                    info.m_DataType != dmGraphics::VertexAttribute::TYPE_FLOAT ||
+                    info.m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_VERTEX ||
+                    info.m_ElementCount != 1 || info.m_Normalize)
+                    return false;
+            }
+        }
 
         const dmGraphics::VertexAttributeInfo& position = infos.m_Infos[0];
         const dmGraphics::VertexAttributeInfo& uv = infos.m_Infos[1];
@@ -1686,6 +1704,13 @@ namespace dmGameSystem
         memcpy(vertices, &position, 4 * sizeof(float));
         memcpy(vertices + 4 * sizeof(float), uv, 2 * sizeof(float));
         return vertices + 6 * sizeof(float);
+    }
+
+    static inline uint8_t* WriteVectorQuadVertex(uint8_t* vertices, const Matrix4& world_matrix, float x, float y, const float* uv, const float* paint_time)
+    {
+        vertices = WriteDefaultQuadVertex(vertices, world_matrix, x, y, uv);
+        memcpy(vertices, paint_time, 2 * sizeof(float));
+        return vertices + 2 * sizeof(float);
     }
 
     static void CreateVertexData(SpriteWorld* sprite_world, dmGraphics::VertexAttributeInfos* material_attribute_info,
@@ -1713,8 +1738,21 @@ namespace dmGameSystem
         const dmGraphics::VertexAttributeInfoMetadata attribute_infos_meta = dmGraphics::GetVertexAttributeInfosMetaData(*scratch_attribute_infos);
         const bool has_local_position_attribute = attribute_infos_meta.m_HasAttributeLocalPosition;
         const bool has_world_position_attribute = attribute_infos_meta.m_HasAttributeWorldPosition;
-        const bool has_default_quad_vertex_format = HasDefaultQuadVertexFormat(*scratch_attribute_infos);
+        static const dmhash_t svg_time_hash = dmHashString64("svg_time");
+        int32_t svg_time_attribute = -1;
+        for (uint32_t i = 0; i < scratch_attribute_infos->m_NumInfos; ++i)
+        {
+            if (scratch_attribute_infos->m_Infos[i].m_NameHash == svg_time_hash)
+            {
+                svg_time_attribute = i;
+                break;
+            }
+        }
+        const bool has_default_quad_vertex_format = HasDefaultQuadVertexFormat(*scratch_attribute_infos, false);
+        const bool has_vector_quad_vertex_format = svg_time_attribute == 3 && HasDefaultQuadVertexFormat(*scratch_attribute_infos, true);
         bool has_default_attribute_infos = true;
+        // Keep the generated attribute's address stable across sprites in this batch.
+        float svg_time = 0;
 
         for (uint32_t* i = begin; i != end; ++i)
         {
@@ -1745,7 +1783,7 @@ namespace dmGameSystem
                 has_default_attribute_infos = true;
             }
 
-            float                                       svg_time = 0;
+            svg_time = 0;
             bool                                        vector = IsVectorTextureSet(GetFirstTextureSet(component));
             const dmGameSystemDDF::TextureSetAnimation* timeline = textures_num ? animations->m_Animations[0] : 0;
             if (vector && timeline && timeline->m_Duration > 0)
@@ -1755,15 +1793,11 @@ namespace dmGameSystem
                 const dmGameSystemDDF::TextureSet* atlas = GetFirstTextureSet(component)->m_TextureSet;
                 svg_time = progress * atlas->m_Vector.m_Images[atlas->m_FrameIndices[timeline->m_Start + frame]].m_Duration;
             }
-            for (uint32_t attribute = 0; vector && attribute < scratch_attribute_infos->m_NumInfos; ++attribute)
+            if (vector && svg_time_attribute >= 0)
             {
-                dmGraphics::VertexAttributeInfo& info = ((dmGraphics::VertexAttributeInfo*)scratch_attribute_infos->m_Infos)[attribute];
-                if (info.m_NameHash == dmHashString64("svg_time"))
-                {
-                    info.m_ValuePtr = (const uint8_t*)&svg_time;
-                    info.m_ValueVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
-                    has_default_attribute_infos = false;
-                }
+                dmGraphics::VertexAttributeInfo& info = ((dmGraphics::VertexAttributeInfo*)scratch_attribute_infos->m_Infos)[svg_time_attribute];
+                info.m_ValuePtr = (const uint8_t*)&svg_time;
+                info.m_ValueVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
             }
 
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
@@ -1917,6 +1951,14 @@ namespace dmGameSystem
                         vertices = WriteDefaultQuadVertex(vertices, world_matrix, x0 * sp_width, y1 * sp_height, scratch_uv_ptrs[0] + 2);
                         vertices = WriteDefaultQuadVertex(vertices, world_matrix, x1 * sp_width, y1 * sp_height, scratch_uv_ptrs[0] + 4);
                         vertices = WriteDefaultQuadVertex(vertices, world_matrix, x1 * sp_width, y0 * sp_height, scratch_uv_ptrs[0] + 6);
+                    }
+                    else if (vector && has_vector_quad_vertex_format && has_default_attribute_infos)
+                    {
+                        const float paint_time[] = { *scratch_pi_ptrs[0], svg_time };
+                        vertices = WriteVectorQuadVertex(vertices, world_matrix, x0 * sp_width, y0 * sp_height, scratch_uv_ptrs[0], paint_time);
+                        vertices = WriteVectorQuadVertex(vertices, world_matrix, x0 * sp_width, y1 * sp_height, scratch_uv_ptrs[0] + 2, paint_time);
+                        vertices = WriteVectorQuadVertex(vertices, world_matrix, x1 * sp_width, y1 * sp_height, scratch_uv_ptrs[0] + 4, paint_time);
+                        vertices = WriteVectorQuadVertex(vertices, world_matrix, x1 * sp_width, y0 * sp_height, scratch_uv_ptrs[0] + 6, paint_time);
                     }
                     else
                     {

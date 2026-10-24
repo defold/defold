@@ -15,6 +15,7 @@
 #include "test_gamesys_private.h"
 #include "gamesys/resources/res_textureset.h"
 #include "../scripts/script_window.h"
+#include "../../../../graphics/src/test/test_graphics_util.h"
 
 using namespace dmVMath;
 
@@ -634,6 +635,8 @@ TEST_F(SpriteTest, VectorAnimationInstanceTime)
     float       a = ReadUnalignedFloat(data + offset), b = ReadUnalignedFloat(data + stride * 4 + offset);
     ASSERT_NEAR(0.4f, dmMath::Min(a, b), EPSILON);
     ASSERT_NEAR(1.4f, dmMath::Max(a, b), EPSILON);
+    for (uint32_t vertex = 0; vertex < 8; ++vertex)
+        ASSERT_EQ(vertex < 4 ? a : b, ReadUnalignedFloat(data + vertex * stride + offset));
     dmGameSystem::TextureSetResource* atlas = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/vector_animation.a.texturesetc", (void**)&atlas));
     ASSERT_EQ(1u, atlas->m_TextureSet->m_Vector.m_Images.m_Count);
@@ -641,6 +644,108 @@ TEST_F(SpriteTest, VectorAnimationInstanceTime)
     ASSERT_NEAR(2.0f, atlas->m_TextureSet->m_Vector.m_Images[0].m_Duration, EPSILON);
     dmResource::Release(m_Factory, atlas);
     dmRender::ClearRenderObjects(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Reordered and extended vector layouts must retain per-sprite time and custom values through the generic writer.
+TEST_F(SpriteTest, VectorCustomVertexLayouts)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    m_UpdateContext.m_DT = 0;
+    dmGameObject::HInstance sprites[3];
+    dmGameObject::PropertyOptions options;
+    const dmhash_t sprite_id = dmHashString64("sprite");
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sprites); ++i)
+    {
+        sprites[i] = Spawn(m_Factory, m_Collection, "/sprite/vector_animation.goc", i + 1, 0, Point3(0, 0, (float)i), Quat::identity(), Vector3(1.0f));
+        ASSERT_NE((dmGameObject::HInstance)0, sprites[i]);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(sprites[i], sprite_id, dmHashString64("cursor"), options, dmGameObject::PropertyVar(0.2f + i * 0.25f)));
+    }
+    // A component override forces attribute restoration before the following default sprite.
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(sprites[1], sprite_id, dmHashString64("svg_time"), options, dmGameObject::PropertyVar(99.0f)));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    for (uint32_t layout = 0; layout < 3; ++layout)
+    {
+        dmGraphics::ShaderDescBuilder shaders;
+        shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        uint32_t location = 0;
+        if (layout == 0)
+            shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "svg_time", location++, dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT);
+        shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position", location++, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "texcoord0", location++, dmGraphics::ShaderDesc::SHADER_TYPE_VEC2);
+        shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "page_index", location++, dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT);
+        if (layout != 0)
+            shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "svg_time", location++, dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT);
+        if (layout == 2)
+            shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "custom", location++, dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT);
+        const char* samplers[] = { "curve_texture", "band_texture", "paint_texture" };
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(samplers); ++i)
+            shaders.AddTexture(samplers[i], i, i == 1 ? dmGraphics::ShaderDesc::SHADER_TYPE_UTEXTURE2D : dmGraphics::ShaderDesc::SHADER_TYPE_TEXTURE2D);
+        dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shaders.Get(), 0, 0);
+        ASSERT_NE((dmGraphics::HProgram)0, program);
+        dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
+        ASSERT_NE((dmRender::HMaterial)0, material);
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(samplers); ++i)
+            ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64(samplers[i]), i, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+
+        const Vector4 position(0, 0, 0, 1);
+        const float custom = 0.375f;
+        dmGraphics::VertexAttribute attributes[2] = {};
+        attributes[0].m_NameHash = dmHashString64("position");
+        attributes[0].m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
+        attributes[0].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+        attributes[0].m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+        attributes[0].m_CoordinateSpace = layout == 1 ? dmGraphics::COORDINATE_SPACE_LOCAL : dmGraphics::COORDINATE_SPACE_WORLD;
+        attributes[0].m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+        attributes[0].m_Values.m_BinaryValues.m_Data = (uint8_t*)&position;
+        attributes[0].m_Values.m_BinaryValues.m_Count = sizeof(position);
+        attributes[1].m_NameHash = dmHashString64("custom");
+        attributes[1].m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
+        attributes[1].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
+        attributes[1].m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+        attributes[1].m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+        attributes[1].m_Values.m_BinaryValues.m_Data = (uint8_t*)&custom;
+        attributes[1].m_Values.m_BinaryValues.m_Count = sizeof(custom);
+        dmRender::SetMaterialProgramAttributes(material, attributes, layout == 2 ? 2 : 1);
+        context->m_Material = material;
+        RenderCollection(m_RenderContext, m_Collection);
+
+        dmRender::BufferedRenderBuffer* vertices = 0;
+        dmRender::BufferedRenderBuffer* indices = 0;
+        dmGameSystem::GetSpriteWorldRenderBuffers(world, &vertices, &indices);
+        dmGraphics::HVertexDeclaration declaration = dmRender::GetVertexDeclaration(material);
+        uint32_t stride = dmGraphics::GetVertexDeclarationStride(declaration);
+        uint32_t time_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("svg_time"));
+        uint32_t position_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("position"));
+        uint32_t custom_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("custom"));
+        const char* data = ((dmGraphics::VertexBuffer*)vertices->m_Buffers[0])->m_Buffer;
+        ASSERT_EQ(12u * stride, dmGraphics::GetVertexBufferSize(vertices->m_Buffers[0]));
+        uint32_t seen = 0;
+        for (uint32_t quad = 0; quad < 3; ++quad)
+        {
+            float time = ReadUnalignedFloat(data + quad * 4 * stride + time_offset);
+            uint32_t instance = (uint32_t)((time - 0.4f) / 0.5f + 0.5f);
+            ASSERT_LT(instance, 3u);
+            ASSERT_NEAR(0.4f + instance * 0.5f, time, EPSILON);
+            seen |= 1u << instance;
+            for (uint32_t v = 0; v < 4; ++v)
+            {
+                const char* vertex = data + (quad * 4 + v) * stride;
+                ASSERT_EQ(time, ReadUnalignedFloat(vertex + time_offset));
+                ASSERT_EQ(layout == 1 ? 0.0f : (float)instance, ReadUnalignedFloat(vertex + position_offset + 2 * sizeof(float)));
+                if (layout == 2)
+                    ASSERT_EQ(custom, ReadUnalignedFloat(vertex + custom_offset));
+            }
+        }
+        ASSERT_EQ(7u, seen);
+        context->m_Material = 0;
+        dmRender::DeleteMaterial(m_RenderContext, material);
+        dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    }
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
