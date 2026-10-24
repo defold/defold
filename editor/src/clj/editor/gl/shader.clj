@@ -178,15 +178,14 @@
       (catch IllegalArgumentException e
         (throw (IllegalArgumentException. (format "Failed setting uniform '%s'." uniform-name) e))))))
 
-(defn- set-sampler-uniform-impl! [gl program uniform-infos slice-sampler-uniform-names texture-units]
-  (doall
-    (map (fn [slice-sampler-uniform-name texture-unit]
-           (if (nat-int? texture-unit)
-             (when-some [slice-sampler-uniform-info (uniform-infos slice-sampler-uniform-name)]
-               (set-uniform-at-index gl program (:location slice-sampler-uniform-info) texture-unit))
-             (throw (IllegalArgumentException. (format "Invalid texture unit '%s' for uniform '%s'." texture-unit slice-sampler-uniform-name)))))
-         slice-sampler-uniform-names
-         texture-units)))
+(defn- set-sampler-uniform-impl! [gl program uniform-infos sampler-uniform-names texture-units]
+  (run!
+    (fn [[sampler-uniform-name texture-unit]]
+      (if (nat-int? texture-unit)
+        (when-let [sampler-uniform-info (uniform-infos sampler-uniform-name)]
+          (set-uniform-at-index gl program (:location sampler-uniform-info) texture-unit))
+        (throw (IllegalArgumentException. (format "Invalid texture unit '%s' for uniform '%s'." texture-unit sampler-uniform-name)))))
+    (mapv vector sampler-uniform-names texture-units)))
 
 ;; TODO(instancing): Eventually we want to move the stuff related to uniform
 ;; reflection out of here. In here, it unnecessarily becomes part of the request
@@ -348,13 +347,12 @@
 (defn shader-lifecycle? [value]
   (instance? ShaderLifecycle value))
 
-(defn read-combined-shader-info [shader-paths opts shader-path->source]
-  (let [max-page-count (long (or (:max-page-count opts) 0))
-        augmented-shader-infos
+(defn read-combined-shader-info [shader-paths shader-path->source]
+  (let [augmented-shader-infos
         (coll/into-> shader-paths []
           (map (fn [^String shader-path]
                  (let [shader-source (shader-path->source shader-path)]
-                   (shader-gen/transpile-shader-source shader-path shader-source max-page-count "mediump" "highp")))))]
+                   (shader-gen/transpile-shader-source shader-path shader-source "mediump" "highp")))))]
 
     (shader-gen/combined-shader-info augmented-shader-infos)))
 
@@ -362,29 +360,26 @@
   ^ShaderLifecycle [request-type shader-paths opts shader-path->source]
   {:pre [(keyword? request-type)]}
   (let [coordinate-space (:coordinate-space opts)
-        max-page-count (or (:max-page-count opts) 0)
         uniform-values-by-name (or (:uniforms opts) {})
         _ (assert (graphics.types/concrete-coordinate-space? coordinate-space))
-        _ (assert (nat-int? max-page-count))
 
         request-id
         {:request-type request-type
-         :max-page-count max-page-count
          :shader-paths (vec (sort shader-paths))}
 
-        {:keys [array-sampler-name->slice-sampler-names
+        {:keys [array-sampler-name->uniform-names
                 attribute-reflection-infos
                 location+attribute-name-pairs
                 shader-type+source-pairs
                 preview-light-capacity
                 strip-resource-binding-namespace-regex-str]}
-        (read-combined-shader-info shader-paths opts shader-path->source)
+        (read-combined-shader-info shader-paths shader-path->source)
 
         shader-request-data
         (-> (make-shader-request-data
               shader-type+source-pairs
               location+attribute-name-pairs
-              array-sampler-name->slice-sampler-names
+              array-sampler-name->uniform-names
               strip-resource-binding-namespace-regex-str)
             (with-preview-light-capacity preview-light-capacity))
 
@@ -526,7 +521,6 @@
                 (.glDeleteShader gl gl-shader)))))
 
         strip-resource-binding-namespace-regex (some-> (.-strip-resource-binding-namespace-regex-str request-data) re-pattern)
-        array-sampler-name->uniform-names (.-array-sampler-name->uniform-names request-data)
 
         uniform-infos
         (into {}
@@ -535,18 +529,11 @@
                        (pair (:name uniform-info) uniform-info))))
               (range (gl-shader-parameter gl gl-program GL3/GL_ACTIVE_UNIFORMS)))
 
-        array-sampler-uniform-name?
-        (into #{}
-              (mapcat val)
-              array-sampler-name->uniform-names)
-
         sampler-name->uniform-names
-        (into array-sampler-name->uniform-names
-              (keep (fn [[uniform-name uniform-info]]
-                      (when (graphics.types/sampler-uniform-type? (:uniform-type uniform-info))
-                        (when-not (array-sampler-uniform-name? uniform-name)
-                          (pair uniform-name [uniform-name])))))
-              uniform-infos)
+        (coll/into-> uniform-infos {}
+          (keep (fn [[uniform-name uniform-info]]
+                  (when (graphics.types/sampler-uniform-type? (:uniform-type uniform-info))
+                    (pair uniform-name [uniform-name])))))
 
         sampler-index->sampler-name
         (->> sampler-name->uniform-names

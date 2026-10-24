@@ -28,6 +28,7 @@
            [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$TextureFormat]
            [com.jogamp.opengl GL GL3]
+           [com.jogamp.opengl.util GLPixelStorageModes]
            [com.jogamp.opengl.util.awt ImageUtil]
            [com.jogamp.opengl.util.texture Texture TextureData TextureIO]
            [java.awt.image BufferedImage DataBufferByte]
@@ -203,8 +204,16 @@
       (let [texture-unit (int (nth texture-units texture-unit-index))
             texture-request-data (texture-request-datas texture-unit-index)
             gl-texture-unit (+ texture-unit GL3/GL_TEXTURE0)
-            has-mipmaps (if (map? texture-request-data) ; Cubemaps have maps of side-kws to TextureRequestData.
+            has-mipmaps (cond
+                          (map? texture-request-data) ; Cubemaps have maps of side-kws to TextureRequestData.
                           (some-> texture-request-data first val texture-request-data-has-mipmaps?)
+
+                          (vector? texture-request-data) ; Array textures have vectors of layer TextureRequestDatas.
+                          (let [^TextureRequestData layer (first texture-request-data)]
+                            (or (.getMipmap ^TextureData (.-texture-data layer))
+                                (texture-request-data-has-mipmaps? layer)))
+
+                          :else
                           (texture-request-data-has-mipmaps? texture-request-data))]
         (.glActiveTexture ^GL3 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.bind ...) and (texture-lifecycle->texture ...)
         (let [texture (texture-lifecycle->texture texture-lifecycle gl texture-unit-index)
@@ -229,6 +238,11 @@
 
 (defn texture-lifecycle? [value]
   (instance? TextureLifecycle value))
+
+(defn array-texture?
+  "Returns whether the lifecycle binds a native 2D array texture."
+  [texture-lifecycle]
+  (= ::array-texture (:cache-id texture-lifecycle)))
 
 (defn set-params
   ^TextureLifecycle [^TextureLifecycle texture-lifecycle texture-params]
@@ -349,8 +363,11 @@
     (Murmur3/hashInt (.getHeight texture-data))
     (Murmur3/hashInt (.getBorder texture-data))
     (.hashCode (.getPixelAttributes texture-data))
+    (Murmur3/hashInt (.getPixelFormat texture-data))
+    (Murmur3/hashInt (.getPixelType texture-data))
     (Murmur3/hashInt (.getInternalFormat texture-data))
     (hash (.getMipmap texture-data))
+    (Murmur3/hashInt (count (.getMipmapData texture-data)))
     (hash (.isDataCompressed texture-data))
     (hash (.getMustFlipVertically texture-data))
     (Murmur3/hashInt (.getAlignment texture-data))
@@ -404,6 +421,65 @@
   {:pre [(vector? texture-request-datas)
          (every? texture-request-data? texture-request-datas)]}
   (make-gpu-texture-impl request-id ::texture texture-params texture-request-datas texture-units))
+
+(defn make-gpu-array-texture
+  "Create one 2D array TextureLifecycle from a nonempty vector of layer
+  TextureRequestDatas, assigned to one texture-unit offset from GL_TEXTURE0.
+  Even a single layer produces an array texture. Use binding index zero with
+  ->texture to access the array object; layers are not separate bindings.
+
+  Layers must have matching positive dimensions, pixel and internal formats,
+  component types, and mipmap layouts. Data must be uncompressed, without
+  borders or vertical-flip metadata. Pixel buffers retain their supplied
+  orientation and alpha representation. Mip chains may be partial; otherwise the
+  TextureData mipmap flag requests generation from each layer's base image.
+
+  The texture-params map uses the same OpenGL values as make-gpu-texture."
+  ^TextureLifecycle [request-id layer-texture-request-datas texture-unit texture-params]
+  {:pre [(vector? layer-texture-request-datas)
+         (pos? (count layer-texture-request-datas))
+         (coll/every? texture-request-data? layer-texture-request-datas)
+         (nat-int? texture-unit)]}
+  (let [layer-descriptions
+        (mapv (fn [^TextureRequestData layer]
+                (let [^TextureData data (.-texture-data layer)]
+                  {:width (.getWidth data)
+                   :height (.getHeight data)
+                   :internal-format (.getInternalFormat data)
+                   :pixel-format (.getPixelFormat data)
+                   :pixel-type (.getPixelType data)
+                   :generate-mipmaps (.getMipmap data)
+                   :mipmap-count (count (.getMipmapData data))
+                   :border (.getBorder data)
+                   :compressed (.isDataCompressed data)
+                   :flip-vertically (.getMustFlipVertically data)}))
+              layer-texture-request-datas)
+
+        expected-description (first layer-descriptions)]
+    (dotimes [layer-index (count layer-descriptions)]
+      (let [{:keys [^long width ^long height ^long mipmap-count ^long border compressed flip-vertically] :as description}
+            (layer-descriptions layer-index)
+
+            ^TextureRequestData layer (layer-texture-request-datas layer-index)
+            ^TextureData data (.-texture-data layer)]
+        (when-not (and (pos? width)
+                       (pos? height)
+                       (zero? border)
+                       (not compressed)
+                       (not flip-vertically)
+                       (or (nil? (.getMipmapData data)) (pos? mipmap-count))
+                       (<= mipmap-count (- 32 (Integer/numberOfLeadingZeros (int (max width height))))))
+          (throw (ex-info "Texture array layers require positive dimensions, valid mipmaps, uncompressed pixels, no border, and no vertical-flip metadata."
+                          {:layer-index layer-index :layer description})))
+        (when-not (= expected-description description)
+          (throw (ex-info "Texture array layers must have matching dimensions, formats, and mipmap layouts."
+                          {:layer-index layer-index
+                           :expected expected-description
+                           :actual description}))))))
+  ;; The outer vector describes GPU objects, as for 2D and cube textures.
+  ;; All array layers belong to one cache entry and consume one texture unit.
+  (make-gpu-texture-impl request-id ::array-texture texture-params
+                         [layer-texture-request-datas] (vector-of :int texture-unit)))
 
 (defn- flip-y
   ^BufferedImage [^BufferedImage img]
@@ -558,14 +634,20 @@
         :min-filter GL3/GL_NEAREST
         :mag-filter GL3/GL_NEAREST))))
 
-(defn update-sub-image! [^TextureLifecycle texture ^GL3 gl page-index data data-format x y w h]
+(defn update-sub-image!
+  "Updates a region of a 2D texture page. Array textures are updated through
+  scene-cache requests with new layer data, not through this 2D upload API."
+  [^TextureLifecycle texture ^GL3 gl page-index data data-format x y w h]
+  {:pre [(not= ::array-texture (.-cache-id texture))]}
   (let [tex (->texture texture gl page-index)
         data (make-texture-data data data-format w h false)]
     (.updateSubImage tex gl data 0 x y)))
 
 (defn update-image!
-  "Replaces a generated texture image, allowing its dimensions to change."
+  "Replaces a generated 2D texture image, allowing its dimensions to change.
+  Array textures are updated through scene-cache requests with new layer data."
   [^TextureLifecycle texture ^GL3 gl data data-format width height]
+  {:pre [(not= ::array-texture (.-cache-id texture))]}
   (.updateImage (->texture texture gl 0) gl
                 (make-texture-data data data-format width height false)))
 
@@ -623,6 +705,85 @@
     (.destroy texture gl)))
 
 (scene-cache/register-object-cache! ::texture make-texture update-texture destroy-textures)
+
+(defn- gl-integer
+  ^long [^GL3 gl ^long parameter]
+  (let [value (int-array 1)]
+    (.glGetIntegerv gl parameter value 0)
+    (aget value 0)))
+
+(defn- update-array-texture [^GL3 gl ^Texture texture layers]
+  (let [^TextureRequestData first-layer (first layers)
+        ^TextureData first-data (.-texture-data first-layer)
+        width (.getWidth first-data)
+        height (.getHeight first-data)
+        layer-count (count layers)
+        explicit-mipmap-count (count (.getMipmapData first-data))
+        generate-mipmaps (.getMipmap first-data)
+        mipmap-count (if generate-mipmaps
+                       (- 32 (Integer/numberOfLeadingZeros (max width height)))
+                       (max 1 explicit-mipmap-count))
+        max-texture-size (gl-integer gl GL3/GL_MAX_TEXTURE_SIZE)
+        max-layers (gl-integer gl GL3/GL_MAX_ARRAY_TEXTURE_LAYERS)]
+    (when (or (> width max-texture-size)
+              (> height max-texture-size)
+              (> layer-count max-layers))
+      (throw (ex-info (format "Texture array %d x %d with %d layers exceeds the OpenGL context limits: %d x %d and %d layers."
+                              width height layer-count max-texture-size max-texture-size max-layers)
+                      {:width width :height height :layer-count layer-count
+                       :max-texture-size max-texture-size :max-layers max-layers})))
+    (let [previous-texture (gl-integer gl GL3/GL_TEXTURE_BINDING_2D_ARRAY)
+          previous-unpack-buffer (gl-integer gl GL3/GL_PIXEL_UNPACK_BUFFER_BINDING)
+          pixel-storage (GLPixelStorageModes.)]
+      (.saveUnpack pixel-storage gl)
+      (try
+        (.resetUnpack pixel-storage gl)
+        (.glBindBuffer gl GL3/GL_PIXEL_UNPACK_BUFFER 0)
+        (.bind texture gl)
+        (.glTexParameteri gl GL3/GL_TEXTURE_2D_ARRAY GL3/GL_TEXTURE_BASE_LEVEL 0)
+        (.glTexParameteri gl GL3/GL_TEXTURE_2D_ARRAY GL3/GL_TEXTURE_MAX_LEVEL (dec mipmap-count))
+
+        ;; Allocate each supplied mip level with the same layer count. Generated
+        ;; mipmaps are generated after uploading every layer.
+        (dotimes [level (max 1 explicit-mipmap-count)]
+          (.glTexImage3D gl GL3/GL_TEXTURE_2D_ARRAY level (.getInternalFormat first-data)
+                         (max 1 (bit-shift-right width level))
+                         (max 1 (bit-shift-right height level))
+                         layer-count 0 (.getPixelFormat first-data) (.getPixelType first-data)
+                         nil))
+
+        (dotimes [layer-index layer-count]
+          (let [^TextureRequestData layer (layers layer-index)
+                ^TextureData data (.-texture-data layer)
+                mipmap-data (.getMipmapData data)]
+            (.glPixelStorei gl GL3/GL_UNPACK_ALIGNMENT (.getAlignment data))
+            ;; Explicit mip buffers are tightly packed, as in JOGL's 2D upload.
+            (.glPixelStorei gl GL3/GL_UNPACK_ROW_LENGTH (if mipmap-data 0 (.getRowLength data)))
+            (dotimes [level (max 1 explicit-mipmap-count)]
+              (when-let [pixels (if mipmap-data (aget mipmap-data level) (.getBuffer data))]
+                (.glTexSubImage3D gl GL3/GL_TEXTURE_2D_ARRAY level 0 0 layer-index
+                                  (max 1 (bit-shift-right width level))
+                                  (max 1 (bit-shift-right height level))
+                                  1 (.getPixelFormat data) (.getPixelType data) ^Buffer pixels)))))
+
+        (when generate-mipmaps
+          (.glGenerateMipmap gl GL3/GL_TEXTURE_2D_ARRAY))
+        (.set texture width height width height)
+        texture
+        (finally
+          (.restore pixel-storage gl)
+          (.glBindBuffer gl GL3/GL_PIXEL_UNPACK_BUFFER previous-unpack-buffer)
+          (.glBindTexture gl GL3/GL_TEXTURE_2D_ARRAY previous-texture))))))
+
+(defn- make-array-texture [^GL3 gl layers]
+  (let [texture (Texture. GL3/GL_TEXTURE_2D_ARRAY)]
+    (try
+      (update-array-texture gl texture layers)
+      (catch Throwable error
+        (.destroy texture gl)
+        (throw error)))))
+
+(scene-cache/register-object-cache! ::array-texture make-array-texture update-array-texture destroy-textures)
 
 (defn- update-cubemap-texture [^GL3 gl ^Texture texture texture-request-datas-by-side-kw]
   (doseq [[side-kw ^int gl-target] cubemap-gl-targets-by-side-kw]

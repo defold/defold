@@ -968,10 +968,10 @@
                                          "$1\n#define FONT_VECTOR_PICKING")
         {:keys [shader-type+source-pairs
                 location+attribute-name-pairs
-                array-sampler-name->slice-sampler-names
+                array-sampler-name->uniform-names
                 strip-resource-binding-namespace-regex-str
                 attribute-reflection-infos]}
-        (shader/read-combined-shader-info ["shaders/font_vector.vp" "font_vector.fp"] {}
+        (shader/read-combined-shader-info ["shaders/font_vector.vp" "font_vector.fp"]
                                           (fn [path]
                                             (if (= "font_vector.fp" path)
                                               fragment-source
@@ -981,7 +981,7 @@
         (shader/make-shader-request-data
           shader-type+source-pairs
           location+attribute-name-pairs
-          array-sampler-name->slice-sampler-names
+          array-sampler-name->uniform-names
           strip-resource-binding-namespace-regex-str)]
 
     (with-vector-samplers

@@ -119,8 +119,6 @@
 
 ; Rendering
 
-(def id-shader shaders/selection-uniform-paged-world-space)
-
 (defn- quad-count [size-mode slice9]
   (let [[^double x0 ^double y0 ^double x1 ^double y1] slice9
         columns (cond-> 1 (pos? x0) inc (pos? x1) inc)
@@ -173,9 +171,12 @@
             (gl/unbind gl gpu-texture render-args))))
 
       pass/selection
-      (let [vbuf (graphics/put-attributes! (->texture-vtx num-vertices) renderable-datas)
-            vertex-binding (vtx/use-with ::sprite-selection vbuf id-shader)
-            gpu-texture (:gpu-texture (first scene-infos))]
+      (let [gpu-texture (:gpu-texture (first scene-infos))
+            id-shader (if (texture/array-texture? gpu-texture)
+                        shaders/selection-uniform-paged-world-space
+                        shaders/selection-uniform-world-space)
+            vbuf (graphics/put-attributes! (->texture-vtx num-vertices) renderable-datas)
+            vertex-binding (vtx/use-with ::sprite-selection vbuf id-shader)]
         (gl/with-gl-bindings gl (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
           (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 num-vertices))))))

@@ -203,7 +203,8 @@
 ;; textured-quad
 ;; -----------------------------------------------------------------------------
 
-(def ^:private textured-quad-shader shaders/basic-texture-paged-world-space)
+(def ^:private textured-quad-vertex-description
+  (shaders/vertex-description shaders/basic-texture-paged-world-space))
 
 (defn- make-textured-quad-vertex-buffer
   [vertex-description renderables]
@@ -245,8 +246,10 @@
   (let [first-renderable (first renderables)
         user-data (:user-data first-renderable)
         gpu-texture (:gpu-texture user-data @texture/white-pixel)
-        vertex-description (shaders/vertex-description textured-quad-shader)
-        vertex-buffer (make-textured-quad-vertex-buffer vertex-description renderables)
+        textured-quad-shader (if (texture/array-texture? gpu-texture)
+                               shaders/basic-texture-paged-world-space
+                               shaders/basic-texture-world-space)
+        vertex-buffer (make-textured-quad-vertex-buffer textured-quad-vertex-description renderables)
         vertex-binding (vtx/use-with ::textured-quad vertex-buffer textured-quad-shader)]
     (gl/with-gl-bindings gl render-args [textured-quad-shader vertex-binding gpu-texture]
       (shader/set-samplers-by-index textured-quad-shader gl 0 (:texture-units gpu-texture))
