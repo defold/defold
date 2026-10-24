@@ -27,6 +27,25 @@ defold_target_link_socket(test_platform "${TARGET_PLATFORM}" PRIVATE)
 
 add_dependencies(test_platform platform_null)
 
+if(PLATFORM_USE_GLFW3)
+    target_sources(test_platform PRIVATE
+        "${CMAKE_CURRENT_LIST_DIR}/test_window_state.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../window_state.cpp")
+
+    defold_add_executable(test_window_placement "${CMAKE_CURRENT_LIST_DIR}/test_window_placement.cpp")
+    defold_target_link_libraries(test_window_placement "${TARGET_PLATFORM}" dlib profile_null testmain platform)
+    defold_target_link_opengl(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
+    defold_target_link_glfw(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
+    defold_target_link_socket(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
+    if(TARGET_PLATFORM_OS STREQUAL "macos")
+        target_link_libraries(test_window_placement PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo")
+    elseif(TARGET_PLATFORM_OS STREQUAL "win32")
+        target_link_libraries(test_window_placement PRIVATE user32 gdi32 shell32)
+    endif()
+    # Requires a desktop session; the geometry/codec tests above also run headless.
+    defold_register_test_target(test_window_placement FALSE)
+endif()
+
 # Register into global build_tests and run_tests with working directory set to engine/input
 defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
@@ -94,6 +113,16 @@ if(TARGET_PLATFORM STREQUAL "wasm-web")
 endif()
 
 if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
+    defold_add_executable(test_platform_home_indicator
+        "${CMAKE_CURRENT_LIST_DIR}/test_platform_home_indicator.mm")
+    defold_target_link_libraries(test_platform_home_indicator "${TARGET_PLATFORM}"
+        dlib profile_null testmain platform)
+    defold_target_link_app(test_platform_home_indicator "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_opengl(test_platform_home_indicator "${TARGET_PLATFORM}" PRIVATE)
+    target_link_libraries(test_platform_home_indicator PRIVATE "-framework QuartzCore")
+    defold_target_link_socket(test_platform_home_indicator "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_platform_home_indicator ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
     defold_add_executable(test_platform_safe_area
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_safe_area.mm")
     defold_target_link_libraries(test_platform_safe_area "${TARGET_PLATFORM}"

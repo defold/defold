@@ -115,6 +115,10 @@ extern uint32_t      DEBUG_SPC_SIZE;
 #include <platform/platform_window_android.h>
 #endif
 
+#if defined(DM_PLATFORM_IOS)
+#include <platform/platform_window_ios.h>
+#endif
+
 DM_PROPERTY_EXTERN(rmtp_Script);
 DM_PROPERTY_U32(rmtp_LuaMem, 0, PROFILE_PROPERTY_FRAME_RESET, "kb", &rmtp_Script); // kilo bytes
 DM_PROPERTY_U32(rmtp_LuaRefs, 0, PROFILE_PROPERTY_FRAME_RESET, "# Lua references", &rmtp_Script);
@@ -1333,6 +1337,10 @@ namespace dmEngine
             return false;
         }
 
+#if defined(DM_PLATFORM_IOS)
+        dmPlatform::SetiOSHomeIndicatorMode(dmConfigFile::GetString(engine->m_Config, "ios.home_indicator_mode", "deferred"));
+#endif
+
         bool setting_vsync     = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
         uint32_t swap_interval = dmConfigFile::GetInt(engine->m_Config, "display.swap_interval", 1);
         if (!setting_vsync)
@@ -1392,6 +1400,11 @@ namespace dmEngine
         if (dLib::IsDebugMode())
         {
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        }
+
+        if (dmConfigFile::GetInt(engine->m_Config, "resource.profile", 0))
+        {
+            params.m_Flags |= RESOURCE_FACTORY_FLAGS_PROFILE;
         }
 
 #if !defined(DM_RELEASE)
@@ -2205,27 +2218,6 @@ bail:
                 }
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
-
-                RecordData* record_data = &engine->m_RecordData;
-                if (record_data->m_Recorder)
-                {
-                    if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
-                    {
-                        int32_t x = 0, y = 0;
-                        uint32_t w = 0, h = 0;
-                        dmGraphics::GetViewport(engine->m_GraphicsContext, &x, &y, &w, &h);
-                        uint32_t buffer_size = w * h * 4;
-
-                        dmGraphics::ReadPixels(engine->m_GraphicsContext, x, y, w, h, record_data->m_Buffer, buffer_size);
-
-                        dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
-                        if (r != dmRecord::RESULT_OK)
-                        {
-                            dmLogError("Error while recoding frame (%d)", r);
-                        }
-                    }
-                    record_data->m_FrameCount++;
-                }
             }
         }
         ProfileFrameEnd(profile);
@@ -2552,49 +2544,6 @@ bail:
                 {
                     self->m_PhysicsContextBox2D.m_BaseContext.m_Debug = !self->m_PhysicsContextBox2D.m_BaseContext.m_Debug;
                     self->m_PhysicsContextBullet3D.m_BaseContext.m_Debug = !self->m_PhysicsContextBullet3D.m_BaseContext.m_Debug;
-                }
-            }
-            else if (descriptor == dmSystemDDF::StartRecord::m_DDFDescriptor) // "start_record"
-            {
-                dmSystemDDF::StartRecord* start_record = (dmSystemDDF::StartRecord*) message->m_Data;
-                RecordData* record_data = &self->m_RecordData;
-
-                record_data->m_FramePeriod = start_record->m_FramePeriod;
-
-                int32_t x = 0, y = 0;
-                uint32_t width = 0, height = 0;
-                dmGraphics::GetViewport(self->m_GraphicsContext, &x, &y, &width, &height);
-                dmRecord::NewParams params;
-                params.m_Width = width;
-                params.m_Height = height;
-                params.m_Filename = start_record->m_FileName;
-                params.m_Fps = start_record->m_Fps;
-
-                dmRecord::Result r = dmRecord::New(&params, &record_data->m_Recorder);
-                if (r == dmRecord::RESULT_OK)
-                {
-                    record_data->m_Buffer = new char[width * height * 4];
-                    record_data->m_FrameCount = 0;
-                }
-                else
-                {
-                    dmLogError("Unable to start recording (%d)", r);
-                    record_data->m_Recorder = 0;
-                }
-            }
-            else if (descriptor == dmSystemDDF::StopRecord::m_DDFDescriptor) // "stop_record"
-            {
-                RecordData* record_data = &self->m_RecordData;
-                if (record_data->m_Recorder)
-                {
-                    dmRecord::Delete(record_data->m_Recorder);
-                    delete[] record_data->m_Buffer;
-                    record_data->m_Recorder = 0;
-                    record_data->m_Buffer = 0;
-                }
-                else
-                {
-                    dmLogError("No recording in progress");
                 }
             }
             else if (descriptor == dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor) // "set_update_frequency"

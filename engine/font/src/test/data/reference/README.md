@@ -11,6 +11,11 @@ The report shows Actual, Reference and Difference, with H images enlarged 4x.
 
 Single-line tests use `ABCDEFGabcdefg 0123456789`. Full-layout English and Arabic paragraphs retain their frozen Lorem ipsum fixtures.
 
+The five `ttf_vector_multi_color*.png` references cover 😀 🍎 🚀 in full plain/rich
+layout, unsupported-flag fallback, and rich-text tint/underline behavior at 40 px.
+They use the same 98% foreground likeness threshold. Capture inputs and hashes
+are recorded in `color-emoji-provenance.json`.
+
 The `ttf_sdf_single_radial_block_ellipse` references cover a four-stop radial
 gradient over `Lorem ipsum\ndolor sit amet`, fitted to the block with a 45-degree
 angle and radii 0.5 and 0.25. Legacy and full rich-text layouts each have a

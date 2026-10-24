@@ -22,6 +22,7 @@
 #include "font_ttf.h"
 #include "font_outline.h"
 #include "font_sdf.h"
+#include "truetype/font_colr.h"
 
 #if defined(FONT_USE_HARFBUZZ)
 #include "harfbuzz/font_harfbuzz.h"
@@ -36,6 +37,7 @@ typedef FontHarfbuzz FontImpl;
 #define FontImplGetGlyphBox          FontHarfbuzzGetGlyphBox
 #define FontImplGetOutlineType       FontHarfbuzzGetOutlineType
 #define FontImplGetVerticalMetrics   FontHarfbuzzGetVerticalMetrics
+#define FontImplGetColr              FontHarfbuzzGetColr
 
 #else
 #include "truetype/font_truetype.h"
@@ -50,6 +52,7 @@ typedef FontTrueType FontImpl;
 #define FontImplGetGlyphBox          FontTrueTypeGetGlyphBox
 #define FontImplGetOutlineType       FontTrueTypeGetOutlineType
 #define FontImplGetVerticalMetrics   FontTrueTypeGetVerticalMetrics
+#define FontImplGetColr              FontTrueTypeGetColr
 #endif
 
 struct TTFFont
@@ -345,6 +348,11 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
     return FONT_RESULT_OK;
 }
 
+static bool GetOutlineBox(void* data, uint32_t glyph, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
+{
+    return FontImplGetGlyphBox((FontImpl*)data, glyph, x0, y0, x1, y1);
+}
+
 FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, const FontSDFParams* image_params, FontGlyph* glyph)
 {
     TTFFont* font = ToFont(hfont);
@@ -363,7 +371,11 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
     // generation already needs instead of interpreting its CharString twice.
     bool bounds_from_outline = options->m_GenerateImage && !font->m_HasGlyfOutlines;
     FontImplGetGlyphHMetrics(font->m_Font, glyph_index, &advx, &lsb);
-    if (!bounds_from_outline)
+    // Metrics-only requests also serve legacy layout. Drawing a PaintGlyph or
+    // rasterizing an outline must ignore the glyph's independent COLR bounds.
+    bool color_bounds = !options->m_GenerateOutline && !options->m_GenerateImage &&
+                        FontColrGetGlyphBox(FontImplGetColr(font->m_Font), glyph_index, GetOutlineBox, font->m_Font, &x0, &y0, &x1, &y1);
+    if (!bounds_from_outline && !color_bounds)
         FontImplGetGlyphBox(font->m_Font, glyph_index, &x0, &y0, &x1, &y1);
 
     float scale = options->m_Scale;
@@ -593,4 +605,9 @@ FontResult FontGetGlyphSDFMetricsTTF(HFont hfont, uint32_t glyph_index, float sc
     glyph->m_Ascent = -y0;
     glyph->m_Descent = y1;
     return FONT_RESULT_OK;
+}
+
+const FontColr* FontGetColrTTF(HFont font)
+{
+    return FontImplGetColr(ToFont(font)->m_Font);
 }

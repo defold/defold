@@ -56,6 +56,181 @@
                    (map #(g/add-node (g/construct ReturnsTxResultWithNodesAddedTestNode :_node-id %))
                         added-node-ids)))))))))
 
+;; Adding a node between existing nodes must invalidate its existing consumer
+;; without traversing the fresh node, even when its existing source changes.
+;; Cached results from older evaluations must not be incorporated afterwards.
+(deftest fresh-node-between-existing-nodes-invalidation-test
+  (doseq [source-updated [false true]]
+    (test-support/with-clean-system
+      (let [[source-node-id target-node-id]
+            (g/tx-nodes-added
+              (g/transact
+                [(g/make-node helpers/ConnectionSourceNode :property :before)
+                 (g/make-node helpers/ConnectionTargetNode)]))
+
+            old-evaluation-context (g/make-evaluation-context)]
+        (is (nil? (g/node-value target-node-id :regular-output old-evaluation-context)))
+        (is (nil? (g/node-value target-node-id :regular-output)))
+        (let [tx-result
+              (g/transact
+                (g/make-nodes [intermediate-node-id helpers/ConnectionTargetNode]
+                  (g/connect source-node-id :property-output intermediate-node-id :regular-input)
+                  (g/connect intermediate-node-id :regular-output target-node-id :regular-input)
+                  (when source-updated
+                    (g/set-property source-node-id :property :after))))
+
+              [intermediate-node-id] (g/tx-nodes-added tx-result)
+              outputs-modified (set (:outputs-modified tx-result))]
+          (is (= source-updated (contains? outputs-modified (g/endpoint source-node-id :property-output))))
+          (is (contains? outputs-modified (g/endpoint target-node-id :regular-output)))
+          (is (coll/not-any? #(= intermediate-node-id (gt/endpoint-node-id %)) outputs-modified))
+          (g/update-cache-from-evaluation-context! old-evaluation-context)
+          (is (= (if source-updated :after :before) (g/node-value target-node-id :regular-output)))
+          (is (coll/any? #(= (g/endpoint intermediate-node-id :regular-output) %)
+                         (g/dependencies (g/now) [(g/endpoint source-node-id :property-output)]))))))))
+
+;; Adding an override to an existing tree can change an existing consumer's
+;; inherited input without an explicit connection. Invalidate its cached value
+;; and reject stale results from evaluation contexts created before the change.
+(deftest adding-override-to-existing-tree-invalidates-inherited-consumers-test
+  (doseq [registered-tree [true false]]
+    (testing (if registered-tree "Registered override tree." "Tree without an override record.")
+      (test-support/with-clean-system
+        (let [[source-node-id target-node-id]
+              (g/tx-nodes-added
+                (g/transact
+                  (g/make-nodes [source-node-id [helpers/ConnectionSourceNode :property :original]
+                                 target-node-id helpers/ConnectionTargetNode]
+                    (g/connect source-node-id :property-output target-node-id :regular-input))))
+
+              [target-override-node-id]
+              (g/tx-nodes-added
+                (g/transact
+                  (if registered-tree
+                    (g/override target-node-id)
+                    (g/add-node
+                      (in/make-override-node 1000 (first (g/take-node-ids 1))
+                                             helpers/ConnectionTargetNode target-node-id {})))))
+
+              old-evaluation-context (g/make-evaluation-context)]
+          (is (= :original (g/node-value target-override-node-id :regular-output)))
+          (is (= :original (g/node-value target-override-node-id :regular-output old-evaluation-context)))
+          (let [tx-result
+                (g/transact
+                  (g/add-node
+                    (in/make-override-node (g/override-id target-override-node-id)
+                                           (first (g/take-node-ids 1))
+                                           helpers/ConnectionSourceNode source-node-id {:property :overridden})))]
+            (is (coll/any? #(= (g/endpoint target-override-node-id :regular-output) %) (:outputs-modified tx-result)))
+            (g/update-cache-from-evaluation-context! old-evaluation-context)
+            (is (= :overridden
+                   (g/node-value target-override-node-id :regular-output)
+                   (g/node-value target-override-node-id :regular-output
+                                 (in/custom-evaluation-context {:basis (g/now)}))))))))))
+
+;; Even a new override tree can restore a dormant explicit connection to an
+;; existing consumer. Skipping inherited arcs must still invalidate that input.
+(deftest redo-new-override-tree-invalidates-dormant-explicit-consumers-test
+  (test-support/with-clean-system
+    (let [[source-node-id target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              [(g/make-node helpers/ConnectionSourceNode :property :source-value)
+               (g/make-node helpers/ConnectionTargetNode)]))
+
+          [source-override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undo-key ::add-source-override}
+              (g/override source-node-id)))]
+      (g/transact
+        {:undoable false}
+        (g/connect source-override-node-id :property-output target-node-id :regular-input))
+      (is (= :source-value (g/node-value target-node-id :regular-output)))
+      (g/undo! ::add-source-override)
+      (is (nil? (g/node-value target-node-id :regular-output)))
+      (g/redo! ::add-source-override)
+      (is (= :source-value (g/node-value target-node-id :regular-output))))))
+
+;; A tree's later additions can survive undoing its creation. Redo must resolve
+;; inherited arcs to these existing consumers instead of reusing the shortcut
+;; that was safe when the tree was first created.
+(deftest redo-override-tree-invalidates-surviving-inherited-consumers-test
+  (test-support/with-clean-system
+    (let [[source-node-id target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes [source-node-id [helpers/ConnectionSourceNode :property :original]
+                             target-node-id helpers/ConnectionTargetNode]
+                (g/connect source-node-id :property-output target-node-id :regular-input))))
+
+          [source-override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undo-key ::add-source-override}
+              (g/override source-node-id
+                {:properties-by-node-id {source-node-id {:property :overridden}}})))
+
+          [target-override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/add-node
+                (in/make-override-node (g/override-id source-override-node-id)
+                                       (first (g/take-node-ids 1))
+                                       helpers/ConnectionTargetNode target-node-id {}))))]
+      (is (= :overridden (g/node-value target-override-node-id :regular-output)))
+      (g/undo! ::add-source-override)
+      (is (g/node-by-id target-override-node-id))
+      (let [old-evaluation-context (g/make-evaluation-context)]
+        (is (= :original (g/node-value target-override-node-id :regular-output old-evaluation-context)))
+        (is (= :original (g/node-value target-override-node-id :regular-output)))
+        (g/redo! ::add-source-override)
+        (g/update-cache-from-evaluation-context! old-evaluation-context)
+        (is (= :overridden
+               (g/node-value target-override-node-id :regular-output)
+               (g/node-value target-override-node-id :regular-output
+                             (in/custom-evaluation-context {:basis (g/now)}))))))))
+
+;; An override can outlive its original when creation is undone separately.
+;; Undo and redo invalidate cached inherited inputs and reject older
+;; evaluations.
+(deftest redo-original-creation-invalidates-surviving-override-inputs-test
+  (test-support/with-clean-system
+    (let [[source-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-node helpers/ConnectionSourceNode :property :source-value)))
+
+          [target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undo-key ::add-original}
+              (g/make-nodes [target-node-id helpers/ConnectionTargetNode]
+                (g/connect source-node-id :property-output target-node-id :regular-input))))
+
+          [override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/override target-node-id)))]
+      (let [old-evaluation-context (g/make-evaluation-context)]
+        (is (= :source-value
+               (g/node-value override-node-id :regular-output old-evaluation-context)
+               (g/node-value override-node-id :regular-output)))
+        (g/undo! ::add-original)
+        (g/update-cache-from-evaluation-context! old-evaluation-context))
+      (is (g/node-by-id override-node-id))
+      (let [old-evaluation-context (g/make-evaluation-context)]
+        (is (nil? (g/node-value override-node-id :regular-output old-evaluation-context)))
+        (is (nil? (g/node-value override-node-id :regular-output)))
+        (g/redo! ::add-original)
+        (g/update-cache-from-evaluation-context! old-evaluation-context)
+        (is (= :source-value (g/node-value override-node-id :regular-output)))))))
+
 (deftest adds-multiple-nodes-with-single-change-test
   (test-support/with-clean-system
     (let [added-node-ids (vec (g/take-node-ids 20))
@@ -421,6 +596,48 @@
         (g/redo! ::add-source)
         (ensure-source-exists!)))))
 
+;; Independent undo histories can leave dormant connections to absent targets.
+;; Undoing an override source must skip those targets instead of querying nil.
+(deftest undo-override-source-creation-with-absent-target-test
+  (test-support/with-clean-system
+    (let [[source-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-node helpers/ConnectionSourceNode :property :source-value)))
+
+          [target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undo-key ::add-target}
+              (g/make-node helpers/ConnectionTargetNode)))
+
+          _ (g/transact
+              {:undoable false}
+              (g/connect source-node-id :property-output target-node-id :regular-input))
+
+          [override-source-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undo-key ::add-override-source}
+              (g/override source-node-id)))]
+      (is (= :source-value (g/node-value target-node-id :regular-output)))
+
+      (g/undo! ::add-target)
+      (is (nil? (g/node-by-id target-node-id)))
+      (is (g/node-by-id override-source-node-id))
+
+      (g/undo! ::add-override-source)
+      (is (nil? (g/node-by-id override-source-node-id)))
+      (is (g/node-by-id source-node-id))
+
+      (g/redo! ::add-override-source)
+      (is (g/node-by-id override-source-node-id))
+      (is (nil? (g/node-by-id target-node-id)))
+
+      (g/redo! ::add-target)
+      (is (= :source-value (g/node-value target-node-id :regular-output))))))
+
 (deftest undo-add-node-with-non-undoable-outgoing-array-connection-test
   (test-support/with-clean-system
     (let [[source-node-id]
@@ -630,10 +847,10 @@
                      (set (g/successors basis persistent-source-node-id :property-output))))
               (is (= #{(g/endpoint source-node-id :property-output)
                        (g/endpoint target-node-id :array-output)}
-                     (g/dependencies basis [(g/endpoint source-node-id :property-output)])))
+                     (set (g/dependencies basis [(g/endpoint source-node-id :property-output)]))))
               (is (= #{(g/endpoint persistent-source-node-id :property-output)
                        (g/endpoint target-node-id :array-output)}
-                     (g/dependencies basis [(g/endpoint persistent-source-node-id :property-output)])))))
+                     (set (g/dependencies basis [(g/endpoint persistent-source-node-id :property-output)]))))))
 
           ensure-dormant!
           (fn ensure-dormant! []
@@ -643,10 +860,10 @@
               (is (= #{(g/endpoint target-node-id :array-output)}
                      (set (g/successors basis persistent-source-node-id :property-output))))
               (is (= #{(g/endpoint source-node-id :property-output)}
-                     (g/dependencies basis [(g/endpoint source-node-id :property-output)])))
+                     (set (g/dependencies basis [(g/endpoint source-node-id :property-output)]))))
               (is (= #{(g/endpoint persistent-source-node-id :property-output)
                        (g/endpoint target-node-id :array-output)}
-                     (g/dependencies basis [(g/endpoint persistent-source-node-id :property-output)])))))]
+                     (set (g/dependencies basis [(g/endpoint persistent-source-node-id :property-output)]))))))]
 
       (testing "Before undo."
         (ensure-effective!))

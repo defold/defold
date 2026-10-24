@@ -19,7 +19,8 @@
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [support.test-support :refer [tx-nodes with-clean-system]])
+            [support.test-support :refer [tx-nodes with-clean-system]]
+            [util.coll :as coll])
   (:import clojure.lang.ExceptionInfo))
 
 (def ^:dynamic *calls*)
@@ -181,9 +182,9 @@
                                                          target VisibilityTestNode]
                                             (g/connect source :foo target :bar)))
           tx-result                     (g/set-property! source :foo "hi")
-          properties-modified-on-target (set (keep #(when (= (gt/endpoint-node-id %) target)
-                                                      (gt/endpoint-label %))
-                                                   (:outputs-modified tx-result)))]
+          properties-modified-on-target (coll/into-> (:outputs-modified tx-result) #{}
+                                          (filter #(= (gt/endpoint-node-id %) target))
+                                          (map gt/endpoint-label))]
       (is (= #{:_declared-properties :baz :_properties} properties-modified-on-target)))))
 
 (deftest visibility-properties
@@ -201,8 +202,9 @@
                                   (g/make-node EnablementTestNode))]
       (g/transact (g/connect snode :foo enode :bar))
       (let [tx-result     (g/transact (g/set-property snode :foo 1))
-            enode-results (filter #(= (gt/endpoint-node-id %) enode) (:outputs-modified tx-result))
-            modified      (into #{} (map gt/endpoint-label) enode-results)]
+            modified      (coll/into-> (:outputs-modified tx-result) #{}
+                            (filter #(= (gt/endpoint-node-id %) enode))
+                            (map gt/endpoint-label))]
         (is (= #{:_declared-properties :baz :_properties} modified))))))
 
 (deftest enablement-properties
