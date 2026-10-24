@@ -110,7 +110,7 @@ void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t 
 dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSource texture_source, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
 {
     out_data->Init();
-    static float uv_quad[] = {0,1,0,0, 1,0,1,1};
+    static float uv_quad[] = { 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1 };
     out_data->m_TexCoords = &uv_quad[0];
     out_data->m_State.m_End = 1;
     out_data->m_State.m_FPS = 30;
@@ -119,6 +119,13 @@ dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSour
         out_data->m_State.m_Start = 11231;
         out_data->m_State.m_End = 11232;
         out_data->m_State.m_Playback = dmGui::PLAYBACK_NONE;
+    }
+    else if (animation == dmHashString64("ta_svg"))
+    {
+        static float durations[] = { 1, 3 };
+        out_data->m_State.m_End = 2;
+        out_data->m_State.m_Duration = 4;
+        out_data->m_FrameDurations = durations;
     }
     else if (animation == dmHashString64("ta_backward"))
         out_data->m_State.m_Playback = dmGui::PLAYBACK_ONCE_BACKWARD;
@@ -6223,6 +6230,30 @@ TEST_F(dmGuiTest, ZeroMaxDynamicTextures)
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     ASSERT_NE((void*)scene, (void*)0x0);
     dmGui::DeleteScene(scene);
+}
+
+// SVG clip duration and weighted frame selection follow each node's cursor, including an independently paused node.
+TEST_F(dmGuiTest, ContinuousFlipbookTiming)
+{
+    int texture;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddTexture(m_Scene, dmHashString64("svg"), (dmGui::HTextureSource)&texture, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1));
+    dmGui::HNode a = dmGui::NewNode(m_Scene, Point3(0), Vector3(10), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode b = dmGui::NewNode(m_Scene, Point3(0), Vector3(10), dmGui::NODE_TYPE_BOX, 0);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTexture(m_Scene, a, "svg"));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTexture(m_Scene, b, "svg"));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeFlipbookAnim(m_Scene, a, "ta_svg", 0, 1));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeFlipbookAnim(m_Scene, b, "ta_svg", 0.5f, 0));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 0));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 0.5f));
+    ASSERT_NEAR(0.125f, dmGui::GetNodeFlipbookCursor(m_Scene, a), 0.00001f);
+    ASSERT_EQ(0, dmGui::GetNodeAnimationFrame(m_Scene, a));
+    ASSERT_NEAR(0.5f, dmGui::GetNodeFlipbookCursor(m_Scene, b), 0.00001f);
+    ASSERT_EQ(1, dmGui::GetNodeAnimationFrame(m_Scene, b));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 0.75f));
+    ASSERT_NEAR(0.3125f, dmGui::GetNodeFlipbookCursor(m_Scene, a), 0.00001f);
+    ASSERT_EQ(1, dmGui::GetNodeAnimationFrame(m_Scene, a));
+    ASSERT_NEAR(0.5f, dmGui::GetNodeFlipbookCursor(m_Scene, b), 0.00001f);
+    dmGui::RemoveTexture(m_Scene, dmHashString64("svg"));
 }
 
 int main(int argc, char **argv)

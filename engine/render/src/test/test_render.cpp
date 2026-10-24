@@ -883,6 +883,32 @@ static inline int CountSamplersInTextureBindTable(dmRender::HRenderContext conte
     return c;
 }
 
+// Vector materials require all three active Slug samplers, regardless of component.
+TEST_F(dmRenderTest, VectorMaterialSamplerContract)
+{
+    const char* names[] = { "curve_texture", "band_texture", "paint_texture" };
+    for (uint32_t missing = 0; missing <= DM_ARRAY_SIZE(names); ++missing)
+    {
+        dmGraphics::ShaderDescBuilder shaders;
+        shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(names); ++i)
+            if (i != missing)
+                shaders.AddTexture(names[i], i, i == 1 ? dmGraphics::ShaderDesc::SHADER_TYPE_UTEXTURE2D : dmGraphics::ShaderDesc::SHADER_TYPE_TEXTURE2D);
+        dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shaders.Get(), 0, 0);
+        ASSERT_NE((dmGraphics::HProgram)0, program);
+        dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+        ASSERT_NE((dmRender::HMaterial)0, material);
+        uint32_t unit = 0;
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(names); ++i)
+            if (i != missing)
+                ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64(names[i]), unit++, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+        ASSERT_EQ(missing == DM_ARRAY_SIZE(names), dmRender::IsVectorMaterial(material));
+        dmRender::DeleteMaterial(m_Context, material);
+        dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    }
+}
+
 TEST_F(dmRenderTest, TestEnableTextureByHash)
 {
     const char* shader_src = "uniform lowp sampler2D texture_sampler_1;\n"

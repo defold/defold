@@ -717,6 +717,11 @@ namespace dmGameSystem
         // Grows automatically
         gui_world->m_ClientVertexBuffer.SetCapacity(512);
         gui_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
+        dmGraphics::AddVertexStream(stream_declaration, dmHashString64("svg_time"), 1, dmGraphics::TYPE_FLOAT, false);
+        gui_world->m_VectorTimeDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+        gui_world->m_VectorTimeBuffer = dmGraphics::NewVertexBuffer(graphics_context, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         uint8_t white_texture[] = { 0xff, 0xff, 0xff, 0xff,
                                     0xff, 0xff, 0xff, 0xff,
@@ -805,6 +810,8 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(gui_world->m_VertexBuffer);
+        dmGraphics::DeleteVertexDeclaration(gui_world->m_VectorTimeDeclaration);
+        dmGraphics::DeleteVertexBuffer(gui_world->m_VectorTimeBuffer);
         dmGraphics::DeleteTexture(graphics_context, gui_world->m_WhiteTexture);
 
         dmScript::DeleteScriptWorld(gui_world->m_ScriptWorld);
@@ -1232,13 +1239,22 @@ namespace dmGameSystem
                 texture_res         = (TextureResource*) scene_resource->m_GuiTextureSets[i].m_Resource;
             }
 
-            texture = texture_res->m_Texture;
-            assert(texture != 0);
+            TextureSetResource* atlas = texture_source_type == dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET ? (TextureSetResource*)texture_source : 0;
+            uint32_t            width, height;
+            if (IsVectorTextureSet(atlas))
+            {
+                width = atlas->m_TextureSet->m_Width;
+                height = atlas->m_TextureSet->m_Height;
+            }
+            else
+            {
+                texture = texture_res->m_Texture;
+                assert(texture != 0);
+                width = dmGraphics::GetOriginalTextureWidth(graphics_context, texture);
+                height = dmGraphics::GetOriginalTextureHeight(graphics_context, texture);
+            }
 
-            dmGui::Result r = dmGui::AddTexture(scene, dmHashString64(name),
-                texture_source, texture_source_type,
-                dmGraphics::GetOriginalTextureWidth(graphics_context, texture),
-                dmGraphics::GetOriginalTextureHeight(graphics_context, texture));
+            dmGui::Result r = dmGui::AddTexture(scene, dmHashString64(name), texture_source, texture_source_type, width, height);
 
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
@@ -1630,8 +1646,7 @@ namespace dmGameSystem
         if (texture_type == dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET)
         {
             TextureSetResource* texture_set_res = (TextureSetResource*) texture_source;
-            assert(texture_set_res->m_Texture);
-            return texture_set_res->m_Texture->m_Texture;
+            return IsVectorTextureSet(texture_set_res) ? GetVectorAtlasTexture(texture_set_res, 0) : texture_set_res->m_Texture->m_Texture;
         }
         else if (texture_type == dmGui::NODE_TEXTURE_TYPE_TEXTURE)
         {
@@ -2166,7 +2181,11 @@ namespace dmGameSystem
             const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
             bool manually_set_texture = tc == 0;
 
-            if ((!use_slice_nine && manually_set_texture) || !texture) // simple quad
+            if (texture_set_ddf && texture_set_ddf->m_Mode == dmGameSystemDDF::TEXTURE_SET_MODE_VECTOR)
+            {
+                num_vertices += use_slice_nine ? 54 : 6;
+            }
+            else if ((!use_slice_nine && manually_set_texture) || !texture) // simple quad
             {
                 num_vertices += 6;
             }
@@ -2187,6 +2206,40 @@ namespace dmGameSystem
         return num_vertices;
     }
 
+    // Subdivide the destination box while keeping Slug coordinates in source viewport pixels.
+    static uint32_t RenderVectorBoxNode(dmGui::HScene scene, dmGui::HNode node, const dmGameSystemDDF::TextureSet* atlas, const Matrix4& transform, const Vector4& color, dmArray<BoxVertex>& vertices)
+    {
+        uint32_t                               frame = atlas->m_FrameIndices[dmGui::GetNodeAnimationFrame(scene, node)];
+        const dmGameSystemDDF::VectorImage&    image = atlas->m_Vector.m_Images[frame];
+        const dmGameSystemDDF::SpriteGeometry& geometry = atlas->m_Geometries[frame];
+        Vector4                                borders = dmGui::GetNodeSlice9(scene, node);
+        Point3                                 size = dmGui::GetNodeSize(scene, node);
+        bool                                   flip_u = false, flip_v = false;
+        GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+        float          sx = size.getX() > 0.001f ? 1.0f / size.getX() : 0;
+        float          sy = size.getY() > 0.001f ? 1.0f / size.getY() : 0;
+        float          xs[4] = { 0, sx * (flip_u ? borders.getZ() : borders.getX()), 1 - sx * (flip_u ? borders.getX() : borders.getZ()), 1 };
+        float          ys[4] = { 0, sy * (flip_v ? borders.getY() : borders.getW()), 1 - sy * (flip_v ? borders.getW() : borders.getY()), 1 };
+        float          us[4] = { 0, borders.getX(), image.m_Width - borders.getZ(), image.m_Width };
+        float          vs[4] = { image.m_Height, image.m_Height - borders.getW(), borders.getY(), 0 };
+        uint32_t       step = sum(borders) == 0 ? 3 : 1;
+        const uint32_t corners[6][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 0 }, { 1, 1 }, { 0, 1 } };
+        for (uint32_t y = 0; y < 3; y += step)
+        {
+            for (uint32_t x = 0; x < 3; x += step)
+            {
+                for (uint32_t i = 0; i < 6; ++i)
+                {
+                    uint32_t cx = x + corners[i][0] * step;
+                    uint32_t cy = y + corners[i][1] * step;
+                    Vector4  position = transform * Point3(xs[cx] - geometry.m_PivotX, ys[cy] - geometry.m_PivotY, 0);
+                    vertices.Push(BoxVertex(position, us[flip_u ? 3 - cx : cx], vs[flip_v ? 3 - cy : cy], color, image.m_Paint));
+                }
+            }
+        }
+        return step == 3 ? 6 : 54;
+    }
+
     static void RenderBoxNodes(dmGui::HScene scene,
                         const dmGui::RenderEntry* entries,
                         const Matrix4* node_transforms,
@@ -2202,6 +2255,15 @@ namespace dmGameSystem
         dmGui::HNode first_node = entries[0].m_Node;
         dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
         assert(node_type == dmGui::NODE_TYPE_BOX);
+        dmGui::NodeTextureType texture_type;
+        TextureSetResource*    atlas = (TextureSetResource*)dmGui::GetNodeTexture(scene, first_node, &texture_type);
+        bool                   vector = texture_type == dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET && IsVectorTextureSet(atlas);
+        dmRender::HMaterial    material = GetNodeMaterial(gui_context, scene, first_node);
+        if (vector != dmRender::IsVectorMaterial(material))
+        {
+            dmLogError("GUI box material and texture must use matching raster or vector content");
+            return;
+        }
 
         uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
         gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
@@ -2238,6 +2300,23 @@ namespace dmGameSystem
         else
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
+        if (vector)
+        {
+            // A second stream carries only vector-node playback time. Raster/custom vertex layouts are unchanged.
+            dmRender::MaterialProgramAttributeInfo time_attribute;
+            if (dmRender::GetMaterialProgramAttributeInfo(material, dmHashString64("svg_time"), time_attribute))
+            {
+                ro.m_VertexBufferOffsets[0] = ro.m_VertexStart * sizeof(BoxVertex);
+                ro.m_VertexBufferOffsets[1] = gui_world->m_VectorTimes.Size() * sizeof(float);
+                ro.m_VertexStart = 0;
+                ro.m_VertexBuffers[1] = gui_world->m_VectorTimeBuffer;
+                ro.m_VertexDeclarations[1] = gui_world->m_VectorTimeDeclaration;
+            }
+            const char* names[] = { "curve_texture", "band_texture", "paint_texture" };
+            for (uint32_t i = 0; i < 3; ++i)
+                ro.m_Textures[dmRender::GetMaterialSamplerUnit(material, dmHashString64(names[i]))] = GetVectorAtlasTexture(atlas, i);
+        }
+
         const uint32_t max_total_vertices = CalcVertexCount(scene, gui_world, texture, entries, node_count);
 
         if (gui_world->m_ClientVertexBuffer.Remaining() < (max_total_vertices)) {
@@ -2258,6 +2337,29 @@ namespace dmGameSystem
             // pre-multiplied alpha
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             Vector4 pm_color(color.getXYZ(), node_opacities[i]);
+            if (vector)
+            {
+                uint32_t                   count = RenderVectorBoxNode(scene, node, atlas->m_TextureSet, node_transforms[i], pm_color, gui_world->m_ClientVertexBuffer);
+                float                      time = 0;
+                dmGui::TextureSetAnimDesc* timeline = dmGui::GetNodeTextureSet(scene, node);
+                if (timeline->m_State.m_Duration > 0)
+                {
+                    uint32_t frame = dmGui::GetNodeAnimationFrame(scene, node);
+                    float    elapsed = dmGui::GetNodeFlipbookCursor(scene, node) * timeline->m_State.m_Duration;
+                    for (uint32_t f = timeline->m_State.m_Start; f < frame; ++f)
+                        elapsed -= timeline->m_FrameDurations[f - timeline->m_State.m_Start];
+                    float progress = dmMath::Clamp(elapsed / timeline->m_FrameDurations[frame - timeline->m_State.m_Start], 0.0f, 1.0f);
+                    time = progress * atlas->m_TextureSet->m_Vector.m_Images[atlas->m_TextureSet->m_FrameIndices[frame]].m_Duration;
+                }
+                for (uint32_t v = 0; v < count; ++v)
+                {
+                    if (gui_world->m_VectorTimes.Full())
+                        gui_world->m_VectorTimes.OffsetCapacity(128);
+                    gui_world->m_VectorTimes.Push(time);
+                }
+                rendered_vert_count += count;
+                continue;
+            }
 
             // default not uv_rotated texture coords
             const float default_tc[6] = {0, 0, 0, 1, 1, 1};
@@ -2535,6 +2637,13 @@ namespace dmGameSystem
                         uint32_t node_count,
                         RenderGuiContext* gui_context)
     {
+        dmGameSystemDDF::TextureSet* atlas = GetNodeTextureSetDDF(scene, entries[0].m_Node);
+        if (atlas && atlas->m_Mode == dmGameSystemDDF::TEXTURE_SET_MODE_VECTOR)
+        {
+            dmLogError("SVG atlas textures require GUI box nodes");
+            return;
+        }
+
         GuiWorld* gui_world = gui_context->m_GuiWorld;
 
         dmGui::HNode first_node = entries[0].m_Node;
@@ -3116,10 +3225,12 @@ namespace dmGameSystem
             out_data->m_State.m_Start = animation->m_Start;
             out_data->m_State.m_End = animation->m_End;
 
-            out_data->m_State.m_OriginalTextureWidth = texture_set_res->m_Texture->m_OriginalWidth;
-            out_data->m_State.m_OriginalTextureHeight = texture_set_res->m_Texture->m_OriginalHeight;
+            out_data->m_State.m_OriginalTextureWidth = IsVectorTextureSet(texture_set_res) ? texture_set->m_Width : texture_set_res->m_Texture->m_OriginalWidth;
+            out_data->m_State.m_OriginalTextureHeight = IsVectorTextureSet(texture_set_res) ? texture_set->m_Height : texture_set_res->m_Texture->m_OriginalHeight;
             out_data->m_State.m_Playback = ddf_playback_map.m_Table[playback_index];
             out_data->m_State.m_FPS = animation->m_Fps;
+            out_data->m_State.m_Duration = animation->m_Duration;
+            out_data->m_FrameDurations = animation->m_Duration > 0 ? animation->m_FrameDurations.m_Data : 0;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
             out_data->m_FlipVertical = animation->m_FlipVertical;
             out_data->m_TextureSet = (void*) texture_set_res;
@@ -3240,6 +3351,12 @@ namespace dmGameSystem
             for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
             {
                 dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
+                dmRender::HMaterial     material = dmRender::GetContextMaterial(params.m_Context);
+                if (material && dmRender::IsVectorMaterial(material) != dmRender::IsVectorMaterial(ro->m_Material))
+                {
+                    dmLogError("GUI render material override must preserve raster or vector mode");
+                    continue;
+                }
                 dmRender::AddToRender(params.m_Context, ro);
             }
         }
@@ -3281,6 +3398,7 @@ namespace dmGameSystem
 
         gui_world->m_GuiRenderObjects.SetSize(0);
         gui_world->m_ClientVertexBuffer.SetSize(0);
+        gui_world->m_VectorTimes.SetSize(0);
 
         uint32_t lastEnd = 0;
 
@@ -3329,6 +3447,9 @@ namespace dmGameSystem
                                            dmGraphics::BUFFER_USAGE_STREAM_DRAW);
             DM_PROPERTY_ADD_U32(rmtp_GuiVertexCount, vertex_count);
         }
+
+        if (!gui_world->m_VectorTimes.Empty())
+            dmGraphics::SetVertexBufferData(gui_world->m_VectorTimeBuffer, gui_world->m_VectorTimes.Size() * sizeof(float), gui_world->m_VectorTimes.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -3737,9 +3858,7 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&texture_source);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET,
-                                                            texture_source->m_Texture->m_OriginalWidth,
-                                                            texture_source->m_Texture->m_OriginalHeight);
+                dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, key, (dmGui::HTextureSource)texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, IsVectorTextureSet(texture_source) ? texture_source->m_TextureSet->m_Width : texture_source->m_Texture->m_OriginalWidth, IsVectorTextureSet(texture_source) ? texture_source->m_TextureSet->m_Height : texture_source->m_Texture->m_OriginalHeight);
                 if (r != dmGui::RESULT_OK)
                 {
                     dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(key),  r);

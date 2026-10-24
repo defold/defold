@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_particlefx.h"
+#include "res_textureset.h"
 
 #include <dlib/log.h>
 
@@ -43,6 +44,11 @@ namespace dmGameSystem
                 return result;
             }
             dmParticle::SetTileSource(prototype, i, tile_source);
+            if (IsVectorTextureSet((TextureSetResource*)tile_source))
+            {
+                dmLogError("Particles do not support SVG atlases");
+                return dmResource::RESULT_NOT_SUPPORTED;
+            }
             MaterialResource* material;
             const char* material_path = dmParticle::GetMaterialPath(prototype, i);
             result = dmResource::Get(factory, material_path, (void**) &material);

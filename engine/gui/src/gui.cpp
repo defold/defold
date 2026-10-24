@@ -1439,6 +1439,16 @@ namespace dmGui
             return -1;
         TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
         int32_t anim_frames = anim_desc->m_State.m_End - anim_desc->m_State.m_Start;
+        if (anim_desc->m_FrameDurations)
+        {
+            float elapsed = n.m_FlipbookAnimPosition * anim_desc->m_State.m_Duration;
+            for (int32_t frame = 0; frame < anim_frames; ++frame)
+            {
+                if (elapsed < anim_desc->m_FrameDurations[frame] || frame + 1 == anim_frames)
+                    return anim_desc->m_State.m_Start + frame;
+                elapsed -= anim_desc->m_FrameDurations[frame];
+            }
+        }
         int32_t anim_frame = (int32_t) (n.m_FlipbookAnimPosition * (float)anim_frames);
         return anim_desc->m_State.m_Start + dmMath::Clamp(anim_frame, 0, anim_frames-1);
     }
@@ -4385,7 +4395,7 @@ namespace dmGui
         // Convert offset into elapsed time, needed for GUI animation system.
         offset = dmMath::Clamp(offset, 0.0f, 1.0f);
         float elapsed = offset;
-        float duration = (float) anim_frames / (float) anim_desc.m_State.m_FPS;
+        float duration = anim_desc.m_State.m_Duration > 0 ? anim_desc.m_State.m_Duration * (pingpong ? 2.0f : 1.0f) : (float)anim_frames / (float)anim_desc.m_State.m_FPS;
         if (pingpong) {
             elapsed /= 2.0f;
         }

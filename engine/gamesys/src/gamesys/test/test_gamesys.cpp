@@ -16,6 +16,7 @@
 #include <render/render_target_ddf.h>
 #include "gamesys/resources/res_buffer.h"
 #include "gamesys/resources/res_mesh.h"
+#include "gamesys/resources/res_textureset.h"
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -299,6 +300,76 @@ TEST_F(RenderTargetResourceTest, InvalidCubemapFailsToReload)
     ASSERT_EQ(original_render_target, resource->m_RenderTarget);
     ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, resource->m_RenderTarget));
     dmResource::Release(m_Factory, resource);
+}
+
+// Numeric atlas textures are owned by the resource, and invalid reloads retain them.
+TEST_F(TextureSetResourceTest, VectorAtlasTextureLifetime)
+{
+    uint8_t                         curves[4096 * 8] = {};
+    uint8_t                         bands[4096 * 4] = {};
+    uint8_t                         paints[4096 * 16] = {};
+    float                           tex_coords[8] = {};
+    uint32_t                        frame = 0;
+    uint64_t                        name = dmHashString64("vector");
+    dmGameSystemDDF::SpriteGeometry geometry = {};
+    geometry.m_Width = geometry.m_Height = 100;
+    dmGameSystemDDF::VectorImage image = {};
+    image.m_Width = image.m_Height = 100;
+    dmGameSystemDDF::TextureSet desc = {};
+    desc.m_Texture = "";
+    desc.m_Width = desc.m_Height = 100;
+    desc.m_Mode = dmGameSystemDDF::TEXTURE_SET_MODE_VECTOR;
+    desc.m_TileCount = 1;
+    desc.m_Geometries.m_Data = &geometry;
+    desc.m_Geometries.m_Count = 1;
+    desc.m_ImageNameHashes.m_Data = &name;
+    desc.m_ImageNameHashes.m_Count = 1;
+    desc.m_FrameIndices.m_Data = &frame;
+    desc.m_FrameIndices.m_Count = 1;
+    desc.m_TexCoords.m_Data = (uint8_t*)tex_coords;
+    desc.m_TexCoords.m_Count = sizeof(tex_coords);
+    desc.m_Vector.m_Curves.m_Data = curves;
+    desc.m_Vector.m_Curves.m_Count = sizeof(curves);
+    desc.m_Vector.m_Bands.m_Data = bands;
+    desc.m_Vector.m_Bands.m_Count = sizeof(bands);
+    desc.m_Vector.m_Paints.m_Data = paints;
+    desc.m_Vector.m_Paints.m_Count = sizeof(paints);
+    desc.m_Vector.m_Images.m_Data = &image;
+    desc.m_Vector.m_Images.m_Count = 1;
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmGameSystemDDF::TextureSet::m_DDFDescriptor, buffer));
+    dmGameSystem::TextureSetResource* resource = 0;
+    const char*                       path = "/vector.a.texturesetc";
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, path, buffer.Begin(), buffer.Size(), (void**)&resource));
+    ASSERT_TRUE(dmGameSystem::IsVectorTextureSet(resource));
+    ASSERT_EQ((dmGameSystem::TextureResource*)0, resource->m_Texture);
+    dmGraphics::HTexture textures[3];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        textures[i] = dmGameSystem::GetVectorAtlasTexture(resource, i);
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, textures[i]));
+        ASSERT_EQ(4096U, dmGraphics::GetOriginalTextureWidth(m_GraphicsContext, textures[i]));
+        ASSERT_EQ(1U, dmGraphics::GetOriginalTextureHeight(m_GraphicsContext, textures[i]));
+    }
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, textures[i]));
+        textures[i] = dmGameSystem::GetVectorAtlasTexture(resource, i);
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, textures[i]));
+    }
+    --desc.m_Vector.m_Paints.m_Count;
+    buffer.SetSize(0);
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmGameSystemDDF::TextureSet::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    ASSERT_EQ(textures[2], dmGameSystem::GetVectorAtlasTexture(resource, 2));
+    desc.m_Mode = dmGameSystemDDF::TEXTURE_SET_MODE_RASTER;
+    buffer.SetSize(0);
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmGameSystemDDF::TextureSet::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    dmResource::Release(m_Factory, resource);
+    for (uint32_t i = 0; i < 3; ++i)
+        ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, textures[i]));
 }
 
 TEST_F(TextureSetResourceTest, TestReloadTextureSet)

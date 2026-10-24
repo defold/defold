@@ -398,6 +398,13 @@ namespace dmRender
         return GetProgramSamplerUnit(material->m_Samplers, name_hash);
     }
 
+    bool IsVectorMaterial(HMaterial material)
+    {
+        return GetMaterialSamplerUnit(material, dmHashString64("curve_texture")) != INVALID_SAMPLER_UNIT &&
+        GetMaterialSamplerUnit(material, dmHashString64("band_texture")) != INVALID_SAMPLER_UNIT &&
+        GetMaterialSamplerUnit(material, dmHashString64("paint_texture")) != INVALID_SAMPLER_UNIT;
+    }
+
     HSampler GetMaterialSampler(HMaterial material, uint32_t unit)
     {
         if (unit < material->m_Samplers.Size())

@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include "gamesys/resources/res_textureset.h"
 
 using namespace dmVMath;
 
@@ -584,6 +585,163 @@ TEST_F(SpriteTest, QuadVertexData)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Continuous SVG time comes from each sprite cursor while geometry/textures and the draw batch remain shared.
+TEST_F(SpriteTest, VectorAnimationInstanceTime)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    m_UpdateContext.m_DT = 0;
+    dmGameObject::HInstance first = Spawn(m_Factory, m_Collection, "/sprite/vector_animation.goc", dmHashString64("/first"));
+    dmGameObject::HInstance second = Spawn(m_Factory, m_Collection, "/sprite/vector_animation.goc", dmHashString64("/second"));
+    ASSERT_NE((dmGameObject::HInstance)0, first);
+    ASSERT_NE((dmGameObject::HInstance)0, second);
+    dmGameObject::PropertyOptions options;
+    dmhash_t                      sprite = dmHashString64("sprite");
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(first, sprite, dmHashString64("cursor"), options, dmGameObject::PropertyVar(0.2f)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(second, sprite, dmHashString64("cursor"), options, dmGameObject::PropertyVar(0.7f)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(first, sprite, dmHashString64("playback_rate"), options, dmGameObject::PropertyVar(0.0f)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(second, sprite, dmHashString64("playback_rate"), options, dmGameObject::PropertyVar(0.0f)));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(first, sprite, dmHashString64("playback_rate"), options, dmGameObject::PropertyVar(1.0f)));
+    m_UpdateContext.m_DT = 0.2f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmGameObject::PropertyDesc cursor;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(first, sprite, dmHashString64("cursor"), options, cursor));
+    ASSERT_NEAR(0.3f, cursor.m_Variant.m_Number, EPSILON);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(second, sprite, dmHashString64("cursor"), options, cursor));
+    ASSERT_NEAR(0.7f, cursor.m_Variant.m_Number, EPSILON);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(first, sprite, dmHashString64("cursor"), options, dmGameObject::PropertyVar(0.2f)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(first, sprite, dmHashString64("playback_rate"), options, dmGameObject::PropertyVar(0.0f)));
+    m_UpdateContext.m_DT = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/sprite/vector_animation.a.texturesetc", 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    ASSERT_EQ(1u, context->m_RenderObjects.Size());
+    dmRender::RenderObject* ro = context->m_RenderObjects[0];
+    ASSERT_EQ(12u, ro->m_VertexCount);
+    uint32_t                        stride = dmGraphics::GetVertexDeclarationStride(ro->m_VertexDeclaration);
+    uint32_t                        offset = dmGraphics::GetVertexStreamOffset(ro->m_VertexDeclaration, dmHashString64("svg_time"));
+    void*                           world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    dmRender::BufferedRenderBuffer* vertices = 0;
+    dmRender::BufferedRenderBuffer* indices = 0;
+    dmGameSystem::GetSpriteWorldRenderBuffers(world, &vertices, &indices);
+    const char* data = ((dmGraphics::VertexBuffer*)vertices->m_Buffers[0])->m_Buffer;
+    float       a = ReadUnalignedFloat(data + offset), b = ReadUnalignedFloat(data + stride * 4 + offset);
+    ASSERT_NEAR(0.4f, dmMath::Min(a, b), EPSILON);
+    ASSERT_NEAR(1.4f, dmMath::Max(a, b), EPSILON);
+    dmGameSystem::TextureSetResource* atlas = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/vector_animation.a.texturesetc", (void**)&atlas));
+    ASSERT_EQ(1u, atlas->m_TextureSet->m_Vector.m_Images.m_Count);
+    ASSERT_EQ(1u, atlas->m_TextureSet->m_Geometries.m_Count);
+    ASSERT_NEAR(2.0f, atlas->m_TextureSet->m_Vector.m_Images[0].m_Duration, EPSILON);
+    dmResource::Release(m_Factory, atlas);
+    dmRender::ClearRenderObjects(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Vector sprites keep one quad, share a batch, preserve pivots/flips and reject raster overrides.
+TEST_F(SpriteTest, VectorQuadBatchAndOverrides)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    m_UpdateContext.m_DT = 0.0f;
+    const dmhash_t          sprite_id = dmHashString64("sprite");
+    const dmhash_t          go_id = dmHashString64("/vector");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/vector.goc", go_id, 0, Point3(17.0f, -23.0f, 4.0f), Quat::rotationZ(0.7f), Vector3(-1.25f, 2.5f, 1.0f));
+    ASSERT_NE(0, go);
+    ASSERT_NE(0, Spawn(m_Factory, m_Collection, "/sprite/vector.goc", dmHashString64("/second")));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::TextureSetResource* atlas = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/vector.a.texturesetc", (void**)&atlas));
+    uint32_t                               animation_index = *atlas->m_AnimationIds.Get(dmHashString64("vector"));
+    uint32_t                               frame = atlas->m_TextureSet->m_FrameIndices[atlas->m_TextureSet->m_Animations[animation_index].m_Start];
+    const dmGameSystemDDF::SpriteGeometry& geometry = atlas->m_TextureSet->m_Geometries[frame];
+    const dmGameSystemDDF::VectorImage&    image = atlas->m_TextureSet->m_Vector.m_Images[frame];
+    dmGameObject::PropertyOptions          options;
+    dmGameObject::PropertyDesc             size;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, sprite_id, dmHashString64("size"), options, size));
+    ASSERT_EQ(100.5f, size.m_Variant.m_V4[0]);
+    ASSERT_EQ(80.5f, size.m_Variant.m_V4[1]);
+    const float              xs[] = { -0.5f, -0.5f, 0.5f, 0.5f };
+    const float              ys[] = { -0.5f, 0.5f, 0.5f, -0.5f };
+    const uint32_t           uv_order[4][4] = { { 0, 1, 2, 3 }, { 3, 2, 1, 0 }, { 1, 0, 3, 2 }, { 2, 3, 0, 1 } };
+    const float              uvs[] = { 0, image.m_Height, 0, 0, image.m_Width, 0, image.m_Width, image.m_Height };
+    void*                    world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    for (uint32_t flip = 0; flip < 4; ++flip)
+    {
+        PostSpriteFlip(m_Collection, go_id, sprite_id, flip & 1, flip & 2);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+        dmRender::RenderListEnd(m_RenderContext);
+        dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+        ASSERT_EQ(1u, context->m_RenderObjects.Size());
+        dmRender::RenderObject* ro = context->m_RenderObjects[0];
+        ASSERT_EQ(12u, ro->m_VertexCount);
+        dmGraphics::HVertexDeclaration  declaration = ro->m_VertexDeclaration;
+        uint32_t                        stride = dmGraphics::GetVertexDeclarationStride(declaration);
+        uint32_t                        position_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("position"));
+        uint32_t                        uv_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("texcoord0"));
+        uint32_t                        paint_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("page_index"));
+        dmRender::BufferedRenderBuffer* vertices = 0;
+        dmRender::BufferedRenderBuffer* indices = 0;
+        dmGameSystem::GetSpriteWorldRenderBuffers(world, &vertices, &indices);
+        ASSERT_EQ(8u * stride, dmGraphics::GetVertexBufferSize(vertices->m_Buffers[0]));
+        ASSERT_EQ(12u * sizeof(uint16_t), dmGraphics::GetIndexBufferSize(indices->m_Buffers[0]));
+        const char* data = ((dmGraphics::VertexBuffer*)vertices->m_Buffers[0])->m_Buffer;
+        for (uint32_t vertex = 0; vertex < 4; ++vertex)
+        {
+            Vector4 local((xs[vertex] - geometry.m_PivotX) * image.m_Width,
+                          (ys[vertex] - geometry.m_PivotY) * image.m_Height,
+                          0,
+                          1);
+            Vector4 expected = dmGameObject::GetWorldMatrix(go) * local;
+            for (uint32_t c = 0; c < 4; ++c)
+                ASSERT_NEAR(expected[c], ReadUnalignedFloat(data + vertex * stride + position_offset + c * sizeof(float)), EPSILON);
+            for (uint32_t c = 0; c < 2; ++c)
+                ASSERT_EQ(uvs[uv_order[flip][vertex] * 2 + c], ReadUnalignedFloat(data + vertex * stride + uv_offset + c * sizeof(float)));
+            ASSERT_EQ((float)image.m_Paint, ReadUnalignedFloat(data + vertex * stride + paint_offset));
+        }
+        dmRender::ClearRenderObjects(m_RenderContext);
+    }
+    dmGameObject::PropertyVar raster(dmHashString64("/sprite/tile_valid.t.texturesetc"));
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, sprite_id, dmHashString64("image"), options, raster));
+    dmGameObject::PropertyVar material(dmHashString64("/sprite/sprite.materialc"));
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, sprite_id, dmHashString64("material"), options, material));
+    dmGameSystem::MaterialResource* raster_material = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/sprite.materialc", (void**)&raster_material));
+    context->m_Material = raster_material->m_Material;
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(0u, context->m_RenderObjects.Size());
+    context->m_Material = 0;
+    dmResource::Release(m_Factory, raster_material);
+    dmGameObject::PropertyVar slice(Vector4(1, 1, 1, 1));
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, sprite_id, dmHashString64("slice"), options, slice));
+    PostSpritePlayAnimation(m_Collection, go_id, sprite_id, dmHashString64("loop"), 0.75f, 1.0f);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/sprite/vector.a.texturesetc", 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(1u, context->m_RenderObjects.Size());
+    ASSERT_EQ(12u, context->m_RenderObjects[0]->m_VertexCount);
+    dmRender::ClearRenderObjects(m_RenderContext);
+    dmResource::Release(m_Factory, atlas);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 // Verify that a dynamic attribute in a batch does not overwrite subsequent sprites' material defaults.
 TEST_F(SpriteTest, MixedDefaultAndDynamicVertexAttributes)
 {
@@ -705,6 +863,92 @@ TEST_F(SpriteTest, FrameCount)
     dmGameObject::Delete(m_Collection, go, true);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+}
+
+// SVG nine-slice retains viewport coordinates, paint, fractional sizes and pivots
+// across resizing, component/animation flips and reloads, and batches with quads.
+TEST_F(SpriteTest, VectorSlice9)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    m_UpdateContext.m_DT = 0.0f;
+    const dmhash_t          sprite_id = dmHashString64("sprite");
+    const dmhash_t          go_id = dmHashString64("/sliced");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/vector_slice9.goc", go_id, 0, Point3(17, -23, 4), Quat::rotationZ(0.7f), Vector3(-1.25f, 2.5f, 1));
+    ASSERT_NE(0, go);
+    ASSERT_NE(0, Spawn(m_Factory, m_Collection, "/sprite/vector.goc", dmHashString64("/quad")));
+    dmGameSystem::TextureSetResource* atlas = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/vector.a.texturesetc", (void**)&atlas));
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyVar     slice(Vector4(10.25f, 20.5f, 30.75f, 15.25f));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, sprite_id, dmHashString64("slice"), options, slice));
+    const float              sizes[][2] = { { 300.75f, 200.25f }, { 100.5f, 80.5f }, { 41, 35.75f }, { 0, 0 } };
+    const char*              animations[] = { "vector", "flipped" };
+    void*                    world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    for (uint32_t animation = 0; animation < 2; ++animation)
+    {
+        PostSpritePlayAnimation(m_Collection, go_id, sprite_id, dmHashString64(animations[animation]), 0, 1);
+        uint32_t                               animation_index = *atlas->m_AnimationIds.Get(dmHashString64(animations[animation]));
+        uint32_t                               frame = atlas->m_TextureSet->m_FrameIndices[atlas->m_TextureSet->m_Animations[animation_index].m_Start];
+        const dmGameSystemDDF::VectorImage&    image = atlas->m_TextureSet->m_Vector.m_Images[frame];
+        const dmGameSystemDDF::SpriteGeometry& geometry = atlas->m_TextureSet->m_Geometries[frame];
+        const float                            us[] = { 0, 10.25f, image.m_Width - 30.75f, image.m_Width };
+        const float                            vs[] = { image.m_Height, image.m_Height - 15.25f, 20.5f, 0 };
+        for (uint32_t size = 0; size < 4; ++size)
+        {
+            float                     width = sizes[size][0];
+            float                     height = sizes[size][1];
+            dmGameObject::PropertyVar dimensions(Vector3(width, height, 0));
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, sprite_id, dmHashString64("size"), options, dimensions));
+            for (uint32_t flip = 0; flip < 4; ++flip)
+            {
+                PostSpriteFlip(m_Collection, go_id, sprite_id, flip & 1, flip & 2);
+                ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+                ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+                dmRender::RenderListBegin(m_RenderContext);
+                dmGameObject::Render(m_Collection);
+                dmRender::RenderListEnd(m_RenderContext);
+                dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+                ASSERT_EQ(1u, context->m_RenderObjects.Size());
+                dmRender::RenderObject* ro = context->m_RenderObjects[0];
+                ASSERT_EQ(60u, ro->m_VertexCount);
+                dmGraphics::HVertexDeclaration  declaration = ro->m_VertexDeclaration;
+                uint32_t                        stride = dmGraphics::GetVertexDeclarationStride(declaration);
+                uint32_t                        position_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("position"));
+                uint32_t                        uv_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("texcoord0"));
+                uint32_t                        paint_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("page_index"));
+                dmRender::BufferedRenderBuffer* vertices = 0;
+                dmRender::BufferedRenderBuffer* indices = 0;
+                dmGameSystem::GetSpriteWorldRenderBuffers(world, &vertices, &indices);
+                ASSERT_EQ(20u * stride, dmGraphics::GetVertexBufferSize(vertices->m_Buffers[0]));
+                ASSERT_EQ(60u * sizeof(uint16_t), dmGraphics::GetIndexBufferSize(indices->m_Buffers[0]));
+                const char* data = ((dmGraphics::VertexBuffer*)vertices->m_Buffers[0])->m_Buffer;
+                bool        flip_u = (flip & 1) != (animation ? 1u : 0u);
+                bool        flip_v = (flip & 2) != (animation ? 2u : 0u);
+                const float xs[] = { 0, width ? (flip_u ? 30.75f : 10.25f) : 0, width ? width - (flip_u ? 10.25f : 30.75f) : 0, width };
+                const float ys[] = { 0, height ? (flip_v ? 20.5f : 15.25f) : 0, height ? height - (flip_v ? 15.25f : 20.5f) : 0, height };
+                for (uint32_t vertex = 0; vertex < 16; ++vertex)
+                {
+                    uint32_t x = vertex % 4;
+                    uint32_t y = vertex / 4;
+                    Vector4  local(xs[x] - (0.5f + geometry.m_PivotX) * width,
+                                   ys[y] - (0.5f + geometry.m_PivotY) * height,
+                                   0,
+                                   1);
+                    Vector4  expected = dmGameObject::GetWorldMatrix(go) * local;
+                    for (uint32_t c = 0; c < 4; ++c)
+                        ASSERT_NEAR(expected[c], ReadUnalignedFloat(data + vertex * stride + position_offset + c * sizeof(float)), EPSILON);
+                    ASSERT_EQ(us[flip_u ? 3 - x : x], ReadUnalignedFloat(data + vertex * stride + uv_offset));
+                    ASSERT_EQ(vs[flip_v ? 3 - y : y], ReadUnalignedFloat(data + vertex * stride + uv_offset + sizeof(float)));
+                    ASSERT_EQ((float)image.m_Paint, ReadUnalignedFloat(data + vertex * stride + paint_offset));
+                }
+                dmRender::ClearRenderObjects(m_RenderContext);
+            }
+        }
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/sprite/vector.a.texturesetc", 0));
+    }
+    dmResource::Release(m_Factory, atlas);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 TEST_F(SpriteTest, GetSetSliceProperty)

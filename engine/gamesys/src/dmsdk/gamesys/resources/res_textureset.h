@@ -26,11 +26,15 @@
 
 namespace dmGameSystem
 {
+    struct VectorAtlasTextures;
+
     struct TextureSetResource
     {
         inline TextureSetResource()
         {
             m_Texture = 0;
+            m_VectorTextures = 0;
+            m_TexturePath = 0;
             m_TextureSet = 0;
             m_HullSet = 0;
             m_TexturesGeneration = 0;
@@ -39,11 +43,12 @@ namespace dmGameSystem
         dmArray<dmhash_t>                   m_HullCollisionGroups;
         dmHashTable64<uint32_t>             m_AnimationIds; // Animation id to animation index
         dmHashTable64<uint32_t>             m_FrameIds;     // Animation id to frame index
-        TextureResource*                    m_Texture;
-        dmhash_t                            m_TexturePath;
+        TextureResource*                    m_Texture;      // Raster texture; null for vector atlases.
+        dmhash_t                            m_TexturePath;  // Raster texture path or vector atlas resource path.
         dmGameSystemDDF::TextureSet*        m_TextureSet;
         dmPhysics::HHullSet2D               m_HullSet;
         uint8_t                             m_TexturesGeneration; // increase counter when reload resource data
+        VectorAtlasTextures*                m_VectorTextures;     // Owned numeric textures; null for raster atlases.
     };
 }
 

@@ -316,6 +316,24 @@ dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, c
     return SetResourceProperty(factory, value, &ext, 1, out_resource);
 }
 
+dmGameObject::PropertyResult SetRasterAtlasProperty(dmResource::HFactory factory, const dmGameObject::PropertyVar& value, void** resource)
+{
+    TextureSetResource*          candidate = 0;
+    dmGameObject::PropertyResult result = SetResourceProperty(factory, value, dmHashString64("texturesetc"), (void**)&candidate);
+    if (result != dmGameObject::PROPERTY_RESULT_OK)
+        return result;
+    if (IsVectorTextureSet(candidate))
+    {
+        dmLogError("This component does not support SVG atlases");
+        dmResource::Release(factory, candidate);
+        return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION;
+    }
+    if (*resource)
+        dmResource::Release(factory, *resource);
+    *resource = candidate;
+    return result;
+}
+
 // ********************************************************************************************************************************************
 
 struct CompRenderConstants
