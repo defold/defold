@@ -355,6 +355,35 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Labels retain authored arc controls, supply backward-compatible defaults, and reject invalid sweeps.
+    @Test
+    public void testLabelArcProperties() throws Exception {
+        ParseUtil.addParser("labelc", com.dynamo.gamesys.proto.Label.LabelDesc::parseFrom);
+        addFile("/arc.font", "font: \"/Tuffy.ttf\"\nmaterial: \"/test.material\"\nsize: 16\n");
+        String label = "size { x: 100 y: 32 }\nfont: \"/arc.font\"\nmaterial: \"/test.material\"\ntext: \"AA\\nAA\"\n";
+        String controls = "arc_radius: -200\narc_angle: 120\n";
+        for (boolean authored : new boolean[] { false, true }) {
+            boolean found = false;
+            for (Message result : build("/arc.label", label + (authored ? controls : ""))) {
+                if (result instanceof com.dynamo.gamesys.proto.Label.LabelDesc) {
+                    com.dynamo.gamesys.proto.Label.LabelDesc compiled = (com.dynamo.gamesys.proto.Label.LabelDesc)result;
+                    assertEquals(authored ? -200.0f : 100.0f, compiled.getArcRadius(), 0.0f);
+                    assertEquals(authored ? 120.0f : 0.0f, compiled.getArcAngle(), 0.0f);
+                    found = true;
+                }
+            }
+            assertTrue(found);
+        }
+        for (String invalid : new String[] {"arc_angle: 361\n", "arc_angle: -1\n", "arc_radius: nan\n"}) {
+            try {
+                build("/invalid_arc.label", label + invalid);
+                fail("Accepted invalid arc parameters");
+            } catch (CompileExceptionError expected) {
+                assertTrue(expected.getMessage().contains("arc"));
+            }
+        }
+    }
+
     @Test
     public void testTTF() throws Exception {
 

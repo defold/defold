@@ -14,6 +14,7 @@
 
 #include "test_gamesys_private.h"
 #include <dlib/thread.h>
+#include <font/render/text_arc.h>
 
 using namespace dmVMath;
 
@@ -223,6 +224,24 @@ static void CheckLayoutObjectRenderPosition(lua_State* L, dmRender::HRenderConte
     Vector4 rendered_position = entry.m_Transform * Point3(bounds.m_MinX, bounds.m_MinY, 0.0f);
     EXPECT_NEAR(rendered_position.getX(), origin.getX() + x, 0.0001f);
     EXPECT_NEAR(rendered_position.getY(), origin.getY() + y, 0.0001f);
+}
+
+static void CheckScriptObjectPosition(lua_State* L, const Point3& expected)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+    lua_getglobal(L, "layout_objects");
+    ASSERT_TRUE(lua_istable(L, -1));
+    ASSERT_EQ(1u, lua_objlen(L, -1));
+    lua_rawgeti(L, -1, 1);
+    const char* fields[] = { "x", "y", "z" };
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        lua_getfield(L, -1, fields[i]);
+        ASSERT_TRUE(lua_isnumber(L, -1));
+        EXPECT_NEAR(expected.getElem(i), lua_tonumber(L, -1), 0.001f);
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 2);
 }
 
 static void SetLayoutObjectTextCase(lua_State* L, const LayoutObjectTextCase& text_case, dmGameSystem::FontResource* font_resource)
@@ -1820,6 +1839,213 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Scripted curves reach the label render queue, retain their mapping across
+// replacements, and ignore stored size/arc properties while preserving the three lines.
+TEST_F(LabelComponentTest, LabelScriptedCurve)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/curve.goc", dmHashString64("/go"),
+                                      0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    HTextLayout layout = QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(3u, TextLayoutGetLineCount(layout));
+    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries[0];
+    HFontTextCurve curve = entry.m_Curve;
+    ASSERT_NE((HFontTextCurve)0, curve);
+    ASSERT_GT(FontTextCurveGetLength(curve), 680.0f);
+    ASSERT_EQ(FontTextCurveGetLength(curve), entry.m_Width);
+    ASSERT_EQ(0.0f, entry.m_Height);
+    Matrix4 transform = entry.m_Transform;
+    dmGameObject::PropertyOptions options;
+    const dmhash_t                label_id = dmHashString64("label");
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("line_break"), options, dmGameObject::PropertyVar(true)));
+    layout = PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    TextLayoutAcquire(layout);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_angle"), options, dmGameObject::PropertyVar(90.0f)));
+    EXPECT_EQ(layout, PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(10.0f)));
+    EXPECT_EQ(layout, PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection));
+    TextLayoutRelease(layout);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, dmHashString64("label"), dmHashString64("size"), options, dmGameObject::PropertyVar(Vector3(1, 1, 0))));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    FontTextCurveRetain(curve);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    dmGameSystem::CompLabelSetCurve(GetLabelComponent(go, label_id), 0);
+    ASSERT_GT(TextLayoutGetLineCount(PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection)), 3u);
+    dmGameSystem::CompLabelSetCurve(GetLabelComponent(go, label_id), curve);
+    FontTextCurveRelease(curve);
+    QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    dmGameObject::Delete(m_Collection, go, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_GT(FontTextCurveGetLength(curve), 680.0f); // The queue still owns its reference.
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// GUI curves use their length for alignment/wrapping, and the render queue
+// owns its mapping even when the node clears its curve before drawing.
+TEST_F(GuiTest, GuiTextCurveLayout)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"),
+                                      0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGui::HScene scene = GetGuiComponent(m_Collection)->m_Scene;
+    dmGui::HNode node = dmGui::GetNodeById(scene, "text");
+    FontTextCurveKnot knots[2] = {};
+    knots[0].m_OutHandle = Vector3(60, 60, 0);
+    knots[1].m_Position = Vector3(180, 0, 0);
+    knots[1].m_InHandle = Vector3(-60, -60, 0);
+    knots[0].m_Scale = knots[1].m_Scale = 1;
+    HFontTextCurve curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+    ASSERT_NE((HFontTextCurve)0, curve);
+    dmGui::SetNodeTextCurve(scene, node, curve);
+    FontTextCurveRelease(curve);
+    dmGui::SetNodeText(scene, node, "Alpha\nBeta\nGamma");
+    GuiTextSubmitResult curved = QueueGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(3u, TextLayoutGetLineCount(curved.m_TextLayout));
+    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries[0];
+    ASSERT_EQ(curve, entry.m_Curve);
+    ASSERT_EQ(FontTextCurveGetLength(curve), entry.m_Width);
+    ASSERT_EQ(0.0f, entry.m_Height);
+    dmGui::SetNodeTextCurve(scene, node, 0);
+    ASSERT_GT(FontTextCurveGetLength(curve), 180.0f);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// GUI text arcs reach the renderer, ignore the stored box, and wrap at arc
+// length. Changing radius/angle or restoring textbox mode refreshes layout.
+TEST_F(GuiTest, GuiTextArcLayout)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"),
+                                      0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGui::HScene scene = GetGuiComponent(m_Collection)->m_Scene;
+    dmGui::HNode node = dmGui::GetNodeById(scene, "text");
+    ASSERT_EQ(100.0f, dmGui::GetNodeTextArcRadius(scene, node));
+    ASSERT_EQ(0.0f, dmGui::GetNodeTextArcAngle(scene, node));
+    dmGui::SetNodeText(scene, node, "Alpha beta gamma\nDelta epsilon");
+    dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_SIZE, Vector4(40.0f, 200.0f, 0.0f, 0.0f));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, 200.0f));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcAngle(scene, node, 90.0f));
+    dmGui::SetNodeLineBreak(scene, node, false);
+    GuiTextSubmitResult curved = QueueGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(2u, TextLayoutGetLineCount(curved.m_TextLayout));
+    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries[0];
+    ASSERT_EQ(200.0f, entry.m_ArcRadius);
+    ASSERT_EQ(90.0f, entry.m_ArcAngle);
+    ASSERT_EQ(0.0f, entry.m_Width);
+    ASSERT_EQ(0.0f, entry.m_Height);
+    Matrix4 transform = entry.m_Transform;
+    dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_SIZE, Vector4(800.0f, 1000.0f, 0.0f, 0.0f));
+    GuiTextSubmitResult resized = QueueGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(curved.m_TextLayout, resized.m_TextLayout);
+    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_SIZE, Vector4(40.0f, 200.0f, 0.0f, 0.0f));
+    dmGui::SetNodeLineBreak(scene, node, true);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, 30.0f));
+    ASSERT_GT(TextLayoutGetLineCount(QueueGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout), 2u);
+    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, 300.0f));
+    ASSERT_EQ(2u, TextLayoutGetLineCount(QueueGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout));
+    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, -300.0f));
+    ASSERT_EQ(2u, TextLayoutGetLineCount(QueueGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout));
+    ASSERT_NEAR(300.0f * 1.5707963267948966f, dmGui::GetNodeTextSize(scene, node).getX(), 0.001f);
+    ASSERT_EQ(-300.0f, ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_ArcRadius);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcAngle(scene, node, 10.0f));
+    ASSERT_GT(TextLayoutGetLineCount(PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout), 2u);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcAngle(scene, node, 0.0f));
+    ASSERT_GT(TextLayoutGetLineCount(PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout), 2u);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// GUI picking and link input follow visible arc/3D curve glyphs, including
+// node transforms and display scaling, and angle zero restores the textbox.
+TEST_F(GuiTest, GuiCurvedTextPicking)
+{
+    dmGui::SetDefaultResolution(m_GuiContext, 640, 480);
+    dmGui::SetPhysicalResolution(m_GuiContext, 1280, 960);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameSystem::GuiComponent* component = GetGuiComponent(m_Collection);
+    dmGui::HScene               scene = component->m_Scene;
+    dmGui::HNode                node = dmGui::GetNodeById(scene, "text");
+    dmGui::SetNodePivot(scene, node, dmGui::PIVOT_SW);
+    dmGui::SetNodePosition(scene, node, Point3(150, 100, 0));
+    dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_SIZE, Vector4(20, 20, 0, 0));
+    dmGui::SetNodeText(scene, node, "<link id=docs src=https://www.defold.com>AA</link>");
+    dmGui::SetNodeLineBreak(scene, node, false);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, 200));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcAngle(scene, node, 90));
+    HTextLayout layout = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout;
+    ASSERT_NE((HTextLayout)0, layout);
+    const TextGlyph& glyph = TextLayoutGetGlyphs(layout)[0];
+    const float      pivot = glyph.m_X + glyph.m_Width * 0.5f;
+    const float      baseline = TextLayoutGetLines(layout)[0].m_Baseline;
+    FontTextArc      arc;
+    ASSERT_TRUE(FontPrepareTextArc(layout, 0, 0, 0, 2, layout->m_MonospacePadding, 200, 90, &arc));
+    Matrix4 arc_transform;
+    FontGetTextArcTransform(&arc, pivot, baseline, (float*)&arc_transform);
+    Matrix4 screen = dmGui::GetNodeScreenTransform(scene, node);
+    Vector4 point = screen * arc_transform * Point3(pivot, baseline + 2, 0);
+    ASSERT_TRUE(dmGui::PickNode(scene, node, point.getX(), point.getY()));
+    const Vector4 origin = screen * Point3(0, 0, 0);
+    ASSERT_FALSE(dmGui::PickNode(scene, node, origin.getX(), origin.getY()));
+
+    FontTextCurveKnot knots[2] = {};
+    knots[0].m_OutHandle = Vector3(40, 0, 40);
+    knots[0].m_Position = Vector3(0, 80, 0);
+    knots[1].m_Position = Vector3(120, 80, 120);
+    knots[1].m_InHandle = Vector3(-40, 0, -40);
+    knots[0].m_Scale = knots[1].m_Scale = 1;
+    HFontTextCurve curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+    ASSERT_NE((HFontTextCurve)0, curve);
+    dmGui::SetNodeTextCurve(scene, node, curve);
+    FontTextCurveRelease(curve);
+    dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_ROTATION, Vector4(Quat::rotationY(0.2f)));
+    screen = dmGui::GetNodeScreenTransform(scene, node);
+    point = screen * FontTextCurveGetTransform(curve, pivot, baseline) * Point3(pivot, baseline + 2, 0);
+    ASSERT_TRUE(dmGui::PickNode(scene, node, point.getX(), point.getY()));
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    dmGameObject::InputAction action = {};
+    action.m_PositionSet = 1;
+    action.m_X = point.getX();
+    action.m_Y = point.getY();
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &action, 1));
+    ASSERT_EQ(dmHashString64("docs"), component->m_HoveredLayoutObject.m_ObjectId);
+
+    dmGui::SetNodeTextCurve(scene, node, 0);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcAngle(scene, node, 0));
+    dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_ROTATION, Vector4(Quat(0, 0, 0, 1)));
+    ASSERT_TRUE(dmGui::PickNode(scene, node, origin.getX() + 2, origin.getY() + 2));
+    ASSERT_FALSE(dmGui::PickNode(scene, node, point.getX(), point.getY()));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(GuiTest, GuiPreparedTextLayoutInvalidation)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -2387,6 +2613,123 @@ TEST_F(GuiTest, GuiPreparedTextLayoutDestroyedBeforeDraw)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Arc controls reach the render entry, preserve explicit newlines, update wrapping, and reject invalid values.
+TEST_F(LabelComponentTest, LabelArcProperties)
+{
+    const dmhash_t label_id = dmHashString64("label");
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", dmHashString64("/go"),
+                                      0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PropertyOptions options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("text"), options,
+                                                                        dmGameObject::PropertyVar("AA\nAA")));
+    HTextLayout straight = PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, straight);
+    ASSERT_EQ(2u, TextLayoutGetLineCount(straight));
+    const char* names[] = { "arc_radius", "arc_angle" };
+    const float defaults[] = { 100.0f, 0.0f };
+    const float authored[] = { 200.0f, 120.0f };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(names); ++i)
+    {
+        const dmhash_t property = dmHashString64(names[i]);
+        dmGameObject::PropertyDesc desc;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, property, options, desc));
+        ASSERT_EQ(defaults[i], desc.m_Variant.m_Number);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, property, options,
+                                                                            dmGameObject::PropertyVar(authored[i])));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, property, options, desc));
+        ASSERT_EQ(authored[i], desc.m_Variant.m_Number);
+    }
+    ASSERT_EQ(straight, QueueLabelAndGetTextLayout(m_RenderContext, m_Collection));
+    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries[0];
+    ASSERT_EQ(authored[0], entry.m_ArcRadius);
+    ASSERT_EQ(authored[1], entry.m_ArcAngle);
+    const Matrix4 transform = entry.m_Transform;
+    ASSERT_GT(entry.m_FrustumCullingRadiusSq, 200.0f * 200.0f);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_angle"), options, dmGameObject::PropertyVar(361.0f)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_angle"), options, dmGameObject::PropertyVar(-1.0f)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(INFINITY)));
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("text"), options, dmGameObject::PropertyVar("Alpha beta gamma\nDelta epsilon")));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("size"), options, dmGameObject::PropertyVar(Vector3(40.0f, 100.0f, 0.0f))));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("line_break"), options, dmGameObject::PropertyVar(true)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(30.0f)));
+    HTextLayout curved = QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_GT(TextLayoutGetLineCount(curved), 2u);
+    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("line_break"), options, dmGameObject::PropertyVar(false)));
+    ASSERT_EQ(2u, TextLayoutGetLineCount(PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("line_break"), options, dmGameObject::PropertyVar(true)));
+    ASSERT_GT(TextLayoutGetLineCount(PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection)), 2u);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(200.0f)));
+    ASSERT_EQ(2u, TextLayoutGetLineCount(QueueLabelAndGetTextLayout(m_RenderContext, m_Collection)));
+    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(-200.0f)));
+    ASSERT_EQ(2u, TextLayoutGetLineCount(PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_angle"), options, dmGameObject::PropertyVar(15.0f)));
+    ASSERT_GT(TextLayoutGetLineCount(PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection)), 2u);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_angle"), options, dmGameObject::PropertyVar(0.0f)));
+    HTextLayout wrapped = PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_GT(TextLayoutGetLineCount(wrapped), 2u);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_angle"), options, dmGameObject::PropertyVar(90.0f)));
+    ASSERT_EQ(2u, TextLayoutGetLineCount(PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection)));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Arc angle animations clamp easing overshoot instead of freezing at the last valid value.
+TEST_F(LabelComponentTest, LabelArcAngleOvershoot)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    dmGameObject::PropertyOptions options;
+    const dmhash_t                component = dmHashString64("label");
+    const dmhash_t                property = dmHashString64("arc_angle");
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, component, property, options, dmGameObject::PropertyVar(0.0f)));
+    const float     endpoints[] = { 360.0f, 0.0f };
+    dmEasing::Curve easing;
+    easing.type = dmEasing::TYPE_OUTBACK;
+    for (uint32_t endpoint = 0; endpoint < DM_ARRAY_SIZE(endpoints); ++endpoint)
+    {
+        const float               from = endpoint ? endpoints[endpoint - 1] : 0.0f;
+        dmGameObject::PropertyVar to(endpoints[endpoint]);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+                  dmGameObject::Animate(m_Collection, go, component, property, dmGameObject::PLAYBACK_ONCE_FORWARD, to, easing, 1.0f, 0.0f, 0, 0, 0));
+        m_UpdateContext.m_DT = 0.2f;
+        for (uint32_t i = 0; i < 5; ++i)
+        {
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            dmGameObject::PropertyDesc desc;
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, component, property, options, desc));
+            const float expected = dmMath::Clamp(from + (endpoints[endpoint] - from) * dmEasing::GetValue(easing, (i + 1) * 0.2f), 0.0f, 360.0f);
+            EXPECT_NEAR(expected, desc.m_Variant.m_Number, 0.001f);
+        }
+    }
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE,
+              dmGameObject::SetProperty(go, component, property, options, dmGameObject::PropertyVar(361.0f)));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(LabelComponentTest, LabelTextProperty)
 {
     const dmhash_t go_id = dmHashString64("/go");
@@ -2456,6 +2799,94 @@ TEST_P(LabelLayoutObjectPivotTest, SpritePositionMatchesRender)
 
 INSTANTIATE_TEST_CASE_P(AllPivots, LabelLayoutObjectPivotTest, jc_test_values_in(layout_object_pivots));
 
+// Lua layout-object coordinates follow the visible arc/3D path instead of
+// returning the old textbox corner; both component APIs expose mapped Z.
+TEST_F(LabelComponentTest, LabelCurvedLayoutObjectPositions)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    lua_pushstring(L, "<sprite width=32px height=32px/>");
+    lua_setglobal(L, "layout_object_text");
+    lua_pushnumber(L, 120);
+    lua_setglobal(L, "layout_object_width");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/layout_object_pivot.goc", dmHashString64("/go"));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    dmGameSystem::LabelComponent* component = GetLabelComponent(go, dmHashString64("label"));
+    dmGameObject::PropertyOptions options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, dmHashString64("label"), dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(200.0f)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, dmHashString64("label"), dmHashString64("arc_angle"), options, dmGameObject::PropertyVar(90.0f)));
+    FontTextCurveKnot knots[2] = {};
+    knots[0].m_Position = Vector3(0, 80, 30);
+    knots[1].m_Position = Vector3(120, 80, 30);
+    knots[0].m_OutHandle = Vector3(40, 0, 0);
+    knots[1].m_InHandle = Vector3(-40, 0, 0);
+    knots[0].m_Scale = knots[1].m_Scale = 1;
+    HFontTextCurve curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+    ASSERT_NE((HFontTextCurve)0, curve);
+    dmMessage::URL url;
+    dmMessage::ResetURL(&url);
+    url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    url.m_Path = dmHashString64("/go");
+    url.m_Fragment = dmHashString64("script");
+    for (uint32_t mode = 0; mode < 2; ++mode)
+    {
+        if (mode)
+            dmGameSystem::CompLabelSetCurve(component, curve);
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&url, &url, dmHashString64("sample"), 0, 0, 0, 0, 0, 0));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        CheckScriptObjectPosition(L, mode ? Point3(0, 73.6f, 30) : Point3(-16, 193.6f, 0));
+    }
+    FontTextCurveRelease(curve);
+    DeleteInstance(m_Collection, go);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// GUI scripts receive the same mapped coordinates on demand, before rendering
+// populates the layout cache, including a curve overriding active arc settings.
+TEST_F(GuiTest, GuiCurvedLayoutObjectPositions)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    lua_pushstring(L, "NW");
+    lua_setglobal(L, "layout_object_pivot");
+    lua_pushstring(L, "<sprite width=32px height=32px/>");
+    lua_setglobal(L, "layout_object_text");
+    lua_pushnumber(L, 120);
+    lua_setglobal(L, "layout_object_width");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/layout_object_pivot.goc", dmHashString64("/go"));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    dmGui::HScene scene = GetGuiComponent(m_Collection)->m_Scene;
+    dmGui::HNode  node = dmGui::GetNodeById(scene, "text");
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, 200));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcAngle(scene, node, 90));
+    FontTextCurveKnot knots[2] = {};
+    knots[0].m_Position = Vector3(0, 80, 30);
+    knots[1].m_Position = Vector3(120, 80, 30);
+    knots[0].m_OutHandle = Vector3(40, 0, 0);
+    knots[1].m_InHandle = Vector3(-40, 0, 0);
+    knots[0].m_Scale = knots[1].m_Scale = 1;
+    HFontTextCurve curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+    ASSERT_NE((HFontTextCurve)0, curve);
+    dmMessage::URL url;
+    dmMessage::ResetURL(&url);
+    url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    url.m_Path = dmHashString64("/go");
+    url.m_Fragment = dmHashString64("gui");
+    for (uint32_t mode = 0; mode < 2; ++mode)
+    {
+        if (mode)
+            dmGui::SetNodeTextCurve(scene, node, curve);
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&url, &url, dmHashString64("sample"), 0, 0, 0, 0, 0, 0));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        CheckScriptObjectPosition(L, mode ? Point3(0, 73.6f, 30) : Point3(-16, 193.6f, 0));
+    }
+    FontTextCurveRelease(curve);
+    DeleteInstance(m_Collection, go);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 // Verifies a position query does not replace the captured label layout after a font version change.
 TEST_F(LabelComponentTest, LabelLayoutObjectQueryUsesCapturedLayout)
 {
@@ -2477,8 +2908,8 @@ TEST_F(LabelComponentTest, LabelLayoutObjectQueryUsesCapturedLayout)
     TextLayoutAcquire(layout);
     const uint32_t ref_count = layout->m_RefCount;
     ++font_resource->m_Version;
-    float x, y;
-    EXPECT_TRUE(dmGameSystem::CompLabelGetLayoutObjectPosition(component, layout, TextLayoutGetObjects(layout), &x, &y));
+    Point3 position;
+    EXPECT_TRUE(dmGameSystem::CompLabelGetLayoutObjectPosition(component, layout, TextLayoutGetObjects(layout), &position));
     EXPECT_EQ(ref_count, layout->m_RefCount);
     EXPECT_NE(layout, dmGameSystem::CompLabelGetTextLayout(component));
     TextLayoutRelease(layout);
@@ -2817,6 +3248,31 @@ TEST_F(LabelComponentTest, LabelRichTextLinkHover)
     input_action.m_X = -13.0f;
     input_action.m_Y = 82.96361f;
     input_action.m_Pressed = 1;
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
+    ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
+
+    // Projected input also reaches the visible link after the label moves into 3D.
+    FontTextCurveKnot knots[2] = {};
+    knots[0].m_OutHandle = Vector3(60, 0, 60);
+    knots[1].m_Position = Vector3(180, 0, 180);
+    knots[1].m_InHandle = Vector3(-60, 0, -60);
+    knots[0].m_Scale = knots[1].m_Scale = 1;
+    HFontTextCurve curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+    ASSERT_NE((HFontTextCurve)0, curve);
+    dmGameSystem::CompLabelSetCurve(label_component, curve);
+    FontTextCurveRelease(curve);
+    layout = QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back();
+    const TextLine&            line = TextLayoutGetLines(layout)[0];
+    const TextGlyph&           glyph = TextLayoutGetGlyphs(layout)[line.m_Index];
+    float                      layout_width, layout_height;
+    TextLayoutGetBounds(layout, &layout_width, &layout_height);
+    const float   pivot = (entry.m_Width - line.m_Width) * 0.5f + glyph.m_X + glyph.m_Width * 0.5f - TextLayoutGetLineOriginX(layout, 0);
+    const float   baseline = (entry.m_Height - layout_height) * 0.5f + line.m_Baseline;
+    const Vector4 point = entry.m_Transform * FontTextCurveGetTransform(curve, pivot, baseline) * Point3(pivot, baseline + 2, 0);
+    input_action.m_Pressed = 0;
+    input_action.m_X = point.getX();
+    input_action.m_Y = point.getY();
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &input_action, 1));
     ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
 

@@ -299,6 +299,8 @@
    ['dmGuiDDF.NodeDesc "[TYPE_BOX]"]
    {:default
     {"font_size" :unused
+     "arc_radius" :unused
+     "arc_angle" :unused
      "custom_properties" :unused
      "custom_type" :unused
      "font" :unused
@@ -327,6 +329,8 @@
    ['dmGuiDDF.NodeDesc "[TYPE_CUSTOM]"]
    {:default
     {"font_size" :unused
+     "arc_radius" :unused
+     "arc_angle" :unused
      "custom_type" :deprecated ; Project files use custom_type_name. Runtime numeric custom_type coverage is tested in GUI build tests.
      "custom_properties" :non-overridable ; Custom property entries signal overrides individually; the field itself is not listed among overridden_fields.
      "custom_type_name" :non-overridable
@@ -360,6 +364,8 @@
    ['dmGuiDDF.NodeDesc "[TYPE_PARTICLEFX]"]
    {:default
     {"font_size" :unused
+     "arc_radius" :unused
+     "arc_angle" :unused
      "blend_mode" :unused
      "clipping_inverted" :unused
      "clipping_mode" :unused
@@ -395,6 +401,8 @@
    ['dmGuiDDF.NodeDesc "[TYPE_PIE]"]
    {:default
     {"font_size" :unused
+     "arc_radius" :unused
+     "arc_angle" :unused
      "custom_properties" :unused
      "custom_type" :unused
      "font" :unused
@@ -419,6 +427,8 @@
    ['dmGuiDDF.NodeDesc "[TYPE_TEMPLATE]"]
    {:default
     {"font_size" :unused
+     "arc_radius" :unused
+     "arc_angle" :unused
      "adjust_mode" :unused
      "blend_mode" :unused
      "clipping_inverted" :unused

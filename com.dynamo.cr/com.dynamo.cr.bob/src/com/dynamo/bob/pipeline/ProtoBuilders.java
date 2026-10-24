@@ -361,6 +361,9 @@ public class ProtoBuilders {
             BuilderUtil.checkResource(this.project, resource, "font", messageBuilder.getFont());
             if (!FontStyles.readStyleNames(this.project.getResource(messageBuilder.getFont())).contains(messageBuilder.getStyle()))
                 throw new CompileExceptionError(resource, 0, "Font style '" + messageBuilder.getStyle() + "' does not exist");
+            if (!Float.isFinite(messageBuilder.getArcRadius()) ||
+                !Float.isFinite(messageBuilder.getArcAngle()) || messageBuilder.getArcAngle() < 0.0f || messageBuilder.getArcAngle() > 360.0f)
+                throw new CompileExceptionError(resource, 0, "Invalid label arc parameters: values must be finite, and Arc Angle must be between 0 and 360");
             messageBuilder.setStyleHash(messageBuilder.getStyle().isEmpty() ? 0 : MurmurHash.hash64(messageBuilder.getStyle()));
             messageBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getMaterial(), "material", "materialc"));
             messageBuilder.setFont(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getFont(), "font", "fontc"));

@@ -36,6 +36,7 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  *     float m_MaxDescent;
  *     uint32_t m_ErrorByteOffset;
  *     uint32_t m_ErrorType;
+ *     float m_LayoutWidth;
  * }
  * }
  */
@@ -52,7 +53,8 @@ public class FontcLayout {
         FontRendererFFM.C_FLOAT.withName("m_MaxAscent"),
         FontRendererFFM.C_FLOAT.withName("m_MaxDescent"),
         FontRendererFFM.C_INT.withName("m_ErrorByteOffset"),
-        FontRendererFFM.C_INT.withName("m_ErrorType")
+        FontRendererFFM.C_INT.withName("m_ErrorType"),
+        FontRendererFFM.C_FLOAT.withName("m_LayoutWidth")
     ).withName("FontcLayout");
 
     /**
@@ -368,6 +370,50 @@ public class FontcLayout {
      */
     public static void m_ErrorType(MemorySegment struct, int fieldValue) {
         struct.set(m_ErrorType$LAYOUT, m_ErrorType$OFFSET, fieldValue);
+    }
+
+    private static final OfFloat m_LayoutWidth$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_LayoutWidth"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_LayoutWidth
+     * }
+     */
+    public static final OfFloat m_LayoutWidth$layout() {
+        return m_LayoutWidth$LAYOUT;
+    }
+
+    private static final long m_LayoutWidth$OFFSET = $LAYOUT.byteOffset(groupElement("m_LayoutWidth"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_LayoutWidth
+     * }
+     */
+    public static final long m_LayoutWidth$offset() {
+        return m_LayoutWidth$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_LayoutWidth
+     * }
+     */
+    public static float m_LayoutWidth(MemorySegment struct) {
+        return struct.get(m_LayoutWidth$LAYOUT, m_LayoutWidth$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_LayoutWidth
+     * }
+     */
+    public static void m_LayoutWidth(MemorySegment struct, float fieldValue) {
+        struct.set(m_LayoutWidth$LAYOUT, m_LayoutWidth$OFFSET, fieldValue);
     }
 
     /**

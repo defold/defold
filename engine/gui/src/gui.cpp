@@ -226,6 +226,8 @@ namespace dmGui
             { dmHashString64("fill_angle"), PROPERTY_PIE_PARAMS, 1 },
             { dmHashString64("leading"), PROPERTY_TEXT_PARAMS, 0 },
             { dmHashString64("tracking"), PROPERTY_TEXT_PARAMS, 1 },
+            { dmHashString64("arc_radius"), PROPERTY_TEXT_PARAMS, 2 },
+            { dmHashString64("arc_angle"), PROPERTY_TEXT_PARAMS, 3 },
     };
 #undef PROP
 
@@ -728,6 +730,7 @@ namespace dmGui
         scene->m_UpdateCustomNodeCallback = params->m_UpdateCustomNodeCallback;
         scene->m_CreateCustomNodeCallbackContext = params->m_CreateCustomNodeCallbackContext;
         scene->m_PrepareNodeTextLayoutCallback = params->m_PrepareNodeTextLayoutCallback;
+        scene->m_PickNodeTextCallback = params->m_PickNodeTextCallback;
         scene->m_GetResourceCallback = params->m_GetResourceCallback;
         scene->m_GetResourceCallbackContext = params->m_GetResourceCallbackContext;
         scene->m_GetMaterialPropertyCallback = params->m_GetMaterialPropertyCallback;
@@ -775,6 +778,11 @@ namespace dmGui
         }
 
         FreeTextLayout(&n->m_Node.m_TextLayout);
+
+        FontTextCurveRelease(n->m_Node.m_TextCurve);
+        FontTextCurveRelease(n->m_Node.m_ResetPointCurve);
+        n->m_Node.m_TextCurve = 0;
+        n->m_Node.m_ResetPointCurve = 0;
 
         free((void*)n->m_Node.m_Text);
         n->m_Node.m_Text = 0;
@@ -2082,6 +2090,11 @@ namespace dmGui
                 float x = dmEasing::GetValue(anim->m_Easing, t2);
 
                 *anim->m_Value = anim->m_From + (anim->m_To - anim->m_From) * x;
+                Node& animated_node = scene->m_Nodes[anim->m_Node & 0xffff].m_Node;
+                float* text_params = (float*)&animated_node.m_Properties[PROPERTY_TEXT_PARAMS];
+                // Easing may overshoot, but the arc angle keeps its valid range.
+                if (anim->m_Value == text_params + 3)
+                    *anim->m_Value = dmMath::Clamp(*anim->m_Value, 0.0f, 360.0f);
                 // Flag local transform as dirty for the node
                 scene->m_Nodes[anim->m_Node & 0xffff].m_Node.m_DirtyLocal = 1;
 
@@ -2791,7 +2804,7 @@ namespace dmGui
         node->m_Node.m_Properties[PROPERTY_SIZE] = Vector4(size, 0);
         node->m_Node.m_Properties[PROPERTY_SLICE9] = Vector4(0,0,0,0);
         node->m_Node.m_Properties[PROPERTY_PIE_PARAMS] = Vector4(0,360,0,0);
-        node->m_Node.m_Properties[PROPERTY_TEXT_PARAMS] = Vector4(1, 0, 0, 0);
+        node->m_Node.m_Properties[PROPERTY_TEXT_PARAMS] = Vector4(1, 0, 100, 0);
         node->m_Node.m_Properties[PROPERTY_EULER] = Vector4(0);
         node->m_Node.m_Properties[PROPERTY_PREV_EULER] = Vector4(0);
         node->m_Node.m_LocalTransform = Matrix4::identity();
@@ -3066,6 +3079,8 @@ namespace dmGui
         if (n->m_Node.m_Text)
             free((void*)n->m_Node.m_Text);
         free(n->m_Node.m_ResetPointProperties);
+        FontTextCurveRelease(n->m_Node.m_TextCurve);
+        FontTextCurveRelease(n->m_Node.m_ResetPointCurve);
         FreeCustomProperties(&n->m_Node);
         memset(n, 0, sizeof(InternalNode));
         n->m_Index = INVALID_INDEX;
@@ -3315,6 +3330,9 @@ namespace dmGui
                 memcpy(n->m_Properties, n->m_ResetPointProperties, sizeof(n->m_Properties));
                 n->m_DirtyLocal = 1;
                 n->m_State = n->m_ResetPointState;
+                FontTextCurveRetain(n->m_ResetPointCurve);
+                FontTextCurveRelease(n->m_TextCurve);
+                n->m_TextCurve = n->m_ResetPointCurve;
             }
         }
         scene->m_Animations.SetSize(0);
@@ -3478,6 +3496,9 @@ namespace dmGui
         memcpy(n->m_Node.m_ResetPointProperties, n->m_Node.m_Properties, sizeof(n->m_Node.m_Properties));
         n->m_Node.m_ResetPointState = n->m_Node.m_State;
         n->m_Node.m_HasResetPoint = 1;
+        FontTextCurveRetain(n->m_Node.m_TextCurve);
+        FontTextCurveRelease(n->m_Node.m_ResetPointCurve);
+        n->m_Node.m_ResetPointCurve = n->m_Node.m_TextCurve;
     }
 
     const char* GetNodeText(HScene scene, HNode node)
@@ -3553,6 +3574,55 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         return n->m_Node.m_FontSize;
+    }
+
+    Result SetNodeTextArcRadius(HScene scene, HNode node, float radius)
+    {
+        if (!isfinite(radius))
+            return RESULT_INVAL_ERROR;
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].setZ(radius);
+        n->m_Node.m_DirtyLocal = 1;
+        return RESULT_OK;
+    }
+
+    float GetNodeTextArcRadius(HScene scene, HNode node)
+    {
+        return GetNode(scene, node)->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].getZ();
+    }
+
+    Result SetNodeTextArcAngle(HScene scene, HNode node, float degrees)
+    {
+        if (!isfinite(degrees) || degrees < 0.0f || degrees > 360.0f)
+            return RESULT_INVAL_ERROR;
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].setW(degrees);
+        n->m_Node.m_DirtyLocal = 1;
+        return RESULT_OK;
+    }
+
+    float GetNodeTextArcAngle(HScene scene, HNode node)
+    {
+        return GetNode(scene, node)->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].getW();
+    }
+
+    Vector4 GetNodeTextSize(HScene scene, HNode node)
+    {
+        return GetTextNodeSize(GetNode(scene, node)->m_Node);
+    }
+
+    void SetNodeTextCurve(HScene scene, HNode node, HFontTextCurve curve)
+    {
+        InternalNode* n = GetNode(scene, node);
+        FontTextCurveRetain(curve);
+        FontTextCurveRelease(n->m_Node.m_TextCurve);
+        n->m_Node.m_TextCurve = curve;
+        n->m_Node.m_DirtyLocal = 1;
+    }
+
+    HFontTextCurve GetNodeTextCurve(HScene scene, HNode node)
+    {
+        return GetNode(scene, node)->m_Node.m_TextCurve;
     }
 
     void* GetNodeMaterial(HScene scene, HNode node)
@@ -4547,6 +4617,9 @@ namespace dmGui
 
     bool PickNode(HScene scene, HNode node, float x, float y)
     {
+        const Node& text_node = GetNode(scene, node)->m_Node;
+        if (text_node.m_NodeType == NODE_TYPE_TEXT && (text_node.m_TextCurve || text_node.m_Properties[PROPERTY_TEXT_PARAMS].getW() != 0.0f))
+            return scene->m_PickNodeTextCallback && scene->m_PickNodeTextCallback(scene, node, x, y);
         Vector4 scale((float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Context->m_DefaultProjectWidth,
                 (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Context->m_DefaultProjectHeight, 1, 1);
         Matrix4 transform;
@@ -4573,6 +4646,18 @@ namespace dmGui
                 && node_pos.getX() <= 1.0f
                 && node_pos.getY() >= 0.0f
                 && node_pos.getY() <= 1.0f;
+    }
+
+    Matrix4 GetNodeScreenTransform(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        CalculateNodeSize(n);
+        Matrix4 transform;
+        CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);
+        const Vector3 scale((float)scene->m_Context->m_DefaultProjectWidth / scene->m_Context->m_PhysicalWidth,
+                            (float)scene->m_Context->m_DefaultProjectHeight / scene->m_Context->m_PhysicalHeight,
+                            1.0f);
+        return Matrix4::scale(scale) * transform;
     }
 
     bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, Point3* position)
@@ -4898,6 +4983,8 @@ namespace dmGui
         out_n->m_Node = n->m_Node;
         out_n->m_Node.m_HasResetPoint = 0;
         out_n->m_Node.m_ResetPointProperties = 0;
+        out_n->m_Node.m_ResetPointCurve = 0;
+        FontTextCurveRetain(out_n->m_Node.m_TextCurve);
         out_n->m_Node.m_CustomProperties = 0;
         out_n->m_Node.m_CustomPropertyCount = 0;
         ResetTextLayout(&out_n->m_Node.m_TextLayout);
@@ -4915,6 +5002,7 @@ namespace dmGui
         }
         if (result != RESULT_OK)
         {
+            FontTextCurveRelease(out_n->m_Node.m_TextCurve);
             if (out_n->m_Node.m_Text)
                 free((void*)out_n->m_Node.m_Text);
             scene->m_NodePool.Push(index);

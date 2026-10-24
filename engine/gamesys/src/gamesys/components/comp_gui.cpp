@@ -88,6 +88,7 @@ namespace dmGameSystem
     static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
     static void PrepareGuiNodeTextLayout(dmGui::HScene scene, dmGui::HNode node);
+    static bool PickGuiTextNode(dmGui::HScene scene, dmGui::HNode node, float x, float y);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
 
     static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
@@ -955,6 +956,9 @@ namespace dmGameSystem
                 dmGui::SetNodeLineBreak(scene, n, node_desc->m_LineBreak);
                 dmGui::SetNodeTextLeading(scene, n, node_desc->m_TextLeading);
                 dmGui::SetNodeTextTracking(scene, n, node_desc->m_TextTracking);
+                if (dmGui::SetNodeTextArcRadius(scene, n, node_desc->m_ArcRadius) != dmGui::RESULT_OK ||
+                    dmGui::SetNodeTextArcAngle(scene, n, node_desc->m_ArcAngle) != dmGui::RESULT_OK)
+                    return false;
             break;
 
             case dmGuiDDF::NodeDesc::TYPE_PIE:
@@ -1433,6 +1437,7 @@ namespace dmGameSystem
         scene_params.m_UpdateCustomNodeCallback = &UpdateCustomNodeCallback;
         scene_params.m_CreateCustomNodeCallbackContext = gui_component;
         scene_params.m_PrepareNodeTextLayoutCallback = &PrepareGuiNodeTextLayout;
+        scene_params.m_PickNodeTextCallback = &PickGuiTextNode;
         scene_params.m_GetResourceCallback = GetSceneResourceByHash;
         scene_params.m_GetResourceCallbackContext = gui_component;
         scene_params.m_GetMaterialPropertyCallback = GetMaterialPropertyCallback;
@@ -1820,13 +1825,59 @@ namespace dmGameSystem
         FontResource* font_resource = (FontResource*)dmGui::GetNodeFont(scene, node);
         dmRender::HFontMap font_map = font_resource ? ResFontGetHandle(font_resource) : 0;
         const char* text = dmGui::GetNodeText(scene, node);
-        Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
+        Vector4 size = dmGui::GetNodeTextSize(scene, node);
         const float font_size = font_map && dmRender::GetFontMapIsVector(font_map)
             ? dmGui::GetNodeFontSize(scene, node)
             : (font_map ? dmRender::GetFontMapSize(font_map) : 0.0f);
         dmArray<uint32_t> text_codepoints;
         GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, text, size.getX(), dmGui::GetNodeLineBreak(scene, node),
                                   dmGui::GetNodeTextLeading(scene, node), dmGui::GetNodeTextTracking(scene, node), font_size, text_codepoints);
+    }
+
+    static HTextLayout GetGuiTextHitTestParams(dmGui::HScene scene, dmGui::HNode node, float x, float y, TextLayoutHitTestParams* params, Matrix4* transform, dmArray<uint32_t>& codepoints)
+    {
+        FontResource*      font_resource = (FontResource*)dmGui::GetNodeFont(scene, node);
+        dmRender::HFontMap font_map = font_resource ? ResFontGetHandle(font_resource) : 0;
+        if (!font_map)
+            return 0;
+        const Vector4 size = dmGui::GetNodeTextSize(scene, node);
+        params->m_Width = size.getX();
+        params->m_Height = size.getY();
+        params->m_FontSize = dmRender::GetFontMapIsVector(font_map) ? dmGui::GetNodeFontSize(scene, node) : dmRender::GetFontMapSize(font_map);
+        params->m_MonospacePadding = dmRender::GetFontMapMonospaced(font_map) ? dmRender::GetFontMapPadding(font_map) : 0.0f;
+        params->m_ArcRadius = dmGui::GetNodeTextArcRadius(scene, node);
+        params->m_ArcAngle = dmGui::GetNodeTextArcAngle(scene, node);
+        params->m_Curve = dmGui::GetNodeTextCurve(scene, node);
+        dmRender::TextAlign  align;
+        dmRender::TextVAlign valign;
+        GetGuiTextAlignment(scene, node, &align, &valign);
+        params->m_Align = align;
+        params->m_VAlign = valign;
+        if (params->m_Curve || params->m_ArcAngle != 0.0f)
+        {
+            *transform = dmGui::GetNodeScreenTransform(scene, node);
+            params->m_Transform = transform;
+            params->m_X = x;
+            params->m_Y = y;
+        }
+        else
+        {
+            Point3 local;
+            if (!dmGui::ScreenToNodeRenderPosition(scene, node, x, y, &local))
+                return 0;
+            params->m_X = local.getX();
+            params->m_Y = local.getY();
+        }
+        return GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, dmGui::GetNodeText(scene, node), params->m_Width, dmGui::GetNodeLineBreak(scene, node), dmGui::GetNodeTextLeading(scene, node), dmGui::GetNodeTextTracking(scene, node), params->m_FontSize, codepoints);
+    }
+
+    static bool PickGuiTextNode(dmGui::HScene scene, dmGui::HNode node, float x, float y)
+    {
+        TextLayoutHitTestParams params = {};
+        Matrix4                 transform;
+        dmArray<uint32_t>       codepoints;
+        HTextLayout             layout = GetGuiTextHitTestParams(scene, node, x, y, &params, &transform, codepoints);
+        return TextLayoutHitTestText(layout, params);
     }
 
     static void RenderTextNodes(dmGui::HScene scene,
@@ -1875,6 +1926,9 @@ namespace dmGameSystem
             params.m_Leading = dmGui::GetNodeTextLeading(scene, node);
             params.m_Tracking = dmGui::GetNodeTextTracking(scene, node);
             params.m_FontSize = dmRender::GetFontMapIsVector(font_map) ? dmGui::GetNodeFontSize(scene, node) : dmRender::GetFontMapSize(font_map);
+            params.m_ArcRadius = dmGui::GetNodeTextArcRadius(scene, node);
+            params.m_ArcAngle = dmGui::GetNodeTextArcAngle(scene, node);
+            params.m_Curve = dmGui::GetNodeTextCurve(scene, node);
 
             if (render_constants)
             {
@@ -1887,7 +1941,7 @@ namespace dmGameSystem
                 params.m_NumRenderConstants = size;
             }
 
-            Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
+            Vector4 size = dmGui::GetNodeTextSize(scene, node);
             params.m_Width = size.getX();
             params.m_Height = size.getY();
             params.m_TextLayout = GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, safe_text, params.m_Width, params.m_LineBreak, params.m_Leading, params.m_Tracking, params.m_FontSize, text_codepoints);
@@ -3379,49 +3433,22 @@ namespace dmGameSystem
 
             if (dmGui::GetNodeType(scene, node) == dmGui::NODE_TYPE_TEXT && dmGui::GetNodeVisible(scene, node))
             {
-                FontResource*      font_resource = (FontResource*)dmGui::GetNodeFont(scene, node);
-                dmRender::HFontMap font_map = font_resource ? ResFontGetHandle(font_resource) : 0;
-                Point3             local_position;
-
-                if (font_map && dmGui::ScreenToNodeRenderPosition(scene, node, x, y, &local_position))
+                FontResource*           font_resource = (FontResource*)dmGui::GetNodeFont(scene, node);
+                TextLayoutHitTestParams hit_test = {};
+                hit_test.m_Tag = TAG_LINK;
+                Matrix4     transform;
+                HTextLayout layout = GetGuiTextHitTestParams(scene, node, x, y, &hit_test, &transform, codepoints);
+                if (layout)
                 {
-                    const char* text = dmGui::GetNodeText(scene, node);
-                    const char* safe_text = text ? text : "";
-                    Vector4     size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
-                    const bool  line_break = dmGui::GetNodeLineBreak(scene, node);
-                    const float leading = dmGui::GetNodeTextLeading(scene, node);
-                    const float tracking = dmGui::GetNodeTextTracking(scene, node);
-                    const float font_size = dmRender::GetFontMapIsVector(font_map)
-                        ? dmGui::GetNodeFontSize(scene, node)
-                        : dmRender::GetFontMapSize(font_map);
-                    HTextLayout layout = GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, safe_text, size.getX(), line_break, leading, tracking, font_size, codepoints);
-
-                    if (layout)
+                    const uint32_t object_index = TextLayoutHitTestObject(layout, hit_test);
+                    const uint16_t node_layer = dmGui::GetNodeLayerIndex(scene, node);
+                    if (object_index != UINT32_MAX && (!target->m_Layout || node_layer >= *target_layer))
                     {
-                        TextLayoutHitTestParams hit_test = {};
-                        hit_test.m_Tag = TAG_LINK;
-                        hit_test.m_X = local_position.getX();
-                        hit_test.m_Y = local_position.getY();
-                        hit_test.m_Width = size.getX();
-                        hit_test.m_Height = size.getY();
-                        hit_test.m_FontSize = font_size;
-                        hit_test.m_MonospacePadding = dmRender::GetFontMapMonospaced(font_map) ? dmRender::GetFontMapPadding(font_map) : 0.0f;
-                        dmRender::TextAlign  align;
-                        dmRender::TextVAlign valign;
-                        GetGuiTextAlignment(scene, node, &align, &valign);
-                        hit_test.m_Align = align;
-                        hit_test.m_VAlign = valign;
-
-                        const uint32_t object_index = TextLayoutHitTestObject(layout, hit_test);
-                        const uint16_t node_layer = dmGui::GetNodeLayerIndex(scene, node);
-                        if (object_index != UINT32_MAX && (!target->m_Layout || node_layer >= *target_layer))
-                        {
-                            target->m_Layout       = layout;
-                            target->m_FontResource = font_resource;
-                            target->m_ObjectId     = TextLayoutGetObjects(layout)[object_index].m_Id;
-                            target->m_FontVersion  = ResFontGetVersion(font_resource);
-                            *target_layer          = node_layer;
-                        }
+                        target->m_Layout       = layout;
+                        target->m_FontResource = font_resource;
+                        target->m_ObjectId     = TextLayoutGetObjects(layout)[object_index].m_Id;
+                        target->m_FontVersion  = ResFontGetVersion(font_resource);
+                        *target_layer          = node_layer;
                     }
                 }
             }
