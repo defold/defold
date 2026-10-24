@@ -1,0 +1,2 @@
+images { image: "/sprite/vector.svg" }
+animations { id: "flipped" images { image: "/sprite/vector.svg" } playback: PLAYBACK_NONE flip_horizontal: 1 flip_vertical: 1 }

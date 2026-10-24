@@ -1,0 +1,26 @@
+#version 140
+
+in highp vec3 position;
+in highp vec2 texcoord0;
+in mediump vec4 color;
+in highp float page_index;
+in highp float       svg_time;
+
+out highp vec2 var_svg_position;
+flat out highp float var_paint;
+flat out highp float var_svg_time;
+out mediump vec4 var_color;
+
+uniform vs_uniforms
+{
+    highp mat4 view_proj;
+};
+
+void main()
+{
+    gl_Position = view_proj * vec4(position, 1.0);
+    var_svg_position = texcoord0;
+    var_paint = page_index;
+    var_svg_time = svg_time;
+    var_color = vec4(color.rgb * color.a, color.a);
+}

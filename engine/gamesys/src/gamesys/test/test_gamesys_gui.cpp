@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include "gamesys/resources/res_textureset.h"
 #include <dlib/thread.h>
 
 using namespace dmVMath;
@@ -2989,6 +2990,105 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutFallbackMutation)
     dmResource::Release(m_Factory, extra_ttf_resource);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, extra_ttf_path));
     dmMemory::AlignedFree(extra_ttf_data);
+}
+
+// GUI nodes stream independent continuous SVG time without changing the shared atlas or raster vertex layout.
+TEST_F(GuiTest, VectorAnimationInstanceTime)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    m_UpdateContext.m_DT = 0;
+    ASSERT_NE((dmGameObject::HInstance)0, Spawn(m_Factory, m_Collection, "/gui/vector_animation.goc", dmHashString64("/vector")));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameSystem::GuiComponent* component = GetGuiComponent(m_Collection);
+    dmGameSystem::GuiWorld*     world = component->m_World;
+    dmGui::HScene               scene = component->m_Scene;
+    dmGui::HNode                icon = dmGui::GetNodeById(scene, "icon"), dialog = dmGui::GetNodeById(scene, "dialog");
+    dmGui::SetNodeFlipbookPlaybackRate(scene, icon, 0);
+    dmGui::SetNodeFlipbookPlaybackRate(scene, dialog, 0);
+    dmGui::SetNodeFlipbookCursor(scene, icon, 0.125f);
+    dmGui::SetNodeFlipbookCursor(scene, dialog, 0.625f);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/sprite/vector_animation.a.texturesetc", 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
+    ASSERT_EQ(1u, world->m_GuiRenderObjects.Size());
+    const dmRender::RenderObject& ro = world->m_GuiRenderObjects[0].m_RenderObject;
+    ASSERT_EQ(60u, ro.m_VertexCount);
+    ASSERT_EQ(world->m_VectorTimeBuffer, ro.m_VertexBuffers[1]);
+    ASSERT_EQ(60u, world->m_VectorTimes.Size());
+    ASSERT_NEAR(0.25f, world->m_VectorTimes[0], EPSILON);
+    ASSERT_NEAR(1.25f, world->m_VectorTimes[6], EPSILON);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    dmRender::ClearRenderObjects(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// SVG GUI boxes share a batch, bind their atlas textures, resize with nine-slice,
+// retain animation flips and tint/opacity, and refresh after atlas reload.
+TEST_F(GuiTest, VectorAtlasBoxes)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_NE((dmGameObject::HInstance)0, Spawn(m_Factory, m_Collection, "/gui/vector.goc", dmHashString64("/vector")));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameSystem::GuiComponent* component = GetGuiComponent(m_Collection);
+    dmGameSystem::GuiWorld*     world = component->m_World;
+    dmGui::HScene               scene = component->m_Scene;
+    dmGui::SetSceneAdjustReference(scene, dmGui::ADJUST_REFERENCE_DISABLED);
+    dmGui::HNode                      icon = dmGui::GetNodeById(scene, "icon");
+    dmGui::HNode                      dialog = dmGui::GetNodeById(scene, "dialog");
+    dmGameSystem::TextureSetResource* atlas = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/gui/vector.a.texturesetc", (void**)&atlas));
+    const dmGameSystemDDF::VectorImage image = atlas->m_TextureSet->m_Vector.m_Images[0];
+    ASSERT_NEAR(ceilf(image.m_Width), dmGui::GetNodeSize(scene, icon).getX(), EPSILON);
+    ASSERT_NEAR(ceilf(image.m_Height), dmGui::GetNodeSize(scene, icon).getY(), EPSILON);
+    const char* samplers[] = { "curve_texture", "band_texture", "paint_texture" };
+    for (uint32_t frame = 0; frame < 2; ++frame)
+    {
+        if (frame)
+        {
+            ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeFlipbookAnim(scene, dialog, dmHashString64("flipped"), 0, 1));
+            dmGui::SetNodeProperty(scene, dialog, dmGui::PROPERTY_SIZE, Vector4(400, 250, 0, 0));
+            ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/gui/vector.a.texturesetc", 0));
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        }
+        dmRender::RenderListBegin(m_RenderContext);
+        ASSERT_TRUE(dmGameObject::Render(m_Collection));
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(1u, world->m_GuiRenderObjects.Size());
+        const dmRender::RenderObject& ro = world->m_GuiRenderObjects[0].m_RenderObject;
+        ASSERT_EQ(60u, ro.m_VertexCount);
+        ASSERT_EQ(60u, world->m_ClientVertexBuffer.Size());
+        for (uint32_t i = 0; i < 3; ++i)
+            ASSERT_EQ(dmGameSystem::GetVectorAtlasTexture(atlas, i), ro.m_Textures[dmRender::GetMaterialSamplerUnit(ro.m_Material, dmHashString64(samplers[i]))]);
+        const dmGameSystem::BoxVertex* vertices = world->m_ClientVertexBuffer.Begin();
+        ASSERT_NEAR(0.75f, vertices[0].m_Color[0], EPSILON);
+        ASSERT_NEAR(0.5f, vertices[0].m_Color[3], EPSILON);
+        ASSERT_EQ(0.0f, vertices[0].m_UV[0]);
+        ASSERT_EQ(image.m_Height, vertices[0].m_UV[1]);
+        ASSERT_EQ((float)image.m_Paint, vertices[0].m_PageIndex);
+        ASSERT_NEAR(frame ? 11.0f : 3.0f, vertices[7].m_Position[0] - vertices[6].m_Position[0], EPSILON);
+        ASSERT_NEAR(frame ? 7.0f : 13.0f, vertices[8].m_Position[1] - vertices[7].m_Position[1], EPSILON);
+        ASSERT_EQ(frame ? image.m_Width : 0.0f, vertices[6].m_UV[0]);
+        ASSERT_EQ(frame ? 0.0f : image.m_Height, vertices[6].m_UV[1]);
+        if (frame)
+        {
+            dmGameSystem::MaterialResource* raster = 0;
+            ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/builtins/materials/gui.materialc", (void**)&raster));
+            dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+            context->m_Material = raster->m_Material;
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+            ASSERT_EQ(0u, context->m_RenderObjects.Size());
+            context->m_Material = 0;
+            dmResource::Release(m_Factory, raster);
+        }
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        dmRender::ClearRenderObjects(m_RenderContext);
+    }
+    dmResource::Release(m_Factory, atlas);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 /* GUI Box Render */

@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_tilegrid.h"
+#include "res_textureset.h"
 
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -61,6 +62,11 @@ namespace dmGameSystem
         if (tile_grid_ddf->m_BlendMode == dmGameSystemDDF::TileGrid::BLEND_MODE_ADD_ALPHA)
             tile_grid_ddf->m_BlendMode = dmGameSystemDDF::TileGrid::BLEND_MODE_ADD;
         TextureSetResource* texture_set = tile_grid->m_TextureSet;
+        if (IsVectorTextureSet(texture_set))
+        {
+            dmLogError("Tilemaps do not support SVG atlases");
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
 
         // find boundaries
         int32_t min_x = INT32_MAX;

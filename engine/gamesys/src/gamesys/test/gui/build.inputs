@@ -39,3 +39,5 @@
 /gui/texture_setter_override.go
 /gui/valid_gui.go
 /gui/valid_png.raw
+/gui/vector.go
+/gui/vector_animation.go

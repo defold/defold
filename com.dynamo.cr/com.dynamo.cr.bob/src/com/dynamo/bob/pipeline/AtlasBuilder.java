@@ -22,9 +22,12 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.Files;
 
 import com.defold.extension.pipeline.texture.TextureCompression;
 import com.defold.extension.pipeline.texture.TextureCompressorASTC;
@@ -78,15 +81,16 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
         TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()))
-                .addOutput(input.changeExt(".texturec"));
+                .addOutput(input.changeExt(params.outExt()));
+        boolean vector = AtlasUtil.isVectorAtlas(atlas);
+        if (!vector) taskBuilder.addOutput(input.changeExt(".texturec"));
 
         AtlasUtil.PathTransformer transformer = AtlasUtil.createPathTransformer(project, atlas.getRenamePatterns());
         for (AtlasImage image : AtlasUtil.collectImages(input, atlas, transformer)) {
             taskBuilder.addInput(input.getResource(image.getImage()));
         }
 
-        TextureUtil.addTextureProfileInput(taskBuilder, project);
+        if (!vector) TextureUtil.addTextureProfileInput(taskBuilder, project);
 
         return taskBuilder.build();
     }
@@ -94,6 +98,17 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         Atlas.Builder builder = getSrcBuilder(task.firstInput());
+        if (AtlasUtil.isVectorAtlas(builder.build())) {
+            Map<String, byte[]> sources = new LinkedHashMap<>();
+            for (AtlasImage image : AtlasUtil.collectImages(task.firstInput(), builder.build(), AtlasUtil.createPathTransformer(project, builder.getRenamePatterns())))
+                sources.put(image.getImage(), task.firstInput().getResource(image.getImage()).getContent());
+            try {
+                task.output(0).setContent(VectorAtlasCompiler.compile(builder.build(), sources).builder.build().toByteArray());
+            } catch (IOException | CompileExceptionError e) {
+                throw new CompileExceptionError(task.firstInput(), -1, e.getMessage(), e);
+            }
+            return;
+        }
         TextureSetResult result            = AtlasUtil.generateTextureSet(this.project, task.firstInput(), builder);
         TextureImage.Type textureImageType = getTexureType(builder);
 
@@ -145,6 +160,13 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
         TextureImage.Type textureImageType = getTexureType(builder);
 
         Atlas atlas = builder.build();
+        if (AtlasUtil.isVectorAtlas(atlas)) {
+            Map<String, byte[]> sources = new LinkedHashMap<>();
+            for (AtlasImage image : AtlasUtil.collectImages(null, atlas, path -> path))
+                sources.put(image.getImage(), Files.readAllBytes(Paths.get(baseDir + image.getImage())));
+            Files.write(Paths.get(textureSetOutPath), VectorAtlasCompiler.compile(atlas, sources).builder.build().toByteArray());
+            return;
+        }
         TextureSetResult result = AtlasUtil.generateTextureSet(atlas, path -> baseDir + path);
 
         Path basedirAbsolutePath = Paths.get(baseDir).toAbsolutePath();

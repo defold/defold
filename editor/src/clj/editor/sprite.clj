@@ -35,6 +35,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
             [editor.shaders :as shaders]
+            [editor.svg :as svg]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -47,7 +48,7 @@
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
-           [java.nio ByteBuffer]
+           [java.nio ByteBuffer ByteOrder]
            [javax.vecmath Matrix4d Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -64,7 +65,8 @@
 (vtx/defvertex texture-vtx
   (vec4 position)
   (vec2 texcoord0)
-  (vec1 page_index))
+  (vec1 page_index)
+  (vec1 svg_time))
 
 (vtx/defvertex color-vtx
   (vec3 position)
@@ -87,7 +89,12 @@
 
     (conj {:texcoord-datas texcoord-datas
            :world-transform world-transform
-           :vertex-attribute-bytes vertex-attribute-bytes}
+           :vertex-attribute-bytes (cond-> vertex-attribute-bytes
+                                     (svg/vector-texture? (:gpu-texture (first scene-infos)))
+                                     (assoc :svg-time
+                                       (.array (doto (ByteBuffer/allocate 4)
+                                                 (.order (ByteOrder/nativeOrder))
+                                                 (.putFloat (float (get-in updatable [:state :svg-time] 0.0)))))))}
           (select-keys (first texcoord-datas) [:position-data :line-data]))))
 
 (defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
@@ -163,22 +170,36 @@
             vertex-binding (vtx/use-with ::sprite-trans vbuf shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding]
           (doseq [{:keys [gpu-texture sampler]} scene-infos]
-            (gl/bind gl gpu-texture render-args)
-            (shader/set-samplers-by-name shader gl sampler (:texture-units gpu-texture)))
+            (if (svg/vector-texture? gpu-texture)
+              (svg/bind-textures! gl render-args shader gpu-texture)
+              (do
+                (gl/bind gl gpu-texture render-args)
+                (shader/set-samplers-by-name shader gl sampler (:texture-units gpu-texture)))))
           (light/bind-preview-lights-for-shader! gl shader render-args)
           (gl/set-blend-mode gl blend-mode)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 num-vertices)
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
           (doseq [{:keys [gpu-texture]} scene-infos]
-            (gl/unbind gl gpu-texture render-args))))
+            (if (svg/vector-texture? gpu-texture)
+              (svg/unbind-textures! gl render-args gpu-texture)
+              (gl/unbind gl gpu-texture render-args)))))
 
       pass/selection
-      (let [vbuf (graphics/put-attributes! (->texture-vtx num-vertices) renderable-datas)
-            vertex-binding (vtx/use-with ::sprite-selection vbuf id-shader)
-            gpu-texture (:gpu-texture (first scene-infos))]
-        (gl/with-gl-bindings gl (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
-          (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 num-vertices))))))
+      (let [gpu-texture (:gpu-texture (first scene-infos))
+            selection-shader (if (svg/vector-texture? gpu-texture) (:selection-shader gpu-texture) id-shader)
+            vbuf (graphics/put-attributes! (->texture-vtx num-vertices) renderable-datas)
+            vertex-binding (vtx/use-with ::sprite-selection vbuf selection-shader)
+            render-args (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform (first renderables)))]
+        (gl/with-gl-bindings gl render-args [selection-shader vertex-binding]
+          (if (svg/vector-texture? gpu-texture)
+            (svg/bind-textures! gl render-args selection-shader gpu-texture)
+            (do
+              (gl/bind gl gpu-texture render-args)
+              (shader/set-samplers-by-index selection-shader gl 0 (:texture-units gpu-texture))))
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 num-vertices)
+          (if (svg/vector-texture? gpu-texture)
+            (svg/unbind-textures! gl render-args gpu-texture)
+            (gl/unbind gl gpu-texture render-args)))))))
 
 (defn- render-sprite-outlines [^GL3 gl render-args renderables _count]
   (assert (= pass/outline (:pass render-args)))
@@ -241,11 +262,17 @@
 (def ^:private default-animation-message (properties/label-message :sprite :default-animation))
 (def ^:private image-message (properties/label-message :image))
 
-(defn- validate-material [_node-id material]
+(defn- validate-material [_node-id material samplers sampler-types]
   (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material material-message)
-      (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material material-message)))
+      (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material material-message)
+      (validation/prop-error :fatal _node-id :material svg/prop-vector-material-contract? material samplers sampler-types)))
 
-(g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count exclude-gles-sm100 material-samplers material-shader blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
+(defn- validate-vector-material [node-id vector-material vector-content]
+  (g/precluding-errors vector-content
+    (when (not= vector-material vector-content)
+      (g/->error node-id :material :fatal nil (localization/message "error.sprite.vector-material")))))
+
+(g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count exclude-gles-sm100 material-samplers material-source-samplers material-sampler-types material-shader blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-bytes vertex-attribute-overrides vector-material]
   (g/precluding-errors
     (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler identity texture-binding-infos)
           is-paged-material (and (shader/shader-lifecycle? material-shader)
@@ -253,7 +280,9 @@
           unassigned-default-animation-error (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation default-animation-message)]
       (concat
         ;; Validate material assignment.
-        [(validate-material _node-id material)]
+        [(validate-material _node-id material material-source-samplers material-sampler-types)
+         (when (and vector-material (not= 1 (count textures)))
+           (g/->error _node-id :textures :fatal nil (localization/message "error.sprite.vector-material")))]
 
         ;; Validate sampler assignments. All samplers declared by the material
         ;; must be assigned a compatible texture, and the default animation must
@@ -262,12 +291,13 @@
           (fn [sampler]
             (let [sampler-name (:name sampler)
                   message (if (= 1 (count material-samplers)) image-message sampler-name)
-                  {:keys [anim-data texture texture-page-count]} (sampler-name->texture-binding-info sampler-name)
+                  {:keys [anim-data texture texture-page-count vector-content]} (sampler-name->texture-binding-info sampler-name)
                   unassigned-texture-error (or (validation/prop-error :fatal _node-id :textures validation/prop-nil? texture message)
                                                (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture message))]
               (if unassigned-texture-error
                 [unassigned-texture-error]
-                [(validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 message)
+                [(validate-vector-material _node-id vector-material vector-content)
+                 (validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 message)
                  (when (and anim-data (nil? unassigned-default-animation-error))
                    (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data message))])))
           material-samplers)
@@ -319,17 +349,21 @@
             (value (gu/passthrough texture-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
+                                            [:texture-set :texture-set]
                                             [:resource :texture-resource]
                                             [:anim-data :anim-data]
                                             [:anim-ids :anim-ids]
                                             [:gpu-texture :gpu-texture]
                                             [:texture-page-count :texture-page-count]))))
+  (input texture-set g/Any)
+  (output vector-content g/Bool (g/fnk [texture-set] (= :texture-set-mode-vector (:mode texture-set))))
   (input texture-resource resource/Resource)
   (input anim-data g/Any)
   (input anim-ids g/Any)
   (input gpu-texture g/Any)
   (input texture-page-count g/Int)
-  (output texture-binding-info g/Any (g/fnk [_node-id sampler texture ^:try anim-data ^:try anim-ids ^:try texture-page-count :as info]
+  ;; Keep mode errors in validation while the image binding remains editable.
+  (output texture-binding-info g/Any (g/fnk [_node-id sampler texture ^:try anim-data ^:try anim-ids ^:try texture-page-count ^:try vector-content :as info]
                                        (cond->
                                          info
                                          (g/error-value? anim-data) (dissoc :anim-data)
@@ -351,7 +385,7 @@
 (defn- set-texture-binding-id [sampler-name _ node-id _ new]
   (create-texture-binding-tx node-id sampler-name new))
 
-(g/defnk produce-properties [^:unsafe _evaluation-context _declared-properties _node-id default-animation material-attribute-infos material-max-page-count exclude-gles-sm100 material-samplers material-shader resource texture-binding-infos vertex-attribute-overrides]
+(g/defnk produce-properties [^:unsafe _evaluation-context _declared-properties _node-id default-animation material-attribute-infos material-max-page-count exclude-gles-sm100 material-samplers material-shader resource texture-binding-infos vertex-attribute-overrides vector-material]
   (let [workspace (resource/workspace resource)
         extension (workspace/resource-kind-extensions workspace :atlas _evaluation-context)
         is-paged-material (and (shader/shader-lifecycle? material-shader)
@@ -374,7 +408,7 @@
                        label (if has-single-sampler image-message sampler-name)]
                    (if-let [i (texture-binding-index name+order)]
                      ;; texture binding exists
-                     (let [{:keys [anim-data sampler texture texture-page-count]
+                     (let [{:keys [anim-data sampler texture texture-page-count vector-content]
                             texture-binding-node-id :_node-id} (texture-binding-infos i)
                            should-be-deleted (nil? (material-sampler-index name+order))]
                        [property-key
@@ -385,6 +419,7 @@
                            :value (cond-> texture should-be-deleted (or fake-resource))
                            :prop-kw :texture
                            :error (or
+                                    (when texture (validate-vector-material _node-id vector-material vector-content))
                                     (when should-be-deleted
                                       (g/->error _node-id :textures :warning texture (localization/message "error.sampler-not-defined-in-material" {"sampler" sampler})))
                                     (validation/prop-error :info _node-id :textures validation/prop-nil? texture label)
@@ -453,18 +488,25 @@
                 material-samplers :name
                 (fn [scene-info maybe-material-sampler]
                   (let [scene-info (assoc scene-info :animation (get (:anim-data scene-info) default-animation))]
-                    (if maybe-material-sampler
+                    (cond
+                      (svg/vector-texture? (:gpu-texture scene-info))
+                      (assoc scene-info :sampler "curve_texture")
+
+                      maybe-material-sampler
                       (-> scene-info
                           (assoc :sampler (:name maybe-material-sampler))
                           (update :gpu-texture texture/set-params (material/sampler->tex-params maybe-material-sampler default-tex-params)))
+                      :else
                       (update scene-info :gpu-texture texture/set-params default-tex-params)))))
         infos (filterv :animation infos)]
-    (reduce
-      (fn [acc i]
-        (let [start-texture-unit (-> (acc (dec i)) :gpu-texture :texture-units peek inc)]
-          (update-in acc [i :gpu-texture] texture/set-base-unit start-texture-unit)))
-      infos
-      (range 1 (count infos)))))
+    (if (coll/any? #(svg/vector-texture? (:gpu-texture %)) infos)
+      (filterv #(svg/vector-texture? (:gpu-texture %)) infos)
+      (reduce
+        (fn [acc i]
+          (let [start-texture-unit (-> (acc (dec i)) :gpu-texture :texture-units peek inc)]
+            (update-in acc [i :gpu-texture] texture/set-base-unit start-texture-unit)))
+        infos
+        (range 1 (count infos))))))
 
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
@@ -501,12 +543,13 @@
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
-                                            [:samplers :material-samplers]
+                                            [:samplers :material-source-samplers]
+                                            [:sampler-types :material-sampler-types]
                                             [:max-page-count :material-max-page-count]
                                             [:attribute-infos :material-attribute-infos])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"material"}}))
-            (dynamic error (g/fnk [_node-id material]
-                             (validate-material _node-id material))))
+            (dynamic error (g/fnk [_node-id material material-source-samplers material-sampler-types]
+                             (validate-material _node-id material material-source-samplers material-sampler-types))))
 
   (property blend-mode g/Any (default (protobuf/default Sprite$SpriteDesc :blend-mode))
             (dynamic tooltip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
@@ -584,7 +627,10 @@
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
-  (input material-samplers g/Any)
+  (input material-source-samplers g/Any)
+  (input material-sampler-types g/Any)
+  (output material-samplers g/Any (g/fnk [material-source-samplers] (svg/image-samplers material-source-samplers)))
+  (output vector-material g/Bool (g/fnk [material-source-samplers] (svg/vector-material? material-source-samplers)))
   (input material-max-page-count g/Int)
   (input material-attribute-infos g/Any)
   (input default-tex-params g/Any)

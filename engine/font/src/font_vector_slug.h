@@ -14,32 +14,12 @@
 
 #ifndef DM_FONT_VECTOR_SLUG_H
 #define DM_FONT_VECTOR_SLUG_H
-#include <dlib/array.h>
+#include <slug/slug.hpp>
 #include <dmsdk/font/font.h>
-static const uint32_t FONT_VECTOR_SLUG_WIDTH = 4096;
-static const uint32_t FONT_VECTOR_SLUG_MAX_HEIGHT = 256;
-struct FontVectorSlugGlyph
-{
-    uint32_t m_BandTexel;
-    uint32_t m_CurveCount;
-    float    m_BandTransform[4];
-};
-
-// Owns CPU texture data for the active glyph set. Curves are RGBA16F; each
-// band texel packs two unsigned 16-bit fields in R32UI. No raster coverage.
-struct FontVectorSlugData
-{
-    FontVectorSlugData();
-    dmArray<uint16_t> m_Curves;
-    dmArray<uint32_t> m_Bands;
-    bool              m_Overflow;  // Last append failed because the numeric atlas could not fit.
-    uint32_t          m_MaxTexels; // Set before appending; bounds both numeric textures.
-    uint32_t          m_CurveTexels;
-    uint32_t          m_BandTexels;
-    uint32_t          m_CurveCount;
-    uint32_t          m_BandReferences;
-    uint32_t          m_MaxBandCurves;
-};
+static const uint32_t FONT_VECTOR_SLUG_WIDTH = dmSlug::TEXTURE_WIDTH;
+static const uint32_t FONT_VECTOR_SLUG_MAX_HEIGHT = dmSlug::MAX_TEXTURE_HEIGHT;
+typedef dmSlug::Path  FontVectorSlugGlyph;
+typedef dmSlug::Data  FontVectorSlugData;
 
 void FontVectorSlugBegin(FontVectorSlugData* data);
 // Appends one glyph using unhinted, unsplit quadratic outlines in em-space.

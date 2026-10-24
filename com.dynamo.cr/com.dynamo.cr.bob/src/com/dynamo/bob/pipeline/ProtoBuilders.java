@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,7 @@ import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.gamesys.proto.Camera.CameraDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesys.proto.CollectionProxy.CollectionProxyDesc;
@@ -104,6 +106,22 @@ public class ProtoBuilders {
         MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
         materialBuilder.mergeFrom(materialBuildResource.getContent());
         return materialBuilder;
+    }
+
+    private static boolean isVectorAtlas(Project project, String path) throws IOException {
+        if (!path.endsWith(".atlas")) return false;
+        TextureSet compiled = TextureSet.parseFrom(project.getResource(path).changeExt(".a.texturesetc").getContent());
+        return compiled.getMode() == com.dynamo.gamesys.proto.TextureSetProto.TextureSetMode.TEXTURE_SET_MODE_VECTOR;
+    }
+
+    private static void rejectVectorAtlas(Project project, IResource resource, String path, String consumer) throws IOException, CompileExceptionError {
+        if (isVectorAtlas(project, path))
+            throw new CompileExceptionError(resource, 0, consumer + " does not support SVG atlases. Use a raster atlas.");
+    }
+
+    private static boolean isVectorMaterial(MaterialDesc.Builder material) {
+        if (material == null) return false;
+        return MaterialBuilder.isVectorMaterial(material.getSamplersList().stream().map(MaterialDesc.Sampler::getName).toList());
     }
 
     // TODO: Should we move this to a build resource?
@@ -308,12 +326,29 @@ public class ProtoBuilders {
 
             MaterialDesc.Builder materialBuilder = getMaterialBuilderFromResource(this.project.getResource(messageBuilder.getMaterial()));
 
-            validateMaterialAtlasCompatability(this.project, resource, messageBuilder.getMaterial(), materialBuilder, messageBuilder.getTileSet());
+            boolean vectorMaterial = isVectorMaterial(materialBuilder);
+            if (vectorMaterial && messageBuilder.getTexturesCount() != 1)
+                throw new CompileExceptionError(resource, 0, "Vector sprites require exactly one atlas image binding.");
+            if (vectorMaterial) {
+                ShaderDesc shader = ShaderDesc.parseFrom(this.project.getResource(materialBuilder.getProgram()).output().getContent());
+                Map<String, ShaderDesc.ShaderDataType> shaderTypes = new HashMap<>();
+                for (ShaderDesc.ResourceBinding texture : shader.getReflection().getTexturesList())
+                    shaderTypes.put(texture.getName(), texture.getType().getShaderType());
+                MaterialBuilder.VectorMaterialProblem problem = MaterialBuilder.vectorMaterialProblem(materialBuilder.getSamplersList(), shaderTypes);
+                if (problem != null) throw new CompileExceptionError(resource, 0, problem.message());
+            }
+            for (SpriteTexture texture : messageBuilder.getTexturesList()) {
+                boolean vector = isVectorAtlas(this.project, texture.getTexture());
+                if (vector != vectorMaterial)
+                    throw new CompileExceptionError(resource, 0, "Sprite atlas/material mismatch: SVG atlases require a material with curve_texture, band_texture and paint_texture samplers.");
+                validateMaterialAtlasCompatability(this.project, resource, messageBuilder.getMaterial(), materialBuilder, texture.getTexture());
+            }
 
             List<SpriteTexture> textures = new ArrayList<>();
             for (SpriteTexture texture : messageBuilder.getTexturesList()) {
                 SpriteTexture.Builder textureBuilder = SpriteTexture.newBuilder();
                 textureBuilder.mergeFrom(texture);
+                if (vectorMaterial) textureBuilder.setSampler("curve_texture");
 
                 BuilderUtil.checkResource(this.project, resource, "tile source", textureBuilder.getTexture());
 
@@ -375,6 +410,7 @@ public class ProtoBuilders {
         protected TileGrid.Builder transform(Task task, IResource resource, TileGrid.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
+            rejectVectorAtlas(this.project, resource, messageBuilder.getTileSet(), "Tilemaps");
             messageBuilder.setTileSet(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getTileSet(), "tileset", "t.texturesetc"));
             messageBuilder.setTileSet(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getTileSet(), "tilesource", "t.texturesetc"));
             messageBuilder.setTileSet(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getTileSet(), "atlas", "a.texturesetc"));
@@ -397,6 +433,7 @@ public class ProtoBuilders {
                 BuilderUtil.checkResource(this.project, resource, "tile source", emitterBuilder.getTileSource());
                 BuilderUtil.checkResource(this.project, resource, "material", emitterBuilder.getMaterial());
 
+                rejectVectorAtlas(this.project, resource, emitterBuilder.getTileSource(), "Particles");
                 MaterialDesc.Builder materialBuilder = getMaterialBuilderFromResource(this.project.getResource(emitterBuilder.getMaterial()));
 
                 validateMaterialAtlasCompatability(this.project, resource, emitterBuilder.getMaterial(), materialBuilder, emitterBuilder.getTileSource());

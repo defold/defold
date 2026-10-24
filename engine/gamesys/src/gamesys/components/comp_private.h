@@ -23,6 +23,9 @@
 
 namespace dmGameSystem
 {
+    // Commits an atlas override only after validating raster-only consumers.
+    dmGameObject::PropertyResult SetRasterAtlasProperty(dmResource::HFactory factory, const dmGameObject::PropertyVar& value, void** resource);
+
     dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const dmVMath::Vector3& ref_value, const PropVector3& property);
     dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, dmVMath::Vector3& set_value, const PropVector3& property);
 

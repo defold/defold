@@ -1,0 +1,2 @@
+images { image: "/sprite/vector_animation.svg" }
+extrude_borders: 0

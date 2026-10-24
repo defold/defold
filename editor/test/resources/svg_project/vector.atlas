@@ -1,0 +1,2 @@
+images { image: "/shape.svg" pivot_x: 0.25 pivot_y: 0.75 }
+animations { id: "flipbook" images { image: "/shape.svg" pivot_x: 0.25 pivot_y: 0.75 } playback: PLAYBACK_LOOP_FORWARD fps: 12 flip_horizontal: 1 flip_vertical: 1 }

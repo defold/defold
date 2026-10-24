@@ -1,0 +1,24 @@
+script: ""
+material: "/builtins/materials/gui.material"
+materials { name: "vector" material: "/builtins/materials/gui-vector.material" }
+textures { name: "vector" texture: "/sprite/vector_animation.atlas" }
+nodes {
+  id: "icon"
+  type: TYPE_BOX
+  texture: "vector/vector_animation"
+  material: "vector"
+  position { x: 100 y: 100 }
+  size_mode: SIZE_MODE_AUTO
+  color { x: 0.75 y: 0.5 z: 0.25 w: 1 }
+  alpha: 0.5
+}
+nodes {
+  id: "dialog"
+  type: TYPE_BOX
+  texture: "vector/vector_animation"
+  material: "vector"
+  position { x: 300 y: 200 }
+  size_mode: SIZE_MODE_MANUAL
+  size { x: 200 y: 150 }
+  slice9 { x: 3 y: 7 z: 11 w: 13 }
+}

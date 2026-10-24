@@ -19,11 +19,11 @@
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [util.coll :as coll :refer [pair]])
-  (:import [com.dynamo.bob.pipeline AtlasUtil]
+  (:import [com.dynamo.bob.pipeline AtlasUtil VectorAtlasCompiler]
            [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$LayoutResult TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Layout TextureSetLayout$Rect]
            [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
            [com.dynamo.bob.util TextureUtil]
-           [com.dynamo.gamesys.proto TextureSetProto$TextureSet$Builder]
+           [com.dynamo.gamesys.proto AtlasProto$Atlas TextureSetProto$TextureSet$Builder TextureSetProto$VectorAtlas]
            [com.dynamo.gamesys.proto TextureSetProto$SpriteGeometry Tile$Animation Tile$ConvexHull Tile$Playback Tile$SpriteTrimmingMode]
            [editor.types Image]
            [java.awt.image BufferedImage]))
@@ -199,6 +199,32 @@
         (assoc (TextureSetResult->result result)
           :geometry-images geometry-images
           :geometry->layout-rect-index geometry->layout-rect-index)))))
+
+(defn vector-atlas->texture-set-data [animations sources geometry-images]
+  (let [atlas {:animations (mapv (fn [index animation]
+                                   {:id (str index)
+                                    :images (mapv (fn [image]
+                                                    {:image (resource/proj-path (:path image))
+                                                     :pivot-x (:pivot-x image)
+                                                     :pivot-y (:pivot-y image)
+                                                     :sprite-trim-mode (:sprite-trim-mode image)})
+                                                  (:images animation))})
+                                 (range) animations)}
+        geometry-images (vec (sort-by (juxt #(-> % :path resource/proj-path) :pivot-x :pivot-y) geometry-images))
+        result (TextureSetResult->result (VectorAtlasCompiler/compile (protobuf/map->pb AtlasProto$Atlas atlas) sources))]
+    (-> result
+        (assoc :geometry-images geometry-images
+               :geometry->layout-rect-index (vec (range (count geometry-images))))
+        (update :rects (fn [rects]
+                         (mapv (fn [rect]
+                                 (assoc rect :path (-> geometry-images (get (:index rect)) :path resource/proj-path)))
+                               rects))))))
+
+(defn update-vector-atlas-animations [atlas layout-data]
+  (let [result (VectorAtlasCompiler/createTextureSet (protobuf/map->pb AtlasProto$Atlas atlas)
+                                                     (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data))
+                                                     (protobuf/map->pb TextureSetProto$VectorAtlas (get-in layout-data [:texture-set :vector])))]
+    (assoc layout-data :texture-set (protobuf/pb->map-with-defaults (.build (.builder result))))))
 
 (defn- calc-tile-start [{:keys [spacing margin]} size tile-index]
   (let [actual-tile-size (+ size spacing (* 2 margin))]

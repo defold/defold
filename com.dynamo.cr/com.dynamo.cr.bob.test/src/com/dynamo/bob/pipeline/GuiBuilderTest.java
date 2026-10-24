@@ -38,6 +38,38 @@ import com.dynamo.bob.util.MurmurHash;
 
 public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
+    // GUI SVG textures preserve box/nine-slice authoring and reject mismatched materials and pie nodes.
+    @Test
+    public void testVectorAtlasBoxes() throws Exception {
+        getProject().setOption("exclude-gles-sm100", "true");
+        addFile("/icon.svg", "<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><circle cx='32' cy='32' r='24' fill='#d5ac62'/></svg>");
+        addFile("/gui.atlas", "images { image: \"/icon.svg\" }");
+        addFile("/vector.vp", "#version 330\nin vec4 position;\nvoid main() { gl_Position = position; }\n");
+        addFile("/vector.fp", "#version 330\n#extension GL_EXT_samplerless_texture_functions : require\nuniform sampler2D curve_texture;\nuniform utexture2D band_texture;\nuniform sampler2D paint_texture;\nout vec4 color;\n" +
+                "void main() { color = texelFetch(curve_texture, ivec2(0), 0) + texelFetch(paint_texture, ivec2(0), 0) + vec4(texelFetch(band_texture, ivec2(0), 0)); }\n");
+        String material = "name: \"vector\" vertex_program: \"/vector.vp\" fragment_program: \"/vector.fp\" ";
+        for (String name : List.of("curve_texture", "band_texture", "paint_texture"))
+            material += "samplers { name: \"" + name + "\" filter_min: FILTER_MODE_MIN_NEAREST filter_mag: FILTER_MODE_MAG_NEAREST wrap_u: WRAP_MODE_CLAMP_TO_EDGE wrap_v: WRAP_MODE_CLAMP_TO_EDGE } ";
+        addFile("/vector.material", material);
+        String source = "material: \"\" " +
+                "materials { name: \"vector\" material: \"/vector.material\" } " +
+                "textures { name: \"gui\" texture: \"/gui.atlas\" } " +
+                "nodes { id: \"dialog\" type: TYPE_BOX material: \"vector\" texture: \"gui/icon\" " +
+                "size_mode: SIZE_MODE_MANUAL size { x: 320 y: 160 } slice9 { x: 8 y: 8 z: 8 w: 8 } }";
+        Gui.SceneDesc result = getMessage(build("/svg.gui", source), Gui.SceneDesc.class);
+        Assert.assertEquals("/gui.a.texturesetc", result.getTextures(0).getTexture());
+        Assert.assertEquals("vector", result.getNodes(0).getMaterial());
+        Assert.assertEquals(8, result.getNodes(0).getSlice9().getX(), 0);
+        for (String invalid : List.of(source.replace("material: \"vector\"", "material: \"\""), source.replace("TYPE_BOX", "TYPE_PIE"))) {
+            try {
+                build("/invalid.gui", invalid);
+                Assert.fail("Expected incompatible SVG node to fail");
+            } catch (CompileExceptionError error) {
+                Assert.assertTrue(error.getMessage(), error.getMessage().contains("GUI node 'dialog'"));
+            }
+        }
+    }
+
     private static final float EPSILON = 0.00001f;
     private ClassLoaderScanner scanner = null;
 

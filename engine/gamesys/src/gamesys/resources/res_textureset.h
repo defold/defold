@@ -20,6 +20,11 @@
 
 namespace dmGameSystem
 {
+    bool IsVectorTextureSet(const TextureSetResource* resource);
+
+    // Curves, bands, paints in that order; the atlas retains ownership.
+    dmGraphics::HTexture GetVectorAtlasTexture(const TextureSetResource* resource, uint32_t index);
+
     dmResource::Result ResTextureSetPreload(const dmResource::ResourcePreloadParams* params);
 
     dmResource::Result ResTextureSetCreate(const dmResource::ResourceCreateParams* params);

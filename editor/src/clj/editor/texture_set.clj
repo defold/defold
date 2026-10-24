@@ -22,6 +22,7 @@
             [editor.render-util :as render-util]
             [editor.shaders :as shaders]
             [editor.slice9 :as slice9]
+            [editor.svg :as svg]
             [util.coll :refer [pair]])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL3]
@@ -108,7 +109,7 @@
      :height (:height frame-geometry)}))
 
 (defn- ->anim-data
-  [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries]
+  [{:keys [start end fps flip-horizontal flip-vertical playback duration frame-durations]} tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries vector-images]
   {:pre [(contains? #{nil 0 1} flip-horizontal)
          (contains? #{nil 0 1} flip-vertical)]}
   (let [^long flip-horizontal (or flip-horizontal 0)
@@ -120,20 +121,35 @@
         tex-coord-order-unflipped (flip-strategy->tex-coord-order 0)
         frames (mapv (fn [i]
                        (let [frame-index (frame-indices i)
-                             page-index (page-indices frame-index)
+                             vector-image (get vector-images frame-index)
+                             page-index (if vector-image (:paint vector-image) (page-indices frame-index))
                              frame-geometry (geometries frame-index)
-                             quad-tex-coords (->quad-tex-coords frame-index tex-coords tex-coord-order)
-                             quad-tex-coords-raw (->quad-tex-coords frame-index tex-coords tex-coord-order-unflipped)]
+                             vector-coords (when vector-image
+                                             (let [w (double (:width vector-image))
+                                                   h (double (:height vector-image))]
+                                               [[0.0 h] [0.0 0.0] [w 0.0] [w h]]))
+                             quad-tex-coords (if vector-image
+                                               (mapv vector-coords tex-coord-order)
+                                               (->quad-tex-coords frame-index tex-coords tex-coord-order))
+                             quad-tex-coords-raw (if vector-image
+                                                   vector-coords
+                                                   (->quad-tex-coords frame-index tex-coords tex-coord-order-unflipped))]
                          (if (and use-geometries
                                   (not= :sprite-trim-mode-off
                                         (:trim-mode frame-geometry)))
                            (->anim-frame-from-geometry page-index quad-tex-coords quad-tex-coords-raw frame-geometry scale-factors reverse)
-                           (->anim-frame page-index quad-tex-coords quad-tex-coords-raw (->tex-dim frame-index tex-dims) frame-geometry))))
+                           (cond-> (->anim-frame page-index quad-tex-coords quad-tex-coords-raw (or vector-image (->tex-dim frame-index tex-dims)) frame-geometry)
+                             vector-image (assoc :vector-duration (:duration vector-image 0.0)
+                                                 :vector-image true
+                                                 :flip-horizontal (pos? flip-horizontal)
+                                                 :flip-vertical (pos? flip-vertical))))))
                      (range start end))]
     {:width (transduce (map :width) max 0 frames)
      :height (transduce (map :height) max 0 frames)
      :playback playback
      :fps fps
+     :duration (or duration 0.0)
+     :frame-durations frame-durations
      :frames frames
      :uv-transforms (subvec uv-transforms start end)}))
 
@@ -154,7 +170,7 @@
         frame-indices (:frame-indices texture-set)
         page-indices (:page-indices texture-set)]
     (into {}
-          (map #(pair (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries)))
+          (map #(pair (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries (get-in texture-set [:vector :images]))))
           animations)))
 
 ;; vertex data
@@ -284,7 +300,16 @@
      :texture-transform texture-transform-identity}))
 
 (defn vertex-data [animation-frame size-mode size slice9 pivot]
-  (let [out (-> (cond
+  (let [;; SVG coordinates are already flipped. Move asymmetric borders with
+        ;; their corners, matching the runtime's source and destination grid.
+        slice9 (if (and (:vector-image animation-frame) slice9)
+                 (let [[left top right bottom] slice9]
+                   [(if (:flip-horizontal animation-frame) right left)
+                    (if (:flip-vertical animation-frame) bottom top)
+                    (if (:flip-horizontal animation-frame) left right)
+                    (if (:flip-vertical animation-frame) top bottom)])
+                 slice9)
+        out (-> (cond
                   (nil? animation-frame)
                   (quad-vertex-data size pivot)
 
@@ -337,10 +362,29 @@
 (defn step-animation
   [{:keys [^double t frame] :as state} ^double dt anim-data]
   (let [t' (+ t dt)
-        time-per-frame (/ 1.0 (double (:fps anim-data)))
-        frame-time (long (+ 0.5 (/ t' time-per-frame)))
-        frame' (next-frame frame (:playback anim-data) frame-time (count (:frames anim-data)))]
-    (assoc state :t t' :frame frame')))
+        duration (double (:duration anim-data 0.0))]
+    (if-not (pos? duration)
+      (let [time-per-frame (/ 1.0 (double (:fps anim-data)))
+            frame-time (long (+ 0.5 (/ t' time-per-frame)))
+            frame' (next-frame frame (:playback anim-data) frame-time (count (:frames anim-data)))]
+        (assoc state :t t' :frame frame'))
+      (let [playback (:playback anim-data)
+            pingpong (contains? #{:playback-once-pingpong :playback-loop-pingpong} playback)
+            once (contains? #{:playback-once-forward :playback-once-backward :playback-once-pingpong} playback)
+            cycle (* duration (if pingpong 2.0 1.0))
+            elapsed (double (cond (= :playback-none playback) 0.0
+                                  once (min t' cycle)
+                                  :else (mod t' cycle)))
+            elapsed (if (and pingpong (> elapsed duration)) (- cycle elapsed) elapsed)
+            elapsed (if (contains? #{:playback-once-backward :playback-loop-backward} playback) (- duration elapsed) elapsed)
+            [frame local-time] (loop [frame 0 elapsed elapsed]
+                                 (let [seconds (double (get (:frame-durations anim-data) frame))]
+                                   (if (and (>= elapsed seconds) (< frame (dec (count (:frames anim-data)))))
+                                     (recur (inc frame) (- elapsed seconds))
+                                     [frame elapsed])))
+            svg-time (* (double (get-in anim-data [:frames frame :vector-duration]))
+                        (/ (double local-time) (double (get (:frame-durations anim-data) frame))))]
+        (assoc state :t t' :frame frame :svg-time svg-time)))))
 
 (defn make-animation-updatable
   [node-id name anim-data]
@@ -390,14 +434,16 @@
           (:uv-data frame-vertex-data))))
 
 (defn- anim-data->vbuf
-  [anim-data frame-index world-transform]
+  [anim-data frame-index world-transform svg-time animation-shader]
   (let [animation-data (get-in anim-data [:frames frame-index])
         animation-vertices (animation-frame->vertex-floats animation-data world-transform)
-        vertex-description (shaders/vertex-description animation-overlay-shader)
+        vertex-description (shaders/vertex-description animation-shader)
         ^VertexBuffer vbuf (vtx/make-vertex-buffer vertex-description :stream (count animation-vertices))
         buf (.buf vbuf)]
-    (doseq [vertex animation-vertices]
-      (vtx/buf-push-floats! buf vertex))
+    (doseq [[x y z u v paint :as vertex] animation-vertices]
+      (vtx/buf-push-floats! buf (if (:vector-image animation-data)
+                                  [x y z 1.0 u v paint (double svg-time)]
+                                  vertex)))
     (vtx/flip! vbuf)))
 
 (defn- anim-data->vertex-count
@@ -432,10 +478,11 @@
                                                               0.0))
                                   (.mul scale-m))
                 vertex-count (anim-data->vertex-count anim-data frame)
-                vbuf (anim-data->vbuf anim-data frame world-transform)]
+                animation-shader (if (svg/vector-texture? (:gpu-texture user-data)) (:preview-shader (:gpu-texture user-data)) animation-overlay-shader)
+                vbuf (anim-data->vbuf anim-data frame world-transform (get-in renderable [:updatable :state :svg-time] 0.0) animation-shader)]
             (when vbuf
-              (let [vertex-binding (vtx/use-with ::animation vbuf animation-overlay-shader)
-                    gpu-texture (:gpu-texture user-data)
+              (let [gpu-texture (:gpu-texture user-data)
+                    vertex-binding (vtx/use-with ::animation vbuf animation-shader)
                     x0 (.x world-pos)
                     y0 (.y world-pos)
                     x1 (+ x0 scaled-width)
@@ -446,6 +493,15 @@
                                [x1 y0]]]
                 (render-util/render-color-quad! gl render-args ::animation-background colors/scene-background positions)
                 (render-util/render-color-line-loop! gl render-args ::animation-outline colors/outline-color positions)
-                (gl/with-gl-bindings gl render-args [animation-overlay-shader vertex-binding gpu-texture]
-                  (shader/set-samplers-by-index animation-overlay-shader gl 0 (:texture-units gpu-texture))
-                  (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 vertex-count))))))))))
+                (gl/with-gl-bindings gl render-args [animation-shader vertex-binding]
+                  (if (svg/vector-texture? gpu-texture)
+                    (svg/bind-textures! gl render-args animation-shader gpu-texture)
+                    (do
+                      (gl/bind gl gpu-texture render-args)
+                      (shader/set-samplers-by-index animation-shader gl 0 (:texture-units gpu-texture))))
+                  (gl/set-blend-mode gl :blend-mode-alpha)
+                  (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 vertex-count)
+                  (.glBlendFunc gl GL3/GL_SRC_ALPHA GL3/GL_ONE_MINUS_SRC_ALPHA)
+                  (if (svg/vector-texture? gpu-texture)
+                    (svg/unbind-textures! gl render-args gpu-texture)
+                    (gl/unbind gl gpu-texture render-args)))))))))))

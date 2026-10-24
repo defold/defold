@@ -44,6 +44,28 @@ import com.dynamo.gamesys.proto.Tile.Playback;
 import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
 
 public class AtlasUtil {
+    /** Infers content mode from every image, including animation-only references. */
+    public static boolean isVectorAtlas(Atlas atlas) throws CompileExceptionError {
+        String raster = null;
+        String vector = null;
+        List<AtlasImage> images = new ArrayList<>(atlas.getImagesList());
+        for (AtlasAnimation animation : atlas.getAnimationsList()) images.addAll(animation.getImagesList());
+        for (AtlasImage image : images) {
+            if (image.getImage().toLowerCase(java.util.Locale.ROOT).endsWith(".svg")) vector = image.getImage();
+            else raster = image.getImage();
+            if (raster != null && vector != null)
+                throw new CompileExceptionError("An atlas cannot mix SVG and raster images: '" + vector + "' and '" + raster + "'. Use separate atlases.");
+        }
+        return vector != null;
+    }
+
+    /** Uses the same frame variants and ordering for vector and raster compilation. */
+    public static MappedAnimIterator createAnimIterator(Atlas atlas, List<AtlasImage> images, PathTransformer transformer) throws CompileExceptionError {
+        List<String> paths = new ArrayList<>();
+        for (AtlasImage image : images) paths.add(image.getImage());
+        return new MappedAnimIterator(createAnimDescs(atlas, transformer), paths, imageKeys(images));
+    }
+
     public static class MappedAnimDesc extends AnimDesc {
         private List<String> paths;
         private List<String> ids;

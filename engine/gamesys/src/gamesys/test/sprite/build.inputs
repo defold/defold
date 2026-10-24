@@ -19,3 +19,6 @@
 /sprite/textureless.go
 /sprite/valid_sprite.go
 /tile/valid.tileset
+/sprite/vector.go
+/sprite/vector_slice9.go
+/sprite/vector_animation.go

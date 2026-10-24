@@ -242,7 +242,7 @@ if(EXISTS "${DEFOLD_HOME}/.defold-platforms")
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS "${DEFOLD_HOME}/.defold-platforms")
 endif()
 set(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
-foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared fontc_shared)
+foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS dlib_shared texc_shared modelc_shared shaderc_shared fontc_shared)
   if(TARGET ${_DEFOLD_BOB_LIGHT_LIB})
     list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS ${_DEFOLD_BOB_LIGHT_LIB})
     list(APPEND _DEFOLD_BOB_LIGHT_COPY_COMMANDS
@@ -260,6 +260,13 @@ if(TARGET dlib_java)
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
       "${DEFOLD_DLIB_BINARY_DIR}/dlib.jar"
       "${DEFOLD_SDK_ROOT}/share/java/dlib.jar")
+endif()
+if(TARGET slug_jar)
+  list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS slug_jar "${DEFOLD_DLIB_BINARY_DIR}/slug.jar")
+  list(APPEND _DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${DEFOLD_DLIB_BINARY_DIR}/slug.jar"
+      "${DEFOLD_SDK_ROOT}/share/java/slug.jar")
 endif()
 if(TARGET modelimporter_jar)
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS

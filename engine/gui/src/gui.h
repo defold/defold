@@ -83,9 +83,11 @@ namespace dmGui
                         m_OriginalTextureWidth  == other.m_OriginalTextureWidth &&
                         m_OriginalTextureHeight == other.m_OriginalTextureHeight &&
                         m_FPS                   == other.m_FPS &&
-                        m_Playback              == other.m_Playback;
+                        m_Playback              == other.m_Playback &&
+                        m_Duration              == other.m_Duration;
             }
 
+            float    m_Duration; // Optional continuous timeline duration in seconds; zero uses frame count/FPS.
             uint32_t m_Start;
             uint32_t m_End;
             uint8_t  m_Playback;
@@ -95,6 +97,7 @@ namespace dmGui
         } m_State;
 
         const float* m_TexCoords;
+        const float* m_FrameDurations; // Borrowed per-frame durations, valid for the texture-set lifetime. Null for raster flipbooks.
         const void*  m_TextureSet;
         uint8_t m_FlipHorizontal : 1;
         uint8_t m_FlipVertical : 1;

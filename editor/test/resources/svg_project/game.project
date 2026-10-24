@@ -1,0 +1,4 @@
+[project]
+title = SVG integration
+[shader]
+exclude_gles_sm100 = 1

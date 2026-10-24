@@ -1,0 +1,3 @@
+images { image: "/sprite/vector.svg" pivot_x: 0.25 pivot_y: 0.75 }
+animations { id: "loop" images { image: "/sprite/vector.svg" } images { image: "/sprite/vector.svg" } playback: PLAYBACK_LOOP_FORWARD fps: 2 }
+animations { id: "flipped" images { image: "/sprite/vector.svg" pivot_x: 0.25 pivot_y: 0.75 } playback: PLAYBACK_NONE flip_horizontal: 1 flip_vertical: 1 }

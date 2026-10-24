@@ -48,6 +48,7 @@
             [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
             [editor.shaders :as shaders]
+            [editor.svg :as svg]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -870,9 +871,11 @@
                                             [:anim-ids :anim-ids])))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
-                                  :ext ["atlas" "tilesource"]}))
-            (dynamic error (g/fnk [_node-id tile-source]
-                             (prop-resource-error :fatal _node-id :tile-source tile-source image-message))))
+                                  :ext ["atlas" "tilesource"]
+                                  :dialog-accept-fn svg/raster-atlas-resource?}))
+            (dynamic error (g/fnk [_node-id tile-source texture-set]
+                             (or (prop-resource-error :fatal _node-id :tile-source tile-source image-message)
+                                 (svg/validate-raster-atlas _node-id :tile-source texture-set)))))
 
   (property animation g/Str ; Required protobuf field.
             (dynamic label (properties/label-dynamic :particlefx :animation))
@@ -956,8 +959,9 @@
   (input dep-build-targets g/Any :array)
   (input emitter-indices g/Any)
   (output emitter-index g/Any (g/fnk [_node-id emitter-indices] (emitter-indices _node-id)))
-  (output build-targets g/Any (g/fnk [_node-id tile-source material material-max-page-count exclude-gles-sm100 material-shader texture-page-count animation anim-ids dep-build-targets]
-                                (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source image-message)
+  (output build-targets g/Any (g/fnk [_node-id tile-source material material-max-page-count exclude-gles-sm100 material-shader texture-page-count animation anim-ids dep-build-targets texture-set]
+                                (or (when-let [errors (->> [(svg/validate-raster-atlas _node-id :tile-source texture-set)
+                                                            (validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source image-message)
                                                             (validate-material _node-id material material-max-page-count exclude-gles-sm100 material-shader texture-page-count)
                                                             (validation/prop-error :fatal _node-id :animation validation/prop-nil? animation animation-message)
                                                             (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids animation-message)]
@@ -972,7 +976,9 @@
   (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
                              (or (some-> material-samplers first material/sampler->tex-params)
                                  default-tex-params)))
-  (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
+  (output gpu-texture g/Any (g/fnk [_node-id texture-set gpu-texture tex-params]
+                              (or (svg/validate-raster-atlas _node-id :tile-source texture-set)
+                                  (texture/set-params gpu-texture tex-params))))
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output scene g/Any :cached produce-emitter-scene)
   (output pb-msg g/Any produce-emitter-pb)

@@ -1,0 +1,5 @@
+script: ""
+material: "/builtins/materials/gui.material"
+materials { name: "vector" material: "/builtins/materials/gui-vector.material" }
+textures { name: "animated" texture: "/animated.atlas" }
+nodes { id: "box" type: TYPE_BOX texture: "animated/animated" material: "vector" position { x: 320 y: 240 } size { x: 200 y: 160 } size_mode: SIZE_MODE_MANUAL }

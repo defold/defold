@@ -976,7 +976,7 @@ namespace dmGameSystem
         }
         if (params.m_PropertyId == PROP_TILE_SOURCE)
         {
-            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&component->m_TextureSet);
+            dmGameObject::PropertyResult res = SetRasterAtlasProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, (void**)&component->m_TextureSet);
             ReHash(component);
             return res;
         }

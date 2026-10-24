@@ -1,0 +1,6 @@
+default_animation: "vector"
+material: "/builtins/materials/sprite-vector.material"
+size_mode: SIZE_MODE_MANUAL
+size { x: 300.75 y: 200.25 }
+slice9 { x: 10.25 y: 20.5 z: 30.75 w: 15.25 }
+textures { sampler: "curve_texture" texture: "/sprite/vector.atlas" }

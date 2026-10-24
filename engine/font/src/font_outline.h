@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <dmsdk/font/font.h>
+#include <slug/slug.hpp>
 
 /*# font outline storage type
  * @enum
@@ -44,14 +45,12 @@ enum FontOutlineType
  * @member FONT_OUTLINE_CUBIC_TO Draw a cubic Bezier using control points m_Points[0] and m_Points[1], and endpoint m_Points[2].
  * @member FONT_OUTLINE_CLOSE Close the current contour. The points are unused.
  */
-enum FontOutlineCommandType
-{
-    FONT_OUTLINE_MOVE_TO,
-    FONT_OUTLINE_LINE_TO,
-    FONT_OUTLINE_QUADRATIC_TO,
-    FONT_OUTLINE_CUBIC_TO,
-    FONT_OUTLINE_CLOSE,
-};
+typedef dmSlug::OutlineCommandType  FontOutlineCommandType;
+static const FontOutlineCommandType FONT_OUTLINE_MOVE_TO = dmSlug::OUTLINE_MOVE_TO;
+static const FontOutlineCommandType FONT_OUTLINE_LINE_TO = dmSlug::OUTLINE_LINE_TO;
+static const FontOutlineCommandType FONT_OUTLINE_QUADRATIC_TO = dmSlug::OUTLINE_QUADRATIC_TO;
+static const FontOutlineCommandType FONT_OUTLINE_CUBIC_TO = dmSlug::OUTLINE_CUBIC_TO;
+static const FontOutlineCommandType FONT_OUTLINE_CLOSE = dmSlug::OUTLINE_CLOSE;
 
 /*# point in unscaled font coordinates
  * @struct
@@ -59,11 +58,7 @@ enum FontOutlineCommandType
  * @member m_X [type: float] horizontal coordinate
  * @member m_Y [type: float] vertical coordinate, increasing upwards
  */
-struct FontOutlinePoint
-{
-    float m_X;
-    float m_Y;
-};
+typedef dmSlug::Point FontOutlinePoint;
 
 /*# one glyph path operation
  * @struct
@@ -71,11 +66,7 @@ struct FontOutlinePoint
  * @member m_Type [type: FontOutlineCommandType] operation and number of points used
  * @member m_Points [type: FontOutlinePoint[3]] control points and endpoint for the operation
  */
-struct FontOutlineCommand
-{
-    FontOutlineCommandType m_Type;
-    FontOutlinePoint       m_Points[3];
-};
+typedef dmSlug::OutlineCommand FontOutlineCommand;
 
 /*# decoded path of one glyph
  * A decoded outline owns m_Commands and must be released with
@@ -85,11 +76,7 @@ struct FontOutlineCommand
  * @member m_Commands [type: FontOutlineCommand*] ordered path commands, or null for an empty glyph
  * @member m_CommandCount [type: uint32_t] number of commands
  */
-struct FontOutline
-{
-    FontOutlineCommand* m_Commands;
-    uint32_t            m_CommandCount;
-};
+typedef dmSlug::Outline FontOutline;
 
 /*# incremental exact outline bounds
  * Accumulates bounds directly from outline drawing operations. This allows
@@ -98,15 +85,7 @@ struct FontOutline
  * @struct
  * @name FontOutlineBounds
  */
-struct FontOutlineBounds
-{
-    FontOutlinePoint m_Current;
-    float            m_X0;
-    float            m_Y0;
-    float            m_X1;
-    float            m_Y1;
-    bool             m_HasBounds;
-};
+typedef dmSlug::OutlineBounds FontOutlineBounds;
 
 /*# begin a contour and include its first point in the bounds */
 void FontOutlineBoundsMoveTo(FontOutlineBounds* bounds, FontOutlinePoint to);
@@ -156,5 +135,18 @@ void FontFreeGlyphOutline(FontOutline* outline);
  * @return has_bounds [type: bool] false if the outline has no points
  */
 bool FontGetOutlineBounds(const FontOutline* outline, float* x0, float* y0, float* x1, float* y1);
+
+/*# convert a decoded outline to Slug quadratic commands
+ * Borrows the input. The caller owns output commands and releases them with free().
+ * Cubic approximation error is bounded by tolerance in the input coordinate space.
+ * Existing output metrics are preserved; only commands and flags are written.
+ * @name FontOutlineToQuadratics
+ * @param outline [type: const FontOutline*] decoded path
+ * @param scale [type: float] scale applied to output coordinates
+ * @param tolerance [type: float] maximum cubic approximation error
+ * @param output [type: FontGlyphOutline*] receives owned quadratic commands
+ * @return result [type: FontResult] FONT_RESULT_OK on success
+ */
+FontResult FontOutlineToQuadratics(const FontOutline* outline, float scale, float tolerance, FontGlyphOutline* output);
 
 #endif // DM_FONT_OUTLINE_H
