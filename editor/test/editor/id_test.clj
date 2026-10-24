@@ -14,7 +14,8 @@
 
 (ns editor.id-test
   (:require [clojure.test :refer :all]
-            [editor.id :as id]))
+            [editor.id :as id]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -31,7 +32,7 @@
       "sprite2" "sprite" #{"sprite" "sprite1"}
       "sprite2" "sprite1" #{"sprite" "sprite1"}
       "sprite1" "sprite" #{"sprite" "sprite2"}
-      "sprite" "sprite1" #{"sprite1" "sprite2"}))
+      "sprite3" "sprite1" #{"sprite1" "sprite2"}))
 
   (testing "Multiple ids"
     (is (= ["sprite" "sprite1" "sprite2"]
@@ -42,6 +43,29 @@
 
     (is (= ["sprite3" "sprite4" "sprite5"]
            (id/resolve-all ["sprite1" "sprite2" "sprite3"] #{"sprite" "sprite1" "sprite2"})))))
+
+;; Conflicting numbered ids advance from the copied suffix instead of reusing
+;; the base name or lower numbers, including when resolving several ids at once.
+(deftest resolve-numbered-id-test
+  (doseq [[wanted-id taken-ids expected-id]
+          [["node_1" ["node_1"] "node_2"]
+           ["node_1" ["node_1" "node_2"] "node_3"]
+           ["node_3" ["node_3" "node_5"] "node_4"]
+           ["node_3" ["node_4"] "node_3"]
+           ["node_0" ["node_0"] "node_1"]
+           ["node_009" ["node_009"] "node_10"]
+           ["node_009" ["node_10"] "node_009"]
+           ["2d_node_9" ["2d_node_9"] "2d_node_10"]
+           ["9" ["9" "10"] "11"]]
+          lookup [taken-ids
+                  (set taken-ids)
+                  (coll/into-> taken-ids {} (map #(coll/pair % nil)))
+                  (coll/into-> taken-ids {} (map #(coll/pair % false)))]]
+    (is (= expected-id (id/resolve wanted-id lookup)))
+    (is (= [expected-id] (id/resolve-all [wanted-id] lookup))))
+
+  (is (= ["node_4" "node_5" "node_6"]
+         (id/resolve-all ["node_3" "node_3" "node_4"] #{"node_3"}))))
 
 (deftest id-test
   (doseq [[basename taken-ids expected]
