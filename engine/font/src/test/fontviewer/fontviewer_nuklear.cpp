@@ -50,7 +50,7 @@ static void CopyToClipboard(nk_handle window, const char* text, int length)
     FontViewerMacOSSetClipboard((HWindow)window.ptr, text, (uint32_t)length);
 }
 
-static void                         SetFont(float height)
+static void SetFont(float height)
 {
     g_Font->handle.height = height;
     nk_style_set_font(&g_Context, &g_Font->handle);

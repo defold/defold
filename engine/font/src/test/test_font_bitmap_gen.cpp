@@ -63,7 +63,7 @@ static bool        g_AlignmentPreview = false;
 #include <font_effect.h>
 #include <font_glyphbank.h>
 
-extern "C" void                       dmExportedSymbols();
+extern "C" void dmExportedSymbols();
 
 static FontEffectCache*               g_ImageEffects = 0;
 static uint32_t                       g_ImageFrame = 0;
@@ -72,7 +72,7 @@ static dmGraphics::HContext           g_ImageContext = 0;
 static dmGraphics::HProgram           g_ImagePrograms[3] = {};
 static dmGraphics::HVertexDeclaration g_ImageDeclaration = 0;
 
-static bool                           MakeImageDirectory(const char* directory)
+static bool MakeImageDirectory(const char* directory)
 {
     char path[1024];
     if (!directory[0] || dmStrlCpy(path, directory, sizeof(path)) >= sizeof(path))
@@ -528,7 +528,7 @@ static void TestFontAlignmentImage(const FontImageCase& c)
     {
         const FontGlyph& glyph = fixture.m_Glyphs[i];
         dmArray<uint8_t> decoded;
-        const uint8_t* data = glyph.m_Bitmap.m_Data;
+        const uint8_t*   data = glyph.m_Bitmap.m_Data;
         if (glyph.m_Bitmap.m_Flags & FONT_GLYPH_BM_FLAG_COMPRESSION_DEFLATE)
         {
             ASSERT_EQ(dmZlib::RESULT_OK, dmZlib::InflateBuffer(data, glyph.m_Bitmap.m_DataSize, &decoded, AppendAlignmentPixels));
@@ -549,10 +549,10 @@ static void TestFontAlignmentImage(const FontImageCase& c)
         ASSERT_LE(top + glyph.m_Bitmap.m_Height, 32u);
         CopyFontImageGlyph(glyph.m_Bitmap, data, false, left, top, 256, atlas);
     }
-    dmGraphics::HTexture texture = CreateFontImageTexture(256, 32, atlas);
+    dmGraphics::HTexture      texture = CreateFontImageTexture(256, 32, atlas);
     dmGraphics::HRenderTarget target = CreateFontImageTarget(240, 140);
     dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(g_ImageContext, sizeof(fixture.m_Vertices), fixture.m_Vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-    dmArray<uint8_t> pixels;
+    dmArray<uint8_t>          pixels;
     CaptureFontImage(target, texture, buffer, g_ImagePrograms[0], 42, 240, 140, pixels, true);
     char directory[1024];
     GetFontImageDirectory(directory, sizeof(directory));
@@ -636,8 +636,8 @@ static void TestFontImage(const FontImageCase& c)
     {
         const FontImageCaptureGeometry ttf[] = { g_Capture_ttf_edge_half, g_Capture_ttf_edge_one, g_Capture_ttf_edge_two };
         const FontImageCaptureGeometry otf[] = { g_Capture_otf_edge_half, g_Capture_otf_edge_one, g_Capture_otf_edge_two };
-        const float capture_scale = c.m_EdgeScale * c.m_Size / 32.0f;
-        uint32_t index = capture_scale < 1.0f ? 0 : (capture_scale == 1.0f ? 1 : 2);
+        const float                    capture_scale = c.m_EdgeScale * c.m_Size / 32.0f;
+        uint32_t                       index = capture_scale < 1.0f ? 0 : (capture_scale == 1.0f ? 1 : 2);
         geometry = strncmp(c.m_Source, "otf", 3) == 0 ? otf[index] : ttf[index];
     }
     settings.m_Width = geometry.m_LayoutWidth;
@@ -817,15 +817,15 @@ static void TestFontImage(const FontImageCase& c)
         vertices[i].m_Position[0] += geometry.m_OriginX;
         vertices[i].m_Position[1] += (float)height - geometry.m_OriginTop;
     }
-    dmGraphics::HTexture texture = CreateFontImageTexture(atlas_width, atlas_height, atlas);
+    dmGraphics::HTexture      texture = CreateFontImageTexture(atlas_width, atlas_height, atlas);
     dmGraphics::HRenderTarget target = CreateFontImageTarget(width, height);
     dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(g_ImageContext, vertices.Size() * sizeof(FontGlyphVertex), vertices.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
     dmGraphics::HProgram      program = g_ImagePrograms[fnt ? 2 : bitmap ? 1 :
                                                                            0];
-    dmArray<uint8_t> previous_pixels;
+    dmArray<uint8_t>          previous_pixels;
     if (c.m_Change)
     {
-        const uint64_t expected_vertices = dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex));
+        const uint64_t  expected_vertices = dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex));
         TextRenderStyle previous_style = base;
         previous_style.m_OutlineAlpha = 0.5f;
         FontCollectionSetNamedStyle(collection, default_style, previous_style, 0, 0);
@@ -885,11 +885,11 @@ static void TestFontImage(const FontImageCase& c)
     }
     char metadata[1024];
     dmSnPrintf(metadata, sizeof(metadata), "{\"backend\":\"opengl\",\"source\":\"render-target\",\"glyphs\":%u,\"lines\":%u,\"vertices\":%u,\"layers\":%u,\"width\":%u,\"height\":%u,\"origin_x\":%d,\"origin_top\":%d,\"layout_width\":%u,\"font_ascent\":%.9g,\"font_descent\":%.9g,\"outline_data\":%s,\"atlas_width\":%u,\"atlas_height\":%u,\"atlas_hash\":\"%016llx\",\"vertex_hash\":\"%016llx\"}",
-        TextLayoutGetGlyphCount(layout), TextLayoutGetLineCount(layout), metrics.m_VertexCount, metrics.m_LayerCount,
-        width, height, geometry.m_OriginX, geometry.m_OriginTop, geometry.m_LayoutWidth,
-        FontGetAscent(font, FontGetScaleFromSize(font, c.m_Size)), FontGetDescent(font, FontGetScaleFromSize(font, c.m_Size)), outline_data ? "true" : "false",
-        atlas_width, atlas_height, (unsigned long long)dmHashBuffer64(atlas.Begin(), atlas.Size()),
-        (unsigned long long)dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex)));
+               TextLayoutGetGlyphCount(layout), TextLayoutGetLineCount(layout), metrics.m_VertexCount, metrics.m_LayerCount,
+               width, height, geometry.m_OriginX, geometry.m_OriginTop, geometry.m_LayoutWidth,
+               FontGetAscent(font, FontGetScaleFromSize(font, c.m_Size)), FontGetDescent(font, FontGetScaleFromSize(font, c.m_Size)), outline_data ? "true" : "false",
+               atlas_width, atlas_height, (unsigned long long)dmHashBuffer64(atlas.Begin(), atlas.Size()),
+               (unsigned long long)dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex)));
     WriteFontTestImage(c, width, height, pixels, metadata);
 
     char directory[1024];
@@ -976,16 +976,16 @@ TEST(FontBitmapManual, Render)
 static void PrintUsage(const char* executable)
 {
     printf(
-    "Usage: %s [--output folder] [--case matrix-case | manual options]\n"
-    "No case/options: generate the complete supported matrix.\n"
-    "Manual defaults: ttf_sdf, size 40, single layer, outline 4, opaque face/outline, no shadow.\n"
-    "  --source ttf_sdf|otf_sdf|ttf_bitmap|otf_bitmap|ttf_sdf_bank|otf_sdf_bank|ttf_bitmap_bank|otf_bitmap_bank|fnt|ttf_vector|otf_vector|ttf_vector_bank|otf_vector_bank\n"
-    "  --layers single|multi  --text text  --markup\n"
-    "  --size pixels  --outline pixels  --outline-alpha 0..1  --face-alpha 0..1\n"
-    "  --shadow-alpha 0..1  --shadow-blur pixels  --shadow-x pixels  --shadow-y pixels\n"
-    "  --alignment-preview  Render a pivot reference candidate using editor TTF metrics\n"
-    "Manual output: <folder>/<layout>-<rich|plain>/manual.png\n",
-    executable);
+        "Usage: %s [--output folder] [--case matrix-case | manual options]\n"
+        "No case/options: generate the complete supported matrix.\n"
+        "Manual defaults: ttf_sdf, size 40, single layer, outline 4, opaque face/outline, no shadow.\n"
+        "  --source ttf_sdf|otf_sdf|ttf_bitmap|otf_bitmap|ttf_sdf_bank|otf_sdf_bank|ttf_bitmap_bank|otf_bitmap_bank|fnt|ttf_vector|otf_vector|ttf_vector_bank|otf_vector_bank\n"
+        "  --layers single|multi  --text text  --markup\n"
+        "  --size pixels  --outline pixels  --outline-alpha 0..1  --face-alpha 0..1\n"
+        "  --shadow-alpha 0..1  --shadow-blur pixels  --shadow-x pixels  --shadow-y pixels\n"
+        "  --alignment-preview  Render a pivot reference candidate using editor TTF metrics\n"
+        "Manual output: <folder>/<layout>-<rich|plain>/manual.png\n",
+        executable);
 }
 
 int main(int argc, char** argv)

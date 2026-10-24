@@ -26,23 +26,23 @@
 
 struct TestFont
 {
-    Font        m_Base;
-    uint32_t    m_GenerateCount;
-    uint32_t    m_FreeCount;
+    Font     m_Base;
+    uint32_t m_GenerateCount;
+    uint32_t m_FreeCount;
 };
 
 struct TestContext
 {
-    uint32_t    m_CachedGlyphIndex;
-    uint32_t    m_CacheLookupCount;
-    uint32_t    m_AddCount;
-    uint32_t    m_CompleteCount;
-    int         m_CompleteResult;
-    bool        m_AcceptGlyph;
-    FontGlyph*  m_OwnedGlyph;
-    FontGlyph*  m_OwnedGlyphs[4];
-    HFont       m_OwningFonts[4];
-    char        m_Error[128];
+    uint32_t   m_CachedGlyphIndex;
+    uint32_t   m_CacheLookupCount;
+    uint32_t   m_AddCount;
+    uint32_t   m_CompleteCount;
+    int        m_CompleteResult;
+    bool       m_AcceptGlyph;
+    FontGlyph* m_OwnedGlyph;
+    FontGlyph* m_OwnedGlyphs[4];
+    HFont      m_OwningFonts[4];
+    char       m_Error[128];
 };
 
 static float TestGetScaleFromSize(HFont, uint32_t size)
@@ -82,7 +82,7 @@ static bool TestIsGlyphCached(void* context, HFont, uint32_t glyph_index)
 static FontResult TestAddGlyph(void* context, HFont font, FontGlyph* glyph)
 {
     TestContext* test = (TestContext*)context;
-    uint32_t index = test->m_AddCount++;
+    uint32_t     index = test->m_AddCount++;
     if (!test->m_AcceptGlyph || index >= DM_ARRAY_SIZE(test->m_OwnedGlyphs))
         return FONT_RESULT_ERROR;
     test->m_OwnedGlyph = glyph;
@@ -101,7 +101,7 @@ static void TestComplete(void* context, int result, const char* error_message)
 
 class FontGenTest : public jc_test_base_class
 {
-protected:
+    protected:
     HJobContext m_Jobs;
     TestFont    m_Font;
 
@@ -169,7 +169,7 @@ TEST_F(FontGenTest, GeneratesUniqueUncachedGlyphsAndTransfersOwnership)
     glyphs[3].m_GlyphIndex = 9;
     glyphs[3].m_Flags = TEXT_GLYPH_FLAG_OBJECT;
 
-    FontGenParams params = MakeParams(&context);
+    FontGenParams   params = MakeParams(&context);
     FontGenJobData* job_data = FontGenCreateJobData(&params, 4);
     ASSERT_NE((FontGenJobData*)0, job_data);
 
@@ -203,7 +203,7 @@ TEST_F(FontGenTest, RetainsAndFreesGlyphWhenInsertionFails)
     context.m_CachedGlyphIndex = 0xffffffff;
     context.m_AcceptGlyph = false;
 
-    FontGenParams params = MakeParams(&context);
+    FontGenParams   params = MakeParams(&context);
     FontGenJobData* job_data = FontGenCreateJobData(&params, 1);
     ASSERT_NE((FontGenJobData*)0, job_data);
 
@@ -242,7 +242,7 @@ TEST_F(FontGenTest, KeepsSameGlyphIndexFromDifferentFonts)
     glyphs[1].m_Font = (HFont)&fallback_font;
     glyphs[1].m_GlyphIndex = 7;
 
-    FontGenParams params = MakeParams(&context);
+    FontGenParams   params = MakeParams(&context);
     FontGenJobData* job_data = FontGenCreateJobData(&params, 2);
     ASSERT_NE((FontGenJobData*)0, job_data);
 

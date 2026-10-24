@@ -24,11 +24,11 @@
 // CPU effect generation preserves analytical faces and the outline distance field.
 TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
 {
-    char path[512];
+    char  path[512];
     HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/NotoSans-Regular.ttf"));
     ASSERT_NE((HFont)0, font);
     const uint32_t glyph_index = FontGetGlyphIndex(font, 'A');
-    uint32_t curve_count = 0;
+    uint32_t       curve_count = 0;
     for (uint32_t i = 0; i < 3; ++i)
     {
         FontGlyphGenParams params;
@@ -41,7 +41,7 @@ TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
         ASSERT_EQ(FONT_RESULT_OK, FontGenerateVectorGlyph(font, glyph_index, &params, &glyph));
         ASSERT_EQ(3u, glyph.m_Bitmap.m_Channels);
         ASSERT_EQ((uint32_t)glyph.m_Bitmap.m_Width * glyph.m_Bitmap.m_Height * 3, glyph.m_Bitmap.m_DataSize);
-        FontVectorSlugData data;
+        FontVectorSlugData  data;
         FontVectorSlugGlyph encoded;
         ASSERT_TRUE(FontVectorSlugAddFontGlyph(&data, glyph, 8, &encoded));
         ASSERT_GT(encoded.m_CurveCount, 0u);
@@ -59,7 +59,7 @@ TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
         ASSERT_EQ(glyph.m_Bitmap.m_Width, sdf.m_Bitmap.m_Width);
         ASSERT_EQ(glyph.m_Bitmap.m_Height, sdf.m_Bitmap.m_Height);
         const float outline_edge = params.m_SdfEdgeValue * (1.0f - params.m_OutlineWidth / options.m_StbttSDFPadding);
-        uint32_t outline_only = 0, shadow_only = 0;
+        uint32_t    outline_only = 0, shadow_only = 0;
         for (uint32_t p = 0; p < glyph.m_Bitmap.m_DataSize; p += 3)
         {
             const uint8_t* pixel = glyph.m_Bitmap.m_Data + p;
@@ -84,7 +84,7 @@ TEST(FontVector, CubicOpenTypeOutlinesGenerateSizeIndependentVectorCurves)
     const char* paths[] = { "src/test/data/SourceCodePro-Regular.otf", "src/test/data/SourceSerif4Variable-Roman_cff2.otf" };
     for (uint32_t f = 0; f < DM_ARRAY_SIZE(paths); ++f)
     {
-        char path[512];
+        char  path[512];
         HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), paths[f]));
         ASSERT_NE((HFont)0, font);
         const char* text = "Example";
@@ -101,7 +101,7 @@ TEST(FontVector, CubicOpenTypeOutlinesGenerateSizeIndependentVectorCurves)
                 params.m_ShadowBlur = 2;
                 FontGlyph glyph;
                 ASSERT_EQ(FONT_RESULT_OK, FontGenerateVectorGlyph(font, FontGetGlyphIndex(font, *c), &params, &glyph));
-                FontVectorSlugData data;
+                FontVectorSlugData  data;
                 FontVectorSlugGlyph encoded;
                 ASSERT_TRUE(FontVectorSlugAddFontGlyph(&data, glyph, 8, &encoded));
                 ASSERT_GT(encoded.m_CurveCount, 0u);
@@ -123,7 +123,7 @@ TEST(FontVector, CubicOpenTypeOutlinesGenerateSizeIndependentVectorCurves)
 // Enabling bitmap effects leaves encoded vector face curves unchanged.
 TEST(FontVector, EffectsPreserveEncodedFaceCurves)
 {
-    char path[512];
+    char  path[512];
     HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/NotoSans-Regular.ttf"));
     ASSERT_NE((HFont)0, font);
     FontVectorSlugData face;

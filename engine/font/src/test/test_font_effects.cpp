@@ -42,7 +42,7 @@ class FontEffectTest : public jc_test_base_class
     uint32_t                       m_Frame;
     dmArray<uint8_t>               m_Pixels;
 
-    void                           SetUp() override
+    void SetUp() override
     {
         TestMainPlatformInit();
         dmExportedSymbols();
@@ -86,8 +86,8 @@ class FontEffectTest : public jc_test_base_class
                   "font_effect_face_color(test_coordinates, test_face_color, test_mode > 1.5); }\n",
                   512 - sizeof(prefix) + 1);
         const char vertex_prefix[] =
-        "#version 140\nin vec2 position;\nin vec4 effect;\nin vec4 face_color;\nin float mode;\n"
-        "out highp vec4 test_coordinates;\nout vec4 test_face_color;\nout float test_mode;\n";
+            "#version 140\nin vec2 position;\nin vec4 effect;\nin vec4 face_color;\nin float mode;\n"
+            "out highp vec4 test_coordinates;\nout vec4 test_face_color;\nout float test_mode;\n";
         dmArray<char> vertex;
         vertex.SetCapacity((uint32_t)size + 1024);
         vertex.SetSize(vertex.Capacity());

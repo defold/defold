@@ -97,22 +97,22 @@ enum ArrowKey
     ARROW_KEY_DOWN,
 };
 
-static const char*    ENGLISH_TEXT =
-"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et "
-"dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip "
-"ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu "
-"fugiat nulla pariatur.";
+static const char* ENGLISH_TEXT =
+    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et "
+    "dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip "
+    "ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu "
+    "fugiat nulla pariatur.";
 
 static const char* ARABIC_TEXT =
-"لكن لا بد أن أوضح لك أن كل هذه الأفكار المغلوطة حول استنكار  النشوة وتمجيد الألم نشأت بالفعل، وسأعرض لك "
-"التفاصيل لتكتشف حقيقة وأساس تلك السعادة البشرية، فلا أحد يرفض أو يكره أو يتجنب الشعور بالسعادة، ولكن بفضل "
-"هؤلاء الأشخاص الذين لا يدركون بأن السعادة لا بد أن نستشعرها بصورة أكثر عقلانية ومنطقية فيعرضهم هذا لمواجهة "
-"الظروف الأليمة، وأكرر بأنه لا يوجد من يرغب في الحب ونيل المنال ويتلذذ بالآلام، الألم هو الألم ولكن نتيجة "
-"لظروف ما قد تكمن السعاده فيما نتحمله من كد وأسي.";
+    "لكن لا بد أن أوضح لك أن كل هذه الأفكار المغلوطة حول استنكار  النشوة وتمجيد الألم نشأت بالفعل، وسأعرض لك "
+    "التفاصيل لتكتشف حقيقة وأساس تلك السعادة البشرية، فلا أحد يرفض أو يكره أو يتجنب الشعور بالسعادة، ولكن بفضل "
+    "هؤلاء الأشخاص الذين لا يدركون بأن السعادة لا بد أن نستشعرها بصورة أكثر عقلانية ومنطقية فيعرضهم هذا لمواجهة "
+    "الظروف الأليمة، وأكرر بأنه لا يوجد من يرغب في الحب ونيل المنال ويتلذذ بالآلام، الألم هو الألم ولكن نتيجة "
+    "لظروف ما قد تكمن السعاده فيما نتحمله من كد وأسي.";
 
 static const char* JAPANESE_TEXT =
-"吾輩は猫である。名前はまだ無い。どこで生れたかとんと見当がつかぬ。何でも薄暗いじめじめした所で"
-"ニャーニャー泣いていた事だけは記憶している。";
+    "吾輩は猫である。名前はまだ無い。どこで生れたかとんと見当がつかぬ。何でも薄暗いじめじめした所で"
+    "ニャーニャー泣いていた事だけは記憶している。";
 
 struct CachedGlyph
 {
@@ -154,76 +154,76 @@ struct SpriteDraw
 struct Viewer
 {
     Viewer()
-        : m_Window(0)
-        , m_Context(0)
-        , m_Program(0)
-        , m_ColorProgram(0)
-        , m_SpriteProgram(0)
-        , m_NuklearProgram(0)
-        , m_ViewProjLocation(dmGraphics::INVALID_UNIFORM_LOCATION)
-        , m_VertexBuffer(0)
-        , m_ColorVertexBuffer(0)
-        , m_SpriteVertexBuffer(0)
-        , m_NuklearVertexBuffer(0)
-        , m_VertexDeclaration(0)
-        , m_ColorVertexDeclaration(0)
-        , m_SpriteVertexDeclaration(0)
-        , m_NuklearVertexDeclaration(0)
-        , m_Texture(0)
-        , m_NuklearTexture(0)
-        , m_EffectCache(0)
-        , m_EffectFrame(0)
-        , m_Collection(0)
-        , m_LoadedFontDataSize(0)
-        , m_VertexCount(0)
-        , m_ColorBackgroundVertexCount(0)
-        , m_ColorDecorationVertexCount(0)
-        , m_ColorDebugVertexCount(0)
-        , m_CellWidth(1)
-        , m_CellHeight(1)
-        , m_CellMaxAscent(0)
-        , m_AtlasChannels(1)
-        , m_Closed(false)
-        , m_LegacyLayout(false)
-        , m_ShowBaselines(false)
-        , m_ShowQuads(false)
-        , m_TextFieldFocused(false)
-        , m_ScrollCaretIntoViewRequested(false)
-        , m_RebuildRequested(false)
-        , m_RenderUpdateRequested(false)
-        , m_PreviousMouseDown(false)
-        , m_PreviousBackspaceDown(false)
-        , m_PreviousDeleteDown(false)
-        , m_PreviousEnterDown(false)
-        , m_PreviousEscapeDown(false)
-        , m_BackspaceRepeatAt(0)
-        , m_RepeatingArrowKey(ARROW_KEY_NONE)
-        , m_ArrowRepeatAt(0)
-        , m_PreviousMouseWheel(0)
-        , m_HoveredLinkObject(0xffffffff)
-        , m_PressedLinkObject(0xffffffff)
-        , m_TextScrollY(0.0f)
-        , m_EditorContentHeight(0.0f)
-        , m_FontSize(DEFAULT_FONT_SIZE)
-        , m_Caret(0)
-        , m_SelectionAnchor(0)
-        , m_PreferredCaretX(0.0f)
-        , m_HasPreferredCaretX(false)
-        , m_TextSelecting(false)
-        , m_Zoom(1.0f)
-        , m_PanX(0.0f)
-        , m_PanY(0.0f)
-        , m_LinkCursor(false)
-        , m_PreviewDragging(false)
-        , m_PreviousMouseX(0)
-        , m_PreviousMouseY(0)
-        , m_ExportStyle(0)
-        , m_OutputPath(0)
-        , m_RequestedFrameCount(0)
-        , m_ExportCanvasWidth(0)
-        , m_ExportCanvasHeight(0)
-        , m_ExportMode(false)
-        , m_NuklearInitialized(false)
+    : m_Window(0)
+    , m_Context(0)
+    , m_Program(0)
+    , m_ColorProgram(0)
+    , m_SpriteProgram(0)
+    , m_NuklearProgram(0)
+    , m_ViewProjLocation(dmGraphics::INVALID_UNIFORM_LOCATION)
+    , m_VertexBuffer(0)
+    , m_ColorVertexBuffer(0)
+    , m_SpriteVertexBuffer(0)
+    , m_NuklearVertexBuffer(0)
+    , m_VertexDeclaration(0)
+    , m_ColorVertexDeclaration(0)
+    , m_SpriteVertexDeclaration(0)
+    , m_NuklearVertexDeclaration(0)
+    , m_Texture(0)
+    , m_NuklearTexture(0)
+    , m_EffectCache(0)
+    , m_EffectFrame(0)
+    , m_Collection(0)
+    , m_LoadedFontDataSize(0)
+    , m_VertexCount(0)
+    , m_ColorBackgroundVertexCount(0)
+    , m_ColorDecorationVertexCount(0)
+    , m_ColorDebugVertexCount(0)
+    , m_CellWidth(1)
+    , m_CellHeight(1)
+    , m_CellMaxAscent(0)
+    , m_AtlasChannels(1)
+    , m_Closed(false)
+    , m_LegacyLayout(false)
+    , m_ShowBaselines(false)
+    , m_ShowQuads(false)
+    , m_TextFieldFocused(false)
+    , m_ScrollCaretIntoViewRequested(false)
+    , m_RebuildRequested(false)
+    , m_RenderUpdateRequested(false)
+    , m_PreviousMouseDown(false)
+    , m_PreviousBackspaceDown(false)
+    , m_PreviousDeleteDown(false)
+    , m_PreviousEnterDown(false)
+    , m_PreviousEscapeDown(false)
+    , m_BackspaceRepeatAt(0)
+    , m_RepeatingArrowKey(ARROW_KEY_NONE)
+    , m_ArrowRepeatAt(0)
+    , m_PreviousMouseWheel(0)
+    , m_HoveredLinkObject(0xffffffff)
+    , m_PressedLinkObject(0xffffffff)
+    , m_TextScrollY(0.0f)
+    , m_EditorContentHeight(0.0f)
+    , m_FontSize(DEFAULT_FONT_SIZE)
+    , m_Caret(0)
+    , m_SelectionAnchor(0)
+    , m_PreferredCaretX(0.0f)
+    , m_HasPreferredCaretX(false)
+    , m_TextSelecting(false)
+    , m_Zoom(1.0f)
+    , m_PanX(0.0f)
+    , m_PanY(0.0f)
+    , m_LinkCursor(false)
+    , m_PreviewDragging(false)
+    , m_PreviousMouseX(0)
+    , m_PreviousMouseY(0)
+    , m_ExportStyle(0)
+    , m_OutputPath(0)
+    , m_RequestedFrameCount(0)
+    , m_ExportCanvasWidth(0)
+    , m_ExportCanvasHeight(0)
+    , m_ExportMode(false)
+    , m_NuklearInitialized(false)
     {
         memset(&m_NuklearLayout, 0, sizeof(m_NuklearLayout));
         m_Properties.m_Alpha = 1.0f;
@@ -607,7 +607,7 @@ static bool InitializeEditorText(Viewer* viewer)
         return false;
     }
 
-    uint32_t       size = style_length + closing_tags.Size() + 1;
+    uint32_t size = style_length + closing_tags.Size() + 1;
     for (uint32_t i = 0; i < text_count; ++i)
         size += (uint32_t)strlen(use_defaults ? default_texts[i] : viewer->m_Texts[i]) + (i ? 2 : 0);
     viewer->m_EditorText.SetCapacity(size + 256);
@@ -814,7 +814,7 @@ static CachedGlyph* FindGlyph(Viewer* viewer, HFont font, uint32_t glyph_index, 
 
 static bool AddLayoutGlyphs(Viewer* viewer, HTextLayout layout, float font_size, bool apply_properties)
 {
-    const float markup_outline_width = apply_properties ? TextLayoutGetMaxMarkupOutlineWidth(layout) : 0.0f;
+    const float    markup_outline_width = apply_properties ? TextLayoutGetMaxMarkupOutlineWidth(layout) : 0.0f;
     TextGlyph*     text_glyphs = TextLayoutGetGlyphs(layout);
     const uint32_t glyph_count = TextLayoutGetGlyphCount(layout);
     for (uint32_t i = 0; i < glyph_count; ++i)
@@ -864,13 +864,13 @@ static bool AddLayoutGlyphs(Viewer* viewer, HTextLayout layout, float font_size,
 static bool BuildAtlas(Viewer* viewer)
 {
     uint32_t cell_width = 1;
-    int32_t max_ascent = 0;
-    int32_t max_descent = 0;
+    int32_t  max_ascent = 0;
+    int32_t  max_descent = 0;
     for (uint32_t i = 0; i < viewer->m_Glyphs.Size(); ++i)
     {
         const FontGlyph& glyph = viewer->m_Glyphs[i].m_Glyph;
-        int32_t ascent = (int32_t)glyph.m_Ascent;
-        int32_t descent = (int32_t)glyph.m_Bitmap.m_Height - ascent;
+        int32_t          ascent = (int32_t)glyph.m_Ascent;
+        int32_t          descent = (int32_t)glyph.m_Bitmap.m_Height - ascent;
         cell_width = dmMath::Max(cell_width, glyph.m_Bitmap.m_Width + CELL_PADDING * 2);
         max_ascent = i == 0 ? ascent : dmMath::Max(max_ascent, ascent);
         max_descent = i == 0 ? descent : dmMath::Max(max_descent, descent);
@@ -1141,8 +1141,8 @@ static bool CreateLayout(Viewer* viewer, const char* text, uint32_t text_length,
     TextToCodePoints(copy, codepoints);
     free(copy);
     TextResult result = legacy_layout
-                      ? TextLayoutLegacyCreate(viewer->m_Collection, codepoints.Begin(), codepoints.Size(), &settings, out_layout)
-                      : TextLayoutCreate(viewer->m_Collection, codepoints.Begin(), codepoints.Size(), &settings, out_layout);
+                            ? TextLayoutLegacyCreate(viewer->m_Collection, codepoints.Begin(), codepoints.Size(), &settings, out_layout)
+                            : TextLayoutCreate(viewer->m_Collection, codepoints.Begin(), codepoints.Size(), &settings, out_layout);
 
     return result == TEXT_RESULT_OK;
 }
@@ -1222,19 +1222,19 @@ static void ClipPackedQuad(Viewer* viewer, uint32_t vertex_index, const FontView
 }
 
 static void PushTransformedClippedGradientRectangle(Viewer* viewer, const Matrix4& transform, const FontViewerNuklearBox& clip,
-                                                     float x, float y, float width, float height, const TextGlyphFaceColors& colors,
-                                                     float pattern_start, float pattern_end, float pattern_duty);
+                                                    float x, float y, float width, float height, const TextGlyphFaceColors& colors,
+                                                    float pattern_start, float pattern_end, float pattern_duty);
 
 static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, float paragraph_top, float font_size, float paragraph_width, const FontViewerNuklearBox& clip_box, bool bold, bool apply_properties, uint32_t layer_count, uint32_t layer_stride, uint32_t* vertex_index)
 {
     TextGlyph*     text_glyphs = TextLayoutGetGlyphs(layout);
     TextLine*      lines = TextLayoutGetLines(layout);
     TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
-    float layout_width;
-    float layout_height;
+    float          layout_width;
+    float          layout_height;
     TextLayoutGetBounds(layout, &layout_width, &layout_height);
     (void)layout_width;
-    Matrix4     transform = Matrix4::orthographic(0.0f, (float)WINDOW_WIDTH, 0.0f, (float)WINDOW_HEIGHT, -1.0f, 1.0f);
+    Matrix4 transform = Matrix4::orthographic(0.0f, (float)WINDOW_WIDTH, 0.0f, (float)WINDOW_HEIGHT, -1.0f, 1.0f);
     if (apply_properties)
     {
         // Zoom/pan is a preview transform only. Shaping and glyph generation
@@ -1242,8 +1242,8 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
         const float   pivot_x = viewer->m_NuklearLayout.m_ContentWidth * 0.5f;
         const float   pivot_y = WINDOW_HEIGHT * 0.5f;
         const Matrix4 zoom_transform = Matrix4::translation(Vector3(pivot_x + viewer->m_PanX, pivot_y + viewer->m_PanY, 0.0f)) *
-        Matrix4::scale(Vector3(viewer->m_Zoom, viewer->m_Zoom, 1.0f)) *
-        Matrix4::translation(Vector3(-pivot_x, -pivot_y, 0.0f));
+                                       Matrix4::scale(Vector3(viewer->m_Zoom, viewer->m_Zoom, 1.0f)) *
+                                       Matrix4::translation(Vector3(-pivot_x, -pivot_y, 0.0f));
         transform = transform * zoom_transform;
     }
     const float markup_outline_width = apply_properties ? TextLayoutGetMaxMarkupOutlineWidth(layout) : 0.0f;
@@ -1302,10 +1302,10 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
 
             TextGlyphRenderData glyph_render_data;
             TextLayoutGetGlyphRenderData(layout, text_glyph, base_face_color, &glyph_render_data, true);
-            const bool glyph_has_markup_outline = (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) != 0 && glyph_render_data.m_OutlineWidth > 0.0f;
-            const float glyph_outline_alpha = glyph_has_markup_outline ? overall_alpha * viewer->m_Properties.m_OutlineAlpha * glyph_render_data.m_OutlineColor[3]
-                                                                        : outline_color.getW() * glyph_render_data.m_OutlineColor[3];
-            const bool glyph_has_markup_outline_color = (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_COLOR) != 0;
+            const bool    glyph_has_markup_outline = (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) != 0 && glyph_render_data.m_OutlineWidth > 0.0f;
+            const float   glyph_outline_alpha = glyph_has_markup_outline ? overall_alpha * viewer->m_Properties.m_OutlineAlpha * glyph_render_data.m_OutlineColor[3]
+                                                                         : outline_color.getW() * glyph_render_data.m_OutlineColor[3];
+            const bool    glyph_has_markup_outline_color = (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_COLOR) != 0;
             const Vector4 glyph_outline_color(glyph_has_markup_outline_color ? glyph_render_data.m_OutlineColor[0] : outline_color.getX(),
                                               glyph_has_markup_outline_color ? glyph_render_data.m_OutlineColor[1] : outline_color.getY(),
                                               glyph_has_markup_outline_color ? glyph_render_data.m_OutlineColor[2] : outline_color.getZ(),
@@ -1318,15 +1318,15 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
             }
 
             const uint32_t shadow_flags = TEXT_RENDER_STYLE_SHADOW_COLOR | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y | TEXT_RENDER_STYLE_SHADOW_BLUR;
-            const bool glyph_has_markup_shadow = (glyph_render_data.m_StyleFlags & shadow_flags) != 0;
-            const float glyph_shadow_alpha = glyph_has_markup_shadow ? overall_alpha * glyph_render_data.m_ShadowColor[3]
-                                                                      : shadow_color.getW() * glyph_render_data.m_ShadowColor[3];
-            const bool glyph_has_markup_shadow_color = (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_COLOR) != 0;
-            const Vector4 glyph_shadow_color(glyph_has_markup_shadow_color ? glyph_render_data.m_ShadowColor[0] : shadow_color.getX(),
-                                             glyph_has_markup_shadow_color ? glyph_render_data.m_ShadowColor[1] : shadow_color.getY(),
-                                             glyph_has_markup_shadow_color ? glyph_render_data.m_ShadowColor[2] : shadow_color.getZ(),
-                                             glyph_shadow_alpha);
-            float glyph_sdf_shadow = glyph_has_markup_shadow && shadow_blur <= 0.0f ? 1.0f : sdf_shadow;
+            const bool     glyph_has_markup_shadow = (glyph_render_data.m_StyleFlags & shadow_flags) != 0;
+            const float    glyph_shadow_alpha = glyph_has_markup_shadow ? overall_alpha * glyph_render_data.m_ShadowColor[3]
+                                                                        : shadow_color.getW() * glyph_render_data.m_ShadowColor[3];
+            const bool     glyph_has_markup_shadow_color = (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_COLOR) != 0;
+            const Vector4  glyph_shadow_color(glyph_has_markup_shadow_color ? glyph_render_data.m_ShadowColor[0] : shadow_color.getX(),
+                                              glyph_has_markup_shadow_color ? glyph_render_data.m_ShadowColor[1] : shadow_color.getY(),
+                                              glyph_has_markup_shadow_color ? glyph_render_data.m_ShadowColor[2] : shadow_color.getZ(),
+                                              glyph_shadow_alpha);
+            float          glyph_sdf_shadow = glyph_has_markup_shadow && shadow_blur <= 0.0f ? 1.0f : sdf_shadow;
 
             if (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_BLUR)
             {
@@ -1342,10 +1342,10 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
                 }
             }
 
-            const float glyph_shadow_x = glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_X ? glyph_render_data.m_ShadowX : viewer->m_Properties.m_ShadowX;
-            const float glyph_shadow_y = glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_Y ? glyph_render_data.m_ShadowY : viewer->m_Properties.m_ShadowY;
+            const float    glyph_shadow_x = glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_X ? glyph_render_data.m_ShadowX : viewer->m_Properties.m_ShadowX;
+            const float    glyph_shadow_y = glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_Y ? glyph_render_data.m_ShadowY : viewer->m_Properties.m_ShadowY;
             const uint32_t layer_mask = apply_properties ? FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW : FONT_RENDER_LAYER_FACE;
-            uint32_t face_colors[4];
+            uint32_t       face_colors[4];
             FontPackGlyphFaceColors(glyph_render_data.m_FaceColors, face_colors);
 
             FontGlyphVertexParams glyph_params;
@@ -1399,17 +1399,17 @@ static void PackLayoutDecorations(Viewer* viewer, HTextLayout layout, float para
     TextParagraph*        paragraphs = TextLayoutGetParagraphs(layout);
     const TextDecoration* decorations = TextLayoutGetDecorations(layout);
     const uint32_t        glyph_count = TextLayoutGetGlyphCount(layout);
-    float layout_width;
-    float layout_height;
+    float                 layout_width;
+    float                 layout_height;
     TextLayoutGetBounds(layout, &layout_width, &layout_height);
     (void)layout_width;
 
-    Matrix4 transform = Matrix4::orthographic(0.0f, (float)WINDOW_WIDTH, 0.0f, (float)WINDOW_HEIGHT, -1.0f, 1.0f);
+    Matrix4       transform = Matrix4::orthographic(0.0f, (float)WINDOW_WIDTH, 0.0f, (float)WINDOW_HEIGHT, -1.0f, 1.0f);
     const float   pivot_x = viewer->m_NuklearLayout.m_ContentWidth * 0.5f;
     const float   pivot_y = WINDOW_HEIGHT * 0.5f;
     const Matrix4 zoom_transform = Matrix4::translation(Vector3(pivot_x + viewer->m_PanX, pivot_y + viewer->m_PanY, 0.0f)) *
-        Matrix4::scale(Vector3(viewer->m_Zoom, viewer->m_Zoom, 1.0f)) *
-        Matrix4::translation(Vector3(-pivot_x, -pivot_y, 0.0f));
+                                   Matrix4::scale(Vector3(viewer->m_Zoom, viewer->m_Zoom, 1.0f)) *
+                                   Matrix4::translation(Vector3(-pivot_x, -pivot_y, 0.0f));
     transform = transform * zoom_transform;
 
     const float base_face_color[4] = { viewer->m_Properties.m_FaceColor[0], viewer->m_Properties.m_FaceColor[1], viewer->m_Properties.m_FaceColor[2], viewer->m_Properties.m_Alpha };
@@ -1437,11 +1437,11 @@ static void PackLayoutDecorations(Viewer* viewer, HTextLayout layout, float para
             first_x = dmMath::Min(first_x, glyphs[i].m_X);
         }
 
-        const bool  right_to_left = paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL;
-        const float line_x = paragraph_x + (right_to_left ? paragraph_width - line.m_Width : 0.0f);
-        const float line_y = paragraph_top - layout_height + line.m_Baseline;
-        const bool glyph_segments = FontDecorationRequiresGlyphSegments(layout, decoration);
-        const uint32_t segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
+        const bool          right_to_left = paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL;
+        const float         line_x = paragraph_x + (right_to_left ? paragraph_width - line.m_Width : 0.0f);
+        const float         line_y = paragraph_top - layout_height + line.m_Baseline;
+        const bool          glyph_segments = FontDecorationRequiresGlyphSegments(layout, decoration);
+        const uint32_t      segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
         TextGlyphFaceColors decoration_colors;
 
         if (!glyph_segments)
@@ -1466,9 +1466,9 @@ static void PackLayoutDecorations(Viewer* viewer, HTextLayout layout, float para
                 segment_colors = decoration_colors;
             }
 
-            const float piece_x0 = line_x + decoration_segment.m_X - first_x;
-            const float piece_x1 = piece_x0 + decoration_segment.m_Length;
-            const float piece_y = line_y + decoration.m_Y;
+            const float           piece_x0 = line_x + decoration_segment.m_X - first_x;
+            const float           piece_x1 = piece_x0 + decoration_segment.m_Length;
+            const float           piece_y = line_y + decoration.m_Y;
             FontDecorationPattern pattern;
             FontGetDecorationPattern(decoration, decoration_segment, &pattern);
             PushTransformedClippedGradientRectangle(viewer, transform, clip_box, piece_x0, piece_y - decoration.m_Thickness * 0.5f,
@@ -1505,8 +1505,8 @@ static void PackLayoutObjects(Viewer* viewer, HTextLayout layout, float paragrap
         const float   pivot_x = viewer->m_NuklearLayout.m_ContentWidth * 0.5f;
         const float   pivot_y = WINDOW_HEIGHT * 0.5f;
         const Matrix4 zoom_transform = Matrix4::translation(Vector3(pivot_x + viewer->m_PanX, pivot_y + viewer->m_PanY, 0.0f)) *
-        Matrix4::scale(Vector3(viewer->m_Zoom, viewer->m_Zoom, 1.0f)) *
-        Matrix4::translation(Vector3(-pivot_x, -pivot_y, 0.0f));
+                                       Matrix4::scale(Vector3(viewer->m_Zoom, viewer->m_Zoom, 1.0f)) *
+                                       Matrix4::translation(Vector3(-pivot_x, -pivot_y, 0.0f));
         transform = transform * zoom_transform;
     }
 
@@ -1550,11 +1550,11 @@ static uint32_t HitTestPreviewLink(Viewer* viewer, float mouse_x, float mouse_y)
         return 0xffffffff;
     }
 
-    const float             pivot_x = viewer->m_NuklearLayout.m_ContentWidth * 0.5f;
-    const float             pivot_y = WINDOW_HEIGHT * 0.5f;
-    const float             layout_x = pivot_x + (mouse_x - pivot_x - viewer->m_PanX) / viewer->m_Zoom;
-    const float             render_y = WINDOW_HEIGHT - mouse_y;
-    const float             layout_y = pivot_y + (render_y - pivot_y - viewer->m_PanY) / viewer->m_Zoom;
+    const float pivot_x = viewer->m_NuklearLayout.m_ContentWidth * 0.5f;
+    const float pivot_y = WINDOW_HEIGHT * 0.5f;
+    const float layout_x = pivot_x + (mouse_x - pivot_x - viewer->m_PanX) / viewer->m_Zoom;
+    const float render_y = WINDOW_HEIGHT - mouse_y;
+    const float layout_y = pivot_y + (render_y - pivot_y - viewer->m_PanY) / viewer->m_Zoom;
 
     HTextLayout             layout = viewer->m_Layouts[0];
     const TextLayoutObject* objects = TextLayoutGetObjects(layout);
@@ -1752,7 +1752,7 @@ static void UpdateLoadedFontText(Viewer* viewer)
         }
 
         const char* path = FontGetPath(viewer->m_Fonts[i]);
-        uint32_t path_length = (uint32_t)strlen(path);
+        uint32_t    path_length = (uint32_t)strlen(path);
         memcpy(cursor, path, path_length);
         cursor += path_length;
     }
@@ -1894,19 +1894,19 @@ static void InterpolateColor(const float* bottom_left, const float* bottom_right
 }
 
 static void PushTransformedClippedGradientRectangle(Viewer* viewer, const Matrix4& transform, const FontViewerNuklearBox& clip,
-                                                     float x, float y, float width, float height, const TextGlyphFaceColors& colors,
-                                                     float pattern_start, float pattern_end, float pattern_duty)
+                                                    float x, float y, float width, float height, const TextGlyphFaceColors& colors,
+                                                    float pattern_start, float pattern_end, float pattern_duty)
 {
     const Vector4 p0 = transform * Vector4(x, y, 0.0f, 1.0f);
     const Vector4 p1 = transform * Vector4(x + width, y + height, 0.0f, 1.0f);
-    const float min_x = (p0.getX() + 1.0f) * WINDOW_WIDTH * 0.5f;
-    const float min_y = (p0.getY() + 1.0f) * WINDOW_HEIGHT * 0.5f;
-    const float max_x = (p1.getX() + 1.0f) * WINDOW_WIDTH * 0.5f;
-    const float max_y = (p1.getY() + 1.0f) * WINDOW_HEIGHT * 0.5f;
-    const float clipped_x0 = dmMath::Max(min_x, clip.m_X);
-    const float clipped_y0 = dmMath::Max(min_y, clip.m_Y);
-    const float clipped_x1 = dmMath::Min(max_x, clip.m_X + clip.m_Width);
-    const float clipped_y1 = dmMath::Min(max_y, clip.m_Y + clip.m_Height);
+    const float   min_x = (p0.getX() + 1.0f) * WINDOW_WIDTH * 0.5f;
+    const float   min_y = (p0.getY() + 1.0f) * WINDOW_HEIGHT * 0.5f;
+    const float   max_x = (p1.getX() + 1.0f) * WINDOW_WIDTH * 0.5f;
+    const float   max_y = (p1.getY() + 1.0f) * WINDOW_HEIGHT * 0.5f;
+    const float   clipped_x0 = dmMath::Max(min_x, clip.m_X);
+    const float   clipped_y0 = dmMath::Max(min_y, clip.m_Y);
+    const float   clipped_x1 = dmMath::Min(max_x, clip.m_X + clip.m_Width);
+    const float   clipped_y1 = dmMath::Min(max_y, clip.m_Y + clip.m_Height);
 
     if (clipped_x1 <= clipped_x0 || clipped_y1 <= clipped_y0)
     {
@@ -1917,10 +1917,10 @@ static void PushTransformedClippedGradientRectangle(Viewer* viewer, const Matrix
     const float tx1 = (clipped_x1 - min_x) / (max_x - min_x);
     const float ty0 = (clipped_y0 - min_y) / (max_y - min_y);
     const float ty1 = (clipped_y1 - min_y) / (max_y - min_y);
-    float bottom_left[4];
-    float bottom_right[4];
-    float top_left[4];
-    float top_right[4];
+    float       bottom_left[4];
+    float       bottom_right[4];
+    float       top_left[4];
+    float       top_right[4];
     InterpolateColor(colors.m_BottomLeft, colors.m_BottomRight, colors.m_TopLeft, colors.m_TopRight, tx0, ty0, bottom_left);
     InterpolateColor(colors.m_BottomLeft, colors.m_BottomRight, colors.m_TopLeft, colors.m_TopRight, tx1, ty0, bottom_right);
     InterpolateColor(colors.m_BottomLeft, colors.m_BottomRight, colors.m_TopLeft, colors.m_TopRight, tx0, ty1, top_left);
@@ -2081,7 +2081,7 @@ static uint32_t HitTestEditorText(Viewer* viewer, float mouse_x, float mouse_y)
     }
     if (!layout_index)
         return EditorCodepointCount(viewer);
-    HTextLayout layout = viewer->m_Layouts[layout_index];
+    HTextLayout    layout = viewer->m_Layouts[layout_index];
     TextGlyph*     glyphs = TextLayoutGetGlyphs(layout);
     TextLine*      lines = TextLayoutGetLines(layout);
     TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
@@ -2106,8 +2106,8 @@ static uint32_t HitTestEditorText(Viewer* viewer, float mouse_x, float mouse_y)
     {
         first_x = dmMath::Min(first_x, glyphs[i].m_X);
     }
-    const bool  right_to_left = paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL;
-    const float line_x = viewer->m_LayoutXs[layout_index] + (right_to_left ? viewer->m_LayoutWidths[layout_index] - line.m_Width : 0.0f);
+    const bool     right_to_left = paragraphs[line.m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL;
+    const float    line_x = viewer->m_LayoutXs[layout_index] + (right_to_left ? viewer->m_LayoutWidths[layout_index] - line.m_Width : 0.0f);
     const uint32_t text_offset = viewer->m_LayoutTextOffsets[layout_index];
     const uint32_t line_end = GetLineEndCluster(glyphs, lines, line_index, TextLayoutGetLineCount(layout), EditorCodepointCount(viewer) - text_offset);
     uint32_t       closest_caret = GetLineStartCluster(glyphs, line);
@@ -2116,11 +2116,11 @@ static uint32_t HitTestEditorText(Viewer* viewer, float mouse_x, float mouse_y)
     {
         const uint32_t cluster = glyphs[i].m_Cluster;
         const uint32_t cluster_end = GetGlyphEndCluster(glyphs, line, cluster, line_end);
-        const float width = dmMath::Max(glyphs[i].m_Width, viewer->m_LayoutSizes[layout_index] * 0.35f);
-        const float x = line_x + glyphs[i].m_X - first_x;
-        const float cluster_x = right_to_left ? x + width : x;
-        const float cluster_end_x = right_to_left ? x : x + width;
-        const float cluster_distance = fabsf(mouse_x - cluster_x);
+        const float    width = dmMath::Max(glyphs[i].m_Width, viewer->m_LayoutSizes[layout_index] * 0.35f);
+        const float    x = line_x + glyphs[i].m_X - first_x;
+        const float    cluster_x = right_to_left ? x + width : x;
+        const float    cluster_end_x = right_to_left ? x : x + width;
+        const float    cluster_distance = fabsf(mouse_x - cluster_x);
         if (cluster_distance < closest_distance)
         {
             closest_caret = cluster;
@@ -2142,7 +2142,7 @@ static bool GetEditorCaretScreenPosition(Viewer* viewer, float* caret_x, float* 
     {
         if (!IsEditorLayout(viewer, layout_index))
             continue;
-        HTextLayout layout = viewer->m_Layouts[layout_index];
+        HTextLayout    layout = viewer->m_Layouts[layout_index];
         TextGlyph*     glyphs = TextLayoutGetGlyphs(layout);
         TextLine*      lines = TextLayoutGetLines(layout);
         TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
@@ -2216,11 +2216,11 @@ static bool ScrollEditorCaretIntoView(Viewer* viewer)
         return false;
     (void)caret_x;
     const FontViewerNuklearBox& text_field = viewer->m_NuklearLayout.m_TextField;
-    const float visible_top = text_field.m_Y + 10.0f;
-    const float visible_bottom = text_field.m_Y + text_field.m_Height - 10.0f;
-    const float caret_top = caret_y - line_height * 0.5f;
-    const float caret_bottom = caret_y + line_height * 0.5f;
-    float       scroll_y = viewer->m_TextScrollY;
+    const float                 visible_top = text_field.m_Y + 10.0f;
+    const float                 visible_bottom = text_field.m_Y + text_field.m_Height - 10.0f;
+    const float                 caret_top = caret_y - line_height * 0.5f;
+    const float                 caret_bottom = caret_y + line_height * 0.5f;
+    float                       scroll_y = viewer->m_TextScrollY;
     if (caret_top < visible_top)
         scroll_y -= visible_top - caret_top;
     else if (caret_bottom > visible_bottom)
@@ -2294,8 +2294,8 @@ static void BuildEditorSelectionGeometry(Viewer* viewer)
 {
     if (!viewer->m_TextFieldFocused)
         return;
-    const uint32_t       selection_first = dmMath::Min(viewer->m_Caret, viewer->m_SelectionAnchor);
-    const uint32_t       selection_last = dmMath::Max(viewer->m_Caret, viewer->m_SelectionAnchor);
+    const uint32_t selection_first = dmMath::Min(viewer->m_Caret, viewer->m_SelectionAnchor);
+    const uint32_t selection_last = dmMath::Max(viewer->m_Caret, viewer->m_SelectionAnchor);
     for (uint32_t layout_index = 1; layout_index < viewer->m_Layouts.Size(); ++layout_index)
     {
         if (!IsEditorLayout(viewer, layout_index))
@@ -2418,7 +2418,7 @@ static bool PushEditorLayout(Viewer* viewer)
     const FontViewerNuklearBox& text_field = viewer->m_NuklearLayout.m_TextField;
     if (text_field.m_Width <= 0.0f || text_field.m_Height <= 0.0f)
         return true;
-    FontViewerNuklearBox        editor_clip;
+    FontViewerNuklearBox editor_clip;
     editor_clip.m_X = text_field.m_X + 10.0f;
     editor_clip.m_Y = WINDOW_HEIGHT - text_field.m_Y - text_field.m_Height + 10.0f;
     editor_clip.m_Width = text_field.m_Width - 28.0f;
@@ -2623,28 +2623,28 @@ static bool CreateGraphicsResources(Viewer* viewer)
     }
 
     static const char* color_vertex_shader =
-    "#version 140\n"
-    "in vec4 position;\n"
-    "in vec4 color;\n"
-    "in vec2 decoration;\n"
-    "out vec4 var_color;\n"
-    "out vec2 var_decoration;\n"
-    "void main()\n"
-    "{\n"
-    "    gl_Position = position;\n"
-    "    var_color = color;\n"
-    "    var_decoration = decoration;\n"
-    "}\n";
+        "#version 140\n"
+        "in vec4 position;\n"
+        "in vec4 color;\n"
+        "in vec2 decoration;\n"
+        "out vec4 var_color;\n"
+        "out vec2 var_decoration;\n"
+        "void main()\n"
+        "{\n"
+        "    gl_Position = position;\n"
+        "    var_color = color;\n"
+        "    var_decoration = decoration;\n"
+        "}\n";
     static const char* color_fragment_shader =
-    "#version 140\n"
-    "in vec4 var_color;\n"
-    "in vec2 var_decoration;\n"
-    "out vec4 out_fragColor;\n"
-    "void main()\n"
-    "{\n"
-    "    float mask = var_decoration.y > 0.0 ? 1.0 - step(var_decoration.y, fract(var_decoration.x)) : 1.0;\n"
-    "    out_fragColor = var_color * mask;\n"
-    "}\n";
+        "#version 140\n"
+        "in vec4 var_color;\n"
+        "in vec2 var_decoration;\n"
+        "out vec4 out_fragColor;\n"
+        "void main()\n"
+        "{\n"
+        "    float mask = var_decoration.y > 0.0 ? 1.0 - step(var_decoration.y, fract(var_decoration.x)) : 1.0;\n"
+        "    out_fragColor = var_color * mask;\n"
+        "}\n";
     dmGraphics::ShaderDescBuilder color_shaders;
     color_shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, color_vertex_shader, (uint32_t)strlen(color_vertex_shader));
     color_shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, color_fragment_shader, (uint32_t)strlen(color_fragment_shader));
@@ -2660,24 +2660,24 @@ static bool CreateGraphicsResources(Viewer* viewer)
     }
 
     static const char* sprite_vertex_shader =
-    "#version 140\n"
-    "in vec4 position;\n"
-    "in vec2 texcoord0;\n"
-    "out vec2 var_texcoord0;\n"
-    "void main()\n"
-    "{\n"
-    "    gl_Position = position;\n"
-    "    var_texcoord0 = texcoord0;\n"
-    "}\n";
+        "#version 140\n"
+        "in vec4 position;\n"
+        "in vec2 texcoord0;\n"
+        "out vec2 var_texcoord0;\n"
+        "void main()\n"
+        "{\n"
+        "    gl_Position = position;\n"
+        "    var_texcoord0 = texcoord0;\n"
+        "}\n";
     static const char* sprite_fragment_shader =
-    "#version 140\n"
-    "in vec2 var_texcoord0;\n"
-    "out vec4 out_fragColor;\n"
-    "uniform sampler2D texture_sampler;\n"
-    "void main()\n"
-    "{\n"
-    "    out_fragColor = texture(texture_sampler, var_texcoord0);\n"
-    "}\n";
+        "#version 140\n"
+        "in vec2 var_texcoord0;\n"
+        "out vec4 out_fragColor;\n"
+        "uniform sampler2D texture_sampler;\n"
+        "void main()\n"
+        "{\n"
+        "    out_fragColor = texture(texture_sampler, var_texcoord0);\n"
+        "}\n";
     dmGraphics::ShaderDescBuilder sprite_shaders;
     sprite_shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, sprite_vertex_shader, (uint32_t)strlen(sprite_vertex_shader));
     sprite_shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, sprite_fragment_shader, (uint32_t)strlen(sprite_fragment_shader));
@@ -2742,35 +2742,35 @@ static bool CreateGraphicsResources(Viewer* viewer)
     texture.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
     dmGraphics::SetTexture(viewer->m_Context, viewer->m_Texture, texture);
     return viewer->m_VertexBuffer && viewer->m_VertexDeclaration && viewer->m_Texture &&
-    viewer->m_ColorVertexBuffer && viewer->m_ColorVertexDeclaration && viewer->m_SpriteProgram &&
-    viewer->m_SpriteVertexBuffer && viewer->m_SpriteVertexDeclaration;
+           viewer->m_ColorVertexBuffer && viewer->m_ColorVertexDeclaration && viewer->m_SpriteProgram &&
+           viewer->m_SpriteVertexBuffer && viewer->m_SpriteVertexDeclaration;
 }
 
 static bool CreateNuklearGraphicsResources(Viewer* viewer)
 {
     static const char* vertex_shader =
-    "#version 140\n"
-    "in vec4 position;\n"
-    "in vec2 texcoord0;\n"
-    "in vec4 color;\n"
-    "out vec2 var_texcoord0;\n"
-    "out vec4 var_color;\n"
-    "void main()\n"
-    "{\n"
-    "    gl_Position = vec4(position.x / 640.0 - 1.0, 1.0 - position.y / 450.0, 0.0, 1.0);\n"
-    "    var_texcoord0 = texcoord0;\n"
-    "    var_color = color;\n"
-    "}\n";
+        "#version 140\n"
+        "in vec4 position;\n"
+        "in vec2 texcoord0;\n"
+        "in vec4 color;\n"
+        "out vec2 var_texcoord0;\n"
+        "out vec4 var_color;\n"
+        "void main()\n"
+        "{\n"
+        "    gl_Position = vec4(position.x / 640.0 - 1.0, 1.0 - position.y / 450.0, 0.0, 1.0);\n"
+        "    var_texcoord0 = texcoord0;\n"
+        "    var_color = color;\n"
+        "}\n";
     static const char* fragment_shader =
-    "#version 140\n"
-    "in vec2 var_texcoord0;\n"
-    "in vec4 var_color;\n"
-    "out vec4 out_fragColor;\n"
-    "uniform sampler2D texture_sampler;\n"
-    "void main()\n"
-    "{\n"
-    "    out_fragColor = var_color * texture(texture_sampler, var_texcoord0);\n"
-    "}\n";
+        "#version 140\n"
+        "in vec2 var_texcoord0;\n"
+        "in vec4 var_color;\n"
+        "out vec4 out_fragColor;\n"
+        "uniform sampler2D texture_sampler;\n"
+        "void main()\n"
+        "{\n"
+        "    out_fragColor = var_color * texture(texture_sampler, var_texcoord0);\n"
+        "}\n";
     dmGraphics::ShaderDescBuilder shaders;
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vertex_shader, (uint32_t)strlen(vertex_shader));
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment_shader, (uint32_t)strlen(fragment_shader));
@@ -2970,11 +2970,11 @@ static void HandleInput(Viewer* viewer)
 {
     FontViewerMacOSInput input;
     FontViewerMacOSPollInput(viewer->m_Window, WINDOW_WIDTH, WINDOW_HEIGHT, &input);
-    const bool             window_active = dmPlatform::GetWindowStateParam(viewer->m_Window, WINDOW_STATE_ACTIVE) != 0;
-    const int32_t          mouse_x = input.m_MouseX;
-    const int32_t          mouse_y = input.m_MouseY;
-    const bool             mouse_down = window_active && input.m_LeftMouseDown;
-    const uint32_t         hovered_link = window_active ? HitTestPreviewLink(viewer, (float)mouse_x, (float)mouse_y) : 0xffffffff;
+    const bool     window_active = dmPlatform::GetWindowStateParam(viewer->m_Window, WINDOW_STATE_ACTIVE) != 0;
+    const int32_t  mouse_x = input.m_MouseX;
+    const int32_t  mouse_y = input.m_MouseY;
+    const bool     mouse_down = window_active && input.m_LeftMouseDown;
+    const uint32_t hovered_link = window_active ? HitTestPreviewLink(viewer, (float)mouse_x, (float)mouse_y) : 0xffffffff;
 
     if (hovered_link != viewer->m_HoveredLinkObject)
     {
@@ -2984,7 +2984,7 @@ static void HandleInput(Viewer* viewer)
         viewer->m_RenderUpdateRequested = true;
     }
 
-    const bool             link_cursor = hovered_link != 0xffffffff;
+    const bool link_cursor = hovered_link != 0xffffffff;
 
     if (link_cursor != viewer->m_LinkCursor)
     {
@@ -3149,8 +3149,8 @@ static void HandleInput(Viewer* viewer)
     viewer->m_PreviousMouseWheel = input.m_MouseWheel;
 
     ArrowKey arrow_key = viewer->m_TextFieldFocused && viewer->m_MarkedText.Size() == 1
-                       ? GetPressedArrowKey(input)
-                       : ARROW_KEY_NONE;
+                             ? GetPressedArrowKey(input)
+                             : ARROW_KEY_NONE;
     if (arrow_key == ARROW_KEY_NONE)
     {
         viewer->m_RepeatingArrowKey = ARROW_KEY_NONE;
@@ -3434,10 +3434,10 @@ static void Draw(Viewer* viewer, void* capture_buffer, uint32_t capture_buffer_s
 struct ExportBounds
 {
     ExportBounds()
-        : m_MinX(0xffffffff)
-        , m_MinY(0xffffffff)
-        , m_MaxX(0)
-        , m_MaxY(0)
+    : m_MinX(0xffffffff)
+    , m_MinY(0xffffffff)
+    , m_MaxX(0)
+    , m_MaxY(0)
     {
     }
 
@@ -3558,7 +3558,7 @@ static void ConvertBgraToRgbaAndUpdateBounds(Viewer* viewer, uint8_t* pixels, ui
     {
         for (uint32_t x = 0; x < width; ++x)
         {
-            uint8_t* pixel = pixels + (y * width + x) * 4;
+            uint8_t*      pixel = pixels + (y * width + x) * 4;
             const uint8_t blue = pixel[0];
             pixel[0] = pixel[2];
             pixel[2] = blue;
@@ -3680,7 +3680,7 @@ static bool EncodeExportFrames(const Viewer* viewer, const char* directory, cons
         const uint32_t frame_start_ms = (uint32_t)(((uint64_t)i * total_duration_ms + timing.m_FrameCount / 2) / timing.m_FrameCount);
         const uint32_t frame_end_ms = (uint32_t)(((uint64_t)(i + 1) * total_duration_ms + timing.m_FrameCount / 2) / timing.m_FrameCount);
         const uint32_t frame_duration_ms = dmMath::Max(1U, frame_end_ms - frame_start_ms);
-        char frame_path[1024];
+        char           frame_path[1024];
         dmSnPrintf(frame_path, sizeof(frame_path), "%s/frame-%06u.png", directory, i);
         dmSnPrintf(option, sizeof(option), " -d %u -lossless -m 6 ", frame_duration_ms);
         command += option;
@@ -3712,7 +3712,7 @@ static bool RenderExportPass(Viewer* viewer, const ExportTiming& timing, uint8_t
         return false;
     }
 
-    ExportBounds ignored_bounds;
+    ExportBounds  ignored_bounds;
     ExportBounds* bounds = output_bounds ? output_bounds : &ignored_bounds;
 
     if (timing.m_PingPong)
@@ -3813,9 +3813,9 @@ static bool ExportDocumentationImage(Viewer* viewer)
         return false;
     }
 
-    const uint32_t width = dmGraphics::GetWindowWidth(viewer->m_Context);
-    const uint32_t height = dmGraphics::GetWindowHeight(viewer->m_Context);
-    const uint32_t pixel_buffer_size = width * height * 4;
+    const uint32_t   width = dmGraphics::GetWindowWidth(viewer->m_Context);
+    const uint32_t   height = dmGraphics::GetWindowHeight(viewer->m_Context);
+    const uint32_t   pixel_buffer_size = width * height * 4;
     dmArray<uint8_t> pixels;
     pixels.SetCapacity(pixel_buffer_size);
     pixels.SetSize(pixel_buffer_size);
@@ -3856,7 +3856,7 @@ static bool ExportDocumentationImage(Viewer* viewer)
 
 extern "C" void dmExportedSymbols();
 
-int             main(int argc, char** argv)
+int main(int argc, char** argv)
 {
     TestMainPlatformInit();
     dmExportedSymbols();
