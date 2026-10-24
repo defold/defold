@@ -427,8 +427,7 @@ namespace dmRender
             // Include the circle, baseline offsets and glyph extents so curved
             // text cannot disappear at the straight-text bounds.
             const float radius = fabsf(arc.m_Radius) + metrics.m_Width + metrics.m_Height + font_map->m_CacheCellPadding;
-            const Vector4 center = te.m_Transform * Point3(arc.m_CenterX, arc.m_CenterY, 0.0f);
-            te.m_FrustumCullingCenter = Point3(center.getXYZ());
+            te.m_FrustumCullingCenter = Point3(te.m_Transform.getTranslation());
             te.m_FrustumCullingRadiusSq = radius * radius * (LengthSqr(te.m_Transform.getCol0()) + LengthSqr(te.m_Transform.getCol1()));
         }
 

@@ -34,8 +34,6 @@ extern "C"
         float m_Radius;
         float m_MinX;
         float m_Width;
-        float m_CenterX;
-        float m_CenterY;
         float m_FirstBaseline;
         float m_Span;
     } FontTextArc;
@@ -47,9 +45,9 @@ extern "C"
     // Prepare the aligned layout's circular baseline, or return false for straight or empty text.
     bool FontPrepareTextArc(struct TextLayout* layout, float width, float height, uint32_t align, uint32_t valign, float padding, float radius, float degrees, FontTextArc* arc);
 
-    // Shared arc evaluation for glyph transforms and guide vertices.
+    // Shared origin-centered arc evaluation for glyph transforms and guide vertices.
     // Writes 16 column-major floats to transform. Angle is in radians.
-    void FontGetTextArcFrame(const FontTextArc* arc, float angle, float radius, float transform[16]);
+    void FontGetTextArcFrame(float angle, float radius, float transform[16]);
 
     // One rigid transform per glyph cluster keeps marks and shadow/outline layers attached.
     // Writes 16 column-major floats to transform.

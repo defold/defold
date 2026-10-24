@@ -71,14 +71,12 @@ bool FontPrepareTextArc(HTextLayout layout, float width, float height, uint32_t 
     arc->m_Radius = radius;
     arc->m_MinX = min_x;
     arc->m_Width = max_x - min_x;
-    arc->m_CenterX = 0.0f;
-    arc->m_CenterY = 0.0f;
     arc->m_FirstBaseline = y + lines[0].m_Baseline;
     arc->m_Span = degrees * radians;
     return true;
 }
 
-void FontGetTextArcFrame(const FontTextArc* arc, float angle, float radius, float transform[16])
+void FontGetTextArcFrame(float angle, float radius, float transform[16])
 {
     const float cosine = cosf(angle);
     const float sine = sinf(angle);
@@ -86,7 +84,7 @@ void FontGetTextArcFrame(const FontTextArc* arc, float angle, float radius, floa
         { cosine, -sine, 0.0f, 0.0f },
         { sine, cosine, 0.0f, 0.0f },
         { 0.0f, 0.0f, 1.0f, 0.0f },
-        { arc->m_CenterX + sine * radius, arc->m_CenterY + cosine * radius, 0.0f, 1.0f }
+        { sine * radius, cosine * radius, 0.0f, 1.0f }
     };
     memcpy(transform, matrix, sizeof(matrix));
 }
@@ -95,7 +93,7 @@ void FontGetTextArcTransform(const FontTextArc* arc, float x, float baseline, fl
 {
     const float angle = ((x - arc->m_MinX) / arc->m_Width - 0.5f) * arc->m_Span;
     const float radius = arc->m_Radius + (baseline - arc->m_FirstBaseline);
-    FontGetTextArcFrame(arc, angle, radius, transform);
+    FontGetTextArcFrame(angle, radius, transform);
     // Include the inverse pivot directly instead of multiplying three matrices.
     transform[12] = transform[12] - transform[0] * x - transform[4] * baseline;
     transform[13] = transform[13] - transform[1] * x - transform[5] * baseline;

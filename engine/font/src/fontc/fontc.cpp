@@ -2007,7 +2007,7 @@ static bool ResolveLayoutGlyphMetrics(void* context, const TextGlyph& text_glyph
 // Enclose each glyph quad radially for the Editor's curved box. The guide
 // retains the requested angle; framing also includes the actual glyph bounds.
 // Distances to edges include the quad interiors.
-static void ExpandTextArcBox(const FontTextArc& arc, const FontGlyphVertex* quad, float* box, float* radial_bounds)
+static void ExpandTextArcBox(const FontGlyphVertex* quad, float* box, float* radial_bounds)
 {
     const float up_x = quad[2].m_Position[0] - quad[0].m_Position[0];
     const float up_y = quad[2].m_Position[1] - quad[0].m_Position[1];
@@ -2016,10 +2016,10 @@ static void ExpandTextArcBox(const FontTextArc& arc, const FontGlyphVertex* quad
     bool negative = false;
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(corners); ++i)
     {
-        const float x = quad[corners[i]].m_Position[0] - arc.m_CenterX;
-        const float y = quad[corners[i]].m_Position[1] - arc.m_CenterY;
-        const float next_x = quad[corners[(i + 1) % 4]].m_Position[0] - arc.m_CenterX;
-        const float next_y = quad[corners[(i + 1) % 4]].m_Position[1] - arc.m_CenterY;
+        const float x = quad[corners[i]].m_Position[0];
+        const float y = quad[corners[i]].m_Position[1];
+        const float next_x = quad[corners[(i + 1) % 4]].m_Position[0];
+        const float next_y = quad[corners[(i + 1) % 4]].m_Position[1];
         const float dx = next_x - x;
         const float dy = next_y - y;
         const float length_sq = dx * dx + dy * dy;
@@ -2070,7 +2070,7 @@ static bool GetLayoutVertexBounds(HFontRenderer renderer, FontLayoutVertexConfig
             vertices[i].m_Position[0] == vertices[i + 2].m_Position[0] &&
             vertices[i].m_Position[1] == vertices[i + 2].m_Position[1])
             continue;
-        ExpandTextArcBox(arc, vertices + i, box, radial_bounds);
+        ExpandTextArcBox(vertices + i, box, radial_bounds);
         for (uint32_t j = i; j < i + 6; ++j)
         {
             const float x = vertices[j].m_Position[0];
@@ -2107,10 +2107,10 @@ static void WriteArcGuideVertex(float** vertices, const Vector3& point, float* b
     bounds[3] = dmMath::Max(bounds[3], point.getY());
 }
 
-static Vector3 GetArcGuidePoint(const FontTextArc& arc, float angle, float radius)
+static Vector3 GetArcGuidePoint(float angle, float radius)
 {
     Matrix4 frame;
-    FontGetTextArcFrame(&arc, angle, radius, (float*)&frame);
+    FontGetTextArcFrame(angle, radius, (float*)&frame);
     return frame.getTranslation();
 }
 
@@ -2138,15 +2138,15 @@ static bool CreateArcGuide(const FontTextArc& arc, HTextLayout layout, const flo
     {
         for (uint32_t end = 0; end < 2; ++end)
             for (uint32_t edge = 0; edge < 2; ++edge)
-                WriteArcGuideVertex(&vertices, GetArcGuidePoint(arc, start + span * end, box[edge]), output->m_Bounds);
+                WriteArcGuideVertex(&vertices, GetArcGuidePoint(start + span * end, box[edge]), output->m_Bounds);
     }
-    Vector3 inner = GetArcGuidePoint(arc, start, box[0]);
-    Vector3 outer = GetArcGuidePoint(arc, start, box[1]);
+    Vector3 inner = GetArcGuidePoint(start, box[0]);
+    Vector3 outer = GetArcGuidePoint(start, box[1]);
     for (uint32_t i = 1; i <= segments; ++i)
     {
         const float   angle = start + span * ((float)i / segments);
-        const Vector3 next_inner = GetArcGuidePoint(arc, angle, box[0]);
-        const Vector3 next_outer = GetArcGuidePoint(arc, angle, box[1]);
+        const Vector3 next_inner = GetArcGuidePoint(angle, box[0]);
+        const Vector3 next_outer = GetArcGuidePoint(angle, box[1]);
         WriteArcGuideVertex(&vertices, inner, output->m_Bounds);
         WriteArcGuideVertex(&vertices, next_inner, output->m_Bounds);
         WriteArcGuideVertex(&vertices, outer, output->m_Bounds);
@@ -2158,11 +2158,11 @@ static bool CreateArcGuide(const FontTextArc& arc, HTextLayout layout, const flo
     for (uint32_t line = 0; line < line_count; ++line)
     {
         const float radius = arc.m_Radius + (lines[line].m_Baseline - lines[0].m_Baseline);
-        Vector3     previous = GetArcGuidePoint(arc, -0.5f * arc.m_Span, radius);
+        Vector3     previous = GetArcGuidePoint(-0.5f * arc.m_Span, radius);
         for (uint32_t i = 1; i <= segments; ++i)
         {
             const float   angle = -0.5f * arc.m_Span + arc.m_Span * ((float)i / segments);
-            const Vector3 point = GetArcGuidePoint(arc, angle, radius);
+            const Vector3 point = GetArcGuidePoint(angle, radius);
             WriteArcGuideVertex(&vertices, previous, output->m_Bounds);
             WriteArcGuideVertex(&vertices, point, output->m_Bounds);
             previous = point;
