@@ -25,6 +25,7 @@
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
             [editor.geom :as geom]
+            [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
@@ -539,30 +540,31 @@
         (is (not (test-util/prop-read-only? node :size)))
         (is (not (test-util/prop-read-only? node :line-break)))))))
 
-;; Framing encloses the curved box and text, excluding the distant circle center
-;; and original layout rectangle, for changed angles.
-(deftest label-arc-framing-test
-  (test-util/with-scratch-project test-util/project-path
-    (let [[node view] (test-util/open-scene-view! project app-view "/label/test.label" 128 128)]
-      (test-util/prop! node :text "Arc\nsecond line\nthird")
-      (test-util/prop! node :size [800.0 200.0 0.0])
-      (test-util/prop! node :tracking 10.0)
-      (let [straight-aabb (g/node-value node :aabb)]
-        (doseq [degrees [60.0 90.0]]
-          (test-util/prop! node :arc-radius 2000.0)
-          (test-util/prop! node :arc-angle degrees)
-          (let [arc-data (g/node-value node :arc-data)
-                aabb (g/node-value view :selected-aabb)
-                center (Point3d. 0.0 0.0 0.0)
-                extent (math/vecmath->clj (geom/aabb-extent aabb))]
-            (is (= (:aabb arc-data) aabb))
-            (is (not (geom/aabb-contains? aabb center)))
-            (doseq [point (subvec (vec (:line-data arc-data)) 0 4)]
-              (is (geom/aabb-contains? aabb (Point3d. (double-array point)))))
-            (is (< (double (first extent)) 3000.0))
-            (is (< (double (second extent)) 800.0))))
-        (test-util/prop! node :arc-angle 0.0)
-        (is (= straight-aabb (g/node-value node :aabb)))))))
+(when (gl/supported?)
+  ;; Framing encloses the curved box and text, excluding the distant circle
+  ;; center and original layout rectangle, for changed angles.
+  (deftest label-arc-framing-test
+    (test-util/with-scratch-project test-util/project-path
+      (let [[node view] (test-util/open-scene-view! project app-view "/label/test.label" 128 128)]
+        (test-util/prop! node :text "Arc\nsecond line\nthird")
+        (test-util/prop! node :size [800.0 200.0 0.0])
+        (test-util/prop! node :tracking 10.0)
+        (let [straight-aabb (g/node-value node :aabb)]
+          (doseq [degrees [60.0 90.0]]
+            (test-util/prop! node :arc-radius 2000.0)
+            (test-util/prop! node :arc-angle degrees)
+            (let [arc-data (g/node-value node :arc-data)
+                  aabb (g/node-value view :selected-aabb)
+                  center (Point3d. 0.0 0.0 0.0)
+                  extent (math/vecmath->clj (geom/aabb-extent aabb))]
+              (is (= (:aabb arc-data) aabb))
+              (is (not (geom/aabb-contains? aabb center)))
+              (doseq [point (subvec (vec (:line-data arc-data)) 0 4)]
+                (is (geom/aabb-contains? aabb (Point3d. (double-array point)))))
+              (is (< (double (first extent)) 3000.0))
+              (is (< (double (second extent)) 800.0))))
+          (test-util/prop! node :arc-angle 0.0)
+          (is (= straight-aabb (g/node-value node :aabb))))))))
 
 ;; Ordinary text remains planar even when the unused Size Z component
 ;; is nonzero.

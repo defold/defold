@@ -105,6 +105,29 @@ class ReportTest(unittest.TestCase):
         arabic = json.loads((report.DATA / "lorem.json").read_text(encoding="utf-8"))["arabic"]
         self.assertIn(json.dumps(arabic, ensure_ascii=False), generated.read_text(encoding="utf-8"))
 
+    # Frozen emoji references must reject lost colors, internal detail and placement,
+    # even when most of the capture is an unchanged black background.
+    def test_color_emoji_likeness_rejects_visual_changes(self):
+        for rich in (False, True):
+            configuration = 'full-rich' if rich else 'full-plain'
+            for case in report.cases(True, rich):
+                if not case['scenario'].startswith('color'):
+                    continue
+                reference = report.FONT_ROOT/'src/test/data/reference'/configuration/(case['id']+'.png')
+                with Image.open(reference) as image:
+                    expected = image.convert('RGB')
+                variants = {
+                    'monochrome': expected.convert('L').convert('RGB'),
+                    'silhouette': report.likeness.foreground_mask(expected, (0, 0, 0)).convert('RGB'),
+                    'shifted': ImageChops.offset(expected, 1, 0),
+                }
+                for name, actual in variants.items():
+                    with self.subTest(configuration=configuration, case=case['id'], change=name):
+                        actual.save(self.actual)
+                        result = report.compare_case(self.actual, reference, dict(case, background=[0, 0, 0]), self.root/'comparison')
+                        self.assertEqual('fail', result['status'], result['reason'])
+                        self.assertIn('Foreground likeness', result['reason'])
+
     def test_identical_and_reference_never_changes(self):
         # Comparing or reporting may copy a verified PNG, but must not rewrite it.
         self.image(self.actual)
@@ -736,9 +759,9 @@ class FontImageReportTest(unittest.TestCase):
                 vector = [c for c in cases if c['source'] in report.VECTOR_SOURCES]
                 self.assertEqual(set(report.VECTOR_SOURCES), {c['source'] for c in vector})
                 self.assertTrue(all(c['multi'] for c in vector))
-                self.assertEqual(4 * (11 if rich else 4) + (6 if rich else 4), len(vector))
+                self.assertEqual(4 * (11 if rich else 4) + (6 if rich else 4) + ((3 if rich else 2) if full else 0), len(vector))
                 count += len(cases)
-        self.assertEqual(620, count)
+        self.assertEqual(625, count)
 
     # Curved cases participate in every backend/configuration and keep both
     # rich-text decoration and shaped RTL coverage in the image comparison.
@@ -819,7 +842,7 @@ class FontImageReportTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             root=Path(temporary)
             summary=report.build_reports(root/'missing',root/'report',{},False)
-            self.assertEqual(620,summary['failed'])
+            self.assertEqual(625,summary['failed'])
             self.assertEqual(0,summary['completed'])
             self.assertEqual('fail',summary['status'])
             self.assertTrue((root/'report/index.html').exists())

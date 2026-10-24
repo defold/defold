@@ -27,6 +27,7 @@ static int g_view_type = NATIVE_NO_API;
 @implementation ViewController
 
 @synthesize baseView;
+@synthesize homeIndicatorMode;
 
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations
 {
@@ -198,8 +199,21 @@ static int g_view_type = NATIVE_NO_API;
     [super viewDidAppear: animated];
 }
 
-- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {
-    return UIRectEdgeAll;
+- (void)setHomeIndicatorMode:(HomeIndicatorMode)mode
+{
+    homeIndicatorMode = mode;
+    [self setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
+    [self setNeedsUpdateOfHomeIndicatorAutoHidden];
+}
+
+- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures
+{
+    return homeIndicatorMode == HOME_INDICATOR_MODE_DEFERRED ? UIRectEdgeAll : UIRectEdgeNone;
+}
+
+- (BOOL)prefersHomeIndicatorAutoHidden
+{
+    return homeIndicatorMode == HOME_INDICATOR_MODE_AUTO_HIDE;
 }
 
 @end

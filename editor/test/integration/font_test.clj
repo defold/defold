@@ -24,6 +24,7 @@
             [editor.defold-project :as project]
             [editor.font :as font]
             [editor.form :as form]
+            [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
@@ -110,73 +111,75 @@
     (is (zero? (double (.-baseShadowAlpha rich-properties))))
     (is (zero? (double (aget ^floats (.-outlineColor legacy-properties) 3))))))
 
-;; Verifies Editor cache ownership and invalidation with native text generation:
-;; cached batches retain effect textures, vertex rebuilds reset effects, and
-;; material opt-in invalidates render data.
-(deftest native-render-data-cache-test
-  (gl-support/with-offscreen-gl
-    (let [params (FontRenderer$Params.)
-          _ (set! (.-size params) (float 32))
-          _ (set! (.-cacheWidth params) (int 512))
-          _ (set! (.-cacheHeight params) (int 512))
-          renderer-spec (font/map->NativeRendererSpec
-                          {:name "vera_mo_bd.ttf"
-                           :font-bytes (with-open [input (io/input-stream "test/resources/test_project/fonts/vera_mo_bd.ttf")]
-                                         (.readAllBytes input))
-                           :render-params params})
-          gpu-shader (shader/classpath-shader
-                       {:coordinate-space :coordinate-space-world
-                        :uniforms {"font_effects" nil}}
-                       "shaders/font-effects/position.vp"
-                       "shaders/font-effects/font-effects.fp")
-          cpu-shader (assoc gpu-shader :uniforms {})
-          font-data {:type :distance-field
-                     :texture (texture/empty-texture ::atlas :rgba 512 512 texture/default-image-texture-params 0)
-                     :font-map {:native-renderer-spec renderer-spec}}
-          entry (fn entry [type leading]
-                  {:color [1.0 1.0 1.0 1.0]
-                   :outline [0.0 0.0 0.0 0.0]
-                   :shadow [0.0 0.0 0.0 0.0]
-                   :world-transform (doto (Matrix4d.) (.setIdentity))
-                   :text-layout {:style ""
-                                 :layout-width 100.0
-                                 :line-break false
-                                 :max-ascent 32.0
-                                 :native-text "AA\nAA"
-                                 :text-leading leading
-                                 :text-tracking 0.0
-                                 :use-rich-text true
-                                 :native-markup (str "<gradient type=" type " fit=block color0=#ff0000 color1=#0000ff>AA\nAA</gradient>")}})
-          effect-data (fn effect-data [render-data]
-                        (.-texture-data ^TextureRequestData (first (:texture-request-datas (:effect-texture render-data)))))
-          a (font/request-render-data gl ::a font-data [(entry "radial" 1.0)] nil gpu-shader)
-          ^TextureData a-texture (effect-data a)
-          a-hash (buffers/data-hash (.getBuffer a-texture))
-          b (font/request-render-data gl ::b font-data [(entry "linear" 1.0)] nil gpu-shader)]
-      (testing "each cached batch keeps its own effect records"
-        (is (pos? (count (:vertex-buffer a))))
-        (is (not= a-hash (buffers/data-hash (.getBuffer ^TextureData (effect-data b)))))
-        (is (identical? a (font/request-render-data gl ::a font-data [(entry "radial" 1.0)] nil gpu-shader)))
-        (is (= a-hash (buffers/data-hash (.getBuffer a-texture)))))
+(when (gl/supported?)
 
-      (testing "leading changes rebuild vertices without accumulating records"
-        (doseq [leading [1.25 1.5]]
-          (let [updated (font/request-render-data gl ::a font-data [(entry "radial" leading)] nil gpu-shader)]
-            (is (not (identical? a updated)))
-            (is (= 2 (.getHeight ^TextureData (effect-data updated)))))))
+  ;; Verifies cache ownership and invalidation with native text generation:
+  ;; cached batches retain effect textures, vertex rebuilds reset effects, and
+  ;; material opt-in invalidates render data.
+  (deftest native-render-data-cache-test
+    (gl-support/with-offscreen-gl
+      (let [params (FontRenderer$Params.)
+            _ (set! (.-size params) (float 32))
+            _ (set! (.-cacheWidth params) (int 512))
+            _ (set! (.-cacheHeight params) (int 512))
+            renderer-spec (font/map->NativeRendererSpec
+                            {:name "vera_mo_bd.ttf"
+                             :font-bytes (with-open [input (io/input-stream "test/resources/test_project/fonts/vera_mo_bd.ttf")]
+                                           (.readAllBytes input))
+                             :render-params params})
+            gpu-shader (shader/classpath-shader
+                         {:coordinate-space :coordinate-space-world
+                          :uniforms {"font_effects" nil}}
+                         "shaders/font-effects/position.vp"
+                         "shaders/font-effects/font-effects.fp")
+            cpu-shader (assoc gpu-shader :uniforms {})
+            font-data {:type :distance-field
+                       :texture (texture/empty-texture ::atlas :rgba 512 512 texture/default-image-texture-params 0)
+                       :font-map {:native-renderer-spec renderer-spec}}
+            entry (fn entry [type leading]
+                    {:color [1.0 1.0 1.0 1.0]
+                     :outline [0.0 0.0 0.0 0.0]
+                     :shadow [0.0 0.0 0.0 0.0]
+                     :world-transform (doto (Matrix4d.) (.setIdentity))
+                     :text-layout {:style ""
+                                   :layout-width 100.0
+                                   :line-break false
+                                   :max-ascent 32.0
+                                   :native-text "AA\nAA"
+                                   :text-leading leading
+                                   :text-tracking 0.0
+                                   :use-rich-text true
+                                   :native-markup (str "<gradient type=" type " fit=block color0=#ff0000 color1=#0000ff>AA\nAA</gradient>")}})
+            effect-data (fn effect-data [render-data]
+                          (.-texture-data ^TextureRequestData (first (:texture-request-datas (:effect-texture render-data)))))
+            a (font/request-render-data gl ::a font-data [(entry "radial" 1.0)] nil gpu-shader)
+            ^TextureData a-texture (effect-data a)
+            a-hash (buffers/data-hash (.getBuffer a-texture))
+            b (font/request-render-data gl ::b font-data [(entry "linear" 1.0)] nil gpu-shader)]
+        (testing "each cached batch keeps its own effect records"
+          (is (pos? (count (:vertex-buffer a))))
+          (is (not= a-hash (buffers/data-hash (.getBuffer ^TextureData (effect-data b)))))
+          (is (identical? a (font/request-render-data gl ::a font-data [(entry "radial" 1.0)] nil gpu-shader)))
+          (is (= a-hash (buffers/data-hash (.getBuffer a-texture)))))
 
-      (testing "changing shader support selects the CPU fallback"
-        (let [cpu (font/request-render-data gl ::a font-data [(entry "radial" 1.5)] nil cpu-shader)]
-          (is (pos? (count (:vertex-buffer cpu))))
-          (is (nil? (:effect-texture cpu)))))
+        (testing "leading changes rebuild vertices without accumulating records"
+          (doseq [leading [1.25 1.5]]
+            (let [updated (font/request-render-data gl ::a font-data [(entry "radial" leading)] nil gpu-shader)]
+              (is (not (identical? a updated)))
+              (is (= 2 (.getHeight ^TextureData (effect-data updated)))))))
 
-      (testing "plain text uses the shared fallback on the effect texture unit"
-        (let [plain-entry (update (entry "radial" 1.0) :text-layout dissoc :native-markup)
-              plain (font/request-render-data gl ::a font-data [plain-entry] nil gpu-shader)]
-          (is (= [1] (:texture-units (:effect-texture plain))))
-          (is (= (:texture-request-datas @texture/white-pixel)
-                 (:texture-request-datas (:effect-texture plain))))
-          (is (= [0] (:texture-units @texture/white-pixel))))))))
+        (testing "changing shader support selects the CPU fallback"
+          (let [cpu (font/request-render-data gl ::a font-data [(entry "radial" 1.5)] nil cpu-shader)]
+            (is (pos? (count (:vertex-buffer cpu))))
+            (is (nil? (:effect-texture cpu)))))
+
+        (testing "plain text uses the shared fallback on the effect texture unit"
+          (let [plain-entry (update (entry "radial" 1.0) :text-layout dissoc :native-markup)
+                plain (font/request-render-data gl ::a font-data [plain-entry] nil gpu-shader)]
+            (is (= [1] (:texture-units (:effect-texture plain))))
+            (is (= (:texture-request-datas @texture/white-pixel)
+                   (:texture-request-datas (:effect-texture plain))))
+            (is (= [0] (:texture-units @texture/white-pixel)))))))))
 
 (deftest rich-text-layer-capability-validation
   (let [bm-font-error (font/markup-error 0 :text
@@ -1121,27 +1124,28 @@
           (is (= ["(default)" "notice" "link:hover" "link:active"]
                  (mapv (comp test-util/localization :label) (get-in (g/node-value reloaded :node-outline) [:children 0 :children])))))))))
 
-(deftest opening-font-view-dispatches-input
-  (test-util/with-loaded-project
-    (let [[_node view] (test-util/open-scene-view! project app-view "/editor1/test.font" 320 240
-                                                   (get-in (workspace/get-resource-type workspace "font") [:view-opts :scene]))
-          input-context (scene/input-dispatch-context view)
-          final-state (reduce (fn [input-state action-type]
-                                (scene/dispatch-input-action
-                                  input-context
-                                  input-state
-                                  (scene/augment-action view {:type action-type
-                                                              :x 160.0
-                                                              :y 120.0
-                                                              :screen-x 160.0
-                                                              :screen-y 120.0
-                                                              :button :primary
-                                                              :click-count 1
-                                                              :modifiers #{}})))
-                              (input/make-input-state)
-                              [:mouse-moved :mouse-pressed :mouse-released])]
-      (is (= [160.0 120.0] (:view-pos final-state)))
-      (is (= #{} (:mouse-buttons final-state))))))
+(when (gl/supported?)
+  (deftest opening-font-view-dispatches-input
+    (test-util/with-loaded-project
+      (let [[_node view] (test-util/open-scene-view! project app-view "/editor1/test.font" 320 240
+                                                     (get-in (workspace/get-resource-type workspace "font") [:view-opts :scene]))
+            input-context (scene/input-dispatch-context view)
+            final-state (reduce (fn [input-state action-type]
+                                  (scene/dispatch-input-action
+                                    input-context
+                                    input-state
+                                    (scene/augment-action view {:type action-type
+                                                                :x 160.0
+                                                                :y 120.0
+                                                                :screen-x 160.0
+                                                                :screen-y 120.0
+                                                                :button :primary
+                                                                :click-count 1
+                                                                :modifiers #{}})))
+                                (input/make-input-state)
+                                [:mouse-moved :mouse-pressed :mouse-released])]
+        (is (= [160.0 120.0] (:view-pos final-state)))
+        (is (= #{} (:mouse-buttons final-state)))))))
 
 (deftest add-style-command-and-selected-preview
   (test-util/with-loaded-project

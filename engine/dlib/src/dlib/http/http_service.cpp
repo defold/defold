@@ -232,6 +232,10 @@ namespace dmHttpService
     void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
     {
         Worker* worker = (Worker*)user_data;
+        if (worker->m_Canceled)
+        {
+            return;
+        }
         worker->m_Status = status_code;
 
         if (worker->m_Request && worker->m_Request->m_HttpRequest)
@@ -257,6 +261,10 @@ namespace dmHttpService
     void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, uint32_t range_start, uint32_t range_end, uint32_t document_size, const char* method)
     {
         Worker* worker = (Worker*)user_data;
+        if (worker->m_Canceled)
+        {
+            return;
+        }
         worker->m_Status = status_code;
         worker->m_RangeStart = range_start;
         worker->m_RangeEnd = range_end;
@@ -296,13 +304,12 @@ namespace dmHttpService
         if (!method_is_head)
         {
             dmArray<char>& r = worker->m_Response;
-            // do we have enough room to fit the content? if not, grow the array
-            uint32_t left = r.Capacity() - r.Size();
-            if (content_data_size > left)
+            if (!AppendResponseBuffer(r, content_data, content_data_size, content_length))
             {
-                r.OffsetCapacity(content_data_size - left);
+                dmLogError("HTTP response body exceeds the maximum buffer size. Canceling request.");
+                worker->m_Canceled = 1;
+                return;
             }
-            r.PushArray((char*)content_data, content_data_size);
             bytes_received = r.Size();
             worker->m_BytesReceived = bytes_received;
         }
@@ -633,6 +640,11 @@ namespace dmHttpService
             dmHttpClient::SetCacheKey(worker->m_Client, cache_key);
 
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
+            if (worker->m_Canceled)
+            {
+                // Cancellation can occur in the final callback even if the transfer succeeded.
+                r = dmHttpClient::RESULT_INVAL;
+            }
 
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK)
             {
