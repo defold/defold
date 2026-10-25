@@ -2027,8 +2027,7 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     dmArray<dmGraphics::HTexture> textures;
     textures.SetCapacity(TEXTURE_COUNT);
 
-    int* values = new int[TEXTURE_COUNT];
-    memset(values, 0, sizeof(int)*TEXTURE_COUNT);
+    int values[TEXTURE_COUNT] = {};
 
     bool all_complete = false;
     for (int i = 0; i < TEXTURE_COUNT; ++i)
