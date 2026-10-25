@@ -195,9 +195,17 @@ namespace dmEngineService
   "/resources_data": {
     "get": {
       "summary": "Get loaded resource statistics",
+      "parameters": [
+        {
+          "name": "timings",
+          "in": "query",
+          "description": "Set to 1 to include retained initial-load timings from resource.profile=1.",
+          "schema": {"type": "integer", "enum": [1]}
+        }
+      ],
       "responses": {
         "200": {
-          "description": "Uses the engine platform byte order. Strings have a uint16 byte length followed by UTF-8 bytes. Starts with the string RESS, followed by records containing name, extension, uint32 memory size, uint32 disk size and uint32 reference count.",
+          "description": "Uses the engine platform byte order. Strings have a uint16 byte length followed by UTF-8 bytes. Starts with the string RESS, followed by records containing name, extension, uint32 memory size, uint32 disk size and uint32 reference count. With ?timings=1, starts with RES2 and each record additionally contains uint32 timing availability (0 or 1), seven uint64 durations in microseconds (total, preload, read, create, post-create, queue, wait), and uint32 PostCreate call count. Timings describe the initial load, include nested callback work, and are unavailable when profiling was disabled or the load is incomplete.",
           "content": {
             "application/octet-stream": {
               "schema": {

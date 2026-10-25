@@ -23,6 +23,8 @@ platforms. LuaJIT is built for non-web platforms. [Draco](draco/README.md),
 built for desktop platforms; mobile and web builds use the host's tools.
 Protobuf and Abseil use the same CMake toolchain and build graph as the other
 source dependencies and install directly into `ext`.
+Linux additionally builds [OpenH264](openh264/README.md) for video recording.
+The recording MP4 writer is the pinned header in [minimp4](minimp4/README.md).
 `external/build` itself is generated build output.
 
 CI caches built external dependencies for engine, Bob, and editor jobs using the

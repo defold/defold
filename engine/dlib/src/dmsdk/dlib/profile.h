@@ -63,8 +63,15 @@ enum ProfilePropertyType
 };
 
 /*# Union to hold a property value
- * @union
+ * @struct
  * @name ProfilePropertyValue
+ * @member m_Bool [type:bool] Property value as a bool
+ * @member m_S32 [type:int32_t] Property value as a int32_t
+ * @member m_U32 [type:uint32_t] Property value as an uint32_t
+ * @member m_F32 [type:float] Property value as a float
+ * @member m_S64 [type:int64_t] Property value as a int64_t
+ * @member m_U64 [type:uint64_t] Property value as an uint64_t
+ * @member m_F64 [type:double] Property value as a double
  */
 union ProfilePropertyValue
 {
@@ -313,7 +320,7 @@ struct ProfileListener
  * Register a new profiler. Can be done after the profiling has started.
  * @name ProfileRegisterProfiler
  * @param name [type: const char*] Name of the profiler
- @ @param profiler [type: ProfileListener*] Instance of the profiler. Keep alive until calling ProfileUnregisterProfiler()!
+ * @param profiler [type: ProfileListener*] Instance of the profiler. Keep alive until calling ProfileUnregisterProfiler()!
  */
 void ProfileRegisterProfiler(const char* name, ProfileListener* profiler);
 

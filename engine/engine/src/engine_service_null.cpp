@@ -27,6 +27,18 @@ void dmEngineService::Update(dmEngineService::HEngineService, HProfile)
 {
 }
 
+void dmEngineService::BeginFrame(HEngineService)
+{
+}
+
+void dmEngineService::EndFrame(HEngineService)
+{
+}
+
+void dmEngineService::OnEngineDelete(HEngineService)
+{
+}
+
 uint16_t dmEngineService::GetPort(dmEngineService::HEngineService)
 {
 	return 0;
