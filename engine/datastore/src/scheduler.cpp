@@ -257,18 +257,34 @@ DSResult DSSchedulerEvent(HDSContext store, dmhash_t name)
     return DS_RESULT_OK;
 }
 
-DSResult DSEndSchedule(HDSContext store)
+static bool IsScheduleBusy(HDSContext store)
 {
-    DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
-    if (!store->m_ScheduleActive)
-        return DS_RESULT_INVALID_ARGUMENT;
     for (uint32_t i = 0; i < store->m_Systems.Size(); ++i)
     {
         const DSSystemRegistration& system = store->m_Systems[i];
         if (system.m_State == DS_SYSTEM_RUNNING ||
             (system.m_Desc.m_Process && system.m_State == DS_SYSTEM_PENDING && DependenciesComplete(store, system)))
-            return DS_RESULT_BUSY;
+            return true;
     }
+    return false;
+}
+
+DSResult DSSchedulerSync(HDSContext store)
+{
+    if (!store->m_ScheduleActive)
+        return DS_RESULT_INVALID_ARGUMENT;
+    while (IsScheduleBusy(store))
+        DSSchedulerUpdate(store);
+    return DS_RESULT_OK;
+}
+
+DSResult DSEndSchedule(HDSContext store)
+{
+    DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
+    if (!store->m_ScheduleActive)
+        return DS_RESULT_INVALID_ARGUMENT;
+    if (IsScheduleBusy(store))
+        return DS_RESULT_BUSY;
     store->m_ScheduleActive = false;
     store->m_ScheduleJobs = 0;
     return DS_RESULT_OK;

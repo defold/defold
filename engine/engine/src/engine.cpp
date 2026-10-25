@@ -519,26 +519,14 @@ namespace dmEngine
 
     static void UpdateDataStore(HEngine engine, const char* event)
     {
-        DM_PROFILE("DataStorePreUpdate");
-        DSResult result = DSBeginSchedule(engine->m_DataStore, engine->m_DataStoreJobs);
-        if (result != DS_RESULT_OK)
-        {
-            dmLogError("Failed to begin datastore schedule (%d)", result);
-            return;
-        }
-
-        result = DSSchedulerEvent(engine->m_DataStore, dmHashString64(event));
+        DM_PROFILE_DYN(event, 0);
+        DSResult result = DSSchedulerEvent(engine->m_DataStore, dmHashString64(event));
         if (result != DS_RESULT_OK)
         {
             dmLogError("Failed to signal %s (%d)", event, result);
         }
 
-        // Finish running and ready functions before components access their output.
-        // Functions behind unsignaled custom events do not hold this boundary open.
-        while (DSEndSchedule(engine->m_DataStore) == DS_RESULT_BUSY)
-        {
-            DSSchedulerUpdate(engine->m_DataStore);
-        }
+        DSSchedulerSync(engine->m_DataStore);
     }
 
     void Delete(HEngine engine)
@@ -1233,6 +1221,8 @@ namespace dmEngine
         {
             engine->m_DataStore = DSCreateStore(0);
             DSEventDesc event = { .m_Name = DS_EVENT_GAMEOBJECT_PRE_UPDATE };
+            DSRegisterEvent(engine->m_DataStore, &event);
+            event = { .m_Name = DS_EVENT_GAMEOBJECT_POST_UPDATE, .m_DependsOn = { DS_EVENT_GAMEOBJECT_PRE_UPDATE } };
             DSRegisterEvent(engine->m_DataStore, &event);
 
             // Frame-critical queries must not wait behind resource streaming jobs.
@@ -2156,8 +2146,16 @@ bail:
                     dmGameObject::DispatchInput(GetMainCollection(engine), &input_buffer[0], input_buffer.Size());
                 }
 
+                bool datastore_schedule = false;
                 if (engine->m_DataStore)
-                    UpdateDataStore(engine, "engine.gameobject.pre_update");
+                {
+                    DSResult result = DSBeginSchedule(engine->m_DataStore, engine->m_DataStoreJobs);
+                    datastore_schedule = result == DS_RESULT_OK;
+                    if (datastore_schedule)
+                        UpdateDataStore(engine, "engine.gameobject.pre_update");
+                    else
+                        dmLogError("Failed to begin datastore schedule (%d)", result);
+                }
 
                 dmGameObject::UpdateContext update_context;
                 update_context.m_TimeScale = 1.0f;
@@ -2165,6 +2163,12 @@ bail:
                 update_context.m_FixedUpdateFrequency = engine->m_FixedUpdateFrequency;
                 update_context.m_AccumFrameTime = engine->m_AccumFrameTime;
                 dmGameObject::Update(GetMainCollection(engine), &update_context);
+
+                if (datastore_schedule)
+                {
+                    UpdateDataStore(engine, "engine.gameobject.post_update");
+                    DSEndSchedule(engine->m_DataStore);
+                }
 
                 dmSound::Update();
 

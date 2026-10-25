@@ -13,3 +13,7 @@ function update(self, dt)
     self.frame = self.frame + 1
     check_datastore_update(self.frame)
 end
+
+function late_update(self, dt)
+    check_datastore_late_update(self.frame)
+end

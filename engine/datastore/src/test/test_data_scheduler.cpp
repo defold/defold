@@ -810,7 +810,8 @@ TEST(DataScheduler, EndWaitsForReadyFunctions)
 }
 
 // Signaling an entry queues its jobs without executing them on the caller. A later
-// engine boundary waits for those jobs; both states reset on the next invocation.
+// sync waits for ready work without discarding later events or rerunning completed
+// functions. The next schedule starts each function afresh.
 TEST(DataScheduler, EventsLaunchFunctions)
 {
     HJobContext      jobs = CreateScheduledJobs();
@@ -830,22 +831,33 @@ TEST(DataScheduler, EventsLaunchFunctions)
     ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &end));
     ASSERT_EQ(DS_RESULT_OK, DSRegisterFunction(store, &write));
     ASSERT_EQ(DS_RESULT_OK, DSRegisterEvent(store, &begin));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSchedulerSync(store));
     for (uint32_t frame = 0; frame < 3; ++frame)
     {
         read_context.m_Total = 0;
         ASSERT_EQ(DS_RESULT_OK, DSBeginSchedule(store, jobs));
         ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerUpdate(store));
+        ASSERT_EQ(DS_RESULT_OK, DSSchedulerSync(store));
+        ASSERT_EQ(frame, write_context.m_Calls);
+        ASSERT_EQ(frame, read_context.m_Calls);
         ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerEvent(store, end.m_Name));
         ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(store, begin.m_Name));
         ASSERT_EQ(frame, write_context.m_Calls);
-        ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerUpdate(store));
+        ASSERT_EQ(DS_RESULT_OK, DSSchedulerSync(store));
+        ASSERT_EQ(DS_RESULT_OK, DSSchedulerSync(store));
         ASSERT_EQ(frame + 1, write_context.m_Calls);
         ASSERT_EQ(frame, read_context.m_Calls);
+        ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(writer));
+        DSQueryEnd(writer);
         ASSERT_EQ(DS_RESULT_OK, DSSchedulerEvent(store, end.m_Name));
         ASSERT_EQ(DS_RESULT_BUSY, DSEndSchedule(store));
-        FinishSchedule(store, 1);
+        ASSERT_EQ(DS_RESULT_OK, DSSchedulerSync(store));
+        ASSERT_EQ(frame + 1, write_context.m_Calls);
+        ASSERT_EQ(frame + 1, read_context.m_Calls);
+        ASSERT_EQ(DS_RESULT_OK, DSEndSchedule(store));
         ASSERT_EQ(3.0f * (51 + frame), read_context.m_Total);
     }
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSchedulerSync(store));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(reader));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(writer));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));

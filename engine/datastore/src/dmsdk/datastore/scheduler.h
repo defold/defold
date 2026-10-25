@@ -21,6 +21,7 @@
 
 #define DS_SYSTEM_MAX_DEPENDENCIES 16
 #define DS_EVENT_GAMEOBJECT_PRE_UPDATE dmHashString64("engine.gameobject.pre_update")
+#define DS_EVENT_GAMEOBJECT_POST_UPDATE dmHashString64("engine.gameobject.post_update")
 
 #ifdef __cplusplus
 extern "C"
@@ -52,6 +53,7 @@ extern "C"
     DSResult DSBeginSchedule(HDSContext store, HJobContext jobs);
     DSResult DSSchedulerEvent(HDSContext store, dmhash_t name);
     DSResult DSSchedulerUpdate(HDSContext store);
+    DSResult DSSchedulerSync(HDSContext store);
     DSResult DSEndSchedule(HDSContext store);
 
 #ifdef __cplusplus
@@ -83,16 +85,33 @@ extern "C"
  *
  * Registered in the engine's DATASTORE_CONTEXT_NAME store when engine.datastore
  * is enabled (the default). After input dispatch and before game-object updates,
- * the engine starts a schedule and signals this event. It waits for submitted
- * functions and their dependents before
- * updating components. Callbacks run on a dedicated engine job context; do not access game
- * objects or Lua from workers. This does not refresh world transforms.
+ * the engine starts the frame's schedule and signals this event. It waits for submitted
+ * functions and their dependents before updating components. The same schedule remains
+ * active through [ref:DS_EVENT_GAMEOBJECT_POST_UPDATE]. Callbacks run on a dedicated
+ * engine job context; do not access game objects or Lua from workers.
+ * This does not refresh world transforms.
  * This macro computes the event hash; cache it during initialization when signaling
  * repeatedly. Standalone stores must register and signal their own events.
  *
  * @constant
  * @name DS_EVENT_GAMEOBJECT_PRE_UPDATE
  * @value dmHashString64("engine.gameobject.pre_update")
+ */
+
+/*# After game-object updates
+ *
+ * Registered in the engine's DATASTORE_CONTEXT_NAME store when engine.datastore
+ * is enabled. Signaled after dmGameObject::Update, including late updates, and
+ * before rendering. The engine waits for ready functions and their dependents,
+ * then ends the frame's schedule. Post-update functions can depend on functions
+ * from [ref:DS_EVENT_GAMEOBJECT_PRE_UPDATE]. This precedes game-object PostUpdate
+ * deletion processing and does not refresh world transforms after callback writes.
+ * Callbacks run on workers; do not access game objects or Lua there.
+ * Standalone stores must register and signal their own events.
+ *
+ * @constant
+ * @name DS_EVENT_GAMEOBJECT_POST_UPDATE
+ * @value dmHashString64("engine.gameobject.post_update")
  */
 
 /*# Process a query range
@@ -124,7 +143,8 @@ extern "C"
  * [ref:DSBeginSchedule] resolves hashes to indices and rejects cycles.
  * Use dmHashString64 during setup; reverse hashes are available for diagnostics.
  * Prerequisites may name functions or events. Every prerequisite must be registered;
- * the engine registers [ref:DS_EVENT_GAMEOBJECT_PRE_UPDATE] in its own store.
+ * the engine registers [ref:DS_EVENT_GAMEOBJECT_PRE_UPDATE] and
+ * [ref:DS_EVENT_GAMEOBJECT_POST_UPDATE] in its own store.
  *
  * @struct
  * @name DSSystemDesc
@@ -235,6 +255,19 @@ extern "C"
  * @name DSSchedulerUpdate
  * @param store [type:HDSContext] Store with an active schedule.
  * @return result [type:DSResult] OK when all functions finished, BUSY while functions await jobs, events or reservations, or INVALID_ARGUMENT without an active schedule.
+ */
+
+/*# Synchronize ready scheduled work
+ *
+ * Pumps jobs until running functions and ready functions finish, including their
+ * dependents. Functions waiting on unsignaled events remain pending. Keeps the
+ * schedule active so later events can use earlier completions without rerunning work.
+ * Query reservations are released as functions finish; this does not lock the store.
+ * Call on the scheduler's main thread, outside jobs and completion callbacks.
+ *
+ * @name DSSchedulerSync
+ * @param store [type:HDSContext] Store with an active schedule.
+ * @return result [type:DSResult] OK after ready work finishes, or INVALID_ARGUMENT without an active schedule.
  */
 
 /*# End a schedule

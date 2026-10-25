@@ -71,9 +71,12 @@ struct DatastoreScheduleTest
     DSId       m_Row;
     uint32_t   m_Field;
     uint32_t   m_Calls;
+    uint32_t   m_PostCalls;
+    uint32_t   m_StartupCalls;
     uint32_t   m_Checks;
     uint32_t   m_UnexpectedCalls;
     double     m_Observed;
+    double     m_PostObserved;
     bool       m_Valid;
     bool       m_Input;
 };
@@ -353,6 +356,26 @@ static void UnexpectedScheduledUpdate(HDSQuery query, uint32_t first, uint32_t n
     ++((DatastoreScheduleTest*)context)->m_UnexpectedCalls;
 }
 
+static void ReadScheduledPostUpdate(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+{
+    DatastoreScheduleTest* state = (DatastoreScheduleTest*)context;
+    ++state->m_PostCalls;
+    state->m_Valid &= state->m_Checks == state->m_PostCalls;
+    DSIterator it = DSQueryIterRange(query, first, num_rows);
+    while (DSIterNext(&it))
+    {
+        DSRowIterator rows = DSIterRows(&it);
+        while (DSRowIterNext(&rows))
+            state->m_PostObserved = *DSRowIterGetNumber(&rows, state->m_Field);
+    }
+    state->m_Valid &= state->m_PostObserved == 100.0 + 10.0 * state->m_Checks;
+}
+
+static void CountScheduledStartup(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+{
+    ++((DatastoreScheduleTest*)context)->m_StartupCalls;
+}
+
 static int CheckScheduledUpdate(lua_State* L)
 {
     DatastoreScheduleTest* state = (DatastoreScheduleTest*)lua_touserdata(L, lua_upvalueindex(1));
@@ -366,8 +389,18 @@ static int CheckScheduledUpdate(lua_State* L)
 
     double health = 0.0;
     state->m_Valid &= DSFieldGetNumber(state->m_Store, state->m_Row, dmHashString64("health"), &health) == DS_RESULT_OK;
-    state->m_Valid &= state->m_Input && state->m_Calls == frame && health == 100.0 + frame && state->m_Observed == health;
+    state->m_Valid &= state->m_Input && state->m_Calls == frame && health == 101.0 + 10.0 * (frame - 1) && state->m_Observed == health;
+    state->m_Valid &= state->m_PostCalls == frame - 1 && state->m_StartupCalls == frame;
     ++state->m_Checks;
+    return 0;
+}
+
+static int CheckScheduledLateUpdate(lua_State* L)
+{
+    DatastoreScheduleTest* state = (DatastoreScheduleTest*)lua_touserdata(L, lua_upvalueindex(1));
+    uint32_t               frame = (uint32_t)luaL_checkinteger(L, 1);
+    state->m_Valid &= state->m_Checks == frame && state->m_PostCalls == frame - 1;
+    state->m_Valid &= DSSetFieldNumber(state->m_Store, state->m_Row, dmHashString64("health"), 100.0 + 10.0 * frame) == DS_RESULT_OK;
     return 0;
 }
 
@@ -388,7 +421,7 @@ static void CompleteDatastoreStreamingJob(HJobContext, HJob, JobSystemStatus sta
     ((DatastoreStreamingGate*)context)->m_Complete = true;
 }
 
-static void TestDatastorePreUpdate(bool threaded, bool block_streaming = false)
+static void TestDatastoreUpdateStages(bool threaded, bool block_streaming)
 {
     dmEngineInitialize();
     dmEngine::HEngine engine = dmEngine::New(0);
@@ -432,6 +465,8 @@ static void TestDatastorePreUpdate(bool threaded, bool block_streaming = false)
     DSSystemDesc functions[] = {
         { .m_Name = dmHashString64("test.heal"), .m_DependsOn = { DS_EVENT_GAMEOBJECT_PRE_UPDATE }, .m_Query = query, .m_Process = UpdateScheduledHealth, .m_Context = &state },
         { .m_Name = dmHashString64("test.read"), .m_DependsOn = { dmHashString64("test.heal") }, .m_Query = query, .m_Process = ReadScheduledHealth, .m_Context = &state },
+        { .m_Name = dmHashString64("test.post"), .m_DependsOn = { DS_EVENT_GAMEOBJECT_POST_UPDATE, dmHashString64("test.read") }, .m_Query = query, .m_Process = ReadScheduledPostUpdate, .m_Context = &state },
+        { .m_Name = dmHashString64("test.startup"), .m_Query = query, .m_Process = CountScheduledStartup, .m_Context = &state },
         { .m_Name = dmHashString64("test.manual"), .m_DependsOn = { dmHashString64("test.manual_update") }, .m_Query = query, .m_Process = UnexpectedScheduledUpdate, .m_Context = &state }
     };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(functions); ++i)
@@ -441,6 +476,9 @@ static void TestDatastorePreUpdate(bool threaded, bool block_streaming = false)
     lua_pushlightuserdata(L, &state);
     lua_pushcclosure(L, CheckScheduledUpdate, 1);
     lua_setglobal(L, "check_datastore_update");
+    lua_pushlightuserdata(L, &state);
+    lua_pushcclosure(L, CheckScheduledLateUpdate, 1);
+    lua_setglobal(L, "check_datastore_late_update");
 
     DatastoreStreamingGate gate = {};
     if (block_streaming)
@@ -490,20 +528,25 @@ static void TestDatastorePreUpdate(bool threaded, bool block_streaming = false)
 
     ASSERT_TRUE(state.m_Valid);
     ASSERT_EQ(3U, state.m_Calls);
+    ASSERT_EQ(3U, state.m_PostCalls);
+    ASSERT_EQ(3U, state.m_StartupCalls);
+    ASSERT_EQ(130.0, state.m_PostObserved);
     ASSERT_EQ(3U, state.m_Checks);
     ASSERT_EQ(0U, state.m_UnexpectedCalls);
 }
 
-// Input precedes scheduled work and scripts see all dependent results, even without workers.
-TEST_F(EngineTest, DatastorePreUpdateWithoutWorkers)
+// Input, pre-update jobs, scripts/late updates and post-update jobs run in order,
+// exactly once per frame, including callbacks without event dependencies.
+TEST_F(EngineTest, DatastoreUpdateStagesWithoutWorkers)
 {
-    TestDatastorePreUpdate(false);
+    TestDatastoreUpdateStages(false, false);
 }
 
-// Worker callbacks finish before script updates; custom unsignaled events cannot stall the frame.
-TEST_F(EngineTest, DatastorePreUpdateWithWorkers)
+// Both worker stages finish before the next engine phase; post-update dependencies
+// retain pre-update completions and custom unsignaled events cannot stall the frame.
+TEST_F(EngineTest, DatastoreUpdateStagesWithWorkers)
 {
-    TestDatastorePreUpdate(true);
+    TestDatastoreUpdateStages(true, false);
 }
 
 #if defined(DM_HAS_THREADS)
@@ -511,7 +554,7 @@ TEST_F(EngineTest, DatastorePreUpdateWithWorkers)
 // Completion signals, rather than elapsed time, prove the queues are independent.
 TEST_F(EngineTest, DatastorePreUpdateWhileStreamingBlocked)
 {
-    TestDatastorePreUpdate(true, true);
+    TestDatastoreUpdateStages(true, true);
 }
 #endif
 

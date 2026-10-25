@@ -65,10 +65,11 @@ int TestDataSchedulerFromC(void)
     ok = DSRegisterEvent(store, &begin) == DS_RESULT_OK && ok;
     ok = DSRegisterEvent(store, &end) == DS_RESULT_OK && ok;
     ok = DSBeginSchedule(store, jobs) == DS_RESULT_OK && ok;
+    ok = DSSchedulerSync(store) == DS_RESULT_OK && ok;
     ok = DSSchedulerEvent(store, end.m_Name) == DS_RESULT_BUSY && ok;
     ok = DSSchedulerEvent(store, begin.m_Name) == DS_RESULT_OK && ok;
     ok = DSEndSchedule(store) == DS_RESULT_BUSY && ok;
-    ok = DSSchedulerUpdate(store) == DS_RESULT_OK && ok;
+    ok = DSSchedulerSync(store) == DS_RESULT_OK && ok;
     ok = DSSchedulerEvent(store, end.m_Name) == DS_RESULT_OK && ok;
     ok = DSEndSchedule(store) == DS_RESULT_OK && ok;
     JobSystemDestroy(jobs);

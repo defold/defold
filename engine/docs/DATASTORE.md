@@ -751,9 +751,15 @@ When disabled, looking up `DATASTORE_CONTEXT_NAME` returns null. Extensions that
 use the engine store must handle its absence. Standalone stores created with
 `DSCreateStore` are unaffected.
 
-The engine-owned `DATASTORE_CONTEXT_NAME` store registers
-`DS_EVENT_GAMEOBJECT_PRE_UPDATE`, the hash of `"engine.gameobject.pre_update"`. Depend on it
-to run after input dispatch and before game-object component updates:
+The engine-owned `DATASTORE_CONTEXT_NAME` store registers two events:
+
+| Event | Synchronized boundary |
+| --- | --- |
+| `DS_EVENT_GAMEOBJECT_PRE_UPDATE` | After input dispatch, before `dmGameObject::Update`. |
+| `DS_EVENT_GAMEOBJECT_POST_UPDATE` | After `dmGameObject::Update`, including late updates, before rendering. |
+
+Their names are `"engine.gameobject.pre_update"` and
+`"engine.gameobject.post_update"`. Depend on the corresponding event:
 
 ```cpp
 DSSystemDesc desc = {
@@ -766,23 +772,29 @@ DSSystemDesc desc = {
 DSResult result = DSRegisterFunction(store, &desc);
 ```
 
-The engine begins a fresh schedule each frame, signals the event, and pumps its
-dedicated two-worker job context until ready functions, submitted callbacks and
-their dependents finish. Resource streaming uses a separate context, so loading
-work cannot block this stage's job queue. The schedule ends before calling
-`dmGameObject::Update`. The engine owns and destroys the datastore and its job
-context. Functions waiting on custom unsignaled events are discarded for that
-invocation. Invalid dependency graphs are logged and skipped. Do not leave manual
-schedules or query reservations active across this boundary.
+The engine begins one schedule per frame and calls `DSSchedulerSync` at each event
+to finish ready callbacks and their dependents before continuing. The schedule
+stays active across component updates and ends after the post-update stage.
+Completed callbacks run once per frame; post-update callbacks may also depend on
+pre-update callbacks. No query reservations remain during component updates, so
+the main thread can add, remove and update rows there. Register/unregister
+functions and destroy queries between frames, outside the active schedule.
+
+The dedicated two-worker job context is separate from resource streaming.
+The engine owns and destroys the datastore and its job context. Functions waiting
+on custom unsignaled events are discarded when the frame's schedule ends.
+Invalid dependency graphs are logged and skipped. Do not leave manual schedules
+or query reservations active across these boundaries.
 
 Callbacks run on workers when available; use datastore queries there. Apply
-results to game objects on the main thread during component updates. This event
-does not refresh world transforms: local transforms include earlier input changes,
-while world transforms still depend on normal hierarchy propagation. The event is
-once per frame, not once per collection or fixed physics step.
+results to game objects on the main thread during component updates. These events
+do not refresh world transforms: pre-update local transforms include earlier input
+changes, while world transforms depend on normal hierarchy propagation. The
+post-update event precedes `dmGameObject::PostUpdate` deletion processing.
+Each event is once per frame, not once per collection or fixed physics step.
 
 Standalone stores still use `DSRegisterEvent`, `DSBeginSchedule`,
-`DSSchedulerEvent`, `DSSchedulerUpdate` and `DSEndSchedule` with a caller-owned job
+`DSSchedulerEvent`, `DSSchedulerUpdate`, `DSSchedulerSync` and `DSEndSchedule` with a caller-owned job
 context. Signaling only submits jobs; the caller must wait before accessing their
 output. `DSEndSchedule` returns `BUSY` while jobs run or ready functions await
 query access. Pump updates and retry it; waiting for `DSSchedulerUpdate` to return
