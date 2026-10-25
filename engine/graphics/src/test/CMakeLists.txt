@@ -225,13 +225,19 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
           list(APPEND _graphics_available "${_backend}")
         endif()
       endforeach()
+      set(_graphics_test_command "${CMAKE_COMMAND}" -E env)
+      if(WITH_ASAN AND TARGET_PLATFORM MATCHES "linux$")
+        # Keep driver globals reachable and allocation stacks symbolized for
+        # LeakSanitizer's exit check, which runs after vkDestroyInstance.
+        list(APPEND _graphics_test_command "VK_LOADER_DISABLE_DYNAMIC_LIBRARY_UNLOADING=1")
+      endif()
       set(_graphics_capture_env)
       if(NOT TARGET_PLATFORM STREQUAL "arm64_sim-ios")
         list(APPEND _graphics_capture_env "GRAPHICS_CAPTURE_EXECUTABLE=$<TARGET_FILE:test_app_graphics>")
       endif()
-      set(_graphics_python_command "${CMAKE_COMMAND}" -E env ${_graphics_capture_env}
+      set(_graphics_python_command ${_graphics_test_command} ${_graphics_capture_env}
         "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/test_graphics_images.py")
-      set(_graphics_image_command "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_images.py"
+      set(_graphics_image_command ${_graphics_test_command} "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_images.py"
         --executable "$<TARGET_FILE:test_app_graphics>"
         --target-platform "${TARGET_PLATFORM}"
         --capture-dir "${GRAPHICS_ROOT}/build/graphics-test-images/${TARGET_PLATFORM}"
@@ -249,7 +255,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
       # Automatic hosted CI coverage is Linux/Vulkan and the iOS simulator. The manual target
       # above always remains available, regardless of this policy.
       set(_graphics_ci_command ${_graphics_image_command})
-      set(_graphics_buffer_command "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_buffer_replacement.py"
+      set(_graphics_buffer_command ${_graphics_test_command} "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_buffer_replacement.py"
         --executable "$<TARGET_FILE:test_app_graphics>" --target-platform "${TARGET_PLATFORM}"
         --available ${_graphics_available})
       if(DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$|^arm64_sim-ios$")
