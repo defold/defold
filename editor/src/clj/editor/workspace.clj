@@ -31,10 +31,12 @@ ordinary paths."
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
             [editor.util :as util]
             [internal.java :as java]
+            [internal.node :as in]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
@@ -241,11 +243,19 @@ ordinary paths."
 (def ^:private editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn true))
 (def ^:private non-editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn false))
 
-(defn- default-search-value-fn [node-id _resource evaluation-context]
-  (let [save-value (g/node-value node-id :save-value evaluation-context)]
-    (if (g/error-value? save-value)
-      (g/node-value node-id :source-value evaluation-context)
-      save-value)))
+(declare make-read-opts)
+
+(defn- default-search-value-fn
+  [node-id resource {:keys [basis-ref] :as evaluation-context}]
+  (if (in/shell-node? (g/node-by-id @basis-ref node-id))
+    (let [workspace (resource/workspace resource)
+          read-opts (g/tx-cached-value! evaluation-context [:read-opts]
+                      (make-read-opts @basis-ref workspace :include-editor-dependencies true))]
+      (resource-io/read-source-value! read-opts node-id resource evaluation-context))
+    (let [save-value (g/node-value node-id :save-value evaluation-context)]
+      (if (g/error-value? save-value)
+        (g/node-value node-id :source-value evaluation-context)
+        save-value))))
 
 (defn register-resource-type
   "Register new resource type to be handled by the editor
@@ -304,10 +314,11 @@ ordinary paths."
     :search-value-fn    a fn from node-id, resource and an evaluation-context to
                         a search-value that can be accepted by the :search-fn in
                         order to find a matching substring inside the resource.
-                        If not provided, the node's :save-value will be used,
-                        falling back to the retained :source-value whenever
-                        :save-value produces an error. Required when a
-                        :source-value-fn is supplied.
+                        If not provided, unmaterialized nodes use :source-value,
+                        reading and caching it and :disk-sha256 without loading
+                        the node. Materialized nodes use :save-value, falling
+                        back to retained :source-value when :save-value produces
+                        an error. Required when a :source-value-fn is supplied.
     :search-fn          a multi-arity fn used to search the resource for a
                         matching substring. The first arity should accept a
                         search string and return a value that can be used by the

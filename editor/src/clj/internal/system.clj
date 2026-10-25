@@ -23,7 +23,6 @@
             [util.coll :as coll]
             [util.defonce :as defonce])
   (:import [clojure.lang ExceptionInfo]
-           [internal.transaction MaterializationTXC]
            [java.util ConcurrentModificationException]
            [java.util.concurrent.atomic AtomicLong]))
 
@@ -421,8 +420,8 @@
   [system {:keys [initial-basis initial-invalidate-counters] :as evaluation-context}]
   (let [changes @(:changes-atom evaluation-context)
         original-invalidate-counters (:invalidate-counters system)]
-    (assert (coll/every? #(instance? MaterializationTXC %) changes)
-            "Evaluation contexts can only accumulate materializations.")
+    (assert (coll/every? it/evaluation-context-change? changes)
+            "Evaluation contexts can only accumulate materializations and shell property initializations.")
     (if (or (nil? initial-invalidate-counters)
             (full-invalidation-since? initial-invalidate-counters original-invalidate-counters))
       system

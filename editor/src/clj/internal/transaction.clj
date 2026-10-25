@@ -1643,7 +1643,7 @@
   [source-id source-label target-id target-label]
   [(->ConnectTXS (gt/->Arc source-id source-label target-id target-label))])
 
-(defn- realize-expand
+(defn- realize-expand-impl
   [ctx undoable-changes tx-steps-fn args opts]
   (if-not (:inject-evaluation-context opts)
     (realize-tx ctx undoable-changes (apply tx-steps-fn args))
@@ -1651,6 +1651,31 @@
           tx-data (apply tx-steps-fn evaluation-context args)
           ctx (apply-evaluation-context-changes! ctx evaluation-context)]
       (realize-tx-impl ctx undoable-changes tx-data evaluation-context))))
+
+(defn- realize-expand
+  [ctx undoable-changes tx-steps-fn args {:keys [catch-fn] :as opts}]
+  (if-not catch-fn
+    (realize-expand-impl ctx undoable-changes tx-steps-fn args opts)
+
+    ;; Isolate the immutable transaction context and the transient undo buffer.
+    ;; A failed attempt must not leave changes for later undo or replay.
+    (let [tx-data-context-atom (:tx-data-context-atom ctx)
+          previous-tx-data-context @tx-data-context-atom
+
+          [ctx attempted-undoable-changes]
+          (try
+            (realize-expand-impl ctx (when undoable-changes (transient []))
+                                 tx-steps-fn args opts)
+            (catch Exception exception
+              (reset! tx-data-context-atom previous-tx-data-context)
+              (realize-tx ctx (when undoable-changes (transient []))
+                          (catch-fn exception))))]
+
+      (pair ctx
+            (when undoable-changes
+              (reduce conj!
+                      undoable-changes
+                      (persistent! attempted-undoable-changes)))))))
 
 (defonce/type ExpandTXS [tx-steps-fn args opts]
   TransactionStep
@@ -1665,11 +1690,18 @@
 
 (defn expand
   "*transaction step* - Call a function and execute the returned transaction
-  steps within the transaction."
+  steps within the transaction. With :inject-evaluation-context in opts, pass
+  an evaluation context as the first argument to tx-steps-fn. With :catch-fn,
+  an Exception from generating or applying steps discards the expansion's
+  graph changes, undo records and changes to :tx-data-context-atom before
+  calling catch-fn with the exception and applying its returned steps.
+  Callback side effects outside the graph are not rolled back."
   [tx-steps-fn args opts]
   {:pre [(ifn? tx-steps-fn)
          (coll/eager-seqable? args)
-         (or (nil? opts) (map? opts))]}
+         (or (nil? opts) (map? opts))
+         (or (nil? (:catch-fn opts)) (ifn? (:catch-fn opts)))
+         (or (nil? (:inject-evaluation-context opts)) (boolean? (:inject-evaluation-context opts)))]}
   [(->ExpandTXS tx-steps-fn args opts)])
 
 (defonce/type DisconnectTXS [arc]
@@ -1985,6 +2017,28 @@
   (revert [_ _ctx]
     (throw (UnsupportedOperationException. "Materializations are not undoable."))))
 
+(defonce/type InitializeShellPropertiesTXC [shell-node initialized-shell-node property-labels]
+  TransactionChange
+  (perform [_ ctx]
+    (let [node-id (gt/node-id shell-node)
+          current-node (ig/node-by-id-at (:basis ctx) node-id)]
+      (if (identical? initialized-shell-node current-node)
+        ctx
+        (do
+          (when-not (identical? shell-node current-node)
+            (throw (ex-info "The shell was replaced before its properties could be initialized."
+                            {:ex-type ::stale-materialization
+                             :node-id node-id})))
+          (reduce #(mark-property-state-changes %1 node-id %2)
+                  (update ctx :basis ig/transform-node node-id (constantly initialized-shell-node))
+                  property-labels)))))
+  (revert [_ _ctx]
+    (throw (UnsupportedOperationException. "Shell property initialization is not undoable."))))
+
+(defn evaluation-context-change? [change]
+  (or (instance? MaterializationTXC change)
+      (instance? InitializeShellPropertiesTXC change)))
+
 (defn- apply-evaluation-context-changes! [ctx evaluation-context]
   (let [changes-atom (:changes-atom evaluation-context)
         transaction-changes @changes-atom]
@@ -1992,8 +2046,8 @@
       ctx
       (let [ctx (coll/reduce-> transaction-changes ctx
                   (fn [ctx change]
-                    (assert (instance? MaterializationTXC change)
-                            "Evaluation contexts can only accumulate materializations.")
+                    (assert (evaluation-context-change? change)
+                            "Evaluation contexts can only accumulate materializations and shell property initializations.")
                     (-> ctx
                         (perform-change change)
                         (update :completed-action-count inc)
@@ -2016,7 +2070,7 @@
              :initial-invalidate-counters (:initial-invalidate-counters evaluation-context)
              :realized-changes [])))
 
-(defn- apply-materialization-result! [evaluation-context change result]
+(defn- apply-evaluation-result! [evaluation-context change result]
   (let [{:keys [basis-ref changes-atom invalidated-endpoints-atom materialization-results-atom nodes-deleted-atom]} evaluation-context
         {:keys [basis outputs-modified materialization-results nodes-deleted]} result]
     (reset! basis-ref basis)
@@ -2028,8 +2082,33 @@
       (swap! cache-atom c/cache-invalidate outputs-modified))
     (swap! (:local-atom evaluation-context) #(reduce dissoc % outputs-modified))
     (when-let [local-temp-atom (:local-temp-atom evaluation-context)]
-      (swap! local-temp-atom #(reduce dissoc % outputs-modified))))
-  result)
+      (swap! local-temp-atom #(reduce dissoc % outputs-modified)))
+    nil))
+
+(defn initialize-shell-properties! [node-id properties {:keys [basis-ref active-materialization] :as evaluation-context}]
+  {:pre [(map? properties)
+         (nil? active-materialization)]}
+  (assert @basis-ref "Evaluation context is closed.")
+  (let [node (ig/node-by-id-at @basis-ref node-id)]
+    (when (and (in/shell-node? node)
+               (not (coll/empty? properties)))
+      (let [node-type (gt/node-type node)
+            property-labels (into [] (coll/keys properties))]
+        (in/validate-property-labels node-type properties)
+        (in/validate-property-values node-type node-id properties)
+        (doseq [property-label property-labels]
+          (assert (not (contains? (gt/assigned-properties node @basis-ref) property-label))
+                  (str "Shell property is already initialized: " property-label))
+          (assert (contains? (:flags (get (in/declared-outputs node-type) property-label)) :unjammable)
+                  (str "Shell property must be unjammable: " property-label))
+          (assert (nil? (in/property-setter node-type property-label))
+                  (str "Shell property must not have a setter: " property-label)))
+        (let [change (->InitializeShellPropertiesTXC node (coll/merge node properties) property-labels)
+              result (-> (evaluation-transaction-context evaluation-context)
+                         (perform-change change)
+                         (assoc :completed-action-count 1)
+                         (finalize-applied-changes))]
+          (apply-evaluation-result! evaluation-context change result))))))
 
 (defn- prerequisite-path [shared-materialization-registry start-id target-id]
   (loop [pending [[start-id]]
@@ -2170,7 +2249,7 @@
                               :prerequisite-shell-node-ids prerequisite-shell-node-ids
                               :prerequisite-source-state (capture-prerequisite-source-state previous-basis previous-materialization-results prerequisite-shell-node-ids)
                               :dependencies (select-keys previous-materialization-results prerequisite-shell-node-ids)}]
-        (apply-materialization-result!
+        (apply-evaluation-result!
           evaluation-context
           (->MaterializationTXC materialize-info)
           (assoc-in result [:materialization-results node-id] materialize-info))
@@ -2250,7 +2329,7 @@
                                  (when-not (stale-materialization? error)
                                    (throw error))))]
                   (if result
-                    (apply-materialization-result! evaluation-context change result)
+                    (apply-evaluation-result! evaluation-context change result)
                     (recur (conj rejected-promises result-promise))))))))))))
 
 (extend-type ShellNode

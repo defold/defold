@@ -58,6 +58,25 @@
      (catch Exception e#
        (invalid-content-error ~node-id ~label :fatal ~resource e#))))
 
+(defn read-source-value!
+  "Returns an unmaterialized resource node's cached source-value, or reads it
+  and initializes source-value and disk-sha256 on the ShellNode. Read failures
+  return an ErrorValue without caching it."
+  [read-opts node-id resource evaluation-context]
+  {:pre [(g/node-id? node-id)
+         (resource/resource? resource)]}
+  (with-error-translation resource node-id :source-value
+    (or (g/node-value node-id :source-value evaluation-context)
+        (let [{:keys [editable->type-ext->resource-type]} read-opts
+              {:keys [read-fn]} (resource/lookup-resource-type resource editable->type-ext->resource-type)]
+          (when read-fn
+            (let [read-stream-fn #(read-fn read-opts resource %)
+                  [source-value disk-sha256] (resource/read-source-value+sha256-hex resource read-stream-fn)
+                  shell-node-properties {:source-value source-value
+                                         :disk-sha256 disk-sha256}]
+              (g/initialize-shell-properties! node-id shell-node-properties evaluation-context)
+              source-value))))))
+
 (defn with-translated-error-thrown!
   "Takes a value returned from the with-error-translation macro and throws a
   suitable exception if it is an ErrorValue translated from an exception.

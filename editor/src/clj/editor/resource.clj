@@ -968,17 +968,18 @@
     (.digest (.getMessageDigest digest-output-stream))))
 
 (defn read-source-value+sha256-hex
-  "Returns a pair of [read-fn-result, disk-sha256-or-nil]. If the resource is a
-  file in the project, wraps the read in a DigestInputStream that concurrently
-  hashes the file contents as they are read by the read-fn and returns the
-  SHA-256 hex string in disk-sha256-or-nil. If the resource is not a project
-  file, we use a plain InputStream, and disk-sha256-or-nil will be nil."
-  [resource read-fn]
+  "Returns a pair of [read-stream-fn-result, disk-sha256-or-nil]. If the
+  resource is a file in the project, wraps the read in a DigestInputStream that
+  concurrently hashes the file contents as they are read by the read-stream-fn
+  and returns the SHA-256 hex string in disk-sha256-or-nil. If the resource is
+  not a project file, we use a plain InputStream, and disk-sha256-or-nil will be
+  nil."
+  [resource read-stream-fn]
   (with-open [^InputStream input-stream
               (cond-> (io/input-stream resource)
                 (file-resource? resource)
                 (digest/make-digest-input-stream "SHA-256"))]
-    (let [source-value (read-fn input-stream)
+    (let [source-value (read-stream-fn input-stream)
           disk-sha256 (digest/completed-stream->hex input-stream)]
       (pair source-value disk-sha256))))
 

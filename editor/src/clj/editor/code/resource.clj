@@ -100,9 +100,12 @@
   The disk-sha256 will also be nil for any resource that is not a file in the
   project."
   [node-id resource]
-  (let [lines+disk-sha256
+  (let [read-stream-fn #(read-fn {} resource %)
+
+        lines+disk-sha256
         (resource-io/with-error-translation resource node-id nil
-          (resource/read-source-value+sha256-hex resource #(read-fn {} resource %)))]
+          (resource/read-source-value+sha256-hex resource read-stream-fn))]
+
     (if (g/error? lines+disk-sha256)
       [lines+disk-sha256 nil]
       lines+disk-sha256)))

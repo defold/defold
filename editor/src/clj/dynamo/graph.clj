@@ -447,6 +447,15 @@
   [node-id evaluation-context]
   (it/materialize-node! node-id evaluation-context))
 
+(defn initialize-shell-properties!
+  "Initializes previously unassigned, unjammable properties without
+  materializing the shell. Properties must not have setters. Changes are local
+  to the supplied evaluation-context until committed, and are not undoable. Does
+  nothing if the node is no longer a shell. Cannot be called during
+  materialization."
+  [node-id properties evaluation-context]
+  (it/initialize-shell-properties! node-id properties evaluation-context))
+
 (defn materialize-prerequisites!
   "Registers and materializes a shell's direct prerequisites. Call from its
   materialize-fn before producing its own transaction steps. Their properties,
@@ -907,9 +916,13 @@
 
 (defn expand
   "Call the specified function when reaching the transaction step and apply the
-  returned transaction steps in the same transaction"
-  [f & args]
-  (it/expand f args nil))
+  returned transaction steps in the same transaction. opts may be nil or a map
+  supporting :inject-evaluation-context and :catch-fn. The latter receives an
+  Exception from generating or applying the steps and returns recovery steps,
+  applied after discarding the failed expansion's graph changes, undo records
+  and changes to :tx-data-context-atom. External side effects are not reverted."
+  [opts tx-steps-fn & args]
+  (it/expand tx-steps-fn args opts))
 
 ;; SDK api
 (defn expand-ec
@@ -1233,17 +1246,17 @@
   (in/pruned-evaluation-context evaluation-context cache-entry-pred))
 
 (defn update-system-from-evaluation-context!
-  "Commits materializations and cache entries that remain valid in the system.
-  Reuses the evaluated basis when the system basis is unchanged; otherwise
-  re-performs the realized TransactionChanges on the system. Does not rerun
-  the materialize-fn or property setters. Stale prerequisites reject the pending
-  changes and cache entries; a later evaluation can materialize the shell again.
-  Call on the system mutation thread after evaluation has finished, with
-  exclusive ownership of the evaluation-context. Background evaluations must
-  hand off their evaluation-context to that thread before calling this function.
-  Closes the evaluation-context and all evaluation-contexts sharing its state.
-  They must be discarded after this call, even if their changes were incompatible
-  with the system."
+  "Commits materializations, shell property initializations and cache entries
+  that remain valid in the system. Reuses the evaluated basis when the system
+  basis is unchanged; otherwise re-performs the realized TransactionChanges on
+  the system. Does not rerun the materialize-fn or property setters. Stale
+  prerequisites reject the pending changes and cache entries; a later evaluation
+  can materialize the shell again. Call on the system mutation thread after
+  evaluation has finished, with exclusive ownership of the evaluation-context.
+  Background evaluations must hand off their evaluation-context to that thread
+  before calling this function. Closes the evaluation-context and all
+  evaluation-contexts sharing its state. They must be discarded after this call,
+  even if their changes were incompatible with the system."
   [{:keys [basis-ref] :as evaluation-context}]
   (assert @basis-ref "Evaluation context is closed.")
   (let [[old-system new-system] (swap-vals! *the-system* is/update-system-from-evaluation-context evaluation-context)]
@@ -1252,9 +1265,9 @@
   nil)
 
 (defmacro with-auto-evaluation-context
-  "Evaluates the body and commits its materializations and cache entries on the
-  calling thread. Background callers must instead schedule the merge on the
-  system mutation thread."
+  "Evaluates the body and commits its materializations, shell property
+  initializations and cache entries on the calling thread. Background callers
+  must instead schedule the merge on the system mutation thread."
   [evaluation-context & body]
   `(let [~evaluation-context (make-evaluation-context)
          result# (do-strict-evaluation-context-scope-body ~@body)]

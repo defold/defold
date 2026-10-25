@@ -112,32 +112,42 @@
     (make-load-opts-in-evaluation-context project evaluation-context)))
 
 (defn- load-resource-node [{:keys [project] :as load-opts} {:keys [node-id resource resource-type] :as node-load-info}]
-  (try
-    (let [load-fn (:load-fn resource-type)]
-      (cond-> []
+  (let [load-error-tx-data
+        (fn load-error-tx-data [exception]
+          (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
+          (let [node-type (:node-type resource-type)
+                invalid-content-error (resource-io/invalid-content-error node-id nil :fatal resource exception)]
+            (g/mark-defective node-id node-type invalid-content-error)))
 
-        load-fn
-        (into coll/flatten-xf
-              (load-fn load-opts node-load-info))
+        tx-data
+        (try
+          (let [load-fn (:load-fn resource-type)]
+            (cond-> []
 
-        (and (:auto-connect-save-data? resource-type)
-             (resource/save-tracked? resource))
-        (into (g/connect node-id :save-data project :save-data))
+              load-fn
+              (into coll/flatten-xf
+                    (load-fn load-opts node-load-info))
 
-        :always
-        not-empty))
-    (catch Exception exception
-      (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
-      (let [node-type (:node-type resource-type)
-            invalid-content-error (resource-io/invalid-content-error node-id nil :fatal resource exception)]
-        (g/mark-defective node-id node-type invalid-content-error)))
-    (catch Throwable throwable
-      (let [node-type (:node-type resource-type)
-            proj-path (resource/proj-path resource)]
-        (throw (ex-info (format "Error when loading resource '%s'" proj-path)
-                        {:node-type node-type
-                         :proj-path proj-path}
-                        throwable))))))
+              (and (:auto-connect-save-data? resource-type)
+                   (resource/save-tracked? resource))
+              (into (g/connect node-id :save-data project :save-data))
+
+              ;; Release source-value only after all load steps have succeeded.
+              ;; Failed loads retain source-value for fallback search.
+              (and (resource/stateful? resource)
+                   (not (resource/editable? resource)))
+              (conj (g/non-undoable
+                      (g/set-property node-id :source-value nil)))))
+          (catch Exception exception
+            (load-error-tx-data exception))
+          (catch Throwable throwable
+            (let [node-type (:node-type resource-type)
+                  proj-path (resource/proj-path resource)]
+              (throw (ex-info (format "Error when loading resource '%s'" proj-path)
+                              {:node-type node-type
+                               :proj-path proj-path}
+                              throwable)))))]
+    (g/expand {:catch-fn load-error-tx-data} identity tx-data)))
 
 (defn- embedded-node-load-info
   [owner-resource embedded-resource embedded-resource-node-id source-value]
@@ -165,6 +175,57 @@
    :resource resource
    :resource-type resource-type
    :read-error (make-file-not-found-error node-id resource)})
+
+(defn- make-node-load-info [read-opts node-id resource resource-type read-result]
+  (let [resource-metrics (:resource-metrics read-opts)
+        read-fn (:read-fn resource-type)
+
+        [source-value disk-sha256 read-error]
+        (if (g/error-value? read-result)
+          [nil nil read-result]
+          read-result)
+
+        dependency-proj-paths
+        (when (and (nil? read-error)
+                   (or (some? source-value)
+                       (nil? read-fn)))
+          (when-let [dependencies-fn (:dependencies-fn resource-type)]
+            (try
+              (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
+                (coll/not-empty (vec (dependencies-fn read-opts resource source-value))))
+              (catch Exception exception
+                (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
+                                       (resource/proj-path resource))
+                          :exception exception)
+                nil))))
+
+        prerequisite-result
+        (when (some? source-value)
+          (when-let [prerequisites-fn (:prerequisites-fn resource-type)]
+            (try
+              (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
+                (coll/not-empty (vec (prerequisites-fn read-opts resource source-value))))
+              (catch Exception exception
+                (resource-io/invalid-content-error node-id nil :fatal resource exception)))))
+
+        read-error
+        (or read-error
+            (when (g/error-value? prerequisite-result)
+              prerequisite-result))
+
+        node-load-info
+        (cond-> {:node-id node-id
+                 :owner-resource resource
+                 :resource resource
+                 :resource-type resource-type}
+          (and read-result (not (g/error-value? read-result)))
+          (assoc :source-value source-value :disk-sha256 disk-sha256))]
+
+    (if read-error
+      (assoc node-load-info :read-error read-error)
+      (cond-> node-load-info
+        dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths)
+        prerequisite-result (assoc :prerequisite-proj-paths prerequisite-result)))))
 
 (defn read-node-load-info
   "Reads from disk and returns a node-load-info map. The map contains the
@@ -249,48 +310,8 @@
           (when (and (resource/stateful-resource-type? resource-type)
                      (resource/symlink? resource)
                      (not (resource/exists? resource)))
-            (make-file-not-found-error node-id resource)))
-
-        [source-value disk-sha256 read-error]
-        (if (g/error-value? read-result)
-          [nil nil read-result]
-          read-result)
-
-        dependency-proj-paths
-        (when (and (nil? read-error)
-                   (or (some? source-value)
-                       (nil? read-fn)))
-          (when-let [dependencies-fn (:dependencies-fn resource-type)]
-            (try
-              (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
-                (not-empty (vec (dependencies-fn read-opts resource source-value))))
-              (catch Exception exception
-                (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
-                                       (resource/proj-path resource))
-                          :exception exception)
-                nil))))
-
-        prerequisite-result
-        (when (some? source-value)
-          (when-let [prerequisites-fn (:prerequisites-fn resource-type)]
-            (try
-              (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
-                (coll/not-empty (vec (prerequisites-fn read-opts resource source-value))))
-              (catch Exception exception
-                (resource-io/invalid-content-error node-id nil :fatal resource exception)))))
-
-        read-error (or read-error (when (g/error-value? prerequisite-result) prerequisite-result))
-        node-load-info (cond-> {:node-id node-id
-                                :owner-resource resource
-                                :resource resource
-                                :resource-type resource-type}
-                         (and read-result (not (g/error-value? read-result)))
-                         (assoc :source-value source-value :disk-sha256 disk-sha256))]
-    (if read-error
-      (assoc node-load-info :read-error read-error)
-      (cond-> node-load-info
-        dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths)
-        prerequisite-result (assoc :prerequisite-proj-paths prerequisite-result)))))
+            (make-file-not-found-error node-id resource)))]
+    (make-node-load-info read-opts node-id resource resource-type read-result)))
 
 (defn- sort-node-ids-for-loading-impl
   ([node-ids in-progress queue queued batch node-id->dependency-node-ids]
@@ -464,22 +485,21 @@
 
 (defn node-load-info->disk-state-tx-data
   "Initializes a resource node's disk state non-undoably before loading it."
-  [{:keys [disk-sha256 node-id read-error resource source-value] :as node-load-info}]
+  [{:keys [disk-sha256 node-id read-error resource source-value] :as _node-load-info}]
   (when (resource/stateful? resource)
     (g/non-undoable
       (e/concat
         (g/materialize-shell node-id)
         (when (resource/file-resource? resource)
           (g/set-property node-id :disk-sha256 disk-sha256))
-        ;; Blocked non-editable resources also need their source for search.
-        (when (and (or (resource/editable? resource) read-error)
-                   (or read-error (contains? node-load-info :source-value)))
+        ;; Editable resources retain source-value for dirty checking.
+        ;; Non-editable resources release it after successful loading.
+        ;; Failed loads retain it for search when save-value is an error.
+        ;; Types whose source-value is a hash must supply their own
+        ;; :search-value-fn.
+        (when-let [source-value (or source-value read-error)]
           (g/set-property node-id :source-value
-            (if-not (contains? node-load-info :source-value)
-              read-error
-              ;; The read-fn returns a save-value, which may need converting
-              ;; to the resource type's representation of disk state.
-              (resource-node/save-value->source-value source-value (resource/resource-type resource)))))))))
+            (resource-node/save-value->source-value source-value (resource/resource-type resource))))))))
 
 (defn log-cache-info! [cache message]
   ;; Disabled during tests to minimize log spam.
@@ -621,7 +641,7 @@
 (defn- node-load-info-read-error [{:keys [node-id resource prerequisite-proj-paths] :as node-load-info} exception causes]
   (let [causes (into [] (distinct) causes)]
     (-> node-load-info
-        ;; Preserve the source and hash from the successful read.
+        ;; Preserve source-value and disk-sha256 from the successful read.
         (dissoc :dependency-proj-paths :prerequisite-proj-paths)
         (assoc :read-error
           (cond-> (resource-io/invalid-content-error node-id nil :fatal resource exception)
@@ -1147,7 +1167,15 @@
         node-load-info
         (g/tx-cached-value! evaluation-context [::node-load-infos node-id]
           (check-missing-load-prerequisites
-            (read-node-load-info read-opts node-id resource) @basis-ref
+            (let [source-value (g/raw-property-value @basis-ref node-id :source-value)]
+              (if (nil? source-value)
+                (read-node-load-info read-opts node-id resource)
+                (let [{:keys [editable->type-ext->resource-type]} read-opts
+                      resource-type (resource/lookup-resource-type resource editable->type-ext->resource-type)
+                      disk-sha256 (g/raw-property-value @basis-ref node-id :disk-sha256)
+                      read-result (pair source-value disk-sha256)]
+                  (make-node-load-info read-opts node-id resource resource-type read-result))))
+            @basis-ref
             (fn [proj-path]
               (some->> (nodes-by-resource-path proj-path)
                        (resource-node/resource @basis-ref)))))

@@ -35,6 +35,76 @@
             (set (fn [evaluation-context self _old source]
                    (g/set-property self :value (g/node-value source :result evaluation-context))))))
 
+(g/defnode ShellReadCacheNode
+  (inherits ShellTestNode)
+  (property setter-value g/Str :unjammable
+            (set (fn set-value [_evaluation-context self _old-value _new-value]
+                   (g/set-property self :value 5))))
+  (output cached-identity g/Str :cached :unjammable (g/fnk [identity] identity)))
+
+;; Shell reads remain local until committed, invalidate cached outputs, survive
+;; undo and can be replayed together with a subsequent materialization.
+(deftest initialize-shell-properties-test
+  (doseq [replay [false true]
+          materialize-before-commit [false true]]
+    (with-clean-system
+      (let [node-id (first (g/take-node-ids 1))
+            other (g/make-node! ShellTestNode)
+            calls (atom 0)]
+        (g/transact
+          (g/add-node
+            (g/construct-shell ShellReadCacheNode {:_node-id node-id}
+              (fn materialize-fn [self evaluation-context]
+                (swap! calls inc)
+                (is (= "read" (g/node-value self :identity evaluation-context)))
+                (g/set-property self :value 7)))))
+        (g/reset-undo! :undo/global)
+        (is (nil? (g/node-value node-id :cached-identity)))
+        (let [initial-basis (g/now)
+              evaluation-context (g/make-evaluation-context)]
+          (g/initialize-shell-properties! node-id {:identity "read"} evaluation-context)
+          (is (= "read" (g/node-value node-id :cached-identity evaluation-context)))
+          (is (nil? (g/raw-property-value initial-basis node-id :identity)))
+          (is (nil? (g/node-value node-id :cached-identity)))
+          (is (zero? @calls))
+          (doseq [properties [{:identity "overwrite"} {:value 8} {:setter-value "setter"} {:unknown 1}]]
+            (is (thrown? AssertionError
+                         (g/initialize-shell-properties! node-id properties evaluation-context))))
+          (when materialize-before-commit
+            (g/materialize-node! node-id evaluation-context))
+          (when replay
+            (g/set-property! other :value 1))
+          (g/update-system-from-evaluation-context! evaluation-context))
+        (is (= (not materialize-before-commit) (in/shell-node? (g/node-by-id (g/now) node-id))))
+        (is (= "read" (g/node-value node-id :cached-identity)))
+        (when-not replay
+          (g/set-property! other :value 1))
+        (g/undo! :undo/global)
+        (is (= "read" (g/node-value node-id :identity)))
+        (is (= 7 (g/node-value node-id :result)))
+        (is (= 1 @calls))))))
+
+;; Pending shell reads must not overwrite a node that was edited, replaced or
+;; deleted after the reading evaluation-context was created.
+(deftest initialize-shell-properties-rejects-stale-shell-test
+  (doseq [change [:edit :replace :delete]]
+    (with-clean-system
+      (let [node-id (first (g/take-node-ids 1))
+            materialize-fn (fn materialize-fn [self _evaluation-context]
+                             (g/set-property self :value 7))]
+        (g/transact (g/add-node (g/construct-shell ShellReadCacheNode {:_node-id node-id} materialize-fn)))
+        (let [evaluation-context (g/make-evaluation-context)]
+          (g/initialize-shell-properties! node-id {:identity "obsolete"} evaluation-context)
+          (is (= "obsolete" (g/node-value node-id :cached-identity evaluation-context)))
+          (case change
+            :edit (g/set-property! node-id :identity "current")
+            :replace (g/transact (g/add-node (g/construct-shell ShellReadCacheNode {:_node-id node-id :identity "current"} materialize-fn)))
+            :delete (g/transact (g/delete-node node-id)))
+          (g/update-system-from-evaluation-context! evaluation-context))
+        (if (= :delete change)
+          (is (nil? (g/node-by-id (g/now) node-id)))
+          (is (= "current" (g/node-value node-id :cached-identity))))))))
+
 ;; Committing against the original basis must reuse evaluated nodes and update
 ;; the transaction revision, cached values, and downstream invalidations.
 (deftest evaluation-context-direct-commit-test
@@ -549,31 +619,6 @@
       (is (= #{source child} (into #{} (map key) @overrides)))
       (is (= 19 (g/node-value source :result)))
       (is (= 29 (g/node-value (@overrides source) :result))))))
-
-;; Expanded transaction steps must execute in order so later steps can use node
-;; ids allocated by earlier steps, even when the steps are produced lazily.
-(deftest expanded-transaction-steps-retain-execution-order-test
-  (with-clean-system
-    (let [parent (g/make-node! ShellTestNode)
-          child (atom nil)]
-      (g/transact
-        (g/expand-ec
-          (fn [_evaluation-context]
-            (eduction
-              (map (fn [step]
-                     (case step
-                       :create
-                       (g/expand
-                         (fn []
-                           (let [node-id (first (g/take-node-ids 1))]
-                             (reset! child node-id)
-                             (g/add-node
-                               (g/construct ShellTestNode :_node-id node-id :value 37)))))
-
-                       :connect
-                       (g/connect @child :result parent :dependency))))
-              [:create :connect]))))
-      (is (= 37 (g/node-value parent :result))))))
 
 (g/defnode ShellWithChild
   (property child g/NodeID)

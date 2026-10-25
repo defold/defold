@@ -19,14 +19,18 @@
             [dynamo.graph :as g]
             [editor.data :as data]
             [editor.defold-project :as project]
+            [editor.defold-project-search :as project-search]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [service.log :as log]
             [support.test-support :as test-support :refer [with-clean-system]]
             [util.coll :as coll :refer [pair]])
-  (:import [java.io InputStream]
+  (:import [internal.node NodeImpl ShellNode]
+           [java.io InputStream]
            [java.util.concurrent CountDownLatch TimeUnit]))
 
 (set! *warn-on-reflection* true)
@@ -76,6 +80,8 @@
                   (is (contains? dependencies (str "/" directory "/nested.gui_script")))
                   (is (contains? dependencies "/builtins/fonts/default.font")))))))))))
 
+;; Registered templates produce truthy source-value entries without graph
+;; queries, as required by disk-state initialization.
 (deftest templates-read-without-graph-queries-test
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
     (with-open [_ (test-util/make-directory-deleter project-path)]
@@ -83,14 +89,14 @@
       (with-clean-system
         (let [workspace (test-util/setup-workspace! project-path)
               basis (g/now)
-              read-opts (workspace/make-read-opts basis workspace)
-              cases (coll/into-> (:editable->type-ext->resource-type read-opts) []
+              {:keys [editable->type-ext->resource-type template-resource-fn]} (workspace/make-read-opts basis workspace)
+              cases (coll/into-> editable->type-ext->resource-type []
                       (coll/mapcat
                         (fn [[editable resource-types]]
                           (coll/into-> resource-types :eduction
                             (keep (fn [[ext {:keys [read-fn lazy-loaded] :as resource-type}]]
                                     (when read-fn
-                                      (when-let [template ((:template-resource-fn read-opts) resource-type false)]
+                                      (when-let [template (template-resource-fn resource-type false)]
                                         (let [proj-path (str (if editable "/editable/" "/non-editable/") "template." ext)
                                               file (io/file project-path (subs proj-path 1))]
                                           (with-open [^InputStream input-stream (io/input-stream template)]
@@ -98,8 +104,8 @@
                                           {:proj-path proj-path :lazy-loaded lazy-loaded})))))))))]
           (workspace/resource-sync! workspace)
           (let [basis (g/now)
-                read-opts (workspace/make-read-opts basis workspace :include-editor-dependencies true)
-                resources (mapv #((:proj-path->resource read-opts) (:proj-path %)) cases)
+                {:keys [proj-path->resource] :as read-opts} (workspace/make-read-opts basis workspace :include-editor-dependencies true)
+                resources (mapv #(proj-path->resource (:proj-path %)) cases)
                 node-load-infos (read-node-load-infos-without-graph-queries read-opts resources)]
             (is (= (count cases) (count node-load-infos)))
             (doseq [[{:keys [proj-path lazy-loaded]} node-load-info] (mapv pair cases node-load-infos)]
@@ -107,6 +113,7 @@
                 (is (nil? (:read-error node-load-info)))
                 (is (= (not lazy-loaded) (contains? node-load-info :source-value)))
                 (when-not lazy-loaded
+                  (is (:source-value node-load-info))
                   (is (string? (:disk-sha256 node-load-info))))))))))))
 
 (deftest data-default-template-read-without-graph-queries-test
@@ -206,6 +213,349 @@
         (g/with-auto-evaluation-context evaluation-context
           (resource-node/materialize-resource-referencers! project [target-resource] evaluation-context))
         (is (= ["/target.prereq" "/direct.prereq" "/transitive.prereq"] @load-fn-calls))))))
+
+(g/defnode CachedReadResource
+  (inherits resource-node/ResourceNode)
+  (property value g/Any)
+  (output save-value g/Any (g/fnk [value] value)))
+
+;; Searching shells caches source-value and disk-sha256 without loading nodes or
+;; discovering dependencies. Later searches and materialization reuse the read;
+;; failed reads leave shells unchanged and are excluded from search results.
+(deftest search-caches-shell-reads-test
+  (doseq [editable [false true]]
+    (testing (str "editable: " editable)
+      (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+        (with-open [_ (test-util/make-directory-deleter project-path)]
+          (when-not editable
+            (test-util/set-non-editable-directories! project-path ["/resources"]))
+          (with-clean-system
+            (let [workspace (test-util/setup-workspace! project-path)
+                  reads (atom {})
+                  load-calls (atom [])
+                  dependency-calls (atom [])
+                  prerequisite-calls (atom [])
+                  search-errors (atom [])
+                  contents {"/resources/valid.searchcache" {:value "needle"}
+                            "/resources/empty.searchcache" {}
+                            "/resources/blocked.searchcache" {:prerequisites ["/missing.searchcache"]}
+                            "/resources/broken.searchcache" {:read-error true}}]
+              (g/transact
+                (workspace/register-resource-type workspace
+                  :ext "searchcache"
+                  :editable editable
+                  :node-type CachedReadResource
+                  :textual? true
+                  :auto-connect-save-data? false
+                  :read-fn
+                  (fn read-search-resource [_read-opts resource input]
+                    (swap! reads update (resource/proj-path resource) (fnil inc 0))
+                    (let [source-value (edn/read-string (slurp input))]
+                      (if-not (:read-error source-value)
+                        source-value
+                        (throw (ex-info "Failed to read search resource." {})))))
+                  :write-fn pr-str
+                  :search-fn resource-node/default-ddf-resource-search-fn
+                  :dependencies-fn
+                  (fn dependencies [_read-opts resource _source-value]
+                    (swap! dependency-calls conj (resource/proj-path resource))
+                    [])
+                  :prerequisites-fn
+                  (fn prerequisites [_read-opts resource source-value]
+                    (swap! prerequisite-calls conj (resource/proj-path resource))
+                    (:prerequisites source-value))
+                  :load-fn
+                  (fn load-search-resource [_load-opts {:keys [node-id resource source-value]}]
+                    (swap! load-calls conj (resource/proj-path resource))
+                    (g/set-property node-id :value source-value))))
+              (doseq [[proj-path source-value] contents]
+                (test-util/write-file-resource! workspace proj-path source-value))
+              (workspace/resource-sync! workspace)
+              (let [project (test-util/setup-project! workspace)]
+                (is (= {} @reads))
+                (dotimes [search-index 2]
+                  (let [search-data
+                        @(project-search/make-search-data-future
+                           (fn report-error! [error]
+                             (swap! search-errors conj error))
+                           project
+                           (fn search-resource? [resource]
+                             (= "searchcache" (resource/type-ext resource))))]
+                    ;; Wait for search to commit its evaluation context.
+                    (ui/run-now nil)
+                    (is (= (dissoc contents "/resources/broken.searchcache")
+                           (into {}
+                                 (map (fn [{:keys [resource search-value]}]
+                                        (pair (resource/proj-path resource)
+                                              search-value)))
+                                 search-data)))
+                    (doseq [[proj-path source-value] contents]
+                      (let [node-id (test-util/resource-node project proj-path)
+                            node (g/node-by-id (g/now) node-id)]
+                        (is (instance? ShellNode node))
+                        (is (not (resource-node/loaded? node-id)))
+                        (if (:read-error source-value)
+                          (do
+                            (is (= (inc search-index) (@reads proj-path)))
+                            (is (not (contains? node :source-value)))
+                            (is (not (contains? node :disk-sha256))))
+                          (do
+                            (is (= 1 (@reads proj-path)))
+                            (is (= source-value (:source-value node)))
+                            (is (= (resource/resource->sha256-hex
+                                     (resource-node/resource node-id))
+                                   (:disk-sha256 node)))))))
+                    (is (= [] @load-calls))
+                    (is (= [] @dependency-calls))
+                    (is (= [] @prerequisite-calls))
+                    (is (= [] @search-errors))))
+                (let [node-id (test-util/resource-node project "/resources/valid.searchcache")
+                      resource (resource-node/resource node-id)
+                      search-value-fn (:search-value-fn (resource/resource-type resource))]
+                  (is (= {:value "needle"} (g/node-value node-id :save-value)))
+                  (is (= 1 (@reads "/resources/valid.searchcache")))
+                  (is (= ["/resources/valid.searchcache"] @load-calls))
+                  (is (= (when editable {:value "needle"})
+                         (g/node-value node-id :source-value)))
+                  (when editable
+                    (g/set-property! node-id :value {:value "unsaved"})
+                    (g/with-auto-evaluation-context evaluation-context
+                      (is (= {:value "unsaved"}
+                             (search-value-fn node-id resource evaluation-context))))))
+                (let [node-id (test-util/resource-node project "/resources/blocked.searchcache")
+                      resource (resource-node/resource node-id)
+                      search-value-fn (:search-value-fn (resource/resource-type resource))]
+                  (is (g/error-value? (g/node-value node-id :save-value)))
+                  (g/with-auto-evaluation-context evaluation-context
+                    (is (= (contents "/resources/blocked.searchcache")
+                           (search-value-fn node-id resource evaluation-context))))
+                  (is (= 1 (@reads "/resources/blocked.searchcache")))
+                  (is (= ["/resources/valid.searchcache"] @load-calls)))))))))))
+
+(g/defnode FailingLoadResource
+  (inherits CachedReadResource)
+  (input children g/Any :array :cascade-delete)
+  (property fail-loading g/Bool
+            (set (fn fail-loading [_evaluation-context _self _old-value value]
+                   (when value
+                     (throw (ex-info "Failed while applying load steps." {})))))))
+
+;; A failing load setter must leave a defective NodeImpl without partial
+;; properties, child nodes, connections or undo data. Failed non-editable
+;; resources retain source-value for fallback search. Successful loads clear it.
+(deftest applying-load-steps-failure-test
+  (doseq [bulk [false true]]
+    (testing (str "bulk: " bulk)
+      (let [project-path
+            (test-util/make-temp-project-copy! "test/resources/empty_project")]
+        (with-open [_ (test-util/make-directory-deleter project-path)]
+          (test-util/set-non-editable-directories! project-path ["/resources"])
+          (with-clean-system
+            (let [workspace (test-util/setup-workspace! project-path)
+                  source-value {:value "cached source-value"}
+                  reads (atom 0)
+                  load-calls (atom 0)
+                  partial-child (atom nil)]
+              (g/transact
+                (workspace/register-resource-type workspace
+                  :ext "loadfailure"
+                  :editable false
+                  :node-type FailingLoadResource
+                  :auto-connect-save-data? false
+                  :read-fn (fn read-failing-resource [_read-opts _resource input]
+                             (swap! reads inc)
+                             (edn/read-string (slurp input)))
+                  :write-fn pr-str
+                  :prerequisites-fn (constantly [])
+                  :load-fn
+                  (fn load-failing-resource [_load-opts {:keys [node-id]}]
+                    (swap! load-calls inc)
+                    (g/make-nodes [child CachedReadResource]
+                      (g/set-property node-id :value :partial)
+                      (g/connect child :save-value node-id :children)
+                      (g/callback-ec
+                        (fn observe-partial-load [evaluation-context]
+                          (let [basis @(:basis-ref evaluation-context)]
+                            (is (= source-value (g/node-value node-id :source-value evaluation-context)))
+                            (is (= :partial (g/node-value node-id :value evaluation-context)))
+                            (is (some? (g/node-by-id basis child)))
+                            (is (= child
+                                   (g/node-feeding-into
+                                     basis node-id :children)))
+                            (reset! partial-child child))))
+                      (g/set-property node-id :fail-loading true)))))
+              (test-util/write-file-resource!
+                workspace "/resources/broken.loadfailure" source-value)
+              (workspace/resource-sync! workspace)
+              (let [project (test-util/setup-project! workspace)
+                    node-id (test-util/resource-node project "/resources/broken.loadfailure")
+                    resource (resource-node/resource node-id)
+                    disk-sha256 (resource/resource->sha256-hex resource)
+                    check-failed-load
+                    (fn check-failed-load [basis]
+                      (is (instance? NodeImpl (g/node-by-id basis node-id)))
+                      (is (g/defective? basis node-id))
+                      (is (resource-node/loaded? basis node-id))
+                      (is (= source-value
+                             (g/raw-property-value basis node-id :source-value)))
+                      (is (= disk-sha256
+                             (g/raw-property-value basis node-id :disk-sha256)))
+                      (is (nil? (g/raw-property-value basis node-id :value)))
+                      (is (nil? (g/raw-property-value
+                                  basis node-id :fail-loading)))
+                      (is (coll/empty? (g/inputs basis node-id :children)))
+                      (is (some? @partial-child))
+                      (is (nil? (g/node-by-id basis @partial-child))))]
+                ;; Prerequisite discovery caches the read without loading it.
+                (g/with-auto-evaluation-context evaluation-context
+                  (resource-node/materialize-resource-referencers!
+                    project [resource] evaluation-context))
+                (is (instance? ShellNode (g/node-by-id (g/now) node-id)))
+                (is (= source-value (g/node-value node-id :source-value)))
+                (is (= disk-sha256 (g/node-value node-id :disk-sha256)))
+                (is (= 1 @reads))
+                (is (zero? @load-calls))
+                (g/reset-undo! :undo/global)
+                (log/without-logging
+                  (if bulk
+                    (let [node-load-infos
+                          (project/read-nodes (g/now) [[node-id resource]]
+                            :force-read true)]
+                      (project/load-nodes! project nil node-load-infos
+                                           progress/null-render-progress!
+                                           nil {}))
+                    (g/with-auto-evaluation-context evaluation-context
+                      (g/materialize-node! node-id evaluation-context)
+                      (check-failed-load @(:basis-ref evaluation-context))
+                      (is (instance? ShellNode
+                                     (g/node-by-id (g/now) node-id))))))
+                (check-failed-load (g/now))
+                (let [error (g/node-value node-id :save-value)]
+                  (is (g/error-value? error))
+                  (is (= "Failed while applying load steps."
+                         (:cause (Throwable->map
+                                   (get-in error [:user-data :exception]))))))
+                (is (= source-value (g/node-value node-id :source-value)))
+                (is (= 1 @load-calls))
+                (g/with-auto-evaluation-context evaluation-context
+                  (is (= source-value
+                         ((:search-value-fn (resource/resource-type resource))
+                          node-id resource evaluation-context))))
+                (is (= (if bulk 2 1) @reads))
+                (when bulk
+                  (g/undo! :undo/global)
+                  (is (nil? (g/raw-property-value (g/now) node-id :value)))
+                  (is (nil? (g/node-by-id (g/now) @partial-child)))
+                  (g/redo! :undo/global)
+                  (check-failed-load (g/now))
+                  (is (= 1 @load-calls)))))))))))
+
+;; Scans retain successful reads, including empty collections, on shells for
+;; later scans and materialization. Reloads must discard stale data.
+(deftest prerequisite-scans-cache-shell-reads-test
+  (doseq [editable [false true]
+          source-value-fn [nil hash]]
+    (testing (str "editable: " editable ", converted source-value: " (some? source-value-fn))
+      (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+        (with-open [_ (test-util/make-directory-deleter project-path)]
+          (when-not editable
+            (test-util/set-non-editable-directories! project-path ["/resources"]))
+          (with-clean-system
+            (let [workspace (test-util/setup-workspace! project-path)
+                  reads (atom {})
+                  load-infos (atom {})
+                  contents {"/resources/target.readcache" {:value 1}
+                            "/resources/referencer.readcache" {:prerequisites ["/resources/target.readcache"]}
+                            "/resources/unrelated.readcache" {:dependencies ["/resources/target.readcache"]}
+                            "/resources/changed.readcache" {:value 1}
+                            "/resources/empty-map.readcache" {}
+                            "/resources/empty-vector.readcache" []
+                            "/resources/read-error.readcache" {:read-error true}
+                            "/resources/prerequisite-error.readcache" {:prerequisite-error true}
+                            "/resources/missing.readcache" {:prerequisites ["/resources/absent.readcache"]}}]
+              (g/transact
+                (workspace/register-resource-type workspace
+                  :ext "readcache"
+                  :editable editable
+                  :node-type CachedReadResource
+                  :auto-connect-save-data? false
+                  :read-fn (fn read-cache-resource [_read-opts resource input]
+                             (swap! reads update (resource/proj-path resource) (fnil inc 0))
+                             (let [source-value (edn/read-string (slurp input))]
+                               (if-not (:read-error source-value)
+                                 source-value
+                                 (throw (ex-info "Failed to read resource." {})))))
+                  :write-fn pr-str
+                  :source-value-fn source-value-fn
+                  :search-value-fn (fn search-value [node-id _resource evaluation-context]
+                                     (g/node-value node-id :save-value evaluation-context))
+                  :prerequisites-fn (fn prerequisites [_read-opts _resource source-value]
+                                      (if-not (:prerequisite-error source-value)
+                                        (:prerequisites source-value)
+                                        (throw (ex-info "Failed to discover prerequisites." {}))))
+                  :dependencies-fn (fn dependencies [_read-opts _resource source-value]
+                                     (:dependencies source-value))
+                  :load-fn (fn load-cache-resource [_load-opts {:keys [node-id resource source-value] :as node-load-info}]
+                             (swap! load-infos assoc (resource/proj-path resource) node-load-info)
+                             (g/set-property node-id :value source-value))))
+              (doseq [[proj-path source-value] contents]
+                (test-util/write-file-resource! workspace proj-path source-value))
+              (workspace/resource-sync! workspace)
+              (let [project (test-util/setup-project! workspace)
+                    target-resource (test-util/resource workspace "/resources/target.readcache")]
+                (is (= {} @reads))
+                (dotimes [scan 2]
+                  (g/with-auto-evaluation-context evaluation-context
+                    (resource-node/materialize-resource-referencers! project [target-resource] evaluation-context))
+                  (is (= #{"/resources/target.readcache" "/resources/referencer.readcache"}
+                         (into #{} (coll/keys @load-infos))))
+                  (doseq [[proj-path source-value] contents]
+                    (testing proj-path
+                      (let [node-id (test-util/resource-node project proj-path)
+                            node (g/node-by-id (g/now) node-id)]
+                        (is (= (if (:read-error source-value) (inc scan) 1) (@reads proj-path)))
+                        (when-not (contains? @load-infos proj-path)
+                          (is (not (resource-node/loaded? node-id)))
+                          (is (= (not (:read-error source-value)) (contains? node :source-value)))
+                          (when-not (:read-error source-value)
+                            (is (= source-value (:source-value node)))
+                            (is (= (resource/resource->sha256-hex (resource-node/resource node-id))
+                                   (:disk-sha256 node)))))))))
+                (testing "Timestamp changes preserve the shell and its cached read"
+                  (let [node-id (test-util/resource-node project "/resources/unrelated.readcache")]
+                    (test-support/touch-until-new-mtime (io/as-file (resource-node/resource node-id)))
+                    (workspace/resource-sync! workspace)
+                    (is (= node-id (test-util/resource-node project "/resources/unrelated.readcache")))
+                    (is (not (resource-node/loaded? node-id)))
+                    (is (= 1 (@reads "/resources/unrelated.readcache")))))
+                (testing "Materialization reconstructs load info and converts disk state"
+                  (doseq [[proj-path source-value] contents
+                          :when (and (not (:read-error source-value))
+                                     (not= "/resources/changed.readcache" proj-path))]
+                    (let [node-id (test-util/resource-node project proj-path)
+                          blocked (or (:prerequisite-error source-value)
+                                      (= "/resources/missing.readcache" proj-path))]
+                      (if blocked
+                        (is (g/error-value? (g/node-value node-id :save-value)))
+                        (do
+                          (is (= source-value (g/node-value node-id :save-value)))
+                          (is (= source-value (:source-value (@load-infos proj-path))))
+                          (is (= (:dependencies source-value) (:dependency-proj-paths (@load-infos proj-path))))
+                          (is (= (:prerequisites source-value) (:prerequisite-proj-paths (@load-infos proj-path))))))
+                      (is (= (when (or editable blocked)
+                               (if-not source-value-fn
+                                 source-value
+                                 (source-value-fn source-value)))
+                             (g/node-value node-id :source-value)))
+                      (is (= 1 (@reads proj-path))))))
+                (testing "Changed content replaces the cached source-value"
+                  (let [node-id (test-util/resource-node project "/resources/changed.readcache")]
+                    (is (not (resource-node/loaded? node-id)))
+                    (test-util/write-file-resource! workspace "/resources/changed.readcache" {:value 2})
+                    (workspace/resource-sync! workspace)
+                    (is (not= node-id (test-util/resource-node project "/resources/changed.readcache")))
+                    (is (= {:value 2} (g/node-value (test-util/resource-node project "/resources/changed.readcache") :save-value)))
+                    (is (= 2 (@reads "/resources/changed.readcache")))))))))))))
 
 ;; Loaded resources report current prerequisites, so unsaved reference edits
 ;; determine which unmaterialized containers are discovered.
@@ -462,8 +812,8 @@
             (is (= {"/missing.prereq" 1 "/middle.prereq" 1 "/root.prereq" 1}
                    (frequencies @load-fn-calls)))))))))
 
-;; Blocked files retain searchable source even when non-editable, but hashes
-;; must not become search data.
+;; Blocked files retain source-value for fallback search even when non-editable.
+;; Resource types that store hashes must supply their own :search-value-fn.
 (deftest blocked-search-source-values-test
   (doseq [source-value-fn [nil hash]]
     (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]

@@ -135,7 +135,9 @@
   (property loaded g/Bool :unjammable (default false)
             (dynamic visible (g/constantly false)))
 
-  ;; Disk state is updated non-undoably when loading or saving the resource.
+  ;; Shells retain successful reads in their original representation. Loading
+  ;; converts source-value to the resource type's disk-state representation.
+  ;; Disk state is updated non-undoably when reading, loading or saving.
   (property disk-sha256 g/Str :unjammable
             (dynamic visible (g/constantly false)))
   (property source-value g/Any :unjammable
@@ -293,11 +295,10 @@
       (let [prerequisite-proj-paths
             (resource-io/with-error-translation resource node-id nil
               (let [source-value
-                    (or (when (loaded? @basis-ref node-id)
-                          (g/node-value node-id :save-value evaluation-context)) ; Will materialize.
-                        (g/node-value node-id :source-value evaluation-context) ; Won't materialize.
-                        (with-open [input-stream (io/input-stream resource)]
-                          (read-fn read-opts resource input-stream)))]
+                    (if-not (loaded? @basis-ref node-id)
+                      (resource-io/read-source-value! read-opts node-id resource evaluation-context)
+                      (or (g/node-value node-id :save-value evaluation-context)
+                          (g/node-value node-id :source-value evaluation-context)))]
                 (when (and (some? source-value)
                            (not (g/error? source-value)))
                   (vec (prerequisites-fn read-opts resource source-value)))))]
