@@ -24,13 +24,16 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.system :as system]
-            [util.coll :as coll])
+            [service.log :as log]
+            [util.coll :as coll]
+            [util.path :as path])
   (:import [com.dynamo.bob Platform]
            [com.dynamo.render.proto Render$Resize]
            [com.dynamo.resource.proto Resource$Reload]
            [com.dynamo.system.proto System$Exit]
            [java.io BufferedReader File IOException InputStream]
            [java.net HttpURLConnection InetSocketAddress Socket URI]
+           [java.util UUID]
            [java.util.zip ZipEntry ZipFile]))
 
 (set! *warn-on-reflection* true)
@@ -314,6 +317,32 @@
           (str port)))
       (catch Exception _))))
 
+(defn reset-window-size! [project-directory]
+  ;; The engine owns geometry files. A separate token invalidates their saved
+  ;; size, including for stopped players and inactive desktop backends.
+  (try
+    (path/atomic-replace!
+      (path/of project-directory ".internal" "window-state" "reset-size")
+      #(spit % (str (UUID/randomUUID))))
+    (catch IOException error
+      ;; Persistence must not prevent resetting preferences and a live player.
+      (log/warn :message "Unable to save player window size reset" :exception error))))
+
+(defn- window-state-prefix!
+  [project-directory instance-index]
+  (try
+    (let [directory (path/of ".internal" "window-state")
+          ;; Single launches use index 0, multiple instances start at 1.
+          slot (max 0 (dec (long instance-index)))
+          operating-system (.getOs (Platform/getHostPlatform))]
+      (path/create-directories! (path/of project-directory directory))
+      ;; The player runs in the project directory. Keep its state prefix ASCII
+      ;; so Windows' narrow file APIs never encode the Unicode project path.
+      (str (path/of directory (str operating-system "-" slot))))
+    (catch IOException error
+      (log/warn :message "Unable to create player window state directory" :exception error)
+      nil)))
+
 (defn launch! [^File engine project-directory prefs debug instance-index focus]
   (let [defold-log-dir (some-> (system/defold-log-dir)
                                (File.)
@@ -340,6 +369,9 @@
                (into (remove str/blank?) (split-lines engine-arguments)))
         env {"DM_SERVICE_PORT" (or (validate-service-port (System/getenv "DM_SERVICE_PORT"))
                                    "dynamic")
+             ;; The engine adds the active GLFW backend to this file prefix.
+             ;; Environment survives both editor- and game-triggered reboots.
+             "DM_WINDOW_STATE" (window-state-prefix! project-directory instance-index)
              "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])
                                 "1" "0")
              ;; Windows only. Sets the correct symbol search path, since we're

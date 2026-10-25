@@ -18,6 +18,7 @@
 
 #include <testmain/testmain.h>
 #include <platform/window.hpp>
+#include <dlib/math.h>
 
 #include "render/render.h"
 #include "render/render_private.h"
@@ -185,6 +186,66 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferAddAndTrim)
     ASSERT_EQ(0, buffer->m_BufferIndex);
 
     dmRender::DeleteBufferedRenderBuffer(m_RenderContext, buffer);
+
+    m_RenderContext->m_MultiBufferingRequired = m_MultiBufferingRequired;
+}
+
+// Verify rewound vertex and index buffer pools reuse live slots without growing, and trim to each frame's usage.
+TEST_F(dmRenderBufferTest, TestBufferedRenderBufferReuseAcrossFrames)
+{
+    const dmRender::RenderBufferType buffer_types[] = {
+        dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER,
+        dmRender::RENDER_BUFFER_TYPE_INDEX_BUFFER
+    };
+    const uint32_t pass_counts[] = { 4, 4, 2, 4, 1, 0, 4 };
+
+    for (uint32_t type = 0; type < 2; ++type)
+    {
+        for (uint32_t multi_buffering = 0; multi_buffering < 2; ++multi_buffering)
+        {
+            m_RenderContext->m_MultiBufferingRequired = multi_buffering;
+            dmRender::HBufferedRenderBuffer buffer = dmRender::NewBufferedRenderBuffer(m_RenderContext, buffer_types[type]);
+            dmRender::HRenderBuffer handles[4] = {};
+            handles[0] = dmRender::GetBuffer(m_RenderContext, buffer);
+            ASSERT_NE(0, handles[0]);
+
+            for (uint32_t frame = 0; frame < sizeof(pass_counts) / sizeof(pass_counts[0]); ++frame)
+            {
+                const uint32_t previous_buffer_count = buffer->m_Buffers.Size();
+                dmRender::RewindBuffer(m_RenderContext, buffer);
+                ASSERT_EQ(0, dmRender::GetBufferIndex(m_RenderContext, buffer));
+                ASSERT_EQ(handles[0], dmRender::GetBuffer(m_RenderContext, buffer));
+
+                for (uint32_t pass = 0; pass < pass_counts[frame]; ++pass)
+                {
+                    dmRender::HRenderBuffer render_buffer = pass == 0
+                        ? dmRender::GetBuffer(m_RenderContext, buffer)
+                        : dmRender::AddRenderBuffer(m_RenderContext, buffer);
+                    const uint32_t buffer_index = multi_buffering ? pass : 0;
+                    ASSERT_NE(0, render_buffer);
+                    ASSERT_EQ(buffer_index, dmRender::GetBufferIndex(m_RenderContext, buffer));
+                    ASSERT_EQ(dmMath::Max(previous_buffer_count, buffer_index + 1), buffer->m_Buffers.Size());
+
+                    if (buffer_index < previous_buffer_count)
+                    {
+                        ASSERT_EQ(handles[buffer_index], render_buffer);
+                    }
+                    else
+                    {
+                        for (uint32_t i = 0; i < buffer_index; ++i)
+                            ASSERT_NE(handles[i], render_buffer);
+                        handles[buffer_index] = render_buffer;
+                    }
+                }
+
+                dmRender::TrimBuffer(m_RenderContext, buffer);
+                const uint32_t expected_buffer_count = multi_buffering ? dmMath::Max(1U, pass_counts[frame]) : 1;
+                ASSERT_EQ(expected_buffer_count, buffer->m_Buffers.Size());
+            }
+
+            dmRender::DeleteBufferedRenderBuffer(m_RenderContext, buffer);
+        }
+    }
 
     m_RenderContext->m_MultiBufferingRequired = m_MultiBufferingRequired;
 }
