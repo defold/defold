@@ -79,8 +79,7 @@ namespace dmGameSystem
         /// Added to update or not
         uint8_t                         m_AddedToUpdate : 1;
         uint8_t                         m_ReHash : 1;
-        uint8_t                         m_HasVertexBuffer : 1;
-        uint8_t                         :4;
+        uint8_t                         :5;
     };
 
     struct VertexBufferInfo
@@ -310,26 +309,6 @@ namespace dmGameSystem
         return GetMaterialResource(component, resource)->m_Material;
     }
 
-    static void UpdateVertexBufferOwnership(MeshWorld* world, MeshComponent* component)
-    {
-        bool local = dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
-        if (local == component->m_HasVertexBuffer)
-            return;
-
-        BufferResource* br = GetBufferResource(component);
-        if (local)
-        {
-            CreateVertexBuffer(world, br);
-            component->m_BufferVersion = CalcBufferVersion(component, br);
-            UpdateVertexBuffer(world, br, component->m_BufferVersion);
-        }
-        else
-        {
-            DecRefVertexBuffer(world, br->m_NameHash);
-        }
-        component->m_HasVertexBuffer = local;
-    }
-
     static TextureResource* GetTextureResource(const MeshComponent* component, uint32_t texture_unit)
     {
         assert(texture_unit < MAX_TEXTURE_COUNT);
@@ -426,7 +405,13 @@ namespace dmGameSystem
         component->m_World = go_world * component->m_Local;
 
         // Local space uses separate vertex buffers
-        UpdateVertexBufferOwnership(world, component);
+        if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
+        {
+            dmGameSystem::BufferResource* br = GetBufferResource(component);
+            component->m_BufferVersion = CalcBufferVersion(component, br);
+            CreateVertexBuffer(world, br);
+            UpdateVertexBuffer(world, br, component->m_BufferVersion);
+        }
 
         ReHash(component);
         if (world->m_RenderDispatch == 0)
@@ -455,7 +440,7 @@ namespace dmGameSystem
 
         dmGameSystem::BufferResource* br = GetBufferResource(component);
 
-        if (component->m_HasVertexBuffer) {
+        if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL) {
             DecRefVertexBuffer(world, br->m_NameHash);
         }
 
@@ -533,8 +518,8 @@ namespace dmGameSystem
                 continue;
             }
 
-            UpdateVertexBufferOwnership(world, &component);
-            if (component.m_HasVertexBuffer)
+            dmRender::HMaterial material = GetMaterial(&component, component.m_Resource);
+            if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
             {
                 dmGameSystem::BufferResource* br = GetBufferResource(&component);
 
@@ -1049,7 +1034,7 @@ namespace dmGameSystem
                     component->m_VertexDeclaration = new_vert_decl;
                 }
 
-                if (component->m_HasVertexBuffer)
+                if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
                 {
                     CreateVertexBuffer(world, br); // Will inc ref the buffer
                     UpdateVertexBuffer(world, br, component->m_BufferVersion);
@@ -1061,10 +1046,21 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
+            bool prev_material_local = dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
+
             dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
-            if (res == dmGameObject::PROPERTY_RESULT_OK)
-                UpdateVertexBufferOwnership(world, component);
+
+            bool new_material_local = dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
+
+            // If we're going from reference counted (local space) vertex buffers, to not reference counted (global space)
+            if (res == dmGameObject::PROPERTY_RESULT_OK && new_material_local != prev_material_local) {
+                if (prev_material_local)
+                {
+                    BufferResource* br = GetBufferResource(component);
+                    DecRefVertexBuffer(world, br->m_NameHash);
+                }
+            }
             return res;
         }
 

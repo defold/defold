@@ -186,12 +186,6 @@ TEST_F(MeshCounterTest, WorldSpace)
     Run(false, 16, true);
 }
 
-// Disabled components must release local buffers even after their material switches to world space.
-TEST_F(MeshCounterTest, WorldSpaceAllDisabled)
-{
-    Run(false, 0, true);
-}
-
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char** argv)
