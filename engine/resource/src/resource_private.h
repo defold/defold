@@ -91,14 +91,13 @@ struct ResourceTypeContext
 namespace dmResource
 {
     struct LoadContext;
-    struct LoadNode;
     struct RecreateContext;
 } // namespace dmResource
 
 struct ResourcePreloadHintInfo
 {
     dmResource::LoadContext* m_Context;
-    dmResource::LoadNode*    m_Node;
+    uint32_t                m_Node;
 };
 
 namespace dmResource

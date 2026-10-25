@@ -867,6 +867,65 @@ TEST_P(ResourceLoaderTest, LargeDependencyGraph)
         ASSERT_EQ(1u, m_Destroys[i]);
 }
 
+// Nested Get grows the node pool during Create, and a later load reuses the released slots.
+TEST_P(ResourceLoaderTest, UnhintedGraphGrowthAndReuse)
+{
+    m_Hints = false;
+    const uint32_t count = 257;
+    uint32_t dependencies[count];
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        dependencies[i] = i + 1;
+        Add(i + 1, 0, 0);
+    }
+    Add(0, dependencies, count);
+    for (uint32_t cycle = 0; cycle < 2; ++cycle)
+    {
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(0)));
+        for (uint32_t i = 0; i <= count; ++i)
+        {
+            ASSERT_EQ(cycle + 1, m_Preloads[i]);
+            ASSERT_EQ(cycle + 1, m_Creates[i]);
+        }
+        Delete(cycle);
+        for (uint32_t i = 0; i <= count; ++i)
+            ASSERT_EQ(cycle + 1, m_Destroys[i]);
+    }
+}
+
+// Removing an older node moves the pending node; reusing that slot must preserve its post queue and roots.
+TEST_P(ResourceLoaderTest, PendingLoadSurvivesCompactionAndReuse)
+{
+    Add(0, 0, 0);
+    Add(1, 0, 0);
+    Add(2, 0, 0);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(0)));
+    EnablePostCreate();
+    m_HoldPosts = true;
+    dmResource::HPreloader pending = Request(1);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_Posts[1] && dmTime::GetMonotonicTime() < deadline)
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(pending, 0, 0, 1000000));
+    ASSERT_GT(m_Posts[1], 0u);
+    Delete(0);
+    dmResource::HPreloader replacement = Request(2);
+    m_HoldPosts = false;
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(pending));
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(replacement));
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/node_1.node", &resource));
+    ASSERT_EQ(1u, ((LoadedNode*)resource)->m_Value);
+    dmResource::Release(m_Factory, resource);
+    Delete(1);
+    Delete(2);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(1u, m_Preloads[i]);
+        ASSERT_EQ(1u, m_Creates[i]);
+        ASSERT_EQ(1u, m_Destroys[i]);
+    }
+}
+
 // Cycles terminate through the shared graph and still consume every successful Preload allocation.
 TEST_P(ResourceLoaderTest, DependencyCycle)
 {
@@ -942,6 +1001,35 @@ TEST_P(ResourceLoaderTest, RecreateReplacesDependencies)
         ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, Replace(next, &root, 1, mode));
     }
     ASSERT_TRUE(m_CallbacksUnlocked);
+}
+
+// Removing old hint-only dependencies during Recreate can move the parent being updated in the pool.
+TEST_P(ResourceLoaderTest, RecreateCompactsHintOnlyDependencies)
+{
+    m_HintOnly = 0;
+    const uint32_t count = 65;
+    uint32_t dependencies[count];
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        dependencies[i] = i + 1;
+        Add(i + 1, 0, 0);
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(i + 1)));
+    }
+    Add(0, dependencies, count);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(0)));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        Delete(i);
+        ASSERT_EQ(1u, m_Destroys[i + 1]);
+    }
+    ASSERT_EQ(dmResource::RESULT_OK, Replace(0, 0, 0, 1));
+    uint32_t dependency = 1;
+    ASSERT_EQ(dmResource::RESULT_OK, Replace(0, &dependency, 1, 1));
+    ASSERT_EQ(2u, m_Creates[1]);
+    ASSERT_EQ(1u, m_Creates[0]);
+    Delete(count);
+    ASSERT_EQ(1u, m_Destroys[0]);
+    ASSERT_EQ(2u, m_Destroys[1]);
 }
 
 // Failed recreation preserves the previous graph and releases dependencies acquired by the failed attempt.
@@ -1521,7 +1609,7 @@ TEST_P(ResourceLoaderTest, RejectOverlongRootPaths)
     ASSERT_EQ(1u, m_Destroys[0]);
 }
 
-// Nested PostCreate Get can retry an earlier pending dependency while the outer update is still posting.
+// Nested PostCreate Get grows the pool and retries an earlier pending dependency while the outer update is posting.
 TEST_P(ResourceLoaderTest, NestedGetDuringPendingPostCreate)
 {
     EnablePostCreate();
@@ -1529,10 +1617,19 @@ TEST_P(ResourceLoaderTest, NestedGetDuringPendingPostCreate)
     m_PostLoadsSibling = true;
     uint32_t child = 1;
     Add(0, &child, 1);
-    Add(2, &child, 1);
     Add(1, 0, 0);
+    const uint32_t count = 128;
+    uint32_t dependencies[count];
+    dependencies[0] = child;
+    for (uint32_t i = 1; i < count; ++i)
+    {
+        dependencies[i] = i + 2;
+        Add(i + 2, 0, 0);
+    }
+    Add(2, dependencies, count);
     ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(0)));
-    ASSERT_EQ(1u, m_Creates[2]);
+    for (uint32_t i = 0; i <= count + 1; ++i)
+        ASSERT_EQ(1u, m_Creates[i]);
     ASSERT_EQ(1u, m_Posts[0]);
     ASSERT_GT(m_Posts[1], 1u);
 }
