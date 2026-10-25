@@ -834,7 +834,7 @@ TEST_P(GetResourceTest, PreloadGetList)
     dmResource::Release(m_Factory, resource);
 }
 
-
+// Shared requests finish on completion, independently of how many nonblocking updates fit in a frame.
 TEST_P(GetResourceTest, PreloadGetParallell)
 {
     // Race preloaders against eachother with the same Factory
@@ -849,7 +849,8 @@ TEST_P(GetResourceTest, PreloadGetParallell)
 
         uint32_t timeout = 4000;
         bool done;
-        for (uint32_t j=0;j<100;j++)
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        do
         {
             done = true;
             for (uint32_t k=0;k<n;k++)
@@ -862,11 +863,7 @@ TEST_P(GetResourceTest, PreloadGetParallell)
                 }
                 ASSERT_EQ(dmResource::RESULT_OK, r);
             }
-            if (done)
-            {
-                break;
-            }
-        }
+        } while (!done && dmTime::GetMonotonicTime() < deadline);
         ASSERT_TRUE(done);
 
         TestResourceContainer* resource = 0;
@@ -911,39 +908,6 @@ TEST_P(GetResourceTest, PreloadGetManyRefs)
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, r);
     dmResource::DeletePreloader(pr);
 }
-
-TEST_P(GetResourceTest, PreloadPathCacheFull)
-{
-    // Normal paths exhaust the name cache. Noncanonical paths use two entries
-    // and exhaust it while inserting the canonical name instead. Both early
-    // returns must release the scoped lock exactly once: Darwin's os_unfair_lock
-    // aborts on the double unlock that the old spinlock implementation tolerated.
-    const char* prefixes[] = { "/", "/./" };
-    for (uint32_t p = 0; p < 2; ++p)
-    {
-        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, m_ResourceName);
-        ResourcePreloadHintInfo info;
-        info.m_Preloader = pr;
-        info.m_Parent = 0;
-        bool full = false;
-        for (uint32_t i = 0; i < 4096; ++i)
-        {
-            char path[64];
-            dmSnPrintf(path, sizeof(path), "%smissing_%u.foo", prefixes[p], i);
-            if (!dmResource::PreloadHint(&info, path))
-            {
-                full = true;
-                break;
-            }
-        }
-        ASSERT_TRUE(full);
-        // Re-enter the same lock after failure and confirm existing cache entries
-        // remain usable when no new entries can be added.
-        ASSERT_TRUE(dmResource::PreloadHint(&info, m_ResourceName));
-        dmResource::DeletePreloader(pr);
-    }
-}
-
 
 TEST_P(GetResourceTest, PreloadGetAbort)
 {

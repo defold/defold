@@ -254,6 +254,8 @@ namespace dmResource
 
     /**
      * Create a new preloader
+     * Resource Create/PostCreate callbacks stay on the thread that first requests
+     * each resource. Pump that thread's requests until shared loads complete.
      * @param factory Factory handle
      * @param name Resource to load
      * @return CREATE_RESULT_OK on success
@@ -262,6 +264,8 @@ namespace dmResource
 
     /**
      * Create a new preloader
+     * Resource Create/PostCreate callbacks stay on the thread that first requests
+     * each resource. Pump that thread's requests until shared loads complete.
      * @param factory Factory handle
      * @param array of names of resources to load
      * @return CREATE_RESULT_OK on success
@@ -269,8 +273,12 @@ namespace dmResource
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names);
 
     /**
-     * Perform one update tick of the preloader, with a soft time limit for
-     * how much time to spend.
+     * Process ready work reachable from this request in the factory's shared
+     * dependency scheduler, with a soft time limit. Returns without waiting when
+     * no work is ready;
+     * worker jobs continue discovering and loading dependencies independently.
+     * Call from the requesting thread to execute Create/PostCreate. The soft
+     * limit is checked between callbacks; a single callback cannot be interrupted.
      * @param preloader Preloader
      * @param complete_callback Preloader complete callback
      * @param complete_callback_params PreloaderCompleteCallbackParams passed to the complete callback

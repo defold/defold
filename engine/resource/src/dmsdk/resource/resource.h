@@ -190,6 +190,8 @@ void ResourceRegisterDecryptionFunction(FResourceDecryption decrypt_resource);
 /*#
  * Get (load) a resource from factory
  * @note if successful, it increments the ref count by one
+ * @note An in-flight shared load keeps Create/PostCreate on the thread that first
+ * requested it. That thread must continue updating its resource requests.
  * @name ResourceGet
  * @param factory [type: HResourceFactory] Factory handle
  * @param path [type: const char*] Resource path
@@ -285,13 +287,15 @@ ResourceResult ResourceGetDescriptorByHash(HResourceFactory factory, dmhash_t pa
 void ResourceRelease(HResourceFactory factory, void* resource);
 
 /*#
- * Hint the preloader what to load before Create is called on the resource.
- * The resources are not guaranteed to be loaded before Create is called.
+ * Declare a direct dependency while decoding a resource in Preload.
+ * The shared resource scheduler creates accepted dependencies before invoking
+ * the resource's Create callback. Create is still called after a dependency
+ * failure so that the resource type can release its preload data.
  * This function can be called from a worker thread.
  * @name ResourcePreloadHint
- * @param preloader [type: dmResource::HResourcePreloadHintInfo] Preloader handle
+ * @param preloader [type: dmResource::HResourcePreloadHintInfo] Dependency-discovery handle supplied to Preload
  * @param path [type: const char*] Resource path
- * @return result [type: bool] if successfully invoking preloader.
+ * @return result [type: bool] true if accepted, false for an invalid path or dependency cycle.
  */
 bool ResourcePreloadHint(HResourcePreloadHintInfo preloader, const char* path);
 

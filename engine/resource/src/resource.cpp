@@ -95,11 +95,6 @@ struct ResourceFactory
 
     dmHttpCache::HCache                          m_HttpCache;
 
-    // dmResource::Get recursion depth
-    uint32_t                                     m_RecursionDepth;
-    // List of resources currently in dmResource::Get call-stack
-    dmArray<const char*>                         m_GetResourceStack;
-
     dmMessage::HSocket                           m_Socket;
 
     dmURI::Parts                                 m_UriParts;
@@ -113,6 +108,9 @@ struct ResourceFactory
 
     // Streaming chunked reading support
     HJobContext                                  m_JobThreadContext;
+    // Owned fallback for preloaders whose caller did not supply a job context.
+    HJobContext                                  m_PreloadJobContext;
+    dmResource::LoadContext*                     m_LoadContext;
 
     // Serial version that increases per resource insertion
     uint16_t                                     m_Version;
@@ -404,6 +402,9 @@ static void ResourceIteratorCallback(void*, const dmhash_t* id, ResourceDescript
 
 void DeleteFactory(HFactory factory)
 {
+    DeleteLoadContext(factory->m_LoadContext);
+    factory->m_LoadContext = 0;
+    JobSystemDestroy(factory->m_PreloadJobContext);
     factory->m_JobThreadContext = 0;
 
     ReleaseBuiltinsArchive(factory);
@@ -708,14 +709,6 @@ Result LoadResourceToBufferWithOffset(HFactory factory, const char* path, const 
     return RESULT_RESOURCE_NOT_FOUND;
 }
 
-#if !defined(DM_HAS_THREADS)
-// Only used on single threaded systems (load_queue_sync.cpp)
-LoadBufferType* GetGlobalLoadBuffer(HFactory factory)
-{
-    return &factory->m_Buffer;
-}
-#endif
-
 Result LoadResourceToBuffer(HFactory factory, const char* path, const char* original_name, uint32_t preload_size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer)
 {
     uint32_t offset = 0;
@@ -758,135 +751,6 @@ const char* GetExtFromPath(const char* path)
     return result;
 }
 
-// Assumes m_LoadMutex is already held
-static Result DoCreateResource(HFactory factory, ResourceType* resource_type, const char* name, const char* canonical_path, dmhash_t canonical_path_hash, void* buffer, uint32_t buffer_size, uint32_t resource_size, void** resource_out, LoadProfile* profile)
-{
-    DM_PROFILE_DYN(name, 0);
-
-    // TODO: We should *NOT* allocate SResource dynamically...
-    ResourceDescriptor tmp_resource;
-    memset(&tmp_resource, 0, sizeof(tmp_resource));
-    tmp_resource.m_NameHash       = canonical_path_hash;
-    tmp_resource.m_ReferenceCount = 1;
-    tmp_resource.m_ResourceType   = resource_type;
-
-    void* preload_data = 0;
-    Result create_error = RESULT_OK;
-
-    bool is_partial = buffer_size != resource_size;
-
-    if (resource_type->m_PreloadFunction)
-    {
-        ResourcePreloadParams params;
-        params.m_Factory                = factory;
-        params.m_Type                   = resource_type;
-        params.m_Context                = resource_type->m_Context;
-        params.m_Buffer                 = buffer;
-        params.m_BufferSize             = buffer_size;
-        params.m_FileSize               = resource_size;
-        params.m_IsBufferPartial        = is_partial;
-        params.m_IsBufferTransferrable  = 0;
-        params.m_Filename               = name;
-        params.m_HintInfo               = 0; // No hinting now
-        // out
-        params.m_PreloadData            = &preload_data;
-        params.m_IsBufferOwnershipTransferred = 0;
-        {
-            DM_PROFILE("ResourcePreload");
-            uint64_t start = LoadProfileTime(profile);
-            create_error = (Result)resource_type->m_PreloadFunction(&params);
-            LoadProfileAddTime(profile, LOAD_PROFILE_PRELOAD, start);
-        }
-    }
-
-    if (create_error == RESULT_OK)
-    {
-        tmp_resource.m_ResourceSizeOnDisc = buffer_size;
-        tmp_resource.m_ResourceSize       = 0; // Not everything will report a size (but instead rely on the disc size, sinze it's close enough)
-
-        ResourceCreateParams params;
-        params.m_Factory        = factory;
-        params.m_Type           = resource_type;
-        params.m_Context        = resource_type->m_Context;
-        params.m_Buffer         = buffer;
-        params.m_BufferSize     = buffer_size;
-        params.m_FileSize       = resource_size;
-        params.m_IsBufferPartial= is_partial;
-        params.m_PreloadData    = preload_data;
-        params.m_Resource       = &tmp_resource;
-        params.m_Filename       = name;
-        {
-            DM_PROFILE("ResourceCreate");
-            uint64_t start = LoadProfileTime(profile);
-            create_error = (Result)resource_type->m_CreateFunction(&params);
-            LoadProfileAddTime(profile, LOAD_PROFILE_CREATE, start);
-        }
-    }
-
-    if (create_error == RESULT_OK && resource_type->m_PostCreateFunction)
-    {
-        ResourcePostCreateParams params;
-        params.m_Factory     = factory;
-        params.m_Type        = resource_type;
-        params.m_Context     = resource_type->m_Context;
-        params.m_PreloadData = preload_data;
-        params.m_Resource    = &tmp_resource;
-        params.m_Filename    = name;
-        for(;;)
-        {
-            {
-                DM_PROFILE("ResourcePostCreate");
-                uint64_t start = LoadProfileTime(profile);
-                create_error = (Result)resource_type->m_PostCreateFunction(&params);
-                LoadProfileAddTime(profile, LOAD_PROFILE_POST_CREATE, start);
-            }
-            if(create_error != RESULT_PENDING)
-                break;
-            // As we're stalling on the main thread here, we also need to finish any potential resource tasks here.
-            JobSystemUpdate(factory->m_JobThreadContext, 1000);
-            dmTime::Sleep(1000);
-        }
-    }
-
-    // Restore to default buffer size
-    factory->m_Buffer.SetSize(0);
-    if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
-        factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
-    }
-
-    if (create_error == RESULT_OK)
-    {
-        Result insert_error = InsertResource(factory, name, canonical_path_hash, &tmp_resource);
-        if (insert_error == RESULT_OK)
-        {
-            *resource_out = tmp_resource.m_Resource;
-            LogLoadProfile(profile, name, RESULT_OK, &factory->m_Resources->Get(canonical_path_hash)->m_LoadTimings);
-            return RESULT_OK;
-        }
-        else
-        {
-            ResourceDestroyParams params;
-            params.m_Factory  = factory;
-            params.m_Type     = resource_type;
-            params.m_Context  = resource_type->m_Context;
-            params.m_Resource = &tmp_resource;
-            {
-                DM_PROFILE("ResourceDestroy");
-                DM_PROFILE_DYN(name, 0);
-                resource_type->m_DestroyFunction(&params);
-            }
-            LogLoadProfile(profile, name, insert_error);
-            return insert_error;
-        }
-    }
-    else
-    {
-        LogLoadProfile(profile, name, create_error);
-        dmLogWarning("Unable to create resource: %s: %s", canonical_path, ResultToString(create_error));
-        return create_error;
-    }
-}
-
 static Result CheckAndGetResourceFromPath(HFactory factory, dmhash_t canonical_path_hash, void** resource_out)
 {
     *resource_out = 0;
@@ -896,6 +760,9 @@ static Result CheckAndGetResourceFromPath(HFactory factory, dmhash_t canonical_p
     if (rd)
     {
         assert(factory->m_ResourceToHash->Get((uintptr_t) rd->m_Resource));
+        Result result = RecordResourceLoadGet(factory->m_LoadContext, canonical_path_hash);
+        if (result != RESULT_OK)
+            return result;
         rd->m_ReferenceCount++;
         *resource_out = rd->m_Resource;
         return RESULT_OK;
@@ -932,64 +799,6 @@ static Result CheckAndGetResourceTypeFromPath(HFactory factory, const char* cano
     return RESULT_OK;
 }
 
-// Assumes m_LoadMutex is already held
-static Result CheckAndGetResourceAndType(HFactory factory, const char* canonical_path, dmhash_t canonical_path_hash, void** resource_out, HResourceType* resource_type_out)
-{
-    Result r = CheckAndGetResourceFromPath(factory, canonical_path_hash, resource_out);
-    // If we found the resource, or if the result was anything other than "resource not exists", let's return
-    if (RESULT_OK == r || RESULT_RESOURCE_NOT_FOUND != r)
-        return r;
-    return CheckAndGetResourceTypeFromPath(factory, canonical_path, resource_type_out);
-}
-
-// Assumes m_LoadMutex is already held
-static Result CreateAndLoadResource(HFactory factory, const char* path, void** resource)
-{
-    assert(path);
-    assert(resource);
-
-    DM_PROFILE(__FUNCTION__);
-
-    char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(path, canonical_path, sizeof(canonical_path));
-    dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
-
-    ResourceType* resource_type;
-    Result res = CheckAndGetResourceAndType(factory, canonical_path, canonical_path_hash, resource, &resource_type);
-    if (res != RESULT_OK)
-    {
-        return res;
-    }
-    else if (*resource != 0x0)
-    {
-        // Resource already created
-        return RESULT_OK;
-    }
-
-    uint32_t preload_size = RESOURCE_INVALID_PRELOAD_SIZE;
-    if (ResourceTypeIsStreaming(resource_type))
-    {
-        preload_size = ResourceTypeGetPreloadSize(resource_type);
-    }
-
-    void* buffer         = 0;
-    uint32_t buffer_size = 0;
-    uint32_t resource_size = 0;
-    LoadProfile profile;
-    LoadProfileBegin(&profile, factory->m_Profile);
-    uint64_t read_start = LoadProfileTime(&profile);
-    Result result = LoadResource(factory, canonical_path, path, preload_size, &buffer, &buffer_size, &resource_size);
-    LoadProfileAddTime(&profile, LOAD_PROFILE_READ, read_start);
-    if (result != RESULT_OK)
-    {
-        LogLoadProfile(&profile, path, result);
-        return result;
-    }
-    assert(buffer == factory->m_Buffer.Begin());
-
-    return DoCreateResource(factory, resource_type, path, canonical_path, canonical_path_hash, buffer, buffer_size, resource_size, resource, &profile);
-}
-
 Result CreateResourcePartial(HFactory factory, HResourceType type, const char* name, void* data, uint32_t data_size, uint32_t file_size, void** resource)
 {
     assert(name);
@@ -997,32 +806,22 @@ Result CreateResourcePartial(HFactory factory, HResourceType type, const char* n
 
     DM_PROFILE(__FUNCTION__);
 
-    dmMutex::ScopedLock lk(factory->m_LoadMutex);
-
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
-    dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
-
-    Result res = CheckAndGetResourceFromPath(factory, canonical_path_hash, resource);
-    // If we found the resource, or if the result was anything other than "resource not exists", let's return
-    if (RESULT_OK == res || RESULT_RESOURCE_NOT_FOUND != res)
+    dmhash_t canonical_path_hash = dmHashString64(canonical_path);
     {
-        return res;
+        DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
+        Result result = CheckAndGetResourceFromPath(factory, canonical_path_hash, resource);
+        if (result != RESULT_RESOURCE_NOT_FOUND)
+            return result;
     }
-
-    ResourceType* resource_type = type;
-    if (resource_type == 0)
+    if (!type)
     {
-        res = CheckAndGetResourceTypeFromPath(factory, canonical_path, &resource_type);
-        if (res != RESULT_OK)
-        {
-            return res;
-        }
+        Result result = CheckAndGetResourceTypeFromPath(factory, canonical_path, &type);
+        if (result != RESULT_OK)
+            return result;
     }
-
-    LoadProfile profile;
-    LoadProfileBegin(&profile, factory->m_Profile);
-    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, data, data_size, file_size, resource, &profile);
+    return LoadResourceSync(factory, name, type, data, data_size, file_size, true, resource);
 }
 
 Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource)
@@ -1049,42 +848,16 @@ Result GetWithExt(HFactory factory, const char* path, const char* ext, void** re
         }
     }
 
-    dmMutex::ScopedLock lk(factory->m_LoadMutex);
-
-    dmArray<const char*>& stack = factory->m_GetResourceStack;
-    if (factory->m_RecursionDepth == 0)
     {
-        stack.SetSize(0);
+        DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
+        char canonical_path[RESOURCE_PATH_MAX];
+        GetCanonicalPath(path, canonical_path, sizeof(canonical_path));
+        Result result = CheckAndGetResourceFromPath(factory, dmHashString64(canonical_path), resource);
+        if (result != RESULT_RESOURCE_NOT_FOUND)
+            return result;
     }
 
-    ++factory->m_RecursionDepth;
-
-    uint32_t n = stack.Size();
-    for (uint32_t i=0;i<n;i++)
-    {
-        if (strcmp(stack[i], path) == 0)
-        {
-            dmLogError("Self referring resource detected");
-            dmLogError("Reference chain:");
-            for (uint32_t j = 0; j < n; ++j)
-            {
-                dmLogError("%d: %s", j, stack[j]);
-            }
-            dmLogError("%d: %s", n, path);
-            --factory->m_RecursionDepth;
-            return RESULT_RESOURCE_LOOP_ERROR;
-        }
-    }
-
-    if (stack.Full())
-    {
-        stack.SetCapacity(stack.Capacity() + 16);
-    }
-    stack.Push(path);
-    Result r = CreateAndLoadResource(factory, path, resource);
-    stack.SetSize(stack.Size() - 1);
-    --factory->m_RecursionDepth;
-    return r;
+    return LoadResourceSync(factory, path, 0, 0, 0, 0, false, resource);
 }
 
 Result Get(HFactory factory, const char* path, void** resource)
@@ -1108,6 +881,9 @@ Result GetWithExt(HFactory factory, dmhash_t path_hash, dmhash_t ext_hash, void*
     {
         return RESULT_INVALID_FILE_EXTENSION;
     }
+    Result result = RecordResourceLoadGet(factory->m_LoadContext, path_hash);
+    if (result != RESULT_OK)
+        return result;
     dmResource::IncRef(factory, rd->m_Resource);
     *resource = rd->m_Resource;
     return RESULT_OK;
@@ -1120,6 +896,7 @@ Result Get(HFactory factory, dmhash_t path_hash, void** resource)
 
 Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, ResourceDescriptor* descriptor)
 {
+    DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
     if (factory->m_Resources->Full())
     {
         dmLogError("The max number of resources (%d) has been passed, tweak \"%s\" in the config file.", factory->m_Resources->Capacity(), MAX_RESOURCES_KEY);
@@ -1157,7 +934,7 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
     if (chk != RESULT_OK)
         return chk;
 
-    dmMutex::ScopedLock lk(factory->m_LoadMutex);
+    DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
 
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
@@ -1200,91 +977,104 @@ static Result DestroyPreviousResource(HFactory factory, ResourceDescriptor* rd)
     return result;
 }
 
-static Result DoReloadResource(HFactory factory, const char* name, HResourceDescriptor* out_descriptor)
+// Keep callbacks under scheduler ownership, with table locks only around lookup
+// and publication. Recreate may synchronously load a new dependency on any caller.
+static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const char* filename, const void* data, uint32_t data_size, const void* message, HResourceDescriptor* out_descriptor)
 {
-    char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
-
-    uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
-
-    ResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
-
-    if (out_descriptor)
-        *out_descriptor = rd;
-
-    if (rd == 0x0)
+    RecreateContext* recreate = BeginResourceRecreate(GetLoadContext(factory), path_hash);
+    ResourceDescriptor descriptor = {};
+    ResourceDescriptor* rd;
+    {
+        DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
+        rd = factory->m_Resources->Get(path_hash);
+        if (rd)
+        {
+            IncRef(factory, rd);
+            descriptor = *rd;
+        }
+        if (out_descriptor)
+            *out_descriptor = rd;
+    }
+    if (!rd)
+    {
+        CommitResourceRecreate(recreate, RESULT_RESOURCE_NOT_FOUND, 0);
+        EndResourceRecreate(recreate);
         return RESULT_RESOURCE_NOT_FOUND;
-
-    ResourceType* resource_type = (ResourceType*) rd->m_ResourceType;
-    if (!resource_type->m_RecreateFunction)
-        return RESULT_NOT_SUPPORTED;
-
-    uint32_t preload_size = RESOURCE_INVALID_PRELOAD_SIZE;
-    if (ResourceTypeIsStreaming(resource_type))
-    {
-        preload_size = ResourceTypeGetPreloadSize(resource_type);
     }
 
-    void* buffer;
-    uint32_t buffer_size;
-    uint32_t resource_size;
-    Result result = LoadResource(factory, canonical_path, name, preload_size, &buffer, &buffer_size, &resource_size);
-    if (result != RESULT_OK)
+    ResourceType* resource_type = descriptor.m_ResourceType;
+    Result result = resource_type->m_RecreateFunction ? RESULT_OK : RESULT_NOT_SUPPORTED;
+    LoadBufferType buffer;
+    uint32_t buffer_size = data_size;
+    uint32_t resource_size = data_size;
+    if (result == RESULT_OK && filename)
     {
-        return result;
+        uint32_t preload_size = ResourceTypeIsStreaming(resource_type) ? ResourceTypeGetPreloadSize(resource_type) : RESOURCE_INVALID_PRELOAD_SIZE;
+        result = LoadResourceToBuffer(factory, filename, filename, preload_size, &resource_size, &buffer_size, &buffer);
+        data = buffer.Begin();
     }
-
-    assert(buffer == factory->m_Buffer.Begin());
-
-    ResourceRecreateParams params;
-    params.m_Factory        = factory;
-    params.m_Type           = resource_type;
-    params.m_Context        = resource_type->m_Context;
-    params.m_Message        = 0;
-    params.m_Buffer         = buffer;
-    params.m_BufferSize     = buffer_size;
-    params.m_FileSize       = resource_size;
-    params.m_IsBufferPartial= buffer_size != resource_size;
-    params.m_Resource       = rd;
-    params.m_Filename       = name;
-    rd->m_PrevResource = 0;
-    Result create_result;
+    if (result == RESULT_OK)
     {
-        DM_PROFILE("ResourceRecreate");
-        DM_PROFILE_DYN(name, 0);
-        create_result = (Result)resource_type->m_RecreateFunction(&params);
+        ResourceRecreateParams params = {};
+        params.m_Factory = factory;
+        params.m_Type = resource_type;
+        params.m_Context = resource_type->m_Context;
+        params.m_Message = message;
+        params.m_Buffer = data;
+        params.m_BufferSize = buffer_size;
+        params.m_FileSize = resource_size;
+        params.m_IsBufferPartial = buffer_size != resource_size;
+        params.m_Resource = &descriptor;
+        params.m_Filename = filename;
+        params.m_FilenameHash = path_hash;
+        descriptor.m_PrevResource = 0;
+        {
+            DM_PROFILE("ResourceRecreate");
+            DM_PROFILE_DYN(filename ? filename : dmHashReverseSafe64(path_hash), 0);
+            result = (Result)resource_type->m_RecreateFunction(&params);
+        }
+        if (result == RESULT_OK)
+        {
+            DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
+            rd->m_Resource = descriptor.m_Resource;
+            rd->m_PrevResource = descriptor.m_PrevResource;
+            rd->m_ResourceSize = descriptor.m_ResourceSize;
+            if (filename)
+            {
+                rd->m_Version = IncreaseVersion(factory);
+                rd->m_ResourceSizeOnDisc = buffer_size;
+            }
+        }
     }
-    if (create_result == RESULT_OK)
+    CommitResourceRecreate(recreate, result, rd->m_Resource);
+    if (result == RESULT_OK)
     {
-        rd->m_Version = IncreaseVersion(factory);
-        params.m_Resource->m_ResourceSizeOnDisc = buffer_size;
         if (factory->m_ResourceReloadedCallbacks)
         {
             for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)
             {
                 ResourceReloadedCallbackPair& pair = (*factory->m_ResourceReloadedCallbacks)[i];
-                ResourceReloadedParams reload_params;
-                reload_params.m_UserData = pair.m_UserData;
-                reload_params.m_Resource = rd;
-                reload_params.m_Filename = name;
-                reload_params.m_FilenameHash = canonical_path_hash;
-                reload_params.m_Type     = resource_type;
-                pair.m_Callback(&reload_params);
+                ResourceReloadedParams params;
+                params.m_UserData = pair.m_UserData;
+                params.m_Resource = rd;
+                params.m_Filename = filename;
+                params.m_FilenameHash = path_hash;
+                params.m_Type = resource_type;
+                pair.m_Callback(&params);
             }
         }
-        return DestroyPreviousResource(factory, rd);
+        result = DestroyPreviousResource(factory, rd);
     }
-    else
-    {
-        return create_result;
-    }
+    Release(factory, rd->m_Resource);
+    EndResourceRecreate(recreate);
+    return result;
 }
 
 Result ReloadResource(HFactory factory, const char* name, HResourceDescriptor* out_descriptor)
 {
-    dmMutex::ScopedLock lk(factory->m_LoadMutex);
-
-    Result result = DoReloadResource(factory, name, out_descriptor);
+    char canonical_path[RESOURCE_PATH_MAX];
+    GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
+    Result result = DoRecreateResource(factory, dmHashString64(canonical_path), name, 0, 0, 0, out_descriptor);
 
     switch (result)
     {
@@ -1302,7 +1092,7 @@ Result ReloadResource(HFactory factory, const char* name, HResourceDescriptor* o
             dmLogError("%s could not be reloaded since it was never loaded before.", name);
             break;
         case RESULT_NOT_SUPPORTED:
-            dmLogWarning("Reloading of resource type %s not supported.", ((ResourceType*)((*out_descriptor)->m_ResourceType))->m_Extension);
+            dmLogWarning("Reloading of resource %s not supported.", name);
             break;
         default:
             dmLogWarning("%s could not be reloaded, unknown error: %d.", name, result);
@@ -1315,124 +1105,16 @@ Result ReloadResource(HFactory factory, const char* name, HResourceDescriptor* o
 Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t datasize)
 {
     DM_PROFILE(__FUNCTION__);
-
-    dmMutex::ScopedLock lk(factory->m_LoadMutex);
-
-    assert(data);
-
-    ResourceDescriptor* rd = factory->m_Resources->Get(hashed_name);
-    if (!rd) {
-        return RESULT_RESOURCE_NOT_FOUND;
-    }
-
-    ResourceType* resource_type = (ResourceType*) rd->m_ResourceType;
-    if (!resource_type->m_RecreateFunction)
-        return RESULT_NOT_SUPPORTED;
-
     assert(data);
     assert(datasize > 0);
-
-    ResourceRecreateParams params;
-    params.m_Factory = factory;
-    params.m_Type    = resource_type;
-    params.m_Context = resource_type->m_Context;
-    params.m_Message = 0;
-    params.m_Buffer  = data;
-    params.m_BufferSize = datasize;
-    params.m_Resource = rd;
-    params.m_Filename = 0;
-    params.m_FilenameHash = hashed_name;
-    rd->m_PrevResource = 0;
-    Result create_result;
-    {
-        DM_PROFILE("ResourceRecreate");
-        DM_PROFILE_DYN(dmHashReverseSafe64(hashed_name), 0);
-        create_result = (Result)resource_type->m_RecreateFunction(&params);
-    }
-    if (create_result == RESULT_OK)
-    {
-        if (factory->m_ResourceReloadedCallbacks)
-        {
-            for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)
-            {
-                ResourceReloadedCallbackPair& pair = (*factory->m_ResourceReloadedCallbacks)[i];
-                ResourceReloadedParams params;
-                params.m_UserData = pair.m_UserData;
-                params.m_Resource = rd;
-                params.m_Type     = resource_type;
-                params.m_Filename = 0;
-                params.m_FilenameHash = hashed_name;
-                pair.m_Callback(&params);
-            }
-        }
-        return DestroyPreviousResource(factory, rd);
-    }
-    else
-    {
-        return create_result;
-    }
-
-    return RESULT_OK;
+    return DoRecreateResource(factory, hashed_name, 0, data, datasize, 0, 0);
 }
 
 Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
 {
     DM_PROFILE(__FUNCTION__);
-
-    dmMutex::ScopedLock lk(factory->m_LoadMutex);
-
     assert(message);
-
-    ResourceDescriptor* rd = factory->m_Resources->Get(hashed_name);
-    if (!rd) {
-        return RESULT_RESOURCE_NOT_FOUND;
-    }
-
-    ResourceType* resource_type = (ResourceType*) rd->m_ResourceType;
-    if (!resource_type->m_RecreateFunction)
-        return RESULT_NOT_SUPPORTED;
-
-    ResourceRecreateParams params;
-    params.m_Factory = factory;
-    params.m_Type    = resource_type;
-    params.m_Context = resource_type->m_Context;
-    params.m_Message = message;
-    params.m_Buffer = 0;
-    params.m_BufferSize = 0;
-    params.m_Resource = rd;
-    params.m_Filename = 0;
-    params.m_FilenameHash = hashed_name;
-    rd->m_PrevResource = 0;
-    Result create_result;
-    {
-        DM_PROFILE("ResourceRecreate");
-        DM_PROFILE_DYN(dmHashReverseSafe64(hashed_name), 0);
-        create_result = (Result)resource_type->m_RecreateFunction(&params);
-    }
-    if (create_result == RESULT_OK)
-    {
-        if (factory->m_ResourceReloadedCallbacks)
-        {
-            for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)
-            {
-                ResourceReloadedCallbackPair& pair = (*factory->m_ResourceReloadedCallbacks)[i];
-                ResourceReloadedParams params;
-                params.m_UserData = pair.m_UserData;
-                params.m_Resource = rd;
-                params.m_Filename = 0;
-                params.m_FilenameHash = hashed_name;
-                params.m_Type = resource_type;
-                pair.m_Callback(&params);
-            }
-        }
-        return DestroyPreviousResource(factory, rd);
-    }
-    else
-    {
-        return create_result;
-    }
-
-    return RESULT_OK;
+    return DoRecreateResource(factory, hashed_name, 0, 0, 0, message, 0);
 }
 
 Result GetType(HFactory factory, void* resource, HResourceType* type)
@@ -1539,6 +1221,7 @@ Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64
 
 void IncRef(HFactory factory, HResourceDescriptor rd)
 {
+    DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
     (void)factory;
     assert(rd);
     assert(rd->m_ReferenceCount > 0);
@@ -1547,6 +1230,7 @@ void IncRef(HFactory factory, HResourceDescriptor rd)
 
 void IncRef(HFactory factory, void* resource)
 {
+    DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
     assert(resource_hash);
 
@@ -1586,41 +1270,43 @@ uint32_t GetRefCount(HFactory factory, dmhash_t identifier)
 void Release(HFactory factory, void* resource)
 {
     DM_PROFILE(__FUNCTION__);
-
-    uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
-    assert(resource_hash);
-
-    ResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
-    assert(rd);
-    assert(rd->m_ReferenceCount > 0);
-    rd->m_ReferenceCount--;
-
-    if (rd->m_ReferenceCount == 0)
+    ResourceDescriptor descriptor;
     {
-        ResourceType* resource_type = (ResourceType*) rd->m_ResourceType;
-
-        DM_PROFILE_DYN(resource_type->m_Extension, 0);
-
-        ResourceDestroyParams params;
-        params.m_Factory    = factory;
-        params.m_Type       = resource_type;
-        params.m_Context    = resource_type->m_Context;
-        params.m_Resource   = rd;
+        DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
+        uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t)resource);
+        assert(resource_hash);
+        dmhash_t hash = *resource_hash;
+        ResourceDescriptor* rd = factory->m_Resources->Get(hash);
+        assert(rd && rd->m_ReferenceCount);
+        if (--rd->m_ReferenceCount)
+            return;
+        if (RetainResourceLoadReference(factory->m_LoadContext, hash, resource))
         {
-            DM_PROFILE("ResourceDestroy");
-            resource_type->m_DestroyFunction(&params);
+            rd->m_ReferenceCount = 1;
+            return;
         }
-
-        factory->m_ResourceToHash->Erase((uintptr_t) resource);
-        factory->m_Resources->Erase(*resource_hash);
+        descriptor = *rd;
+        factory->m_ResourceToHash->Erase((uintptr_t)resource);
+        factory->m_Resources->Erase(hash);
         if (factory->m_ResourceHashToFilename)
         {
-            const char** s = factory->m_ResourceHashToFilename->Get(*resource_hash);
-            factory->m_ResourceHashToFilename->Erase(*resource_hash);
-            assert(s);
-            free((void*) *s);
+            const char** filename = factory->m_ResourceHashToFilename->Get(hash);
+            assert(filename);
+            free((void*)*filename);
+            factory->m_ResourceHashToFilename->Erase(hash);
         }
     }
+    // Destroy may release dependencies or load another resource. Retire the
+    // descriptor first and release the table lock before entering type callbacks.
+    ResourceType* type = descriptor.m_ResourceType;
+    ResourceDestroyParams params = {};
+    params.m_Factory = factory;
+    params.m_Type = type;
+    params.m_Context = type->m_Context;
+    params.m_Resource = &descriptor;
+    DM_PROFILE("ResourceDestroy");
+    DM_PROFILE_DYN(type->m_Extension, 0);
+    type->m_DestroyFunction(&params);
 }
 
 void RegisterResourceReloadedCallback(HFactory factory, FResourceReloadedCallback callback, void* user_data)
@@ -1686,6 +1372,29 @@ Result RemoveFile(HFactory factory, const char* path)
 HJobContext GetJobThread(const dmResource::HFactory factory)
 {
     return factory->m_JobThreadContext;
+}
+
+LoadContext* GetLoadContext(HFactory factory)
+{
+    DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
+    if (!factory->m_LoadContext)
+        factory->m_LoadContext = NewLoadContext(factory);
+    return factory->m_LoadContext;
+}
+
+HJobContext GetPreloadJobContext(HFactory factory)
+{
+    if (factory->m_JobThreadContext)
+        return factory->m_JobThreadContext;
+
+    if (!factory->m_PreloadJobContext)
+    {
+        JobSystemCreateParams params = {};
+        params.m_ThreadNamePrefix = "ResourceJob";
+        params.m_ThreadCount = 1;
+        factory->m_PreloadJobContext = JobSystemCreate(&params);
+    }
+    return factory->m_PreloadJobContext;
 }
 
 dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory)

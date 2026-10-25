@@ -12,1132 +12,1413 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <stdio.h>
-#include <assert.h>
+#include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
-#include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
-#include <dlib/hashtable.h>
+#include <dlib/jobsystem.h>
 #include <dlib/log.h>
-#include <dlib/uri.h>
+#include <dlib/mutex.h>
+#include <dlib/profile.h>
+#include <dlib/thread.h>
 #include <dlib/time.h>
-#include <dlib/spinlock.h>
+#if defined(DM_HAS_THREADS)
+#include <dlib/condition_variable.h>
+#endif
 
-#include "block_allocator.h"
 #include "resource.h"
 #include "resource_private.h"
 #include "resource_util.h"
-#include "async/load_queue.h"
-
-// The preloader works as follow; a tree is constructed with each resource to be loaded as a node in the tree.
-// The tree is stored in m_Requests and indices are used to point around in the tree.
-//
-// 0) /rootcollection
-//    1) /go1
-//      3) /script1
-//      4) /script2 PENDING
-//    2) /go2
-//      5) /tilemap
-//        6) /textureset
-//        7) /material
-//
-// Nodes store the LoadResult as RESULT_PENDING, which is invalid as any actual result.
-// These are the 'real' states a node can be in.
-//
-// => New (RESULT_PENDING, m_LoadRequest=0, m_Buffer)
-// => Waiting for load through load queue, (RESULT_PENDING, m_LoadRequest=<handle>)
-//    (Once the load completes, the resource preload will have run and populated the node with children)
-// => Preloaded, waiting on children (RESULT_PENDING, m_Buffer=<data>, m_PreloadData=<data>, m_FirstChild != -1)
-// => Created successfully, (RESULT_OK, m_Resource=<resource>, m_FirstChild == -1)
-// => Created with error, (neither RESULT_PENDING nor RESULT_OK)
-//
-// Nodes are scheduled for load in depth first order. Once they are loaded they might add new child items to the
-// tree. Child items to a node will then be loaded and created before the parent node is created.
-//
-// Once a node with children finds none of them are in PENDING state any longer, resource create will happen,
-// child nodes (which are done) are then erased and the tree is traversed upwards to see if the parent can be
-// completed in the same manner. (PreloaderTryPruneParent)
-//
-// New items added in PreloadHint are added to a guarded dmArray and the preloader pops this array after it
-// has detected a completion of an item in the preloader queue. This keeps the syncronized state small and
-// reduces the contention on the syncronized lock.
-//
-// A path cache is also used to allow the path strings to be internalized without adding the full path length
-// to each request item. The path cache is also syncronized with the same spinlock as the new preloader hints array.
-// The path cache is not touched by the UpdatePreloader code, we keep the internalized pointers in the item.
-
-// If max number of preload items is reached or the path cache is full new items added to the preloader will
-// be thrown away and can potentially cause synced loading of those resources.
-
-
-
-typedef int16_t TRequestIndex;
-
-// The preloader will function even down to a value of 1 here (the root object)
-// and sets the limit of how large a dependencies tree can be stored. Since nodes
-// are always present with all their children inserted (unless there was not room)
-// the required size is something the sum of all children on each level down along
-// the largest branch.
-
-typedef dmHashTable<dmhash_t, uint32_t> TPathHashTable;
-typedef dmHashTable<dmhash_t, bool> TPathInProgressTable;
-
-
-static const uint32_t MAX_PRELOADER_REQUESTS         = 1024;
-static const uint32_t PATH_IN_PROGRESS_TABLE_SIZE    = MAX_PRELOADER_REQUESTS / 3;
-static const uint32_t PATH_IN_PROGRESS_CAPACITY      = MAX_PRELOADER_REQUESTS;
-static const uint32_t PATH_IN_PROGRESS_HASHDATA_SIZE = (PATH_IN_PROGRESS_TABLE_SIZE * sizeof(uint32_t)) + (PATH_IN_PROGRESS_CAPACITY * sizeof(TPathInProgressTable::Entry));
-static const uint32_t PATH_AVERAGE_LENGTH            = 40;
-static const uint32_t MAX_PRELOADER_PATHS            = 1536;
-static const uint32_t PATH_BUFFER_TABLE_SIZE         = 509;
-static const uint32_t PATH_BUFFER_TABLE_CAPACITY     = MAX_PRELOADER_PATHS;
-static const uint32_t PATH_BUFFER_HASHDATA_SIZE      = (PATH_BUFFER_TABLE_SIZE * sizeof(uint32_t)) + (PATH_BUFFER_TABLE_CAPACITY * sizeof(TPathHashTable::Entry));
-
-struct PathDescriptor
-{
-    const char* m_InternalizedName;
-    const char* m_InternalizedCanonicalPath;
-    HResourceType m_ResourceType;
-    dmhash_t m_NameHash;
-    dmhash_t m_CanonicalPathHash;
-};
-
-// Internal data structure for passing parameters to postcreate function callbacks
-struct ResourcePostCreateParamsInternal
-{
-    ResourcePostCreateParams m_Params;
-    ResourceDescriptor m_ResourceDesc;
-    bool m_Destroy;
-    dmResource::LoadProfile  m_Profile;
-    dmResource::Result       m_CreateResult;
-};
-
-struct PendingHint
-{
-    PathDescriptor m_PathDescriptor;
-    TRequestIndex m_Parent;
-};
-
-struct PreloadRequest
-{
-    PathDescriptor m_PathDescriptor;
-
-    TRequestIndex m_Parent;
-    TRequestIndex m_FirstChild;
-    TRequestIndex m_NextSibling;
-    uint16_t m_PendingChildCount;
-
-    // Set once resources have started loading, they have a load request
-    dmLoadQueue::HRequest m_LoadRequest;
-
-    // Set for items that are pending and waiting for children to complete
-    void*       m_Buffer;
-    uint32_t    m_BufferSize;
-    uint32_t    m_FileSize;
-
-    // Set once preload function has run
-    void* m_PreloadData;
-
-    // Set once load has completed
-    dmResource::Result m_LoadResult;
-    void* m_Resource;
-    dmResource::LoadProfile m_Profile;
-};
 
 struct ResourcePreloader
 {
-    ResourcePreloader()
-        : m_InProgress(&m_PathInProgressData, PATH_IN_PROGRESS_TABLE_SIZE, PATH_IN_PROGRESS_CAPACITY)
-    {
-    }
-    struct SyncedData
-    {
-        SyncedData()
-            : m_PathLookup(m_LookupData, PATH_BUFFER_TABLE_SIZE, PATH_BUFFER_TABLE_CAPACITY)
-            , m_PathDataUsed(0)
-        {
-        }
-        dmArray<PendingHint> m_NewHints;
-        TPathHashTable m_PathLookup;
-        uint8_t m_LookupData[PATH_BUFFER_HASHDATA_SIZE];
-        char m_PathData[MAX_PRELOADER_PATHS * PATH_AVERAGE_LENGTH];
-        uint32_t m_PathDataUsed;
-    } m_SyncedData;
-
-    dmSpinlock::Spinlock m_SyncedDataSpinlock;
-
-    PreloadRequest m_Request[MAX_PRELOADER_REQUESTS];
-
-    // list of free nodes
-    TRequestIndex m_Freelist[MAX_PRELOADER_REQUESTS];
-    uint32_t m_FreelistSize;
-    dmLoadQueue::HQueue m_LoadQueue;
-    dmResource::HFactory m_Factory;
-    TPathInProgressTable m_InProgress;
-    uint8_t m_PathInProgressData[PATH_IN_PROGRESS_HASHDATA_SIZE];
-
-    // used instead of dynamic allocs as far as it lasts.
-    dmBlockAllocator::HContext m_BlockAllocator;
-
-    // post create state
-    bool m_LoadQueueFull;
-    bool m_CreateComplete;
-    uint32_t m_PostCreateCallbackIndex;
-    dmArray<ResourcePostCreateParamsInternal> m_PostCreateCallbacks;
-
-    // How many of the initial resources where requested - they should not be release until preloader destruction
-    TRequestIndex m_PersistResourceCount;
-
-    dmArray<void*> m_PersistedResources;
+    dmResource::LoadContext* m_Context;
+    dmArray<dmResource::LoadNode*> m_Roots;
+    dmResource::Result m_CallbackResult;
+    bool m_CallbackCalled;
+    bool m_Holding;
+    bool m_Blocking;
 };
 
 namespace dmResource
 {
-    const char* InternalizePath(ResourcePreloader::SyncedData* preloader_synced_data, dmhash_t path_hash, const char* path, uint32_t path_len)
+    static const uint32_t INVALID_LOAD_INDEX = 0xffffffff;
+    static const uint64_t STAGED_INPUT_LIMIT = 4 * 1024 * 1024;
+
+    // These buffers and callback parameters exist only while the resource is loading.
+    struct LoadData
     {
-        uint32_t* path_lookup = preloader_synced_data->m_PathLookup.Get(path_hash);
-        if (path_lookup != 0x0)
-        {
-            return &preloader_synced_data->m_PathData[*path_lookup];
-        }
-        if (preloader_synced_data->m_PathLookup.Full())
-        {
-            return 0x0;
-        }
-        if (preloader_synced_data->m_PathDataUsed + path_len + 1 > sizeof(preloader_synced_data->m_PathData))
-        {
-            return 0x0;
-        }
-        char* result = &preloader_synced_data->m_PathData[preloader_synced_data->m_PathDataUsed];
-        dmStrlCpy(result, path, path_len + 1);
-        preloader_synced_data->m_PathLookup.Put(path_hash, preloader_synced_data->m_PathDataUsed);
-        preloader_synced_data->m_PathDataUsed += path_len + 1;
-        return result;
+        LoadBufferType m_Buffer;
+        ResourceDescriptor m_Descriptor;
+        LoadProfile m_Profile;
+        void* m_PreloadData;
+        const void* m_ProvidedData;
+        uint32_t m_Caller;
+        uint32_t m_Selection;
+        uint64_t m_StagedBytes;
+        uint32_t m_BufferSize;
+        uint32_t m_FileSize;
+        Result m_ReadResult;
+        Result m_PreloadResult;
+        bool m_Provided;
+        bool m_BufferTransferred;
+        bool m_Destroy;
+        bool m_ReadStarted;
+        bool m_InCreate;
+    };
+
+    struct LoadNode
+    {
+        char* m_Path;
+        HResourceType m_Type;
+        LoadData* m_Load;
+        void* m_Resource;
+        dmhash_t m_PathHash;
+        uint32_t m_Index;
+        uint32_t m_FirstDependency;
+        uint32_t m_FirstDependent;
+        uint32_t m_PendingDependencies;
+        uint32_t m_PendingCompletions;
+        uint32_t m_Holds;
+        uint32_t m_References;
+        uint32_t m_RootReferences;
+        uint32_t m_Visited;
+        Result m_CreateResult;
+        Result m_Result;
+        Result m_DependencyResult;
+        bool m_Discovered;
+        bool m_CreateQueued;
+        bool m_Created;
+        bool m_PostDone;
+        bool m_CompleteQueued;
+        bool m_Complete;
+        bool m_Pin;
+        bool m_PinQueued;
+    };
+
+    // One edge per distinct parent/dependency pair. Indices survive array growth.
+    struct LoadEdge
+    {
+        uint32_t m_Parent;
+        uint32_t m_Child;
+        uint32_t m_NextDependency;
+        uint32_t m_NextDependent;
+        uint32_t m_PreviousDependent;
+    };
+
+    struct LoadQueue
+    {
+        dmArray<LoadNode*> m_Items;
+        uint32_t m_Front;
+    };
+
+    struct RecreateContext
+    {
+        LoadContext* m_Context;
+        LoadNode* m_Node;
+        LoadNode* m_PreviousCreating;
+        RecreateContext* m_Previous;
+        dmArray<LoadNode*> m_Dependencies;
+        uint32_t m_FirstDependency;
+        Result m_DependencyResult;
+    };
+
+    enum LoadWork
+    {
+        LOAD_WORK_READ,
+        LOAD_WORK_CREATE,
+        LOAD_WORK_POST,
+        LOAD_WORK_COMPLETE
+    };
+
+    struct LoadContext
+    {
+        HFactory m_Factory;
+        HJobContext m_Jobs;
+        dmMutex::HMutex m_Mutex;
+#if defined(DM_HAS_THREADS)
+        dmConditionVariable::HConditionVariable m_Changed;
+        dmThread::TlsKey m_CallerKey;
+#endif
+        dmHashTable64<LoadNode*> m_ByPath;
+        dmArray<LoadNode*> m_Nodes;
+        dmArray<uint32_t> m_FreeNodes;
+        dmArray<LoadEdge> m_Edges;
+        dmArray<uint32_t> m_FreeEdges;
+        dmArray<LoadNode*> m_Visit;
+        LoadQueue m_Reads;
+        LoadQueue m_Creates;
+        LoadQueue m_Completions;
+        LoadQueue m_Pins;
+        LoadQueue m_Posts;
+        LoadNode* m_Creating;
+        RecreateContext* m_Recreating;
+        HPreloader m_SelectedRequest;
+        uint32_t m_Selection;
+        uint32_t m_UpdateOwner;
+        uint32_t m_NextCaller;
+        uint32_t m_UpdateDepth;
+        uint32_t m_ActiveReads;
+        uint32_t m_ReadLimit;
+        uint32_t m_VisitGeneration;
+        uint32_t m_Requests;
+        uint64_t m_StagedBytes;
+    };
+
+    template <typename T>
+    static void Push(dmArray<T>& items, const T& item)
+    {
+        if (items.Full())
+            items.SetCapacity(items.Capacity() ? items.Capacity() * 2 : 16);
+        items.Push(item);
     }
 
-    static HResourceType GetResourceType(HPreloader preloader, const char* path)
+    static void Push(LoadQueue& queue, LoadNode* node)
     {
-        const char* ext = strrchr(path, '.');
-        if (!ext)
-        {
-            dmLogWarning("Unknown resource type: '%s'. Missing file extension.", path);
+        Push(queue.m_Items, node);
+    }
+
+    static LoadNode* Pop(LoadQueue& queue)
+    {
+        if (queue.m_Front == queue.m_Items.Size())
             return 0;
+        LoadNode* node = queue.m_Items[queue.m_Front++];
+        if (queue.m_Front == queue.m_Items.Size())
+        {
+            queue.m_Front = 0;
+            queue.m_Items.SetSize(0);
+        }
+        return node;
+    }
+
+    static LoadNode* PopLast(LoadQueue& queue)
+    {
+        if (queue.m_Front == queue.m_Items.Size())
+            return 0;
+        LoadNode* node = queue.m_Items.Back();
+        queue.m_Items.Pop();
+        if (queue.m_Front == queue.m_Items.Size())
+        {
+            queue.m_Front = 0;
+            queue.m_Items.SetSize(0);
+        }
+        return node;
+    }
+
+    // Called with the graph lock. Thread handles are not portable identities:
+    // Windows GetCurrentThread returns the same pseudo-handle on every thread.
+    static uint32_t GetCaller(LoadContext* context)
+    {
+#if defined(DM_HAS_THREADS)
+        uintptr_t caller = (uintptr_t)dmThread::GetTlsValue(context->m_CallerKey);
+        if (!caller)
+        {
+            caller = ++context->m_NextCaller;
+            dmThread::SetTlsValue(context->m_CallerKey, (void*)caller);
+        }
+        return (uint32_t)caller;
+#else
+        (void)context;
+        return 1;
+#endif
+    }
+
+    static void Signal(LoadContext* context)
+    {
+#if defined(DM_HAS_THREADS)
+        dmConditionVariable::Broadcast(context->m_Changed);
+#endif
+    }
+
+    static void QueueCreate(LoadContext* context, LoadNode* node)
+    {
+        if (!node->m_Discovered || node->m_PendingDependencies || node->m_Created || node->m_CreateQueued)
+            return;
+        node->m_CreateQueued = true;
+        Push(context->m_Creates, node);
+    }
+
+    static void QueueComplete(LoadContext* context, LoadNode* node)
+    {
+        if (!node->m_PostDone || node->m_PendingCompletions || node->m_Complete || node->m_CompleteQueued)
+            return;
+        node->m_CompleteQueued = true;
+        Push(context->m_Completions, node);
+    }
+
+    static void QueuePin(LoadContext* context, LoadNode* node)
+    {
+        if (!node->m_Pin || node->m_PinQueued || (node->m_Holds && !node->m_RootReferences) || !node->m_PostDone)
+            return;
+        node->m_PinQueued = true;
+        Push(context->m_Pins, node);
+    }
+
+    static LoadNode* FindRequestWork(HPreloader request, LoadQueue& queue, LoadWork work, bool remove);
+    static void StartReads(LoadContext* context, HPreloader request);
+
+    // Requests retain their reachable resources, including hints consumed by a
+    // later ancestor's Create. Propagate only when a node enters or leaves that set.
+    static void ChangeHold(LoadContext* context, LoadNode* node, bool hold)
+    {
+        context->m_Visit.SetSize(0);
+        Push(context->m_Visit, node);
+        while (!context->m_Visit.Empty())
+        {
+            LoadNode* next = context->m_Visit.Back();
+            context->m_Visit.Pop();
+            if (hold)
+            {
+                if (++next->m_Holds != 1)
+                    continue;
+            }
+            else
+            {
+                assert(next->m_Holds);
+                if (--next->m_Holds)
+                    continue;
+                QueuePin(context, next);
+            }
+            for (uint32_t edge = next->m_FirstDependency; edge != INVALID_LOAD_INDEX; edge = context->m_Edges[edge].m_NextDependency)
+                Push(context->m_Visit, context->m_Nodes[context->m_Edges[edge].m_Child]);
+        }
+    }
+
+    static uint32_t VisitGeneration(LoadContext* context)
+    {
+        ++context->m_VisitGeneration;
+        if (!context->m_VisitGeneration)
+        {
+            for (uint32_t i = 0; i < context->m_Nodes.Size(); ++i)
+                if (context->m_Nodes[i])
+                    context->m_Nodes[i]->m_Visited = 0;
+            ++context->m_VisitGeneration;
+        }
+        return context->m_VisitGeneration;
+    }
+
+    // Selection lives only in loading data. Extend it as workers discover new
+    // edges, so a request need not traverse its entire graph for each operation.
+    static void SelectDependencies(LoadContext* context, LoadNode* root)
+    {
+        context->m_Visit.SetSize(0);
+        Push(context->m_Visit, root);
+        while (!context->m_Visit.Empty())
+        {
+            LoadNode* node = context->m_Visit.Back();
+            context->m_Visit.Pop();
+            if (node->m_Complete || node->m_Load->m_Selection == context->m_Selection)
+                continue;
+            node->m_Load->m_Selection = context->m_Selection;
+            for (uint32_t edge = node->m_FirstDependency; edge != INVALID_LOAD_INDEX; edge = context->m_Edges[edge].m_NextDependency)
+                Push(context->m_Visit, context->m_Nodes[context->m_Edges[edge].m_Child]);
+        }
+    }
+
+    static void SelectRequest(HPreloader request)
+    {
+        LoadContext* context = request->m_Context;
+        if (context->m_SelectedRequest == request)
+            return;
+        if (!++context->m_Selection)
+        {
+            for (uint32_t i = 0; i < context->m_Nodes.Size(); ++i)
+                if (context->m_Nodes[i] && context->m_Nodes[i]->m_Load)
+                    context->m_Nodes[i]->m_Load->m_Selection = 0;
+            ++context->m_Selection;
+        }
+        context->m_SelectedRequest = request;
+        for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
+            SelectDependencies(context, request->m_Roots[i]);
+    }
+
+    static bool DependsOn(LoadContext* context, LoadNode* node, LoadNode* dependency)
+    {
+        if (node->m_FirstDependency == INVALID_LOAD_INDEX && node != dependency)
+            return false;
+        uint32_t generation = VisitGeneration(context);
+        context->m_Visit.SetSize(0);
+        Push(context->m_Visit, node);
+        while (!context->m_Visit.Empty())
+        {
+            LoadNode* next = context->m_Visit.Back();
+            context->m_Visit.Pop();
+            if (next == dependency)
+                return true;
+            if (next->m_Visited == generation)
+                continue;
+            next->m_Visited = generation;
+            for (uint32_t edge = next->m_FirstDependency; edge != INVALID_LOAD_INDEX; edge = context->m_Edges[edge].m_NextDependency)
+                Push(context->m_Visit, context->m_Nodes[context->m_Edges[edge].m_Child]);
+        }
+        return false;
+    }
+
+    static LoadNode* FindOrCreate(LoadContext* context, const char* path, HResourceType type, uint32_t caller)
+    {
+        char canonical[RESOURCE_PATH_MAX];
+        GetCanonicalPath(path, canonical, sizeof(canonical));
+        dmhash_t hash = dmHashString64(canonical);
+        LoadNode** found = context->m_ByPath.Get(hash);
+        if (found)
+            return *found;
+
+        LoadNode* node = new LoadNode();
+        node->m_Path = strdup(canonical);
+        node->m_Load = new LoadData();
+        node->m_Load->m_Caller = caller;
+        LoadProfileBegin(&node->m_Load->m_Profile, IsLoadProfilingEnabled(context->m_Factory));
+        node->m_PathHash = hash;
+        node->m_FirstDependency = INVALID_LOAD_INDEX;
+        node->m_FirstDependent = INVALID_LOAD_INDEX;
+        node->m_CreateResult = RESULT_PENDING;
+        node->m_Result = RESULT_PENDING;
+        node->m_DependencyResult = CheckSuppliedResourcePath(path);
+        node->m_Type = type;
+        if (node->m_DependencyResult == RESULT_OK && !type)
+        {
+            const char* ext = GetExtFromPath(canonical);
+            node->m_Type = ext ? FindResourceType(context->m_Factory, ext) : 0;
+            if (!node->m_Type)
+                node->m_DependencyResult = ext ? RESULT_UNKNOWN_RESOURCE_TYPE : RESULT_MISSING_FILE_EXTENSION;
+        }
+        if (context->m_FreeNodes.Empty())
+        {
+            node->m_Index = context->m_Nodes.Size();
+            Push(context->m_Nodes, node);
         }
         else
         {
-            HResourceType resource_type = FindResourceType(preloader->m_Factory, ext + 1);
-            if (resource_type)
+            node->m_Index = context->m_FreeNodes.Back();
+            context->m_FreeNodes.Pop();
+            context->m_Nodes[node->m_Index] = node;
+        }
+        if (context->m_ByPath.Full())
+            context->m_ByPath.OffsetCapacity(context->m_ByPath.Capacity() ? context->m_ByPath.Capacity() : 16);
+        context->m_ByPath.Put(hash, node);
+        Push(context->m_Reads, node);
+        return node;
+    }
+
+    static int32_t ReadResourceJob(HJobContext jobs, HJob job, void* user_context, void* user_data)
+    {
+        LoadContext* context = (LoadContext*)user_context;
+        LoadNode* node = (LoadNode*)user_data;
+        LoadData* load = node->m_Load;
+        {
+            DM_PROFILE("ResourceLoad");
+            DM_PROFILE_DYN(node->m_Path, 0);
+            if (!load->m_Provided)
+                LoadProfileAddTime(&load->m_Profile, LOAD_PROFILE_QUEUE, load->m_Profile.m_StartTime);
+            if (!load->m_Provided)
             {
-                assert(resource_type->m_CreateFunction);
-                return resource_type;
+                uint32_t size = ResourceTypeIsStreaming(node->m_Type) ? ResourceTypeGetPreloadSize(node->m_Type) : RESOURCE_INVALID_PRELOAD_SIZE;
+                uint64_t start = LoadProfileTime(&load->m_Profile);
+                load->m_ReadResult = LoadResourceToBuffer(context->m_Factory, node->m_Path, node->m_Path, size, &load->m_FileSize, &load->m_BufferSize, &load->m_Buffer);
+                LoadProfileAddTime(&load->m_Profile, LOAD_PROFILE_READ, start);
+                if (load->m_ReadResult == RESULT_OK && !load->m_BufferSize)
+                    load->m_Buffer.SetCapacity(1);
             }
-            dmLogError("Unknown resource type: '%s'. Unknown resource type: %s", path, ext);
+            if (load->m_ReadResult == RESULT_OK)
+            {
+                load->m_PreloadResult = RESULT_OK;
+                if (node->m_Type->m_PreloadFunction)
+                {
+                    ResourcePreloadHintInfo hint = { context, node };
+                    ResourcePreloadParams params = {};
+                    params.m_Factory = context->m_Factory;
+                    params.m_Type = node->m_Type;
+                    params.m_Context = node->m_Type->m_Context;
+                    params.m_Buffer = load->m_Provided ? load->m_ProvidedData : load->m_Buffer.Begin();
+                    params.m_BufferSize = load->m_BufferSize;
+                    params.m_FileSize = load->m_FileSize;
+                    params.m_IsBufferPartial = load->m_BufferSize != load->m_FileSize;
+                    params.m_IsBufferTransferrable = !load->m_Provided;
+                    params.m_Filename = node->m_Path;
+                    params.m_HintInfo = &hint;
+                    params.m_PreloadData = &load->m_PreloadData;
+                    params.m_IsBufferOwnershipTransferred = load->m_Provided ? 0 : &load->m_BufferTransferred;
+                    DM_PROFILE("ResourcePreload");
+                    uint64_t start = LoadProfileTime(&load->m_Profile);
+                    load->m_PreloadResult = (Result)node->m_Type->m_PreloadFunction(&params);
+                    LoadProfileAddTime(&load->m_Profile, LOAD_PROFILE_PRELOAD, start);
+                }
+            }
+        }
+        DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+        // Types own their decoded allocation sizes. Input bytes provide
+        // backpressure until Create/PostCreate consumes the associated payload.
+        load->m_StagedBytes = load->m_Provided ? load->m_BufferSize : load->m_Buffer.Capacity();
+        context->m_StagedBytes += load->m_StagedBytes;
+        node->m_Discovered = true;
+        QueueCreate(context, node);
+        --context->m_ActiveReads;
+        StartReads(context, 0);
+        Signal(context);
+        return 0;
+    }
+
+    // The graph is unbounded. Input-byte backpressure may overshoot by active
+    // reads and an unfinished dependency chain, which must still reach a leaf.
+    // A caller can advance its own chain when unrelated staged work is paused.
+    static LoadNode* TakeRead(LoadContext* context, HPreloader request)
+    {
+        LoadNode* node;
+        if (context->m_StagedBytes >= STAGED_INPUT_LIMIT)
+        {
+            if (context->m_ActiveReads)
+                return 0;
+            if (request)
+            {
+                if (FindRequestWork(request, context->m_Creates, LOAD_WORK_CREATE, false) || FindRequestWork(request, context->m_Posts, LOAD_WORK_POST, false))
+                    return 0;
+                node = FindRequestWork(request, context->m_Reads, LOAD_WORK_READ, true);
+            }
+            else
+            {
+                if (context->m_Creates.m_Front != context->m_Creates.m_Items.Size() || context->m_Posts.m_Front != context->m_Posts.m_Items.Size())
+                    return 0;
+                node = PopLast(context->m_Reads);
+            }
+        }
+        else
+            node = request ? FindRequestWork(request, context->m_Reads, LOAD_WORK_READ, true) : Pop(context->m_Reads);
+        if (!node)
+            return 0;
+        if (!node->m_Load)
+            node->m_Load = new LoadData();
+        LoadData* load = node->m_Load;
+        load->m_ReadStarted = true;
+        load->m_ReadResult = RESULT_OK;
+        load->m_PreloadResult = RESULT_PENDING;
+        if (!node->m_Type)
+        {
+            load->m_ReadResult = node->m_DependencyResult;
+            node->m_Discovered = true;
+            QueueCreate(context, node);
+        }
+        else
+            ++context->m_ActiveReads;
+        return node;
+    }
+
+    static void StartReads(LoadContext* context, HPreloader request)
+    {
+        while (context->m_ActiveReads < context->m_ReadLimit)
+        {
+            LoadNode* node = TakeRead(context, request);
+            if (!node)
+                break;
+            if (!node->m_Type)
+                continue;
+            Job job = {};
+            job.m_Process = ReadResourceJob;
+            job.m_Context = context;
+            job.m_Data = node;
+            JobSystemPushJob(context->m_Jobs, JobSystemCreateJob(context->m_Jobs, &job));
+        }
+    }
+
+    static bool ReadInline(HPreloader request)
+    {
+        LoadContext* context = request->m_Context;
+        LoadNode* node;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            node = TakeRead(context, request);
+        }
+        // Zero-worker platforms advance only this loader's work, without
+        // pumping another system's jobs or holding a lock around Preload.
+        if (node && node->m_Type)
+            ReadResourceJob(context->m_Jobs, 0, context, node);
+        return node != 0;
+    }
+
+    LoadContext* NewLoadContext(HFactory factory)
+    {
+        LoadContext* context = new LoadContext();
+        context->m_Factory = factory;
+        context->m_Jobs = GetPreloadJobContext(factory);
+        context->m_ReadLimit = JobSystemGetWorkerCount(context->m_Jobs);
+        context->m_Mutex = dmMutex::New();
+#if defined(DM_HAS_THREADS)
+        context->m_Changed = dmConditionVariable::New();
+        context->m_CallerKey = dmThread::AllocTls();
+#endif
+        return context;
+    }
+
+    static bool AddDependency(LoadContext* context, LoadNode* parent, LoadNode* child)
+    {
+        uint32_t dependency = parent->m_FirstDependency;
+        uint32_t dependent = child->m_FirstDependent;
+        // A duplicate occurs in both lists. Stop at the end of the shorter one
+        // so large fan-outs and heavily shared leaves both remain inexpensive.
+        while (dependency != INVALID_LOAD_INDEX && dependent != INVALID_LOAD_INDEX)
+        {
+            if (context->m_Edges[dependency].m_Child == child->m_Index || context->m_Edges[dependent].m_Parent == parent->m_Index)
+                return true;
+            dependency = context->m_Edges[dependency].m_NextDependency;
+            dependent = context->m_Edges[dependent].m_NextDependent;
+        }
+        if (DependsOn(context, child, parent))
+        {
+            parent->m_DependencyResult = RESULT_RESOURCE_LOOP_ERROR;
+            return false;
+        }
+        uint32_t index;
+        if (context->m_FreeEdges.Empty())
+        {
+            index = context->m_Edges.Size();
+            LoadEdge edge = {};
+            Push(context->m_Edges, edge);
+        }
+        else
+        {
+            index = context->m_FreeEdges.Back();
+            context->m_FreeEdges.Pop();
+        }
+        LoadEdge& edge = context->m_Edges[index];
+        edge.m_Parent = parent->m_Index;
+        edge.m_Child = child->m_Index;
+        edge.m_NextDependency = parent->m_FirstDependency;
+        edge.m_NextDependent = child->m_FirstDependent;
+        edge.m_PreviousDependent = INVALID_LOAD_INDEX;
+        if (child->m_FirstDependent != INVALID_LOAD_INDEX)
+            context->m_Edges[child->m_FirstDependent].m_PreviousDependent = index;
+        parent->m_FirstDependency = index;
+        child->m_FirstDependent = index;
+        ++child->m_References;
+        if (parent->m_Holds)
+            ChangeHold(context, child, true);
+        if (!child->m_Created)
+            ++parent->m_PendingDependencies;
+        else if (child->m_CreateResult != RESULT_OK)
+            parent->m_DependencyResult = child->m_CreateResult;
+        if (!child->m_Complete)
+            ++parent->m_PendingCompletions;
+        else if (child->m_Result != RESULT_OK)
+            parent->m_DependencyResult = child->m_Result;
+        if (context->m_SelectedRequest && parent->m_Load && parent->m_Load->m_Selection == context->m_Selection)
+            SelectDependencies(context, child);
+        return true;
+    }
+
+    bool PreloadHint(HResourcePreloadHintInfo info, const char* path)
+    {
+        if (!info || !path || CheckSuppliedResourcePath(path) != RESULT_OK || strlen(path) >= RESOURCE_PATH_MAX)
+            return false;
+        LoadContext* context = info->m_Context;
+        DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+        LoadNode* child = FindOrCreate(context, path, 0, info->m_Node->m_Load->m_Caller);
+        bool added = AddDependency(context, info->m_Node, child);
+        StartReads(context, 0);
+        return added;
+    }
+
+    static bool RecordDependency(LoadContext* context, LoadNode* child)
+    {
+        LoadNode* parent = context->m_Creating;
+        if (!AddDependency(context, parent, child))
+            return false;
+        RecreateContext* recreate = context->m_Recreating;
+        if (recreate && recreate->m_Node == parent)
+        {
+            for (uint32_t i = 0; i < recreate->m_Dependencies.Size(); ++i)
+                if (recreate->m_Dependencies[i] == child)
+                    return true;
+            Push(recreate->m_Dependencies, child);
+        }
+        return true;
+    }
+
+    Result RecordResourceLoadGet(LoadContext* context, dmhash_t path)
+    {
+        if (!context)
+            return RESULT_OK;
+        DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+        if (!context->m_UpdateDepth || context->m_UpdateOwner != GetCaller(context) || !context->m_Creating)
+            return RESULT_OK;
+        LoadNode** child = context->m_ByPath.Get(path);
+        return !child || RecordDependency(context, *child) ? RESULT_OK : RESULT_RESOURCE_LOOP_ERROR;
+    }
+
+    static void Created(LoadContext* context, LoadNode* node)
+    {
+        node->m_Created = true;
+        for (uint32_t i = node->m_FirstDependent; i != INVALID_LOAD_INDEX; i = context->m_Edges[i].m_NextDependent)
+        {
+            LoadNode* parent = context->m_Nodes[context->m_Edges[i].m_Parent];
+            assert(parent->m_PendingDependencies);
+            --parent->m_PendingDependencies;
+            if (node->m_CreateResult != RESULT_OK)
+                parent->m_DependencyResult = node->m_CreateResult;
+            QueueCreate(context, parent);
+        }
+        QueuePin(context, node);
+        QueueComplete(context, node);
+    }
+
+    static void FreeBuffer(LoadData* load)
+    {
+        if (load->m_BufferTransferred)
+            memset(&load->m_Buffer, 0, sizeof(load->m_Buffer));
+        load->m_Buffer.SetCapacity(0);
+    }
+
+    // Called with the graph lock after the type has consumed its preload data.
+    static void ReleaseStaging(LoadContext* context, LoadNode* node)
+    {
+        assert(context->m_StagedBytes >= node->m_Load->m_StagedBytes);
+        context->m_StagedBytes -= node->m_Load->m_StagedBytes;
+        node->m_Load->m_StagedBytes = 0;
+        StartReads(context, 0);
+    }
+
+    static void CreateResourceNode(LoadContext* context, LoadNode* node)
+    {
+        LoadData* load = node->m_Load;
+        Result result = load->m_ReadResult != RESULT_OK ? load->m_ReadResult : load->m_PreloadResult;
+        bool post = false;
+        if (result == RESULT_OK)
+        {
+            ResourceDescriptor& descriptor = load->m_Descriptor;
+            descriptor.m_NameHash = node->m_PathHash;
+            descriptor.m_ResourceType = node->m_Type;
+            descriptor.m_ReferenceCount = 1;
+            descriptor.m_ResourceSizeOnDisc = load->m_FileSize;
+            ResourceCreateParams params = {};
+            params.m_Factory = context->m_Factory;
+            params.m_Type = node->m_Type;
+            params.m_Context = node->m_Type->m_Context;
+            params.m_Filename = node->m_Path;
+            params.m_Buffer = load->m_Provided ? load->m_ProvidedData : load->m_Buffer.Begin();
+            params.m_BufferSize = load->m_BufferSize;
+            params.m_FileSize = load->m_FileSize;
+            params.m_IsBufferPartial = load->m_BufferSize != load->m_FileSize;
+            params.m_PreloadData = load->m_PreloadData;
+            params.m_Resource = &descriptor;
+            LoadNode* previous = context->m_Creating;
+            context->m_Creating = node;
+            {
+                DM_PROFILE("ResourceCreate");
+                DM_PROFILE_DYN(node->m_Path, 0);
+                uint64_t start = LoadProfileTime(&load->m_Profile);
+                result = (Result)node->m_Type->m_CreateFunction(&params);
+                LoadProfileAddTime(&load->m_Profile, LOAD_PROFILE_CREATE, start);
+            }
+            context->m_Creating = previous;
+            if (result == RESULT_OK)
+            {
+                post = node->m_Type->m_PostCreateFunction != 0;
+                result = node->m_DependencyResult;
+                if (result == RESULT_OK)
+                {
+                    DM_MUTEX_SCOPED_LOCK(GetLoadMutex(context->m_Factory));
+                    result = InsertResource(context->m_Factory, node->m_Path, node->m_PathHash, &descriptor);
+                    if (result == RESULT_OK)
+                    {
+                        DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+                        node->m_Resource = descriptor.m_Resource;
+                        node->m_Pin = true;
+                    }
+                }
+                load->m_Destroy = result != RESULT_OK;
+            }
+        }
+        FreeBuffer(load);
+        {
+            DM_MUTEX_SCOPED_LOCK(GetLoadMutex(context->m_Factory));
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            if (node->m_Resource)
+                for (uint32_t i = 0; i < node->m_RootReferences; ++i)
+                    IncRef(context->m_Factory, node->m_Resource);
+            load->m_InCreate = false;
+            node->m_CreateResult = result;
+            node->m_PostDone = !post;
+            Created(context, node);
+            if (post)
+                Push(context->m_Posts, node);
+            else
+                ReleaseStaging(context, node);
+        }
+    }
+
+    static void PostCreateResourceNode(LoadContext* context, LoadNode* node)
+    {
+        LoadData* load = node->m_Load;
+        ResourcePostCreateParams params = {};
+        params.m_Factory = context->m_Factory;
+        params.m_Type = node->m_Type;
+        params.m_Context = node->m_Type->m_Context;
+        params.m_Filename = node->m_Path;
+        params.m_PreloadData = load->m_PreloadData;
+        params.m_Resource = &load->m_Descriptor;
+        Result result;
+        LoadNode* previous = context->m_Creating;
+        context->m_Creating = node;
+        {
+            DM_PROFILE("ResourcePostCreate");
+            DM_PROFILE_DYN(node->m_Path, 0);
+            uint64_t start = LoadProfileTime(&load->m_Profile);
+            result = (Result)node->m_Type->m_PostCreateFunction(&params);
+            LoadProfileAddTime(&load->m_Profile, LOAD_PROFILE_POST_CREATE, start);
+        }
+        context->m_Creating = previous;
+        if (result == RESULT_PENDING)
+            return;
+        DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+        if (node->m_CreateResult == RESULT_OK)
+            node->m_CreateResult = result;
+        node->m_PostDone = true;
+        QueuePin(context, node);
+        QueueComplete(context, node);
+        ReleaseStaging(context, node);
+    }
+
+    static bool ProcessCompletion(HPreloader request)
+    {
+        LoadContext* context = request->m_Context;
+        LoadNode* node;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            node = FindRequestWork(request, context->m_Completions, LOAD_WORK_COMPLETE, true);
+            if (!node)
+                return false;
+            node->m_Result = node->m_CreateResult;
+            if (node->m_Result == RESULT_OK)
+                node->m_Result = node->m_DependencyResult;
+        }
+        LoadData* load = node->m_Load;
+        {
+            DM_MUTEX_SCOPED_LOCK(GetLoadMutex(context->m_Factory));
+            ResourceDescriptor* descriptor = FindByHash(context->m_Factory, node->m_PathHash);
+            LogLoadProfile(&load->m_Profile, node->m_Path, node->m_Result, descriptor && descriptor->m_Resource == node->m_Resource ? &descriptor->m_LoadTimings : 0);
+            if (descriptor && descriptor->m_Resource == node->m_Resource && load->m_Descriptor.m_ResourceSize)
+                descriptor->m_ResourceSize = load->m_Descriptor.m_ResourceSize;
+        }
+        if (load->m_Destroy)
+        {
+            ResourceDestroyParams params = {};
+            params.m_Factory = context->m_Factory;
+            params.m_Type = node->m_Type;
+            params.m_Context = node->m_Type->m_Context;
+            params.m_Resource = &load->m_Descriptor;
+            node->m_Type->m_DestroyFunction(&params);
+        }
+        DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+        node->m_Load = 0;
+        delete load;
+        node->m_Complete = true;
+        for (uint32_t i = node->m_FirstDependent; i != INVALID_LOAD_INDEX; i = context->m_Edges[i].m_NextDependent)
+        {
+            LoadNode* parent = context->m_Nodes[context->m_Edges[i].m_Parent];
+            assert(parent->m_PendingCompletions);
+            --parent->m_PendingCompletions;
+            if (node->m_Result != RESULT_OK)
+                parent->m_DependencyResult = node->m_Result;
+            QueueComplete(context, parent);
+        }
+        return true;
+    }
+
+    static void ReleasePins(LoadContext* context)
+    {
+        for (;;)
+        {
+            LoadNode* node;
+            void* resource;
+            {
+                DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+                node = Pop(context->m_Pins);
+                if (!node)
+                    return;
+                node->m_PinQueued = false;
+                if ((node->m_Holds && !node->m_RootReferences) || !node->m_PostDone || !node->m_Pin)
+                    continue;
+                node->m_Pin = false;
+                resource = node->m_Resource;
+            }
+            Release(context->m_Factory, resource);
+        }
+    }
+
+    static void DestroyUnusedNodes(LoadContext* context, LoadNode* root);
+
+    // Called under the resource-table lock when its last reference is released.
+    // A newly discovered parent can still need this resource before its Create runs.
+    bool RetainResourceLoadReference(LoadContext* context, dmhash_t path, void* resource)
+    {
+        if (!context)
+            return false;
+        DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+        LoadNode** found = context->m_ByPath.Get(path);
+        if (!found || (*found)->m_Resource != resource)
+            return false;
+        LoadNode* node = *found;
+        if (node->m_Holds || node->m_RootReferences || !node->m_PostDone)
+        {
+            node->m_Pin = true;
+            QueuePin(context, node);
+            return true;
+        }
+        node->m_Resource = 0;
+        context->m_ByPath.Erase(path);
+        DestroyUnusedNodes(context, node);
+        return false;
+    }
+
+    static bool RootsCreated(HPreloader request)
+    {
+        for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
+            if (!request->m_Roots[i]->m_Created)
+                return false;
+        return true;
+    }
+
+    static void CallComplete(HPreloader request, FPreloaderCompleteCallback callback, PreloaderCompleteCallbackParams* params)
+    {
+        if (request->m_CallbackCalled || !RootsCreated(request))
+            return;
+        request->m_CallbackCalled = true;
+        for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
+            if (request->m_Roots[i]->m_CreateResult != RESULT_OK)
+                return;
+        if (callback && !callback(params))
+            request->m_CallbackResult = RESULT_NOT_LOADED;
+    }
+
+    // Each update advances only its request, preserving FIFO order and callback
+    // affinity for shared dependencies without spending other requests' budgets.
+    static LoadNode* FindRequestWork(HPreloader request, LoadQueue& queue, LoadWork work, bool remove)
+    {
+        LoadContext* context = request->m_Context;
+        SelectRequest(request);
+        uint32_t caller = GetCaller(context);
+        for (uint32_t i = queue.m_Front; i < queue.m_Items.Size(); ++i)
+        {
+            LoadNode* node = queue.m_Items[i];
+            if (node->m_Load->m_Selection != context->m_Selection || (work != LOAD_WORK_READ && node->m_Load->m_Caller != caller))
+                continue;
+            if (remove)
+            {
+                if (i == queue.m_Front)
+                    Pop(queue);
+                else
+                {
+                    memmove(queue.m_Items.Begin() + i, queue.m_Items.Begin() + i + 1, (queue.m_Items.Size() - i - 1) * sizeof(LoadNode*));
+                    queue.m_Items.Pop();
+                }
+            }
+            return node;
         }
         return 0;
     }
 
-    Result MakePathDescriptor(ResourcePreloader* preloader, const char* name, PathDescriptor& out_path_descriptor)
+    // Snapshot this request's posts in FIFO order. Keep them in the shared queue
+    // until called, since a nested Get can need to finish the same dependency.
+    static void GetRequestPosts(HPreloader request, dmArray<LoadNode*>& posts)
     {
-        if (name == 0x0)
+        LoadContext* context = request->m_Context;
+        SelectRequest(request);
+        uint32_t caller = GetCaller(context);
+        for (uint32_t i = context->m_Posts.m_Front; i < context->m_Posts.m_Items.Size(); ++i)
         {
-            return RESULT_INVALID_DATA;
-        }
-        // Ignore malformed paths that would fail anyway.
-        Result res = CheckSuppliedResourcePath(name);
-        if (res != dmResource::RESULT_OK)
-        {
-            return res;
-        }
-        uint32_t name_len = strlen(name);
-        if (name_len >= RESOURCE_PATH_MAX)
-        {
-            dmLogError("Resource path is to long: (%s)", name);
-            return RESULT_INVALID_DATA;
-        }
-        out_path_descriptor.m_NameHash = dmHashBuffer64(name, name_len);
-        out_path_descriptor.m_ResourceType = GetResourceType(preloader, name);
-        // We do not bail on out_path_descriptor.m_ResourceType being zero here, we want to
-        // create a request so we can get a proper error code for the resource in the request
-
-        char canonical_path[RESOURCE_PATH_MAX];
-        uint32_t canonical_path_len = dmResource::GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
-        out_path_descriptor.m_CanonicalPathHash = dmHashBuffer64(canonical_path, canonical_path_len);
-
-        DM_SPINLOCK_SCOPED_LOCK(preloader->m_SyncedDataSpinlock)
-        {
-            out_path_descriptor.m_InternalizedName = InternalizePath(&preloader->m_SyncedData, out_path_descriptor.m_NameHash, name, name_len);
-            if (out_path_descriptor.m_InternalizedName == 0x0)
-            {
-                return RESULT_OUT_OF_MEMORY;
-            }
-            out_path_descriptor.m_InternalizedCanonicalPath = InternalizePath(&preloader->m_SyncedData, out_path_descriptor.m_CanonicalPathHash, canonical_path, canonical_path_len);
-            if (out_path_descriptor.m_InternalizedCanonicalPath == 0x0)
-            {
-                return RESULT_OUT_OF_MEMORY;
-            }
-        }
-
-        return RESULT_OK;
-    }
-
-    static bool IsPathInProgress(ResourcePreloader* preloader, const PathDescriptor* path_descriptor)
-    {
-        dmhash_t path_hash = path_descriptor->m_CanonicalPathHash;
-        bool* path_lookup  = preloader->m_InProgress.Get(path_hash);
-        return path_lookup != 0x0;
-    }
-
-    static void MarkPathInProgress(ResourcePreloader* preloader, const PathDescriptor* path_descriptor)
-    {
-        dmhash_t path_hash = path_descriptor->m_CanonicalPathHash;
-        assert(preloader->m_InProgress.Get(path_hash) == 0x0);
-        preloader->m_InProgress.Put(path_hash, true);
-    }
-
-    static void UnmarkPathInProgress(ResourcePreloader* preloader, const PathDescriptor* path_descriptor)
-    {
-        dmhash_t path_hash = path_descriptor->m_CanonicalPathHash;
-        assert(preloader->m_InProgress.Get(path_hash) != 0x0);
-        preloader->m_InProgress.Erase(path_hash);
-    }
-
-    static void PreloaderTreeInsert(ResourcePreloader* preloader, TRequestIndex index, TRequestIndex parent)
-    {
-        PreloadRequest* reqs      = &preloader->m_Request[0];
-        reqs[index].m_NextSibling = reqs[parent].m_FirstChild;
-        reqs[index].m_Parent      = parent;
-        reqs[parent].m_FirstChild = index;
-        reqs[parent].m_PendingChildCount += 1;
-    }
-
-    static void RemoveFromParentPendingCount(ResourcePreloader* preloader, PreloadRequest* req)
-    {
-        if (req->m_Parent != -1)
-        {
-            assert(preloader->m_Request[req->m_Parent].m_PendingChildCount > 0);
-            preloader->m_Request[req->m_Parent].m_PendingChildCount -= 1;
+            LoadNode* node = context->m_Posts.m_Items[i];
+            if (node->m_Load->m_Selection == context->m_Selection && node->m_Load->m_Caller == caller)
+                Push(posts, node);
         }
     }
 
-    static Result PreloadPathDescriptor(HPreloader preloader, TRequestIndex parent, const PathDescriptor& path_descriptor)
+    // Completed requests release their holds without advancing unrelated work.
+    static Result CompleteRequest(HPreloader request)
     {
-        // Quick deduplication, check if the child is already listed under the current parent
-        TRequestIndex child = preloader->m_Request[parent].m_FirstChild;
-        while (child != -1)
+        LoadContext* context = request->m_Context;
+        Result result = request->m_CallbackResult;
+        for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
         {
-            if (preloader->m_Request[child].m_PathDescriptor.m_NameHash == path_descriptor.m_NameHash)
-            {
-                return RESULT_ALREADY_REGISTERED;
-            }
-            child = preloader->m_Request[child].m_NextSibling;
+            LoadNode* root = request->m_Roots[i];
+            if (!root->m_Complete)
+                return RESULT_PENDING;
+            if (result == RESULT_OK)
+                result = root->m_Result;
         }
-
-        if (!preloader->m_FreelistSize)
+        if (request->m_Holding)
         {
-            // Preload queue is exhausted; this is not fatal, it just means the resource will be loaded
-            // inside the main thread which may cause stuttering
-            return RESULT_OUT_OF_MEMORY;
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
+                ChangeHold(context, request->m_Roots[i], false);
+            request->m_Holding = false;
         }
-
-        TRequestIndex new_req = preloader->m_Freelist[--preloader->m_FreelistSize];
-        PreloadRequest* req   = &preloader->m_Request[new_req];
-        memset(req, 0, sizeof(PreloadRequest));
-        req->m_PathDescriptor    = path_descriptor;
-        req->m_FirstChild        = -1;
-        req->m_LoadResult        = RESULT_PENDING;
-
-        PreloaderTreeInsert(preloader, new_req, parent);
-
-        // Check for recursive resources, if it is, mark with loop error, the recursive load result will
-        // be checked for in the PreloaderUpdateOneItem and the result will be propagated to the resource
-        // preloaded creator.
-        TRequestIndex go_up = parent;
-        while (go_up != -1)
-        {
-            if (preloader->m_Request[go_up].m_PathDescriptor.m_CanonicalPathHash == path_descriptor.m_CanonicalPathHash)
-            {
-                req->m_LoadResult = RESULT_RESOURCE_LOOP_ERROR;
-                assert(parent != -1);
-                assert(preloader->m_Request[parent].m_PendingChildCount > 0);
-                preloader->m_Request[parent].m_PendingChildCount -= 1;
-                break;
-            }
-            go_up = preloader->m_Request[go_up].m_Parent;
-        }
-        return RESULT_OK;
+        ReleasePins(context);
+        return result;
     }
 
-    static bool PopHints(HPreloader preloader)
+    static Result UpdateResourceLoads(HPreloader request, FPreloaderCompleteCallback callback, PreloaderCompleteCallbackParams* params, uint32_t soft_time_limit)
     {
-        dmArray<PendingHint> new_hints;
+        DM_PROFILE("UpdateResourceLoads");
+        LoadContext* context = request->m_Context;
+        uint64_t start = dmTime::GetMonotonicTime();
+        CallComplete(request, callback, params);
+        Result result = CompleteRequest(request);
+        if (result != RESULT_PENDING)
+            return result;
         {
-            DM_SPINLOCK_SCOPED_LOCK(preloader->m_SyncedDataSpinlock)
-            new_hints.Swap(preloader->m_SyncedData.m_NewHints);
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            StartReads(context, request);
         }
-
-        uint32_t new_hint_count = 0;
-
-        const uint32_t hint_count = new_hints.Size();
-        const PendingHint* hints = new_hints.Begin();
-        for (uint32_t i = 0; i < hint_count; ++i)
+        // Blocking PostCreate can depend on a general job callback. Normal
+        // asynchronous loading leaves the shared pool's updates to its owner.
+        bool update_jobs = false;
+        if (request->m_Blocking)
         {
-            const PendingHint* hint = &hints[i];
-            if (PreloadPathDescriptor(preloader, hint->m_Parent, hint->m_PathDescriptor) == RESULT_OK)
-            {
-                ++new_hint_count;
-            }
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            update_jobs = FindRequestWork(request, context->m_Posts, LOAD_WORK_POST, false) != 0;
         }
-        return new_hint_count != 0;
-    }
-
-    static Result PreloadHintInternal(HPreloader preloader, TRequestIndex parent, const char* name)
-    {
-        PathDescriptor path_descriptor;
-        Result res = MakePathDescriptor(preloader, name, path_descriptor);
-        if (res != RESULT_OK)
+        if (update_jobs)
         {
-            return res;
+            LoadNode* creating = context->m_Creating;
+            context->m_Creating = 0;
+            JobSystemUpdate(context->m_Jobs, 1000);
+            context->m_Creating = creating;
         }
-        res = PreloadPathDescriptor(preloader, parent, path_descriptor);
-        return res;
-    }
-
-    // Only supports removing the first child, which is all the preloader uses anyway.
-    static void PreloaderRemoveLeaf(ResourcePreloader* preloader, TRequestIndex index)
-    {
-        assert(preloader->m_FreelistSize < MAX_PRELOADER_REQUESTS);
-
-        PreloadRequest* me = &preloader->m_Request[index];
-        assert(me->m_FirstChild == -1);
-        assert(me->m_PendingChildCount == 0);
-        PreloadRequest* parent = &preloader->m_Request[me->m_Parent];
-        assert(parent->m_FirstChild == index);
-
-        if (me->m_Resource)
+        bool progressed = false;
+        do
         {
-            if (index < preloader->m_PersistResourceCount)
-            {
-                preloader->m_PersistedResources.Push(me->m_Resource);
-            }
+            // Publish completed work before starting another creator. Otherwise
+            // a small request can wait behind an unrelated large ready queue.
+            if (ProcessCompletion(request))
+                progressed = true;
             else
             {
-                Release(preloader->m_Factory, me->m_Resource);
+                LoadNode* node;
+                {
+                    DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+                    node = FindRequestWork(request, context->m_Creates, LOAD_WORK_CREATE, true);
+                    if (node)
+                        node->m_Load->m_InCreate = true;
+                }
+                if (node)
+                    CreateResourceNode(context, node);
+                else if (context->m_ReadLimit || !ReadInline(request))
+                    break;
+                progressed = true;
             }
-        }
+            CallComplete(request, callback, params);
+            result = CompleteRequest(request);
+            if (result != RESULT_PENDING)
+                return result;
+        } while (dmTime::GetMonotonicTime() - start < soft_time_limit);
 
-        parent->m_FirstChild = me->m_NextSibling;
-
-        if (me->m_LoadResult == RESULT_PENDING)
+        // Retry each pending PostCreate at most once per update. A pending GPU
+        // upload must not turn a caller's frame budget into a polling interval.
+        dmArray<LoadNode*> posts;
         {
-            RemoveFromParentPendingCount(preloader, me);
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            if (context->m_Posts.m_Front != context->m_Posts.m_Items.Size())
+                GetRequestPosts(request, posts);
         }
-
-        preloader->m_Freelist[preloader->m_FreelistSize++] = index;
+        for (uint32_t i = 0; i < posts.Size(); ++i)
+        {
+            if (progressed && dmTime::GetMonotonicTime() - start >= soft_time_limit)
+                break;
+            LoadNode* node = posts[i];
+            {
+                DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+                if (node->m_PostDone)
+                    continue;
+                LoadQueue& queue = context->m_Posts;
+                for (uint32_t j = queue.m_Front; j < queue.m_Items.Size(); ++j)
+                    if (queue.m_Items[j] == node)
+                    {
+                        if (j == queue.m_Front)
+                            Pop(queue);
+                        else
+                        {
+                            memmove(queue.m_Items.Begin() + j, queue.m_Items.Begin() + j + 1, (queue.m_Items.Size() - j - 1) * sizeof(LoadNode*));
+                            queue.m_Items.Pop();
+                        }
+                        break;
+                    }
+            }
+            PostCreateResourceNode(context, node);
+            progressed = true;
+            if (!node->m_PostDone)
+                Push(context->m_Posts, node);
+        }
+        while ((!progressed || dmTime::GetMonotonicTime() - start < soft_time_limit) && ProcessCompletion(request))
+        {
+            progressed = true;
+        }
+        ReleasePins(context);
+        return CompleteRequest(request);
     }
 
-    static void RemoveChildren(ResourcePreloader* preloader, PreloadRequest* req)
+    Result UpdatePreloader(HPreloader request, FPreloaderCompleteCallback callback, PreloaderCompleteCallbackParams* params, uint32_t soft_time_limit)
     {
-        while (req->m_FirstChild != -1)
+        LoadContext* context = request->m_Context;
         {
-            PreloaderRemoveLeaf(preloader, req->m_FirstChild);
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            uint32_t thread = GetCaller(context);
+            if (context->m_UpdateDepth && context->m_UpdateOwner != thread)
+                return RESULT_PENDING;
+            context->m_UpdateOwner = thread;
+            ++context->m_UpdateDepth;
         }
-        assert(req->m_PendingChildCount == 0);
+        // One caller executes creation callbacks at a time. Ownership is recursive
+        // for synchronous Get inside Create, without holding a mutex over callbacks.
+        Result result = UpdateResourceLoads(request, callback, params, soft_time_limit);
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            --context->m_UpdateDepth;
+            Signal(context);
+        }
+        return result;
+    }
+
+    static HPreloader NewRequest(HFactory factory)
+    {
+        HPreloader request = new ResourcePreloader();
+        request->m_Context = GetLoadContext(factory);
+        request->m_CallbackResult = RESULT_OK;
+        request->m_Holding = true;
+        DM_MUTEX_SCOPED_LOCK(request->m_Context->m_Mutex);
+        ++request->m_Context->m_Requests;
+        return request;
+    }
+
+    static Result AddRoot(HPreloader request, const char* path, HResourceType type, const void* data, uint32_t size, uint32_t file_size, bool provided, bool dependency)
+    {
+        LoadContext* context = request->m_Context;
+        LoadNode* node;
+        void* resident = 0;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            uint32_t caller = GetCaller(context);
+            node = FindOrCreate(context, path, type, caller);
+            bool new_load = !node->m_References && !node->m_Discovered;
+            if (dependency && context->m_UpdateDepth && context->m_UpdateOwner == caller && context->m_Creating)
+            {
+                if (!RecordDependency(context, node))
+                    return RESULT_RESOURCE_LOOP_ERROR;
+            }
+            // An unrelated main-thread job callback can re-enter Get while
+            // its target's creator is suspended in a nested resource load.
+            if (dependency && context->m_UpdateDepth && context->m_UpdateOwner == caller && node->m_Load && node->m_Load->m_InCreate)
+                return RESULT_RESOURCE_LOOP_ERROR;
+            for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
+                if (request->m_Roots[i] == node)
+                    return RESULT_OK;
+            if (provided && new_load)
+            {
+                node->m_Load->m_Provided = true;
+                node->m_Load->m_ProvidedData = data;
+                node->m_Load->m_BufferSize = size;
+                node->m_Load->m_FileSize = file_size;
+            }
+            ++node->m_References;
+            ++node->m_RootReferences;
+            ChangeHold(context, node, true);
+            QueuePin(context, node);
+            Push(request->m_Roots, node);
+            if (context->m_SelectedRequest == request)
+                SelectDependencies(context, node);
+            if (node->m_Created)
+                resident = node->m_Resource;
+            StartReads(context, request->m_Blocking ? request : 0);
+        }
+        if (resident)
+            IncRef(context->m_Factory, resident);
+        return RESULT_OK;
     }
 
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names)
     {
-        ResourcePreloader* preloader = new ResourcePreloader();
-        // root is always allocated so we don't add index zero in the free list
-        for (uint32_t i = 0; i < MAX_PRELOADER_REQUESTS - 1; i++)
-        {
-            preloader->m_Freelist[i] = MAX_PRELOADER_REQUESTS - i - 1;
-        }
-
-        preloader->m_FreelistSize = MAX_PRELOADER_REQUESTS - 1;
-
-        preloader->m_Factory         = factory;
-        preloader->m_LoadQueue       = dmLoadQueue::CreateQueue(factory);
-        dmSpinlock::Create(&preloader->m_SyncedDataSpinlock);
-
-        preloader->m_PersistResourceCount = 0;
-        preloader->m_PersistedResources.SetCapacity(names.Size());
-
-        // Insert root.
-        PreloadRequest* root = &preloader->m_Request[0];
-        memset(root, 0x00, sizeof(PreloadRequest));
-
-        root->m_LoadResult        = MakePathDescriptor(preloader, names[0], root->m_PathDescriptor);
-        root->m_Parent            = -1;
-        root->m_FirstChild        = -1;
-        root->m_NextSibling       = -1;
-        preloader->m_PersistResourceCount++;
-
-        // Post create setup
-        preloader->m_PostCreateCallbacks.SetCapacity(MAX_PRELOADER_REQUESTS / 8);
-        preloader->m_LoadQueueFull           = false;
-        preloader->m_CreateComplete          = false;
-        preloader->m_PostCreateCallbackIndex = 0;
-
-        preloader->m_BlockAllocator = dmBlockAllocator::CreateContext();
-
-        if (root->m_LoadResult == RESULT_OK)
-        {
-            root->m_LoadResult = RESULT_PENDING;
-        }
-
-        // Add remaining items as children of root (first item).
-        // This enables optimised loading in so that resources are not loaded multiple times
-        // and are released when they can be (internally pruning and sharing the request tree).
-        for (uint32_t i = 1; i < names.Size(); ++i)
-        {
-            Result res = PreloadHintInternal(preloader, 0, names[i]);
-            if (res == RESULT_OK)
-            {
-                preloader->m_PersistResourceCount++;
-            }
-        }
-
-        return preloader;
+        HPreloader request = NewRequest(factory);
+        for (uint32_t i = 0; i < names.Size(); ++i)
+            AddRoot(request, names[i], 0, 0, 0, 0, false, false);
+        return request;
     }
 
     HPreloader NewPreloader(HFactory factory, const char* name)
     {
-        const char* name_array[1] = { name };
-        dmArray<const char*> names(name_array, 1, 1);
-        return NewPreloader(factory, names);
+        HPreloader request = NewRequest(factory);
+        AddRoot(request, name, 0, 0, 0, 0, false, false);
+        return request;
     }
 
-    // CreateResource operation ends either with
-    //   1) Having created the resource and free:d all buffers => RESULT_OK + m_Resource
-    //   2) Having failed, (or created and destroyed), leaving => RESULT_SOME_ERROR + everything free:d
-    //
-    // If buffer is null it means to use the items internal buffer
-    static void CreateResource(HPreloader preloader, PreloadRequest* req, void* buffer, uint32_t buffer_size, uint32_t resource_size)
+    static void WaitForWork(HPreloader request)
     {
-        DM_PROFILE("PreloaderCreateResource");
-        DM_PROFILE_DYN(req->m_PathDescriptor.m_InternalizedName, 0);
-
-        assert(req->m_LoadResult == RESULT_PENDING);
-        assert(req->m_PendingChildCount == 0);
-
-        assert(req->m_PathDescriptor.m_ResourceType);
-
-        ResourceDescriptor tmp_resource;
-        memset(&tmp_resource, 0, sizeof(tmp_resource));
-
-        ResourceType* resource_type = req->m_PathDescriptor.m_ResourceType;
-        uint32_t      post_create_index = ~0u;
-
-        // We must call CreateFunction if Preload function has been called, so always do this even when an error has occured
-        tmp_resource.m_NameHash       = req->m_PathDescriptor.m_CanonicalPathHash;
-        tmp_resource.m_ReferenceCount = 1;
-        tmp_resource.m_ResourceType   = resource_type;
-
-        ResourceCreateParams params;
-        params.m_Factory     = preloader->m_Factory;
-        params.m_Type        = resource_type;
-        params.m_Context     = resource_type->m_Context;
-        params.m_PreloadData = req->m_PreloadData;
-        params.m_Resource    = &tmp_resource;
-        params.m_Filename    = req->m_PathDescriptor.m_InternalizedName;
-        params.m_FileSize                 = req->m_FileSize;
-
-        if (!buffer)
+        LoadContext* context = request->m_Context;
+#if defined(DM_HAS_THREADS)
+        DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+        uint32_t caller = GetCaller(context);
+        uint32_t depth = context->m_UpdateOwner == caller ? context->m_UpdateDepth : 0;
+        LoadNode* creating = depth ? context->m_Creating : 0;
+        RecreateContext* recreating = depth ? context->m_Recreating : 0;
+        // A nested Get may need a resource assigned to another requesting
+        // thread. Let that thread run while this creator is suspended.
+        if (depth)
         {
-            assert(req->m_Buffer);
-            tmp_resource.m_ResourceSizeOnDisc = req->m_BufferSize;
-            params.m_Buffer                   = req->m_Buffer;
-            params.m_BufferSize               = req->m_BufferSize;
-            params.m_FileSize                 = req->m_FileSize;
-            params.m_IsBufferPartial          = req->m_BufferSize != req->m_FileSize;
-            {
-                DM_PROFILE("ResourceCreate");
-                uint64_t start = LoadProfileTime(&req->m_Profile);
-                req->m_LoadResult = (Result)resource_type->m_CreateFunction(&params);
-                LoadProfileAddTime(&req->m_Profile, LOAD_PROFILE_CREATE, start);
-            }
-
-            dmBlockAllocator::Free(preloader->m_BlockAllocator, req->m_Buffer, req->m_BufferSize);
-
-            req->m_Buffer = 0;
+            context->m_UpdateDepth = 0;
+            context->m_Creating = 0;
+            context->m_Recreating = 0;
+            Signal(context);
         }
-        else
+        bool ready = FindRequestWork(request, context->m_Creates, LOAD_WORK_CREATE, false) || FindRequestWork(request, context->m_Posts, LOAD_WORK_POST, false) || FindRequestWork(request, context->m_Completions, LOAD_WORK_COMPLETE, false);
+        if (!context->m_ReadLimit)
+            ready = ready || FindRequestWork(request, context->m_Reads, LOAD_WORK_READ, false);
+        bool foreign = false;
+        bool complete = true;
+        for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
         {
-            tmp_resource.m_ResourceSizeOnDisc = buffer_size;
-            params.m_Buffer                   = buffer;
-            params.m_BufferSize               = buffer_size;
-            params.m_FileSize                 = resource_size;
-            params.m_IsBufferPartial          = buffer_size != resource_size;
+            LoadNode* root = request->m_Roots[i];
+            if (!root->m_Complete)
             {
-                DM_PROFILE("ResourceCreate");
-                uint64_t start = LoadProfileTime(&req->m_Profile);
-                req->m_LoadResult = (Result)resource_type->m_CreateFunction(&params);
-                LoadProfileAddTime(&req->m_Profile, LOAD_PROFILE_CREATE, start);
+                complete = false;
+                foreign = foreign || root->m_Load->m_Caller != caller;
             }
         }
-
-        if (req->m_LoadResult == RESULT_OK)
+        if ((!complete && !ready && (context->m_ActiveReads || foreign)) || (context->m_UpdateDepth && context->m_UpdateOwner != caller))
+            dmConditionVariable::Wait(context->m_Changed, context->m_Mutex);
+        if (depth)
         {
-            if (resource_type->m_PostCreateFunction)
+            while (context->m_UpdateDepth && context->m_UpdateOwner != caller)
+                dmConditionVariable::Wait(context->m_Changed, context->m_Mutex);
+            context->m_UpdateOwner = caller;
+            context->m_UpdateDepth = depth;
+            context->m_Creating = creating;
+            context->m_Recreating = recreating;
+        }
+#else
+        (void)context;
+#endif
+    }
+
+    static void DestroyUnusedNodes(LoadContext* context, LoadNode* root)
+    {
+        dmArray<LoadNode*> release;
+        Push(release, root);
+        while (!release.Empty())
+        {
+            LoadNode* node = release.Back();
+            release.Pop();
+            if (node->m_References || node->m_Resource)
+                continue;
+            assert(node->m_Complete && !node->m_Pin && !node->m_Load);
+            LoadNode** found = context->m_ByPath.Get(node->m_PathHash);
+            if (found && *found == node)
+                context->m_ByPath.Erase(node->m_PathHash);
+            for (uint32_t i = node->m_FirstDependency; i != INVALID_LOAD_INDEX;)
             {
-                if (preloader->m_PostCreateCallbacks.Full())
+                LoadEdge edge = context->m_Edges[i];
+                LoadNode* child = context->m_Nodes[edge.m_Child];
+                if (edge.m_PreviousDependent == INVALID_LOAD_INDEX)
+                    child->m_FirstDependent = edge.m_NextDependent;
+                else
+                    context->m_Edges[edge.m_PreviousDependent].m_NextDependent = edge.m_NextDependent;
+                if (edge.m_NextDependent != INVALID_LOAD_INDEX)
+                    context->m_Edges[edge.m_NextDependent].m_PreviousDependent = edge.m_PreviousDependent;
+                assert(child->m_References);
+                --child->m_References;
+                if (!child->m_References && !child->m_Resource)
+                    Push(release, child);
+                Push(context->m_FreeEdges, i);
+                i = edge.m_NextDependency;
+            }
+            context->m_Nodes[node->m_Index] = 0;
+            Push(context->m_FreeNodes, node->m_Index);
+            free(node->m_Path);
+            delete node;
+        }
+    }
+
+    static void ReleaseNode(LoadContext* context, LoadNode* node)
+    {
+        DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+        assert(node->m_References);
+        --node->m_References;
+        DestroyUnusedNodes(context, node);
+    }
+
+    RecreateContext* BeginResourceRecreate(LoadContext* context, dmhash_t path)
+    {
+        RecreateContext* recreate = new RecreateContext();
+        recreate->m_Context = context;
+        DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+        uint32_t caller = GetCaller(context);
+#if defined(DM_HAS_THREADS)
+        while (context->m_UpdateDepth && context->m_UpdateOwner != caller)
+            dmConditionVariable::Wait(context->m_Changed, context->m_Mutex);
+#endif
+        context->m_UpdateOwner = caller;
+        ++context->m_UpdateDepth;
+        recreate->m_PreviousCreating = context->m_Creating;
+        recreate->m_Previous = context->m_Recreating;
+        LoadNode** found = context->m_ByPath.Get(path);
+        if (found)
+        {
+            recreate->m_Node = *found;
+            recreate->m_FirstDependency = (*found)->m_FirstDependency;
+            recreate->m_DependencyResult = (*found)->m_DependencyResult;
+            ++(*found)->m_References;
+            ChangeHold(context, *found, true);
+        }
+        context->m_Creating = recreate->m_Node;
+        context->m_Recreating = recreate;
+        return recreate;
+    }
+
+    void CommitResourceRecreate(RecreateContext* recreate, Result result, void* resource)
+    {
+        LoadContext* context = recreate->m_Context;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            LoadNode* node = recreate->m_Node;
+            if (node)
+            {
+                uint32_t previous = INVALID_LOAD_INDEX;
+                bool original = false;
+                for (uint32_t i = node->m_FirstDependency; i != INVALID_LOAD_INDEX;)
                 {
-                    preloader->m_PostCreateCallbacks.OffsetCapacity(MAX_PRELOADER_REQUESTS / 8);
+                    LoadEdge edge = context->m_Edges[i];
+                    LoadNode* child = context->m_Nodes[edge.m_Child];
+                    original = original || i == recreate->m_FirstDependency;
+                    bool keep = original;
+                    if (result == RESULT_OK)
+                    {
+                        keep = false;
+                        for (uint32_t j = 0; j < recreate->m_Dependencies.Size(); ++j)
+                            keep = keep || recreate->m_Dependencies[j] == child;
+                    }
+                    if (keep)
+                        previous = i;
+                    else
+                    {
+                        if (previous == INVALID_LOAD_INDEX)
+                            node->m_FirstDependency = edge.m_NextDependency;
+                        else
+                            context->m_Edges[previous].m_NextDependency = edge.m_NextDependency;
+                        if (edge.m_PreviousDependent == INVALID_LOAD_INDEX)
+                            child->m_FirstDependent = edge.m_NextDependent;
+                        else
+                            context->m_Edges[edge.m_PreviousDependent].m_NextDependent = edge.m_NextDependent;
+                        if (edge.m_NextDependent != INVALID_LOAD_INDEX)
+                            context->m_Edges[edge.m_NextDependent].m_PreviousDependent = edge.m_PreviousDependent;
+                        if (!child->m_Created)
+                            --node->m_PendingDependencies;
+                        if (!child->m_Complete)
+                            --node->m_PendingCompletions;
+                        ChangeHold(context, child, false);
+                        --child->m_References;
+                        DestroyUnusedNodes(context, child);
+                        Push(context->m_FreeEdges, i);
+                    }
+                    i = edge.m_NextDependency;
                 }
-                post_create_index = preloader->m_PostCreateCallbacks.Size();
-                preloader->m_PostCreateCallbacks.SetSize(preloader->m_PostCreateCallbacks.Size() + 1);
-                ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks.Back();
-                ip.m_Destroy                         = false;
-                ip.m_Params.m_Factory                = preloader->m_Factory;
-                ip.m_Params.m_Type                   = resource_type;
-                ip.m_Params.m_Context                = resource_type->m_Context;
-                ip.m_Params.m_PreloadData            = req->m_PreloadData;
-                ip.m_Params.m_Filename               = req->m_PathDescriptor.m_InternalizedName;
-                ip.m_Params.m_Resource               = 0;
-                memcpy(&ip.m_ResourceDesc, &tmp_resource, sizeof(ResourceDescriptor));
+                if (result == RESULT_OK)
+                    node->m_Resource = resource;
+                else
+                    node->m_DependencyResult = recreate->m_DependencyResult;
+                ChangeHold(context, node, false);
+                --node->m_References;
+                DestroyUnusedNodes(context, node);
             }
+            context->m_Creating = 0;
+            context->m_Recreating = 0;
+            context->m_SelectedRequest = 0;
         }
-
-        assert(req->m_Buffer == 0);
-        req->m_PreloadData = 0;
-
-        RemoveFromParentPendingCount(preloader, req);
-
-        // Children can now be removed (and their resources released) as they are not
-        // needed any longer as the parent resource have its own references to the
-        // child resources.
-        RemoveChildren(preloader, req);
-
-        if (req->m_LoadResult != RESULT_OK)
+        ReleasePins(context);
         {
-            // Continue up to parent. All the stuff below is only for resources that were created
-            LogLoadProfile(&req->m_Profile, req->m_PathDescriptor.m_InternalizedName, req->m_LoadResult);
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            context->m_Creating = recreate->m_PreviousCreating;
+            context->m_Recreating = recreate->m_Previous;
+        }
+    }
+
+    void EndResourceRecreate(RecreateContext* recreate)
+    {
+        LoadContext* context = recreate->m_Context;
+        DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+        --context->m_UpdateDepth;
+        Signal(context);
+        delete recreate;
+    }
+
+    void DeletePreloader(HPreloader request)
+    {
+        LoadContext* context = request->m_Context;
+        request->m_Blocking = true;
+        while (UpdatePreloader(request, 0, 0, 1000000) == RESULT_PENDING)
+        {
+            WaitForWork(request);
+        }
+        for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
+        {
+            LoadNode* root = request->m_Roots[i];
+            void* resource;
+            {
+                DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+                --root->m_RootReferences;
+                resource = root->m_Resource;
+            }
+            if (resource)
+                Release(context->m_Factory, resource);
+            ReleasePins(context);
+            ReleaseNode(context, root);
+        }
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            --context->m_Requests;
+            if (context->m_SelectedRequest == request)
+                context->m_SelectedRequest = 0;
+        }
+        delete request;
+    }
+
+    Result LoadResourceSync(HFactory factory, const char* path, HResourceType type, const void* data, uint32_t size, uint32_t file_size, bool provided, void** resource)
+    {
+        HPreloader request = NewRequest(factory);
+        request->m_Blocking = true;
+        Result result = AddRoot(request, path, type, data, size, file_size, provided, true);
+        if (result != RESULT_OK)
+        {
+            DeletePreloader(request);
+            return result;
+        }
+        while ((result = UpdatePreloader(request, 0, 0, 1000000)) == RESULT_PENDING)
+        {
+            WaitForWork(request);
+        }
+        if (result == RESULT_OK)
+        {
+            *resource = request->m_Roots[0]->m_Resource;
+            IncRef(factory, *resource);
+        }
+        DeletePreloader(request);
+        return result;
+    }
+
+    void DeleteLoadContext(LoadContext* context)
+    {
+        if (!context)
             return;
-        }
-
-        assert(tmp_resource.m_Resource);
-
-        // Only two options from now on is to either destroy the resource or have it inserted
-        bool destroy = false;
-
-        // If someone else has loaded the resource already, use that one and mark our loaded resource for destruction
-        ResourceDescriptor* rd = FindByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
-        if (rd)
-        {
-            // Use already loaded resource
-            rd->m_ReferenceCount++;
-            req->m_Resource = rd->m_Resource;
-            destroy         = true;
-        }
-        else
-        {
-            // Insert the loaded and created resource, if insertion fails, mark the resource for detruction
-            req->m_LoadResult = InsertResource(preloader->m_Factory, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_CanonicalPathHash, &tmp_resource);
-            if (req->m_LoadResult == RESULT_OK)
-            {
-                req->m_Resource = tmp_resource.m_Resource;
-            }
-            else
-            {
-                destroy = true;
-            }
-        }
-
-        if (destroy)
-        {
-            assert(tmp_resource.m_Resource != 0);
-            assert(resource_type != 0);
-
-            bool found = false;
-
-            // If the resource has a post create function, mark it as "to be destroyed"
-            if (resource_type->m_PostCreateFunction)
-            {
-                for (uint32_t i = preloader->m_PostCreateCallbackIndex; i < preloader->m_PostCreateCallbacks.Size(); ++i)
-                {
-                    ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[i];
-                    if (ip.m_ResourceDesc.m_Resource == tmp_resource.m_Resource)
-                    {
-                        // Mark resource that it should be destroyed once postcreate has been run.
-                        ip.m_Destroy = true;
-                        found        = true;
-
-                        // NOTE: Loading multiple collection proxies with shared resources at the same
-                        // time can result in these resources being loading more than once.
-                        // We should fix so that this cannot happen since this is wasteful of both performance
-                        // and memory usage. There is an issue filed for this: DEF-3088
-                        // Once that has been implemented, the delayed destroy (m_Destroy) can be removed,
-                        // it would no longer be needed since each resource would only be created/loaded once.
-                        // Measurements from the amount of double-loading happening due to this in real games
-                        // show that the triggered overhead is very low and it does not happen often so not
-                        // a priority to fix.
-
-                        break;
-                    }
-                }
-            }
-
-            // Is the resource wasn't found in the PostCreate callbacks, we can destroy it right away.
-            if (!found)
-            {
-                ResourceDestroyParams params;
-                params.m_Factory  = preloader->m_Factory;
-                params.m_Type     = resource_type;
-                params.m_Context  = resource_type->m_Context;
-                params.m_Resource = &tmp_resource;
-                {
-                    DM_PROFILE("ResourceDestroy");
-                    resource_type->m_DestroyFunction(&params);
-                }
-            }
-        }
-
-        if (post_create_index != ~0u)
-        {
-            ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[post_create_index];
-            ip.m_Profile = req->m_Profile;
-            ip.m_CreateResult = req->m_LoadResult;
-        }
-        else
-        {
-            ResourceDescriptor* stored = destroy ? 0 : FindByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
-            LogLoadProfile(&req->m_Profile, req->m_PathDescriptor.m_InternalizedName, req->m_LoadResult, stored ? &stored->m_LoadTimings : 0);
-        }
-    }
-
-    // Try to create the resource of the parent if all the child requests has been
-    // resolved. We continue up the parent chain until we find a parent where all
-    // children are not resolved and we break
-    // Returns true if at least one parent in the chain is created
-    static bool PreloaderTryPruneParent(HPreloader preloader, PreloadRequest* req)
-    {
-        TRequestIndex parent = req->m_Parent;
-        if (parent == -1)
-        {
-            return false;
-        }
-        PreloadRequest* parent_req = &preloader->m_Request[parent];
-        if (parent_req->m_PendingChildCount > 0)
-        {
-            return false;
-        }
-        CreateResource(preloader, parent_req, 0, 0, 0);
-        UnmarkPathInProgress(preloader, &parent_req->m_PathDescriptor);
-        PreloaderTryPruneParent(preloader, parent_req);
-        return true;
-    }
-
-    // Ends the Load part of the resource and handles the result of the load
-    // It will create the resource if it has no children, otherwise it will
-    // copy the loaded buffer for later use when all the children has been created.
-    //
-    // Returns true if the resource was created
-    static bool FinishLoad(HPreloader preloader, PreloadRequest* req, dmLoadQueue::LoadResult& load_result, void* buffer, uint32_t buffer_size, uint32_t resource_size)
-    {
-        req->m_Profile = load_result.m_Profile;
-        // Pop any hints the load/preload of the item that may have been generated
-        PopHints(preloader);
-
-        // Propagate errors
-        if (load_result.m_LoadResult != RESULT_OK)
-        {
-            req->m_LoadResult = load_result.m_LoadResult;
-        }
-        else if (load_result.m_PreloadResult != RESULT_OK)
-        {
-            req->m_LoadResult = load_result.m_PreloadResult;
-        }
-
-        // On error remove all children
-        if (req->m_LoadResult != RESULT_PENDING)
-        {
-            RemoveChildren(preloader, req);
-            RemoveFromParentPendingCount(preloader, req);
-            LogLoadProfile(&req->m_Profile, req->m_PathDescriptor.m_InternalizedName, req->m_LoadResult);
-        }
-
-        req->m_PreloadData = load_result.m_PreloadData;
-
-        bool created_resource = false;
-
-        // If no children, do the create step immediately with the buffer in place
-        if (req->m_FirstChild == -1)
-        {
-            if (req->m_LoadResult == RESULT_PENDING)
-            {
-                // Create the resource using the loading buffer directly.
-                CreateResource(preloader, req, buffer, buffer_size, resource_size);
-                created_resource = true;
-            }
-            UnmarkPathInProgress(preloader, &req->m_PathDescriptor);
-            dmLoadQueue::FreeLoad(preloader->m_LoadQueue, req->m_LoadRequest);
-            req->m_LoadRequest = 0;
-
-            PreloaderTryPruneParent(preloader, req);
-        }
-        else
-        {
-            // Keep the loaded bytes until we have loaded all children
-            req->m_Buffer = dmBlockAllocator::Allocate(preloader->m_BlockAllocator, buffer_size);
-            memcpy(req->m_Buffer, buffer, buffer_size);
-            req->m_BufferSize = buffer_size;
-            req->m_FileSize = resource_size;
-            dmLoadQueue::FreeLoad(preloader->m_LoadQueue, req->m_LoadRequest);
-            req->m_LoadRequest = 0;
-        }
-        return created_resource;
-    }
-
-    static bool DoPreloaderUpdateOneReq(HPreloader preloader, TRequestIndex index, PreloadRequest* req);
-
-    // Find the first request that has is RESULT_PENDING and try to load it
-    // Continue until all requests are checked or we have created a one resource
-    static bool PreloaderUpdateOneItem(HPreloader preloader, TRequestIndex index)
-    {
-        DM_PROFILE("PreloaderUpdateOneItem");
-        while (index >= 0)
-        {
-            PreloadRequest* req = &preloader->m_Request[index];
-            switch (req->m_LoadResult)
-            {
-                case RESULT_PENDING:
-                    if (DoPreloaderUpdateOneReq(preloader, index, req))
-                    {
-                        return true;
-                    }
-                    break;
-                case RESULT_RESOURCE_LOOP_ERROR:
-                    if (PreloaderTryPruneParent(preloader, req))
-                    {
-                        return true;
-                    }
-                    break;
-                default:
-                    break;
-            }
-            index = req->m_NextSibling;
-        }
-        return false;
-    }
-
-    // Returns true if the item or any of its children is found that has completed its loading from the load queue
-    static bool DoPreloaderUpdateOneReq(HPreloader preloader, TRequestIndex index, PreloadRequest* req)
-    {
-        DM_PROFILE("DoPreloaderUpdateOneReq");
-
-        assert(!req->m_Resource);
-
-        if (req->m_PathDescriptor.m_ResourceType == 0)
-        {
-            req->m_LoadResult = RESULT_UNKNOWN_RESOURCE_TYPE;
-            RemoveFromParentPendingCount(preloader, req);
-            if (PreloaderTryPruneParent(preloader, req))
-            {
-                return true;
-            }
-            return false;
-        }
-
-        // If loading it must finish first before trying to go down to children
-        if (req->m_LoadRequest)
-        {
-            void* buffer;
-            uint32_t buffer_size;
-            uint32_t resource_size;
-
-            // Can hold the buffer till we FreeLoad it
-            dmLoadQueue::LoadResult res;
-            dmLoadQueue::Result e = dmLoadQueue::EndLoad(preloader->m_LoadQueue, req->m_LoadRequest, &buffer, &buffer_size, &resource_size, &res);
-            if (e == dmLoadQueue::RESULT_PENDING)
-            {
-                return false;
-            }
-            preloader->m_LoadQueueFull = false;
-
-            if (FinishLoad(preloader, req, res, buffer, buffer_size, resource_size))
-            {
-                return true;
-            }
-            return false;
-        }
-
-        // It has a buffer if is waiting for children to complete first
-        if (req->m_Buffer)
-        {
-            // traverse depth first
-            if (PreloaderUpdateOneItem(preloader, req->m_FirstChild))
-            {
-                return true;
-            }
-            return false;
-        }
-
-        // It might have been loaded by unhinted resource Gets or loaded by a different preloader, just grab & bump refcount
-        ResourceDescriptor* rd = FindByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
-        if (rd)
-        {
-            rd->m_ReferenceCount++;
-            req->m_Resource   = rd->m_Resource;
-            req->m_LoadResult = RESULT_OK;
-            RemoveChildren(preloader, req);
-            RemoveFromParentPendingCount(preloader, req);
-            if (PreloaderTryPruneParent(preloader, req))
-            {
-                return true;
-            }
-            return false;
-        }
-
-        if (preloader->m_LoadQueueFull)
-        {
-            return false;
-        }
-
-        if (IsPathInProgress(preloader, &req->m_PathDescriptor))
-        {
-            // A different item in the resource tree is already loading the same resource, just wait
-            return false;
-        }
-
-        dmLoadQueue::PreloadInfo info = {};
-        info.m_HintInfo.m_Preloader = preloader;
-        info.m_HintInfo.m_Parent    = index;
-        info.m_CompleteFunction     = req->m_PathDescriptor.m_ResourceType->m_PreloadFunction;
-        info.m_Context              = req->m_PathDescriptor.m_ResourceType->m_Context;
-        info.m_Type                 = req->m_PathDescriptor.m_ResourceType;
-
-        // If we can't add the request to the load queue it is because the queue is full
-        // We will try again once we completed loading of an item via dmLoadQueue::EndLoad
-        if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_InternalizedCanonicalPath, &info)))
-        {
-            MarkPathInProgress(preloader, &req->m_PathDescriptor);
-            return true;
-        }
-
-        preloader->m_LoadQueueFull = true;
-        return false;
-    }
-
-    // Calls the PostCreate function of any pending resources
-    // If the resource load is duplicate (indicated by ResourcePostCreateParamsInternal::m_Destroy)
-    // the resource will be deleted but we still need to call the PostCreate function
-    static Result PostCreateUpdateOneItem(HPreloader preloader)
-    {
-        ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[preloader->m_PostCreateCallbackIndex];
-        ResourcePostCreateParams& params     = ip.m_Params;
-        params.m_Resource                    = &ip.m_ResourceDesc;
-        ResourceType* resource_type          = params.m_Resource->m_ResourceType;
-        Result        ret;
-        {
-            DM_PROFILE("ResourcePostCreate");
-            DM_PROFILE_DYN(params.m_Filename, 0);
-            uint64_t start = LoadProfileTime(&ip.m_Profile);
-            ret = (Result)resource_type->m_PostCreateFunction(&params);
-            LoadProfileAddTime(&ip.m_Profile, LOAD_PROFILE_POST_CREATE, start);
-        }
-
-        if (ret == RESULT_PENDING)
-        {
-            return ret;
-        }
-        ++preloader->m_PostCreateCallbackIndex;
-        LoadTimings timings = {};
-        LogLoadProfile(&ip.m_Profile, params.m_Filename, ip.m_CreateResult != RESULT_OK ? ip.m_CreateResult : ret, &timings);
-
-        // Resource has been marked for delayed destroy after PostCreate function has been run.
-        if (ip.m_Destroy)
-        {
-            ResourceDestroyParams params;
-            params.m_Factory  = preloader->m_Factory;
-            params.m_Type     = resource_type;
-            params.m_Context  = resource_type->m_Context;
-            params.m_Resource = &ip.m_ResourceDesc;
-            {
-                DM_PROFILE("ResourceDestroy");
-                DM_PROFILE_DYN(ip.m_Params.m_Filename, 0);
-                resource_type->m_DestroyFunction(&params);
-            }
-            ip.m_Destroy = false;
-        }
-        else {
-            ResourceDescriptor* rd = FindByHash(preloader->m_Factory, params.m_Resource->m_NameHash);
-            if (rd)
-            {
-                if (ret == RESULT_OK)
-                    rd->m_LoadTimings = timings;
-                if (params.m_Resource->m_ResourceSize != 0)
-                    rd->m_ResourceSize = params.m_Resource->m_ResourceSize;
-            }
-        }
-
-        if (preloader->m_PostCreateCallbackIndex == preloader->m_PostCreateCallbacks.Size())
-        {
-            preloader->m_PostCreateCallbacks.SetSize(0);
-            preloader->m_PostCreateCallbackIndex = 0;
-        }
-
-        return ret;
-    }
-
-    Result UpdatePreloader(HPreloader preloader, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params, uint32_t soft_time_limit)
-    {
-        DM_PROFILE("UpdatePreloader");
-
-        uint64_t start           = dmTime::GetMonotonicTime();
-        uint32_t empty_runs      = 0;
-        bool close_to_time_limit = soft_time_limit < 1000;
-
-        do
-        {
-            Result root_result        = preloader->m_Request[0].m_LoadResult;
-            Result post_create_result = RESULT_OK;
-            if (preloader->m_PostCreateCallbackIndex < preloader->m_PostCreateCallbacks.Size())
-            {
-                post_create_result = PostCreateUpdateOneItem(preloader);
-                if (post_create_result != RESULT_PENDING)
-                {
-                    empty_runs = 0;
-                    if (root_result == RESULT_OK)
-                    {
-                        // Just waiting for the post-create functions to complete
-                        // If main result is RESULT_OK pick up any errors from
-                        // post create function
-                        preloader->m_Request[0].m_LoadResult = post_create_result;
-                    }
-                    continue;
-                }
-            }
-
-            if (root_result == RESULT_PENDING)
-            {
-                if (PreloaderUpdateOneItem(preloader, 0))
-                {
-                    empty_runs = 0;
-                    continue;
-                }
-            }
-            else
-            {
-                if (!preloader->m_CreateComplete)
-                {
-                    // Root is resolved - all items has been created, we should now
-                    // call the post-create function (if given) and then post-create
-                    // of all created items
-                    preloader->m_CreateComplete = true;
-                    if (root_result == RESULT_OK && complete_callback)
-                    {
-                        if (!complete_callback(complete_callback_params))
-                        {
-                            preloader->m_Request[0].m_LoadResult = RESULT_NOT_LOADED;
-                        }
-                        empty_runs = 0;
-                        // We need to continue to do all post create functions
-                        continue;
-                    }
-                }
-
-                if (post_create_result != RESULT_PENDING)
-                {
-                    // All done!
-                    return root_result;
-                }
-            }
-
-            if (PopHints(preloader))
-            {
-                empty_runs = 0;
-                continue;
-            }
-
-            if (close_to_time_limit)
-            {
-                ++empty_runs;
-                if (empty_runs > 3)
-                {
-                    break;
-                }
-            }
-            else
-            {
-                close_to_time_limit = (dmTime::GetMonotonicTime() + 1000 - start) > soft_time_limit;
-                if (close_to_time_limit)
-                {
-                    // Sleep a very short time, on windows it this small number just means "give up time slice"
-                    dmTime::Sleep(1);
-                    continue;
-                }
-
-                // In case of non-threaded loading, we never get any empty runs really.
-                // In case of threaded loading and loading small files, use up a little
-                // more of our time waiting for files to complete loading.
-                dmTime::Sleep(1000);
-            }
-        } while (dmTime::GetMonotonicTime() - start <= soft_time_limit);
-
-        return RESULT_PENDING;
-    }
-
-    void DeletePreloader(HPreloader preloader)
-    {
-        // Since Preload calls need their Create calls done and PostCreate calls must always follow Create calls.
-        // To fix this:
-        // * Make Get calls insta-fail on RESULT_ABORTED or something
-        // * Make Queue only return RESULT_ABORTED always.
-        // This is not a super-important use-case, the only way to trigger this is to start a load and
-        // then do unload before it completes or if you destroy the collection while loading.
-        // The normal operation is to issue a load and progress once complete.
-        while (UpdatePreloader(preloader, 0, 0, 1000000) == RESULT_PENDING)
-        {
-            dmLogWarning("Waiting for preloader to complete.");
-        }
-
-        // Release root and persisted resources
-        preloader->m_PersistedResources.Push(preloader->m_Request[0].m_Resource);
-        for (uint32_t i = 0; i < preloader->m_PersistedResources.Size(); ++i)
-        {
-            void* resource = preloader->m_PersistedResources[i];
-            if (!resource)
-                continue;
-            Release(preloader->m_Factory, resource);
-        }
-
-        assert(preloader->m_FreelistSize == (MAX_PRELOADER_REQUESTS - 1));
-        dmLoadQueue::DeleteQueue(preloader->m_LoadQueue);
-
-        dmBlockAllocator::DeleteContext(preloader->m_BlockAllocator);
-
-        dmSpinlock::Destroy(&preloader->m_SyncedDataSpinlock);
-        delete preloader;
-    }
-
-    bool PreloadHint(HResourcePreloadHintInfo info, const char* name)
-    {
-        if (!info || !name)
-            return false;
-
-        HPreloader preloader = info->m_Preloader;
-
-        PathDescriptor path_descriptor;
-        Result res = MakePathDescriptor(info->m_Preloader, name, path_descriptor);
-        if (res != RESULT_OK)
-        {
-            return false;
-        }
-
-        DM_SPINLOCK_SCOPED_LOCK(preloader->m_SyncedDataSpinlock)
-        uint32_t new_hints_size = preloader->m_SyncedData.m_NewHints.Size();
-        if (preloader->m_SyncedData.m_NewHints.Capacity() == new_hints_size)
-        {
-            preloader->m_SyncedData.m_NewHints.OffsetCapacity(32);
-        }
-        preloader->m_SyncedData.m_NewHints.SetSize(new_hints_size + 1);
-        PendingHint& hint     = preloader->m_SyncedData.m_NewHints.Back();
-        hint.m_PathDescriptor = path_descriptor;
-        hint.m_Parent         = info->m_Parent;
-
-        return true;
+        assert(!context->m_Requests && !context->m_ActiveReads && !context->m_StagedBytes);
+        // Remaining nodes describe externally retained resources. Their resource
+        // ownership is unchanged; DeleteFactory reports any leaked references.
+        for (uint32_t i = 0; i < context->m_Nodes.Size(); ++i)
+            if (context->m_Nodes[i])
+                context->m_Nodes[i]->m_Resource = 0;
+        for (uint32_t i = 0; i < context->m_Nodes.Size(); ++i)
+            if (context->m_Nodes[i])
+                DestroyUnusedNodes(context, context->m_Nodes[i]);
+        assert(context->m_ByPath.Empty());
+#if defined(DM_HAS_THREADS)
+        dmConditionVariable::Delete(context->m_Changed);
+        dmThread::FreeTls(context->m_CallerKey);
+#endif
+        dmMutex::Delete(context->m_Mutex);
+        delete context;
     }
 } // namespace dmResource
