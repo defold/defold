@@ -23,6 +23,7 @@
 #include <dmsdk/dlib/dstrings.h> // dmStrCaseCmp
 
 #include "graphics.h"
+#include "graphics_util.h"
 #include "graphics_private.h"
 #include "graphics_resource_retirement.h"
 #include <dlib/thread.h>
@@ -37,6 +38,17 @@
 #define APP_TITLE "GraphicsTest"
 #define WIDTH 8u
 #define HEIGHT 4u
+
+// Byte colors saturate outside [0, 1], avoiding undefined float-to-byte conversions.
+TEST(GraphicsUtil, PackRGBAClampsComponents)
+{
+    uint32_t packed = dmGraphics::PackRGBA(dmVMath::Vector4(-1.0f, 0.5f, 1.0f, 305.0f));
+    const uint8_t* rgba = (const uint8_t*)&packed;
+    ASSERT_EQ(0u, rgba[0]);
+    ASSERT_EQ(127u, rgba[1]);
+    ASSERT_EQ(255u, rgba[2]);
+    ASSERT_EQ(255u, rgba[3]);
+}
 
 #if !defined(DM_PLATFORM_HTML5)
 struct RetirementCompletion
