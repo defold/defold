@@ -129,7 +129,7 @@ HJob FontGenAddGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t num_g
  * update also generates the glyphs. The job context must outlive the batch.
  * @name FontGenStartGlyphs
  * @param jobdata [type: FontGenJobData*] Fresh batch; keep alive until completion or destruction.
- * @param glyphs [type: TextGlyph*] Input glyphs, copied during this call.
+ * @param glyphs [type: ::TextGlyph*] Input glyphs, copied during this call.
  * @param num_glyphs [type: uint32_t] Number of input glyphs.
  * @return started [type: bool] False when runtime generation is unsupported.
  */
