@@ -24,6 +24,9 @@
 
 #include "graphics.h"
 #include "graphics_private.h"
+#include "graphics_resource_retirement.h"
+#include <dlib/thread.h>
+#include <dlib/condition_variable.h>
 #include "graphics_native.h"
 
 #include "test_graphics_util.h"
@@ -34,6 +37,114 @@
 #define APP_TITLE "GraphicsTest"
 #define WIDTH 8u
 #define HEIGHT 4u
+
+#if !defined(DM_PLATFORM_HTML5)
+struct RetirementCompletion
+{
+    dmArray<uint32_t*>                      m_Submitted;
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Condition;
+    bool                                   m_Released;
+    bool                                   m_Clear;
+};
+
+static void CompleteRetirements(void* user_data)
+{
+    RetirementCompletion* completion = (RetirementCompletion*) user_data;
+    for (uint32_t i = 0; i < completion->m_Submitted.Size(); ++i)
+    {
+        ++*completion->m_Submitted[i];
+    }
+    DM_MUTEX_SCOPED_LOCK(completion->m_Mutex);
+    completion->m_Released = true;
+    dmConditionVariable::Signal(completion->m_Condition);
+    while (!completion->m_Clear)
+    {
+        dmConditionVariable::Wait(completion->m_Condition, completion->m_Mutex);
+    }
+    completion->m_Submitted.SetSize(0);
+}
+
+// A pre-BeginFrame update must survive a completion paused between its last release
+// and clearing its array, even when new retirements force the pending array to grow.
+TEST(ResourceRetirement, UpdateBeforeBeginFrameWhileCompleting)
+{
+    dmGraphics::ResourceRetirementQueue<uint32_t*> queue;
+    uint32_t released[34] = {};
+    RetirementCompletion completion;
+    completion.m_Mutex = dmMutex::New();
+    completion.m_Condition = dmConditionVariable::New();
+    completion.m_Released = false;
+    completion.m_Clear = false;
+    queue.Push(&released[0]);
+    queue.TakePending(completion.m_Submitted);
+
+    // A second frame is also in flight when updates start reusing the first slot.
+    dmArray<uint32_t*> second_frame;
+    queue.Push(&released[1]);
+    queue.TakePending(second_frame);
+    dmThread::Thread thread = dmThread::New(CompleteRetirements, 0x80000, &completion, "retirement");
+    dmMutex::Lock(completion.m_Mutex);
+    while (!completion.m_Released)
+    {
+        dmConditionVariable::Wait(completion.m_Condition, completion.m_Mutex);
+    }
+    for (uint32_t i = 2; i < DM_ARRAY_SIZE(released); ++i)
+    {
+        queue.Push(&released[i]);
+    }
+    completion.m_Clear = true;
+    dmConditionVariable::Signal(completion.m_Condition);
+    dmMutex::Unlock(completion.m_Mutex);
+    dmThread::Join(thread);
+    dmConditionVariable::Delete(completion.m_Condition);
+    dmMutex::Delete(completion.m_Mutex);
+
+    ASSERT_EQ(1u, released[0]);
+    ASSERT_EQ(1u, second_frame.Size());
+    ASSERT_EQ(&released[1], second_frame[0]);
+    ASSERT_TRUE(completion.m_Submitted.Empty());
+    for (uint32_t i = 1; i < DM_ARRAY_SIZE(released); ++i)
+    {
+        ASSERT_EQ(0u, released[i]);
+    }
+
+    // Only the next submission owns the newly retired resources.
+    queue.TakePending(completion.m_Submitted);
+    ASSERT_EQ(32u, completion.m_Submitted.Size());
+    for (uint32_t i = 0; i < completion.m_Submitted.Size(); ++i)
+    {
+        ASSERT_EQ(&released[i + 2], completion.m_Submitted[i]);
+        ++*completion.m_Submitted[i];
+    }
+    completion.m_Submitted.SetSize(0);
+    ++*second_frame[0];
+    second_frame.SetSize(0);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(released); ++i)
+    {
+        ASSERT_EQ(1u, released[i]);
+    }
+}
+#endif
+
+// Deletions after the final submission must remain available for shutdown cleanup.
+TEST(ResourceRetirement, DrainWithoutAnotherFrame)
+{
+    dmGraphics::ResourceRetirementQueue<uint32_t> queue;
+    dmArray<uint32_t> submitted;
+    queue.Push(1);
+    queue.TakePending(submitted);
+    queue.Push(2);
+    ASSERT_EQ(1u, submitted.Size());
+    ASSERT_EQ(1u, submitted[0]);
+    submitted.SetSize(0);
+    queue.TakePending(submitted);
+    ASSERT_EQ(1u, submitted.Size());
+    ASSERT_EQ(2u, submitted[0]);
+    submitted.SetSize(0);
+    queue.TakePending(submitted);
+    ASSERT_TRUE(submitted.Empty());
+}
 
 TEST(StorageBuffer, LegacyDescriptorFields)
 {

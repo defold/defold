@@ -117,7 +117,7 @@ namespace dmRender
         text_context.m_ClientBuffer.SetCapacity(buffer_size);
         text_context.m_ClientBuffer.SetSize(buffer_size);
         text_context.m_VertexDecl = FontCreateGlyphVertexDeclaration(render_context->m_GraphicsContext);
-        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        text_context.m_VertexBuffer = NewBufferedRenderBuffer(render_context, RENDER_BUFFER_TYPE_VERTEX_BUFFER);
 
         text_context.m_ConstantBuffers.SetCapacity(max_batches); // 1:1 index mapping with render object
         text_context.m_RenderObjects.SetCapacity(max_batches);
@@ -134,7 +134,7 @@ namespace dmRender
             ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
             ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             ro.m_SetBlendFactors = 1;
-            ro.m_VertexBuffer = text_context.m_VertexBuffer;
+            ro.m_VertexBuffer = (dmGraphics::HVertexBuffer)GetBuffer(render_context, text_context.m_VertexBuffer);
             ro.m_VertexDeclaration = text_context.m_VertexDecl;
             ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
             text_context.m_RenderObjects.Push(ro);
@@ -150,7 +150,7 @@ namespace dmRender
         {
             dmRender::DeleteNamedConstantBuffer(text_context.m_ConstantBuffers[i]);
         }
-        dmGraphics::DeleteVertexBuffer(text_context.m_VertexBuffer);
+        DeleteBufferedRenderBuffer(render_context, text_context.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
     }
 
@@ -572,7 +572,6 @@ namespace dmRender
         ro->m_SetBlendFactors = 1;
         ro->m_Material = material;
         ro->m_Textures[0] = font_map->m_Texture;
-        ro->m_VertexBuffer = text_context.m_VertexBuffer;
         ro->m_VertexDeclaration = text_context.m_VertexDecl;
         ro->m_VertexBufferOffsets[0] = 0;
         ro->m_VertexStart = text_context.m_VertexIndex;
@@ -636,8 +635,20 @@ namespace dmRender
         }
 
         ro->m_VertexCount = batch_vertex_count;
-
-        dmRender::AddToRender(render_context, ro);
+        if (ro->m_VertexCount > 0)
+        {
+            // Advance only for the first nonempty batch of a later pass. All batches
+            // in this pass share a buffer, with starts relative to its uploaded slice.
+            if (ro->m_VertexStart == text_context.m_VerticesFlushed && text_context.m_VerticesFlushed != 0)
+                AddRenderBuffer(render_context, text_context.m_VertexBuffer);
+            ro->m_VertexBuffer = (dmGraphics::HVertexBuffer)GetBuffer(render_context, text_context.m_VertexBuffer);
+            ro->m_VertexStart -= text_context.m_VerticesFlushed;
+            dmRender::AddToRender(render_context, ro);
+        }
+        else
+        {
+            text_context.m_RenderObjectIndex--;
+        }
     }
 
     static void FontRenderListDispatch(dmRender::RenderListDispatchParams const &params)
@@ -653,9 +664,10 @@ namespace dmRender
                 if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
                 {
                     const uint32_t num_vertices = text_context.m_VertexIndex - text_context.m_VerticesFlushed;
-                    const uint32_t byte_count = text_context.m_VertexIndex * sizeof(FontGlyphVertex);
-                    dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-                    dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, byte_count, text_context.m_ClientBuffer.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+                    const uint32_t vertex_size = sizeof(FontGlyphVertex);
+                    const uint32_t byte_count = num_vertices * vertex_size;
+                    uint8_t* vertices = text_context.m_ClientBuffer.Begin() + text_context.m_VerticesFlushed * vertex_size;
+                    SetBufferData(render_context, text_context.m_VertexBuffer, byte_count, vertices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
                     text_context.m_VerticesFlushed = text_context.m_VertexIndex;
 
                     DM_PROPERTY_ADD_U32(rmtp_FontCharacterCount, num_vertices / 6);
@@ -701,6 +713,8 @@ namespace dmRender
             // See also ClearRenderObjects() in render.cpp for clearing the text entries
             if (text_context.m_Frame != text_context.m_PreviousFrame)
             {
+                TrimBuffer(render_context, text_context.m_VertexBuffer);
+                RewindBuffer(render_context, text_context.m_VertexBuffer);
                 text_context.m_PreviousFrame = text_context.m_Frame;
                 text_context.m_RenderObjectIndex = 0;
                 text_context.m_VertexIndex = 0;

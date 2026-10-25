@@ -117,5 +117,41 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
     endif()
     defold_target_link_libraries_web(test_app_graphics "${TARGET_PLATFORM}" library_sys.js library_glfw.js)
     defold_register_test_target(test_app_graphics OFF)
+    if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
+      _defold_find_python(_graphics_python)
+      defold_test_run_settings(_graphics_runner _graphics_run_options graphics)
+      set(_graphics_buffer_python_command "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/test_graphics_buffer_replacement.py")
+      add_custom_target(run_test_graphics_buffer_replacement_python
+        COMMAND ${_graphics_runner} ${_graphics_buffer_python_command}
+        ${_graphics_run_options} COMMENT "Testing the graphics buffer replacement runner")
+      defold_register_sequential_test_command(graphics_buffer_replacement_python
+        COMMAND ${_graphics_buffer_python_command})
+      defold_add_to_run_tests(run_test_graphics_buffer_replacement_python RUN_GROUP graphics
+        COMMAND ${_graphics_buffer_python_command})
+      set(_graphics_available)
+      if("GraphicsAdapterMetal" IN_LIST _graphics_app_symbols)
+        list(APPEND _graphics_available metal)
+      endif()
+      # The existing graphics CI policy only exercises Vulkan on Linux.
+      if("GraphicsAdapterOpenGL" IN_LIST _graphics_app_symbols AND NOT TARGET_PLATFORM MATCHES "linux$")
+        list(APPEND _graphics_available opengl)
+      endif()
+      set(_graphics_buffer_command "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_buffer_replacement.py"
+        --executable "$<TARGET_FILE:test_app_graphics>" --target-platform "${TARGET_PLATFORM}"
+        --available ${_graphics_available})
+      if(DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$")
+        list(APPEND _graphics_buffer_command --skip-all "Hosted CI graphics tests explicitly disabled for ${TARGET_PLATFORM}")
+      endif()
+      add_custom_target(run_graphics_buffer_replacement
+        COMMAND ${_graphics_runner} ${_graphics_buffer_command}
+        DEPENDS test_app_graphics
+        ${_graphics_run_options} COMMENT "Running graphics buffer replacement tests")
+      defold_register_sequential_test_command(graphics_buffer_replacement
+        COMMAND ${_graphics_buffer_command} DEPENDS test_app_graphics)
+      if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        defold_add_to_run_tests(run_graphics_buffer_replacement RUN_GROUP graphics
+          COMMAND ${_graphics_buffer_command} DEPENDS test_app_graphics)
+      endif()
+    endif()
   endif()
 endif()

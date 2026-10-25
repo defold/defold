@@ -544,6 +544,10 @@ namespace dmGraphics
         vb->m_Buffer = new char[size];
         vb->m_Copy = 0x0;
         vb->m_Base.m_Size = size;
+        vb->m_DataSetCount = 0;
+        vb->m_DataSetBytes = 0;
+        vb->m_SubDataSetCount = 0;
+        vb->m_SubDataSetBytes = 0;
         if (size > 0 && data != 0x0)
             memcpy(vb->m_Buffer, data, size);
         return (uintptr_t)vb;
@@ -563,6 +567,8 @@ namespace dmGraphics
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
         assert(vb->m_Copy == 0x0);
+        ++vb->m_DataSetCount;
+        vb->m_DataSetBytes += size;
         delete [] vb->m_Buffer;
         vb->m_Buffer = new char[size];
         vb->m_Base.m_Size = size;
@@ -573,6 +579,8 @@ namespace dmGraphics
     static void NullSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
+        ++vb->m_SubDataSetCount;
+        vb->m_SubDataSetBytes += size;
         if (offset + size <= vb->m_Base.m_Size && data != 0x0)
             memcpy(&(vb->m_Buffer)[offset], data, size);
     }
