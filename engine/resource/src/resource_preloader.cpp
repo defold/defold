@@ -417,8 +417,6 @@ namespace dmResource
                 uint64_t start = LoadProfileTime(&load->m_Profile);
                 load->m_ReadResult = LoadResourceToBuffer(context->m_Factory, node->m_Path, node->m_Path, size, &load->m_FileSize, &load->m_BufferSize, &load->m_Buffer);
                 LoadProfileAddTime(&load->m_Profile, LOAD_PROFILE_READ, start);
-                if (load->m_ReadResult == RESULT_OK && !load->m_BufferSize)
-                    load->m_Buffer.SetCapacity(1);
             }
             if (load->m_ReadResult == RESULT_OK)
             {

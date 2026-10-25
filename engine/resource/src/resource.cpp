@@ -675,7 +675,8 @@ Result LoadResourceToBufferWithOffset(HFactory factory, const char* path, const 
             is_streaming = true;
         }
 
-        buffer->EnsureSize(bytes_to_read);
+        // Empty serialized resources still need a valid pointer for their decoder.
+        buffer->EnsureSize(dmMath::Max(bytes_to_read, 1u));
 
         // Only actually read the resource if we requested any bytes
         uint32_t nread = 0;

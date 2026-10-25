@@ -128,6 +128,7 @@ void UpdateAndPostUpdateCollection(dmGameObject::HCollection collection, dmGameO
     dmGameObject::PostUpdate(regist);
 }
 
+// Reload preserves the resource handle held by existing users, including display profiles.
 TEST_P(ResourceTest, Test)
 {
     const char* resource_name = GetParam();
@@ -135,7 +136,9 @@ TEST_P(ResourceTest, Test)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
     ASSERT_NE((void*)0, resource);
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, resource_name, 0));
+    HResourceDescriptor descriptor = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, resource_name, &descriptor));
+    ASSERT_EQ(resource, dmResource::GetResource(descriptor));
     dmResource::Release(m_Factory, resource);
 }
 
@@ -1465,6 +1468,7 @@ TEST_F(CollectionProxyComponentTest, ReleaseDynamicResourceFromAnotherCollection
     ASSERT_TRUE(proxy_unloaded);
 }
 
+// Wait for the load callbacks and legacy message without assuming worker progress per update.
 TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
 {
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
@@ -1476,7 +1480,9 @@ TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
 
     bool callback1_ready = false;
     bool callback2_error = false;
-    for (uint32_t i = 0; i < 64; ++i)
+    bool legacy_posted = false;
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!(callback1_ready && callback2_error && legacy_posted) && dmTime::GetMonotonicTime() < deadline)
     {
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1489,14 +1495,16 @@ TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
         lua_getglobal(L, "cp_script_load2_error");
         callback2_error = lua_toboolean(L, -1) != 0;
         lua_pop(L, 1);
+
+        lua_getglobal(L, "cp_script_load_legacy_posted");
+        legacy_posted = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
     }
 
     ASSERT_TRUE(callback1_ready);
     ASSERT_TRUE(callback2_error);
 
-    lua_getglobal(L, "cp_script_load_legacy_posted");
-    ASSERT_TRUE(lua_toboolean(L, -1) != 0);
-    lua_pop(L, 1);
+    ASSERT_TRUE(legacy_posted);
 
     lua_getglobal(L, "cp_script_load1_error");
     ASSERT_TRUE(lua_isnil(L, -1));

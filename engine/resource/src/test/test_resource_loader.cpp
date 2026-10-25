@@ -899,9 +899,9 @@ TEST_P(ResourceLoaderTest, RequestBudgetOnlyAdvancesReachableResources)
     }
     Add(1, children, count);
     Add(0, 0, 0);
-    dmResource::HPreloader large = Request(1);
-    dmResource::HPreloader small = Request(0);
-    ASSERT_EQ(dmResource::RESULT_OK, CompleteWithCallback(small, 0));
+    dmResource::HPreloader large_request = Request(1);
+    dmResource::HPreloader small_request = Request(0);
+    ASSERT_EQ(dmResource::RESULT_OK, CompleteWithCallback(small_request, 0));
     ASSERT_TRUE(m_Notified[0]);
     ASSERT_EQ(1u, m_Creates[0]);
     ASSERT_EQ(1u, m_Posts[0]);
@@ -910,7 +910,7 @@ TEST_P(ResourceLoaderTest, RequestBudgetOnlyAdvancesReachableResources)
         ASSERT_EQ(0u, m_Creates[i]);
         ASSERT_EQ(0u, m_Posts[i]);
     }
-    ASSERT_EQ(dmResource::RESULT_OK, Complete(large));
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(large_request));
 }
 
 // A zero-worker update checks its soft budget between reading and creating a resource.
