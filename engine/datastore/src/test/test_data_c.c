@@ -786,5 +786,16 @@ int CreateMixedListRowsFromC(HDSContext store, int soa, DSId ids[2])
     if (DSViewGetElement(&list, 2, &item) != DS_RESULT_OK ||
         DSViewGetBoolean(&item, &boolean) != DS_RESULT_OK || boolean != 1)
         return 7;
+    types[0] = DS_TYPE_NUMBER;
+    DSViewIterator iterator = DSViewIter(&list);
+    uint32_t       seen = 0;
+    while (DSViewIterNext(&iterator, &item))
+    {
+        if (seen >= 9 || DSViewGetType(&item) != types[seen])
+            return 8;
+        ++seen;
+    }
+    if (seen != 9 || DSViewIterNext(&iterator, &item) || DSViewGetType(&item) != DS_TYPE_MATRIX4)
+        return 9;
     return 0;
 }

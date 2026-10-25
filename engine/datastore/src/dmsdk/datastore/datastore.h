@@ -362,12 +362,24 @@ extern "C"
         uint64_t m_Storage[9];
     } DSValueView;
 
+    typedef struct DSViewIterator
+    {
+        // private
+        const DSValueView* m_Parent;
+        uint32_t           m_Index;
+        uint32_t           m_Count;
+    } DSViewIterator;
+
     DSResult    DSFieldGetView(HDSContext store, DSId id, uint64_t field, DSValueView* out_view);
     void        DSRowIterGetView(const DSRowIterator* iterator, uint32_t field, DSValueView* out_view);
     DSValueType DSViewGetType(const DSValueView* view);
     DSResult    DSViewGetCount(const DSValueView* view, uint32_t* out_count);
     DSResult    DSViewGetField(const DSValueView* view, uint64_t field, DSValueView* out_view);
     DSResult    DSViewGetElement(const DSValueView* view, uint32_t index, DSValueView* out_view);
+
+    DSViewIterator DSViewIter(const DSValueView* view);
+    bool           DSViewIterNext(DSViewIterator* iterator, DSValueView* out_view);
+
     DSResult    DSViewGetNumber(const DSValueView* view, double* out_value);
     DSResult    DSViewGetFloat(const DSValueView* view, float* out_value);
     DSResult    DSViewGetUInt32(const DSValueView* view, uint32_t* out_value);
@@ -1997,6 +2009,37 @@ extern "C"
  * @param index [type:uint32_t] Zero-based element index.
  * @param out_view [type:DSValueView*] Receives the element view; may alias view.
  * @return result [type:DSResult] OK, NOT_FOUND outside the list, or INVALID_ARGUMENT for a non-list.
+ */
+
+/*# Container value iterator
+ *
+ * Borrows its parent view, which must remain unchanged and outlive iteration.
+ * Has the same borrowed-data lifetime and synchronization requirements as DSValueView.
+ *
+ * @struct
+ * @name DSViewIterator
+ */
+
+/*# Iterate container values
+ *
+ * Visits list elements in order or immediate struct values in storage order.
+ * Struct order is unspecified. Empty containers and non-container views yield no values.
+ * No allocation; count is resolved once.
+ *
+ * @name DSViewIter
+ * @param view [type:const DSValueView*] Parent view; keep unchanged through iteration.
+ * @return iterator [type:DSViewIterator] Iterator positioned before the first value.
+ */
+
+/*# Read the next container value
+ *
+ * Returned views use the existing typed view getters. Nested containers can have
+ * their own iterators. Exhaustion leaves the output unchanged.
+ *
+ * @name DSViewIterNext
+ * @param iterator [type:DSViewIterator*] Container iterator.
+ * @param out_view [type:DSValueView*] Receives the next value; must not alias the parent view.
+ * @return next [type:bool] True for a value, including NULL; false at the end.
  */
 
 /*# Read a Number view

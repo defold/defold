@@ -89,6 +89,24 @@ DSResult DSViewGetElement(const DSValueView* view, uint32_t index, DSValueView* 
     return result;
 }
 
+DSViewIterator DSViewIter(const DSValueView* view)
+{
+    uint32_t count = 0;
+    DSViewGetCount(view, &count);
+    DSViewIterator iterator = { .m_Parent = view, .m_Count = count };
+    return iterator;
+}
+
+bool DSViewIterNext(DSViewIterator* iterator, DSValueView* out_view)
+{
+    if (iterator->m_Index == iterator->m_Count)
+        return false;
+    DSValue parent = ReadView(iterator->m_Parent);
+    DSValue child = GetChildValue(parent.m_Type, &parent.m_Value, iterator->m_Index++);
+    WriteView(child, out_view);
+    return true;
+}
+
 DSResult DSViewGetNumber(const DSValueView* view, double* out_value)
 {
     DSValue value = ReadView(view);

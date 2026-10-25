@@ -103,6 +103,45 @@ static void CheckLifetimeViews(HDSContext store, DSId id)
     EXPECT_EQ(DS_TYPE_NULL, DSViewGetType(&element));
     EXPECT_EQ(DS_RESULT_NOT_FOUND, DSViewGetElement(&list, 4, &element));
     EXPECT_EQ(DS_TYPE_NULL, DSViewGetType(&element));
+
+    DSValueType    expected[] = { DS_TYPE_STRING, DS_TYPE_NUMBER, DS_TYPE_STRUCT, DS_TYPE_NULL };
+    DSViewIterator items = DSViewIter(&list);
+    uint32_t       seen = 0;
+    while (DSViewIterNext(&items, &element))
+    {
+        ASSERT_LT(seen, 4u);
+        EXPECT_EQ(expected[seen++], DSViewGetType(&element));
+        if (DSViewGetType(&element) == DS_TYPE_STRING)
+        {
+            EXPECT_EQ(DS_RESULT_OK, DSViewGetString(&element, &string));
+            EXPECT_STREQ("health_pickup", string);
+        }
+        else if (DSViewGetType(&element) == DS_TYPE_NUMBER)
+        {
+            EXPECT_EQ(DS_RESULT_OK, DSViewGetNumber(&element, &radius));
+            EXPECT_EQ(15.0, radius);
+        }
+        else if (DSViewGetType(&element) == DS_TYPE_STRUCT)
+        {
+            EXPECT_EQ(DS_RESULT_OK, DSViewGetField(&element, 5, &field));
+            EXPECT_EQ(DS_RESULT_OK, DSViewGetString(&field, &string));
+            EXPECT_STREQ("guards", string);
+        }
+    }
+    EXPECT_EQ(4u, seen);
+    EXPECT_FALSE(DSViewIterNext(&items, &element));
+    EXPECT_EQ(DS_TYPE_NULL, DSViewGetType(&element));
+
+    DSViewIterator members = DSViewIter(&attributes);
+    uint32_t       kinds = 0;
+    seen = 0;
+    while (DSViewIterNext(&members, &field))
+    {
+        kinds |= 1u << DSViewGetType(&field);
+        ++seen;
+    }
+    EXPECT_EQ(2u, seen);
+    EXPECT_EQ((1u << DS_TYPE_STRING) | (1u << DS_TYPE_NUMBER), kinds);
 }
 
 // Native row and field-array inputs copy stack references without reset history by default.
@@ -205,6 +244,56 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             ASSERT_EQ(0u, stats.m_StructRowBytes);
             ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
         }
+}
+
+// Empty containers terminate without changing the output; nested and independent
+// iterators keep their own positions and visit null values as actual elements.
+TEST(DataLifetime, ContainerIteratorEmptyAndNested)
+{
+    HDSContext store = DSCreateStore(0);
+    DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_LIST };
+    DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference) };
+    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    DSListInput   empty = {};
+    DSStructDesc  layout = {};
+    DSStructInput object = { .m_Layout = &layout };
+    DSValueType   types[] = { DS_TYPE_LIST, DS_TYPE_STRUCT, DS_TYPE_NULL };
+    const void*   values[] = { &empty, &object, 0 };
+    DSListInput   nested = { .m_Count = 3, .m_Values = values, .m_Types = types };
+    DSReference   references[] = { { .m_List = &nested }, { .m_List = &empty } };
+    DSListInput   list = { .m_Type = DS_TYPE_LIST, .m_Count = 2, .m_Values = references };
+    DSReference   row = { .m_List = &list };
+    DSId          id;
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 1, &row, &id));
+    DSValueView parent, child, element;
+    ASSERT_EQ(DS_RESULT_OK, DSFieldGetView(store, id, 1, &parent));
+    DSViewIterator outer = DSViewIter(&parent);
+    DSViewIterator independent = DSViewIter(&parent);
+    ASSERT_TRUE(DSViewIterNext(&outer, &child));
+    DSViewIterator inner = DSViewIter(&child);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_TRUE(DSViewIterNext(&inner, &element));
+        ASSERT_EQ(types[i], DSViewGetType(&element));
+        DSViewIterator empty_iterator = DSViewIter(&element);
+        DSValueView    untouched = parent;
+        ASSERT_FALSE(DSViewIterNext(&empty_iterator, &untouched));
+        ASSERT_EQ(DS_TYPE_LIST, DSViewGetType(&untouched));
+        uint32_t count;
+        ASSERT_EQ(DS_RESULT_OK, DSViewGetCount(&untouched, &count));
+        ASSERT_EQ(2u, count);
+    }
+    ASSERT_FALSE(DSViewIterNext(&inner, &element));
+    ASSERT_EQ(DS_TYPE_NULL, DSViewGetType(&element));
+    ASSERT_TRUE(DSViewIterNext(&outer, &child));
+    inner = DSViewIter(&child);
+    ASSERT_FALSE(DSViewIterNext(&inner, &element));
+    ASSERT_FALSE(DSViewIterNext(&outer, &child));
+    ASSERT_TRUE(DSViewIterNext(&independent, &child));
+    uint32_t count;
+    ASSERT_EQ(DS_RESULT_OK, DSViewGetCount(&child, &count));
+    ASSERT_EQ(3u, count);
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
 }
 
 // Repeated row churn and self-assignment must recycle payloads while another row

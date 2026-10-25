@@ -452,9 +452,22 @@ field. `DSValueView` is a borrowed, allocation-free view with a private layout.
 Use `DSViewGetField` with a local member hash, or `DSViewGetElement` with a
 list index; then inspect its kind and use a typed getter such as
 `DSViewGetNumber` or `DSViewGetString`. Repeat those steps for nested content.
-This supports native, inline and packed values without making child rows entities
-or exposing general field enumeration. Finish using views before mutation or query
-release.
+For sequential access, use a container iterator:
+
+```cpp
+DSViewIterator items = DSViewIter(&loot);
+DSValueView item;
+while (DSViewIterNext(&items, &item))
+{
+    // Inspect the kind, then read with DSViewGetString, DSViewGetNumber, etc.
+}
+```
+
+It visits list elements in order or immediate struct values in unspecified order.
+Keep the parent view unchanged through iteration; nested containers can have their
+own iterators. Count and index access remain available.
+This supports native, inline and packed values without making child rows entities.
+Finish using views before mutation or query release.
 
 ### Owned dynamic structs
 
