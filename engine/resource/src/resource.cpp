@@ -1044,6 +1044,11 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
         if (result == RESULT_OK)
         {
             DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
+            if (rd->m_Resource != descriptor.m_Resource)
+            {
+                factory->m_ResourceToHash->Erase((uintptr_t)rd->m_Resource);
+                factory->m_ResourceToHash->Put((uintptr_t)descriptor.m_Resource, path_hash);
+            }
             rd->m_Resource = descriptor.m_Resource;
             rd->m_PrevResource = descriptor.m_PrevResource;
             rd->m_ResourceSize = descriptor.m_ResourceSize;
@@ -1073,6 +1078,8 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
         }
         result = DestroyPreviousResource(factory, rd);
     }
+    // The temporary reference belongs to the descriptor. Its current resource
+    // now has the reverse lookup, including when Recreate replaced the pointer.
     Release(factory, rd->m_Resource);
     EndResourceRecreate(recreate);
     return result;

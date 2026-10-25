@@ -69,6 +69,16 @@ extern uint32_t RESOURCES_ARCD_SIZE;
 extern unsigned char RESOURCES_DMANIFEST[];
 extern uint32_t RESOURCES_DMANIFEST_SIZE;
 
+struct ReplaceResourceContext
+{
+    dmResource::HFactory m_Factory;
+    int* m_Resource;
+    uint32_t m_CallbackCount;
+    uint32_t m_DestroyCount;
+    bool m_Fail;
+    bool m_ReleaseInCallback;
+};
+
 #define EXT_CONSTANTS(prefix, ext)\
     static const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);\
 
@@ -1118,6 +1128,160 @@ static dmResource::Result CountRecreatedResourceDestroy(const dmResource::Resour
 {
     ++*(uint32_t*)params->m_Context;
     return RecreateResourceDestroy(params);
+}
+
+static dmResource::Result ReplaceResourceRecreate(const dmResource::ResourceRecreateParams* params)
+{
+    ReplaceResourceContext* context = (ReplaceResourceContext*)params->m_Context;
+    int* previous = (int*)ResourceDescriptorGetResource(params->m_Resource);
+    int* replacement = new int(*previous + 1);
+    ResourceDescriptorSetPrevResource(params->m_Resource, previous);
+    ResourceDescriptorSetResource(params->m_Resource, replacement);
+    if (context->m_Fail)
+    {
+        delete replacement;
+        return dmResource::RESULT_FORMAT_ERROR;
+    }
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result ReplaceResourceDestroy(const dmResource::ResourceDestroyParams* params)
+{
+    ReplaceResourceContext* context = (ReplaceResourceContext*)params->m_Context;
+    ++context->m_DestroyCount;
+    return RecreateResourceDestroy(params);
+}
+
+static void ReplaceResourceReloaded(const ResourceReloadedParams* params)
+{
+    ReplaceResourceContext* context = (ReplaceResourceContext*)params->m_UserData;
+    int* previous = (int*)ResourceDescriptorGetPrevResource(params->m_Resource);
+    ASSERT_EQ(context->m_Resource, previous);
+    context->m_Resource = (int*)ResourceDescriptorGetResource(params->m_Resource);
+    ASSERT_NE(previous, context->m_Resource);
+    ASSERT_EQ(*previous + 1, *context->m_Resource);
+
+    dmhash_t hash;
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::GetPath(context->m_Factory, previous, &hash));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(context->m_Factory, context->m_Resource, &hash));
+    ASSERT_EQ(params->m_FilenameHash, hash);
+    uint32_t references = dmResource::GetRefCount(context->m_Factory, context->m_Resource);
+    dmResource::IncRef(context->m_Factory, context->m_Resource);
+    ASSERT_EQ(references + 1, dmResource::GetRefCount(context->m_Factory, context->m_Resource));
+    dmResource::Release(context->m_Factory, context->m_Resource);
+    ASSERT_EQ(references, dmResource::GetRefCount(context->m_Factory, context->m_Resource));
+    ++context->m_CallbackCount;
+    if (context->m_ReleaseInCallback)
+    {
+        dmResource::Release(context->m_Factory, context->m_Resource);
+        context->m_Resource = 0;
+    }
+}
+
+static dmResource::Result ReplaceResource(dmResource::HFactory factory, uint32_t mode)
+{
+    const char* name = "/replace.foo";
+    if (mode == 0)
+        return dmResource::ReloadResource(factory, name, 0);
+    char data[] = "2";
+    if (mode == 1)
+        return dmResource::SetResource(factory, dmHashString64(name), data, sizeof(data));
+    int message = 2;
+    return dmResource::SetResource(factory, dmHashString64(name), &message);
+}
+
+// Reload and both SetResource forms publish replacement pointers before callbacks, even at capacity.
+TEST(RecreateTest, ReplacementUpdatesReverseLookupAndPreloader)
+{
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 1;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        ReplaceResourceContext context = {};
+        context.m_Factory = dmResource::NewFactory(&params, MOUNT_DIR);
+        ASSERT_NE((dmResource::HFactory)0, context.m_Factory);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(context.m_Factory, "foo", &context, 0, RecreateResourceCreate, 0, ReplaceResourceDestroy, ReplaceResourceRecreate));
+        dmResource::RegisterResourceReloadedCallback(context.m_Factory, ReplaceResourceReloaded, &context);
+        char data[] = "1";
+        const char* name = "/replace.foo";
+        dmhash_t hash = dmHashString64(name);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(context.m_Factory, name, sizeof(data), data));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(context.m_Factory, name, (void**)&context.m_Resource));
+        dmResource::HPreloader preloader = dmResource::NewPreloader(context.m_Factory, name);
+        dmResource::Result result;
+        do
+        {
+            result = dmResource::UpdatePreloader(preloader, 0, 0, 1000);
+        } while (result == dmResource::RESULT_PENDING);
+        ASSERT_EQ(dmResource::RESULT_OK, result);
+        uint32_t references = dmResource::GetRefCount(context.m_Factory, hash);
+
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            ASSERT_EQ(dmResource::RESULT_OK, ReplaceResource(context.m_Factory, mode));
+            ASSERT_EQ(i + 1, context.m_CallbackCount);
+            ASSERT_EQ(i + 1, context.m_DestroyCount);
+            ASSERT_EQ((int)i + 2, *context.m_Resource);
+            ASSERT_EQ(references, dmResource::GetRefCount(context.m_Factory, hash));
+            void* resource;
+            ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(context.m_Factory, name, &resource));
+            ASSERT_EQ(context.m_Resource, resource);
+            dmResource::Release(context.m_Factory, resource);
+            ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(context.m_Factory, hash, &resource));
+            ASSERT_EQ(context.m_Resource, resource);
+            dmResource::Release(context.m_Factory, resource);
+        }
+
+        dmResource::Release(context.m_Factory, context.m_Resource);
+        ASSERT_EQ(2u, context.m_DestroyCount);
+        dmResource::DeletePreloader(preloader);
+        ASSERT_EQ(3u, context.m_DestroyCount);
+        ASSERT_EQ(0u, dmResource::GetRefCount(context.m_Factory, hash));
+        dmResource::DeleteFactory(context.m_Factory);
+    }
+}
+
+// Failed replacement preserves the old resource; a successful callback may release the last caller reference.
+TEST(RecreateTest, ReplacementFailureAndFinalRelease)
+{
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 1;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        ReplaceResourceContext context = {};
+        context.m_Factory = dmResource::NewFactory(&params, MOUNT_DIR);
+        ASSERT_NE((dmResource::HFactory)0, context.m_Factory);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(context.m_Factory, "foo", &context, 0, RecreateResourceCreate, 0, ReplaceResourceDestroy, ReplaceResourceRecreate));
+        dmResource::RegisterResourceReloadedCallback(context.m_Factory, ReplaceResourceReloaded, &context);
+        char data[] = "1";
+        const char* name = "/replace.foo";
+        dmhash_t hash = dmHashString64(name);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(context.m_Factory, name, sizeof(data), data));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(context.m_Factory, name, (void**)&context.m_Resource));
+
+        context.m_Fail = true;
+        ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, ReplaceResource(context.m_Factory, mode));
+        ASSERT_EQ(1, *context.m_Resource);
+        ASSERT_EQ(1u, dmResource::GetRefCount(context.m_Factory, context.m_Resource));
+        ASSERT_EQ(0u, context.m_CallbackCount);
+        ASSERT_EQ(0u, context.m_DestroyCount);
+        dmhash_t resource_hash;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(context.m_Factory, context.m_Resource, &resource_hash));
+        ASSERT_EQ(hash, resource_hash);
+
+        context.m_Fail = false;
+        context.m_ReleaseInCallback = true;
+        ASSERT_EQ(dmResource::RESULT_OK, ReplaceResource(context.m_Factory, mode));
+        ASSERT_EQ(1u, context.m_CallbackCount);
+        ASSERT_EQ(2u, context.m_DestroyCount);
+        ASSERT_EQ((int*)0, context.m_Resource);
+        ASSERT_EQ(0u, dmResource::GetRefCount(context.m_Factory, hash));
+        HResourceDescriptor descriptor;
+        ASSERT_EQ(dmResource::RESULT_NOT_LOADED, dmResource::GetDescriptor(context.m_Factory, name, &descriptor));
+        dmResource::DeleteFactory(context.m_Factory);
+    }
 }
 
 // Both SetResource overloads must retain old data during callbacks and destroy it afterwards.

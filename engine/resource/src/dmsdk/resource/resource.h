@@ -527,8 +527,10 @@ typedef ResourceResult (*FResourcePostCreate)(const struct ResourcePostCreatePar
 typedef ResourceResult (*FResourceDestroy)(const struct ResourceDestroyParams* params);
 
 /*#
- * Resource recreate function. Recreate resource in-place.
- * @note Beware that any "in flight" resource pointers to the actual resource must remain valid after this call.
+ * Resource recreate function. Prefer recreating the resource in-place.
+ * @note Existing resource pointers must remain valid or be updated in resource-reloaded callbacks.
+ * If replacing the pointer with ResourceDescriptorSetResource, use ResourceDescriptorSetPrevResource
+ * to keep the previous resource alive until those callbacks finish. The resource system then destroys it.
  * @typedef
  * @name FResourceRecreate
  * @param param [type: const dmResource::ResourceRecreateParams*] Resource parameters
