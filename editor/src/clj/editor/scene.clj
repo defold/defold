@@ -529,13 +529,16 @@
     (map #(assoc (render-util/make-aabb-outline-renderable #{}) :aabb %))))
 
 (defn- render!
-  [^GLContext context render-mode renderables updatable-states viewport pass->render-args [clear-r clear-g clear-b clear-a]]
+  [^GLContext context render-mode renderables updatable-states viewport pass->render-args [clear-r clear-g clear-b clear-a] record-model-draw!]
   (let [gl (.getGL3 (.getGL context))
         batch-key (render-mode-batch-key render-mode)]
     (gl/gl-clear gl clear-r clear-g clear-b clear-a)
     (gl-viewport gl viewport)
     (doseq [pass (render-mode-passes render-mode)
             :let [pass-render-args (cond-> (pass->render-args pass)
+                                     record-model-draw!
+                                     (assoc :record-model-draw! record-model-draw!)
+
                                      (and (= render-mode :picking-rect)
                                           (some? @last-picking-rect))
                                      (picking-render-args viewport @last-picking-rect))
@@ -562,7 +565,7 @@
             camera-inset-frame (gl/with-drawable-as-current camera-inset-drawable
                                  (.setSurfaceSize ^GLOffscreenAutoDrawable camera-inset-drawable (int render-width) (int render-height))
                                  (scene-cache/process-pending-deletions! gl)
-                                 (render! gl-context :camera-inset scene-renderables updatable-states camera-inset-viewport camera-inset-pass->render-args clear-color)
+                                 (render! gl-context :camera-inset scene-renderables updatable-states camera-inset-viewport camera-inset-pass->render-args clear-color nil)
                                  (render-camera-inset-border! gl camera-inset-viewport)
                                  (.glActiveTexture gl GL/GL_TEXTURE0)
                                  (.glBindTexture gl GL/GL_TEXTURE_2D 0)
@@ -1459,7 +1462,11 @@
           (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
             (ui/set-cursor image-view (cursor cursor-type)))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
-        (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props)]
+        (let [render-stats-label (ui/user-data image-view ::render-stats-label)
+              overlay-anchor-pane-props (cond-> (g/node-value node-id :overlay-anchor-pane-props)
+                                          render-stats-label
+                                          (-> (assoc :visible true :pick-on-bounds false)
+                                              (update :children (fnil conj []) render-stats-label)))]
           (ui/advance-graph-user-data-component!
             node-id :overlay-anchor-pane
             {:fx/type fxui/ext-with-anchor-pane-props
@@ -1862,6 +1869,35 @@
             {}
             active-updatables)))
 
+(defn- render-stats-label [^longs counters draw-time-ns]
+  (let [draw-count (aget counters 0)
+        mesh-instance-count (aget counters 1)
+        instanced-draw-count (aget counters 2)
+        instanced-mesh-count (aget counters 3)
+        largest-batch (aget counters 4)]
+    (when (pos? draw-count)
+      {:fx/type fx.label/lifecycle
+       :style-class "info-label"
+       :style {:-fx-background-color "rgba(0, 0, 0, 0.7)"
+               :-fx-background-radius 4}
+       :mouse-transparent true
+       :anchor-pane/top 70
+       :anchor-pane/right 30
+       :text (format (str "Model rendering (last frame)\n"
+                          "Instancing: %s\n"
+                          "Mesh instances: %,d (%,d instanced)\n"
+                          "Model draws: %,d (%,d instanced)\n"
+                          "Largest instance batch: %,d\n"
+                          "CPU draw: %.2f ms")
+                     (cond
+                       (> largest-batch 1) "Batching active"
+                       (pos? instanced-draw-count) "Enabled (single-instance draws)"
+                       :else "Not used")
+                     mesh-instance-count instanced-mesh-count
+                     draw-count instanced-draw-count
+                     largest-batch
+                     (/ (double draw-time-ns) 1000000.0))})))
+
 (defn update-image-view! [view-id ^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
   (let [action-queue (g/user-data view-id ::input-action-queue)
         [render-mode play-mode active-updatables updatable-states]
@@ -1907,7 +1943,21 @@
                   [(g/node-value view-id :viewport evaluation-context)
                    (g/node-value view-id :pass->render-args evaluation-context)])]
             (scene-cache/process-pending-deletions! gl)
-            (render! gl-context render-mode renderables new-updatable-states viewport pass->render-args [0.0 0.0 0.0 1.0])
+            ;; Count submissions while drawing, without rescanning the scene or
+            ;; invalidating the graph. Exclude picking and the camera inset.
+            (let [counters (long-array 5)
+                  record-model-draw! (fn record-model-draw! [mesh-count instanced]
+                                       (aset counters 0 (inc (aget counters 0)))
+                                       (aset counters 1 (+ (aget counters 1) (long mesh-count)))
+                                       (when instanced
+                                         (aset counters 2 (inc (aget counters 2)))
+                                         (aset counters 3 (+ (aget counters 3) (long mesh-count)))
+                                         (aset counters 4 (max (aget counters 4) (long mesh-count)))))
+                  start-time (System/nanoTime)]
+              (render! gl-context render-mode renderables new-updatable-states viewport pass->render-args [0.0 0.0 0.0 1.0] record-model-draw!)
+              ;; CPU submission time excludes scene evaluation and pixel
+              ;; readback; it is neither GPU time nor a frame-rate measurement.
+              (ui/user-data! image-view ::render-stats-label (render-stats-label counters (- (System/nanoTime) start-time))))
             (ui/user-data! image-view ::last-renderables renderables)
             (ui/user-data! image-view ::last-frame-version frame-version)
             (scene-cache/prune-context! gl)
@@ -2177,7 +2227,7 @@
   (when drawable
     (gl/with-drawable-as-current drawable
       (scene-cache/process-pending-deletions! gl)
-      (render! gl-context :normal all-renderables nil viewport pass->render-args [0.0 0.0 0.0 1.0])
+      (render! gl-context :normal all-renderables nil viewport pass->render-args [0.0 0.0 0.0 1.0] nil)
       (let [[w h] (vp-dims viewport)
             buf-image (read-to-buffered-image cached-buf-img-ref w h)]
         (scene-cache/prune-context! gl)

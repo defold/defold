@@ -180,9 +180,32 @@
   (let [buffer-data-type (graphics.types/data-type-buffer-data-type data-type)]
     (condp instance? value
       Matrix4d
-      (buffers/push! buffer buffer-data-type normalize
-                     (graphics/convert-double-values (vec (geom/as-array value))
-                                                     semantic-type :vector-type-mat4 vector-type))
+      (if-not (and (= :float buffer-data-type)
+                   (= :vector-type-mat4 vector-type))
+        (buffers/push! buffer buffer-data-type normalize
+                       (graphics/convert-double-values (vec (geom/as-array value))
+                                                       semantic-type :vector-type-mat4 vector-type))
+        ;; Write the common matrix layout directly in column-major order.
+        ;; Avoid allocating arrays and vectors per instance. Normalization does
+        ;; not change floating-point attribute values.
+        (let [matrix ^Matrix4d value]
+          (doto buffer
+            (.putFloat (float (.m00 matrix)))
+            (.putFloat (float (.m10 matrix)))
+            (.putFloat (float (.m20 matrix)))
+            (.putFloat (float (.m30 matrix)))
+            (.putFloat (float (.m01 matrix)))
+            (.putFloat (float (.m11 matrix)))
+            (.putFloat (float (.m21 matrix)))
+            (.putFloat (float (.m31 matrix)))
+            (.putFloat (float (.m02 matrix)))
+            (.putFloat (float (.m12 matrix)))
+            (.putFloat (float (.m22 matrix)))
+            (.putFloat (float (.m32 matrix)))
+            (.putFloat (float (.m03 matrix)))
+            (.putFloat (float (.m13 matrix)))
+            (.putFloat (float (.m23 matrix)))
+            (.putFloat (float (.m33 matrix))))))
 
       Tuple4d
       (let [tuple ^Tuple4d value]

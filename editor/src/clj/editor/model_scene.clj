@@ -246,15 +246,31 @@
 
 (defn- make-instance-binding [request-id shader render-args coordinate-space-info renderables instance-attribute-infos attribute-bindings-per-instance]
   (when (coll/not-empty instance-attribute-infos)
-    (let [render-args-per-instance
-          (mapv (fn [{:keys [world-transform world-rotation]}]
-                  (-> (math/derive-render-transforms world-transform
-                                                     (:view render-args)
-                                                     (:projection render-args)
-                                                     (:texture render-args))
-                      (assoc :actual/world-rotation world-rotation
-                             :world-rotation world-rotation)
-                      (math/rederive-render-transforms coordinate-space-info)))
+    (let [world-space-semantic-types (:coordinate-space-world coordinate-space-info)
+          local-space-semantic-types (:coordinate-space-local coordinate-space-info)
+          world-space-position (and (contains? world-space-semantic-types :semantic-type-position)
+                                    (not (contains? local-space-semantic-types :semantic-type-position)))
+          world-space-normal (and (contains? world-space-semantic-types :semantic-type-normal)
+                                  (not (contains? local-space-semantic-types :semantic-type-normal)))
+          has-instance-normal (coll/any? #(= :semantic-type-normal-matrix (:semantic-type %)) instance-attribute-infos)
+          ^Matrix4d view (:view render-args)
+          view-normal (when (and has-instance-normal world-space-normal)
+                        (math/derive-normal-transform view))
+
+          ;; Instance bindings consume world/normal matrices and the actual
+          ;; world transform/rotation for world-space attributes. Avoid deriving
+          ;; all uniform transforms, including six inverses per instance.
+          ;; Use the same space rules as math/rederive-render-transforms.
+          render-args-per-instance
+          (mapv (fn [{:keys [^Matrix4d world-transform world-rotation]}]
+                  (cond-> {:actual/world world-transform
+                           :actual/world-rotation world-rotation
+                           :world (if world-space-position math/identity-mat4 world-transform)}
+                    has-instance-normal
+                    (assoc :normal (or view-normal
+                                       (math/derive-normal-transform
+                                         (doto (Matrix4d. view)
+                                           (.mul world-transform)))))))
                 renderables)
 
           instance-buffer
@@ -285,6 +301,8 @@
       (if instance-binding
         (gl/gl-draw-elements-instanced gl GL/GL_TRIANGLES index-type 0 index-count (count renderables))
         (gl/gl-draw-elements gl GL/GL_TRIANGLES index-type 0 index-count))
+      (when-let [record-model-draw! (:record-model-draw! render-args)]
+        (record-model-draw! (count renderables) (some? instance-binding)))
       (gl/gl-disable gl GL/GL_CULL_FACE)
       (gl/gl-enable gl GL/GL_BLEND)
       (doseq [[_name t] textures]
