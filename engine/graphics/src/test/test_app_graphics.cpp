@@ -45,15 +45,7 @@
     #include "test_app_graphics_assets_vendor.h"
 #endif
 
-#if defined(DM_PLATFORM_LINUX) && defined(DM_SANITIZE_ADDRESS)
-extern "C" const char* __lsan_default_suppressions()
-{
-    // Xlib retains an input-method allocation after glfwTerminate(). Keep this
-    // suppression local to the graphics test app, preserving engine leak checks.
-    // https://github.com/glfw/glfw/issues/2546
-    return "leak:_XimOpenIM\n";
-}
-#endif
+#include "graphics_test_sanitizers.h"
 
 // From engine_private.h
 
