@@ -987,6 +987,124 @@ async function testLoaderArchiveStaleCachedFile() {
     }
 }
 
+function setupDMFSVerification(cached = []) {
+    const files = ["a", "b", "c"].map(name => Object.assign(archiveFile(name), { sha1: "00" }));
+    const environment = setupArchiveDownloads(files);
+    const { context, notify } = environment;
+    const streams = [], hashes = [], mappings = [], removed = [];
+    context.Module.isDMFSSupported = true;
+    context.DMSYS = { GetUserPersistentDataRoot: () => "/data" };
+    context.FS = {
+        stat(name) { if (cached.includes(name.slice(6))) return { size: 1 }; throw new Error("not cached"); },
+        open(name, mode) { const stream = { name, mode, closed: false, mapped: false }; streams.push(stream); return stream; },
+        write(stream) { assert.strictEqual(stream.closed, false); },
+        mmap(stream) {
+            assert.strictEqual(stream.closed, false);
+            stream.mapped = true;
+            mappings.push({ name: stream.name, active: streams.filter(stream => stream.mapped).length });
+            return Uint8Array.of(1);
+        },
+        close(stream) {
+            assert.strictEqual(stream.closed, false, "streams close only once");
+            stream.closed = true;
+            stream.mapped = false;
+        },
+        unlink(name) { removed.push(name); }
+    };
+    context.window.crypto = { subtle: { digest() {
+        const hash = deferred();
+        hashes.push(hash);
+        notify();
+        return hash.promise;
+    } } };
+    const downloads = observeAsyncMethod(environment.loader, "downloadPieces");
+    const verifications = observeAsyncMethod(context.FileLoader, "verifyHash");
+    return { ...environment, streams, hashes, mappings, removed, downloads, verifications };
+}
+
+// Cached and downloaded DMFS files share one mapping/hash slot while network downloads still overlap.
+async function testLoaderArchiveDMFSVerificationConcurrency() {
+    for (const cached of [[], ["a", "b", "c"], ["c"]]) {
+        const { loader, requests, calls, waitFor, streams, hashes, mappings, downloads } = setupDMFSVerification(cached);
+        const completion = loader.downloadContent();
+        const count = 3 - cached.length;
+        if (count) {
+            await waitFor(() => requests.length === count);
+            assert.strictEqual(calls.maxPending, count, "verification must not serialize network downloads");
+            requests.forEach(xhr => xhr.complete(Uint8Array.of(1).buffer));
+            await Promise.all(downloads);
+        }
+        for (let index = 0; index < 3; ++index) {
+            await waitFor(() => hashes.length > index);
+            hashes[index].resolve(Uint8Array.of(0).buffer);
+        }
+        await completion;
+        assert.strictEqual(mappings.length, 3);
+        assert(mappings.every(mapping => mapping.active === 1), "each mapped stream closes before the next mapping");
+        assert(streams.every(stream => stream.closed));
+        assert.deepStrictEqual(calls.loaded, ["a", "b", "c"]);
+        assert.deepStrictEqual(calls.errors, []);
+        assert.strictEqual(requests.length, count);
+    }
+}
+
+// Cancelling queued DMFS verification closes active streams and prevents late hashes from mapping another file.
+async function testLoaderArchiveDMFSVerificationQueueCancellation() {
+    for (const cached of [[], ["a", "b", "c"]]) {
+        for (const rejects of [false, true]) {
+            const { loader, requests, calls, timers, waitFor, streams, hashes, mappings, downloads, verifications } = setupDMFSVerification(cached);
+            const completion = loader.downloadContent();
+            if (!cached.length) {
+                await waitFor(() => requests.length === 3);
+                requests.forEach(xhr => xhr.complete(Uint8Array.of(1).buffer));
+                await Promise.all(downloads);
+            }
+            await waitFor(() => hashes.length > 0);
+            loader.cleanUp();
+            await assert.rejects(completion, { name: "AbortError" });
+            assert(streams.every(stream => stream.closed));
+            for (const hash of hashes) {
+                if (rejects) hash.reject(new Error("stale hash"));
+                else hash.resolve(Uint8Array.of(0).buffer);
+            }
+            await Promise.allSettled(verifications);
+            assert.strictEqual(mappings.length, 1, "cancelled queue entries must never map files");
+            assert.strictEqual(timers.size, 0);
+            assert.strictEqual(calls.completed, 0);
+            assert.deepStrictEqual(calls.loaded, []);
+            assert.deepStrictEqual(calls.errors, []);
+        }
+    }
+}
+
+// A rejected DMFS hash closes its mapping and releases the slot before its whole-file retry delay.
+async function testLoaderArchiveDMFSVerificationQueueRetry() {
+    const { loader, requests, calls, timers, runRetry, waitFor, streams, hashes, mappings, removed, downloads } = setupDMFSVerification();
+    const completion = loader.downloadContent();
+    await waitFor(() => requests.length === 3);
+    requests.forEach(xhr => xhr.complete(Uint8Array.of(1).buffer));
+    await Promise.all(downloads);
+    await waitFor(() => hashes.length > 0);
+    hashes[0].reject(new Error("hash failed"));
+    await waitFor(() => hashes.length > 1 && timers.size === 1);
+    assert.strictEqual(streams[0].closed, true);
+    assert.deepStrictEqual(removed, ["/data/a"]);
+    for (let index = 1; index < 3; ++index) {
+        await waitFor(() => hashes.length > index);
+        hashes[index].resolve(Uint8Array.of(0).buffer);
+    }
+    await runRetry();
+    requests[3].complete(Uint8Array.of(1).buffer);
+    await waitFor(() => hashes.length === 4);
+    hashes[3].resolve(Uint8Array.of(0).buffer);
+    await completion;
+    assert(mappings.every(mapping => mapping.active === 1), "failed hashes release mappings before the next verification");
+    assert(streams.every(stream => stream.closed));
+    assert.deepStrictEqual(calls.loaded, ["a", "b", "c"]);
+    assert.deepStrictEqual(calls.errors, []);
+    assert.strictEqual(calls.completed, 1);
+}
+
 // DMFS verification retries close each stream once and truncate oversized persisted data before the next attempt.
 async function testLoaderArchiveDMFSRetry() {
     for (const verifySize of [true, false]) {
@@ -2616,7 +2734,9 @@ async function runTests() {
                        testLoaderArchiveProgressCancellation,
                        testLoaderArchiveVerificationRetryLimit, testLoaderArchiveCancellation,
                        testLoaderArchiveStaleVerification, testLoaderArchiveStaleDescription,
-                       testLoaderArchiveStaleCachedFile, testLoaderArchiveDMFSRetry, testLoaderArchiveUnreadableData,
+                       testLoaderArchiveStaleCachedFile, testLoaderArchiveDMFSVerificationConcurrency,
+                       testLoaderArchiveDMFSVerificationQueueCancellation, testLoaderArchiveDMFSVerificationQueueRetry,
+                       testLoaderArchiveDMFSRetry, testLoaderArchiveUnreadableData,
                        testLoaderArchiveDMFSCloseFailure, testLoaderArchiveDMFSErrorCleanup,
                        testLoaderArchiveDMFSVerificationCancellation, testLoaderArchiveTerminalStates,
                        testLoaderTransportRetryLifecycle, testLoaderTransportAdapters, testLoaderArchiveCacheResults,

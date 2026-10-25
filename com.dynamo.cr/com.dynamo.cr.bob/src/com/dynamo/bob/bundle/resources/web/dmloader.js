@@ -948,10 +948,13 @@ var GameArchiveLoader = {
         session.scope.check();
         const limit = this.MAX_CONCURRENT_XHR || 6;
         const queue = createLoaderQueue(limit);
+        // DMFS mappings may allocate a whole file. Share one verification slot
+        // between cache reads and downloaded files without limiting their XHRs.
+        const verificationQueue = Module['isDMFSSupported'] ? createLoaderQueue(1) : null;
         const completed = [];
         var nextFile = 0;
         await Promise.all(files.map(async (file, index) => {
-            completed[index] = await this.downloadFile(file, session.scope, queue, limit);
+            completed[index] = await this.downloadFile(file, session.scope, queue, limit, verificationQueue);
             session.scope.check();
             // Downloads may finish out of order; keep public notifications in manifest order.
             while (completed[nextFile]) {
@@ -968,9 +971,10 @@ var GameArchiveLoader = {
         this.notifyListeners(this._onArchiveLoadedListeners, undefined, session);
     },
 
-    downloadFile: async function(file, scope, queue, limit) {
+    downloadFile: async function(file, scope, queue, limit, verificationQueue) {
         scope.check();
-        if (await ArchiveStorage.readCached(file, scope)) {
+        const readCached = () => ArchiveStorage.readCached(file, scope);
+        if (await (verificationQueue ? verificationQueue.run(scope, readCached) : readCached())) {
             scope.check();
             return { name: file.name };
         }
@@ -983,10 +987,18 @@ var GameArchiveLoader = {
                 attemptScope.own(() => attempt.storage.dispose());
                 await this.downloadPieces(attempt, retry, queue, limit);
                 attemptScope.check();
+                const verifyAndFinish = async () => {
+                    try {
+                        await attemptScope.wait(this.verifyFile(attempt));
+                        attemptScope.check();
+                        return { name: file.name, data: attempt.storage.finish() };
+                    } finally {
+                        // Close failed mappings before releasing the verification slot.
+                        attemptScope.cancel();
+                    }
+                };
                 try {
-                    await attemptScope.wait(this.verifyFile(attempt));
-                    attemptScope.check();
-                    return { name: file.name, data: attempt.storage.finish() };
+                    return await (verificationQueue ? verificationQueue.run(attemptScope, verifyAndFinish) : verifyAndFinish());
                 } catch (error) {
                     scope.check();
                     if (retry >= this.MAX_VERIFICATION_RETRIES) throw error;
