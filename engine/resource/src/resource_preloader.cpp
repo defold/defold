@@ -54,6 +54,7 @@ namespace dmResource
         LoadProfile m_Profile;
         void* m_PreloadData;
         const void* m_ProvidedData;
+        HJob m_ReadJob;
         uint32_t m_Caller;
         uint32_t m_Selection;
         uint64_t m_StagedBytes;
@@ -148,6 +149,7 @@ namespace dmResource
         dmArray<uint32_t> m_FreeEdges;
         dmArray<LoadNode*> m_Visit;
         LoadQueue m_Reads;
+        dmArray<LoadNode*> m_ReadJobs;
         LoadQueue m_Creates;
         LoadQueue m_Completions;
         LoadQueue m_Pins;
@@ -401,10 +403,8 @@ namespace dmResource
         return node;
     }
 
-    static int32_t ReadResourceJob(HJobContext jobs, HJob job, void* user_context, void* user_data)
+    static void ReadResource(LoadContext* context, LoadNode* node)
     {
-        LoadContext* context = (LoadContext*)user_context;
-        LoadNode* node = (LoadNode*)user_data;
         LoadData* load = node->m_Load;
         {
             DM_PROFILE("ResourceLoad");
@@ -454,6 +454,31 @@ namespace dmResource
         --context->m_ActiveReads;
         StartReads(context, 0);
         Signal(context);
+    }
+
+    static void RemoveReadJob(LoadContext* context, LoadNode* node)
+    {
+        for (uint32_t i = 0; i < context->m_ReadJobs.Size(); ++i)
+        {
+            if (context->m_ReadJobs[i] == node)
+            {
+                context->m_ReadJobs.EraseSwap(i);
+                node->m_Load->m_ReadJob = 0;
+                return;
+            }
+        }
+        assert(false);
+    }
+
+    static int32_t ReadResourceJob(HJobContext jobs, HJob job, void* user_context, void* user_data)
+    {
+        LoadContext* context = (LoadContext*)user_context;
+        LoadNode* node = (LoadNode*)user_data;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            RemoveReadJob(context, node);
+        }
+        ReadResource(context, node);
         return 0;
     }
 
@@ -465,7 +490,7 @@ namespace dmResource
         LoadNode* node;
         if (context->m_StagedBytes >= STAGED_INPUT_LIMIT)
         {
-            if (context->m_ActiveReads)
+            if (context->m_ActiveReads && (!request || !request->m_Blocking))
                 return 0;
             if (request)
             {
@@ -514,8 +539,30 @@ namespace dmResource
             job.m_Process = ReadResourceJob;
             job.m_Context = context;
             job.m_Data = node;
-            JobSystemPushJob(context->m_Jobs, JobSystemCreateJob(context->m_Jobs, &job));
+            node->m_Load->m_ReadJob = JobSystemCreateJob(context->m_Jobs, &job);
+            Push(context->m_ReadJobs, node);
+            JobSystemPushJob(context->m_Jobs, node->m_Load->m_ReadJob);
         }
+    }
+
+    static LoadNode* TakeQueuedRead(HPreloader request)
+    {
+        LoadContext* context = request->m_Context;
+        SelectRequest(request);
+        for (uint32_t i = 0; i < context->m_ReadJobs.Size(); ++i)
+        {
+            LoadNode* node = context->m_ReadJobs[i];
+            if (node->m_Load->m_Selection != context->m_Selection)
+                continue;
+            // Cancellation wins only before the job starts. Its process callback
+            // will then be skipped, so this caller can consume the same read once.
+            if (JobSystemCancelJob(context->m_Jobs, node->m_Load->m_ReadJob) == JOBSYSTEM_RESULT_CANCELED)
+            {
+                RemoveReadJob(context, node);
+                return node;
+            }
+        }
+        return 0;
     }
 
     static bool ReadInline(HPreloader request)
@@ -524,12 +571,14 @@ namespace dmResource
         LoadNode* node;
         {
             DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-            node = TakeRead(context, request);
+            node = TakeQueuedRead(request);
+            if (!node)
+                node = TakeRead(context, request);
         }
-        // Zero-worker platforms advance only this loader's work, without
-        // pumping another system's jobs or holding a lock around Preload.
+        // Blocking callers and zero-worker platforms advance only their own
+        // resource reads. A caller may itself occupy the last free job worker.
         if (node && node->m_Type)
-            ReadResourceJob(context->m_Jobs, 0, context, node);
+            ReadResource(context, node);
         return node != 0;
     }
 
@@ -984,7 +1033,7 @@ namespace dmResource
                 }
                 if (node)
                     CreateResourceNode(context, node);
-                else if (context->m_ReadLimit || !ReadInline(request))
+                else if ((!request->m_Blocking && context->m_ReadLimit) || !ReadInline(request))
                     break;
                 progressed = true;
             }
@@ -1149,8 +1198,11 @@ namespace dmResource
             Signal(context);
         }
         bool ready = FindRequestWork(request, context->m_Creates, LOAD_WORK_CREATE, false) || FindRequestWork(request, context->m_Posts, LOAD_WORK_POST, false) || FindRequestWork(request, context->m_Completions, LOAD_WORK_COMPLETE, false);
-        if (!context->m_ReadLimit)
+        if (request->m_Blocking || !context->m_ReadLimit)
             ready = ready || FindRequestWork(request, context->m_Reads, LOAD_WORK_READ, false);
+        if (request->m_Blocking && !ready)
+            for (uint32_t i = 0; i < context->m_ReadJobs.Size(); ++i)
+                ready = ready || context->m_ReadJobs[i]->m_Load->m_Selection == context->m_Selection;
         bool foreign = false;
         bool complete = true;
         for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)

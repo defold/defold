@@ -73,6 +73,9 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         m_JobCallbacks = 0;
         m_JobReadsRoot = false;
         m_JobGetResult = dmResource::RESULT_PENDING;
+        m_GetJobsStarted = 0;
+        m_GetJobsFinished = 0;
+        m_PreloadFromJob = false;
         m_Fences = 0;
         m_DecodedBytes = 0;
         memset(m_Preloads, 0, sizeof(m_Preloads));
@@ -249,6 +252,80 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         char path[64];
         Path(caller->m_Id, path, sizeof(path));
         caller->m_Result = dmResource::Get(caller->m_Test->m_Factory, path, &caller->m_Resource);
+    }
+
+    static int32_t GetFromJob(HJobContext, HJob, void* user_context, void* user_data)
+    {
+        ResourceLoaderTest* self = (ResourceLoaderTest*)user_context;
+        GetCaller* caller = (GetCaller*)user_data;
+        {
+            DM_MUTEX_SCOPED_LOCK(self->m_Mutex);
+            ++self->m_GetJobsStarted;
+#if defined(DM_HAS_THREADS)
+            dmConditionVariable::Broadcast(self->m_Changed);
+            while (!self->m_AllowBlocked)
+                dmConditionVariable::Wait(self->m_Changed, self->m_Mutex);
+#endif
+        }
+        char path[64];
+        Path(caller->m_Id, path, sizeof(path));
+        dmResource::HPreloader request = self->m_PreloadFromJob ? dmResource::NewPreloader(self->m_Factory, path) : 0;
+        caller->m_Result = dmResource::Get(self->m_Factory, path, &caller->m_Resource);
+        if (request)
+            dmResource::DeletePreloader(request);
+        {
+            DM_MUTEX_SCOPED_LOCK(self->m_Mutex);
+            ++self->m_GetJobsFinished;
+#if defined(DM_HAS_THREADS)
+            dmConditionVariable::Broadcast(self->m_Changed);
+#endif
+        }
+        return 0;
+    }
+
+    void StartGetJobs(GetCaller* callers, uint32_t count)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Job job = {};
+            job.m_Process = GetFromJob;
+            job.m_Callback = JobCallback;
+            job.m_Context = this;
+            job.m_Data = &callers[i];
+            JobSystemPushJob(m_Jobs, JobSystemCreateJob(m_Jobs, &job));
+        }
+#if defined(DM_HAS_THREADS)
+        if (JobSystemGetWorkerCount(m_Jobs))
+        {
+            DM_MUTEX_SCOPED_LOCK(m_Mutex);
+            while (m_GetJobsStarted != count)
+                dmConditionVariable::Wait(m_Changed, m_Mutex);
+        }
+#endif
+    }
+
+    void FinishGetJobs(uint32_t count)
+    {
+        Unblock();
+        if (!JobSystemGetWorkerCount(m_Jobs))
+        {
+            while (m_GetJobsFinished != count)
+                JobSystemUpdate(m_Jobs, 0);
+        }
+#if defined(DM_HAS_THREADS)
+        else
+        {
+            DM_MUTEX_SCOPED_LOCK(m_Mutex);
+            while (m_GetJobsFinished != count)
+                dmConditionVariable::Wait(m_Changed, m_Mutex);
+            ASSERT_EQ(0u, m_JobCallbacks);
+        }
+#endif
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (m_JobCallbacks != count && dmTime::GetMonotonicTime() < deadline)
+            JobSystemUpdate(m_Jobs, 0);
+        ASSERT_EQ(count, m_JobCallbacks);
+        ASSERT_TRUE(m_JobCallbackThreadCorrect);
     }
 
     static dmResource::Result Create(const dmResource::ResourceCreateParams* params)
@@ -576,6 +653,9 @@ class ResourceLoaderTest : public jc_test_params_class<int>
     uint32_t m_JobCallbacks;
     bool m_JobReadsRoot;
     dmResource::Result m_JobGetResult;
+    uint32_t m_GetJobsStarted;
+    uint32_t m_GetJobsFinished;
+    bool m_PreloadFromJob;
     uint32_t m_Fences;
     uint64_t m_DecodedBytes;
 };
@@ -636,6 +716,104 @@ TEST_P(ResourceLoaderTest, ConcurrentSynchronousGet)
     ASSERT_EQ(1u, m_Destroys[0]);
     ASSERT_EQ(1u, m_Destroys[1]);
 #endif
+}
+
+// Synchronous loads progress when every worker is occupied by a caller, with shared dependencies loaded once.
+TEST_P(ResourceLoaderTest, SynchronousGetFromSaturatedJobPool)
+{
+    if (!m_Jobs)
+        return;
+    uint32_t count = JobSystemGetWorkerCount(m_Jobs);
+    if (!count)
+        count = 1;
+    GetCaller callers[4] = {};
+    ASSERT_LE(count, 4u);
+    uint32_t child = 0;
+    Add(child, 0, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        Add(i + 1, &child, 1);
+        callers[i].m_Test = this;
+        callers[i].m_Id = i + 1;
+    }
+    StartGetJobs(callers, count);
+    FinishGetJobs(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        ASSERT_EQ(dmResource::RESULT_OK, callers[i].m_Result);
+        ASSERT_EQ(1u, m_Preloads[i + 1]);
+        ASSERT_EQ(1u, m_Creates[i + 1]);
+        dmResource::Release(m_Factory, callers[i].m_Resource);
+    }
+    ASSERT_EQ(1u, m_Preloads[child]);
+    ASSERT_EQ(1u, m_Creates[child]);
+    ASSERT_EQ(1u, m_Destroys[child]);
+}
+
+// A worker takes over its queued preload and discovers a dependency through a nested synchronous Get.
+TEST_P(ResourceLoaderTest, SynchronousGetFromJobSharesQueuedPreload)
+{
+    if (!m_Jobs)
+        return;
+    m_Hints = false;
+    m_PreloadFromJob = true;
+    EnablePostCreate();
+    m_PostPendingOnce = true;
+    uint32_t child = 1;
+    Add(0, &child, 1);
+    Add(child, 0, 0);
+    GetCaller caller = { this, 0, dmResource::RESULT_PENDING, 0 };
+    StartGetJobs(&caller, 1);
+    FinishGetJobs(1);
+    ASSERT_EQ(dmResource::RESULT_OK, caller.m_Result);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        ASSERT_EQ(1u, m_Preloads[i]);
+        ASSERT_EQ(1u, m_Creates[i]);
+        ASSERT_EQ(2u, m_Posts[i]);
+    }
+    dmResource::Release(m_Factory, caller.m_Resource);
+}
+
+// Queued unrelated reads and an oversized parent must not prevent a worker from reading its own child.
+TEST_P(ResourceLoaderTest, SynchronousGetFromJobUnderQueuedReadPressure)
+{
+    if (!m_Jobs || JobSystemGetWorkerCount(m_Jobs) != 1)
+        return;
+    Add(0, 0, 0);
+    uint32_t child = 2;
+    AddSized(1, &child, 1, 5 * 1024 * 1024);
+    Add(child, 0, 0);
+    GetCaller caller = { this, 0, dmResource::RESULT_PENDING, 1 };
+    StartGetJobs(&caller, 1);
+    dmResource::HPreloader unrelated = Request(0);
+    FinishGetJobs(1);
+    ASSERT_EQ(dmResource::RESULT_OK, caller.m_Result);
+    ASSERT_EQ(0u, m_Creates[0]);
+    for (uint32_t i = 1; i < 3; ++i)
+    {
+        ASSERT_EQ(1u, m_Preloads[i]);
+        ASSERT_EQ(1u, m_Creates[i]);
+    }
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(unrelated));
+    dmResource::Release(m_Factory, caller.m_Resource);
+}
+
+// A read failure reached from a worker completes the caller and releases its parent's decoded data.
+TEST_P(ResourceLoaderTest, SynchronousGetFromJobPropagatesReadFailure)
+{
+    if (!m_Jobs)
+        return;
+    uint32_t child = 1;
+    Add(0, &child, 1);
+    GetCaller caller = { this, 0, dmResource::RESULT_PENDING, 0 };
+    StartGetJobs(&caller, 1);
+    FinishGetJobs(1);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, caller.m_Result);
+    ASSERT_EQ((void*)0, caller.m_Resource);
+    ASSERT_EQ(1u, m_Preloads[0]);
+    ASSERT_EQ(1u, m_Creates[0]);
+    ASSERT_EQ(0u, m_Decoded);
 }
 
 // Different roots retain one shared dependency without duplicate reads, creation or premature destruction.
