@@ -426,14 +426,22 @@ static void PutDone(JobThreadContext* ctx, HJob hjob, JobSystemStatus status, in
     item.m_Status = status;
     item.m_Result = result;
 
-    if (ctx->m_Done.Full())
-        ctx->m_Done.OffsetCapacity(16);
-    ctx->m_Done.Push(hjob);
-
     if (item.m_Parent != INVALID_JOB)
     {
-        JobItem& parent = ctx->m_Items.Get(item.m_Parent);
-        dmAtomicIncrement32(&parent.m_NumChildrenCompleted);
+        JobItem* parent = GetJobItem(ctx, item.m_Parent);
+        if (parent)
+            dmAtomicIncrement32(&parent->m_NumChildrenCompleted);
+    }
+
+    // Keep parents alive until their remaining child callbacks can be canceled.
+    // Otherwise, callback-free jobs need no owner-thread completion dispatch.
+    if (!item.m_Job.m_Callback && item.m_FirstChild == INVALID_JOB)
+        FreeJob(ctx, hjob);
+    else
+    {
+        if (ctx->m_Done.Full())
+            ctx->m_Done.OffsetCapacity(16);
+        ctx->m_Done.Push(hjob);
     }
 }
 

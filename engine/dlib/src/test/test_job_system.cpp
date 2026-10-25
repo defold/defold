@@ -165,6 +165,72 @@ TEST_P(dmJobSystemTest, CreateFromWorkers)
     ASSERT_TRUE(complete);
 }
 
+struct RetiredJobs
+{
+    HJob           m_Children[128];
+    int32_atomic_t m_Processed;
+    int32_atomic_t m_ParentProcessed;
+    uint32_t       m_Retired;
+    uint8_t        m_CallbackResult;
+};
+
+static int32_t ProcessRetiredChild(HJobContext context, HJob job, void* user_context, void* user_data)
+{
+    RetiredJobs* jobs = (RetiredJobs*)user_context;
+    if (user_data)
+        JobSystemCancelJob(context, job);
+    dmAtomicIncrement32(&jobs->m_Processed);
+    return 1;
+}
+
+static int32_t ProcessRetiredParent(HJobContext context, HJob job, void* user_context, void* user_data)
+{
+    RetiredJobs* jobs = (RetiredJobs*)user_context;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(jobs->m_Children); ++i)
+        if (!JobSystemGetContext(context, jobs->m_Children[i]))
+            ++jobs->m_Retired;
+    dmAtomicStore32(&jobs->m_ParentProcessed, 1);
+    return 1;
+}
+
+// Callback-free children, including canceled jobs, retire before their parent runs without an owner update.
+TEST_P(dmJobSystemTest, RetireJobsWithoutCallbacks)
+{
+    RetiredJobs jobs = {};
+    Job job = {};
+    job.m_Process = ProcessRetiredParent;
+    job.m_Callback = CallbackSimple;
+    job.m_Context = &jobs;
+    job.m_Data = &jobs.m_CallbackResult;
+    HJob parent = JobSystemCreateJob(m_JobSystem, &job);
+    job.m_Process = ProcessRetiredChild;
+    job.m_Callback = 0;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(jobs.m_Children); ++i)
+    {
+        job.m_Data = i & 1 ? &jobs : 0;
+        jobs.m_Children[i] = JobSystemCreateJob(m_JobSystem, &job);
+        ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemSetParent(m_JobSystem, jobs.m_Children[i], parent));
+    }
+    JobSystemPushJob(m_JobSystem, parent);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(jobs.m_Children); ++i)
+        JobSystemPushJob(m_JobSystem, jobs.m_Children[i]);
+
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!dmAtomicGet32(&jobs.m_ParentProcessed) && dmTime::GetMonotonicTime() < deadline)
+        if (!JobSystemGetWorkerCount(m_JobSystem))
+            JobSystemUpdate(m_JobSystem, 0);
+    if (JobSystemGetWorkerCount(m_JobSystem))
+        ASSERT_EQ(0u, jobs.m_CallbackResult);
+    while (!jobs.m_CallbackResult && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_JobSystem, 0);
+    // Join before inspecting the data, including if a regression prevented completion.
+    JobSystemDestroy(m_JobSystem);
+    m_JobSystem = 0;
+    ASSERT_EQ(128, dmAtomicGet32(&jobs.m_Processed));
+    ASSERT_EQ(128u, jobs.m_Retired);
+    ASSERT_EQ(1u, jobs.m_CallbackResult);
+}
+
 TEST_P(dmJobSystemTest, PushJobsMultipleThreads)
 {
     int num_jobs = m_NumThreads * 3;

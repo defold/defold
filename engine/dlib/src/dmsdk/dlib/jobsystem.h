@@ -29,6 +29,7 @@ extern "C" {
  * Each job provides a process function and an optional callback.
  * - The process function performs the work and may run on a worker thread.
  * - The callback runs on the main thread and can interact with non-threaded systems (for example Lua).
+ * - Jobs without their own or outstanding child callbacks are retired when processing finishes, without waiting for JobSystemUpdate.
  *
  * Jobs can have dependencies. A parent job will only run after all child jobs have finished.
  *
@@ -191,6 +192,7 @@ uint32_t JobSystemGetWorkerCount(HJobContext context);
  * @name JobSystemCreateJob
  * @param context [type:HJobContext] the job system context
  * @param job [type:Job*] the job creation parameters. This pointer is not stored, the data is copied as-is.
+ * @note Without a callback, the handle may become invalid as soon as the queued job finishes.
  * @return hjob [type:HJob] returns the job if successful. 0 otherwise.
  */
 HJob JobSystemCreateJob(HJobContext context, struct Job* job);
@@ -215,7 +217,8 @@ enum JobSystemResult JobSystemSetParent(HJobContext context, HJob child, HJob pa
 enum JobSystemResult JobSystemPushJob(HJobContext context, HJob job);
 
 /*# cancel a job (and its children)
- * @note Cancelled jobs will be flushed at the next JobSystemUpdate()
+ * @note Cancelled jobs with callbacks will be flushed at the next JobSystemUpdate().
+ * Queued jobs without their own or outstanding child callbacks are retired by the processor, including when canceled.
  * @name JobSystemCancelJob
  * @param context [type:HJobContext] the job system context
  * @param job [type:HJob] the job to cancel
@@ -230,7 +233,7 @@ enum JobSystemResult JobSystemPushJob(HJobContext context, HJob job);
  *     jr = JobSystemCancelJob(job_context, hjob);
  * }
  * // If the loop observed PENDING before this point, INVALID_HANDLE means the
- * // job was flushed by JobSystemUpdate() between polls.
+ * // job was retired between polls.
  * ```
  */
 enum JobSystemResult JobSystemCancelJob(HJobContext context, HJob job);
