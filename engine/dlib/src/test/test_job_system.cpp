@@ -18,7 +18,7 @@
 #include "dlib/log.h"
 #include "dlib/time.h"
 
-#include <dmsdk/dlib/jobsystem.h>
+#include <dlib/jobsystem.h>
 #include <dlib/thread.h> // We want the defines DM_HAS_THREADS
 
 #define JC_TEST_IMPLEMENTATION
@@ -87,6 +87,82 @@ public:
 TEST_P(dmJobSystemTest, PushJobs)
 {
     PushJob(ProcessSimple, CallbackSimple, 0, 0);
+}
+
+static int32_t ProcessCounted(HJobContext context, HJob job, void* user_context, void* user_data)
+{
+    dmAtomicIncrement32((int32_atomic_t*)user_context);
+    return 1;
+}
+
+#if defined(DM_HAS_THREADS)
+static void UpdateFromOtherThread(void* data)
+{
+    JobSystemUpdate((HJobContext)data, 1000000);
+}
+#endif
+
+// Completion dispatch belongs to the context's owner, even when another system updates it.
+TEST_P(dmJobSystemTest, UpdateKeepsCallbackOwner)
+{
+#if defined(DM_HAS_THREADS)
+    int32_atomic_t processed = 0;
+    uint8_t callback_result = 0;
+    PushJob(ProcessCounted, CallbackSimple, (void*)&processed, &callback_result);
+    dmThread::Thread thread = dmThread::New(UpdateFromOtherThread, 0x8000, m_JobSystem, "JobUpdate");
+    dmThread::Join(thread);
+    ASSERT_EQ(0u, callback_result);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 2000000;
+    while (!callback_result && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_JobSystem, 0);
+    ASSERT_EQ(1, dmAtomicGet32(&processed));
+    ASSERT_EQ(1u, callback_result);
+#endif
+}
+
+struct JobChain
+{
+    int32_atomic_t m_Processed;
+    int32_atomic_t m_Remaining;
+};
+
+static int32_t ProcessJobChain(HJobContext context, HJob job, void* user_context, void* user_data)
+{
+    JobChain* chain = (JobChain*)user_context;
+    if (dmAtomicDecrement32(&chain->m_Remaining) > 1)
+    {
+        Job next = {};
+        next.m_Process = ProcessJobChain;
+        next.m_Context = chain;
+        JobSystemPushJob(context, JobSystemCreateJob(context, &next));
+    }
+    dmAtomicIncrement32(&chain->m_Processed);
+    return 0;
+}
+
+// Jobs submit their successors while the owner thread retires jobs and moves pool entries.
+TEST_P(dmJobSystemTest, CreateFromWorkers)
+{
+    JobChain chains[4];
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        dmAtomicStore32(&chains[i].m_Processed, 0);
+        dmAtomicStore32(&chains[i].m_Remaining, 128);
+        PushJob(ProcessJobChain, 0, &chains[i], 0);
+    }
+    bool complete = false;
+    uint64_t deadline = dmTime::GetMonotonicTime() + 2000000;
+    while (!complete && dmTime::GetMonotonicTime() < deadline)
+    {
+        JobSystemUpdate(m_JobSystem, 0);
+        complete = true;
+        for (uint32_t i = 0; i < 4; ++i)
+            complete = complete && dmAtomicGet32(&chains[i].m_Processed) == 128;
+    }
+    // Join workers before the chains leave scope, including on a test failure.
+    JobSystemDestroy(m_JobSystem);
+    m_JobSystem = 0;
+    ASSERT_TRUE(complete);
 }
 
 TEST_P(dmJobSystemTest, PushJobsMultipleThreads)
@@ -501,7 +577,9 @@ struct BlockingCallbackTrack
     int32_atomic_t  m_CallbackStarted;
     int32_atomic_t  m_AllowCallbackFinish;
     int32_atomic_t  m_CallbackFinished;
-    int32_atomic_t  m_StopUpdateThread;
+    HJob            m_CancelJob;
+    JobSystemResult m_CancelResult;
+    int             m_FinishedBeforeCancel;
     JobSystemStatus m_CallbackStatus;
 };
 
@@ -511,7 +589,7 @@ static void CallbackBlocking(HJobContext ctx, HJob job, JobSystemStatus status, 
     track->m_CallbackStatus = status;
     dmAtomicIncrement32(&track->m_CallbackStarted);
 
-    while (!dmAtomicGet32(&track->m_AllowCallbackFinish) && !dmAtomicGet32(&track->m_StopUpdateThread))
+    while (!dmAtomicGet32(&track->m_AllowCallbackFinish))
     {
         dmTime::Sleep(1000);
     }
@@ -519,14 +597,15 @@ static void CallbackBlocking(HJobContext ctx, HJob job, JobSystemStatus status, 
     dmAtomicIncrement32(&track->m_CallbackFinished);
 }
 
-static void UpdateUntilCallbackStarted(void* user_data)
+static void CancelDuringCallback(void* user_data)
 {
     BlockingCallbackTrack* track = (BlockingCallbackTrack*)user_data;
-    while (!dmAtomicGet32(&track->m_CallbackStarted) && !dmAtomicGet32(&track->m_StopUpdateThread))
+    if (WaitForAtomicValue(&track->m_CallbackStarted, 1, 5000000))
     {
-        JobSystemUpdate(track->m_JobSystem, 0);
-        dmTime::Sleep(1000);
+        track->m_CancelResult = JobSystemCancelJob(track->m_JobSystem, track->m_CancelJob);
+        track->m_FinishedBeforeCancel = dmAtomicGet32(&track->m_CallbackFinished);
     }
+    dmAtomicStore32(&track->m_AllowCallbackFinish, 1);
 }
 
 // A finished-but-not-yet-flushed job should be converted to a canceled callback
@@ -596,25 +675,16 @@ TEST_P(dmJobSystemTest, CancelJobDuringCallbackReportsPending)
     ASSERT_NE((HJob)0, hjob);
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, hjob));
 
-    dmThread::Thread update_thread = dmThread::New(UpdateUntilCallbackStarted, 0x80000, &track, "jobupd");
-    ASSERT_NE((dmThread::Thread)0, update_thread);
+    track.m_CancelJob = hjob;
+    dmThread::Thread cancel_thread = dmThread::New(CancelDuringCallback, 0x80000, &track, "jobcancel");
+    ASSERT_NE((dmThread::Thread)0, cancel_thread);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!dmAtomicGet32(&track.m_CallbackFinished) && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_JobSystem, 0);
+    dmThread::Join(cancel_thread);
 
-    if (!WaitForAtomicValue(&track.m_CallbackStarted, 1, 500000))
-    {
-        dmAtomicStore32(&track.m_StopUpdateThread, 1);
-        dmAtomicStore32(&track.m_AllowCallbackFinish, 1);
-        dmThread::Join(update_thread);
-        ASSERT_EQ(1, dmAtomicGet32(&track.m_CallbackStarted));
-    }
-
-    JobSystemResult cancel_result = JobSystemCancelJob(m_JobSystem, hjob);
-    int callback_finished_before_release = dmAtomicGet32(&track.m_CallbackFinished);
-
-    dmAtomicStore32(&track.m_AllowCallbackFinish, 1);
-    dmThread::Join(update_thread);
-
-    ASSERT_EQ(JOBSYSTEM_RESULT_PENDING, cancel_result);
-    ASSERT_EQ(0, callback_finished_before_release);
+    ASSERT_EQ(JOBSYSTEM_RESULT_PENDING, track.m_CancelResult);
+    ASSERT_EQ(0, track.m_FinishedBeforeCancel);
     ASSERT_EQ(1, dmAtomicGet32(&track.m_CallbackFinished));
     ASSERT_EQ(JOBSYSTEM_STATUS_FINISHED, track.m_CallbackStatus);
 }
@@ -650,25 +720,16 @@ TEST_P(dmJobSystemTest, CancelParentDuringChildCallbackReportsPending)
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, child_hjob));
     ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(m_JobSystem, parent_hjob));
 
-    dmThread::Thread update_thread = dmThread::New(UpdateUntilCallbackStarted, 0x80000, &track, "jobupd");
-    ASSERT_NE((dmThread::Thread)0, update_thread);
+    track.m_CancelJob = parent_hjob;
+    dmThread::Thread cancel_thread = dmThread::New(CancelDuringCallback, 0x80000, &track, "jobcancel");
+    ASSERT_NE((dmThread::Thread)0, cancel_thread);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!dmAtomicGet32(&track.m_CallbackFinished) && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_JobSystem, 0);
+    dmThread::Join(cancel_thread);
 
-    if (!WaitForAtomicValue(&track.m_CallbackStarted, 1, 500000))
-    {
-        dmAtomicStore32(&track.m_StopUpdateThread, 1);
-        dmAtomicStore32(&track.m_AllowCallbackFinish, 1);
-        dmThread::Join(update_thread);
-        ASSERT_EQ(1, dmAtomicGet32(&track.m_CallbackStarted));
-    }
-
-    JobSystemResult cancel_result = JobSystemCancelJob(m_JobSystem, parent_hjob);
-    int callback_finished_before_release = dmAtomicGet32(&track.m_CallbackFinished);
-
-    dmAtomicStore32(&track.m_AllowCallbackFinish, 1);
-    dmThread::Join(update_thread);
-
-    ASSERT_EQ(JOBSYSTEM_RESULT_PENDING, cancel_result);
-    ASSERT_EQ(0, callback_finished_before_release);
+    ASSERT_EQ(JOBSYSTEM_RESULT_PENDING, track.m_CancelResult);
+    ASSERT_EQ(0, track.m_FinishedBeforeCancel);
     ASSERT_EQ(1, dmAtomicGet32(&track.m_CallbackFinished));
     ASSERT_EQ(JOBSYSTEM_STATUS_FINISHED, track.m_CallbackStatus);
 

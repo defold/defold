@@ -78,6 +78,7 @@ struct JobContext
 {
 #if defined(DM_HAS_THREADS)
     dmArray<dmThread::Thread> m_Threads;
+    dmThread::TlsKey          m_UpdateThreadKey;
 #endif
     JobThreadContext    m_ThreadContext;
     int32_atomic_t      m_Initialized;
@@ -258,17 +259,16 @@ HJob JobSystemCreateJob(HJobContext context, Job* job)
     uint32_t index;
     uint64_t generation;
     JobItem* item;
-    {
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
+    DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
 
-        if (ctx->m_Items.Full())
-            ctx->m_Items.OffsetCapacity(64);
+    if (ctx->m_Items.Full())
+        ctx->m_Items.OffsetCapacity(64);
 
-        index = ctx->m_Items.Alloc();
-        generation = ctx->m_Generation++;
-        item = &ctx->m_Items.Get(index);
-    }
+    index = ctx->m_Items.Alloc();
+    generation = ctx->m_Generation++;
+    item = &ctx->m_Items.Get(index);
 
+    // Workers can create jobs while another thread grows or compacts the pool.
     memset(item, 0, sizeof(JobItem));
 
     item->m_TimeCreated  = dmTime::GetMonotonicTime();
@@ -619,6 +619,10 @@ HJobContext JobSystemCreate(const JobSystemCreateParams* create_params)
         return 0;
 
     JobContext* context = new JobContext();
+#if defined(DM_HAS_THREADS)
+    context->m_UpdateThreadKey = dmThread::AllocTls();
+    dmThread::SetTlsValue(context->m_UpdateThreadKey, context);
+#endif
     context->m_Initialized = 1;
 
     context->m_ThreadContext.m_Context = context;
@@ -687,6 +691,7 @@ void JobSystemDestroy(HJobContext context)
         dmConditionVariable::Delete(context->m_ThreadContext.m_WakeupCond);
         dmMutex::Delete(context->m_ThreadContext.m_Mutex);
     }
+    dmThread::FreeTls(context->m_UpdateThreadKey);
 #endif // DM_HAS_THREADS
 
     delete context;
@@ -705,6 +710,14 @@ uint32_t JobSystemGetWorkerCount(HJobContext context)
 void JobSystemUpdate(HJobContext context, uint64_t time_limit)
 {
     DM_PROFILE("JobThreadUpdate");
+#if defined(DM_HAS_THREADS)
+    // Completion callbacks belong to the thread that owns this context.
+    if (dmThread::GetTlsValue(context->m_UpdateThreadKey) != context)
+    {
+        dmLogError("JobSystemUpdate must be called from the thread that created the job context.");
+        return;
+    }
+#endif
 
     if (!context->m_UseThreads)
     {

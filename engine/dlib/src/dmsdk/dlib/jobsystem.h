@@ -169,7 +169,9 @@ HJobContext JobSystemCreate(const struct JobSystemCreateParams* create_params);
 void JobSystemDestroy(HJobContext context);
 
 /*# update job system
- * Flush finished jobs and invoke callbacks on the main thread.
+ * Flush finished jobs and invoke callbacks on the thread that created the context.
+ * Calls from other threads log an error and do not process jobs or dispatch callbacks.
+ * The engine creates its shared context on the main thread.
  * In single-threaded mode, this also processes jobs on the calling thread up to the time limit.
  * @name JobSystemUpdate
  * @param context [type:HJobContext] job system context
