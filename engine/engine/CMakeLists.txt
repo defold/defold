@@ -247,6 +247,9 @@ set(ENGINE_EMBED_CPP
 set(ENGINE_SERVICE_SOURCES
   "${ENGINE_SRC_DIR}/engine_service.cpp"
   "${ENGINE_SRC_DIR}/engine_service_discovery.cpp")
+if(TARGET_PLATFORM MATCHES "macos")
+  list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_gputrace_metal.mm")
+endif()
 if(TARGET_PLATFORM MATCHES "ios")
   list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_discovery_ios.mm")
 endif()
@@ -264,6 +267,9 @@ foreach(_engine_service_dependency IN ITEMS
   endif()
 endforeach()
 defold_target_link_libraries(engine_service "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_SERVICE_DEPENDENCIES})
+if(TARGET_PLATFORM MATCHES "macos")
+  target_link_libraries(engine_service PUBLIC "-framework Metal" "-framework QuartzCore" "-framework AppKit")
+endif()
 
 defold_add_library(engine_service_null STATIC "${ENGINE_SRC_DIR}/engine_service_null.cpp")
 target_include_directories(engine_service_null PUBLIC "${ENGINE_SRC_DIR}" "${ENGINE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
