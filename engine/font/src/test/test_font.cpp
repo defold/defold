@@ -2441,6 +2441,8 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
     config.m_ResolveGlyph = ResolveTestLayoutGlyph;
     config.m_ResolveGlyphContext = &cached;
     config.m_Transform = dmVMath::Matrix4::identity();
+    config.m_OutlineColor = dmVMath::Vector4(1.0f);
+    config.m_ShadowColor = dmVMath::Vector4(1.0f);
     config.m_Width = settings.m_Width;
     config.m_RecipAtlasWidth = 1.0f / 256.0f;
     config.m_RecipAtlasHeight = 1.0f / 256.0f;
@@ -2538,8 +2540,6 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
     config.m_Layout = layout;
     config.m_MaxVertexCount = 0;
     config.m_FaceColor[0] = config.m_FaceColor[1] = config.m_FaceColor[2] = config.m_FaceColor[3] = 1.0f;
-    config.m_OutlineColor = dmVMath::Vector4(1.0f);
-    config.m_ShadowColor = dmVMath::Vector4(1.0f);
     ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
     ASSERT_EQ(1u,  metrics.m_OutlineQuadCount);
     ASSERT_EQ(1u,  metrics.m_ShadowQuadCount);
