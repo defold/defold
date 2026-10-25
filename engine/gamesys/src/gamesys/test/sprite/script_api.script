@@ -1,0 +1,69 @@
+tests_done = false
+
+local callbacks = setmetatable({}, { __mode = "v" })
+
+local function assert_error(call, url, expected)
+    local ok, err = pcall(call, url)
+    assert(not ok)
+    assert(string.find(err, expected, 1, true), err)
+end
+
+-- Verify immediate changes and target validation before any message dispatch.
+local function test_direct_calls(self)
+    sprite.set_hflip("#sprite", true)
+    sprite.set_vflip("#sprite", true)
+
+    sprite.play_flipbook("#sprite", "anim_loop", nil, { offset = 0.5, playback_rate = 2 })
+    assert(go.get("#sprite", "animation") == hash("anim_loop"))
+    assert(go.get("#sprite", "cursor") == 0.5)
+    assert(go.get("#sprite", "playback_rate") == 2)
+
+    local calls = {
+        function(url) sprite.set_hflip(url, false) end,
+        function(url) sprite.set_vflip(url, false) end,
+        function(url) sprite.play_flipbook(url, "anim_loop") end,
+    }
+    for _, call in ipairs(calls) do
+        assert_error(call, "#missing", "The component could not be found")
+        assert_error(call, "#script", "Component expected to be of type 'spritec'")
+        assert_error(call, "sprite_other:/go#sprite", "The collection could not be found")
+    end
+
+    -- A failed start must release the new callback reference immediately.
+    callbacks.failed = function() error("Unexpected callback for " .. tostring(self.id)) end
+    sprite.play_flipbook("#sprite", "does_not_exist", callbacks.failed)
+    collectgarbage("collect")
+    assert(callbacks.failed == nil)
+end
+
+function init(self)
+    self.id = go.get_id()
+    if self.id == hash("/owner") then
+        callbacks.previous = function() error("Replaced callback for " .. tostring(self.id)) end
+        sprite.play_flipbook("#sprite", "anim_loop", callbacks.previous)
+        return
+    end
+
+    test_direct_calls(self)
+
+    -- Replacing another script's callback must unref it in that script's instance.
+    sprite.play_flipbook("/owner#sprite", "anim_once", function(self, message_id, message, sender)
+        assert(self.id == hash("/go"))
+        assert(message_id == hash("animation_done"))
+        assert(message.id == hash("anim_once"))
+        assert(sender == msg.url("/owner#sprite"))
+        collectgarbage("collect")
+        assert(callbacks.previous == nil)
+
+        -- The legacy message entry point must still send animation_done.
+        msg.post("#sprite", "play_animation", { id = hash("anim_once"), offset = 1 })
+    end, { offset = 1 })
+end
+
+function on_message(self, message_id, message, sender)
+    assert(self.id == hash("/go"))
+    assert(message_id == hash("animation_done"))
+    assert(message.id == hash("anim_once"))
+    assert(sender == msg.url("#sprite"))
+    tests_done = true
+end

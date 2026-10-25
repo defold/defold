@@ -19,6 +19,14 @@
 
 namespace dmGameSystem
 {
+    struct SpriteComponent;
+
+    void CompSpriteSetHFlip(SpriteComponent* component, bool flip);
+    void CompSpriteSetVFlip(SpriteComponent* component, bool flip);
+    void CompSpriteResetConstant(SpriteComponent* component, dmhash_t name_hash);
+    void CompSpriteSetScale(SpriteComponent* component, const dmVMath::Vector3& scale);
+    bool CompSpritePlayAnimation(SpriteComponent* component, dmhash_t animation, float offset, float playback_rate, const dmMessage::URL& listener, int function_ref);
+
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
     dmGameObject::CreateResult CompSpriteDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
