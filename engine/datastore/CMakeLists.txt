@@ -8,15 +8,7 @@ project(defold_datastore LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 set(DATA_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(DATA_SRC_DIR "${DATA_ROOT}/src")
 set(DATA_DMSDK_HEADERS
-  "${DATA_SRC_DIR}/dmsdk/datastore/datastore.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/types.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/query.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/scheduler.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/iter.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/field.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/container.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/table.h"
-  "${DATA_SRC_DIR}/dmsdk/datastore/blob.h")
+  "${DATA_SRC_DIR}/dmsdk/datastore/datastore.h")
 
 defold_add_library(datastore STATIC
   "${DATA_SRC_DIR}/data.cpp"
@@ -41,10 +33,22 @@ defold_add_sdk_headers_target(datastore_public_sdk_headers
   DESTINATION include/datastore
   FILES "${DATA_SRC_DIR}/data.h"
   DEPENDS datastore)
+# Remove headers superseded by datastore.h from incremental SDK builds.
+add_custom_target(datastore_sdk_headers_cleanup
+  COMMAND "${CMAKE_COMMAND}" -E rm -f
+    "${DEFOLD_SDK_ROOT}/sdk/include/dmsdk/datastore/blob.h"
+    "${DEFOLD_SDK_ROOT}/sdk/include/dmsdk/datastore/container.h"
+    "${DEFOLD_SDK_ROOT}/sdk/include/dmsdk/datastore/field.h"
+    "${DEFOLD_SDK_ROOT}/sdk/include/dmsdk/datastore/iter.h"
+    "${DEFOLD_SDK_ROOT}/sdk/include/dmsdk/datastore/query.h"
+    "${DEFOLD_SDK_ROOT}/sdk/include/dmsdk/datastore/scheduler.h"
+    "${DEFOLD_SDK_ROOT}/sdk/include/dmsdk/datastore/table.h"
+    "${DEFOLD_SDK_ROOT}/sdk/include/dmsdk/datastore/types.h"
+  VERBATIM)
 defold_add_sdk_headers_target(datastore_dmsdk_sdk_headers
   DESTINATION sdk/include/dmsdk/datastore
   FILES ${DATA_DMSDK_HEADERS}
-  DEPENDS datastore)
+  DEPENDS datastore datastore_sdk_headers_cleanup)
 add_custom_target(datastore_sdk_headers
   DEPENDS datastore_public_sdk_headers datastore_dmsdk_sdk_headers)
 install(FILES "${DATA_SRC_DIR}/data.h" DESTINATION include/datastore)

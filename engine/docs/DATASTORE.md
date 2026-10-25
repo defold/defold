@@ -654,7 +654,7 @@ value pointers must also be reacquired after mutations affecting their storage.
 
 ### Registering query callbacks
 
-[scheduler.h](../datastore/src/dmsdk/datastore/scheduler.h) registers a query,
+[datastore.h](../datastore/src/dmsdk/datastore/datastore.h) registers a query,
 processing function and user context under a name in the existing `HDSContext`.
 The store copies the descriptor and dependency hashes; queries and user contexts
 remain caller-owned. Hash names once during setup. Registration stores no strings;
@@ -870,23 +870,23 @@ registration and keep the immutable bytes alive through the last registration.
 
 ## Implementation
 
-The public [datastore.h](../datastore/src/dmsdk/datastore/datastore.h) is the umbrella header. It includes the responsibility headers
-below and [types.h](../datastore/src/dmsdk/datastore/types.h) for shared handles,
-IDs, results and value types. Each public header can also be included directly.
+The public [datastore.h](../datastore/src/dmsdk/datastore/datastore.h) contains
+the complete C API, including shared types, declarations and inline getters.
+Full API documentation follows the declarations and inline implementations.
 Store, native table/row lifecycle, reset and opaque blob handles are public.
 Serialization and generic construction values remain in the private [data.h](../datastore/src/data.h).
 
-| Implementation | Public header | Responsibility |
-| --- | --- | --- |
-| [data.cpp](../datastore/src/data.cpp) | [datastore.h](../datastore/src/dmsdk/datastore/datastore.h) | Store creation/destruction. Native row lifecycle is declared in [table.h](../datastore/src/dmsdk/datastore/table.h); resource instances in [blob.h](../datastore/src/dmsdk/datastore/blob.h). |
-| [data_query.cpp](../datastore/src/data_query.cpp) | [query.h](../datastore/src/dmsdk/datastore/query.h) | Query matching, field bindings, cached ranges and access reservations. |
-| [scheduler.cpp](../datastore/src/scheduler.cpp) | [scheduler.h](../datastore/src/dmsdk/datastore/scheduler.h) | Named query callback registrations and copied dependency declarations. |
-| [data_iter.cpp](../datastore/src/data_iter.cpp) | [iter.h](../datastore/src/dmsdk/datastore/iter.h) | Batch, row and field traversal, including iterator value access. |
-| [data_field.cpp](../datastore/src/data_field.cpp) | [field.h](../datastore/src/dmsdk/datastore/field.h) | Value representation, construction validation, field get/set and reset. |
-| [data_container.cpp](../datastore/src/data_container.cpp) | [container.h](../datastore/src/dmsdk/datastore/container.h) | Borrowed reads of struct members and mixed list elements. |
-| [data_storage.cpp](../datastore/src/data_storage.cpp) | Internal | Value chunks, shared backing pages and empty-page reuse. |
-| [data_payload.cpp](../datastore/src/data_payload.cpp) | Internal | Block allocation, payload recycling and reclamation. |
-| [data_io.cpp](../datastore/src/data_io.cpp) | [blob.h](../datastore/src/dmsdk/datastore/blob.h) | Public blob loading and release; private serialization. |
+| Implementation | Responsibility |
+| --- | --- |
+| [data.cpp](../datastore/src/data.cpp) | Store, native table/row and resource-instance lifecycle. |
+| [data_query.cpp](../datastore/src/data_query.cpp) | Query matching, field bindings, cached ranges and access reservations. |
+| [scheduler.cpp](../datastore/src/scheduler.cpp) | Named query callback registrations and copied dependency declarations. |
+| [data_iter.cpp](../datastore/src/data_iter.cpp) | Batch and row traversal, including iterator value access. |
+| [data_field.cpp](../datastore/src/data_field.cpp) | Construction validation, field get/set and reset. |
+| [data_container.cpp](../datastore/src/data_container.cpp) | Borrowed reads of struct members and mixed list elements. |
+| [data_storage.cpp](../datastore/src/data_storage.cpp) | Value chunks, shared backing pages and empty-page reuse. |
+| [data_payload.cpp](../datastore/src/data_payload.cpp) | Block allocation, payload recycling and reclamation. |
+| [data_io.cpp](../datastore/src/data_io.cpp) | Blob loading and release; private serialization. |
 
 The [library README](../datastore/README.md) describes building and running the
 unit tests. Threading tests run under TSAN.
