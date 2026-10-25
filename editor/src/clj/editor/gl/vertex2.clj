@@ -194,14 +194,17 @@
 
 ;; GL stuff
 
-(defn- assign-attributes! [^GL3 gl attributes attribute-locations]
+(defn- assign-attributes! [^GL3 gl attributes attribute-locations step-function]
   {:pre [(vector? attributes)
          (vector? attribute-locations)]}
   (let [attribute-count (count attributes)
         attribute-sizes (into (vector-of :int)
                               (map graphics.types/attribute-info-byte-size)
                               attributes)
-        ^int stride (reduce + attribute-sizes)]
+        ^int stride (reduce + attribute-sizes)
+        divisor (int (case step-function
+                       :vertex-step-function-vertex 0
+                       :vertex-step-function-instance 1))]
     (assert (= attribute-count (count attribute-locations)))
     (reduce
       (fn [^long buffer-offset ^long attribute-index]
@@ -213,7 +216,8 @@
                   gl-type (gl.types/data-type-gl-type (:data-type attribute))
                   ^boolean normalize (:normalize attribute)]
               (gl/gl-enable-vertex-attrib-array gl attribute-location)
-              (gl/gl-vertex-attrib-pointer gl attribute-location component-count gl-type normalize stride buffer-offset)))
+              (gl/gl-vertex-attrib-pointer gl attribute-location component-count gl-type normalize stride buffer-offset)
+              (gl/gl-vertex-attrib-divisor gl attribute-location divisor)))
           (+ buffer-offset attribute-size)))
       0
       (range attribute-count))))
@@ -222,7 +226,8 @@
   [^GL3 gl attribute-locations]
   (doseq [^int location attribute-locations
           :when (not= location -1)]
-    (gl/gl-disable-vertex-attrib-array gl location)))
+    (gl/gl-disable-vertex-attrib-array gl location)
+    (gl/gl-vertex-attrib-divisor gl location 0)))
 
 (defn- attribute-info->row-column-count [{:keys [vector-type] :as _attribute-info}]
   {:pre [(graphics.types/vector-type? vector-type)]}
@@ -257,38 +262,48 @@
                     row-column-count (attribute-info->row-column-count attribute)]
                 (if (nil? row-column-count)
                   [base-location]
-                  (range base-location
-                         (+ base-location
-                            (long row-column-count))))))))]
+                  (mapv (fn [^long column-index]
+                          (if (neg? base-location)
+                            -1
+                            (+ base-location column-index)))
+                        (range (long row-column-count))))))))]
 
     [expanded-attributes expanded-attribute-locations]))
 
-(defn- bind-vertex-buffer-with-shader! [^GL3 gl request-id ^VertexBuffer vertex-buffer shader]
+(defn- bind-vertex-buffer-with-shader! [^GL3 gl request-id ^VertexBuffer vertex-buffer shader step-function]
   (let [[vbo attribute-locations] (scene-cache/request-object! ::vbo2 request-id gl {:vertex-buffer vertex-buffer :version (version vertex-buffer) :shader shader})
         attributes (:attributes (.vertex-description vertex-buffer))
         [expanded-attributes expanded-attribute-locations] (expand-attributes+locations attributes attribute-locations)]
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
-    (assign-attributes! gl expanded-attributes expanded-attribute-locations)
+    (assign-attributes! gl expanded-attributes expanded-attribute-locations step-function)
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)
     expanded-attribute-locations))
 
 (defn- unbind-vertex-buffer-with-shader! [^GL3 gl expanded-attribute-locations]
   (clear-attributes! gl expanded-attribute-locations))
 
-(defonce/type VertexBufferShaderLink [request-id ^VertexBuffer vertex-buffer shader ^:unsynchronized-mutable expanded-attribute-locations]
+(defonce/type VertexBufferShaderLink [request-id ^VertexBuffer vertex-buffer shader step-function ^:unsynchronized-mutable expanded-attribute-locations]
   gl.types/GLBinding
   (bind! [_this gl _render-args]
-    (set! expanded-attribute-locations (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)))
+    (set! expanded-attribute-locations (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader step-function)))
 
   (unbind! [_this gl _render-args]
     (unbind-vertex-buffer-with-shader! gl expanded-attribute-locations)
     (set! expanded-attribute-locations nil)))
 
-(defn use-with [request-id ^VertexBuffer vertex-buffer shader]
+(defn- make-vertex-buffer-shader-link [request-id ^VertexBuffer vertex-buffer shader step-function]
   {:pre [(graphics.types/request-id? request-id)
          (instance? VertexBuffer vertex-buffer)
          (satisfies? shader/ShaderVariables shader)]}
-  (->VertexBufferShaderLink request-id vertex-buffer shader nil))
+  (->VertexBufferShaderLink request-id vertex-buffer shader step-function nil))
+
+(defn use-with [request-id vertex-buffer shader]
+  (make-vertex-buffer-shader-link request-id vertex-buffer shader :vertex-step-function-vertex))
+
+(defn use-with-instancing
+  "Binds every attribute in the buffer with one element per instance."
+  [request-id vertex-buffer shader]
+  (make-vertex-buffer-shader-link request-id vertex-buffer shader :vertex-step-function-instance))
 
 (defn- update-vbo [^GL3 gl [vbo _] data]
   (let [^VertexBuffer vbuf (:vertex-buffer data)

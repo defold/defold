@@ -28,6 +28,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.types :as gl.types]
+            [editor.gl.vertex2 :as vtx]
             [editor.gltf :as gltf]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
@@ -243,13 +244,35 @@
                 (not (neg? max-index))
                 (assoc :index-buffer indices)))))))))
 
+(defn- make-instance-binding [request-id shader render-args coordinate-space-info renderables instance-attribute-infos attribute-bindings-per-instance]
+  (when (coll/not-empty instance-attribute-infos)
+    (let [render-args-per-instance
+          (mapv (fn [{:keys [world-transform world-rotation]}]
+                  (-> (math/derive-render-transforms world-transform
+                                                     (:view render-args)
+                                                     (:projection render-args)
+                                                     (:texture render-args))
+                      (assoc :actual/world-rotation world-rotation
+                             :world-rotation world-rotation)
+                      (math/rederive-render-transforms coordinate-space-info)))
+                renderables)
+
+          instance-buffer
+          (model-util/make-instance-vertex-buffer instance-attribute-infos
+                                                  attribute-bindings-per-instance
+                                                  render-args-per-instance)]
+      (vtx/use-with-instancing request-id instance-buffer shader))))
+
 (defn- render-mesh-opaque [^GL3 gl render-args renderables]
   (let [renderable (first renderables)
-        {:keys [attribute-bindings coordinate-space-info index-buffer material-data shader textures]} (:user-data renderable)
+        {:keys [attribute-bindings coordinate-space-info index-buffer instance-attribute-infos material-data shader textures]} (:user-data renderable)
+        instance-binding (make-instance-binding ::model-instances shader render-args coordinate-space-info renderables instance-attribute-infos
+                                                (mapv #(get-in % [:user-data :attribute-bindings]) renderables))
+        attribute-bindings (apply dissoc attribute-bindings (mapv :name-key instance-attribute-infos))
         render-args (math/rederive-render-transforms render-args coordinate-space-info)
         index-type (gl.types/element-buffer-gl-type index-buffer)
         index-count (graphics.types/element-count index-buffer)]
-    (gl/with-gl-bindings gl render-args [shader attribute-bindings index-buffer]
+    (gl/with-gl-bindings gl render-args [shader attribute-bindings instance-binding index-buffer]
       (doseq [[name t] textures]
         (gl/bind gl t render-args)
         (shader/set-samplers-by-name shader gl name (:texture-units t)))
@@ -259,16 +282,17 @@
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
-      (gl/gl-draw-elements gl GL/GL_TRIANGLES index-type 0 index-count)
+      (if instance-binding
+        (gl/gl-draw-elements-instanced gl GL/GL_TRIANGLES index-type 0 index-count (count renderables))
+        (gl/gl-draw-elements gl GL/GL_TRIANGLES index-type 0 index-count))
       (gl/gl-disable gl GL/GL_CULL_FACE)
       (gl/gl-enable gl GL/GL_BLEND)
       (doseq [[_name t] textures]
         (gl/unbind gl t render-args)))))
 
 (defn- render-mesh-opaque-selection [^GL3 gl render-args renderables]
-  ;; TODO(instancing): We should use instanced rendering and put the picking-id as a per-instance attribute.
-  (let [{:keys [picking-id user-data]} (first renderables)
-        {:keys [index-buffer material-data textures]} user-data
+  (let [user-data (:user-data (first renderables))
+        {:keys [index-buffer material-data selection-attribute-bindings selection-instance-attribute-infos textures]} user-data
         base-color-texture (get textures "PbrMetallicRoughness_baseColorTexture")
         gltf-material (when base-color-texture (into {} material-data))
 
@@ -282,13 +306,20 @@
 
         index-type (gl.types/element-buffer-gl-type index-buffer)
         index-count (graphics.types/element-count index-buffer)
-        picking-id-float-array (scene-picking/picking-id->float-array picking-id)
+
+        instance-binding
+        (make-instance-binding ::model-selection-instances shaders/selection-instance-local-space render-args {} renderables
+                               selection-instance-attribute-infos
+                               (mapv (fn [{:keys [picking-id user-data]}]
+                                       (update (:selection-attribute-bindings user-data)
+                                               :id-color graphics.types/with-value
+                                               (scene-picking/picking-id->float-array picking-id)))
+                                     renderables))
 
         selection-attribute-bindings
-        (-> (:selection-attribute-bindings user-data)
-            (update :id-color graphics.types/with-value picking-id-float-array))]
+        (apply dissoc selection-attribute-bindings (mapv :name-key selection-instance-attribute-infos))]
 
-    (gl/with-gl-bindings gl render-args [shaders/selection-instance-local-space selection-attribute-bindings index-buffer]
+    (gl/with-gl-bindings gl render-args [shaders/selection-instance-local-space selection-attribute-bindings instance-binding index-buffer]
       ;; Legacy materials can use arbitrary sampler names and rely on unit zero.
       ;; Reset it for each draw so a previous glTF material cannot leak its unit.
       (shader/set-samplers-by-name shaders/selection-instance-local-space gl "texture_sampler" [0])
@@ -303,15 +334,13 @@
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
-      (gl/gl-draw-elements gl GL/GL_TRIANGLES index-type 0 index-count)
+      (gl/gl-draw-elements-instanced gl GL/GL_TRIANGLES index-type 0 index-count (count renderables))
       (gl/gl-disable gl GL/GL_CULL_FACE)
       (gl/gl-enable gl GL/GL_BLEND)
       (doseq [[_name t] textures]
         (gl/unbind gl t render-args)))))
 
-(defn- render-mesh [^GL3 gl render-args renderables rcount]
-  ;; TODO(instancing): Batch instanced meshes together and populate an instance-buffer with the per-instance attributes.
-  (assert (= 1 rcount) "Batching is disabled in the editor for simplicity.")
+(defn- render-mesh [^GL3 gl render-args renderables _rcount]
   (condp = (:pass render-args)
     pass/opaque
     (render-mesh-opaque gl render-args renderables)
@@ -695,6 +724,34 @@
     :batch-key ::selected-model-aabb-outline
     :render-fn render-selected-model-aabb-outline))
 
+(defn- instance-attribute-infos [attribute-infos]
+  (filterv #(= :vertex-step-function-instance (:step-function %)) attribute-infos))
+
+(defn- mesh-batch-key [user-data shader attribute-bindings instance-attribute-infos]
+  [(:index-buffer user-data)
+   shader
+   (:textures user-data)
+   (:material-data user-data)
+   instance-attribute-infos
+   (model-util/attribute-bindings-batch-key
+     (apply dissoc attribute-bindings (mapv :name-key instance-attribute-infos)))])
+
+(defn- update-mesh-batch-keys [renderable]
+  (let [{:keys [attribute-bindings instance-attribute-infos selection-attribute-bindings selection-instance-attribute-infos shader] :as user-data} (:user-data renderable)]
+    (assoc renderable
+      :batch-key (when (coll/not-empty instance-attribute-infos)
+                   (mesh-batch-key user-data shader attribute-bindings instance-attribute-infos))
+      :select-batch-key (mesh-batch-key user-data shaders/selection-instance-local-space selection-attribute-bindings selection-instance-attribute-infos))))
+
+(defn- selection-attribute-infos [material-attribute-infos]
+  (mapv (fn [attribute-info]
+          (if (= :id-color (:name-key attribute-info))
+            (assoc attribute-info :step-function :vertex-step-function-instance)
+            attribute-info))
+        (graphics/combined-attribute-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space)
+                                           (filterv #(= :color (:name-key %)) material-attribute-infos)
+                                           :coordinate-space-local)))
+
 (defn- make-mesh-scene [scene-node-id renderable-mesh]
   {:pre [(g/node-id? scene-node-id)]}
   (let [{:keys [aabb material-data material-index material-name renderable-buffers]} renderable-mesh
@@ -703,27 +760,28 @@
         attribute-reflection-infos (shader/attribute-reflection-infos shaders/mesh-preview-local-space)
         coordinate-space-info (graphics/coordinate-space-info attribute-reflection-infos)
         attribute-bindings (model-util/make-attribute-bindings scene-node-id attribute-reflection-infos semantic-type->attribute-buffers {})
-        selection-attribute-reflection-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space)
-        selection-attribute-bindings (model-util/make-attribute-bindings scene-node-id selection-attribute-reflection-infos semantic-type->attribute-buffers {})
+        selection-attribute-infos (selection-attribute-infos [])
+        selection-attribute-bindings (model-util/make-attribute-bindings scene-node-id selection-attribute-infos semantic-type->attribute-buffers {})
 
         user-data
         {:attribute-bindings attribute-bindings
          :coordinate-space-info coordinate-space-info
          :index-buffer index-buffer
+         :instance-attribute-infos (instance-attribute-infos attribute-reflection-infos)
          :material-data material-data
          :material-index material-index
          :material-name material-name
          :mesh-renderable-buffers renderable-buffers
          :selection-attribute-bindings selection-attribute-bindings
+         :selection-instance-attribute-infos (instance-attribute-infos selection-attribute-infos)
          :shader shaders/mesh-preview-local-space}
 
         renderable
-        {:render-fn render-mesh
-         :tags #{:model}
-         :batch-key nil ; Batching is disabled in the editor for simplicity.
-         :select-batch-key nil
-         :passes [pass/opaque pass/opaque-selection]
-         :user-data user-data}]
+        (update-mesh-batch-keys
+          {:render-fn render-mesh
+           :tags #{:model}
+           :passes [pass/opaque pass/opaque-selection]
+           :user-data user-data})]
 
     {:node-id scene-node-id
      :aabb aabb
@@ -758,7 +816,7 @@
    :aabb aabb
    :raw-model-scenes raw-model-scenes
    :renderable {:tags #{:model}
-                :batch-key nil ; Batching is disabled in the editor for simplicity.
+                :batch-key nil
                 :passes [pass/opaque-selection]} ; A selection pass to ensure it can be selected and manipulated.
    :children (into [{:node-id scene-node-id
                      :aabb aabb
@@ -774,9 +832,13 @@
 (defn- finalize-claim-scene [scene _old-node-id new-node-id]
   (update scene :children coll/mapv->
           update :children coll/mapv->
-          update-in [:renderable :user-data :attribute-bindings]
-          attribute/claim-transformed-attribute-buffer-bindings
-          assoc :scene-node-id new-node-id))
+          update :renderable
+          (fn [renderable]
+            (-> renderable
+                (update-in [:user-data :attribute-bindings]
+                           attribute/claim-transformed-attribute-buffer-bindings
+                           assoc :scene-node-id new-node-id)
+                update-mesh-batch-keys))))
 
 (defn- apply-material-scene-info
   "Applies material render data to a mesh scene, preserving it when no material
@@ -798,31 +860,34 @@
       (assert (shader/shader-lifecycle? shader))
       (assert (coll/every? keyword? (coll/keys vertex-attribute-bytes)))
       (assert (coll/every? bytes? (coll/vals vertex-attribute-bytes)))
-      (update mesh-scene :renderable
-              update :user-data
-              (fn [user-data]
-                (let [mesh-renderable-buffers (:mesh-renderable-buffers user-data)
-                      semantic-type->attribute-buffers (:attribute-buffers mesh-renderable-buffers)
-                      combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos default-coordinate-space)
-                      coordinate-space-info (graphics/coordinate-space-info combined-attribute-infos)
-                      attribute-bindings (model-util/make-attribute-bindings scene-node-id combined-attribute-infos semantic-type->attribute-buffers vertex-attribute-bytes)
+      (-> mesh-scene
+          (update :renderable
+                  update :user-data
+                  (fn [user-data]
+                    (let [mesh-renderable-buffers (:mesh-renderable-buffers user-data)
+                          semantic-type->attribute-buffers (:attribute-buffers mesh-renderable-buffers)
+                          combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos default-coordinate-space)
+                          coordinate-space-info (graphics/coordinate-space-info combined-attribute-infos)
+                          attribute-bindings (model-util/make-attribute-bindings scene-node-id combined-attribute-infos semantic-type->attribute-buffers vertex-attribute-bytes)
 
-                      ;; Match color overrides without changing the picking shader's local-space geometry.
-                      selection-attribute-infos
-                      (graphics/combined-attribute-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space)
-                                                         (filterv #(= :color (:name-key %)) material-attribute-infos)
-                                                         :coordinate-space-local)
+                          ;; Match color overrides while keeping picking geometry local.
+                          selection-attribute-infos
+                          (selection-attribute-infos material-attribute-infos)
 
-                      selection-attribute-bindings
-                      (model-util/make-attribute-bindings scene-node-id selection-attribute-infos semantic-type->attribute-buffers (select-keys vertex-attribute-bytes [:color]))]
-                  (assoc user-data
-                    :attribute-bindings attribute-bindings
-                    :selection-attribute-bindings selection-attribute-bindings
-                    :coordinate-space-info coordinate-space-info
-                    :material-attribute-infos material-attribute-infos
-                    :material-data material-data
-                    :shader shader
-                    :textures gpu-textures)))))))
+                          selection-attribute-bindings
+                          (model-util/make-attribute-bindings scene-node-id selection-attribute-infos semantic-type->attribute-buffers (select-keys vertex-attribute-bytes [:color]))]
+                      (assoc user-data
+                        :attribute-bindings attribute-bindings
+                        :instance-attribute-infos (when (= :vertex-space-local vertex-space)
+                                                    (instance-attribute-infos combined-attribute-infos))
+                        :selection-attribute-bindings selection-attribute-bindings
+                        :selection-instance-attribute-infos (instance-attribute-infos selection-attribute-infos)
+                        :coordinate-space-info coordinate-space-info
+                        :material-attribute-infos material-attribute-infos
+                        :material-data material-data
+                        :shader shader
+                        :textures gpu-textures))))
+          (update :renderable update-mesh-batch-keys)))))
 
 (defn- apply-preview-materials-to-model-scene
   "Applies preview materials to a model's mesh scenes using material indices."

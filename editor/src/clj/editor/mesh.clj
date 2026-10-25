@@ -342,7 +342,7 @@
        :renderable {:render-fn render-scene
                     :tags #{:model}
                     :batch-key (when (= :vertex-space-world vertex-space)
-                                 [attribute-infos shader gpu-textures])
+                                 [attribute-infos shader gpu-textures primitive-type])
                     :select-batch-key _node-id
                     :user-data {:array-streams array-streams
                                 :vertex-attributes attribute-infos

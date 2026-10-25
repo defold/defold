@@ -374,6 +374,12 @@
                    :exception e
                    :ex-data (ex-data e))))))
 
+(defn- batch-order [pass renderable]
+  (when (or (= pass/opaque pass)
+            (= pass/opaque-selection pass))
+    (let [[topmost _depth index] (:render-key renderable)]
+      [topmost index])))
+
 (defn batch-render [gl render-args renderables key-fn]
   (loop [renderables renderables
          offset 0
@@ -382,6 +388,7 @@
     (if-let [renderable (first renderables)]
       (let [first-key (key-fn renderable)
             first-render-fn (:render-fn renderable)
+            first-order (batch-order (:pass render-args) renderable)
             batch-count (loop [renderables (rest renderables)
                                batch-count 1]
                           (let [renderable (first renderables)
@@ -390,7 +397,8 @@
                                 break? (or (not= first-render-fn render-fn)
                                            (nil? first-key)
                                            (nil? key)
-                                           (not= first-key key))]
+                                           (not= first-key key)
+                                           (not= first-order (batch-order (:pass render-args) renderable)))]
                             (if break?
                               batch-count
                               (recur (rest renderables) (inc batch-count)))))]
@@ -405,6 +413,33 @@
 (defn render-sort [renderables]
   (sort-by :render-key renderables))
 
+(defn- render-sort-for-pass [pass renderables]
+  (let [key-fn (condp = pass
+                 pass/opaque :batch-key
+                 pass/opaque-selection :select-batch-key
+                 nil)]
+    (if (nil? key-fn)
+      (render-sort renderables)
+      (let [[_group-indices groups]
+            (reduce
+              (fn [[group-indices groups] renderable]
+                (let [order (batch-order pass renderable)
+                      batch-key (key-fn renderable)
+                      group-key [order (:render-fn renderable) batch-key]]
+                  (if-let [group-index (when (some? batch-key)
+                                         (get group-indices group-key))]
+                    [group-indices (update-in groups [group-index 1] conj renderable)]
+                    [(cond-> group-indices
+                       (some? batch-key) (assoc group-key (count groups)))
+                     (conj groups [order [renderable]])])))
+              [{} []]
+              ;; Preserve depth order within each batch, including the first
+              ;; renderable that supplies shared uniforms. Full keys in the map
+              ;; keep hash collisions from grouping incompatible renderables.
+              (render-sort renderables))]
+        (coll/into-> (coll/sort-by first groups) []
+          (mapcat second))))))
+
 (defn- resort-transparent-renderables-for-camera [renderables ^Camera camera]
   (let [view-matrix (c/camera-view-matrix camera)]
     (->> renderables
@@ -418,7 +453,9 @@
 (defn- make-camera-inset-renderables [scene-render-data ^Camera camera]
   (let [renderables-by-pass (:renderables scene-render-data)]
     {pass/background (remove-camera-inset-gizmo-renderables (get renderables-by-pass pass/background))
-     pass/opaque (remove-camera-inset-gizmo-renderables (get renderables-by-pass pass/opaque))
+     pass/opaque (->> (get renderables-by-pass pass/opaque)
+                      remove-camera-inset-gizmo-renderables
+                      (render-sort-for-pass pass/opaque))
      pass/transparent (-> (get renderables-by-pass pass/transparent)
                           remove-camera-inset-gizmo-renderables
                           (resort-transparent-renderables-for-camera camera))}))
@@ -649,6 +686,7 @@
         world-scale (math/multiply-vector parent-world-scale local-scale)
         selection-id (:selection-id scene node-id)
         picking-node-id (or (:picking-node-id scene) selection-id)
+        select-batch-key (:select-batch-key renderable)
         selection-state (cond
                           (contains? selection-set selection-id) :self-selected ; This node is selected.
                           (or (coll/any? selection-set node-id-path)
@@ -680,6 +718,11 @@
                                    :selected selection-state
                                    :user-data user-data
                                    :batch-key (:batch-key renderable)
+                                   ;; Node keys share a picking uniform.
+                                   ;; Scope them to the claimed scene instance.
+                                   :select-batch-key (if (g/node-id? select-batch-key)
+                                                       [select-batch-key node-id-path]
+                                                       select-batch-key)
                                    :aabb world-aabb
                                    :render-key (render-key view-matrix world-translation (:index renderable) (:topmost? renderable))
                                    :pass-overrides {pass/outline {:render-key (outline-render-key view-matrix world-translation (:index renderable) (:topmost? renderable) selection-state)}}))
@@ -1228,7 +1271,7 @@
           (reset! last-picking-rect picking-rect)
           (doseq [pass [pass/opaque-selection pass/selection]]
             (let [pass-render-args (picking-render-args (pass->render-args pass) viewport picking-rect)
-                  pass-renderables (vec (render-sort (get renderables pass)))]
+                  pass-renderables (vec (render-sort-for-pass pass (get renderables pass)))]
               (setup-pass gl pass)
               (batch-render gl pass-render-args pass-renderables :select-batch-key)))
           (.glFlush gl)
@@ -1304,7 +1347,7 @@
           (coll/into-> all-renderables-by-pass {}
             (map (fn [[pass renderables]]
                    (pair pass
-                         (vec (render-sort renderables))))))]
+                         (vec (render-sort-for-pass pass renderables))))))]
       {:renderables sorted-renderables-by-pass
        :selected-renderables (:selected-renderables scene-render-data)})))
 

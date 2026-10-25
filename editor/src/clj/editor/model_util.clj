@@ -15,13 +15,19 @@
 (ns editor.model-util
   (:require [dynamo.graph :as g]
             [editor.buffers :as buffers]
+            [editor.geom :as geom]
             [editor.gl.attribute :as attribute]
+            [editor.gl.vertex2 :as vtx]
+            [editor.graphics :as graphics]
             [editor.graphics.types :as graphics.types]
             [internal.graph.types :as gt]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :refer [pair]]
-            [util.eduction :as e]))
+            [util.coll :as coll :refer [pair]]
+            [util.eduction :as e])
+  (:import [editor.gl.attribute AttributeBufferBinding AttributeRenderArgBinding AttributeValueBinding TransformedAttributeBufferLifecycle TransformedAttributeValueBinding]
+           [java.nio ByteBuffer]
+           [javax.vecmath Matrix4d Quat4d Tuple4d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -143,3 +149,105 @@
                    ;; else
                    (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)]
                      (make-attribute-binding-entries scene-node-id attribute-infos attribute-buffers name-key->attribute-bytes))))))))
+
+(defn attribute-bindings-batch-key
+  "Returns a batching key that compares constant attribute arrays by value."
+  [attribute-bindings]
+  (coll/pair-map-by key
+                    (fn [[_name-key binding]]
+                      (if (instance? AttributeValueBinding binding)
+                        (update binding :value-array vec)
+                        binding))
+                    attribute-bindings))
+
+(defn- transform-instance-vector
+  ^Vector4d [^Vector4d vector transform ^double w-component]
+  (let [result (doto (Vector4d. vector)
+                 (.setW w-component))]
+    (if (instance? Matrix4d transform)
+      (.transform ^Matrix4d transform result)
+      (let [rotation ^Quat4d transform
+            conjugate (doto (Quat4d.) (.conjugate rotation))
+            value (doto (Quat4d.) (.set result))]
+        (.mul value rotation value)
+        (.mul value conjugate)
+        (.set result value)))
+    (.setW result (.getW vector))
+    result))
+
+(defn- put-instance-value!
+  [^ByteBuffer buffer {:keys [data-type normalize semantic-type vector-type]} value]
+  (let [buffer-data-type (graphics.types/data-type-buffer-data-type data-type)]
+    (condp instance? value
+      Matrix4d
+      (buffers/push! buffer buffer-data-type normalize
+                     (graphics/convert-double-values (vec (geom/as-array value))
+                                                     semantic-type :vector-type-mat4 vector-type))
+
+      Tuple4d
+      (let [tuple ^Tuple4d value]
+        (buffers/push! buffer buffer-data-type normalize
+                       (graphics/convert-double-values [(.x tuple) (.y tuple) (.z tuple) (.w tuple)]
+                                                       semantic-type :vector-type-vec4 vector-type)))
+
+      ;; Array-backed bindings already contain the material's packed values,
+      ;; including normalization and unsigned values stored in signed arrays.
+      (buffers/push! buffer
+                     (case buffer-data-type
+                       :ubyte :byte
+                       :ushort :short
+                       :uint :int
+                       buffer-data-type)
+                     false
+                     value))))
+
+(defn- put-instance-attribute!
+  [^ByteBuffer buffer {:keys [data-type normalize semantic-type vector-type] :as attribute-info} binding render-args]
+  (condp instance? binding
+    AttributeValueBinding
+    (put-instance-value! buffer attribute-info (:value-array binding))
+
+    AttributeRenderArgBinding
+    (put-instance-value! buffer attribute-info (get render-args (:render-arg-key binding)))
+
+    TransformedAttributeValueBinding
+    (put-instance-value! buffer attribute-info
+                         (transform-instance-vector (:untransformed-vector binding)
+                                                    (get render-args (:transform-render-arg-key binding))
+                                                    (:w-component binding)))
+
+    AttributeBufferBinding
+    (let [attribute-buffer (:attribute-buffer-lifecycle binding)
+          source-vector-type (:vector-type (graphics.types/element-type attribute-buffer))
+          source-component-count (graphics.types/vector-type-component-count source-vector-type)
+          ;; Instance-rate mesh semantics use the first mesh element. Read via
+          ;; BufferData so the shared mesh buffer's position remains unchanged.
+          source-values (coll/into-> (graphics.types/buffer-data attribute-buffer) []
+                          (take source-component-count))]
+      (if (instance? TransformedAttributeBufferLifecycle attribute-buffer)
+        (put-instance-value! buffer attribute-info
+                             (transform-instance-vector (Vector4d. (double-array source-values))
+                                                        (get render-args (:transform-render-arg-key attribute-buffer))
+                                                        (:w-component attribute-buffer)))
+        (buffers/push! buffer (graphics.types/data-type-buffer-data-type data-type) normalize
+                       (graphics/convert-double-values source-values semantic-type source-vector-type vector-type))))))
+
+(defn make-instance-vertex-buffer
+  "Packs one instance record per resolved attribute binding map and render-args
+  map. The supplied attribute infos define the exact interleaved buffer layout."
+  [instance-attribute-infos attribute-bindings-per-instance render-args-per-instance]
+  {:pre [(vector? instance-attribute-infos)
+         (coll/every? graphics.types/attribute-info? instance-attribute-infos)
+         (vector? attribute-bindings-per-instance)
+         (vector? render-args-per-instance)
+         (= (count attribute-bindings-per-instance) (count render-args-per-instance))]}
+  (let [instance-count (count attribute-bindings-per-instance)
+        vertex-description (graphics.types/make-vertex-description instance-attribute-infos)
+        vertex-buffer (vtx/make-vertex-buffer vertex-description :dynamic instance-count)
+        buffer (vtx/buf vertex-buffer)]
+    (dotimes [instance-index instance-count]
+      (let [attribute-bindings (attribute-bindings-per-instance instance-index)
+            render-args (render-args-per-instance instance-index)]
+        (doseq [attribute-info instance-attribute-infos]
+          (put-instance-attribute! buffer attribute-info (get attribute-bindings (:name-key attribute-info)) render-args))))
+    (vtx/flip! vertex-buffer)))

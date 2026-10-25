@@ -524,7 +524,17 @@
     :mtx-world :semantic-type-world-matrix
     :mtx-normal :semantic-type-normal-matrix
     :texture-transform-2d :semantic-type-texture-transform-2d
+    :morph-targets-weights :semantic-type-morph-target-weights
     :semantic-type-none))
+
+(defn infer-step-function
+  "Infers the engine step function for undeclared shader attributes."
+  [attribute-key]
+  (case attribute-key
+    (:mtx-world :mtx-normal :animation-data :morph-targets-weights)
+    :vertex-step-function-instance
+
+    :vertex-step-function-vertex))
 
 (defn infer-normalize
   "Attempt to infer if the data supplied to a vertex attribute should be

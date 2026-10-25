@@ -547,6 +547,9 @@
 (defmacro gl-draw-elements [gl prim-type index-type start count]
   `(.glDrawElements ~(with-meta gl {:tag `GL}) ~prim-type ~count ~index-type ~start))
 
+(defmacro gl-draw-elements-instanced [gl prim-type index-type start count instance-count]
+  `(.glDrawElementsInstanced ~(with-meta gl {:tag `GL3}) ~prim-type ~count ~index-type ~start ~instance-count))
+
 (defmacro gl-uniform-matrix-4fv [gl idx cnt transpose val offset] `(.glUniformMatrix4fv ~gl ~idx ~cnt ~transpose ~val ~offset))
 
 (def red GL3/GL_RED)

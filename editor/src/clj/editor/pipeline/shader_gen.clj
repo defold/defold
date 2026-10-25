@@ -106,7 +106,7 @@
      :data-type data-type
      :normalize false ; We could infer this using graphics.types/infer-normalize, but the engine doesn't.
      :coordinate-space :coordinate-space-default
-     :step-function :vertex-step-function-vertex
+     :step-function (graphics.types/infer-step-function name-key)
      :location reflected-location
      :array-size array-size}))
 
