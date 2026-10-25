@@ -1162,7 +1162,14 @@ namespace dmGameSystem
     {
         // Retire registrations before a reload can move or replace their user data.
         for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
+        {
             dmRender::DeleteRenderItem(world->m_RenderContext, component->m_RenderItems[i].m_RenderItem);
+            if (component->m_RenderItems[i].m_RenderConstants)
+                dmGameSystem::DestroyRenderConstants(component->m_RenderItems[i].m_RenderConstants);
+            FreeMaterialAttribute(world->m_DynamicVertexAttributePool, component->m_RenderItems[i].m_DynamicVertexAttributeIndex);
+        }
+        for (uint32_t i = 0; i < component->m_MeshAttributeRenderDatas.Size(); ++i)
+            ReleaseMeshAttributeRenderData(&component->m_MeshAttributeRenderDatas[i]);
         component->m_RenderItems.SetCapacity(resource->m_Meshes.Size());
         component->m_RenderItems.SetSize(0);
 
