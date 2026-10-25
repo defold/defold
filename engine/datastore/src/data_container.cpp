@@ -40,7 +40,7 @@ DSResult DSFieldGetView(HDSContext store, DSId id, uint64_t field, DSValueView* 
     return result;
 }
 
-void DSRowIterGetView(const DSRowIterator* iterator, uint32_t field, DSValueView* out_view)
+void DSRowIterGetView(const DSRowIterator* iterator, DSFieldId field, DSValueView* out_view)
 {
     const DSIterator*     batch = iterator->m_Parent;
     const DSQueryBinding& binding = ((const DSQueryBinding*)batch->m_Fields)[field];
@@ -71,7 +71,7 @@ DSResult DSViewGetField(const DSValueView* view, uint64_t field, DSValueView* ou
     if (value.m_Type != DS_TYPE_STRUCT)
         return DS_RESULT_INVALID_ARGUMENT;
     DSValue  child;
-    DSResult result = DSGetStructField(&value.m_Value.m_Struct, field, &child);
+    DSResult result = DSStructGetField(&value.m_Value.m_Struct, field, &child);
     if (result == DS_RESULT_OK)
         WriteView(child, out_view);
     return result;
@@ -83,7 +83,7 @@ DSResult DSViewGetElement(const DSValueView* view, uint32_t index, DSValueView* 
     if (value.m_Type != DS_TYPE_LIST)
         return DS_RESULT_INVALID_ARGUMENT;
     DSValue  child;
-    DSResult result = DSGetListValue(&value.m_Value.m_List, index, &child);
+    DSResult result = DSListGetValue(&value.m_Value.m_List, index, &child);
     if (result == DS_RESULT_OK)
         WriteView(child, out_view);
     return result;

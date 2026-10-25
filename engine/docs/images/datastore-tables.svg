@@ -23,7 +23,7 @@ specific language governing permissions and limitations under the License. -->
 <rect x="28" y="89" width="664" height="112" rx="7" fill="#fff1da" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="48" y="120" class="label">Loaded blob: PointLight + SpotLight</text>
 <text x="48" y="151">Shared metadata · default rows · strings / dynamic payloads</text>
-<text x="48" y="180" class="small">Immutable bytes, loaded once; DSLoadBlob borrows the buffer.</text>
+<text x="48" y="180" class="small">Immutable bytes, loaded once; DSBlobLoad borrows the buffer.</text>
 <rect x="724" y="89" width="328" height="112" rx="7" fill="#fff1da" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="744" y="120" class="label">Another loaded blob</text>
 <text x="744" y="151">PointLight defaults + metadata</text>

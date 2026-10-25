@@ -37,7 +37,7 @@ extern "C"
     typedef struct DSStore* HDSContext;
     typedef struct DSQuery* HDSQuery;
     typedef uint64_t        DSId;
-    typedef uint64_t        DSGroupId;
+    typedef uint32_t        DSFieldId;
 
     typedef enum DSResult
     {
@@ -81,20 +81,12 @@ extern "C"
         float m_Values[16];
     } DSMatrix4;
 
-    // Store lifetime
-
     typedef struct DSCreateParams
     {
         uint32_t m_PageSize;
         uint32_t m_RowChunkSize;
         uint32_t m_MaxSparePages;
     } DSCreateParams;
-
-    HDSContext DSCreateStore(const DSCreateParams* params);
-    DSResult   DSDestroyStore(HDSContext store);
-    DSResult   DSRemoveGroup(HDSContext store, DSGroupId group);
-
-    // Native tables and rows
 
     typedef struct DSStructDesc DSStructDesc;
     typedef struct DSFieldDesc
@@ -159,27 +151,8 @@ extern "C"
         uint64_t m_Storage; // Keeps reference slots eight bytes on 32-bit and 64-bit hosts.
     } DSReference;
 
-    DSResult DSRegisterTable(HDSContext store, const DSTableDesc* desc);
-    DSResult DSRegisterTableView(HDSContext store, const DSTableDesc* desc, void* values, uint32_t value_count, uint32_t row_count, const uint32_t* indices, DSId* out_ids);
-    DSResult DSUnregisterTable(HDSContext store, uint64_t type);
-    DSResult DSCreateRows(HDSContext store, uint64_t type, DSGroupId group, uint32_t count, const void* rows, DSId* out_ids);
-    DSResult DSCreateRowsSoA(HDSContext store, uint64_t type, DSGroupId group, uint32_t count, uint32_t field_count, const DSFieldArray* fields, DSId* out_ids);
-    DSResult DSRemoveRow(HDSContext store, DSId id);
-    DSResult DSResetRow(HDSContext store, DSId id);
-    uint64_t DSGetComponentId(HDSContext store, DSId id);
-
-    // Resource instances
-
     typedef struct DSBlob*         HDSBlob;
     typedef struct DSBlobInstance* HDSBlobInstance;
-
-    DSResult                       DSLoadBlob(const void* buffer, uint32_t buffer_size, HDSBlob* out_blob);
-    void                           DSDestroyBlob(HDSBlob blob);
-    DSResult                       DSAddBlob(HDSContext store, HDSBlob blob, DSGroupId group, HDSBlobInstance* out_instance);
-    DSResult                       DSRemoveBlob(HDSBlobInstance instance);
-    DSResult                       DSResetBlob(HDSBlobInstance instance);
-
-    // Queries
 
     typedef enum DSAccess
     {
@@ -208,25 +181,11 @@ extern "C"
 
     typedef struct DSQueryDesc
     {
-        const DSGroupId* m_GroupIds;
+        const DSId*      m_GroupIds;
         uint32_t         m_GroupIdCount;
         uint32_t         m_Flags;
         DSQueryItem      m_Items[DS_QUERY_MAX_ITEMS];
     } DSQueryDesc;
-
-    static inline DSQueryItem DSTag(const char* name);
-    static inline DSQueryItem DSField(const char* name, DSValueType type, uint32_t access);
-
-    DSResult                  DSCreateQuery(HDSContext store, const DSQueryDesc* desc, HDSQuery* out_query);
-    DSResult                  DSDestroyQuery(HDSQuery query);
-
-    DSResult                  DSQueryTryBegin(HDSQuery query);
-    uint32_t                  DSQueryGetRowCount(HDSQuery query);
-    void                      DSQueryEnd(HDSQuery query);
-
-    uint32_t                  DSQueryFindField(HDSQuery query, const DSQueryItem* field);
-
-    // Scheduled callbacks
 
     typedef void (*DSSystemProcess)(HDSQuery query, uint32_t first, uint32_t num_rows, void* context);
 
@@ -245,18 +204,6 @@ extern "C"
         dmhash_t m_Name;
         dmhash_t m_DependsOn[DS_SYSTEM_MAX_DEPENDENCIES];
     } DSEventDesc;
-
-    DSResult DSRegisterFunction(HDSContext store, const DSSystemDesc* desc);
-    DSResult DSUnregisterFunction(HDSContext store, dmhash_t name);
-    DSResult DSRegisterEvent(HDSContext store, const DSEventDesc* desc);
-    DSResult DSUnregisterEvent(HDSContext store, dmhash_t name);
-    DSResult DSBeginSchedule(HDSContext store, HJobContext jobs);
-    DSResult DSSchedulerEvent(HDSContext store, dmhash_t name);
-    DSResult DSSchedulerUpdate(HDSContext store);
-    DSResult DSSchedulerSync(HDSContext store);
-    DSResult DSEndSchedule(HDSContext store);
-
-    // Iteration
 
     typedef struct DSIterator
     {
@@ -284,78 +231,6 @@ extern "C"
         uint32_t          m_NextRow;
     } DSRowIterator;
 
-    // Query batches
-    DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count);
-    DSIterator DSQueryIter(HDSQuery query);
-    bool       DSIterNext(DSIterator* iterator);
-    uint64_t   DSIterGetType(const DSIterator* iterator);
-
-    // Rows
-    static inline DSRowIterator DSIterRows(const DSIterator* iterator);
-    static inline bool          DSRowIterNext(DSRowIterator* iterator);
-    DSId                        DSRowIterGetId(const DSRowIterator* iterator);
-    DSGroupId                   DSRowIterGetGroupId(const DSRowIterator* iterator);
-    static inline const void*   DSRowIterGetData(const DSRowIterator* iterator);
-    static inline void*         DSRowIterGetDataMut(const DSRowIterator* iterator);
-
-    // Field pointers
-    static inline const double*    DSRowIterGetNumber(const DSRowIterator* iterator, uint32_t field);
-    static inline double*          DSRowIterGetNumberMut(const DSRowIterator* iterator, uint32_t field);
-
-    static inline const float*     DSRowIterGetFloat(const DSRowIterator* iterator, uint32_t field);
-    static inline float*           DSRowIterGetFloatMut(const DSRowIterator* iterator, uint32_t field);
-
-    static inline const uint32_t*  DSRowIterGetUInt32(const DSRowIterator* iterator, uint32_t field);
-    static inline uint32_t*        DSRowIterGetUInt32Mut(const DSRowIterator* iterator, uint32_t field);
-
-    static inline const uint8_t*   DSRowIterGetBoolean(const DSRowIterator* iterator, uint32_t field);
-    static inline uint8_t*         DSRowIterGetBooleanMut(const DSRowIterator* iterator, uint32_t field);
-
-    static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, uint32_t field);
-    static inline DSVector3*       DSRowIterGetVector3Mut(const DSRowIterator* iterator, uint32_t field);
-
-    static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, uint32_t field);
-    static inline DSVector4*       DSRowIterGetVector4Mut(const DSRowIterator* iterator, uint32_t field);
-
-    static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, uint32_t field);
-    static inline DSMatrix4*       DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, uint32_t field);
-
-    // Field values
-
-    DSResult DSFieldGetNumber(HDSContext store, DSId id, uint64_t field, double* out_value);
-    DSResult DSFieldGetNumberBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, double* out_values);
-    DSResult DSSetFieldNumber(HDSContext store, DSId id, uint64_t field, double value);
-
-    DSResult DSFieldGetFloat(HDSContext store, DSId id, uint64_t field, float* out_value);
-    DSResult DSFieldGetFloatBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, float* out_values);
-    DSResult DSSetFieldFloat(HDSContext store, DSId id, uint64_t field, float value);
-
-    DSResult DSFieldGetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t* out_value);
-    DSResult DSFieldGetUInt32Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint32_t* out_values);
-    DSResult DSSetFieldUInt32(HDSContext store, DSId id, uint64_t field, uint32_t value);
-
-    DSResult DSFieldGetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t* out_value);
-    DSResult DSFieldGetBooleanBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint8_t* out_values);
-    DSResult DSSetFieldBoolean(HDSContext store, DSId id, uint64_t field, uint8_t value);
-
-    DSResult DSFieldGetString(HDSContext store, DSId id, uint64_t field, const char** out_value);
-    DSResult DSFieldGetStringBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, const char** out_values);
-    DSResult DSSetFieldString(HDSContext store, DSId id, uint64_t field, const char* value);
-
-    DSResult DSFieldGetVector3(HDSContext store, DSId id, uint64_t field, DSVector3* out_value);
-    DSResult DSFieldGetVector3Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector3* out_values);
-    DSResult DSSetFieldVector3(HDSContext store, DSId id, uint64_t field, const DSVector3* value);
-
-    DSResult DSFieldGetVector4(HDSContext store, DSId id, uint64_t field, DSVector4* out_value);
-    DSResult DSFieldGetVector4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector4* out_values);
-    DSResult DSSetFieldVector4(HDSContext store, DSId id, uint64_t field, const DSVector4* value);
-
-    DSResult DSFieldGetMatrix4(HDSContext store, DSId id, uint64_t field, DSMatrix4* out_value);
-    DSResult DSFieldGetMatrix4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSMatrix4* out_values);
-    DSResult DSSetFieldMatrix4(HDSContext store, DSId id, uint64_t field, const DSMatrix4* value);
-
-    // Dynamic containers
-
     typedef struct DSValueView
     {
         // private
@@ -370,8 +245,133 @@ extern "C"
         uint32_t           m_Count;
     } DSViewIterator;
 
+    // Store lifetime
+
+    HDSContext DSStoreCreate(const DSCreateParams* params);
+    DSResult   DSStoreDestroy(HDSContext store);
+    DSResult   DSGroupRemove(HDSContext store, DSId group);
+
+    // Native tables and rows
+
+    DSResult DSTableAdd(HDSContext store, const DSTableDesc* desc);
+    DSResult DSTableAddView(HDSContext store, const DSTableDesc* desc, void* values, uint32_t value_count, uint32_t row_count, const uint32_t* indices, DSId* out_ids);
+    DSResult DSTableRemove(HDSContext store, uint64_t type);
+    DSResult DSRowCreate(HDSContext store, uint64_t type, DSId group, uint32_t count, const void* rows, DSId* out_ids);
+    DSResult DSRowCreateSoA(HDSContext store, uint64_t type, DSId group, uint32_t count, uint32_t field_count, const DSFieldArray* fields, DSId* out_ids);
+    DSResult DSRowRemove(HDSContext store, DSId id);
+    DSResult DSRowReset(HDSContext store, DSId id);
+    uint64_t DSRowGetComponentId(HDSContext store, DSId id);
+
+    // Resource instances
+
+    DSResult                       DSBlobLoad(const void* buffer, uint32_t buffer_size, HDSBlob* out_blob);
+    void                           DSBlobDestroy(HDSBlob blob);
+    DSResult                       DSBlobAdd(HDSContext store, HDSBlob blob, DSId group, HDSBlobInstance* out_instance);
+    DSResult                       DSBlobRemove(HDSBlobInstance instance);
+    DSResult                       DSBlobReset(HDSBlobInstance instance);
+
+    // Queries
+
+    DSQueryItem DSTag(const char* name);
+    DSQueryItem DSField(const char* name, DSValueType type, uint32_t access);
+
+    DSResult                  DSQueryCreate(HDSContext store, const DSQueryDesc* desc, HDSQuery* out_query);
+    DSResult                  DSQueryDestroy(HDSQuery query);
+
+    DSResult                  DSQueryTryBegin(HDSQuery query);
+    uint32_t                  DSQueryGetRowCount(HDSQuery query);
+    void                      DSQueryEnd(HDSQuery query);
+
+    DSFieldId                 DSQueryFindField(HDSQuery query, const DSQueryItem* field);
+
+    // Scheduled callbacks
+
+    DSResult DSFunctionAdd(HDSContext store, const DSSystemDesc* desc);
+    DSResult DSFunctionRemove(HDSContext store, dmhash_t name);
+    DSResult DSEventAdd(HDSContext store, const DSEventDesc* desc);
+    DSResult DSEventRemove(HDSContext store, dmhash_t name);
+    DSResult DSSchedulerBegin(HDSContext store, HJobContext jobs);
+    DSResult DSSchedulerEvent(HDSContext store, dmhash_t name);
+    DSResult DSSchedulerUpdate(HDSContext store);
+    DSResult DSSchedulerSync(HDSContext store);
+    DSResult DSSchedulerEnd(HDSContext store);
+
+    // Iteration
+
+    // Query batches
+    DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count);
+    DSIterator DSQueryIter(HDSQuery query);
+    bool       DSIterNext(DSIterator* iterator);
+    uint64_t   DSIterGetType(const DSIterator* iterator);
+
+    // Rows
+    static inline DSRowIterator DSIterRows(const DSIterator* iterator);
+    static inline bool          DSRowIterNext(DSRowIterator* iterator);
+    DSId                        DSRowIterGetId(const DSRowIterator* iterator);
+    DSId                        DSRowIterGetGroupId(const DSRowIterator* iterator);
+    static inline const void*   DSRowIterGetData(const DSRowIterator* iterator);
+    static inline void*         DSRowIterGetDataMut(const DSRowIterator* iterator);
+
+    // Field pointers
+    static inline const double*    DSRowIterGetNumber(const DSRowIterator* iterator, DSFieldId field);
+    static inline double*          DSRowIterGetNumberMut(const DSRowIterator* iterator, DSFieldId field);
+
+    static inline const float*     DSRowIterGetFloat(const DSRowIterator* iterator, DSFieldId field);
+    static inline float*           DSRowIterGetFloatMut(const DSRowIterator* iterator, DSFieldId field);
+
+    static inline const uint32_t*  DSRowIterGetUInt32(const DSRowIterator* iterator, DSFieldId field);
+    static inline uint32_t*        DSRowIterGetUInt32Mut(const DSRowIterator* iterator, DSFieldId field);
+
+    static inline const uint8_t*   DSRowIterGetBoolean(const DSRowIterator* iterator, DSFieldId field);
+    static inline uint8_t*         DSRowIterGetBooleanMut(const DSRowIterator* iterator, DSFieldId field);
+
+    static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, DSFieldId field);
+    static inline DSVector3*       DSRowIterGetVector3Mut(const DSRowIterator* iterator, DSFieldId field);
+
+    static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, DSFieldId field);
+    static inline DSVector4*       DSRowIterGetVector4Mut(const DSRowIterator* iterator, DSFieldId field);
+
+    static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, DSFieldId field);
+    static inline DSMatrix4*       DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, DSFieldId field);
+
+    // Field values
+
+    DSResult DSFieldGetNumber(HDSContext store, DSId id, uint64_t field, double* out_value);
+    DSResult DSFieldGetNumberBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, double* out_values);
+    DSResult DSFieldSetNumber(HDSContext store, DSId id, uint64_t field, double value);
+
+    DSResult DSFieldGetFloat(HDSContext store, DSId id, uint64_t field, float* out_value);
+    DSResult DSFieldGetFloatBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, float* out_values);
+    DSResult DSFieldSetFloat(HDSContext store, DSId id, uint64_t field, float value);
+
+    DSResult DSFieldGetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t* out_value);
+    DSResult DSFieldGetUInt32Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint32_t* out_values);
+    DSResult DSFieldSetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t value);
+
+    DSResult DSFieldGetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t* out_value);
+    DSResult DSFieldGetBooleanBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint8_t* out_values);
+    DSResult DSFieldSetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t value);
+
+    DSResult DSFieldGetString(HDSContext store, DSId id, uint64_t field, const char** out_value);
+    DSResult DSFieldGetStringBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, const char** out_values);
+    DSResult DSFieldSetString(HDSContext store, DSId id, uint64_t field, const char* value);
+
+    DSResult DSFieldGetVector3(HDSContext store, DSId id, uint64_t field, DSVector3* out_value);
+    DSResult DSFieldGetVector3Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector3* out_values);
+    DSResult DSFieldSetVector3(HDSContext store, DSId id, uint64_t field, const DSVector3* value);
+
+    DSResult DSFieldGetVector4(HDSContext store, DSId id, uint64_t field, DSVector4* out_value);
+    DSResult DSFieldGetVector4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector4* out_values);
+    DSResult DSFieldSetVector4(HDSContext store, DSId id, uint64_t field, const DSVector4* value);
+
+    DSResult DSFieldGetMatrix4(HDSContext store, DSId id, uint64_t field, DSMatrix4* out_value);
+    DSResult DSFieldGetMatrix4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSMatrix4* out_values);
+    DSResult DSFieldSetMatrix4(HDSContext store, DSId id, uint64_t field, const DSMatrix4* value);
+
+    // Dynamic containers
+
     DSResult    DSFieldGetView(HDSContext store, DSId id, uint64_t field, DSValueView* out_view);
-    void        DSRowIterGetView(const DSRowIterator* iterator, uint32_t field, DSValueView* out_view);
+    void        DSRowIterGetView(const DSRowIterator* iterator, DSFieldId field, DSValueView* out_view);
     DSValueType DSViewGetType(const DSValueView* view);
     DSResult    DSViewGetCount(const DSValueView* view, uint32_t* out_count);
     DSResult    DSViewGetField(const DSValueView* view, uint64_t field, DSValueView* out_view);
@@ -391,22 +391,10 @@ extern "C"
 
     // Inline implementations
 
-    static inline DSQueryItem DSTag(const char* name)
-    {
-        DSQueryItem tag = { .m_Hash = dmHashString64(name), .m_Kind = DS_QUERY_ITEM_TAG };
-        return tag;
-    }
-
-    static inline DSQueryItem DSField(const char* name, DSValueType type, uint32_t access)
-    {
-        DSQueryItem field = { .m_Hash = dmHashString64(name), .m_Type = type, .m_Access = access, .m_Kind = DS_QUERY_ITEM_FIELD };
-        return field;
-    }
-
     // private
     // Address calculation for the public pointer wrappers. Validated field handles and current
     // row indices are caller obligations; no repeated checks occur here.
-    static inline void*         DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, uint32_t field);
+    static inline void*         DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, DSFieldId field);
 
     static inline DSRowIterator DSIterRows(const DSIterator* iterator)
     {
@@ -439,77 +427,77 @@ extern "C"
         return iterator->m_Parent->m_Values + (size_t)iterator->m_Index * iterator->m_Parent->m_RowStride;
     }
 
-    static inline void* DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, uint32_t field)
+    static inline void* DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, DSFieldId field)
     {
         return batch->m_Values + (size_t)row * batch->m_RowStride + batch->m_FieldOffsets[field];
     }
 
-    static inline const double* DSRowIterGetNumber(const DSRowIterator* iterator, uint32_t field)
+    static inline const double* DSRowIterGetNumber(const DSRowIterator* iterator, DSFieldId field)
     {
         return (const double*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline double* DSRowIterGetNumberMut(const DSRowIterator* iterator, uint32_t field)
+    static inline double* DSRowIterGetNumberMut(const DSRowIterator* iterator, DSFieldId field)
     {
         return (double*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const float* DSRowIterGetFloat(const DSRowIterator* iterator, uint32_t field)
+    static inline const float* DSRowIterGetFloat(const DSRowIterator* iterator, DSFieldId field)
     {
         return (const float*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline float* DSRowIterGetFloatMut(const DSRowIterator* iterator, uint32_t field)
+    static inline float* DSRowIterGetFloatMut(const DSRowIterator* iterator, DSFieldId field)
     {
         return (float*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const uint32_t* DSRowIterGetUInt32(const DSRowIterator* iterator, uint32_t field)
+    static inline const uint32_t* DSRowIterGetUInt32(const DSRowIterator* iterator, DSFieldId field)
     {
         return (const uint32_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline uint32_t* DSRowIterGetUInt32Mut(const DSRowIterator* iterator, uint32_t field)
+    static inline uint32_t* DSRowIterGetUInt32Mut(const DSRowIterator* iterator, DSFieldId field)
     {
         return (uint32_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const uint8_t* DSRowIterGetBoolean(const DSRowIterator* iterator, uint32_t field)
+    static inline const uint8_t* DSRowIterGetBoolean(const DSRowIterator* iterator, DSFieldId field)
     {
         return (const uint8_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline uint8_t* DSRowIterGetBooleanMut(const DSRowIterator* iterator, uint32_t field)
+    static inline uint8_t* DSRowIterGetBooleanMut(const DSRowIterator* iterator, DSFieldId field)
     {
         return (uint8_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, uint32_t field)
+    static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, DSFieldId field)
     {
         return (const DSVector3*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline DSVector3* DSRowIterGetVector3Mut(const DSRowIterator* iterator, uint32_t field)
+    static inline DSVector3* DSRowIterGetVector3Mut(const DSRowIterator* iterator, DSFieldId field)
     {
         return (DSVector3*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, uint32_t field)
+    static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, DSFieldId field)
     {
         return (const DSVector4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline DSVector4* DSRowIterGetVector4Mut(const DSRowIterator* iterator, uint32_t field)
+    static inline DSVector4* DSRowIterGetVector4Mut(const DSRowIterator* iterator, DSFieldId field)
     {
         return (DSVector4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, uint32_t field)
+    static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, DSFieldId field)
     {
         return (const DSMatrix4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
 
-    static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, uint32_t field)
+    static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, DSFieldId field)
     {
         return (DSMatrix4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
     }
@@ -531,7 +519,7 @@ extern "C"
 
 /*# Store handle
  *
- * Owned when created with [ref:DSCreateStore]; engine-supplied handles are borrowed.
+ * Owned when created with [ref:DSStoreCreate]; engine-supplied handles are borrowed.
  *
  * @typedef
  * @name HDSContext
@@ -545,25 +533,27 @@ extern "C"
  * @name HDSQuery
  */
 
-/*# Row identifier
+/*# Row or group identifier
  *
- * Store-local row ID, valid until removal; zero is invalid.
- * IDs survive row moves but are not serialized.
+ * As a row ID, a store-generated handle with generation checks, valid until
+ * removal. Row IDs survive moves, are not serialized, and cannot be zero.
+ * As a group ID, a caller-provided 64-bit owner key, such as a game-object handle.
+ * Group bookkeeping is created on first addition; the caller controls uniqueness
+ * and reuse. Group removal removes its rows and blob registrations. Zero selects
+ * ungrouped rows. Query group filters match the same key if it is reused.
+ * The datastore does not manage the external owner's lifetime.
  *
  * @typedef
  * @name DSId
  */
 
-/*# Owning group identifier
+/*# Bound query field identifier
  *
- * Caller-provided 64-bit owner ID, for example a game-object handle. Nonzero IDs
- * acquire group bookkeeping when rows or blob instances are first added. Group
- * removal removes its rows; the caller controls ID uniqueness and reuse. Query
- * filters continue matching the same ID if it is reused. Zero selects ungrouped
- * rows. The datastore has no knowledge of the external owner.
+ * Returned by DSQueryFindField and valid for that query until its destruction.
+ * UINT32_MAX means no matching field. This is not a field-name hash or byte offset.
  *
  * @typedef
- * @name DSGroupId
+ * @name DSFieldId
  */
 
 /*# Operation results
@@ -648,9 +638,9 @@ extern "C"
 
 /*# Create an empty store
  *
- * The caller owns the store and releases it with [ref:DSDestroyStore].
+ * The caller owns the store and releases it with [ref:DSStoreDestroy].
  *
- * @name DSCreateStore
+ * @name DSStoreCreate
  * @param params [type:const DSCreateParams*] Allocation settings; zero uses defaults. Copied during creation.
  * @return store [type:HDSContext] New store, or zero for invalid allocation sizes.
  */
@@ -661,7 +651,7 @@ extern "C"
  * access, end any schedule, then destroy queries. Borrowed blobs and callback contexts
  * remain caller-owned; destruction does not invoke callbacks.
  *
- * @name DSDestroyStore
+ * @name DSStoreDestroy
  * @param store [type:HDSContext] Store owned by the caller.
  * @return result [type:DSResult] OK, or LOCKED during a schedule or query reservation; leaves the store intact on failure.
  */
@@ -679,9 +669,9 @@ extern "C"
  * when rows are removed individually. Reusing the caller ID later recreates the
  * group; existing query filters then match its new rows.
  *
- * @name DSRemoveGroup
+ * @name DSGroupRemove
  * @param store [type:HDSContext] Store owning the group.
- * @param group [type:DSGroupId] Caller-provided owner ID.
+ * @param group [type:DSId] Caller-provided owner ID.
  * @return result [type:DSResult] OK, LOCKED during query reservations, or NOT_FOUND for zero or an unknown group. Failure leaves the store unchanged.
  */
 
@@ -691,14 +681,14 @@ extern "C"
  * Layouts contain scalar/vector/matrix fields; struct and reference fields are unsupported.
  * Indices select source rows and are copied;
  * NULL selects rows in order. Optional out_ids receives row identities.
- * Keep values alive, aligned and stationary until DSUnregisterTable or store destruction.
+ * Keep values alive, aligned and stationary until DSTableRemove or store destruction.
  * The caller synchronizes external access with query reservations. Shared reads are
  * allowed; writable jobs must select distinct source rows, including within one query.
  * Views with overlapping source rows conflict on overlapping writable fields.
  * View rows cannot be created, removed or reset individually, or serialized.
  * Unregistering frees metadata and identities, never the borrowed values.
  *
- * @name DSRegisterTableView
+ * @name DSTableAddView
  * @param store [type:HDSContext] Destination store.
  * @param desc [type:const DSTableDesc*] Native layout and tags; copied.
  * @param values [type:void*] Borrowed native row array.
@@ -816,9 +806,9 @@ extern "C"
 /*# Create rows from native input
  *
  * Copies count complete rows using the registered C layout and row size. Assigns
- * group to every row; groups can share a table. DSRemoveGroup removes owned rows.
+ * group to every row; groups can share a table. DSGroupRemove removes owned rows.
  * Stores current values only unless m_ResetPolicy is DS_RESET_RETAIN.
- * Native rows have no component name; DSGetComponentId returns zero.
+ * Native rows have no component name; DSRowGetComponentId returns zero.
  * Supports fixed-size values, inline structs and DSReference fields. Strings
  * and dynamic containers are copied into table-owned storage, including nested
  * payloads; all input memory can be released after the call. Dynamic struct fields
@@ -831,10 +821,10 @@ extern "C"
  * and output IDs remain unchanged. Nonempty batches require a store without active
  * query reservations. An empty batch returns OK without accessing the store or arrays.
  *
- * @name DSCreateRows
+ * @name DSRowCreate
  * @param store [type:HDSContext] Destination store.
  * @param type [type:uint64_t] Registered table type.
- * @param group [type:DSGroupId] Caller-provided owner ID; bookkeeping is created lazily. Zero creates ungrouped rows.
+ * @param group [type:DSId] Caller-provided owner ID; bookkeeping is created lazily. Zero creates ungrouped rows.
  * @param count [type:uint32_t] Rows to add; zero adds nothing.
  * @param rows [type:const void*] Borrowed contiguous native rows; NULL for zero-size rows or an empty batch.
  * @param out_ids [type:DSId*] Optional array receiving count stable IDs on success; NULL skips the output. IDs remain available through row iteration.
@@ -843,7 +833,7 @@ extern "C"
 
 /*# Native field array
  *
- * One input column for DSCreateRowsSoA. The registered layout determines the
+ * One input column for DSRowCreateSoA. The registered layout determines the
  * element type and size; an inline struct uses complete native struct elements.
  * STRING, dynamic STRUCT and LIST columns use DSReference elements.
  *
@@ -862,13 +852,13 @@ extern "C"
  * use arrays of complete structs, not separate arrays for their nested members.
  * Inputs, including struct padding, must be initialized, disjoint from store
  * storage and valid through the call. The table policy controls reset history. Group,
- * locking and reference ownership rules match DSCreateRows. On error no rows are
+ * locking and reference ownership rules match DSRowCreate. On error no rows are
  * published and output IDs remain unchanged.
  *
- * @name DSCreateRowsSoA
+ * @name DSRowCreateSoA
  * @param store [type:HDSContext] Destination store.
  * @param type [type:uint64_t] Registered table type.
- * @param group [type:DSGroupId] Caller-provided owner ID; bookkeeping is created lazily. Zero creates ungrouped rows.
+ * @param group [type:DSId] Caller-provided owner ID; bookkeeping is created lazily. Zero creates ungrouped rows.
  * @param count [type:uint32_t] Rows to add; zero returns OK without accessing the store or arrays.
  * @param field_count [type:uint32_t] Number of root field arrays.
  * @param fields [type:const DSFieldArray*] Borrowed field arrays; NULL for a table without fields or an empty batch.
@@ -876,24 +866,24 @@ extern "C"
  * @return result [type:DSResult] OK, LOCKED, NOT_FOUND for an unknown table, ALREADY_EXISTS for duplicate dynamic member names, or INVALID_ARGUMENT for invalid fields, input or capacity limits.
  */
 
-/*# Register an empty table
+/*# Add an empty table
  *
  * Copies tags and field metadata. Fields have fixed kinds and non-overlapping byte offsets.
  * Duplicate type hashes and full-name field hashes (including inline members) are rejected. Successful
  * registration updates live queries. Requires a store without active query reservations.
  *
- * @name DSRegisterTable
+ * @name DSTableAdd
  * @param store [type:HDSContext] Store handle.
  * @param desc [type:const DSTableDesc*] Table type, tags and shared field layout to copy.
  * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK, ALREADY_EXISTS for a duplicate type/field name, or INVALID_ARGUMENT for invalid tags/count/layout.
  */
 
-/*# Unregister a table
+/*# Remove a table
  *
  * Removes an independently registered table and all its rows. Their IDs become stale, even if the type is
  * registered again. Updates live queries. Requires a store without active query reservations.
  *
- * @name DSUnregisterTable
+ * @name DSTableRemove
  * @param store [type:HDSContext] Store handle.
  * @param type [type:uint64_t] Table type hash.
  * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK on success, or NOT_FOUND if the type is not registered.
@@ -908,7 +898,7 @@ extern "C"
  * payload chunks are recycled; empty blocks are freed, retaining one small spare
  * per arena. Borrowed blob payloads remain unchanged.
  *
- * @name DSRemoveRow
+ * @name DSRowRemove
  * @param store [type:HDSContext] Store handle.
  * @param id [type:DSId] ID of the row to remove.
  * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK on success, NOT_FOUND for an invalid or stale ID, or INVALID_ARGUMENT for a borrowed view.
@@ -925,7 +915,7 @@ extern "C"
  *
  * Tables registered with DS_RESET_NONE do not retain history and cannot reset.
  *
- * @name DSResetRow
+ * @name DSRowReset
  * @param store [type:HDSContext] Store containing the component row.
  * @param id [type:DSId] Component's runtime row ID.
  * @return result [type:DSResult] OK, LOCKED during query reservations, NOT_FOUND for an invalid or stale ID, or INVALID_ARGUMENT for a borrowed view or a table with DS_RESET_NONE.
@@ -935,7 +925,7 @@ extern "C"
  *
  * Used by game object integration to associate a runtime row with its component.
  *
- * @name DSGetComponentId
+ * @name DSRowGetComponentId
  * @param store [type:HDSContext] Store containing the row.
  * @param id [type:DSId] Runtime row ID.
  * @return component [type:uint64_t] Component name hash, or zero for an invalid/stale row. Zero may also identify an unnamed row.
@@ -944,8 +934,8 @@ extern "C"
 /*# Loaded blob handle
  *
  * Owns a reference to validated metadata, borrowing the caller's immutable bytes.
- * Release with DSDestroyBlob. Store-owned references are synchronized across
- * stores; keep a live reference while other threads call DSAddBlob.
+ * Release with DSBlobDestroy. Store-owned references are synchronized across
+ * stores; keep a live reference while other threads call DSBlobAdd.
  *
  * @typedef
  * @name HDSBlob
@@ -953,7 +943,7 @@ extern "C"
 
 /*# Blob instance handle
  *
- * Identifies one grouped registration in a store. Release with DSRemoveBlob or DSRemoveGroup,
+ * Identifies one grouped registration in a store. Release with DSBlobRemove or DSGroupRemove,
  * or by destroying the store. This does not own the caller's blob bytes.
  *
  * @typedef
@@ -968,7 +958,7 @@ extern "C"
  * until the blob reference and all its registrations have been released.
  * Loading does not register rows in a store.
  *
- * @name DSLoadBlob
+ * @name DSBlobLoad
  * @param buffer [type:const void*] Caller-owned complete packed component-data blob.
  * @param buffer_size [type:uint32_t] Blob byte size.
  * @param out_blob [type:HDSBlob*] Receives a caller-owned reference on success; unchanged on error.
@@ -981,7 +971,7 @@ extern "C"
  * never the caller's buffer. Does not remove any instance's rows. The caller may
  * free the buffer after releasing this reference and removing all registrations.
  *
- * @name DSDestroyBlob
+ * @name DSBlobDestroy
  * @param blob [type:HDSBlob] Reference to release; must not be used afterward.
  */
 
@@ -993,10 +983,10 @@ extern "C"
  * buffer alive until all references and registrations are released.
  * Requires a store without active query reservations.
  *
- * @name DSAddBlob
+ * @name DSBlobAdd
  * @param store [type:HDSContext] Destination store.
  * @param blob [type:HDSBlob] Loaded resource to retain.
- * @param group [type:DSGroupId] Caller-provided owner ID; bookkeeping is created lazily even for an empty blob. Zero leaves the registration ungrouped.
+ * @param group [type:DSId] Caller-provided owner ID; bookkeeping is created lazily even for an empty blob. Zero leaves the registration ungrouped.
  * @param out_instance [type:HDSBlobInstance*] Receives the registration handle on success; unchanged on error.
  * @return result [type:DSResult] OK, LOCKED while query reservations are active, or INVALID_ARGUMENT if store capacity would be exceeded. Errors leave the store unchanged.
  */
@@ -1006,10 +996,10 @@ extern "C"
  * Removes its remaining rows, invalidates their IDs, frees its replacement payloads,
  * and returns the registration slot for reuse. Shared capacity remains while other
  * registrations use that resource; the last removal frees the pool and its blob reference.
- * DSRemoveGroup also releases registrations owned by that group. Their handles
+ * DSGroupRemove also releases registrations owned by that group. Their handles
  * must not be used afterward. The store releases all registrations when destroyed.
  *
- * @name DSRemoveBlob
+ * @name DSBlobRemove
  * @param instance [type:HDSBlobInstance] Registration to remove; must not be used after success.
  * @return result [type:DSResult] OK, or LOCKED while its store has active query reservations (no changes).
  */
@@ -1022,7 +1012,7 @@ extern "C"
  * The engine retains this handle when registering a game object's component tables;
  * no datastore-wide group search is needed. Independently added rows are not included.
  *
- * @name DSResetBlob
+ * @name DSBlobReset
  * @param instance [type:HDSBlobInstance] Registration to reset.
  * @return result [type:DSResult] OK, or LOCKED during query reservations.
  */
@@ -1102,7 +1092,7 @@ extern "C"
  *
  * @struct
  * @name DSQueryDesc
- * @member m_GroupIds [type:const DSGroupId*] Caller-provided owner IDs; zero selects ungrouped rows. IDs may precede row creation. Optional when count is zero.
+ * @member m_GroupIds [type:const DSId*] Caller-provided owner IDs; zero selects ungrouped rows. IDs may precede row creation. Optional when count is zero.
  * @member m_GroupIdCount [type:uint32_t] Group count; zero matches all.
  * @member m_Flags [type:uint32_t] DSQueryFlags bits; zero keeps field-level access and disables native row pointers.
  * @member m_Items [type:DSQueryItem[DS_QUERY_MAX_ITEMS]] Required tags and fields, in any order.
@@ -1113,7 +1103,7 @@ extern "C"
  * Copies filters and tracks matching tables, including later registrations.
  * Destroy the query before its store.
  *
- * @name DSCreateQuery
+ * @name DSQueryCreate
  * @param store [type:HDSContext] Store handle.
  * @param desc [type:const DSQueryDesc*] Filters to copy.
  * @param out_query [type:HDSQuery*] Receives the owned query on success.
@@ -1124,7 +1114,7 @@ extern "C"
  *
  * Frees the query. Finish using its iterators first.
  *
- * @name DSDestroyQuery
+ * @name DSQueryDestroy
  * @param query [type:HDSQuery] Query whose store is still alive.
  * @return result [type:DSResult] OK, or LOCKED while query reservations are active or this query is registered in an active schedule.
  */
@@ -1181,7 +1171,7 @@ extern "C"
  * @name DSQueryFindField
  * @param query [type:HDSQuery] Query to bind.
  * @param field [type:const DSQueryItem*] Field item to match; borrowed for this call. Access must not exceed the query declaration.
- * @return field [type:uint32_t] Field handle, or UINT32_MAX for a non-field item or an absent, incompatible or unsupported field.
+ * @return field [type:DSFieldId] Field handle, or UINT32_MAX for a non-field item or an absent, incompatible or unsupported field.
  */
 
 /*# Maximum function or event dependencies
@@ -1250,7 +1240,7 @@ extern "C"
  * Keep the query and context alive until unregistration or store teardown. At teardown,
  * finish callbacks, end the schedule and destroy queries before the store.
  * Dependencies name complete updates and may refer to updates registered later.
- * [ref:DSBeginSchedule] resolves hashes to indices and rejects cycles.
+ * [ref:DSSchedulerBegin] resolves hashes to indices and rejects cycles.
  * Use dmHashString64 during setup; reverse hashes are available for diagnostics.
  * Prerequisites may name functions or events. Every prerequisite must be registered;
  * the engine registers [ref:DS_EVENT_GAMEOBJECT_PRE_UPDATE] and
@@ -1270,7 +1260,7 @@ extern "C"
  *
  * An externally signaled milestone in the same dependency graph as query callbacks.
  * Hashes are copied. Dependencies may name functions or events registered later;
- * DSBeginSchedule rejects missing prerequisites and cycles.
+ * DSSchedulerBegin rejects missing prerequisites and cycles.
  *
  * @struct
  * @name DSEventDesc
@@ -1282,7 +1272,7 @@ extern "C"
  *
  * Copies the descriptor and hashes; registration does not invoke the callback.
  *
- * @name DSRegisterFunction
+ * @name DSFunctionAdd
  * @param store [type:HDSContext] Store receiving the registration.
  * @param desc [type:const DSSystemDesc*] Callback, query, context and dependency hashes.
  * @return result [type:DSResult] OK, LOCKED during a schedule, ALREADY_EXISTS for a duplicate name, or INVALID_ARGUMENT for missing required values, a zero name hash or a query from another store.
@@ -1293,7 +1283,7 @@ extern "C"
  * Removes the named registration between schedules. The query
  * and user context remain caller-owned. Dependent registrations retain their hashes.
  *
- * @name DSUnregisterFunction
+ * @name DSFunctionRemove
  * @param store [type:HDSContext] Store containing the registration.
  * @param name [type:dmhash_t] Name hash supplied when registering the callback.
  * @return result [type:DSResult] OK, LOCKED during a schedule, NOT_FOUND for an unknown name, or INVALID_ARGUMENT if the name identifies an event.
@@ -1304,7 +1294,7 @@ extern "C"
  * Copies the descriptor and hashes between schedules. Events have no query or callback;
  * the caller signals them explicitly with DSSchedulerEvent.
  *
- * @name DSRegisterEvent
+ * @name DSEventAdd
  * @param store [type:HDSContext] Store receiving the registration.
  * @param desc [type:const DSEventDesc*] Event hash and prerequisite hashes.
  * @return result [type:DSResult] OK, LOCKED during a schedule, ALREADY_EXISTS for a duplicate name, or INVALID_ARGUMENT for a zero name hash.
@@ -1314,7 +1304,7 @@ extern "C"
  *
  * Removes the named event between schedules. Dependent registrations retain their hashes.
  *
- * @name DSUnregisterEvent
+ * @name DSEventRemove
  * @param store [type:HDSContext] Store containing the event.
  * @param name [type:dmhash_t] Name hash supplied when registering the event.
  * @return result [type:DSResult] OK, LOCKED during a schedule, NOT_FOUND for an unknown name, or INVALID_ARGUMENT if the name identifies a function.
@@ -1326,9 +1316,9 @@ extern "C"
  * after registration changes and clears function completion and event signals from the previous invocation.
  * Reserves each ready function's query and submits its jobs. Borrowed job context must
  * outlive this invocation. Zero-worker contexts execute work during DSSchedulerUpdate.
- * Pair success with DSEndSchedule; no threads are created or destroyed here.
+ * Pair success with DSSchedulerEnd; no threads are created or destroyed here.
  *
- * @name DSBeginSchedule
+ * @name DSSchedulerBegin
  * @param store [type:HDSContext] Store containing the registrations.
  * @param jobs [type:HJobContext] Caller-owned job context. Pump it on the same main thread as scheduler operations.
  * @return result [type:DSResult] OK, LOCKED if already active, NOT_FOUND for a missing prerequisite, or INVALID_ARGUMENT for a null job context or dependency cycle. Failure leaves the schedule inactive except when already active.
@@ -1341,7 +1331,7 @@ extern "C"
  * subject to remaining dependencies and query access checks. This call does not wait
  * for jobs. BUSY leaves the event pending: pump DSSchedulerUpdate and retry before
  * entering an engine stage that requires those prerequisites.
- * Signal each event once per invocation; DSBeginSchedule clears previous signals.
+ * Signal each event once per invocation; DSSchedulerBegin clears previous signals.
  * Events do not reserve data or protect engine accesses outside registered queries.
  *
  * @name DSSchedulerEvent
@@ -1388,7 +1378,7 @@ extern "C"
  * and dependencies.
  * Registration changes are allowed after success. The next begin starts fresh.
  *
- * @name DSEndSchedule
+ * @name DSSchedulerEnd
  * @param store [type:HDSContext] Store with an active schedule.
  * @return result [type:DSResult] OK, BUSY while functions are running or ready to run, or INVALID_ARGUMENT without an active schedule.
  */
@@ -1482,7 +1472,7 @@ extern "C"
  *
  * @name DSRowIterGetGroupId
  * @param iterator [type:const DSRowIterator*] Row iterator.
- * @return group [type:DSGroupId] Caller-provided owner ID, or zero for an ungrouped row or without a valid row.
+ * @return group [type:DSId] Caller-provided owner ID, or zero for an ungrouped row or without a valid row.
  */
 
 /*# Borrow the native row bytes
@@ -1519,7 +1509,7 @@ extern "C"
  *
  * @name DSRowIterGetNumber
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Number handle from DSQueryFindField.
+ * @param field [type:DSFieldId] Number handle from DSQueryFindField.
  * @return value [type:const double*] Borrowed read-only value.
  */
 
@@ -1529,7 +1519,7 @@ extern "C"
  *
  * @name DSRowIterGetNumberMut
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Number handle from DSQueryFindField.
+ * @param field [type:DSFieldId] Number handle from DSQueryFindField.
  * @return value [type:double*] Borrowed writable value.
  */
 
@@ -1539,7 +1529,7 @@ extern "C"
  *
  * @name DSRowIterGetBoolean
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Boolean handle from DSQueryFindField.
+ * @param field [type:DSFieldId] Boolean handle from DSQueryFindField.
  * @return value [type:const uint8_t*] Borrowed read-only value.
  */
 
@@ -1549,7 +1539,7 @@ extern "C"
  *
  * @name DSRowIterGetBooleanMut
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Boolean handle from DSQueryFindField.
+ * @param field [type:DSFieldId] Boolean handle from DSQueryFindField.
  * @return value [type:uint8_t*] Borrowed writable value.
  */
 
@@ -1559,7 +1549,7 @@ extern "C"
  *
  * @name DSRowIterGetVector3
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Vector3 handle from DSQueryFindField.
+ * @param field [type:DSFieldId] Vector3 handle from DSQueryFindField.
  * @return value [type:const DSVector3*] Borrowed read-only value.
  */
 
@@ -1569,7 +1559,7 @@ extern "C"
  *
  * @name DSRowIterGetVector3Mut
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Vector3 handle from DSQueryFindField.
+ * @param field [type:DSFieldId] Vector3 handle from DSQueryFindField.
  * @return value [type:DSVector3*] Borrowed writable value.
  */
 
@@ -1579,7 +1569,7 @@ extern "C"
  *
  * @name DSRowIterGetVector4
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Vector4 handle from DSQueryFindField.
+ * @param field [type:DSFieldId] Vector4 handle from DSQueryFindField.
  * @return value [type:const DSVector4*] Borrowed read-only value.
  */
 
@@ -1589,7 +1579,7 @@ extern "C"
  *
  * @name DSRowIterGetVector4Mut
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Vector4 handle from DSQueryFindField.
+ * @param field [type:DSFieldId] Vector4 handle from DSQueryFindField.
  * @return value [type:DSVector4*] Borrowed writable value.
  */
 
@@ -1599,7 +1589,7 @@ extern "C"
  *
  * @name DSRowIterGetMatrix4
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Matrix4 handle from DSQueryFindField.
+ * @param field [type:DSFieldId] Matrix4 handle from DSQueryFindField.
  * @return value [type:const DSMatrix4*] Borrowed read-only value.
  */
 
@@ -1609,7 +1599,7 @@ extern "C"
  *
  * @name DSRowIterGetMatrix4Mut
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Matrix4 handle from DSQueryFindField.
+ * @param field [type:DSFieldId] Matrix4 handle from DSQueryFindField.
  * @return value [type:DSMatrix4*] Borrowed writable value.
  */
 
@@ -1619,7 +1609,7 @@ extern "C"
  *
  * @name DSRowIterGetFloat
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Float handle from DSQueryFindField.
+ * @param field [type:DSFieldId] Float handle from DSQueryFindField.
  * @return value [type:const float*] Borrowed read-only value.
  */
 
@@ -1629,7 +1619,7 @@ extern "C"
  *
  * @name DSRowIterGetUInt32
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] UInt32 handle from DSQueryFindField.
+ * @param field [type:DSFieldId] UInt32 handle from DSQueryFindField.
  * @return value [type:const uint32_t*] Borrowed read-only value.
  */
 
@@ -1639,7 +1629,7 @@ extern "C"
  *
  * @name DSRowIterGetFloatMut
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] Float handle from DSQueryFindField.
+ * @param field [type:DSFieldId] Float handle from DSQueryFindField.
  * @return value [type:float*] Borrowed writable value.
  */
 
@@ -1649,7 +1639,7 @@ extern "C"
  *
  * @name DSRowIterGetUInt32Mut
  * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:uint32_t] UInt32 handle from DSQueryFindField.
+ * @param field [type:DSFieldId] UInt32 handle from DSQueryFindField.
  * @return value [type:uint32_t*] Borrowed writable value.
  */
 
@@ -1681,7 +1671,7 @@ extern "C"
 
 /*# Write a Number field
  *
- * @name DSSetFieldNumber
+ * @name DSFieldSetNumber
  * @param store [type:HDSContext] Store handle.
  * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
@@ -1717,7 +1707,7 @@ extern "C"
 
 /*# Write a Boolean field
  *
- * @name DSSetFieldBoolean
+ * @name DSFieldSetBoolean
  * @param store [type:HDSContext] Store handle.
  * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
@@ -1756,7 +1746,7 @@ extern "C"
  *
  * Copies the NUL-terminated string into owned storage; self-assignment is supported.
  *
- * @name DSSetFieldString
+ * @name DSFieldSetString
  * @param store [type:HDSContext] Store handle.
  * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
@@ -1792,7 +1782,7 @@ extern "C"
 
 /*# Write a Vector3 field
  *
- * @name DSSetFieldVector3
+ * @name DSFieldSetVector3
  * @param store [type:HDSContext] Store handle.
  * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
@@ -1828,7 +1818,7 @@ extern "C"
 
 /*# Write a Vector4 field
  *
- * @name DSSetFieldVector4
+ * @name DSFieldSetVector4
  * @param store [type:HDSContext] Store handle.
  * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
@@ -1864,7 +1854,7 @@ extern "C"
 
 /*# Write a Matrix4 field
  *
- * @name DSSetFieldMatrix4
+ * @name DSFieldSetMatrix4
  * @param store [type:HDSContext] Store handle.
  * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
@@ -1926,7 +1916,7 @@ extern "C"
 
 /*# Write a Float field
  *
- * @name DSSetFieldFloat
+ * @name DSFieldSetFloat
  * @param store [type:HDSContext] Store handle.
  * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
@@ -1936,7 +1926,7 @@ extern "C"
 
 /*# Write a UInt32 field
  *
- * @name DSSetFieldUInt32
+ * @name DSFieldSetUInt32
  * @param store [type:HDSContext] Store handle.
  * @param id [type:DSId] Row ID.
  * @param field [type:uint64_t] Field name hash.
@@ -1972,7 +1962,7 @@ extern "C"
  *
  * @name DSRowIterGetView
  * @param iterator [type:const DSRowIterator*] Current row of a reserved query.
- * @param field [type:uint32_t] Handle returned by DSQueryFindField.
+ * @param field [type:DSFieldId] Handle returned by DSQueryFindField.
  * @param out_view [type:DSValueView*] Receives a borrowed view.
  */
 

@@ -6,19 +6,19 @@ uses dlib and has no dependency on game objects or third-party ECS libraries.
 
 The engine provides a shared `HDSContext` through `DATASTORE_CONTEXT_NAME`.
 Extensions borrow it and release their queries and tables before app finalization.
-Standalone callers use `DSCreateStore(0)` and `DSDestroyStore()`. Pass `DSCreateParams` to tune backing pages, row chunks and spare-page retention.
+Standalone callers use `DSStoreCreate(0)` and `DSStoreDestroy()`. Pass `DSCreateParams` to tune backing pages, row chunks and spare-page retention.
 
-- Register field layouts with `DSRegisterTable()`.
+- Register field layouts with `DSTableAdd()`.
 - Pass a caller-owned group ID, such as the game-object handle, when adding rows.
   Group bookkeeping is created on first use; `0` means ungrouped rows.
-- Add native rows with `DSCreateRows()`, or field arrays with `DSCreateRowsSoA()`.
+- Add native rows with `DSRowCreate()`, or field arrays with `DSRowCreateSoA()`.
   Both copy input values into native rows stored in contiguous chunks.
-- Remove one row with `DSRemoveRow()`, or all of a group's rows and blob
-  registrations with `DSRemoveGroup()`, after query reservations finish.
+- Remove one row with `DSRowRemove()`, or all of a group's rows and blob
+  registrations with `DSGroupRemove()`, after query reservations finish.
 - Combine `DSTag("boid")` and `DSField("position", DS_TYPE_VECTOR3, 0)` in
   `DSQueryDesc.m_Items`; no item count is needed. Create queries once, bind fields
   with `DSQueryFindField()`, and iterate using typed row getters.
-- Register query callbacks with `DSRegisterFunction()`. Begin a schedule with
+- Register query callbacks with `DSFunctionAdd()`. Begin a schedule with
   a caller-owned `HJobContext` and signal engine stages with `DSSchedulerEvent()`.
   The scheduler submits ready jobs and reserves their query access until completion.
 - For caller-dispatched jobs, reserve a query with `DSQueryTryBegin()`, split its rows with

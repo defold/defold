@@ -93,7 +93,7 @@ DSId DSIterGetId(const DSIterator* iterator, uint32_t row)
     return MakeId(iterator->m_Query->m_Store, ((const DSRow*)iterator->m_Rows)[row].m_Slot);
 }
 
-DSGroupId DSIterGetGroupId(const DSIterator* iterator, uint32_t row)
+DSId DSIterGetGroupId(const DSIterator* iterator, uint32_t row)
 {
     if (row >= DSIterGetCount(iterator))
         return 0;
@@ -109,7 +109,7 @@ DSResult DSIterGetFieldByHash(const DSIterator* iterator, uint32_t row, uint64_t
     return ReadField(table, index, field, out_value);
 }
 
-DSResult DSIterGetField(const DSIterator* iterator, uint32_t row, uint32_t field, DSValue* out_value)
+DSResult DSIterGetField(const DSIterator* iterator, uint32_t row, DSFieldId field, DSValue* out_value)
 {
     if (row >= iterator->m_Count || !iterator->m_Fields || field >= iterator->m_FieldCount)
         return DS_RESULT_INVALID_ARGUMENT;
@@ -118,7 +118,7 @@ DSResult DSIterGetField(const DSIterator* iterator, uint32_t row, uint32_t field
     return DS_RESULT_OK;
 }
 
-DSResult DSIterSetField(const DSIterator* iterator, uint32_t row, uint32_t field, const DSValue* value)
+DSResult DSIterSetField(const DSIterator* iterator, uint32_t row, DSFieldId field, const DSValue* value)
 {
     if (row >= iterator->m_Count || !iterator->m_Fields || field >= iterator->m_FieldCount)
         return DS_RESULT_INVALID_ARGUMENT;
@@ -133,7 +133,7 @@ DSId DSRowIterGetId(const DSRowIterator* iterator)
     return DSIterGetId(iterator->m_Parent, iterator->m_Index);
 }
 
-DSGroupId DSRowIterGetGroupId(const DSRowIterator* iterator)
+DSId DSRowIterGetGroupId(const DSRowIterator* iterator)
 {
     return DSIterGetGroupId(iterator->m_Parent, iterator->m_Index);
 }

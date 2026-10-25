@@ -23,7 +23,7 @@ specific language governing permissions and limitations under the License. -->
 <text x="48" y="102" class="label">1. Describe the query</text>
 <text x="48" y="134" class="mono">DSTag("light")</text>
 <text x="48" y="162" class="mono">DSField("light.color", DS_TYPE_VECTOR3, 0)</text>
-<text x="48" y="196" class="mono">DSCreateQuery → HDSQuery</text>
+<text x="48" y="196" class="mono">DSQueryCreate → HDSQuery</text>
 <path d="M 496 145 H 576" class="arrow"/>
 <rect x="584" y="72" width="468" height="150" rx="7" fill="#e2f3ee" stroke="#c3d0dd" stroke-width="1.5"/>
 <text x="604" y="102" class="label">2. Cache each matching table’s binding</text>

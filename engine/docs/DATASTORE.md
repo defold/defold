@@ -194,7 +194,7 @@ structs. Typed fields, local byte offsets, padding and blob-offset references ar
 shown for the list and each Light.](images/datastore-light-list.svg)
 
 ```cpp
-DSResult CreateLightRigExample(HDSContext store, DSGroupId group, DSId* out_id)
+DSResult CreateLightRigExample(HDSContext store, DSId group, DSId* out_id)
 {
     DSFieldDesc field = {
         .m_Field = dmHashString64("lights"),
@@ -207,7 +207,7 @@ DSResult CreateLightRigExample(HDSContext store, DSGroupId group, DSId* out_id)
         .m_FieldCount = 1,
         .m_RowStride = sizeof(LightRig)
     };
-    DSResult result = DSRegisterTable(store, &table);
+    DSResult result = DSTableAdd(store, &table);
     if (result != DS_RESULT_OK)
         return result;
 
@@ -229,7 +229,7 @@ DSResult CreateLightRigExample(HDSContext store, DSGroupId group, DSId* out_id)
         .m_Values = elements
     };
     LightRig row = { .lights = { .m_List = &list } };
-    return DSCreateRows(store, table.m_Type, group, 1, &row, out_id);
+    return DSRowCreate(store, table.m_Type, group, 1, &row, out_id);
 }
 ```
 
@@ -250,7 +250,7 @@ an inline range. The reference points to a dynamic struct container containing
 member hashes, kinds, offsets, color and intensity.](images/datastore-light-reference.svg)
 
 ```cpp
-DSResult CreateReferencedLightExample(HDSContext store, DSGroupId group, DSId* out_id)
+DSResult CreateReferencedLightExample(HDSContext store, DSId group, DSId* out_id)
 {
     DSFieldDesc fields[] = {
         { .m_Field = dmHashString64("light"), .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(ReferencedPointLight, light), .m_Struct = 0 },
@@ -262,7 +262,7 @@ DSResult CreateReferencedLightExample(HDSContext store, DSGroupId group, DSId* o
         .m_FieldCount = 2,
         .m_RowStride = sizeof(ReferencedPointLight)
     };
-    DSResult result = DSRegisterTable(store, &table);
+    DSResult result = DSTableAdd(store, &table);
     if (result != DS_RESULT_OK)
         return result;
 
@@ -272,7 +272,7 @@ DSResult CreateReferencedLightExample(HDSContext store, DSGroupId group, DSId* o
         .light = { .m_Struct = &input },
         .range = 10.0
     };
-    return DSCreateRows(store, table.m_Type, group, 1, &row, out_id);
+    return DSRowCreate(store, table.m_Type, group, 1, &row, out_id);
 }
 ```
 
@@ -301,7 +301,7 @@ Include `<dmsdk/datastore/datastore.h>`. The engine registers its `HDSContext` u
 `ContextRegistryGet(ExtensionParamsGetContextRegistry(params), DATASTORE_CONTEXT_NAME)`.
 It remains available through extension app finalization. Finish jobs and remove
 your queries and tables during cleanup; only the engine destroys this store.
-Standalone tools and tests can own a separate store with `DSCreateStore(0)`.
+Standalone tools and tests can own a separate store with `DSStoreCreate(0)`.
 To tune allocation, pass `DSCreateParams`:
 
 ```cpp
@@ -310,7 +310,7 @@ DSCreateParams params = {
     .m_RowChunkSize = 256 * 1024,
     .m_MaxSparePages = 16
 };
-HDSContext store = DSCreateStore(&params);
+HDSContext store = DSStoreCreate(&params);
 ```
 
 These are the default settings for a null parameters pointer. Zero size fields
@@ -343,30 +343,30 @@ A **datastore** holds runtime tables, stable row IDs, resource registrations and
 queries. A **table** groups rows with the same type, tags and field layout.
 Each data component occupies one row. A game object can have multiple data
 components of different types, or several of the same type; they can share a
-caller-provided `DSGroupId`. A **group** owns its rows across tables.
+caller-provided `DSId`. A **group** owns its rows across tables.
 Use the game-object handle directly, or choose an ID for a spawn wave or other owner;
 the datastore has no game-object dependency. Different groups share the same type
 table. Each row has a runtime `DSId`; loaded components also retain their
 prototype-local component name hash.
 
-`DSRemoveRow` removes one row; `DSRemoveGroup` removes all of the group's rows,
+`DSRowRemove` removes one row; `DSGroupRemove` removes all of the group's rows,
 owned payloads and blob registrations, including empty registrations. Independent
 table registrations remain available. Both operations require all query
 reservations to finish. The caller applies queued removals after joining jobs.
 Bookkeeping is created when a nonempty row batch or a blob instance first uses an ID.
-An individually emptied group keeps its bookkeeping until `DSRemoveGroup`.
+An individually emptied group keeps its bookkeeping until `DSGroupRemove`.
 The caller controls ID uniqueness and reuse: existing query filters match rows
 added later with the same ID. Group `0` denotes ungrouped, caller-managed rows.
 
 ```cpp
-DSGroupId group = gameobject; // Existing uint64_t owner handle.
-DSResult result = DSCreateRows(store, dmHashString64("Enemy"), group, count, enemies, ids);
+DSId group = gameobject; // Existing uint64_t owner handle.
+DSResult result = DSRowCreate(store, dmHashString64("Enemy"), group, count, enemies, ids);
 if (result != DS_RESULT_OK)
     return result;
 
 // Later, at a structural safe point:
-DSRemoveRow(store, ids[0]);    // Remove one enemy; the group stays alive.
-DSRemoveGroup(store, group);  // Remove the remaining enemies and group bookkeeping.
+DSRowRemove(store, ids[0]);    // Remove one enemy; the group stays alive.
+DSGroupRemove(store, group);  // Remove the remaining enemies and group bookkeeping.
 ```
 
 Caller IDs are looked up once per native batch in the group registry.
@@ -394,8 +394,8 @@ metadata indexes. They verify the full name hash and scan on collisions. This
 costs 32 bytes plus one metadata pointer per runtime table, shared by all rows,
 with no extra allocations or changes to the file format.
 
-For construction without a blob, public `DSRegisterTable` copies a native C
-layout and its tags. `DSCreateRows(store, type, group, count, rows, out_ids)`
+For construction without a blob, public `DSTableAdd` copies a native C
+layout and its tags. `DSRowCreate(store, type, group, count, rows, out_ids)`
 copies complete native rows, including inline members, using the registered row
 size. One group is assigned to every row; each receives its own ID. Native rows
 have no component name. The caller prepares defaults and per-instance values.
@@ -420,18 +420,18 @@ all recursive DDF kinds and the runtime math types; both forms store a kind per
 element. Struct elements can each describe different members. `DSValue` and
 serialization stay internal.
 
-`DSCreateRowsSoA(store, type, group, count, field_count, fields, out_ids)`
+`DSRowCreateSoA(store, type, group, count, field_count, fields, out_ids)`
 accepts separate native field arrays. Each `DSFieldArray` pairs a root field
 hash with `count` values; supply every root field once in any order. Inline
 structs use arrays of complete structs. Field names resolve once per batch, then
 values copy into complete native rows, retaining reset rows only when requested
 by the table policy.
 Types and sizes come from the registered layout. Ownership, reset and locking
-rules are the same as for `DSCreateRows`.
+rules are the same as for `DSRowCreate`.
 
 ### Borrowed native rows
 
-`DSRegisterTableView` exposes caller-owned AoS memory through the same queries,
+`DSTableAddView` exposes caller-owned AoS memory through the same queries,
 field bindings and typed getters. It copies metadata and optional source-row
 indices, but neither values nor reset defaults. Consecutive source indices form
 cached query batches; the field getter keeps its normal offset/stride calculation.
@@ -508,7 +508,7 @@ on failure; consume them only after `DS_RESULT_OK`. The caller provides stable
 storage and synchronization, just as for scalar getters. The library chooses its
 internal batch size.
 
-The resource system owns the immutable blob allocation. `DSLoadBlob` validates
+The resource system owns the immutable blob allocation. `DSBlobLoad` validates
 and borrows it without copying or changing the bytes; loading alone adds no rows
 to a datastore. A store retains references to loaded blobs through its resource
 pools. Registrations of the **same loaded blob** append mutable rows to the same
@@ -520,7 +520,7 @@ runtime tables and registration records connecting game objects to their rows.](
 
 ### Instantiating and removing grouped blobs
 
-`DSAddBlob(store, blob, group, &instance)` instantiates all component rows from
+`DSBlobAdd(store, blob, group, &instance)` instantiates all component rows from
 the blob in one operation. For each table it bulk-copies the row-record array and
 the fixed-size value array into the resource's shared dense storage, then fills
 the records' runtime fields. Value copies stop at chunk boundaries; metadata and
@@ -544,14 +544,14 @@ owned string/list pointers and owned child-row indices; file bytes remain unchan
 store only current values unless registered with `DS_RESET_RETAIN`.
 
 Reset restores values from the shared resource or explicitly retained native
-defaults: `DSResetRow` targets one component,
-`DSResetBlob` targets one registration's remaining rows, and field reset
+defaults: `DSRowReset` targets one component,
+`DSBlobReset` targets one registration's remaining rows, and field reset
 targets one value. IDs survive reset; added/removed rows are not undone. Resetting
 one game object's registration does not affect another. Component/field reset
 releases replacement child rows and string/list payload chunks; complete
 registration reset also frees its spare payload block.
 
-`DSRemoveBlob` removes the registration's remaining rows, invalidates their IDs
+`DSBlobRemove` removes the registration's remaining rows, invalidates their IDs
 and frees replacement payloads. Dense removal can move another row; its ID remains
 stable. Shared capacity remains until the resource pool's last registration is
 removed. The caller may free the blob buffer only after all registrations and the
@@ -559,7 +559,7 @@ loaded blob reference have been released.
 
 Optional write protection belongs to the resource owner: a dedicated, page-aligned
 mapping could be made read-only with `mprotect` / `VirtualProtect`. This is not
-implemented by `DSLoadBlob`; it must not change protection on arbitrary caller
+implemented by `DSBlobLoad`; it must not change protection on arbitrary caller
 allocations. Mutable runtime rows remain in separate writable storage.
 
 **Engine integration:** the intended `.goc` packaging is one associated `.datac`
@@ -585,9 +585,9 @@ DSQueryDesc desc = {
     }
 };
 HDSQuery query;
-if (DSCreateQuery(store, &desc, &query) == DS_RESULT_OK)
+if (DSQueryCreate(store, &desc, &query) == DS_RESULT_OK)
 {
-    uint32_t color_field = DSQueryFindField(query, &desc.m_Items[2]);
+    DSFieldId color_field = DSQueryFindField(query, &desc.m_Items[2]);
     // Reuse query and color_field when iterating.
 }
 ```
@@ -602,7 +602,7 @@ allowing group `0` to select ungrouped rows.
 ![Create a light-color query, cache a binding for each matching table, then reserve
 access and iterate batches and rows using a stable field handle.](images/datastore-queries.svg)
 
-1. **Create once:** `DSCreateQuery` copies the populated filters in a `DSQueryDesc`.
+1. **Create once:** `DSQueryCreate` copies the populated filters in a `DSQueryDesc`.
    `DSField("light.color", DS_TYPE_VECTOR3, 0)` describes a nested color read.
    No path array or runtime string parsing is needed.
 2. **Bind once:** `DSQueryFindField` returns a handle for that full-name hash and
@@ -656,7 +656,7 @@ retain finer-grained concurrency through their typed getters.
 
 Dynamic container members cannot bind because their layout may differ per row.
 ID-based access uses typed functions such as `DSFieldGetVector3` and
-`DSSetFieldVector3`, using the same full-name hash for inline members.
+`DSFieldSetVector3`, using the same full-name hash for inline members.
 Generic `DSValue` is internal.
 
 Cursors allocate nothing and borrow their parent's current batch/row. Do not copy
@@ -685,13 +685,13 @@ DSSystemDesc desc = {
     .m_Context = boids_context,
     .m_RowsPerJob = 4096,
 };
-DSResult result = DSRegisterFunction(store, &desc);
+DSResult result = DSFunctionAdd(store, &desc);
 ```
 
 Between schedules, remove the registration by name:
 
 ```cpp
-DSResult result = DSUnregisterFunction(store, dmHashString64("game.boids.steer"));
+DSResult result = DSFunctionRemove(store, dmHashString64("game.boids.steer"));
 ```
 
 This returns `DS_RESULT_NOT_FOUND` if the name is not registered. The query and
@@ -725,10 +725,10 @@ population changes between schedules.
 
 | Operation | Responsibility |
 | --- | --- |
-| `DSBeginSchedule(store, jobs)` | Borrow the caller's `HJobContext`, resolve dependencies, reset invocation state and submit ready functions. |
+| `DSSchedulerBegin(store, jobs)` | Borrow the caller's `HJobContext`, resolve dependencies, reset invocation state and submit ready functions. |
 | `DSSchedulerEvent(store, name)` | Signal the start of a stage and submit functions whose event/dependency/access requirements are satisfied. `BUSY` leaves the event unsignaled until its own prerequisites finish. |
 | `DSSchedulerUpdate(store)` | Pump job completion and retry access blocked by external reservations. Returns `OK` when all functions finished; `BUSY` while any await jobs, events or access. |
-| `DSEndSchedule(store)` | End the invocation. Returns `BUSY` while jobs run or ready functions await query access; otherwise discards unsignaled events and functions waiting on them. |
+| `DSSchedulerEnd(store)` | End the invocation. Returns `BUSY` while jobs run or ready functions await query access; otherwise discards unsignaled events and functions waiting on them. |
 
 Use one main thread for these operations and for pumping the borrowed job context.
 The datastore creates no threads and never destroys the context. With zero workers,
@@ -757,7 +757,7 @@ datastore = 0
 
 When disabled, looking up `DATASTORE_CONTEXT_NAME` returns null. Extensions that
 use the engine store must handle its absence. Standalone stores created with
-`DSCreateStore` are unaffected.
+`DSStoreCreate` are unaffected.
 
 The engine-owned `DATASTORE_CONTEXT_NAME` store registers two events:
 
@@ -777,7 +777,7 @@ DSSystemDesc desc = {
     .m_Process = SteerBoids,
     .m_Context = boids_context,
 };
-DSResult result = DSRegisterFunction(store, &desc);
+DSResult result = DSFunctionAdd(store, &desc);
 ```
 
 The engine begins one schedule per frame and calls `DSSchedulerSync` at each event
@@ -801,10 +801,10 @@ changes, while world transforms depend on normal hierarchy propagation. The
 post-update event precedes `dmGameObject::PostUpdate` deletion processing.
 Each event is once per frame, not once per collection or fixed physics step.
 
-Standalone stores still use `DSRegisterEvent`, `DSBeginSchedule`,
-`DSSchedulerEvent`, `DSSchedulerUpdate`, `DSSchedulerSync` and `DSEndSchedule` with a caller-owned job
+Standalone stores still use `DSEventAdd`, `DSSchedulerBegin`,
+`DSSchedulerEvent`, `DSSchedulerUpdate`, `DSSchedulerSync` and `DSSchedulerEnd` with a caller-owned job
 context. Signaling only submits jobs; the caller must wait before accessing their
-output. `DSEndSchedule` returns `BUSY` while jobs run or ready functions await
+output. `DSSchedulerEnd` returns `BUSY` while jobs run or ready functions await
 query access. Pump updates and retry it; waiting for `DSSchedulerUpdate` to return
 `OK` would also wait for functions blocked on unsignaled events. End schedules
 before destroying their job context or unregistering callbacks.

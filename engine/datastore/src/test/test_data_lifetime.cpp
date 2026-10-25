@@ -42,10 +42,10 @@ static DSResult RegisterLifetimeTable(HDSContext store, DSResetPolicy reset)
     };
     if (reset)
         table.m_ResetPolicy = reset;
-    return DSRegisterTable(store, &table);
+    return DSTableAdd(store, &table);
 }
 
-static DSResult CreateLifetimeRows(HDSContext store, DSGroupId group, DSId* ids, bool columns)
+static DSResult CreateLifetimeRows(HDSContext store, DSId group, DSId* ids, bool columns)
 {
     DSFieldDesc members[] = {
         { .m_Field = 5, .m_Type = DS_TYPE_STRING, .m_Offset = offsetof(LifetimeAttributes, m_Faction) },
@@ -62,11 +62,11 @@ static DSResult CreateLifetimeRows(HDSContext store, DSGroupId group, DSId* ids,
                .m_Health = 100, .m_Name = { .m_String = "guard" }, .m_Attributes = { .m_Struct = &object }, .m_Loot = { .m_List = &list }
     };
     if (!columns)
-        return DSCreateRows(store, 1, group, 1, &row, ids);
+        return DSRowCreate(store, 1, group, 1, &row, ids);
     DSFieldArray fields[] = {
         { .m_Field = 4, .m_Values = &row.m_Loot }, { .m_Field = 3, .m_Values = &row.m_Attributes }, { .m_Field = 1, .m_Values = &row.m_Health }, { .m_Field = 2, .m_Values = &row.m_Name }
     };
-    return DSCreateRowsSoA(store, 1, group, 1, 4, fields, ids);
+    return DSRowCreateSoA(store, 1, group, 1, 4, fields, ids);
 }
 
 static void CheckLifetimeViews(HDSContext store, DSId id)
@@ -151,17 +151,17 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
     for (uint32_t history = 0; history < 2; ++history)
         for (uint32_t columns = 0; columns < 2; ++columns)
         {
-            HDSContext store = DSCreateStore(0);
+            HDSContext store = DSStoreCreate(0);
             ASSERT_EQ(DS_RESULT_OK, RegisterLifetimeTable(store, (DSResetPolicy)history));
             DSId ids[2];
             ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, ids, columns != 0));
             ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, ids + 1, columns != 0));
             CheckLifetimeViews(store, ids[0]);
-            ASSERT_EQ(DS_RESULT_OK, DSSetFieldNumber(store, ids[0], 1, 42));
-            ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, ids[0], 2, "captain"));
-            ASSERT_EQ(history ? DS_RESULT_OK : DS_RESULT_INVALID_ARGUMENT, DSResetRow(store, ids[0]));
-            ASSERT_EQ(history ? DS_RESULT_OK : DS_RESULT_INVALID_ARGUMENT, DSResetField(store, ids[0], 1));
-            ASSERT_EQ(history ? DS_RESULT_OK : DS_RESULT_INVALID_ARGUMENT, DSResetTable(store, 1));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldSetNumber(store, ids[0], 1, 42));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, ids[0], 2, "captain"));
+            ASSERT_EQ(history ? DS_RESULT_OK : DS_RESULT_INVALID_ARGUMENT, DSRowReset(store, ids[0]));
+            ASSERT_EQ(history ? DS_RESULT_OK : DS_RESULT_INVALID_ARGUMENT, DSFieldReset(store, ids[0], 1));
+            ASSERT_EQ(history ? DS_RESULT_OK : DS_RESULT_INVALID_ARGUMENT, DSTableReset(store, 1));
             double health;
             ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ids[0], 1, &health));
             ASSERT_EQ(history ? 100.0 : 42.0, health);
@@ -174,8 +174,8 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             DSQueryItem requested = { .m_Hash = 4, .m_Type = DS_TYPE_LIST, .m_Kind = DS_QUERY_ITEM_FIELD };
             DSQueryDesc desc = { .m_Items = { requested } };
             HDSQuery    query;
-            ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
-            uint32_t loot = DSQueryFindField(query, &requested);
+            ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
+            DSFieldId loot = DSQueryFindField(query, &requested);
             ASSERT_NE(UINT32_MAX, loot);
             ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
             DSIterator it = DSQueryIterRange(query, 0, DSQueryGetRowCount(query));
@@ -196,17 +196,17 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             }
             ASSERT_EQ(2u, seen);
             DSQueryEnd(query);
-            ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
+            ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
             uint32_t size;
-            ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, 0, 0, &size));
+            ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, 0, 0, &size));
             uint8_t* bytes = new uint8_t[size];
-            ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, size, &size));
+            ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, size, &size));
             HDSBlob blob;
-            ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-            HDSContext      loaded = DSCreateStore(0);
+            ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
+            HDSContext      loaded = DSStoreCreate(0);
             HDSBlobInstance instance;
-            ASSERT_EQ(DS_RESULT_OK, DSAddBlob(loaded, blob, 0, &instance));
-            ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(loaded, &desc, &query));
+            ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(loaded, blob, 0, &instance));
+            ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(loaded, &desc, &query));
             ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
             it = DSQueryIterRange(query, 0, DSQueryGetRowCount(query));
             DSId loaded_id;
@@ -221,28 +221,28 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             ASSERT_EQ(DS_RESULT_OK, DSViewGetNumber(&packed, &health));
             ASSERT_EQ(25.0, health);
             DSQueryEnd(query);
-            ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
+            ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
             CheckLifetimeViews(loaded, loaded_id);
-            ASSERT_EQ(DS_RESULT_OK, DSSetFieldNumber(loaded, loaded_id, 1, -1));
-            ASSERT_EQ(DS_RESULT_OK, DSResetRow(loaded, loaded_id));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldSetNumber(loaded, loaded_id, 1, -1));
+            ASSERT_EQ(DS_RESULT_OK, DSRowReset(loaded, loaded_id));
             ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(loaded, loaded_id, 1, &health));
             ASSERT_EQ(history ? 100.0 : 42.0, health);
-            ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(instance));
-            ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
-            DSDestroyBlob(blob);
+            ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(instance));
+            ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(loaded));
+            DSBlobDestroy(blob);
             delete[] bytes;
-            ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[0]));
+            ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[0]));
             CheckLifetimeViews(store, ids[1]); // Swap removal preserves the surviving payloads.
-            ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[1]));
+            ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[1]));
             GetDataMemoryStats(store, &stats);
             ASSERT_EQ(0u, stats.m_BaseUsed + stats.m_PayloadUsed + stats.m_StructRows);
             ASSERT_EQ(0u, stats.m_StructRowBytes);
             ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, ids, columns != 0));
             CheckLifetimeViews(store, ids[0]);
-            ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[0]));
+            ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[0]));
             GetDataMemoryStats(store, &stats);
             ASSERT_EQ(0u, stats.m_StructRowBytes);
-            ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+            ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
         }
 }
 
@@ -250,10 +250,10 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
 // iterators keep their own positions and visit null values as actual elements.
 TEST(DataLifetime, ContainerIteratorEmptyAndNested)
 {
-    HDSContext store = DSCreateStore(0);
+    HDSContext store = DSStoreCreate(0);
     DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_LIST };
     DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference) };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSListInput   empty = {};
     DSStructDesc  layout = {};
     DSStructInput object = { .m_Layout = &layout };
@@ -264,7 +264,7 @@ TEST(DataLifetime, ContainerIteratorEmptyAndNested)
     DSListInput   list = { .m_Type = DS_TYPE_LIST, .m_Count = 2, .m_Values = references };
     DSReference   row = { .m_List = &list };
     DSId          id;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 1, &row, &id));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 1, &row, &id));
     DSValueView parent, child, element;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetView(store, id, 1, &parent));
     DSViewIterator outer = DSViewIter(&parent);
@@ -293,14 +293,14 @@ TEST(DataLifetime, ContainerIteratorEmptyAndNested)
     uint32_t count;
     ASSERT_EQ(DS_RESULT_OK, DSViewGetCount(&child, &count));
     ASSERT_EQ(3u, count);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 // Repeated row churn and self-assignment must recycle payloads while another row
 // keeps the table alive. Reset preserves originals and releases replacements.
 TEST(DataLifetime, PayloadChurn)
 {
-    HDSContext store = DSCreateStore(0);
+    HDSContext store = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, RegisterLifetimeTable(store, DS_RESET_RETAIN));
     DSId sentinel;
     ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, &sentinel, false));
@@ -312,13 +312,13 @@ TEST(DataLifetime, PayloadChurn)
     {
         DSId id;
         ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, &id, false));
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, id, 2, name));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, id, 2, name));
         const char* borrowed;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, id, 2, &borrowed));
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, id, 2, borrowed));
-        ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, id));
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, sentinel, 2, name));
-        ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, sentinel));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, id, 2, borrowed));
+        ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, id));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, sentinel, 2, name));
+        ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, sentinel));
         if (i == 9)
             GetDataMemoryStats(store, &warm);
     }
@@ -330,24 +330,24 @@ TEST(DataLifetime, PayloadChurn)
     ASSERT_LE(current.m_BaseBlocks, 2u);
     ASSERT_LE(current.m_PayloadBlocks, 1u);
     ASSERT_LE(current.m_BaseCapacity + current.m_PayloadCapacity, 3u * 4096u);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 // Compatibility caches survive row churn, but adding/removing a matching table
 // changes the answer. Disjoint group filters may write the same table field.
 TEST(DataLifetime, QueryCompatibilityCache)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     uint64_t    tags[] = { 1, 2 };
     DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_NUMBER };
     DSTableDesc table = { .m_Type = 1, .m_Tags = tags, .m_TagCount = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8 };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSQueryItem requested = { .m_Hash = 1, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc desc = { .m_Items = { requested, { .m_Hash = tags[0], .m_Kind = DS_QUERY_ITEM_TAG } } };
     HDSQuery    a, b;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &a));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &a));
     desc.m_Items[1].m_Hash = tags[1];
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &b));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &b));
     for (uint32_t cycle = 0; cycle < 3; ++cycle)
     {
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(a));
@@ -356,37 +356,37 @@ TEST(DataLifetime, QueryCompatibilityCache)
         DSQueryEnd(a);
         table.m_Type = 2;
         table.m_TagCount = 2;
-        ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+        ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(a));
         ASSERT_EQ(DS_RESULT_BUSY, DSQueryTryBegin(b));
         DSQueryEnd(a);
-        ASSERT_EQ(DS_RESULT_OK, DSUnregisterTable(store, 2));
+        ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, 2));
     }
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(a));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(b));
-    DSGroupId groups[] = { NextTestGroupId(), NextTestGroupId(), NextTestGroupId(), NextTestGroupId(), 0 };
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(a));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(b));
+    DSId      groups[] = { NextTestGroupId(), NextTestGroupId(), NextTestGroupId(), NextTestGroupId(), 0 };
     groups[4] = groups[1];
     desc = { .m_GroupIds = groups, .m_GroupIdCount = 2, .m_Items = { requested } };
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &a));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &a));
     desc.m_GroupIds = groups + 2;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &b));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &b));
     HDSQuery overlap;
     desc.m_GroupIds = groups + 3;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &overlap));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &overlap));
     double health = 50;
     DSId   id;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, groups[0], 1, &health, &id));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, groups[0], 1, &health, &id));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(a));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(b));
     ASSERT_EQ(DS_RESULT_BUSY, DSQueryTryBegin(overlap));
-    ASSERT_EQ(DS_RESULT_LOCKED, DSRemoveRow(store, id));
+    ASSERT_EQ(DS_RESULT_LOCKED, DSRowRemove(store, id));
     DSQueryEnd(b);
     DSQueryEnd(a);
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, id));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(a));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(b));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(overlap));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, id));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(a));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(b));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(overlap));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 // Owned dynamic structs, mixed lists and reset defaults are reclaimed with their group.
@@ -395,19 +395,19 @@ TEST(DataLifetime, GroupRemovalReleasesNestedPayloads)
     for (uint32_t history = 0; history < 2; ++history)
         for (uint32_t columns = 0; columns < 2; ++columns)
         {
-            HDSContext store = DSCreateStore(0);
+            HDSContext store = DSStoreCreate(0);
             ASSERT_EQ(DS_RESULT_OK, RegisterLifetimeTable(store, (DSResetPolicy)history));
-            DSGroupId group = NextTestGroupId();
+            DSId      group = NextTestGroupId();
             DSId      id;
             ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, group, &id, columns != 0));
             CheckLifetimeViews(store, id);
-            ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, id, 2, "changed"));
-            ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, group));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, id, 2, "changed"));
+            ASSERT_EQ(DS_RESULT_OK, DSGroupRemove(store, group));
             DSMemoryStats stats;
             GetDataMemoryStats(store, &stats);
             ASSERT_EQ(0u, stats.m_Rows);
             ASSERT_EQ(0u, stats.m_StructRows);
             ASSERT_EQ(0u, stats.m_BaseUsed + stats.m_PayloadUsed);
-            ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+            ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
         }
 }

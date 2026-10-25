@@ -63,7 +63,7 @@ void GetDataMemoryStats(HDSContext store, DSMemoryStats* out_stats)
         HDSQuery query = store->m_Queries[i];
         out_stats->m_QueryBytes += sizeof(DSQuery) + (uint64_t)query->m_Tables.Capacity() * sizeof(DSQueryTable) +
         (uint64_t)query->m_Fields.Capacity() * sizeof(DSQueryFieldInfo) +
-        (uint64_t)query->m_Groups.Capacity() * sizeof(DSGroupId) +
+        (uint64_t)query->m_Groups.Capacity() * sizeof(DSId) +
         (uint64_t)query->m_Ranges.Capacity() * sizeof(DSQueryRange) +
         (uint64_t)query->m_Tags.Capacity() * sizeof(uint64_t) +
         (uint64_t)query->m_Conflicts.Capacity() * sizeof(DSQueryConflict);

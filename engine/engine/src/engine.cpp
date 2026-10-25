@@ -647,7 +647,7 @@ namespace dmEngine
         if (engine->m_DataStoreJobs)
             JobSystemDestroy(engine->m_DataStoreJobs);
         if (engine->m_DataStore)
-            DSDestroyStore(engine->m_DataStore);
+            DSStoreDestroy(engine->m_DataStore);
 
         ContextRegistryDestroy(engine->m_ContextRegistry);
         engine->m_ContextRegistry = 0;
@@ -1219,11 +1219,11 @@ namespace dmEngine
 
         if (dmConfigFile::GetInt(engine->m_Config, "engine.datastore", 1))
         {
-            engine->m_DataStore = DSCreateStore(0);
+            engine->m_DataStore = DSStoreCreate(0);
             DSEventDesc event = { .m_Name = DS_EVENT_GAMEOBJECT_PRE_UPDATE };
-            DSRegisterEvent(engine->m_DataStore, &event);
+            DSEventAdd(engine->m_DataStore, &event);
             event = { .m_Name = DS_EVENT_GAMEOBJECT_POST_UPDATE, .m_DependsOn = { DS_EVENT_GAMEOBJECT_PRE_UPDATE } };
-            DSRegisterEvent(engine->m_DataStore, &event);
+            DSEventAdd(engine->m_DataStore, &event);
 
             // Frame-critical queries must not wait behind resource streaming jobs.
             JobSystemCreateParams datastore_jobs = { .m_ThreadNamePrefix = "Datastore", .m_ThreadCount = 2 };
@@ -2149,7 +2149,7 @@ bail:
                 bool datastore_schedule = false;
                 if (engine->m_DataStore)
                 {
-                    DSResult result = DSBeginSchedule(engine->m_DataStore, engine->m_DataStoreJobs);
+                    DSResult result = DSSchedulerBegin(engine->m_DataStore, engine->m_DataStoreJobs);
                     datastore_schedule = result == DS_RESULT_OK;
                     if (datastore_schedule)
                         UpdateDataStore(engine, "engine.gameobject.pre_update");
@@ -2167,7 +2167,7 @@ bail:
                 if (datastore_schedule)
                 {
                     UpdateDataStore(engine, "engine.gameobject.post_update");
-                    DSEndSchedule(engine->m_DataStore);
+                    DSSchedulerEnd(engine->m_DataStore);
                 }
 
                 dmSound::Update();

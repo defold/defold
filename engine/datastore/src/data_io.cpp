@@ -254,7 +254,7 @@ static uint32_t WriteField(const DSTable* table, const DSFieldMeta& meta, const 
     return offset;
 }
 
-DSResult DSWriteBlob(HDSContext store, void* buffer, uint32_t buffer_size, uint32_t* out_size)
+DSResult DSBlobWrite(HDSContext store, void* buffer, uint32_t buffer_size, uint32_t* out_size)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
@@ -552,7 +552,7 @@ static bool ValidateBlob(const uint8_t* file, uint32_t size, uint32_t* out_rows)
     return true;
 }
 
-DSResult DSLoadBlob(const void* buffer, uint32_t buffer_size, HDSBlob* out_blob)
+DSResult DSBlobLoad(const void* buffer, uint32_t buffer_size, HDSBlob* out_blob)
 {
     const uint8_t* file = (const uint8_t*)buffer;
     uint32_t       rows;
@@ -568,7 +568,7 @@ DSResult DSLoadBlob(const void* buffer, uint32_t buffer_size, HDSBlob* out_blob)
     return DS_RESULT_OK;
 }
 
-void DSDestroyBlob(HDSBlob blob)
+void DSBlobDestroy(HDSBlob blob)
 {
     if (dmAtomicDecrement32(&blob->m_RefCount) == 1)
         delete blob;

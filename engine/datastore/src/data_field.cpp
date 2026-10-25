@@ -331,7 +331,7 @@ DSValue GetChildValue(DSValueType type, const DSValueData* value, uint32_t index
     return ReadPackedValue(buffer, child_type, child);
 }
 
-DSResult DSGetStructField(const DSStruct* object, uint64_t field, DSValue* out_value)
+DSResult DSStructGetField(const DSStruct* object, uint64_t field, DSValue* out_value)
 {
     for (uint32_t i = 0; i < object->m_Count; ++i)
     {
@@ -348,7 +348,7 @@ DSResult DSGetStructField(const DSStruct* object, uint64_t field, DSValue* out_v
     return DS_RESULT_NOT_FOUND;
 }
 
-DSResult DSGetListValue(const DSList* list, uint32_t index, DSValue* out_value)
+DSResult DSListGetValue(const DSList* list, uint32_t index, DSValue* out_value)
 {
     if (index >= list->m_Count)
         return DS_RESULT_NOT_FOUND;
@@ -764,7 +764,7 @@ DSResult ValidateStoredValue(const DSTable* table, const DSFieldMeta& meta, DSVa
         }
         else
         {
-            if (DSGetStructField(object, field.m_Name, &child) != DS_RESULT_OK)
+            if (DSStructGetField(object, field.m_Name, &child) != DS_RESULT_OK)
                 return DS_RESULT_INVALID_ARGUMENT;
             type = child.m_Type;
             data = &child.m_Value;
@@ -813,7 +813,7 @@ void StoreStoredValue(DSTable* table, const DSFieldMeta& meta, DSPayloadBlock** 
         }
         else
         {
-            DSGetStructField(object, field.m_Name, &child);
+            DSStructGetField(object, field.m_Name, &child);
             data = &child.m_Value;
         }
         if (IsReference(field.m_Type))
@@ -951,7 +951,7 @@ DSResult SetRowField(DSTable* table, DSRow* row, const DSFieldMeta& meta, const 
     return DS_RESULT_OK;
 }
 
-DSResult DSSetField(HDSContext store, DSId id, uint64_t field, const DSValue* value)
+DSResult DSFieldSet(HDSContext store, DSId id, uint64_t field, const DSValue* value)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
@@ -966,7 +966,7 @@ DSResult DSSetField(HDSContext store, DSId id, uint64_t field, const DSValue* va
     return SetRowField(table, &table->m_Rows[slot->m_Row], GetFieldMeta(table, index), value);
 }
 
-DSResult DSResetField(HDSContext store, DSId id, uint64_t field)
+DSResult DSFieldReset(HDSContext store, DSId id, uint64_t field)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
@@ -994,7 +994,7 @@ DSResult DSResetField(HDSContext store, DSId id, uint64_t field)
     return DS_RESULT_OK;
 }
 
-DSResult DSResetRow(HDSContext store, DSId id)
+DSResult DSRowReset(HDSContext store, DSId id)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
@@ -1017,7 +1017,7 @@ static void ResetTable(DSTable* table)
     DeletePayloads(&table->m_Payloads);
 }
 
-DSResult DSResetTable(HDSContext store, uint64_t type)
+DSResult DSTableReset(HDSContext store, uint64_t type)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
@@ -1031,7 +1031,7 @@ DSResult DSResetTable(HDSContext store, uint64_t type)
     return DS_RESULT_OK;
 }
 
-DSResult DSResetBlob(HDSBlobInstance instance)
+DSResult DSBlobReset(HDSBlobInstance instance)
 {
     DSBlobPool* pool = instance->m_Pool;
     DM_MUTEX_SCOPED_LOCK(pool->m_Store->m_Mutex);
@@ -1157,13 +1157,13 @@ DSResult DSFieldGetNumberBatch(HDSContext store, uint32_t count, const DSId* ids
     return GetTypedFields<DS_TYPE_NUMBER>(store, count, ids, field, out_values);
 }
 
-DSResult DSSetFieldNumber(HDSContext store, DSId id, uint64_t field, double value)
+DSResult DSFieldSetNumber(HDSContext store, DSId id, uint64_t field, double value)
 {
     DSValue input = {
         .m_Type = DS_TYPE_NUMBER,
         .m_Value = { .m_Number = value }
     };
-    return DSSetField(store, id, field, &input);
+    return DSFieldSet(store, id, field, &input);
 }
 
 DSResult DSFieldGetFloat(HDSContext store, DSId id, uint64_t field, float* out_value)
@@ -1176,13 +1176,13 @@ DSResult DSFieldGetFloatBatch(HDSContext store, uint32_t count, const DSId* ids,
     return GetTypedFields<DS_TYPE_FLOAT>(store, count, ids, field, out_values);
 }
 
-DSResult DSSetFieldFloat(HDSContext store, DSId id, uint64_t field, float value)
+DSResult DSFieldSetFloat(HDSContext store, DSId id, uint64_t field, float value)
 {
     DSValue input = {
         .m_Type = DS_TYPE_FLOAT,
         .m_Value = { .m_Float = value }
     };
-    return DSSetField(store, id, field, &input);
+    return DSFieldSet(store, id, field, &input);
 }
 
 DSResult DSFieldGetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t* out_value)
@@ -1195,13 +1195,13 @@ DSResult DSFieldGetUInt32Batch(HDSContext store, uint32_t count, const DSId* ids
     return GetTypedFields<DS_TYPE_UINT32>(store, count, ids, field, out_values);
 }
 
-DSResult DSSetFieldUInt32(HDSContext store, DSId id, uint64_t field, uint32_t value)
+DSResult DSFieldSetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t value)
 {
     DSValue input = {
         .m_Type = DS_TYPE_UINT32,
         .m_Value = { .m_UInt32 = value }
     };
-    return DSSetField(store, id, field, &input);
+    return DSFieldSet(store, id, field, &input);
 }
 
 DSResult DSFieldGetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t* out_value)
@@ -1214,13 +1214,13 @@ DSResult DSFieldGetBooleanBatch(HDSContext store, uint32_t count, const DSId* id
     return GetTypedFields<DS_TYPE_BOOLEAN>(store, count, ids, field, out_values);
 }
 
-DSResult DSSetFieldBoolean(HDSContext store, DSId id, uint64_t field, uint8_t value)
+DSResult DSFieldSetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t value)
 {
     DSValue input = {
         .m_Type = DS_TYPE_BOOLEAN,
         .m_Value = { .m_Boolean = value }
     };
-    return DSSetField(store, id, field, &input);
+    return DSFieldSet(store, id, field, &input);
 }
 
 DSResult DSFieldGetString(HDSContext store, DSId id, uint64_t field, const char** out_value)
@@ -1233,13 +1233,13 @@ DSResult DSFieldGetStringBatch(HDSContext store, uint32_t count, const DSId* ids
     return GetTypedFields<DS_TYPE_STRING>(store, count, ids, field, out_values);
 }
 
-DSResult DSSetFieldString(HDSContext store, DSId id, uint64_t field, const char* value)
+DSResult DSFieldSetString(HDSContext store, DSId id, uint64_t field, const char* value)
 {
     DSValue input = {
         .m_Type = DS_TYPE_STRING,
         .m_Value = { .m_String = value }
     };
-    return DSSetField(store, id, field, &input);
+    return DSFieldSet(store, id, field, &input);
 }
 
 DSResult DSFieldGetVector3(HDSContext store, DSId id, uint64_t field, DSVector3* out_value)
@@ -1252,11 +1252,11 @@ DSResult DSFieldGetVector3Batch(HDSContext store, uint32_t count, const DSId* id
     return GetTypedFields<DS_TYPE_VECTOR3>(store, count, ids, field, out_values);
 }
 
-DSResult DSSetFieldVector3(HDSContext store, DSId id, uint64_t field, const DSVector3* value)
+DSResult DSFieldSetVector3(HDSContext store, DSId id, uint64_t field, const DSVector3* value)
 {
     DSValue input = { .m_Type = DS_TYPE_VECTOR3 };
     memcpy(input.m_Value.m_Vector3, value->m_Values, sizeof(value->m_Values));
-    return DSSetField(store, id, field, &input);
+    return DSFieldSet(store, id, field, &input);
 }
 
 DSResult DSFieldGetVector4(HDSContext store, DSId id, uint64_t field, DSVector4* out_value)
@@ -1269,11 +1269,11 @@ DSResult DSFieldGetVector4Batch(HDSContext store, uint32_t count, const DSId* id
     return GetTypedFields<DS_TYPE_VECTOR4>(store, count, ids, field, out_values);
 }
 
-DSResult DSSetFieldVector4(HDSContext store, DSId id, uint64_t field, const DSVector4* value)
+DSResult DSFieldSetVector4(HDSContext store, DSId id, uint64_t field, const DSVector4* value)
 {
     DSValue input = { .m_Type = DS_TYPE_VECTOR4 };
     memcpy(input.m_Value.m_Vector4, value->m_Values, sizeof(value->m_Values));
-    return DSSetField(store, id, field, &input);
+    return DSFieldSet(store, id, field, &input);
 }
 
 DSResult DSFieldGetMatrix4(HDSContext store, DSId id, uint64_t field, DSMatrix4* out_value)
@@ -1286,11 +1286,11 @@ DSResult DSFieldGetMatrix4Batch(HDSContext store, uint32_t count, const DSId* id
     return GetTypedFields<DS_TYPE_MATRIX4>(store, count, ids, field, out_values);
 }
 
-DSResult DSSetFieldMatrix4(HDSContext store, DSId id, uint64_t field, const DSMatrix4* value)
+DSResult DSFieldSetMatrix4(HDSContext store, DSId id, uint64_t field, const DSMatrix4* value)
 {
     DSValue input = { .m_Type = DS_TYPE_MATRIX4 };
     memcpy(input.m_Value.m_Matrix4, value->m_Values, sizeof(value->m_Values));
-    return DSSetField(store, id, field, &input);
+    return DSFieldSet(store, id, field, &input);
 }
 
 // Resolve full names once while preparing a query.

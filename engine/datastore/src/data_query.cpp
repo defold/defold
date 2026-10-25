@@ -17,6 +17,18 @@
 #include <stdlib.h>
 #include "data.h"
 
+DSQueryItem DSTag(const char* name)
+{
+    DSQueryItem tag = { .m_Hash = dmHashString64(name), .m_Kind = DS_QUERY_ITEM_TAG };
+    return tag;
+}
+
+DSQueryItem DSField(const char* name, DSValueType type, uint32_t access)
+{
+    DSQueryItem field = { .m_Hash = dmHashString64(name), .m_Type = type, .m_Access = access, .m_Kind = DS_QUERY_ITEM_FIELD };
+    return field;
+}
+
 // Resolve names during table matching and retain the field metadata/byte offset.
 // Dynamic containers do not expose fixed member offsets.
 static bool ResolveQueryField(const DSTable* table, const DSQueryFieldInfo& field, DSQueryBinding* binding)
@@ -63,7 +75,7 @@ static uint32_t FindQueryTable(HDSQuery query, const DSTable* table)
 
 static int CompareGroups(const void* a, const void* b)
 {
-    DSGroupId av = *(const DSGroupId*)a, bv = *(const DSGroupId*)b;
+    DSId av = *(const DSId*)a, bv = *(const DSId*)b;
     return (av > bv) - (av < bv);
 }
 
@@ -125,9 +137,9 @@ static bool SupportsConcurrentWrite(DSValueType type)
     (type >= DS_TYPE_VECTOR3 && type <= DS_TYPE_UINT32);
 }
 
-DSResult DSCreateQuery(HDSContext store, const DSQueryDesc* desc, HDSQuery* out_query)
+DSResult DSQueryCreate(HDSContext store, const DSQueryDesc* desc, HDSQuery* out_query)
 {
-    if ((desc->m_Flags & ~DS_ROW_MUTABLE) || desc->m_GroupIdCount > UINT32_MAX / sizeof(DSGroupId))
+    if ((desc->m_Flags & ~DS_ROW_MUTABLE) || desc->m_GroupIdCount > UINT32_MAX / sizeof(DSId))
         return DS_RESULT_INVALID_ARGUMENT;
 
     uint32_t item_count = 0, field_count = 0, tag_count = 0;
@@ -170,7 +182,7 @@ DSResult DSCreateQuery(HDSContext store, const DSQueryDesc* desc, HDSQuery* out_
     {
         query->m_Groups.SetCapacity(desc->m_GroupIdCount);
         query->m_Groups.PushArray(desc->m_GroupIds, desc->m_GroupIdCount);
-        qsort(query->m_Groups.Begin(), query->m_Groups.Size(), sizeof(DSGroupId), CompareGroups);
+        qsort(query->m_Groups.Begin(), query->m_Groups.Size(), sizeof(DSId), CompareGroups);
     }
     query->m_Tags.SetCapacity(tag_count);
     query->m_Fields.SetCapacity(field_count);
@@ -208,7 +220,7 @@ DSResult DSCreateQuery(HDSContext store, const DSQueryDesc* desc, HDSQuery* out_
     return DS_RESULT_OK;
 }
 
-DSResult DSDestroyQuery(HDSQuery query)
+DSResult DSQueryDestroy(HDSQuery query)
 {
     DM_MUTEX_SCOPED_LOCK(query->m_Store->m_Mutex);
     if (query->m_Store->m_ActiveQueries.Size())
@@ -254,7 +266,7 @@ static bool GroupsOverlap(HDSQuery a, HDSQuery b)
     uint32_t ai = 0, bi = 0;
     while (ai < a->m_Groups.Size() && bi < b->m_Groups.Size())
     {
-        DSGroupId ag = a->m_Groups[ai], bg = b->m_Groups[bi];
+        DSId      ag = a->m_Groups[ai], bg = b->m_Groups[bi];
         if (ag == bg)
             return true;
         if (ag < bg)
@@ -440,7 +452,7 @@ void DSQueryEnd(HDSQuery query)
     query->m_ActiveSlot = UINT32_MAX;
 }
 
-uint32_t DSQueryFindField(HDSQuery query, const DSQueryItem* field)
+DSFieldId DSQueryFindField(HDSQuery query, const DSQueryItem* field)
 {
     if (field->m_Kind != DS_QUERY_ITEM_FIELD)
         return UINT32_MAX;

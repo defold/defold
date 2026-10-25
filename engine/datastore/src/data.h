@@ -91,7 +91,7 @@ struct DSFileFieldMeta
 // unchanged; owned default rows move with their current values.
 struct DSRow
 {
-    DSGroupId m_Group;         // Caller-provided owner ID; zero in files or for ungrouped rows.
+    DSId      m_Group;         // Caller-provided owner ID; zero in files or for ungrouped rows.
     uint64_t  m_ComponentId;   // Prototype-local component name hash; retained in files.
     uint32_t  m_Slot;          // Runtime stable ID slot in DSStore::m_Slots; zero in files.
     uint32_t  m_BaseIndex;     // Runtime source/default/view row index; zero in files.
@@ -132,7 +132,7 @@ enum DSStructSource
 };
 
 // Borrowed named fields. The source selects one representation; no input pointers
-// are retained in stored rows. Read every representation with DSGetStructField.
+// are retained in stored rows. Read every representation with DSStructGetField.
 struct DSStruct
 {
     uint32_t       m_Count;  // Number of immediate fields.
@@ -162,7 +162,7 @@ struct DSStruct
 };
 
 // Borrowed ordered values; elements may have different kinds.
-// Zero-initialize decoded input; set copies the values. Read with DSGetListValue.
+// Zero-initialize decoded input; set copies the values. Read with DSListGetValue.
 struct DSList
 {
     const DSValue* m_Values; // Decoded elements; unused for packed views.
@@ -244,7 +244,7 @@ struct DSStructStorage
     dmArray<DSStructTable*> m_Tables; // Owned layouts, allocated only for owned dynamic struct fields.
 };
 
-/** Decoded construction input; DSAddRows applies the table's reset policy.
+/** Decoded construction input; DSRowAddBatch applies the table's reset policy.
  * Separate kind and payload arrays follow metadata order and must match its count
  * and kinds. Rows of the same layout may share one kind array. Input arrays
  * and their referenced strings/containers only need to live through insertion.
@@ -259,7 +259,7 @@ struct DSStructStorage
 //              [ native field bytes + alignment padding ]
 struct DSRowDesc
 {
-    DSGroupId          m_Group;       // Caller-provided owner ID, or zero for an ungrouped row.
+    DSId               m_Group;       // Caller-provided owner ID, or zero for an ungrouped row.
     const DSValueType* m_Types;       // Borrowed kinds in root metadata order; may be shared across rows.
     const DSValueData* m_Values;      // Borrowed untagged payloads in root metadata order; copied on insertion.
     uint32_t           m_ValueCount;  // Number of root kinds and payloads.
@@ -511,7 +511,7 @@ struct DSQuery
     HDSContext                m_Store;         // Borrowed store; must outlive this query.
     dmArray<DSQueryTable>     m_Tables;        // Matching tables and bindings, sorted by registration serial.
     dmArray<DSQueryFieldInfo> m_Fields;        // Copied requested fields and access modes.
-    dmArray<DSGroupId>        m_Groups;        // Copied group filter; empty matches every group.
+    dmArray<DSId>             m_Groups;        // Copied group filter; empty matches every group.
     dmArray<uint64_t>         m_Tags;          // Copied all-required tag filter.
     DSBlock*                  m_Bindings;      // Owned arena for per-table field bindings.
     DSQueryBinding*           m_FreeFields;    // Recycled binding arrays; first bytes hold the next pointer.
@@ -572,7 +572,7 @@ struct DSBlobInstance
     DSPayloadBlock* m_Payloads; // Owned replacement string/container arena.
     uint32_t        m_Index;    // Stable registration slot within the pool.
     uint32_t        m_NextFree; // Next reusable registration index while free.
-    DSGroupId       m_Group;    // Caller-provided owner ID; zero for an ungrouped registration.
+    DSId            m_Group;    // Caller-provided owner ID; zero for an ungrouped registration.
     HDSBlobInstance m_GroupPrevious; // Previous owned registration; NULL at the head.
     HDSBlobInstance m_GroupNext;     // Next owned registration; NULL at the tail.
 };
@@ -777,7 +777,7 @@ static inline uint32_t FindField(const DSTable* table, uint64_t field)
     return UINT32_MAX;
 }
 
-static inline bool MatchesGroup(HDSQuery query, DSGroupId group)
+static inline bool MatchesGroup(HDSQuery query, DSId group)
 {
     return query->m_Groups.Empty() || Contains(query->m_Groups, group);
 }
@@ -844,25 +844,25 @@ extern "C"
      *
      * Reads decoded input arrays or a packed view without allocating or expanding children.
      *
-     * @name DSGetStructField
+     * @name DSStructGetField
      * @param object [type:const DSStruct*] Struct input or borrowed view.
      * @param field [type:uint64_t] Field name hash.
      * @param out_value [type:DSValue*] Receives the field on success; unchanged on error.
      * @return result [type:DSResult] OK or NOT_FOUND when the field is absent.
      */
-    DSResult DSGetStructField(const DSStruct* object, uint64_t field, DSValue* out_value);
+    DSResult DSStructGetField(const DSStruct* object, uint64_t field, DSValue* out_value);
 
     /** Read a list element
      *
      * Reads decoded input arrays or a packed view without allocating or expanding children.
      *
-     * @name DSGetListValue
+     * @name DSListGetValue
      * @param list [type:const DSList*] List input or borrowed view.
      * @param index [type:uint32_t] Zero-based element index.
      * @param out_value [type:DSValue*] Receives the element on success; unchanged on error.
      * @return result [type:DSResult] OK or NOT_FOUND when index is out of range.
      */
-    DSResult DSGetListValue(const DSList* list, uint32_t index, DSValue* out_value);
+    DSResult DSListGetValue(const DSList* list, uint32_t index, DSValue* out_value);
 
     /** Read a field
      *
@@ -887,19 +887,19 @@ extern "C"
      * Replaced payload chunks are recycled; empty blocks are reclaimed. Does not change query membership or invalidate iterators.
      * On error, the existing value is unchanged. Returns LOCKED during query reservations.
      *
-     * @name DSSetField
+     * @name DSFieldSet
      * @param store [type:HDSContext] Store handle.
      * @param id [type:DSId] Row ID.
      * @param field [type:uint64_t] Field name hash.
      * @param value [type:const DSValue*] New value tree to copy.
      * @return result [type:DSResult] OK, NOT_FOUND if the row or field does not exist, ALREADY_EXISTS for duplicate nested field names, or INVALID_ARGUMENT for a kind mismatch, invalid value or excessive nesting.
      */
-    DSResult DSSetField(HDSContext store, DSId id, uint64_t field, const DSValue* value);
+    DSResult DSFieldSet(HDSContext store, DSId id, uint64_t field, const DSValue* value);
 
     // Internal batch helpers for engine construction and generic inspection.
     uint32_t  DSIterGetCount(const DSIterator* iterator);
     DSId      DSIterGetId(const DSIterator* iterator, uint32_t row);
-    DSGroupId DSIterGetGroupId(const DSIterator* iterator, uint32_t row);
+    DSId DSIterGetGroupId(const DSIterator* iterator, uint32_t row);
 
     /** Read a field from the current batch
      *
@@ -923,25 +923,25 @@ extern "C"
      * @name DSIterGetField
      * @param iterator [type:const DSIterator*] Iterator whose query and store are still alive.
      * @param row [type:uint32_t] Zero-based row index within the current batch.
-     * @param field [type:uint32_t] Index among the query's requested fields, excluding tags.
+     * @param field [type:DSFieldId] Index among the query's requested fields, excluding tags.
      * @param out_value [type:DSValue*] Receives the value on success; unchanged on error.
      * @return result [type:DSResult] OK, or INVALID_ARGUMENT without a current row or for an out-of-range field.
      */
-    DSResult DSIterGetField(const DSIterator* iterator, uint32_t row, uint32_t field, DSValue* out_value);
+    DSResult DSIterGetField(const DSIterator* iterator, uint32_t row, DSFieldId field, DSValue* out_value);
 
     /** Write a bound query field
      *
      * Uses a cached field binding. Has the same validation, payload allocation,
-     * copying and reset semantics as [ref:DSSetField]. Preserves iteration.
+     * copying and reset semantics as [ref:DSFieldSet]. Preserves iteration.
      *
      * @name DSIterSetField
      * @param iterator [type:const DSIterator*] Iterator whose query and store are still alive.
      * @param row [type:uint32_t] Zero-based row index within the current batch.
-     * @param field [type:uint32_t] Index among the query's requested fields, excluding tags.
+     * @param field [type:DSFieldId] Index among the query's requested fields, excluding tags.
      * @param value [type:const DSValue*] Replacement value of the bound kind, copied on success.
      * @return result [type:DSResult] OK, INVALID_ARGUMENT for an invalid row/field, mismatched kind or invalid value, or ALREADY_EXISTS for duplicate nested names. Existing data is unchanged on error.
      */
-    DSResult DSIterSetField(const DSIterator* iterator, uint32_t row, uint32_t field, const DSValue* value);
+    DSResult DSIterSetField(const DSIterator* iterator, uint32_t row, DSFieldId field, const DSValue* value);
 
     /** Insert a row
      *
@@ -951,7 +951,7 @@ extern "C"
      *
      * @param store [type:HDSContext] Store handle.
      * @param type [type:uint64_t] Independently registered table type hash.
-     * @param group [type:DSGroupId] Logical row group.
+     * @param group [type:DSId] Logical row group.
      * @param types [type:const DSValueType*] Kinds in table metadata order; may be shared across rows. NULL when value_count is zero.
      * @param values [type:const DSValueData*] Untagged payloads in table metadata order; may be NULL when value_count is zero.
      * @param value_count [type:uint32_t] Must equal the table field count; kinds must match.
@@ -959,7 +959,7 @@ extern "C"
      * @param component_id [type:uint64_t] Component name hash to save in a packed blob; defaults to zero for unnamed rows.
      * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK, NOT_FOUND for an unknown table, INVALID_ARGUMENT for invalid input/counts or mismatched kinds.
      */
-    DSResult DSAddRow(HDSContext store, uint64_t type, DSGroupId group, const DSValueType* types, const DSValueData* values, uint32_t value_count, DSId* out_id, uint64_t component_id = 0);
+    DSResult DSRowAdd(HDSContext store, uint64_t type, DSId group, const DSValueType* types, const DSValueData* values, uint32_t value_count, DSId* out_id, uint64_t component_id = 0);
 
     /** Insert decoded rows in bulk
      *
@@ -974,7 +974,7 @@ extern "C"
      * @param out_ids [type:DSId*] Optional array receiving count IDs on success; unchanged on error.
      * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK, NOT_FOUND for an unknown table, INVALID_ARGUMENT for invalid input/counts or mismatched kinds.
      */
-    DSResult DSAddRows(HDSContext store, uint64_t type, const DSRowDesc* rows, uint32_t count, DSId* out_ids);
+    DSResult DSRowAddBatch(HDSContext store, uint64_t type, const DSRowDesc* rows, uint32_t count, DSId* out_ids);
 
     /** Reset a field
      *
@@ -988,7 +988,7 @@ extern "C"
      * @param field [type:uint64_t] Field name hash.
      * @return result [type:DSResult] OK on success, or NOT_FOUND if the row or field does not exist.
      */
-    DSResult DSResetField(HDSContext store, DSId id, uint64_t field);
+    DSResult DSFieldReset(HDSContext store, DSId id, uint64_t field);
 
     /** Reset an independently registered table for bulk maintenance
      *
@@ -996,14 +996,14 @@ extern "C"
      * then releases all replacement payload blocks. Keeps row IDs, groups and tags unchanged.
      * Does not undo row additions or removals, change query membership or invalidate iterators.
      * Borrowed strings and containers from replacement payload blocks must no longer be used after this call.
-     * This spans groups. Engine component resets use DSResetRow;
-     * a game object's grouped registration uses DSResetBlob.
+     * This spans groups. Engine component resets use DSRowReset;
+     * a game object's grouped registration uses DSBlobReset.
      *
      * @param store [type:HDSContext] Store handle.
      * @param type [type:uint64_t] Independently registered table type hash.
      * @return result [type:DSResult] OK on success, or NOT_FOUND for an unknown table.
      */
-    DSResult DSResetTable(HDSContext store, uint64_t type);
+    DSResult DSTableReset(HDSContext store, uint64_t type);
 
     /** Serialize all tables as one packed component-data blob
      *
@@ -1020,7 +1020,7 @@ extern "C"
      * @param out_size [type:uint32_t*] Required byte size on OK or BUFFER_TOO_SMALL; unchanged on other errors.
      * @return result [type:DSResult] OK, BUFFER_TOO_SMALL, INVALID_ARGUMENT for an invalid size/buffer, or LOCKED during query reservations. Buffer is unchanged on errors.
      */
-    DSResult DSWriteBlob(HDSContext store, void* buffer, uint32_t buffer_size, uint32_t* out_size);
+    DSResult DSBlobWrite(HDSContext store, void* buffer, uint32_t buffer_size, uint32_t* out_size);
 }
 
 #endif // DM_DATA_H

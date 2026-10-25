@@ -20,7 +20,7 @@
 #include <jc_test/jc_test.h>
 #include "test_data_memory.h"
 
-extern "C" int TestDataFromC(HDSContext store, DSGroupId group);
+extern "C" int TestDataFromC(HDSContext store, DSId group);
 extern "C" int TestDataStoreLifecycleFromC(void);
 extern "C" int TestDataQuerySetupFromC(void);
 extern "C" int TestDataNativeRowsFromC(void);
@@ -150,7 +150,7 @@ static DSValue Matrix()
 }
 
 // Keep single-value fixtures concise; bulk-input tests use the separate arrays directly.
-static DSResult AddTestRow(HDSContext store, uint64_t type, DSGroupId group, const DSValue* values, uint32_t count, DSId* out_id, uint64_t component_id = 0)
+static DSResult AddTestRow(HDSContext store, uint64_t type, DSId group, const DSValue* values, uint32_t count, DSId* out_id, uint64_t component_id = 0)
 {
     dmArray<DSValueType> types;
     dmArray<DSValueData> payloads;
@@ -163,30 +163,30 @@ static DSResult AddTestRow(HDSContext store, uint64_t type, DSGroupId group, con
         types[i] = values[i].m_Type;
         payloads[i] = values[i].m_Value;
     }
-    return DSAddRow(store, type, group, types.Begin(), payloads.Begin(), count, out_id, component_id);
+    return DSRowAdd(store, type, group, types.Begin(), payloads.Begin(), count, out_id, component_id);
 }
 
 static DSResult Register(HDSContext store, uint64_t type, const uint64_t* tags = 0, uint32_t tag_count = 0)
 {
     DSFieldDesc meta[] = { { 10, DS_TYPE_NUMBER, 0 }, { 20, DS_TYPE_STRING, 8 } };
     DSTableDesc desc = { .m_Type = type, .m_Tags = tags, .m_TagCount = tag_count, .m_Fields = meta, .m_FieldCount = 2, .m_RowStride = 16, .m_ResetPolicy = DS_RESET_RETAIN };
-    return DSRegisterTable(store, &desc);
+    return DSTableAdd(store, &desc);
 }
 
-static DSResult Add(HDSContext store, uint64_t type, DSGroupId group, double number, const char* string, DSId* id)
+static DSResult Add(HDSContext store, uint64_t type, DSId group, double number, const char* string, DSId* id)
 {
     DSValue values[] = { Number(number), String(string) };
     return AddTestRow(store, type, group, values, 2, id);
 }
 
-static DSResult Load(HDSContext store, const uint8_t* bytes, uint32_t size, HDSBlobInstance* instance, DSGroupId group = 0)
+static DSResult Load(HDSContext store, const uint8_t* bytes, uint32_t size, HDSBlobInstance* instance, DSId group = 0)
 {
     HDSBlob  blob;
-    DSResult result = DSLoadBlob(bytes, size, &blob);
+    DSResult result = DSBlobLoad(bytes, size, &blob);
     if (result != DS_RESULT_OK)
         return result;
-    result = DSAddBlob(store, blob, group, instance);
-    DSDestroyBlob(blob);
+    result = DSBlobAdd(store, blob, group, instance);
+    DSBlobDestroy(blob);
     return result;
 }
 
@@ -194,23 +194,23 @@ static DSId FirstId(HDSContext store)
 {
     DSQueryDesc desc = {};
     HDSQuery    query;
-    if (DSCreateQuery(store, &desc, &query) != DS_RESULT_OK)
+    if (DSQueryCreate(store, &desc, &query) != DS_RESULT_OK)
         return 0;
     if (DSQueryTryBegin(query) != DS_RESULT_OK)
     {
-        DSDestroyQuery(query);
+        DSQueryDestroy(query);
         return 0;
     }
     DSIterator it = DSQueryIter(query);
     DSId       id = DSIterNext(&it) ? DSIterGetId(&it, 0) : 0;
     DSQueryEnd(query);
-    DSDestroyQuery(query);
+    DSQueryDestroy(query);
     return id;
 }
 
 TEST(Data, StringOwnershipAndSelfAssignment)
 {
-    HDSContext store = DSCreateStore(0);
+    HDSContext store = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1));
     char text[] = "copied";
     DSId id;
@@ -219,22 +219,22 @@ TEST(Data, StringOwnershipAndSelfAssignment)
     DSValue out;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, 20, &out));
     ASSERT_STREQ("copied", out.m_Value.m_String);
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, id, 20, &out));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, id, 20, &out));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, 20, &out));
     ASSERT_STREQ("copied", out.m_Value.m_String);
     DSValue replacement = String(text);
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, id, 20, &replacement));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, id, 20, &replacement));
     text[1] = 'Y';
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, 20, &out));
     ASSERT_STREQ("Xopied", out.m_Value.m_String);
     replacement = String(0);
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSetField(store, id, 20, &replacement));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSet(store, id, 20, &replacement));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, GrowthSwapRemovalAndStaleIds)
 {
-    HDSContext store = DSCreateStore(0);
+    HDSContext store = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1));
     DSId ids[257];
     for (uint32_t i = 0; i < 257; ++i)
@@ -243,8 +243,8 @@ TEST(Data, GrowthSwapRemovalAndStaleIds)
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGet(store, 0, 10, &out));
     for (uint32_t i = 0; i < 257; i += 2)
     {
-        ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[i]));
-        ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRemoveRow(store, ids[i]));
+        ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[i]));
+        ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRowRemove(store, ids[i]));
     }
     for (uint32_t i = 1; i < 257; i += 2)
     {
@@ -260,21 +260,21 @@ TEST(Data, GrowthSwapRemovalAndStaleIds)
         ASSERT_NE(ids[i], replacement);
         ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGet(store, ids[i], 10, &out));
     }
-    ASSERT_EQ(DS_RESULT_OK, DSUnregisterTable(store, 1));
+    ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, 1));
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1));
     DSId replacement;
     ASSERT_EQ(DS_RESULT_OK, Add(store, 1, 0, 42, "reregistered", &replacement));
     for (uint32_t i = 0; i < 257; ++i)
         ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGet(store, ids[i], 10, &out));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, LiveQueriesTagsGroupsAndCopiedDescriptors)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     uint64_t    tags[] = { 100, 200 };
-    DSGroupId   owners[] = { NextTestGroupId(), NextTestGroupId() };
-    DSGroupId   groups[] = { owners[0], owners[0], owners[1] };
+    DSId        owners[] = { NextTestGroupId(), NextTestGroupId() };
+    DSId        groups[] = { owners[0], owners[0], owners[1] };
     DSQueryDesc desc = {
         .m_GroupIds = groups,
         .m_GroupIdCount = 3,
@@ -282,7 +282,7 @@ TEST(Data, LiveQueriesTagsGroupsAndCopiedDescriptors)
                      { .m_Hash = tags[1], .m_Kind = DS_QUERY_ITEM_TAG } }
     };
     HDSQuery query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     DSIterator it = DSQueryIter(query);
     ASSERT_FALSE(DSIterNext(&it));
@@ -295,7 +295,7 @@ TEST(Data, LiveQueriesTagsGroupsAndCopiedDescriptors)
     DSId id;
     for (uint64_t type = 1; type <= 3; ++type)
     {
-        const DSGroupId row_groups[] = { owners[0], owners[0], 0, owners[1], 0, owners[0] };
+        const DSId      row_groups[] = { owners[0], owners[0], 0, owners[1], 0, owners[0] };
         for (uint32_t row = 0; row < 6; ++row)
             ASSERT_EQ(DS_RESULT_OK, Add(store, type, row_groups[row], row, "test", &id));
     }
@@ -307,7 +307,7 @@ TEST(Data, LiveQueriesTagsGroupsAndCopiedDescriptors)
         ASSERT_NE((uint64_t)2, DSIterGetType(&it));
         for (uint32_t row = 0; row < DSIterGetCount(&it); ++row)
         {
-            DSGroupId group = DSIterGetGroupId(&it, row);
+            DSId      group = DSIterGetGroupId(&it, row);
             ASSERT_TRUE(group == owners[0] || group == owners[1]);
             ++total;
         }
@@ -315,8 +315,8 @@ TEST(Data, LiveQueriesTagsGroupsAndCopiedDescriptors)
     ASSERT_FALSE(DSIterNext(&it));
     ASSERT_EQ(8u, total);
     DSQueryEnd(query);
-    ASSERT_EQ(DS_RESULT_OK, DSUnregisterTable(store, 1));
-    ASSERT_EQ(DS_RESULT_OK, DSUnregisterTable(store, 3));
+    ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, 1));
+    ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, 3));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     it = DSQueryIter(query);
     ASSERT_FALSE(DSIterNext(&it));
@@ -330,30 +330,30 @@ TEST(Data, LiveQueriesTagsGroupsAndCopiedDescriptors)
     ASSERT_EQ(1u, DSIterGetCount(&it));
     ASSERT_EQ(id, DSIterGetId(&it, 0));
     DSQueryEnd(query);
-    DSDestroyQuery(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    DSQueryDestroy(query);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 // Serial iteration reserves declared writes and blocks structural changes until End.
 TEST(Data, QueryReservationBlocksMutations)
 {
-    HDSContext store = DSCreateStore(0);
+    HDSContext store = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1));
     DSId id;
     ASSERT_EQ(DS_RESULT_OK, Add(store, 1, 0, 1, "one", &id));
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, size, &size));
     HDSBlob blob;
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
     HDSBlobInstance instance;
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, 0, &instance));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, 0, &instance));
     DSQueryItem field = { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc desc = { .m_Items = { field } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
-    uint32_t handle = DSQueryFindField(query, &field);
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
+    DSFieldId     handle = DSQueryFindField(query, &field);
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     ASSERT_EQ(DS_RESULT_BUSY, DSQueryTryBegin(query));
     DSIterator batch = DSQueryIter(query);
@@ -368,44 +368,44 @@ TEST(Data, QueryReservationBlocksMutations)
     DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_STRING };
     DSValueData payloads[] = { values[0].m_Value, values[1].m_Value };
     DSRowDesc   add = { .m_Group = 0, .m_Types = types, .m_Values = payloads, .m_ValueCount = 2 };
-    ASSERT_EQ(DS_RESULT_LOCKED, DSAddRows(store, 1, &add, 1, &unchanged));
+    ASSERT_EQ(DS_RESULT_LOCKED, DSRowAddBatch(store, 1, &add, 1, &unchanged));
     ASSERT_EQ((DSId)123, unchanged);
-    ASSERT_EQ(DS_RESULT_LOCKED, DSRemoveRow(store, id));
-    ASSERT_EQ(DS_RESULT_LOCKED, DSUnregisterTable(store, 1));
-    ASSERT_EQ(DS_RESULT_LOCKED, DSAddBlob(store, blob, 0, &unchanged_instance));
+    ASSERT_EQ(DS_RESULT_LOCKED, DSRowRemove(store, id));
+    ASSERT_EQ(DS_RESULT_LOCKED, DSTableRemove(store, 1));
+    ASSERT_EQ(DS_RESULT_LOCKED, DSBlobAdd(store, blob, 0, &unchanged_instance));
     ASSERT_EQ((uintptr_t)instance, (uintptr_t)unchanged_instance);
-    ASSERT_EQ(DS_RESULT_LOCKED, DSRemoveBlob(instance));
-    ASSERT_EQ(DS_RESULT_LOCKED, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_LOCKED, DSBlobRemove(instance));
+    ASSERT_EQ(DS_RESULT_LOCKED, DSStoreDestroy(store));
     *DSRowIterGetNumberMut(&rows, handle) = 9;
     ASSERT_EQ(9.0, *DSRowIterGetNumber(&rows, handle));
-    ASSERT_EQ(DS_RESULT_LOCKED, DSResetRow(store, id));
+    ASSERT_EQ(DS_RESULT_LOCKED, DSRowReset(store, id));
     ASSERT_EQ(9.0, *DSRowIterGetNumber(&rows, handle));
     // An early traversal exit must release the reservation before mutation.
     DSQueryEnd(query);
-    ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, id));
+    ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, id));
     double number;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, id, 10, &number));
     ASSERT_EQ(1.0, number);
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, id));
-    ASSERT_EQ(DS_RESULT_OK, DSUnregisterTable(store, 1));
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(instance));
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, id));
+    ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, 1));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(instance));
     ASSERT_EQ(DS_RESULT_OK, Register(store, 2));
     ASSERT_EQ(DS_RESULT_OK, Add(store, 2, 0, 2, "two", &id));
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, 0, &instance));
-    DSDestroyQuery(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
-    DSDestroyBlob(blob);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, 0, &instance));
+    DSQueryDestroy(query);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
+    DSBlobDestroy(blob);
     delete[] bytes;
 }
 
 TEST(Data, NestedQueriesAndWritesPreserveBatches)
 {
-    HDSContext store = DSCreateStore(0);
-    DSGroupId  group = NextTestGroupId();
+    HDSContext store = DSStoreCreate(0);
+    DSId        group = NextTestGroupId();
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1));
     DSFieldDesc meta[] = { { 10, DS_TYPE_NUMBER, 8 }, { 20, DS_TYPE_STRING, 24 } };
     DSTableDesc table = { 2, 0, 0, meta, 2, 32 };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSId ids[2][4];
     for (uint32_t t = 0; t < 2; ++t)
         for (uint32_t r = 0; r < 4; ++r)
@@ -417,11 +417,11 @@ TEST(Data, NestedQueriesAndWritesPreserveBatches)
     };
     DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { fields[0], fields[1] } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     // A second query and iterator must not replace the first iterator's batch state.
     DSQueryDesc other_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { fields[1] } };
     HDSQuery    other_query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &other_desc, &other_query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &other_desc, &other_query));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(other_query));
     DSIterator it = DSQueryIter(query);
@@ -462,36 +462,36 @@ TEST(Data, NestedQueriesAndWritesPreserveBatches)
 
     DSQueryEnd(other_query);
     DSQueryEnd(query);
-    DSDestroyQuery(other_query);
-    DSDestroyQuery(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    DSQueryDestroy(other_query);
+    DSQueryDestroy(query);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, BoundFieldQueries)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     uint64_t    tag = 8;
-    DSGroupId   group = NextTestGroupId();
+    DSId        group = NextTestGroupId();
     DSQueryItem fields[] = {
         { .m_Hash = 20, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD },
         { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD }
     };
     DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { fields[0], fields[1], { .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG } } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     fields[0].m_Hash = 999; // Query owns the original filter/binding order.
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1, &tag, 1));
     DSFieldDesc swapped[] = { { 20, DS_TYPE_STRING, 0 }, { 10, DS_TYPE_NUMBER, 8 } };
     DSTableDesc table = { .m_Type = 2, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = swapped, .m_FieldCount = 2, .m_RowStride = 16, .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSFieldDesc wrong[] = { { 10, DS_TYPE_STRING, 0 }, { 20, DS_TYPE_STRING, 8 } };
     table.m_Type = 3;
     table.m_Fields = wrong;
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     table.m_Type = 4;
     table.m_Fields = swapped;
     table.m_FieldCount = 1;
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table)); // Missing number.
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table)); // Missing number.
     ASSERT_EQ(DS_RESULT_OK, Register(store, 5));             // Missing tag.
     DSId ids[6];
     ASSERT_EQ(DS_RESULT_OK, Add(store, 1, group, 1, "one", &ids[0]));
@@ -517,7 +517,7 @@ TEST(Data, BoundFieldQueries)
         ASSERT_EQ(DS_RESULT_OK, DSIterSetField(&it, 0, 1, &changed));
         ASSERT_EQ(DS_RESULT_OK, DSIterGetFieldByHash(&it, 0, 10, &out));
         ASSERT_EQ(44.0, out.m_Value.m_Number);
-        ASSERT_EQ(DS_RESULT_LOCKED, DSResetField(store, DSIterGetId(&it, 0), 10));
+        ASSERT_EQ(DS_RESULT_LOCKED, DSFieldReset(store, DSIterGetId(&it, 0), 10));
         ASSERT_EQ(DS_RESULT_OK, DSIterGetField(&it, 0, 0, &out));
         ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSIterSetField(&it, 0, 0, &out));
         ASSERT_STREQ(DSIterGetType(&it) == 1 ? "one" : "two", out.m_Value.m_String);
@@ -529,8 +529,8 @@ TEST(Data, BoundFieldQueries)
     it = DSQueryIter(query);
     ASSERT_TRUE(DSIterNext(&it));
     DSQueryEnd(query);
-    ASSERT_EQ(DS_RESULT_OK, DSResetTable(store, 2));
-    ASSERT_EQ(DS_RESULT_OK, DSUnregisterTable(store, 1));
+    ASSERT_EQ(DS_RESULT_OK, DSTableReset(store, 2));
+    ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, 1));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     it = DSQueryIter(query);
     ASSERT_TRUE(DSIterNext(&it));
@@ -538,31 +538,31 @@ TEST(Data, BoundFieldQueries)
     ASSERT_EQ(DS_RESULT_OK, DSIterGetField(&it, 0, 1, &out));
     ASSERT_EQ(2.0, out.m_Value.m_Number);
     DSQueryEnd(query);
-    DSDestroyQuery(query);
+    DSQueryDestroy(query);
     desc.m_Items[0].m_Type = (DSValueType)99;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateQuery(store, &desc, &query));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSQueryCreate(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, BoundPackedFields)
 {
-    HDSContext source = DSCreateStore(0);
+    HDSContext source = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, Register(source, 1));
     DSId id;
     ASSERT_EQ(DS_RESULT_OK, Add(source, 1, 0, 5, "packed", &id));
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
-    HDSContext  store = DSCreateStore(0);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
+    HDSContext  store = DSStoreCreate(0);
     DSQueryItem fields[] = {
         { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD },
         { .m_Hash = 20, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD }
     };
     DSQueryDesc desc = { .m_Items = { fields[0], fields[1] } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, Load(store, bytes, size, &instance));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
@@ -574,7 +574,7 @@ TEST(Data, BoundPackedFields)
     id = DSIterGetId(&it, 0);
     DSQueryEnd(query);
     value = String("override");
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, id, 20, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, id, 20, &value));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     it = DSQueryIter(query);
     ASSERT_TRUE(DSIterNext(&it));
@@ -583,29 +583,29 @@ TEST(Data, BoundPackedFields)
     ASSERT_EQ(DS_RESULT_OK, DSIterGetField(&it, 0, 0, &value));
     ASSERT_EQ(5.0, value.m_Value.m_Number);
     DSQueryEnd(query);
-    ASSERT_EQ(DS_RESULT_OK, DSResetBlob(instance));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobReset(instance));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     it = DSQueryIter(query);
     ASSERT_TRUE(DSIterNext(&it));
     ASSERT_EQ(DS_RESULT_OK, DSIterGetField(&it, 0, 1, &value));
     ASSERT_STREQ("packed", value.m_Value.m_String);
     DSQueryEnd(query);
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(instance));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(instance));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     it = DSQueryIter(query);
     ASSERT_FALSE(DSIterNext(&it));
     DSQueryEnd(query);
-    DSDestroyQuery(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    DSQueryDestroy(query);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     delete[] bytes;
 }
 
 TEST(Data, SharedMetadataAndDenseRows)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSFieldDesc meta[] = { { 10, DS_TYPE_VECTOR3, 0 }, { 20, DS_TYPE_NUMBER, 16 }, { 30, DS_TYPE_NUMBER, 24 } };
     DSTableDesc desc = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = meta, .m_FieldCount = 3, .m_RowStride = 32, .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     meta[0].m_Field = 999; // The construction descriptor is copied once.
     DSValue values[] = { Vector3(1, 2, 3), Number(4), Number(10) };
     DSId    ids[3];
@@ -621,49 +621,49 @@ TEST(Data, SharedMetadataAndDenseRows)
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[1], 10, &out));
     ASSERT_EQ(2.0f, out.m_Value.m_Vector3[1]);
     DSValue changed = Vector3(0.25f, 0.5f, 0.75f);
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[1], 10, &changed));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[1], 10, &changed));
     ASSERT_EQ(3u, table->m_Rows.Size());
     ASSERT_EQ(0, memcmp(GetRowBytes(table, 0), GetNativeDefaultRow(table, 0), 32));
     ASSERT_NE(0, memcmp(GetRowBytes(table, 1), GetNativeDefaultRow(table, 1), 32));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[1], 20, &out));
     ASSERT_EQ(4.0, out.m_Value.m_Number); // Updating color preserves the other mutable fields.
     changed = Number(3);
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSetField(store, ids[1], 10, &changed));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSet(store, ids[1], 10, &changed));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[1], 10, &out));
     ASSERT_EQ(0.5f, out.m_Value.m_Vector3[1]);
-    ASSERT_EQ(DS_RESULT_OK, DSResetField(store, ids[1], 10));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldReset(store, ids[1], 10));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[1], 10, &out));
     ASSERT_EQ(2.0f, out.m_Value.m_Vector3[1]);
-    ASSERT_EQ(DS_RESULT_OK, DSResetTable(store, 1));
+    ASSERT_EQ(DS_RESULT_OK, DSTableReset(store, 1));
     ASSERT_EQ((uintptr_t)0, (uintptr_t)table->m_Payloads);
     for (uint32_t r = 0; r < 3; ++r)
         ASSERT_EQ(0, memcmp(GetRowBytes(table, r), GetNativeDefaultRow(table, r), 32));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, MetadataAndBulkValidation)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSFieldDesc meta[] = { { 1, DS_TYPE_NUMBER, 0 }, { 2, DS_TYPE_BOOLEAN, 8 } };
     DSTableDesc desc = { 1, 0, 0, meta, 2, 16 };
     meta[1].m_Offset = 7;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &desc));
     meta[1].m_Offset = 16;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &desc));
     meta[1].m_Offset = 8;
     meta[1].m_Field = 1;
-    ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSTableAdd(store, &desc));
     meta[1].m_Field = 2;
     meta[1].m_Type = (DSValueType)99;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &desc));
     meta[1].m_Type = DS_TYPE_BOOLEAN;
     desc.m_ResetPolicy = (DSResetPolicy)-1;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &desc));
     desc.m_ResetPolicy = (DSResetPolicy)2;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &desc));
     desc.m_ResetPolicy = DS_RESET_NONE;
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
-    ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
+    ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSTableAdd(store, &desc));
     DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_BOOLEAN };
     DSValueData values[] = { { .m_Number = 4 }, { .m_Boolean = 1 }, { .m_Number = 5 }, { .m_Boolean = 2 } };
     DSRowDesc   rows[] = {
@@ -671,26 +671,26 @@ TEST(Data, MetadataAndBulkValidation)
         { .m_Group = 0, .m_Types = types, .m_Values = values + 2, .m_ValueCount = 2, .m_ComponentId = 8 }
     };
     DSId ids[] = { 123, 456 };
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSAddRows(store, 1, rows, 2, ids));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowAddBatch(store, 1, rows, 2, ids));
     ASSERT_EQ((DSId)123, ids[0]);
     ASSERT_EQ((DSId)456, ids[1]);
     ASSERT_EQ(0u, store->m_Tables[0]->m_Rows.Size());
     values[3].m_Boolean = 0;
     rows[1].m_ValueCount = 1;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSAddRows(store, 1, rows, 2, ids));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowAddBatch(store, 1, rows, 2, ids));
     rows[1].m_ValueCount = 2;
     types[0] = DS_TYPE_STRING;
     values[2].m_String = "wrong kind";
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSAddRows(store, 1, rows, 2, ids));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowAddBatch(store, 1, rows, 2, ids));
     types[0] = DS_TYPE_NUMBER;
     values[2].m_Number = 5;
     rows[1].m_Types = 0;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSAddRows(store, 1, rows, 2, ids));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowAddBatch(store, 1, rows, 2, ids));
     rows[1].m_Types = types;
     rows[1].m_Values = 0;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSAddRows(store, 1, rows, 2, ids));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowAddBatch(store, 1, rows, 2, ids));
     rows[1].m_Values = values + 2;
-    ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, rows, 2, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 2, ids));
     ASSERT_EQ(2u, store->m_Tables[0]->m_Rows.Size());
     values[0].m_Number = 99;
     types[0] = DS_TYPE_STRING; // Insertion no longer depends on either input array.
@@ -699,10 +699,10 @@ TEST(Data, MetadataAndBulkValidation)
     ASSERT_EQ(4.0, out.m_Value.m_Number);
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGet(store, ids[0], 999, &out));
     ASSERT_EQ(4.0, out.m_Value.m_Number);
-    ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, 0, 0, 0));
-    ASSERT_EQ(DS_RESULT_OK, DSAddRows(0, 999, 0, 0, 0));
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSAddRows(store, 1, 0, 1, ids));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, 0, 0, 0));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(0, 999, 0, 0, 0));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowAddBatch(store, 1, 0, 1, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
@@ -716,8 +716,8 @@ TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
     };
     const DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_BOOLEAN, DS_TYPE_VECTOR3, DS_TYPE_VECTOR4, DS_TYPE_MATRIX4 };
     DSTableDesc       table = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 5, .m_RowStride = 104, .m_ResetPolicy = DS_RESET_RETAIN };
-    HDSContext        store = DSCreateStore(0);
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    HDSContext        store = DSStoreCreate(0);
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSValueData values[3][5] = {};
     DSRowDesc   rows[3] = {};
     for (uint32_t r = 0; r < 3; ++r)
@@ -730,15 +730,15 @@ TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
         rows[r] = { .m_Group = NextTestGroupId(), .m_Types = types, .m_Values = values[r], .m_ValueCount = 5, .m_ComponentId = 30 + r };
     }
     DSId old_ids[2], ids[] = { 123, 456, 789 };
-    ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, rows, 2, old_ids));
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, old_ids[0]));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 2, old_ids));
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, old_ids[0]));
     values[2][1].m_Boolean = 2;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSAddRows(store, 1, rows, 3, ids));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowAddBatch(store, 1, rows, 3, ids));
     ASSERT_EQ((DSId)123, ids[0]);
     ASSERT_EQ((DSId)789, ids[2]);
     ASSERT_EQ(1u, store->m_Tables[0]->m_Rows.Size());
     values[2][1].m_Boolean = 0;
-    ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, rows, 3, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 3, ids));
     ASSERT_EQ((uint32_t)old_ids[0], (uint32_t)ids[0]); // Reused slot with a new generation, followed by fresh slots.
     ASSERT_NE(old_ids[0], ids[0]);
     ASSERT_EQ(4u, store->m_Slots.Size());
@@ -750,9 +750,9 @@ TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
     {
         const DSSlot* slot = FindSlot(store, ids[r]);
         ASSERT_EQ(rows[r].m_Group, slot->m_Table->m_Rows[slot->m_Row].m_Group);
-        ASSERT_EQ((uint64_t)(30 + r), DSGetComponentId(store, ids[r]));
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldNumber(store, ids[r], 10, -1));
-        ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[r]));
+        ASSERT_EQ((uint64_t)(30 + r), DSRowGetComponentId(store, ids[r]));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetNumber(store, ids[r], 10, -1));
+        ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[r]));
         for (uint32_t f = 0; f < 5; ++f)
         {
             DSValue value;
@@ -762,7 +762,7 @@ TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
         const uint8_t* bytes = GetFieldBytes(slot->m_Table, &slot->m_Table->m_Rows[slot->m_Row], 0);
         ASSERT_EQ(0, bytes[9] | bytes[10] | bytes[11]); // Padding is initialized for every appended row.
     }
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, InlineBulkValidationIsAtomicAcrossMemberOrders)
@@ -774,8 +774,8 @@ TEST(Data, InlineBulkValidationIsAtomicAcrossMemberOrders)
     DSStructDesc layout = { .m_Fields = members, .m_FieldCount = 2, .m_Size = 16 };
     DSFieldDesc  field = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Struct = &layout, .m_Name = "1" };
     DSTableDesc  table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 16 };
-    HDSContext   store = DSCreateStore(0);
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    HDSContext   store = DSStoreCreate(0);
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     uint64_t    names[] = { 10, 20, 20, 10 };
     DSValueType types[] = { DS_TYPE_VECTOR3, DS_TYPE_BOOLEAN, DS_TYPE_BOOLEAN, DS_TYPE_VECTOR3 };
     DSValueData children[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Boolean = 1 }, { .m_Boolean = 2 }, { .m_Vector3 = { 4, 5, 6 } } };
@@ -789,35 +789,35 @@ TEST(Data, InlineBulkValidationIsAtomicAcrossMemberOrders)
         { .m_Types = &kind, .m_Values = values + 1, .m_ValueCount = 1 }
     };
     DSId ids[] = { 123, 456 };
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSAddRows(store, 1, rows, 2, ids));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowAddBatch(store, 1, rows, 2, ids));
     ASSERT_EQ((DSId)123, ids[0]);
     ASSERT_EQ((DSId)456, ids[1]);
     ASSERT_EQ(0u, store->m_Tables[0]->m_Rows.Size());
     ASSERT_EQ(0u, store->m_Tables[0]->m_Rows.Size());
     children[2].m_Boolean = 0;
     types[3] = DS_TYPE_NUMBER;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSAddRows(store, 1, rows, 2, ids));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowAddBatch(store, 1, rows, 2, ids));
     types[3] = DS_TYPE_VECTOR3;
     names[3] = 99;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSAddRows(store, 1, rows, 2, ids));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowAddBatch(store, 1, rows, 2, ids));
     names[3] = 10;
     ASSERT_EQ((DSId)123, ids[0]);
     ASSERT_EQ((DSId)456, ids[1]);
     ASSERT_EQ(0u, store->m_Tables[0]->m_Rows.Size());
     ASSERT_EQ(0u, store->m_Tables[0]->m_Rows.Size());
-    ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, rows, 2, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 2, ids));
     for (uint32_t i = 0; i < 2; ++i)
     {
         DSValue object, color, enabled;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[i], 1, &object));
-        ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&object.m_Value.m_Struct, 10, &color));
-        ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&object.m_Value.m_Struct, 20, &enabled));
+        ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&object.m_Value.m_Struct, 10, &color));
+        ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&object.m_Value.m_Struct, 20, &enabled));
         ASSERT_EQ(i ? 6.0f : 3.0f, color.m_Value.m_Vector3[2]);
         ASSERT_EQ(i ? 0 : 1, enabled.m_Value.m_Boolean);
     }
     // Borrowed inline views keep working through the general input path.
-    HDSContext copy = DSCreateStore(0);
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(copy, &table));
+    HDSContext copy = DSStoreCreate(0);
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(copy, &table));
     for (uint32_t i = 0; i < 2; ++i)
     {
         DSValue view;
@@ -825,18 +825,18 @@ TEST(Data, InlineBulkValidationIsAtomicAcrossMemberOrders)
         values[i] = view.m_Value;
     }
     DSId copied[2];
-    ASSERT_EQ(DS_RESULT_OK, DSAddRows(copy, 1, rows, 2, copied));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(copy, 1, rows, 2, copied));
     for (uint32_t i = 0; i < 2; ++i)
     {
         DSValue object, color, enabled;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(copy, copied[i], 1, &object));
-        ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&object.m_Value.m_Struct, 10, &color));
-        ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&object.m_Value.m_Struct, 20, &enabled));
+        ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&object.m_Value.m_Struct, 10, &color));
+        ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&object.m_Value.m_Struct, 20, &enabled));
         ASSERT_EQ(i ? 6.0f : 3.0f, color.m_Value.m_Vector3[2]);
         ASSERT_EQ(i ? 0 : 1, enabled.m_Value.m_Boolean);
     }
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(copy));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(copy));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, CApiStoreLifecycle)
@@ -852,12 +852,12 @@ TEST(Data, CApiQuerySetup)
 
 TEST(Data, CApiMathAndNestedViews)
 {
-    HDSContext  store = DSCreateStore(0);
-    DSGroupId   group = NextTestGroupId();
+    HDSContext  store = DSStoreCreate(0);
+    DSId        group = NextTestGroupId();
     DSFieldDesc meta[] = { { 42, DS_TYPE_NUMBER, 0 }, { 43, DS_TYPE_VECTOR3, 8 }, { 44, DS_TYPE_VECTOR4, 20 }, { 45, DS_TYPE_MATRIX4, 36 }, { 46, DS_TYPE_STRUCT, 104 }, { 47, DS_TYPE_BOOLEAN, 112 }, { 48, DS_TYPE_STRING, 120 } };
     uint64_t    tag = 7;
     DSTableDesc desc = { .m_Type = 1, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = meta, .m_FieldCount = 7, .m_RowStride = 128, .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     DSValue vec4 = {};
     vec4.m_Type = DS_TYPE_VECTOR4;
     uint64_t          color_name = 10;
@@ -868,10 +868,10 @@ TEST(Data, CApiMathAndNestedViews)
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 1, group, values, 7, &id));
     ASSERT_EQ(0, TestDataFromC(store, group));
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, size, &size));
-    HDSContext      loaded = DSCreateStore(0);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, size, &size));
+    HDSContext      loaded = DSStoreCreate(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, Load(loaded, bytes, size, &instance, NextTestGroupId()));
     DSMatrix4 loaded_matrix;
@@ -886,7 +886,7 @@ TEST(Data, CApiMathAndNestedViews)
         ASSERT_EQ(original.m_Type, out.m_Type);
         ASSERT_EQ(0, memcmp(&original.m_Value, &out.m_Value, DSTypeSize(original.m_Type)));
     }
-    ASSERT_EQ(DS_RESULT_OK, DSResetTable(store, 1));
+    ASSERT_EQ(DS_RESULT_OK, DSTableReset(store, 1));
     for (uint32_t i = 1; i <= 3; ++i)
     {
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, meta[i].m_Field, &out));
@@ -894,9 +894,9 @@ TEST(Data, CApiMathAndNestedViews)
         ASSERT_EQ(0, memcmp(&values[i].m_Value, &out.m_Value, DSTypeSize(out.m_Type)));
     }
     ASSERT_EQ(0, TestDataFromC(store, group));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(loaded));
     delete[] bytes;
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, AlignedMathReadsPreserveFloatBits)
@@ -911,15 +911,15 @@ TEST(Data, AlignedMathReadsPreserveFloatBits)
         values[i].m_Type = meta[i].m_Type;
         memcpy(&values[i].m_Value, bits, DSTypeSize(meta[i].m_Type));
     }
-    HDSContext source = DSCreateStore(0);
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &desc));
+    HDSContext source = DSStoreCreate(0);
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &desc));
     DSId id;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, values, 3, &id));
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
-    HDSContext      loaded = DSCreateStore(0);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
+    HDSContext      loaded = DSStoreCreate(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, Load(loaded, bytes, size, &instance));
     HDSContext stores[] = { source, loaded };
@@ -933,7 +933,7 @@ TEST(Data, AlignedMathReadsPreserveFloatBits)
             for (uint32_t i = 0; i < 3; ++i)
             {
                 if (overridden)
-                    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, row, meta[i].m_Field, &values[i]));
+                    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, row, meta[i].m_Field, &values[i]));
                 DSValue value;
                 ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, row, meta[i].m_Field, &value));
                 ASSERT_EQ(meta[i].m_Type, value.m_Type);
@@ -955,10 +955,10 @@ TEST(Data, AlignedMathReadsPreserveFloatBits)
             };
             DSQueryDesc query_desc = { .m_Items = { fields[0], fields[1], fields[2] } };
             HDSQuery    query;
-            ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &query_desc, &query));
-            uint32_t matrix_field = DSQueryFindField(query, &fields[0]);
-            uint32_t vector3_field = DSQueryFindField(query, &fields[1]);
-            uint32_t vector4_field = DSQueryFindField(query, &fields[2]);
+            ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &query_desc, &query));
+            DSFieldId matrix_field = DSQueryFindField(query, &fields[0]);
+            DSFieldId vector3_field = DSQueryFindField(query, &fields[1]);
+            DSFieldId vector4_field = DSQueryFindField(query, &fields[2]);
             ASSERT_NE(UINT32_MAX, matrix_field);
             ASSERT_NE(UINT32_MAX, vector3_field);
             ASSERT_NE(UINT32_MAX, vector4_field);
@@ -971,11 +971,11 @@ TEST(Data, AlignedMathReadsPreserveFloatBits)
             ASSERT_EQ(0, memcmp(bits, DSRowIterGetVector3(&rows, vector3_field), sizeof(DSVector3)));
             ASSERT_EQ(0, memcmp(bits, DSRowIterGetVector4(&rows, vector4_field), sizeof(DSVector4)));
             DSQueryEnd(query);
-            DSDestroyQuery(query);
+            DSQueryDestroy(query);
         }
     }
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(loaded));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
     delete[] bytes;
 }
 
@@ -994,42 +994,42 @@ TEST(Data, BinaryGoldenSharedMetadata)
         0,0,0,0,0,0,0xf8,0x3f, 0,0,0,0,0,0,0,0xc0
     };
     // clang-format on
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSFieldDesc meta = { 10, DS_TYPE_NUMBER, 0 };
     DSTableDesc desc = { 1, 0, 0, &meta, 1, 8 };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     const DSValueType types[] = { DS_TYPE_NUMBER };
     DSValueData       values[] = { { .m_Number = 1.5 }, { .m_Number = -2 } };
     DSId              ids[2];
-    DSGroupId         group = NextTestGroupId();
+    DSId        group = NextTestGroupId();
     DSRowDesc         rows[] = {
         { .m_Group = group, .m_Types = types, .m_Values = values, .m_ValueCount = 1, .m_ComponentId = 7 },
         { .m_Group = group, .m_Types = types, .m_Values = values + 1, .m_ValueCount = 1, .m_ComponentId = 8 }
     };
-    ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, rows, 2, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 2, ids));
     uint8_t  DM_ALIGNED(8) bytes[sizeof(expected)];
     uint32_t size = 0;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, 0, 0, &size));
     ASSERT_EQ(sizeof(expected), (size_t)size);
     memset(bytes, 0xff, sizeof(bytes));
-    ASSERT_EQ(DS_RESULT_BUFFER_TOO_SMALL, DSWriteBlob(store, bytes, size - 1, &size));
+    ASSERT_EQ(DS_RESULT_BUFFER_TOO_SMALL, DSBlobWrite(store, bytes, size - 1, &size));
     for (uint32_t i = 0; i < sizeof(bytes); ++i)
         ASSERT_EQ(0xff, bytes[i]);
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, size, &size));
     ASSERT_EQ(0, memcmp(expected, bytes, size));
-    HDSContext      loaded = DSCreateStore(0);
+    HDSContext      loaded = DSStoreCreate(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, Load(loaded, expected, sizeof(expected), &instance, 0));
     ASSERT_EQ((uintptr_t)(expected + 144), (uintptr_t)(GetInstanceTable(instance, 0)->m_Blob + GetInstanceTable(instance, 0)->m_Offsets.m_Rows));
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(loaded, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(loaded, bytes, size, &size));
     ASSERT_EQ(0, memcmp(expected, bytes, size));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(loaded));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
 {
-    HDSContext source = DSCreateStore(0);
+    HDSContext source = DSStoreCreate(0);
     uint64_t   tag = dmHashString64("light");
     ASSERT_EQ(DS_RESULT_OK, Register(source, 1, &tag, 1));
     ASSERT_EQ(DS_RESULT_OK, Register(source, 2, &tag, 1));
@@ -1039,23 +1039,23 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, values, 2, &id, 12));
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 2, 0, values, 2, &id, 13));
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* memory = new uint8_t[size];
     uint8_t* bytes = memory;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
     uint8_t* unchanged = new uint8_t[size];
     memcpy(unchanged, bytes, size);
     HDSBlob blob;
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
     ASSERT_EQ((uintptr_t)bytes, (uintptr_t)blob->m_Data);
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSQueryDesc query_desc = { .m_Items = { { .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG }, { .m_Hash = 20, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD } } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &query_desc, &query));
-    DSGroupId       groups[] = { NextTestGroupId(), NextTestGroupId() };
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &query_desc, &query));
+    DSId            groups[] = { NextTestGroupId(), NextTestGroupId() };
     HDSBlobInstance first, second;
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, groups[0], &first));
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, groups[1], &second));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, groups[0], &first));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, groups[1], &second));
     ASSERT_EQ(2u, store->m_Tables.Size());
     ASSERT_EQ((uintptr_t)(GetInstanceTable(first, 0)->m_Blob + GetInstanceTable(first, 0)->m_Offsets.m_Table), (uintptr_t)(GetInstanceTable(second, 0)->m_Blob + GetInstanceTable(second, 0)->m_Offsets.m_Table));
     ASSERT_EQ((uintptr_t)(GetInstanceTable(first, 0)->m_Blob + GetInstanceTable(first, 0)->m_Offsets.m_Rows), (uintptr_t)(GetInstanceTable(second, 0)->m_Blob + GetInstanceTable(second, 0)->m_Offsets.m_Rows));
@@ -1090,7 +1090,7 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
         for (uint32_t r = 0; r < DSIterGetCount(&it); ++r)
         {
             DSId     row = DSIterGetId(&it, r);
-            uint64_t component = DSGetComponentId(store, row);
+            uint64_t component = DSRowGetComponentId(store, row);
             uint32_t group = DSIterGetGroupId(&it, r) == groups[0] ? 0 : 1;
             ASSERT_TRUE(component >= 11 && component <= 13);
             ids[group][component - 11] = row;
@@ -1103,15 +1103,15 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
     DSQueryEnd(query);
     ASSERT_EQ(6u, total);
     ASSERT_NE(ids[0][0], ids[1][0]);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
-    DSDestroyBlob(blob);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
+    DSBlobDestroy(blob);
     DSValue change = String("override");
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[0][0], 20, &change));
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[0][1], 20, &change));
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[0][2], 20, &change));
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[1][0], 20, &change));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[0][0], 20, &change));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[0][1], 20, &change));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[0][2], 20, &change));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[1][0], 20, &change));
     DSValue out;
-    ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[0][0]));
+    ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[0][0]));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[0][0], 20, &out));
     ASSERT_EQ(string, (uintptr_t)out.m_Value.m_String);
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[0][1], 20, &out));
@@ -1120,10 +1120,10 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
     ASSERT_STREQ("override", out.m_Value.m_String);
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[1][0], 20, &out));
     ASSERT_STREQ("override", out.m_Value.m_String);
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[0][0], 20, &change));
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[0][1]));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSResetRow(store, ids[0][1]));
-    ASSERT_EQ(DS_RESULT_OK, DSResetBlob(first));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[0][0], 20, &change));
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[0][1]));
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRowReset(store, ids[0][1]));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobReset(first));
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGet(store, ids[0][1], 20, &out));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[0][0], 20, &out));
     ASSERT_EQ(string, (uintptr_t)out.m_Value.m_String);
@@ -1131,25 +1131,25 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
     ASSERT_EQ(string, (uintptr_t)out.m_Value.m_String);
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[1][0], 20, &out));
     ASSERT_STREQ("override", out.m_Value.m_String);
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(first));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(first));
     for (uint32_t i = 0; i < 3; ++i)
     {
         ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGet(store, ids[0][i], 20, &out));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[1][i], 20, &out));
     }
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[1][0], 20, &out));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[1][0], 20, &out));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[1][0], 20, &out));
     ASSERT_NE(string, (uintptr_t)out.m_Value.m_String);
-    ASSERT_EQ(DS_RESULT_OK, DSResetField(store, ids[1][0], 20));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldReset(store, ids[1][0], 20));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[1][0], 20, &out));
     ASSERT_EQ(string, (uintptr_t)out.m_Value.m_String);
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(second));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(second));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     it = DSQueryIter(query);
     ASSERT_FALSE(DSIterNext(&it));
     DSQueryEnd(query);
-    DSDestroyQuery(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    DSQueryDestroy(query);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     ASSERT_EQ(0, memcmp(unchanged, bytes, size));
     delete[] unchanged;
     delete[] memory;
@@ -1167,18 +1167,18 @@ TEST(Data, NestedViewsAllKindsAndReset)
     DSValue           value = Struct(names, types, fields, 2);
     DSFieldDesc       meta = { 1, DS_TYPE_STRUCT, 0 };
     DSTableDesc       desc = { 1, 0, 0, &meta, 1, 8 };
-    HDSContext        source = DSCreateStore(0);
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &desc));
+    HDSContext        source = DSStoreCreate(0);
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &desc));
     DSId id;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, &value, 1, &id));
     elements[1] = Number(99);
     names[0] = 99;
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
     uint8_t* roundtrip = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
-    HDSContext      store = DSCreateStore(0);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
+    HDSContext      store = DSStoreCreate(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, Load(store, bytes, size, &instance));
     id = FirstId(store);
@@ -1186,11 +1186,11 @@ TEST(Data, NestedViewsAllKindsAndReset)
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, 1, &object));
     ASSERT_EQ((uintptr_t)(bytes), (uintptr_t)object.m_Value.m_Struct.m_View.m_Buffer);
     ASSERT_EQ(DS_STRUCT_PACKED, object.m_Value.m_Struct.m_Source);
-    ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&object.m_Value.m_Struct, 10, &list));
+    ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&object.m_Value.m_Struct, 10, &list));
     ASSERT_EQ(9u, list.m_Value.m_List.m_Count);
     for (uint32_t i = 0; i < 9; ++i)
     {
-        ASSERT_EQ(DS_RESULT_OK, DSGetListValue(&list.m_Value.m_List, i, &child));
+        ASSERT_EQ(DS_RESULT_OK, DSListGetValue(&list.m_Value.m_List, i, &child));
         ASSERT_EQ(elements[i].m_Type, child.m_Type);
         if (i == 1)
             ASSERT_EQ(1.5, child.m_Value.m_Number);
@@ -1202,40 +1202,40 @@ TEST(Data, NestedViewsAllKindsAndReset)
             for (uint32_t j = 0; j < 16; ++j)
                 ASSERT_EQ((float)j + 0.5f, child.m_Value.m_Matrix4[j]);
     }
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSGetListValue(&list.m_Value.m_List, 9, &child));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSGetStructField(&object.m_Value.m_Struct, 99, &child));
-    ASSERT_EQ(DS_RESULT_OK, DSGetListValue(&list.m_Value.m_List, 3, &child));
-    ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&object.m_Value.m_Struct, 20, &shared));
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSListGetValue(&list.m_Value.m_List, 9, &child));
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSStructGetField(&object.m_Value.m_Struct, 99, &child));
+    ASSERT_EQ(DS_RESULT_OK, DSListGetValue(&list.m_Value.m_List, 3, &child));
+    ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&object.m_Value.m_Struct, 20, &shared));
     ASSERT_EQ((uintptr_t)child.m_Value.m_String, (uintptr_t)shared.m_Value.m_String);
     ASSERT_TRUE((const uint8_t*)shared.m_Value.m_String >= bytes && (const uint8_t*)shared.m_Value.m_String < bytes + size);
     ASSERT_EQ((uintptr_t)(bytes), (uintptr_t)GetInstanceTable(instance, 0)->m_Blob); // Values remain borrowed.
     ASSERT_EQ((uintptr_t)0, (uintptr_t)instance->m_Payloads);
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, id, 1, &object)); // Copy only when explicitly setting.
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, id, 1, &object)); // Copy only when explicitly setting.
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, 1, &child));
     ASSERT_TRUE(child.m_Value.m_Struct.m_View.m_Buffer != object.m_Value.m_Struct.m_View.m_Buffer);
     ASSERT_EQ(DS_STRUCT_ROW, child.m_Value.m_Struct.m_Source);
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, id, 1, &child)); // Owned view self-assignment.
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, id, 1, &child)); // Owned view self-assignment.
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, 1, &child));
-    ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&child.m_Value.m_Struct, 20, &shared));
+    ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&child.m_Value.m_Struct, 20, &shared));
     ASSERT_STREQ("shared", shared.m_Value.m_String);
-    ASSERT_EQ(DS_RESULT_OK, DSResetField(store, id, 1));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldReset(store, id, 1));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, 1, &child));
     ASSERT_EQ(object.m_Value.m_Struct.m_View.m_Offset, child.m_Value.m_Struct.m_View.m_Offset);
-    DSResetBlob(instance);
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, roundtrip, size, &size));
+    DSBlobReset(instance);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, roundtrip, size, &size));
     ASSERT_EQ(0, memcmp(bytes, roundtrip, size));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
     delete[] bytes;
     delete[] roundtrip;
 }
 
 TEST(Data, CompactNestedBulkStorageAndBorrowedInsertion)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSFieldDesc meta = { 1, DS_TYPE_STRUCT, 0 };
     DSTableDesc desc = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = &meta, .m_FieldCount = 1, .m_RowStride = 8, .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     uint64_t          names[] = { 10, 20 };
     const DSValueType types[] = { DS_TYPE_VECTOR3, DS_TYPE_NUMBER };
     DSValueData       fields[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Number = 4 } };
@@ -1247,7 +1247,7 @@ TEST(Data, CompactNestedBulkStorageAndBorrowedInsertion)
         DSRowDesc row = { .m_Group = 0, .m_Types = &value.m_Type, .m_Values = &value.m_Value, .m_ValueCount = 1 };
         rows[i] = row;
     }
-    ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, rows, 128, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 128, ids));
     DSMemoryStats memory;
     GetDataMemoryStats(store, &memory);
     ASSERT_EQ((uint64_t)0, memory.m_BaseBlocks);
@@ -1263,34 +1263,34 @@ TEST(Data, CompactNestedBulkStorageAndBorrowedInsertion)
     for (uint32_t i = 0; i < 128; ++i)
         rows[i].m_Values = &borrowed.m_Value;
     // Growing row/arena storage must keep the source view valid until copying ends.
-    ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, rows, 128, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 128, ids));
     fields[1].m_Number = 99;
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[0], 1, &value));
-    ASSERT_EQ(DS_RESULT_OK, DSResetTable(store, 1));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[0], 1, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSTableReset(store, 1));
     for (uint32_t i = 0; i < 128; ++i)
     {
         DSValue object, child;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[i], 1, &object));
-        ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&object.m_Value.m_Struct, 10, &child));
+        ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&object.m_Value.m_Struct, 10, &child));
         ASSERT_EQ(3.0f, child.m_Value.m_Vector3[2]);
-        ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&object.m_Value.m_Struct, 20, &child));
+        ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&object.m_Value.m_Struct, 20, &child));
         ASSERT_EQ(4.0, child.m_Value.m_Number);
     }
     GetDataMemoryStats(store, &memory);
     ASSERT_EQ((uint64_t)0, memory.m_BaseBlocks);
     ASSERT_EQ((uint64_t)256, memory.m_StructRows);
     ASSERT_EQ((uint64_t)0, memory.m_PayloadBlocks);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 // Child slots are reused without moving survivors; empty buffers are freed and
 // subsequent insertions reuse the layout without following stale free slots.
 TEST(Data, OwnedStructRowsShareLayoutsButNotValues)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT };
     DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8, .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     uint64_t    names[] = { 2, 3 };
     DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_VECTOR3 };
     DSValueData values[] = { { .m_Number = 10 }, { .m_Vector3 = { 1, 2, 3 } } };
@@ -1312,29 +1312,29 @@ TEST(Data, OwnedStructRowsShareLayoutsButNotValues)
     DSValueType reordered_types[] = { DS_TYPE_VECTOR3, DS_TYPE_NUMBER };
     DSValueData reordered_values[] = { { .m_Vector3 = { 4, 5, 6 } }, { .m_Number = 20 } };
     DSValue     replacement = Struct(reordered_names, reordered_types, reordered_values, 2);
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[0], 1, &replacement));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[0], 1, &replacement));
     ASSERT_EQ(1u, table->m_Structs->m_Tables.Size());
     ASSERT_EQ(4u, children->m_RowCount); // Three defaults and one replacement.
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[0], 1, &first));
-    ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&first.m_Value.m_Struct, 2, &child));
+    ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&first.m_Value.m_Struct, 2, &child));
     ASSERT_EQ(20.0, child.m_Value.m_Number);
-    ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&second.m_Value.m_Struct, 2, &child));
+    ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&second.m_Value.m_Struct, 2, &child));
     ASSERT_EQ(10.0, child.m_Value.m_Number);
-    ASSERT_EQ(DS_RESULT_OK, DSResetField(store, ids[0], 1));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldReset(store, ids[0], 1));
     ASSERT_EQ(3u, children->m_RowCount);
 
     uint32_t capacity = children->m_Values.Capacity();
     uint32_t slots = children->m_Values.Size();
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[1])); // Swaps the parent row only.
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[1])); // Swaps the parent row only.
     ASSERT_EQ(2u, children->m_RowCount);
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[2], 1, &second));
-    ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&second.m_Value.m_Struct, 2, &child));
+    ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&second.m_Value.m_Struct, 2, &child));
     ASSERT_EQ(10.0, child.m_Value.m_Number);
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 1, 0, &object, 1, &ids[1]));
     ASSERT_EQ(slots, children->m_Values.Size());
     ASSERT_EQ(capacity, children->m_Values.Capacity());
     for (uint32_t i = 0; i < 3; ++i)
-        ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[i]));
+        ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[i]));
     ASSERT_EQ(0u, children->m_RowCount);
     ASSERT_EQ(0u, children->m_Values.Capacity());
     for (uint32_t i = 0; i < 3; ++i)
@@ -1344,22 +1344,22 @@ TEST(Data, OwnedStructRowsShareLayoutsButNotValues)
     for (uint32_t i = 0; i < 3; ++i)
     {
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[i], 1, &first));
-        ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&first.m_Value.m_Struct, 2, &child));
+        ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&first.m_Value.m_Struct, 2, &child));
         ASSERT_EQ(10.0, child.m_Value.m_Number);
-        ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[i]));
+        ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[i]));
     }
     ASSERT_EQ(0u, children->m_Values.Capacity());
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 // Recursive children can share a layout with their parents. Its buffer must
 // remain live until every descendant and retained default has been released.
 TEST(Data, OwnedStructRowsReleaseRecursiveTrees)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT };
     DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8, .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     uint64_t    name = 2;
     DSValueType number_type = DS_TYPE_NUMBER;
     DSValueType struct_type = DS_TYPE_STRUCT;
@@ -1376,31 +1376,31 @@ TEST(Data, OwnedStructRowsReleaseRecursiveTrees)
     ASSERT_EQ(40u, table->m_Structs->m_Tables[1]->m_RowCount);
     DSValue view, child, grandchild;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[0], 1, &view));
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[0], 1, &view)); // Same-layout growth during a borrowed copy.
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[0], 1, &view)); // Same-layout growth during a borrowed copy.
     ASSERT_EQ(82u, table->m_Structs->m_Tables[0]->m_RowCount);
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[0], 1, &view));
-    ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&view.m_Value.m_Struct, name, &child));
-    ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&child.m_Value.m_Struct, name, &grandchild));
-    ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&grandchild.m_Value.m_Struct, name, &view));
+    ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&view.m_Value.m_Struct, name, &child));
+    ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&child.m_Value.m_Struct, name, &grandchild));
+    ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&grandchild.m_Value.m_Struct, name, &view));
     ASSERT_EQ(42.0, view.m_Value.m_Number);
-    ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[0]));
+    ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[0]));
     ASSERT_EQ(80u, table->m_Structs->m_Tables[0]->m_RowCount);
     for (uint32_t i = 0; i < 40; ++i)
-        ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[i]));
+        ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[i]));
     for (uint32_t t = 0; t < table->m_Structs->m_Tables.Size(); ++t)
     {
         ASSERT_EQ(0u, table->m_Structs->m_Tables[t]->m_RowCount);
         ASSERT_EQ(0u, table->m_Structs->m_Tables[t]->m_Values.Capacity());
     }
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, OwnedStructRowsKeepBlobDefaultsBorrowed)
 {
-    HDSContext  source = DSCreateStore(0);
+    HDSContext  source = DSStoreCreate(0);
     DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT };
     DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8 };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &desc));
     uint64_t    name = 2;
     DSValueType type = DS_TYPE_NUMBER;
     DSValueData number = { .m_Number = 10 };
@@ -1408,84 +1408,84 @@ TEST(Data, OwnedStructRowsKeepBlobDefaultsBorrowed)
     DSId        id;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, &object, 1, &id));
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
     uint8_t* copy = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
     memcpy(copy, bytes, size);
     HDSBlob blob;
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-    HDSContext      store = DSCreateStore(0);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
+    HDSContext      store = DSStoreCreate(0);
     HDSBlobInstance instances[2];
     for (uint32_t i = 0; i < 2; ++i)
-        ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, 0, &instances[i]));
+        ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, 0, &instances[i]));
     DSTable* table = GetInstanceTable(instances[0], 0);
     ASSERT_TRUE(table->m_Structs == 0);
     DSId ids[] = { MakeId(store, GetInstanceSlots(instances[0])[0]), MakeId(store, GetInstanceSlots(instances[1])[0]) };
     number.m_Number = 20;
     for (uint32_t i = 0; i < 2; ++i)
-        ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[i], 1, &object));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[i], 1, &object));
     ASSERT_EQ(2u, table->m_Structs->m_Tables[0]->m_RowCount);
-    ASSERT_EQ(DS_RESULT_OK, DSResetBlob(instances[0]));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobReset(instances[0]));
     ASSERT_EQ(1u, table->m_Structs->m_Tables[0]->m_RowCount);
     DSValue value, child;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[0], 1, &value));
     ASSERT_EQ((uintptr_t)bytes, (uintptr_t)value.m_Value.m_Struct.m_View.m_Buffer);
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[1], 1, &value));
-    ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&value.m_Value.m_Struct, name, &child));
+    ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&value.m_Value.m_Struct, name, &child));
     ASSERT_EQ(20.0, child.m_Value.m_Number);
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(instances[1]));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(instances[1]));
     ASSERT_EQ(0u, table->m_Structs->m_Tables[0]->m_RowCount);
     ASSERT_EQ(0, memcmp(bytes, copy, size));
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(instances[0]));
-    DSDestroyBlob(blob);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(instances[0]));
+    DSBlobDestroy(blob);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
     delete[] copy;
     delete[] bytes;
 }
 
 TEST(Data, NestedValidationAndDepth)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSFieldDesc meta = { 1, DS_TYPE_LIST, 0 };
     DSTableDesc desc = { 1, 0, 0, &meta, 1, 8 };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     DSValue base = List(0, 0);
     DSId    id;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 1, 0, &base, 1, &id));
     DSValue invalid = List(0, 1);
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSetField(store, id, 1, &invalid));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSet(store, id, 1, &invalid));
     invalid = List(&invalid, 1);
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSetField(store, id, 1, &invalid));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSet(store, id, 1, &invalid));
     DSValue bad = Boolean(2);
     invalid = List(&bad, 1);
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSetField(store, id, 1, &invalid));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSet(store, id, 1, &invalid));
     uint64_t    names[] = { 10, 10 };
     DSValueType types[] = { DS_TYPE_NULL, DS_TYPE_NULL };
     DSValueData fields[2] = {};
     DSValue     object = Struct(names, types, fields, 2);
     invalid = List(&object, 1);
-    ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSSetField(store, id, 1, &invalid));
+    ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSFieldSet(store, id, 1, &invalid));
     names[1] = 20;
     object.m_Value.m_Struct.m_Array.m_Types = 0;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSetField(store, id, 1, &invalid));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSet(store, id, 1, &invalid));
     object.m_Value.m_Struct.m_Array.m_Types = types;
     types[1] = (DSValueType)99;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSetField(store, id, 1, &invalid));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSet(store, id, 1, &invalid));
     types[1] = DS_TYPE_NULL;
     DSValue values[DATA_MAX_NESTING + 2];
     values[0] = Number(1);
     for (uint32_t i = 1; i < DATA_MAX_NESTING + 2; ++i)
         values[i] = List(&values[i - 1], 1);
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, id, 1, &values[DATA_MAX_NESTING]));
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSetField(store, id, 1, &values[DATA_MAX_NESTING + 1]));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, id, 1, &values[DATA_MAX_NESTING]));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSet(store, id, 1, &values[DATA_MAX_NESTING + 1]));
     uint8_t  DM_ALIGNED(8) bytes[4096];
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, sizeof(bytes), &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, sizeof(bytes), &size));
     HDSBlob blob;
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-    DSDestroyBlob(blob);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
+    DSBlobDestroy(blob);
     // Last number becomes an empty list, which would add a 65th container.
     uint32_t container = (uint32_t)ReadDataInteger(bytes + 24 + DATA_TABLE_HEADER_SIZE + DATA_FIELD_META_SIZE + sizeof(DSRow), 8);
     for (uint32_t i = 1; i < DATA_MAX_NESTING; ++i)
@@ -1493,18 +1493,18 @@ TEST(Data, NestedValidationAndDepth)
     WriteDataInteger(bytes + container + 8, DS_TYPE_LIST, 4);
     memset(bytes + size - 8, 0, 8);
     bytes[size - 8] = 8;
-    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(bytes, size, &blob));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(bytes, size, &blob));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, MalformedBlobDirectoryLayoutAndValues)
 {
-    HDSContext  source = DSCreateStore(0);
+    HDSContext  source = DSStoreCreate(0);
     DSFieldDesc meta[] = { { 1, DS_TYPE_BOOLEAN, 0 }, { 2, DS_TYPE_STRING, 8 }, { 3, DS_TYPE_LIST, 16 } };
     DSTableDesc desc = { 1, 0, 0, meta, 3, 24 };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &desc));
     desc.m_Type = 2;
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &desc));
     DSValue item = Number(2);
     DSValue values[] = { Boolean(1), String("text"), List(&item, 1) };
     DSId    id;
@@ -1512,14 +1512,14 @@ TEST(Data, MalformedBlobDirectoryLayoutAndValues)
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 2, 0, values, 3, &id));
     uint8_t  DM_ALIGNED(8) bytes[1024], saved[1024];
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, sizeof(bytes), &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, sizeof(bytes), &size));
     memcpy(saved, bytes, size);
     HDSBlob sentinel;
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(saved, size, &sentinel));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(saved, size, &sentinel));
     for (uint32_t length = 0; length < size; ++length)
     {
         HDSBlob output = sentinel;
-        ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(bytes, length, &output));
+        ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(bytes, length, &output));
         ASSERT_EQ((uintptr_t)sentinel, (uintptr_t)output);
     }
     uint32_t second = (uint32_t)ReadDataInteger(bytes + 20, 4);
@@ -1530,89 +1530,89 @@ TEST(Data, MalformedBlobDirectoryLayoutAndValues)
     {
         bytes[corrupt[i]] = 0xff;
         HDSBlob output = sentinel;
-        ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(bytes, size, &output));
+        ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(bytes, size, &output));
         ASSERT_EQ((uintptr_t)sentinel, (uintptr_t)output);
         memcpy(bytes, saved, size);
     }
     bytes[second + offsetof(DSTableHeader, m_RowStride)] = 0;
     HDSBlob output = sentinel;
-    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(bytes, size, &output));
+    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(bytes, size, &output));
     memcpy(bytes, saved, size);
     memcpy(bytes + 80, bytes + 48, 8); // Repeated field name in shared metadata.
-    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(bytes, size, &output));
+    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(bytes, size, &output));
     memcpy(bytes, saved, size);
     WriteDataInteger(bytes + 92, 0, 4); // String overlaps boolean in every row.
-    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(bytes, size, &output));
+    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(bytes, size, &output));
     memcpy(bytes, saved, size);
     uint32_t nested = (uint32_t)ReadDataInteger(bytes + 192, 8);
     bytes[nested + 8] = 99;
-    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(bytes, size, &output));
+    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(bytes, size, &output));
     memcpy(bytes, saved, size);
     bytes[size - 1] = 'X';
-    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(bytes, size, &output));
+    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(bytes, size, &output));
     memcpy(bytes, saved, size);
     bytes[size] = 0;
-    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(bytes, size + 1, &output));
-    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(0, 0, &output));
+    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(bytes, size + 1, &output));
+    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(0, 0, &output));
     ASSERT_EQ((uintptr_t)sentinel, (uintptr_t)output);
-    DSDestroyBlob(sentinel);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
+    DSBlobDestroy(sentinel);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
 }
 
 TEST(Data, EmptyNullAndBorrowedResourceReuse)
 {
-    HDSContext source = DSCreateStore(0);
+    HDSContext source = DSStoreCreate(0);
     uint8_t    DM_ALIGNED(8) bytes[256];
     uint32_t   size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, sizeof(bytes), &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, sizeof(bytes), &size));
     ASSERT_EQ(16u, size);
     HDSBlob blob;
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
     HDSBlobInstance instance;
-    HDSContext      store = DSCreateStore(0);
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, 0, &instance));
-    DSResetBlob(instance);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    HDSContext      store = DSStoreCreate(0);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, 0, &instance));
+    DSBlobReset(instance);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     ASSERT_EQ(1u, blob->m_RefCount);
-    DSDestroyBlob(blob);
+    DSBlobDestroy(blob);
     DSFieldDesc meta = { 1, DS_TYPE_NULL, 0 };
     DSTableDesc desc = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = &meta, .m_FieldCount = 1, .m_RowStride = 0, .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &desc));
     DSValue value = Null();
     DSId    id;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, &value, 1, &id));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(source, id, 1, &value));
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(source, id, 1, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(source, id, 1, &value));
     DSTableDesc empty = { .m_Type = 2, .m_Tags = 0, .m_TagCount = 0, .m_Fields = 0, .m_FieldCount = 0, .m_RowStride = 0, .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &empty));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &empty));
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 2, 0, 0, 0, &id));
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGet(source, id, 1, &value));
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, sizeof(bytes), &size));
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, sizeof(bytes), &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
     ASSERT_EQ(2u, blob->m_TableCount);
     ASSERT_EQ(2u, blob->m_RowCount);
-    store = DSCreateStore(0);
-    HDSContext      another = DSCreateStore(0);
+    store = DSStoreCreate(0);
+    HDSContext      another = DSStoreCreate(0);
     HDSBlobInstance second;
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, 0, &instance));
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(another, blob, 0, &second));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, 0, &instance));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(another, blob, 0, &second));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     ASSERT_EQ(2u, blob->m_RefCount);
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(another, FirstId(another), 1, &value));
     ASSERT_EQ(DS_TYPE_NULL, value.m_Type);
-    DSDestroyBlob(blob);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(another));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
+    DSBlobDestroy(blob);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(another));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
 }
 
 TEST(Data, ResetAddedValuesAllocationBlocksAndDefaults)
 {
-    HDSContext store = DSCreateStore(0);
+    HDSContext store = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1));
     DSId first, second;
     ASSERT_EQ(DS_RESULT_OK, Add(store, 1, 0, 17, "original", &first));
     DSValue value = String("new baseline");
-    ASSERT_EQ(DS_RESULT_OK, DSSetField(store, first, 20, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, first, 20, &value));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, first, 20, &value));
     ASSERT_EQ(DS_RESULT_OK, Add(store, 1, 0, 23, value.m_Value.m_String, &second));
     char large[8193];
@@ -1621,25 +1621,25 @@ TEST(Data, ResetAddedValuesAllocationBlocksAndDefaults)
     for (uint32_t cycle = 0; cycle < 3; ++cycle)
     {
         value = String(large);
-        ASSERT_EQ(DS_RESULT_OK, DSSetField(store, first, 20, &value));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, first, 20, &value));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, first, 20, &value));
         ASSERT_STREQ(large, value.m_Value.m_String);
-        ASSERT_EQ(DS_RESULT_OK, DSSetField(store, first, 20, &value));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, first, 20, &value));
         for (uint32_t i = 0; i < 300; ++i)
         {
             value = String("replacement");
-            ASSERT_EQ(DS_RESULT_OK, DSSetField(store, first, 20, &value));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, first, 20, &value));
         }
-        ASSERT_EQ(DS_RESULT_OK, DSResetTable(store, 1));
+        ASSERT_EQ(DS_RESULT_OK, DSTableReset(store, 1));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, first, 20, &value));
         ASSERT_STREQ("original", value.m_Value.m_String);
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, second, 20, &value));
         ASSERT_STREQ("new baseline", value.m_Value.m_String);
     }
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSResetField(store, 0, 20));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSResetField(store, first, 999));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSResetTable(store, 999));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldReset(store, 0, 20));
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldReset(store, first, 999));
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSTableReset(store, 999));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 int main(int argc, char** argv)
@@ -1664,15 +1664,15 @@ TEST(Data, TypedLookupHashCollisionsAndWideIndexes)
     fields[256].m_Field = 2;
     fields[257].m_Field = 0;
     DSTableDesc desc = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = count, .m_RowStride = count * 16 };
-    HDSContext  source = DSCreateStore(0);
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &desc));
+    HDSContext  source = DSStoreCreate(0);
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &desc));
     DSId original;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, values, count, &original));
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
-    HDSContext      loaded = DSCreateStore(0);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
+    HDSContext      loaded = DSStoreCreate(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, Load(loaded, bytes, size, &instance));
     HDSContext stores[] = { source, loaded };
@@ -1698,32 +1698,32 @@ TEST(Data, TypedLookupHashCollisionsAndWideIndexes)
         ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGetNumber(store, id, 1 + 16 * count, &number));
         ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGetNumber(store, id, 3, &number));
         ASSERT_EQ(123.0, number);
-        ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, id));
+        ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, id));
         ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGetNumber(store, id, 2, &number));
         ASSERT_EQ(123.0, number);
-        ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+        ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     }
     delete[] bytes;
 }
 
 TEST(Data, TypedAccessErrorsPackedValuesAndReset)
 {
-    HDSContext source = DSCreateStore(0);
+    HDSContext source = DSStoreCreate(0);
     // Field order differs from query binding order.
     DSFieldDesc meta[] = { { 10, DS_TYPE_VECTOR3, 0 }, { 20, DS_TYPE_STRING, 16 }, { 30, DS_TYPE_BOOLEAN, 24 } };
     DSTableDesc table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = meta, .m_FieldCount = 3, .m_RowStride = 32, .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &table));
     DSValue values[] = { Vector3(1, 2, 3), String("packed"), Boolean(1) };
     DSId    original;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, values, 3, &original));
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
     uint8_t* saved = new uint8_t[size];
     memcpy(saved, bytes, size);
 
-    HDSContext      loaded = DSCreateStore(0);
+    HDSContext      loaded = DSStoreCreate(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, Load(loaded, bytes, size, &instance));
     HDSContext stores[] = { source, loaded };
@@ -1737,7 +1737,7 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
         };
         DSQueryDesc desc = { .m_Items = { fields[0], fields[1], fields[2] } };
         HDSQuery    query;
-        ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+        ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
         DSIterator it = DSQueryIter(query);
         DSVector3  vector = { { 7, 8, 9 } };
@@ -1766,87 +1766,87 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
         ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGetNumber(store, 0, 10, &number));
         ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGetNumber(store, id, 99, &number));
         ASSERT_EQ(123.0, number);
-        ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSetFieldNumber(store, id, 10, 4));
-        ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSetFieldBoolean(store, id, 30, 2));
-        ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSetFieldString(store, id, 20, 0));
-        ASSERT_EQ(DS_RESULT_NOT_FOUND, DSSetFieldVector3(store, 0, 10, &vector));
-        ASSERT_EQ(DS_RESULT_NOT_FOUND, DSSetFieldVector3(store, id, 99, &vector));
+        ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSetNumber(store, id, 10, 4));
+        ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSetBoolean(store, id, 30, 2));
+        ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSetString(store, id, 20, 0));
+        ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldSetVector3(store, 0, 10, &vector));
+        ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldSetVector3(store, id, 99, &vector));
         DSMemoryStats memory;
         GetDataMemoryStats(store, &memory);
         ASSERT_EQ((uint64_t)0, memory.m_PayloadBlocks);
 
         vector.m_Values[1] = 8;
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldVector3(store, id, 10, &vector));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetVector3(store, id, 10, &vector));
         vector.m_Values[1] = 99; // Set copied the caller's math value.
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetVector3(store, id, 10, &vector));
         ASSERT_EQ(8.0f, vector.m_Values[1]);
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldBoolean(store, id, 30, 0));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetBoolean(store, id, 30, 0));
         uint8_t boolean = 1;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetBoolean(store, id, 30, &boolean));
         ASSERT_EQ(0, boolean);
         char replacement[] = "changed";
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, id, 20, replacement));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, id, 20, replacement));
         replacement[0] = 'X';
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, id, 20, &string));
         ASSERT_STREQ("changed", string);
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, id, 20, string));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, id, 20, string));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, id, 20, &string));
         ASSERT_STREQ("changed", string);
-        ASSERT_EQ(DS_RESULT_OK, DSResetField(store, id, 10));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldReset(store, id, 10));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetVector3(store, id, 10, &vector));
         ASSERT_EQ(2.0f, vector.m_Values[1]);
         if (mode)
-            DSResetBlob(instance);
+            DSBlobReset(instance);
         else
-            ASSERT_EQ(DS_RESULT_OK, DSResetTable(store, 1));
+            ASSERT_EQ(DS_RESULT_OK, DSTableReset(store, 1));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetBoolean(store, id, 30, &boolean));
         ASSERT_EQ(1, boolean);
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, id, 20, &string));
         ASSERT_STREQ("packed", string);
         GetDataMemoryStats(store, &memory);
         ASSERT_EQ((uint64_t)0, memory.m_PayloadBlocks);
-        ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, id));
+        ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, id));
         ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGetVector3(store, id, 10, &vector));
-        ASSERT_EQ(DS_RESULT_NOT_FOUND, DSSetFieldVector3(store, id, 10, &vector));
+        ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldSetVector3(store, id, 10, &vector));
         ASSERT_EQ(2.0f, vector.m_Values[1]);
-        DSDestroyQuery(query);
+        DSQueryDestroy(query);
     }
     ASSERT_EQ(0, memcmp(saved, bytes, size));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(loaded));
     delete[] saved;
     delete[] bytes;
 }
 
 TEST(Data, BoundQueryRegistrationChurn)
 {
-    HDSContext source = DSCreateStore(0);
+    HDSContext source = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, Register(source, 1));
     DSId id;
     ASSERT_EQ(DS_RESULT_OK, Add(source, 1, 0, 5, "packed", &id));
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
     HDSBlob blob;
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-    HDSContext  store = DSCreateStore(0);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
+    HDSContext  store = DSStoreCreate(0);
     DSQueryItem fields[] = {
         { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
         { .m_Hash = 20, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD }
     };
     DSQueryDesc desc = { .m_Items = { fields[0], fields[1] } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     // Cross registration pages and grow dense storage, then reuse slots with live queries.
     const uint32_t  count = 600;
     HDSBlobInstance instances[count];
-    DSGroupId       original = NextTestGroupId(), replacement = NextTestGroupId();
+    DSId            original = NextTestGroupId(), replacement = NextTestGroupId();
     for (uint32_t cycle = 0; cycle < 3; ++cycle)
     {
         for (uint32_t i = 0; i < count; ++i)
-            ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, original, &instances[i]));
+            ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, original, &instances[i]));
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
         DSIterator it = DSQueryIter(query);
         uint32_t   visited = 0;
@@ -1866,9 +1866,9 @@ TEST(Data, BoundQueryRegistrationChurn)
         ASSERT_EQ((uint64_t)1, before.m_Tables);
         ASSERT_EQ((uint64_t)count, before.m_Instances);
         for (uint32_t i = 0; i < count; i += 2)
-            ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(instances[i]));
+            ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(instances[i]));
         for (uint32_t i = 0; i < count; i += 2)
-            ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, replacement, &instances[i]));
+            ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, replacement, &instances[i]));
         GetDataMemoryStats(store, &after);
         ASSERT_EQ(before.m_TotalBytes, after.m_TotalBytes);
         ASSERT_EQ(before.m_QueryBytes, after.m_QueryBytes);
@@ -1881,7 +1881,7 @@ TEST(Data, BoundQueryRegistrationChurn)
             {
                 double      number;
                 const char* string;
-                DSGroupId   group = DSIterGetGroupId(&it, r);
+                DSId        group = DSIterGetGroupId(&it, r);
                 ASSERT_EQ(DS_RESULT_OK, GetTestFieldNumber(&it, r, 0, &number));
                 ASSERT_EQ(group == replacement ? 5.0 : (double)group, number);
                 ASSERT_EQ(DS_RESULT_OK, GetTestFieldString(&it, r, 1, &string));
@@ -1892,15 +1892,15 @@ TEST(Data, BoundQueryRegistrationChurn)
         ASSERT_EQ(count, visited);
         DSQueryEnd(query);
         for (uint32_t i = 0; i < count; ++i)
-            ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(instances[i]));
+            ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(instances[i]));
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
         it = DSQueryIter(query);
         ASSERT_FALSE(DSIterNext(&it));
         DSQueryEnd(query);
     }
-    DSDestroyQuery(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
-    DSDestroyBlob(blob);
+    DSQueryDestroy(query);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
+    DSBlobDestroy(blob);
     delete[] bytes;
 }
 
@@ -1915,8 +1915,8 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
     DSStructDesc wrapper = { wrapper_fields, 1, 40 };
     DSFieldDesc  fields[] = { { .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = 0, .m_Name = "1" }, { .m_Field = 2, .m_Type = DS_TYPE_STRUCT, .m_Offset = 8, .m_Struct = &wrapper, .m_Name = "2" }, { .m_Field = 3, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = 48, .m_Name = "3" } };
     DSTableDesc  table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = fields, .m_FieldCount = 3, .m_RowStride = 56, .m_ResetPolicy = DS_RESET_RETAIN };
-    HDSContext   source = DSCreateStore(0);
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &table));
+    HDSContext   source = DSStoreCreate(0);
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &table));
     // Changing a declaration after registration cannot alter the compiled layout.
     light_fields[0].m_Offset = 999;
     uint64_t          names[] = { 30, 10, 20 };
@@ -1932,15 +1932,15 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
     ASSERT_EQ(32u, GetFieldMeta(source->m_Tables[0], 3).m_Size);
 
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* allocation = new uint8_t[size];
     uint8_t* bytes = allocation;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
     uint8_t* saved = new uint8_t[size];
     memcpy(saved, bytes, size);
     for (uint32_t packed = 0; packed < 2; ++packed)
     {
-        HDSContext      store = packed ? DSCreateStore(0) : source;
+        HDSContext      store = packed ? DSStoreCreate(0) : source;
         HDSBlobInstance instance = 0;
         if (packed)
             ASSERT_EQ(DS_RESULT_OK, Load(store, bytes, size, &instance));
@@ -1953,7 +1953,7 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
         };
         DSQueryDesc desc = { .m_Items = { fields[0], fields[1], fields[2], fields[3], fields[4] } };
         HDSQuery    query;
-        ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+        ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
         DSIterator it = DSQueryIter(query);
         ASSERT_TRUE(DSIterNext(&it));
@@ -1972,17 +1972,17 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
         ASSERT_STREQ("shared", string); // Sibling references survive the first leaf override.
         DSValue list, child;
         ASSERT_EQ(DS_RESULT_OK, DSIterGetField(&it, 0, 2, &list));
-        ASSERT_EQ(DS_RESULT_OK, DSGetListValue(&list.m_Value.m_List, 0, &child));
+        ASSERT_EQ(DS_RESULT_OK, DSListGetValue(&list.m_Value.m_List, 0, &child));
         ASSERT_EQ(7.0, child.m_Value.m_Number);
         DSQueryEnd(query);
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, id, dmHashString64("2.40.20"), "changed"));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, id, dmHashString64("2.40.20"), "changed"));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetVector3(store, id, dmHashString64("2.40.10"), &color));
         ASSERT_EQ(42.0f, color.m_Values[0]);
         // Persist a leaf override with untouched sibling references.
         uint8_t  DM_ALIGNED(8) changed_blob[1024];
         uint32_t changed_size;
-        ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, changed_blob, sizeof(changed_blob), &changed_size));
-        HDSContext      changed_store = DSCreateStore(0);
+        ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, changed_blob, sizeof(changed_blob), &changed_size));
+        HDSContext      changed_store = DSStoreCreate(0);
         HDSBlobInstance changed_instance;
         ASSERT_EQ(DS_RESULT_OK, Load(changed_store, changed_blob, changed_size, &changed_instance));
         DSQueryItem changed_fields[] = {
@@ -1991,7 +1991,7 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
         };
         DSQueryDesc changed_desc = { .m_Items = { changed_fields[0], changed_fields[1] } };
         HDSQuery    changed_query;
-        ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(changed_store, &changed_desc, &changed_query));
+        ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(changed_store, &changed_desc, &changed_query));
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(changed_query));
         DSIterator changed_it = DSQueryIter(changed_query);
         ASSERT_TRUE(DSIterNext(&changed_it));
@@ -2000,21 +2000,21 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
         ASSERT_EQ(DS_RESULT_OK, GetTestFieldString(&changed_it, 0, 1, &string));
         ASSERT_STREQ("changed", string);
         DSQueryEnd(changed_query);
-        DSDestroyQuery(changed_query);
-        ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(changed_store));
-        ASSERT_EQ(DS_RESULT_OK, DSResetField(store, id, 2));
+        DSQueryDestroy(changed_query);
+        ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(changed_store));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldReset(store, id, 2));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetVector3(store, id, dmHashString64("2.40.10"), &color));
         ASSERT_EQ(1.0f, color.m_Values[0]);
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, id, dmHashString64("2.40.20"), &string));
         ASSERT_STREQ("shared", string);
         // A write to another root must not change the reference mode of this struct.
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldNumber(store, id, 1, 9));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetNumber(store, id, 1, 9));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, id, dmHashString64("2.40.20"), &string));
         ASSERT_STREQ("shared", string);
         color.m_Values[0] = 42;
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldVector3(store, id, dmHashString64("2.40.10"), &color));
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, id, dmHashString64("2.40.20"), "changed"));
-        ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, id));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetVector3(store, id, dmHashString64("2.40.10"), &color));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, id, dmHashString64("2.40.20"), "changed"));
+        ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, id));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetVector3(store, id, dmHashString64("2.40.10"), &color));
         ASSERT_EQ(1.0f, color.m_Values[0]);
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, id, dmHashString64("2.40.20"), &string));
@@ -2022,32 +2022,32 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
         double number;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, id, 1, &number));
         ASSERT_EQ(5.0, number);
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldVector3(store, id, dmHashString64("2.40.10"), &color));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetVector3(store, id, dmHashString64("2.40.10"), &color));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, id, dmHashString64("2.40.20"), &string));
         ASSERT_STREQ("shared", string); // Reusing the reset slot restores packed references correctly.
         if (packed)
-            DSResetBlob(instance);
+            DSBlobReset(instance);
         else
-            ASSERT_EQ(DS_RESULT_OK, DSResetTable(store, 1));
+            ASSERT_EQ(DS_RESULT_OK, DSTableReset(store, 1));
         ASSERT_EQ(0, TestInlineDataFromC(store));
         DSValue view, light_view;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, 2, &view));
-        ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&view.m_Value.m_Struct, 40, &light_view));
-        ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&light_view.m_Value.m_Struct, 10, &child));
+        ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&view.m_Value.m_Struct, 40, &light_view));
+        ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&light_view.m_Value.m_Struct, 10, &child));
         ASSERT_EQ(3.0f, child.m_Value.m_Vector3[2]);
-        ASSERT_EQ(DS_RESULT_OK, DSSetField(store, id, 2, &view)); // Borrowed self-assignment.
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, id, 2, &view)); // Borrowed self-assignment.
         uint8_t* roundtrip = new uint8_t[size];
         uint32_t written;
-        ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, roundtrip, size, &written));
+        ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, roundtrip, size, &written));
         ASSERT_EQ(size, written);
         ASSERT_EQ(0, memcmp(saved, roundtrip, size));
         HDSBlob checked;
-        ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(roundtrip, size, &checked));
-        DSDestroyBlob(checked);
+        ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(roundtrip, size, &checked));
+        DSBlobDestroy(checked);
         delete[] roundtrip;
-        ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, id));
-        DSDestroyQuery(query);
-        ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+        ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, id));
+        DSQueryDestroy(query);
+        ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     }
     ASSERT_EQ(0, memcmp(saved, bytes, size));
     delete[] saved;
@@ -2056,36 +2056,36 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
 
 TEST(Data, InlineLayoutAndNameValidation)
 {
-    HDSContext   store = DSCreateStore(0);
+    HDSContext   store = DSStoreCreate(0);
     DSFieldDesc  members[] = { { .m_Field = 10, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "10" }, { .m_Field = 20, .m_Type = DS_TYPE_NUMBER, .m_Offset = 16, .m_Name = "20" } };
     DSStructDesc light = { members, 2, 24 };
     DSFieldDesc  fields[] = { { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Offset = 0, .m_Struct = &light, .m_Name = "1" } };
     DSTableDesc  table = { 1, 0, 0, fields, 1, 24 };
     fields[0].m_Name = 0;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &table));
     fields[0].m_Name = "1";
     members[0].m_Name = "bad.name";
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &table));
     members[0].m_Name = "";
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &table));
     members[0].m_Name = "10";
     light.m_Size = 8;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &table));
     light.m_Size = 24;
     members[1].m_Offset = 4;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &table));
     members[1].m_Offset = 16;
     members[1].m_Field = 10;
-    ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSTableAdd(store, &table));
     members[1].m_Field = 20;
     fields[0].m_Type = DS_TYPE_VECTOR3;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &table));
     fields[0].m_Type = DS_TYPE_STRUCT;
     DSStructDesc cycle = { fields, 1, 24 };
     fields[0].m_Struct = &cycle;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &table));
     fields[0].m_Struct = &light;
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     uint64_t    names[] = { 10, 20 };
     DSValueType child_types[] = { DS_TYPE_VECTOR3, DS_TYPE_NUMBER };
     DSValueData children[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Number = 4 } };
@@ -2102,32 +2102,32 @@ TEST(Data, InlineLayoutAndNameValidation)
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 1, 0, &value, 1, &id));
     child_types[1] = DS_TYPE_BOOLEAN;
     children[1].m_Boolean = 1;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSetField(store, id, 1, &value));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSet(store, id, 1, &value));
     DSQueryDesc  desc = { .m_Items = { { .m_Hash = dmHashString64("1.10"), .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD } } };
     DSQueryItem& field = desc.m_Items[0];
     HDSQuery     query;
     field.m_Type = (DSValueType)99;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSQueryCreate(store, &desc, &query));
     field.m_Type = DS_TYPE_VECTOR3;
     field.m_Hash = dmHashString64("1.99");
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     DSIterator it = DSQueryIter(query);
     ASSERT_FALSE(DSIterNext(&it));
     DSQueryEnd(query);
-    DSDestroyQuery(query);
+    DSQueryDestroy(query);
     field.m_Hash = dmHashString64("1.10");
     field.m_Type = DS_TYPE_NUMBER;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     it = DSQueryIter(query);
     ASSERT_FALSE(DSIterNext(&it));
     DSQueryEnd(query);
-    DSDestroyQuery(query);
+    DSQueryDestroy(query);
 
     uint8_t  DM_ALIGNED(8) bytes[1024], saved[1024];
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, sizeof(bytes), &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, sizeof(bytes), &size));
     memcpy(saved, bytes, size);
     HDSBlob        blob;
     const uint32_t metadata = 24 + DATA_TABLE_HEADER_SIZE;
@@ -2137,21 +2137,21 @@ TEST(Data, InlineLayoutAndNameValidation)
     for (uint32_t i = 0; i < 5; ++i)
     {
         WriteDataInteger(bytes + corrupt[i], values[i], widths[i]);
-        ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(bytes, size, &blob));
+        ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(bytes, size, &blob));
         memcpy(bytes, saved, size);
     }
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-    DSDestroyBlob(blob);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
+    DSBlobDestroy(blob);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, InlineNamesBindDifferentTablesAndTrackRegistration)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSQueryItem field = { .m_Hash = dmHashString64("1.10"), .m_Type = DS_TYPE_VECTOR3, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc query_desc = { .m_Items = { field } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &query_desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &query_desc, &query));
     DSFieldDesc  members[] = { { .m_Field = 10, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "10" }, { .m_Field = 20, .m_Type = DS_TYPE_NUMBER, .m_Offset = 16, .m_Name = "20" } };
     DSStructDesc light = { members, 2, 24 };
     uint64_t     names[] = { 10, 20 };
@@ -2163,7 +2163,7 @@ TEST(Data, InlineNamesBindDifferentTablesAndTrackRegistration)
     {
         DSFieldDesc root = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Offset = i * 8, .m_Struct = i < 2 ? &light : 0, .m_Name = "1" };
         DSTableDesc table = { .m_Type = i + 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = &root, .m_FieldCount = 1, .m_RowStride = i * 8 + (i < 2 ? 24u : 8u), .m_ResetPolicy = DS_RESET_RETAIN };
-        ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+        ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
         ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, i + 1, 0, &value, 1, &ids[i]));
     }
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
@@ -2185,9 +2185,9 @@ TEST(Data, InlineNamesBindDifferentTablesAndTrackRegistration)
     DSQueryEnd(query);
     DSValue object, intensity;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[0], 1, &object));
-    ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&object.m_Value.m_Struct, 20, &intensity));
+    ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&object.m_Value.m_Struct, 20, &intensity));
     ASSERT_EQ(4.0, intensity.m_Value.m_Number);
-    ASSERT_EQ(DS_RESULT_OK, DSResetTable(store, 1));
+    ASSERT_EQ(DS_RESULT_OK, DSTableReset(store, 1));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     it = DSQueryIter(query);
     ASSERT_TRUE(DSIterNext(&it));
@@ -2195,21 +2195,21 @@ TEST(Data, InlineNamesBindDifferentTablesAndTrackRegistration)
     ASSERT_EQ(DS_RESULT_OK, GetTestFieldVector3(&it, 0, 0, &color));
     ASSERT_EQ(1.0f, color.m_Values[0]);
     DSQueryEnd(query);
-    ASSERT_EQ(DS_RESULT_OK, DSUnregisterTable(store, 1));
+    ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, 1));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     it = DSQueryIter(query);
     ASSERT_TRUE(DSIterNext(&it));
     ASSERT_EQ((uint64_t)2, DSIterGetType(&it));
     ASSERT_FALSE(DSIterNext(&it));
     DSQueryEnd(query);
-    DSDestroyQuery(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    DSQueryDestroy(query);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
 {
-    HDSContext  store = DSCreateStore(0);
-    DSGroupId   group = NextTestGroupId();
+    HDSContext  store = DSStoreCreate(0);
+    DSId        group = NextTestGroupId();
     DSFieldDesc fields[10] = {};
     DSValue     values[10];
     for (uint32_t p = 0; p < 10; ++p)
@@ -2220,24 +2220,24 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
         values[p] = Number(p);
     }
     DSTableDesc table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = fields, .m_FieldCount = 10, .m_RowStride = 80, .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSId ids[3];
     for (uint32_t r = 0; r < 3; ++r)
         ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 1, r == 2 ? 0 : group, values, 10, &ids[r], r + 11));
     DSMemoryStats before, after;
     GetDataMemoryStats(store, &before);
-    ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[0]));
+    ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[0]));
     GetDataMemoryStats(store, &after);
     ASSERT_EQ(before.m_TotalBytes, after.m_TotalBytes);
 
     for (uint32_t r = 0; r < 3; ++r)
         for (uint32_t p = 0; p < 10; ++p)
-            ASSERT_EQ(DS_RESULT_OK, DSSetFieldNumber(store, ids[r], p, 100 * (r + 1) + p));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldSetNumber(store, ids[r], p, 100 * (r + 1) + p));
     DSQueryItem field = { .m_Hash = 9, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { field } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
-    ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[0]));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[0]));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     DSIterator it = DSQueryIter(query);
     ASSERT_TRUE(DSIterNext(&it));
@@ -2252,7 +2252,7 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
     DSQueryEnd(query);
     for (uint32_t r = 0; r < 3; ++r)
     {
-        ASSERT_EQ((uint64_t)(r + 11), DSGetComponentId(store, ids[r]));
+        ASSERT_EQ((uint64_t)(r + 11), DSRowGetComponentId(store, ids[r]));
         for (uint32_t p = 0; p < 10; ++p)
         {
             ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ids[r], p, &number));
@@ -2262,49 +2262,49 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
     GetDataMemoryStats(store, &before);
     for (uint32_t cycle = 0; cycle < 16; ++cycle)
     {
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldNumber(store, ids[0], 9, 500));
-        ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[0]));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetNumber(store, ids[0], 9, 500));
+        ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[0]));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ids[0], 9, &number));
         ASSERT_EQ(9.0, number);
     }
     GetDataMemoryStats(store, &after);
     ASSERT_EQ(before.m_TotalBytes, after.m_TotalBytes);
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSResetRow(store, 0));
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[0]));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSResetRow(store, ids[0]));
-    ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[2])); // Swap removal moved this row.
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRowReset(store, 0));
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[0]));
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRowReset(store, ids[0]));
+    ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[2])); // Swap removal moved this row.
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ids[2], 9, &number));
     ASSERT_EQ(9.0, number);
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ids[1], 9, &number));
     ASSERT_EQ(209.0, number);
-    DSDestroyQuery(query);
+    DSQueryDestroy(query);
 
     DSTableDesc empty = { .m_Type = 2, .m_Tags = 0, .m_TagCount = 0, .m_Fields = 0, .m_FieldCount = 0, .m_RowStride = 0, .m_ResetPolicy = DS_RESET_RETAIN };
     DSId        empty_id;
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &empty));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &empty));
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 2, 0, 0, 0, &empty_id));
-    ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, empty_id));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSResetRow(store, ids[0]));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, empty_id));
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRowReset(store, ids[0]));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, RowIterationWithoutFieldFilters)
 {
-    HDSContext  source = DSCreateStore(0);
+    HDSContext  source = DSStoreCreate(0);
     DSFieldDesc meta[] = { { 10, DS_TYPE_NUMBER, 0 }, { 20, DS_TYPE_STRING, 8 }, { 30, DS_TYPE_VECTOR3, 16 }, { 40, DS_TYPE_NULL, 0 } };
     DSTableDesc table = { 1, 0, 0, meta, 4, 32 };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &table));
     DSValue values[] = { Number(10), String("original"), Vector3(1, 2, 3), Null() };
     DSId      id;
-    DSGroupId groups[] = { NextTestGroupId(), NextTestGroupId() };
+    DSId            groups[] = { NextTestGroupId(), NextTestGroupId() };
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, groups[0], values, 4, &id));
     values[0] = Number(20);
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, groups[1], values, 4, &id));
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
-    HDSContext      loaded = DSCreateStore(0);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
+    HDSContext      loaded = DSStoreCreate(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, Load(loaded, bytes, size, &instance, 0));
     HDSContext stores[] = { source, loaded };
@@ -2313,7 +2313,7 @@ TEST(Data, RowIterationWithoutFieldFilters)
         HDSContext  store = stores[mode];
         DSQueryDesc desc = {};
         HDSQuery    query;
-        ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+        ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
         DSIterator    batch = DSQueryIter(query);
         DSRowIterator empty_rows = DSIterRows(&batch);
@@ -2326,7 +2326,7 @@ TEST(Data, RowIterationWithoutFieldFilters)
         {
             id = DSRowIterGetId(&rows);
             ASSERT_NE((DSId)0, id);
-            ASSERT_EQ(mode ? (DSGroupId)0 : groups[visited], DSRowIterGetGroupId(&rows));
+            ASSERT_EQ(mode ? (DSId)0 : groups[visited], DSRowIterGetGroupId(&rows));
             double number;
             ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, id, 10, &number));
             ASSERT_EQ(10.0 + 10.0 * visited, number);
@@ -2337,22 +2337,22 @@ TEST(Data, RowIterationWithoutFieldFilters)
         ASSERT_EQ((DSId)0, DSRowIterGetId(&rows));
         ASSERT_FALSE(DSIterNext(&batch));
         DSQueryEnd(query);
-        DSDestroyQuery(query);
+        DSQueryDestroy(query);
     }
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(loaded));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
     delete[] bytes;
 }
 
 TEST(Data, RowAccessUsesBatchRelativeRowsAfterRemoval)
 {
-    HDSContext store = DSCreateStore(0);
+    HDSContext store = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1));
-    DSGroupId group = NextTestGroupId();
+    DSId        group = NextTestGroupId();
     DSId ids[6];
     for (uint32_t row = 0; row < 6; ++row)
         ASSERT_EQ(DS_RESULT_OK, Add(store, 1, row % 2 ? group : 0, row + 10, "base", &ids[row]));
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[1])); // Last row moves; its base bytes do not.
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[1])); // Last row moves; its base bytes do not.
     DSQueryItem field = { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
     for (uint32_t requested = 0; requested < 2; ++requested)
     {
@@ -2360,8 +2360,8 @@ TEST(Data, RowAccessUsesBatchRelativeRowsAfterRemoval)
         if (requested)
             desc.m_Items[0] = field;
         HDSQuery query;
-        ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
-        uint32_t handle = DSQueryFindField(query, &field);
+        ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
+        DSFieldId handle = DSQueryFindField(query, &field);
         ASSERT_EQ(requested != 0, handle != UINT32_MAX);
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
         DSIterator batch = DSQueryIter(query);
@@ -2385,23 +2385,23 @@ TEST(Data, RowAccessUsesBatchRelativeRowsAfterRemoval)
         }
         ASSERT_EQ(2u, visited);
         DSQueryEnd(query);
-        ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[3]));
-        ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[5]));
-        DSDestroyQuery(query);
+        ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[3]));
+        ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[5]));
+        DSQueryDestroy(query);
     }
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, DeferredRemovalUsesStableIds)
 {
-    HDSContext store = DSCreateStore(0);
+    HDSContext store = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1));
     ASSERT_EQ(DS_RESULT_OK, Register(store, 2));
     DSQueryItem field = { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc desc = { .m_Items = { field } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
-    uint32_t      handle = DSQueryFindField(query, &field);
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
+    DSFieldId     handle = DSQueryFindField(query, &field);
     dmArray<DSId> removals;
     removals.SetCapacity(64);
     DSId ids[64];
@@ -2434,7 +2434,7 @@ TEST(Data, DeferredRemovalUsesStableIds)
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, removals[0], 10, &value));
         DSQueryEnd(query);
         for (uint32_t r = 0; r < removals.Size(); ++r)
-            ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, removals[r]));
+            ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, removals[r]));
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
         batch = DSQueryIter(query);
         visited = 0;
@@ -2456,24 +2456,24 @@ TEST(Data, DeferredRemovalUsesStableIds)
             if (r % 2 == 0 || r == 63)
                 ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGetNumber(store, ids[r], 10, &value));
             else
-                ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[r]));
+                ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[r]));
         }
         ASSERT_EQ(64u, removals.Capacity());
     }
-    DSDestroyQuery(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    DSQueryDestroy(query);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, EmptyRowHasNoFields)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSTableDesc table = { 1, 0, 0, 0, 0, 0 };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSId id;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 1, 0, 0, 0, &id));
     DSQueryDesc desc = {};
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     DSIterator batch = DSQueryIter(query);
     ASSERT_TRUE(DSIterNext(&batch));
@@ -2483,32 +2483,32 @@ TEST(Data, EmptyRowHasNoFields)
     ASSERT_FALSE(DSRowIterNext(&rows));
     ASSERT_FALSE(DSIterNext(&batch));
     DSQueryEnd(query);
-    DSDestroyQuery(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    DSQueryDestroy(query);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, AlignedLayoutValidation)
 {
-    HDSContext   store = DSCreateStore(0);
+    HDSContext   store = DSStoreCreate(0);
     DSFieldDesc  members[] = { { .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = 0, .m_Name = "1" }, { .m_Field = 2, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = 8, .m_Name = "2" } };
     DSStructDesc inner = { members, 2, 16 };
     DSFieldDesc  root = { .m_Field = 3, .m_Type = DS_TYPE_STRUCT, .m_Offset = 0, .m_Struct = &inner, .m_Name = "3" };
     DSTableDesc  table = { 1, 0, 0, &root, 1, 24 };
     members[0].m_Offset = 1;
     members[1].m_Offset = 9;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &table));
     members[0].m_Offset = 0;
     members[1].m_Offset = 8;
     inner.m_Size = 9;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &table));
     inner.m_Size = 16;
     root.m_Offset = 4;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &table));
     root.m_Offset = 8;
     table.m_RowStride = 25;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &table));
     table.m_RowStride = 24;
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     uint64_t          names[] = { 1, 2 };
     const DSValueType child_types[] = { DS_TYPE_NUMBER, DS_TYPE_BOOLEAN };
     DSValueData       children[] = { { .m_Number = 17 }, { .m_Boolean = 1 } };
@@ -2517,15 +2517,15 @@ TEST(Data, AlignedLayoutValidation)
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 1, 0, &value, 1, &id));
     uint8_t  DM_ALIGNED(8) bytes[512], saved[512];
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, sizeof(bytes), &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, sizeof(bytes), &size));
     memcpy(saved, bytes, size);
     HDSBlob blob;
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
     // Reject unaligned input once, before any direct pointer can be obtained.
     uint8_t* unaligned = new uint8_t[size + 1];
     memcpy(unaligned + 1, bytes, size);
     HDSBlob output = blob;
-    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(unaligned + 1, size, &output));
+    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(unaligned + 1, size, &output));
     ASSERT_EQ((uintptr_t)blob, (uintptr_t)output);
     delete[] unaligned;
     uint32_t       table_offset = (uint32_t)ReadDataInteger(bytes + 16, 4);
@@ -2535,12 +2535,12 @@ TEST(Data, AlignedLayoutValidation)
     for (uint32_t i = 0; i < 5; ++i)
     {
         WriteDataInteger(bytes + offsets[i], values[i], 4);
-        ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(bytes, size, &output));
+        ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(bytes, size, &output));
         ASSERT_EQ((uintptr_t)blob, (uintptr_t)output);
         memcpy(bytes, saved, size);
     }
-    DSDestroyBlob(blob);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    DSBlobDestroy(blob);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 extern "C" int TestDataPointersFromC(HDSContext store, int write);
@@ -2563,8 +2563,8 @@ TEST(Data, NativeFieldPointersAndReset)
         { 5, DS_TYPE_MATRIX4, offsetof(NativeRow, m_Matrix4) }
     };
     DSTableDesc table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = fields, .m_FieldCount = 5, .m_RowStride = sizeof(NativeRow), .m_ResetPolicy = DS_RESET_RETAIN };
-    HDSContext  source = DSCreateStore(0);
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &table));
+    HDSContext  source = DSStoreCreate(0);
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &table));
     DSValue values[] = { Number(17), Boolean(0), Vector3(1, 2, 3), {}, Matrix() };
     values[3].m_Type = DS_TYPE_VECTOR4;
     values[3].m_Value.m_Vector4[3] = 4;
@@ -2574,12 +2574,12 @@ TEST(Data, NativeFieldPointersAndReset)
     for (uint32_t i = 0; i < 3; ++i)
         ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, values, 5, &ids[i]));
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
     uint8_t* saved = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
     memcpy(saved, bytes, size);
-    HDSContext      loaded = DSCreateStore(0);
+    HDSContext      loaded = DSStoreCreate(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, Load(loaded, bytes, size, &instance));
     HDSContext stores[] = { source, loaded };
@@ -2597,35 +2597,35 @@ TEST(Data, NativeFieldPointersAndReset)
         ASSERT_EQ(before.m_TotalBytes, after.m_TotalBytes);
         ASSERT_EQ((uint64_t)0, after.m_PayloadBlocks);
         DSId id = FirstId(store);
-        ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, id));
+        ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, id));
         double number;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, id, 1, &number));
         ASSERT_EQ(17.0, number);
         if (packed)
-            DSResetBlob(instance);
+            DSBlobReset(instance);
         else
-            ASSERT_EQ(DS_RESULT_OK, DSResetTable(store, 1));
+            ASSERT_EQ(DS_RESULT_OK, DSTableReset(store, 1));
         ASSERT_EQ(0, TestDataPointersFromC(store, 0));
         ASSERT_EQ(0, memcmp(saved, bytes, size));
     }
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(loaded));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
     delete[] saved;
     delete[] bytes;
 }
 
 TEST(Data, QueryFieldHandlesSurviveTableChanges)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSQueryItem fields[] = {
         { .m_Hash = 30, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD },
         { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD }
     };
     DSQueryDesc desc = { .m_Items = { fields[0], fields[1] } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
-    uint32_t vector_field = DSQueryFindField(query, &fields[0]);
-    uint32_t number_field = DSQueryFindField(query, &fields[1]);
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
+    DSFieldId vector_field = DSQueryFindField(query, &fields[0]);
+    DSFieldId number_field = DSQueryFindField(query, &fields[1]);
     ASSERT_NE(UINT32_MAX, vector_field);
     ASSERT_NE(UINT32_MAX, number_field);
     ASSERT_NE(vector_field, number_field);
@@ -2645,7 +2645,7 @@ TEST(Data, QueryFieldHandlesSurviveTableChanges)
     {
         DSFieldDesc meta[] = { { 10, DS_TYPE_NUMBER, pass * 8 }, { 30, DS_TYPE_VECTOR3, pass * 8 + 8 } };
         DSTableDesc table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = meta, .m_FieldCount = 2, .m_RowStride = pass * 8 + 24, .m_ResetPolicy = DS_RESET_RETAIN };
-        ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+        ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
         DSValue values[] = { Number(10 + pass), Vector3(1, 2, 3) };
         DSId    id;
         ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 1, 0, values, 2, &id));
@@ -2666,12 +2666,12 @@ TEST(Data, QueryFieldHandlesSurviveTableChanges)
             ASSERT_FALSE(DSRowIterNext(&rows));
             ASSERT_FALSE(DSIterNext(&it));
             DSQueryEnd(query);
-            ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, id));
+            ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, id));
         }
-        ASSERT_EQ(DS_RESULT_OK, DSUnregisterTable(store, 1));
+        ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, 1));
     }
-    DSDestroyQuery(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    DSQueryDestroy(query);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
@@ -2683,22 +2683,22 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
     DSValueData       first[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Number = 7 }, { .m_String = "shared" } };
     DSValueData       second[] = { { .m_Vector3 = { 9, 8, 7 } }, { .m_Number = 6 }, { .m_String = "other" } };
     DSValue           values[] = { Struct(names, types, first, 3), Struct(names, types, second, 3) };
-    HDSContext        source = DSCreateStore(0);
+    HDSContext        source = DSStoreCreate(0);
     for (uint32_t i = 0; i < 2; ++i)
     {
         DSFieldDesc roots[] = { { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Offset = i * 8, .m_Struct = &light, .m_Name = "1" }, { .m_Field = 2, .m_Type = DS_TYPE_STRUCT, .m_Offset = i * 8 + 32, .m_Struct = &light, .m_Name = "2" } };
         DSTableDesc table = { .m_Type = i + 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = roots, .m_FieldCount = 2, .m_RowStride = i * 8 + 64, .m_ResetPolicy = DS_RESET_RETAIN };
-        ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &table));
+        ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &table));
         DSId id;
         ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, i + 1, 0, values, 2, &id));
     }
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
     uint8_t* saved = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
     memcpy(saved, bytes, size);
-    HDSContext      loaded = DSCreateStore(0);
+    HDSContext      loaded = DSStoreCreate(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, Load(loaded, bytes, size, &instance));
     HDSContext stores[] = { source, loaded };
@@ -2711,13 +2711,13 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
         };
         DSQueryDesc desc = { .m_Items = { fields[0], fields[1] } };
         HDSQuery    query;
-        ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+        ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
         // Lookup uses full-name hashes even when the descriptors change order.
         DSQueryItem swap = fields[0];
         fields[0] = fields[1];
         fields[1] = swap;
-        uint32_t field = DSQueryFindField(query, &fields[0]);
-        uint32_t other = DSQueryFindField(query, &fields[1]);
+        DSFieldId field = DSQueryFindField(query, &fields[0]);
+        DSFieldId other = DSQueryFindField(query, &fields[1]);
         ASSERT_NE(UINT32_MAX, field);
         ASSERT_NE(UINT32_MAX, other);
         ASSERT_NE(field, other);
@@ -2759,11 +2759,11 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
             DSId    id = ids[r];
             DSValue root, child;
             ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, 1, &root));
-            ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&root.m_Value.m_Struct, 20, &child));
+            ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&root.m_Value.m_Struct, 20, &child));
             ASSERT_EQ(7.0, child.m_Value.m_Number);
-            ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&root.m_Value.m_Struct, 30, &child));
+            ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&root.m_Value.m_Struct, 30, &child));
             ASSERT_STREQ("shared", child.m_Value.m_String);
-            ASSERT_EQ(DS_RESULT_OK, DSResetField(store, id, 1));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldReset(store, id, 1));
             // The same full-name hash works through ID access, including packed metadata.
             DSVector3 copy;
             uint64_t  color_hash = dmHashString64("1.10");
@@ -2771,20 +2771,20 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
             ASSERT_EQ(1.0f, copy.m_Values[0]);
             ASSERT_EQ(DS_RESULT_OK, DSFieldGetVector3Batch(store, 1, &id, color_hash, &copy));
             copy.m_Values[0] = 17;
-            ASSERT_EQ(DS_RESULT_OK, DSSetFieldVector3(store, id, color_hash, &copy));
-            ASSERT_EQ(DS_RESULT_OK, DSResetField(store, id, color_hash));
-            ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, id, dmHashString64("1.30"), "changed"));
-            ASSERT_EQ(DS_RESULT_OK, DSResetField(store, id, dmHashString64("1.30")));
-            ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, id));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldSetVector3(store, id, color_hash, &copy));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldReset(store, id, color_hash));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, id, dmHashString64("1.30"), "changed"));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldReset(store, id, dmHashString64("1.30")));
+            ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, id));
             ASSERT_EQ(DS_RESULT_OK, DSFieldGetVector3(store, id, color_hash, &copy));
             ASSERT_EQ(2.0f, copy.m_Values[1]);
             ASSERT_EQ(3.0f, copy.m_Values[2]);
         }
-        DSDestroyQuery(query);
+        DSQueryDestroy(query);
     }
     ASSERT_EQ(0, memcmp(saved, bytes, size));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(loaded));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
     delete[] saved;
     delete[] bytes;
 }
@@ -2795,8 +2795,8 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
     DSStructDesc layout = { members, 3, 24 };
     DSFieldDesc  root = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Offset = 0, .m_Struct = &layout, .m_Name = "1" };
     DSTableDesc  table = { 1, 0, 0, &root, 1, 24 };
-    HDSContext   source = DSCreateStore(0);
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &table));
+    HDSContext   source = DSStoreCreate(0);
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &table));
     uint64_t          names[] = { 10, 20, 30 };
     DSValue           list_values[] = { String("nested"), Number(7) };
     const DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_STRING, DS_TYPE_LIST };
@@ -2809,27 +2809,27 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
         ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, &object, 1, &id, r));
     }
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
     uint8_t* saved = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
     memcpy(saved, bytes, size);
     HDSBlob blob;
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-    HDSContext      store = DSCreateStore(0);
-    DSGroupId       groups[] = { NextTestGroupId(), NextTestGroupId() };
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
+    HDSContext      store = DSStoreCreate(0);
+    DSId            groups[] = { NextTestGroupId(), NextTestGroupId() };
     HDSBlobInstance first, second;
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, groups[0], &first));
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, groups[1], &second));
-    DSDestroyBlob(blob);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, groups[0], &first));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, groups[1], &second));
+    DSBlobDestroy(blob);
     DSQueryItem fields[] = {
         { .m_Hash = dmHashString64("1.10"), .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
         { .m_Hash = dmHashString64("1.20"), .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD }
     };
     DSQueryDesc desc = { .m_Items = { fields[0], fields[1] } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
-    uint32_t number_field = DSQueryFindField(query, &fields[0]);
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
+    DSFieldId number_field = DSQueryFindField(query, &fields[0]);
     ASSERT_NE(UINT32_MAX, number_field);
     DSId        ids[2][3] = {};
     const char* shared_list_string = 0;
@@ -2842,7 +2842,7 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
         {
             DSId     id = DSRowIterGetId(&rows);
             uint32_t group = DSRowIterGetGroupId(&rows) == groups[0] ? 0 : 1;
-            uint32_t component = (uint32_t)DSGetComponentId(store, id);
+            uint32_t component = (uint32_t)DSRowGetComponentId(store, id);
             ids[group][component] = id;
             ASSERT_EQ(10.0 + component, *DSRowIterGetNumber(&rows, number_field));
             ASSERT_EQ((uintptr_t)DSRowIterGetNumber(&rows, number_field), (uintptr_t)DSRowIterGetNumberMut(&rows, number_field));
@@ -2850,12 +2850,12 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
                 *DSRowIterGetNumberMut(&rows, number_field) += 100;
             DSValue current, child, element;
             ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, 1, &current));
-            ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&current.m_Value.m_Struct, 20, &child));
+            ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&current.m_Value.m_Struct, 20, &child));
             ASSERT_STREQ("shared", child.m_Value.m_String);
             ASSERT_TRUE((uintptr_t)child.m_Value.m_String >= (uintptr_t)bytes && (uintptr_t)child.m_Value.m_String < (uintptr_t)(bytes + size));
             ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, 1, &current));
-            ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&current.m_Value.m_Struct, 30, &child));
-            ASSERT_EQ(DS_RESULT_OK, DSGetListValue(&child.m_Value.m_List, 0, &element));
+            ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&current.m_Value.m_Struct, 30, &child));
+            ASSERT_EQ(DS_RESULT_OK, DSListGetValue(&child.m_Value.m_List, 0, &element));
             ASSERT_STREQ("nested", element.m_Value.m_String);
             if (!shared_list_string)
                 shared_list_string = element.m_Value.m_String;
@@ -2864,50 +2864,50 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
     }
     DSQueryEnd(query);
     for (uint32_t component = 0; component < 3; ++component)
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, ids[0][component], dmHashString64("1.20"), "replacement"));
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[0][0]));
-    DSResetBlob(first);
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, ids[0][component], dmHashString64("1.20"), "replacement"));
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[0][0]));
+    DSBlobReset(first);
     ASSERT_EQ((uintptr_t)0, (uintptr_t)first->m_Payloads);
     for (uint32_t group = 0; group < 2; ++group)
         for (uint32_t component = group ? 0 : 1; component < 3; ++component)
         {
             DSValue current, child;
             ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[group][component], 1, &current));
-            ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&current.m_Value.m_Struct, 10, &child));
+            ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&current.m_Value.m_Struct, 10, &child));
             ASSERT_EQ(10.0 + component, child.m_Value.m_Number);
-            ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&current.m_Value.m_Struct, 20, &child));
+            ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&current.m_Value.m_Struct, 20, &child));
             ASSERT_STREQ("shared", child.m_Value.m_String);
         }
     ASSERT_EQ(0, memcmp(saved, bytes, size));
-    DSDestroyQuery(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
+    DSQueryDestroy(query);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
     delete[] saved;
     delete[] bytes;
 }
 
 TEST(Data, PooledRegistrationResetAndRemovalAfterSlotReuse)
 {
-    HDSContext source = DSCreateStore(0);
+    HDSContext source = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, Register(source, 1));
     DSTableDesc empty = { 2, 0, 0, 0, 0, 0 };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &empty));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &empty));
     DSValue values[] = { Number(10), String("shared") };
     DSId    id;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, values, 2, &id, 11));
     values[0] = Number(20);
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, values, 2, &id, 12));
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(source, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, size, &size));
     HDSBlob blob;
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-    HDSContext      store = DSCreateStore(0);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
+    HDSContext      store = DSStoreCreate(0);
     HDSBlobInstance first, second;
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, 0, &first));
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, 0, &second));
-    DSDestroyBlob(blob);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, 0, &first));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, 0, &second));
+    DSBlobDestroy(blob);
     ASSERT_EQ((uintptr_t)first->m_Pool, (uintptr_t)second->m_Pool);
     ASSERT_EQ(2u, store->m_Tables.Size());
     ASSERT_EQ(0u, GetInstanceTable(first, 1)->m_Rows.Size());
@@ -2918,19 +2918,19 @@ TEST(Data, PooledRegistrationResetAndRemovalAfterSlotReuse)
         {
             uint32_t slot = GetInstanceSlots(instances[i])[r];
             ids[i][r] = ((uint64_t)store->m_Slots[slot].m_Generation << 32) | slot;
-            ASSERT_EQ((uint64_t)(11 + r), DSGetComponentId(store, ids[i][r]));
-            ASSERT_EQ(DS_RESULT_OK, DSSetFieldNumber(store, ids[i][r], 10, 100 + i));
-            ASSERT_EQ(DS_RESULT_OK, DSSetFieldString(store, ids[i][r], 20, i ? "second" : "first"));
+            ASSERT_EQ((uint64_t)(11 + r), DSRowGetComponentId(store, ids[i][r]));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldSetNumber(store, ids[i][r], 10, 100 + i));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, ids[i][r], 20, i ? "second" : "first"));
         }
     ASSERT_TRUE(first->m_Payloads != 0 && second->m_Payloads != 0);
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[0][0]));
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[0][0]));
     ASSERT_EQ(UINT32_MAX, GetInstanceSlots(first)[0]);
     ASSERT_EQ(DS_RESULT_OK, Register(store, 3));
     DSId reused;
     ASSERT_EQ(DS_RESULT_OK, Add(store, 3, 0, 500, "independent", &reused));
     ASSERT_EQ((uint32_t)ids[0][0], (uint32_t)reused);
     ASSERT_NE(ids[0][0], reused);
-    DSResetBlob(first);
+    DSBlobReset(first);
     ASSERT_EQ((uintptr_t)0, (uintptr_t)first->m_Payloads);
     ASSERT_TRUE(second->m_Payloads != 0);
     double      number;
@@ -2939,7 +2939,7 @@ TEST(Data, PooledRegistrationResetAndRemovalAfterSlotReuse)
     ASSERT_EQ(20.0, number);
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, ids[0][1], 20, &string));
     ASSERT_STREQ("shared", string);
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(first));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(first));
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGetNumber(store, ids[0][1], 10, &number));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, reused, 10, &number));
     ASSERT_EQ(500.0, number);
@@ -2950,20 +2950,20 @@ TEST(Data, PooledRegistrationResetAndRemovalAfterSlotReuse)
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, ids[1][r], 20, &string));
         ASSERT_STREQ("second", string);
     }
-    DSResetBlob(second);
+    DSBlobReset(second);
     for (uint32_t r = 0; r < 2; ++r)
     {
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ids[1][r], 10, &number));
         ASSERT_EQ(10.0 + r * 10, number);
-        ASSERT_EQ((uint64_t)(11 + r), DSGetComponentId(store, ids[1][r]));
+        ASSERT_EQ((uint64_t)(11 + r), DSRowGetComponentId(store, ids[1][r]));
     }
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(second));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(second));
     ASSERT_EQ((uintptr_t)0, (uintptr_t)store->m_Pools);
     ASSERT_EQ(1u, store->m_Tables.Size());
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, reused, 20, &string));
     ASSERT_STREQ("independent", string);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(source));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
     delete[] bytes;
 }
 
@@ -2995,23 +2995,23 @@ TEST(Data, CompactMetadataLimitsRoundTrip)
     uint64_t* tags = new uint64_t[DATA_MAX_TAG_COUNT];
     for (uint32_t i = 0; i < DATA_MAX_TAG_COUNT; ++i)
         tags[i] = i;
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSTableDesc desc = { .m_Type = 1, .m_Tags = tags, .m_TagCount = DATA_MAX_TAG_COUNT + 1, .m_Fields = roots, .m_FieldCount = 1 };
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &desc));
     desc.m_TagCount = DATA_MAX_TAG_COUNT;
     desc.m_FieldCount = DATA_MAX_METADATA_COUNT + 1;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &desc));
     desc.m_FieldCount = 2;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRegisterTable(store, &desc)); // Nested total is 65,536.
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &desc)); // Nested total is 65,536.
     ASSERT_EQ(0u, store->m_Tables.Size());
     desc.m_FieldCount = 1;
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     ASSERT_EQ(DATA_MAX_METADATA_COUNT, (uint32_t)store->m_Tables[0]->m_MetadataCount);
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, size, &size));
-    HDSContext      loaded = DSCreateStore(0);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, size, &size));
+    HDSContext      loaded = DSStoreCreate(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, Load(loaded, bytes, size, &instance));
     DSTable* table = GetInstanceTable(instance, 0);
@@ -3028,34 +3028,34 @@ TEST(Data, CompactMetadataLimitsRoundTrip)
         ASSERT_EQ(expected.m_ChildIndex, actual.m_ChildIndex);
         ASSERT_EQ(expected.m_ChildCount, actual.m_ChildCount);
     }
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(loaded));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     delete[] bytes;
     delete[] tags;
 }
 
 TEST(Data, CompactMetadataPreservesWideByteOffsets)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSFieldDesc field = { .m_Field = 10, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 65536 };
     DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 65548 };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSValueType type = DS_TYPE_VECTOR3;
     DSValueData value = { .m_Vector3 = { 3, 5, 7 } };
     DSId        id;
-    ASSERT_EQ(DS_RESULT_OK, DSAddRow(store, 1, 0, &type, &value, 1, &id));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAdd(store, 1, 0, &type, &value, 1, &id));
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, size, &size));
-    HDSContext      loaded = DSCreateStore(0);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, size, &size));
+    HDSContext      loaded = DSStoreCreate(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, Load(loaded, bytes, size, &instance));
     DSQueryItem requested = { .m_Hash = 10, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc desc = { .m_Items = { requested } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(loaded, &desc, &query));
-    uint32_t handle = DSQueryFindField(query, &requested);
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(loaded, &desc, &query));
+    DSFieldId handle = DSQueryFindField(query, &requested);
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     DSIterator it = DSQueryIter(query);
     ASSERT_TRUE(DSIterNext(&it));
@@ -3065,17 +3065,17 @@ TEST(Data, CompactMetadataPreservesWideByteOffsets)
     ASSERT_EQ(0, memcmp(value.m_Vector3, actual, sizeof(DSVector3)));
     ASSERT_EQ(65548u, it.m_RowStride);
     DSQueryEnd(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(loaded));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     delete[] bytes;
 }
 
 // Interleaved items preserve nested names, NULL fields, group zero and copied setup inputs.
 TEST(Data, InlineQueryFieldsAndTags)
 {
-    HDSContext  store = DSCreateStore(0);
-    DSGroupId   group = 0;
+    HDSContext  store = DSStoreCreate(0);
+    DSId        group = 0;
     char        name[] = "light.color";
     DSQueryDesc desc = {
         .m_GroupIds = &group,
@@ -3087,10 +3087,10 @@ TEST(Data, InlineQueryFieldsAndTags)
     };
     name[0] = 'X';
     HDSQuery query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(2u, query->m_Fields.Size());
     ASSERT_EQ(2u, query->m_Tags.Size());
-    uint32_t color_field = DSQueryFindField(query, &desc.m_Items[1]);
+    DSFieldId color_field = DSQueryFindField(query, &desc.m_Items[1]);
     ASSERT_EQ(0u, color_field);
     ASSERT_EQ(UINT32_MAX, DSQueryFindField(query, &desc.m_Items[0]));
     ASSERT_EQ(UINT32_MAX, DSQueryFindField(query, &desc.m_Items[2]));
@@ -3105,13 +3105,13 @@ TEST(Data, InlineQueryFieldsAndTags)
     uint64_t    tags[] = { dmHashString64("light"), dmHashString64("visible") };
     DSTableDesc table = { .m_Type = 1, .m_Tags = tags, .m_TagCount = 2, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(DSVector3) };
     DSVector3   value = { .m_Values = { 1, 2, 3 } };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 1, &value, 0));
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, NextTestGroupId(), 1, &value, 0));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 1, &value, 0));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, NextTestGroupId(), 1, &value, 0));
     table.m_Type = 2;
     table.m_TagCount = 1;
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 2, 0, 1, &value, 0));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 2, 0, 1, &value, 0));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     ASSERT_EQ(1u, DSQueryGetRowCount(query));
     DSIterator it = DSQueryIterRange(query, 0, DSQueryGetRowCount(query));
@@ -3123,14 +3123,14 @@ TEST(Data, InlineQueryFieldsAndTags)
     ASSERT_FALSE(DSRowIterNext(&rows));
     ASSERT_FALSE(DSIterNext(&it));
     DSQueryEnd(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 // Full mixed item arrays need no terminator; invalid kinds/types are rejected before copying.
 TEST(Data, InlineQueryCapacity)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSQueryDesc desc = {};
     for (uint32_t i = 0; i < DS_QUERY_MAX_ITEMS; i += 2)
     {
@@ -3138,47 +3138,47 @@ TEST(Data, InlineQueryCapacity)
         desc.m_Items[i + 1] = { .m_Hash = i + 1, .m_Kind = DS_QUERY_ITEM_TAG };
     }
     HDSQuery query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ((uint32_t)DS_QUERY_MAX_ITEMS / 2, query->m_Fields.Size());
     ASSERT_EQ((uint32_t)DS_QUERY_MAX_ITEMS / 2, query->m_Tags.Size());
     ASSERT_NE(UINT32_MAX, DSQueryFindField(query, &desc.m_Items[DS_QUERY_MAX_ITEMS - 2]));
     ASSERT_EQ(UINT32_MAX, DSQueryFindField(query, &desc.m_Items[DS_QUERY_MAX_ITEMS - 1]));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
     query = 0;
     desc.m_Items[DS_QUERY_MAX_ITEMS - 1].m_Kind = (DSQueryItemKind)99;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ((HDSQuery)0, query);
     desc.m_Items[DS_QUERY_MAX_ITEMS - 1].m_Kind = DS_QUERY_ITEM_TAG;
     desc.m_Items[DS_QUERY_MAX_ITEMS - 2].m_Type = (DSValueType)256;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSQueryCreate(store, &desc, &query));
     desc = { .m_Items = { { .m_Type = DS_TYPE_NULL, .m_Kind = DS_QUERY_ITEM_FIELD } } };
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(1u, query->m_Fields.Size());
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
     // Entries after the first unused item are outside the descriptor.
     desc.m_Items[2] = { .m_Kind = (DSQueryItemKind)99 };
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(1u, query->m_Fields.Size());
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 // Item kinds distinguish a zero hash from an unused entry, for both tags and fields.
 TEST(Data, QueryItemsIncludeZeroHashes)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     uint64_t    tag = 0;
     DSFieldDesc field = { .m_Type = DS_TYPE_NUMBER };
     DSTableDesc table = { .m_Type = 1, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double) };
     double      value = 7;
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 1, &value, 0));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 1, &value, 0));
     DSQueryDesc desc = { .m_Items = { { .m_Kind = DS_QUERY_ITEM_FIELD }, { .m_Hash = 0, .m_Kind = DS_QUERY_ITEM_TAG } } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(1u, query->m_Fields.Size());
     ASSERT_EQ(1u, query->m_Tags.Size());
-    uint32_t handle = DSQueryFindField(query, &desc.m_Items[0]);
+    DSFieldId handle = DSQueryFindField(query, &desc.m_Items[0]);
     ASSERT_NE(UINT32_MAX, handle);
     ASSERT_EQ(UINT32_MAX, DSQueryFindField(query, &desc.m_Items[1]));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
@@ -3188,70 +3188,70 @@ TEST(Data, QueryItemsIncludeZeroHashes)
     ASSERT_TRUE(DSRowIterNext(&rows));
     ASSERT_EQ(value, *DSRowIterGetNumber(&rows, handle));
     DSQueryEnd(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 // Zero and DS_FIELD_MUTABLE are valid access flags; reject invalid kinds/flags before narrowing.
 TEST(Data, CompactQueryFieldsValidateBeforeNarrowing)
 {
-    HDSContext   store = DSCreateStore(0);
+    HDSContext   store = DSStoreCreate(0);
     DSQueryDesc  desc = { .m_Items = { { .m_Hash = 1, .m_Type = DS_TYPE_VECTOR3, .m_Access = 0, .m_Kind = DS_QUERY_ITEM_FIELD } } };
     DSQueryItem& field = desc.m_Items[0];
     HDSQuery     query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(0u, DSQueryFindField(query, &field));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
     field.m_Access = DS_FIELD_MUTABLE;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(0u, DSQueryFindField(query, &field));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
     field.m_Type = (DSValueType)256;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSQueryCreate(store, &desc, &query));
     field.m_Type = DS_TYPE_VECTOR3;
     field.m_Access = 2;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSQueryCreate(store, &desc, &query));
     field.m_Access = 256;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateQuery(store, &desc, &query));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSQueryCreate(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, FreeSlotCountExcludesRetiredGenerations)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSTableDesc table = { .m_Type = 1 };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSRowDesc rows[6] = {};
     DSId      ids[6];
-    ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, rows, 4, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 4, ids));
     ASSERT_EQ(0u, store->m_FreeSlotCount);
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[0]));
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[0]));
     ASSERT_EQ(1u, store->m_FreeSlotCount);
     // An exhausted generation is retired permanently rather than reusable.
     store->m_Slots[(uint32_t)ids[1]].m_Generation = UINT32_MAX;
     DSId retired = ((uint64_t)UINT32_MAX << 32) | (uint32_t)ids[1];
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, retired));
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, retired));
     ASSERT_EQ(1u, store->m_FreeSlotCount);
     DSId added[2];
-    ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, rows, 2, added));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 2, added));
     ASSERT_EQ(0u, store->m_FreeSlotCount);
     ASSERT_EQ(5u, store->m_Slots.Size());
     ASSERT_NE(ids[0], added[0]);
     ASSERT_EQ((uint32_t)ids[0], (uint32_t)added[0]);
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRemoveRow(store, ids[0]));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRemoveRow(store, retired));
-    ASSERT_EQ(DS_RESULT_OK, DSUnregisterTable(store, 1));
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRowRemove(store, ids[0]));
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRowRemove(store, retired));
+    ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, 1));
     ASSERT_EQ(4u, store->m_FreeSlotCount);
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
-    ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, rows, 6, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 6, ids));
     ASSERT_EQ(0u, store->m_FreeSlotCount);
     ASSERT_EQ(7u, store->m_Slots.Size());
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, BatchVector3MatchesScalarGetter)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSFieldDesc vector = { .m_Field = 42, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 0 };
     DSFieldDesc number = { .m_Field = 42, .m_Type = DS_TYPE_NUMBER, .m_Offset = 0 };
     DSFieldDesc missing = { .m_Field = 43, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 0 };
@@ -3272,21 +3272,21 @@ TEST(Data, BatchVector3MatchesScalarGetter)
     DSId        valid[5];
     for (uint32_t i = 0; i < 4; ++i)
     {
-        ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &tables[i]));
-        ASSERT_EQ(DS_RESULT_OK, DSAddRow(store, tables[i].m_Type, 0, i == 1 ? &number_type : vector_types, i == 1 ? &scalar : vectors, tables[i].m_FieldCount, &valid[i]));
+        ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &tables[i]));
+        ASSERT_EQ(DS_RESULT_OK, DSRowAdd(store, tables[i].m_Type, 0, i == 1 ? &number_type : vector_types, i == 1 ? &scalar : vectors, tables[i].m_FieldCount, &valid[i]));
     }
     DSId stale = valid[0];
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, stale));
-    ASSERT_EQ(DS_RESULT_OK, DSAddRow(store, 1, 0, vector_types, vectors, 1, &valid[0]));
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, stale));
+    ASSERT_EQ(DS_RESULT_OK, DSRowAdd(store, 1, 0, vector_types, vectors, 1, &valid[0]));
     // Include a packed row alongside independent rows in the same store.
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, size, &size));
     HDSBlob         blob;
     HDSBlobInstance instance;
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, 0, &instance));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, 0, &instance));
     valid[4] = MakeId(store, GetInstanceSlots(instance)[0]);
     DSId      ids[83];
     DSVector3 actual[83];
@@ -3327,30 +3327,30 @@ TEST(Data, BatchVector3MatchesScalarGetter)
     ids[80] = valid[2];
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldGetVector3Batch(store, 83, ids, 42, actual));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetVector3Batch(0, 0, 0, 42, 0));
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(instance));
-    DSDestroyBlob(blob);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(instance));
+    DSBlobDestroy(blob);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     delete[] bytes;
 }
 
 TEST(Data, NativeRowsShareGroupsWithoutSplittingTables)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSFieldDesc field = { .m_Field = 10, .m_Type = DS_TYPE_NUMBER };
     DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double), .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
-    DSGroupId   group = NextTestGroupId();
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
+    DSId        group = NextTestGroupId();
     DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1 };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     double values[] = { 1, 2, 3 };
     DSId   first[3], other[3], last[3];
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, group, 3, values, first));
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 3, values, other));
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, group, 3, values, last));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, group, 3, values, first));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 3, values, other));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, group, 3, values, last));
     ASSERT_EQ(1u, store->m_Tables.Size());
     // Removing the first row swaps the last row into its slot; group filters survive.
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, first[0]));
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, first[0]));
     for (uint32_t pass = 0; pass < 2; ++pass)
     {
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
@@ -3373,13 +3373,13 @@ TEST(Data, NativeRowsShareGroupsWithoutSplittingTables)
         ASSERT_EQ(5u, visited);
         DSQueryEnd(query);
         // A reset changes only values, leaving the shared group intact.
-        ASSERT_EQ(DS_RESULT_OK, DSSetFieldNumber(store, last[2], 10, 100));
-        ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, last[2]));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSetNumber(store, last[2], 10, 100));
+        ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, last[2]));
     }
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
     desc.m_GroupIds = 0;
     desc.m_GroupIdCount = 0;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     DSIterator it = DSQueryIter(query);
     ASSERT_TRUE(DSIterNext(&it));
@@ -3390,22 +3390,22 @@ TEST(Data, NativeRowsShareGroupsWithoutSplittingTables)
     ASSERT_EQ(3u, zero_group);
     ASSERT_FALSE(DSIterNext(&it));
     DSQueryEnd(query);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, CreateRowsWithoutReturningIds)
 {
-    HDSContext  store = DSCreateStore(0);
-    DSGroupId   group = NextTestGroupId();
+    HDSContext  store = DSStoreCreate(0);
+    DSId        group = NextTestGroupId();
     DSFieldDesc field = { .m_Field = 10, .m_Type = DS_TYPE_NUMBER };
     DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double) };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSQueryItem query_field = { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc desc = { .m_Items = { query_field } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
-    uint32_t     field_index = DSQueryFindField(query, &query_field);
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
+    DSFieldId    field_index = DSQueryFindField(query, &query_field);
     double       values[] = { 1, 2, 3, 4 };
     DSFieldArray column = { .m_Field = 10, .m_Values = values + 2 };
     DSValueType  type = DS_TYPE_NUMBER;
@@ -3414,12 +3414,12 @@ TEST(Data, CreateRowsWithoutReturningIds)
     DSId         ids[6] = {};
     for (uint32_t pass = 0; pass < 2; ++pass)
     {
-        ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, group, 2, values, 0));
-        ASSERT_EQ(DS_RESULT_OK, DSCreateRowsSoA(store, 1, group, 2, 1, &column, 0));
+        ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, group, 2, values, 0));
+        ASSERT_EQ(DS_RESULT_OK, DSRowCreateSoA(store, 1, group, 2, 1, &column, 0));
         decoded.m_Number = 5;
-        ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, &row, 1, 0));
+        ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, &row, 1, 0));
         decoded.m_Number = 6;
-        ASSERT_EQ(DS_RESULT_OK, DSAddRow(store, 1, group, &type, &decoded, 1, 0));
+        ASSERT_EQ(DS_RESULT_OK, DSRowAdd(store, 1, group, &type, &decoded, 1, 0));
 
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
         ASSERT_EQ(6u, DSQueryGetRowCount(query));
@@ -3449,12 +3449,12 @@ TEST(Data, CreateRowsWithoutReturningIds)
             double value;
             ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ids[i], 10, &value));
             ASSERT_EQ((double)(i + 1), value);
-            ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[i]));
+            ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[i]));
             ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGetNumber(store, ids[i], 10, &value));
         }
     }
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, NativeRowsValidateBeforeWritingAcrossBlocks)
@@ -3480,16 +3480,16 @@ TEST(Data, NativeRowsValidateBeforeWritingAcrossBlocks)
         { .m_Field = 2, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(NativeRow, m_Position) }
     };
     DSTableDesc table = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(NativeRow), .m_ResetPolicy = DS_RESET_RETAIN };
-    HDSContext  store = DSCreateStore(0);
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    HDSContext  store = DSStoreCreate(0);
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     input[count - 1].m_Enabled = 2;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateRows(store, 1, 0, count, input, ids));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowCreate(store, 1, 0, count, input, ids));
     ASSERT_TRUE(FindTable(store, 1)->m_Rows.Empty());
     for (uint32_t i = 0; i < count; ++i)
         ASSERT_EQ(99u, ids[i]);
 
     input[count - 1].m_Enabled = 0;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, count, input, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, count, input, ids));
     for (uint32_t i = 0; i < count; ++i)
     {
         uint8_t   enabled;
@@ -3500,16 +3500,16 @@ TEST(Data, NativeRowsValidateBeforeWritingAcrossBlocks)
         ASSERT_EQ(0, memcmp(&input[i].m_Position, &position, sizeof(position)));
     }
     DSVector3 changed = { .m_Values = { -1, -2, -3 } };
-    ASSERT_EQ(DS_RESULT_OK, DSSetFieldVector3(store, ids[count - 1], 2, &changed));
-    ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[count - 1]));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSetVector3(store, ids[count - 1], 2, &changed));
+    ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[count - 1]));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetVector3(store, ids[count - 1], 2, &changed));
     ASSERT_EQ((float)(count - 1), changed.m_Values[0]);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 TEST(Data, BatchStringsAcrossOwnedAndPackedRows)
 {
-    HDSContext store = DSCreateStore(0);
+    HDSContext store = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1));
     DSId ids[131];
     char text[32];
@@ -3519,13 +3519,13 @@ TEST(Data, BatchStringsAcrossOwnedAndPackedRows)
         ASSERT_EQ(DS_RESULT_OK, Add(store, 1, 0, i, text, &ids[i]));
     }
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, 0, 0, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, 0, 0, &size));
     uint8_t* bytes = new uint8_t[size];
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, size, &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, size, &size));
     HDSBlob         blob;
     HDSBlobInstance instance;
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, 0, &instance));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, 0, &instance));
     for (uint32_t i = 0; i < 131; i += 2)
         ids[i] = MakeId(store, GetInstanceSlots(instance)[i]);
     const char* strings[131];
@@ -3538,9 +3538,9 @@ TEST(Data, BatchStringsAcrossOwnedAndPackedRows)
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldGetStringBatch(store, 131, ids, 10, strings));
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGetStringBatch(store, 131, ids, 999, strings));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetStringBatch(0, 0, 0, 20, 0));
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveBlob(instance));
-    DSDestroyBlob(blob);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(instance));
+    DSBlobDestroy(blob);
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     delete[] bytes;
 }
 
@@ -3582,13 +3582,13 @@ TEST(Data, SoARowsWithManyFieldsValidateBeforePublishing)
         enabled[r] = r & 1;
         ids[r] = 99;
     }
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSTableDesc desc = { .m_Type = 1, .m_Fields = layout, .m_FieldCount = field_count + 1, .m_RowStride = sizeof(Row), .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     DSTable* table = FindTable(store, 1);
     uint64_t revision = store->m_Revision;
     enabled[count - 1] = 2;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateRowsSoA(store, 1, 0, count, field_count + 1, fields, ids));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowCreateSoA(store, 1, 0, count, field_count + 1, fields, ids));
     ASSERT_EQ(revision, store->m_Revision);
     ASSERT_TRUE(table->m_Rows.Empty());
     ASSERT_TRUE(table->m_Chunks.Empty());
@@ -3596,7 +3596,7 @@ TEST(Data, SoARowsWithManyFieldsValidateBeforePublishing)
         ASSERT_EQ(99u, ids[r]);
 
     enabled[count - 1] = 0;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRowsSoA(store, 1, 0, count, field_count + 1, fields, ids));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreateSoA(store, 1, 0, count, field_count + 1, fields, ids));
     for (uint32_t f = 0; f < field_count; ++f)
     {
         for (uint32_t r = 0; r < count; ++r)
@@ -3607,19 +3607,19 @@ TEST(Data, SoARowsWithManyFieldsValidateBeforePublishing)
         }
     }
     // Append after swap removal and verify earlier rows/defaults remain intact.
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[0]));
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[0]));
     DSId added;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRowsSoA(store, 1, 0, 1, field_count + 1, fields, &added));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreateSoA(store, 1, 0, 1, field_count + 1, fields, &added));
     ASSERT_NE(ids[0], added);
     values[3][count - 1] = -1;
-    ASSERT_EQ(DS_RESULT_OK, DSSetFieldNumber(store, ids[count - 1], 103, 0));
-    ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[count - 1]));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldSetNumber(store, ids[count - 1], 103, 0));
+    ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[count - 1]));
     double value;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ids[count - 1], 103, &value));
     ASSERT_EQ((double)(4 * count - 1), value);
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, added, 103, &value));
     ASSERT_EQ((double)(3 * count), value);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 static void CheckNativeReferences(HDSContext store, const DSId ids[2])
@@ -3630,19 +3630,19 @@ static void CheckNativeReferences(HDSContext store, const DSId ids[2])
         DSValue child;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[i], 11, &object));
         ASSERT_EQ(DS_TYPE_STRUCT, object.m_Type);
-        ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&object.m_Value.m_Struct, 1, &child));
+        ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&object.m_Value.m_Struct, 1, &child));
         ASSERT_STREQ(i ? "bandits" : "guards", child.m_Value.m_String);
-        ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&object.m_Value.m_Struct, 2, &child));
+        ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&object.m_Value.m_Struct, 2, &child));
         ASSERT_EQ(i ? 25.0 : 15.0, child.m_Value.m_Number);
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[i], 12, &object));
         ASSERT_EQ(DS_TYPE_LIST, object.m_Type);
         ASSERT_EQ(2u, object.m_Value.m_List.m_Count);
-        ASSERT_EQ(DS_RESULT_OK, DSGetListValue(&object.m_Value.m_List, 0, &child));
+        ASSERT_EQ(DS_RESULT_OK, DSListGetValue(&object.m_Value.m_List, 0, &child));
         if (i)
         {
             ASSERT_EQ(DS_TYPE_STRUCT, child.m_Type);
             DSValue faction;
-            ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&child.m_Value.m_Struct, 1, &faction));
+            ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&child.m_Value.m_Struct, 1, &faction));
             ASSERT_STREQ("guards", faction.m_Value.m_String);
         }
         else
@@ -3657,7 +3657,7 @@ TEST(Data, NativeReferencesFromC)
 {
     for (uint32_t soa = 0; soa < 2; ++soa)
     {
-        HDSContext store = DSCreateStore(0);
+        HDSContext store = DSStoreCreate(0);
         DSId       ids[2];
         ASSERT_EQ(0, CreateReferenceRowsFromC(store, soa, ids));
         CheckNativeReferences(store, ids);
@@ -3667,22 +3667,22 @@ TEST(Data, NativeReferencesFromC)
 
         uint8_t  DM_ALIGNED(8) bytes[4096];
         uint32_t size;
-        ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, sizeof(bytes), &size));
+        ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, sizeof(bytes), &size));
         HDSBlob blob;
-        ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-        HDSContext      loaded = DSCreateStore(0);
+        ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
+        HDSContext      loaded = DSStoreCreate(0);
         HDSBlobInstance instance;
-        ASSERT_EQ(DS_RESULT_OK, DSAddBlob(loaded, blob, 0, &instance));
-        DSDestroyBlob(blob);
+        ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(loaded, blob, 0, &instance));
+        DSBlobDestroy(blob);
         DSId loaded_ids[] = { MakeId(loaded, 0), MakeId(loaded, 1) };
         CheckNativeReferences(loaded, loaded_ids);
-        ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
-        ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[0]));
-        ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[1]));
+        ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(loaded));
+        ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[0]));
+        ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[1]));
         const char* name;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, ids[1], 10, &name));
         ASSERT_STREQ("Bandit", name);
-        ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+        ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     }
 }
 
@@ -3690,10 +3690,10 @@ TEST(Data, NativeReferenceValidation)
 {
     for (uint32_t soa = 0; soa < 2; ++soa)
     {
-        HDSContext  store = DSCreateStore(0);
+        HDSContext  store = DSStoreCreate(0);
         DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_LIST };
         DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference) };
-        ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+        ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
         double      numbers[] = { 1, 2 };
         DSListInput lists[] = {
             { .m_Type = DS_TYPE_NUMBER, .m_Count = 2, .m_Values = numbers },
@@ -3720,7 +3720,7 @@ TEST(Data, NativeReferenceValidation)
                     rows[0].m_List = &lists[1];
                     break;
             }
-            DSResult result = soa ? DSCreateRowsSoA(store, 1, 0, 2, 1, &column, ids) : DSCreateRows(store, 1, 0, 2, rows, ids);
+            DSResult result = soa ? DSRowCreateSoA(store, 1, 0, 2, 1, &column, ids) : DSRowCreate(store, 1, 0, 2, rows, ids);
             ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, result);
             ASSERT_EQ((DSId)123, ids[0]);
             ASSERT_EQ((DSId)456, ids[1]);
@@ -3732,19 +3732,19 @@ TEST(Data, NativeReferenceValidation)
         lists[1] = { .m_Type = DS_TYPE_NUMBER }; // Empty lists need no values array.
         rows[0].m_List = &lists[0];
         rows[1].m_List = &lists[1];
-        DSResult result = soa ? DSCreateRowsSoA(store, 1, 0, 2, 1, &column, 0) : DSCreateRows(store, 1, 0, 2, rows, 0);
+        DSResult result = soa ? DSRowCreateSoA(store, 1, 0, 2, 1, &column, 0) : DSRowCreate(store, 1, 0, 2, rows, 0);
         ASSERT_EQ(DS_RESULT_OK, result);
         ASSERT_EQ(2u, FindTable(store, 1)->m_Rows.Size());
-        ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+        ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     }
 }
 
 TEST(Data, NativeDynamicStructAndNestedListInput)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT };
     DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference) };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     uint64_t    bytes[] = { 2, 0 };
     DSFieldDesc members[] = {
         { .m_Field = 1, .m_Type = DS_TYPE_BOOLEAN },
@@ -3754,41 +3754,41 @@ TEST(Data, NativeDynamicStructAndNestedListInput)
     DSStructInput object = { .m_Layout = &layout, .m_Values = bytes };
     DSReference   row = { .m_Struct = &object };
     DSId          id = 123;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateRows(store, 1, 0, 1, &row, &id)); // Invalid Boolean.
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowCreate(store, 1, 0, 1, &row, &id)); // Invalid Boolean.
     bytes[0] = 1;
     members[1].m_Field = 1;
-    ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSCreateRows(store, 1, 0, 1, &row, &id));
+    ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSRowCreate(store, 1, 0, 1, &row, &id));
     members[1].m_Field = 2;
     members[1].m_Offset = 17;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateRows(store, 1, 0, 1, &row, &id));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowCreate(store, 1, 0, 1, &row, &id));
     object.m_Layout = 0;
-    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateRows(store, 1, 0, 1, &row, &id));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowCreate(store, 1, 0, 1, &row, &id));
     ASSERT_EQ((DSId)123, id);
     object.m_Layout = &layout;
     layout = {};
     object.m_Values = 0;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 1, &row, &id)); // Empty dynamic struct.
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 1, &row, &id)); // Empty dynamic struct.
     DSValue value;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, 1, &value));
     ASSERT_EQ(0u, value.m_Value.m_Struct.m_Count);
 
     field.m_Type = DS_TYPE_LIST;
     table.m_Type = 2;
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSVector3   vector = { .m_Values = { 1, 2, 3 } };
     DSListInput child = { .m_Type = DS_TYPE_VECTOR3, .m_Count = 1, .m_Values = &vector };
     DSReference element = { .m_List = &child };
     DSListInput parent = { .m_Type = DS_TYPE_LIST, .m_Count = 1, .m_Values = &element };
     row.m_List = &parent;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 2, 0, 1, &row, &id));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 2, 0, 1, &row, &id));
     vector.m_Values[2] = 99;
     DSValue nested;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, id, 1, &value));
-    ASSERT_EQ(DS_RESULT_OK, DSGetListValue(&value.m_Value.m_List, 0, &nested));
-    ASSERT_EQ(DS_RESULT_OK, DSGetListValue(&nested.m_Value.m_List, 0, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSListGetValue(&value.m_Value.m_List, 0, &nested));
+    ASSERT_EQ(DS_RESULT_OK, DSListGetValue(&nested.m_Value.m_List, 0, &value));
     ASSERT_EQ(DS_TYPE_VECTOR3, value.m_Type);
     ASSERT_EQ(3.0f, value.m_Value.m_Vector3[2]);
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 static void CheckMixedList(const DSList* list)
@@ -3800,29 +3800,29 @@ static void CheckMixedList(const DSList* list)
     for (uint32_t i = 0; i < list->m_Count; ++i)
     {
         DSValue value;
-        ASSERT_EQ(DS_RESULT_OK, DSGetListValue(list, i, &value));
+        ASSERT_EQ(DS_RESULT_OK, DSListGetValue(list, i, &value));
         ASSERT_EQ(types[i], value.m_Type);
     }
     DSValue value;
-    ASSERT_EQ(DS_RESULT_OK, DSGetListValue(list, 0, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSListGetValue(list, 0, &value));
     ASSERT_EQ(100.0, value.m_Value.m_Number);
-    ASSERT_EQ(DS_RESULT_OK, DSGetListValue(list, 1, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSListGetValue(list, 1, &value));
     ASSERT_STREQ("coin", value.m_Value.m_String);
-    ASSERT_EQ(DS_RESULT_OK, DSGetListValue(list, 2, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSListGetValue(list, 2, &value));
     ASSERT_EQ(1, value.m_Value.m_Boolean);
-    ASSERT_EQ(DS_RESULT_OK, DSGetListValue(list, 3, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSListGetValue(list, 3, &value));
     DSValue child;
-    ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&value.m_Value.m_Struct, 42, &child));
+    ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&value.m_Value.m_Struct, 42, &child));
     ASSERT_EQ(100.0, child.m_Value.m_Number);
-    ASSERT_EQ(DS_RESULT_OK, DSGetListValue(list, 4, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSListGetValue(list, 4, &value));
     ASSERT_EQ(2u, value.m_Value.m_List.m_Count);
-    ASSERT_EQ(DS_RESULT_OK, DSGetListValue(&value.m_Value.m_List, 0, &child));
+    ASSERT_EQ(DS_RESULT_OK, DSListGetValue(&value.m_Value.m_List, 0, &child));
     ASSERT_EQ(1.0, child.m_Value.m_Number);
-    ASSERT_EQ(DS_RESULT_OK, DSGetListValue(list, 6, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSListGetValue(list, 6, &value));
     ASSERT_EQ(3.0f, value.m_Value.m_Vector3[2]);
-    ASSERT_EQ(DS_RESULT_OK, DSGetListValue(list, 7, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSListGetValue(list, 7, &value));
     ASSERT_EQ(7.0f, value.m_Value.m_Vector4[3]);
-    ASSERT_EQ(DS_RESULT_OK, DSGetListValue(list, 8, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSListGetValue(list, 8, &value));
     ASSERT_EQ(1.0f, value.m_Value.m_Matrix4[15]);
 }
 
@@ -3830,7 +3830,7 @@ TEST(Data, MixedListCreationFromC)
 {
     for (uint32_t soa = 0; soa < 2; ++soa)
     {
-        HDSContext store = DSCreateStore(0);
+        HDSContext store = DSStoreCreate(0);
         DSId       ids[2];
         ASSERT_EQ(0, CreateMixedListRowsFromC(store, soa, ids));
         DSValue value;
@@ -3838,33 +3838,33 @@ TEST(Data, MixedListCreationFromC)
         CheckMixedList(&value.m_Value.m_List);
         DSValue parent;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[1], 1, &parent));
-        ASSERT_EQ(DS_RESULT_OK, DSGetListValue(&parent.m_Value.m_List, 0, &value));
+        ASSERT_EQ(DS_RESULT_OK, DSListGetValue(&parent.m_Value.m_List, 0, &value));
         CheckMixedList(&value.m_Value.m_List);
         DSTable* table = FindTable(store, 94);
         ASSERT_EQ((DSPayloadBlock*)0, table->m_Owned->m_BaseValues->m_Next);
 
         DSValue empty = { .m_Type = DS_TYPE_LIST };
-        ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[0], 1, &empty));
-        ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[0]));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[0], 1, &empty));
+        ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[0]));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[0], 1, &value));
         CheckMixedList(&value.m_Value.m_List);
 
         uint8_t  DM_ALIGNED(8) bytes[4096];
         uint32_t size;
-        ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, sizeof(bytes), &size));
+        ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, sizeof(bytes), &size));
         HDSBlob blob;
-        ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-        HDSContext      loaded = DSCreateStore(0);
+        ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
+        HDSContext      loaded = DSStoreCreate(0);
         HDSBlobInstance instance;
-        ASSERT_EQ(DS_RESULT_OK, DSAddBlob(loaded, blob, 0, &instance));
-        DSDestroyBlob(blob);
+        ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(loaded, blob, 0, &instance));
+        DSBlobDestroy(blob);
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(loaded, MakeId(loaded, 0), 1, &value));
         CheckMixedList(&value.m_Value.m_List);
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(loaded, MakeId(loaded, 1), 1, &parent));
-        ASSERT_EQ(DS_RESULT_OK, DSGetListValue(&parent.m_Value.m_List, 0, &value));
+        ASSERT_EQ(DS_RESULT_OK, DSListGetValue(&parent.m_Value.m_List, 0, &value));
         CheckMixedList(&value.m_Value.m_List);
-        ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(loaded));
-        ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+        ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(loaded));
+        ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     }
 }
 
@@ -3872,10 +3872,10 @@ TEST(Data, MixedListValidationBeforePublishing)
 {
     for (uint32_t soa = 0; soa < 2; ++soa)
     {
-        HDSContext  store = DSCreateStore(0);
+        HDSContext  store = DSStoreCreate(0);
         DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_LIST };
         DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference) };
-        ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
+        ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
         DSValueType  type = DS_TYPE_NUMBER;
         const void*  payload = 0;
         DSListInput  mixed = { .m_Count = 1, .m_Values = &payload, .m_Types = &type };
@@ -3903,7 +3903,7 @@ TEST(Data, MixedListValidationBeforePublishing)
                     mixed.m_Values = 0;
                     break;
             }
-            DSResult result = soa ? DSCreateRowsSoA(store, 1, 0, 2, 1, &column, ids) : DSCreateRows(store, 1, 0, 2, rows, ids);
+            DSResult result = soa ? DSRowCreateSoA(store, 1, 0, 2, 1, &column, ids) : DSRowCreate(store, 1, 0, 2, rows, ids);
             ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, result);
             ASSERT_EQ((DSId)123, ids[0]);
             ASSERT_EQ((DSId)456, ids[1]);
@@ -3912,20 +3912,20 @@ TEST(Data, MixedListValidationBeforePublishing)
             ASSERT_EQ((DSPayloadBlock*)0, stored->m_Owned->m_BaseValues);
         }
         mixed.m_Count = 0; // Empty mixed lists need no payload pointer array.
-        ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 1, rows + 1, 0));
+        ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 1, rows + 1, 0));
         mixed.m_Count = 1;
         mixed.m_Values = &payload;
         type = DS_TYPE_NULL;
         payload = 0;
-        ASSERT_EQ(DS_RESULT_OK, DSCreateRowsSoA(store, 1, 0, 2, 1, &column, 0));
-        ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+        ASSERT_EQ(DS_RESULT_OK, DSRowCreateSoA(store, 1, 0, 2, 1, &column, 0));
+        ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     }
 }
 
 // Root aliases must not hide inline members during registration or blob loading.
 TEST(Data, DuplicateFullFieldNamesAreRejected)
 {
-    HDSContext   store = DSCreateStore(0);
+    HDSContext   store = DSStoreCreate(0);
     uint64_t     color = dmHashString64("light.color");
     DSFieldDesc  member = { .m_Field = dmHashString64("color"), .m_Type = DS_TYPE_NUMBER, .m_Name = "color" };
     DSStructDesc light = { .m_Fields = &member, .m_FieldCount = 1, .m_Size = sizeof(double) };
@@ -3937,34 +3937,34 @@ TEST(Data, DuplicateFullFieldNamesAreRejected)
     DSQueryItem field = { .m_Hash = color, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc query_desc = { .m_Items = { field } };
     HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &query_desc, &query));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &query_desc, &query));
     uint64_t revision = store->m_Revision;
-    ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSTableAdd(store, &desc));
     ASSERT_EQ(revision, store->m_Revision);
     ASSERT_TRUE(store->m_Tables.Empty());
     ASSERT_TRUE(query->m_Tables.Empty());
 
     fields[1].m_Field = dmHashString64("intensity");
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     double values[] = { 3, 7 };
     DSId   id;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 1, values, &id));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 1, values, &id));
     double value;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, id, color, &value));
     ASSERT_EQ(3.0, value);
 
     uint8_t  DM_ALIGNED(8) bytes[512];
     uint32_t size;
-    ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, sizeof(bytes), &size));
+    ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, sizeof(bytes), &size));
     HDSBlob blob;
-    ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-    DSDestroyBlob(blob);
+    ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
+    DSBlobDestroy(blob);
     uint32_t table_offset = (uint32_t)ReadDataInteger(bytes + DATA_TABLE_OFFSETS_OFFSET, 4);
     uint8_t* root = bytes + table_offset + DATA_TABLE_HEADER_SIZE + DATA_FIELD_META_SIZE;
     WriteDataInteger(root + offsetof(DSFileFieldMeta, m_NameHash), color, 8);
-    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSLoadBlob(bytes, size, &blob));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_INVALID_FORMAT, DSBlobLoad(bytes, size, &blob));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 // Native AoS/SoA creation and nested setters must share the blob reader's depth budget.
@@ -3984,17 +3984,17 @@ TEST(Data, InlineAndDynamicNestingShareOneLimit)
     DSTableDesc  desc = { .m_Type = 1, .m_Fields = &root, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference) };
     for (uint32_t soa = 0; soa < 2; ++soa)
     {
-        HDSContext store = DSCreateStore(0);
-        ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
+        HDSContext store = DSStoreCreate(0);
+        ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
         DSReference  rows[] = { references[DATA_MAX_NESTING - 2], references[DATA_MAX_NESTING - 1] };
         DSFieldArray column = { .m_Field = root.m_Field, .m_Values = rows };
         DSId         ids[] = { 123, 456 };
-        DSResult     result = soa ? DSCreateRowsSoA(store, 1, 0, 2, 1, &column, ids) : DSCreateRows(store, 1, 0, 2, rows, ids);
+        DSResult     result = soa ? DSRowCreateSoA(store, 1, 0, 2, 1, &column, ids) : DSRowCreate(store, 1, 0, 2, rows, ids);
         ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, result);
         ASSERT_EQ((DSId)123, ids[0]);
         ASSERT_EQ((DSId)456, ids[1]);
         ASSERT_TRUE(FindTable(store, 1)->m_Rows.Empty());
-        result = soa ? DSCreateRowsSoA(store, 1, 0, 1, 1, &column, ids) : DSCreateRows(store, 1, 0, 1, rows, ids);
+        result = soa ? DSRowCreateSoA(store, 1, 0, 1, 1, &column, ids) : DSRowCreate(store, 1, 0, 1, rows, ids);
         ASSERT_EQ(DS_RESULT_OK, result);
 
         DSValue nested[DATA_MAX_NESTING + 1];
@@ -4002,29 +4002,29 @@ TEST(Data, InlineAndDynamicNestingShareOneLimit)
         for (uint32_t i = 1; i <= DATA_MAX_NESTING; ++i)
             nested[i] = List(&nested[i - 1], 1);
         uint64_t field = dmHashString64("state.items");
-        ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSSetField(store, ids[0], field, &nested[DATA_MAX_NESTING]));
-        ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[0], field, &nested[DATA_MAX_NESTING - 1]));
+        ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSet(store, ids[0], field, &nested[DATA_MAX_NESTING]));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[0], field, &nested[DATA_MAX_NESTING - 1]));
         uint8_t  DM_ALIGNED(8) bytes[4096];
         uint32_t size;
-        ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, sizeof(bytes), &size));
+        ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, sizeof(bytes), &size));
         HDSBlob blob;
-        ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
-        DSDestroyBlob(blob);
-        ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+        ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
+        DSBlobDestroy(blob);
+        ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     }
 }
 
 // Repeated waves reuse default storage, and swap removal preserves surviving reset values.
 TEST(Data, NativeDefaultsRemainDenseAcrossWaves)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_NUMBER };
     DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double), .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     DSTable* table = FindTable(store, 1);
     double   permanent_value = 99;
     DSId     permanent;
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 1, &permanent_value, &permanent));
+    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 1, &permanent_value, &permanent));
     double   values[128];
     DSId     ids[128];
     uint32_t capacity = 0;
@@ -4032,39 +4032,39 @@ TEST(Data, NativeDefaultsRemainDenseAcrossWaves)
     {
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(values); ++i)
             values[i] = wave * 128 + i;
-        ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 128, values, ids));
+        ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 128, values, ids));
         if (!wave)
             capacity = table->m_Chunks.Size();
         ASSERT_EQ(capacity, table->m_Chunks.Size());
         for (uint32_t i = 0; i < 128; ++i)
         {
-            ASSERT_EQ(DS_RESULT_OK, DSSetFieldNumber(store, ids[i], 1, -1));
-            ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[i]));
+            ASSERT_EQ(DS_RESULT_OK, DSFieldSetNumber(store, ids[i], 1, -1));
+            ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[i]));
             double value;
             ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ids[i], 1, &value));
             ASSERT_EQ(values[i], value);
-            ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[i]));
+            ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[i]));
             ASSERT_EQ((table->m_Rows.Size() + table->m_ChunkMask) >> table->m_ChunkShift, table->m_Chunks.Size());
             for (uint32_t row = 0; row < table->m_Rows.Size(); ++row)
                 ASSERT_EQ(row, table->m_Rows[row].m_BaseIndex);
         }
-        ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, permanent));
+        ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, permanent));
         double value;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, permanent, 1, &value));
         ASSERT_EQ(permanent_value, value);
     }
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, permanent));
+    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, permanent));
     ASSERT_TRUE(table->m_Chunks.Empty());
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
 // Emptying a native table releases string/list arenas while keeping child slots reusable.
 TEST(Data, EmptyNativeTableReleasesPayloadArenas)
 {
-    HDSContext  store = DSCreateStore(0);
+    HDSContext  store = DSStoreCreate(0);
     DSFieldDesc root = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT };
     DSTableDesc table_desc = { .m_Type = 1, .m_Fields = &root, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference), .m_ResetPolicy = DS_RESET_RETAIN };
-    ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table_desc));
+    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table_desc));
     DSFieldDesc fields[] = {
         { .m_Field = 10, .m_Type = DS_TYPE_STRING },
         { .m_Field = 20, .m_Type = DS_TYPE_LIST, .m_Offset = sizeof(DSReference) }
@@ -4079,22 +4079,22 @@ TEST(Data, EmptyNativeTableReleasesPayloadArenas)
     for (uint32_t wave = 0; wave < 4; ++wave)
     {
         DSId ids[2];
-        ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 2, rows, ids));
+        ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 2, rows, ids));
         DSValue value;
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[1], 1, &value));
-        ASSERT_EQ(DS_RESULT_OK, DSSetField(store, ids[1], 1, &value));
+        ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[1], 1, &value));
         ASSERT_TRUE(table->m_Payloads != 0);
-        ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[0]));
-        ASSERT_EQ(DS_RESULT_OK, DSResetRow(store, ids[1]));
+        ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[0]));
+        ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[1]));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[1], 1, &value));
         DSValue child;
-        ASSERT_EQ(DS_RESULT_OK, DSGetStructField(&value.m_Value.m_Struct, 10, &child));
+        ASSERT_EQ(DS_RESULT_OK, DSStructGetField(&value.m_Value.m_Struct, 10, &child));
         ASSERT_STREQ("original", child.m_Value.m_String);
-        ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ids[1]));
+        ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[1]));
         ASSERT_TRUE(table->m_Chunks.Empty());
         ASSERT_EQ((DSPayloadBlock*)0, table->m_Owned->m_BaseValues);
         ASSERT_EQ((DSPayloadBlock*)0, table->m_Payloads);
         ASSERT_EQ(0u, table->m_Structs->m_Tables[0]->m_RowCount);
     }
-    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }

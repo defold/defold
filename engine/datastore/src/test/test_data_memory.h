@@ -46,9 +46,9 @@ struct DSMemoryStats
 };
 
 // Fixtures choose their own IDs; the store creates membership on first use.
-static inline DSGroupId NextTestGroupId()
+static inline DSId NextTestGroupId()
 {
-    static DSGroupId next = 0;
+    static DSId next = 0;
     return ++next;
 }
 

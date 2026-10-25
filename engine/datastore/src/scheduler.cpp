@@ -82,7 +82,7 @@ static DSResult RegisterSystem(HDSContext store, const DSSystemDesc* desc)
     return DS_RESULT_OK;
 }
 
-DSResult DSRegisterFunction(HDSContext store, const DSSystemDesc* desc)
+DSResult DSFunctionAdd(HDSContext store, const DSSystemDesc* desc)
 {
     if (store->m_ScheduleActive)
         return DS_RESULT_LOCKED;
@@ -91,7 +91,7 @@ DSResult DSRegisterFunction(HDSContext store, const DSSystemDesc* desc)
     return RegisterSystem(store, desc);
 }
 
-DSResult DSRegisterEvent(HDSContext store, const DSEventDesc* desc)
+DSResult DSEventAdd(HDSContext store, const DSEventDesc* desc)
 {
     if (store->m_ScheduleActive)
         return DS_RESULT_LOCKED;
@@ -114,12 +114,12 @@ static DSResult UnregisterSystem(HDSContext store, dmhash_t name, bool event)
     return DS_RESULT_OK;
 }
 
-DSResult DSUnregisterFunction(HDSContext store, dmhash_t name)
+DSResult DSFunctionRemove(HDSContext store, dmhash_t name)
 {
     return UnregisterSystem(store, name, false);
 }
 
-DSResult DSUnregisterEvent(HDSContext store, dmhash_t name)
+DSResult DSEventRemove(HDSContext store, dmhash_t name)
 {
     return UnregisterSystem(store, name, true);
 }
@@ -175,7 +175,7 @@ static DSResult ResolveDependencies(HDSContext store)
     return DS_RESULT_OK;
 }
 
-DSResult DSBeginSchedule(HDSContext store, HJobContext jobs)
+DSResult DSSchedulerBegin(HDSContext store, HJobContext jobs)
 {
     {
         DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
@@ -278,7 +278,7 @@ DSResult DSSchedulerSync(HDSContext store)
     return DS_RESULT_OK;
 }
 
-DSResult DSEndSchedule(HDSContext store)
+DSResult DSSchedulerEnd(HDSContext store)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (!store->m_ScheduleActive)
