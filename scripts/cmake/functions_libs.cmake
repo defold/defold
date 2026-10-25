@@ -123,6 +123,8 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
 #   is a linker flag (starts with "-"), or already ends with ".lib".
 # - Exceptions (these already follow Windows naming): hid, hid_null, input,
 #   platform, platform_null, platform_vulkan.
+# - Apple platforms omit mbedtls and mbedtls_noasan unless the mbedtls feature
+#   is enabled, matching dlib's crypto and TLS backend selection.
 # - Other platforms link the names as-is.
 
 function(defold_target_link_libraries target platform)
@@ -142,8 +144,14 @@ function(defold_target_link_libraries target platform)
   # mirrors Waf's LUA uselib and resolves to the platform runtime, not
   # necessarily the vanilla lua target.
   set(_SDK_LIBS ${DLIB_UNPARSED_ARGUMENTS})
+  if(platform MATCHES "(macos|ios)$")
+    defold_feature_enabled(mbedtls _use_mbedtls)
+    if(NOT _use_mbedtls)
+      list(REMOVE_ITEM _SDK_LIBS mbedtls mbedtls_noasan)
+    endif()
+  endif()
   set(_LIBS)
-  foreach(_lib IN LISTS DLIB_UNPARSED_ARGUMENTS)
+  foreach(_lib IN LISTS _SDK_LIBS)
     if(_lib MATCHES "^(basis_encoder|basis_transcoder)$")
       defold_import_basisu("${_lib}" "${platform}")
     endif()

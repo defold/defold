@@ -47,6 +47,7 @@ namespace dmHttpServer
         int32_atomic_t   m_Done;
         bool             m_Succeeded;
         bool             m_CloseConnection;
+        bool             m_Draining;
         StreamRead       m_Read;
         StreamClose      m_Close;
         void*            m_Context;
@@ -284,7 +285,7 @@ namespace dmHttpServer
             Connection* connection = &server->m_Connections[i];
             // Allow a small shutdown acknowledgement, without reading a stream
             // or waiting for the client on the update thread.
-            if (connection->m_Response && !connection->m_Response->m_Close &&
+            if (connection->m_Response && !connection->m_Response->m_Close && !connection->m_Response->m_Draining &&
                 !dmAtomicGet32(&connection->m_Response->m_Done))
             {
                 bool progress = false;
@@ -865,7 +866,46 @@ namespace dmHttpServer
         *progress = true;
         response->m_Offset += sent_bytes;
         response->m_Deadline = dmTime::GetMonotonicTime() + response->m_Timeout;
-        return response->m_Offset == response->m_Size && !response->m_Remaining ? RESULT_OK : RESULT_TRY_AGAIN;
+        if (response->m_Offset != response->m_Size || response->m_Remaining)
+        {
+            return RESULT_TRY_AGAIN;
+        }
+        if (!response->m_CloseConnection)
+        {
+            return RESULT_OK;
+        }
+
+        // A read-side shutdown with unread upload data resets TCP on Windows,
+        // potentially discarding this response. Send FIN first, then discard
+        // incoming bytes asynchronously until EOF or the fixed close deadline.
+        if (dmSocket::Shutdown(response->m_Socket, dmSocket::SHUTDOWNTYPE_WRITE) != dmSocket::RESULT_OK)
+        {
+            return RESULT_SOCKET_ERROR;
+        }
+        CloseStream(response);
+        free(response->m_Buffer);
+        response->m_Buffer = 0;
+        response->m_Draining = true;
+        return RESULT_TRY_AGAIN;
+    }
+
+    static Result DrainRequest(AsyncResponse* response, bool* progress)
+    {
+        char buffer[4096];
+        int received_bytes;
+        dmSocket::Result result = dmSocket::Receive(response->m_Socket, buffer, sizeof(buffer), &received_bytes);
+        if (result == dmSocket::RESULT_TRY_AGAIN || result == dmSocket::RESULT_WOULDBLOCK)
+        {
+            return RESULT_TRY_AGAIN;
+        }
+        if (result != dmSocket::RESULT_OK)
+        {
+            return RESULT_SOCKET_ERROR;
+        }
+        *progress = true;
+        // Do not extend the deadline: a rejected upload must not keep its slot
+        // indefinitely by continuing to send data after the response.
+        return received_bytes == 0 ? RESULT_OK : RESULT_TRY_AGAIN;
     }
 
     static bool UpdateResponses(ResponseSender* sender, int32_t timeout)
@@ -889,8 +929,10 @@ namespace dmHttpServer
         dmSocket::Selector selector;
         for (uint32_t i = 0; i < sender->m_Active.Size(); ++i)
         {
-            dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_WRITE, sender->m_Active[i]->m_Socket);
-            dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_EXCEPT, sender->m_Active[i]->m_Socket);
+            AsyncResponse* response = sender->m_Active[i];
+            dmSocket::SelectorSet(&selector, response->m_Draining ? dmSocket::SELECTOR_KIND_READ : dmSocket::SELECTOR_KIND_WRITE,
+                                  response->m_Socket);
+            dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_EXCEPT, response->m_Socket);
         }
         dmSocket::Result selected = dmSocket::Select(&selector, timeout);
         if (selected == dmSocket::RESULT_TRY_AGAIN)
@@ -908,12 +950,13 @@ namespace dmHttpServer
             {
                 result = RESULT_SOCKET_ERROR;
             }
-            else if (dmSocket::SelectorIsSet(&selector, dmSocket::SELECTOR_KIND_WRITE, response->m_Socket) ||
+            else if (dmSocket::SelectorIsSet(&selector, response->m_Draining ? dmSocket::SELECTOR_KIND_READ : dmSocket::SELECTOR_KIND_WRITE,
+                                           response->m_Socket) ||
                      dmSocket::SelectorIsSet(&selector, dmSocket::SELECTOR_KIND_EXCEPT, response->m_Socket))
             {
                 // A hangup can mean the client only closed its sending side.
-                // Let the nonblocking send distinguish that from a broken socket.
-                result = SendResponse(response, &progress);
+                // Let nonblocking I/O distinguish that from a broken socket.
+                result = response->m_Draining ? DrainRequest(response, &progress) : SendResponse(response, &progress);
             }
             if (result == RESULT_TRY_AGAIN)
             {

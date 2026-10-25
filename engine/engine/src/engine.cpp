@@ -115,6 +115,10 @@ extern uint32_t      DEBUG_SPC_SIZE;
 #include <platform/platform_window_android.h>
 #endif
 
+#if defined(DM_PLATFORM_IOS)
+#include <platform/platform_window_ios.h>
+#endif
+
 DM_PROPERTY_EXTERN(rmtp_Script);
 DM_PROPERTY_U32(rmtp_LuaMem, 0, PROFILE_PROPERTY_FRAME_RESET, "kb", &rmtp_Script); // kilo bytes
 DM_PROPERTY_U32(rmtp_LuaRefs, 0, PROFILE_PROPERTY_FRAME_RESET, "# Lua references", &rmtp_Script);
@@ -1335,6 +1339,10 @@ namespace dmEngine
             dmLogFatal("Could not open window (%d).", platform_result);
             return false;
         }
+
+#if defined(DM_PLATFORM_IOS)
+        dmPlatform::SetiOSHomeIndicatorMode(dmConfigFile::GetString(engine->m_Config, "ios.home_indicator_mode", "deferred"));
+#endif
 
         bool setting_vsync     = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
         uint32_t swap_interval = dmConfigFile::GetInt(engine->m_Config, "display.swap_interval", 1);

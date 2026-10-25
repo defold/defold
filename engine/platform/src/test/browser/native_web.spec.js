@@ -146,6 +146,34 @@ test("rendering, resize and input survive window recreation", async ({ page }) =
     expect((await state(page)).closes).toBe(2);
 });
 
+// Verify a loader-selected ratio is reported as display scale and survives fullscreen without duplicate resize events (#8040).
+test("fullscreen respects the loader pixel ratio", async ({ page }) => {
+    await page.evaluate(() => {
+        Module.getPixelRatio = highDPI => highDPI ? Math.min(devicePixelRatio, 1.5) : 1;
+        Module.canvas.width = 480;
+        Module.canvas.height = 360;
+    });
+    await openWindow(page);
+    expect(await state(page)).toMatchObject({ width: 480, height: 360, scale: 1.5 });
+    const box = await page.locator("#canvas").boundingBox();
+    await page.mouse.move(box.x + 64, box.y + 48);
+    expect(await state(page)).toMatchObject({ x: 96, y: 72 });
+
+    await browserStateChange(page, "fullscreenchange", () => page.locator("#fullscreen").click());
+    await page.evaluate(() => Module._TestFrame());
+    const expectedSize = await page.evaluate(() => ({
+        width: Math.floor(innerWidth * 1.5), height: Math.floor(innerHeight * 1.5)
+    }));
+    const fullscreen = await state(page);
+    expect(fullscreen).toMatchObject({ ...expectedSize, fullscreen: true, scale: 1.5 });
+    await page.evaluate(() => Module._TestFrame());
+    expect((await state(page)).resizes).toBe(fullscreen.resizes);
+    expect(await page.evaluate(() => Module._TestRender())).toBe(1);
+
+    await browserStateChange(page, "fullscreenchange", () => page.evaluate(() => document.exitFullscreen()));
+    await page.evaluate(() => Module._TestClose());
+});
+
 // Verify fullscreen and pointer lock survive recreation, waiting for change events to guard against stale backend state.
 test("fullscreen and pointer lock recover across teardown", async ({ page }) => {
     await openWindow(page);
