@@ -221,7 +221,7 @@ ResourceResult ResourceGetWithExt(HResourceFactory factory, const char* path, co
  * @param factory [type: HResourceFactory] Factory handle
  * @param path_hash [type: dmhash_t] Resource path hash
  * @param resource [type: void**] Created resource
- * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success, RESOURCE_RESULT_PENDING while finalization is pending.
  */
 ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t path_hash, void** resource);
 
@@ -232,7 +232,7 @@ ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t path_hash, v
  * @param path_hash [type: dmhash_t] Resource path hash
  * @param ext_hash [type: dmhash_t] Resource extension hash (e.g. "texturec", "ttf"). Must match the extension of the path.
  * @param resource [type: void**] Created resource
- * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success.
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success, RESOURCE_RESULT_PENDING while finalization is pending.
  *                                       RESOURCE_RESULT_INVALID_FILE_EXTENSION if the path extension doesn't match the required extension.
  */
 ResourceResult ResourceGetByHashAndExt(HResourceFactory factory, dmhash_t path_hash, dmhash_t ext_hash, void** resource);

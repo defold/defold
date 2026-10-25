@@ -36,6 +36,7 @@ struct ResourcePreloader
     dmResource::LoadContext* m_Context;
     dmArray<dmResource::LoadNode*> m_Roots;
     dmResource::Result m_CallbackResult;
+    uint64_t m_NextPostTime;
     bool m_CallbackCalled;
     bool m_Holding;
     bool m_Blocking;
@@ -376,9 +377,9 @@ namespace dmResource
         node->m_FirstDependent = INVALID_LOAD_INDEX;
         node->m_CreateResult = RESULT_PENDING;
         node->m_Result = RESULT_PENDING;
-        node->m_DependencyResult = CheckSuppliedResourcePath(path);
+        node->m_DependencyResult = RESULT_OK;
         node->m_Type = type;
-        if (node->m_DependencyResult == RESULT_OK && !type)
+        if (!type)
         {
             const char* ext = GetExtFromPath(canonical);
             node->m_Type = ext ? FindResourceType(context->m_Factory, ext) : 0;
@@ -654,7 +655,7 @@ namespace dmResource
 
     bool PreloadHint(HResourcePreloadHintInfo info, const char* path)
     {
-        if (!info || !path || CheckSuppliedResourcePath(path) != RESULT_OK || strlen(path) >= RESOURCE_PATH_MAX)
+        if (!info || !path || CheckSuppliedResourcePath(path) != RESULT_OK)
             return false;
         LoadContext* context = info->m_Context;
         DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
@@ -685,10 +686,18 @@ namespace dmResource
         if (!context)
             return RESULT_OK;
         DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-        if (!context->m_UpdateDepth || context->m_UpdateOwner != GetCaller(context) || !context->m_Creating)
-            return RESULT_OK;
         LoadNode** child = context->m_ByPath.Get(path);
-        return !child || RecordDependency(context, *child) ? RESULT_OK : RESULT_RESOURCE_LOOP_ERROR;
+        if (!child)
+            return RESULT_OK;
+        // Creation and preloader completion callbacks can consume created
+        // dependencies. External callers must observe the final load result.
+        if (context->m_UpdateDepth && context->m_UpdateOwner == GetCaller(context))
+        {
+            if (context->m_Creating && !RecordDependency(context, *child))
+                return RESULT_RESOURCE_LOOP_ERROR;
+            return (*child)->m_CreateResult;
+        }
+        return (*child)->m_Result;
     }
 
     static void Created(LoadContext* context, LoadNode* node)
@@ -926,7 +935,7 @@ namespace dmResource
 
     static void CallComplete(HPreloader request, FPreloaderCompleteCallback callback, PreloaderCompleteCallbackParams* params)
     {
-        if (request->m_CallbackCalled || !RootsCreated(request))
+        if (request->m_CallbackCalled || request->m_CallbackResult != RESULT_OK || !RootsCreated(request))
             return;
         request->m_CallbackCalled = true;
         for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
@@ -1074,10 +1083,14 @@ namespace dmResource
                         break;
                     }
             }
+            request->m_NextPostTime = dmTime::GetMonotonicTime() + 1000;
             PostCreateResourceNode(context, node);
             progressed = true;
             if (!node->m_PostDone)
+            {
+                DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
                 Push(context->m_Posts, node);
+            }
         }
         while ((!progressed || dmTime::GetMonotonicTime() - start < soft_time_limit) && ProcessCompletion(request))
         {
@@ -1122,6 +1135,9 @@ namespace dmResource
 
     static Result AddRoot(HPreloader request, const char* path, HResourceType type, const void* data, uint32_t size, uint32_t file_size, bool provided, bool dependency)
     {
+        Result result = CheckSuppliedResourcePath(path);
+        if (result != RESULT_OK)
+            return result;
         LoadContext* context = request->m_Context;
         LoadNode* node;
         void* resident = 0;
@@ -1168,14 +1184,18 @@ namespace dmResource
     {
         HPreloader request = NewRequest(factory);
         for (uint32_t i = 0; i < names.Size(); ++i)
-            AddRoot(request, names[i], 0, 0, 0, 0, false, false);
+        {
+            Result result = AddRoot(request, names[i], 0, 0, 0, 0, false, false);
+            if (request->m_CallbackResult == RESULT_OK)
+                request->m_CallbackResult = result;
+        }
         return request;
     }
 
     HPreloader NewPreloader(HFactory factory, const char* name)
     {
         HPreloader request = NewRequest(factory);
-        AddRoot(request, name, 0, 0, 0, 0, false, false);
+        request->m_CallbackResult = AddRoot(request, name, 0, 0, 0, 0, false, false);
         return request;
     }
 
@@ -1197,7 +1217,8 @@ namespace dmResource
             context->m_Recreating = 0;
             Signal(context);
         }
-        bool ready = FindRequestWork(request, context->m_Creates, LOAD_WORK_CREATE, false) || FindRequestWork(request, context->m_Posts, LOAD_WORK_POST, false) || FindRequestWork(request, context->m_Completions, LOAD_WORK_COMPLETE, false);
+        bool ready = FindRequestWork(request, context->m_Creates, LOAD_WORK_CREATE, false) || FindRequestWork(request, context->m_Completions, LOAD_WORK_COMPLETE, false);
+        bool post = FindRequestWork(request, context->m_Posts, LOAD_WORK_POST, false) != 0;
         if (request->m_Blocking || !context->m_ReadLimit)
             ready = ready || FindRequestWork(request, context->m_Reads, LOAD_WORK_READ, false);
         if (request->m_Blocking && !ready)
@@ -1214,7 +1235,16 @@ namespace dmResource
                 foreign = foreign || root->m_Load->m_Caller != caller;
             }
         }
-        if ((!complete && !ready && (context->m_ActiveReads || foreign)) || (context->m_UpdateDepth && context->m_UpdateOwner != caller))
+        uint64_t now = dmTime::GetMonotonicTime();
+        if (!ready && post && request->m_NextPostTime > now)
+        {
+            // PostCreate has no completion signal yet. Bound polling while
+            // yielding scheduler ownership, but do not delay useful callbacks.
+            dmMutex::Unlock(context->m_Mutex);
+            dmTime::Sleep((uint32_t)(request->m_NextPostTime - now));
+            dmMutex::Lock(context->m_Mutex);
+        }
+        else if ((!complete && !ready && !post && (context->m_ActiveReads || foreign)) || (context->m_UpdateDepth && context->m_UpdateOwner != caller))
             dmConditionVariable::Wait(context->m_Changed, context->m_Mutex);
         if (depth)
         {

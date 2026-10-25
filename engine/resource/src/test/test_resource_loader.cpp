@@ -509,6 +509,13 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         return true;
     }
 
+    static bool GetCreatedResource(const dmResource::PreloaderCompleteCallbackParams* params)
+    {
+        GetCaller* caller = (GetCaller*)params->m_UserData;
+        caller->m_Result = dmResource::Get(params->m_Factory, "/node_0.node", &caller->m_Resource);
+        return caller->m_Result == dmResource::RESULT_OK && !caller->m_Test->m_Posts[0];
+    }
+
     dmResource::Result CompleteWithCallback(dmResource::HPreloader request, uint32_t id)
     {
         Notification notification = { this, id };
@@ -1426,6 +1433,92 @@ TEST_P(ResourceLoaderTest, PostCreateDependencyCycle)
     ASSERT_EQ(1u, m_Posts[0]);
     ASSERT_EQ(1u, m_Posts[1]);
     ASSERT_EQ(0u, m_Decoded);
+}
+
+// Cached lookups must wait for PostCreate and propagate its failure without exposing a partial resource.
+TEST_P(ResourceLoaderTest, GetWaitsForPendingPostCreate)
+{
+    EnablePostCreate();
+    m_PostPendingOnce = true;
+    m_FailedPost = 1;
+    for (uint32_t id = 0; id < 2; ++id)
+    {
+        Add(id, 0, 0);
+        dmResource::HPreloader request = Request(id);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!m_Posts[id] && dmTime::GetMonotonicTime() < deadline)
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+        ASSERT_EQ(1u, m_Posts[id]);
+        char path[64];
+        Path(id, path, sizeof(path));
+        void* resource = 0;
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::Get(m_Factory, dmHashString64(path), &resource));
+        ASSERT_EQ((void*)0, resource);
+        dmResource::Result expected = id ? dmResource::RESULT_INVALID_DATA : dmResource::RESULT_OK;
+        ASSERT_EQ(expected, dmResource::Get(m_Factory, path, &resource));
+        ASSERT_EQ(2u, m_Posts[id]);
+        ASSERT_EQ(expected, Complete(request));
+        if (resource)
+            dmResource::Release(m_Factory, resource);
+        else
+            ASSERT_EQ(1u, id);
+        Delete(id);
+        ASSERT_EQ(1u, m_Destroys[id]);
+    }
+}
+
+// Completion callbacks can still acquire created roots before PostCreate, as collection initialization requires.
+TEST_P(ResourceLoaderTest, CompletionCallbackGetsCreatedResource)
+{
+    EnablePostCreate();
+    Add(0, 0, 0);
+    dmResource::HPreloader request = Request(0);
+    GetCaller caller = { this, 0, dmResource::RESULT_PENDING, 0 };
+    dmResource::PreloaderCompleteCallbackParams params = { m_Factory, &caller };
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    dmResource::Result result;
+    do
+    {
+        result = dmResource::UpdatePreloader(request, GetCreatedResource, &params, 1000);
+    } while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(dmResource::RESULT_OK, caller.m_Result);
+    ASSERT_NE((void*)0, caller.m_Resource);
+    dmResource::Release(m_Factory, caller.m_Resource);
+}
+
+// Reject original paths before canonicalization can turn them into the name of a different resource.
+TEST_P(ResourceLoaderTest, RejectOverlongRootPaths)
+{
+    char prefix[dmResource::RESOURCE_PATH_MAX - 1];
+    memset(prefix, 'a', sizeof(prefix));
+    prefix[0] = '/';
+    memcpy(prefix + sizeof(prefix) - 6, ".node", 6);
+    uint32_t data[] = { 0, 0 };
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, prefix, sizeof(data), data));
+    void* valid = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, prefix, &valid));
+    char path[dmResource::RESOURCE_PATH_MAX + 16];
+    dmSnPrintf(path, sizeof(path), "%s/extra.node", prefix);
+    void* resource = valid;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::Get(m_Factory, path, &resource));
+    ASSERT_EQ((void*)0, resource);
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::CreateResource(m_Factory, path, data, sizeof(data), &resource));
+    ASSERT_EQ((void*)0, resource);
+    dmResource::HPreloader request = dmResource::NewPreloader(m_Factory, path);
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, CompleteWithCallback(request, 0));
+    dmResource::DeletePreloader(request);
+    dmArray<const char*> names;
+    names.SetCapacity(2);
+    names.Push(path);
+    names.Push(prefix);
+    request = dmResource::NewPreloader(m_Factory, names);
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, CompleteWithCallback(request, 0));
+    dmResource::DeletePreloader(request);
+    ASSERT_FALSE(m_Notified[0]);
+    ASSERT_EQ(1u, m_Creates[0]);
+    dmResource::Release(m_Factory, valid);
+    ASSERT_EQ(1u, m_Destroys[0]);
 }
 
 // Nested PostCreate Get can retry an earlier pending dependency while the outer update is still posting.

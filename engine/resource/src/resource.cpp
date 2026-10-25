@@ -202,6 +202,8 @@ static inline uint16_t IncreaseVersion(HResourceFactory factory)
 
 Result CheckSuppliedResourcePath(const char* name)
 {
+    if (strlen(name) >= RESOURCE_PATH_MAX)
+        return RESULT_INVALID_DATA;
     if (name[0] == 0)
     {
         dmLogError("Empty resource path");
@@ -807,13 +809,17 @@ Result CreateResourcePartial(HFactory factory, HResourceType type, const char* n
 
     DM_PROFILE(__FUNCTION__);
 
+    *resource = 0;
+    Result chk = CheckSuppliedResourcePath(name);
+    if (chk != RESULT_OK)
+        return chk;
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
     dmhash_t canonical_path_hash = dmHashString64(canonical_path);
     {
         DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
         Result result = CheckAndGetResourceFromPath(factory, canonical_path_hash, resource);
-        if (result != RESULT_RESOURCE_NOT_FOUND)
+        if (result != RESULT_RESOURCE_NOT_FOUND && result != RESULT_PENDING)
             return result;
     }
     if (!type)
@@ -854,7 +860,7 @@ Result GetWithExt(HFactory factory, const char* path, const char* ext, void** re
         char canonical_path[RESOURCE_PATH_MAX];
         GetCanonicalPath(path, canonical_path, sizeof(canonical_path));
         Result result = CheckAndGetResourceFromPath(factory, dmHashString64(canonical_path), resource);
-        if (result != RESULT_RESOURCE_NOT_FOUND)
+        if (result != RESULT_RESOURCE_NOT_FOUND && result != RESULT_PENDING)
             return result;
     }
 
@@ -873,6 +879,7 @@ ResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash)
 
 Result GetWithExt(HFactory factory, dmhash_t path_hash, dmhash_t ext_hash, void** resource)
 {
+    DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
     ResourceDescriptor* rd = FindByHash(factory, path_hash);
     if (!rd)
     {
