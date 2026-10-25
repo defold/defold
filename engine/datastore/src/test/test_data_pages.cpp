@@ -73,7 +73,7 @@ TEST(DataPages, GrowthRangesSwapAndReset)
 {
     DSCreateParams params = { .m_PageSize = 2048, .m_RowChunkSize = 256, .m_MaxSparePages = 1 };
     HDSContext     store = DSCreateStore(&params);
-    DSGroupId      group = CreateTestGroup(store);
+    DSGroupId      group = NextTestGroupId();
     ASSERT_EQ(DS_RESULT_OK, RegisterPageRows(store, 10, DS_RESET_RETAIN));
     PageRow input[259];
     DSId    ids[259];

@@ -35,7 +35,7 @@ static void RegisterGroupTable(HDSContext store, uint64_t type)
 TEST(DataGroups, ScatteredRowsAcrossTables)
 {
     HDSContext store = DSCreateStore(0);
-    DSGroupId  groups[] = { CreateTestGroup(store), CreateTestGroup(store), CreateTestGroup(store) };
+    DSGroupId  groups[] = { UINT64_C(0x100000001), UINT64_C(0x200000001), UINT64_MAX };
     DSId       ids[3][128];
     for (uint32_t t = 0; t < 3; ++t)
     {
@@ -70,24 +70,24 @@ TEST(DataGroups, ScatteredRowsAcrossTables)
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
 }
 
-// Stale handles cannot create or delete rows belonging to a reused group slot.
-TEST(DataGroups, GenerationAndQueryLifetime)
+// Queries may precede ownership, and caller IDs survive unchanged through removal and reuse.
+TEST(DataGroups, CallerIdsAndQueryLifetime)
 {
     HDSContext store = DSCreateStore(0);
     RegisterGroupTable(store, 1);
-    DSGroupId   group = CreateTestGroup(store);
+    DSGroupId   group = UINT64_C(0x1234567800000007);
     DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1 };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
+    ASSERT_EQ(0u, store->m_Groups.Size());
     GroupRow row = { .m_Value = 10, .m_Name = { .m_String = "name" } };
     DSId     id;
     ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, group, 1, &row, &id));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     ASSERT_EQ(1u, DSQueryGetRowCount(query));
     ASSERT_EQ(DS_RESULT_LOCKED, DSRemoveGroup(store, group));
-    // Empty group creation can grow the registry while iterators retain their rows.
-    for (uint32_t i = 0; i < 100; ++i)
-        CreateTestGroup(store);
+    ASSERT_EQ(DS_RESULT_LOCKED, DSCreateRows(store, 1, group + 1, 1, &row, 0));
+    ASSERT_EQ(1u, store->m_Groups.Size());
     DSIterator it = DSQueryIter(query);
     ASSERT_TRUE(DSIterNext(&it));
     DSRowIterator rows = DSIterRows(&it);
@@ -95,38 +95,53 @@ TEST(DataGroups, GenerationAndQueryLifetime)
     ASSERT_EQ(group, DSRowIterGetGroupId(&rows));
     DSQueryEnd(query);
     ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, group));
-    DSGroupId next = CreateTestGroup(store);
-    ASSERT_NE(group, next);
-    ASSERT_EQ((uint32_t)group, (uint32_t)next);
-    DSId untouched = 123;
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSCreateRows(store, 1, group, 1, &row, &untouched));
-    ASSERT_EQ((DSId)123, untouched);
+    ASSERT_EQ(0u, store->m_Groups.Size());
+    DSGroupId next = group + UINT64_C(0x100000000);
+    DSId      replacement;
     DSFieldArray fields[] = { { .m_Field = 1, .m_Values = &row.m_Value }, { .m_Field = 2, .m_Values = &row.m_Name } };
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSCreateRowsSoA(store, 1, group, 1, 2, fields, &untouched));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSCreateRows(store, 1, 7, 1, &row, &untouched));
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRemoveGroup(store, group));
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRemoveGroup(store, 0));
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRowsSoA(store, 1, next, 1, 2, fields, &untouched));
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRowsSoA(store, 1, next, 1, 2, fields, &replacement));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     ASSERT_EQ(0u, DSQueryGetRowCount(query));
     DSQueryEnd(query);
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, group, 1, &row, &replacement));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
+    ASSERT_EQ(1u, DSQueryGetRowCount(query));
+    DSQueryEnd(query);
+    double value;
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGetNumber(store, id, 1, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, group));
     ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, next));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(query));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
 }
 
-// Exhausting a generation retires the slot instead of making an old group live again.
-TEST(DataGroups, ExhaustedGeneration)
+// Growing and reusing the owner registry must preserve full IDs and scattered membership.
+TEST(DataGroups, RegistryGrowthAndReuse)
 {
     HDSContext store = DSCreateStore(0);
-    DSGroupId  original = CreateTestGroup(store);
-    store->m_Groups[(uint32_t)original].m_Generation = UINT32_MAX;
-    DSGroupId last = ((uint64_t)UINT32_MAX << 32) | (uint32_t)original;
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, last));
-    DSGroupId next = CreateTestGroup(store);
-    ASSERT_NE((uint32_t)original, (uint32_t)next);
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRemoveGroup(store, original));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRemoveGroup(store, last));
+    RegisterGroupTable(store, 1);
+    GroupRow row = { .m_Value = 25, .m_Name = { .m_String = "name" } };
+    DSId     ids[256];
+    for (uint32_t i = 0; i < 256; ++i)
+        ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, UINT64_C(0x100000000) + i, 1, &row, &ids[i]));
+    uint32_t capacity = store->m_Groups.Capacity();
+    for (uint32_t i = 0; i < 256; i += 2)
+        ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, UINT64_C(0x100000000) + i));
+    for (uint32_t i = 0; i < 128; ++i)
+        ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, UINT64_C(0x200000000) + i, 1, &row, 0));
+    ASSERT_EQ(capacity, store->m_Groups.Capacity());
+    for (uint32_t i = 0; i < 256; ++i)
+    {
+        double value;
+        ASSERT_EQ(i & 1 ? DS_RESULT_OK : DS_RESULT_NOT_FOUND, DSFieldGetNumber(store, ids[i], 1, &value));
+        if (i & 1)
+            ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, UINT64_C(0x100000000) + i));
+    }
+    for (uint32_t i = 0; i < 128; ++i)
+        ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, UINT64_C(0x200000000) + i));
+    ASSERT_EQ(0u, store->m_Groups.Size());
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
 }
 
@@ -144,7 +159,7 @@ TEST(DataGroups, BlobRegistrationsAndEmptyInstances)
     HDSBlob blob;
     ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
     HDSContext      store = DSCreateStore(0);
-    DSGroupId       group = CreateTestGroup(store), other = CreateTestGroup(store);
+    DSGroupId       group = NextTestGroupId(), other = NextTestGroupId();
     HDSBlobInstance instances[4];
     for (uint32_t i = 0; i < 4; ++i)
         ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, i == 2 ? other : group, &instances[i]));
@@ -160,9 +175,10 @@ TEST(DataGroups, BlobRegistrationsAndEmptyInstances)
     double value;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, survivor, 1, &value));
     ASSERT_EQ(10.0, value);
-    HDSBlobInstance untouched = instances[2];
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSAddBlob(store, blob, group, &untouched));
-    ASSERT_EQ(instances[2], untouched);
+    HDSBlobInstance recreated;
+    ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, group, &recreated));
+    ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, group));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, survivor, 1, &value));
     ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, other));
     GetDataMemoryStats(store, &stats);
     ASSERT_EQ(0u, stats.m_Instances);
@@ -178,7 +194,7 @@ TEST(DataGroups, EmptyGroupAndUngroupedRows)
 {
     HDSContext store = DSCreateStore(0);
     RegisterGroupTable(store, 1);
-    DSGroupId group = CreateTestGroup(store);
+    DSGroupId group = NextTestGroupId();
     GroupRow  row = { .m_Value = 1, .m_Name = { .m_String = "name" } };
     DSId      ungrouped, owned;
     ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 1, &row, &ungrouped));
@@ -189,7 +205,8 @@ TEST(DataGroups, EmptyGroupAndUngroupedRows)
     double value;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ungrouped, 1, &value));
     ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, ungrouped));
-    group = CreateTestGroup(store);
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, group, 1, &row, &owned));
+    ASSERT_EQ(DS_RESULT_OK, DSRemoveRow(store, owned));
     ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, group));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
 }
@@ -209,7 +226,7 @@ TEST(DataGroups, EmptyBlobs)
         HDSBlob blob;
         ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
         HDSContext      store = DSCreateStore(0);
-        DSGroupId       group = CreateTestGroup(store);
+        DSGroupId       group = NextTestGroupId();
         HDSBlobInstance instance;
         ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, group, &instance));
         ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, group));
@@ -224,24 +241,63 @@ TEST(DataGroups, EmptyBlobs)
     }
 }
 
-// A bad group anywhere in a decoded batch rejects all rows before modifying the store.
-TEST(DataGroups, InvalidBatchIsAtomic)
+// Validation rejects a whole decoded batch before creating any owner records.
+TEST(DataGroups, InvalidBatchDoesNotCreateGroups)
 {
     HDSContext store = DSCreateStore(0);
     RegisterGroupTable(store, 1);
-    DSGroupId group = CreateTestGroup(store), removed = CreateTestGroup(store);
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, removed));
+    DSGroupId group = NextTestGroupId(), other = NextTestGroupId();
     DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_STRING };
     DSValueData values[] = { { .m_Number = 1 }, { .m_String = "name" } };
     DSRowDesc   rows[] = {
         { .m_Group = group, .m_Types = types, .m_Values = values, .m_ValueCount = 2 },
-        { .m_Group = removed, .m_Types = types, .m_Values = values, .m_ValueCount = 2 }
+        { .m_Group = other, .m_Types = types, .m_Values = values, .m_ValueCount = 1 }
     };
     DSId ids[] = { 42, 43 };
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSAddRows(store, 1, rows, 2, ids));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSAddRows(store, 1, rows, 2, ids));
     ASSERT_EQ((DSId)42, ids[0]);
     ASSERT_EQ((DSId)43, ids[1]);
     ASSERT_EQ(0u, FindTable(store, 1)->m_Rows.Size());
-    ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, group));
+    ASSERT_EQ(0u, store->m_Groups.Size());
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRemoveGroup(store, group));
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+}
+
+// Public AoS and SoA validation and zero-row calls must not register empty owners.
+TEST(DataGroups, EmptyAndInvalidInputDoesNotCreateGroups)
+{
+    HDSContext store = DSCreateStore(0);
+    DSGroupId  group = UINT64_MAX;
+    RegisterGroupTable(store, 1);
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, group, 0, 0, 0));
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRowsSoA(store, 1, group, 0, 0, 0, 0));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateRows(store, 1, group, 1, 0, 0));
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSCreateRowsSoA(store, 1, group, 1, 0, 0, 0));
+    ASSERT_EQ(0u, store->m_Groups.Size());
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSRemoveGroup(store, group));
+    ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
+}
+
+// Internal construction can publish different caller groups in one validated batch.
+TEST(DataGroups, MixedGroupsInOneBatch)
+{
+    HDSContext store = DSCreateStore(0);
+    RegisterGroupTable(store, 1);
+    DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_STRING };
+    DSValueData values[] = { { .m_Number = 1 }, { .m_String = "name" } };
+    DSRowDesc   rows[] = {
+        { .m_Group = UINT64_C(0x100000001), .m_Types = types, .m_Values = values, .m_ValueCount = 2 },
+        { .m_Group = UINT64_C(0x200000001), .m_Types = types, .m_Values = values, .m_ValueCount = 2 },
+        { .m_Group = 0, .m_Types = types, .m_Values = values, .m_ValueCount = 2 }
+    };
+    DSId ids[3];
+    ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, rows, 3, ids));
+    ASSERT_EQ(2u, store->m_Groups.Size());
+    ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, rows[0].m_Group));
+    double value;
+    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGetNumber(store, ids[0], 1, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ids[1], 1, &value));
+    ASSERT_EQ(DS_RESULT_OK, DSRemoveGroup(store, rows[1].m_Group));
+    ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ids[2], 1, &value));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyStore(store));
 }

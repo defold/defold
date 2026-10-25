@@ -101,9 +101,9 @@ extern "C"
  * @name DSAddBlob
  * @param store [type:HDSContext] Destination store.
  * @param blob [type:HDSBlob] Loaded resource to retain.
- * @param group [type:DSGroupId] Live group created in this store; zero leaves the registration ungrouped.
+ * @param group [type:DSGroupId] Caller-provided owner ID; bookkeeping is created lazily even for an empty blob. Zero leaves the registration ungrouped.
  * @param out_instance [type:HDSBlobInstance*] Receives the registration handle on success; unchanged on error.
- * @return result [type:DSResult] OK, LOCKED while query reservations are active, NOT_FOUND for an invalid group, or INVALID_ARGUMENT if store capacity would be exceeded. Errors leave the store unchanged.
+ * @return result [type:DSResult] OK, LOCKED while query reservations are active, or INVALID_ARGUMENT if store capacity would be exceeded. Errors leave the store unchanged.
  */
 
 /*# Remove one instance's complete set of component tables

@@ -111,9 +111,11 @@ extern "C"
 
 /*# Owning group identifier
  *
- * Store-local, generation-checked handle from [ref:DSCreateGroup]. Removing the
- * group removes its rows and invalidates the handle. Zero selects ungrouped rows;
- * it is not a group handle. Names and external-object associations remain caller-owned.
+ * Caller-provided 64-bit owner ID, for example a game-object handle. Nonzero IDs
+ * acquire group bookkeeping when rows or blob instances are first added. Group
+ * removal removes its rows; the caller controls ID uniqueness and reuse. Query
+ * filters continue matching the same ID if it is reused. Zero selects ungrouped
+ * rows. The datastore has no knowledge of the external owner.
  *
  * @typedef
  * @name DSGroupId

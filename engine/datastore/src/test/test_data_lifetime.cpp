@@ -275,7 +275,7 @@ TEST(DataLifetime, QueryCompatibilityCache)
     }
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(a));
     ASSERT_EQ(DS_RESULT_OK, DSDestroyQuery(b));
-    DSGroupId groups[] = { CreateTestGroup(store), CreateTestGroup(store), CreateTestGroup(store), CreateTestGroup(store), 0 };
+    DSGroupId groups[] = { NextTestGroupId(), NextTestGroupId(), NextTestGroupId(), NextTestGroupId(), 0 };
     groups[4] = groups[1];
     desc = { .m_GroupIds = groups, .m_GroupIdCount = 2, .m_Items = { requested } };
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &a));
@@ -308,7 +308,7 @@ TEST(DataLifetime, GroupRemovalReleasesNestedPayloads)
         {
             HDSContext store = DSCreateStore(0);
             ASSERT_EQ(DS_RESULT_OK, RegisterLifetimeTable(store, (DSResetPolicy)history));
-            DSGroupId group = CreateTestGroup(store);
+            DSGroupId group = NextTestGroupId();
             DSId      id;
             ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, group, &id, columns != 0));
             CheckLifetimeViews(store, id);

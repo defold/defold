@@ -303,7 +303,7 @@ extern "C"
  *
  * @name DSRowIterGetGroupId
  * @param iterator [type:const DSRowIterator*] Row iterator.
- * @return group [type:DSGroupId] Current group handle, or zero for an ungrouped row or without a valid row.
+ * @return group [type:DSGroupId] Caller-provided owner ID, or zero for an ungrouped row or without a valid row.
  */
 
 /*# Borrow the native row bytes

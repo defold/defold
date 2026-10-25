@@ -45,14 +45,11 @@ struct DSMemoryStats
     uint64_t m_TotalBytes;       // Retained store memory; excludes borrowed resource blobs.
 };
 
-// Create a real owner for fixtures that exercise group filters or membership.
-static inline DSGroupId CreateTestGroup(HDSContext store)
+// Fixtures choose their own IDs; the store creates membership on first use.
+static inline DSGroupId NextTestGroupId()
 {
-    DSGroupId group = 0;
-    DSResult  result = DSCreateGroup(store, &group);
-    assert(result == DS_RESULT_OK);
-    (void)result;
-    return group;
+    static DSGroupId next = 0;
+    return ++next;
 }
 
 void GetDataMemoryStats(HDSContext store, DSMemoryStats* out_stats);

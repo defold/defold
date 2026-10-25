@@ -90,7 +90,7 @@ static ThreadFixture CreateFixture()
     ThreadFixture  fixture = {};
     DSCreateParams params = { .m_PageSize = 1024, .m_RowChunkSize = 256 };
     fixture.m_Store = DSCreateStore(&params);
-    fixture.m_Group = CreateTestGroup(fixture.m_Store);
+    fixture.m_Group = NextTestGroupId();
     DSFieldDesc       light_fields[] = { { .m_Field = COLOR, .m_Type = DS_TYPE_VECTOR3, .m_Name = "color" }, { .m_Field = INTENSITY, .m_Type = DS_TYPE_NUMBER, .m_Offset = 16, .m_Name = "intensity" } };
     DSStructDesc      light = { light_fields, 2, 24 };
     DSFieldDesc       fields[] = { { HEALTH, DS_TYPE_NUMBER, 0, 0 }, { POSITION, DS_TYPE_VECTOR3, 8, 0 }, { .m_Field = LIGHT, .m_Type = DS_TYPE_STRUCT, .m_Offset = 24, .m_Struct = &light, .m_Name = "light" } };

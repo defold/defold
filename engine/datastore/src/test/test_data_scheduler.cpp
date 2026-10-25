@@ -537,7 +537,7 @@ TEST(DataScheduler, DisjointFieldsAndGroups)
 {
     DSId            ids[3];
     HDSContext      store = CreateScheduledStore(ids);
-    DSGroupId       other_group = CreateTestGroup(store);
+    DSGroupId       other_group = NextTestGroupId();
     ScheduledEntity input = { .m_Health = 75 };
     DSId            other_id;
     ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, other_group, 1, &input, &other_id));

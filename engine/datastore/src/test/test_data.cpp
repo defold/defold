@@ -273,7 +273,7 @@ TEST(Data, LiveQueriesTagsGroupsAndCopiedDescriptors)
 {
     HDSContext  store = DSCreateStore(0);
     uint64_t    tags[] = { 100, 200 };
-    DSGroupId   owners[] = { CreateTestGroup(store), CreateTestGroup(store) };
+    DSGroupId   owners[] = { NextTestGroupId(), NextTestGroupId() };
     DSGroupId   groups[] = { owners[0], owners[0], owners[1] };
     DSQueryDesc desc = {
         .m_GroupIds = groups,
@@ -401,7 +401,7 @@ TEST(Data, QueryReservationBlocksMutations)
 TEST(Data, NestedQueriesAndWritesPreserveBatches)
 {
     HDSContext store = DSCreateStore(0);
-    DSGroupId  group = CreateTestGroup(store);
+    DSGroupId  group = NextTestGroupId();
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1));
     DSFieldDesc meta[] = { { 10, DS_TYPE_NUMBER, 8 }, { 20, DS_TYPE_STRING, 24 } };
     DSTableDesc table = { 2, 0, 0, meta, 2, 32 };
@@ -471,7 +471,7 @@ TEST(Data, BoundFieldQueries)
 {
     HDSContext  store = DSCreateStore(0);
     uint64_t    tag = 8;
-    DSGroupId   group = CreateTestGroup(store);
+    DSGroupId   group = NextTestGroupId();
     DSQueryItem fields[] = {
         { .m_Hash = 20, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD },
         { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD }
@@ -727,7 +727,7 @@ TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
         for (uint32_t f = 2; f < 5; ++f)
             for (uint32_t v = 0; v < DSTypeSize(types[f]) / sizeof(float); ++v)
                 values[r][f].m_Matrix4[v] = (float)(100 * r + 10 * f + v);
-        rows[r] = { .m_Group = CreateTestGroup(store), .m_Types = types, .m_Values = values[r], .m_ValueCount = 5, .m_ComponentId = 30 + r };
+        rows[r] = { .m_Group = NextTestGroupId(), .m_Types = types, .m_Values = values[r], .m_ValueCount = 5, .m_ComponentId = 30 + r };
     }
     DSId old_ids[2], ids[] = { 123, 456, 789 };
     ASSERT_EQ(DS_RESULT_OK, DSAddRows(store, 1, rows, 2, old_ids));
@@ -853,7 +853,7 @@ TEST(Data, CApiQuerySetup)
 TEST(Data, CApiMathAndNestedViews)
 {
     HDSContext  store = DSCreateStore(0);
-    DSGroupId   group = CreateTestGroup(store);
+    DSGroupId   group = NextTestGroupId();
     DSFieldDesc meta[] = { { 42, DS_TYPE_NUMBER, 0 }, { 43, DS_TYPE_VECTOR3, 8 }, { 44, DS_TYPE_VECTOR4, 20 }, { 45, DS_TYPE_MATRIX4, 36 }, { 46, DS_TYPE_STRUCT, 104 }, { 47, DS_TYPE_BOOLEAN, 112 }, { 48, DS_TYPE_STRING, 120 } };
     uint64_t    tag = 7;
     DSTableDesc desc = { .m_Type = 1, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = meta, .m_FieldCount = 7, .m_RowStride = 128, .m_ResetPolicy = DS_RESET_RETAIN };
@@ -873,7 +873,7 @@ TEST(Data, CApiMathAndNestedViews)
     ASSERT_EQ(DS_RESULT_OK, DSWriteBlob(store, bytes, size, &size));
     HDSContext      loaded = DSCreateStore(0);
     HDSBlobInstance instance;
-    ASSERT_EQ(DS_RESULT_OK, Load(loaded, bytes, size, &instance, CreateTestGroup(loaded)));
+    ASSERT_EQ(DS_RESULT_OK, Load(loaded, bytes, size, &instance, NextTestGroupId()));
     DSMatrix4 loaded_matrix;
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetMatrix4(loaded, FirstId(loaded), 45, &loaded_matrix));
     ASSERT_EQ(44.0f, loaded_matrix.m_Values[3 * 4 + 2]);
@@ -1001,7 +1001,7 @@ TEST(Data, BinaryGoldenSharedMetadata)
     const DSValueType types[] = { DS_TYPE_NUMBER };
     DSValueData       values[] = { { .m_Number = 1.5 }, { .m_Number = -2 } };
     DSId              ids[2];
-    DSGroupId         group = CreateTestGroup(store);
+    DSGroupId         group = NextTestGroupId();
     DSRowDesc         rows[] = {
         { .m_Group = group, .m_Types = types, .m_Values = values, .m_ValueCount = 1, .m_ComponentId = 7 },
         { .m_Group = group, .m_Types = types, .m_Values = values + 1, .m_ValueCount = 1, .m_ComponentId = 8 }
@@ -1052,7 +1052,7 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
     DSQueryDesc query_desc = { .m_Items = { { .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG }, { .m_Hash = 20, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD } } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &query_desc, &query));
-    DSGroupId       groups[] = { CreateTestGroup(store), CreateTestGroup(store) };
+    DSGroupId       groups[] = { NextTestGroupId(), NextTestGroupId() };
     HDSBlobInstance first, second;
     ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, groups[0], &first));
     ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, groups[1], &second));
@@ -1842,7 +1842,7 @@ TEST(Data, BoundQueryRegistrationChurn)
     // Cross registration pages and grow dense storage, then reuse slots with live queries.
     const uint32_t  count = 600;
     HDSBlobInstance instances[count];
-    DSGroupId       original = CreateTestGroup(store), replacement = CreateTestGroup(store);
+    DSGroupId       original = NextTestGroupId(), replacement = NextTestGroupId();
     for (uint32_t cycle = 0; cycle < 3; ++cycle)
     {
         for (uint32_t i = 0; i < count; ++i)
@@ -2209,7 +2209,7 @@ TEST(Data, InlineNamesBindDifferentTablesAndTrackRegistration)
 TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
 {
     HDSContext  store = DSCreateStore(0);
-    DSGroupId   group = CreateTestGroup(store);
+    DSGroupId   group = NextTestGroupId();
     DSFieldDesc fields[10] = {};
     DSValue     values[10];
     for (uint32_t p = 0; p < 10; ++p)
@@ -2296,7 +2296,7 @@ TEST(Data, RowIterationWithoutFieldFilters)
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(source, &table));
     DSValue values[] = { Number(10), String("original"), Vector3(1, 2, 3), Null() };
     DSId      id;
-    DSGroupId groups[] = { CreateTestGroup(source), CreateTestGroup(source) };
+    DSGroupId groups[] = { NextTestGroupId(), NextTestGroupId() };
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, groups[0], values, 4, &id));
     values[0] = Number(20);
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, groups[1], values, 4, &id));
@@ -2348,7 +2348,7 @@ TEST(Data, RowAccessUsesBatchRelativeRowsAfterRemoval)
 {
     HDSContext store = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1));
-    DSGroupId group = CreateTestGroup(store);
+    DSGroupId group = NextTestGroupId();
     DSId ids[6];
     for (uint32_t row = 0; row < 6; ++row)
         ASSERT_EQ(DS_RESULT_OK, Add(store, 1, row % 2 ? group : 0, row + 10, "base", &ids[row]));
@@ -2817,7 +2817,7 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
     HDSBlob blob;
     ASSERT_EQ(DS_RESULT_OK, DSLoadBlob(bytes, size, &blob));
     HDSContext      store = DSCreateStore(0);
-    DSGroupId       groups[] = { CreateTestGroup(store), CreateTestGroup(store) };
+    DSGroupId       groups[] = { NextTestGroupId(), NextTestGroupId() };
     HDSBlobInstance first, second;
     ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, groups[0], &first));
     ASSERT_EQ(DS_RESULT_OK, DSAddBlob(store, blob, groups[1], &second));
@@ -3107,7 +3107,7 @@ TEST(Data, InlineQueryFieldsAndTags)
     DSVector3   value = { .m_Values = { 1, 2, 3 } };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
     ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, 0, 1, &value, 0));
-    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, CreateTestGroup(store), 1, &value, 0));
+    ASSERT_EQ(DS_RESULT_OK, DSCreateRows(store, 1, NextTestGroupId(), 1, &value, 0));
     table.m_Type = 2;
     table.m_TagCount = 1;
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
@@ -3339,7 +3339,7 @@ TEST(Data, NativeRowsShareGroupsWithoutSplittingTables)
     DSFieldDesc field = { .m_Field = 10, .m_Type = DS_TYPE_NUMBER };
     DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double), .m_ResetPolicy = DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));
-    DSGroupId   group = CreateTestGroup(store);
+    DSGroupId   group = NextTestGroupId();
     DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1 };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSCreateQuery(store, &desc, &query));
@@ -3397,7 +3397,7 @@ TEST(Data, NativeRowsShareGroupsWithoutSplittingTables)
 TEST(Data, CreateRowsWithoutReturningIds)
 {
     HDSContext  store = DSCreateStore(0);
-    DSGroupId   group = CreateTestGroup(store);
+    DSGroupId   group = NextTestGroupId();
     DSFieldDesc field = { .m_Field = 10, .m_Type = DS_TYPE_NUMBER };
     DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double) };
     ASSERT_EQ(DS_RESULT_OK, DSRegisterTable(store, &table));

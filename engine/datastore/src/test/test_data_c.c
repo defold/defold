@@ -377,7 +377,7 @@ int TestDataNativeRowsFromC(void)
         { .m_State = { .m_Health = 50, .m_Enabled = 1 }, .m_Position = { .m_Values = { 1, 2, 3 } } },
         { .m_State = { .m_Health = 75 }, .m_Position = { .m_Values = { 4, 5, 6 } } }
     };
-    DSGroupId   group;
+    DSGroupId   group = UINT64_C(0x1234567887654321);
     DSId        ids[2], added[2];
     DSQueryItem health = { .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc query_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Flags = DS_ROW_MUTABLE, .m_Items = { health, { .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG } } };
@@ -396,7 +396,6 @@ int TestDataNativeRowsFromC(void)
             goto cleanup; \
         } \
     } while (0)
-    CHECK_NATIVE(DSCreateGroup(store, &group) == DS_RESULT_OK);
     CHECK_NATIVE(DSRegisterTable(store, &table) == DS_RESULT_OK);
     CHECK_NATIVE(DSCreateQuery(store, &query_desc, &query) == DS_RESULT_OK);
     CHECK_NATIVE(DSCreateRows(store, 10, group, 2, input, ids) == DS_RESULT_OK);
@@ -535,7 +534,7 @@ int TestDataSoARowsFromC(void)
         { .m_Field = 20, .m_Values = positions }
     };
     DSId        ids[2] = { 123, 456 };
-    DSGroupId   group;
+    DSGroupId   group = UINT64_C(0x1234567887654321);
     DSQueryItem health = { .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
     DSQueryDesc query_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { health } };
     HDSContext  store = DSCreateStore(0);
@@ -551,7 +550,6 @@ int TestDataSoARowsFromC(void)
             goto cleanup; \
         } \
     } while (0)
-    CHECK_SOA(DSCreateGroup(store, &group) == DS_RESULT_OK);
     CHECK_SOA(DSRegisterTable(store, &table) == DS_RESULT_OK);
     CHECK_SOA(DSCreateQuery(store, &query_desc, &query) == DS_RESULT_OK);
     CHECK_SOA(DSCreateRowsSoA(store, 999, group, 2, 5, fields, ids) == DS_RESULT_NOT_FOUND);

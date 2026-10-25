@@ -9,8 +9,8 @@ Extensions borrow it and release their queries and tables before app finalizatio
 Standalone callers use `DSCreateStore(0)` and `DSDestroyStore()`. Pass `DSCreateParams` to tune backing pages, row chunks and spare-page retention.
 
 - Register field layouts with `DSRegisterTable()`.
-- Create an owning group with `DSCreateGroup()`. The caller maps its handle to a
-  game object or other owner; `0` means ungrouped rows.
+- Pass a caller-owned group ID, such as the game-object handle, when adding rows.
+  Group bookkeeping is created on first use; `0` means ungrouped rows.
 - Add native rows with `DSCreateRows()`, or field arrays with `DSCreateRowsSoA()`.
   Both copy input values into native rows stored in contiguous chunks.
 - Remove one row with `DSRemoveRow()`, or all of a group's rows and blob

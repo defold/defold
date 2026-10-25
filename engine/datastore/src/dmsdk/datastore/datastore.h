@@ -40,7 +40,6 @@ extern "C"
 
     HDSContext DSCreateStore(const DSCreateParams* params);
     DSResult   DSDestroyStore(HDSContext store);
-    DSResult   DSCreateGroup(HDSContext store, DSGroupId* out_group);
     DSResult   DSRemoveGroup(HDSContext store, DSGroupId group);
 
 #ifdef __cplusplus
@@ -102,32 +101,23 @@ extern "C"
  * @return result [type:DSResult] OK, or LOCKED during a schedule or query reservation; leaves the store intact on failure.
  */
 
-/*# Create an owning group
- *
- * Creates an empty, store-local group. Rows added with this handle belong to the
- * group until individually removed or the group is removed. No external object
- * or name is associated with the handle. Creating an empty group is allowed while
- * queries are reserved; it does not change their rows.
- *
- * @name DSCreateGroup
- * @param store [type:HDSContext] Store owning the group.
- * @param out_group [type:DSGroupId*] Receives a nonzero group handle on success.
- * @return result [type:DSResult] OK, or INVALID_ARGUMENT when group capacity is exhausted. Output is unchanged on failure.
- */
-
 /*# Remove a group and its rows
  *
  * Removes the group's rows across all tables, owned payloads and blob registrations,
- * including empty registrations. Invalidates their row IDs, blob-instance handles
- * and the group handle. Other groups and their row IDs remain valid. Independent
- * table registrations remain available for reuse. Does not scan unrelated rows.
+ * including empty registrations. Invalidates their row IDs and blob-instance
+ * handles and releases group bookkeeping. Other groups and their row IDs remain
+ * valid. Independent table registrations remain available for reuse. Does not scan unrelated rows.
  * Requires a store without active query reservations; queue requests in caller-owned
  * storage and apply them after jobs finish. Zero is not a removable group.
  *
+ * Bookkeeping is created on first use and kept until group removal, including
+ * when rows are removed individually. Reusing the caller ID later recreates the
+ * group; existing query filters then match its new rows.
+ *
  * @name DSRemoveGroup
  * @param store [type:HDSContext] Store owning the group.
- * @param group [type:DSGroupId] Live group created in this store.
- * @return result [type:DSResult] OK, LOCKED during query reservations, or NOT_FOUND for zero, an invalid handle or a removed group. Failure leaves the store unchanged.
+ * @param group [type:DSGroupId] Caller-provided owner ID.
+ * @return result [type:DSResult] OK, LOCKED during query reservations, or NOT_FOUND for zero or an unknown group. Failure leaves the store unchanged.
  */
 
 #endif // DMSDK_DATASTORE_H

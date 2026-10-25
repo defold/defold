@@ -65,7 +65,7 @@ static DSResult RegisterStorageRows(HDSContext store)
 TEST(DataRows, GrowthRangesRemovalAndReset)
 {
     HDSContext store = DSCreateStore(0);
-    DSGroupId  group = CreateTestGroup(store);
+    DSGroupId  group = NextTestGroupId();
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
     DSQueryItem fields[] = {
         { .m_Hash = 3, .m_Type = DS_TYPE_FLOAT, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
@@ -148,7 +148,7 @@ TEST(DataRows, GrowthRangesRemovalAndReset)
 TEST(DataRows, NativeRowPointers)
 {
     HDSContext store = DSCreateStore(0);
-    DSGroupId  group = CreateTestGroup(store);
+    DSGroupId  group = NextTestGroupId();
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
     StorageRow input[] = {
         { .m_Position = { { 1, 2, 3 } }, .m_Health = 10, .m_Color = 11 },
@@ -299,7 +299,7 @@ TEST(DataRows, WholeRowGroupsAndTableChanges)
     HDSContext store = DSCreateStore(0);
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
     StorageRow value = {};
-    DSGroupId  groups[] = { CreateTestGroup(store), CreateTestGroup(store) };
+    DSGroupId  groups[] = { NextTestGroupId(), NextTestGroupId() };
     HDSQuery   queries[2];
     for (uint32_t i = 0; i < 2; ++i)
     {
