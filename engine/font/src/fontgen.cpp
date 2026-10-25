@@ -339,6 +339,9 @@ static void JobPostProcessGlyph(HJobContext job_thread, HJob job, JobSystemStatu
 
 static HJob CreateSentinelJob(FontGenJobData* jobdata)
 {
+    // With no workers, caller-updated batches run inline in FontGenUpdateGlyphs.
+    // A zero sentinel also skips child-job submission, so resource loading can
+    // complete without pumping unrelated jobs or callbacks.
     if (jobdata->m_UpdateFromCaller && !JobSystemGetWorkerCount(jobdata->m_Jobs))
         return 0;
     Job job = {0};
