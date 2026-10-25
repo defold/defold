@@ -294,13 +294,14 @@ var FileLoader = {
             console.error(error);
         }
     },
-    // One XHR attempt. Only network failures are retryable at this layer.
+    // One XHR attempt. Unexpected transport failures are retryable at this layer.
     requestOnce: function(url, options, scope) {
         scope.check();
         const xhr = new XMLHttpRequest();
         var active = true;
         var loaded = 0;
         function abort() {
+            // Scope cancellation already settles the promise and must not retry.
             if (active) { active = false; xhr.abort(); }
         }
         const promise = new Promise(function(resolve, reject) {
@@ -312,7 +313,7 @@ var FileLoader = {
                 loaded = event.loaded;
                 FileLoader.notifyProgress(options.progress, loaded - previous, xhr, event, previous);
             };
-            xhr.onerror = function(event) {
+            xhr.onerror = xhr.ontimeout = xhr.onabort = function(event) {
                 if (!active) return;
                 active = false;
                 reject(Object.assign(new Error(String(event)), { retryable: true, xhr: xhr, event: event }));
@@ -326,7 +327,7 @@ var FileLoader = {
         });
         return scope.wait(promise, abort).finally(function() {
             abort();
-            xhr.onload = xhr.onerror = xhr.onprogress = null;
+            xhr.onload = xhr.onerror = xhr.ontimeout = xhr.onabort = xhr.onprogress = null;
         });
     },
 
