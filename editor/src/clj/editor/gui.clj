@@ -125,11 +125,13 @@
 
 (defn- gen-lines-vb
   [renderables]
-  (let [vcount (transduce (map (comp count :line-data :user-data)) + renderables)]
+  (let [vcount (transduce (map (fn [{:keys [user-data selected]}]
+                                 (count (or (when selected (:selected-line-data user-data)) (:line-data user-data)))))
+                          + renderables)]
     (when (pos? vcount)
       (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
-                            (let [{:keys [line-data line-color]} user-data
-                                  [r g b a] (or line-color (colors/renderable-outline-color renderable))]
+                            (let [line-data (or (when selected (:selected-line-data user-data)) (:line-data user-data))
+                                  [r g b a] (or (:line-color user-data) (colors/renderable-outline-color renderable))]
                               (reduce (fn [vb [x y z]]
                                         (color-vtx-put! vb x y z r g b a))
                                       vb
@@ -1700,7 +1702,7 @@
             {:render-fn render-lines
              :tags (set/union #{:gui :outline} (:renderable-tags scene-renderable-user-data))
              :passes [pass/outline]
-             :user-data (select-keys scene-renderable-user-data [:line-data])
+             :user-data (select-keys scene-renderable-user-data [:line-data :selected-line-data])
              :batch-key nil
              :select-batch-key _node-id
              :child-index child-index
@@ -2110,7 +2112,7 @@
   (when (:vector? font-data)
     (validation/prop-error :fatal node-id :font-size validation/prop-zero-or-below? font-size (properties/label-message :gui :font-size))))
 
-(g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw font-size ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha ^:raw style]
+(g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw font-size ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha ^:raw style ^:raw arc-radius ^:raw arc-angle]
   (assoc visual-base-node-msg
     :manual-size manual-size
     :text text
@@ -2119,6 +2121,8 @@
     :font font
     :text-leading text-leading
     :text-tracking text-tracking
+    :arc-radius arc-radius
+    :arc-angle arc-angle
     :outline outline
     :outline-alpha outline-alpha
     :shadow shadow
@@ -2130,6 +2134,7 @@
 
   ; Text
   (property manual-size types/Vec3 (default (protobuf/vector4->vector3 (protobuf/default Gui$NodeDesc :size)))
+            (dynamic read-only? (g/fnk [arc-angle] (not (zero? (double arc-angle)))))
             (dynamic label (properties/label-dynamic :size))
             (dynamic tooltip (properties/tooltip-dynamic :size))
             (dynamic edit-type (layout-property-edit-type manual-size {:type types/Vec3}))
@@ -2188,6 +2193,20 @@
             (dynamic tooltip (properties/tooltip-dynamic :gui :text-tracking))
             (value (layout-property-getter text-tracking))
             (set (layout-property-setter text-tracking)))
+  (property arc-radius g/Num (default (protobuf/default Gui$NodeDesc :arc-radius))
+            (dynamic edit-type (layout-property-edit-type arc-radius {:type g/Num}))
+            (dynamic error (g/fnk [_node-id arc-radius] (font/arc-property-error _node-id :arc-radius arc-radius [(- Float/MAX_VALUE) Float/MAX_VALUE])))
+            (dynamic label (properties/label-dynamic :label :arc-radius))
+            (dynamic tooltip (properties/tooltip-dynamic :label :arc-radius))
+            (value (layout-property-getter arc-radius))
+            (set (layout-property-setter arc-radius)))
+  (property arc-angle g/Num (default (protobuf/default Gui$NodeDesc :arc-angle))
+            (dynamic edit-type (layout-property-edit-type arc-angle font/arc-angle-edit-type))
+            (dynamic error (g/fnk [_node-id arc-angle] (font/arc-property-error _node-id :arc-angle arc-angle [0.0 360.0])))
+            (dynamic label (properties/label-dynamic :label :arc-angle))
+            (dynamic tooltip (properties/tooltip-dynamic :label :arc-angle))
+            (value (layout-property-getter arc-angle))
+            (set (layout-property-setter arc-angle)))
   (property outline types/Color (default (protobuf/default Gui$NodeDesc :outline))
             (dynamic read-only? (g/fnk [^:try font-data]
                                   (not (font/supports-effect? (:font-map font-data) :outline))))
@@ -2229,7 +2248,7 @@
             (value (layout-property-getter shadow-alpha))
             (set (layout-property-setter shadow-alpha)))
 
-  (display-order (into base-display-order [:manual-size :enabled :visible :text :line-break :font :font-size :style :material :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
+  (display-order (into base-display-order [:manual-size :arc-radius :arc-angle :enabled :visible :text :line-break :font :font-size :style :material :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
   (output font-data font/FontData (g/fnk [costly-gui-scene-info font]
                                     (let [font-datas (:font-datas costly-gui-scene-info)]
@@ -2240,10 +2259,12 @@
   (output node-msg g/Any :cached produce-text-node-msg)
   (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [costly-gui-scene-info manual-size font material material-shader pivot text-data color+alpha]
+          (g/fnk [costly-gui-scene-info manual-size font material material-shader pivot text-data color+alpha arc-data arc-angle]
             (let [[w h] manual-size
                   offset (pivot-offset pivot manual-size)
-                  lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
+                  lines (if (zero? (double arc-angle))
+                          (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
+                          (:line-data arc-data))
                   font-map (get-in text-data [:font-data :font-map])
                   material-shader (when (not (empty? material)) material-shader)
                   font-shaders (:font-shaders costly-gui-scene-info)
@@ -2258,30 +2279,42 @@
               ;; simply overload the material-shader output on this node.
               ;; Instead, the base VisualNode will pick it up from here.
               {:line-data lines
+               :selected-line-data (:selected-line-data arc-data)
                :text-data text-data
                :color color+alpha
                :override-material-shader font-shader
                :renderable-tags #{:gui-text}})))
   (output markup-error g/Any :cached (g/fnk [_node-id font-data text]
                                        (font/markup-error _node-id :text (:font-map font-data) text)))
-  (output text-layout g/Any :cached (g/fnk [manual-size font-data font-size text line-break text-leading text-tracking style]
-                                      (font/layout-text (some-> font-data :font-map (assoc :style style)) text line-break (first manual-size) text-tracking text-leading
+  (output arc-error g/Any (g/fnk [_node-id arc-radius arc-angle]
+                            (font/arc-error _node-id arc-radius arc-angle)))
+  (output text-layout g/Any :cached (g/fnk [manual-size font-data font-size text line-break text-leading text-tracking style arc-radius arc-angle ^:try arc-error]
+                                      (font/layout-text (some-> font-data :font-map
+                                                                (assoc :style style)
+                                                                (font/with-arc-properties arc-radius arc-angle arc-error))
+                                                        text line-break (first manual-size) text-tracking text-leading
                                                         (when (:vector? font-data) font-size))))
-  (output aabb g/Any :cached (g/fnk [pivot manual-size] (calc-aabb pivot manual-size)))
+  (output arc-data g/Any :cached (g/fnk [font-data text-data]
+                                   (font/arc-data (:font-map font-data) text-data)))
+  (output aabb g/Any :cached (g/fnk [pivot manual-size arc-data arc-angle]
+                               (if (zero? (double arc-angle))
+                                 (calc-aabb pivot manual-size)
+                                 (or (:aabb arc-data) geom/empty-bounding-box))))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                     [(:width text-layout) (:height text-layout) 0]))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color alpha outline outline-alpha shadow shadow-alpha manual-size pivot]
-                                   (cond-> {:text-layout text-layout
-                                            :font-data font-data
-                                            :color (assoc color 3 alpha)
-                                            :outline (assoc outline 3 outline-alpha)
-                                            :shadow (assoc shadow 3 shadow-alpha)
-                                            :font-size (when (:vector? font-data) font-size)
-                                            :align (pivot->h-align pivot)}
-                                     font-data
-                                     (assoc :box-height (second manual-size)
-                                            :offset (pivot-offset pivot manual-size)
-                                            :vertical-align (pivot->v-align pivot)))))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color alpha outline outline-alpha shadow shadow-alpha manual-size pivot arc-radius arc-angle ^:try arc-error]
+                                   (-> {:text-layout text-layout
+                                        :font-data font-data
+                                        :color (assoc color 3 alpha)
+                                        :outline (assoc outline 3 outline-alpha)
+                                        :shadow (assoc shadow 3 shadow-alpha)
+                                        :font-size (when (:vector? font-data) font-size)
+                                        :align (pivot->h-align pivot)}
+                                       (cond-> font-data
+                                         (assoc :box-height (second manual-size)
+                                                :offset (if (zero? (double arc-angle)) (pivot-offset pivot manual-size) [0.0 0.0])
+                                                :vertical-align (pivot->v-align pivot)))
+                                       (font/with-arc-properties arc-radius arc-angle arc-error))))
   (output own-build-errors g/Any
           (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font ^:try markup-error costly-gui-scene-info layout->prop->value]
             (let [font-names (:font-names basic-gui-scene-info)
@@ -2295,7 +2328,8 @@
                           (g/package-errors
                             _node-id
                             (font/style-error _node-id (:font-map font-data) (:style props "default"))
-                            (validate-font-size _node-id font-data (:font-size props)))))
+                            (validate-font-size _node-id font-data (:font-size props))
+                            (font/arc-error _node-id (:arc-radius props 100.0) (:arc-angle props 0.0)))))
                       (coll/vals layout->prop->value))
                 (validate-font _node-id font-names font))))))
 

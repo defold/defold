@@ -155,6 +155,10 @@ namespace dmGui
      */
     typedef void (*PrepareNodeTextLayoutCallback)(dmGui::HScene scene, dmGui::HNode node);
 
+    // Tests curved text in project-space input coordinates. Font resources are
+    // owned by the component layer that supplies this optional callback.
+    typedef bool (*PickNodeTextCallback)(dmGui::HScene scene, dmGui::HNode node, float x, float y);
+
     /**
      * Callback to get custom resource data
      */
@@ -227,6 +231,7 @@ namespace dmGui
         UpdateCustomNodeCallback       m_UpdateCustomNodeCallback;
         void*                          m_CreateCustomNodeCallbackContext;
         PrepareNodeTextLayoutCallback  m_PrepareNodeTextLayoutCallback;
+        PickNodeTextCallback           m_PickNodeTextCallback;
         GetResourceCallback            m_GetResourceCallback;
         void*                          m_GetResourceCallbackContext;
         GetMaterialPropertyCallback    m_GetMaterialPropertyCallback;
@@ -1002,6 +1007,22 @@ namespace dmGui
     void SetNodeFontSize(HScene scene, HNode node, float font_size);
     float GetNodeFontSize(HScene scene, HNode node);
 
+    // Set the first baseline radius about the node origin in local units; it must be finite. Returns RESULT_INVAL_ERROR on invalid input.
+    Result SetNodeTextArcRadius(HScene scene, HNode node, float radius);
+    // Get the circular baseline radius, default 100 local units.
+    float GetNodeTextArcRadius(HScene scene, HNode node);
+    // Set a finite sweep in [0, 360]. Zero selects textbox layout; 360 forms a full circle.
+    // Returns RESULT_INVAL_ERROR on invalid input.
+    Result SetNodeTextArcAngle(HScene scene, HNode node, float degrees);
+    // Get the angular sweep in degrees, default zero.
+    float GetNodeTextArcAngle(HScene scene, HNode node);
+    // Get the effective text box dimensions. Arcs use their length for wrapping and ignore authored size.
+    dmVMath::Vector4 GetNodeTextSize(HScene scene, HNode node);
+    // Retains the immutable curve mapping on a text node. Null restores arc/textbox mapping.
+    void SetNodeTextCurve(HScene scene, HNode node, HFontTextCurve curve);
+    // Returns a borrowed reference to the node's current curve, or null.
+    HFontTextCurve GetNodeTextCurve(HScene scene, HNode node);
+
     HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
 
@@ -1176,6 +1197,7 @@ namespace dmGui
 
     /** determines if a node can be picked
      * Reports if a node is picked by the supplied screen-space coordinates.
+     * Curved text uses projected glyph-cluster bounds, including whitespace.
      *
      * @param scene the scene the node exists in
      * @param node node to be picked
@@ -1194,6 +1216,10 @@ namespace dmGui
      * @return true when the position could be projected onto the node plane
      */
     bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, dmVMath::Point3* position);
+
+    // Maps local rendered positions to project-space input coordinates. Used
+    // to pick curved text after its glyphs move away from the node plane.
+    dmVMath::Matrix4 GetNodeScreenTransform(HScene scene, HNode node);
 
     /** retrieves if a node is enabled or not
      * Only enabled nodes are animated and rendered.

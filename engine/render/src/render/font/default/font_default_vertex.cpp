@@ -34,6 +34,7 @@
 #include <font/text_layout.h>
 #include <font_render.h>
 #include <font/render/layout_vertex.h>
+#include <font/render/text_arc.h>
 
 namespace dmRender
 {
@@ -298,6 +299,9 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
     config.m_Transform = te.m_Transform;
     config.m_Width = te.m_Width;
     config.m_Height = te.m_Height;
+    config.m_Curve = te.m_Curve;
+    config.m_ArcRadius = te.m_ArcRadius;
+    config.m_ArcAngle = te.m_ArcAngle;
     config.m_Align = te.m_Align;
     config.m_VerticalAlign = te.m_VAlign;
     config.m_MonospacePadding = font_map->m_IsMonospaced ? font_map->m_Padding : 0.0f;
@@ -325,6 +329,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
     float layout_width, layout_height;
     TextLayoutGetBounds(layout, &layout_width, &layout_height);
     const float layout_y = OffsetLayoutY(te.m_VAlign, te.m_Height, layout_height);
+    FontTextArc              arc;
+    const bool               use_arc = !te.m_Curve && FontPrepareTextArc(layout, te.m_Width, te.m_Height, te.m_Align, te.m_VAlign, config.m_MonospacePadding, te.m_ArcRadius, te.m_ArcAngle, &arc);
     const uint32_t line_count = TextLayoutGetLineCount(layout);
     FontSpatialGradientCache spatial_cache = {};
     FontPrepareSpatialGradientBounds(config);
@@ -343,10 +349,21 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             align = align == TEXT_ALIGN_LEFT ? TEXT_ALIGN_RIGHT : TEXT_ALIGN_LEFT;
         const float line_start_x = OffsetX(align, te.m_Width) - OffsetX(align, line.m_Width) - (font_map->m_IsMonospaced ? font_map->m_Padding * 0.5f : 0.0f);
         const float line_start_y = layout_y + line.m_Baseline;
+        uint32_t    cluster_end = line.m_Index;
+        Matrix4     cluster_transform = te.m_Transform;
 
         for (uint32_t gi = line.m_Index; gi < line.m_Index + line.m_Length; ++gi)
         {
             TextGlyph* g = &glyphs[gi];
+            if ((te.m_Curve || use_arc) && gi >= cluster_end)
+            {
+                const float pivot = FontGetTextClusterPivot(glyphs, &line, gi, line_start_x, first_x, &cluster_end);
+                if (te.m_Curve)
+                    cluster_transform = FontTextCurveGetTransform(te.m_Curve, pivot, layout_y + lines[0].m_Baseline);
+                else
+                    FontGetTextArcTransform(&arc, pivot, line_start_y, (float*)&cluster_transform);
+                cluster_transform = te.m_Transform * cluster_transform;
+            }
             if ((g->m_Flags & TEXT_GLYPH_FLAG_OBJECT) || dmUtf8::IsWhiteSpace(g->m_Codepoint))
                 continue;
             if (glyph_slot == metrics.m_GlyphQuadCount)
@@ -379,9 +396,9 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                 if (!emit_face)
                     continue;
                 float scale = FontGetScaleFromSize(g->m_Font, reference_size) * font_scale;
-                float view_scale = dmMath::Max(length(te.m_Transform.getCol0().getXYZ()), length(te.m_Transform.getCol1().getXYZ()));
+                float view_scale = dmMath::Max(length(cluster_transform.getCol0().getXYZ()), length(cluster_transform.getCol1().getXYZ()));
                 FontVectorPaintVertex packed[6];
-                FontVectorPaintPackGlyph(*paint, scale, scale * dmMath::Max(view_scale, 0.0001f), x, y, te.m_Transform, Vector4(-FLT_MAX, -FLT_MAX, FLT_MAX, FLT_MAX), render_data.m_FaceColors, packed);
+                FontVectorPaintPackGlyph(*paint, scale, scale * dmMath::Max(view_scale, 0.0001f), x, y, cluster_transform, Vector4(-FLT_MAX, -FLT_MAX, FLT_MAX, FLT_MAX), render_data.m_FaceColors, packed);
                 for (uint32_t v = 0; v < 6; ++v)
                 {
                     const FontVectorPaintVertex& src = packed[v];
@@ -462,7 +479,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             if (emit_shadow && cache_glyph->m_VectorSdfCached)
             {
                 OutputGlyphVector(glyph_shadow_vertexindex,
-                                  te.m_Transform,
+                                  cluster_transform,
                                   x,
                                   y,
                                   sdf_width,
@@ -491,7 +508,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             {
                 // Use the complete atlas entry, including padding for the outline threshold.
                 OutputGlyphVector(glyph_outline_vertexindex,
-                                  te.m_Transform,
+                                  cluster_transform,
                                   x,
                                   y,
                                   sdf_width,
@@ -521,7 +538,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                 uint32_t colors[4];
                 FontPackGlyphFaceColors(render_data.m_FaceColors, colors);
                 OutputGlyphVector(glyph_face_vertexindex,
-                                  te.m_Transform,
+                                  cluster_transform,
                                   x,
                                   y,
                                   glyph_width,

@@ -588,6 +588,40 @@ namespace dmGui
         return 0.0f;
     }
 
+    Result SetNodeTextArcRadius(HScene scene, HNode node, float radius)
+    {
+        return RESULT_OK;
+    }
+
+    float GetNodeTextArcRadius(HScene scene, HNode node)
+    {
+        return 100.0f;
+    }
+
+    Result SetNodeTextArcAngle(HScene scene, HNode node, float degrees)
+    {
+        return RESULT_OK;
+    }
+
+    float GetNodeTextArcAngle(HScene scene, HNode node)
+    {
+        return 0.0f;
+    }
+
+    dmVMath::Vector4 GetNodeTextSize(HScene scene, HNode node)
+    {
+        return dmVMath::Vector4(0.0f);
+    }
+
+    void SetNodeTextCurve(HScene scene, HNode node, HFontTextCurve curve)
+    {
+    }
+
+    HFontTextCurve GetNodeTextCurve(HScene scene, HNode node)
+    {
+        return 0;
+    }
+
     HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
     {
         return 0;
@@ -933,6 +967,11 @@ namespace dmGui
     bool PickNode(HScene scene, HNode node, float x, float y)
     {
         return false;
+    }
+
+    Matrix4 GetNodeScreenTransform(HScene scene, HNode node)
+    {
+        return Matrix4::identity();
     }
 
     bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, Point3* position)

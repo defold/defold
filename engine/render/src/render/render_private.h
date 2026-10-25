@@ -19,6 +19,7 @@
 
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/font/text_layout.h>
+#include <font/text_curve.hpp>
 
 #include <dlib/opaque_handle_container.h>
 #include <dlib/array.h>
@@ -162,6 +163,7 @@ namespace dmRender
         HFontMap            m_FontMap;
         HMaterial           m_Material;
         HTextLayout         m_TextLayout;
+        HFontTextCurve      m_Curve;
         dmGraphics::BlendFactor m_SourceBlendFactor;
         dmGraphics::BlendFactor m_DestinationBlendFactor;
         uint64_t            m_BatchKey;
@@ -180,6 +182,8 @@ namespace dmRender
         float               m_Leading;
         float               m_Tracking;
         float               m_FontSize;
+        float               m_ArcRadius;
+        float               m_ArcAngle;
         int32_t             m_Next;
         int32_t             m_Tail;
         dmVMath::Point3     m_FrustumCullingCenter;

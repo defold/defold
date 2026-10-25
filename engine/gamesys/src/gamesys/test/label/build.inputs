@@ -1,4 +1,5 @@
 /label/invalid_label.go
+/label/curve.go
 /label/invalid_vertexspace.label
 /label/layout_object_pivot.go
 /label/link_hover.go

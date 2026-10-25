@@ -21,6 +21,8 @@
 #include <dlib/easing.h>
 #include <dlib/image.h>
 #include <dmsdk/dlib/vmath.h>
+#include <math.h>
+#include <font/text_curve.hpp>
 
 #include "gui.h"
 
@@ -173,6 +175,8 @@ namespace dmGui
         };
 
         const char*             m_Text;
+        HFontTextCurve          m_TextCurve;
+        HFontTextCurve          m_ResetPointCurve;
         TextLayout              m_TextLayout;
         void**                  m_NodeDescTable;
         TextureSetAnimDesc      m_TextureSetAnimDesc;
@@ -312,6 +316,7 @@ namespace dmGui
         UpdateCustomNodeCallback              m_UpdateCustomNodeCallback;
         void*                                 m_CreateCustomNodeCallbackContext;
         PrepareNodeTextLayoutCallback         m_PrepareNodeTextLayoutCallback;
+        PickNodeTextCallback                  m_PickNodeTextCallback;
         GetResourceCallback                   m_GetResourceCallback;
         void*                                 m_GetResourceCallbackContext;
         FetchTextureSetAnimCallback           m_FetchTextureSetAnimCallback;
@@ -403,6 +408,17 @@ namespace dmGui
         return delta_pivot;
     }
 
+    inline dmVMath::Vector4 GetTextNodeSize(const Node& node)
+    {
+        if (node.m_TextCurve)
+            return dmVMath::Vector4(FontTextCurveGetLength(node.m_TextCurve), 0.0f, 0.0f, 0.0f);
+        const dmVMath::Vector4& text_params = node.m_Properties[PROPERTY_TEXT_PARAMS];
+        if (node.m_NodeType != NODE_TYPE_TEXT || text_params.getW() == 0.0f)
+            return node.m_Properties[PROPERTY_SIZE];
+        const float width = node.m_LineBreak ? fabsf(text_params.getZ()) * fabsf(text_params.getW()) * 0.017453292519943295f : 0.0f;
+        return dmVMath::Vector4(width, 0.0f, 0.0f, 0.0f);
+    }
+
     /** Calculates a transform with the pivot and the scale set
      *
      * @param scene scene of the node
@@ -415,7 +431,12 @@ namespace dmGui
         dmVMath::Vector4 size(1.0f, 1.0f, 0.0f, 0.0f);
         if (flags & CALCULATE_NODE_INCLUDE_SIZE)
         {
-            size = node.m_Properties[dmGui::PROPERTY_SIZE];
+            if (flags & CALCULATE_NODE_BOUNDARY)
+                size = node.m_Properties[dmGui::PROPERTY_SIZE];
+            else if (node.m_TextCurve || (node.m_NodeType == NODE_TYPE_TEXT && node.m_Properties[PROPERTY_TEXT_PARAMS].getW() != 0.0f))
+                size = dmVMath::Vector4(0.0f);
+            else
+                size = GetTextNodeSize(node);
         }
         // Reset the pivot of the node, so that the resulting transform has the origin in the lower left, which is used for quad rendering etc.
         if (flags & CALCULATE_NODE_RESET_PIVOT)

@@ -2018,6 +2018,126 @@ public class FontRendererFFM extends FontRendererSymbols {
         }
     }
 
+    private static class FontcGetArc {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            FontRendererFFM.C_INT,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontcGetArc");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetArc(HFontRenderer renderer, FontcArc *arc)
+     * }
+     */
+    public static FunctionDescriptor FontcGetArc$descriptor() {
+        return FontcGetArc.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetArc(HFontRenderer renderer, FontcArc *arc)
+     * }
+     */
+    public static MethodHandle FontcGetArc$handle() {
+        return FontcGetArc.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetArc(HFontRenderer renderer, FontcArc *arc)
+     * }
+     */
+    public static MemorySegment FontcGetArc$address() {
+        return FontcGetArc.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * FontRendererResult FontcGetArc(HFontRenderer renderer, FontcArc *arc)
+     * }
+     */
+    public static int FontcGetArc(MemorySegment renderer, MemorySegment arc) {
+        var mh$ = FontcGetArc.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("FontcGetArc", renderer, arc);
+            }
+            return (int)mh$.invokeExact(renderer, arc);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class FontcFreeArc {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            FontRendererFFM.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontcFreeArc");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void FontcFreeArc(FontcArc *arc)
+     * }
+     */
+    public static FunctionDescriptor FontcFreeArc$descriptor() {
+        return FontcFreeArc.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void FontcFreeArc(FontcArc *arc)
+     * }
+     */
+    public static MethodHandle FontcFreeArc$handle() {
+        return FontcFreeArc.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void FontcFreeArc(FontcArc *arc)
+     * }
+     */
+    public static MemorySegment FontcFreeArc$address() {
+        return FontcFreeArc.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void FontcFreeArc(FontcArc *arc)
+     * }
+     */
+    public static void FontcFreeArc(MemorySegment arc) {
+        var mh$ = FontcFreeArc.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("FontcFreeArc", arc);
+            }
+            mh$.invokeExact(arc);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
     private static class FontcGetVertexBufferSize {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             FontRendererFFM.C_INT,

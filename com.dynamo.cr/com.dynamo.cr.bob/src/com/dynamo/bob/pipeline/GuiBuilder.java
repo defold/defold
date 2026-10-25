@@ -66,8 +66,15 @@ import org.apache.commons.io.FilenameUtils;
 public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     private final Map<String, Set<String>> fontStyleNames = new HashMap<>();
 
-    private void validateStyleSelection(String input, NodeDesc node, Map<String, Set<String>> styles) throws CompileExceptionError {
-        if (node.getType() == Type.TYPE_TEXT && styles.containsKey(node.getFont()) && !styles.get(node.getFont()).contains(node.getStyle()))
+    private void validateTextNode(String input, NodeDesc node, Map<String, Set<String>> styles) throws CompileExceptionError {
+        if (node.getType() != Type.TYPE_TEXT)
+            return;
+        if (!Float.isFinite(node.getArcRadius()) ||
+                !Float.isFinite(node.getArcAngle()) || node.getArcAngle() < 0.0f || node.getArcAngle() > 360.0f) {
+            throw new CompileExceptionError(project.getResource(input), 0,
+                    "Invalid GUI text arc parameters: Arc Radius must be finite, and Arc Angle must be within [0, 360]");
+        }
+        if (styles.containsKey(node.getFont()) && !styles.get(node.getFont()).contains(node.getStyle()))
             throw new CompileExceptionError(project.getResource(input), 0, "Node '" + node.getId() + "': font style '" + node.getStyle() + "' does not exist");
     }
 
@@ -892,9 +899,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 Set<String> names = builder.fontStyleNames.get(font.getFont());
                 if (names != null) styles.put(font.getName(), names);
             }
-            for (NodeDesc node : sceneBuilder.getNodesList()) builder.validateStyleSelection(input, node, styles);
+            for (NodeDesc node : sceneBuilder.getNodesList()) builder.validateTextNode(input, node, styles);
             for (LayoutDesc layout : sceneBuilder.getLayoutsList())
-                for (NodeDesc node : layout.getNodesList()) builder.validateStyleSelection(input, node, styles);
+                for (NodeDesc node : layout.getNodesList()) builder.validateTextNode(input, node, styles);
         }
         return sceneBuilder;
     }

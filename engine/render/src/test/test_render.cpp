@@ -27,6 +27,7 @@
 #include <font/fontcollection.h>
 #include <font/glyphbank_ddf.h>
 #include <font/render/glyph_vertex.h>
+#include <font/render/text_arc.h>
 #include <font/text_layout.h>
 #include <platform/window.hpp>
 
@@ -4834,6 +4835,78 @@ TEST_F(VectorFontTest, ColorRequiresDrawMaterialPaintSampler)
     FontDestroy(font);
     dmRender::DeleteMaterial(m_Context, material);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Color glyphs use the same rigid cluster frame as ordinary glyphs on arcs and 3D paths.
+TEST_F(VectorFontTest, ColorFollowsArcAndCurve)
+{
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32;
+    settings.m_Width = 128;
+    settings.m_Leading = 1;
+    HTextLayout layout = CreateTextLayout(m_SystemFontMap, "J", settings);
+    ASSERT_NE((HTextLayout)0, layout);
+    dmRender::TextEntry entry = {};
+    entry.m_Transform = Matrix4::identity();
+    entry.m_TextLayout = layout;
+    entry.m_Material = m_Material;
+    entry.m_FontSize = settings.m_Size;
+    entry.m_Width = settings.m_Width;
+    entry.m_FaceColor = COLOR_WHITE_RGBA;
+    entry.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    entry.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+    FontTextCurveKnot knots[2] = {};
+    knots[0].m_Position = Vector3(0, 40, 20);
+    knots[1].m_Position = Vector3(128, 40, 20);
+    knots[0].m_OutHandle = Vector3(128.0f / 3, 0, 0);
+    knots[1].m_InHandle = -knots[0].m_OutHandle;
+    knots[0].m_RollDegrees = knots[1].m_RollDegrees = 30;
+    knots[0].m_Scale = knots[1].m_Scale = 1.5f;
+    HFontTextCurve curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+    ASSERT_NE((HFontTextCurve)0, curve);
+    const TextLine& line = TextLayoutGetLines(layout)[0];
+    float layout_width, layout_height;
+    TextLayoutGetBounds(layout, &layout_width, &layout_height);
+    const float baseline = dmRender::OffsetLayoutY(entry.m_VAlign, entry.m_Height, layout_height) + line.m_Baseline;
+    const float padding = m_SystemFontMap->m_IsMonospaced ? m_SystemFontMap->m_Padding : 0;
+    const float x = -padding * 0.5f;
+    const float pivot = FontGetTextClusterPivot(TextLayoutGetGlyphs(layout), &line, 0, x, TextLayoutGetLineOriginX(layout, 0), 0);
+    const float scale = FontGetScaleFromSize(font, settings.m_Size);
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        entry.m_ArcRadius = 100;
+        entry.m_ArcAngle = mode == 1 ? 90 : 0;
+        entry.m_Curve = mode == 2 ? curve : 0;
+        Matrix4 frame = Matrix4::identity();
+        if (entry.m_Curve)
+            frame = FontTextCurveGetTransform(curve, pivot, baseline);
+        else if (entry.m_ArcAngle)
+        {
+            FontTextArc arc;
+            ASSERT_TRUE(FontPrepareTextArc(layout, entry.m_Width, 0, entry.m_Align, entry.m_VAlign, padding, entry.m_ArcRadius, entry.m_ArcAngle, &arc));
+            FontGetTextArcTransform(&arc, pivot, baseline, (float*)&frame);
+        }
+        dmRender::FontDefaultVertex vertices[6];
+        ASSERT_EQ(6u, dmRender::CreateFontVertexData(m_SystemFontMap, 1, "", entry, 1, 1, 1, (uint8_t*)vertices, 6));
+        for (uint32_t i = 0; i < 6; ++i)
+        {
+            const Vector4 expected = frame * Point3(x + vertices[i].m_UV[0] * scale, baseline + vertices[i].m_UV[1] * scale, 0);
+            EXPECT_EQ(4.0f, vertices[i].m_VectorTexcoord[3]);
+            EXPECT_NEAR(expected.getX(), vertices[i].m_Position[0], EPSILON);
+            EXPECT_NEAR(expected.getY(), vertices[i].m_Position[1], EPSILON);
+            EXPECT_NEAR(expected.getZ(), vertices[i].m_Position[3], EPSILON);
+        }
+    }
+    FontTextCurveRelease(curve);
+    TextLayoutRelease(layout);
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
 }
 
 // Color paint must honor spatial gradient opacity when the material uses the CPU fallback.

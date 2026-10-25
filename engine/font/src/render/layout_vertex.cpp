@@ -14,6 +14,7 @@
 
 #include "layout_vertex.h"
 #include "font_effect.h"
+#include "text_arc.h"
 #include "../font.h"
 #include "text_layout.h"
 
@@ -52,6 +53,11 @@ static float OffsetLayoutY(uint32_t align, float height, float layout_height)
     }
 
     return height - layout_height;
+}
+
+static bool HasCurvedText(const FontLayoutVertexConfig& config)
+{
+    return config.m_Curve || config.m_ArcAngle != 0.0f;
 }
 
 static uint32_t ResolveAlign(uint32_t align, TextDirection direction)
@@ -155,6 +161,9 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
         return false;
     }
 
+    if (HasCurvedText(config) && config.m_RenderDecorations)
+        TextLayoutInitializeDecorationGeometry(config.m_Layout, true);
+
     uint32_t       glyph_quad_count = 0;
     uint32_t       outline_quad_count = 0;
     uint32_t       shadow_quad_count = 0;
@@ -195,7 +204,7 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
     for (uint32_t i = 0; config.m_RenderDecorations && i < decoration_count; ++i)
     {
         const TextDecoration& decoration = decorations[i];
-        const bool            glyph_segments = FontDecorationRequiresGlyphSegments(config.m_Layout, decoration);
+        const bool            glyph_segments = HasCurvedText(config) || FontDecorationRequiresGlyphSegments(config.m_Layout, decoration);
         const uint32_t        segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
         decoration_quad_count += segment_count;
 
@@ -260,7 +269,7 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
         for (uint32_t i = 0; config.m_RenderDecorations && !decoration_buffer_full && i < decoration_count; ++i)
         {
             const TextDecoration& decoration = decorations[i];
-            const bool            glyph_segments = FontDecorationRequiresGlyphSegments(config.m_Layout, decoration);
+            const bool            glyph_segments = HasCurvedText(config) || FontDecorationRequiresGlyphSegments(config.m_Layout, decoration);
             const uint32_t        segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
 
             for (uint32_t segment = 0; segment < segment_count; ++segment)
@@ -1040,6 +1049,10 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
     TextLayoutGetBounds(config.m_Layout, &layout_width, &layout_height);
     (void)layout_width;
     const float          layout_y = OffsetLayoutY(config.m_VerticalAlign, config.m_Height, layout_height);
+    FontTextArc arc;
+    const bool use_arc = !config.m_Curve && FontPrepareTextArc(config.m_Layout, config.m_Width, config.m_Height,
+                                            config.m_Align, config.m_VerticalAlign, config.m_MonospacePadding,
+                                            config.m_ArcRadius, config.m_ArcAngle, &arc);
     uint32_t             shadow_vertex_index = 0;
     uint32_t             outline_vertex_index = metrics.m_ShadowQuadCount * 6;
     uint32_t             face_vertex_index = (metrics.m_ShadowQuadCount + metrics.m_OutlineQuadCount) * 6;
@@ -1066,6 +1079,9 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
 
         const float line_x = GetLineStartX(config, line, paragraphs[line.m_ParagraphIndex].m_Direction);
         const float line_y = layout_y + line.m_Baseline;
+        uint32_t cluster_end = line.m_Index;
+        Matrix4 cluster_transform = config.m_Transform;
+        float cluster_scale = 1.0f;
 
         for (uint32_t i = line.m_Index; i < line.m_Index + line.m_Length; ++i)
         {
@@ -1073,11 +1089,26 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             const float      x = line_x + text_glyph.m_X - first_x;
             const float      y = line_y + text_glyph.m_Y - first_y;
 
+            if ((config.m_Curve || use_arc) && i >= cluster_end)
+            {
+                const float pivot_x = FontGetTextClusterPivot(glyphs, &line, i, line_x, first_x, &cluster_end);
+                if (config.m_Curve)
+                {
+                    cluster_transform = FontTextCurveGetTransform(config.m_Curve, pivot_x, layout_y + lines[0].m_Baseline);
+                    cluster_scale = Length(cluster_transform.getCol0().getXYZ());
+                }
+                else
+                    FontGetTextArcTransform(&arc, pivot_x, line_y, (float*)&cluster_transform);
+                cluster_transform = config.m_Transform * cluster_transform;
+            }
+
             if (text_glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
             {
                 if (config.m_RenderObjectOutlines && emitted_objects < metrics.m_ObjectQuadCount)
                 {
-                    EmitObjectOutline(config, text_glyph, x, line_y - text_glyph.m_Height * 0.2f, &face_vertex_index, vertices);
+                    FontLayoutVertexConfig object_config = config;
+                    object_config.m_Transform = cluster_transform;
+                    EmitObjectOutline(object_config, text_glyph, x, line_y - text_glyph.m_Height * 0.2f, &face_vertex_index, vertices);
                     emitted_objects += 4;
                 }
 
@@ -1126,8 +1157,9 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             glyph_params.m_MetricsFromTtf = config.m_MetricsFromTtf;
 
             FontVertexLayerParams layers;
-            SetVertexLayerParams(config, layer_data, face_colors, glyph_params.m_RenderScale, metrics.m_LayerCount,
+            SetVertexLayerParams(config, layer_data, face_colors, glyph_params.m_RenderScale * cluster_scale, metrics.m_LayerCount,
                                  vertices + face_vertex_index, outline_vertices, shadow_vertices, &layers);
+            layers.m_Transform = &cluster_transform;
             FontPackGlyphVertices(glyph_params, layers);
             const TextEffect* spatial_effect = FindGlyphGradient(config.m_Layout, text_glyph);
             if (cached.m_Glyph && spatial_effect && spatial_effect->m_Gradient.m_Mode == TEXT_GRADIENT_MODE_SPATIAL)
@@ -1193,7 +1225,7 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
 
         const float         line_x = GetLineStartX(config, line, paragraphs[line.m_ParagraphIndex].m_Direction);
         const float         line_y = layout_y + line.m_Baseline;
-        const bool          glyph_segments = FontDecorationRequiresGlyphSegments(config.m_Layout, decoration);
+        const bool          glyph_segments = HasCurvedText(config) || FontDecorationRequiresGlyphSegments(config.m_Layout, decoration);
         const uint32_t      segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
         TextGlyphFaceColors decoration_colors;
         uint32_t            packed_decoration_colors[4];
@@ -1266,6 +1298,20 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             FontVertexLayerParams layers;
             SetVertexLayerParams(config, layer_data, face_colors, GetGlyphRenderScale(config, glyph), metrics.m_LayerCount,
                                  vertices + face_vertex_index, outline_vertices, shadow_vertices, &layers);
+            Matrix4 decoration_transform = config.m_Transform;
+            if (config.m_Curve || use_arc)
+            {
+                const float pivot_x = x0 + decoration_segment.m_Length * 0.5f;
+                if (config.m_Curve)
+                {
+                    decoration_transform = FontTextCurveGetTransform(config.m_Curve, pivot_x, layout_y + lines[0].m_Baseline);
+                    layers.m_SdfSmoothing /= Length(decoration_transform.getCol0().getXYZ());
+                }
+                else
+                    FontGetTextArcTransform(&arc, pivot_x, line_y, (float*)&decoration_transform);
+                decoration_transform = config.m_Transform * decoration_transform;
+            }
+            layers.m_Transform = &decoration_transform;
             FontPackDecorationVertices(decoration_params, layers);
             const TextEffect* spatial_effect = FindGlyphGradient(config.m_Layout, glyph);
             if (spatial_effect && spatial_effect->m_Gradient.m_Mode == TEXT_GRADIENT_MODE_SPATIAL)

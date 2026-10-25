@@ -209,6 +209,8 @@ message NodeDesc
     repeated Property  custom_properties = 50;
     optional string    style             = 51 [default = "default"];
     optional float     font_size          = 52 [default = 16.0];
+    optional float     arc_radius        = 53 [default = 100.0]; // First text baseline radius about the node origin in local units.
+    optional float     arc_angle         = 54 [default = 0.0]; // Sweep [0, 360]; zero selects textbox layout.
 }
 
 message SceneDesc
