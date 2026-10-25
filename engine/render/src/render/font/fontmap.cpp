@@ -21,9 +21,11 @@
 #include <dlib/math.h>
 #include <dlib/mutex.h>
 #include <dlib/profile.h>
+#include <dlib/utf8.h>
 #include <dlib/zlib.h>
 
 #include <font/text_layout.h>
+#include <font/fontcollection.h>
 
 #include <algorithm> // std::sort
 #include <math.h>
@@ -33,6 +35,7 @@
 namespace dmRender
 {
     static const dmhash_t CURVE_TEXTURE_HASH = dmHashString64("curve_texture");
+    static const dmhash_t PAINT_TEXTURE_HASH = dmHashString64("paint_texture");
     static const uint32_t VECTOR_SLUG_TEXTURE_HEIGHT = 8;
     static const uint32_t VECTOR_SLUG_BANDS = 8;
 
@@ -250,6 +253,11 @@ namespace dmRender
 
     static void DestroySlugData(HFontMap font_map)
     {
+        delete font_map->m_VectorPaint;
+        font_map->m_VectorPaint = 0;
+        if (font_map->m_VectorPaintTexture)
+            dmGraphics::DeleteTexture(font_map->m_GraphicsContext, font_map->m_VectorPaintTexture);
+        font_map->m_VectorPaintTexture = 0;
         delete font_map->m_SlugData;
         font_map->m_SlugData = 0;
         font_map->m_SlugResetPending = false;
@@ -282,6 +290,13 @@ namespace dmRender
     {
         DestroySlugData(font_map);
         font_map->m_SlugData = new FontVectorSlugData;
+        font_map->m_VectorPaint = new FontVectorPaintCache;
+        font_map->m_VectorPaint->m_Slug = font_map->m_SlugData;
+        float transparent[4] = {};
+        RecreateTextureWithData(font_map->m_GraphicsContext, &font_map->m_VectorPaintTexture,
+            1, 1, dmGraphics::TEXTURE_FORMAT_RGBA32F,
+            dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST,
+            transparent, sizeof(transparent));
         ResizeSlugTextures(font_map, VECTOR_SLUG_TEXTURE_HEIGHT);
         RecreateVectorSdfTexture(font_map);
         return true;
@@ -309,6 +324,8 @@ namespace dmRender
     static bool SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
     {
         font_map->m_FontCollection = params.m_FontCollection;
+        if (font_map->m_FontCollection)
+            FontCollectionSetColorEmojiEnabled(font_map->m_FontCollection, false);
         font_map->m_NameHash = params.m_NameHash;
         font_map->m_Size = params.m_Size;
         font_map->m_ShadowX = params.m_ShadowX;
@@ -480,6 +497,8 @@ namespace dmRender
         if (font_map->m_IsVector || vector)
             ResetVectorCache(font_map);
         font_map->m_IsVector = vector ? 1 : 0;
+        if (font_map->m_FontCollection)
+            FontCollectionSetColorEmojiEnabled(font_map->m_FontCollection, vector && GetMaterialSamplerUnit(material, PAINT_TEXTURE_HASH) != INVALID_SAMPLER_UNIT);
         return true;
     }
 
@@ -1093,12 +1112,60 @@ namespace dmRender
         if (font_map->m_SlugData)
         {
             FontVectorSlugBegin(font_map->m_SlugData);
+            FontVectorPaintClear(font_map->m_VectorPaint);
             const uint32_t height = font_map->m_SlugData->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH;
             if (font_map->m_SlugResetPending && height < FONT_VECTOR_SLUG_MAX_HEIGHT)
                 ResizeSlugTextures(font_map, dmMath::Min(height * 2, FONT_VECTOR_SLUG_MAX_HEIGHT));
             font_map->m_SlugResetPending = false;
         }
         RecreateVectorSdfTexture(font_map);
+    }
+
+    const FontVectorPaintGlyph* GetVectorPaintGlyph(HFontMap font_map, HFont font, uint32_t glyph)
+    {
+        uint64_t  key[2] = { (uint64_t)(uintptr_t)font, glyph };
+        uint32_t* index = font_map->m_VectorPaint->m_GlyphLookup.Get(dmHashBuffer64(key, sizeof(key)));
+        return index ? &font_map->m_VectorPaint->m_Glyphs[*index] : 0;
+    }
+
+    void PrepareVectorPaintGlyphs(HFontMap font_map, HTextLayout layout, uint32_t frame, uint32_t max_glyph_count)
+    {
+        FontVectorPaintCache* cache = font_map->m_VectorPaint;
+        uint32_t              previous_count = cache->m_Glyphs.Size();
+        TextGlyph*            glyphs = TextLayoutGetGlyphs(layout);
+        uint32_t              glyph_slot = 0;
+        for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout) && glyph_slot < max_glyph_count; ++i)
+        {
+            const TextGlyph& glyph = glyphs[i];
+            if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT || dmUtf8::IsWhiteSpace(glyph.m_Codepoint))
+                continue;
+            ++glyph_slot;
+            if (!FontVectorPaintHasGlyph(glyph.m_Font, glyph.m_GlyphIndex))
+                continue;
+            uint32_t index;
+            bool     has_color;
+            if (!FontVectorPaintAddGlyph(cache, glyph.m_Font, glyph.m_GlyphIndex, &index, &has_color) && cache->m_Slug->m_Overflow)
+            {
+                font_map->m_SlugResetPending = true;
+                font_map->m_SlugOverflowFrame = frame;
+                break;
+            }
+        }
+        if (cache->m_Glyphs.Size() == previous_count)
+            return;
+        FontVectorSlugData* data = cache->m_Slug;
+        const uint32_t      atlas_height = data->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH;
+        UpdateVectorTexture(font_map, font_map->m_Texture, dmGraphics::TEXTURE_FORMAT_RGBA16F,
+            FONT_VECTOR_SLUG_WIDTH, atlas_height, data->m_Curves.Begin(), data->m_Curves.Capacity() * sizeof(uint16_t));
+        UpdateVectorTexture(font_map, font_map->m_VectorBandTexture, dmGraphics::TEXTURE_FORMAT_R32UI,
+            FONT_VECTOR_SLUG_WIDTH, atlas_height, data->m_Bands.Begin(), data->m_Bands.Capacity() * sizeof(uint32_t));
+        uint32_t height = dmMath::Max(1u, (cache->m_Paints.Size() + FONT_VECTOR_SLUG_WIDTH - 1) / FONT_VECTOR_SLUG_WIDTH);
+        uint32_t texels = height * FONT_VECTOR_SLUG_WIDTH;
+        if (cache->m_Paints.Capacity() < texels)
+            cache->m_Paints.SetCapacity(texels);
+        memset(cache->m_Paints.Begin() + cache->m_Paints.Size(), 0, (texels - cache->m_Paints.Size()) * sizeof(Vector4));
+        UpdateVectorTexture(font_map, font_map->m_VectorPaintTexture, dmGraphics::TEXTURE_FORMAT_RGBA32F,
+            FONT_VECTOR_SLUG_WIDTH, height, cache->m_Paints.Begin(), texels * sizeof(Vector4));
     }
 
     static bool EncodeSlugGlyph(HFontMap font_map, CacheGlyph* cache_glyph, const FontGlyph& source)
@@ -1359,6 +1426,15 @@ namespace dmRender
             size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_VectorBandTexture);
         if (font_map->m_SlugData)
             size += sizeof(FontVectorSlugData) + font_map->m_SlugData->m_Curves.Capacity() * sizeof(uint16_t) + font_map->m_SlugData->m_Bands.Capacity() * sizeof(uint32_t);
+        if (font_map->m_VectorPaintTexture)
+            size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_VectorPaintTexture);
+        if (font_map->m_VectorPaint)
+        {
+            FontVectorPaintCache* paint = font_map->m_VectorPaint;
+            size += sizeof(*paint) + paint->m_Paths.Capacity() * sizeof(FontVectorPaintPath) +
+                    paint->m_LayerScratch.Capacity() * sizeof(FontVectorPaintLayer) + paint->m_Glyphs.Capacity() * sizeof(FontVectorPaintGlyph) +
+                    paint->m_Paints.Capacity() * sizeof(Vector4);
+        }
         if (font_map->m_VectorSdfTexture)
             size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_VectorSdfTexture);
         size += font_map->m_DecorationVertices.Capacity() * sizeof(FontGlyphVertex);

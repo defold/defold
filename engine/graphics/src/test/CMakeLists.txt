@@ -249,15 +249,27 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
       # Automatic hosted CI coverage is Linux/Vulkan and the iOS simulator. The manual target
       # above always remains available, regardless of this policy.
       set(_graphics_ci_command ${_graphics_image_command})
+      set(_graphics_buffer_command "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_buffer_replacement.py"
+        --executable "$<TARGET_FILE:test_app_graphics>" --target-platform "${TARGET_PLATFORM}"
+        --available ${_graphics_available})
       if(DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$|^arm64_sim-ios$")
         list(APPEND _graphics_ci_command --skip-all "Hosted CI graphics captures explicitly disabled for ${TARGET_PLATFORM}")
+        list(APPEND _graphics_buffer_command --skip-all "Hosted CI graphics tests explicitly disabled for ${TARGET_PLATFORM}")
         message(STATUS "Graphics captures skipped on hosted ${TARGET_PLATFORM} CI; manual target remains available")
       endif()
       add_custom_target(run_graphics_test_images
         COMMAND ${_graphics_runner} ${_graphics_ci_command}
         DEPENDS test_app_graphics
         ${_graphics_run_options} COMMENT "Running graphics likeness tests with CI policy")
+      add_custom_target(run_graphics_buffer_replacement
+        COMMAND ${_graphics_runner} ${_graphics_buffer_command}
+        DEPENDS test_app_graphics
+        ${_graphics_run_options} COMMENT "Running graphics buffer replacement tests")
+      defold_register_sequential_test_command(graphics_buffer_replacement
+        COMMAND ${_graphics_buffer_command} DEPENDS test_app_graphics)
       if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        defold_add_to_run_tests(run_graphics_buffer_replacement RUN_GROUP graphics
+          COMMAND ${_graphics_buffer_command} DEPENDS test_app_graphics)
         defold_add_to_run_tests(run_test_graphics_images_python RUN_GROUP graphics
           COMMAND ${_graphics_python_command} DEPENDS test_app_graphics)
         # This runner command carries the CI policy, while the manual target does not.

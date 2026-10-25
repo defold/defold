@@ -68,6 +68,8 @@ typedef struct HttpTestResponse
     uint32_t     m_TotalDataSize;
     uint32_t     m_DataEventCount;
     uint32_t     m_CompleteDataEventCount;
+    int32_t      m_FirstDataBytesTotal;
+    int32_t      m_LastDataBytesTotal;
     uint32_t     m_ProgressEventCount;
     uint32_t     m_BytesSent;
     uint32_t     m_BytesReceived;
@@ -303,6 +305,11 @@ static HttpCallbackResult HttpResponse(HttpRequest* request, void* user_data, co
         uint32_t    data_size = HttpResponseGetDataSize(response);
         const void* data = HttpResponseGetData(response);
 
+        if (test_response->m_DataEventCount == 0)
+        {
+            test_response->m_FirstDataBytesTotal = HttpResponseGetBytesTotal(response);
+        }
+        test_response->m_LastDataBytesTotal = HttpResponseGetBytesTotal(response);
         test_response->m_TotalDataSize += data_size;
         test_response->m_DataEventCount++;
 
@@ -505,6 +512,7 @@ TEST_F(Http, ResponseHeaders)
     ASSERT_EQ(response_size, response->m_ContentLengthHeaderValue);
 }
 
+// Verifies streamed data includes the content length even when progress reporting is disabled.
 TEST_F(Http, LargeResponseStreamsChunks)
 {
     HttpRequest*      request = jc_test_fixture->m_Request;
@@ -527,8 +535,56 @@ TEST_F(Http, LargeResponseStreamsChunks)
     ASSERT_EQ(HTTP_RESULT_OK, response->m_Result);
     ASSERT_EQ(200, response->m_StatusCode);
     ASSERT_EQ(response_size, response->m_TotalDataSize);
+    ASSERT_EQ(response_size, response->m_FirstDataBytesTotal);
+    ASSERT_EQ(response_size, response->m_LastDataBytesTotal);
+    ASSERT_EQ(0, response->m_ProgressEventCount);
     ASSERT_GT(response->m_DataEventCount, 1);
     ASSERT_EQ(response->m_DataEventCount, response->m_CompleteDataEventCount);
+}
+
+// Verifies chunked data without Content-Length reports an unknown size for buffer growth.
+TEST_F(Http, DataWithoutContentLength)
+{
+    HttpRequest*      request = jc_test_fixture->m_Request;
+    HttpRequestHandle request_handle;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
+    char              url[256];
+
+    snprintf(url, sizeof(url), "http://%s:%d/chunked", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort);
+
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_EQ(0, WaitForComplete(response, 10));
+
+    ASSERT_EQ(HTTP_RESULT_OK, response->m_Result);
+    ASSERT_EQ(200, response->m_StatusCode);
+    ASSERT_GT(response->m_TotalDataSize, 0);
+    ASSERT_EQ(0, response->m_HasContentLengthHeader);
+    ASSERT_EQ(-1, response->m_FirstDataBytesTotal);
+    ASSERT_EQ(-1, response->m_LastDataBytesTotal);
+}
+
+// Verifies HEAD responses with Content-Length do not emit body data that would reserve a buffer.
+TEST_F(Http, HeadDoesNotEmitData)
+{
+    HttpRequest*      request = jc_test_fixture->m_Request;
+    HttpRequestHandle request_handle;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
+    char              url[256];
+
+    snprintf(url, sizeof(url), "http://%s:%d/arb/1024", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort);
+
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetMethod(request, "HEAD"));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_EQ(0, WaitForComplete(response, 10));
+
+    ASSERT_EQ(HTTP_RESULT_OK, response->m_Result);
+    ASSERT_EQ(200, response->m_StatusCode);
+    ASSERT_EQ(1024, response->m_ContentLengthHeaderValue);
+    ASSERT_EQ(0, response->m_DataEventCount);
 }
 
 TEST_F(Http, PushRequiresURL)
@@ -566,6 +622,7 @@ TEST_F(Http, CancelRequest)
     ASSERT_EQ(HTTP_RESULT_INVAL, response->m_Result);
 }
 
+// Verifies callback cancellation stops further data events and reports failure.
 TEST_F(Http, CancelFromCallback)
 {
     HttpRequest*      request = jc_test_fixture->m_Request;
@@ -588,7 +645,30 @@ TEST_F(Http, CancelFromCallback)
 
     ASSERT_GT(response->m_DataEventCount, 0);
     ASSERT_EQ(HTTP_RESULT_INVAL, response->m_Result);
+    ASSERT_EQ(0, response->m_StatusCode);
+    ASSERT_EQ(1, response->m_DataEventCount);
     ASSERT_EQ(response->m_DataEventCount, response->m_CompleteDataEventCount);
+}
+
+// Verifies cancellation on the final data event cannot report a successful HTTP status.
+TEST_F(Http, CancelFromFinalDataCallback)
+{
+    HttpRequest*      request = jc_test_fixture->m_Request;
+    HttpRequestHandle request_handle;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
+    char              url[256];
+    response->m_CancelOnDataEvent = 1;
+
+    snprintf(url, sizeof(url), "http://%s:%d/arb/1", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort);
+
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_EQ(0, WaitForComplete(response, 10));
+
+    ASSERT_EQ(1, response->m_TotalDataSize);
+    ASSERT_EQ(HTTP_RESULT_INVAL, response->m_Result);
+    ASSERT_EQ(0, response->m_StatusCode);
 }
 
 int main(int argc, char** argv)

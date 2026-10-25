@@ -40,7 +40,7 @@
         (let [tx-result (g/transact
                           (g/invalidate-output node-id :basic-output))]
           (is (= #{invalidated-output-endpoint}
-                 (set/intersection output-endpoints (:outputs-modified tx-result))))
+                 (set/intersection output-endpoints (set (:outputs-modified tx-result)))))
           (is (= #{unaffected-output-endpoint}
                  (set/intersection output-endpoints (test-support/cached-endpoints)))))))))
 
@@ -73,7 +73,7 @@
         (let [tx-result (g/transact
                           (g/invalidate-output source-node-id :property-output))]
           (is (= output-endpoints
-                 (set/intersection output-endpoints (:outputs-modified tx-result))))
+                 (set/intersection output-endpoints (set (:outputs-modified tx-result)))))
           (is (= #{}
                  (set/intersection output-endpoints (test-support/cached-endpoints)))))))))
 
@@ -120,7 +120,7 @@
         (let [tx-result (g/transact
                           (g/invalidate-output first-order-override-indirectly-owned-node-id :property-output))]
           (is (= output-endpoints
-                 (set/intersection output-endpoints (:outputs-modified tx-result))))
+                 (set/intersection output-endpoints (set (:outputs-modified tx-result)))))
           (is (= #{}
                  (set/intersection output-endpoints (test-support/cached-endpoints)))))))))
 

@@ -15,10 +15,12 @@
 #include <dlib/log.h>
 
 #include <dlib/atomic.h>
+#include <dlib/condition_variable.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/message.h>
+#include <dlib/mutex.h>
 #include <dlib/socket.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
@@ -40,9 +42,11 @@
 #include "../resource_archive_private.h"
 #include "../resource_manifest.h"
 #include "../resource_manifest_private.h"
+#include "../resource_mounts.h"
 #include "../resource_private.h"
 #include "../resource_util.h"
 #include "../resource_verify.h"
+#include "../providers/provider_private.h"
 #include "test/test_resource_ddf.h"
 
 #if defined(DM_TEST_HTTP_SUPPORTED)
@@ -990,6 +994,12 @@ dmResource::Result RecreateResourceRecreate(const dmResource::ResourceRecreatePa
 
     ResourceDescriptorSetPrevResource(params->m_Resource, old_resource);
 
+    if (params->m_Message)
+    {
+        *recreate_resource = *(const int*)params->m_Message;
+        return dmResource::RESULT_OK;
+    }
+
     const int TMP_BUFFER_SIZE = 64;
     char tmp[TMP_BUFFER_SIZE];
     uint32_t data_size = params->m_BufferSize;
@@ -1142,6 +1152,53 @@ static void ResourceReloadedCallback(const ResourceReloadedParams* params) {
     ReloadData* data = (ReloadData*)params->m_UserData;
     data->m_Old = *((int*)ResourceDescriptorGetPrevResource(params->m_Resource));
     data->m_New = *((int*)ResourceDescriptorGetResource(params->m_Resource));
+}
+
+static dmResource::Result CountRecreatedResourceDestroy(const dmResource::ResourceDestroyParams* params)
+{
+    ++*(uint32_t*)params->m_Context;
+    return RecreateResourceDestroy(params);
+}
+
+// Both SetResource overloads must retain old data during callbacks and destroy it afterwards.
+TEST(RecreateTest, SetResourceDestroysPreviousResourceAfterCallbacks)
+{
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, MOUNT_DIR);
+    ASSERT_NE((void*)0, factory);
+
+    uint32_t destroy_count = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "foo", &destroy_count, 0,
+        RecreateResourceCreate, 0, CountRecreatedResourceDestroy, RecreateResourceRecreate));
+    ReloadData reload_data;
+    dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, &reload_data);
+
+    const char* resource_name = "/set_resource.foo";
+    char initial_data[] = "123";
+    int* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, resource_name, initial_data, sizeof(initial_data), (void**)&resource));
+    HResourceDescriptor descriptor;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetDescriptor(factory, resource_name, &descriptor));
+
+    char new_data[] = "456";
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(factory, dmHashString64(resource_name), new_data, sizeof(new_data)));
+    ASSERT_EQ(123, reload_data.m_Old);
+    ASSERT_EQ(456, reload_data.m_New);
+    ASSERT_EQ(1u, destroy_count);
+    ASSERT_EQ((void*)0, ResourceDescriptorGetPrevResource(descriptor));
+
+    int message = 789;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(factory, dmHashString64(resource_name), &message));
+    ASSERT_EQ(456, reload_data.m_Old);
+    ASSERT_EQ(789, reload_data.m_New);
+    ASSERT_EQ(2u, destroy_count);
+    ASSERT_EQ((void*)0, ResourceDescriptorGetPrevResource(descriptor));
+
+    dmResource::Release(factory, resource);
+    ASSERT_EQ(3u, destroy_count);
+    dmResource::DeleteFactory(factory);
 }
 
 TEST(RecreateTest, RecreateTest)
@@ -1862,6 +1919,141 @@ TEST_F(ResourceTest, PartialReadTest)
 
     dmSys::Unlink(path);
 }
+
+#if defined(DM_HAS_THREADS)
+
+static const uint8_t STREAM_LOCK_TEST_DATA[] = { 1, 2, 3, 4 };
+
+struct StreamReadLockProbe
+{
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Condition;
+    bool                                   m_Reading;
+    bool                                   m_Resume;
+    bool                                   m_Finished;
+};
+
+static dmResourceProvider::Result StreamLockGetFileSize(dmResourceProvider::HArchiveInternal, dmhash_t, const char*, uint32_t* file_size)
+{
+    *file_size = sizeof(STREAM_LOCK_TEST_DATA);
+    return dmResourceProvider::RESULT_OK;
+}
+
+static dmResourceProvider::Result StreamLockReadPartial(dmResourceProvider::HArchiveInternal internal, dmhash_t, const char*, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread)
+{
+    StreamReadLockProbe* probe = (StreamReadLockProbe*)internal;
+    {
+        dmMutex::ScopedLock lock(probe->m_Mutex);
+        probe->m_Reading = true;
+        dmConditionVariable::Signal(probe->m_Condition);
+        while (!probe->m_Resume)
+        {
+            dmConditionVariable::Wait(probe->m_Condition, probe->m_Mutex);
+        }
+    }
+    memcpy(buffer, STREAM_LOCK_TEST_DATA + offset, size);
+    *nread = size;
+    return dmResourceProvider::RESULT_OK;
+}
+
+static dmResourceProvider::Result StreamLockUnmount(dmResourceProvider::HArchiveInternal)
+{
+    // The fixture owns the probe until after the factory and worker are destroyed.
+    return dmResourceProvider::RESULT_OK;
+}
+
+static int StreamLockWorkerFinished(HJobContext, HJob, void* context, void*)
+{
+    StreamReadLockProbe* probe = (StreamReadLockProbe*)context;
+    dmMutex::ScopedLock lock(probe->m_Mutex);
+    probe->m_Finished = true;
+    dmConditionVariable::Signal(probe->m_Condition);
+    return 0;
+}
+
+class StreamLoadMutexTest : public ResourceTest
+{
+protected:
+    void SetUp() override
+    {
+        ResourceTest::SetUp();
+        memset(&m_Probe, 0, sizeof(m_Probe));
+        m_Probe.m_Mutex = dmMutex::New();
+        m_Probe.m_Condition = dmConditionVariable::New();
+
+        memset(&m_Loader, 0, sizeof(m_Loader));
+        m_Loader.m_GetFileSize = StreamLockGetFileSize;
+        m_Loader.m_ReadFilePartial = StreamLockReadPartial;
+        m_Loader.m_Unmount = StreamLockUnmount;
+
+        dmResourceProvider::HArchive archive;
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::CreateMount(&m_Loader, &m_Probe, &archive));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::AddMount(dmResource::GetMountsContext(factory), dmHashString64("stream_lock_probe"), archive, 10));
+    }
+
+    void TearDown() override
+    {
+        ResourceTest::TearDown();
+        dmConditionVariable::Delete(m_Probe.m_Condition);
+        dmMutex::Delete(m_Probe.m_Mutex);
+    }
+
+    StreamReadLockProbe              m_Probe;
+    dmResourceProvider::ArchiveLoader m_Loader;
+};
+
+// Verifies a streamed read leaves the factory load mutex available, preventing texture upload deadlocks.
+TEST_F(StreamLoadMutexTest, ReadDoesNotHoldLoadMutex)
+{
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "foo", 0, 0, StreamResourceCreate, 0, StreamResourceDestroy, 0));
+    const char* path = "/stream_lock.foo";
+    StreamTestResource* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, path, (void*)STREAM_LOCK_TEST_DATA, sizeof(STREAM_LOCK_TEST_DATA), (void**)&resource));
+    resource->m_Offset = 0;
+    memset(resource->m_Data, 0, sizeof(STREAM_LOCK_TEST_DATA));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::PreloadData(factory, path, 0, sizeof(STREAM_LOCK_TEST_DATA), StreamingPreloadCallback, resource));
+
+    Job finished = { 0 };
+    finished.m_Process = StreamLockWorkerFinished;
+    finished.m_Context = &m_Probe;
+    JobSystemPushJob(m_JobContext, JobSystemCreateJob(m_JobContext, &finished));
+
+    {
+        dmMutex::ScopedLock lock(m_Probe.m_Mutex);
+        while (!m_Probe.m_Reading)
+        {
+            dmConditionVariable::Wait(m_Probe.m_Condition, m_Probe.m_Mutex);
+        }
+    }
+
+    // The provider is paused on the worker; the main thread must be able to acquire the load mutex.
+    dmMutex::HMutex load_mutex = dmResource::GetLoadMutex(factory);
+    bool load_mutex_available = dmMutex::TryLock(load_mutex);
+    if (load_mutex_available)
+    {
+        dmMutex::Unlock(load_mutex);
+    }
+
+    {
+        dmMutex::ScopedLock lock(m_Probe.m_Mutex);
+        m_Probe.m_Resume = true;
+        dmConditionVariable::Signal(m_Probe.m_Condition);
+        while (!m_Probe.m_Finished)
+        {
+            dmConditionVariable::Wait(m_Probe.m_Condition, m_Probe.m_Mutex);
+        }
+    }
+
+    // The worker marker guarantees the stream completion is ready for this update.
+    JobSystemUpdate(m_JobContext, 0);
+    ASSERT_EQ(sizeof(STREAM_LOCK_TEST_DATA), resource->m_Offset);
+    ASSERT_ARRAY_EQ_LEN(STREAM_LOCK_TEST_DATA, resource->m_Data, sizeof(STREAM_LOCK_TEST_DATA));
+    dmResource::Release(factory, resource);
+    ASSERT_TRUE(load_mutex_available);
+}
+
+#endif
 
 static dmArray<char> g_ResourceProfileOutput;
 

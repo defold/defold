@@ -4479,26 +4479,34 @@ protected:
     dmGraphics::HProgram m_Program;
     uint64_t m_Formats;
 
-    void SetUp() override
+    void CreateVectorMaterial(bool color, dmRender::HMaterial* material, dmGraphics::HProgram* program)
     {
-        dmRenderTest::SetUp();
-        dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
-        m_Formats = context->m_BaseContext.m_TextureFormatSupport;
-        context->m_BaseContext.m_TextureFormatSupport |= (1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F) | (1ULL << dmGraphics::TEXTURE_FORMAT_R32UI);
-        const char* shader_src = "uniform sampler2D curve_texture; uniform utexture2D band_texture; uniform sampler2D effect_bitmap;";
+        const char*                   shader_src = color ? "uniform sampler2D curve_texture; uniform utexture2D band_texture; uniform sampler2D effect_bitmap; uniform sampler2D paint_texture;" :
+                                                           "uniform sampler2D curve_texture; uniform utexture2D band_texture; uniform sampler2D effect_bitmap;";
         dmGraphics::ShaderDescBuilder builder;
         builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
         builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
         builder.AddTexture("curve_texture", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
         builder.AddTexture("band_texture", 1, dmGraphics::ShaderDesc::SHADER_TYPE_UTEXTURE2D);
         builder.AddTexture("effect_bitmap", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-        m_Program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
-        m_Material = dmRender::NewMaterial(m_Context, m_Program);
-        const char* samplers[] = { "curve_texture", "band_texture", "effect_bitmap" };
-        for (uint32_t i = 0; i < 3; ++i)
-            ASSERT_TRUE(dmRender::SetMaterialSampler(m_Material, dmHashString64(samplers[i]), i,
+        if (color)
+            builder.AddTexture("paint_texture", 3, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+        *program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
+        *material = dmRender::NewMaterial(m_Context, *program);
+        const char* samplers[] = { "curve_texture", "band_texture", "effect_bitmap", "paint_texture" };
+        for (uint32_t i = 0; i < (color ? 4u : 3u); ++i)
+            ASSERT_TRUE(dmRender::SetMaterialSampler(*material, dmHashString64(samplers[i]), i,
                 dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
                 dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+    }
+
+    void SetUp() override
+    {
+        dmRenderTest::SetUp();
+        dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
+        m_Formats = context->m_BaseContext.m_TextureFormatSupport;
+        context->m_BaseContext.m_TextureFormatSupport |= (1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F) | (1ULL << dmGraphics::TEXTURE_FORMAT_R32UI);
+        CreateVectorMaterial(true, &m_Material, &m_Program);
         m_OriginalMaterial = dmRender::GetFontMapMaterial(m_SystemFontMap);
         m_SystemFontMap->m_Size = 1.0f;
         ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, m_Material));
@@ -4762,6 +4770,135 @@ TEST_F(VectorFontTest, DynamicEffectsWithoutPrewarm)
 {
     RenderWithoutPrewarm("../font/src/test/data/vera_mo_bd.ttf", true);
     RenderWithoutPrewarm("../font/src/test/data/SourceCodePro-Regular.otf", true);
+}
+
+// Curve/band-only Slug materials retain ordinary outlines when switching from
+// color rendering, rather than interpreting color vertices as solid decorations.
+TEST_F(VectorFontTest, ColorRequiresPaintSampler)
+{
+    dmRender::HMaterial  material;
+    dmGraphics::HProgram program;
+    CreateVectorMaterial(false, &material, &program);
+    ASSERT_EQ(dmRender::INVALID_SAMPLER_UNIT, dmRender::GetMaterialSamplerUnit(material, dmHashString64("paint_texture")));
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    dmRender::HMaterial original = m_Material;
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        bool color = pass != 1;
+        EXPECT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, color ? original : material));
+        m_Material = color ? original : material;
+        dmRender::FontDefaultVertex vertices[6];
+        EXPECT_EQ(6u, Render("J", false, vertices, DM_ARRAY_SIZE(vertices)));
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(vertices); ++i)
+            EXPECT_EQ(color ? 4.0f : 0.0f, vertices[i].m_VectorTexcoord[3]);
+        EXPECT_EQ(color ? 1u : 0u, m_SystemFontMap->m_VectorPaint->m_Glyphs.Size());
+    }
+    m_Material = original;
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// A per-draw override must reject paint vertices even after another draw warms the color cache.
+TEST_F(VectorFontTest, ColorRequiresDrawMaterialPaintSampler)
+{
+    dmRender::HMaterial  material;
+    dmGraphics::HProgram program;
+    CreateVectorMaterial(false, &material, &program);
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    dmRender::HMaterial original = m_Material;
+    for (uint32_t pass = 0; pass < 4; ++pass)
+    {
+        const bool color = pass % 2 != 0;
+        m_Material = color ? original : material;
+        dmRender::FontDefaultVertex vertices[6];
+        EXPECT_EQ(6u, Render("J", false, vertices, 6));
+        for (uint32_t i = 0; i < 6; ++i)
+            EXPECT_EQ(color ? 4.0f : 0.0f, vertices[i].m_VectorTexcoord[3]);
+        EXPECT_EQ(pass == 0 ? 0u : 1u, m_SystemFontMap->m_VectorPaint->m_Glyphs.Size());
+        EXPECT_EQ(original, dmRender::GetFontMapMaterial(m_SystemFontMap));
+    }
+    m_Material = original;
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Color paint must honor spatial gradient opacity when the material uses the CPU fallback.
+TEST_F(VectorFontTest, ColorSpatialGradientCpuFallback)
+{
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    dmRender::FontDefaultVertex vertices[6];
+    EXPECT_EQ(6u, Render("<gradient type=linear color0=#ffffff00 color1=#ffffff00>J</gradient>", true, vertices, 6));
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        EXPECT_EQ(4.0f, vertices[i].m_VectorTexcoord[3]);
+        EXPECT_EQ(0u, vertices[i].m_VectorColor[3]);
+    }
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
+}
+
+// Color-cache preparation follows the vertex budget, including whitespace,
+// ordinary outlines and the extra quads consumed by rich-text effects.
+TEST_F(VectorFontTest, TruncationBoundsColorCachePreparation)
+{
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_SHADOW;
+
+    const struct
+    {
+        const char* m_Text;
+        uint32_t    m_Capacity;
+        uint32_t    m_Vertices;
+        uint32_t    m_ColorGlyphs;
+    } cases[] = {
+        { "AB", 0, 0, 0 },
+        { "AB", 5, 0, 0 },
+        { "AB", 6, 6, 1 },
+        { "AB", 12, 12, 2 },
+        { " A B", 6, 6, 1 },
+        { "?AB", 6, 6, 0 },
+        { "? AB", 12, 12, 1 },
+        { "<shadow color=#000000>AB</shadow>", 6, 0, 0 },
+        { "<shadow color=#000000>AB</shadow>", 12, 12, 1 },
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        // Switching material resets both the color and ordinary glyph caches.
+        EXPECT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, m_OriginalMaterial));
+        EXPECT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, m_Material));
+        EXPECT_EQ(0u, m_SystemFontMap->m_VectorPaint->m_Glyphs.Size());
+        dmRender::FontDefaultVertex vertices[12];
+        EXPECT_EQ(cases[i].m_Vertices, Render(cases[i].m_Text, true, vertices, cases[i].m_Capacity));
+        EXPECT_EQ(cases[i].m_ColorGlyphs, m_SystemFontMap->m_VectorPaint->m_Glyphs.Size());
+        EXPECT_FALSE(m_SystemFontMap->m_SlugResetPending);
+    }
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
 }
 
 // Truncated vector text never writes beyond the supplied vertex buffer.
@@ -5400,6 +5537,266 @@ TEST_F(dmRenderTest, CreateFontVertexDataUsesPreparedTextLayout)
     ASSERT_NE(0, memcmp(raw_vertices.Begin(), prepared_vertices.Begin(), raw_count * vertex_stride));
 
     TextLayoutRelease(wrapped_layout);
+}
+
+class dmRenderTextUploadTest : public dmRenderTest
+{
+protected:
+    dmGraphics::HProgram m_Program;
+    dmRender::HMaterial  m_Materials[3];
+    dmRender::Predicate  m_Predicates[3];
+
+    void SetUp() override
+    {
+        dmRenderTest::SetUp();
+        dmGraphics::ShaderDescBuilder shader;
+        shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        m_Program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+        const char* tags[] = { "text_a", "text_b", "other" };
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Materials); ++i)
+        {
+            dmhash_t tag = dmHashString64(tags[i]);
+            m_Materials[i] = dmRender::NewMaterial(m_Context, m_Program);
+            dmRender::SetMaterialTags(m_Materials[i], 1, &tag);
+            memset(&m_Predicates[i], 0, sizeof(m_Predicates[i]));
+            m_Predicates[i].m_Tags[0] = tag;
+            m_Predicates[i].m_TagCount = 1;
+        }
+    }
+
+    void TearDown() override
+    {
+        dmRender::ClearRenderObjects(m_Context);
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Materials); ++i)
+            dmRender::DeleteMaterial(m_Context, m_Materials[i]);
+        dmGraphics::DeleteProgram(m_GraphicsContext, m_Program);
+        dmRenderTest::TearDown();
+    }
+
+    void BeginFrame(uint32_t multi_buffering)
+    {
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+        m_Context->m_MultiBufferingRequired = multi_buffering;
+        dmRender::RenderListBegin(m_Context);
+    }
+
+    void QueueText(uint32_t material, const char* text, float red, uint32_t order = 0)
+    {
+        dmRender::DrawTextParams params;
+        params.m_Text = text;
+        params.m_FaceColor = Vector4(red, 0, 0, 1);
+        params.m_RenderOrder = order;
+        dmRender::DrawText(m_Context, m_SystemFontMap, m_Materials[material], 0, params);
+    }
+
+    void EndFrame()
+    {
+        dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+        dmRender::RenderListEnd(m_Context);
+    }
+
+    void DrawPredicate(uint32_t predicate)
+    {
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, &m_Predicates[predicate], 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    }
+
+    void GetUploadTotals(uint64_t* count, uint64_t* bytes)
+    {
+        *count = 0;
+        *bytes = 0;
+        dmRender::HBufferedRenderBuffer buffers = m_Context->m_TextContext.m_VertexBuffer;
+        for (uint32_t i = 0; i < buffers->m_Buffers.Size(); ++i)
+        {
+            dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*) buffers->m_Buffers[i];
+            *count += buffer->m_DataSetCount;
+            *bytes += buffer->m_DataSetBytes;
+            ASSERT_EQ(0U, buffer->m_SubDataSetCount);
+        }
+    }
+
+    void AssertUploadedVertices(uint32_t client_start, uint32_t vertex_count)
+    {
+        const dmRender::TextContext& text = m_Context->m_TextContext;
+        dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*) dmRender::GetBuffer(m_Context, text.m_VertexBuffer);
+        const uint32_t byte_count = vertex_count * sizeof(dmRender::FontDefaultVertex);
+        ASSERT_EQ(byte_count, buffer->m_Base.m_Size);
+        ASSERT_EQ(0, memcmp(buffer->m_Buffer, (const uint8_t*) text.m_ClientBuffer + client_start * sizeof(dmRender::FontDefaultVertex), byte_count));
+    }
+};
+
+// Each predicate draw uploads only its own text, preserving earlier passes when separate buffers are required.
+TEST_F(dmRenderTextUploadTest, TextUploadsOnlyVerticesGeneratedByEachPass)
+{
+    const uint32_t predicates[] = { 0, 1, 0 };
+    const uint32_t vertex_counts[] = { 6, 12, 6 };
+    const uint32_t vertex_stride = sizeof(dmRender::FontDefaultVertex);
+    for (uint32_t multi_buffering = 0; multi_buffering < 2; ++multi_buffering)
+    {
+        BeginFrame(multi_buffering);
+        QueueText(0, "A", 1.0f);
+        QueueText(1, "AA", 0.0f);
+        EndFrame();
+        uint64_t initial_count, initial_bytes;
+        GetUploadTotals(&initial_count, &initial_bytes);
+        uint32_t total_vertices = 0;
+        dmGraphics::HVertexBuffer handles[3];
+        dmRender::FontDefaultVertex saved_vertices[3][12];
+        for (uint32_t pass = 0; pass < DM_ARRAY_SIZE(predicates); ++pass)
+        {
+            DrawPredicate(predicates[pass]);
+            ASSERT_EQ(1U, m_Context->m_RenderObjects.Size());
+            const dmRender::RenderObject& ro = *m_Context->m_RenderObjects[0];
+            ASSERT_EQ(0U, ro.m_VertexStart);
+            ASSERT_EQ(vertex_counts[pass], ro.m_VertexCount);
+            ASSERT_EQ(0U, ro.m_VertexBufferOffsets[0]);
+            AssertUploadedVertices(total_vertices, vertex_counts[pass]);
+            total_vertices += vertex_counts[pass];
+            uint64_t upload_count, upload_bytes;
+            GetUploadTotals(&upload_count, &upload_bytes);
+            ASSERT_EQ(initial_count + pass + 1, upload_count);
+            ASSERT_EQ(initial_bytes + total_vertices * vertex_stride, upload_bytes);
+            handles[pass] = ro.m_VertexBuffer;
+            dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*) handles[pass];
+            memcpy(saved_vertices[pass], buffer->m_Buffer, vertex_counts[pass] * vertex_stride);
+            ASSERT_EQ(predicates[pass] == 0 ? 1.0f : 0.0f, saved_vertices[pass][0].m_FaceColor[0]);
+            for (uint32_t previous = 0; previous < pass; ++previous)
+            {
+                if (multi_buffering)
+                {
+                    ASSERT_NE(handles[previous], handles[pass]);
+                    dmGraphics::VertexBuffer* previous_buffer = (dmGraphics::VertexBuffer*) handles[previous];
+                    ASSERT_EQ(0, memcmp(saved_vertices[previous], previous_buffer->m_Buffer, vertex_counts[previous] * vertex_stride));
+                }
+                else
+                {
+                    ASSERT_EQ(handles[previous], handles[pass]);
+                }
+            }
+            ASSERT_EQ(multi_buffering ? pass + 1 : 1U, m_Context->m_TextContext.m_VertexBuffer->m_Buffers.Size());
+        }
+    }
+}
+
+// Batch starts remain relative to the current upload after an earlier predicate has generated text.
+TEST_F(dmRenderTextUploadTest, TextBatchOffsetsAreRelativeToEachPass)
+{
+    for (uint32_t multi_buffering = 0; multi_buffering < 2; ++multi_buffering)
+    {
+        BeginFrame(multi_buffering);
+        QueueText(0, "A", 1.0f);
+        QueueText(1, "A", 0.0f, 0);
+        QueueText(1, "AA", 1.0f, 1);
+        EndFrame();
+        DrawPredicate(0);
+        ASSERT_EQ(6U, m_Context->m_TextContext.m_VertexIndex);
+        DrawPredicate(1);
+        ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
+        const dmRender::RenderObject& first = *m_Context->m_RenderObjects[0];
+        const dmRender::RenderObject& second = *m_Context->m_RenderObjects[1];
+        ASSERT_EQ(0U, first.m_VertexStart);
+        ASSERT_EQ(6U, first.m_VertexCount);
+        ASSERT_EQ(6U, second.m_VertexStart);
+        ASSERT_EQ(12U, second.m_VertexCount);
+        ASSERT_EQ(first.m_VertexBuffer, second.m_VertexBuffer);
+        AssertUploadedVertices(6, 18);
+        dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*) first.m_VertexBuffer;
+        const dmRender::FontDefaultVertex* vertices = (const dmRender::FontDefaultVertex*) buffer->m_Buffer;
+        ASSERT_EQ(0.0f, vertices[first.m_VertexStart].m_FaceColor[0]);
+        ASSERT_EQ(1.0f, vertices[second.m_VertexStart].m_FaceColor[0]);
+        ASSERT_EQ(multi_buffering ? 2U : 1U, m_Context->m_TextContext.m_VertexBuffer->m_Buffers.Size());
+    }
+}
+
+// Empty frames, non-text predicates, and zero-vertex text batches must not upload or consume a buffer slot.
+TEST_F(dmRenderTextUploadTest, TextPassesWithoutVerticesDoNotUpload)
+{
+    for (uint32_t multi_buffering = 0; multi_buffering < 2; ++multi_buffering)
+    {
+        BeginFrame(multi_buffering);
+        EndFrame();
+        uint64_t initial_count, initial_bytes;
+        GetUploadTotals(&initial_count, &initial_bytes);
+        DrawPredicate(0);
+        uint64_t upload_count, upload_bytes;
+        GetUploadTotals(&upload_count, &upload_bytes);
+        ASSERT_EQ(initial_count, upload_count);
+        ASSERT_EQ(initial_bytes, upload_bytes);
+
+        BeginFrame(multi_buffering);
+        dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, 0, 0);
+        dmRender::HRenderItem item = dmRender::NewRenderItem(m_Context, dispatch, 0);
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, item, m_Materials[2]));
+        ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
+        dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+        QueueText(0, "", 0.0f);
+        QueueText(1, "A", 1.0f);
+        EndFrame();
+        GetUploadTotals(&initial_count, &initial_bytes);
+        for (uint32_t pass = 0; pass < 2; ++pass)
+        {
+            const uint32_t buffer_index = m_Context->m_TextContext.m_VertexBuffer->m_BufferIndex;
+            const uint32_t buffer_count = m_Context->m_TextContext.m_VertexBuffer->m_Buffers.Size();
+            DrawPredicate(2);
+            ASSERT_EQ(1U, m_Context->m_RenderListSortBuffer.Size());
+            DrawPredicate(0);
+            ASSERT_EQ(0U, m_Context->m_RenderObjects.Size());
+            GetUploadTotals(&upload_count, &upload_bytes);
+            ASSERT_EQ(initial_count + pass, upload_count);
+            ASSERT_EQ(initial_bytes + pass * 6 * sizeof(dmRender::FontDefaultVertex), upload_bytes);
+            ASSERT_EQ(buffer_index, m_Context->m_TextContext.m_VertexBuffer->m_BufferIndex);
+            ASSERT_EQ(buffer_count, m_Context->m_TextContext.m_VertexBuffer->m_Buffers.Size());
+            DrawPredicate(1);
+            ASSERT_EQ(1U, m_Context->m_RenderObjects.Size());
+            ASSERT_EQ(0U, m_Context->m_RenderObjects[0]->m_VertexStart);
+            AssertUploadedVertices(pass * 6, 6);
+        }
+        ASSERT_EQ(multi_buffering ? 2U : 1U, m_Context->m_TextContext.m_VertexBuffer->m_Buffers.Size());
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, item));
+        dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+    }
+}
+
+// New frames upload changed text of equal size, reuse existing pass buffers, and trim unused buffers later.
+TEST_F(dmRenderTextUploadTest, TextUploadBuffersAreReusedAcrossFrames)
+{
+    const uint32_t pass_counts[] = { 3, 3, 1, 1 };
+    const uint32_t pool_sizes[] = { 3, 3, 3, 1 };
+    for (uint32_t multi_buffering = 0; multi_buffering < 2; ++multi_buffering)
+    {
+        dmGraphics::HVertexBuffer first_frame_handles[3];
+        for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(pass_counts); ++frame)
+        {
+            BeginFrame(multi_buffering);
+            QueueText(0, "A", (float)(frame % 2));
+            EndFrame();
+            uint64_t initial_count, initial_bytes;
+            GetUploadTotals(&initial_count, &initial_bytes);
+            ASSERT_EQ(0U, m_Context->m_TextContext.m_VertexIndex);
+            ASSERT_EQ(0U, m_Context->m_TextContext.m_VertexBuffer->m_BufferIndex);
+            for (uint32_t pass = 0; pass < pass_counts[frame]; ++pass)
+            {
+                DrawPredicate(0);
+                ASSERT_EQ(1U, m_Context->m_RenderObjects.Size());
+                const dmRender::RenderObject& ro = *m_Context->m_RenderObjects[0];
+                ASSERT_EQ(0U, ro.m_VertexStart);
+                ASSERT_EQ(6U, ro.m_VertexCount);
+                AssertUploadedVertices(pass * 6, 6);
+                dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*) ro.m_VertexBuffer;
+                const dmRender::FontDefaultVertex* vertices = (const dmRender::FontDefaultVertex*) buffer->m_Buffer;
+                ASSERT_EQ((float)(frame % 2), vertices[0].m_FaceColor[0]);
+                if (frame == 0)
+                    first_frame_handles[pass] = ro.m_VertexBuffer;
+                else
+                    ASSERT_EQ(first_frame_handles[pass], ro.m_VertexBuffer);
+            }
+            uint64_t upload_count, upload_bytes;
+            GetUploadTotals(&upload_count, &upload_bytes);
+            ASSERT_EQ(initial_count + pass_counts[frame], upload_count);
+            ASSERT_EQ(initial_bytes + pass_counts[frame] * 6 * sizeof(dmRender::FontDefaultVertex), upload_bytes);
+            ASSERT_EQ(multi_buffering ? pool_sizes[frame] : 1U, m_Context->m_TextContext.m_VertexBuffer->m_Buffers.Size());
+        }
+    }
 }
 
 // Reused persistent slots must not reverse text vertices with equal keys or override explicit render order.

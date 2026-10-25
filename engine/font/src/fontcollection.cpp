@@ -26,6 +26,8 @@
     #include <skribidi/skb_font_collection.h>
     #include <skribidi/skb_layout.h>
     #include "harfbuzz/font_harfbuzz.h"
+    #include "font_ttf.h"
+    #include "truetype/font_colr.h"
 #endif
 
 struct TextNamedStyle
@@ -40,6 +42,7 @@ struct TextNamedStyle
 struct FontCollection
 {
     dmArray<HFont>                  m_Fonts;
+    bool                            m_ColorEmojiEnabled;
     dmArray<TextNamedStyle*>        m_NamedStyles;
     TextLayoutType                  m_LayoutType;
     uint32_t                        m_NamedStyleRevision;
@@ -47,6 +50,7 @@ struct FontCollection
     void*                           m_FallbackContext;
 
 #if defined(FONT_USE_SKRIBIDI)
+    dmArray<skb_font_handle_t>            m_EmojiHandles;
     skb_font_collection_t*                m_Collection;
     dmHashTable<skb_font_handle_t, HFont> m_FontLookup;
 #endif
@@ -93,6 +97,7 @@ HFontCollection FontCollectionCreate()
 {
     FontCollection* coll = new FontCollection;
     coll->m_LayoutType = TEXT_LAYOUT_TYPE_FULL;
+    coll->m_ColorEmojiEnabled = true;
     coll->m_NamedStyleRevision = 0;
     coll->m_FallbackCallback = 0;
     coll->m_FallbackContext = 0;
@@ -115,11 +120,40 @@ void FontCollectionDestroy(HFontCollection coll)
     delete coll;
 }
 
+#if defined(FONT_USE_SKRIBIDI)
+static skb_font_handle_t AddSkribidiFont(HFontCollection coll, HFont font, uint8_t family)
+{
+    skb_font_handle_t handle = skb_font_collection_add_hb_font(coll->m_Collection, FontGetPath(font), FontGetHarfbuzzFontFromTTF(font), family, 0);
+    if (handle)
+    {
+        if (coll->m_FontLookup.Full())
+            coll->m_FontLookup.OffsetCapacity(1);
+        coll->m_FontLookup.Put(handle, font);
+    }
+    return handle;
+}
+
+static skb_font_handle_t AddEmojiFont(HFontCollection coll, HFont font)
+{
+    const FontColr* colr = FontGetColrTTF(font);
+    if (!coll->m_ColorEmojiEnabled && colr && (colr->m_BaseGlyphCount || colr->m_BaseGlyphList))
+        return 0;
+    // Emoji is a separate Skribidi family. Include outline fonts as well as
+    // COLR fonts so SDF/Bitmap can use the collection's monochrome fallback.
+    return AddSkribidiFont(coll, font, SKB_FONT_FAMILY_EMOJI);
+}
+#endif
+
 FontResult FontCollectionAddFont(HFontCollection coll, HFont hfont)
 {
     if (coll->m_Fonts.Full())
         coll->m_Fonts.OffsetCapacity(1);
     coll->m_Fonts.Push(hfont);
+#if defined(FONT_USE_SKRIBIDI)
+    if (coll->m_EmojiHandles.Full())
+        coll->m_EmojiHandles.OffsetCapacity(1);
+    coll->m_EmojiHandles.Push(0);
+#endif
 
     TextLayoutType layout_type = FontGetLayoutType(hfont);
     if (layout_type != TEXT_LAYOUT_TYPE_FULL)
@@ -132,25 +166,37 @@ FontResult FontCollectionAddFont(HFontCollection coll, HFont hfont)
     }
 
 #if defined(FONT_USE_SKRIBIDI)
-    hb_font_t* hb_font = FontGetHarfbuzzFontFromTTF(hfont);
-    skb_font_handle_t skbfont = skb_font_collection_add_hb_font(coll->m_Collection,
-                                                                FontGetPath(hfont),
-                                                                hb_font,
-                                                                SKB_FONT_FAMILY_DEFAULT,
-                                                                0);
-
-    if (skbfont)
+    if (!AddSkribidiFont(coll, hfont, SKB_FONT_FAMILY_DEFAULT))
     {
-        HFont* pfont = coll->m_FontLookup.Get(skbfont);
-        if (!pfont && coll->m_FontLookup.Full())
-        {
-            coll->m_FontLookup.OffsetCapacity(1);
-        }
-        coll->m_FontLookup.Put(skbfont, hfont);
+        FontCollectionRemoveFont(coll, hfont);
+        return FONT_RESULT_ERROR;
     }
-    return skbfont ? FONT_RESULT_OK : FONT_RESULT_ERROR;
-#else
+    coll->m_EmojiHandles.Back() = AddEmojiFont(coll, hfont);
+#endif
     return FONT_RESULT_OK;
+}
+
+void FontCollectionSetColorEmojiEnabled(HFontCollection coll, bool enabled)
+{
+    if (coll->m_ColorEmojiEnabled == enabled)
+        return;
+    coll->m_ColorEmojiEnabled = enabled;
+#if defined(FONT_USE_SKRIBIDI)
+    // Preserve the collection and default-family handles held by layouts.
+    // Remove in reverse order: Skribidi reuses freed slots in LIFO order.
+    for (uint32_t i = coll->m_EmojiHandles.Size(); i-- > 0;)
+    {
+        skb_font_handle_t handle = coll->m_EmojiHandles[i];
+        if (handle)
+        {
+            skb_font_collection_remove_font(coll->m_Collection, handle);
+            coll->m_FontLookup.Erase(handle);
+        }
+        coll->m_EmojiHandles[i] = 0;
+    }
+    if (coll->m_LayoutType == TEXT_LAYOUT_TYPE_FULL)
+        for (uint32_t i = 0; i < coll->m_Fonts.Size(); ++i)
+            coll->m_EmojiHandles[i] = AddEmojiFont(coll, coll->m_Fonts[i]);
 #endif
 }
 
@@ -161,21 +207,31 @@ FontResult FontCollectionRemoveFont(HFontCollection coll, HFont hfont)
         if (coll->m_Fonts[i] == hfont)
         {
             coll->m_Fonts.EraseSwap(i);
+#if defined(FONT_USE_SKRIBIDI)
+            coll->m_EmojiHandles.EraseSwap(i);
+#endif
             break;
         }
     }
 
 #if defined(FONT_USE_SKRIBIDI)
-     dmHashTable<skb_font_handle_t, HFont>::Iterator iter = coll->m_FontLookup.GetIterator();
-     while(iter.Next())
-     {
-        if (iter.GetValue() == hfont)
+    // Erasing can invalidate the iterator. Restart for the optional emoji alias.
+    bool removed = true;
+    while (removed)
+    {
+        removed = false;
+        dmHashTable<skb_font_handle_t, HFont>::Iterator iter = coll->m_FontLookup.GetIterator();
+        while (iter.Next())
         {
-            skb_font_collection_remove_font(coll->m_Collection, iter.GetKey());
-            coll->m_FontLookup.Erase(iter.GetKey());
-            break;
+            if (iter.GetValue() == hfont)
+            {
+                skb_font_collection_remove_font(coll->m_Collection, iter.GetKey());
+                coll->m_FontLookup.Erase(iter.GetKey());
+                removed = true;
+                break;
+            }
         }
-     }
+    }
 #endif
     return FONT_RESULT_OK;
 }
