@@ -140,7 +140,7 @@ documented just below this comment.
 
 // Architecture identification
 #ifdef RMT_PLATFORM_WINDOWS
-#ifdef _M_AMD64
+#if defined(_M_AMD64) || defined(_M_ARM64)
 #define RMT_ARCH_64BIT
 #else
 #define RMT_ARCH_32BIT
@@ -148,7 +148,7 @@ documented just below this comment.
 #endif
 
 #if __GNUC__ || __clang__
-#if __x86_64__ || __ppc64__ || __amd64__
+#if __x86_64__ || __ppc64__ || __amd64__ || __aarch64__
 #define RMT_ARCH_64BIT
 #else
 #define RMT_ARCH_32BIT
