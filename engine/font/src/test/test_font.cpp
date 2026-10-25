@@ -1353,6 +1353,28 @@ TEST_F(FontTest, ColorPackingClampsFinalAlpha)
     }
 }
 
+// Disabled layers must not read or pack their optional, potentially uninitialized colors.
+TEST_F(FontTest, InactiveLayerColors)
+{
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    HTextLayout layout = 0;
+    uint32_t text[] = { 'A' };
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 1, &settings, &layout));
+    FontLayoutVertexConfig config = {};
+    config.m_Layout = layout;
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    config.m_OutlineColor = dmVMath::Vector4(NAN);
+    config.m_ShadowColor = dmVMath::Vector4(NAN);
+    TextGlyphRenderData render_data = {};
+    FontGlyphLayerRenderData layer_data;
+    FontResolveGlyphLayerRenderData(config, TextLayoutGetGlyphs(layout)[0], render_data, &layer_data);
+    ASSERT_EQ(0u, layer_data.m_OutlineColor);
+    ASSERT_EQ(0u, layer_data.m_ShadowColor);
+    ASSERT_EQ(FONT_RENDER_LAYER_FACE, layer_data.m_LayerMask);
+    TextLayoutRelease(layout);
+}
+
 TEST_F(FontTest, PackLayeredGlyphVertices)
 {
     ASSERT_EQ(72u, sizeof(FontGlyphVertex));
