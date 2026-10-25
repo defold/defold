@@ -23,6 +23,7 @@
 #include <dmsdk/font/text_layout.h>
 #include <dmsdk/extension/extension.h>
 
+#include <dlib/atomic.h>
 #include <dlib/jobsystem.h>
 #include <dlib/set.h>
 
@@ -62,6 +63,7 @@ struct FontGenJobItem
     uint8_t         :7;
 
     // output
+    int             m_Result;
     FontGlyph*      m_Glyph;
 };
 
@@ -78,6 +80,11 @@ struct FontGenJobData
     FontGenParams           m_Params;
 
     HJobContext             m_Jobs;
+    HJob                    m_Job;
+    int32_atomic_t          m_Ready;
+    uint32_t                m_NextGlyph;
+    bool                    m_UpdateFromCaller;
+    bool                    m_Complete;
 };
 
 static Context g_FontGenContext = { 3, 191 };
@@ -109,15 +116,18 @@ FontGenJobData* FontGenCreateJobData(const FontGenParams* params, uint32_t num_g
     return jobdata;
 }
 
-// this should only be called when the jobs have either finished or been canceled
-// In both cases, we expect this to happen on the main thread
-//   * From the JobSystemUpdate() - flushing finished/canceled jobs
-//   * from ResFontDestroy() - cancelling the jobs in a loop.
-//                             Once all have been cancelled, they can be cleared, as it happens before the next JobSystemUpdate()
+// Callback-driven batches must already be finished or canceled. Caller-updated
+// batches own their jobs and cancel them here before releasing the scratch data.
 void FontGenDestroyJobData(FontGenJobData* jobdata)
 {
     if (!jobdata)
         return;
+
+    if (jobdata->m_Job && !dmAtomicGet32(&jobdata->m_Ready))
+    {
+        while (JobSystemCancelJob(jobdata->m_Jobs, jobdata->m_Job) == JOBSYSTEM_RESULT_PENDING)
+            dmTime::Sleep(1000);
+    }
 
     uint32_t size = jobdata->m_Items.Size();
     for (uint32_t i = 0; i < size; ++i)
@@ -199,6 +209,7 @@ static int JobGenerateGlyph(HJobContext job_thread, HJob hjob, void* context, vo
     jobdata->m_Status.m_TimeGlyphProcess += tend - tstart;
 #endif
 
+    item->m_Result = 1;
     return 1;
 }
 
@@ -228,8 +239,12 @@ static int JobProcessSentinelGlyph(HJobContext job_thread, HJob hjob, void* cont
 {
     (void)job_thread;
     (void)hjob;
-    (void)context;
     (void)data;
+    FontGenJobData* jobdata = (FontGenJobData*)context;
+    // All children have finished writing their results. The owner may consume
+    // and free the batch after this publication, so do not access it again.
+    if (jobdata->m_UpdateFromCaller)
+        dmAtomicStore32(&jobdata->m_Ready, 1);
     return 1;
 }
 
@@ -324,9 +339,11 @@ static void JobPostProcessGlyph(HJobContext job_thread, HJob job, JobSystemStatu
 
 static HJob CreateSentinelJob(FontGenJobData* jobdata)
 {
+    if (jobdata->m_UpdateFromCaller && !JobSystemGetWorkerCount(jobdata->m_Jobs))
+        return 0;
     Job job = {0};
     job.m_Process = JobProcessSentinelGlyph;
-    job.m_Callback = JobPostProcessSentinelGlyph;
+    job.m_Callback = jobdata->m_UpdateFromCaller ? 0 : JobPostProcessSentinelGlyph;
     job.m_Context = jobdata;
     job.m_Data = 0;
 
@@ -352,9 +369,12 @@ static void GenerateGlyphJobByIndex(FontGenJobData* jobdata,
     item->m_StbttSdfPadding = stbtt_padding;
     item->m_StbttEdgeValue = stbtt_edge;
 
+    if (jobdata->m_UpdateFromCaller && !job_sentinel)
+        return;
+
     Job job = {0};
     job.m_Process = JobGenerateGlyph;
-    job.m_Callback = JobPostProcessGlyph;
+    job.m_Callback = jobdata->m_UpdateFromCaller ? 0 : JobPostProcessGlyph;
     job.m_Context = jobdata;
     job.m_Data = (void*)item;
 
@@ -470,11 +490,6 @@ dmExtension::Result FontGenFinalize(dmExtension::Params*)
     return dmExtension::RESULT_OK;
 }
 
-void FontGenFlushFinishedJobs(HJobContext jobs, uint64_t timeout)
-{
-    JobSystemUpdate(jobs, timeout);
-}
-
 float FontGenGetBasePadding()
 {
     return g_FontGenContext.m_StbttDefaultSdfPadding;
@@ -509,4 +524,45 @@ HJob FontGenAddGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t num_g
         return 0;
     FontGenJobDataSetup(jobdata);
     return GenerateGlyphs(jobdata, glyphs, num_glyphs);
+}
+
+bool FontGenStartGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t num_glyphs)
+{
+    if (!jobdata)
+        return false;
+    if (!jobdata->m_Params.m_IsSdf)
+    {
+        jobdata->m_Items.SetSize(0);
+        return false;
+    }
+    jobdata->m_UpdateFromCaller = true;
+    FontGenJobDataSetup(jobdata);
+    jobdata->m_Job = GenerateGlyphs(jobdata, glyphs, num_glyphs);
+    if (jobdata->m_Job)
+        JobSystemPushJob(jobdata->m_Jobs, jobdata->m_Job);
+    return true;
+}
+
+bool FontGenUpdateGlyphs(FontGenJobData* jobdata, uint64_t time_limit)
+{
+    assert(jobdata->m_UpdateFromCaller);
+    if (jobdata->m_Complete)
+        return true;
+    if (jobdata->m_Job && !dmAtomicGet32(&jobdata->m_Ready))
+        return false;
+
+    uint64_t start = dmTime::GetMonotonicTime();
+    while (jobdata->m_NextGlyph < jobdata->m_Items.Size())
+    {
+        FontGenJobItem* item = &jobdata->m_Items[jobdata->m_NextGlyph++];
+        // With no workers, advance this batch alone; never pump the shared pool.
+        int result = jobdata->m_Job ? item->m_Result : JobGenerateGlyph(jobdata->m_Jobs, 0, jobdata, item);
+        JobPostProcessGlyph(jobdata->m_Jobs, 0, JOBSYSTEM_STATUS_FINISHED, jobdata, item, result);
+        if (jobdata->m_NextGlyph < jobdata->m_Items.Size() && dmTime::GetMonotonicTime() - start >= time_limit)
+            return false;
+    }
+    jobdata->m_Complete = true;
+    // The completion callback may destroy jobdata.
+    InvokeCallback(jobdata);
+    return true;
 }

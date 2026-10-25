@@ -38,7 +38,7 @@ namespace dmGameSystem
     struct FontJobResourceInfo
     {
         dmArray<void*>          m_Resources; // the resources that are incref'ed for this job
-        FontGenJobData*         m_FontGenJobData; // the job scratch data, owned by the sentinel job
+        FontGenJobData*         m_FontGenJobData; // scratch data retained until completion or cancellation
         FontResource*           m_Resource;
         HJob                    m_Job;
 
@@ -69,6 +69,7 @@ namespace dmGameSystem
         dmhash_t                    m_PathHash;
 
         dmArray<FontJobResourceInfo*>  m_PendingJobs;
+        FontJobResourceInfo*          m_PrewarmJob; // consumed by PostCreate during resource loading
 
         FontResource();
 

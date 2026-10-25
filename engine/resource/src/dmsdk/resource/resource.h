@@ -507,6 +507,9 @@ typedef ResourceResult (*FResourceCreate)(const struct ResourceCreateParams* par
 /*#
  * Resource postcreate function
  * @note returning RESOURCE_CREATE_RESULT_PENDING will result in a repeated callback the following update.
+ * PostCreate must consume its resource's asynchronous results directly. Resource
+ * loading does not dispatch shared job callbacks, including during synchronous Get.
+ * On platforms without workers, PostCreate must advance its own pending work.
  * @typedef
  * @name FResourcePostCreate
  * @param param [type: const dmResource::ResourcePostCreateParams*] Resource parameters

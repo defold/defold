@@ -62,7 +62,7 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         m_Transitive = false;
         m_PostReadsParent = false;
         m_PostLoadsSibling = false;
-        m_PostWaitsForJob = false;
+        m_PostPendingOnce = false;
         m_HoldPosts = false;
         m_FailedPost = ~0u;
         m_CheckedThreadNode = ~0u;
@@ -341,7 +341,7 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         }
         if (self->m_HoldPosts)
             return dmResource::RESULT_PENDING;
-        if (self->m_PostWaitsForJob && !self->m_JobCallbacks)
+        if (self->m_PostPendingOnce && self->m_Posts[resource->m_Value] == 1)
             return dmResource::RESULT_PENDING;
         return resource->m_Value == self->m_FailedPost ? dmResource::RESULT_INVALID_DATA : dmResource::RESULT_OK;
     }
@@ -565,7 +565,7 @@ class ResourceLoaderTest : public jc_test_params_class<int>
     bool m_Transitive;
     bool m_PostReadsParent;
     bool m_PostLoadsSibling;
-    bool m_PostWaitsForJob;
+    bool m_PostPendingOnce;
     bool m_HoldPosts;
     uint32_t m_FailedPost;
     uint32_t m_CheckedThreadNode;
@@ -1106,13 +1106,13 @@ TEST_P(ResourceLoaderTest, ZeroWorkersLeaveSharedJobsToOwner)
     dmResource::Release(m_Factory, resource);
 }
 
-// A synchronous load on the pool owner can complete a PostCreate waiting for a job's completion callback.
-TEST_P(ResourceLoaderTest, SynchronousOwnerDispatchesPendingJobCallbacks)
+// Pending PostCreate advances without dispatching unrelated shared job callbacks.
+TEST_P(ResourceLoaderTest, SynchronousPostCreateLeavesSharedCallbacksToOwner)
 {
     if (!m_Jobs)
         return;
     EnablePostCreate();
-    m_PostWaitsForJob = true;
+    m_PostPendingOnce = true;
     Add(0, 0, 0);
     Job job = {};
     job.m_Process = FenceProcess;
@@ -1121,6 +1121,13 @@ TEST_P(ResourceLoaderTest, SynchronousOwnerDispatchesPendingJobCallbacks)
     JobSystemPushJob(m_Jobs, JobSystemCreateJob(m_Jobs, &job));
     void* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/node_0.node", &resource));
+    ASSERT_EQ(0u, m_JobCallbacks);
+    ASSERT_EQ(2u, m_Posts[0]);
+    if (!JobSystemGetWorkerCount(m_Jobs))
+        ASSERT_EQ(0u, m_Fences);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_JobCallbacks && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_Jobs, 0);
     ASSERT_EQ(1u, m_JobCallbacks);
     ASSERT_TRUE(m_JobCallbackThreadCorrect);
     dmResource::Release(m_Factory, resource);
@@ -1132,6 +1139,8 @@ TEST_P(ResourceLoaderTest, FirstSynchronousCallerPreservesPoolCallbackOwner)
 #if defined(DM_HAS_THREADS)
     if (!m_Jobs)
         return;
+    EnablePostCreate();
+    m_PostPendingOnce = true;
     Add(1, 0, 0);
     Job job = {};
     job.m_Process = FenceProcess;
@@ -1153,13 +1162,13 @@ TEST_P(ResourceLoaderTest, FirstSynchronousCallerPreservesPoolCallbackOwner)
 #endif
 }
 
-// A main-thread job callback cannot recurse into a suspended creator or add a false dependency to it.
-TEST_P(ResourceLoaderTest, JobCallbackCannotReenterSuspendedCreator)
+// Nested synchronous loading finishes before shared callbacks can re-enter the same resource.
+TEST_P(ResourceLoaderTest, NestedGetLeavesSharedCallbacksToOwner)
 {
     if (!m_Jobs)
         return;
     EnablePostCreate();
-    m_PostWaitsForJob = true;
+    m_PostPendingOnce = true;
     m_Hints = false;
     m_JobReadsRoot = true;
     uint32_t child = 1;
@@ -1171,8 +1180,12 @@ TEST_P(ResourceLoaderTest, JobCallbackCannotReenterSuspendedCreator)
     job.m_Context = this;
     JobSystemPushJob(m_Jobs, JobSystemCreateJob(m_Jobs, &job));
     ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(0)));
+    ASSERT_EQ(0u, m_JobCallbacks);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_JobCallbacks && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_Jobs, 0);
     ASSERT_EQ(1u, m_JobCallbacks);
-    ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, m_JobGetResult);
+    ASSERT_EQ(dmResource::RESULT_OK, m_JobGetResult);
     ASSERT_EQ(1u, m_Creates[0]);
 }
 

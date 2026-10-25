@@ -968,21 +968,6 @@ namespace dmResource
             DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
             StartReads(context, request);
         }
-        // Blocking PostCreate can depend on a general job callback. Normal
-        // asynchronous loading leaves the shared pool's updates to its owner.
-        bool update_jobs = false;
-        if (request->m_Blocking)
-        {
-            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-            update_jobs = FindRequestWork(request, context->m_Posts, LOAD_WORK_POST, false) != 0;
-        }
-        if (update_jobs)
-        {
-            LoadNode* creating = context->m_Creating;
-            context->m_Creating = 0;
-            JobSystemUpdate(context->m_Jobs, 1000);
-            context->m_Creating = creating;
-        }
         bool progressed = false;
         do
         {
@@ -1103,8 +1088,7 @@ namespace dmResource
                 if (!RecordDependency(context, node))
                     return RESULT_RESOURCE_LOOP_ERROR;
             }
-            // An unrelated main-thread job callback can re-enter Get while
-            // its target's creator is suspended in a nested resource load.
+            // Reentrant callbacks must not wait for a creator suspended in Get.
             if (dependency && context->m_UpdateDepth && context->m_UpdateOwner == caller && node->m_Load && node->m_Load->m_InCreate)
                 return RESULT_RESOURCE_LOOP_ERROR;
             for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
