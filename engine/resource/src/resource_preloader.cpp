@@ -89,14 +89,15 @@ namespace dmResource
         Result m_CreateResult;
         Result m_Result;
         Result m_DependencyResult;
-        bool m_Discovered;
-        bool m_CreateQueued;
-        bool m_Created;
-        bool m_PostDone;
-        bool m_CompleteQueued;
-        bool m_Complete;
-        bool m_Pin;
-        bool m_PinQueued;
+        // Access under the graph mutex: adjacent flags share storage.
+        uint8_t m_Discovered : 1;
+        uint8_t m_CreateQueued : 1;
+        uint8_t m_Created : 1;
+        uint8_t m_PostDone : 1;
+        uint8_t m_CompleteQueued : 1;
+        uint8_t m_Complete : 1;
+        uint8_t m_Pin : 1;
+        uint8_t m_PinQueued : 1;
     };
 
     // One edge per distinct parent/dependency pair. Indices survive array growth.
@@ -927,6 +928,7 @@ namespace dmResource
 
     static bool RootsCreated(HPreloader request)
     {
+        DM_MUTEX_SCOPED_LOCK(request->m_Context->m_Mutex);
         for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
             if (!request->m_Roots[i]->m_Created)
                 return false;
@@ -992,20 +994,22 @@ namespace dmResource
     {
         LoadContext* context = request->m_Context;
         Result result = request->m_CallbackResult;
-        for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
-        {
-            LoadNode* root = request->m_Roots[i];
-            if (!root->m_Complete)
-                return RESULT_PENDING;
-            if (result == RESULT_OK)
-                result = root->m_Result;
-        }
-        if (request->m_Holding)
         {
             DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
             for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
-                ChangeHold(context, request->m_Roots[i], false);
-            request->m_Holding = false;
+            {
+                LoadNode* root = request->m_Roots[i];
+                if (!root->m_Complete)
+                    return RESULT_PENDING;
+                if (result == RESULT_OK)
+                    result = root->m_Result;
+            }
+            if (request->m_Holding)
+            {
+                for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
+                    ChangeHold(context, request->m_Roots[i], false);
+                request->m_Holding = false;
+            }
         }
         ReleasePins(context);
         return result;
@@ -1086,10 +1090,10 @@ namespace dmResource
             request->m_NextPostTime = dmTime::GetMonotonicTime() + 1000;
             PostCreateResourceNode(context, node);
             progressed = true;
-            if (!node->m_PostDone)
             {
                 DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-                Push(context->m_Posts, node);
+                if (!node->m_PostDone)
+                    Push(context->m_Posts, node);
             }
         }
         while ((!progressed || dmTime::GetMonotonicTime() - start < soft_time_limit) && ProcessCompletion(request))
