@@ -120,10 +120,14 @@ public:
     const char* m_Path;
     const char* m_RequestBody;
     bool m_SendRequestBody;
+    int32_t m_RequestPrefixSize;
+    int m_ProbeStatus;
+    dmHttpClient::Result m_ProbeResult;
     dmHttpClient::Result m_Result;
 
     void SetUp()
     {
+        m_RequestPrefixSize = -1;
         dmSocket::Initialize();
         m_Service = dmEngineService::New(0);
         ASSERT_NE((dmEngineService::HEngineService)0, m_Service);
@@ -178,7 +182,7 @@ public:
         params.m_RequestTimeout = 5000000;
         params.m_MaxGetRetries = 1;
         params.m_HttpSendContentLength = ContentLength;
-        params.m_HttpWrite = Write;
+        params.m_HttpWrite = self->m_RequestPrefixSize < 0 ? Write : WritePartialBody;
         dmHttpClient::HClient client = dmHttpClient::New(&params, &uri);
         self->m_Result = dmHttpClient::Request(client, self->m_Method, self->m_Path);
         dmHttpClient::Delete(client);
@@ -198,12 +202,45 @@ public:
         return dmHttpClient::Write(response, self->m_RequestBody + offset, length);
     }
 
+    static void ProbeContent(dmHttpClient::HResponse, void* context, int status, const void*, uint32_t, int32_t, uint32_t, uint32_t, uint32_t, const char*)
+    {
+        *(int*)context = status;
+    }
+
+    static dmHttpClient::Result WritePartialBody(dmHttpClient::HResponse response, uint32_t offset, uint32_t length, void* context)
+    {
+        EngineServiceOpenAPITest* self = (EngineServiceOpenAPITest*)context;
+        uint32_t prefix_size = self->m_RequestPrefixSize;
+        dmHttpClient::Result written = dmHttpClient::Write(response, self->m_RequestBody + offset, prefix_size);
+        if (written != dmHttpClient::RESULT_OK)
+            return written;
+
+        // Require another request to complete while this upload is incomplete.
+        char url[64];
+        dmSnPrintf(url, sizeof(url), "http://127.0.0.1:%u", dmEngineService::GetPort(self->m_Service));
+        dmURI::Parts uri;
+        dmURI::Parse(url, &uri);
+        dmHttpClient::NewParams params;
+        params.m_Userdata = &self->m_ProbeStatus;
+        params.m_HttpContent = ProbeContent;
+        params.m_RequestTimeout = 5000000;
+        params.m_MaxGetRetries = 1;
+        dmHttpClient::HClient client = dmHttpClient::New(&params, &uri);
+        self->m_ProbeResult = dmHttpClient::Request(client, "GET", "/ping");
+        dmHttpClient::Delete(client);
+
+        // Release a blocking handler even if the probe timed out, so the regression fails without hanging the suite.
+        return dmHttpClient::Write(response, self->m_RequestBody + offset + prefix_size, length - prefix_size);
+    }
+
     void Fetch(const char* method, const char* path, const char* body = "", bool send_body = true)
     {
         m_Method = method;
         m_Path = path;
         m_RequestBody = body;
         m_SendRequestBody = send_body;
+        m_ProbeStatus = 0;
+        m_ProbeResult = dmHttpClient::RESULT_UNKNOWN;
         m_Status = 0;
         m_ContentType[0] = 0;
         m_Allow[0] = 0;
@@ -304,25 +341,54 @@ TEST_F(EngineServiceOpenAPITest, GPUTraceRouting)
     ASSERT_EQ(501, m_Status);
 }
 
-// Oversized bodies are rejected and closed even when only headers arrive, without blocking subsequent requests.
+// The size limit includes headers; oversized requests are rejected even when only headers arrive.
 TEST_F(EngineServiceOpenAPITest, GPUTraceBodyLimit)
 {
     dmEngineService::InitProfiler(m_Service, 0, 0);
-    dmArray<char> body;
-    body.SetCapacity(65538);
-    body.SetSize(body.Capacity());
-    memset(body.Begin(), ' ', body.Capacity() - 1);
-    body[body.Capacity() - 1] = 0;
-    for (uint32_t send_body = 0; send_body < 2; ++send_body)
+    uint32_t body_sizes[] = { 65535, 65537 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(body_sizes); ++i)
     {
-        Fetch("POST", "/profiler/gputrace", body.Begin(), send_body != 0);
-        ASSERT_EQ(413, m_Status);
-        ASSERT_STREQ("close", m_Connection);
-        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"code\":\"request_too_large\""));
-        Fetch("GET", "/ping");
-        ASSERT_EQ(200, m_Status);
-        ASSERT_STREQ("PONG\n", m_Body.Begin());
+        dmArray<char> body;
+        body.SetCapacity(body_sizes[i] + 1);
+        body.SetSize(body.Capacity());
+        memset(body.Begin(), ' ', body_sizes[i]);
+        body[body_sizes[i]] = 0;
+        for (uint32_t send_body = 0; send_body < 2; ++send_body)
+        {
+            Fetch("POST", "/profiler/gputrace", body.Begin(), send_body != 0);
+            ASSERT_EQ(413, m_Status);
+            ASSERT_STREQ("close", m_Connection);
+            ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"code\":\"request_too_large\""));
+            Fetch("GET", "/ping");
+            ASSERT_EQ(200, m_Status);
+            ASSERT_STREQ("PONG\n", m_Body.Begin());
+        }
     }
+}
+
+// Headers-only and partial uploads must allow other requests to finish, then resume when the remaining body arrives.
+TEST_F(EngineServiceOpenAPITest, GPUTraceIncompleteBody)
+{
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+    dmArray<char> large_body;
+    large_body.SetCapacity(65001);
+    large_body.SetSize(large_body.Capacity());
+    memset(large_body.Begin(), ' ', large_body.Size() - 1);
+    large_body[large_body.Size() - 1] = 0;
+    const char* bodies[] = { " ", "{}", large_body.Begin() };
+    for (uint32_t prefix_size = 0; prefix_size < DM_ARRAY_SIZE(bodies); ++prefix_size)
+    {
+        m_RequestPrefixSize = prefix_size;
+        Fetch("POST", "/profiler/gputrace", bodies[prefix_size]);
+        ASSERT_EQ(dmHttpClient::RESULT_OK, m_ProbeResult);
+        ASSERT_EQ(200, m_ProbeStatus);
+        ASSERT_EQ(501, m_Status);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"code\":\"gputrace_unsupported\""));
+    }
+    m_RequestPrefixSize = -1;
+    Fetch("GET", "/ping");
+    ASSERT_EQ(200, m_Status);
+    ASSERT_STREQ("PONG\n", m_Body.Begin());
 }
 #endif
 

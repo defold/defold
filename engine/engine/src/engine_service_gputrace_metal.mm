@@ -186,27 +186,28 @@ namespace dmEngineService
 
     void GPUTraceRequest(void* context, dmWebServer::Request* request)
     {
-        const uint32_t max_body_size = 64 * 1024;
-        if (request->m_ContentLength > max_body_size)
+        const uint32_t max_request_size = 64 * 1024;
+        dmArray<char> body;
+        dmWebServer::Result received = dmWebServer::RESULT_ERROR_INVAL;
+        if (request->m_ContentLength < max_request_size)
+        {
+            body.SetCapacity(request->m_ContentLength);
+            received = dmWebServer::ReceiveBuffered(request, body.Begin(), body.Capacity());
+        }
+        if (received == dmWebServer::RESULT_TRY_AGAIN)
+            return;
+        if (received == dmWebServer::RESULT_ERROR_INVAL)
         {
             // Do not block the engine waiting for a body that will be rejected.
             dmWebServer::CloseConnection(request);
-            SendError(request, 413, "request_too_large", "request body exceeds 65536 bytes");
+            SendError(request, 413, "request_too_large", "request headers and body must be smaller than 65536 bytes");
             return;
         }
-        dmArray<char> body;
-        body.SetCapacity(request->m_ContentLength);
-        uint32_t offset = 0;
-        while (offset < request->m_ContentLength)
+        if (received != dmWebServer::RESULT_OK)
         {
-            uint32_t remaining = request->m_ContentLength - offset;
-            uint32_t received = 0;
-            if (dmWebServer::Receive(request, body.Begin() + offset, remaining, &received) != dmWebServer::RESULT_OK || received == 0)
-            {
-                SendError(request, 400, "bad_request", "could not read request body");
-                return;
-            }
-            offset += received;
+            dmWebServer::CloseConnection(request);
+            SendError(request, 400, "bad_request", "could not read request body");
+            return;
         }
 
         const char* suffix = request->m_Resource + strlen("/profiler/gputrace");

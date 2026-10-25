@@ -84,7 +84,7 @@ namespace dmEngineService
     },
     "post": {
       "summary": "Schedule a Metal GPU trace",
-      "description": "Starts before rendering the next frame and stops after Flip submits the requested number of complete frames. Use a writable absolute output path with no existing trace. Query parameters override JSON body fields. The UTF-8 path must fit in 1023 bytes and the request body in 65536 bytes. Use JSON for long paths; request URLs are limited to 127 bytes.",
+      "description": "Starts before rendering the next frame and stops after Flip submits the requested number of complete frames. Use a writable absolute output path with no existing trace. Query parameters override JSON body fields. The UTF-8 path must fit in 1023 bytes. Request headers and body together must be smaller than 65536 bytes. Use JSON for long paths; request URLs are limited to 127 bytes.",
       "parameters": [
         {"name": "path", "in": "query", "schema": {"type": "string"}, "description": "Absolute output path ending in .gputrace. Required in either the query or body."},
         {"name": "frames", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 10000, "default": 1}}
@@ -106,7 +106,7 @@ namespace dmEngineService
         "200": {"$ref": "#/paths/~1profiler~1gputrace/get/responses/200"},
         "400": {"description": "Invalid JSON, path or frame count."},
         "409": {"description": "A capture is already pending or active."},
-        "413": {"description": "Request body exceeds 65536 bytes."},
+        "413": {"description": "Request headers and body together exceed 65535 bytes."},
         "414": {"description": "Output path exceeds 1023 UTF-8 bytes."},
         "501": {"description": "GPU trace capture is unavailable."}
       }

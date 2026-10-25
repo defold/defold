@@ -163,8 +163,10 @@ curl -fsS -X DELETE "$ENGINE/profiler/gputrace"
 `POST` schedules a capture and returns `pending`. `frames` defaults to 1 and
 accepts integers from 1 through 10000. Query parameters are also accepted and
 override JSON body fields. Use JSON for long paths, since the engine limits request
-URLs to 127 bytes. Request bodies are limited to 65536 bytes and output paths to
-1023 UTF-8 bytes. A second capture is rejected while one is pending or
+URLs to 127 bytes. Request headers and body together must be smaller than 65536
+bytes, and output paths are limited to 1023 UTF-8 bytes. Incomplete uploads yield
+to rendering and other service requests until the rest of the body arrives or the
+connection times out. A second capture is rejected while one is pending or
 active.
 
 Capture starts before rendering the next frame and finishes after `Flip()` submits
