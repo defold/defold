@@ -581,8 +581,11 @@ template <typename T>
 void dmArray<T>::PushArray(const T* array, uint32_t count)
 {
     assert((Size() + count) <= Capacity());
-    memcpy(m_End, array, sizeof(T) * count);
-    m_End += count;
+    if (count)
+    {
+        memcpy(m_End, array, sizeof(T) * count);
+        m_End += count;
+    }
 }
 
 template <typename T>

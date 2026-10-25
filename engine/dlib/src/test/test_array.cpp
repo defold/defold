@@ -22,6 +22,20 @@
 const uint32_t array_size = 32;
 const uint32_t array_size_test_offset = 7;
 
+// Empty appends and releasing all storage must not pass null pointers to memcpy.
+TEST(dmArray, EmptyStorageOperations)
+{
+    dmArray<uint32_t> array;
+    array.PushArray(0, 0);
+    ASSERT_EQ(0u, array.Size());
+    array.SetCapacity(1);
+    array.Push(42);
+    array.SetCapacity(0);
+    array.PushArray(0, 0);
+    ASSERT_EQ(0u, array.Size());
+    ASSERT_EQ(0u, array.Capacity());
+}
+
 TEST(dmArray, Dynamic_int32)
 {
     assert(array_size > array_size_test_offset);

@@ -507,7 +507,8 @@ namespace dmConfigFile
         // NOTE: We allocate n + 1 bytes in order to ensure that
         // the file has a terminating newline
         context.m_Buffer = new char[buffer_size + 1];
-        memcpy(context.m_Buffer, buffer, buffer_size);
+        if (buffer_size)
+            memcpy(context.m_Buffer, buffer, buffer_size);
         // Ensure terminating newline.
         context.m_Buffer[buffer_size] = '\n';
         context.m_BufferSize = buffer_size + 1;
