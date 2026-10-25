@@ -161,7 +161,7 @@ static bool CopyTexture(SlugTexture* texture, const void* data, uint32_t texels,
     if (!texture->m_Pixels)
         return false;
     if (texels)
-        memcpy(texture->m_Pixels, data, texels * channels * component_size);
+        memcpy(texture->m_Pixels, data, (size_t)texels * channels * component_size);
     return true;
 }
 
