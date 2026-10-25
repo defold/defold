@@ -134,6 +134,7 @@ class FontEffectTest : public jc_test_base_class
         dmGraphics::DeleteRenderTarget(m_Context, m_Target);
         dmGraphics::DeleteVertexDeclaration(m_Declaration);
         dmGraphics::DeleteProgram(m_Context, m_Program);
+        dmGraphics::CloseWindow(m_Context);
         dmGraphics::DeleteContext(m_Context);
         dmPlatform::CloseWindow(m_Window);
         dmPlatform::DeleteWindow(m_Window);

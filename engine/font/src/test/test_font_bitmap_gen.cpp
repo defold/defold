@@ -196,6 +196,7 @@ static void FinalizeFontImages()
     FontDeleteEffectCache(g_ImageEffects);
     g_ImageEffects = 0;
     dmGraphics::DeleteVertexDeclaration(g_ImageDeclaration);
+    dmGraphics::CloseWindow(g_ImageContext);
     dmGraphics::DeleteContext(g_ImageContext);
     dmPlatform::CloseWindow(g_ImageWindow);
     dmPlatform::DeleteWindow(g_ImageWindow);
