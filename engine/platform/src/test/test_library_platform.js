@@ -625,10 +625,10 @@ function setupArchiveDownloads(files = [archiveFile("a")], verifySize = true, fu
             this.pending = false;
             this.onload({});
         }
-        fail() {
+        fail(type = "error") {
             assert.strictEqual(this.pending, true, "only an active request can fail");
             this.pending = false;
-            this.onerror({});
+            if (this["on" + type]) this["on" + type]({});
         }
     };
     context.FileLoader.options.retryCount = 2;
@@ -678,26 +678,35 @@ async function testLoaderArchiveProgressWithoutLength() {
         (index === 0 || value >= percentages[index - 1])));
 }
 
-// Retry delays release the shared request slot so another file can download without waiting for the failed file.
+// Network errors, timeouts, and external aborts release their request slot and progress before retrying.
 async function testLoaderArchiveRetryReleasesSlot() {
-    const { context, loader, requests, calls, timers, runRetry, waitFor } = setupArchiveDownloads([archiveFile("a"), archiveFile("b")]);
-    loader.MAX_CONCURRENT_XHR = 1;
-    const completion = loader.downloadContent();
-    await waitFor(() => requests.length === 1);
-    requests[0].progress(5);
-    requests[0].fail();
-    await waitFor(() => requests.length === 2 && timers.size === 1);
-    assert.strictEqual(requests[1].url, "split/b0");
-    assert.strictEqual(context.ProgressUpdater.current, 0);
-    requests[1].complete(Uint8Array.of(2).buffer);
-    await runRetry();
-    assert.strictEqual(requests[2].url, "split/a0?dmretry=1");
-    requests[2].complete(Uint8Array.of(1).buffer);
-    await completion;
-    assert.strictEqual(calls.maxPending, 1);
-    assert.strictEqual(context.ProgressUpdater.current, 2);
-    assert.deepStrictEqual(calls.loaded, ["a", "b"]);
-    assert.deepStrictEqual(calls.errors, []);
+    for (const failure of ["error", "timeout", "abort"]) {
+        const { context, loader, requests, calls, timers, runRetry, waitFor } = setupArchiveDownloads([archiveFile("a"), archiveFile("b")]);
+        loader.MAX_CONCURRENT_XHR = 1;
+        const completion = loader.downloadContent();
+        await waitFor(() => requests.length === 1);
+        requests[0].progress(5);
+        const lateFailure = requests[0].onerror;
+        if (failure === "abort") requests[0].abort();
+        else requests[0].fail(failure);
+        await waitFor(() => requests.length === 2 && timers.size === 1);
+        assert.strictEqual(requests[1].url, "split/b0");
+        assert.strictEqual(context.ProgressUpdater.current, 0);
+        lateFailure({});
+        assert.strictEqual(timers.size, 1, "late events must not schedule another retry");
+        for (const event of ["load", "error", "timeout", "abort", "progress"]) {
+            assert.strictEqual(requests[0]["on" + event], null, "settled requests release every handler");
+        }
+        requests[1].complete(Uint8Array.of(2).buffer);
+        await runRetry();
+        assert.strictEqual(requests[2].url, "split/a0?dmretry=1");
+        requests[2].complete(Uint8Array.of(1).buffer);
+        await completion;
+        assert.strictEqual(calls.maxPending, 1);
+        assert.strictEqual(context.ProgressUpdater.current, 2);
+        assert.deepStrictEqual(calls.loaded, ["a", "b"]);
+        assert.deepStrictEqual(calls.errors, []);
+    }
 }
 
 // Cancelling an archive aborts active requests and removes queued pieces without starting another request.
@@ -1237,9 +1246,9 @@ async function testLoaderArchiveTerminalStates() {
     assert.deepStrictEqual(empty.calls.errors, []);
 }
 
-// XHR retries obey their budget, release completed requests, and cancel active requests or pending retries.
+// All XHR failures obey the retry budget; intentional cancellation releases handlers without retrying or reporting errors.
 async function testLoaderTransportRetryLifecycle() {
-    for (const failure of ["network", "status", "verification"]) {
+    for (const failure of ["error", "timeout", "abort", "status", "verification"]) {
         const { context, requests, timers, calls, runRetry } = setupArchiveDownloads();
         let loaded = 0, progress = 0;
         const request = context.FileLoader.load("/piece", "arraybuffer", delta => progress += delta,
@@ -1247,8 +1256,9 @@ async function testLoaderTransportRetryLifecycle() {
             () => failure === "verification" ? "bad response" : undefined);
         for (let attempt = 0; attempt < 3; ++attempt) {
             const xhr = requests[attempt];
-            if (attempt === 0 && failure === "network") xhr.progress(2);
-            if (failure === "network") xhr.fail();
+            if (attempt === 0 && ["error", "timeout", "abort"].includes(failure)) xhr.progress(2);
+            if (failure === "abort") xhr.abort();
+            else if (failure === "error" || failure === "timeout") xhr.fail(failure);
             else xhr.complete(new ArrayBuffer(0), failure === "status" ? 503 : 200);
             if (attempt < 2) await runRetry();
         }
@@ -1266,11 +1276,15 @@ async function testLoaderTransportRetryLifecycle() {
         const request = context.FileLoader.load("/piece", "arraybuffer", () => {}, () => ++errors, () => ++loaded, () => {});
         if (retryPending) requests[0].fail();
         request.cancel();
+        await request.promise;
         assert.strictEqual(requests.length, 1);
         assert.strictEqual(timers.size, 0);
         assert.strictEqual(loaded, 0);
         assert.strictEqual(errors, 0);
         if (!retryPending) assert.strictEqual(requests[0].aborted, true);
+        for (const event of ["load", "error", "timeout", "abort", "progress"]) {
+            assert.strictEqual(requests[0]["on" + event], null, "cancelled requests release every handler");
+        }
     }
     const { context, requests, timers, calls, runRetry } = setupArchiveDownloads();
     let loaded = 0;
