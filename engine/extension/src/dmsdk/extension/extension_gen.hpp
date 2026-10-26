@@ -177,6 +177,21 @@ namespace dmExtension
      */
     void ParamsFinalize(Params * params);
 
+    /*#
+     * Gets a named float from the extension callback parameters.
+     *
+     * The supported name is `"dt"`: the current engine update delta in seconds,
+     * before any collection-proxy time scaling. It is 0 for parameters passed to
+     * callbacks other than the extension update callback.
+     * @name ParamsGetFloat
+     * @language C++
+     * @param params [type:const ExtensionParams*] valid parameters for the current callback
+     * @param name_hash [type:dmhash_t] hash of the parameter name
+     * @param out_value [type:float*] output value; left unchanged if the name is unsupported
+     * @return result [type:bool] true if the name is supported, otherwise false
+     */
+    bool ParamsGetFloat(const Params* params, dmhash_t name_hash, float* out_value);
+
     /*# 
      * Sets a context using a specified name
      * @name AppParamsSetContext
@@ -465,6 +480,20 @@ namespace dmExtension
  * @name ExtensionParamsFinalize
  * @language C
  * @param app_params [type:ExtensionParams*] the params
+ */
+
+/*#
+ * Gets a named float from the extension callback parameters.
+ *
+ * The supported name is `"dt"`: the current engine update delta in seconds,
+ * before any collection-proxy time scaling. It is 0 for parameters passed to
+ * callbacks other than the extension update callback.
+ * @name ExtensionParamsGetFloat
+ * @language C
+ * @param params [type:const ExtensionParams*] valid parameters for the current callback
+ * @param name_hash [type:dmhash_t] hash of the parameter name
+ * @param out_value [type:float*] output value; left unchanged if the name is unsupported
+ * @return result [type:bool] true if the name is supported, otherwise false
  */
 
 /*# 

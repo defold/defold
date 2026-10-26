@@ -27,6 +27,7 @@
 #include <dlib/profile.h>
 #include <script/sys_ddf.h>
 #include <render/render_ddf.h>
+#include <dmsdk/extension/extension.hpp>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
@@ -53,6 +54,31 @@ typedef void (*PostRun)(dmEngine::HEngine engine, void* context);
 PreRun g_PreRun = 0;
 PostRun g_PostRun = 0;
 void* g_TextCtx = 0;
+
+static float g_ExtensionTotalDT = 0.0f;
+static uint32_t g_ExtensionUpdateCount = 0;
+static bool g_ExtensionFloatLookupSucceeded = true;
+
+static dmExtension::Result DeltaTimeTestLifecycle(dmExtension::Params*)
+{
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result DeltaTimeTestUpdate(dmExtension::Params* params)
+{
+    float dt;
+    if (!dmExtension::ParamsGetFloat(params, dmHashString64("dt"), &dt))
+    {
+        g_ExtensionFloatLookupSucceeded = false;
+        return dmExtension::RESULT_INIT_ERROR;
+    }
+
+    g_ExtensionTotalDT += dt;
+    ++g_ExtensionUpdateCount;
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, "test_dt", 0, 0, DeltaTimeTestLifecycle, DeltaTimeTestUpdate, 0, DeltaTimeTestLifecycle);
 
 static void TestEngineInitialize(void* _ctx)
 {
@@ -410,6 +436,41 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
 
     dmEngine::Delete(engine);
     dmEngineFinalize();
+}
+
+// Extension delta time must match the simulation time advanced by successive engine updates.
+TEST_F(EngineTest, ExtensionDeltaTime)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=display.update_frequency=0",
+        project_path
+    };
+
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    g_ExtensionTotalDT = 0.0f;
+    g_ExtensionUpdateCount = 0;
+    g_ExtensionFloatLookupSucceeded = true;
+
+    for (uint32_t i = 0; i < 3; ++i)
+        dmEngine::Step(engine);
+
+    dmEngine::Stats stats;
+    dmEngine::GetStats(engine, stats);
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(g_ExtensionFloatLookupSucceeded);
+    ASSERT_EQ(3u, g_ExtensionUpdateCount);
+    ASSERT_EQ(stats.m_FrameCount, g_ExtensionUpdateCount);
+    ASSERT_GT(stats.m_TotalTime, 0.0f);
+    ASSERT_EQ(stats.m_TotalTime, g_ExtensionTotalDT);
 }
 
 TEST_F(EngineTest, SetEngineThrottle)
@@ -1457,6 +1518,7 @@ int main(int argc, char **argv)
     dmLog::CloseConsoleWindow();
 #endif
     dmExportedSymbols();
+    EngineDeltaTimeTestExt();
     TestMainPlatformInit();
 
     ProfileInitialize();

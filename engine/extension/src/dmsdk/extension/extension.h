@@ -207,6 +207,21 @@ HContextRegistry ExtensionAppParamsGetContextRegistry(ExtensionAppParams* params
 HContextRegistry ExtensionParamsGetContextRegistry(ExtensionParams* params);
 
 /*#
+ * Gets a named float from the extension callback parameters.
+ *
+ * The supported name is `"dt"`: the current engine update delta in seconds,
+ * before any collection-proxy time scaling. It is 0 for parameters passed to
+ * callbacks other than the extension update callback.
+ *
+ * @name ExtensionParamsGetFloat
+ * @param params [type:const ExtensionParams*] valid parameters for the current callback
+ * @param name_hash [type:dmhash_t] hash of the parameter name
+ * @param out_value [type:float*] output value; left unchanged if the name is unsupported
+ * @return result [type:bool] true if the name is supported, otherwise false
+ */
+bool ExtensionParamsGetFloat(const ExtensionParams* params, dmhash_t name_hash, float* out_value);
+
+/*#
  * Sets a context using a specified name
  * @note Deprecated. Use [ref:ContextRegistrySet] on [ref:HContextRegistry] instead.
  * @name ExtensionAppParamsSetContext

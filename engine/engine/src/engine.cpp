@@ -2086,7 +2086,7 @@ bail:
                     dmGameSystem::UpdateScriptLibs(script_lib_context);
                     dmScript::Update(engine->m_ScriptContext);
                     extension_params.SetLuaContext(engine->m_ScriptContext);
-                    dmExtension::Update(extension_params);
+                    dmExtension::Update(extension_params, dt);
                 }
 
                 bool esc_pressed = false;
