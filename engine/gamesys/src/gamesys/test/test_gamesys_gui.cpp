@@ -3257,6 +3257,31 @@ TEST_F(GuiTest, PerPropertyPrecedence)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Layout callbacks must dispatch the correct payload using aligned message storage under UBSan.
+TEST_F(GuiTest, LayoutCallbackAfterInit)
+{
+    lua_State* L = m_Scriptlibcontext.m_LuaState;
+    ASSERT_TRUE(RunString(L, "layout_changed_messages = {}"));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/custom_properties_layout.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+
+    dmGui::HScene scene = GetGuiComponent(m_Collection)->m_Scene;
+    dmhash_t previous_layout = dmGui::GetLayout(scene);
+    ASSERT_EQ(dmHashString64(""), previous_layout);
+    scene->m_ApplyLayoutCallback(scene, dmHashString64("Landscape"));
+    ASSERT_TRUE(RunString(L,
+        "assert(#layout_changed_messages == 1)\n"
+        "local message = layout_changed_messages[1]\n"
+        "assert(message.initialized)\n"
+        "assert(message.previous_id == hash(''))\n"
+        "assert(message.id == hash('Landscape'))"));
+    ASSERT_EQ(2.0f, dmGui::GetNodeProperty(scene, dmGui::GetNodeById(scene, "custom_props_layout"), dmGui::PROPERTY_POSITION).getX());
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(GuiTest, GuiCustomPropertiesFromDDF)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));

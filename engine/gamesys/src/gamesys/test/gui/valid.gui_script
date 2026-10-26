@@ -25,5 +25,11 @@ function on_message(self, message_id, message, sender)
     elseif message_id == hash("text_object_clicked") then
         assert_layout_object_message(message)
         gui.set_text(gui.get_node("text"), "clicked")
+    elseif message_id == hash("layout_changed") and layout_changed_messages then
+        layout_changed_messages[#layout_changed_messages + 1] = {
+            id = message.id,
+            previous_id = message.previous_id,
+            initialized = self.x == 1,
+        }
     end
 end

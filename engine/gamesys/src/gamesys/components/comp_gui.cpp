@@ -1010,7 +1010,7 @@ namespace dmGameSystem
 
     static void SendLayoutChangedMessage(const dmGui::HScene scene, dmhash_t layout_id, dmhash_t previous_layout_id)
     {
-        char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
+        char DM_ALIGNED(16) buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
         dmMessage::Message* message = (dmMessage::Message*)buf;
         memset(message, 0, sizeof(dmMessage::Message));
         message->m_Sender = dmMessage::URL();
