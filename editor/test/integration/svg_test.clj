@@ -27,6 +27,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.scene :as scene]
+            [editor.sprite :as sprite]
             [editor.svg :as svg]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
@@ -37,7 +38,7 @@
   (:import [com.dynamo.bob.pipeline VectorAtlasCompiler]
            [com.dynamo.gamesys.proto AtlasProto$Atlas]
            [java.awt.image BufferedImage]
-           [java.nio ByteBuffer]
+           [java.nio ByteBuffer ByteOrder]
            [javafx.scene.control Label]
            [javafx.scene.layout AnchorPane]
            [javax.vecmath Matrix4d]))
@@ -183,6 +184,25 @@
         (is (= 1 (count (:geometries after))))
         (is (= 0.5 (get-in after [:animations 0 :duration])))
         (is (not= (:vector before) (:vector after)))))))
+
+;; SVG timelines support sprite preview playback with a single geometry frame.
+;; The preview clock reaches vertex data; static SVG sprites stay idle.
+(deftest svg-sprite-preview-animation
+  (test-util/with-loaded-project "test/resources/svg_project"
+    (let [animated (g/valid-node-value (project/get-resource-node project "/animated.sprite") :scene)
+          static (g/valid-node-value (project/get-resource-node project "/vector.sprite") :scene)]
+      (is (nil? (:updatable static)))
+      (is (map? (:updatable animated)))
+      (when-let [updatable (:updatable animated)]
+        (let [state ((:update-fn updatable) (:initial-state updatable) {:dt 0.25})
+              renderable (assoc (:renderable animated)
+                           :world-transform (doto (Matrix4d.) (.setIdentity))
+                           :updatable (assoc updatable :state state))
+              data (#'sprite/renderable-data renderable)
+              bytes (get-in data [:vertex-attribute-bytes :svg-time])]
+          (is (= 0 (:frame state)))
+          (is (= 0.25 (:svg-time state)))
+          (is (= 0.25 (.getFloat (doto (ByteBuffer/wrap bytes) (.order (ByteOrder/nativeOrder)))))))))))
 
 ;; Vector previews evaluate continuous time and weighted clips without sampling.
 (deftest svg-continuous-preview-time

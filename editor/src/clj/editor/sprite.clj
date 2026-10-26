@@ -255,7 +255,8 @@
                                                   :quad-count (quad-count size-mode slice9)}
                                       :passes [pass/outline]}}]}
 
-      (< 1 (count (:frames first-animation)))
+      (or (< 1 (count (:frames first-animation)))
+          (pos? (double (:duration first-animation 0.0))))
       (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" first-animation)))))
 
 (def ^:private material-message (properties/label-message :material))
