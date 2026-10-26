@@ -68,6 +68,7 @@
                         editor.handler/defhandler hooks.editor-handler/defhandler
                         editor.image-util/with-graphics hooks.editor-image-util/with-graphics
                         editor.lsp.async/with-auto-evaluation-context hooks.editor-lsp-async/with-auto-evaluation-context
+                        editor.targets-test/with-launched-target hooks.editor-targets-test/with-launched-target
                         editor.ui/change-listener hooks.editor-ui/change-listener
                         editor.ui/defc hooks.editor-ui/defc
                         editor.ui/event-dispatcher hooks.editor-ui/event-dispatcher
@@ -89,6 +90,7 @@
                         support.dap-util/with-adapter hooks.support-dap-util/with-adapter
                         support.dap-util/with-server hooks.support-dap-util/with-server
                         support.gl-support/with-offscreen-gl hooks.support-gl-support/with-offscreen-gl
+                        support.process-util/with-child-process hooks.support-process-util/with-child-process
                         support.test-support/with-clean-system hooks.support-test-support/with-clean-system
                         util.defonce/interface hooks.util-defonce/interface
                         util.defonce/protocol hooks.util-defonce/protocol
@@ -116,6 +118,6 @@
                              {:arities #{2}
                               :message "The two-argument get-project arity is deprecated."}}
            :line-length {:max-line-length 80
-                         :exclude-pattern "^(?!\\s*;)|^\\s*;+ (?:Licensed under the Defold License version 1\\.0 \\(the \"License\"\\); you may not use|Unless required by applicable law or agreed to in writing, software distributed)\\s*$"}
+                         :exclude-pattern "^(?!\\s*;)|https?://\\S+|^\\s*;+ (?:Licensed under the Defold License version 1\\.0 \\(the \"License\"\\); you may not use|Unless required by applicable law or agreed to in writing, software distributed)\\s*$"}
            :refer-all {:exclude [clojure.test]}}
  :config-in-ns {editor.gl.translate-test {:linters {:inline-def {:level :off}}}}}

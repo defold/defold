@@ -15,8 +15,13 @@
 #include "native/native.h"
 
 #include "native/native_handles.h"
+#import "native/ios/app/ViewController.h"
 
+#include <assert.h>
 #include <math.h>
+#include <string.h>
+#include <dlib/array.h>
+#include <dlib/log.h>
 #include <UIKit/UIKit.h>
 
 #include "platform_window_ios.h"
@@ -36,6 +41,23 @@ namespace dmPlatform
     id GetiOSEAGLContext()
     {
         return dmNativeGetiOSEAGLContext();
+    }
+
+    void SetiOSHomeIndicatorMode(const char* mode)
+    {
+        assert([NSThread isMainThread]);
+
+        HomeIndicatorMode indicator_mode = HOME_INDICATOR_MODE_DEFERRED;
+        if (strcmp(mode, "system") == 0)
+            indicator_mode = HOME_INDICATOR_MODE_SYSTEM;
+        else if (strcmp(mode, "auto_hide") == 0)
+            indicator_mode = HOME_INDICATOR_MODE_AUTO_HIDE;
+        else if (strcmp(mode, "deferred") != 0)
+            dmLogWarning("Unknown ios.home_indicator_mode '%s', defaulting to deferred", mode);
+
+        UIWindow* window = (UIWindow*)dmNativeGetiOSUIWindow();
+        ViewController* controller = (ViewController*)window.rootViewController;
+        controller.homeIndicatorMode = indicator_mode;
     }
 
     bool GetSafeAreaiOS(HWindow window, WindowSafeArea* out)
@@ -72,6 +94,37 @@ namespace dmPlatform
         out->m_InsetBottom = inset_bottom;
 
         return true;
+    }
+
+    void GetReservedAreas(HWindow window, dmArray<WindowReservedArea>& areas)
+    {
+        areas.SetSize(0);
+        if (@available(iOS 27.1, *))
+        {
+            UIView* view = (UIView*)dmNativeGetiOSUIView();
+            if (!view || !view.window)
+                return;
+
+            NSArray<UIViewReservedRegion*>* regions = [view reservedRegionsOfKind:[UIViewReservedRegionKind occlusionRegionKind]
+                                                                         options:UIViewReservedRegionQueryOptionsNone];
+            if (areas.Capacity() < regions.count)
+                areas.SetCapacity((uint32_t)regions.count);
+
+            const CGRect bounds = view.bounds;
+            for (UIViewReservedRegion* region in regions)
+            {
+                if (!region.isActive)
+                    continue;
+
+                // UIKit's frame already includes the interaction margins.
+                const CGRect frame = region.frame;
+                WindowReservedArea area;
+                if (ConvertReservedArea(CGRectGetMinX(frame) - bounds.origin.x, CGRectGetMinY(frame) - bounds.origin.y,
+                                        CGRectGetMaxX(frame) - bounds.origin.x, CGRectGetMaxY(frame) - bounds.origin.y,
+                                        bounds.size.width, bounds.size.height, GetWindowWidth(window), GetWindowHeight(window), &area))
+                    areas.Push(area);
+            }
+        }
     }
 
 }

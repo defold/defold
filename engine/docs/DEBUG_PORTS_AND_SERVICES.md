@@ -143,6 +143,66 @@ component-specific properties and recursive `children` arrays. `/resources_data`
 and `/gameobjects_data` return binary profiler streams. Their formats and error
 responses are described in `/openapi.json`.
 
+### /profiler/gputrace
+
+Capture complete rendered frames to a Metal `.gputrace` document without a native
+extension. This requires macOS, the Metal graphics adapter, and an engine launched
+with `METAL_CAPTURE_ENABLED=1`. Use the engine service port printed in the log.
+Use a writable absolute output path on the engine host, with no existing trace at
+that location.
+
+```sh
+ENGINE=http://127.0.0.1:8001
+curl -fsS -X POST -H 'Content-Type: application/json' \
+  --data '{"path":"/tmp/frame.gputrace","frames":1}' \
+  "$ENGINE/profiler/gputrace"
+curl -fsS "$ENGINE/profiler/gputrace"
+curl -fsS -X DELETE "$ENGINE/profiler/gputrace"
+```
+
+`POST` schedules a capture and returns `pending`. `frames` defaults to 1 and
+accepts integers from 1 through 10000. Query parameters are also accepted and
+override JSON body fields. Use JSON for long paths, since the engine limits request
+URLs to 127 bytes. Request headers and body together must be smaller than 65536
+bytes, and output paths are limited to 1023 UTF-8 bytes. Incomplete uploads yield
+to rendering and other service requests until the rest of the body arrives or the
+connection times out. A second capture is rejected while one is pending or
+active.
+
+Capture starts before rendering the next frame and finishes after `Flip()` submits
+the requested number of frames. Paused or iconified frames do not advance the
+capture. `DELETE` cancels a pending capture or requests an early stop after the
+current rendered frame; it does not delete the output. Shutdown and reboot also
+stop captures before destroying the graphics context.
+
+Poll `GET` until the state is `complete`, `canceled`, or `failed`. Success responses
+use `{"ok":true,"data":{...}}`, with `state`, `path`, `frames`, `frames_captured`,
+`stop_requested`, and an `error` string when capture startup failed. The initial
+state is `idle`. Errors use
+`{"ok":false,"error":{"status":400,"code":"bad_request","message":"..."}}`.
+The endpoint and its OpenAPI entry are registered only on macOS builds. On macOS,
+unsupported adapters or launch environments return HTTP 501.
+
+#### Inspecting a trace with gpudebug
+
+Open the completed trace in Xcode, or use Apple's GPU command-line tools if your
+Xcode/macOS installation provides them:
+
+```sh
+xcrun --find gpudebug
+gpudebug -t /tmp/frame.gputrace
+```
+
+At the `gpudebug>` prompt, use `list` and `go commands` to find command buffers,
+encoders, and draw calls. Follow the names reported by `list --all`; their paths
+depend on the capture. `info pipeline` inspects a selected draw's pipeline, and
+`fetch color0` exports its color attachment. Use `help` or `man gpudebug` for the
+commands supported by the installed tool.
+
+For scripted analysis, `gpudebug -t /tmp/frame.gputrace -c "list"` starts a session.
+Reuse its printed session id with `gpudebug -s <id> -c "<command>"`, then finish
+with `gpudebug --terminate <id>`.
+
 ## Redirect service
 The redirect service will redirect any request to the engine service on its actual port (see Engine Service)
 

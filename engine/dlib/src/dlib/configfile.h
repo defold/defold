@@ -57,6 +57,10 @@ namespace dmConfigFile
      */
     Result LoadFromBuffer(const char* buffer, uint32_t buffer_size, int argc, const char** argv, HConfig* config);
 
+    // Parse an auxiliary INI document without command-line overrides or config
+    // extension callbacks. Delete and getters also bypass extensions for it.
+    Result Parse(const char* buffer, uint32_t buffer_size, HConfig* config);
+
     /**
      * Delete config file
      * @param config Config file handle

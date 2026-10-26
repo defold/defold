@@ -109,7 +109,10 @@ public final class AppManifestMigration {
                 "profilerext",
                 "profilerext_null",
                 "record",
+                // Retained to migrate manifests that selected the removed null backend.
                 "record_null",
+                "record_script",
+                "record_service",
                 "render",
                 "resource",
                 "rig",
