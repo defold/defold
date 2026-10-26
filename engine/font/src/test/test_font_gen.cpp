@@ -32,6 +32,9 @@ struct TestFont
     int32_atomic_t      m_GenerateCount;
     uint32_t            m_FreeCount;
     uint32_t            m_FailGlyphIndex;
+    bool                m_BlockGeneration;
+    int32_atomic_t      m_GenerationStarted;
+    int32_atomic_t      m_AllowGeneration;
 };
 
 struct TestContext
@@ -60,6 +63,17 @@ struct CallerBatch
     bool                m_Complete;
 };
 
+struct WorkerBatch
+{
+    FontGenJobData*     m_JobData;
+    TestContext*        m_Context;
+    TextGlyph           m_Glyph;
+    int32_atomic_t*     m_Started;
+    int32_atomic_t*     m_Finished;
+    uint32_t            m_CallerCount;
+    bool                m_Complete;
+};
+
 static float TestGetScaleFromSize(HFont, uint32_t size)
 {
     return size / 10.0f;
@@ -69,6 +83,13 @@ static FontResult TestGetGlyph(HFont font, uint32_t glyph_index, const FontGlyph
 {
     TestFont* test_font = (TestFont*)font;
     dmAtomicIncrement32(&test_font->m_GenerateCount);
+    if (test_font->m_BlockGeneration)
+    {
+        dmAtomicStore32(&test_font->m_GenerationStarted, 1);
+        while (!dmAtomicGet32(&test_font->m_AllowGeneration))
+        {
+        }
+    }
     if (glyph_index == test_font->m_FailGlyphIndex)
         return FONT_RESULT_ERROR;
 
@@ -145,6 +166,27 @@ static void UpdateBatchFromThread(void* data)
         batch->m_Complete = FontGenUpdateGlyphs(batch->m_JobData, 0);
 }
 #endif
+
+static int32_t GenerateBatchFromJob(HJobContext, HJob, void* context, void*)
+{
+    WorkerBatch* batch = (WorkerBatch*)context;
+    batch->m_Context->m_ExpectedThread = dmThread::GetCurrentThread();
+    dmAtomicIncrement32(batch->m_Started);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    // Occupy every worker before any of them can submit glyph work.
+    while ((uint32_t)dmAtomicGet32(batch->m_Started) != batch->m_CallerCount && dmTime::GetMonotonicTime() < deadline)
+    {
+    }
+    if ((uint32_t)dmAtomicGet32(batch->m_Started) == batch->m_CallerCount && FontGenStartGlyphs(batch->m_JobData, &batch->m_Glyph, 1))
+    {
+        deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!batch->m_Complete && dmTime::GetMonotonicTime() < deadline)
+            batch->m_Complete = FontGenUpdateGlyphs(batch->m_JobData, 0);
+    }
+    FontGenDestroyJobData(batch->m_JobData);
+    dmAtomicIncrement32(batch->m_Finished);
+    return 0;
+}
 
 class FontGenTest : public jc_test_params_class<uint32_t>
 {
@@ -413,6 +455,86 @@ TEST_P(FontGenTest, CallerCanCompleteOnAnotherThread)
 #endif
 }
 
+// Callers occupying every job worker can finish their own glyphs without waiting for free workers.
+TEST_P(FontGenTest, CallerCompletesFromSaturatedJobPool)
+{
+    uint32_t count = JobSystemGetWorkerCount(m_Jobs);
+    if (!count)
+        count = 1;
+    TestContext contexts[4] = {};
+    WorkerBatch batches[4] = {};
+    int32_atomic_t started = 0;
+    int32_atomic_t finished = 0;
+    ASSERT_LE(count, DM_ARRAY_SIZE(batches));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        contexts[i].m_AcceptGlyph = true;
+        FontGenParams params = MakeParams(&contexts[i]);
+        batches[i].m_JobData = FontGenCreateJobData(&params, 1);
+        batches[i].m_Context = &contexts[i];
+        batches[i].m_Glyph.m_Font = (HFont)&m_Font;
+        batches[i].m_Glyph.m_GlyphIndex = i + 1;
+        batches[i].m_Started = &started;
+        batches[i].m_Finished = &finished;
+        batches[i].m_CallerCount = count;
+        Job job = {};
+        job.m_Process = GenerateBatchFromJob;
+        job.m_Context = &batches[i];
+        JobSystemPushJob(m_Jobs, JobSystemCreateJob(m_Jobs, &job));
+    }
+    uint64_t deadline = dmTime::GetMonotonicTime() + 10000000;
+    while ((uint32_t)dmAtomicGet32(&finished) != count && dmTime::GetMonotonicTime() < deadline)
+        if (!JobSystemGetWorkerCount(m_Jobs))
+            JobSystemUpdate(m_Jobs, 0);
+    JobSystemDestroy(m_Jobs);
+    m_Jobs = 0;
+    ASSERT_EQ(count, (uint32_t)dmAtomicGet32(&finished));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        ASSERT_TRUE(batches[i].m_Complete);
+        ASSERT_EQ(1u, contexts[i].m_AddCount);
+        ASSERT_EQ(1u, contexts[i].m_CompleteCount);
+        ASSERT_TRUE(contexts[i].m_CallbackThreadCorrect);
+        FontFreeGlyph((HFont)&m_Font, contexts[i].m_OwnedGlyph);
+        delete contexts[i].m_OwnedGlyph;
+    }
+    ASSERT_EQ(count, (uint32_t)dmAtomicGet32(&m_Font.m_GenerateCount));
+    ASSERT_EQ(count, m_Font.m_FreeCount);
+}
+
+// Updating a batch leaves an executing glyph with its worker and consumes its result exactly once.
+TEST_P(FontGenTest, CallerWaitsForRunningGlyph)
+{
+    if (!JobSystemGetWorkerCount(m_Jobs))
+        return;
+    TestContext context = {};
+    context.m_AcceptGlyph = true;
+    m_Font.m_BlockGeneration = true;
+    FontGenParams params = MakeParams(&context);
+    FontGenJobData* job_data = FontGenCreateJobData(&params, 1);
+    TextGlyph glyph = {};
+    glyph.m_Font = (HFont)&m_Font;
+    glyph.m_GlyphIndex = 11;
+    ASSERT_TRUE(FontGenStartGlyphs(job_data, &glyph, 1));
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!dmAtomicGet32(&m_Font.m_GenerationStarted) && dmTime::GetMonotonicTime() < deadline)
+    {
+    }
+    bool started = dmAtomicGet32(&m_Font.m_GenerationStarted) != 0;
+    bool complete = started && FontGenUpdateGlyphs(job_data, 0);
+    dmAtomicStore32(&m_Font.m_AllowGeneration, 1);
+    ASSERT_TRUE(started);
+    ASSERT_FALSE(complete);
+    ASSERT_EQ(0u, context.m_AddCount);
+    RunOwnedUntilComplete(job_data, &context);
+    ASSERT_EQ(1u, context.m_AddCount);
+    ASSERT_EQ(1, dmAtomicGet32(&m_Font.m_GenerateCount));
+    FontGenDestroyJobData(job_data);
+    FontFreeGlyph((HFont)&m_Font, context.m_OwnedGlyph);
+    delete context.m_OwnedGlyph;
+    ASSERT_EQ(1u, m_Font.m_FreeCount);
+}
+
 // A zero time budget advances at most one glyph, including inline generation on non-threaded platforms.
 TEST_P(FontGenTest, CallerUpdateHonorsGlyphBudget)
 {
@@ -428,15 +550,17 @@ TEST_P(FontGenTest, CallerUpdateHonorsGlyphBudget)
     }
     ASSERT_TRUE(FontGenStartGlyphs(job_data, glyphs, 3));
     uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
-    while (!context.m_AddCount && dmTime::GetMonotonicTime() < deadline)
-        ASSERT_FALSE(FontGenUpdateGlyphs(job_data, 0));
-    ASSERT_EQ(1u, context.m_AddCount);
-    ASSERT_FALSE(FontGenUpdateGlyphs(job_data, 0));
-    ASSERT_EQ(2u, context.m_AddCount);
-    ASSERT_EQ(0u, context.m_CompleteCount);
-    ASSERT_TRUE(FontGenUpdateGlyphs(job_data, 0));
-    ASSERT_EQ(3u, context.m_AddCount);
-    ASSERT_EQ(1u, context.m_CompleteCount);
+    for (uint32_t i = 1; i <= 3; ++i)
+    {
+        while (context.m_AddCount < i && dmTime::GetMonotonicTime() < deadline)
+        {
+            bool complete = FontGenUpdateGlyphs(job_data, 0);
+            if (i < 3)
+                ASSERT_FALSE(complete);
+        }
+        ASSERT_EQ(i, context.m_AddCount);
+    }
+    RunOwnedUntilComplete(job_data, &context);
     FontGenDestroyJobData(job_data);
     for (uint32_t i = 0; i < context.m_AddCount; ++i)
     {

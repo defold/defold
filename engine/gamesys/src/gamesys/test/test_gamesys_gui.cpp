@@ -17,6 +17,11 @@
 
 using namespace dmVMath;
 
+struct PreloadedFont
+{
+    dmGameSystem::FontResource* m_Font;
+};
+
 static FontResult GetGlyph(dmRender::HFontMap font_map, HFont font, uint32_t codepoint, FontGlyph** glyph)
 {
     if (!font)
@@ -1030,6 +1035,54 @@ static int32_t FontLoadUnrelatedProcess(HJobContext, HJob, void*, void*)
 static void FontLoadUnrelatedCallback(HJobContext, HJob, JobSystemStatus, void* context, void*, int32_t)
 {
     ++*(uint32_t*)context;
+}
+
+static dmResource::Result FontLoadPreload(const dmResource::ResourcePreloadParams* params)
+{
+    PreloadedFont* resource = new PreloadedFont;
+    dmResource::Result result = dmResource::Get(params->m_Factory, "/font/dyn_negative_ascent.fontc", (void**)&resource->m_Font);
+    if (result != dmResource::RESULT_OK)
+    {
+        delete resource;
+        return result;
+    }
+    *params->m_PreloadData = resource;
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result FontLoadCreate(const dmResource::ResourceCreateParams* params)
+{
+    dmResource::SetResource(params->m_Resource, params->m_PreloadData);
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result FontLoadDestroy(const dmResource::ResourceDestroyParams* params)
+{
+    PreloadedFont* resource = (PreloadedFont*)dmResource::GetResource(params->m_Resource);
+    dmResource::Release(params->m_Factory, resource->m_Font);
+    delete resource;
+    return dmResource::RESULT_OK;
+}
+
+// A Preload callback occupying the only job worker can synchronously load and prewarm a font.
+TEST_F(FontTest, SynchronousPrewarmFromPreloadJob)
+{
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(m_Factory, "preloadfont", 0, FontLoadPreload, FontLoadCreate, 0, FontLoadDestroy, 0));
+    const char data = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, "/test.preloadfont", sizeof(data), &data));
+    dmResource::HPreloader preloader = dmResource::NewPreloader(m_Factory, "/test.preloadfont");
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    dmResource::Result result = dmResource::RESULT_PENDING;
+    while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline)
+        result = dmResource::UpdatePreloader(preloader, 0, 0, 1000);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    PreloadedFont* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test.preloadfont", (void**)&resource));
+    ASSERT_TRUE(resource->m_Font->m_PrewarmDone);
+    ASSERT_TRUE(resource->m_Font->m_PendingJobs.Empty());
+    dmResource::DeletePreloader(preloader);
+    dmResource::Release(m_Factory, resource);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, "/test.preloadfont"));
 }
 
 // Loading and prewarming a dynamic font completes without dispatching unrelated shared callbacks.

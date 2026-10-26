@@ -49,6 +49,7 @@ struct FontJobStatus
 struct FontGenJobItem
 {
     // input
+    HJob            m_Job;
     HFont           m_Font;         // The actual font to use
     uint32_t        m_GlyphIndex;
 
@@ -382,6 +383,7 @@ static void GenerateGlyphJobByIndex(FontGenJobData* jobdata,
     job.m_Data = (void*)item;
 
     HJob hjob = JobSystemCreateJob(jobdata->m_Jobs, &job);
+    item->m_Job = hjob;
     JobSystemSetParent(jobdata->m_Jobs, hjob, job_sentinel);
 
     JobSystemPushJob(jobdata->m_Jobs, hjob);
@@ -551,19 +553,31 @@ bool FontGenUpdateGlyphs(FontGenJobData* jobdata, uint64_t time_limit)
     assert(jobdata->m_UpdateFromCaller);
     if (jobdata->m_Complete)
         return true;
-    if (jobdata->m_Job && !dmAtomicGet32(&jobdata->m_Ready))
-        return false;
 
     uint64_t start = dmTime::GetMonotonicTime();
     while (jobdata->m_NextGlyph < jobdata->m_Items.Size())
     {
-        FontGenJobItem* item = &jobdata->m_Items[jobdata->m_NextGlyph++];
-        // With no workers, advance this batch alone; never pump the shared pool.
-        int result = jobdata->m_Job ? item->m_Result : JobGenerateGlyph(jobdata->m_Jobs, 0, jobdata, item);
+        FontGenJobItem* item = &jobdata->m_Items[jobdata->m_NextGlyph];
+        bool generate = !jobdata->m_Job;
+        if (jobdata->m_Job && !dmAtomicGet32(&jobdata->m_Ready))
+        {
+            // The caller may occupy the last worker. Take over only this batch's
+            // queued glyph; a running job keeps ownership until it retires.
+            JobSystemResult result = JobSystemCancelJob(jobdata->m_Jobs, item->m_Job);
+            if (result == JOBSYSTEM_RESULT_PENDING)
+                return false;
+            generate = result == JOBSYSTEM_RESULT_CANCELED;
+        }
+        int result = generate ? JobGenerateGlyph(jobdata->m_Jobs, 0, jobdata, item) : item->m_Result;
+        ++jobdata->m_NextGlyph;
         JobPostProcessGlyph(jobdata->m_Jobs, 0, JOBSYSTEM_STATUS_FINISHED, jobdata, item, result);
         if (jobdata->m_NextGlyph < jobdata->m_Items.Size() && dmTime::GetMonotonicTime() - start >= time_limit)
             return false;
     }
+    // Canceled glyph jobs may still be queued behind this caller. Stop their
+    // sentinel before completion can free the batch it would otherwise access.
+    if (jobdata->m_Job && !dmAtomicGet32(&jobdata->m_Ready) && JobSystemCancelJob(jobdata->m_Jobs, jobdata->m_Job) == JOBSYSTEM_RESULT_PENDING)
+        return false;
     jobdata->m_Complete = true;
     // The completion callback may destroy jobdata.
     InvokeCallback(jobdata);
