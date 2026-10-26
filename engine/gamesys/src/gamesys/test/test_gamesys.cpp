@@ -1251,6 +1251,7 @@ TEST(CollectionProxy, ZeroCapacityWorld)
         ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameSystem::CompCollectionProxyPostUpdate(post_update_params));
 
         dmGameObject::ComponentDeleteWorldParams delete_params = {};
+        delete_params.m_Context = &context;
         delete_params.m_World = world;
         ASSERT_EQ(dmGameObject::CREATE_RESULT_OK, dmGameSystem::CompCollectionProxyDeleteWorld(delete_params));
     }
