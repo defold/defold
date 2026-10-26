@@ -1036,6 +1036,46 @@ TEST_P(ResourceLoaderTest, SharedDependency)
     ASSERT_EQ(1u, m_Destroys[2]);
 }
 
+// A late shared leaf publishes success or failure through a wide diamond after its ancestors finish their own callbacks.
+TEST_P(ResourceLoaderTest, SharedLeafCompletesWideGraph)
+{
+    EnablePostCreate();
+    const uint32_t count = 2048;
+    for (uint32_t failure = 0; failure < 2; ++failure)
+    {
+        uint32_t root = failure * (count + 2);
+        uint32_t leaf = root + count + 1;
+        m_HeldPost = leaf;
+        m_FailedPost = failure ? leaf : ~0u;
+        Add(leaf, 0, 0);
+        dmArray<uint32_t> dependencies;
+        dependencies.SetCapacity(count);
+        for (uint32_t id = root + 1; id < leaf; ++id)
+        {
+            Add(id, &leaf, 1);
+            dependencies.Push(id);
+        }
+        Add(root, dependencies.Begin(), dependencies.Size());
+        dmResource::HPreloader request = Request(root);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!m_Posts[root] && dmTime::GetMonotonicTime() < deadline)
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 1000000));
+        ASSERT_EQ(1u, m_Posts[root]);
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 1000000));
+        for (uint32_t id = root; id < leaf; ++id)
+            ASSERT_EQ(1u, m_Posts[id]);
+        m_HeldPost = ~0u;
+        ASSERT_EQ(failure ? dmResource::RESULT_INVALID_DATA : dmResource::RESULT_OK, Complete(request));
+        Delete(failure);
+        for (uint32_t id = root; id <= leaf; ++id)
+        {
+            ASSERT_EQ(1u, m_Preloads[id]);
+            ASSERT_EQ(1u, m_Creates[id]);
+            ASSERT_EQ(1u, m_Destroys[id]);
+        }
+    }
+}
+
 // Discovery and loading have no previous 1024-node or 1536-path ceiling, including duplicate references.
 TEST_P(ResourceLoaderTest, LargeDependencyGraph)
 {
@@ -1566,6 +1606,49 @@ TEST_P(ResourceLoaderTest, RecreateRepairsCompletedDependencyFailure)
         ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(request));
         Delete(mode);
         for (uint32_t id = root; id <= leaf; ++id)
+            ASSERT_EQ(1u, m_Destroys[id]);
+    }
+}
+
+// Replacing a failed dependency with a pending one makes completed ancestors wait for the new final result.
+TEST_P(ResourceLoaderTest, RecreateReplacesFailureWithPendingDependency)
+{
+    EnablePostCreate();
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        uint32_t root = mode * 4;
+        uint32_t child = root + 1;
+        uint32_t failed = root + 2;
+        uint32_t pending = root + 3;
+        m_HoldPosts = true;
+        m_FailedPost = failed;
+        Add(root, &child, 1);
+        Add(child, &failed, 1);
+        Add(failed, 0, 0);
+        Add(pending, 0, 0);
+        dmResource::HPreloader original = Request(root);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!m_Creates[root] && dmTime::GetMonotonicTime() < deadline)
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(original, 0, 0, 0));
+        ASSERT_EQ(1u, m_Creates[root]);
+        m_HoldPosts = false;
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(original));
+        m_HeldPost = pending;
+        dmResource::HPreloader dependency = Request(pending);
+        deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!m_Creates[pending] && dmTime::GetMonotonicTime() < deadline)
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(dependency, 0, 0, 0));
+        ASSERT_EQ(1u, m_Creates[pending]);
+        ASSERT_EQ(dmResource::RESULT_OK, Replace(child, &pending, 1, mode));
+        dmResource::HPreloader later = Request(root);
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(later, 0, 0, 0));
+        m_HeldPost = ~0u;
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(dependency));
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(later));
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(original));
+        for (uint32_t i = mode * 3; i < (mode + 1) * 3; ++i)
+            Delete(i);
+        for (uint32_t id = root; id <= pending; ++id)
             ASSERT_EQ(1u, m_Destroys[id]);
     }
 }

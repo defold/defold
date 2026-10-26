@@ -102,6 +102,7 @@ namespace dmResource
         uint32_t m_FirstDependency;
         uint32_t m_FirstDependent;
         uint32_t m_PendingDependencies;
+        // Pending dependency results, independent of their load cleanup.
         uint32_t m_PendingCompletions;
         uint32_t m_Holds;
         uint32_t m_References;
@@ -829,7 +830,7 @@ namespace dmResource
             ++parent->m_PendingDependencies;
         else if (child->m_CreateResult != RESULT_OK)
             parent->m_DependencyResult = child->m_CreateResult;
-        if (!child->m_Complete)
+        if (child->m_Result == RESULT_PENDING)
             ++parent->m_PendingCompletions;
         else if (child->m_Result != RESULT_OK && child->m_Result != RESULT_PENDING)
             parent->m_DependencyResult = child->m_Result;
@@ -1048,7 +1049,7 @@ namespace dmResource
 
     // Dependencies can still be finalizing or be added during recreation.
     // Keep this load's cleanup state separate from readiness of the graph.
-    static Result GetNodeResult(LoadContext* context, LoadNode* node)
+    static Result GetNodeResult(LoadNode* node)
     {
         if (node->m_CreateResult != RESULT_OK)
             return node->m_CreateResult;
@@ -1056,13 +1057,61 @@ namespace dmResource
             return node->m_DependencyResult;
         if (node->m_PendingCompletions)
             return RESULT_PENDING;
-        for (uint32_t i = node->m_FirstDependency; i != INVALID_LOAD_INDEX; i = context->m_Edges[i].m_NextDependency)
-            if (context->m_Nodes.Get(context->m_Edges[i].m_Child).m_Result == RESULT_PENDING)
-                return RESULT_PENDING;
         return RESULT_OK;
     }
 
-    static void RefreshDependencyResults(LoadContext* context, uint32_t index);
+    // Recreation can remove a failed dependency. Recompute the remaining error
+    // only then; normal completion updates readiness and errors incrementally.
+    static Result GetDependencyResult(LoadContext* context, LoadNode* node)
+    {
+        Result result = RESULT_OK;
+        for (uint32_t i = node->m_FirstDependency; i != INVALID_LOAD_INDEX; i = context->m_Edges[i].m_NextDependency)
+        {
+            LoadNode* child = context->m_Nodes.GetPtr(context->m_Edges[i].m_Child);
+            if (child->m_Created && child->m_CreateResult != RESULT_OK)
+                result = child->m_CreateResult;
+            if (child->m_Complete && child->m_Result != RESULT_OK && child->m_Result != RESULT_PENDING)
+                result = child->m_Result;
+        }
+        return result;
+    }
+
+    static void UpdateNodeResult(LoadContext* context, uint32_t index)
+    {
+        context->m_Visit.SetSize(0);
+        Push(context->m_Visit, index);
+        while (!context->m_Visit.Empty())
+        {
+            LoadNode* node = context->m_Nodes.GetPtr(context->m_Visit.Back());
+            context->m_Visit.Pop();
+            if (!node->m_Complete)
+                continue;
+            Result result = GetNodeResult(node);
+            Result previous = node->m_Result;
+            if (result == previous)
+                continue;
+            node->m_Result = result;
+            for (uint32_t i = node->m_FirstDependent; i != INVALID_LOAD_INDEX; i = context->m_Edges[i].m_NextDependent)
+            {
+                LoadNode* parent = context->m_Nodes.GetPtr(context->m_Edges[i].m_Parent);
+                if (previous == RESULT_PENDING)
+                {
+                    assert(parent->m_PendingCompletions);
+                    --parent->m_PendingCompletions;
+                }
+                else if (result == RESULT_PENDING)
+                    ++parent->m_PendingCompletions;
+                if (result != RESULT_OK && result != RESULT_PENDING)
+                    parent->m_DependencyResult = result;
+                else if (previous != RESULT_OK && previous != RESULT_PENDING)
+                    parent->m_DependencyResult = GetDependencyResult(context, parent);
+                // A shared ancestor stays pending until its last dependency is
+                // ready. Checking that count avoids rescanning all its edges.
+                if (parent->m_Complete && parent->m_Result != GetNodeResult(parent))
+                    Push(context->m_Visit, parent->m_Index);
+            }
+        }
+    }
 
     static bool ProcessCompletion(HPreloader request)
     {
@@ -1080,10 +1129,10 @@ namespace dmResource
             if (index == INVALID_LOAD_INDEX)
                 return false;
             LoadNode* node = context->m_Nodes.GetPtr(index);
-            node->m_Result = GetNodeResult(context, node);
+            result = GetNodeResult(node);
             // These stages are finished even if a shared dependency is still
             // pending. Its owner will publish final readiness through the graph.
-            result = node->m_Result == RESULT_PENDING ? node->m_CreateResult : node->m_Result;
+            result = result == RESULT_PENDING ? node->m_CreateResult : result;
             load = node->m_Load;
             type = node->m_Type;
             path = node->m_Path;
@@ -1116,16 +1165,7 @@ namespace dmResource
         node->m_Load = 0;
         delete load;
         node->m_Complete = true;
-        for (uint32_t i = node->m_FirstDependent; i != INVALID_LOAD_INDEX; i = context->m_Edges[i].m_NextDependent)
-        {
-            LoadNode* parent = context->m_Nodes.GetPtr(context->m_Edges[i].m_Parent);
-            assert(parent->m_PendingCompletions);
-            --parent->m_PendingCompletions;
-            if (node->m_Result != RESULT_OK && node->m_Result != RESULT_PENDING)
-                parent->m_DependencyResult = node->m_Result;
-            if (parent->m_Complete && parent->m_Result != GetNodeResult(context, parent))
-                RefreshDependencyResults(context, parent->m_Index);
-        }
+        UpdateNodeResult(context, index);
         ChangeHold(context, node, false);
         --node->m_References;
         DestroyUnusedNodes(context, index);
@@ -1576,38 +1616,6 @@ namespace dmResource
         DestroyUnusedNodes(context, index);
     }
 
-    // Recreate can remove an error or encounter one during nested loading.
-    // Reconcile the retained graph on both commit and rollback, including final
-    // results already cached by completed ancestors. Own callback errors remain.
-    static void RefreshDependencyResults(LoadContext* context, uint32_t index)
-    {
-        context->m_Visit.SetSize(0);
-        Push(context->m_Visit, index);
-        while (!context->m_Visit.Empty())
-        {
-            LoadNode* node = context->m_Nodes.GetPtr(context->m_Visit.Back());
-            context->m_Visit.Pop();
-            Result dependency_result = RESULT_OK;
-            for (uint32_t i = node->m_FirstDependency; i != INVALID_LOAD_INDEX; i = context->m_Edges[i].m_NextDependency)
-            {
-                LoadNode* child = context->m_Nodes.GetPtr(context->m_Edges[i].m_Child);
-                if (child->m_Created && child->m_CreateResult != RESULT_OK)
-                    dependency_result = child->m_CreateResult;
-                if (child->m_Complete && child->m_Result != RESULT_OK && child->m_Result != RESULT_PENDING)
-                    dependency_result = child->m_Result;
-            }
-            node->m_DependencyResult = dependency_result;
-            if (!node->m_Complete)
-                continue;
-            Result result = GetNodeResult(context, node);
-            if (result == node->m_Result)
-                continue;
-            node->m_Result = result;
-            for (uint32_t i = node->m_FirstDependent; i != INVALID_LOAD_INDEX; i = context->m_Edges[i].m_NextDependent)
-                Push(context->m_Visit, context->m_Edges[i].m_Parent);
-        }
-    }
-
     RecreateContext* BeginResourceRecreate(LoadContext* context, dmhash_t path)
     {
         DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
@@ -1689,7 +1697,7 @@ namespace dmResource
                             context->m_Edges[edge.m_NextDependent].m_PreviousDependent = edge.m_PreviousDependent;
                         if (!child->m_Created)
                             --node->m_PendingDependencies;
-                        if (!child->m_Complete)
+                        if (child->m_Result == RESULT_PENDING)
                             --node->m_PendingCompletions;
                         ChangeHold(context, child, false);
                         --child->m_References;
@@ -1711,7 +1719,10 @@ namespace dmResource
                         node->m_Load->m_Descriptor.m_ResourceSize = descriptor->m_ResourceSize;
                     }
                 }
-                RefreshDependencyResults(context, recreate->m_Node);
+                // Both commit and rollback reconcile errors from retained edges,
+                // including failures encountered during nested loading.
+                node->m_DependencyResult = GetDependencyResult(context, node);
+                UpdateNodeResult(context, recreate->m_Node);
             }
             context->m_Creating = recreate->m_PreviousCreating;
             context->m_Recreating = recreate->m_Previous;
