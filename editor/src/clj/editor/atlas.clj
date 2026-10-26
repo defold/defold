@@ -869,8 +869,10 @@
   (input child-build-errors g/Any :array)
   (input image-resources g/Any :array)
 
-  (output texture-profile g/Any (g/fnk [texture-profiles resource]
-                                  (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
+  (output texture-profile g/Any (g/fnk [atlas-mode ^:try texture-profiles resource]
+                                  (when (= :raster atlas-mode)
+                                    (g/precluding-errors texture-profiles
+                                      (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))))
 
   (output unique-atlas-images [Image] :cached (g/fnk [animation-images]
                                                 (into [] (util/distinct-by (comp resource/proj-path :path)) (flatten animation-images))))

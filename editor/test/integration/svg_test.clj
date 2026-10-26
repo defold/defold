@@ -111,6 +111,33 @@
       (is (= 0 (g/valid-node-value atlas :texture-page-count)))
       (is (= 1 (count (g/valid-node-value atlas :build-targets)))))))
 
+;; Vector atlases ignore matching profiles and profile errors; raster atlases
+;; retain their profile dependency.
+(deftest svg-atlas-ignores-texture-profiles
+  (test-util/with-scratch-project "test/resources/svg_project"
+    (test-util/write-file-resource! workspace "/test.texture_profiles"
+      {:path-settings [{:path "/**" :profile "Raster"}]
+       :profiles [{:name "Raster"
+                   :platforms [{:os :os-id-generic
+                                :mipmaps true
+                                :premultiply-alpha true
+                                :formats [{:format :texture-format-rgba}]}]}]})
+    (workspace/resource-sync! workspace)
+    (let [game-project (project/get-resource-node project "/game.project")
+          vector-atlas (project/get-resource-node project "/vector.atlas")
+          raster-atlas (project/get-resource-node project "/raster.atlas")]
+      (test-util/set-setting! game-project ["graphics" "texture_profiles"]
+                              (workspace/find-resource workspace "/test.texture_profiles"))
+      (is (nil? (g/valid-node-value vector-atlas :texture-profile)))
+      (is (= "Raster" (:name (g/valid-node-value raster-atlas :texture-profile))))
+      (let [targets (g/valid-node-value vector-atlas :build-targets)]
+        (test-util/set-setting! game-project ["graphics" "texture_profiles"]
+                                (workspace/resolve-workspace-resource workspace "/missing.texture_profiles"))
+        (is (g/error? (g/node-value raster-atlas :texture-profile)))
+        (is (nil? (g/valid-node-value vector-atlas :texture-profile)))
+        (is (= targets (g/valid-node-value vector-atlas :build-targets)))
+        (is (map? (g/valid-node-value vector-atlas :scene)))))))
+
 ;; Vector atlas info displays its localized label without layout positions.
 ;; Raster previews retain their coordinates; neither case needs a GL preview.
 (deftest atlas-preview-info

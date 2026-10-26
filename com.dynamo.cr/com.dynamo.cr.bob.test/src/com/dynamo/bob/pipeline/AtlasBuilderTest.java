@@ -48,9 +48,11 @@ import com.dynamo.bob.util.MurmurHash;
 
 public class AtlasBuilderTest extends AbstractProtoBuilderTest {
 
-    // Vector atlases emit only their numeric payload, regardless of raster packing controls.
+    // Vector atlases ignore raster packing, compression and texture profile settings.
     @Test
     public void testSvgAtlasBypassesTexturePacking() throws Exception {
+        getProject().setOption("texture-compression", "true");
+        getProject().getProjectProperties().putStringValue("graphics", "texture_profiles", "missing.texture_profiles");
         addFile("/image.svg", "<svg xmlns='http://www.w3.org/2000/svg' width='100' height='80'><rect width='100' height='80' fill='red'/></svg>");
         List<Message> outputs = build("/vector.atlas", "images { image: \"/image.svg\" } max_page_width: 8 max_page_height: 8 extrude_borders: 1000");
         assertEquals(1, outputs.size());
