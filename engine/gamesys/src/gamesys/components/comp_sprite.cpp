@@ -3035,6 +3035,11 @@ namespace dmGameSystem
         ((SpriteComponent*) sprite_component)->m_AnimationDataHash = hash;
     }
 
+    bool IsSpriteComponentRenderable(void* sprite_component)
+    {
+        return ((SpriteComponent*) sprite_component)->m_RenderItemEnabled;
+    }
+
     void GetSpriteComponentVertexMetrics(void* sprite_component, uint32_t* vertex_count, uint32_t* index_count, uint32_t* vertex_stride)
     {
         SpriteComponent* comp = (SpriteComponent*) sprite_component;

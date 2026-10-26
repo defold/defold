@@ -162,6 +162,7 @@ namespace dmGameSystem
     extern uint32_t GetSpriteComponentAnimationDataHash(void* sprite_component);
     extern void SetSpriteComponentAnimationDataHash(void* sprite_component, uint32_t hash);
     extern void GetSpriteComponentVertexMetrics(void* sprite_component, uint32_t* vertex_count, uint32_t* index_count, uint32_t* vertex_stride);
+    extern bool IsSpriteComponentRenderable(void* sprite_component);
     extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
     extern void GetModelWorldInstanceRenderBuffer(void* model_world, dmRender::HBufferedRenderBuffer* instance_buffer);
     extern void GetModelWorldRenderBatchStats(void* model_world, uint8_t* world_batch_count, uint8_t* local_batch_count, uint8_t* local_instanced_batch_count);
