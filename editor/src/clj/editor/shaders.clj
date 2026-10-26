@@ -74,6 +74,13 @@
     "shaders/basic-texture.vp"
     "shaders/basic-texture.fp"))
 
+(def basic-texture-tone-mapped-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj}}
+    "shaders/basic-texture.vp"
+    "shaders/basic-texture-tone-mapped.fp"))
+
 (def basic-texture-color-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
@@ -117,14 +124,6 @@
      :uniforms {"mtx_world_view_proj" :view-proj}}
     "shaders/basic-texture-paged.vp"
     "shaders/basic-texture-paged.fp"))
-
-(def basic-texture-paged-tone-mapped-world-space
-  (editor-shader
-    {:coordinate-space :coordinate-space-world
-     :max-page-count shader/max-array-samplers
-     :uniforms {"mtx_world_view_proj" :view-proj}}
-    "shaders/basic-texture-paged.vp"
-    "shaders/basic-texture-paged-tone-mapped.fp"))
 
 (def basic-texture-paged-color-local-space
   (editor-shader

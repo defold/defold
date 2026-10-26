@@ -206,8 +206,10 @@
 (def ^:private textured-quad-shader shaders/basic-texture-paged-world-space)
 
 (defn- make-textured-quad-vertex-buffer
-  [vertex-description renderables]
-  (let [vertex-buffer-capacity (* (count renderables) 6)
+  [renderables]
+  ;; Keep the shared quad layout. The 2D shader ignores the page index.
+  (let [vertex-description (shaders/vertex-description textured-quad-shader)
+        vertex-buffer-capacity (* (count renderables) 6)
         vertex-buffer (vtx/make-vertex-buffer vertex-description :stream vertex-buffer-capacity)
         byte-buffer (vtx/buf vertex-buffer)
         float-buffer (.asFloatBuffer byte-buffer)
@@ -246,8 +248,7 @@
         user-data (:user-data first-renderable)
         textured-quad-shader (:shader user-data)
         gpu-texture (:gpu-texture user-data @texture/white-pixel)
-        vertex-description (shaders/vertex-description textured-quad-shader)
-        vertex-buffer (make-textured-quad-vertex-buffer vertex-description renderables)
+        vertex-buffer (make-textured-quad-vertex-buffer renderables)
         vertex-binding (vtx/use-with ::textured-quad vertex-buffer textured-quad-shader)]
     (gl/with-gl-bindings gl render-args [textured-quad-shader vertex-binding gpu-texture]
       (shader/set-samplers-by-index textured-quad-shader gl 0 (:texture-units gpu-texture))
@@ -305,4 +306,4 @@
 
 (defn make-outlined-tone-mapped-textured-quad-scene
   [tags pose-or-transform width height gpu-texture page-index]
-  (make-outlined-textured-quad-scene-impl shaders/basic-texture-paged-tone-mapped-world-space tags pose-or-transform width height gpu-texture page-index))
+  (make-outlined-textured-quad-scene-impl shaders/basic-texture-tone-mapped-world-space tags pose-or-transform width height gpu-texture page-index))
