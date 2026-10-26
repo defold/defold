@@ -53,6 +53,14 @@ struct ReloadUpdate
     uint32_t m_Callbacks;
 };
 
+struct ReloadDelete
+{
+    ResourceLoaderTest* m_Test;
+    uint32_t m_Id;
+    uint32_t m_Callbacks;
+    dmResource::Result m_Recreated;
+};
+
 class ResourceLoaderTest : public jc_test_params_class<int>
 {
     public:
@@ -570,6 +578,43 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         ReloadUpdate* update = (ReloadUpdate*)params->m_UserData;
         ++update->m_Callbacks;
         update->m_Result = dmResource::UpdatePreloader(update->m_Request, 0, 0, 0);
+    }
+
+#if defined(DM_HAS_THREADS)
+    static void RecreateNotificationTarget(void* user_data)
+    {
+        ReloadDelete* notification = (ReloadDelete*)user_data;
+        notification->m_Recreated = notification->m_Test->Replace(notification->m_Id, 0, 0, 1);
+    }
+#endif
+
+    static void DeleteFromReloaded(const ResourceReloadedParams* params)
+    {
+        ReloadDelete* notification = (ReloadDelete*)params->m_UserData;
+        ResourceLoaderTest* self = notification->m_Test;
+        uint32_t id = notification->m_Id;
+        LoadedNode* resource = (LoadedNode*)ResourceDescriptorGetResource(params->m_Resource);
+        LoadedNode* previous = (LoadedNode*)ResourceDescriptorGetPrevResource(params->m_Resource);
+        ++notification->m_Callbacks;
+        self->Delete(id);
+        ASSERT_EQ(1u, self->m_Posts[id]);
+        ASSERT_EQ(0u, self->m_Destroys[id]);
+        ASSERT_EQ(id, resource->m_Value);
+        if (self->m_ReplacePointer)
+        {
+            ASSERT_NE(resource, previous);
+            ASSERT_EQ(id, previous->m_Value);
+        }
+        // Finishing PostCreate must not permit replacement during notifications.
+        for (uint32_t mode = 0; mode < 3; ++mode)
+            ASSERT_EQ(dmResource::RESULT_PENDING, self->Replace(id, 0, 0, mode));
+#if defined(DM_HAS_THREADS)
+        dmThread::Thread thread = dmThread::New(RecreateNotificationTarget, 0x20000, notification, "ReloadNotify");
+        dmThread::Join(thread);
+        ASSERT_EQ(dmResource::RESULT_PENDING, notification->m_Recreated);
+#endif
+        ASSERT_EQ(resource, ResourceDescriptorGetResource(params->m_Resource));
+        ASSERT_EQ(previous, ResourceDescriptorGetPrevResource(params->m_Resource));
     }
 
 #if defined(DM_HAS_THREADS)
@@ -1433,8 +1478,8 @@ TEST_P(ResourceLoaderTest, RecreateReplacesPendingResource)
     }
 }
 
-// Posts skipped by a reload notification resume during later updates or deletion, through every recreation API.
-TEST_P(ResourceLoaderTest, PostCreateAfterReloadNotification)
+// Reload notifications can post the published resource, then later updates or deletion finish cleanup.
+TEST_P(ResourceLoaderTest, PostCreateDuringReloadNotification)
 {
     EnablePostCreate();
     m_ReplacePointer = true;
@@ -1459,7 +1504,7 @@ TEST_P(ResourceLoaderTest, PostCreateAfterReloadNotification)
             ASSERT_EQ(dmResource::RESULT_OK, recreated);
             ASSERT_EQ(1u, update.m_Callbacks);
             ASSERT_EQ(dmResource::RESULT_PENDING, update.m_Result);
-            ASSERT_EQ(0u, m_Posts[id]);
+            ASSERT_EQ(1u, m_Posts[id]);
 
             if (!delete_pending)
             {
@@ -1473,6 +1518,42 @@ TEST_P(ResourceLoaderTest, PostCreateAfterReloadNotification)
             ASSERT_EQ(1u, m_Creates[id]);
             ASSERT_EQ(1u, m_Posts[id]);
             ASSERT_EQ(2u, m_Destroys[id]);
+            ASSERT_TRUE(m_PostIdentityCorrect);
+        }
+    }
+}
+
+// Reload notifications can drain a pending preloader while both resource versions stay alive and guarded.
+TEST_P(ResourceLoaderTest, DeletePreloaderFromReloadNotification)
+{
+    EnablePostCreate();
+    m_CheckPostIdentity = true;
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        for (uint32_t variant = 0; variant < 4; ++variant)
+        {
+            uint32_t id = mode * 4 + variant;
+            m_ReplacePointer = variant & 1;
+            m_FailedPost = variant & 2 ? id : ~0u;
+            Add(id, 0, 0);
+            dmResource::HPreloader request = Request(id);
+            uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+            while (!m_Creates[id] && dmTime::GetMonotonicTime() < deadline)
+                ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+            ASSERT_EQ(1u, m_Creates[id]);
+            ASSERT_EQ(0u, m_Posts[id]);
+
+            ReloadDelete notification = { this, id, 0, dmResource::RESULT_OK };
+            dmResource::RegisterResourceReloadedCallback(m_Factory, DeleteFromReloaded, &notification);
+            dmResource::Result result = Replace(id, 0, 0, mode);
+            dmResource::UnregisterResourceReloadedCallback(m_Factory, DeleteFromReloaded, &notification);
+            ASSERT_EQ(dmResource::RESULT_OK, result);
+            ASSERT_EQ(1u, notification.m_Callbacks);
+            ASSERT_EQ((dmResource::HPreloader)0, m_Requests[id]);
+            ASSERT_EQ(1u, m_Preloads[id]);
+            ASSERT_EQ(1u, m_Creates[id]);
+            ASSERT_EQ(1u, m_Posts[id]);
+            ASSERT_EQ(m_ReplacePointer ? 2u : 1u, m_Destroys[id]);
             ASSERT_TRUE(m_PostIdentityCorrect);
         }
     }

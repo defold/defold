@@ -65,6 +65,15 @@ namespace dmResource
     static const uint32_t INVALID_LOAD_INDEX = 0xffffffff;
     static const uint64_t STAGED_INPUT_LIMIT = 4 * 1024 * 1024;
 
+    enum RecreateState
+    {
+        RECREATE_NONE,
+        RECREATE_ACTIVE,
+        // PostCreate can consume the published resource, but another recreation
+        // must wait until notifications and previous-resource destruction finish.
+        RECREATE_PUBLISHED
+    };
+
     // These buffers and callback parameters exist only while the resource is loading.
     struct LoadData
     {
@@ -121,9 +130,9 @@ namespace dmResource
         uint8_t m_Complete : 1;
         uint8_t m_Pin : 1;
         uint8_t m_PinQueued : 1;
-        // Remains set while a callback yields scheduler ownership in a nested Get.
+        // PostCreate remains active while yielding ownership in a nested Get.
         uint8_t m_InCallback : 1;
-        uint8_t m_Recreating : 1;
+        uint8_t m_RecreateState : 2;
     };
 
     // One edge per distinct parent/dependency pair. Indices survive array growth.
@@ -1087,7 +1096,7 @@ namespace dmResource
             context->m_Visit.Pop();
             // Recreate adds tentative edges. Publish their result only after
             // commit or rollback has selected the retained dependencies.
-            if (!node->m_Complete || node->m_Recreating)
+            if (!node->m_Complete || node->m_RecreateState == RECREATE_ACTIVE)
                 continue;
             Result result = GetNodeResult(node);
             Result previous = node->m_Result;
@@ -1132,7 +1141,7 @@ namespace dmResource
             if (index == INVALID_LOAD_INDEX)
                 return false;
             LoadNode* node = context->m_Nodes.GetPtr(index);
-            result = node->m_Recreating ? node->m_CreateResult : GetNodeResult(node);
+            result = node->m_RecreateState == RECREATE_ACTIVE ? node->m_CreateResult : GetNodeResult(node);
             // These stages are finished even if a shared dependency is still
             // pending. Its owner will publish final readiness through the graph.
             result = result == RESULT_PENDING ? node->m_CreateResult : result;
@@ -1256,7 +1265,7 @@ namespace dmResource
             LoadNode* node = context->m_Nodes.GetPtr(item.m_Node);
             if (node->m_Load->m_Selection != context->m_Selection || (work != LOAD_WORK_READ && node->m_Load->m_Caller != caller))
                 continue;
-            if (work == LOAD_WORK_POST && node->m_InCallback)
+            if (work == LOAD_WORK_POST && (node->m_InCallback || node->m_RecreateState == RECREATE_ACTIVE))
                 continue;
             if (remove)
                 Remove(context, queue, i);
@@ -1609,8 +1618,12 @@ namespace dmResource
             found = context->m_ByPath.Get(path);
             // An active callback may be waiting for this caller. Reject before
             // waiting for ownership, and look up the target again after waking.
-            if (found && context->m_Nodes.Get(*found).m_InCallback)
-                return 0;
+            if (found)
+            {
+                LoadNode* node = context->m_Nodes.GetPtr(*found);
+                if (node->m_InCallback || node->m_RecreateState != RECREATE_NONE)
+                    return 0;
+            }
 #if defined(DM_HAS_THREADS)
             if (context->m_UpdateDepth && context->m_UpdateOwner != caller)
             {
@@ -1631,8 +1644,7 @@ namespace dmResource
         {
             recreate->m_Node = *found;
             LoadNode* node = context->m_Nodes.GetPtr(*found);
-            node->m_InCallback = true;
-            node->m_Recreating = true;
+            node->m_RecreateState = RECREATE_ACTIVE;
             Signal(context);
             recreate->m_FirstDependency = node->m_FirstDependency;
             ++node->m_References;
@@ -1706,7 +1718,7 @@ namespace dmResource
                 // Both commit and rollback reconcile errors from retained edges,
                 // including failures encountered during nested loading.
                 node->m_DependencyResult = GetDependencyResult(context, node);
-                node->m_Recreating = false;
+                node->m_RecreateState = RECREATE_PUBLISHED;
                 UpdateNodeResult(context, recreate->m_Node);
             }
             context->m_Creating = recreate->m_PreviousCreating;
@@ -1723,11 +1735,7 @@ namespace dmResource
             if (recreate->m_Node != INVALID_LOAD_INDEX)
             {
                 LoadNode* node = context->m_Nodes.GetPtr(recreate->m_Node);
-                node->m_InCallback = false;
-                // Reload notifications can advance a request past this guarded
-                // post. Restore its cursor now that the callback is eligible.
-                if (node->m_Load)
-                    RewindWork(context, node, LOAD_WORK_POST);
+                node->m_RecreateState = RECREATE_NONE;
                 ChangeHold(context, node, false);
                 --node->m_References;
                 DestroyUnusedNodes(context, recreate->m_Node);

@@ -143,8 +143,9 @@ namespace dmResource
     void ReleaseResourceReference(HFactory factory, dmhash_t path);
     // Recreate owns callback scheduling until End. Commit replaces dependencies
     // on success and restores the previous graph on failure, under the factory
-    // table lock before notifications. End releases pins outside table locks.
-    // Returns null while the resource is executing PostCreate or Recreate.
+    // table lock before notifications, allowing pending PostCreate to proceed.
+    // End releases pins outside table locks. Begin returns null during PostCreate
+    // or an ongoing recreation, including notifications and previous-resource destruction.
     RecreateContext* BeginResourceRecreate(LoadContext* context, dmhash_t path);
     void CommitResourceRecreate(RecreateContext* recreate, Result result, const ResourceDescriptor* descriptor);
     void EndResourceRecreate(RecreateContext* recreate);
