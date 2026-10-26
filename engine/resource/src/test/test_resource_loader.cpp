@@ -82,8 +82,10 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         m_PostIdentityCorrect = true;
         m_HeldPost = ~0u;
         m_FailedPost = ~0u;
+        m_FailedPreload = ~0u;
         m_CheckedThreadNode = ~0u;
         m_SignalCreate = ~0u;
+        m_WaitInCreate = false;
         m_ExpectedThread = dmThread::GetCurrentThread();
         m_CreationThreadCorrect = true;
         m_JobCallbackThreadCorrect = true;
@@ -199,6 +201,12 @@ class ResourceLoaderTest : public jc_test_params_class<int>
     {
         ResourceLoaderTest* self = (ResourceLoaderTest*)params->m_Context;
         const uint32_t* file = (const uint32_t*)params->m_Buffer;
+        if (file[0] == self->m_FailedPreload)
+        {
+            DM_MUTEX_SCOPED_LOCK(self->m_Mutex);
+            ++self->m_Preloads[file[0]];
+            return dmResource::RESULT_INVALID_DATA;
+        }
         uint32_t* decoded;
         if (self->m_Transfer && params->m_IsBufferTransferrable)
         {
@@ -374,6 +382,8 @@ class ResourceLoaderTest : public jc_test_params_class<int>
             DM_MUTEX_SCOPED_LOCK(self->m_Mutex);
             self->m_Blocked = true;
             dmConditionVariable::Broadcast(self->m_Changed);
+            while (self->m_WaitInCreate && !self->m_AllowBlocked)
+                dmConditionVariable::Wait(self->m_Changed, self->m_Mutex);
         }
 #endif
         for (uint32_t i = 0; decoded[0] != self->m_HintOnly && i < decoded[1]; ++i)
@@ -707,6 +717,32 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         dmResource::DeletePreloader(request);
     }
 
+    static void RetryAfterCreateFromThread(void* user_data)
+    {
+#if defined(DM_HAS_THREADS)
+        GetCaller* caller = (GetCaller*)user_data;
+        ResourceLoaderTest* self = caller->m_Test;
+        {
+            DM_MUTEX_SCOPED_LOCK(self->m_Mutex);
+            while (!self->m_Blocked)
+                dmConditionVariable::Wait(self->m_Changed, self->m_Mutex);
+            self->m_FailedPreload = ~0u;
+        }
+        dmResource::HPreloader request = dmResource::NewPreloader(self->m_Factory, "/node_1.node");
+        {
+            DM_MUTEX_SCOPED_LOCK(self->m_Mutex);
+            self->m_AllowBlocked = true;
+            dmConditionVariable::Broadcast(self->m_Changed);
+            while (self->m_Blocked)
+                dmConditionVariable::Wait(self->m_Changed, self->m_Mutex);
+        }
+        caller->m_Result = self->Complete(request);
+        dmResource::DeletePreloader(request);
+#else
+        (void)user_data;
+#endif
+    }
+
     static dmResource::Result Destroy(const dmResource::ResourceDestroyParams* params)
     {
         ResourceLoaderTest* self = (ResourceLoaderTest*)params->m_Context;
@@ -775,8 +811,10 @@ class ResourceLoaderTest : public jc_test_params_class<int>
     bool m_PostIdentityCorrect;
     uint32_t m_HeldPost;
     uint32_t m_FailedPost;
+    uint32_t m_FailedPreload;
     uint32_t m_CheckedThreadNode;
     uint32_t m_SignalCreate;
+    bool m_WaitInCreate;
     dmThread::Thread m_ExpectedThread;
     bool m_CreationThreadCorrect;
     bool m_JobCallbackThreadCorrect;
@@ -1072,6 +1110,127 @@ TEST_P(ResourceLoaderTest, MissingDependency)
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, Complete(Request(0)));
     ASSERT_EQ(1u, m_Creates[0]);
     ASSERT_EQ(0u, m_Decoded);
+}
+
+// A retained missing-file failure cannot block Get after content appears or remove the new resource on deletion.
+TEST_P(ResourceLoaderTest, RetryAfterMissingFile)
+{
+    dmResource::HPreloader failed = Request(0);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, Complete(failed));
+    Add(0, 0, 0);
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/node_0.node", &resource));
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, Complete(failed));
+    Delete(0);
+    ASSERT_EQ(0u, m_Destroys[0]);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(0)));
+    ASSERT_EQ(1u, m_Preloads[0]);
+    ASSERT_EQ(1u, m_Creates[0]);
+    Delete(1);
+    ASSERT_EQ(0u, m_Destroys[0]);
+    dmResource::Release(m_Factory, resource);
+    ASSERT_EQ(1u, m_Destroys[0]);
+}
+
+// Supplied bytes start a fresh attempt while a previous missing-file request retains its terminal error.
+TEST_P(ResourceLoaderTest, CreateAfterMissingFile)
+{
+    dmResource::HPreloader failed = Request(0);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, Complete(failed));
+    uint32_t data[] = { 0, 0 };
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/node_0.node", data, sizeof(data), &resource));
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, Complete(failed));
+    Delete(0);
+    void* cached = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/node_0.node", &cached));
+    ASSERT_EQ(resource, cached);
+    ASSERT_EQ(1u, m_Preloads[0]);
+    ASSERT_EQ(1u, m_Creates[0]);
+    dmResource::Release(m_Factory, cached);
+    ASSERT_EQ(0u, m_Destroys[0]);
+    dmResource::Release(m_Factory, resource);
+    ASSERT_EQ(1u, m_Destroys[0]);
+}
+
+// Fresh parent requests rediscover a newly available child without changing the old request's failure.
+TEST_P(ResourceLoaderTest, RetryAfterMissingDependency)
+{
+    uint32_t child = 1;
+    Add(0, &child, 1);
+    dmResource::HPreloader failed = Request(0);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, Complete(failed));
+    Add(1, 0, 0);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(0)));
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, Complete(failed));
+    Delete(0);
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/node_0.node", &resource));
+    ASSERT_EQ(2u, m_Preloads[0]);
+    ASSERT_EQ(2u, m_Creates[0]);
+    ASSERT_EQ(1u, m_Preloads[1]);
+    ASSERT_EQ(1u, m_Creates[1]);
+    Delete(1);
+    ASSERT_EQ(0u, m_Destroys[0]);
+    ASSERT_EQ(0u, m_Destroys[1]);
+    dmResource::Release(m_Factory, resource);
+    ASSERT_EQ(1u, m_Destroys[0]);
+    ASSERT_EQ(1u, m_Destroys[1]);
+}
+
+// Failed dependencies stay shared within one attempt; a fresh request can retry after the failure is corrected.
+TEST_P(ResourceLoaderTest, RetrySharedPreloadFailure)
+{
+    uint32_t parents[] = { 1, 2, 3, 4 };
+    uint32_t leaf = 5;
+    Add(0, parents, DM_ARRAY_SIZE(parents));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(parents); ++i)
+        Add(parents[i], &leaf, 1);
+    Add(leaf, 0, 0);
+    m_FailedPreload = leaf;
+    dmResource::HPreloader failed = Request(0);
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(failed));
+    ASSERT_EQ(1u, m_Preloads[leaf]);
+    m_FailedPreload = ~0u;
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(0)));
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(failed));
+    Delete(0);
+    for (uint32_t i = 0; i <= leaf; ++i)
+    {
+        ASSERT_EQ(2u, m_Preloads[i]);
+        ASSERT_EQ(i == leaf ? 1u : 2u, m_Creates[i]);
+        ASSERT_EQ(0u, m_Destroys[i]);
+    }
+    Delete(1);
+    for (uint32_t i = 0; i <= leaf; ++i)
+        ASSERT_EQ(1u, m_Destroys[i]);
+}
+
+// An old parent's cleanup must not wait for a fresh dependency attempt owned by another requesting thread.
+TEST_P(ResourceLoaderTest, RetryDuringFailedParentCreate)
+{
+#if defined(DM_HAS_THREADS)
+    uint32_t child = 1;
+    Add(0, &child, 1);
+    Add(child, 0, 0);
+    m_FailedPreload = child;
+    m_SignalCreate = 0;
+    m_WaitInCreate = true;
+    GetCaller retry = { this, 0, dmResource::RESULT_PENDING, child };
+    dmThread::Thread thread = dmThread::New(RetryAfterCreateFromThread, 0x80000, &retry, "ResourceRetry");
+    dmResource::Result result = Complete(Request(0));
+    {
+        DM_MUTEX_SCOPED_LOCK(m_Mutex);
+        m_Blocked = false;
+        dmConditionVariable::Broadcast(m_Changed);
+    }
+    dmThread::Join(thread);
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, result);
+    ASSERT_EQ(dmResource::RESULT_OK, retry.m_Result);
+    ASSERT_EQ(2u, m_Preloads[child]);
+    ASSERT_EQ(1u, m_Creates[child]);
+    ASSERT_EQ(1u, m_Destroys[child]);
+#endif
 }
 
 // Preload-transferred buffers remain owned by the type and are not freed a second time by the scheduler.

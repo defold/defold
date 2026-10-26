@@ -477,14 +477,56 @@ namespace dmResource
         return false;
     }
 
+    // Cleanup callbacks must keep the failed attempt they already depend on,
+    // even when another requester has replaced the path lookup with a retry.
+    static uint32_t FindFailedDependency(LoadContext* context, uint32_t root, dmhash_t path)
+    {
+        uint32_t generation = VisitGeneration(context);
+        context->m_Visit.SetSize(0);
+        Push(context->m_Visit, root);
+        while (!context->m_Visit.Empty())
+        {
+            uint32_t index = context->m_Visit.Back();
+            LoadNode* node = context->m_Nodes.GetPtr(index);
+            context->m_Visit.Pop();
+            if (node->m_PathHash == path && node->m_Complete && !node->m_Resource)
+                return index;
+            if (node->m_Visited == generation)
+                continue;
+            node->m_Visited = generation;
+            for (uint32_t edge = node->m_FirstDependency; edge != INVALID_LOAD_INDEX; edge = context->m_Edges[edge].m_NextDependency)
+                Push(context->m_Visit, context->m_Edges[edge].m_Child);
+        }
+        return INVALID_LOAD_INDEX;
+    }
+
     static uint32_t FindOrCreate(LoadContext* context, const char* path, HResourceType type, uint32_t caller, HPreloader request)
     {
         char canonical[RESOURCE_PATH_MAX];
         GetCanonicalPath(path, canonical, sizeof(canonical));
         dmhash_t hash = dmHashString64(canonical);
+        if (context->m_UpdateDepth && context->m_UpdateOwner == GetCaller(context) && context->m_Creating != INVALID_LOAD_INDEX &&
+            context->m_Nodes.Get(context->m_Creating).m_DependencyResult != RESULT_OK &&
+            (!context->m_Recreating || context->m_Recreating->m_Node != context->m_Creating))
+        {
+            uint32_t failed = FindFailedDependency(context, context->m_Creating, hash);
+            if (failed != INVALID_LOAD_INDEX)
+                return failed;
+        }
         uint32_t* found = context->m_ByPath.Get(hash);
         if (found)
-            return *found;
+        {
+            LoadNode* node = context->m_Nodes.GetPtr(*found);
+            if (!node->m_Complete || node->m_Resource)
+                return *found;
+            // Keep sharing the failure within this request's graph. Fresh
+            // requests can retry against newly available content.
+            for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
+                if (DependsOn(context, context->m_Nodes.GetPtr(request->m_Roots[i]), node))
+                    return *found;
+            // The new attempt replaces only the path lookup. Existing owners
+            // retain the failed node and its result until their normal cleanup.
+        }
 
         if (context->m_Nodes.Full())
             context->m_Nodes.SetCapacity(context->m_Nodes.Capacity() ? context->m_Nodes.Capacity() * 2 : 16);
