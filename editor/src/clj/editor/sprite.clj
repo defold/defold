@@ -122,9 +122,8 @@
 
 (def id-shader shaders/selection-uniform-paged-world-space)
 
-(defn- quad-count [animation size-mode slice9]
-  (if (and animation
-           (= :size-mode-manual size-mode)
+(defn- quad-count [size-mode slice9]
+  (if (and (= :size-mode-manual size-mode)
            (slice9/sliced? slice9))
     9
     1))
@@ -219,7 +218,7 @@
                                       :size-mode size-mode
                                       :size size
                                       :slice9 slice9
-                                      :quad-count (quad-count first-animation size-mode slice9)}
+                                      :quad-count (quad-count size-mode slice9)}
                           :passes [pass/transparent pass/selection]}
              :children [{:node-id _node-id
                          :aabb aabb
@@ -231,7 +230,7 @@
                                                   :size-mode size-mode
                                                   :size size
                                                   :slice9 slice9
-                                                  :quad-count (quad-count first-animation size-mode slice9)}
+                                                  :quad-count (quad-count size-mode slice9)}
                                       :passes [pass/outline]}}]}
 
       (< 1 (count (:frames first-animation)))

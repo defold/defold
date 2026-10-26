@@ -1722,6 +1722,7 @@ TEST_F(FontTest, OpenTypeResource)
 
 // Test that a GUI with mixed nodes (box + multiple text nodes) produces a single font
 // dispatch for all text (not one per text node), and that text render order is preserved.
+// Empty frames must disable pooled items, and resuming must reuse their handles.
 TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
 {
     const char* go_path = "/gui/gui_text_flush_test.goc";
@@ -1737,6 +1738,8 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
     dmRender::RenderListBegin(m_RenderContext);
     dmGameObject::Render(m_Collection);
     dmRender::RenderListEnd(m_RenderContext);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
 
     dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*)m_RenderContext;
 
@@ -1797,6 +1800,22 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
     for (uint32_t i = 1; i < num_text_orders; ++i)
     {
         ASSERT_LT(text_orders[i - 1], text_orders[i]);
+    }
+
+    const uint32_t              item_count = render_context_ptr->m_PersistentRenderItems.Size();
+    const uint32_t              drawn_count = render_context_ptr->m_RenderListSortBuffer.Size();
+    dmGameSystem::GuiComponent* component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, component);
+    for (uint32_t frame = 0; frame < 4; ++frame)
+    {
+        component->m_Enabled = frame & 1;
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        ASSERT_EQ(component->m_Enabled ? drawn_count : 0u, render_context_ptr->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(item_count, render_context_ptr->m_PersistentRenderItems.Size());
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -3028,7 +3047,6 @@ TEST_F(GuiTest, SharedVertexBufferUpload)
         EXPECT_EQ((uint64_t)expected_bytes, buffer->m_DataSetBytes - bytes_before);
         ASSERT_EQ(expected_vertices, world->m_ClientVertexBuffer.Size());
         ASSERT_EQ(expected_boxes, world->m_GuiRenderObjects.Size());
-        ASSERT_EQ(expected_boxes + enabled_scenes[frame] * 5, render_context->m_RenderList.Size());
         if (expected_vertices)
         {
             ASSERT_EQ(expected_bytes, dmGraphics::GetVertexBufferSize(world->m_VertexBuffer));
@@ -3045,6 +3063,8 @@ TEST_F(GuiTest, SharedVertexBufferUpload)
         }
 
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        // Retained slots survive disabled frames; count entries selected for this draw.
+        ASSERT_EQ(expected_boxes + enabled_scenes[frame] * 5, render_context->m_RenderListSortBuffer.Size());
         if (enabled_scenes[frame])
             ASSERT_GT(dmGraphics::GetDrawCount(), 0U);
         else
@@ -3768,6 +3788,34 @@ TEST_F(GuiLayoutChangedTest, FinalAndReload)
     ASSERT_TRUE(RunString(m_L,
         "assert(layout_changed_test.final_count == 2)\n"
         "assert(#layout_changed_test.messages == 1)"));
+}
+
+// Shared GUI resources must keep old layout descriptors alive through every final() on repeated reloads.
+TEST_F(GuiLayoutChangedTest, ReloadSharedSceneKeepsFinalLayoutsAlive)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/gui/layout_changed.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(RunString(m_L, "layout_changed_test.layout_in_init = 'Square'"));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(RunString(m_L,
+        "assert(layout_changed_test.init_count == 2)\n"
+        "layout_changed_test.messages = {}\n"
+        "layout_changed_test.layout_in_final = 'Portrait'"));
+
+    for (uint32_t i = 0; i < 2; ++i)
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/gui/layout_changed.guic", 0));
+
+    ASSERT_TRUE(RunString(m_L,
+        "assert(layout_changed_test.init_count == 6)\n"
+        "assert(layout_changed_test.final_count == 4)\n"
+        "assert(#layout_changed_test.messages == 4)\n"
+        "for _, message in ipairs(layout_changed_test.messages) do\n"
+        "    assert(message.initialized)\n"
+        "    assert(message.id == hash('Square'))\n"
+        "    assert(message.position == 99)\n"
+        "end"));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_TRUE(RunString(m_L, "assert(layout_changed_test.final_count == 6)"));
 }
 
 TEST_F(GuiTest, GuiCustomPropertiesFromDDF)

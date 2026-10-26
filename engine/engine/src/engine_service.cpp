@@ -34,6 +34,10 @@
 #include "engine_service_openapi.h"
 #include "engine_version.h"
 
+#if defined(DM_PLATFORM_MACOS)
+#include "engine_service_darwin.h"
+#endif
+
 extern unsigned char PROFILER_HTML[];
 extern uint32_t PROFILER_HTML_SIZE;
 
@@ -448,6 +452,9 @@ namespace dmEngineService
 
         void Final()
         {
+#if defined(DM_PLATFORM_MACOS)
+            GPUTraceStop(&m_GPUTrace);
+#endif
             dmWebServer::Delete(m_WebServer);
 
             if (m_WebServerRedirect)
@@ -480,6 +487,9 @@ namespace dmEngineService
 
         ResourceHandlerParams m_ResourceHandlerParams;
         HProfile             m_Profile;
+#if defined(DM_PLATFORM_MACOS)
+        GPUTrace             m_GPUTrace;
+#endif
     };
 
     HEngineService New(uint16_t port)
@@ -506,6 +516,27 @@ namespace dmEngineService
     {
         engine_service->Final();
         delete engine_service;
+    }
+
+    void BeginFrame(HEngineService engine_service)
+    {
+#if defined(DM_PLATFORM_MACOS)
+        GPUTraceBeginFrame(&engine_service->m_GPUTrace);
+#endif
+    }
+
+    void EndFrame(HEngineService engine_service)
+    {
+#if defined(DM_PLATFORM_MACOS)
+        GPUTraceEndFrame(&engine_service->m_GPUTrace);
+#endif
+    }
+
+    void OnEngineDelete(HEngineService engine_service)
+    {
+#if defined(DM_PLATFORM_MACOS)
+        GPUTraceStop(&engine_service->m_GPUTrace);
+#endif
     }
 
     void Update(HEngineService engine_service, HProfile profile)
@@ -588,7 +619,7 @@ namespace dmEngineService
     // Resource profiler
     //
 
-    static bool SendResourceData(dmWebServer::Request* request, const char* name, const char* extension, uint32_t size, uint32_t sizeOnDisc, uint32_t refCount)
+    static bool SendResourceData(dmWebServer::Request* request, const char* name, const char* extension, uint32_t size, uint32_t sizeOnDisc, uint32_t refCount, const dmResource::LoadTimings* timings)
     {
         dmWebServer::Result r;
         r = SendString(request, name); CHECK_RESULT_BOOL(r);
@@ -596,18 +627,36 @@ namespace dmEngineService
         r = dmWebServer::Send(request, &size, 4); CHECK_RESULT_BOOL(r);
         r = dmWebServer::Send(request, &sizeOnDisc, 4); CHECK_RESULT_BOOL(r);
         r = dmWebServer::Send(request, &refCount, 4); CHECK_RESULT_BOOL(r);
+        if (timings)
+        {
+            // RES2 adds availability, seven durations in microseconds, and the PostCreate call count.
+            uint32_t recorded = timings->m_Recorded ? 1 : 0;
+            uint64_t durations[] = { timings->m_Total, timings->m_Preload, timings->m_Read, timings->m_Create, timings->m_PostCreate, timings->m_Queue, timings->m_Wait };
+            r = dmWebServer::Send(request, &recorded, sizeof(recorded));
+            CHECK_RESULT_BOOL(r);
+            r = dmWebServer::Send(request, durations, sizeof(durations));
+            CHECK_RESULT_BOOL(r);
+            r = dmWebServer::Send(request, &timings->m_PostCreateCount, sizeof(timings->m_PostCreateCount));
+            CHECK_RESULT_BOOL(r);
+        }
         return true;
     }
 
+    struct ResourceIteratorContext
+    {
+        dmWebServer::Request* m_Request;
+        bool                  m_IncludeTimings;
+    };
+
     static bool ResourceIteratorFunction(const dmResource::IteratorResource& resource, void* user_ctx)
     {
-        dmWebServer::Request* request = (dmWebServer::Request*)user_ctx;
+        ResourceIteratorContext* context = (ResourceIteratorContext*)user_ctx;
 
         const char* name = dmHashReverseSafe64(resource.m_Id);
         const char* extension = strrchr(name, '.');
         if (!extension)
             extension = "";
-        return SendResourceData(request, name, extension, resource.m_Size, resource.m_SizeOnDisc, resource.m_RefCount);
+        return SendResourceData(context->m_Request, name, extension, resource.m_Size, resource.m_SizeOnDisc, resource.m_RefCount, context->m_IncludeTimings ? &resource.m_LoadTimings : 0);
     }
 
     static void HttpResourceRequestCallback(void* context, dmWebServer::Request* request)
@@ -626,13 +675,15 @@ namespace dmEngineService
 
         dmWebServer::SendAttribute(request, "Content-Type", "application/octet-stream");
 
-        dmWebServer::Result r = SendString(request, FOURCC_RESOURCES);
+        // Keep the existing response format for clients that do not request timings.
+        ResourceIteratorContext iterator_context = { request, strcmp(request->m_Resource, "/resources_data?timings=1") == 0 };
+        dmWebServer::Result     r = SendString(request, iterator_context.m_IncludeTimings ? "RES2" : FOURCC_RESOURCES);
         if (r != dmWebServer::RESULT_OK)
         {
             dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
             return;
         }
-        dmResource::IterateResources(params->m_Factory, ResourceIteratorFunction, (void*)request);
+        dmResource::IterateResources(params->m_Factory, ResourceIteratorFunction, &iterator_context);
     }
 
     //
@@ -892,6 +943,13 @@ namespace dmEngineService
 
     void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist)
     {
+#if defined(DM_PLATFORM_MACOS)
+        dmWebServer::HandlerParams gputrace_params;
+        gputrace_params.m_Handler = GPUTraceRequest;
+        gputrace_params.m_Userdata = &engine_service->m_GPUTrace;
+        AddProfilerHandler(engine_service->m_WebServer, "/profiler/gputrace", &gputrace_params, GPU_TRACE_OPENAPI);
+#endif
+
         dmWebServer::HandlerParams resource_params;
         resource_params.m_Handler = HttpResourceRequestCallback;
         engine_service->m_ResourceHandlerParams.m_Factory = factory;

@@ -116,6 +116,300 @@
         (is (= (slurp (:resource save-data))
                (resource-node/save-data-content save-data)))))))
 
+;; Verifies legacy recording exclusions cover the Lua API, backends, service and
+;; encoder, preserve unrelated settings, and migrate only once.
+(deftest record-exclusion-migration-test
+  (doseq [[platforms expected-libraries expected-symbols]
+          [[[:osx :arm64-osx :x86_64-osx :win32 :x86-win32 :x86_64-win32]
+            ["custom" "record" "record_script" "record_service"]
+            ["CustomSymbol" "ScriptRecord" "EngineRecord"]]
+
+           [[nil :common :linux :x86_64-linux :arm64-linux]
+            ["custom" "record" "record_script" "record_service" "openh264"]
+            ["CustomSymbol" "ScriptRecord" "EngineRecord"]]
+
+           [[:ios :arm64-ios :arm64_sim-ios
+             :android :armv7-android :arm64-android :x86_64-android
+             :web :wasm-web :wasm_pthread-web]
+            ["custom" "record" "record_script"]
+            ["CustomSymbol" "ScriptRecord"]]]
+
+          platform platforms
+          vpx ["vpx" "vpx.lib" "libvpx" "libvpx.lib"]]
+    (let [path (if platform [:platforms platform :context] [:context])
+
+          context
+          {:excludeLibs ["custom" "record" vpx]
+           :excludeSymbols ["CustomSymbol"]
+           :libs ["record_null" "custom"]
+           :defines ["CUSTOM"]}
+
+          manifest (assoc-in {} path context)
+          migrated (#'app-manifest/migrate-record-exclusions manifest)]
+      (is (= (assoc context
+               :excludeLibs expected-libraries
+               :excludeSymbols expected-symbols
+               :libs ["custom"])
+             (get-in migrated path)))
+      (is (= migrated (#'app-manifest/migrate-record-exclusions migrated)))))
+
+  (testing "Legacy Windows names and missing symbol lists"
+    (let [manifest
+          {:platforms
+           {:x86_64-win32
+            {:context
+             {:excludeLibs ["librecord" "vpx"]
+              :libs ["librecord_null.lib"]}}}}
+
+          migrated
+          (-> manifest
+              (#'app-manifest/migrate-windows-library-names)
+              (#'app-manifest/migrate-record-exclusions))]
+      (is (= {:excludeLibs ["record" "record_script" "record_service"]
+              :excludeSymbols ["ScriptRecord" "EngineRecord"]
+              :libs []}
+             (get-in migrated [:platforms :x86_64-win32 :context])))))
+
+  (testing "Existing service and encoder exclusions are not duplicated"
+    (let [context
+          {:excludeLibs ["record" "vpx" "record_service" "openh264"]
+           :excludeSymbols ["EngineRecord"]}]
+      (is (= (assoc context
+               :excludeLibs ["record" "record_service" "openh264" "record_script"]
+               :excludeSymbols ["EngineRecord" "ScriptRecord"])
+             (#'app-manifest/migrate-record-context context :linux)))))
+
+  (testing "Explicit recording libraries are removed while custom libraries remain"
+    (let [context
+          {:excludeLibs ["record" "record_script"]
+           :libs ["librecord.lib" "record_null" "record_script.lib" "librecord_service" "custom"]}]
+      (is (= {:excludeLibs ["record" "record_script" "record_service" "openh264"]
+              :excludeSymbols ["ScriptRecord" "EngineRecord"]
+              :libs ["custom"]}
+             (#'app-manifest/migrate-record-context context :linux)))))
+
+  (testing "Partial and malformed settings are preserved"
+    (doseq [context
+            [nil 42 []
+             {:excludeLibs ["record"]}
+             {:excludeLibs ["vpx"]}
+             {:excludeLibs "record"}
+             {:excludeLibs [nil 42 "custom"]}
+             {:excludeLibs ["record" "vpx"]
+              :excludeSymbols "invalid"}
+             {:excludeLibs ["record" "vpx"]
+              :libs "invalid"}
+             {:excludeLibs ["record" "vpx"]
+              :engineLibs "invalid"}
+             {:excludeLibs ["record_script"]}
+             {:libs ["record"]}
+             {:libs ["record_null"]
+              :excludeLibs "invalid"}
+             {:libs ["record_null"]
+              :excludeSymbols "invalid"}]
+
+            path [[:context]
+                  [:platforms :common :context]
+                  [:platforms :x86_64-linux :context]]]
+      (let [manifest (assoc-in {} path context)]
+        (is (= manifest (#'app-manifest/migrate-record-exclusions manifest)))))
+
+    (doseq [manifest [nil true [] {} {:platforms []} {:platforms {:linux nil}}]]
+      (is (= manifest (#'app-manifest/migrate-record-exclusions manifest))))))
+
+;; Verifies manifests already migrated away from VPX also strip the Lua API and
+;; explicit recorder libraries, while keeping unrelated libraries and settings.
+(deftest native-record-exclusion-migration-test
+  (doseq [platform
+          [nil :common :osx :arm64-osx :x86_64-osx
+           :linux :x86_64-linux :arm64-linux :win32 :x86-win32 :x86_64-win32
+           :ios :arm64-ios :arm64_sim-ios
+           :android :armv7-android :arm64-android :x86_64-android
+           :web :wasm-web :wasm_pthread-web]
+
+          included-key [:libs :engineLibs]
+          null-library ["record_null" "record_null.lib" "librecord_null" "librecord_null.lib"]]
+    (let [path (if platform [:platforms platform :context] [:context])
+
+          linux-platform
+          (or (nil? platform) (#{:common :linux} platform) (app-manifest/linux platform))
+
+          desktop-platform
+          (or linux-platform (app-manifest/desktop platform) (#{:osx :win32 :x86-win32} platform))
+
+          context
+          {:excludeLibs
+           (cond-> ["custom" "record"]
+             desktop-platform
+             (conj "record_service")
+
+             linux-platform
+             (conj "openh264"))
+
+           :excludeSymbols
+           (cond-> ["CustomSymbol"]
+             desktop-platform
+             (conj "EngineRecord"))
+
+           included-key [null-library "custom"]
+           :defines ["CUSTOM"]}
+
+          manifest (assoc-in {} path context)
+          migrated (#'app-manifest/migrate-record-exclusions manifest)]
+      (is (= (-> context
+                 (update :excludeLibs conj "record_script")
+                 (update :excludeSymbols conj "ScriptRecord")
+                 (assoc included-key ["custom"]))
+             (get-in migrated path)))
+      (is (= migrated (#'app-manifest/migrate-record-exclusions migrated))))))
+
+;; Verifies explicit null backends exclude recording without an exclusion list,
+;; and obsolete null exclusions are removed without affecting other settings.
+(deftest null-record-backend-migration-test
+  (doseq [platform [nil :common :osx :linux :win32 :ios :android :web]
+          included-key [:libs :engineLibs]
+          null-library ["record_null" "record_null.lib" "librecord_null" "librecord_null.lib"]]
+    (let [path (if platform [:platforms platform :context] [:context])
+
+          context
+          {included-key [null-library "custom"]
+           :defines ["CUSTOM"]}
+
+          manifest (assoc-in {} path context)
+          migrated (#'app-manifest/migrate-record-exclusions manifest)
+          linux-platform (or (nil? platform) (#{:common :linux} platform))
+          desktop-platform (or linux-platform (#{:osx :win32} platform))]
+      (is (= {included-key ["custom"]
+              :defines ["CUSTOM"]
+
+              :excludeLibs
+              (cond-> ["record" "record_script"]
+                desktop-platform
+                (conj "record_service")
+
+                linux-platform
+                (conj "openh264"))
+
+              :excludeSymbols
+              (cond-> ["ScriptRecord"]
+                desktop-platform
+                (conj "EngineRecord"))}
+             (get-in migrated path)))
+      (is (= migrated (#'app-manifest/migrate-record-exclusions migrated)))))
+
+  (doseq [context
+          [{:excludeLibs ["record"]
+            :libs ["record_null"]}
+
+           {:excludeLibs ["record"]
+            :excludeSymbols ["ScriptRecord"]
+            :libs ["record_null"]}
+
+           {:excludeLibs nil
+            :excludeSymbols nil
+            :libs ["record_null"]}]]
+    (is (= {:excludeLibs ["record" "record_script" "record_service" "openh264"]
+            :excludeSymbols ["ScriptRecord" "EngineRecord"]
+            :libs []}
+           (#'app-manifest/migrate-record-context context :linux))))
+
+  (doseq [context
+          [{:excludeLibs ["record" "record_null"]}
+
+           {:excludeLibs ["record" "record_null" "record_script" "record_service" "openh264"]
+            :excludeSymbols ["ScriptRecord" "EngineRecord"]}]]
+    (is (= {:excludeLibs ["record" "record_script" "record_service" "openh264"]
+            :excludeSymbols ["ScriptRecord" "EngineRecord"]}
+           (#'app-manifest/migrate-record-context context :linux))))
+
+  (let [context
+        {:excludeLibs ["custom" "record_null" "record_null.lib" "librecord_null" "librecord_null.lib"]
+         :defines ["CUSTOM"]}]
+    (is (= {:excludeLibs ["custom"]
+            :defines ["CUSTOM"]}
+           (#'app-manifest/migrate-record-context context :linux)))))
+
+;; Verifies Windows manifests and editor controls use the actual record_script
+;; archive name for current and legacy library spellings.
+(deftest record-script-windows-library-names-test
+  (doseq [platform [:win32 :x86-win32 :x86_64-win32]
+          key [:excludeLibs :libs :engineLibs]]
+    (let [path [:platforms platform :context key]
+          manifest (assoc-in {} path ["record_script" "record_script.lib" "librecord_script" "librecord_script.lib"])
+          migrated (#'app-manifest/migrate-windows-library-names manifest)]
+      (is (= ["record_script" "record_script" "record_script" "record_script"]
+             (get-in migrated path)))
+      (is (= migrated (#'app-manifest/migrate-windows-library-names migrated)))))
+
+  (is (= "record_script" (app-manifest/platformify-excluded-lib :x86_64-win32 "record_script")))
+  (is (= "record_script.lib" (app-manifest/platformify-lib-filename :x86_64-win32 "record_script"))))
+
+;; Verifies the recording toggle writes all current exclusions and can remove
+;; them again, without generating obsolete VPX or null backend entries.
+(deftest record-setting-test
+  (let [enabled
+        (app-manifest/set-setting-value {} app-manifest/record-setting true)
+
+        disabled
+        (app-manifest/set-setting-value enabled app-manifest/record-setting false)]
+    (is (true? (app-manifest/get-setting-value enabled app-manifest/record-setting)))
+    (is (false? (app-manifest/get-setting-value disabled app-manifest/record-setting)))
+
+    (doseq [platform app-manifest/all-platforms]
+      (let [context (get-in enabled [:platforms platform :context])
+            desktop-platform (app-manifest/desktop platform)]
+        (is (= (cond-> ["record" "record_script"]
+                 desktop-platform
+                 (conj "record_service")
+
+                 (app-manifest/linux platform)
+                 (conj "openh264"))
+               (:excludeLibs context)))
+        (is (= (cond-> ["ScriptRecord"]
+                 desktop-platform
+                 (conj "EngineRecord"))
+               (:excludeSymbols context)))
+        (is (nil? (:libs context)))
+        (is (= {:excludeLibs []
+                :excludeSymbols []}
+               (get-in disabled [:platforms platform :context])))))))
+
+;; Verifies loading and saving an old recording exclusion preserves the checked
+;; setting, and reloading the saved migration does not dirty the manifest again.
+(deftest record-exclusion-load-migration-test
+  (let [migrated-content
+        (test-util/with-loaded-project
+          (let [node
+                (test-util/resource-node project "/app_manifest/exclude_many.appmanifest")
+
+                manifest (g/node-value node :manifest)
+                save-data (g/node-value node :save-data)]
+            (is (true? (g/node-value node :exclude-record)))
+            (is (true? (:dirty save-data)))
+
+            (doseq [platform app-manifest/all-platforms]
+              (is (coll/not-any? #{"vpx"}
+                                 (get-in manifest [:platforms platform :context :excludeLibs]))))
+
+            (let [content (resource-node/save-data-content save-data)]
+              (is (= manifest (yaml/load content keyword)))
+              content)))]
+    (test-util/with-temp-project-content
+      {"/current.appmanifest" (data/string->lines migrated-content)}
+      (let [node (test-util/resource-node project "/current.appmanifest")
+            save-data (g/node-value node :save-data)]
+        (is (true? (g/node-value node :exclude-record)))
+        (is (false? (:dirty save-data)))
+        (is (= migrated-content (resource-node/save-data-content save-data)))
+
+        (g/set-property! node :exclude-record false)
+        (is (false? (g/node-value node :exclude-record)))
+
+        (let [manifest (g/node-value node :manifest)]
+          (doseq [platform app-manifest/desktop]
+            (is (coll/not-any? #{"EngineRecord"}
+                               (get-in manifest [:platforms platform :context :excludeSymbols])))))))))
+
 (deftest toggle-test
   (testing "contains toggles"
     (let [toggle (app-manifest/contains-toggle :common :libs "foo")]
@@ -139,25 +433,25 @@
         (is (= {:platforms {:common {:context {:libs []}}}}
                (app-manifest/set-toggle-value {:platforms {:common :invalid}} toggle false)))))
     (testing "windows library toggles read legacy and current names"
-      (let [lib-toggle (first (app-manifest/libs-toggles [:x86_64-win32] ["record_null"]))
+      (let [lib-toggle (first (app-manifest/libs-toggles [:x86_64-win32] ["record_script"]))
             exclude-lib-toggle (first (app-manifest/exclude-libs-toggles [:x86_64-win32] ["record"]))]
         (is (true? (app-manifest/get-toggle-value
-                     {:platforms {:x86_64-win32 {:context {:libs ["record_null"]}}}}
+                     {:platforms {:x86_64-win32 {:context {:libs ["record_script"]}}}}
                      lib-toggle)))
         (is (true? (app-manifest/get-toggle-value
-                     {:platforms {:x86_64-win32 {:context {:libs ["record_null.lib"]}}}}
+                     {:platforms {:x86_64-win32 {:context {:libs ["record_script.lib"]}}}}
                      lib-toggle)))
         (is (true? (app-manifest/get-toggle-value
-                     {:platforms {:x86_64-win32 {:context {:libs ["librecord_null.lib"]}}}}
+                     {:platforms {:x86_64-win32 {:context {:libs ["librecord_script.lib"]}}}}
                      lib-toggle)))
-        (is (= {:platforms {:x86_64-win32 {:context {:libs ["record_null"]}}}}
+        (is (= {:platforms {:x86_64-win32 {:context {:libs ["record_script"]}}}}
                (app-manifest/set-toggle-value
                  {:platforms {:x86_64-win32 {:context {:libs []}}}}
                  lib-toggle
                  true)))
         (is (= {:platforms {:x86_64-win32 {:context {:libs []}}}}
                (app-manifest/set-toggle-value
-                 {:platforms {:x86_64-win32 {:context {:libs ["record_null" "record_null.lib" "librecord_null.lib"]}}}}
+                 {:platforms {:x86_64-win32 {:context {:libs ["record_script" "record_script.lib" "librecord_script.lib"]}}}}
                  lib-toggle
                  false)))
         (is (true? (app-manifest/get-toggle-value
@@ -910,13 +1204,13 @@
   (test-util/with-loaded-project
     (let [manifest (test-util/resource-node project "/app_manifest/default.appmanifest")
           text #(slurp (data/lines-reader (g/node-value manifest :modified-lines)))]
-      (is (false? (string/includes? (text) "record_null")))
+      (is (false? (string/includes? (text) "record_script")))
       (is (false? (g/node-value manifest :exclude-record)))
       (g/set-property! manifest :exclude-record true)
-      (is (string/includes? (text) "record_null"))
+      (is (string/includes? (text) "record_script"))
       (is (true? (g/node-value manifest :exclude-record)))
       (g/set-property! manifest :exclude-record false)
-      (is (false? (string/includes? (text) "record_null")))
+      (is (false? (string/includes? (text) "record_script")))
       (is (false? (g/node-value manifest :exclude-record)))
 
       (g/set-property! manifest :exclude-gui true)

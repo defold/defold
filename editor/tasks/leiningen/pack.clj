@@ -63,7 +63,8 @@
     known-platforms))
 
 (def artifacts
-  {   ; These artifacts are equal to the artifacts from bob
+  {
+   ; These artifacts are equal to the artifacts from bob
    ; see ResourceUnpacker.java for more info
    ; "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit-64.exe"  "x86_64-win32/bin/luajit-64.exe"
    ; "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"   "x86_64-win32/bin/OpenAL32.dll"

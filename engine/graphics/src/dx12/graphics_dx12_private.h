@@ -181,15 +181,36 @@ namespace dmGraphics
         D3D12_RECT            m_Scissor;
     };
 
+    struct DX12SamplerDescriptor
+    {
+        D3D12_SAMPLER_DESC           m_Desc;
+        D3D12_GPU_DESCRIPTOR_HANDLE m_Handle;
+    };
+
+    struct DX12TextureDescriptor
+    {
+        ID3D12Resource*                  m_Resource;
+        D3D12_SHADER_RESOURCE_VIEW_DESC  m_Desc;
+        D3D12_GPU_DESCRIPTOR_HANDLE      m_Handle;
+    };
+
     // Descriptor pages belong to a frame slot and are reused only after its fence completes.
     struct DX12DescriptorPool
     {
+        // Bounded ring caches, like Vulkan's descriptor cache, scoped to this frame/heap.
+        static const uint32_t CACHE_SIZE = 8;
         ID3D12DescriptorHeap* m_ResourceHeap;
         ID3D12DescriptorHeap* m_SamplerHeap;
         uint32_t              m_ResourceCapacity;
         uint32_t              m_SamplerCapacity;
         uint32_t              m_ResourceCursor;
         uint32_t              m_SamplerCursor;
+        DX12SamplerDescriptor m_Samplers[CACHE_SIZE];
+        DX12TextureDescriptor m_Textures[CACHE_SIZE];
+        uint32_t              m_SamplerCount;
+        uint32_t              m_TextureCount;
+        uint32_t              m_NextSampler;
+        uint32_t              m_NextTexture;
     };
 
     struct DX12ScratchBuffer
@@ -198,6 +219,7 @@ namespace dmGraphics
 
         dmArray<DX12DescriptorPool> m_DescriptorPools;
         uint32_t                    m_CurrentPool;
+        uint32_t                    m_BoundPool;
 
         void  Initialize(DX12Context* context, uint32_t frame_index);
         void  Destroy();
@@ -251,9 +273,57 @@ namespace dmGraphics
         ID3D12Fence*               m_Fence;
     };
 
+    struct DX12PendingBufferUpload
+    {
+        ID3D12Resource*       m_Resource;
+        uint32_t              m_Offset;
+        uint32_t              m_DataSize;
+        uint32_t              m_BufferSize;
+        uint32_t              m_DataOffset;
+        D3D12_RESOURCE_STATES m_StateBefore;
+        D3D12_RESOURCE_STATES m_StateAfter;
+    };
+
+    // Native state is valid only for the current command-list recording.
+    struct DX12DrawState
+    {
+        DX12Pipeline m_Pipeline;
+        ID3D12RootSignature* m_GraphicsRoot;
+        ID3D12RootSignature* m_ComputeRoot;
+        D3D12_GPU_DESCRIPTOR_HANDLE m_GraphicsTables[64];
+        D3D12_GPU_DESCRIPTOR_HANDLE m_ComputeTables[64];
+        D3D12_VERTEX_BUFFER_VIEW m_VertexViews[MAX_VERTEX_BUFFERS];
+        D3D12_INDEX_BUFFER_VIEW m_IndexView;
+        D3D_PRIMITIVE_TOPOLOGY m_Topology;
+        uint32_t m_VertexCount;
+        uint32_t m_StencilReference;
+        bool m_StencilValid;
+    };
+
+    struct DX12PipelineKey
+    {
+        PipelineState m_State;
+        dmhash_t m_ProgramHash;
+        ID3D12RootSignature* m_Root;
+        uint32_t m_RenderTargetId;
+        DXGI_FORMAT m_DepthFormat;
+        DXGI_SAMPLE_DESC m_Samples;
+        DXGI_FORMAT m_ColorFormats[MAX_BUFFER_COLOR_ATTACHMENTS];
+        dmhash_t m_VertexHashes[MAX_VERTEX_BUFFERS];
+        uint32_t m_StepFunctions[MAX_VERTEX_BUFFERS];
+        uint32_t m_VertexCount;
+        float m_OffsetFactor;
+        float m_OffsetUnits;
+    };
+
     struct DX12Context
     {
         GraphicsContext                    m_BaseContext;
+        DX12DrawState                      m_DrawState;
+        DX12PipelineKey                    m_LastPipelineKey;
+        DX12Pipeline                       m_LastPipeline;
+        dmArray<DX12PendingBufferUpload>    m_PendingBufferUploads;
+        dmArray<uint8_t>                    m_PendingBufferData;
         ID3D12Device*                      m_Device;
 
 #if defined(DM_PLATFORM_XBOX)
@@ -324,6 +394,7 @@ namespace dmGraphics
     DX12Context*    DX12NativeCreate(const struct ContextParams& params);
     bool            DX12NativeInitialize(DX12Context* context);
     void            DX12DestroyContextResources(DX12Context* context);
+    void            FlushPendingBufferUploads(DX12Context* context);
     void            DX12NativeDestroy(DX12Context* context);
     void            DX12NativeBeginFrame(DX12Context* context);
     void            DX12NativeEndFrame(DX12Context* context);

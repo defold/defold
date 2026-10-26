@@ -23,6 +23,7 @@
         var Module = {
             canvas: document.getElementById("canvas"),
             fullScreenContainer: document.getElementById("surface"),
+            getPixelRatio: highDPI => highDPI ? window.devicePixelRatio : 1,
             onRuntimeInitialized() { Module.ready = true; },
             print: text => console.log(text),
             printErr: text => console.error(text),

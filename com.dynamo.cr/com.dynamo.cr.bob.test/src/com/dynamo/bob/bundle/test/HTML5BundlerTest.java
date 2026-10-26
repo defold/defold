@@ -103,6 +103,61 @@ public class HTML5BundlerTest {
         }
     }
 
+    private String pixelRatioProperties(Project project, Platform platform) throws IOException {
+        Map<String, Map<String, Object>> propertiesMap = new HashMap<>();
+        Map<String, Object> properties = new HashMap<>();
+        new HTML5Bundler().updateManifestProperties(project, platform,
+                project.getProjectProperties(), propertiesMap, properties);
+        return BundleHelper.formatResource(propertiesMap, properties,
+                "{{DEFOLD_MIN_PIXEL_RATIO}},{{DEFOLD_MAX_PIXEL_RATIO}}".getBytes(StandardCharsets.UTF_8), "pixel ratios");
+    }
+
+    // Unset bounds preserve existing resolution, and fractional bounds reach both web loader variants as numbers.
+    @Test
+    public void testPixelRatioBounds() throws IOException {
+        for (Platform platform : List.of(Platform.WasmWeb, Platform.WasmPthreadWeb)) {
+            try (Project project = createHeapSizeProject()) {
+                assertEquals("0.0,0.0", pixelRatioProperties(project, platform));
+                project.getProjectProperties().putStringValue("html5", "min_pixel_ratio", "0.75");
+                project.getProjectProperties().putStringValue("html5", "max_pixel_ratio", "1.5");
+                assertEquals("0.75,1.5", pixelRatioProperties(project, platform));
+                project.getProjectProperties().putStringValue("html5", "max_pixel_ratio", "0");
+                assertEquals("0.75,0.0", pixelRatioProperties(project, platform));
+                project.getProjectProperties().putStringValue("html5", "max_pixel_ratio", "0.75");
+                assertEquals("0.75,0.75", pixelRatioProperties(project, platform));
+            }
+        }
+    }
+
+    // Invalid bounds must fail bundling with the setting name instead of generating invalid JavaScript or canvas dimensions.
+    @Test
+    public void testInvalidPixelRatioBounds() throws IOException {
+        for (String name : List.of("min_pixel_ratio", "max_pixel_ratio")) {
+            for (String value : List.of("-1", "NaN", "Infinity", "-Infinity", "1e100", "invalid")) {
+                try (Project project = createHeapSizeProject()) {
+                    project.getProjectProperties().putStringValue("html5", name, value);
+                    try {
+                        pixelRatioProperties(project, Platform.WasmWeb);
+                        fail("Accepted html5." + name + "=" + value);
+                    } catch (IOException e) {
+                        assertTrue(e.getMessage().contains("html5." + name));
+                    }
+                }
+            }
+        }
+        try (Project project = createHeapSizeProject()) {
+            project.getProjectProperties().putStringValue("html5", "min_pixel_ratio", "2");
+            project.getProjectProperties().putStringValue("html5", "max_pixel_ratio", "1.5");
+            try {
+                pixelRatioProperties(project, Platform.WasmWeb);
+                fail("Accepted reversed pixel ratio bounds");
+            } catch (IOException e) {
+                assertTrue(e.getMessage().contains("html5.min_pixel_ratio"));
+                assertTrue(e.getMessage().contains("html5.max_pixel_ratio"));
+            }
+        }
+    }
+
     // Default WebGL engines must omit all WebGPU probing, including pthread builds.
     @Test
     public void testWebGLLoaderOmitsWebGPUProbe() throws Exception {
@@ -229,8 +284,8 @@ public class HTML5BundlerTest {
                 String html = Files.readString(new File(appDir, "index.html").toPath());
                 assertEquals("<title>" + title.replace("&", "&amp;") + "</title>\n" + binaryName + "\n" + binaryName, html);
                 String loader = Files.readString(new File(appDir, "dmloader.js").toPath());
-                assertTrue(loader.contains("\"" + binaryName + ".wasm\""));
-                assertTrue(loader.contains("\"" + binaryName + "_pthread.wasm\""));
+                // The loader builds variant-specific WASM filenames from the sanitized executable name.
+                assertTrue(loader.contains("EngineLoader.selectEngine(\"" + binaryName + "\")"));
                 assertEquals(title, properties.getStringValue("project", "title"));
             }
         }
