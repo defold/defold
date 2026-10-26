@@ -20,6 +20,7 @@
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll])
   (:import [clojure.lang ExceptionInfo]
+           [com.defold.util InvalidationCounters]
            [internal.transaction MaterializationTXC]
            [java.util.concurrent CountDownLatch TimeUnit]))
 
@@ -135,11 +136,48 @@
                               (g/node-by-id (g/now) node-id)))))
           (is (= (inc (long (gt/tx-id initial-basis))) (gt/tx-id (g/now))))
           (is (= 12 (get (g/cache) (gt/endpoint shell :result))))
+          (is (.contains ^InvalidationCounters (g/invalidate-counters) child))
           (is (not (contains? (g/cache) (gt/endpoint consumer :result))))
           (is (g/endpoint-invalidated-since? (gt/endpoint consumer :result)
                                              initial-invalidate-counters
                                              (g/invalidate-counters)))
           (is (= 15 (g/node-value consumer :result))))))))
+
+;; Successive materializations must retain only live added nodes in the
+;; invalidation counters, including nodes deleted and recreated before commit.
+(deftest materialization-additions-track-node-lifetimes-test
+  (doseq [custom-evaluation-context [false true]
+          child-action [:keep :delete :recreate]]
+    (with-clean-system
+      (let [[first-shell second-shell first-child second-child] (g/take-node-ids 4)]
+        (g/transact
+          [(g/add-node
+             (g/construct-shell ShellTestNode {:_node-id first-shell}
+               (fn materialize-first [_self _evaluation-context]
+                 (g/add-node (g/construct ShellTestNode :_node-id first-child :value 5)))))
+           (g/add-node
+             (g/construct-shell ShellTestNode {:_node-id second-shell}
+               (fn materialize-second [self _evaluation-context]
+                 [(g/set-property self :value 7)
+                  (g/add-node (g/construct ShellTestNode :_node-id second-child :value 7))
+                  (when (not= :keep child-action)
+                    (g/delete-node second-child))
+                  (when (= :recreate child-action)
+                    (g/add-node (g/construct ShellTestNode :_node-id second-child :value 11)))])))])
+        (let [evaluation-context (if custom-evaluation-context
+                                   (g/make-evaluation-context {:basis (g/now)})
+                                   (g/make-evaluation-context))]
+          (g/materialize-node! first-shell evaluation-context)
+          (g/materialize-node! second-shell evaluation-context)
+          (g/update-system-from-evaluation-context! evaluation-context))
+        (is (.contains ^InvalidationCounters (g/invalidate-counters) first-child))
+        (is (= 5 (g/node-value first-child :result)))
+        (is (= (not= :delete child-action)
+               (.contains ^InvalidationCounters (g/invalidate-counters) second-child)))
+        (case child-action
+          :keep (is (= 7 (g/node-value second-child :result)))
+          :delete (is (nil? (g/node-by-id second-child)))
+          :recreate (is (= 11 (g/node-value second-child :result))))))))
 
 ;; Successive materializations can replace connections and delete obsolete
 ;; overrides. Committing must clean up every deleted node's cache and user data.
@@ -205,17 +243,19 @@
           (is (= (= :full invalidation) (in/shell-node? (g/node-by-id (g/now) shell))))
           (is (not (contains? (g/cache) (gt/endpoint shell :result)))))))))
 
-;; Failure after deletion tracking changes must restore the evaluation-context,
-;; preserving user data for a node recreated by a successful retry.
+;; Failure after node tracking changes must restore the evaluation-context,
+;; preserving user data and node lifetimes after a successful retry.
 (deftest failed-materialization-restores-deletion-tracking-test
   (with-clean-system
-    (let [[shell child] (g/take-node-ids 2)
+    (let [[shell child failed-child] (g/take-node-ids 3)
           fail (atom true)]
       (g/transact
         (g/add-node
           (g/construct-shell ShellTestNode {:_node-id shell}
             (fn materialize-fn [self _evaluation-context]
-              [(g/add-node (g/construct ShellTestNode :_node-id child :value 5))
+              [(when @fail
+                 (g/add-node (g/construct ShellTestNode :_node-id failed-child)))
+               (g/add-node (g/construct ShellTestNode :_node-id child :value 5))
                (if @fail
                  (g/delete-node child)
                  (g/set-property self :value 7))]))))
@@ -236,6 +276,8 @@
           (is (= 7 (g/node-value shell :result evaluation-context)))
           (g/user-data! child :marker :retained)
           (g/update-system-from-evaluation-context! evaluation-context)
+          (is (.contains ^InvalidationCounters (g/invalidate-counters) child))
+          (is (not (.contains ^InvalidationCounters (g/invalidate-counters) failed-child)))
           (is (= :retained (g/user-data child :marker)))
           (is (= 5 (g/node-value child :result)))
           (finally

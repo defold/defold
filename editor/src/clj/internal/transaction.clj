@@ -2125,11 +2125,16 @@
              :realized-changes [])))
 
 (defn- apply-evaluation-result! [evaluation-context change result]
-  (let [{:keys [basis-ref changes-atom invalidated-endpoints-atom materialization-results-atom nodes-deleted-atom]} evaluation-context
-        {:keys [basis outputs-modified materialization-results nodes-deleted]} result]
+  (let [{:keys [basis-ref changes-atom invalidated-endpoints-atom materialization-results-atom nodes-added-atom nodes-deleted-atom]} evaluation-context
+        {:keys [basis outputs-modified materialization-results nodes-added nodes-deleted]} result]
     (reset! basis-ref basis)
     (reset! materialization-results-atom materialization-results)
     (swap! changes-atom conj change)
+    (swap! nodes-added-atom
+           (fn [previous-nodes-added]
+             (into (coll/into-> previous-nodes-added []
+                     (remove nodes-deleted))
+                   nodes-added)))
     (swap! nodes-deleted-atom into nodes-deleted)
     (swap! invalidated-endpoints-atom into outputs-modified)
     (when-let [cache-atom (:cache-atom evaluation-context)]
@@ -2284,6 +2289,7 @@
                                         :local-atom
                                         :local-temp-atom
                                         :materialization-results-atom
+                                        :nodes-added-atom
                                         :nodes-deleted-atom
                                         :tx-data-context-atom])
         previous-evaluation-context-atom-values (mapv deref evaluation-context-atoms)

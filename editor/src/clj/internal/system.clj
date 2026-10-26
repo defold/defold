@@ -430,7 +430,10 @@
                          basis-unchanged
                          (-> system
                              (commit-basis initial-basis @(:basis-ref evaluation-context))
-                             (commit-transaction-effects invalidated-endpoints @(:nodes-deleted-atom evaluation-context))
+                             (commit-transaction-effects invalidated-endpoints
+                                                         @(:nodes-added-atom evaluation-context)
+                                                         @(:nodes-deleted-atom evaluation-context)
+                                                         false)
                              (merge-materialization-results @(:materialization-results-atom evaluation-context)))
 
                          :else
