@@ -62,6 +62,7 @@ class FontEffectTest : public jc_test_base_class
         params.m_Width = params.m_Height = 16;
         m_Context = dmGraphics::NewContext(params);
         ASSERT_NE((dmGraphics::HContext)0, m_Context);
+        ASSERT_TRUE(GraphicsTestRetainDriLibraries());
         m_Cache = FontCreateEffectCache(m_Context);
         m_Frame = 0;
 

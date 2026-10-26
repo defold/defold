@@ -155,6 +155,7 @@ static void InitializeFontImages()
     params.m_Width = params.m_Height = 16;
     g_ImageContext = dmGraphics::NewContext(params);
     ASSERT_NE((dmGraphics::HContext)0, g_ImageContext);
+    ASSERT_TRUE(GraphicsTestRetainDriLibraries());
     dmGraphics::SetSwapInterval(g_ImageContext, 0);
     g_ImageDeclaration = FontCreateGlyphVertexDeclaration(g_ImageContext);
     g_ImageEffects = FontCreateEffectCache(g_ImageContext);

@@ -16,6 +16,11 @@
 #define DM_GRAPHICS_TEST_SANITIZERS_H
 
 #if defined(DM_PLATFORM_LINUX) && defined(DM_SANITIZE_ADDRESS)
+#include <dlfcn.h>
+#include <link.h>
+#include <stdio.h>
+#include <string.h>
+
 extern "C" const char* __lsan_default_suppressions()
 {
     // Xlib retains an input-method allocation after glfwTerminate(). Keep this
@@ -23,6 +28,41 @@ extern "C" const char* __lsan_default_suppressions()
     // https://github.com/glfw/glfw/issues/2546
     return "leak:_XimOpenIM\n";
 }
+
+static int GraphicsTestRetainDriLibrary(struct dl_phdr_info* info, size_t, void*)
+{
+    const char suffix[] = "_dri.so";
+    const size_t length = strlen(info->dlpi_name);
+    if (length < sizeof(suffix) - 1 || strcmp(info->dlpi_name + length - (sizeof(suffix) - 1), suffix) != 0)
+        return 0;
+
+    void* library = dlopen(info->dlpi_name, RTLD_LAZY | RTLD_NOLOAD | RTLD_NODELETE);
+    if (!library)
+    {
+        fprintf(stderr, "Cannot retain graphics test driver %s: %s\n", info->dlpi_name, dlerror());
+        return 1;
+    }
+    // Balance the handle; RTLD_NODELETE keeps the module mapped after dlclose.
+    if (dlclose(library) != 0)
+    {
+        fprintf(stderr, "Cannot close graphics test driver handle %s: %s\n", info->dlpi_name, dlerror());
+        return 1;
+    }
+    return 0;
+}
 #endif
+
+// Call after context creation, before GLFW can unload the DRI driver. Mesa 23.2.1
+// retains CPU topology and executable-heap allocations in driver globals
+// (get_cpu_topology and rtasm_execmem's init_heap). Keep those roots and their
+// allocation stacks available to LSan without suppressing application leaks.
+static inline bool GraphicsTestRetainDriLibraries()
+{
+#if defined(DM_PLATFORM_LINUX) && defined(DM_SANITIZE_ADDRESS)
+    return dl_iterate_phdr(GraphicsTestRetainDriLibrary, 0) == 0;
+#else
+    return true;
+#endif
+}
 
 #endif

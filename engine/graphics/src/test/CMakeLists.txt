@@ -1,5 +1,31 @@
 set(GRAPHICS_TEST_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
+if(WITH_ASAN AND TARGET_PLATFORM MATCHES "linux$" AND NOT CMAKE_CROSSCOMPILING)
+  defold_add_library(test_graphics_sanitizers_driver MODULE "${GRAPHICS_TEST_SRC_DIR}/graphics_test_driver.cpp")
+  defold_target_skip_sanitizer(test_graphics_sanitizers_driver)
+  set_target_properties(test_graphics_sanitizers_driver PROPERTIES
+    PREFIX "" OUTPUT_NAME "graphics_test_dri" EXCLUDE_FROM_ALL TRUE)
+  defold_add_executable(test_graphics_sanitizers "${GRAPHICS_TEST_SRC_DIR}/test_graphics_sanitizers.cpp")
+  target_link_libraries(test_graphics_sanitizers PRIVATE dl)
+  add_dependencies(test_graphics_sanitizers test_graphics_sanitizers_driver)
+  defold_register_test_target(test_graphics_sanitizers OFF)
+  set(_graphics_sanitizer_command "${CMAKE_COMMAND}"
+    "-DPROBE=$<TARGET_FILE:test_graphics_sanitizers>"
+    "-DDRIVER=$<TARGET_FILE:test_graphics_sanitizers_driver>"
+    -P "${GRAPHICS_TEST_SRC_DIR}/test_graphics_sanitizers.cmake")
+  # Exercise real loader/LSan behavior in child processes without requiring a GPU.
+  add_custom_target(run_test_graphics_sanitizers
+    COMMAND ${_graphics_sanitizer_command}
+    DEPENDS test_graphics_sanitizers VERBATIM)
+  if(NOT TARGET run_tests)
+    add_custom_target(run_tests)
+  endif()
+  defold_add_to_run_tests(run_test_graphics_sanitizers
+    COMMAND ${_graphics_sanitizer_command} DEPENDS test_graphics_sanitizers)
+  defold_register_sequential_test_command(graphics_sanitizers
+    COMMAND ${_graphics_sanitizer_command} DEPENDS test_graphics_sanitizers)
+endif()
+
 defold_create_exported_symbols_file(
   "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_graphics_null.cpp"
   "GraphicsAdapterNull")
