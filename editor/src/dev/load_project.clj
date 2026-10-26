@@ -289,11 +289,9 @@
 
           (run-and-measure-task!
             :update-successors
-            (it/update-successors transaction-context))
-
-          (when transaction-context
-            (it/trace-dependencies transaction-context)
-            (it/finalize-update transaction-context)))
+            (-> transaction-context
+                (assoc :undoable-changes [])
+                (it/finalize-applied-changes))))
 
         _ (when tx-result
             (g/commit-tx-result! tx-result transact-opts pre-tx-basis))
