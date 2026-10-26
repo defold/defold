@@ -64,6 +64,19 @@ char g_HttpAddress[128] = "localhost";
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+static dmResource::Result TypedResourcePreload(const dmResource::ResourcePreloadParams*)
+{
+    return dmResource::RESULT_OK;
+}
+
+// Resource callbacks must retain the C API type when declared through the C++ SDK.
+TEST(Resource, CallbackTypeCompatibility)
+{
+    FResourcePreload preload = TypedResourcePreload;
+    ASSERT_EQ(RESOURCE_RESULT_OK, preload(0));
+}
+
+
 #include <vector>
 
 extern unsigned char RESOURCES_ARCI[];

@@ -362,13 +362,15 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertFalse(output.exists())
         self.assertTrue(all(not path.exists() for path in diagnostics))
 
-    # Verifies process failures and invalid backend identity are recorded as failures.
+    # Verifies process failures, sanitizer errors and invalid backend identity remain failures.
     def test_crash_timeout_identity_and_graphics_errors(self):
         outcomes = (
             subprocess.CompletedProcess([], -11, 'crashed'),
             subprocess.TimeoutExpired([], 60, output=b'partial log'),
             subprocess.CompletedProcess([], 0, 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=opengl\n'),
             subprocess.CompletedProcess([], 0, 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=metal\nERROR:GRAPHICS: invalid state'),
+            subprocess.CompletedProcess([], 1, 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=metal\nERROR: LeakSanitizer: detected memory leaks'),
+            subprocess.CompletedProcess([], 0, 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=metal\nERROR: LeakSanitizer: detected memory leaks'),
         )
         for outcome in outcomes:
             with self.subTest(outcome=outcome):
@@ -397,6 +399,8 @@ class GraphicsImagesTest(unittest.TestCase):
             ('texture_etc2_r', 77, log.replace('BACKEND=metal', 'BACKEND=opengl')),
             ('texture_etc2_r', 77, 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=metal\n'),
             ('texture_etc2_r', 77, log + 'ERROR:GRAPHICS: upload failed\n'),
+            ('texture_etc2_r', 1, log + 'ERROR: LeakSanitizer: detected memory leaks\n'),
+            ('texture_etc2_r', 77, log + 'ERROR: LeakSanitizer: detected memory leaks\n'),
         ):
             with self.subTest(case=case, code=code, log=text):
                 with mock.patch.object(report.subprocess, 'run', return_value=subprocess.CompletedProcess([], code, text)):
