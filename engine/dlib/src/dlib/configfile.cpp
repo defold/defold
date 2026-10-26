@@ -503,6 +503,8 @@ namespace dmConfigFile
 
     static Result LoadFromBufferInternal(const char* url, const char* buffer, uint32_t buffer_size, int argc, const char** argv, HConfig* config)
     {
+        assert(buffer != 0 || buffer_size == 0);
+
         Context context;
         // NOTE: We allocate n + 1 bytes in order to ensure that
         // the file has a terminating newline
