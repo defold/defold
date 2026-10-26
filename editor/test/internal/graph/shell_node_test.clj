@@ -20,7 +20,6 @@
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll])
   (:import [clojure.lang ExceptionInfo]
-           [com.defold.util InvalidationCounters]
            [internal.transaction MaterializationTXC]
            [java.util.concurrent CountDownLatch TimeUnit]))
 
@@ -136,7 +135,7 @@
                               (g/node-by-id (g/now) node-id)))))
           (is (= (inc (long (gt/tx-id initial-basis))) (gt/tx-id (g/now))))
           (is (= 12 (get (g/cache) (gt/endpoint shell :result))))
-          (is (.contains ^InvalidationCounters (g/invalidate-counters) child))
+          (is (.contains (g/invalidate-counters) child))
           (is (not (contains? (g/cache) (gt/endpoint consumer :result))))
           (is (g/endpoint-invalidated-since? (gt/endpoint consumer :result)
                                              initial-invalidate-counters
@@ -178,10 +177,10 @@
             ;; evaluation-context.
             (g/set-property! other :value 1))
           (g/update-system-from-evaluation-context! evaluation-context))
-        (is (.contains ^InvalidationCounters (g/invalidate-counters) first-child))
+        (is (.contains (g/invalidate-counters) first-child))
         (is (= 5 (g/node-value first-child :result)))
         (is (= (not= :delete child-action)
-               (.contains ^InvalidationCounters (g/invalidate-counters) second-child)))
+               (.contains (g/invalidate-counters) second-child)))
         (case child-action
           :keep (is (= 7 (g/node-value second-child :result)))
           :delete (is (nil? (g/node-by-id second-child)))
@@ -284,8 +283,8 @@
           (is (= 7 (g/node-value shell :result evaluation-context)))
           (g/user-data! child :marker :retained)
           (g/update-system-from-evaluation-context! evaluation-context)
-          (is (.contains ^InvalidationCounters (g/invalidate-counters) child))
-          (is (not (.contains ^InvalidationCounters (g/invalidate-counters) failed-child)))
+          (is (.contains (g/invalidate-counters) child))
+          (is (not (.contains (g/invalidate-counters) failed-child)))
           (is (= :retained (g/user-data child :marker)))
           (is (= 5 (g/node-value child :result)))
           (finally

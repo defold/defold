@@ -31,7 +31,8 @@
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
-  (:import [internal.graph.error_values ErrorValue]
+  (:import [com.defold.util InvalidationCounters]
+           [internal.graph.error_values ErrorValue]
            [internal.graph.types Arc]
            [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
@@ -211,7 +212,7 @@
 
 (defn invalidate-counters
   "The current state of the invalidate counters in the system."
-  []
+  ^InvalidationCounters []
   (is/invalidate-counters @*the-system*))
 
 (defn flag-nodes-as-migrated! [evaluation-context migrated-node-ids]

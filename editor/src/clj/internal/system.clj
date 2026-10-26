@@ -24,6 +24,7 @@
             [util.coll :as coll]
             [util.defonce :as defonce])
   (:import [clojure.lang ExceptionInfo]
+           [com.defold.util InvalidationCounters]
            [java.util ConcurrentModificationException]
            [java.util.concurrent.atomic AtomicLong]))
 
@@ -365,7 +366,8 @@
     invalidate-counters
     (throw (IllegalArgumentException. "The evaluation-context does not have :initial-invalidate-counters."))))
 
-(defn invalidate-counters [system]
+(defn invalidate-counters
+  ^InvalidationCounters [system]
   (if-let [invalidate-counters (:invalidate-counters system)]
     invalidate-counters
     (throw (IllegalArgumentException. "The argument is not a valid system."))))
