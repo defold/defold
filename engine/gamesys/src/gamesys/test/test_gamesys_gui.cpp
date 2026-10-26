@@ -1109,6 +1109,81 @@ TEST_F(FontTest, ReloadDuringPrewarmKeepsResourceOwnedCompletion)
     dmResource::DeletePreloader(preloader);
 }
 
+// Adding characters before the first PostCreate must retain resource-owned completion even without an old batch.
+TEST_F(FontTest, RecreateAddsPrewarmBeforePostCreate)
+{
+    const char* path = "/font/dyn_negative_ascent_empty.fontc";
+    dmResource::HPreloader preloader = dmResource::NewPreloader(m_Factory, path);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    ResourceDescriptor* descriptor = 0;
+    while (!descriptor && dmTime::GetMonotonicTime() < deadline)
+    {
+        dmResource::UpdatePreloader(preloader, 0, 0, 0);
+        descriptor = dmResource::FindByHash(m_Factory, dmHashString64(path));
+    }
+    ASSERT_NE((ResourceDescriptor*)0, descriptor);
+    dmGameSystem::FontResource* font = (dmGameSystem::FontResource*)dmResource::GetResource(descriptor);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_EQ((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+
+    dmRenderDDF::FontMap replacement = *font->m_DDF;
+    replacement.m_Characters = "A";
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmRenderDDF::FontMap::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    ASSERT_FALSE(font->m_PrewarmDone);
+    ASSERT_NE((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+
+    dmResource::Result result = dmResource::RESULT_PENDING;
+    while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline)
+        result = dmResource::UpdatePreloader(preloader, 0, 0, 1000);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    HFont hfont = FontCollectionGetFont(dmGameSystem::ResFontGetFontCollection(font), 0);
+    FontGlyph* glyph = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(dmGameSystem::ResFontGetHandle(font), hfont, 'A', &glyph));
+    ASSERT_NE((FontGlyph*)0, glyph);
+    ASSERT_GT(glyph->m_Bitmap.m_Height, 0u);
+
+    // Once PostCreate has finished, recreation uses the normal runtime job callbacks.
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    ASSERT_EQ((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+    while (!font->m_PrewarmDone && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_JobContext, 0);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    dmResource::DeletePreloader(preloader);
+}
+
+// An empty font still finishes PostCreate, so later recreation must use runtime callbacks for new characters.
+TEST_F(FontTest, RecreateAddsPrewarmAfterEmptyPostCreate)
+{
+    const char* path = "/font/dyn_negative_ascent_empty.fontc";
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**)&font));
+    ASSERT_TRUE(font->m_PrewarmDone);
+
+    dmRenderDDF::FontMap replacement = *font->m_DDF;
+    replacement.m_Characters = "A";
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmRenderDDF::FontMap::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    ASSERT_FALSE(font->m_PrewarmDone);
+    ASSERT_EQ((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!font->m_PrewarmDone && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_JobContext, 0);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    HFont hfont = FontCollectionGetFont(dmGameSystem::ResFontGetFontCollection(font), 0);
+    FontGlyph* glyph = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(dmGameSystem::ResFontGetHandle(font), hfont, 'A', &glyph));
+    ASSERT_NE((FontGlyph*)0, glyph);
+    ASSERT_GT(glyph->m_Bitmap.m_Height, 0u);
+    dmResource::Release(m_Factory, font);
+}
+
 TEST_F(FontTest, DynamicFontPrewarmedGlyphsFitCacheRows)
 {
     dmGameSystem::FontResource* font = 0;

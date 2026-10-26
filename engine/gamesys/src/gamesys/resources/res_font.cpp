@@ -971,6 +971,7 @@ namespace dmGameSystem
             return r;
         }
 
+        font->m_PostCreatePending = 1;
         dmResource::SetResource(params->m_Resource, font);
         PrewarmFont(params->m_Factory, path, font, true);
         dmResource::SetResourceSize(params->m_Resource, GetResourceSize(font));
@@ -980,13 +981,10 @@ namespace dmGameSystem
     static dmResource::Result ResFontPostCreate(const dmResource::ResourcePostCreateParams* params)
     {
         FontResource* font = (FontResource*)dmResource::GetResource(params->m_Resource);
-        if (font->m_PrewarmDone)
-        {
-            return dmResource::RESULT_OK;
-        }
-
-        FontGenUpdateGlyphs(font->m_PrewarmJob->m_FontGenJobData, 8000);
-        return font->m_PrewarmDone ? dmResource::RESULT_OK : dmResource::RESULT_PENDING;
+        if (!font->m_PrewarmDone)
+            FontGenUpdateGlyphs(font->m_PrewarmJob->m_FontGenJobData, 8000);
+        font->m_PostCreatePending = !font->m_PrewarmDone;
+        return font->m_PostCreatePending ? dmResource::RESULT_PENDING : dmResource::RESULT_OK;
     }
 
     static dmResource::Result ResFontDestroy(const dmResource::ResourceDestroyParams* params)
@@ -1042,11 +1040,10 @@ namespace dmGameSystem
 
         // It's easiest to do the swap here
         FontResource* resource_font_map = (FontResource*)dmResource::GetResource(params->m_Resource);
-        bool update_from_resource = resource_font_map->m_PrewarmJob != 0;
         // Copy the resources
         resource_font_map->Swap(tmp_font_map);
         // Setup the helper structs again
-        PrewarmFont(params->m_Factory, path, resource_font_map, update_from_resource);
+        PrewarmFont(params->m_Factory, path, resource_font_map, resource_font_map->m_PostCreatePending);
         DeleteFontResource(params->m_Factory, tmp_font_map);
 
         ++resource_font_map->m_Version;
