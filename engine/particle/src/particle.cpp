@@ -267,13 +267,16 @@ namespace dmParticle
             instance->m_EmitterStateChangedData = *emitter_state_changed_data;
         }
 
+        uint32_t instance_handle = instance->m_VersionNumber << 16 | index;
+        // No emitters to create.
+        if (emitter_count == 0)
+            return instance_handle;
+
         instance->m_Emitters.SetCapacity(emitter_count);
         instance->m_Emitters.SetSize(emitter_count);
-        uint32_t instance_handle = instance->m_VersionNumber << 16 | index;
 
         uint32_t seed_base = (uint32_t)dmTime::GetTime();
-        if (emitter_count)
-            memset(instance->m_Emitters.Begin(), 0, emitter_count * sizeof(Emitter));
+        memset(instance->m_Emitters.Begin(), 0, emitter_count * sizeof(Emitter));
         for (uint32_t i = 0; i < emitter_count; ++i)
         {
             Emitter* emitter = &instance->m_Emitters[i];
@@ -1879,9 +1882,10 @@ namespace dmParticle
         prototype->m_DDF = ddf;
         prototype->m_Emitters.SetCapacity(emitter_count);
         prototype->m_Emitters.SetSize(emitter_count);
+        if (emitter_count == 0)
+            return;
 
-        if (emitter_count)
-            memset(prototype->m_Emitters.Begin(), 0, emitter_count * sizeof(EmitterPrototype));
+        memset(prototype->m_Emitters.Begin(), 0, emitter_count * sizeof(EmitterPrototype));
         for (uint32_t i = 0; i < emitter_count; ++i)
         {
             dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
@@ -1934,10 +1938,12 @@ namespace dmParticle
                 }
             }
             uint32_t modifier_count = emitter_ddf->m_Modifiers.m_Count;
+            if (modifier_count == 0)
+                continue;
+
             emitter->m_Modifiers.SetCapacity(modifier_count);
             emitter->m_Modifiers.SetSize(modifier_count);
-            if (modifier_count)
-                memset(emitter->m_Modifiers.Begin(), 0, modifier_count * sizeof(ModifierPrototype));
+            memset(emitter->m_Modifiers.Begin(), 0, modifier_count * sizeof(ModifierPrototype));
             for (uint32_t i = 0; i < modifier_count; ++i)
             {
                 ModifierPrototype& modifier = emitter->m_Modifiers[i];
