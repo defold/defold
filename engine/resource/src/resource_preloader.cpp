@@ -123,6 +123,7 @@ namespace dmResource
         uint8_t m_PinQueued : 1;
         // Remains set while a callback yields scheduler ownership in a nested Get.
         uint8_t m_InCallback : 1;
+        uint8_t m_Recreating : 1;
     };
 
     // One edge per distinct parent/dependency pair. Indices survive array growth.
@@ -1084,7 +1085,9 @@ namespace dmResource
         {
             LoadNode* node = context->m_Nodes.GetPtr(context->m_Visit.Back());
             context->m_Visit.Pop();
-            if (!node->m_Complete)
+            // Recreate adds tentative edges. Publish their result only after
+            // commit or rollback has selected the retained dependencies.
+            if (!node->m_Complete || node->m_Recreating)
                 continue;
             Result result = GetNodeResult(node);
             Result previous = node->m_Result;
@@ -1129,7 +1132,7 @@ namespace dmResource
             if (index == INVALID_LOAD_INDEX)
                 return false;
             LoadNode* node = context->m_Nodes.GetPtr(index);
-            result = GetNodeResult(node);
+            result = node->m_Recreating ? node->m_CreateResult : GetNodeResult(node);
             // These stages are finished even if a shared dependency is still
             // pending. Its owner will publish final readiness through the graph.
             result = result == RESULT_PENDING ? node->m_CreateResult : result;
@@ -1649,6 +1652,7 @@ namespace dmResource
             recreate->m_Node = *found;
             LoadNode* node = context->m_Nodes.GetPtr(*found);
             node->m_InCallback = true;
+            node->m_Recreating = true;
             Signal(context);
             recreate->m_FirstDependency = node->m_FirstDependency;
             ++node->m_References;
@@ -1722,6 +1726,7 @@ namespace dmResource
                 // Both commit and rollback reconcile errors from retained edges,
                 // including failures encountered during nested loading.
                 node->m_DependencyResult = GetDependencyResult(context, node);
+                node->m_Recreating = false;
                 UpdateNodeResult(context, recreate->m_Node);
             }
             context->m_Creating = recreate->m_PreviousCreating;

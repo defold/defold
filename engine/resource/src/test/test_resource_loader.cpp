@@ -75,6 +75,9 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         m_SignalPost = false;
         m_RecreateFromPost = ~0u;
         m_RecreateResult = dmResource::RESULT_PENDING;
+        m_UpdateDuringRecreateResult = dmResource::RESULT_PENDING;
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_RecreateLookups); ++i)
+            m_RecreateLookups[i] = dmResource::RESULT_PENDING;
         m_PostPendingOnce = false;
         m_HoldPosts = false;
         m_ReplacePointer = false;
@@ -546,7 +549,37 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         caller->m_Result = caller->m_Test->Replace(0, &dependency, 1, 1);
     }
 
+    static dmResource::Result RecreateWithRequestUpdate(const dmResource::ResourceRecreateParams* params)
+    {
+        ResourceLoaderTest* self = (ResourceLoaderTest*)params->m_Context;
+        dmResource::Result result = Recreate(params);
+        self->m_UpdateDuringRecreateResult = dmResource::UpdatePreloader(self->m_Requests.Back(), 0, 0, 0);
+        return result;
+    }
+
 #if defined(DM_HAS_THREADS)
+    static void LookupDuringRecreate(void* user_data)
+    {
+        ResourceLoaderTest* self = (ResourceLoaderTest*)user_data;
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(self->m_RecreateLookups); ++i)
+        {
+            const char* path = i < 2 ? "/node_0.node" : "/node_2.node";
+            void* resource = 0;
+            self->m_RecreateLookups[i] = i % 2 ? dmResource::Get(self->m_Factory, path, &resource) : dmResource::Get(self->m_Factory, dmHashString64(path), &resource);
+            if (resource)
+                dmResource::Release(self->m_Factory, resource);
+        }
+    }
+
+    static dmResource::Result RecreateWithConcurrentLookups(const dmResource::ResourceRecreateParams* params)
+    {
+        ResourceLoaderTest* self = (ResourceLoaderTest*)params->m_Context;
+        dmResource::Result result = Recreate(params);
+        dmThread::Thread thread = dmThread::New(LookupDuringRecreate, 0x20000, self, "RecreateLookup");
+        dmThread::Join(thread);
+        return result;
+    }
+
     static void RecreateActiveResourceFromThread(void* user_data)
     {
         RecreateCaller* caller = (RecreateCaller*)user_data;
@@ -837,6 +870,8 @@ class ResourceLoaderTest : public jc_test_params_class<int>
     bool m_SignalPost;
     uint32_t m_RecreateFromPost;
     dmResource::Result m_RecreateResult;
+    dmResource::Result m_UpdateDuringRecreateResult;
+    dmResource::Result m_RecreateLookups[4];
     bool m_PostPendingOnce;
     bool m_HoldPosts;
     bool m_ReplacePointer;
@@ -1568,6 +1603,66 @@ TEST_P(ResourceLoaderTest, FailedRecreateKeepsNewDependencyFailure)
         Delete(mode);
         for (uint32_t id = root; id <= replacement; ++id)
             ASSERT_EQ(1u, m_Destroys[id]);
+    }
+}
+
+// Concurrent lookups keep the resident resource and its ancestors usable while a failed recreation is still in its callback.
+TEST_P(ResourceLoaderTest, FailedRecreateKeepsConcurrentLookups)
+{
+#if defined(DM_HAS_THREADS)
+    Add(0, 0, 0);
+    Add(1, 0, 0);
+    uint32_t child = 0;
+    Add(2, &child, 1);
+    dmResource::HPreloader request = Request(2);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(request));
+    m_FailedPreload = 1;
+    ResourceTypeSetRecreateFn(dmResource::FindResourceType(m_Factory, "node"), (FResourceRecreate)RecreateWithConcurrentLookups);
+    uint32_t failed = 1;
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Replace(0, &failed, 1, mode));
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_RecreateLookups); ++i)
+            ASSERT_EQ(dmResource::RESULT_OK, m_RecreateLookups[i]);
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(request));
+    }
+    Delete(0);
+    ASSERT_EQ(1u, m_Destroys[0]);
+    ASSERT_EQ(1u, m_Destroys[2]);
+#endif
+}
+
+// Cleanup inside Recreate cannot publish a tentative failure or latch it into the original loading request.
+TEST_P(ResourceLoaderTest, FailedRecreateDefersCleanupResult)
+{
+    EnablePostCreate();
+    ResourceTypeSetRecreateFn(dmResource::FindResourceType(m_Factory, "node"), (FResourceRecreate)RecreateWithRequestUpdate);
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        uint32_t child = mode * 3;
+        uint32_t failed = child + 1;
+        uint32_t root = child + 2;
+        m_HeldPost = child;
+        m_FailedPreload = failed;
+        Add(child, 0, 0);
+        Add(failed, 0, 0);
+        Add(root, &child, 1);
+        dmResource::HPreloader request = Request(root);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!m_Posts[root] && dmTime::GetMonotonicTime() < deadline)
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 1000000));
+        ASSERT_EQ(1u, m_Posts[root]);
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 1000000));
+        uint32_t posts = m_Posts[child];
+        m_HeldPost = ~0u;
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+        ASSERT_EQ(posts + 1, m_Posts[child]);
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Replace(child, &failed, 1, mode));
+        ASSERT_EQ(dmResource::RESULT_PENDING, m_UpdateDuringRecreateResult);
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(request));
+        Delete(mode);
+        ASSERT_EQ(1u, m_Destroys[root]);
+        ASSERT_EQ(1u, m_Destroys[child]);
     }
 }
 
