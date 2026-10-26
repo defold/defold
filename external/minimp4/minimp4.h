@@ -1823,6 +1823,7 @@ int MP4E_close(MP4E_mux_t *mux)
 typedef uint32_t bs_item_t;
 #define BS_BITS 32
 
+// DEFOLD BEGIN: Support unaligned H.264 buffers in the bit reader and writer.
 typedef struct
 {
     // Look-ahead bit cache: MSB aligned, 17 bits guaranteed, zero stuffing
@@ -2011,6 +2012,7 @@ static void h264e_bs_init_bits(bs_t *bs, void *data)
     bs->shift = BS_BITS;
     bs->cache = 0;
 }
+// DEFOLD END
 
 static int find_mem_cache(void *cache[], int cache_bytes[], int cache_size, void *mem, int bytes)
 {
