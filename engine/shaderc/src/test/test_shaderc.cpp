@@ -738,6 +738,61 @@ TEST(Shaderc, HLSLPreservesCrossCompilationError)
 }
 
 #if defined(_WIN32)
+// Verifies the FXC retry changes default loops only after unrolling failures and preserves explicit attributes.
+TEST(Shaderc, HLSLLoopRetryPreservesExplicitAttributes)
+{
+    dmArray<char> output;
+    const char* source = "for (;;) {}\n[unroll]\nfor (;;) {}\nfor (;;) {}\n";
+    const char* errors = "shader(4,1-3): error X3511: unroll failed\n"
+                         "shader(3,1-3): error X3511: unroll failed\n"
+                         "shader(4,1-3): error X3511: unroll failed\n";
+    ASSERT_TRUE(dmShaderc::AddHLSLLoopAttributesForUnrollErrors(source, errors, output));
+    ASSERT_STREQ("[loop] for (;;) {}\n[unroll]\nfor (;;) {}\n[loop] for (;;) {}\n", output.Begin());
+    ASSERT_FALSE(dmShaderc::AddHLSLLoopAttributesForUnrollErrors("[unroll] for (;;) {}", "shader(1,1): error X3511: unroll failed", output));
+    ASSERT_FALSE(dmShaderc::AddHLSLLoopAttributesForUnrollErrors("for (;;) {}", "shader(1,1): error X3000: syntax error", output));
+    ASSERT_FALSE(dmShaderc::AddHLSLLoopAttributesForUnrollErrors("return 0;", "shader(1,1): error X3511: unroll failed", output));
+}
+
+// Verifies a real FXC unrolling failure compiles on retry, retaining implicit sampling and a valid root signature.
+TEST(Shaderc, HLSLCompilesDynamicSampleLoops)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/hlsl_dynamic_sample_loops.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::ShaderCompilerSPVC* compiler = dmShaderc::NewShaderCompilerSPVC(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+    dmShaderc::ShaderCompileResult* raw_hlsl = dmShaderc::CompileSPVC(context, compiler, options);
+    ASSERT_STREQ("", raw_hlsl->m_LastError);
+
+    ID3DBlob* code = 0;
+    ID3DBlob* errors = 0;
+    HRESULT hr = D3DCompile(raw_hlsl->m_Data.Begin(), raw_hlsl->m_Data.Size(), 0, 0, 0, "main", "ps_5_1", D3DCOMPILE_ENABLE_STRICTNESS, 0, &code, &errors);
+    ASSERT_TRUE(FAILED(hr));
+    ASSERT_NE((void*) 0, errors);
+    ASSERT_NE((void*) 0, strstr((const char*) errors->GetBufferPointer(), "error X3511:"));
+    errors->Release();
+    dmShaderc::FreeShaderCompileResult(raw_hlsl);
+    dmShaderc::DeleteShaderCompilerSPVC(compiler);
+    compiler = dmShaderc::NewShaderCompilerSPVC(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, (dmShaderc::HShaderCompiler) compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_STREQ("", result->m_LastError);
+    ASSERT_GT(result->m_HLSLRootSignature.Size(), 0u);
+    ID3DBlob* assembly = 0;
+    ASSERT_EQ(S_OK, D3DDisassemble(result->m_Data.Begin(), result->m_Data.Size(), 0, 0, &assembly));
+    ASSERT_NE((void*) 0, strstr((const char*) assembly->GetBufferPointer(), "sample "));
+    ASSERT_EQ((void*) 0, strstr((const char*) assembly->GetBufferPointer(), "sample_l"));
+    assembly->Release();
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompilerSPVC(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+}
+
 // Verifies binary compilation returns its diagnostic through the public API instead of null.
 TEST(Shaderc, HLSLPreservesBinaryCompilationError)
 {

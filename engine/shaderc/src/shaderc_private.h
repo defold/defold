@@ -112,6 +112,7 @@ namespace dmShaderc
     void GetCombinedSamplerMapSPIRV(HShaderContext context, ShaderCompilerSPVC* compiler, dmArray<CombinedSampler>& samplers);
 
     ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions* options, ShaderCompileResult* raw_hlsl);
+    bool AddHLSLLoopAttributesForUnrollErrors(const char* source, const char* diagnostics, dmArray<char>& output);
     bool RootSignatureBlobToText(const void* blob_data, uint32_t blob_size, dmArray<char>& out_text);
 }
 

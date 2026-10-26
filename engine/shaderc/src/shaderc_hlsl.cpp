@@ -1147,7 +1147,7 @@ namespace dmShaderc
         {
             if (out_error_blob && *out_error_blob)
             {
-                dmLogError("%s:\n%s", error_prefix, (char*) (*out_error_blob)->GetBufferPointer());
+                dmLogDebug("%s:\n%s", error_prefix, (char*) (*out_error_blob)->GetBufferPointer());
             }
             else
             {
@@ -1428,6 +1428,68 @@ namespace dmShaderc
         return true;
     }
 
+    bool AddHLSLLoopAttributesForUnrollErrors(const char* source, const char* diagnostics, dmArray<char>& output)
+    {
+        if (!strstr(diagnostics, ": error X3511:"))
+            return false;
+
+        dmArray<uint32_t> offsets;
+        const char* line = source;
+        while (line && *line)
+        {
+            const char* loop = line;
+            line = strchr(line, '\n');
+            if (line)
+                ++line;
+            while (*loop == ' ' || *loop == '\t')
+                ++loop;
+
+            // Only annotate a generated loop with no existing flow-control
+            // attribute. In particular, never override an explicit [unroll].
+            const char* token_end = 0;
+            if (strncmp(loop, "for", 3) == 0)
+                token_end = loop + 3;
+            else if (strncmp(loop, "while", 5) == 0)
+                token_end = loop + 5;
+            else
+                continue;
+            while (*token_end == ' ' || *token_end == '\t')
+                ++token_end;
+            if (*token_end != '(')
+                continue;
+            const char* previous = loop;
+            while (previous > source && (previous[-1] == ' ' || previous[-1] == '\t' || previous[-1] == '\r' || previous[-1] == '\n'))
+                --previous;
+            if (previous > source && previous[-1] == ']')
+                continue;
+
+            if (offsets.Full())
+                offsets.OffsetCapacity(8);
+            offsets.Push((uint32_t) (loop - source));
+        }
+        if (offsets.Empty())
+            return false;
+
+        const char* attribute = "[loop] ";
+        uint32_t attribute_size = (uint32_t) strlen(attribute);
+        uint32_t source_size = (uint32_t) strlen(source) + 1;
+        output.SetCapacity(source_size + offsets.Size() * attribute_size);
+        uint32_t read_offset = 0;
+        uint32_t write_offset = 0;
+        for (uint32_t i = 0; i < offsets.Size(); ++i)
+        {
+            uint32_t size = offsets[i] - read_offset;
+            memcpy(output.Begin() + write_offset, source + read_offset, size);
+            write_offset += size;
+            memcpy(output.Begin() + write_offset, attribute, attribute_size);
+            write_offset += attribute_size;
+            read_offset = offsets[i];
+        }
+        memcpy(output.Begin() + write_offset, source + read_offset, source_size - read_offset);
+        output.SetSize(write_offset + source_size - read_offset);
+        return true;
+    }
+
     static ShaderCompileResult* CreateHLSLCompileErrorResult(const char* error)
     {
         size_t error_size = strlen(error) + 1;
@@ -1492,10 +1554,32 @@ namespace dmShaderc
         }
         prepared_hlsl_source.Begin()[raw_hlsl->m_Data.Size()] = '\0';
 
-        const uint32_t prepared_hlsl_source_size = prepared_hlsl_source.Size() > 0 ? prepared_hlsl_source.Size() - 1 : 0;
+        uint32_t prepared_hlsl_source_size = prepared_hlsl_source.Size() > 0 ? prepared_hlsl_source.Size() - 1 : 0;
         D3D12_SHADER_DESC shaderDesc;
         // Step 1: Reflection pass with D3DCompiler to build deterministic resource mappings.
-        if (!CreateReflectionData(options, prepared_hlsl_source.Begin(), prepared_hlsl_source_size, entry_point, reflection_profile, &shader_blob, &error_blob, &reflection, &shaderDesc))
+        bool reflected = CreateReflectionData(options, prepared_hlsl_source.Begin(), prepared_hlsl_source_size, entry_point, reflection_profile, &shader_blob, &error_blob, &reflection, &shaderDesc);
+        if (!reflected && error_blob)
+        {
+            dmArray<char> loop_source;
+            if (AddHLSLLoopAttributesForUnrollErrors(prepared_hlsl_source.Begin(), (const char*) error_blob->GetBufferPointer(), loop_source))
+            {
+                // FXC may try to unroll dynamic loops containing implicit texture
+                // samples. Retry the failed shader with default loops kept rolled,
+                // including nested loops whose unrolling can force an outer loop
+                // to unroll. Retain Sample rather than forcing an explicit LOD.
+                error_blob->Release();
+                error_blob = 0;
+                if (shader_blob)
+                {
+                    shader_blob->Release();
+                    shader_blob = 0;
+                }
+                prepared_hlsl_source.Swap(loop_source);
+                prepared_hlsl_source_size = prepared_hlsl_source.Size() - 1;
+                reflected = CreateReflectionData(options, prepared_hlsl_source.Begin(), prepared_hlsl_source_size, entry_point, reflection_profile, &shader_blob, &error_blob, &reflection, &shaderDesc);
+            }
+        }
+        if (!reflected)
         {
             goto cleanup;
         }
@@ -1602,6 +1686,7 @@ namespace dmShaderc
                 FreeShaderCompileResult(result);
             const char* diagnostic = error_blob ? (const char*) error_blob->GetBufferPointer() : 0;
             result = CreateHLSLCompileErrorResult(IsNullOrEmpty(diagnostic) ? failure_reason : diagnostic);
+            dmLogError("%s", IsNullOrEmpty(diagnostic) ? failure_reason : diagnostic);
         }
         if (error_blob)
             error_blob->Release();
