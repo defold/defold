@@ -112,6 +112,12 @@
   (vec3 position)
   (vec2 texcoord0)
   (vec4 color)
+  (vec1 page_index))
+
+(vtx2/defvertex svg-uv-color-vtx
+  (vec3 position)
+  (vec2 texcoord0)
+  (vec4 color)
   (vec1 page_index)
   (vec1 svg_time))
 
@@ -150,11 +156,12 @@
 
 (defn- gen-geom-vb
   [renderables]
-  (let [vcount (transduce (map (comp count :geom-data :user-data)) + renderables)]
+  (let [vcount (transduce (map (comp count :geom-data :user-data)) + renderables)
+        vector-content (svg/vector-texture? (get-in renderables [0 :user-data :gpu-texture]))]
     (when (pos? vcount)
       (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data] :as renderable}]
-                            (if-let [geom-data (seq (:geom-data user-data))]
-                              (let [[r g b a] (if (svg/vector-texture? (:gpu-texture user-data))
+                            (if-let [geom-data (coll/not-empty (:geom-data user-data))]
+                              (let [[r g b a] (if vector-content
                                                 (:color user-data)
                                                 (premul (:color user-data)))
                                     page-index (:page-index user-data)]
@@ -162,10 +169,15 @@
                                        [[x y z :as vtx] & vs] (geom/transf-p world-transform geom-data)
                                        [[u v :as uv] & uvs] (:uv-data user-data)]
                                   (if vtx
-                                    (recur (uv-color-vtx-put! vb x y z u v r g b a page-index 0.0) vs uvs)
+                                    (recur (if vector-content
+                                             (svg-uv-color-vtx-put! vb x y z u v r g b a page-index 0.0)
+                                             (uv-color-vtx-put! vb x y z u v r g b a page-index))
+                                           vs uvs)
                                     vb)))
                               vb))
-                          (->uv-color-vtx vcount)
+                          (if vector-content
+                            (->svg-uv-color-vtx vcount)
+                            (->uv-color-vtx vcount))
                           renderables)))))
 
 (defn- gen-font-render-data

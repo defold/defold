@@ -18,6 +18,8 @@
             [editor.atlas :as atlas]
             [editor.defold-project :as project]
             [editor.gl.shader :as shader]
+            [editor.gl.vertex2 :as vertex2]
+            [editor.gui :as gui]
             [editor.image-util :as image-util]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -29,11 +31,14 @@
             [util.coll :as coll])
   (:import [com.dynamo.bob.pipeline VectorAtlasCompiler]
            [com.dynamo.gamesys.proto AtlasProto$Atlas]
-           [java.awt.image BufferedImage]))
+           [java.awt.image BufferedImage]
+           [java.nio ByteBuffer]
+           [javax.vecmath Matrix4d]))
 
 (set! *warn-on-reflection* true)
 
-;; Drop filtering rejects incompatible images; saved vector atlases reopen.
+;; Drop filtering rejects incompatible images and infers an empty atlas's mode.
+;; Saved vector atlases reopen with the same contents.
 (deftest svg-drop-and-save
   (test-util/with-scratch-project "test/resources/svg_project"
     (let [atlas (project/get-resource-node project "/vector.atlas")
@@ -46,6 +51,16 @@
       (g/transact (#'atlas/handle-drop raster [] workspace nil [svg]))
       (is (= vector-before (g/valid-node-value atlas :save-value)))
       (is (= raster-before (g/valid-node-value raster :save-value)))
+      (doseq [[path images mode] [["/empty-vector.atlas" [svg png] :vector]
+                                  ["/empty-raster.atlas" [png svg] :raster]]]
+        (let [empty-resource (test-util/make-resource! workspace path {})]
+          (workspace/resource-sync! workspace)
+          (let [empty-atlas (project/get-resource-node project empty-resource)]
+            (g/transact (#'atlas/handle-drop empty-atlas [] workspace nil
+                                             (into [(workspace/find-resource workspace "/game.project")] images)))
+            (is (= mode (g/valid-node-value empty-atlas :atlas-mode)))
+            (is (= [(resource/proj-path (first images))]
+                   (mapv :image (:images (g/valid-node-value empty-atlas :save-value))))))))
       (g/set-property! atlas :rename-patterns "shape=saved")
       (test-util/save-project! project)
       (let [atlas-resource (g/valid-node-value atlas :resource)
@@ -57,6 +72,23 @@
           (workspace/resource-sync! workspace)
           (is (= (g/valid-node-value atlas :texture-set)
                  (g/valid-node-value (project/get-resource-node project reopened) :texture-set))))))))
+
+;; Raster GUI previews keep their original vertex size and premultiplied colors.
+;; SVG playback time belongs only to the vector vertex layout.
+(deftest gui-preview-vertex-layouts
+  (let [renderable {:world-transform (doto (Matrix4d.) (.setIdentity))
+                    :user-data {:geom-data [[1.0 2.0 3.0]]
+                                :uv-data [[4.0 5.0]]
+                                :color [1.0 0.5 0.25 0.5]
+                                :page-index 6.0}}]
+    (doseq [[gpu-texture expected] [[nil [1.0 2.0 3.0 4.0 5.0 0.5 0.25 0.125 0.5 6.0]]
+                                    [{:vector true} [1.0 2.0 3.0 4.0 5.0 1.0 0.5 0.25 0.5 6.0 0.0]]]]
+      (let [vertices (#'gui/gen-geom-vb [(assoc-in renderable [:user-data :gpu-texture] gpu-texture)])
+            ^ByteBuffer buffer (vertex2/buf vertices)]
+        (is (= 1 (count vertices)))
+        (is (= (* Float/BYTES (count expected)) (.limit buffer)))
+        (is (= expected (mapv (fn [^long index] (.getFloat buffer (int (* Float/BYTES index))))
+                              (range (count expected)))))))))
 
 ;; Preserve Bob's payload, image variants and animations in editor builds.
 (deftest svg-compiler-agreement

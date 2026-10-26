@@ -1053,6 +1053,13 @@
       (g/with-auto-evaluation-context evaluation-context
         (selection->atlas selection evaluation-context)))))
 
+(defn- compatible-image-resources [atlas-mode resources]
+  (let [image-resources (filterv #(or (image/image-resource? %) (svg/svg-resource? %)) resources)
+        vector-content (if atlas-mode
+                         (= :vector atlas-mode)
+                         (svg/svg-resource? (first image-resources)))]
+    (filterv #(= vector-content (svg/svg-resource? %)) image-resources)))
+
 (defn- add-images-handler [app-view workspace project parent accept-fn] ; parent = new parent of images
   (let [atlas-node (if (g/node-instance? AtlasNode parent) parent (core/scope parent))
         mode (when (coll/not-empty (g/node-value atlas-node :image-modes))
@@ -1062,8 +1069,7 @@
                                                                        :title (localization/message "dialog.add-atlas-images.title")
                                                                        :selection :multiple
                                                                        :accept-fn accept-fn}))]
-      (let [vector-content (svg/svg-resource? (first chosen-resources))
-            image-resources (filterv #(= vector-content (svg/svg-resource? %)) chosen-resources)
+      (let [image-resources (compatible-image-resources mode chosen-resources)
             op-seq (gensym)
             image-msgs (mapv #(assoc default-image-msg :image %) image-resources)
             image-nodes (g/tx-nodes-added
@@ -1271,12 +1277,9 @@
           parent (or (handler/adapt-single selection AtlasAnimation evaluation-context)
                      (some #(core/scope-of-type basis % AtlasAnimation) selection)
                      root-id)
-          atlas-mode (g/node-value root-id :atlas-mode evaluation-context)
-          image-resources (filterv #(or (image/image-resource? %) (svg/svg-resource? %)) resources)
-          vector-content (if (coll/empty? (g/node-value root-id :image-modes evaluation-context))
-                           (svg/svg-resource? (first image-resources))
-                           (= :vector atlas-mode))
-          image-resources (filterv #(= vector-content (boolean (svg/svg-resource? %))) image-resources)]
+          atlas-mode (when (coll/not-empty (g/node-value root-id :image-modes evaluation-context))
+                       (g/node-value root-id :atlas-mode evaluation-context))
+          image-resources (compatible-image-resources atlas-mode resources)]
       (g/eager-tx-data
         (create-dropped-images parent image-resources evaluation-context)))))
 
