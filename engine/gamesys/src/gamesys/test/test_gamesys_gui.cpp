@@ -3608,6 +3608,20 @@ TEST_F(GuiLayoutChangedTest, InitialLayoutWithoutResize)
     ASSERT_TRUE(RunString(m_L, "assert(#layout_changed_test.messages == 0)"));
 }
 
+// Layout callbacks must dispatch the correct payload using aligned message storage under UBSan.
+TEST_F(GuiLayoutChangedTest, LayoutCallbackAfterInit)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    m_Scene->m_ApplyLayoutCallback(m_Scene, dmHashString64("Square"));
+    ASSERT_TRUE(RunString(m_L,
+        "assert(#layout_changed_test.messages == 1)\n"
+        "local message = layout_changed_test.messages[1]\n"
+        "assert(message.initialized)\n"
+        "assert(message.previous_id == hash('Landscape'))\n"
+        "assert(message.id == hash('Square'))\n"
+        "assert(message.position == 40)"));
+}
+
 // Coalesce pre-init resizes without calling Lua early or overwriting init's node changes (#8250).
 TEST_F(GuiLayoutChangedTest, ResizeBeforeInit)
 {

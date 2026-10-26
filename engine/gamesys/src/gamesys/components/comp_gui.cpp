@@ -1028,7 +1028,7 @@ namespace dmGameSystem
             return;
         }
 
-        char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
+        char DM_ALIGNED(16) buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
         dmMessage::Message* message = (dmMessage::Message*)buf;
         memset(message, 0, sizeof(dmMessage::Message));
         message->m_Sender = dmMessage::URL();
