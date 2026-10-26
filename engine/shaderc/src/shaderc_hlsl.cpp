@@ -1155,6 +1155,13 @@ namespace dmShaderc
             }
             return false;
         }
+        // Successful compilation can still return warnings. Do not mistake these
+        // for the diagnostic of a later reflection or root-signature failure.
+        if (out_error_blob && *out_error_blob)
+        {
+            (*out_error_blob)->Release();
+            *out_error_blob = NULL;
+        }
         return true;
     }
 
@@ -1421,6 +1428,23 @@ namespace dmShaderc
         return true;
     }
 
+    static ShaderCompileResult* CreateHLSLCompileErrorResult(const char* error)
+    {
+        size_t error_size = strlen(error) + 1;
+        ShaderCompileResult* result = (ShaderCompileResult*) malloc(sizeof(ShaderCompileResult) + error_size);
+        if (!result)
+            return 0;
+
+        memset(result, 0, sizeof(ShaderCompileResult));
+        // Keep the diagnostic in the result allocation so FreeShaderCompileResult
+        // releases it, independently of the compiler blobs and shader context.
+        char* owned_error = (char*) (result + 1);
+        memcpy(owned_error, error, error_size);
+        result->m_LastError = owned_error;
+        result->m_HLSLNumWorkGroupsId = 0xFF;
+        return result;
+    }
+
     ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions* options, ShaderCompileResult* raw_hlsl)
     {
         DM_TRACE_LINE();
@@ -1430,6 +1454,8 @@ namespace dmShaderc
         char* src_data = 0;
         bool success = false;
         ShaderCompileResult* result = 0;
+        const char* failure_reason = "Failed to compile or reflect HLSL shader";
+        char configuration_error[128];
 
         dmArray<uint8_t> output_blob;
         dmArray<uint8_t> root_signature_data;
@@ -1443,7 +1469,9 @@ namespace dmShaderc
         const bool use_external_compiler = !IsNullOrEmpty(options->m_ExternalCompilerPath) && !IsNullOrEmpty(options->m_ExternalCompilerArgs);
         if (version >= 60 && !use_external_compiler)
         {
-            dmLogError("HLSL shader model %d requires an external compiler (DXC/FXC) configured from Java options.", version);
+            dmSnPrintf(configuration_error, sizeof(configuration_error), "HLSL shader model %d requires an external compiler (DXC/FXC) configured from Java options.", version);
+            failure_reason = configuration_error;
+            dmLogError("%s", failure_reason);
             goto cleanup;
         }
 
@@ -1480,7 +1508,8 @@ namespace dmShaderc
         src_data = (char*) malloc(prepared_hlsl_source_size + 1);
         if (!src_data)
         {
-            dmLogError("Out of memory while preparing HLSL source");
+            failure_reason = "Out of memory while preparing HLSL source";
+            dmLogError("%s", failure_reason);
             goto cleanup;
         }
 
@@ -1496,6 +1525,7 @@ namespace dmShaderc
         {
             if (!CreateRootSignature(options, (const char*) src_data, entry_point, reflection_profile, context->m_Stage, reflection, &shaderDesc, binary_source, root_signature_data, &shader_blob, &error_blob))
             {
+                failure_reason = "Failed to create HLSL root signature";
                 goto cleanup;
             }
         }
@@ -1505,6 +1535,7 @@ namespace dmShaderc
         {
             if (!CompileShaderToolPath(options, binary_source, profile, context->m_Stage, version, output_blob))
             {
+                failure_reason = "External HLSL compiler failed";
                 goto cleanup;
             }
         }
@@ -1527,7 +1558,8 @@ namespace dmShaderc
         result = (ShaderCompileResult*) malloc(sizeof(ShaderCompileResult));
         if (!result)
         {
-            dmLogError("Out of memory while allocating shader compile result");
+            failure_reason = "Out of memory while allocating shader compile result";
+            dmLogError("%s", failure_reason);
             goto cleanup;
         }
 
@@ -1557,12 +1589,20 @@ namespace dmShaderc
         FillResourceEntryArray(context, reflection, &shaderDesc, combined_samplers, result->m_HLSLResourceMappings);
         if (!AssignRootParameterIndices(reflection, context->m_Stage, result))
         {
+            failure_reason = "Failed to assign HLSL root parameter indices";
             goto cleanup;
         }
 
         success = true;
 
     cleanup:
+        if (!success)
+        {
+            if (result)
+                FreeShaderCompileResult(result);
+            const char* diagnostic = error_blob ? (const char*) error_blob->GetBufferPointer() : 0;
+            result = CreateHLSLCompileErrorResult(IsNullOrEmpty(diagnostic) ? failure_reason : diagnostic);
+        }
         if (error_blob)
             error_blob->Release();
         if (shader_blob)
@@ -1571,18 +1611,6 @@ namespace dmShaderc
             reflection->Release();
         if (src_data)
             free(src_data);
-
-        if (!success)
-        {
-            if (result)
-            {
-                result->m_Data.SetCapacity(0);
-                result->m_HLSLResourceMappings.SetCapacity(0);
-                result->m_HLSLRootSignature.SetCapacity(0);
-                free(result);
-            }
-            return 0;
-        }
 
         return result;
     }

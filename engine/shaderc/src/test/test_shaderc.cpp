@@ -714,6 +714,98 @@ TEST(Shaderc, TestHLSLSimple)
     free(data);
 }
 
+// Verifies SPIRV-Cross errors survive the HLSL path instead of being replaced by binary compiler errors.
+TEST(Shaderc, HLSLPreservesCrossCompilationError)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/hlsl_unsupported_int64.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51; // SPIRV-Cross requires SM6 for 64-bit integers.
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_NE((void*) 0, strstr(result->m_LastError, "64-bit"));
+    ASSERT_EQ(0u, result->m_Data.Size());
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+}
+
+#if defined(_WIN32)
+// Verifies binary compilation returns its diagnostic through the public API instead of null.
+TEST(Shaderc, HLSLPreservesBinaryCompilationError)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/reflection.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+    options.m_EntryPoint = "missing_shader_entry_point";
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+
+    ASSERT_NE((void*) 0, strstr(result->m_LastError, "missing_shader_entry_point"));
+    ASSERT_EQ(0u, result->m_Data.Size());
+    ASSERT_EQ(0u, result->m_HLSLRootSignature.Size());
+    dmShaderc::FreeShaderCompileResult(result);
+}
+
+// Verifies full compiler diagnostics remain readable after blob cleanup, even beyond the log message limit.
+TEST(Shaderc, HLSLPreservesLongCompilerDiagnostic)
+{
+    char source[8192];
+    uint32_t offset = dmSnPrintf(source, sizeof(source), "float4 main() : SV_Target {\n");
+    for (uint32_t i = 0; i < 64; ++i)
+        offset += dmSnPrintf(source + offset, sizeof(source) - offset, "float value_%u = float4(1, 2, 3, 4);\n", i);
+    offset += dmSnPrintf(source + offset, sizeof(source) - offset, "return diagnostic_end_marker;\n}\n");
+
+    dmShaderc::ShaderContext context = {};
+    context.m_Stage = dmShaderc::SHADER_STAGE_FRAGMENT;
+    dmShaderc::ShaderCompileResult raw_hlsl = {};
+    raw_hlsl.m_Data.SetCapacity(offset);
+    raw_hlsl.m_Data.SetSize(offset);
+    memcpy(raw_hlsl.m_Data.Begin(), source, raw_hlsl.m_Data.Size());
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::CompileRawHLSLToBinary(&context, 0, &options, &raw_hlsl);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_GT(strlen(result->m_LastError), 4096u);
+    ASSERT_NE((void*) 0, strstr(result->m_LastError, "diagnostic_end_marker"));
+    ASSERT_EQ(0u, result->m_Data.Size());
+    dmShaderc::FreeShaderCompileResult(result);
+}
+
+// Verifies failures without a D3D diagnostic still return a useful error rather than null.
+TEST(Shaderc, HLSLReportsMissingExternalCompiler)
+{
+    dmShaderc::ShaderContext context = {};
+    context.m_Stage = dmShaderc::SHADER_STAGE_FRAGMENT;
+    dmShaderc::ShaderCompileResult raw_hlsl = {};
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 60;
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::CompileRawHLSLToBinary(&context, 0, &options, &raw_hlsl);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_NE((void*) 0, strstr(result->m_LastError, "requires an external compiler"));
+    ASSERT_EQ(0u, result->m_Data.Size());
+    dmShaderc::FreeShaderCompileResult(result);
+}
+#endif
+
 // Verifies storage-buffer bytecode and SRV/UAV root parameters preserve register spaces
 // and bindings, guarding against omitted buffers and malformed root signatures.
 TEST(Shaderc, HLSLStorageBufferRootSignature)
