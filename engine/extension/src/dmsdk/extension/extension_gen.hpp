@@ -180,13 +180,15 @@ namespace dmExtension
     /*#
      * Gets a named float from the extension callback parameters.
      *
-     * The supported name is `"dt"`: the current engine update delta in seconds,
-     * before any collection-proxy time scaling. It is 0 for parameters passed to
-     * callbacks other than the extension update callback.
+     * Supported parameter names:
+     *
+     * | Name | Description |
+     * | ---- | ----------- |
+     * | `"dt"` | Current engine update delta in seconds, before collection-proxy time scaling. Zero outside the extension update callback. |
      * @name ParamsGetFloat
      * @language C++
      * @param params [type:const ExtensionParams*] valid parameters for the current callback
-     * @param name_hash [type:dmhash_t] hash of the parameter name
+     * @param name_hash [type:dmhash_t] hash of a supported parameter name, for example `dmHashString64("dt")`
      * @param out_value [type:float*] output value; left unchanged if the name is unsupported
      * @return result [type:bool] true if the name is supported, otherwise false
      */
@@ -485,13 +487,15 @@ namespace dmExtension
 /*#
  * Gets a named float from the extension callback parameters.
  *
- * The supported name is `"dt"`: the current engine update delta in seconds,
- * before any collection-proxy time scaling. It is 0 for parameters passed to
- * callbacks other than the extension update callback.
+ * Supported parameter names:
+ *
+ * | Name | Description |
+ * | ---- | ----------- |
+ * | `"dt"` | Current engine update delta in seconds, before collection-proxy time scaling. Zero outside the extension update callback. |
  * @name ExtensionParamsGetFloat
  * @language C
  * @param params [type:const ExtensionParams*] valid parameters for the current callback
- * @param name_hash [type:dmhash_t] hash of the parameter name
+ * @param name_hash [type:dmhash_t] hash of a supported parameter name, for example `dmHashString64("dt")`
  * @param out_value [type:float*] output value; left unchanged if the name is unsupported
  * @return result [type:bool] true if the name is supported, otherwise false
  */
