@@ -1219,6 +1219,43 @@ TEST_P(InvalidVertexSpaceTest, InvalidVertexSpace)
     ASSERT_NE(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
 }
 
+// A zero proxy limit must avoid null memory operations and preserve the world callback lifecycle.
+TEST(CollectionProxy, ZeroCapacityWorld)
+{
+    const uint32_t limits[][2] = { { 0, 8 }, { 8, 0 } };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(limits); ++i)
+    {
+        dmGameSystem::CollectionProxyContext context = {};
+        context.m_MaxCollectionProxyCount = limits[i][0];
+
+        void* world = 0;
+        dmGameObject::ComponentNewWorldParams new_params = {};
+        new_params.m_Context = &context;
+        new_params.m_MaxComponentInstances = limits[i][1];
+        new_params.m_World = &world;
+        ASSERT_EQ(dmGameObject::CREATE_RESULT_OK, dmGameSystem::CompCollectionProxyNewWorld(new_params));
+        ASSERT_NE((void*)0, world);
+
+        dmGameObject::ComponentsUpdateParams update_params = {};
+        dmGameObject::ComponentsUpdateResult update_result = {};
+        update_params.m_Context = &context;
+        update_params.m_World = world;
+        ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameSystem::CompCollectionProxyUpdate(update_params, update_result));
+
+        dmGameObject::ComponentsRenderParams render_params = {};
+        render_params.m_World = world;
+        ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameSystem::CompCollectionProxyRender(render_params));
+
+        dmGameObject::ComponentsPostUpdateParams post_update_params = {};
+        post_update_params.m_World = world;
+        ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameSystem::CompCollectionProxyPostUpdate(post_update_params));
+
+        dmGameObject::ComponentDeleteWorldParams delete_params = {};
+        delete_params.m_World = world;
+        ASSERT_EQ(dmGameObject::CREATE_RESULT_OK, dmGameSystem::CompCollectionProxyDeleteWorld(delete_params));
+    }
+}
+
 // Test for input consuming in collection proxy
 TEST_F(CollectionProxyComponentTest, ConsumeInputInCollectionProxy)
 {
