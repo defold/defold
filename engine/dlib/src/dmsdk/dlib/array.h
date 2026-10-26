@@ -583,6 +583,7 @@ void dmArray<T>::PushArray(const T* array, uint32_t count)
     assert((Size() + count) <= Capacity());
     if (count)
     {
+        assert(array != 0);
         memcpy(m_End, array, sizeof(T) * count);
         m_End += count;
     }

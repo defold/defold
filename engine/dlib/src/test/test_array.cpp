@@ -36,6 +36,20 @@ TEST(dmArray, EmptyStorageOperations)
     ASSERT_EQ(0u, array.Capacity());
 }
 
+// Empty appends must preserve allocated contents, while nonempty appends require a source.
+TEST(dmArray, NullPushArraySource)
+{
+    dmArray<uint32_t> array;
+    array.SetCapacity(2);
+    array.Push(42);
+    array.PushArray(0, 0);
+    ASSERT_EQ(1u, array.Size());
+    ASSERT_EQ(42u, array[0]);
+    ASSERT_DEATH(array.PushArray(0, 1), "array != 0");
+    ASSERT_EQ(1u, array.Size());
+    ASSERT_EQ(42u, array[0]);
+}
+
 TEST(dmArray, Dynamic_int32)
 {
     assert(array_size > array_size_test_offset);
