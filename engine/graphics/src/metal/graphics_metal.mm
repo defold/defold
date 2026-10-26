@@ -316,6 +316,8 @@ namespace dmGraphics
 
     static void FlushResourcesToDestroy(MetalContext* context, MetalResourcesToDestroyList* resource_list)
     {
+        // Synchronize the completion thread's snapshot access with TakePending().
+        DM_MUTEX_SCOPED_LOCK(context->m_ResourceRetirementQueue->m_Mutex);
         if (resource_list->Size() > 0)
         {
             for (uint32_t i = 0; i < resource_list->Size(); ++i)
