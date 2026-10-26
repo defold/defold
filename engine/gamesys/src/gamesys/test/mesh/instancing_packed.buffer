@@ -1,0 +1,20 @@
+[
+    {
+        "name": "instance_color",
+        "type": "float32",
+        "count": 4,
+        "data": [9, 8, 7, 6, 9, 8, 7, 6, 9, 8, 7, 6]
+    },
+    {
+        "name": "position",
+        "type": "float32",
+        "count": 3,
+        "data": [0, 0, 0, 1, 0, 0, 1, 1, 0]
+    },
+    {
+        "name": "packed_normal",
+        "type": "uint8",
+        "count": 3,
+        "data": [0, 0, 127, 0, 0, 127, 0, 0, 127]
+    }
+]

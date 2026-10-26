@@ -274,13 +274,16 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
     dmRender::DeleteMaterial(m_RenderContext, material);
 }
 
+// Preserve declared instance ownership when hardware fallback converts attributes
+// to per-vertex data, including explicit overrides of default attribute settings.
 TEST_F(dmRenderMaterialTest, TestMaterialInstanceNotSupported)
 {
     const char* vs_src = \
        "attribute vec4 position;\n \
         attribute vec2 normal;\n \
         attribute mat3 mtx_normal;\n \
-        attribute mat4 mtx_world;\n";
+        attribute mat4 mtx_world;\n \
+        attribute vec4 instance_color;\n";
 
 
     dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
@@ -290,10 +293,49 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceNotSupported)
     dmGraphics::ShaderDescBuilder shader_desc_builder;
     shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vs_src, strlen(vs_src));
     shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc_builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position",       0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    shader_desc_builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "normal",         1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC2);
+    shader_desc_builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "mtx_normal",     2, dmGraphics::ShaderDesc::SHADER_TYPE_MAT3);
+    shader_desc_builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "mtx_world",      5, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+    shader_desc_builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "instance_color", 9, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
 
     dmGraphics::ShaderDesc* shader_desc = shader_desc_builder.Get();
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc, 0, 0);
     dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
+
+    const dmGraphics::VertexAttributeInfo* attributes;
+    uint32_t attribute_count;
+    dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+    ASSERT_EQ(5u, attribute_count);
+    for (uint32_t i = 0; i < attribute_count; ++i)
+    {
+        ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, attributes[i].m_StepFunction);
+        dmGraphics::VertexStepFunction requested = i == 2 || i == 3 ? dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE : dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+        ASSERT_EQ(requested, attributes[i].m_RequestedStepFunction);
+    }
+
+    dmGraphics::VertexAttribute overrides[2] = {};
+    const float color[] = { 0.25f, 0.5f, 0.75f, 1.0f };
+    const Matrix4 world_matrix = Matrix4::identity();
+    overrides[0].m_NameHash = dmHashString64("instance_color");
+    overrides[0].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+    overrides[0].m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+    overrides[0].m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+    overrides[0].m_Values.m_BinaryValues.m_Data = (uint8_t*)color;
+    overrides[0].m_Values.m_BinaryValues.m_Count = sizeof(color);
+    overrides[1].m_NameHash = dmHashString64("mtx_world");
+    overrides[1].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4;
+    overrides[1].m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+    overrides[1].m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
+    overrides[1].m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+    overrides[1].m_Values.m_BinaryValues.m_Data = (uint8_t*)&world_matrix;
+    overrides[1].m_Values.m_BinaryValues.m_Count = sizeof(world_matrix);
+    dmRender::SetMaterialProgramAttributes(material, overrides, DM_ARRAY_SIZE(overrides));
+
+    dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, attributes[3].m_RequestedStepFunction);
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[4].m_RequestedStepFunction);
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, attributes[4].m_StepFunction);
 
     dmGraphics::HVertexDeclaration vx_decl_shared = dmRender::GetVertexDeclaration(material);
     dmGraphics::HVertexDeclaration vx_decl_vert = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);

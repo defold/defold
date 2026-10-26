@@ -172,6 +172,7 @@ namespace dmGraphics
         VertexAttribute::DataType      m_DataType;
         VertexAttribute::VectorType    m_VectorType;
         dmGraphics::VertexStepFunction m_StepFunction;
+        dmGraphics::VertexStepFunction m_RequestedStepFunction; // Before unsupported instance attributes are changed to per-vertex attributes.
         CoordinateSpace                m_CoordinateSpace;
         const uint8_t*                 m_ValuePtr;
         VertexAttribute::VectorType    m_ValueVectorType;

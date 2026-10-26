@@ -107,26 +107,17 @@ namespace dmRender
         else if (name_hash == VERTEX_STREAM_WORLD_MATRIX)
         {
             info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
-            if (instancing_supported)
-            {
-                info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
-            }
+            info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
         }
         else if (name_hash == VERTEX_STREAM_NORMAL_MATRIX)
         {
             info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX;
-            if (instancing_supported)
-            {
-                info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
-            }
+            info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
         }
         else if (name_hash == VERTEX_STREAM_ANIMATION_DATA)
         {
             // Internal attribute used for instancing, does not have a semantic type.
-            if (instancing_supported)
-            {
-                info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
-            }
+            info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
         }
         else if (name_hash == VERTEX_STREAM_TEXTURE_TRANSFORM_2D)
         {
@@ -136,11 +127,12 @@ namespace dmRender
         else if (name_hash == VERTEX_STREAM_MORPH_TARGET_WEIGHTS)
         {
             info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS;
-            if (instancing_supported)
-            {
-                info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
-            }
+            info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
         }
+
+        info->m_RequestedStepFunction = info->m_StepFunction;
+        if (!instancing_supported)
+            info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
     }
 
     static void CreateVertexDeclarations(dmGraphics::HContext graphics_context, Material* m)
@@ -235,6 +227,7 @@ namespace dmRender
         info.m_VectorType       = ddf_attribute.m_VectorType;
         info.m_Normalize        = ddf_attribute.m_Normalize;
         info.m_StepFunction     = m->m_InstancingSupported ? ddf_attribute.m_StepFunction : dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+        info.m_RequestedStepFunction = ddf_attribute.m_StepFunction;
         info.m_ValueVectorType  = ddf_attribute.m_VectorType;
         info.m_ElementCount     = dmGraphics::VectorTypeToElementCount(ddf_attribute.m_VectorType);
         info.m_ValuePtr         = &m->m_MaterialAttributeValues[material_attribute.m_ValueIndex];
@@ -574,6 +567,7 @@ namespace dmRender
             info.m_SemanticType     = graphics_attribute_in.m_SemanticType;
             info.m_CoordinateSpace  = graphics_attribute_in.m_CoordinateSpace;
             info.m_StepFunction     = material->m_InstancingSupported ? graphics_attribute_in.m_StepFunction : dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+            info.m_RequestedStepFunction = graphics_attribute_in.m_StepFunction;
             info.m_ValueVectorType  = graphics_attribute_in.m_VectorType;
 
             update_attributes = true;

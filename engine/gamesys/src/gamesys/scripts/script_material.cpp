@@ -520,7 +520,7 @@ namespace dmGameSystem
             attribute.m_NameHash        = info.m_Attribute->m_NameHash;
             attribute.m_DataType        = info.m_Attribute->m_DataType;
             attribute.m_VectorType      = info.m_Attribute->m_VectorType;
-            attribute.m_StepFunction    = info.m_Attribute->m_StepFunction;
+            attribute.m_StepFunction    = info.m_Attribute->m_RequestedStepFunction;
             attribute.m_CoordinateSpace = info.m_Attribute->m_CoordinateSpace;
             attribute.m_SemanticType    = info.m_Attribute->m_SemanticType;
             attribute.m_ElementCount    = info.m_Attribute->m_ElementCount;

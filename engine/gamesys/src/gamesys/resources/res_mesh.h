@@ -31,6 +31,8 @@ namespace dmGameSystem
     dmResource::Result ResMeshRecreate(const dmResource::ResourceRecreateParams* params);
 
     bool BuildVertexDeclaration(BufferResource* buffer_resource, dmGraphics::HVertexDeclaration* out_vert_decl);
+    // Omit generated attribute streams while retaining the buffer's original stride and offsets.
+    bool BuildVertexDeclaration(BufferResource* buffer_resource, const dmhash_t* excluded_streams, uint32_t excluded_stream_count, dmGraphics::HVertexDeclaration* out_vert_decl);
 }
 
 #endif // DM_GAMESYS_RES_MESH_H

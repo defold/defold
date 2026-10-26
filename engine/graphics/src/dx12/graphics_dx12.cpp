@@ -2774,6 +2774,7 @@ namespace dmGraphics
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
         vd->m_StreamCount = stream_count;
+        vd->m_StepFunction = stream_declaration->m_StepFunction;
 
         return vd;
     }
