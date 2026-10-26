@@ -153,7 +153,6 @@ namespace dmResource
         RecreateContext* m_Previous;
         dmArray<uint32_t> m_Dependencies;
         uint32_t m_FirstDependency;
-        Result m_DependencyResult;
     };
 
     struct LoadContext
@@ -1053,7 +1052,7 @@ namespace dmResource
     {
         for (;;)
         {
-            void* resource;
+            dmhash_t path;
             {
                 DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
                 uint32_t index = Pop(context, context->m_Pins);
@@ -1064,9 +1063,9 @@ namespace dmResource
                 if ((node->m_Holds && !node->m_RootReferences) || !node->m_PostDone || !node->m_Pin)
                     continue;
                 node->m_Pin = false;
-                resource = node->m_Resource;
+                path = node->m_PathHash;
             }
-            Release(context->m_Factory, resource);
+            ReleaseResourceReference(context->m_Factory, path);
         }
     }
 
@@ -1315,12 +1314,14 @@ namespace dmResource
         if (result != RESULT_OK)
             return result;
         LoadContext* context = request->m_Context;
-        void* resident = 0;
+        bool resident = false;
+        dmhash_t path_hash;
         {
             DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
             uint32_t caller = GetCaller(context);
             uint32_t index = FindOrCreate(context, path, type, caller, request);
             LoadNode* node = context->m_Nodes.GetPtr(index);
+            path_hash = node->m_PathHash;
             bool new_load = node->m_References == 1 && !node->m_Discovered;
             if (dependency && context->m_UpdateDepth && context->m_UpdateOwner == caller && context->m_Creating != INVALID_LOAD_INDEX)
             {
@@ -1348,11 +1349,11 @@ namespace dmResource
             if (context->m_SelectedRequest == request)
                 SelectDependencies(context, index);
             if (node->m_Created)
-                resident = node->m_Resource;
+                resident = node->m_Resource != 0;
             StartReads(context, request->m_Blocking ? request : 0);
         }
         if (resident)
-            IncRef(context->m_Factory, resident);
+            AcquireResourceReference(context->m_Factory, path_hash);
         return RESULT_OK;
     }
 
@@ -1482,6 +1483,38 @@ namespace dmResource
         DestroyUnusedNodes(context, index);
     }
 
+    // Recreate can remove an error or encounter one during nested loading.
+    // Reconcile the retained graph on both commit and rollback, including final
+    // results already cached by completed ancestors. Own callback errors remain.
+    static void RefreshDependencyResults(LoadContext* context, uint32_t index)
+    {
+        context->m_Visit.SetSize(0);
+        Push(context->m_Visit, index);
+        while (!context->m_Visit.Empty())
+        {
+            LoadNode* node = context->m_Nodes.GetPtr(context->m_Visit.Back());
+            context->m_Visit.Pop();
+            Result dependency_result = RESULT_OK;
+            for (uint32_t i = node->m_FirstDependency; i != INVALID_LOAD_INDEX; i = context->m_Edges[i].m_NextDependency)
+            {
+                LoadNode* child = context->m_Nodes.GetPtr(context->m_Edges[i].m_Child);
+                if (child->m_Created && child->m_CreateResult != RESULT_OK)
+                    dependency_result = child->m_CreateResult;
+                if (child->m_Complete && child->m_Result != RESULT_OK)
+                    dependency_result = child->m_Result;
+            }
+            node->m_DependencyResult = dependency_result;
+            if (!node->m_Complete)
+                continue;
+            Result result = node->m_CreateResult != RESULT_OK ? node->m_CreateResult : dependency_result;
+            if (result == node->m_Result)
+                continue;
+            node->m_Result = result;
+            for (uint32_t i = node->m_FirstDependent; i != INVALID_LOAD_INDEX; i = context->m_Edges[i].m_NextDependent)
+                Push(context->m_Visit, context->m_Edges[i].m_Parent);
+        }
+    }
+
     RecreateContext* BeginResourceRecreate(LoadContext* context, dmhash_t path)
     {
         RecreateContext* recreate = new RecreateContext();
@@ -1503,7 +1536,6 @@ namespace dmResource
             recreate->m_Node = *found;
             LoadNode* node = context->m_Nodes.GetPtr(*found);
             recreate->m_FirstDependency = node->m_FirstDependency;
-            recreate->m_DependencyResult = node->m_DependencyResult;
             ++node->m_References;
             ChangeHold(context, node, true);
         }
@@ -1522,7 +1554,6 @@ namespace dmResource
                 LoadNode* node = context->m_Nodes.GetPtr(recreate->m_Node);
                 uint32_t previous = INVALID_LOAD_INDEX;
                 bool original = false;
-                Result dependency_result = RESULT_OK;
                 for (uint32_t i = node->m_FirstDependency; i != INVALID_LOAD_INDEX;)
                 {
                     LoadEdge edge = context->m_Edges[i];
@@ -1536,13 +1567,7 @@ namespace dmResource
                             keep = keep || recreate->m_Dependencies[j] == edge.m_Child;
                     }
                     if (keep)
-                    {
                         previous = i;
-                        if (child->m_Created && child->m_CreateResult != RESULT_OK)
-                            dependency_result = child->m_CreateResult;
-                        if (child->m_Complete && child->m_Result != RESULT_OK)
-                            dependency_result = child->m_Result;
-                    }
                     else
                     {
                         if (previous == INVALID_LOAD_INDEX)
@@ -1569,8 +1594,6 @@ namespace dmResource
                 }
                 if (result == RESULT_OK)
                 {
-                    // Errors from removed dependencies do not belong to the replacement graph.
-                    node->m_DependencyResult = dependency_result;
                     node->m_Resource = descriptor->m_Resource;
                     // PostCreate uses the load's descriptor until finalization.
                     // Publish replacement identity and size to both views before
@@ -1581,30 +1604,33 @@ namespace dmResource
                         node->m_Load->m_Descriptor.m_ResourceSize = descriptor->m_ResourceSize;
                     }
                 }
-                else
-                    node->m_DependencyResult = recreate->m_DependencyResult;
+                RefreshDependencyResults(context, recreate->m_Node);
                 // Removing the last pending dependency can unblock an already posted parent.
                 QueueComplete(context, node);
                 ChangeHold(context, node, false);
                 --node->m_References;
                 DestroyUnusedNodes(context, recreate->m_Node);
             }
-            context->m_Creating = INVALID_LOAD_INDEX;
-            context->m_Recreating = 0;
-            context->m_SelectedRequest = 0;
-        }
-        ReleasePins(context);
-        {
-            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
             context->m_Creating = recreate->m_PreviousCreating;
             context->m_Recreating = recreate->m_Previous;
+            context->m_SelectedRequest = 0;
         }
     }
 
     void EndResourceRecreate(RecreateContext* recreate)
     {
         LoadContext* context = recreate->m_Context;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            context->m_Creating = INVALID_LOAD_INDEX;
+            context->m_Recreating = 0;
+        }
+        // Dropping pins may destroy resources or load new ones. The factory has
+        // finished publication and released its table lock before entering End.
+        ReleasePins(context);
         DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+        context->m_Creating = recreate->m_PreviousCreating;
+        context->m_Recreating = recreate->m_Previous;
         --context->m_UpdateDepth;
         Signal(context);
         delete recreate;
@@ -1621,15 +1647,17 @@ namespace dmResource
         for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
         {
             uint32_t index = request->m_Roots[i];
-            void* resource;
+            bool resident;
+            dmhash_t path;
             {
                 DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
                 LoadNode* root = context->m_Nodes.GetPtr(index);
                 --root->m_RootReferences;
-                resource = root->m_Resource;
+                resident = root->m_Resource != 0;
+                path = root->m_PathHash;
             }
-            if (resource)
-                Release(context->m_Factory, resource);
+            if (resident)
+                ReleaseResourceReference(context->m_Factory, path);
             ReleasePins(context);
             ReleaseNode(context, index);
         }
@@ -1658,11 +1686,12 @@ namespace dmResource
         }
         if (result == RESULT_OK)
         {
+            dmhash_t path_hash;
             {
                 DM_MUTEX_SCOPED_LOCK(request->m_Context->m_Mutex);
-                *resource = request->m_Context->m_Nodes.Get(request->m_Roots[0]).m_Resource;
+                path_hash = request->m_Context->m_Nodes.Get(request->m_Roots[0]).m_PathHash;
             }
-            IncRef(factory, *resource);
+            *resource = AcquireResourceReference(factory, path_hash);
         }
         DeletePreloader(request);
         return result;

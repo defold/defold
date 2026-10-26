@@ -1005,7 +1005,10 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
     }
     if (!rd)
     {
-        CommitResourceRecreate(recreate, RESULT_RESOURCE_NOT_FOUND, 0);
+        {
+            DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
+            CommitResourceRecreate(recreate, RESULT_RESOURCE_NOT_FOUND, 0);
+        }
         EndResourceRecreate(recreate);
         return RESULT_RESOURCE_NOT_FOUND;
     }
@@ -1041,9 +1044,13 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
             DM_PROFILE_DYN(filename ? filename : dmHashReverseSafe64(path_hash), 0);
             result = (Result)resource_type->m_RecreateFunction(&params);
         }
+    }
+    {
+        // Publish descriptor identity and graph readiness under the same table
+        // lock used by lookups. Commit does not invoke resource callbacks.
+        DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
         if (result == RESULT_OK)
         {
-            DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
             if (rd->m_Resource != descriptor.m_Resource)
             {
                 factory->m_ResourceToHash->Erase((uintptr_t)rd->m_Resource);
@@ -1058,8 +1065,8 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
                 rd->m_ResourceSizeOnDisc = buffer_size;
             }
         }
+        CommitResourceRecreate(recreate, result, rd);
     }
-    CommitResourceRecreate(recreate, result, rd);
     if (result == RESULT_OK)
     {
         if (factory->m_ResourceReloadedCallbacks)
@@ -1253,6 +1260,14 @@ void IncRef(HFactory factory, void* resource)
     IncRef(factory, rd);
 }
 
+void* AcquireResourceReference(HFactory factory, dmhash_t path)
+{
+    DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
+    ResourceDescriptor* rd = factory->m_Resources->Get(path);
+    IncRef(factory, rd);
+    return rd->m_Resource;
+}
+
 uint16_t GetVersion(HFactory factory, void* resource)
 {
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
@@ -1282,17 +1297,21 @@ uint32_t GetRefCount(HFactory factory, dmhash_t identifier)
     return rd->m_ReferenceCount;
 }
 
-void Release(HFactory factory, void* resource)
+static void DoReleaseResource(HFactory factory, void* resource, dmhash_t hash)
 {
-    DM_PROFILE(__FUNCTION__);
+    DM_PROFILE("Release");
     ResourceDescriptor descriptor;
     {
         DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
-        uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t)resource);
-        assert(resource_hash);
-        dmhash_t hash = *resource_hash;
+        if (resource)
+        {
+            uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t)resource);
+            assert(resource_hash);
+            hash = *resource_hash;
+        }
         ResourceDescriptor* rd = factory->m_Resources->Get(hash);
         assert(rd && rd->m_ReferenceCount);
+        resource = rd->m_Resource;
         if (--rd->m_ReferenceCount)
             return;
         if (RetainResourceLoadReference(factory->m_LoadContext, hash, resource))
@@ -1322,6 +1341,17 @@ void Release(HFactory factory, void* resource)
     DM_PROFILE("ResourceDestroy");
     DM_PROFILE_DYN(type->m_Extension, 0);
     type->m_DestroyFunction(&params);
+}
+
+void Release(HFactory factory, void* resource)
+{
+    assert(resource);
+    DoReleaseResource(factory, resource, 0);
+}
+
+void ReleaseResourceReference(HFactory factory, dmhash_t path)
+{
+    DoReleaseResource(factory, 0, path);
 }
 
 void RegisterResourceReloadedCallback(HFactory factory, FResourceReloadedCallback callback, void* user_data)

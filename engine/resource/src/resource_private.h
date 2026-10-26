@@ -137,8 +137,13 @@ namespace dmResource
     LoadContext* NewLoadContext(HFactory factory);
     void DeleteLoadContext(LoadContext* context);
     bool RetainResourceLoadReference(LoadContext* context, dmhash_t path, void* resource);
+    // Internal references follow the resident descriptor across pointer replacement.
+    // The caller must already retain the descriptor through a load hold or reference.
+    void* AcquireResourceReference(HFactory factory, dmhash_t path);
+    void ReleaseResourceReference(HFactory factory, dmhash_t path);
     // Recreate owns callback scheduling until End. Commit replaces dependencies
-    // on success and restores the previous graph on failure, before notifications.
+    // on success and restores the previous graph on failure, under the factory
+    // table lock before notifications. End releases pins outside table locks.
     RecreateContext* BeginResourceRecreate(LoadContext* context, dmhash_t path);
     void CommitResourceRecreate(RecreateContext* recreate, Result result, const ResourceDescriptor* descriptor);
     void EndResourceRecreate(RecreateContext* recreate);

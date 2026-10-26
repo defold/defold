@@ -513,6 +513,30 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         caller->m_Result = caller->m_Test->Replace(0, &dependency, 1, 1);
     }
 
+    static void RequestResidentFromThread(void* user_data)
+    {
+#if defined(DM_HAS_THREADS)
+        GetCaller* caller = (GetCaller*)user_data;
+        ResourceLoaderTest* self = caller->m_Test;
+        {
+            DM_MUTEX_SCOPED_LOCK(self->m_Mutex);
+            ++self->m_GetJobsStarted;
+            dmConditionVariable::Broadcast(self->m_Changed);
+            while (!self->m_AllowBlocked)
+                dmConditionVariable::Wait(self->m_Changed, self->m_Mutex);
+        }
+        caller->m_Result = dmResource::RESULT_OK;
+        for (uint32_t i = 0; i < 1024; ++i)
+        {
+            dmResource::HPreloader request = dmResource::NewPreloader(self->m_Factory, "/node_0.node");
+            dmResource::Result result = self->Complete(request);
+            if (result != dmResource::RESULT_OK)
+                caller->m_Result = result;
+            dmResource::DeletePreloader(request);
+        }
+#endif
+    }
+
     void EnablePostCreate()
     {
         ResourceTypeSetPostCreateFn(dmResource::FindResourceType(m_Factory, "node"), (FResourcePostCreate)PostCreate);
@@ -625,6 +649,15 @@ class ResourceLoaderTest : public jc_test_params_class<int>
     static dmResource::Result Destroy(const dmResource::ResourceDestroyParams* params)
     {
         ResourceLoaderTest* self = (ResourceLoaderTest*)params->m_Context;
+#if defined(DM_HAS_THREADS)
+        if (self->m_CheckLocks)
+        {
+            LockProbe probe = { dmResource::GetLoadMutex(params->m_Factory), false };
+            dmThread::Thread thread = dmThread::New(ProbeLock, 0x8000, &probe, "DestroyProbe");
+            dmThread::Join(thread);
+            self->m_CallbacksUnlocked = self->m_CallbacksUnlocked && probe.m_Unlocked;
+        }
+#endif
         LoadedNode* resource = (LoadedNode*)ResourceDescriptorGetResource(params->m_Resource);
         if (resource->m_Value == self->m_CheckedThreadNode)
             self->m_CreationThreadCorrect = self->m_CreationThreadCorrect && dmThread::GetCurrentThread() == self->m_ExpectedThread;
@@ -1054,6 +1087,46 @@ TEST_P(ResourceLoaderTest, RecreateReplacesPendingResource)
     }
 }
 
+// Cached requests acquire and release descriptor references while recreation replaces their resource pointer.
+TEST_P(ResourceLoaderTest, RecreateWithConcurrentResidentRequests)
+{
+#if defined(DM_HAS_THREADS)
+    Add(0, 0, 0);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(0)));
+    m_ReplacePointer = true;
+    GetCaller callers[2] = {};
+    dmThread::Thread threads[2];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(callers); ++i)
+    {
+        callers[i].m_Test = this;
+        threads[i] = dmThread::New(RequestResidentFromThread, 0x20000, &callers[i], "ResidentRequest");
+    }
+    {
+        DM_MUTEX_SCOPED_LOCK(m_Mutex);
+        while (m_GetJobsStarted != DM_ARRAY_SIZE(callers))
+            dmConditionVariable::Wait(m_Changed, m_Mutex);
+        m_AllowBlocked = true;
+        dmConditionVariable::Broadcast(m_Changed);
+    }
+    dmResource::Result result = dmResource::RESULT_OK;
+    for (uint32_t i = 0; i < 1024; ++i)
+    {
+        dmResource::Result recreated = Replace(0, 0, 0, 1);
+        if (recreated != dmResource::RESULT_OK)
+            result = recreated;
+    }
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(callers); ++i)
+        dmThread::Join(threads[i]);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(callers); ++i)
+        ASSERT_EQ(dmResource::RESULT_OK, callers[i].m_Result);
+    ASSERT_EQ(1u, dmResource::GetRefCount(m_Factory, dmHashString64("/node_0.node")));
+    ASSERT_EQ(1024u, m_Destroys[0]);
+    Delete(0);
+    ASSERT_EQ(1025u, m_Destroys[0]);
+#endif
+}
+
 // Detached pending subtrees must finish and release their resources, including when their PostCreate fails.
 TEST_P(ResourceLoaderTest, RecreateDetachesPendingDependencies)
 {
@@ -1170,6 +1243,91 @@ TEST_P(ResourceLoaderTest, FailedRecreateKeepsDependencyFailure)
     Delete(0);
     ASSERT_EQ(1u, m_Destroys[0]);
     ASSERT_EQ(1u, m_Destroys[child]);
+}
+
+// Rollback must retain an old child's error even when nested loading produces it during recreation.
+TEST_P(ResourceLoaderTest, FailedRecreateKeepsNewDependencyFailure)
+{
+    EnablePostCreate();
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        uint32_t root = mode * 3;
+        uint32_t child = root + 1;
+        uint32_t replacement = root + 2;
+        m_HoldPosts = true;
+        m_HeldPost = root;
+        m_FailedPost = child;
+        Add(root, &child, 1);
+        Add(child, 0, 0);
+        Add(replacement, &child, 1);
+        dmResource::HPreloader request = Request(root);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!m_Creates[root] && dmTime::GetMonotonicTime() < deadline)
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+        ASSERT_EQ(1u, m_Creates[root]);
+        m_HoldPosts = false;
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Replace(root, &replacement, 1, mode));
+        m_HeldPost = ~0u;
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(request));
+        Delete(mode);
+        for (uint32_t id = root; id <= replacement; ++id)
+            ASSERT_EQ(1u, m_Destroys[id]);
+    }
+}
+
+// Removing a failed child after completion repairs later lookups of the resource and its completed parents.
+TEST_P(ResourceLoaderTest, RecreateRepairsCompletedDependencyFailure)
+{
+    EnablePostCreate();
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        uint32_t root = mode * 3;
+        uint32_t child = root + 1;
+        uint32_t leaf = root + 2;
+        m_HoldPosts = true;
+        m_FailedPost = leaf;
+        Add(root, &child, 1);
+        Add(child, &leaf, 1);
+        Add(leaf, 0, 0);
+        dmResource::HPreloader request = Request(root);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!m_Creates[root] && dmTime::GetMonotonicTime() < deadline)
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+        ASSERT_EQ(1u, m_Creates[root]);
+        m_HoldPosts = false;
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(request));
+        ASSERT_EQ(dmResource::RESULT_OK, Replace(child, 0, 0, mode));
+        for (uint32_t id = root; id <= child; ++id)
+        {
+            char path[64];
+            Path(id, path, sizeof(path));
+            void* resource = 0;
+            ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, &resource));
+            dmResource::Release(m_Factory, resource);
+            ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, dmHashString64(path), &resource));
+            dmResource::Release(m_Factory, resource);
+        }
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(request));
+        Delete(mode);
+        for (uint32_t id = root; id <= leaf; ++id)
+            ASSERT_EQ(1u, m_Destroys[id]);
+    }
+}
+
+// Recomputing dependency errors must not erase a failure from the resource's own PostCreate.
+TEST_P(ResourceLoaderTest, RecreateKeepsCompletedPostCreateFailure)
+{
+    EnablePostCreate();
+    m_FailedPost = 0;
+    Add(0, 0, 0);
+    dmResource::HPreloader request = Request(0);
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(request));
+    ASSERT_EQ(dmResource::RESULT_OK, Replace(0, 0, 0, 1));
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::Get(m_Factory, "/node_0.node", &resource));
+    ASSERT_EQ((void*)0, resource);
+    Delete(0);
+    ASSERT_EQ(1u, m_Destroys[0]);
 }
 
 // Detaching the last pending child must queue completion when the parent's own PostCreate already finished.
