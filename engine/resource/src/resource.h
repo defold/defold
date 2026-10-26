@@ -282,6 +282,7 @@ namespace dmResource
      * no work is ready;
      * worker jobs continue discovering and loading dependencies independently.
      * Started loads finish even if recreation removes their dependency edges.
+     * Once complete, the request keeps its result across later resource reloads.
      * Call from the requesting thread to execute Create/PostCreate. The soft
      * limit is checked between callbacks; a single callback cannot be interrupted.
      * @param preloader Preloader
@@ -294,7 +295,8 @@ namespace dmResource
 
     /**
      * Destroy the preloader. Note that currently it will spin and block until
-     * all loads have completed, if there still are any pending.
+     * all loads have completed, if there still are any pending. A completed
+     * request does not wait for dependencies added by later resource reloads.
      * @param preloader Preloader
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */

@@ -52,10 +52,10 @@ struct ResourcePreloader
     dmArray<uint32_t> m_Loads;
     uint64_t m_WorkCursor[dmResource::LOAD_WORK_COUNT];
     uint32_t m_CursorCaller;
-    dmResource::Result m_CallbackResult;
+    dmResource::Result m_Result;
     uint64_t m_NextPostTime;
     bool m_CallbackCalled;
-    bool m_Holding;
+    bool m_Complete;
     bool m_Blocking;
 };
 
@@ -969,6 +969,8 @@ namespace dmResource
             LoadNode* node = context->m_Nodes.GetPtr(index);
             load = node->m_Load;
             node->m_InCallback = true;
+            // A recreation caller may already be waiting for scheduler ownership.
+            Signal(context);
             params.m_Factory = context->m_Factory;
             params.m_Type = node->m_Type;
             params.m_Context = node->m_Type->m_Context;
@@ -1132,7 +1134,7 @@ namespace dmResource
 
     static void CallComplete(HPreloader request, FPreloaderCompleteCallback callback, PreloaderCompleteCallbackParams* params)
     {
-        if (request->m_CallbackCalled || request->m_CallbackResult != RESULT_OK)
+        if (request->m_CallbackCalled || request->m_Result != RESULT_OK)
             return;
         {
             DM_MUTEX_SCOPED_LOCK(request->m_Context->m_Mutex);
@@ -1145,7 +1147,7 @@ namespace dmResource
                     return;
         }
         if (callback && !callback(params))
-            request->m_CallbackResult = RESULT_NOT_LOADED;
+            request->m_Result = RESULT_NOT_LOADED;
     }
 
     // Each update advances only its request, preserving FIFO order and callback
@@ -1200,9 +1202,11 @@ namespace dmResource
     static Result CompleteRequest(HPreloader request)
     {
         LoadContext* context = request->m_Context;
-        Result result = request->m_CallbackResult;
+        Result result = request->m_Result;
         {
             DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            if (request->m_Complete)
+                return request->m_Result;
             if (!request->m_Loads.Empty())
                 return RESULT_PENDING;
             for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
@@ -1213,12 +1217,11 @@ namespace dmResource
                 if (result == RESULT_OK)
                     result = root->m_Result;
             }
-            if (request->m_Holding)
-            {
-                for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
-                    ChangeHold(context, context->m_Nodes.GetPtr(request->m_Roots[i]), false);
-                request->m_Holding = false;
-            }
+            for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
+                ChangeHold(context, context->m_Nodes.GetPtr(request->m_Roots[i]), false);
+            // Later recreation changes graph readiness, not this request's result.
+            request->m_Result = result;
+            request->m_Complete = true;
         }
         ReleasePins(context);
         return result;
@@ -1319,6 +1322,8 @@ namespace dmResource
         LoadContext* context = request->m_Context;
         {
             DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            if (request->m_Complete)
+                return request->m_Result;
             uint32_t thread = GetCaller(context);
             if (context->m_UpdateDepth && context->m_UpdateOwner != thread)
                 return RESULT_PENDING;
@@ -1340,8 +1345,7 @@ namespace dmResource
     {
         HPreloader request = new ResourcePreloader();
         request->m_Context = GetLoadContext(factory);
-        request->m_CallbackResult = RESULT_OK;
-        request->m_Holding = true;
+        request->m_Result = RESULT_OK;
         DM_MUTEX_SCOPED_LOCK(request->m_Context->m_Mutex);
         ++request->m_Context->m_Requests;
         return request;
@@ -1402,8 +1406,8 @@ namespace dmResource
         for (uint32_t i = 0; i < names.Size(); ++i)
         {
             Result result = AddRoot(request, names[i], 0, 0, 0, 0, false, false);
-            if (request->m_CallbackResult == RESULT_OK)
-                request->m_CallbackResult = result;
+            if (request->m_Result == RESULT_OK)
+                request->m_Result = result;
         }
         return request;
     }
@@ -1411,7 +1415,7 @@ namespace dmResource
     HPreloader NewPreloader(HFactory factory, const char* name)
     {
         HPreloader request = NewRequest(factory);
-        request->m_CallbackResult = AddRoot(request, name, 0, 0, 0, 0, false, false);
+        request->m_Result = AddRoot(request, name, 0, 0, 0, 0, false, false);
         return request;
     }
 
@@ -1558,16 +1562,23 @@ namespace dmResource
     {
         DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
         uint32_t caller = GetCaller(context);
+        uint32_t* found;
+        for (;;)
+        {
+            found = context->m_ByPath.Get(path);
+            // An active callback may be waiting for this caller. Reject before
+            // waiting for ownership, and look up the target again after waking.
+            if (found && context->m_Nodes.Get(*found).m_InCallback)
+                return 0;
 #if defined(DM_HAS_THREADS)
-        while (context->m_UpdateDepth && context->m_UpdateOwner != caller)
-            dmConditionVariable::Wait(context->m_Changed, context->m_Mutex);
+            if (context->m_UpdateDepth && context->m_UpdateOwner != caller)
+            {
+                dmConditionVariable::Wait(context->m_Changed, context->m_Mutex);
+                continue;
+            }
 #endif
-        uint32_t* found = context->m_ByPath.Get(path);
-        // The active callback may be suspended in Get on this caller's work.
-        // Waiting for it here would deadlock; leave the resource unchanged so
-        // the caller can finish that work and retry recreation afterwards.
-        if (found && context->m_Nodes.Get(*found).m_InCallback)
-            return 0;
+            break;
+        }
         RecreateContext* recreate = new RecreateContext();
         recreate->m_Context = context;
         recreate->m_Node = INVALID_LOAD_INDEX;
@@ -1580,6 +1591,7 @@ namespace dmResource
             recreate->m_Node = *found;
             LoadNode* node = context->m_Nodes.GetPtr(*found);
             node->m_InCallback = true;
+            Signal(context);
             recreate->m_FirstDependency = node->m_FirstDependency;
             ++node->m_References;
             ChangeHold(context, node, true);
