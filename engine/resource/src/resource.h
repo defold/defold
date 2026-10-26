@@ -191,7 +191,8 @@ namespace dmResource
      * @param factory Factory handle
      * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
      * @param buffer The buffer
-     * @return RESULT_OK on success
+     * @return RESULT_OK on success. RESULT_PENDING leaves the resource unchanged
+     *         while its PostCreate or Recreate callback is executing; retry after it returns.
      */
     Result SetResource(HFactory factory, uint64_t hashed_name, void* buffer, uint32_t size);
 
@@ -200,7 +201,8 @@ namespace dmResource
      * @param factory Factory handle
      * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
      * @param buffer The buffer
-     * @return RESULT_OK on success
+     * @return RESULT_OK on success. RESULT_PENDING leaves the resource unchanged
+     *         while its PostCreate or Recreate callback is executing; retry after it returns.
      */
     Result SetResource(HFactory factory, uint64_t hashed_name, void* message);
 
@@ -210,6 +212,8 @@ namespace dmResource
      * @param factory Resource factory
      * @param name Name that identifies the resource, i.e. the same name used in Get
      * @param out_descriptor The resource descriptor as an output argument. It will not be written to if null, otherwise it will always be written to.
+     * @return RESULT_PENDING with a null descriptor if the resource is executing
+     *         PostCreate or Recreate. No update is applied; retry after the callback returns.
      * @see Get
      */
     Result ReloadResource(HFactory factory, const char* name, ResourceDescriptor** out_descriptor);

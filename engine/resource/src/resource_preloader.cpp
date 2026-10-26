@@ -115,9 +115,12 @@ namespace dmResource
         uint8_t m_Created : 1;
         uint8_t m_PostDone : 1;
         uint8_t m_CompleteQueued : 1;
+        // Cleanup is finished; m_Result can become pending again after recreation.
         uint8_t m_Complete : 1;
         uint8_t m_Pin : 1;
         uint8_t m_PinQueued : 1;
+        // Remains set while a callback yields scheduler ownership in a nested Get.
+        uint8_t m_InCallback : 1;
     };
 
     // One edge per distinct parent/dependency pair. Indices survive array growth.
@@ -399,17 +402,31 @@ namespace dmResource
     // edges, so a request need not traverse its entire graph for each operation.
     static void SelectDependencies(LoadContext* context, uint32_t root)
     {
+        uint32_t generation = 0;
         context->m_Visit.SetSize(0);
         Push(context->m_Visit, root);
         while (!context->m_Visit.Empty())
         {
             LoadNode* node = context->m_Nodes.GetPtr(context->m_Visit.Back());
             context->m_Visit.Pop();
-            if (node->m_Complete || node->m_Load->m_Selection == context->m_Selection)
-                continue;
-            node->m_Load->m_Selection = context->m_Selection;
-            for (uint32_t work = 0; work < LOAD_WORK_COUNT; ++work)
-                RewindWork(context, node, (LoadWork)work);
+            if (node->m_Complete)
+            {
+                if (node->m_Result != RESULT_PENDING)
+                    continue;
+                if (!generation)
+                    generation = VisitGeneration(context);
+                if (node->m_Visited == generation)
+                    continue;
+                node->m_Visited = generation;
+            }
+            else
+            {
+                if (node->m_Load->m_Selection == context->m_Selection)
+                    continue;
+                node->m_Load->m_Selection = context->m_Selection;
+                for (uint32_t work = 0; work < LOAD_WORK_COUNT; ++work)
+                    RewindWork(context, node, (LoadWork)work);
+            }
             for (uint32_t edge = node->m_FirstDependency; edge != INVALID_LOAD_INDEX; edge = context->m_Edges[edge].m_NextDependency)
                 Push(context->m_Visit, context->m_Edges[edge].m_Child);
         }
@@ -770,7 +787,7 @@ namespace dmResource
             parent->m_DependencyResult = child->m_CreateResult;
         if (!child->m_Complete)
             ++parent->m_PendingCompletions;
-        else if (child->m_Result != RESULT_OK)
+        else if (child->m_Result != RESULT_OK && child->m_Result != RESULT_PENDING)
             parent->m_DependencyResult = child->m_Result;
         if (context->m_SelectedRequest && parent->m_Load && parent->m_Load->m_Selection == context->m_Selection)
             SelectDependencies(context, child->m_Index);
@@ -951,6 +968,7 @@ namespace dmResource
             DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
             LoadNode* node = context->m_Nodes.GetPtr(index);
             load = node->m_Load;
+            node->m_InCallback = true;
             params.m_Factory = context->m_Factory;
             params.m_Type = node->m_Type;
             params.m_Context = node->m_Type->m_Context;
@@ -969,10 +987,11 @@ namespace dmResource
             LoadProfileAddTime(&load->m_Profile, LOAD_PROFILE_POST_CREATE, start);
         }
         context->m_Creating = previous;
-        if (result == RESULT_PENDING)
-            return;
         DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
         LoadNode* node = context->m_Nodes.GetPtr(index);
+        node->m_InCallback = false;
+        if (result == RESULT_PENDING)
+            return;
         if (node->m_CreateResult == RESULT_OK)
             node->m_CreateResult = result;
         node->m_PostDone = true;
@@ -980,6 +999,24 @@ namespace dmResource
         QueueComplete(context, node);
         ReleaseStaging(context, node);
     }
+
+    // A finalized load can acquire unfinished dependencies during recreation.
+    // Keep its cleanup state separate from readiness of the current graph.
+    static Result GetNodeResult(LoadContext* context, LoadNode* node)
+    {
+        if (node->m_CreateResult != RESULT_OK)
+            return node->m_CreateResult;
+        if (node->m_DependencyResult != RESULT_OK)
+            return node->m_DependencyResult;
+        if (node->m_PendingCompletions)
+            return RESULT_PENDING;
+        for (uint32_t i = node->m_FirstDependency; i != INVALID_LOAD_INDEX; i = context->m_Edges[i].m_NextDependency)
+            if (context->m_Nodes.Get(context->m_Edges[i].m_Child).m_Result == RESULT_PENDING)
+                return RESULT_PENDING;
+        return RESULT_OK;
+    }
+
+    static void RefreshDependencyResults(LoadContext* context, uint32_t index);
 
     static bool ProcessCompletion(HPreloader request)
     {
@@ -997,9 +1034,7 @@ namespace dmResource
             if (index == INVALID_LOAD_INDEX)
                 return false;
             LoadNode* node = context->m_Nodes.GetPtr(index);
-            node->m_Result = node->m_CreateResult;
-            if (node->m_Result == RESULT_OK)
-                node->m_Result = node->m_DependencyResult;
+            node->m_Result = GetNodeResult(context, node);
             result = node->m_Result;
             load = node->m_Load;
             type = node->m_Type;
@@ -1038,8 +1073,10 @@ namespace dmResource
             LoadNode* parent = context->m_Nodes.GetPtr(context->m_Edges[i].m_Parent);
             assert(parent->m_PendingCompletions);
             --parent->m_PendingCompletions;
-            if (node->m_Result != RESULT_OK)
+            if (node->m_Result != RESULT_OK && node->m_Result != RESULT_PENDING)
                 parent->m_DependencyResult = node->m_Result;
+            if (parent->m_Complete && parent->m_Result != GetNodeResult(context, parent))
+                RefreshDependencyResults(context, parent->m_Index);
             QueueComplete(context, parent);
         }
         ChangeHold(context, node, false);
@@ -1129,6 +1166,8 @@ namespace dmResource
             LoadNode* node = context->m_Nodes.GetPtr(item.m_Node);
             if (node->m_Load->m_Selection != context->m_Selection || (work != LOAD_WORK_READ && node->m_Load->m_Caller != caller))
                 continue;
+            if (work == LOAD_WORK_POST && node->m_InCallback)
+                continue;
             if (remove)
                 Remove(context, queue, i);
             else
@@ -1169,7 +1208,7 @@ namespace dmResource
             for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
             {
                 LoadNode* root = context->m_Nodes.GetPtr(request->m_Roots[i]);
-                if (!root->m_Complete)
+                if (!root->m_Complete || root->m_Result == RESULT_PENDING)
                     return RESULT_PENDING;
                 if (result == RESULT_OK)
                     result = root->m_Result;
@@ -1241,7 +1280,7 @@ namespace dmResource
             uint32_t index = posts[i];
             {
                 DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-                if (context->m_Nodes.Get(index).m_PostDone)
+                if (context->m_Nodes.Get(index).m_PostDone || context->m_Nodes.Get(index).m_InCallback)
                     continue;
                 uint32_t position = context->m_Nodes.Get(index).m_Load->m_QueueIndex[LOAD_WORK_POST];
                 if (position != INVALID_LOAD_INDEX)
@@ -1406,10 +1445,10 @@ namespace dmResource
         for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
         {
             LoadNode* root = context->m_Nodes.GetPtr(request->m_Roots[i]);
-            if (!root->m_Complete)
+            if (!root->m_Complete || root->m_Result == RESULT_PENDING)
             {
                 complete = false;
-                foreign = foreign || root->m_Load->m_Caller != caller;
+                foreign = foreign || !root->m_Load || root->m_Load->m_Caller != caller;
             }
         }
         uint64_t now = dmTime::GetMonotonicTime();
@@ -1500,13 +1539,13 @@ namespace dmResource
                 LoadNode* child = context->m_Nodes.GetPtr(context->m_Edges[i].m_Child);
                 if (child->m_Created && child->m_CreateResult != RESULT_OK)
                     dependency_result = child->m_CreateResult;
-                if (child->m_Complete && child->m_Result != RESULT_OK)
+                if (child->m_Complete && child->m_Result != RESULT_OK && child->m_Result != RESULT_PENDING)
                     dependency_result = child->m_Result;
             }
             node->m_DependencyResult = dependency_result;
             if (!node->m_Complete)
                 continue;
-            Result result = node->m_CreateResult != RESULT_OK ? node->m_CreateResult : dependency_result;
+            Result result = GetNodeResult(context, node);
             if (result == node->m_Result)
                 continue;
             node->m_Result = result;
@@ -1517,24 +1556,30 @@ namespace dmResource
 
     RecreateContext* BeginResourceRecreate(LoadContext* context, dmhash_t path)
     {
-        RecreateContext* recreate = new RecreateContext();
-        recreate->m_Context = context;
-        recreate->m_Node = INVALID_LOAD_INDEX;
         DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
         uint32_t caller = GetCaller(context);
 #if defined(DM_HAS_THREADS)
         while (context->m_UpdateDepth && context->m_UpdateOwner != caller)
             dmConditionVariable::Wait(context->m_Changed, context->m_Mutex);
 #endif
+        uint32_t* found = context->m_ByPath.Get(path);
+        // The active callback may be suspended in Get on this caller's work.
+        // Waiting for it here would deadlock; leave the resource unchanged so
+        // the caller can finish that work and retry recreation afterwards.
+        if (found && context->m_Nodes.Get(*found).m_InCallback)
+            return 0;
+        RecreateContext* recreate = new RecreateContext();
+        recreate->m_Context = context;
+        recreate->m_Node = INVALID_LOAD_INDEX;
         context->m_UpdateOwner = caller;
         ++context->m_UpdateDepth;
         recreate->m_PreviousCreating = context->m_Creating;
         recreate->m_Previous = context->m_Recreating;
-        uint32_t* found = context->m_ByPath.Get(path);
         if (found)
         {
             recreate->m_Node = *found;
             LoadNode* node = context->m_Nodes.GetPtr(*found);
+            node->m_InCallback = true;
             recreate->m_FirstDependency = node->m_FirstDependency;
             ++node->m_References;
             ChangeHold(context, node, true);
@@ -1607,9 +1652,6 @@ namespace dmResource
                 RefreshDependencyResults(context, recreate->m_Node);
                 // Removing the last pending dependency can unblock an already posted parent.
                 QueueComplete(context, node);
-                ChangeHold(context, node, false);
-                --node->m_References;
-                DestroyUnusedNodes(context, recreate->m_Node);
             }
             context->m_Creating = recreate->m_PreviousCreating;
             context->m_Recreating = recreate->m_Previous;
@@ -1622,6 +1664,14 @@ namespace dmResource
         LoadContext* context = recreate->m_Context;
         {
             DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            if (recreate->m_Node != INVALID_LOAD_INDEX)
+            {
+                LoadNode* node = context->m_Nodes.GetPtr(recreate->m_Node);
+                node->m_InCallback = false;
+                ChangeHold(context, node, false);
+                --node->m_References;
+                DestroyUnusedNodes(context, recreate->m_Node);
+            }
             context->m_Creating = INVALID_LOAD_INDEX;
             context->m_Recreating = 0;
         }

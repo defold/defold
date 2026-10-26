@@ -36,6 +36,16 @@ struct LoadedNode
     dmArray<void*> m_Dependencies;
 };
 
+class ResourceLoaderTest;
+
+struct RecreateCaller
+{
+    ResourceLoaderTest* m_Test;
+    uint32_t m_Mode;
+    dmResource::Result m_Recreated;
+    dmResource::Result m_Loaded;
+};
+
 class ResourceLoaderTest : public jc_test_params_class<int>
 {
     public:
@@ -62,6 +72,9 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         m_Transitive = false;
         m_PostReadsParent = false;
         m_PostLoadsSibling = false;
+        m_SignalPost = false;
+        m_RecreateFromPost = ~0u;
+        m_RecreateResult = dmResource::RESULT_PENDING;
         m_PostPendingOnce = false;
         m_HoldPosts = false;
         m_ReplacePointer = false;
@@ -413,6 +426,8 @@ class ResourceLoaderTest : public jc_test_params_class<int>
             }
         }
         ++self->m_Posts[resource->m_Value];
+        if (resource->m_Value == 0 && self->m_RecreateFromPost != ~0u)
+            self->m_RecreateResult = self->Replace(0, 0, 0, self->m_RecreateFromPost);
         if (self->m_PostReadsParent && resource->m_Value == 1)
         {
             void* parent = 0;
@@ -424,6 +439,14 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         if (self->m_PostLoadsSibling && resource->m_Value == 0)
         {
             self->m_HoldPosts = false;
+#if defined(DM_HAS_THREADS)
+            if (self->m_SignalPost)
+            {
+                DM_MUTEX_SCOPED_LOCK(self->m_Mutex);
+                self->m_Blocked = true;
+                dmConditionVariable::Broadcast(self->m_Changed);
+            }
+#endif
             void* sibling = 0;
             dmResource::Result result = dmResource::Get(params->m_Factory, "/node_2.node", &sibling);
             if (result != dmResource::RESULT_OK)
@@ -511,6 +534,25 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         GetCaller* caller = (GetCaller*)user_data;
         uint32_t dependency = 1;
         caller->m_Result = caller->m_Test->Replace(0, &dependency, 1, 1);
+    }
+
+    static void RecreateDuringCallback(void* user_data)
+    {
+#if defined(DM_HAS_THREADS)
+        RecreateCaller* caller = (RecreateCaller*)user_data;
+        ResourceLoaderTest* self = caller->m_Test;
+        dmResource::HPreloader dependency = dmResource::NewPreloader(self->m_Factory, "/node_2.node");
+        {
+            DM_MUTEX_SCOPED_LOCK(self->m_Mutex);
+            self->m_GetJobsStarted = 1;
+            dmConditionVariable::Broadcast(self->m_Changed);
+            while (!self->m_Blocked)
+                dmConditionVariable::Wait(self->m_Changed, self->m_Mutex);
+        }
+        caller->m_Recreated = self->Replace(0, 0, 0, caller->m_Mode);
+        caller->m_Loaded = self->Complete(dependency);
+        dmResource::DeletePreloader(dependency);
+#endif
     }
 
     static void RequestResidentFromThread(void* user_data)
@@ -704,6 +746,9 @@ class ResourceLoaderTest : public jc_test_params_class<int>
     bool m_Transitive;
     bool m_PostReadsParent;
     bool m_PostLoadsSibling;
+    bool m_SignalPost;
+    uint32_t m_RecreateFromPost;
+    dmResource::Result m_RecreateResult;
     bool m_PostPendingOnce;
     bool m_HoldPosts;
     bool m_ReplacePointer;
@@ -1515,6 +1560,255 @@ TEST_P(ResourceLoaderTest, RecreateWithForeignAffinity)
 #endif
 }
 
+// Recreation cannot replace an object still used by PostCreate, even during a nested Get on a foreign owner.
+TEST_P(ResourceLoaderTest, RecreateDuringSuspendedPostCreate)
+{
+#if defined(DM_HAS_THREADS)
+    EnablePostCreate();
+    m_PostLoadsSibling = true;
+    m_SignalPost = true;
+    m_ReplacePointer = true;
+    Add(0, 0, 0);
+    Add(2, 0, 0);
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        m_Blocked = false;
+        m_GetJobsStarted = 0;
+        RecreateCaller caller = { this, mode, dmResource::RESULT_OK, dmResource::RESULT_PENDING };
+        dmThread::Thread thread = dmThread::New(RecreateDuringCallback, 0x20000, &caller, "RecreatePost");
+        {
+            DM_MUTEX_SCOPED_LOCK(m_Mutex);
+            while (!m_GetJobsStarted)
+                dmConditionVariable::Wait(m_Changed, m_Mutex);
+        }
+        dmResource::Result result = Complete(Request(0));
+        dmThread::Join(thread);
+        ASSERT_EQ(dmResource::RESULT_OK, result);
+        ASSERT_EQ(dmResource::RESULT_OK, caller.m_Loaded);
+        ASSERT_EQ(dmResource::RESULT_PENDING, caller.m_Recreated);
+        ASSERT_EQ(mode * 2, m_Destroys[0]);
+        ASSERT_EQ(dmResource::RESULT_OK, Replace(0, 0, 0, mode));
+        ASSERT_EQ(mode * 2 + 1, m_Destroys[0]);
+        Delete(mode);
+        ASSERT_EQ(mode * 2 + 2, m_Destroys[0]);
+    }
+#endif
+}
+
+// Reentrant recreation from PostCreate returns pending without changing its object, including on wasm.
+TEST_P(ResourceLoaderTest, RecreateFromActivePostCreate)
+{
+    EnablePostCreate();
+    m_ReplacePointer = true;
+    Add(0, 0, 0);
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        m_RecreateFromPost = mode;
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(0)));
+        ASSERT_EQ(dmResource::RESULT_PENDING, m_RecreateResult);
+        ASSERT_EQ(mode * 2, m_Destroys[0]);
+        ASSERT_EQ(dmResource::RESULT_OK, Replace(0, 0, 0, mode));
+        Delete(mode);
+        ASSERT_EQ(mode * 2 + 2, m_Destroys[0]);
+    }
+}
+
+// A suspended Recreate owns its original object until publication and cannot be replaced by the dependency owner.
+TEST_P(ResourceLoaderTest, RecreateDuringSuspendedRecreate)
+{
+#if defined(DM_HAS_THREADS)
+    m_ReplacePointer = true;
+    Add(0, 0, 0);
+    Add(2, 0, 0);
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(0)));
+        m_SignalCreate = 0;
+        m_Blocked = false;
+        m_GetJobsStarted = 0;
+        RecreateCaller caller = { this, mode, dmResource::RESULT_OK, dmResource::RESULT_PENDING };
+        dmThread::Thread thread = dmThread::New(RecreateDuringCallback, 0x20000, &caller, "RecreateBusy");
+        {
+            DM_MUTEX_SCOPED_LOCK(m_Mutex);
+            while (!m_GetJobsStarted)
+                dmConditionVariable::Wait(m_Changed, m_Mutex);
+        }
+        uint32_t child = 2;
+        dmResource::Result result = Replace(0, &child, 1, mode);
+        dmThread::Join(thread);
+        ASSERT_EQ(dmResource::RESULT_OK, result);
+        ASSERT_EQ(dmResource::RESULT_OK, caller.m_Loaded);
+        ASSERT_EQ(dmResource::RESULT_PENDING, caller.m_Recreated);
+        ASSERT_EQ(mode * 3 + 1, m_Destroys[0]);
+        ASSERT_EQ(dmResource::RESULT_OK, Replace(0, 0, 0, mode));
+        Delete(mode);
+        ASSERT_EQ(mode * 3 + 3, m_Destroys[0]);
+    }
+#endif
+}
+
+// PostCreate remains queued while a foreign Recreate is suspended, then resumes against the published replacement.
+TEST_P(ResourceLoaderTest, PostCreateDuringSuspendedRecreate)
+{
+#if defined(DM_HAS_THREADS)
+    EnablePostCreate();
+    m_HeldPost = 0;
+    m_ReplacePointer = true;
+    m_CheckPostIdentity = true;
+    Add(0, 0, 0);
+    Add(1, 0, 0);
+    dmResource::HPreloader original = Request(0);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_Creates[0] && dmTime::GetMonotonicTime() < deadline)
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(original, 0, 0, 0));
+    ASSERT_EQ(1u, m_Creates[0]);
+    dmResource::HPreloader dependency = Request(1);
+    m_SignalCreate = 0;
+    GetCaller caller = { this, 0, dmResource::RESULT_PENDING, 0 };
+    dmThread::Thread thread = dmThread::New(RecreateFromThread, 0x20000, &caller, "RecreatePost");
+    {
+        DM_MUTEX_SCOPED_LOCK(m_Mutex);
+        while (!m_Blocked)
+            dmConditionVariable::Wait(m_Changed, m_Mutex);
+    }
+    dmResource::HPreloader alias = Request(0);
+    Notification notification = { this, 0 };
+    dmResource::PreloaderCompleteCallbackParams params = { m_Factory, &notification };
+    uint32_t before = m_Posts[0];
+    deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_Notified[0] && dmTime::GetMonotonicTime() < deadline)
+        dmResource::UpdatePreloader(alias, Notify, &params, 1000);
+    uint32_t during = m_Posts[0];
+    dmResource::Result loaded = Complete(dependency);
+    dmThread::Join(thread);
+    ASSERT_TRUE(m_Notified[0]);
+    ASSERT_EQ(before, during);
+    ASSERT_EQ(dmResource::RESULT_OK, loaded);
+    ASSERT_EQ(dmResource::RESULT_OK, caller.m_Result);
+    m_HeldPost = ~0u;
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(alias));
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(original));
+    ASSERT_TRUE(m_PostIdentityCorrect);
+#endif
+}
+
+// Completed ancestors become pending when recreation adds a child and inherit its later PostCreate failure.
+TEST_P(ResourceLoaderTest, RecreateAddsPendingDependencyFailure)
+{
+    EnablePostCreate();
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        uint32_t root = mode * 3;
+        uint32_t child = root + 1;
+        uint32_t ancestor = root + 2;
+        Add(root, 0, 0);
+        Add(child, 0, 0);
+        Add(ancestor, &root, 1);
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(ancestor)));
+        m_HeldPost = child;
+        dmResource::HPreloader request = Request(child);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!m_Creates[child] && dmTime::GetMonotonicTime() < deadline)
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+        ASSERT_EQ(1u, m_Creates[child]);
+        ASSERT_EQ(dmResource::RESULT_OK, Replace(root, &child, 1, mode));
+        for (uint32_t id = root; id <= ancestor; ++id)
+        {
+            char path[64];
+            Path(id, path, sizeof(path));
+            void* resource = 0;
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::Get(m_Factory, dmHashString64(path), &resource));
+            ASSERT_EQ((void*)0, resource);
+        }
+        m_FailedPost = child;
+        m_HeldPost = ~0u;
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(request));
+        for (uint32_t id = root; id <= ancestor; ++id)
+        {
+            char path[64];
+            Path(id, path, sizeof(path));
+            void* resource = 0;
+            ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::Get(m_Factory, path, &resource));
+            ASSERT_EQ((void*)0, resource);
+        }
+        Delete(mode * 2 + 1);
+        Delete(mode * 2);
+        ASSERT_EQ(1u, m_Destroys[child]);
+    }
+}
+
+// A recreated fan-out stays pending until every independently owned dependency has finished.
+TEST_P(ResourceLoaderTest, RecreateWaitsForAllAddedDependencies)
+{
+    EnablePostCreate();
+    Add(0, 0, 0);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(0)));
+    const uint32_t count = 64;
+    uint32_t children[count];
+    m_HoldPosts = true;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        children[i] = i + 1;
+        Add(i + 1, 0, 0);
+        dmResource::HPreloader request = Request(i + 1);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!m_Creates[i + 1] && dmTime::GetMonotonicTime() < deadline)
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+        ASSERT_EQ(1u, m_Creates[i + 1]);
+    }
+    ASSERT_EQ(dmResource::RESULT_OK, Replace(0, children, count, 1));
+    m_HoldPosts = false;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(m_Requests[i + 1]));
+        void* resource = 0;
+        dmResource::Result result = dmResource::Get(m_Factory, dmHashString64("/node_0.node"), &resource);
+        ASSERT_EQ(i + 1 == count ? dmResource::RESULT_OK : dmResource::RESULT_PENDING, result);
+        if (resource)
+            dmResource::Release(m_Factory, resource);
+    }
+    ASSERT_EQ(1u, m_Posts[0]);
+}
+
+// Get traverses finalized ancestors to finish dependencies added during recreation without re-running their callbacks.
+TEST_P(ResourceLoaderTest, GetCompletesRecreatedDependencyGraph)
+{
+    EnablePostCreate();
+    Add(0, 0, 0);
+    Add(1, 0, 0);
+    uint32_t root = 0;
+    Add(2, &root, 1);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(2)));
+    m_HeldPost = 1;
+    dmResource::HPreloader request = Request(1);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_Creates[1] && dmTime::GetMonotonicTime() < deadline)
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+    ASSERT_EQ(1u, m_Creates[1]);
+    uint32_t child = 1;
+    ASSERT_EQ(dmResource::RESULT_OK, Replace(0, &child, 1, 1));
+    uint32_t ancestor = 2;
+    Add(3, &ancestor, 1);
+    dmResource::HPreloader later = Request(3);
+    deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_Posts[3] && dmTime::GetMonotonicTime() < deadline)
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(later, 0, 0, 0));
+    ASSERT_EQ(1u, m_Posts[3]);
+    ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(later, 0, 0, 0));
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::Get(m_Factory, dmHashString64("/node_3.node"), &resource));
+    ASSERT_EQ((void*)0, resource);
+    m_HeldPost = ~0u;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/node_3.node", &resource));
+    dmResource::Release(m_Factory, resource);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(request));
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(later));
+    ASSERT_EQ(1u, m_Posts[0]);
+    ASSERT_EQ(1u, m_Posts[2]);
+    ASSERT_EQ(1u, m_Posts[3]);
+    ASSERT_EQ(1u, m_Creates[1]);
+}
+
 // Legacy unhinted Gets join the same scheduler and can complete recursively without creation locks.
 TEST_P(ResourceLoaderTest, UnhintedDependency)
 {
@@ -1949,13 +2243,23 @@ TEST_P(ResourceLoaderTest, UnrelatedPostCreateFollowsOwnCallback)
 TEST_P(ResourceLoaderTest, PostCreateDependencyCycle)
 {
     EnablePostCreate();
-    m_PostReadsParent = true;
+    m_HoldPosts = true;
     uint32_t child = 1;
     Add(0, &child, 1);
     Add(1, 0, 0);
-    ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, Complete(Request(0)));
-    ASSERT_EQ(1u, m_Posts[0]);
-    ASSERT_EQ(1u, m_Posts[1]);
+    dmResource::HPreloader request = Request(0);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_Creates[0] && dmTime::GetMonotonicTime() < deadline)
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+    ASSERT_EQ(1u, m_Creates[0]);
+    ASSERT_EQ(1u, m_Creates[1]);
+    uint32_t parent_posts = m_Posts[0];
+    uint32_t child_posts = m_Posts[1];
+    m_PostReadsParent = true;
+    m_HoldPosts = false;
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, Complete(request));
+    ASSERT_EQ(parent_posts + 1, m_Posts[0]);
+    ASSERT_EQ(child_posts + 1, m_Posts[1]);
     ASSERT_EQ(0u, m_Decoded);
 }
 

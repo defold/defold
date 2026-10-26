@@ -990,6 +990,12 @@ static Result DestroyPreviousResource(HFactory factory, ResourceDescriptor* rd)
 static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const char* filename, const void* data, uint32_t data_size, const void* message, HResourceDescriptor* out_descriptor)
 {
     RecreateContext* recreate = BeginResourceRecreate(GetLoadContext(factory), path_hash);
+    if (!recreate)
+    {
+        if (out_descriptor)
+            *out_descriptor = 0;
+        return RESULT_PENDING;
+    }
     ResourceDescriptor descriptor = {};
     ResourceDescriptor* rd;
     {
