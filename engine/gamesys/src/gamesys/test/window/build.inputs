@@ -1,3 +1,4 @@
 /window/display_density.go
 /window/mouse_lock.go
+/window/soft_keyboard.go
 /window/window_events.go

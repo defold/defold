@@ -2736,6 +2736,39 @@ function testMixedTouchAndMouseSources() {
     assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), true);
 }
 
+// Verifies the requested keyboard type reaches the browser as the inputmode of the canvas, which is
+// the only way to ask for a numeric or email layout, and that hiding does not pull focus back.
+function testSoftKeyboardTypeMapping() {
+    const context = loadEnvironment();
+    const library = context.LibraryDefoldPlatform;
+    const attributes = {};
+    const canvas = {
+        focusCount: 0,
+        setAttribute(name, value) { attributes[name] = value; },
+        focus() { this.focusCount++; }
+    };
+    context.Module.canvas = canvas;
+
+    // The keyed types follow dmHID::KeyboardType; a password field cannot be expressed by
+    // contentEditable, so it shares the text layout, as does an unknown type.
+    let focusCount = 0;
+    for (const [type, inputmode] of [[0, "text"], [1, "numeric"], [2, "email"], [3, "text"], [9, "text"]]) {
+        library.dmNativeShowKeyboard(1, type, 1);
+        focusCount++;
+        assert.strictEqual(canvas.contentEditable, true);
+        assert.strictEqual(attributes.inputmode, inputmode, "keyboard type " + type);
+        assert.strictEqual(canvas.focusCount, focusCount);
+
+        library.dmNativeShowKeyboard(0, type, 1);
+        assert.strictEqual(canvas.contentEditable, false);
+        assert.strictEqual(canvas.focusCount, focusCount, "hiding must not focus the canvas");
+    }
+
+    // The browser decides when the keyboard closes, so auto_close is accepted and ignored.
+    library.dmNativeShowKeyboard(1, 1, 0);
+    assert.strictEqual(attributes.inputmode, "numeric");
+}
+
 async function runTests() {
     for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
                        testLoaderResizeCanvas, testLoaderProgressView,
@@ -2772,7 +2805,8 @@ async function runTests() {
                        testLoaderInitialSyncRetryBudget, testLoaderPersistentSyncRetryBudget,
                        testLoaderPixelRatioBounds, testLoaderPixelRatioScaleModes,
                        testLoaderPixelRatioChanges, testLoaderFullscreenPixelRatio,
-                       testTouchMouseSources, testMixedTouchAndMouseSources]) {
+                       testTouchMouseSources, testMixedTouchAndMouseSources,
+                       testSoftKeyboardTypeMapping]) {
         // Pending promises alone do not keep Node alive. Treat a missing completion
         // signal as a failure rather than silently exiting before the suite finishes.
         const unfinished = () => {
