@@ -191,6 +191,7 @@ public class TextureGeneratorTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Verifies HDR dimensions are returned through JNI, guarding against regressions in ImageInfo construction.
     @Test
     public void testHDRImageInfo() throws IOException {
         TexcLibraryJni.ImageInfo info = TexcLibraryJni.GetImageInfo(getFile("/hdr_2x2.hdr"));
