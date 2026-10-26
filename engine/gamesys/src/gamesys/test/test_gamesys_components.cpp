@@ -1495,6 +1495,54 @@ TEST(ScriptWindowTest, ReservedAreas)
     lua_close(scriptlibcontext.m_LuaState);
 }
 
+// Verifies that window.get_display_density() and window.get_display_density_scale() are registered,
+// that the density is always a positive value and that the scale honours both the default 160 dpi
+// reference and a caller supplied one. Guards against a backend regressing to an unknown density of
+// 0, which would make the scale arithmetic unusable, and against the reference argument being
+// ignored.
+TEST_F(WindowTest, DisplayDensity)
+{
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
+    window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_NULL;
+
+    dmHID::NewContextParams hid_params = {};
+    dmHID::HContext hid_context = dmHID::NewContext(hid_params);
+    dmHID::Init(hid_context);
+
+    HWindow window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(window, window_params);
+    dmHID::SetWindow(hid_context, window);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_HidContext      = hid_context;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Spawn the game object with the script we want to call
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/window/display_density.goc", dmHashString64("/display_density"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+
+    // The script asserts the density value domain and that a caller supplied reference density
+    // normalises the returned scale as documented.
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+
+    dmHID::Final(hid_context);
+    dmHID::DeleteContext(hid_context);
+    dmPlatform::DeleteWindow(window);
+}
+
 TEST_F(WindowTest, Events)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;

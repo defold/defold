@@ -1,0 +1,37 @@
+local function assert_close(a, b, message)
+	assert(math.abs(a - b) < 0.001, string.format("%s: expected %f, got %f", message or "value", b, a))
+end
+
+function init(self)
+	self.update_counter = 0
+end
+
+function update(self, dt)
+	if self.update_counter == 0 then
+		local density = window.get_display_density()
+		assert(type(density) == "number")
+		-- Unsupported platforms report the nominal 96, so the arithmetic below always runs. A
+		-- backend that regressed to reporting 0 fails here instead of silently skipping the rest.
+		assert(density > 0)
+
+		-- 160 dpi is the Android mdpi baseline that density values are normally expressed against.
+		local scale = window.get_display_density_scale(160)
+		assert(type(scale) == "number")
+		assert_close(scale, density / 160, "reference 160")
+
+		-- A caller supplied reference changes the normalisation, which is how a project with its
+		-- own reference density (for instance 220) gets the multiplier it wants. Comparing it
+		-- against the first scale as well catches an implementation that ignores the argument.
+		local scale_custom = window.get_display_density_scale(220)
+		assert(type(scale_custom) == "number")
+		assert_close(scale_custom, density / 220, "reference 220")
+		assert_close(scale_custom, scale * 160 / 220, "reference relation")
+
+		-- The reference is required and has to be positive: a missing argument is an argument
+		-- error, and a reference of 0 would divide by zero.
+		assert(not pcall(window.get_display_density_scale))
+		assert(not pcall(window.get_display_density_scale, 0))
+	end
+
+	self.update_counter = self.update_counter + 1
+end

@@ -35,6 +35,7 @@
 #include <limits.h>
 #include <jni.h>
 #include <unistd.h>
+#include <android/configuration.h>
 
 //************************************************************************
 //****               Platform implementation functions                ****
@@ -757,6 +758,22 @@ void dmNativeOSSetWindowBackgroundColor(unsigned int color)
 float dmNativeOSGetDisplayScaleFactor()
 {
     return 1.0f;
+}
+
+float dmNativeOSGetDisplayDensity()
+{
+    // AConfiguration reports the density bucket the activity was started for (160, 240, 320, 420,
+    // 480, ...), the same value DisplayMetrics.densityDpi exposes to Java code.
+    if (g_AndroidApp && g_AndroidApp->config)
+    {
+        int32_t density = AConfiguration_getDensity(g_AndroidApp->config);
+        if (density > 0)
+        {
+            return (float) density;
+        }
+    }
+
+    return 160.0f; // android mdpi, the density everything else is expressed relative to
 }
 
 #define MAX_ACTIVITY_LISTENERS (32)
