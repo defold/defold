@@ -1522,6 +1522,7 @@ namespace dmResource
                 LoadNode* node = context->m_Nodes.GetPtr(recreate->m_Node);
                 uint32_t previous = INVALID_LOAD_INDEX;
                 bool original = false;
+                Result dependency_result = RESULT_OK;
                 for (uint32_t i = node->m_FirstDependency; i != INVALID_LOAD_INDEX;)
                 {
                     LoadEdge edge = context->m_Edges[i];
@@ -1535,7 +1536,13 @@ namespace dmResource
                             keep = keep || recreate->m_Dependencies[j] == edge.m_Child;
                     }
                     if (keep)
+                    {
                         previous = i;
+                        if (child->m_Created && child->m_CreateResult != RESULT_OK)
+                            dependency_result = child->m_CreateResult;
+                        if (child->m_Complete && child->m_Result != RESULT_OK)
+                            dependency_result = child->m_Result;
+                    }
                     else
                     {
                         if (previous == INVALID_LOAD_INDEX)
@@ -1562,6 +1569,8 @@ namespace dmResource
                 }
                 if (result == RESULT_OK)
                 {
+                    // Errors from removed dependencies do not belong to the replacement graph.
+                    node->m_DependencyResult = dependency_result;
                     node->m_Resource = descriptor->m_Resource;
                     // PostCreate uses the load's descriptor until finalization.
                     // Publish replacement identity and size to both views before

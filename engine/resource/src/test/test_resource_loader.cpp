@@ -1087,6 +1087,91 @@ TEST_P(ResourceLoaderTest, RecreateDetachesPendingDependencies)
     }
 }
 
+// Reload and both SetResource forms must discard a completed error when they remove the failed dependency.
+TEST_P(ResourceLoaderTest, RecreateClearsDetachedDependencyFailure)
+{
+    EnablePostCreate();
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        uint32_t root = mode * 2;
+        uint32_t child = root + 1;
+        m_HoldPosts = true;
+        m_HeldPost = root;
+        m_FailedPost = child;
+        Add(root, &child, 1);
+        Add(child, 0, 0);
+        dmResource::HPreloader request = Request(root);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!m_Creates[root] && dmTime::GetMonotonicTime() < deadline)
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+        ASSERT_EQ(1u, m_Creates[root]);
+        m_HoldPosts = false;
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(Request(child)));
+        ASSERT_EQ(dmResource::RESULT_OK, Replace(root, 0, 0, mode));
+        Delete(mode * 2 + 1);
+        ASSERT_EQ(1u, m_Destroys[child]);
+        m_HeldPost = ~0u;
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(request));
+        Delete(mode * 2);
+        ASSERT_EQ(1u, m_Destroys[root]);
+    }
+}
+
+// Successful recreation must retain a completed transitive error when it keeps the affected dependency.
+TEST_P(ResourceLoaderTest, RecreateKeepsRetainedDependencyFailure)
+{
+    EnablePostCreate();
+    m_HoldPosts = true;
+    m_HeldPost = 0;
+    m_FailedPost = 2;
+    uint32_t child = 1;
+    uint32_t leaf = 2;
+    Add(0, &child, 1);
+    Add(child, &leaf, 1);
+    Add(leaf, 0, 0);
+    dmResource::HPreloader request = Request(0);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_Creates[0] && dmTime::GetMonotonicTime() < deadline)
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+    ASSERT_EQ(1u, m_Creates[0]);
+    m_HoldPosts = false;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(Request(child)));
+    ASSERT_EQ(dmResource::RESULT_OK, Replace(0, &child, 1, 1));
+    m_HeldPost = ~0u;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(request));
+    Delete(1);
+    Delete(0);
+    for (uint32_t i = 0; i < 3; ++i)
+        ASSERT_EQ(1u, m_Destroys[i]);
+}
+
+// Failed recreation keeps the old graph and its already recorded dependency error.
+TEST_P(ResourceLoaderTest, FailedRecreateKeepsDependencyFailure)
+{
+    EnablePostCreate();
+    m_HoldPosts = true;
+    m_HeldPost = 0;
+    m_FailedPost = 1;
+    uint32_t child = 1;
+    Add(0, &child, 1);
+    Add(child, 0, 0);
+    dmResource::HPreloader request = Request(0);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_Creates[0] && dmTime::GetMonotonicTime() < deadline)
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+    ASSERT_EQ(1u, m_Creates[0]);
+    m_HoldPosts = false;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(Request(child)));
+    uint32_t missing = 99;
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, Replace(0, &missing, 1, 1));
+    m_HeldPost = ~0u;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(request));
+    Delete(1);
+    Delete(0);
+    ASSERT_EQ(1u, m_Destroys[0]);
+    ASSERT_EQ(1u, m_Destroys[child]);
+}
+
 // Detaching the last pending child must queue completion when the parent's own PostCreate already finished.
 TEST_P(ResourceLoaderTest, RecreateDetachesLastPendingCompletion)
 {
