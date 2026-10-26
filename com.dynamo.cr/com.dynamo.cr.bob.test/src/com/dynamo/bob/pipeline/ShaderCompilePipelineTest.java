@@ -629,6 +629,43 @@ public class ShaderCompilePipelineTest {
         ShaderCompilePipeline.destroyShaderPipeline(pipelineFragment);
     }
 
+    // Reject native compiler errors even when JNI returns a non-null, empty shader byte array.
+    @Test
+    public void testLegacyCrossCompilationPropagatesCompilerError() throws Exception {
+        Shaderc.ShaderCompileResult failureResult = new Shaderc.ShaderCompileResult();
+        failureResult.data = new byte[0];
+        failureResult.lastError = "Native shader compiler diagnostic";
+
+        ShaderCompilePipelineLegacy pipeline = new ShaderCompilePipelineLegacy("testLegacyCompilerError") {
+            @Override
+            protected void prepare() {}
+
+            @Override
+            protected Shaderc.ShaderCompileResult generateCrossCompiledShader(CrossCompileOptions compileOptions) {
+                return failureResult;
+            }
+        };
+        ShaderCompilePipeline.ShaderModuleDesc fsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+
+        try {
+            ShaderCompilePipeline.createShaderPipeline(pipeline, fsDesc, new ShaderCompilePipeline.Options());
+            for (ShaderDesc.Language language : new ShaderDesc.Language[] {
+                    ShaderDesc.Language.LANGUAGE_HLSL_50,
+                    ShaderDesc.Language.LANGUAGE_HLSL_51,
+                    ShaderDesc.Language.LANGUAGE_MSL_22}) {
+                try {
+                    pipeline.crossCompile(fsDesc.type, language, null, false);
+                    fail("Expected native compiler error for " + language);
+                } catch (CompileExceptionError e) {
+                    assertTrue(e.getMessage().contains(failureResult.lastError));
+                }
+            }
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
+    }
+
     @Test
     public void testExtraDefines() throws Exception {
         String fsShader =
