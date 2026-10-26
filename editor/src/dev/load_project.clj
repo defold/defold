@@ -81,9 +81,15 @@
 ;; simulated reload phase.
 (def ^:const simulated-reload-seed 0x5eed)
 
+;; When true, create resource-node shells as in production, without reading
+;; source-values or invoking load functions. Later tasks materialize the nodes
+;; on demand. Set to false to measure the eager loading phases instead.
+(defonce create-unmaterialized-shell-nodes true)
+
 ;; When true, generate tx-data for loaded nodes in a separate step before
 ;; applying it in a transaction. Allows us to profile the two phases in
-;; isolation at the cost of increased peak memory usage.
+;; isolation at the cost of increased peak memory usage. Only applies when
+;; create-unmaterialized-shell-nodes is false.
 (defonce separate-load-tx-data-generation true)
 
 ;; Set to one of the task-phases below to skip the rest of the tasks.
@@ -253,67 +259,74 @@
       (project/make-project workspace extensions))))
 
 (defonce node-load-infos
-  (run-and-measure-task!
-    :read-resources
-    (project/read-nodes (g/now) node-id+resource-pairs
-      :resource-metrics resource-metrics)))
+  (when-not create-unmaterialized-shell-nodes
+    (run-and-measure-task!
+      :read-resources
+      (project/read-nodes (g/now) node-id+resource-pairs
+        :resource-metrics resource-metrics))))
 
 (defonce migrated-resource-node-ids
-  (let [tx-data
-        (run-and-measure-task!
-          :generate-load-tx-data
-          (let [load-opts (project/make-load-opts project)]
-            (cond->
-              (e/concat
-                (project/make-resource-nodes-tx-data project node-id+resource-pairs)
-                (e/mapcat project/node-load-info->disk-state-tx-data node-load-infos)
-                (project/load-nodes-tx-data load-opts node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics))
-              separate-load-tx-data-generation
-              g/eager-tx-data)))
-
-        transaction-context (g/make-transaction-context transact-opts)
-        pre-tx-basis (:basis transaction-context)
-
-        tx-result
-        (as-> transaction-context transaction-context
-
-          (run-and-measure-task!
-            :apply-load-tx-data
-            (let [[transaction-context] (it/realize-tx transaction-context nil tx-data)]
-              transaction-context))
-
-          (run-and-measure-task!
-            :update-overrides
-            (let [[transaction-context] (it/realize-update-overrides transaction-context nil)]
-              transaction-context))
-
-          (run-and-measure-task!
-            :update-successors
-            (-> transaction-context
-                (assoc :undoable-changes [])
-                (it/finalize-applied-changes))))
-
-        _ (when tx-result
-            (g/commit-tx-result! tx-result transact-opts pre-tx-basis))
-
-        migrated-resource-node-ids
-        (let [basis (:basis tx-result)]
-          (into #{}
-                (keep #(resource-node/owner-resource-node-id basis %))
-                (g/migrated-node-ids tx-result)))]
-
+  (if create-unmaterialized-shell-nodes
     (run-and-measure-task!
-      :cache-save-data
-      (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids))
-    (let [basis (g/now)
-          migrated-proj-paths
-          (into (sorted-set)
-                (map #(resource/proj-path (resource-node/resource basis %)))
-                migrated-resource-node-ids)]
-      (when (pos? (count migrated-proj-paths))
-        (log-info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))
+      :apply-load-tx-data
+      (g/transact transact-opts
+        (project/make-resource-nodes-tx-data project node-id+resource-pairs))
+      #{})
+    (let [tx-data
+          (run-and-measure-task!
+            :generate-load-tx-data
+            (let [load-opts (project/make-load-opts project)]
+              (cond->
+                (e/concat
+                  (project/make-resource-nodes-tx-data project node-id+resource-pairs)
+                  (e/mapcat project/node-load-info->disk-state-tx-data node-load-infos)
+                  (project/load-nodes-tx-data load-opts node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics))
+                separate-load-tx-data-generation
+                g/eager-tx-data)))
 
-    migrated-resource-node-ids))
+          transaction-context (g/make-transaction-context transact-opts)
+          pre-tx-basis (:basis transaction-context)
+
+          tx-result
+          (as-> transaction-context transaction-context
+
+            (run-and-measure-task!
+              :apply-load-tx-data
+              (let [[transaction-context] (it/realize-tx transaction-context nil tx-data)]
+                transaction-context))
+
+            (run-and-measure-task!
+              :update-overrides
+              (let [[transaction-context] (it/realize-update-overrides transaction-context nil)]
+                transaction-context))
+
+            (run-and-measure-task!
+              :update-successors
+              (-> transaction-context
+                  (assoc :undoable-changes [])
+                  (it/finalize-applied-changes))))
+
+          _ (when tx-result
+              (g/commit-tx-result! tx-result transact-opts pre-tx-basis))
+
+          migrated-resource-node-ids
+          (let [basis (:basis tx-result)]
+            (into #{}
+                  (keep #(resource-node/owner-resource-node-id basis %))
+                  (g/migrated-node-ids tx-result)))]
+
+      (run-and-measure-task!
+        :cache-save-data
+        (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids))
+      (let [basis (g/now)
+            migrated-proj-paths
+            (into (sorted-set)
+                  (map #(resource/proj-path (resource-node/resource basis %)))
+                  migrated-resource-node-ids)]
+        (when (pos? (count migrated-proj-paths))
+          (log-info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))
+
+      migrated-resource-node-ids)))
 
 (defonce build-results
   (g/with-auto-evaluation-context evaluation-context
