@@ -1267,25 +1267,6 @@ namespace dmResource
         return INVALID_LOAD_INDEX;
     }
 
-    // Snapshot this request's posts in FIFO order. Keep them in the shared queue
-    // until called, since a nested Get can need to finish the same dependency.
-    static void GetRequestPosts(HPreloader request, dmArray<uint32_t>& posts)
-    {
-        LoadContext* context = request->m_Context;
-        LoadQueue& queue = context->m_Queues[LOAD_WORK_POST];
-        for (;;)
-        {
-            uint32_t index = FindRequestWork(request, LOAD_WORK_POST, false);
-            if (index == INVALID_LOAD_INDEX)
-                return;
-            LoadNode* node = context->m_Nodes.GetPtr(index);
-            request->m_WorkCursor[LOAD_WORK_POST] = queue.m_Items[node->m_Load->m_QueueIndex[LOAD_WORK_POST]].m_Sequence + 1;
-            // Nested callbacks may complete and detach another snapshotted load.
-            ++node->m_References;
-            Push(posts, index);
-        }
-    }
-
     // Completed requests release their holds without advancing unrelated work.
     static Result CompleteRequest(HPreloader request)
     {
@@ -1358,43 +1339,42 @@ namespace dmResource
 
         // Retry each pending PostCreate at most once per update. A pending GPU
         // upload must not turn a caller's frame budget into a polling interval.
-        dmArray<uint32_t> posts;
+        // Later sequence numbers defer new and requeued posts to the next pass.
+        uint64_t last_post;
         {
             DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-            if (context->m_Queues[LOAD_WORK_POST].m_Count)
-                GetRequestPosts(request, posts);
+            last_post = context->m_Queues[LOAD_WORK_POST].m_NextSequence;
         }
-        for (uint32_t i = 0; i < posts.Size(); ++i)
+        while (!progressed || dmTime::GetMonotonicTime() - start < soft_time_limit)
         {
-            if (progressed && dmTime::GetMonotonicTime() - start >= soft_time_limit)
-                break;
-            uint32_t index = posts[i];
+            uint32_t index;
             {
                 DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-                if (context->m_Nodes.Get(index).m_PostDone || context->m_Nodes.Get(index).m_InCallback)
-                    continue;
-                uint32_t position = context->m_Nodes.Get(index).m_Load->m_QueueIndex[LOAD_WORK_POST];
-                if (position != INVALID_LOAD_INDEX)
-                    Remove(context, context->m_Queues[LOAD_WORK_POST], position);
+                index = FindRequestWork(request, LOAD_WORK_POST, false);
+                if (index == INVALID_LOAD_INDEX)
+                    break;
+                LoadNode* node = context->m_Nodes.GetPtr(index);
+                LoadQueue& queue = context->m_Queues[LOAD_WORK_POST];
+                uint32_t position = node->m_Load->m_QueueIndex[LOAD_WORK_POST];
+                uint64_t sequence = queue.m_Items[position].m_Sequence;
+                if (sequence > last_post)
+                    break;
+                request->m_WorkCursor[LOAD_WORK_POST] = sequence + 1;
+                // Retain only the callback being invoked. Nested work can move
+                // nodes and change the queue; select again after it returns.
+                ++node->m_References;
+                Remove(context, queue, position);
             }
             request->m_NextPostTime = dmTime::GetMonotonicTime() + 1000;
             PostCreateResourceNode(context, index);
             progressed = true;
             {
                 DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-                if (!context->m_Nodes.Get(index).m_PostDone)
+                LoadNode* node = context->m_Nodes.GetPtr(index);
+                if (!node->m_PostDone)
                     Push(context, context->m_Queues[LOAD_WORK_POST], index);
-            }
-        }
-        {
-            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-            for (uint32_t i = 0; i < posts.Size(); ++i)
-            {
-                LoadNode* node = context->m_Nodes.GetPtr(posts[i]);
-                if (node->m_Load && context->m_SelectedRequest == request)
-                    RewindWork(context, node, LOAD_WORK_POST);
                 --node->m_References;
-                DestroyUnusedNodes(context, posts[i]);
+                DestroyUnusedNodes(context, index);
             }
         }
         while ((!progressed || dmTime::GetMonotonicTime() - start < soft_time_limit) && ProcessCompletion(request))

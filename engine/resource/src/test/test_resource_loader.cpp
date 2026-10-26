@@ -3103,6 +3103,69 @@ TEST_P(ResourceLoaderTest, PostCreateBudgetAndFairness)
     ASSERT_EQ(dmResource::RESULT_OK, Complete(request));
 }
 
+// Requeued pending posts wait for the next update even when the current update has time left.
+TEST_P(ResourceLoaderTest, PostCreateRetriesOncePerUpdate)
+{
+    EnablePostCreate();
+    m_HoldPosts = true;
+    const uint32_t count = 64;
+    uint32_t children[count];
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        children[i] = i + 1;
+        Add(i + 1, 0, 0);
+    }
+    Add(0, children, count);
+    dmResource::HPreloader request = Request(0);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_Creates[0] && dmTime::GetMonotonicTime() < deadline)
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 1000000));
+    ASSERT_EQ(1u, m_Creates[0]);
+    memset(m_Posts, 0, sizeof(m_Posts));
+    m_HoldPosts = false;
+    m_PostPendingOnce = true;
+    ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 1000000));
+    for (uint32_t i = 0; i <= count; ++i)
+        ASSERT_EQ(1u, m_Posts[i]);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(request));
+    for (uint32_t i = 0; i <= count; ++i)
+        ASSERT_EQ(2u, m_Posts[i]);
+}
+
+// Zero-budget updates finish a wide post queue without skipping callbacks or repeating finalization.
+TEST_P(ResourceLoaderTest, WidePostCreateWithZeroBudget)
+{
+    EnablePostCreate();
+    m_HoldPosts = true;
+    const uint32_t count = 2048;
+    uint32_t children[count];
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        children[i] = i + 1;
+        Add(i + 1, 0, 0);
+    }
+    Add(0, children, count);
+    dmResource::HPreloader request = Request(0);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_Creates[0] && dmTime::GetMonotonicTime() < deadline)
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 1000000));
+    ASSERT_EQ(1u, m_Creates[0]);
+    memset(m_Posts, 0, sizeof(m_Posts));
+    m_HoldPosts = false;
+    dmResource::Result result = dmResource::RESULT_PENDING;
+    for (uint32_t i = 0; i < 3 * (count + 1) && result == dmResource::RESULT_PENDING; ++i)
+        result = dmResource::UpdatePreloader(request, 0, 0, 0);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    Delete(0);
+    for (uint32_t i = 0; i <= count; ++i)
+    {
+        ASSERT_EQ(1u, m_Preloads[i]);
+        ASSERT_EQ(1u, m_Creates[i]);
+        ASSERT_EQ(1u, m_Posts[i]);
+        ASSERT_EQ(1u, m_Destroys[i]);
+    }
+}
+
 const int resource_loader_workers[] = { -1, 0, 1, 4 };
 INSTANTIATE_TEST_CASE_P(WorkerCounts, ResourceLoaderTest, jc_test_values_in(resource_loader_workers));
 
