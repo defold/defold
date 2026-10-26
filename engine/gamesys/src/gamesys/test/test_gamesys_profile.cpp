@@ -117,7 +117,7 @@ class ComponentCounterTest : public GamesysTest<const char*>
             ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
             ProfileFrameEnd(profile);
 
-            ASSERT_EQ(enabled_count, ((dmRender::RenderContext*)m_RenderContext)->m_RenderList.Size());
+            ASSERT_EQ(enabled_count, ((dmRender::RenderContext*)m_RenderContext)->m_RenderListSortBuffer.Size());
             CheckCounter(sprite ? "rmtp_Sprite" : "rmtp_Mesh", enabled_count, 1);
             if (!sprite)
             {
@@ -184,6 +184,12 @@ TEST_F(MeshCounterTest, AllDisabled)
 TEST_F(MeshCounterTest, WorldSpace)
 {
     Run(false, 16, true);
+}
+
+// Disabled meshes must release their local buffers after an in-place material change.
+TEST_F(MeshCounterTest, WorldSpaceAllDisabled)
+{
+    Run(false, 0, true);
 }
 
 extern "C" void dmExportedSymbols();

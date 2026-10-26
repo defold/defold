@@ -1,0 +1,81 @@
+{
+  "revision": "884f0759d9bcbda38e41edbc6a9201a24da84c96",
+  "capture_date": "2026-10-19",
+  "platform": "arm64-macos",
+  "backend": "opengl",
+  "renderer": "vector-slug",
+  "driver": "Not recorded by this generator",
+  "review": "All five native captures visually reviewed for face, apple and rocket detail, palette colors and shading. The unsupported Swedish flag uses .notdef; rich-text tint preserves emoji colors and colors the underline blue. Captures accepted without cropping, resampling or pixel edits.",
+  "capture": {
+    "width": 704,
+    "height": 180,
+    "origin_x": 32,
+    "origin_top": 32,
+    "layout_width": 3000
+  },
+  "comparison": {
+    "threshold": 98,
+    "metric": "foreground union RGB RMSE",
+    "background": [
+      0,
+      0,
+      0
+    ]
+  },
+  "commands": [
+    "build/arm64-macos/src/test/test_font_bitmap_gen_skribidi --case ttf_vector_multi_color --output <capture-directory> (working directory: engine/font)",
+    "build/arm64-macos/src/test/test_font_bitmap_gen_skribidi_plain --case ttf_vector_multi_color --output <capture-directory> (working directory: engine/font)"
+  ],
+  "input_sha256": {
+    "engine/font/src/test/data/NotoColorEmoji-Regular.ttf": "1ca0775b9dc92d8d959cd06dd773e2d4dacc97301ad81e6b5aa02cd5e7233a27",
+    "engine/font/src/test/data/font_render/capture_geometry.json": "4bd144732829ac247b59c88f7a1c416a3f760a650b3966d7dc3e14a71da14e3f",
+    "engine/font/src/test/make_report.py": "cb5718aa54b4bcc57d6104bcb31e9ff57ed2ee001328c04fa7b4e6c4737f7302",
+    "engine/render/src/test/font_vector_images.cpp": "fe02fa6dc911aafd20880e0f38a304f3153d2fd37cb79d71675e8bfa4b59ec0e",
+    "engine/render/src/render/font/default/font_default_vertex.cpp": "9146fc7721d8bb10985a7c98fc2c6e86a5abe18ab192acb19da6d260ed0d8876",
+    "engine/render/src/render/font/fontmap.cpp": "e211eef2502484abaa9a2051eac2da26dc07b8ec9099c84edb43702c8f160aae",
+    "engine/font/src/font_vector_paint.cpp": "927596c416a46e02dab9a6e962858a73d859e14ec44f5488f2826c45048960c6",
+    "engine/font/src/font_vector_slug.cpp": "ff851d60fe59fdc22ef3809874950252d95fc6bb30fa4f18240c766e690ec69c",
+    "engine/font/src/truetype/font_colr.cpp": "63145067bd34949bf2b04b84a05b2a23803bca875f36194cb3f9de29eb7e4bc8",
+    "engine/font/src/truetype/font_truetype.cpp": "dee6dd1e9e5c127a3bf3d03c783b9c2a569604f619aae3aad01969f8017a1ed8",
+    "engine/font/content/builtins/fonts/font-vector.vp": "557b151dc715e1375a48b9a5e9ddedb1c6584c7ee7dd19d3699cac9145c3c983",
+    "engine/font/content/builtins/fonts/font-vector.fp": "35fdd1e51bcd8ff9652a579418059501b15f0330478cf84a36675dcd5dec9eb6",
+    "engine/font/content/builtins/fonts/font-vector-slug.glsl": "ed1f0378650e10be07ae15dcdcca041dea2cf9119ed8aff1940ed43bfa76bb83",
+    "engine/font/content/builtins/fonts/font-vector-paint.glsl": "9e4a2bec2182ccf20530cf01396376f2496e2100b34f2e72f7b409d109652658"
+  },
+  "executable_sha256": {
+    "engine/font/build/arm64-macos/src/test/test_font_bitmap_gen_skribidi": "8c411badd927f2d8d42948ee8655e210bd335144f97d467f34e86123ab816621",
+    "engine/font/build/arm64-macos/src/test/test_font_bitmap_gen_skribidi_plain": "bae035994086c6981ccebdbf1236e36daaf45bb0aef0a7c03af3d45e7b63c146"
+  },
+  "references": [
+    {
+      "path": "full-plain/ttf_vector_multi_color.png",
+      "sha256": "087acdcbe28469c7cd8190e3fd0ef8dea22f2bead84cba7c6502b8cba8e95684",
+      "text": "😀 🍎 🚀",
+      "size": 40
+    },
+    {
+      "path": "full-plain/ttf_vector_multi_color_fallback.png",
+      "sha256": "9357610229781fce60ddc08f0e739014abab2c701fab551662e256efe4c59df9",
+      "text": "😀 🇸🇪 🚀",
+      "size": 40
+    },
+    {
+      "path": "full-rich/ttf_vector_multi_color.png",
+      "sha256": "087acdcbe28469c7cd8190e3fd0ef8dea22f2bead84cba7c6502b8cba8e95684",
+      "text": "😀 🍎 🚀",
+      "size": 40
+    },
+    {
+      "path": "full-rich/ttf_vector_multi_color_fallback.png",
+      "sha256": "9357610229781fce60ddc08f0e739014abab2c701fab551662e256efe4c59df9",
+      "text": "😀 🇸🇪 🚀",
+      "size": 40
+    },
+    {
+      "path": "full-rich/ttf_vector_multi_color_tint.png",
+      "sha256": "93baf353c11e07cbbaf859e2cc616e8d9d165d2d07bb109d690ca23b4eb831fc",
+      "text": "<ul><color=#0000FF>😀 🍎 🚀</color></ul>",
+      "size": 40
+    }
+  ]
+}

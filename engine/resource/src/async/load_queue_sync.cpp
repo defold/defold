@@ -19,6 +19,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/time.h>
 
 namespace dmLoadQueue
 {

@@ -559,7 +559,8 @@ static void InitSize(dmArray<T>& arr, uint32_t cap, uint32_t size)
 {
     arr.SetCapacity(cap);
     arr.SetSize(size);
-    memset(arr.Begin(), 0, sizeof(T)*cap);
+    if (cap)
+        memset(arr.Begin(), 0, sizeof(T)*cap);
 }
 
 static void LoadNodes(Scene* scene, cgltf_data* gltf_data)

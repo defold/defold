@@ -136,6 +136,62 @@ bool IsLoadProfilingEnabled(HFactory factory)
     return factory->m_Profile;
 }
 
+uint64_t LoadProfileTime(const LoadProfile* profile)
+{
+    return profile->m_StartTime ? dmTime::GetMonotonicTime() : 0;
+}
+
+void LoadProfileBegin(LoadProfile* profile, bool enabled)
+{
+    memset(profile, 0, sizeof(*profile));
+    profile->m_StartTime = enabled ? dmTime::GetMonotonicTime() : 0;
+}
+
+void LoadProfileAddTime(LoadProfile* profile, LoadProfileStage stage, uint64_t start)
+{
+    if (!profile->m_StartTime)
+        return;
+    profile->m_Time[stage] += dmTime::GetMonotonicTime() - start;
+    if (stage == LOAD_PROFILE_POST_CREATE)
+        ++profile->m_PostCreateCount;
+}
+
+void LogLoadProfile(const LoadProfile* profile, const char* name, Result result, LoadTimings* timings)
+{
+    if (!profile->m_StartTime)
+        return;
+    uint64_t total = dmTime::GetMonotonicTime() - profile->m_StartTime;
+    uint64_t accounted = 0;
+    for (uint32_t i = 0; i < LOAD_PROFILE_STAGE_COUNT; ++i)
+        accounted += profile->m_Time[i];
+
+    // Includes dependency/main-thread waits, pending PostCreate intervals and loader bookkeeping.
+    uint64_t wait = total - accounted;
+    if (timings)
+    {
+        timings->m_Total = (uint32_t)total;
+        timings->m_Preload = (uint32_t)profile->m_Time[LOAD_PROFILE_PRELOAD];
+        timings->m_Read = (uint32_t)profile->m_Time[LOAD_PROFILE_READ];
+        timings->m_Create = (uint32_t)profile->m_Time[LOAD_PROFILE_CREATE];
+        timings->m_PostCreate = (uint32_t)profile->m_Time[LOAD_PROFILE_POST_CREATE];
+        timings->m_Queue = (uint32_t)profile->m_Time[LOAD_PROFILE_QUEUE];
+        timings->m_Wait = (uint32_t)wait;
+        timings->m_PostCreateCount = profile->m_PostCreateCount;
+        timings->m_Recorded = true;
+    }
+    dmLogInfo("%s took %.3fms (pre: %.3fms, read: %.3fms, create: %.3fms, post: %.3fms [%u calls], queue: %.3fms, wait: %.3fms, result: %s)",
+              name,
+              total / 1000.0,
+              profile->m_Time[LOAD_PROFILE_PRELOAD] / 1000.0,
+              profile->m_Time[LOAD_PROFILE_READ] / 1000.0,
+              profile->m_Time[LOAD_PROFILE_CREATE] / 1000.0,
+              profile->m_Time[LOAD_PROFILE_POST_CREATE] / 1000.0,
+              profile->m_PostCreateCount,
+              profile->m_Time[LOAD_PROFILE_QUEUE] / 1000.0,
+              wait / 1000.0,
+              ResultToString(result));
+}
+
 static inline uint16_t IncreaseVersion(HResourceFactory factory)
 {
     uint16_t next_version = factory->m_Version++;
@@ -1121,6 +1177,29 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
     return result;
 }
 
+static Result DestroyPreviousResource(HFactory factory, ResourceDescriptor* rd)
+{
+    if (!rd->m_PrevResource)
+        return RESULT_OK;
+
+    ResourceType* resource_type = rd->m_ResourceType;
+    ResourceDescriptor tmp_resource = *rd;
+    tmp_resource.m_Resource = rd->m_PrevResource;
+    ResourceDestroyParams params;
+    params.m_Factory = factory;
+    params.m_Type = resource_type;
+    params.m_Context = resource_type->m_Context;
+    params.m_Resource = &tmp_resource;
+    Result result;
+    {
+        DM_PROFILE("ResourceDestroy");
+        DM_PROFILE_DYN(resource_type->m_Extension, 0);
+        result = (Result)resource_type->m_DestroyFunction(&params);
+    }
+    rd->m_PrevResource = 0;
+    return result;
+}
+
 static Result DoReloadResource(HFactory factory, const char* name, HResourceDescriptor* out_descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
@@ -1193,25 +1272,7 @@ static Result DoReloadResource(HFactory factory, const char* name, HResourceDesc
                 pair.m_Callback(&reload_params);
             }
         }
-        if (rd->m_PrevResource)
-        {
-            ResourceDescriptor tmp_resource = *rd;
-            tmp_resource.m_Resource = rd->m_PrevResource;
-            ResourceDestroyParams params;
-            params.m_Factory    = factory;
-            params.m_Type       = resource_type;
-            params.m_Context    = resource_type->m_Context;
-            params.m_Resource   = &tmp_resource;
-            Result res;
-            {
-                DM_PROFILE("ResourceDestroy");
-                DM_PROFILE_DYN(resource_type->m_Extension, 0);
-                res = (Result)resource_type->m_DestroyFunction(&params);
-            }
-            rd->m_PrevResource = 0x0;
-            return res;
-        }
-        return RESULT_OK;
+        return DestroyPreviousResource(factory, rd);
     }
     else
     {
@@ -1281,6 +1342,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
     params.m_Resource = rd;
     params.m_Filename = 0;
     params.m_FilenameHash = hashed_name;
+    rd->m_PrevResource = 0;
     Result create_result;
     {
         DM_PROFILE("ResourceRecreate");
@@ -1303,7 +1365,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
                 pair.m_Callback(&params);
             }
         }
-        return RESULT_OK;
+        return DestroyPreviousResource(factory, rd);
     }
     else
     {
@@ -1340,6 +1402,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
     params.m_Resource = rd;
     params.m_Filename = 0;
     params.m_FilenameHash = hashed_name;
+    rd->m_PrevResource = 0;
     Result create_result;
     {
         DM_PROFILE("ResourceRecreate");
@@ -1362,7 +1425,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
                 pair.m_Callback(&params);
             }
         }
-        return RESULT_OK;
+        return DestroyPreviousResource(factory, rd);
     }
     else
     {

@@ -36,6 +36,10 @@
 #include "engine_service_openapi.h"
 #include "engine_version.h"
 
+#if defined(DM_PLATFORM_MACOS)
+#include "engine_service_darwin.h"
+#endif
+
 extern unsigned char PROFILER_HTML[];
 extern uint32_t PROFILER_HTML_SIZE;
 
@@ -450,6 +454,9 @@ namespace dmEngineService
 
         void Final()
         {
+#if defined(DM_PLATFORM_MACOS)
+            GPUTraceStop(&m_GPUTrace);
+#endif
             dmWebServer::Delete(m_WebServer);
 
             if (m_WebServerRedirect)
@@ -482,6 +489,9 @@ namespace dmEngineService
 
         ResourceHandlerParams m_ResourceHandlerParams;
         HProfile             m_Profile;
+#if defined(DM_PLATFORM_MACOS)
+        GPUTrace             m_GPUTrace;
+#endif
     };
 
     HEngineService New(uint16_t port)
@@ -508,6 +518,27 @@ namespace dmEngineService
     {
         engine_service->Final();
         delete engine_service;
+    }
+
+    void BeginFrame(HEngineService engine_service)
+    {
+#if defined(DM_PLATFORM_MACOS)
+        GPUTraceBeginFrame(&engine_service->m_GPUTrace);
+#endif
+    }
+
+    void EndFrame(HEngineService engine_service)
+    {
+#if defined(DM_PLATFORM_MACOS)
+        GPUTraceEndFrame(&engine_service->m_GPUTrace);
+#endif
+    }
+
+    void OnEngineDelete(HEngineService engine_service)
+    {
+#if defined(DM_PLATFORM_MACOS)
+        GPUTraceStop(&engine_service->m_GPUTrace);
+#endif
     }
 
     void Update(HEngineService engine_service, HProfile profile)
@@ -1067,6 +1098,14 @@ namespace dmEngineService
         trace_params.m_Handler = TraceHandler;
         trace_params.m_Userdata = 0;
         AddProfilerHandler(engine_service->m_WebServer, "/profiler/trace", &trace_params, TRACE_OPENAPI);
+
+#if defined(DM_PLATFORM_MACOS)
+        dmWebServer::HandlerParams gputrace_params;
+        gputrace_params.m_Handler = GPUTraceRequest;
+        gputrace_params.m_Userdata = &engine_service->m_GPUTrace;
+        AddProfilerHandler(engine_service->m_WebServer, "/profiler/gputrace", &gputrace_params, GPU_TRACE_OPENAPI);
+#endif
+
         dmWebServer::HandlerParams resource_params;
         resource_params.m_Handler = HttpResourceRequestCallback;
         engine_service->m_ResourceHandlerParams.m_Factory = factory;

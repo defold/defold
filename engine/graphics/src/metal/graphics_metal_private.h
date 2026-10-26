@@ -25,15 +25,16 @@
 #include <dlib/opaque_handle_container.h>
 
 #include "../graphics_private.h"
+#include "../graphics_resource_retirement.h"
 
 namespace dmGraphics
 {
     struct MetalContext;
     struct MetalPipeline;
-    struct ResourceToDestroy;
+    struct MetalResourceToDestroy;
 
     typedef dmHashTable64<MetalPipeline> PipelineCache;
-    typedef dmArray<ResourceToDestroy>   ResourcesToDestroyList;
+    typedef dmArray<MetalResourceToDestroy>   MetalResourcesToDestroyList;
 
     const static uint8_t  MAX_FRAMES_IN_FLIGHT       = 2; // Keep two frames in flight for better CPU/GPU overlap
     const static uint16_t MAX_ENCODER_RESOURCE_CACHE = 256;
@@ -73,7 +74,7 @@ namespace dmGraphics
         MTL::ComputePipelineState* m_ComputePipelineState;
     };
 
-    struct ResourceToDestroy
+    struct MetalResourceToDestroy
     {
         union
         {
@@ -272,7 +273,7 @@ namespace dmGraphics
 
     struct MetalFrameResource
     {
-        ResourcesToDestroyList*    m_ResourcesToDestroy;
+        MetalResourcesToDestroyList*    m_ResourcesToDestroy;
         MetalConstantScratchBuffer m_ConstantScratchBuffer;
         MetalArgumentBufferPool    m_ArgumentBufferPool;
         MTL::CommandBuffer*        m_CommandBuffer;
@@ -320,6 +321,7 @@ namespace dmGraphics
         void*                              m_View;
         CAMetalLayer*                      m_Layer;
         MetalFrameResource                 m_FrameResources[MAX_FRAMES_IN_FLIGHT];
+        ResourceRetirementQueue<MetalResourceToDestroy>* m_ResourceRetirementQueue;
         MTL::Device*                       m_Device;
         MTL::CommandQueue*                 m_CommandQueue;
         PipelineState                      m_PipelineState;

@@ -20,9 +20,6 @@
 #include "resource.h"
 #include <dmsdk/resource/resource.h>
 
-#include <dlib/log.h>
-#include <dlib/time.h>
-
 // Internal API that preloader needs to use.
 
 // 1 - higher level mount info
@@ -118,61 +115,10 @@ namespace dmResource
         uint32_t m_PostCreateCount;
     };
 
-    inline uint64_t LoadProfileTime(const LoadProfile* profile)
-    {
-        return profile->m_StartTime ? dmTime::GetMonotonicTime() : 0;
-    }
-
-    inline void LoadProfileBegin(LoadProfile* profile, bool enabled)
-    {
-        memset(profile, 0, sizeof(*profile));
-        profile->m_StartTime = enabled ? dmTime::GetMonotonicTime() : 0;
-    }
-
-    inline void LoadProfileAddTime(LoadProfile* profile, LoadProfileStage stage, uint64_t start)
-    {
-        if (!profile->m_StartTime)
-            return;
-        profile->m_Time[stage] += dmTime::GetMonotonicTime() - start;
-        if (stage == LOAD_PROFILE_POST_CREATE)
-            ++profile->m_PostCreateCount;
-    }
-
-    inline void LogLoadProfile(const LoadProfile* profile, const char* name, Result result, LoadTimings* timings = 0)
-    {
-        if (!profile->m_StartTime)
-            return;
-        uint64_t total = dmTime::GetMonotonicTime() - profile->m_StartTime;
-        uint64_t accounted = 0;
-        for (uint32_t i = 0; i < LOAD_PROFILE_STAGE_COUNT; ++i)
-            accounted += profile->m_Time[i];
-
-        // Includes dependency/main-thread waits, pending PostCreate intervals and loader bookkeeping.
-        uint64_t wait = total - accounted;
-        if (timings)
-        {
-            timings->m_Total = total;
-            timings->m_Preload = profile->m_Time[LOAD_PROFILE_PRELOAD];
-            timings->m_Read = profile->m_Time[LOAD_PROFILE_READ];
-            timings->m_Create = profile->m_Time[LOAD_PROFILE_CREATE];
-            timings->m_PostCreate = profile->m_Time[LOAD_PROFILE_POST_CREATE];
-            timings->m_Queue = profile->m_Time[LOAD_PROFILE_QUEUE];
-            timings->m_Wait = wait;
-            timings->m_PostCreateCount = profile->m_PostCreateCount;
-            timings->m_Recorded = true;
-        }
-        dmLogInfo("%s took %.3fms (pre: %.3fms, read: %.3fms, create: %.3fms, post: %.3fms [%u calls], queue: %.3fms, wait: %.3fms, result: %s)",
-                  name,
-                  total / 1000.0,
-                  profile->m_Time[LOAD_PROFILE_PRELOAD] / 1000.0,
-                  profile->m_Time[LOAD_PROFILE_READ] / 1000.0,
-                  profile->m_Time[LOAD_PROFILE_CREATE] / 1000.0,
-                  profile->m_Time[LOAD_PROFILE_POST_CREATE] / 1000.0,
-                  profile->m_PostCreateCount,
-                  profile->m_Time[LOAD_PROFILE_QUEUE] / 1000.0,
-                  wait / 1000.0,
-                  ResultToString(result));
-    }
+    uint64_t LoadProfileTime(const LoadProfile* profile);
+    void     LoadProfileBegin(LoadProfile* profile, bool enabled);
+    void     LoadProfileAddTime(LoadProfile* profile, LoadProfileStage stage, uint64_t start);
+    void     LogLoadProfile(const LoadProfile* profile, const char* name, Result result, LoadTimings* timings = 0);
 
     bool   IsLoadProfilingEnabled(HFactory factory);
 
