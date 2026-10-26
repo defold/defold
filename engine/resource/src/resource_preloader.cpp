@@ -1724,6 +1724,10 @@ namespace dmResource
             {
                 LoadNode* node = context->m_Nodes.GetPtr(recreate->m_Node);
                 node->m_InCallback = false;
+                // Reload notifications can advance a request past this guarded
+                // post. Restore its cursor now that the callback is eligible.
+                if (node->m_Load)
+                    RewindWork(context, node, LOAD_WORK_POST);
                 ChangeHold(context, node, false);
                 --node->m_References;
                 DestroyUnusedNodes(context, recreate->m_Node);

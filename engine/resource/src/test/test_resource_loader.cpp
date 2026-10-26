@@ -46,6 +46,13 @@ struct RecreateCaller
     dmResource::Result m_Loaded;
 };
 
+struct ReloadUpdate
+{
+    dmResource::HPreloader m_Request;
+    dmResource::Result m_Result;
+    uint32_t m_Callbacks;
+};
+
 class ResourceLoaderTest : public jc_test_params_class<int>
 {
     public:
@@ -107,6 +114,7 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         memset(m_Notified, 0, sizeof(m_Notified));
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 8192;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         if (GetParam() >= 0)
         {
             JobSystemCreateParams jobs = {};
@@ -555,6 +563,13 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         dmResource::Result result = Recreate(params);
         self->m_UpdateDuringRecreateResult = dmResource::UpdatePreloader(self->m_Requests.Back(), 0, 0, 0);
         return result;
+    }
+
+    static void UpdateFromReloaded(const ResourceReloadedParams* params)
+    {
+        ReloadUpdate* update = (ReloadUpdate*)params->m_UserData;
+        ++update->m_Callbacks;
+        update->m_Result = dmResource::UpdatePreloader(update->m_Request, 0, 0, 0);
     }
 
 #if defined(DM_HAS_THREADS)
@@ -1415,6 +1430,51 @@ TEST_P(ResourceLoaderTest, RecreateReplacesPendingResource)
         ASSERT_TRUE(m_PostIdentityCorrect);
         Delete(mode);
         ASSERT_EQ(2u, m_Destroys[mode]);
+    }
+}
+
+// Posts skipped by a reload notification resume during later updates or deletion, through every recreation API.
+TEST_P(ResourceLoaderTest, PostCreateAfterReloadNotification)
+{
+    EnablePostCreate();
+    m_ReplacePointer = true;
+    m_CheckPostIdentity = true;
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        for (uint32_t delete_pending = 0; delete_pending < 2; ++delete_pending)
+        {
+            uint32_t id = mode * 2 + delete_pending;
+            Add(id, 0, 0);
+            dmResource::HPreloader request = Request(id);
+            uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+            while (!m_Creates[id] && dmTime::GetMonotonicTime() < deadline)
+                ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+            ASSERT_EQ(1u, m_Creates[id]);
+            ASSERT_EQ(0u, m_Posts[id]);
+
+            ReloadUpdate update = { request, dmResource::RESULT_OK, 0 };
+            dmResource::RegisterResourceReloadedCallback(m_Factory, UpdateFromReloaded, &update);
+            dmResource::Result recreated = Replace(id, 0, 0, mode);
+            dmResource::UnregisterResourceReloadedCallback(m_Factory, UpdateFromReloaded, &update);
+            ASSERT_EQ(dmResource::RESULT_OK, recreated);
+            ASSERT_EQ(1u, update.m_Callbacks);
+            ASSERT_EQ(dmResource::RESULT_PENDING, update.m_Result);
+            ASSERT_EQ(0u, m_Posts[id]);
+
+            if (!delete_pending)
+            {
+                dmResource::Result result = dmResource::RESULT_PENDING;
+                for (uint32_t i = 0; i < 16 && result == dmResource::RESULT_PENDING; ++i)
+                    result = dmResource::UpdatePreloader(request, 0, 0, 0);
+                ASSERT_EQ(dmResource::RESULT_OK, result);
+            }
+            Delete(id);
+            ASSERT_EQ(1u, m_Preloads[id]);
+            ASSERT_EQ(1u, m_Creates[id]);
+            ASSERT_EQ(1u, m_Posts[id]);
+            ASSERT_EQ(2u, m_Destroys[id]);
+            ASSERT_TRUE(m_PostIdentityCorrect);
+        }
     }
 }
 
