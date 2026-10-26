@@ -49,7 +49,6 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector3d;
-import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.util.MathUtil;
 
@@ -95,6 +94,45 @@ public class ModelUtil {
     }
 
     private record JsonRange(int offset, int length, long totalLength) {
+    }
+
+    /** JSON source and the optional GLB BIN chunk location, without reading BIN bytes. */
+    public record ModelSource(byte[] json, long binaryOffset, long binaryLength) {}
+
+    /** Reads JSON and locates BIN data; the caller owns and closes the stream. */
+    public static ModelSource readModelSource(InputStream input) throws IOException {
+        PushbackInputStream stream = new PushbackInputStream(input, Integer.BYTES);
+        byte[] prefix = stream.readNBytes(Integer.BYTES);
+        stream.unread(prefix);
+        if (!isGlbMagic(prefix)) {
+            return new ModelSource(stream.readAllBytes(), -1, 0);
+        }
+
+        JsonRange range = getGlbJsonRange(stream.readNBytes(GLB_JSON_OFFSET), -1);
+        byte[] json = stream.readNBytes(range.length);
+        if (json.length != range.length) {
+            throw new IOException("GLB JSON chunk is truncated");
+        }
+        long offset = GLB_JSON_OFFSET + (long)range.length;
+        while (offset < range.totalLength) {
+            byte[] header = stream.readNBytes(8);
+            if (header.length != 8 || range.totalLength - offset < 8) {
+                throw new IOException("GLB chunk header is truncated");
+            }
+            ByteBuffer chunk = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN);
+            long length = Integer.toUnsignedLong(chunk.getInt());
+            int type = chunk.getInt();
+            offset += 8;
+            if (length > range.totalLength - offset) {
+                throw new IOException("Invalid GLB chunk length");
+            }
+            if (type == 0x004e4942) {
+                return new ModelSource(json, offset, length);
+            }
+            stream.skipNBytes(length);
+            offset += length;
+        }
+        return new ModelSource(json, -1, 0);
     }
 
     private static final class CountingInputStream extends FilterInputStream {
@@ -252,6 +290,42 @@ public class ModelUtil {
         }
     }
 
+    /**
+     * Finds buffer indices used exclusively as EXT/KHR Meshopt fallbacks, whose
+     * contents modelc replaces with decoded data. Buffers also used as compressed
+     * sources or by ordinary views remain dependencies, as do unreferenced buffers.
+     * This mirrors modelc's geometry-load requirements using only JSON metadata,
+     * so dependency discovery does not require unused fallback files to exist.
+     */
+    private static Set<Integer> getUnusedMeshoptFallbackBuffers(JsonNode root) {
+        Set<Integer> fallbacks = new HashSet<>();
+        Set<Integer> required = new HashSet<>();
+        JsonNode bufferViews = root.path("bufferViews");
+        if (bufferViews.isArray()) {
+            for (JsonNode view : bufferViews) {
+                JsonNode extensions = view.path("extensions");
+                JsonNode compression = extensions.path("EXT_meshopt_compression");
+                if (!compression.isObject()) {
+                    compression = extensions.path("KHR_meshopt_compression");
+                }
+                int buffer = view.path("buffer").asInt(-1);
+                if (compression.isObject()) {
+                    fallbacks.add(buffer);
+                    required.add(compression.path("buffer").asInt(-1));
+                } else {
+                    required.add(buffer);
+                }
+            }
+        }
+        // A fallback may share its buffer with compressed sources or ordinary data.
+        fallbacks.removeAll(required);
+        return fallbacks;
+    }
+
+    /**
+     * Collects external dependencies in buffer declaration order and detects morph
+     * targets. Geometry validation and decoding are left to the native importer.
+     */
     private static ModelMetadata getModelMetadata(JsonNode root) throws IOException {
         if (root == null || !root.isObject()) {
             throw new IOException("glTF root must be an object");
@@ -260,8 +334,12 @@ public class ModelUtil {
         LinkedHashSet<String> externalBufferUris = new LinkedHashSet<>();
         JsonNode buffers = root.path("buffers");
         if (buffers.isArray()) {
-            for (JsonNode buffer : buffers) {
-                JsonNode uriNode = buffer.get("uri");
+            Set<Integer> unusedFallbacks = getUnusedMeshoptFallbackBuffers(root);
+            for (int i = 0; i < buffers.size(); ++i) {
+                if (unusedFallbacks.contains(i)) {
+                    continue;
+                }
+                JsonNode uriNode = buffers.get(i).get("uri");
                 if (uriNode != null && uriNode.isTextual()) {
                     String uri = uriNode.getTextValue();
                     if (isExternalBufferUri(uri)) {
@@ -422,7 +500,9 @@ public class ModelUtil {
         }
 
         public TextureGenerator.GenerateResult toGenerateResult() {
-            TextureImage.Image image = TextureImage.Image.newBuilder()
+            // Mipmap sizes are per layer; data size covers the complete array.
+            int layerDataSize = data.length / layerCount;
+            TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder()
                     .setWidth(width)
                     .setHeight(height)
                     .setDepth(1)
@@ -431,12 +511,14 @@ public class ModelUtil {
                     .setOriginalDepth(1)
                     .setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA32F)
                     .addMipMapOffset(0)
-                    .addMipMapSize(data.length)
-                    .addMipMapSizeCompressed(data.length)
+                    .addMipMapSize(layerDataSize)
                     .addMipMapDimensions(width)
                     .addMipMapDimensions(height)
-                    .setDataSize(data.length)
-                    .build();
+                    .setDataSize(data.length);
+            for (int i = 0; i < layerCount; ++i) {
+                imageBuilder.addMipMapSizeCompressed(layerDataSize);
+            }
+            TextureImage.Image image = imageBuilder.build();
 
             TextureGenerator.GenerateResult result = new TextureGenerator.GenerateResult();
             result.textureImage = TextureImage.newBuilder()
@@ -709,11 +791,8 @@ public class ModelUtil {
             throw new IOException("Model load returned null");
         }
 
-        for (Modelimporter.Buffer buffer : scene.buffers)
-        {
-            if (buffer.buffer == null || buffer.buffer.length == 0)
-                throw new IOException(String.format("Failed to load buffer '%s' for file '%s", buffer.uri, path));
-        }
+        // The native importer validates required buffers. Optional Meshopt fallbacks
+        // and geometry skipped by material-only imports can remain empty.
         return loadInternal(scene);
     }
 
@@ -860,10 +939,7 @@ public class ModelUtil {
         for (Modelimporter.KeyFrame key : keys) {
             RigUtil.AnimationKey outKey = createKey(key.time, false, componentSize);
 
-            for (int i = 0; i < componentSize; ++i)
-            {
-                outKey.value[i] = key.value[i];
-            }
+            if (componentSize >= 0) System.arraycopy(key.value, 0, outKey.value, 0, componentSize);
             outKeys.add(outKey);
         }
     }
@@ -875,9 +951,7 @@ public class ModelUtil {
         for (int k = 0; k < nodeAnimation.morphWeightKeyTimes.length; ++k) {
             RigUtil.AnimationKey outKey = createKey(nodeAnimation.morphWeightKeyTimes[k], false, dim);
             int base = k * dim;
-            for (int i = 0; i < dim; ++i) {
-                outKey.value[i] = nodeAnimation.morphWeightKeyValues[base + i];
-            }
+            if (dim >= 0) System.arraycopy(nodeAnimation.morphWeightKeyValues, base + 0, outKey.value, 0, dim);
             sparseTrack.keys.add(outKey);
         }
         RigUtil.MorphWeightsBuilder wb = new RigUtil.MorphWeightsBuilder(weightTrackBuilder, dim);
@@ -1240,7 +1314,7 @@ public class ModelUtil {
             materialBuilder.setIndex(material.index);
             materialBuilder.setIsSkinned(material.isSkinned!=0);
             materialBuilder.setAlphaCutoff(material.alphaCutoff);
-            materialBuilder.setAlphaMode(Rig.AlphaMode.valueOf(material.alphaMode.getValue()));
+            materialBuilder.setAlphaMode(Rig.AlphaMode.forNumber(material.alphaMode.getValue()));
             materialBuilder.setDoubleSided(material.doubleSided);
             materialBuilder.setUnlit(material.unlit);
 
@@ -1319,15 +1393,13 @@ public class ModelUtil {
     }
 
     private static void copyFloatArray(float[] src, int srcIndex, float[] dst, int dstIndex, int num_components) {
-        for (int i = 0; i < num_components; ++i) {
-            dst[dstIndex*num_components+i] = src[srcIndex*num_components+i];
-        }
+        if (num_components >= 0)
+            System.arraycopy(src, srcIndex * num_components + 0, dst, dstIndex * num_components + 0, num_components);
     }
 
     private static void copyIntArray(int[] src, int srcIndex, int[] dst, int dstIndex, int num_components) {
-        for (int i = 0; i < num_components; ++i) {
-            dst[dstIndex*num_components+i] = src[srcIndex*num_components+i];
-        }
+        if (num_components >= 0)
+            System.arraycopy(src, srcIndex * num_components + 0, dst, dstIndex * num_components + 0, num_components);
     }
 
     private static boolean hasData(float[] data) {
@@ -1631,7 +1703,7 @@ public class ModelUtil {
             meshBuilder.setIndices(ByteString.copyFrom(create16BitIndices(mesh.indices)));
         }
 
-        meshBuilder.setPrimitiveType(Rig.PrimitiveType.valueOf(mesh.primitiveType.getValue()));
+        meshBuilder.setPrimitiveType(Rig.PrimitiveType.forNumber(mesh.primitiveType.getValue()));
 
         if (mesh.material != null)
             meshBuilder.setMaterialIndex(mesh.material.index);
@@ -1909,7 +1981,7 @@ public class ModelUtil {
             for (Modelimporter.Buffer buffer : scene.buffers) {
                 if (buffer.buffer == null)
                 {
-                    System.out.printf("Unresolved buffer: %s\n");
+                    System.out.print("Unresolved buffer: %s\n");
                 }
             }
             // **********************************
@@ -1931,56 +2003,56 @@ public class ModelUtil {
             return;
         }
 
-        System.out.printf("--------------------------------\n");
+        System.out.print("--------------------------------\n");
 
         System.out.printf("Num images: %d\n", scene.images.length);
         for (Modelimporter.Image image : scene.images)
         {
             ModelImporterJni.PrintIndent(1);
-            System.out.printf("-----------------\n");
+            System.out.print("-----------------\n");
             ModelImporterJni.DebugPrintObject(image, 0);
         }
 
-        System.out.printf("--------------------------------\n");
+        System.out.print("--------------------------------\n");
 
         System.out.printf("Num Samplers: %d\n", scene.samplers.length);
         for (Modelimporter.Sampler sampler : scene.samplers)
         {
             ModelImporterJni.PrintIndent(1);
-            System.out.printf("-----------------\n");
+            System.out.print("-----------------\n");
             ModelImporterJni.DebugPrintObject(sampler, 0);
         }
 
-        System.out.printf("--------------------------------\n");
+        System.out.print("--------------------------------\n");
 
         System.out.printf("Num Textures: %d\n", scene.textures.length);
         for (Modelimporter.Texture texture : scene.textures)
         {
             ModelImporterJni.PrintIndent(1);
-            System.out.printf("-----------------\n");
+            System.out.print("-----------------\n");
             ModelImporterJni.DebugPrintObject(texture, 0);
         }
 
-        System.out.printf("--------------------------------\n");
+        System.out.print("--------------------------------\n");
 
         System.out.printf("Num Materials: %d\n", scene.materials.length);
         for (Modelimporter.Material material : scene.materials)
         {
             ModelImporterJni.PrintIndent(1);
-            System.out.printf("-----------------\n");
+            System.out.print("-----------------\n");
             ModelImporterJni.DebugPrintObject(material, 0);
         }
 
-        System.out.printf("--------------------------------------------\n");
-        System.out.printf("Scene Models:\n");
+        System.out.print("--------------------------------------------\n");
+        System.out.print("Scene Models:\n");
 
         for (Model model : scene.models) {
             System.out.printf("  Scene Model: %s  index: %d  parentBone: %s\n", model.name, model.index, model.parentBone != null ? model.parentBone.name : "");
             ModelImporterJni.DebugPrintModel(model, 3);
         }
 
-        System.out.printf("--------------------------------------------\n");
-        System.out.printf("Scene Nodes:\n");
+        System.out.print("--------------------------------------------\n");
+        System.out.print("Scene Nodes:\n");
 
         for (Node node : scene.nodes) {
             System.out.printf("  Scene Node: %s  index: %d  parent: %s\n", node.name, node.index, node.parent != null ? node.parent.name : "");
@@ -1989,45 +2061,45 @@ public class ModelUtil {
 
         if (scene.skins.length > 0)
         {
-            System.out.printf("--------------------------------------------\n");
-            System.out.printf("Scene Bones:\n");
+            System.out.print("--------------------------------------------\n");
+            System.out.print("Scene Bones:\n");
 
             int bone_count = 0;
             for (Bone bone : scene.skins[0].bones) {
                 System.out.printf("  Scene Bone %d: %s  index: %d  parent: %s\n", bone_count++, bone.name, bone.index,
                                             bone.parent != null ? bone.parent.name : "");
                 ModelImporterJni.DebugPrintTransform(bone.node.local, 3);
-                System.out.printf("      inv_bind_poser:\n");
+                System.out.print("      inv_bind_poser:\n");
                 ModelImporterJni.DebugPrintTransform(bone.invBindPose, 3);
             }
 
-            System.out.printf("--------------------------------------------\n");
+            System.out.print("--------------------------------------------\n");
         }
 
-        System.out.printf("Bones:\n");
+        System.out.print("Bones:\n");
 
         ArrayList<Modelimporter.Bone> bones = loadSkeleton(scene);
         for (Bone bone : bones) {
             System.out.printf("  Bone: %s  index: %d  parent: %s\n", bone.name, bone.index, bone.parent != null ? bone.parent.name : "");
-            System.out.printf("      local:\n");
+            System.out.print("      local:\n");
             ModelImporterJni.DebugPrintTransform(bone.node.local, 3);
         }
-        System.out.printf("--------------------------------------------\n");
+        System.out.print("--------------------------------------------\n");
 
-        System.out.printf("Root Nodes:\n");
+        System.out.print("Root Nodes:\n");
 
         for (Node node : scene.rootNodes) {
             System.out.printf("  Scene Node: %s  index: %d  parent: %s\n", node.name, node.index, node.parent != null ? node.parent.name : "");
             ModelImporterJni.DebugPrintTransform(node.local, 3);
         }
 
-        System.out.printf("--------------------------------------------\n");
+        System.out.print("--------------------------------------------\n");
 
-        System.out.printf("Materials:\n");
+        System.out.print("Materials:\n");
         for (Material material : scene.materials) {
             System.out.printf("  Material: %s\n", material.name, material.index);
         }
-        System.out.printf("--------------------------------------------\n");
+        System.out.print("--------------------------------------------\n");
 
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         loadModels(scene, meshSetBuilder, 0, 0, null); // testing the function
@@ -2035,7 +2107,7 @@ public class ModelUtil {
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         loadSkeleton(scene, skeletonBuilder); // testing the function
 
-        System.out.printf("Animations:\n");
+        System.out.print("Animations:\n");
 
         Rig.AnimationSet.Builder animationSetBuilder = Rig.AnimationSet.newBuilder();
         ArrayList<String> animationIds = new ArrayList<>();
@@ -2044,7 +2116,7 @@ public class ModelUtil {
         for (Modelimporter.Animation animation : scene.animations) {
             System.out.printf("  Animation: %s\n", animation.name);
         }
-        System.out.printf("--------------------------------------------\n");
+        System.out.print("--------------------------------------------\n");
 
     }
 

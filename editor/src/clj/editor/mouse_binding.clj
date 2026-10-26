@@ -126,17 +126,17 @@
   [user-overrides]
   (let [user-overrides (normalize-user-overrides user-overrides)]
     (swap! bindings-atom update :contexts
-         (fn [contexts]
-           (let [all-ctxs (into (set (keys contexts)) (keys user-overrides))]
-             (reduce (fn [acc ctx]
-                       (let [ctx-data (get contexts ctx {})
-                             ctx-user-overrides (get user-overrides ctx)]
-                         (assoc acc ctx
-                                (if ctx-user-overrides
-                                  (assoc ctx-data :user-overrides ctx-user-overrides)
-                                  (dissoc ctx-data :user-overrides)))))
-                     {}
-                     all-ctxs)))))
+           (fn [contexts]
+             (let [all-ctxs (into (set (keys contexts)) (keys user-overrides))]
+               (reduce (fn [acc ctx]
+                         (let [ctx-data (get contexts ctx {})
+                               ctx-user-overrides (get user-overrides ctx)]
+                           (assoc acc
+                             ctx (if ctx-user-overrides
+                                   (assoc ctx-data :user-overrides ctx-user-overrides)
+                                   (dissoc ctx-data :user-overrides)))))
+                       {}
+                       all-ctxs)))))
   nil)
 
 (defn- effective-command-bindings* [state context command default-bindings]

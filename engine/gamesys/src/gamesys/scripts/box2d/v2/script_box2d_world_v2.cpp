@@ -202,18 +202,7 @@ namespace dmGameSystem
 
     static void PushBodyForBody(lua_State* L, b2Body* body)
     {
-        dmGameObject::HCollection collection = 0;
-        dmhash_t instance_id = 0;
-
-        void* user_data = body->GetUserData();
-        dmGameObject::HInstance instance = user_data ? CompCollisionObjectGetInstance(user_data) : 0;
-        if (instance)
-        {
-            collection = dmGameObject::GetCollection(instance);
-            instance_id = dmGameObject::GetIdentifier(instance);
-        }
-
-        PushBody(L, body, collection, instance_id);
+        PushBody(L, body, GetBodyInstance(body));
     }
 
     static void PushFixtureInfo(lua_State* L, b2Fixture* fixture, int32 child_index)
@@ -408,18 +397,12 @@ namespace dmGameSystem
         distance_input.proxyB = proxy_b;
         distance_input.transformA = xf_a;
         distance_input.transformB = xf_b;
-        distance_input.useRadii = true;
+        distance_input.useRadii = false;
 
         b2DistanceOutput distance_output;
         b2Distance(&distance_output, &cache, &distance_input);
 
-        cache.count = 0;
-        b2DistanceInput normal_input = distance_input;
-        normal_input.useRadii = false;
-        b2DistanceOutput normal_output;
-        b2Distance(&normal_output, &cache, &normal_input);
-
-        b2Vec2 normal = normal_output.pointA - normal_output.pointB;
+        b2Vec2 normal = distance_output.pointA - distance_output.pointB;
         float length = normal.Length();
         if (length > b2_epsilon)
         {
@@ -436,7 +419,9 @@ namespace dmGameSystem
         }
 
         *out_fraction = toi_output.t;
-        *out_point = distance_output.pointB;
+        // TOI allows a small overlap, where useRadii would return the midpoint
+        // of the core witness points instead of a point on the hit shape.
+        *out_point = distance_output.pointB + proxy_b.m_radius * normal;
         *out_normal = normal;
         return true;
     }

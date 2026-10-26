@@ -44,6 +44,7 @@ import com.google.protobuf.TextFormat;
 @BuilderParams(name = "Material", inExts = {".material"}, outExt = ".materialc")
 public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
+
     // This is the uniform name we are looking for in the reflection:
     private static final String PBR_MATERIAL_NAME = "PbrMaterial";
 
@@ -135,7 +136,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
         compileOptions.maxPageCount = materialBuilder.getMaxPageCount();
-
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
         modules.addModule(materialBuilder.getVertexProgram());
         modules.addModule(materialBuilder.getFragmentProgram());

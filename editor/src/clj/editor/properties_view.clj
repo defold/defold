@@ -15,6 +15,7 @@
 (ns editor.properties-view
   (:require [cljfx.api :as fx]
             [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.text-formatter :as fx.text-formatter]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -27,7 +28,7 @@
             [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
             [editor.localization :as localization]
-            [editor.markdown :as markdown]
+            [editor.markdown-view :as markdown-view]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
             [editor.properties :as properties]
@@ -39,13 +40,14 @@
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
             [util.eduction :as e]
+            [util.fn :as fn]
             [util.id-vec :as iv])
   (:import [editor.properties Curve CurveSpread]
            [javafx.beans.value ChangeListener]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.scene Node]
-           [javafx.scene.control Slider]
+           [javafx.scene.control Slider TextFormatter$Change]
            [javafx.scene.input DragEvent KeyCode KeyEvent MouseEvent TransferMode]
            [javafx.scene.paint Color]))
 
@@ -247,13 +249,32 @@
 (defn- resolve-value [input-desc property]
   (assoc input-desc :value (properties/unify-values (properties/values property))))
 
+(defn- filter-inserted-text
+  [input-pattern ^TextFormatter$Change change]
+  ;; Keep this callback named so fn/partial preserves filter equality across renders.
+  ;; Render model values verbatim, including invalid text from editor scripts.
+  ;; Restrict inserted user text, while allowing deletion and selection.
+  (when (or fx.lifecycle/*in-progress?*
+            (re-matches input-pattern (.getText change)))
+    change))
+
 (defmethod make-control-view g/Str [property _context localization-state]
-  (-> {:fx/type fxui/value-field
-       :on-value-changed #(set-values! property (repeat %))
-       :editable (not (properties/read-only? property))}
-      (resolve-value property)
-      (resolve-validation property localization-state)
-      (resolve-script-property-style-class property)))
+  (let [input-pattern (get-in property [:edit-type :input-pattern])]
+    (-> {:fx/type fxui/value-field
+         :to-value (get-in property [:edit-type :to-value] identity)
+         :to-string (get-in property [:edit-type :to-string] str)
+         :on-value-changed #(set-values! property (mapv (constantly %) (:node-ids property)))
+         :editable (not (properties/read-only? property))}
+        (cond-> input-pattern
+          (assoc :text-formatter
+            {:fx/type fx/ext-recreate-on-key-changed
+             :key input-pattern
+             :desc {:fx/type fx.text-formatter/lifecycle
+                    ;; TextFormatter filters are immutable.
+                    :filter (fn/partial filter-inserted-text input-pattern)}}))
+        (resolve-value property)
+        (resolve-validation property localization-state)
+        (resolve-script-property-style-class property))))
 
 (defn- resolve-scrubber
   "Adds a scrubber to a text field
@@ -271,34 +292,34 @@
    (resolve-scrubber input-desc property alignment ->value identity))
   ([input-desc property alignment ->value ->number]
    (cond-> input-desc
-           (not (properties/read-only? property))
-           (assoc
-             :hover-overlay
-             {:fx/type fxui/hover-overlay
-              :padding 1
-              :alignment alignment
-              :content
-              {:fx/type fxui/scrubber
-               :on-scrubbed
-               (fn []
-                 (let [{min-value :min
-                        max-value :max
-                        :keys [precision]
-                        :or {precision 1.0}} (:edit-type property)
-                       precision (double precision)
-                       opseq (gensym)
-                       initial-values (properties/values property)
-                       doubles-vol (volatile! (mapv (comp double ->number) initial-values))]
-                   (fn [^double delta]
-                     (let [new-doubles (vswap!
-                                         doubles-vol
-                                         coll/mapv->
-                                         #(cond-> (+ ^double % (* delta precision))
-                                                  min-value (max (double min-value))
-                                                  max-value (min (double max-value))))
-                           new-values (mapv #(->value (initial-values %) (new-doubles %))
-                                            (range (count new-doubles)))]
-                       (set-values! property new-values opseq)))))}}))))
+     (not (properties/read-only? property))
+     (assoc
+       :hover-overlay
+       {:fx/type fxui/hover-overlay
+        :padding 1
+        :alignment alignment
+        :content
+        {:fx/type fxui/scrubber
+         :on-scrubbed
+         (fn []
+           (let [{min-value :min
+                  max-value :max
+                  :keys [precision]
+                  :or {precision 1.0}} (:edit-type property)
+                 precision (double precision)
+                 opseq (gensym)
+                 initial-values (properties/values property)
+                 doubles-vol (volatile! (mapv (comp double ->number) initial-values))]
+             (fn [^double delta]
+               (let [new-doubles (vswap!
+                                   doubles-vol
+                                   coll/mapv->
+                                   #(cond-> (+ ^double % (* delta precision))
+                                      min-value (max (double min-value))
+                                      max-value (min (double max-value))))
+                     new-values (mapv #(->value (initial-values %) (new-doubles %))
+                                      (range (count new-doubles)))]
+                 (set-values! property new-values opseq)))))}}))))
 
 (defn- scrubbed-int [_ ^double n]
   (int (Math/round n)))
@@ -466,9 +487,6 @@
             (resolve-validation property localization-state)
             (resolve-scrubber property :left #(assoc %1 :spread (properties/round-scalar-float %2)) :spread))]}]}))
 
-(defn- vec->color [[r g b a]]
-  (Color. (float r) (float g) (float b) (float (or a 1.0))))
-
 (defmethod make-control-view types/Color [property {:keys [prefs]} localization-state]
   (let [values (properties/values property)
         value (properties/unify-values values)
@@ -476,7 +494,7 @@
         old-num (coalesced-property->old-num property)
         coerce (if (math/float32? old-num) float double)]
     (-> {:fx/type fxui/color-picker
-         :value (some-> value vec->color)
+         :value (some-> value fxui/vec->color)
          :on-value-changed
          (fn [^Color new-color]
            (set-values! property
@@ -486,7 +504,7 @@
                                            1 (coerce (.getGreen new-color))
                                            2 (coerce (.getBlue new-color)))
                                     (cond-> (not ignore-alpha)
-                                            (assoc 3 (coerce (.getOpacity new-color))))))
+                                      (assoc 3 (coerce (.getOpacity new-color))))))
                               values)))
          :ignore-alpha ignore-alpha
          :prefs prefs
@@ -549,8 +567,8 @@
         {:keys [ext dialog-accept-fn]} (:edit-type property)
         ext-set (if (string? ext) #{ext} (set ext))
         dialog-opts (cond-> {}
-                            ext (assoc :ext ext)
-                            dialog-accept-fn (assoc :accept-fn dialog-accept-fn))
+                      ext (assoc :ext ext)
+                      dialog-accept-fn (assoc :accept-fn dialog-accept-fn))
         read-only (properties/read-only? property)
         openable (and (resource/openable-resource? value) (resource/exists? value))
         tooltip (property-validation-tooltip property localization-state)]
@@ -737,7 +755,7 @@
                              :style-class "property-category"}))
                     (conj
                       {:fx/type fxui/grid
-                       :fx/key (:original-node-ids properties)
+                       :fx/key (:selection-ids properties)
                        :on-key-pressed handle-grid-key-pressed
                        :column-constraints [{:fx/type fx.column-constraints/lifecycle}
                                             {:fx/type fx.column-constraints/lifecycle
@@ -762,7 +780,7 @@
                                   :tooltip {:fx/type fxui/tooltip
                                             :content-display :graphic-only
                                             :style {:-fx-padding 0}
-                                            :graphic {:fx/type markdown/view
+                                            :graphic {:fx/type markdown-view/view
                                                       :content (localization-state
                                                                  (localization/message
                                                                    "property.tooltip"
@@ -824,12 +842,12 @@
 
   (output pane-desc g/Any :cached produce-pane-desc))
 
-(defn make-properties-view [workspace project app-view search-results-view graph prefs]
+(defn make-properties-view [workspace project app-view search-results-view prefs]
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (g/make-nodes graph [view [PropertiesView :prefs prefs]]
+        (g/make-nodes [view [PropertiesView :prefs prefs]]
           (g/connect workspace :_node-id view :workspace)
           (g/connect workspace :localization view :localization)
           (g/connect project :_node-id view :project)

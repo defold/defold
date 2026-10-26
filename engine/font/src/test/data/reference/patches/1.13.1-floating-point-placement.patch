@@ -1,0 +1,24 @@
+--- a/engine/render/src/render/font/default/font_default_vertex.cpp
++++ b/engine/render/src/render/font/default/font_default_vertex.cpp
+@@ -398,8 +398,8 @@
+             continue;
+ 
+         // all glyphs are positions on an infinite line, so we want the position of the first glyph on the line
+-        int32_t first_x = glyphs[line.m_Index].m_X;
+-        int32_t first_y = glyphs[line.m_Index].m_Y;
++        float first_x = glyphs[line.m_Index].m_X;
++        float first_y = glyphs[line.m_Index].m_Y;
+ 
+         const float line_start_x = x_offset - OffsetX(align, line.m_Width);
+         const float line_start_y = y_offset - i * leading;
+@@ -419,8 +419,8 @@
+             if (dmUtf8::IsWhiteSpace(c))
+                 continue;
+ 
+-            int32_t pos_x = g->m_X;
+-            int32_t pos_y = g->m_Y;
++            float pos_x = g->m_X;
++            float pos_y = g->m_Y;
+ 
+             // We're dealing with absolute coordinates on an infinite line
+             float offx = pos_x - first_x;

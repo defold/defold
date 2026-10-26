@@ -459,7 +459,7 @@
   (-> opts
       (assoc :rt runtime :mode mode)
       (cond-> (not (contains? opts :evaluation-context))
-              (assoc :evaluation-context (g/make-evaluation-context)))))
+        (assoc :evaluation-context (g/make-evaluation-context)))))
 
 (defn invoke-suspending
   "Invoke a potentially long-running LuaFunction

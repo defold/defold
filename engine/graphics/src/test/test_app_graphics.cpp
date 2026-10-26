@@ -28,7 +28,14 @@
 
 #include "test_app_graphics.h"
 
+#if defined(DM_GRAPHICS_DAWN)
+#include "../webgpu/graphics_webgpu_private.h"
+#endif
+
 #include <dmsdk/graphics/graphics_vulkan.h>
+#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
+#include "../vulkan/graphics_vulkan_private.h"
+#endif
 #include <platform/window.hpp>
 
 #include "test_app_graphics_assets.h"
@@ -37,6 +44,8 @@
     #define DM_TEST_APP_GRAPHICS_HAS_VENDOR_ASSETS 1
     #include "test_app_graphics_assets_vendor.h"
 #endif
+
+#include "graphics_test_sanitizers.h"
 
 // From engine_private.h
 
@@ -187,7 +196,9 @@ struct EngineCtx;
 struct ITest
 {
     virtual void Initialize(EngineCtx*) {};
+    virtual void BeforeFrame(EngineCtx*) {};
     virtual void Execute(EngineCtx*) {};
+    virtual void AfterFlip(EngineCtx*) {};
     virtual void OnGraphicsClosing(EngineCtx*) {};
     virtual void OnGraphicsClosed(EngineCtx*) {};
     virtual void OnGraphicsDeleted(EngineCtx*) {};
@@ -239,6 +250,179 @@ struct ClearBackbufferTest : ITest
     }
 };
 
+#if defined(DM_GRAPHICS_DAWN)
+#if defined(DM_PLATFORM_MACOS)
+bool WebGPUIsDisplaySyncEnabled();
+#endif
+
+static void WebGPUTestErrorCallback(WGPUPopErrorScopeStatus status, WGPUErrorType type, WGPUStringView message, void* userdata, void*)
+{
+    EngineCtx* engine = (EngineCtx*)userdata;
+    if (status != WGPUPopErrorScopeStatus_Success || type != WGPUErrorType_NoError)
+    {
+        dmLogError("WebGPU rendering test failed (%d, %d): %.*s", (int)status, (int)type, (int)message.length, message.data);
+        engine->m_Failed = true;
+    }
+}
+
+struct WebGPURenderingTest : ClearBackbufferTest
+{
+    dmGraphics::HProgram m_Program;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
+
+        const char* vertex_source =
+            "@vertex fn main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {\n"
+            "    var positions = array<vec2f, 3>(vec2f(-0.5, -0.5), vec2f(0.5, -0.5), vec2f(0.0, 0.5));\n"
+            "    return vec4f(positions[index], 0.5, 1.0);\n"
+            "}\n";
+        const char* fragment_source =
+            "@fragment fn main() -> @location(0) vec4f { return vec4f(1.0, 0.5, 0.0, 1.0); }\n";
+        dmGraphics::ShaderDesc shader_desc = {};
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                         (uint8_t*)vertex_source, strlen(vertex_source));
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                         (uint8_t*)fragment_source, strlen(fragment_source));
+        char error_buffer[512] = {};
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, error_buffer, sizeof(error_buffer));
+        DeleteShaderDesc(&shader_desc);
+        if (!m_Program)
+        {
+            dmLogError("WebGPU rendering test could not create program: %s", error_buffer);
+            engine->m_Failed = true;
+        }
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        ClearBackbufferTest::Execute(engine);
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::SetViewport(context, 0, 0, dmGraphics::GetWindowWidth(context), dmGraphics::GetWindowHeight(context));
+        dmGraphics::EnableProgram(context, m_Program);
+        // Both paths must create a valid depth-stencil pipeline. In WebGPU v2,
+        // disabled depth writes must be False rather than Undefined.
+        if (engine->m_WasRun % 2)
+        {
+            dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+        }
+        else
+        {
+            dmGraphics::EnableState(context, dmGraphics::STATE_DEPTH_TEST);
+        }
+        dmGraphics::SetDepthMask(context, engine->m_WasRun % 2 == 0);
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        dmGraphics::DisableProgram(context);
+#if defined(DM_PLATFORM_MACOS)
+        // EngineUpdate changes the interval during frames 1 and 2. Check the
+        // actual Metal layer after BeginFrame applies each pending change.
+        if (engine->m_WasRun <= 3)
+        {
+            ASSERT_EQ(engine->m_WasRun != 2, WebGPUIsDisplaySyncEnabled());
+        }
+#endif
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
+        }
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        WGPUPopErrorScopeCallbackInfo callback_info = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
+        callback_info.mode = WGPUCallbackMode_WaitAnyOnly;
+        callback_info.callback = WebGPUTestErrorCallback;
+        callback_info.userdata1 = engine;
+        WGPUFutureWaitInfo wait_info = { wgpuDevicePopErrorScope(context->m_Device, callback_info), 0 };
+        WGPUWaitStatus status = wgpuInstanceWaitAny(context->m_Instance, 1, &wait_info, UINT64_MAX);
+        engine->m_Failed |= context->m_HasValidationError != 0;
+        ASSERT_EQ(WGPUWaitStatus_Success, status);
+        ASSERT_TRUE(wait_info.completed);
+    }
+};
+#endif
+
+// Run with "opengl packed-depth-stencil-texture" to verify depth sampling with
+// unsampled stencil and packed depth/stencil allocation/resize without misleading warnings.
+struct PackedDepthStencilTextureTest : ClearBackbufferTest
+{
+    void Execute(EngineCtx* engine) override
+    {
+        ClearBackbufferTest::Execute(engine);
+        if (engine->m_WasRun != 1)
+            return;
+
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        for (uint32_t attachments = 2; attachments < 4; ++attachments)
+        {
+            const bool color = (attachments & 1) != 0;
+            const bool stencil = (attachments & 2) != 0;
+            dmGraphics::RenderTargetCreationParams params = {};
+            params.m_DepthTexture                         = 1;
+            params.m_StencilTexture                       = false;
+            params.m_DepthBufferParams.m_Format           = dmGraphics::TEXTURE_FORMAT_DEPTH;
+            params.m_DepthBufferParams.m_Width            = 64;
+            params.m_DepthBufferParams.m_Height           = 32;
+            params.m_DepthBufferCreationParams.m_Width    = 64;
+            params.m_DepthBufferCreationParams.m_Height   = 32;
+            params.m_StencilBufferParams.m_Format         = dmGraphics::TEXTURE_FORMAT_STENCIL;
+            params.m_StencilBufferParams.m_Width          = 64;
+            params.m_StencilBufferParams.m_Height         = 32;
+            params.m_StencilBufferCreationParams.m_Width  = 64;
+            params.m_StencilBufferCreationParams.m_Height = 32;
+            params.m_ColorBufferParams[0].m_Format        = dmGraphics::TEXTURE_FORMAT_RGBA;
+            params.m_ColorBufferParams[0].m_Width         = 64;
+            params.m_ColorBufferParams[0].m_Height        = 32;
+            params.m_ColorBufferCreationParams[0].m_Width  = 64;
+            params.m_ColorBufferCreationParams[0].m_Height = 32;
+
+            uint32_t flags = dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+            if (color)
+            {
+                flags |= dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+            }
+            if (stencil)
+            {
+                flags |= dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+            }
+
+            dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(context, flags, params);
+            ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+            for (uint32_t size = 64; size <= 128; size *= 2)
+            {
+                const uint32_t height = size - 32;
+                if (size != 64)
+                {
+                    dmGraphics::SetRenderTargetSize(context, target, size, height);
+                }
+
+                dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
+                dmGraphics::Clear(context, flags, 0, 0, 0, 255, 0.5f, 0);
+                dmGraphics::HTexture depth = dmGraphics::GetRenderTargetTexture(context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
+                if (!dmGraphics::IsAssetHandleValid(context, depth) ||
+                    dmGraphics::GetTextureWidth(context, depth) != size ||
+                    dmGraphics::GetTextureHeight(context, depth) != height)
+                {
+                    dmLogError("Depth texture allocation/resize failed (attachments=%u, size=%ux%u)", attachments, size, height);
+                    engine->m_Failed = true;
+                }
+                dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+            }
+            dmGraphics::DeleteRenderTarget(context, target);
+        }
+    }
+
+    void AfterFlip(EngineCtx* engine) override
+    {
+        // Finish after the work has been submitted and presented.
+        if (ShouldAutoExit())
+            engine->m_Running = 0;
+    }
+};
+
 // Run with "opengles depth-texture" to exercise a real depth attachment, not
 // the null adapter used by test_graphics. Graphics-call verification is enabled.
 struct DepthTextureTest : ClearBackbufferTest
@@ -275,7 +459,7 @@ struct DepthTextureTest : ClearBackbufferTest
                     dmGraphics::SetRenderTargetSize(context, target, size, size);
                 }
 
-                dmGraphics::SetRenderTarget(context, target, 0);
+                dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
                 dmGraphics::Clear(context, flags, 0, 0, 0, 255, 0.5f, 0);
                 dmGraphics::HTexture depth = dmGraphics::GetRenderTargetTexture(context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
                 if (!dmGraphics::IsAssetHandleValid(context, depth) ||
@@ -285,10 +469,99 @@ struct DepthTextureTest : ClearBackbufferTest
                     dmLogError("Depth texture allocation/resize failed (color=%u, size=%u)", color, size);
                     engine->m_Failed = true;
                 }
-                dmGraphics::SetRenderTarget(context, 0, 0);
+                dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
             }
             dmGraphics::DeleteRenderTarget(context, target);
         }
+    }
+};
+
+// Run with "vulkan depth-only-render-target". Guards against the Vulkan crash
+// when creating depth-only or depth/stencil render targets without color attachments.
+// Verifies creation, clear, framebuffer extent and resize for non-square targets,
+// both with and without a color attachment.
+struct DepthOnlyRenderTargetTest : ClearBackbufferTest
+{
+    void Execute(EngineCtx* engine) override
+    {
+        ClearBackbufferTest::Execute(engine);
+        if (engine->m_WasRun != 1)
+            return;
+
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        for (uint32_t attachments = 0; attachments < 4; ++attachments)
+        {
+            const bool color = (attachments & 1) != 0;
+            const bool stencil = (attachments & 2) != 0;
+            dmGraphics::RenderTargetCreationParams params = {};
+            params.m_DepthTexture                         = 1;
+            params.m_StencilTexture                       = stencil;
+            params.m_DepthBufferParams.m_Format           = dmGraphics::TEXTURE_FORMAT_DEPTH;
+            params.m_DepthBufferParams.m_Width            = 64;
+            params.m_DepthBufferParams.m_Height           = 32;
+            params.m_DepthBufferCreationParams.m_Width    = 64;
+            params.m_DepthBufferCreationParams.m_Height   = 32;
+            params.m_StencilBufferParams.m_Format         = dmGraphics::TEXTURE_FORMAT_STENCIL;
+            params.m_StencilBufferParams.m_Width          = 64;
+            params.m_StencilBufferParams.m_Height         = 32;
+            params.m_StencilBufferCreationParams.m_Width  = 64;
+            params.m_StencilBufferCreationParams.m_Height = 32;
+            params.m_ColorBufferParams[0].m_Format        = dmGraphics::TEXTURE_FORMAT_RGBA;
+            params.m_ColorBufferParams[0].m_Width         = 64;
+            params.m_ColorBufferParams[0].m_Height        = 32;
+            params.m_ColorBufferCreationParams[0].m_Width  = 64;
+            params.m_ColorBufferCreationParams[0].m_Height = 32;
+
+            uint32_t flags = dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+            if (color)
+            {
+                flags |= dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+            }
+            if (stencil)
+            {
+                flags |= dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+            }
+
+            dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(context, flags, params);
+            ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+            for (uint32_t size = 64; size <= 128; size *= 2)
+            {
+                const uint32_t height = size - 32;
+                if (size != 64)
+                {
+                    dmGraphics::SetRenderTargetSize(context, target, size, height);
+                }
+
+#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
+                if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_VULKAN)
+                {
+                    dmGraphics::VulkanContext* vk_context = (dmGraphics::VulkanContext*) context;
+                    dmGraphics::VulkanRenderTarget* vk_target = dmGraphics::GetAssetFromContainer<dmGraphics::VulkanRenderTarget>(vk_context->m_BaseContext.m_AssetHandleContainer, target);
+                    ASSERT_EQ(size, vk_target->m_Extent.width);
+                    ASSERT_EQ(height, vk_target->m_Extent.height);
+                }
+#endif
+                dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
+                dmGraphics::Clear(context, flags, 0, 0, 0, 255, 0.5f, 0);
+                dmGraphics::HTexture depth = dmGraphics::GetRenderTargetTexture(context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
+                if (!dmGraphics::IsAssetHandleValid(context, depth) ||
+                    dmGraphics::GetTextureWidth(context, depth) != size ||
+                    dmGraphics::GetTextureHeight(context, depth) != height)
+                {
+                    dmLogError("Depth texture allocation/resize failed (attachments=%u, size=%ux%u)", attachments, size, height);
+                    engine->m_Failed = true;
+                }
+                dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+            }
+            dmGraphics::DeleteRenderTarget(context, target);
+        }
+    }
+
+    void AfterFlip(EngineCtx* engine) override
+    {
+        // Finish after the work has been submitted and presented.
+        if (ShouldAutoExit())
+            engine->m_Running = 0;
     }
 };
 
@@ -369,7 +642,7 @@ struct CubemapFaceOrderTest : ITest
             {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}
         };
 
-        dmGraphics::SetRenderTarget(context, m_RenderTarget, 0);
+        dmGraphics::SetRenderTarget(context, m_RenderTarget, dmGraphics::RenderTargetBindingParams());
         dmGraphics::SetViewport(context, 0, 0, 1, 1);
         dmGraphics::EnableProgram(context, m_Program);
         dmGraphics::SetSampler(context, GetUniformLocation(m_Program, "cubemap"), 0);
@@ -450,7 +723,7 @@ struct CubemapFaceOrderTest : ITest
         dmGraphics::DisableVertexDeclaration(context, m_VertexDeclaration);
         dmGraphics::DisableVertexBuffer(context, m_VertexBuffer);
         dmGraphics::DisableProgram(context);
-        dmGraphics::SetRenderTarget(context, 0, 0);
+        dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
         engine->m_Running = 0;
     }
 
@@ -619,6 +892,188 @@ struct DrawTriangleTest : ITest
         // TODO: Bind resources here
 
         dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
+    }
+};
+
+// Verify equal-sized vertex/index replacements preserve earlier recorded draws,
+// guarding against shared Metal buffer overwrites when text buffers are reused (#13474).
+// Pre-frame updates exercise retirement while earlier frames may still be in flight.
+struct BufferReplacementTest : ITest
+{
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+    dmGraphics::HVertexBuffer      m_IndexedVertexBuffer;
+    dmGraphics::HIndexBuffer       m_IndexBuffer;
+    uint32_t                       m_FrameIndex;
+
+    BufferReplacementTest()
+    : m_Program(0), m_VertexDeclaration(0), m_VertexBuffer(0), m_IndexedVertexBuffer(0), m_IndexBuffer(0), m_FrameIndex(0)
+    {
+    }
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
+
+        if (family != dmGraphics::ADAPTER_FAMILY_METAL && family != dmGraphics::ADAPTER_FAMILY_OPENGL)
+        {
+            dmLogError("Buffer replacement test requires the Metal or OpenGL adapter");
+            engine->m_Failed = true;
+            return;
+        }
+
+        dmGraphics::ShaderDesc desc = {};
+        if (family == dmGraphics::ADAPTER_FAMILY_METAL)
+        {
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_MSL_22,
+                (uint8_t*) graphics_assets::msl_vertex_program_buffer_replacement, sizeof(graphics_assets::msl_vertex_program_buffer_replacement));
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_MSL_22,
+                (uint8_t*) graphics_assets::msl_fragment_program_buffer_replacement, sizeof(graphics_assets::msl_fragment_program_buffer_replacement));
+        }
+        else
+        {
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+                (uint8_t*) graphics_assets::glsl_vertex_program_buffer_replacement, sizeof(graphics_assets::glsl_vertex_program_buffer_replacement));
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+                (uint8_t*) graphics_assets::glsl_fragment_program_buffer_replacement, sizeof(graphics_assets::glsl_fragment_program_buffer_replacement));
+        }
+        AddShaderResource(&desc, "pos", dmGraphics::ShaderDesc::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        char error_buffer[1024] = {};
+        m_Program = dmGraphics::NewProgram(context, &desc, error_buffer, sizeof(error_buffer));
+        DeleteShaderDesc(&desc);
+        if (!m_Program)
+        {
+            dmLogError("Buffer replacement test program creation failed: %s", error_buffer);
+            engine->m_Failed = true;
+            return;
+        }
+
+        // The first triangle covers the viewport; the second lies outside it.
+        const float vertices[] = { -1, -1, 3, -1, -1, 3, 7, -1, 11, -1, 7, 3 };
+        const uint16_t indices[] = { 0, 1, 2 };
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices) / 2, vertices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        m_IndexedVertexBuffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        m_IndexBuffer = dmGraphics::NewIndexBuffer(context, sizeof(indices), indices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(context);
+        dmGraphics::AddVertexStream(streams, "pos", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, streams);
+        dmGraphics::DeleteVertexStreamDeclaration(streams);
+    }
+
+    void BeforeFrame(EngineCtx* engine) override
+    {
+        // Match mesh updates in dmGameObject::Update, before BeginFrame waits.
+        // Multiple replacements also exercise growth of the retirement queue.
+        const float vertices[] = { -1, -1, 3, -1, -1, 3 };
+        const uint16_t indices[] = { 0, 1, 2 };
+        for (uint32_t i = 0; i < 16; ++i)
+        {
+            dmGraphics::SetVertexBufferData(m_VertexBuffer, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            dmGraphics::SetIndexBufferData(m_IndexBuffer, sizeof(indices), indices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        }
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        const float vertices[][6] = { { -1, -1, 3, -1, -1, 3 }, { 7, -1, 11, -1, 7, 3 } };
+        const uint16_t indices[][3] = { { 0, 1, 2 }, { 3, 4, 5 } };
+        const uint32_t cell_width = dmGraphics::GetWindowWidth(context) / 4;
+        dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1.0f, 0);
+        dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
+        dmGraphics::EnableProgram(context, m_Program);
+
+        for (uint32_t cell = 0; cell < 4; ++cell)
+        {
+            const uint32_t data_index = (cell + m_FrameIndex) % 2;
+            dmGraphics::HVertexBuffer vertex_buffer = cell < 2 ? m_VertexBuffer : m_IndexedVertexBuffer;
+            if (cell < 2)
+            {
+                dmGraphics::SetVertexBufferData(m_VertexBuffer, sizeof(vertices[0]), vertices[data_index], dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            }
+            else
+            {
+                dmGraphics::SetIndexBufferData(m_IndexBuffer, sizeof(indices[0]), indices[data_index], dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            }
+
+            dmGraphics::SetViewport(context, cell * cell_width, 0, cell_width, dmGraphics::GetWindowHeight(context));
+            dmGraphics::EnableVertexBuffer(context, vertex_buffer, 0);
+            dmGraphics::EnableVertexDeclaration(context, m_VertexDeclaration, 0, 0, m_Program);
+            if (cell < 2)
+            {
+                dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            }
+            else
+            {
+                dmGraphics::DrawElements(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, dmGraphics::TYPE_UNSIGNED_SHORT, m_IndexBuffer, 1);
+            }
+        }
+        dmGraphics::DisableVertexDeclaration(context, m_VertexDeclaration);
+        dmGraphics::DisableVertexBuffer(context, m_IndexedVertexBuffer);
+        dmGraphics::DisableProgram(context);
+        // Keep the first four submissions free of synchronous readback.
+        if (m_FrameIndex >= 4)
+        {
+            CheckPixels(engine);
+        }
+    }
+
+    void AfterFlip(EngineCtx* engine) override
+    {
+        ++m_FrameIndex;
+        if (engine->m_Failed || m_FrameIndex == 7)
+        {
+            if (!engine->m_Failed)
+            {
+                dmLogInfo("Buffer replacements: vertex and index draws preserved across %u frames", m_FrameIndex);
+            }
+            engine->m_Running = 0;
+        }
+    }
+
+    void CheckPixels(EngineCtx* engine)
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        const uint32_t cell_width = dmGraphics::GetWindowWidth(context) / 4;
+        for (uint32_t cell = 0; cell < 4; ++cell)
+        {
+            uint8_t pixel[4] = {};
+            dmGraphics::ReadPixels(context, cell * cell_width + cell_width / 2, dmGraphics::GetWindowHeight(context) / 2, 1, 1, pixel, sizeof(pixel));
+            const uint8_t expected = (cell + m_FrameIndex) % 2 ? 0 : 255;
+            if (pixel[0] != expected || pixel[1] != expected || pixel[2] != expected || pixel[3] != 255)
+            {
+                dmLogError("Buffer replacement frame %u, %s cell %u: expected %u,%u,%u,255, got %u,%u,%u,%u",
+                    m_FrameIndex, cell < 2 ? "vertex" : "index", cell, expected, expected, expected, pixel[0], pixel[1], pixel[2], pixel[3]);
+                engine->m_Failed = true;
+            }
+        }
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        if (m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(m_VertexDeclaration);
+        }
+        if (m_VertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(m_VertexBuffer);
+        }
+        if (m_IndexedVertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(m_IndexedVertexBuffer);
+        }
+        if (m_IndexBuffer)
+        {
+            dmGraphics::DeleteIndexBuffer(m_IndexBuffer);
+        }
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
+        }
     }
 };
 
@@ -1405,91 +1860,393 @@ struct UniformBufferTest : ITest
     }
 };
 
-// Note: the vulkan dmsdk doens't contain these functions anymore, but since SSBOs is something we want eventually,
-//       we can leave this test code here for later.
-#if 0
+// "ssbo" covers API/compute, "ssbo-updates" checks uploads between draws, and
+// "ssbo-hazards" checks GPU dependencies and attachment preservation.
 struct StorageBufferTest : ITest
 {
-    dmGraphics::HProgram           m_Program;
-    dmGraphics::HStorageBuffer     m_StorageBuffer;
-    dmGraphics::HVertexDeclaration m_VertexDeclaration;
-    dmGraphics::HVertexBuffer      m_VertexBuffer;
+    enum { BUFFER_COUNT = 6, STORAGE_SET = 1, STORAGE_BINDING = 0 };
+    struct Data { float m_Member1[4]; };
 
-    void Initialize(EngineCtx* engine) override
+    dmGraphics::HProgram           m_Program = 0;
+    dmGraphics::HProgram           m_ComputeProgram = 0;
+    dmGraphics::HProgram           m_WriteProgram = 0;
+    dmGraphics::HProgram           m_VertexReadProgram = 0;
+    dmGraphics::HStorageBuffer     m_Buffers[BUFFER_COUNT] = {};
+    dmGraphics::HVertexDeclaration m_VertexDeclaration = 0;
+    dmGraphics::HVertexBuffer      m_VertexBuffer = 0;
+    uint8_t                       m_Expected[BUFFER_COUNT][3] = {};
+    uint32_t                      m_CellCount = 0;
+    uint32_t                      m_CompletedFrames = 0;
+    bool                          m_TestUpdates = false;
+    bool                          m_TestHazards = false;
+
+    dmGraphics::HProgram NewProgram(EngineCtx* engine, bool compute, bool writes = false, bool vertex_reads = false)
     {
-        const float vertex_data_no_index[] = {
-            -0.5f, -0.5f,
-             0.5f, -0.5f,
-            -0.5f,  0.5f,
-             0.5f, -0.5f,
-             0.5f,  0.5f,
-            -0.5f,  0.5f,
-        };
+        dmGraphics::ShaderDesc desc = {};
+        dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
+        const bool shared_stages = !compute && HasArgument("ssbo-shared-stages");
+        dmGraphics::ShaderDesc::Language language = family == dmGraphics::ADAPTER_FAMILY_METAL
+            ? dmGraphics::ShaderDesc::LANGUAGE_MSL_22 : family == dmGraphics::ADAPTER_FAMILY_VULKAN
+            ? dmGraphics::ShaderDesc::LANGUAGE_SPIRV : dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430;
 
-        m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-
-        dmGraphics::ShaderDesc vs_desc = {};
-        dmGraphics::ShaderDesc fs_desc = {};
-
-        if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
+#define ADD_SSBO_SHADER(stage, name) \
+        if (family == dmGraphics::ADAPTER_FAMILY_METAL) \
+            AddShaderWithType(&desc, stage, language, (uint8_t*) graphics_assets::msl_##name##_program_ssbo, sizeof(graphics_assets::msl_##name##_program_ssbo)); \
+        else if (family == dmGraphics::ADAPTER_FAMILY_VULKAN) \
+            AddShaderWithType(&desc, stage, language, (uint8_t*) graphics_assets::spirv_##name##_program_ssbo, sizeof(graphics_assets::spirv_##name##_program_ssbo)); \
+        else \
+            AddShaderWithType(&desc, stage, language, (uint8_t*) graphics_assets::glsl_##name##_program_ssbo, sizeof(graphics_assets::glsl_##name##_program_ssbo));
+        if (compute)
         {
-            assert(false && "TODO: storage buffers are only supported on vulkan currently");
-            AddShader(&vs_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, (uint8_t*) graphics_assets::glsl_vertex_program, sizeof(graphics_assets::glsl_vertex_program));
-            AddShader(&fs_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, (uint8_t*) graphics_assets::glsl_fragment_program_ssbo, sizeof(graphics_assets::glsl_fragment_program_ssbo));
+            ADD_SSBO_SHADER(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, compute);
         }
         else
         {
-            AddShader(&vs_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_vertex_program, sizeof(graphics_assets::spirv_vertex_program));
-            AddShader(&fs_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_fragment_program_ssbo, sizeof(graphics_assets::spirv_fragment_program_ssbo));
+            if (shared_stages)
+            {
+                // A shared logical binding can occupy a different argument id in
+                // each independently compiled Metal stage. This used to overwrite
+                // one mapping and encode both stages using the vertex layout.
+                static const char vertex[] =
+                    "#include <metal_stdlib>\nusing namespace metal;\n"
+                    "struct Data {float4 member1;};\n"
+                    "struct Args {const device Data* data [[id(0)]];};\n"
+                    "struct In {float2 pos [[attribute(0)]];};\n"
+                    "struct Out {float4 position [[position]];float4 color [[user(locn0)]];};\n"
+                    "vertex Out main0(In in [[stage_in]],constant Args& args [[buffer(1)]])"
+                    "{Out out;out.position=float4(in.pos,0,1);out.color=args.data[1].member1;return out;}\n";
+                static const char fragment[] =
+                    "#include <metal_stdlib>\nusing namespace metal;\n"
+                    "struct Data {float4 member1;};\n"
+                    "struct Args {const device Data* data [[id(2)]];};\n"
+                    "struct In {float4 color [[user(locn0)]];};\n"
+                    "fragment float4 main0(In in [[stage_in]],constant Args& args [[buffer(1)]])"
+                    "{return float4((in.color.rgb+args.data[1].member1.rgb)*0.5,1);}\n";
+                AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, language, (uint8_t*) vertex, sizeof(vertex));
+                AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, language, (uint8_t*) fragment, sizeof(fragment));
+            }
+            else if (vertex_reads)
+            {
+                ADD_SSBO_SHADER(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vertex_read);
+                ADD_SSBO_SHADER(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, fragment_varying);
+            }
+            else
+            {
+                ADD_SSBO_SHADER(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vertex);
+                if (writes)
+                {
+                    ADD_SSBO_SHADER(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, fragment_write);
+                }
+                else
+                {
+                    ADD_SSBO_SHADER(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, fragment);
+                }
+            }
+            AddShaderResource(&desc, "pos", dmGraphics::ShaderDesc::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        }
+#undef ADD_SSBO_SHADER
+
+        dmGraphics::ShaderDesc::ResourceTypeInfo* block = AddShaderType(&desc, "Test");
+        AddShaderTypeMember(&desc, block, "my_data", 1, 0, 0);
+        dmGraphics::ShaderDesc::ResourceTypeInfo* data = AddShaderType(&desc, "Data");
+        AddShaderTypeMember(&desc, data, "member1", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, 0, 1);
+        AddShaderResource(&desc, "Test", 0, STORAGE_BINDING, STORAGE_SET, BINDING_TYPE_STORAGE_BUFFER,
+            compute ? dmGraphics::SHADER_STAGE_FLAG_COMPUTE : shared_stages ?
+                dmGraphics::SHADER_STAGE_FLAG_VERTEX | dmGraphics::SHADER_STAGE_FLAG_FRAGMENT :
+                vertex_reads ? dmGraphics::SHADER_STAGE_FLAG_VERTEX : dmGraphics::SHADER_STAGE_FLAG_FRAGMENT);
+        desc.m_Reflection.m_StorageBuffers.m_Data[0].m_ResourceAccessFlags = compute || writes
+            ? dmGraphics::SHADER_RESOURCE_ACCESS_WRITE : dmGraphics::SHADER_RESOURCE_ACCESS_READ;
+
+        // The handwritten MSL variants use argument buffer 1, resource id 0.
+        dmGraphics::ShaderDesc::MSLResourceMapping mapping = {};
+        mapping.m_NameHash = dmHashString64("Test");
+        mapping.m_Set = STORAGE_SET;
+        mapping.m_Binding = STORAGE_BINDING;
+        dmGraphics::ShaderDesc::Shader& storage_shader = desc.m_Shaders.m_Data[vertex_reads ? 0 : desc.m_Shaders.m_Count - 1];
+        storage_shader.m_MslResourceMapping.m_Data = &mapping;
+        storage_shader.m_MslResourceMapping.m_Count = 1;
+        storage_shader.m_WorkGroupSize.m_X = 1;
+        storage_shader.m_WorkGroupSize.m_Y = 1;
+        storage_shader.m_WorkGroupSize.m_Z = 1;
+        dmGraphics::ShaderDesc::MSLResourceMapping vertex_mapping = mapping;
+        if (shared_stages)
+        {
+            desc.m_Shaders.m_Data[0].m_MslResourceMapping.m_Data = &vertex_mapping;
+            desc.m_Shaders.m_Data[0].m_MslResourceMapping.m_Count = 1;
+            mapping.m_MslIndex = 2;
         }
 
-        AddShaderResource(&vs_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT);
-        AddShaderResource(&fs_desc, "Test", dmGraphics::ShaderDesc::SHADER_TYPE_STORAGE_BUFFER, 0, 1, BINDING_TYPE_STORAGE_BUFFER);
-
-        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_desc, 0, 0);
-        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_desc, 0, 0);
-
-        DeleteShaderDesc(&vs_desc);
-        DeleteShaderDesc(&fs_desc);
-
-        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
-
-        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
-        dmGraphics::AddVertexStream(stream_declaration, "pos", 2, dmGraphics::TYPE_FLOAT, false);
-        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
-
-        struct StorageBuffer_Data
+        char error_buffer[1024] = {};
+        dmGraphics::HProgram program = dmGraphics::NewProgram(engine->m_GraphicsContext, &desc, error_buffer, sizeof(error_buffer));
+        DeleteShaderDesc(&desc);
+        if (!program)
         {
-            float m_Member1[4];
-        };
+            dmLogError("SSBO %s program creation failed: %s", compute ? "compute" : "graphics", error_buffer);
+            engine->m_Failed = true;
+        }
+        return program;
+    }
 
-        StorageBuffer_Data storage_data[16] = {};
-
-        for (int i = 0; i < DM_ARRAY_SIZE(storage_data); ++i)
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
+        m_TestUpdates = HasArgument("ssbo-updates");
+        m_TestHazards = HasArgument("ssbo-hazards");
+        if (HasArgument("ssbo-shared-stages") && family != dmGraphics::ADAPTER_FAMILY_METAL)
         {
-            storage_data[i].m_Member1[0] = (float) (10 * i + 0);
-            storage_data[i].m_Member1[1] = (float) (10 * i + 1);
-            storage_data[i].m_Member1[2] = (float) (10 * i + 2);
-            storage_data[i].m_Member1[3] = (float) (10 * i + 3);
+            dmLogError("The shared Metal argument layout regression requires the Metal adapter");
+            engine->m_Failed = true;
+            return;
+        }
+        if ((family != dmGraphics::ADAPTER_FAMILY_OPENGL && family != dmGraphics::ADAPTER_FAMILY_VULKAN && family != dmGraphics::ADAPTER_FAMILY_METAL) ||
+            !dmGraphics::IsContextFeatureSupported(context, dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER) ||
+            (!m_TestUpdates && !dmGraphics::IsContextFeatureSupported(context, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER)))
+        {
+            dmLogError("SSBO test requires storage buffers%s on OpenGL 4.3+, Vulkan, or Metal", m_TestUpdates ? "" : " and compute shaders");
+            engine->m_Failed = true;
+            return;
         }
 
-        m_StorageBuffer = dmGraphics::VulkanNewStorageBuffer(engine->m_GraphicsContext, sizeof(storage_data));
-        dmGraphics::VulkanSetStorageBufferData(engine->m_GraphicsContext, m_StorageBuffer, sizeof(storage_data), (void*) storage_data);
+        m_Program = NewProgram(engine, false);
+        if (!m_TestUpdates)
+            m_ComputeProgram = NewProgram(engine, true);
+        if (m_TestHazards)
+        {
+            m_WriteProgram = NewProgram(engine, false, true);
+            m_VertexReadProgram = NewProgram(engine, false, false, true);
+        }
+        if (engine->m_Failed)
+            return;
+
+        const float vertices[] = { -1.0f, -1.0f, 3.0f, -1.0f, -1.0f, 3.0f };
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(context);
+        dmGraphics::AddVertexStream(streams, "pos", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, streams);
+        dmGraphics::DeleteVertexStreamDeclaration(streams);
+
+        Data initial[] = { {{1, 0, 0, 1}}, {{1, 1, 1, 1}} };
+        for (uint32_t i = 0; i < BUFFER_COUNT; ++i)
+        {
+            m_Buffers[i] = dmGraphics::NewStorageBuffer(context, sizeof(initial), initial, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+            if (!m_Buffers[i])
+            {
+                dmLogError("Failed to create SSBO %u", i);
+                engine->m_Failed = true;
+                return;
+            }
+        }
+        m_CellCount = m_TestUpdates ? 4 : BUFFER_COUNT;
+        const uint8_t expected[][3] = { {255,255,255}, {255,0,255}, {0,255,0}, {0,0,0}, {0,0,0}, {0,255,0} };
+        memcpy(m_Expected, expected, sizeof(m_Expected));
+        if (m_TestUpdates)
+        {
+            const uint8_t updates[][3] = { {255,255,255}, {0,0,0}, {255,255,255}, {255,0,255} };
+            memcpy(m_Expected, updates, sizeof(updates));
+            return;
+        }
+        if (m_TestHazards)
+        {
+            m_CellCount = 6;
+            const uint8_t hazards[][3] = { {255,255,255}, {0,255,0}, {255,255,255}, {0,255,0}, {0,0,0}, {0,255,0} };
+            memcpy(m_Expected, hazards, sizeof(hazards));
+            return;
+        }
+
+        const float zero = 0;
+        dmGraphics::SetStorageBufferSubData(context, m_Buffers[1], sizeof(Data) + sizeof(float), sizeof(zero), &zero);
+        Data grown[] = { initial[0], {{0,1,0,1}}, initial[0], initial[0] };
+        dmGraphics::SetStorageBufferData(context, m_Buffers[2], sizeof(grown), grown, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        dmGraphics::SetStorageBufferData(context, m_Buffers[3], sizeof(grown), grown, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        Data black[] = { initial[0], {{0,0,0,1}} };
+        dmGraphics::SetStorageBufferData(context, m_Buffers[3], sizeof(black), black, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        dmGraphics::SetStorageBufferData(context, m_Buffers[4], sizeof(black), black, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        for (uint32_t i = 0; i < BUFFER_COUNT; ++i)
+        {
+            uint32_t expected_size = i == 2 ? sizeof(grown) : sizeof(initial);
+            if (dmGraphics::GetStorageBufferSize(context, m_Buffers[i]) != expected_size)
+            {
+                dmLogError("SSBO %u reports an incorrect size after updating", i);
+                engine->m_Failed = true;
+            }
+        }
+    }
+
+    void DrawCell(EngineCtx* engine, uint32_t cell, uint32_t buffer_index, bool vertex_reads = false)
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        const uint32_t width = dmGraphics::GetWindowWidth(context) / m_CellCount;
+        dmGraphics::HProgram program = vertex_reads ? m_VertexReadProgram : m_Program;
+        dmGraphics::EnableProgram(context, program);
+        dmGraphics::EnableVertexDeclaration(context, m_VertexDeclaration, 0, 0, program);
+        dmGraphics::SetViewport(context, cell * width, 0, width, dmGraphics::GetWindowHeight(context));
+        dmGraphics::EnableStorageBuffer(context, m_Buffers[buffer_index], STORAGE_SET, STORAGE_BINDING);
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+    }
+
+    void DispatchWrite(EngineCtx* engine, uint32_t buffer_index)
+    {
+        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_ComputeProgram);
+        dmGraphics::EnableStorageBuffer(engine->m_GraphicsContext, m_Buffers[buffer_index], STORAGE_SET, STORAGE_BINDING);
+        dmGraphics::DispatchCompute(engine->m_GraphicsContext, 1, 1, 1);
+    }
+
+    void ExecuteHazards(EngineCtx* engine)
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        Data initial[] = { {{1,0,0,1}}, {{1,1,1,1}} };
+        for (uint32_t i = 0; i < BUFFER_COUNT; ++i)
+            dmGraphics::SetStorageBufferData(context, m_Buffers[i], sizeof(initial), initial, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+
+        DrawCell(engine, 0, 0);
+        DispatchWrite(engine, 0); // The earlier draw must still read white.
+        DrawCell(engine, 1, 0);
+
+        DrawCell(engine, 2, 1); // This read must finish before the fragment writer below.
+        dmGraphics::EnableProgram(context, m_WriteProgram);
+        dmGraphics::EnableVertexDeclaration(context, m_VertexDeclaration, 0, 0, m_WriteProgram);
+        dmGraphics::EnableStorageBuffer(context, m_Buffers[1], STORAGE_SET, STORAGE_BINDING);
+        // Exactly one fragment writes the buffer, avoiding an intra-draw race.
+        // Its later consumers are at different pixels, requiring a global dependency.
+        dmGraphics::SetViewport(context, 0, 0, 1, 1);
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        DrawCell(engine, 3, 1, true);
+        // Write again so the fragment consumer has its own write-to-read dependency.
+        dmGraphics::EnableProgram(context, m_WriteProgram);
+        dmGraphics::EnableVertexDeclaration(context, m_VertexDeclaration, 0, 0, m_WriteProgram);
+        dmGraphics::SetViewport(context, 0, 0, 1, 1);
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        DrawCell(engine, 5, 1);
+
+        DispatchWrite(engine, 4);
+        const float zero = 0;
+        dmGraphics::SetStorageBufferSubData(context, m_Buffers[4], sizeof(Data) + sizeof(float), sizeof(zero), &zero);
+        // R/B must retain the GPU-written zeros; a CPU shadow copy would produce magenta.
+        DrawCell(engine, 4, 4);
+
+        // Every cell has depth 0 (0.5 on GL) and stencil 1. Neither poison draw
+        // may pass: internal synchronization must retain depth and stencil too.
+        Data poison[] = { {{1,0,0,1}}, {{1,0,0,1}} };
+        dmGraphics::SetStorageBufferData(context, m_Buffers[3], sizeof(poison), poison, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        dmGraphics::EnableStorageBuffer(context, m_Buffers[3], STORAGE_SET, STORAGE_BINDING);
+        dmGraphics::SetViewport(context, 0, 0, dmGraphics::GetWindowWidth(context), dmGraphics::GetWindowHeight(context));
+        dmGraphics::DisableState(context, dmGraphics::STATE_STENCIL_TEST);
+        dmGraphics::SetDepthMask(context, false);
+        dmGraphics::SetDepthFunc(context, dmGraphics::COMPARE_FUNC_LESS);
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::EnableState(context, dmGraphics::STATE_STENCIL_TEST);
+        dmGraphics::SetStencilMask(context, 0);
+        dmGraphics::SetStencilFunc(context, dmGraphics::COMPARE_FUNC_NOTEQUAL, 1, 0xff);
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        dmGraphics::DisableState(context, dmGraphics::STATE_STENCIL_TEST);
     }
 
     void Execute(EngineCtx* engine) override
     {
-        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
-        dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
-        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        if (!m_TestUpdates && !m_TestHazards)
+        {
+            dmGraphics::EnableProgram(context, m_ComputeProgram);
+            dmGraphics::EnableStorageBuffer(context, m_Buffers[5], STORAGE_SET, STORAGE_BINDING);
+            dmGraphics::DispatchCompute(context, 1, 1, 1);
+            dmGraphics::DisableStorageBuffer(context, m_Buffers[5]);
+        }
+        dmGraphics::SetDepthMask(context, true);
+        dmGraphics::SetStencilMask(context, 0xff);
+        dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, 255, 0, 0, 255, 1.0f, 0);
+        if (m_TestHazards)
+        {
+            dmGraphics::EnableState(context, dmGraphics::STATE_DEPTH_TEST);
+            dmGraphics::SetDepthFunc(context, dmGraphics::COMPARE_FUNC_LEQUAL);
+            dmGraphics::EnableState(context, dmGraphics::STATE_STENCIL_TEST);
+            dmGraphics::SetStencilFunc(context, dmGraphics::COMPARE_FUNC_ALWAYS, 1, 0xff);
+            dmGraphics::SetStencilOp(context, dmGraphics::STENCIL_OP_KEEP, dmGraphics::STENCIL_OP_KEEP, dmGraphics::STENCIL_OP_REPLACE);
+        }
+        else
+            dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::DisableState(context, dmGraphics::STATE_BLEND);
+        dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
+        dmGraphics::EnableProgram(context, m_Program);
+        dmGraphics::EnableVertexBuffer(context, m_VertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(context, m_VertexDeclaration, 0, 0, m_Program);
+        const uint32_t cell_width = dmGraphics::GetWindowWidth(context) / m_CellCount;
+        if (m_TestHazards)
+            ExecuteHazards(engine);
+        for (uint32_t cell = 0; !m_TestHazards && cell < m_CellCount; ++cell)
+        {
+            dmGraphics::HStorageBuffer buffer = m_Buffers[m_TestUpdates ? cell / 2 : cell];
+            if (m_TestUpdates && cell == 1)
+            {
+                Data black[] = { {{1,0,0,1}}, {{0,0,0,1}} };
+                dmGraphics::SetStorageBufferData(context, buffer, sizeof(black), black, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+            }
+            else if (m_TestUpdates && cell == 3)
+            {
+                const float zero = 0;
+                dmGraphics::SetStorageBufferSubData(context, buffer, sizeof(Data) + sizeof(float), sizeof(zero), &zero);
+            }
+            dmGraphics::SetViewport(context, cell * cell_width, 0, cell_width, dmGraphics::GetWindowHeight(context));
+            dmGraphics::EnableStorageBuffer(context, buffer, STORAGE_SET, STORAGE_BINDING);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            dmGraphics::DisableStorageBuffer(context, buffer);
+        }
+        dmGraphics::DisableVertexDeclaration(context, m_VertexDeclaration);
+        dmGraphics::DisableVertexBuffer(context, m_VertexBuffer);
+        dmGraphics::DisableProgram(context);
+        // Read GL/Vulkan before presentation. Metal reads after submission to
+        // also drain the presented frame before closing the window.
+        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_METAL)
+            CheckPixels(engine);
+    }
 
-        dmGraphics::HUniformLocation loc = GetUniformLocation(m_Program, "Test");
-        dmGraphics::VulkanSetStorageBuffer(engine->m_GraphicsContext, m_StorageBuffer, 0, 0, loc);
+    void AfterFlip(EngineCtx* engine) override
+    {
+        if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL)
+            CheckPixels(engine);
+    }
 
-        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
+    void CheckPixels(EngineCtx* engine)
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        const uint32_t cell_width = dmGraphics::GetWindowWidth(context) / m_CellCount;
+        for (uint32_t cell = 0; cell < m_CellCount; ++cell)
+        {
+            uint8_t pixel[4] = {};
+            dmGraphics::ReadPixels(context, cell * cell_width + cell_width / 2, dmGraphics::GetWindowHeight(context) / 2, 1, 1, pixel, sizeof(pixel));
+            // These colors have R == B, so RGBA and BGRA readback agree.
+            if (memcmp(pixel, m_Expected[cell], 3) != 0 || pixel[3] != 255)
+            {
+                dmLogError("SSBO %s cell %u: expected %u,%u,%u,255, got %u,%u,%u,%u",
+                    m_TestHazards ? "GPU hazards" : m_TestUpdates ? "update ordering" : "API/compute", cell,
+                    m_Expected[cell][0], m_Expected[cell][1], m_Expected[cell][2], pixel[0], pixel[1], pixel[2], pixel[3]);
+                engine->m_Failed = true;
+            }
+        }
+        ++m_CompletedFrames;
+        if (engine->m_Failed || m_TestUpdates || m_CompletedFrames == 3)
+        {
+            if (!engine->m_Failed)
+                dmLogInfo("SSBO %s: all %u rendered colors passed across %u frame(s)",
+                    m_TestHazards ? "GPU hazards" : m_TestUpdates ? "update ordering" : "API/compute", m_CellCount, m_CompletedFrames);
+            engine->m_Running = 0;
+        }
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        for (uint32_t i = 0; i < BUFFER_COUNT; ++i)
+            if (m_Buffers[i]) dmGraphics::DeleteStorageBuffer(context, m_Buffers[i]);
+        if (m_VertexDeclaration) dmGraphics::DeleteVertexDeclaration(m_VertexDeclaration);
+        if (m_VertexBuffer) dmGraphics::DeleteVertexBuffer(m_VertexBuffer);
+        if (m_Program) dmGraphics::DeleteProgram(context, m_Program);
+        if (m_ComputeProgram) dmGraphics::DeleteProgram(context, m_ComputeProgram);
+        if (m_WriteProgram) dmGraphics::DeleteProgram(context, m_WriteProgram);
+        if (m_VertexReadProgram) dmGraphics::DeleteProgram(context, m_VertexReadProgram);
     }
 };
-#endif
 
 static int OnWindowClose(void* user_data)
 {
@@ -1515,6 +2272,8 @@ static void* EngineCreate(int argc, char** argv)
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
     {
         window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+        if (HasArgument("ssbo") || HasArgument("ssbo-updates") || HasArgument("ssbo-hazards"))
+            window_params.m_GraphicsApiVersionHint = 43;
     }
     else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
     {
@@ -1524,11 +2283,16 @@ static void* EngineCreate(int argc, char** argv)
     {
         window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_METAL;
     }
+    else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_WEBGPU)
+    {
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_WEBGPU;
+    }
 
     WindowResult wr = dmPlatform::OpenWindow(engine->m_Window, window_params);
     if (WINDOW_RESULT_OK != wr)
     {
         dmLogError("Failed to open window: %d", wr);
+        engine->m_Failed = true;
         return 0;
     }
 
@@ -1570,7 +2334,22 @@ static void* EngineCreate(int argc, char** argv)
         engine->m_Failed = true;
     }
 
-    if (HasArgument("depth-texture"))
+    if (HasArgument("ssbo") || HasArgument("ssbo-updates") || HasArgument("ssbo-hazards") || HasArgument("ssbo-shared-stages"))
+    {
+        dmLogInfo("test_app_graphics: running StorageBufferTest%s", HasArgument("ssbo-hazards") ? " (GPU hazards)" : HasArgument("ssbo-updates") ? " (update ordering)" : "");
+        engine->m_Test = new StorageBufferTest();
+    }
+    else if (HasArgument("buffer-replacement"))
+    {
+        dmLogInfo("test_app_graphics: running BufferReplacementTest");
+        engine->m_Test = new BufferReplacementTest();
+    }
+    else if (HasArgument("depth-only-render-target"))
+    {
+        dmLogInfo("test_app_graphics: running DepthOnlyRenderTargetTest");
+        engine->m_Test = new DepthOnlyRenderTargetTest();
+    }
+    else if (HasArgument("depth-texture"))
     {
         dmLogInfo("test_app_graphics: running DepthTextureTest");
         engine->m_Test = new DepthTextureTest();
@@ -1579,6 +2358,11 @@ static void* EngineCreate(int argc, char** argv)
     {
         dmLogInfo("test_app_graphics: running CubemapFaceOrderTest");
         engine->m_Test = new CubemapFaceOrderTest();
+    }
+    else if (HasArgument("packed-depth-stencil-texture"))
+    {
+        dmLogInfo("test_app_graphics: running PackedDepthStencilTextureTest");
+        engine->m_Test = new PackedDepthStencilTextureTest();
     }
     else if (HasArgument("issue-12878"))
     {
@@ -1609,10 +2393,16 @@ static void* EngineCreate(int argc, char** argv)
             engine->m_Test = new AsyncTextureUploadQueueTest();
         }
     }
+#if defined(DM_GRAPHICS_DAWN)
+    else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_WEBGPU)
+    {
+        dmLogInfo("test_app_graphics: running WebGPURenderingTest");
+        engine->m_Test = new WebGPURenderingTest();
+    }
+#endif
     else
     {
         //engine->m_Test = new ComputeTest();
-        //engine->m_Test = new StorageBufferTest();
         //engine->m_Test = new ReadPixelsTest();
         //engine->m_Test = new AsyncTextureUploadTest();
         //engine->m_Test = new ClearBackbufferTest();
@@ -1673,12 +2463,13 @@ static UpdateResult EngineUpdate(void* _engine)
 
     JobSystemUpdate(engine->m_JobContext, 0);
 
+    engine->m_Test->BeforeFrame(engine);
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 
     engine->m_Test->Execute(engine);
 
     // Exercise runtime presentation-mode changes while a frame is active. The
-    // Vulkan backend must defer its swapchain recreation until the next
+    // Vulkan and native WebGPU backends defer reconfiguration until the next
     // BeginFrame, while other backends may apply the change immediately.
     if (engine->m_WasRun == 1)
     {
@@ -1690,6 +2481,7 @@ static UpdateResult EngineUpdate(void* _engine)
     }
 
     dmGraphics::Flip(engine->m_GraphicsContext);
+    engine->m_Test->AfterFlip(engine);
 
     if (ShouldAutoExit() && !HasArgument("issue-12898-12902") && engine->m_WasRun >= TEST_APP_GRAPHICS_MAX_FRAME_COUNT)
     {
@@ -1734,12 +2526,13 @@ static const char* GetAdapterName(dmGraphics::AdapterFamily family)
         case dmGraphics::ADAPTER_FAMILY_OPENGLES: return "opengles";
         case dmGraphics::ADAPTER_FAMILY_VULKAN:   return "vulkan";
         case dmGraphics::ADAPTER_FAMILY_METAL:    return "metal";
+        case dmGraphics::ADAPTER_FAMILY_WEBGPU:   return "webgpu";
         default: break;
     }
     return "unknown";
 }
 
-static void InstallAdapter(int argc, char **argv)
+static bool InstallAdapter(int argc, char **argv)
 {
     dmGraphics::AdapterFamily family = GetDefaultAdapterFamily();
 
@@ -1761,12 +2554,24 @@ static void InstallAdapter(int argc, char **argv)
         {
             family = dmGraphics::ADAPTER_FAMILY_METAL;
         }
+        else if (strcmp(argv[i], "webgpu") == 0)
+        {
+            family = dmGraphics::ADAPTER_FAMILY_WEBGPU;
+        }
     }
 
     if (!dmGraphics::InstallAdapter(family))
     {
-        dmLogFatal("Unable to install %s graphics adapter.", GetAdapterName(family));
+        dmLogError("Unable to install %s graphics adapter.", GetAdapterName(family));
+        return false;
     }
+    if (dmGraphics::GetInstalledAdapterFamily() != family)
+    {
+        dmLogError("Requested %s graphics adapter, but installed %s; refusing to test a fallback adapter.",
+            GetAdapterName(family), GetAdapterName(dmGraphics::GetInstalledAdapterFamily()));
+        return false;
+    }
+    return true;
 }
 
 TEST(App, Run)
@@ -1789,6 +2594,7 @@ TEST(App, Run)
 
     int ret = RunLoop(&params);
     ASSERT_EQ(0, ret);
+    ASSERT_FALSE(g_EngineCtx.m_Failed);
 
 
     uint64_t t = dmTime::GetMonotonicTime();
@@ -1804,6 +2610,9 @@ TEST(App, Run)
 }
 
 extern "C" void dmExportedSymbols();
+#if defined(DM_TEST_GRAPHICS_CAPTURE)
+int RunGraphicsCapture(int argc, char** argv);
+#endif
 
 int main(int argc, char **argv)
 {
@@ -1815,8 +2624,24 @@ int main(int argc, char **argv)
     dmExportedSymbols();
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
+    // Stop the log thread before process teardown destroys its locks.
+    atexit(dmLog::LogFinalize);
 
-    InstallAdapter(argc, argv);
+#if defined(DM_TEST_GRAPHICS_CAPTURE)
+    int capture_result = RunGraphicsCapture(argc, argv);
+    if (capture_result >= 0)
+    {
+        return capture_result;
+    }
+#endif
+    if (!InstallAdapter(argc, argv))
+        return 1;
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+    if (HasArgument("buffer-replacement"))
+    {
+        printf("GRAPHICS_BUFFER_REPLACEMENT_RESULT=%d\n", result);
+        fflush(stdout);
+    }
+    return result;
 }

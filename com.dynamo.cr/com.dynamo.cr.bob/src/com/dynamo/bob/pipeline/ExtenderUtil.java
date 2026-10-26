@@ -327,16 +327,16 @@ public class ExtenderUtil {
 
         @Override
         public byte[] getContent() throws IOException {
-            String prefix = "";
+            StringBuilder prefix = new StringBuilder();
             if (options != null) {
-                prefix += "context:" + System.getProperty("line.separator");
+                prefix.append("context:").append(System.lineSeparator());
                 for (String key : options.keySet()) {
                     String value = options.get(key);
-                    prefix += String.format("    %s: %s", key, value) + System.getProperty("line.separator");
+                    prefix.append(String.format("    %s: %s", key, value)).append(System.lineSeparator());
                 }
             }
 
-            byte[] prefixBytes = prefix.getBytes(StandardCharsets.UTF_8);
+            byte[] prefixBytes = prefix.toString().getBytes(StandardCharsets.UTF_8);
             byte[] content = migrateAppManifest(getResource().getContent());
             byte[] c = new byte[prefixBytes.length + content.length];
             System.arraycopy(prefixBytes, 0, c, 0, prefixBytes.length);
@@ -407,7 +407,7 @@ public class ExtenderUtil {
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean migrateWindowsLibraryNames(Object contextValue) {
+    private static boolean migrateLibraryNames(Object contextValue, Map<String, String> names) {
         if (!(contextValue instanceof Map<?, ?>)) {
             return false;
         }
@@ -423,7 +423,7 @@ public class ExtenderUtil {
             List<?> libraries = (List<?>) librariesValue;
             List<Object> migratedLibraries = new ArrayList<>(libraries.size());
             for (Object library : libraries) {
-                String migratedLibrary = AppManifestMigration.WINDOWS_LIBRARY_NAMES.get(library);
+                String migratedLibrary = names.get(library);
                 migratedLibraries.add(migratedLibrary == null ? library : migratedLibrary);
             }
             if (!libraries.equals(migratedLibraries)) {
@@ -434,8 +434,161 @@ public class ExtenderUtil {
         return modified;
     }
 
-    // Complete legacy Bullet3D exclusions and update Windows engine library
-    // names before upload, including projects never opened in the editor.
+    @SuppressWarnings("unchecked")
+    private static boolean migrateMacOSVulkanPlatform(Object contextValue) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        Object excluded = context.get("excludeLibs");
+        if (excluded != null && !(excluded instanceof List<?>)) {
+            return false;
+        }
+        List<?> exclusions = excluded == null ? List.of() : (List<?>) excluded;
+        if (exclusions.contains("platform") || exclusions.contains("platform_vulkan")) {
+            return false;
+        }
+        for (String key : List.of("libs", "engineLibs")) {
+            Object libraries = context.get(key);
+            if (libraries instanceof List<?> && ((List<?>) libraries).contains("platform_vulkan")) {
+                // The Vulkan platform variant replaces the default platform library.
+                List<Object> migrated = new ArrayList<>(exclusions);
+                migrated.add("platform");
+                context.put("excludeLibs", migrated);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean migrateSimulatorGraphics(Object contextValue) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        boolean modified = false;
+        for (String key : List.of("libs", "engineLibs", "excludeLibs", "symbols", "excludeSymbols")) {
+            Object value = context.get(key);
+            if (value instanceof List<?>) {
+                List<Object> entries = new ArrayList<>((List<?>) value);
+                if (entries.removeAll(List.of("graphics", "graphics_metal", "graphics_vulkan",
+                        "platform_vulkan", "MoltenVK", "GraphicsAdapterOpenGL",
+                        "GraphicsAdapterMetal", "GraphicsAdapterVulkan"))) {
+                    context.put(key, entries);
+                    modified = true;
+                }
+            }
+        }
+        return modified;
+    }
+
+    private static String recordingLibraryName(Object library) {
+        String name = AppManifestMigration.WINDOWS_LIBRARY_NAMES.get(library);
+        return name != null && List.of("record", "record_null", "record_script", "record_service").contains(name)
+                ? name : null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean migrateRecordExclusions(Object contextValue, Object platform) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        Object excludedLibrariesValue = context.get("excludeLibs");
+        Object excludedSymbolsValue = context.get("excludeSymbols");
+        if ((excludedLibrariesValue != null && !(excludedLibrariesValue instanceof List<?>))
+                || (excludedSymbolsValue != null && !(excludedSymbolsValue instanceof List<?>))) {
+            return false;
+        }
+        for (String key : List.of("libs", "engineLibs")) {
+            Object value = context.get(key);
+            if (value != null && !(value instanceof List<?>)) {
+                return false;
+            }
+        }
+
+        List<?> excludedLibraries = excludedLibrariesValue == null ? List.of() : (List<?>) excludedLibrariesValue;
+        List<String> obsolete = Arrays.asList("vpx", "vpx.lib", "libvpx", "libvpx.lib");
+        boolean common = platform == null || "common".equals(platform);
+        boolean linux = common || List.of("linux", "x86_64-linux", "arm64-linux").contains(platform);
+        boolean desktop = linux || List.of("osx", "x86_64-osx", "arm64-osx", "win32", "x86-win32", "x86_64-win32").contains(platform);
+        List<Object> libraries = new ArrayList<>(excludedLibraries.size());
+        for (Object library : excludedLibraries) {
+            String name = recordingLibraryName(library);
+            libraries.add(name == null ? library : name);
+        }
+        List<Object> symbols = excludedSymbolsValue == null
+                ? new ArrayList<>()
+                : new ArrayList<>((List<?>) excludedSymbolsValue);
+        boolean includesNullBackend = false;
+        for (String key : List.of("libs", "engineLibs")) {
+            if (context.get(key) instanceof List<?> includedLibraries) {
+                for (Object library : includedLibraries) {
+                    includesNullBackend |= "record_null".equals(recordingLibraryName(library));
+                }
+            }
+        }
+
+        // The null backend was removed. Explicit selections now exclude recording,
+        // as do the legacy VPX toggle and its native-recorder migration.
+        boolean excludesRecording = includesNullBackend || (libraries.contains("record")
+                && (!Collections.disjoint(excludedLibraries, obsolete)
+                    || libraries.contains("record_null")
+                    || libraries.contains("record_script")
+                    || (libraries.contains("record_service") && symbols.contains("EngineRecord"))));
+        if (!excludesRecording) {
+            List<Object> remaining = new ArrayList<>(excludedLibraries);
+            if (remaining.removeIf(library -> "record_null".equals(recordingLibraryName(library)))) {
+                context.put("excludeLibs", remaining);
+                return true;
+            }
+            return false;
+        }
+
+        libraries.removeAll(obsolete);
+        libraries.removeIf("record_null"::equals);
+        for (String library : List.of("record", "record_script")) {
+            if (!libraries.contains(library)) {
+                libraries.add(library);
+            }
+        }
+        if (desktop && !libraries.contains("record_service")) {
+            libraries.add("record_service");
+        }
+        if (linux && !libraries.contains("openh264")) {
+            libraries.add("openh264");
+        }
+        if (!symbols.contains("ScriptRecord")) {
+            symbols.add("ScriptRecord");
+        }
+        if (desktop && !symbols.contains("EngineRecord")) {
+            symbols.add("EngineRecord");
+        }
+
+        boolean modified = false;
+        if (!excludedLibraries.equals(libraries)) {
+            context.put("excludeLibs", libraries);
+            modified = true;
+        }
+        if (!symbols.equals(excludedSymbolsValue)) {
+            context.put("excludeSymbols", symbols);
+            modified = true;
+        }
+        for (String key : List.of("libs", "engineLibs")) {
+            if (context.get(key) instanceof List<?> includedLibraries) {
+                List<Object> remaining = new ArrayList<>(includedLibraries);
+                if (remaining.removeIf(library -> recordingLibraryName(library) != null)) {
+                    context.put(key, remaining);
+                    modified = true;
+                }
+            }
+        }
+        return modified;
+    }
+
+    // Migrate legacy app manifest settings before upload, even without opening
+    // the editor.
     private static byte[] migrateAppManifest(byte[] content) {
         Object manifestValue;
         try {
@@ -449,6 +602,7 @@ public class ExtenderUtil {
 
         Map<?, ?> manifest = (Map<?, ?>) manifestValue;
         boolean modified = addBullet3DCompatibilityExclusions(manifest.get("context"));
+        modified |= migrateRecordExclusions(manifest.get("context"), null);
         Object platformsValue = manifest.get("platforms");
         if (platformsValue instanceof Map<?, ?>) {
             for (Map.Entry<?, ?> platform : ((Map<?, ?>) platformsValue).entrySet()) {
@@ -456,11 +610,24 @@ public class ExtenderUtil {
                 if (platformValue instanceof Map<?, ?>) {
                     Object context = ((Map<?, ?>) platformValue).get("context");
                     modified |= addBullet3DCompatibilityExclusions(context);
+                    if (List.of("android", "armv7-android", "arm64-android", "x86_64-android",
+                            "ios", "arm64-ios", "arm64_sim-ios", "web", "wasm-web", "wasm_pthread-web").contains(platform.getKey())) {
+                        modified |= migrateLibraryNames(context, AppManifestMigration.NATIVE_PLATFORM_LIBRARY_NAMES);
+                    }
+                    if ("arm64_sim-ios".equals(platform.getKey())) {
+                        modified |= migrateSimulatorGraphics(context);
+                    }
+                    if ("osx".equals(platform.getKey())
+                            || "arm64-osx".equals(platform.getKey())
+                            || "x86_64-osx".equals(platform.getKey())) {
+                        modified |= migrateMacOSVulkanPlatform(context);
+                    }
                     if ("win32".equals(platform.getKey())
                             || "x86-win32".equals(platform.getKey())
                             || "x86_64-win32".equals(platform.getKey())) {
-                        modified |= migrateWindowsLibraryNames(context);
+                        modified |= migrateLibraryNames(context, AppManifestMigration.WINDOWS_LIBRARY_NAMES);
                     }
+                    modified |= migrateRecordExclusions(context, platform.getKey());
                 }
             }
         }
@@ -514,7 +681,7 @@ public class ExtenderUtil {
 
         Iterator<Map.Entry<String, IResource>> it = from.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+            Map.Entry<String, IResource> entry = it.next();
             String outputPath = entry.getKey();
             if (!allowOverrides) {
                 if (into.containsKey(outputPath)) {
@@ -591,9 +758,7 @@ public class ExtenderUtil {
         String path = projectProperties.getStringValue(section, key, "");
         if (!path.isEmpty()) {
             IResource resource = project.getResource(path);
-            if (resource.exists()) {
-                return true;
-            }
+            return resource.exists();
         }
         return false;
     }
@@ -670,8 +835,7 @@ public class ExtenderUtil {
     public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, Map<String, String> appmanifestOptions) throws CompileExceptionError, IOException {
         List<ExtenderResource> sources = new ArrayList<>();
 
-        List<String> platformFolderAlternatives = new ArrayList<String>();
-        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths()));
+        List<String> platformFolderAlternatives = new ArrayList<String>(Arrays.asList(platform.getExtenderPaths()));
         platformFolderAlternatives.add("common");
 
         // Find app manifest if there is one
@@ -732,33 +896,33 @@ public class ExtenderUtil {
     }
 
     static private String createExtensionManifest(String name, Platform platform, Map<String, Object> options) {
-        String ln = System.getProperty("line.separator");
-        String s = String.format("name: %s", name) + ln;
-        s += "platforms:" + ln;
-        s += String.format("  %s:", platform.getExtenderPair()) + ln;
-        s += String.format("    context:" + ln);
+        String ln = System.lineSeparator();
+        StringBuilder s = new StringBuilder(String.format("name: %s", name) + ln);
+        s.append("platforms:").append(ln);
+        s.append(String.format("  %s:", platform.getExtenderPair())).append(ln);
+        s.append(String.format("    context:" + ln));
 
         for (String key : options.keySet()) {
             Object value = options.get(key);
-            String svalue = null;
+            StringBuilder svalue = null;
             if (value instanceof String) {
-                svalue = (String)value;
+                svalue = new StringBuilder((String) value);
             } else if (value instanceof List) {
-                svalue = "[";
+                svalue = new StringBuilder("[");
                 List<Object> l = (List<Object>)value;
                 int length = l.size();
                 for (int i = 0; i < length; ++i) {
                     String vv = (String)l.get(i);
-                    svalue += "'" + vv + "'";
+                    svalue.append("'").append(vv).append("'");
                     if (i < length-1) {
-                        svalue += ", ";
+                        svalue.append(", ");
                     }
                 }
-                svalue += "]" + ln;
+                svalue.append("]").append(ln);
             }
-            s += String.format("      %s: %s", key, svalue) + ln;
+            s.append(String.format("      %s: %s", key, svalue.toString())).append(ln);
         }
-        return s;
+        return s.toString();
     }
 
     public static List<ExtenderResource> getLibrarySources(Project project, Platform platform,
@@ -843,8 +1007,7 @@ public class ExtenderUtil {
     public static List<IResource> getExtensionPlatformManifests(Project project, Platform platform) throws CompileExceptionError {
         List<IResource> out = new ArrayList<>();
 
-        List<String> platformFolderAlternatives = new ArrayList<String>();
-        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths())); // we skip "common" here since it makes little sense
+        List<String> platformFolderAlternatives = new ArrayList<String>(Arrays.asList(platform.getExtenderPaths())); // we skip "common" here since it makes little sense
 
         // Find extension folders
         List<String> extensionFolders = getExtensionFolders(project);
@@ -1187,7 +1350,7 @@ public class ExtenderUtil {
     public static void writeResourcesToDirectory(Map<String, IResource> resources, File directory) throws IOException {
         Iterator<Map.Entry<String, IResource>> it = resources.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+            Map.Entry<String, IResource> entry = it.next();
             File outputFile = new File(directory, entry.getKey());
             writeResourceToFile(entry.getValue(), outputFile);
         }
@@ -1202,7 +1365,7 @@ public class ExtenderUtil {
     public static void writeResourcesToZip(Map<String, IResource> resources, ZipOutputStream zipOutputStream) throws IOException {
         Iterator<Map.Entry<String, IResource>> it = resources.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+            Map.Entry<String, IResource> entry = it.next();
             ZipEntry ze = new ZipEntry(normalize(entry.getKey(), true));
             zipOutputStream.putNextEntry(ze);
             zipOutputStream.write(entry.getValue().getContent());
@@ -1254,7 +1417,7 @@ public class ExtenderUtil {
         try {
             return new Yaml().load(yaml);
         } catch(YAMLException e) {
-            throw new IOException(String.format("%s:1: error: %s", resource.getAbsPath(), e.toString()));
+            throw new IOException(String.format("%s:1: error: %s", resource.getAbsPath(), e));
         }
     }
 
@@ -1374,7 +1537,7 @@ public class ExtenderUtil {
             ctx = mergeManifestContext(ctx, platform_ctx);
         } catch (RuntimeException e) {
             e.printStackTrace(System.out);
-            throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", resource.getAbsPath(), e.toString()));
+            throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", resource.getAbsPath(), e));
         }
         return ctx;
     }

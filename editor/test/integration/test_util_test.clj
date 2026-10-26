@@ -122,13 +122,13 @@
   (test-support/with-clean-system
 
     (testing "Node that caches the save-value output."
-      (let [node-id (g/make-node! world CachedSaveValueOutputNode)]
+      (let [node-id (g/make-node! CachedSaveValueOutputNode)]
         (is (= #{} (test-util/cached-save-data-outputs node-id)))
         (g/node-value node-id :save-data)
         (is (= #{:save-data :save-value} (test-util/cached-save-data-outputs node-id)))))
 
     (testing "Node does not cache the save-value output."
-      (let [node-id (g/make-node! world UncachedSaveValueOutputNode)]
+      (let [node-id (g/make-node! UncachedSaveValueOutputNode)]
         (is (= #{} (test-util/cached-save-data-outputs node-id)))
         (g/node-value node-id :save-data)
         (is (= #{:save-data} (test-util/cached-save-data-outputs node-id)))))))
@@ -301,7 +301,7 @@
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
     (with-open [_ (test-util/make-directory-deleter project-path)]
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               sprite-resource-type (workspace/get-resource-type workspace "sprite")
               sprite (test-util/make-resource-node! project "/sprite.sprite")
@@ -354,4 +354,4 @@
               (is (= [house-referenced-room] (test-util/referenced-collections house)))
               (is (= room (g/override-original (test-util/to-collection-node-id house-referenced-room))))))
 
-          (lsp/await (lsp/get-node-lsp project)))))))
+          (lsp/await (lsp/get-lsp)))))))

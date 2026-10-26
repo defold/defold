@@ -1,17 +1,3 @@
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 import os, sys, pprint
 
 ###########################################
@@ -224,6 +210,14 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
         out_doc = gen_doc(docs, enum_type.name, renamed)
         l(out_doc)
+        if n in info.get('enum_aliases', []):
+            # Callback return types must retain their C type identity in C++.
+            l('    typedef ::%s %s;' % (n, renamed))
+            for enum_value in enum_type.values:
+                value_name = enum_value['name']
+                l('    static const %s %s = ::%s;' % (renamed, rename_symbols(prefixes, value_name), value_name))
+            l('')
+            continue
         l('    enum %s {' % renamed)
         for enum_value in enum_type.values:
             n = enum_value['name']

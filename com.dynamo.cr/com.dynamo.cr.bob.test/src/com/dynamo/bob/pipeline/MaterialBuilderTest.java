@@ -14,9 +14,11 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 
+import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics;
@@ -26,13 +28,36 @@ import org.junit.Test;
 import com.dynamo.render.proto.Material.MaterialDesc;
 
 import static org.junit.Assert.*;
-import static org.junit.Assert.assertEquals;
 
 public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
     @Before
     public void setup() {
         addTestFiles();
+    }
+
+    // Integer texture shaders must fail with an actionable compatibility error until the user opts out of GLES2.
+    @Test
+    public void testVectorShaderRequiresExplicitGles100Exclusion() throws Exception {
+        getProject().setOption("platform", "wasm-web");
+        addFile("/custom.vp", "#version 330\nin vec4 position;\nvoid main() { gl_Position = position; }\n");
+        addFile("/custom.fp", "#version 330\nuniform usampler2D band_texture;\nout vec4 color;\n" +
+            "void main() { color = vec4(texelFetch(band_texture, ivec2(0), 0)); }\n");
+        String material = "name: \"vector\"\nvertex_program: \"/custom.vp\"\nfragment_program: \"/custom.fp\"\n";
+        for (boolean exclude : new boolean[] {false, true, false}) {
+            getProject().setOption("exclude-gles-sm100", Boolean.toString(exclude));
+            try {
+                Graphics.ShaderDesc shader = getMessage(build("/custom.material", material), Graphics.ShaderDesc.class);
+                assertTrue("GLES2 incompatibility must require an explicit setting", exclude);
+                assertNotNull(shader);
+                assertFalse(shader.getShadersList().stream().anyMatch(
+                    variant -> variant.getLanguage() == Graphics.ShaderDesc.Language.LANGUAGE_GLES_SM100));
+            } catch (com.dynamo.bob.CompileExceptionError error) {
+                assertFalse(error.getMessage(), exclude);
+                assertTrue(error.getMessage(), error.getMessage().contains("shader.exclude_gles_sm100"));
+                assertTrue(error.getMessage(), error.getMessage().contains("OpenGL ES 2.0 / WebGL 1.0"));
+            }
+        }
     }
 
     private void addAttribute(StringBuilder src, String name, int elementCount, Graphics.VertexAttribute.SemanticType semanticType) {
@@ -56,6 +81,32 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     private void assertAttribute(Graphics.VertexAttribute attribute, String name, Graphics.VertexAttribute.VectorType vectorType) {
         assertEquals(name, attribute.getName());
         assertEquals(vectorType, attribute.getVectorType());
+    }
+
+    // Verifies built-in SDF materials preserve linear atlas filtering and nearest effect lookup,
+    // guarding against project defaults overriding the SDF font map's linear filtering.
+    @Test
+    public void testBuiltinDistanceFieldFontFiltering() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        getProject().getProjectProperties().putStringValue("graphics", "default_texture_min_filter", "nearest");
+        getProject().getProjectProperties().putStringValue("graphics", "default_texture_mag_filter", "nearest");
+
+        for (String name : new String[]{"font-df.material", "label-df.material"}) {
+            String path = "/builtins/fonts/" + name;
+            String source = new String(getProject().getResource(path).getContent(), StandardCharsets.UTF_8);
+            MaterialDesc material = getMessage(build("/" + name, source), MaterialDesc.class);
+            assertEquals(name, 2, material.getSamplersCount());
+
+            MaterialDesc.Sampler atlas = material.getSamplers(0);
+            assertEquals(name, "texture_sampler", atlas.getName());
+            assertEquals(name, MaterialDesc.FilterModeMin.FILTER_MODE_MIN_LINEAR, atlas.getFilterMin());
+            assertEquals(name, MaterialDesc.FilterModeMag.FILTER_MODE_MAG_LINEAR, atlas.getFilterMag());
+
+            MaterialDesc.Sampler effects = material.getSamplers(1);
+            assertEquals(name, "font_effects", effects.getName());
+            assertEquals(name, MaterialDesc.FilterModeMin.FILTER_MODE_MIN_NEAREST, effects.getFilterMin());
+            assertEquals(name, MaterialDesc.FilterModeMag.FILTER_MODE_MAG_NEAREST, effects.getFilterMag());
+        }
     }
 
     @Test
@@ -84,6 +135,57 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         String program = material.getProgram();
         String expectedProgram = MaterialBuilder.getShaderName("/test_combined.vp", "/test_combined.fp", 0, ".spc");
         assertEquals(ResourceUtil.minifyPath(expectedProgram), program);
+    }
+
+    // A sampler name alone must not disable a graphics API.
+    @Test
+    public void testVectorCurveSamplerPreservesGles100Compatibility() throws Exception {
+        getProject().setOption("platform", "wasm-web");
+
+        String vertexShader = "void main() { gl_Position = vec4(0.0); }\n";
+        String fragmentShader = """
+                uniform sampler2D %s;
+                void main() {
+                    gl_FragColor = texture2D(%s, vec2(0.5));
+                }
+                """;
+
+        addFile("/vector.vp", vertexShader);
+        addFile("/vector-native.fp", String.format(fragmentShader, "curve_texture", "curve_texture"));
+        List<com.google.protobuf.Message> nativeOutputs = build("/vector-native.material", """
+                name: "vector-native"
+                vertex_program: "/vector.vp"
+                fragment_program: "/vector-native.fp"
+                samplers {
+                  name: "curve_texture"
+                  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+                  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+                  filter_min: FILTER_MODE_MIN_NEAREST
+                  filter_mag: FILTER_MODE_MAG_NEAREST
+                }
+                """);
+        Graphics.ShaderDesc nativeShader = getMessage(nativeOutputs, Graphics.ShaderDesc.class);
+        assertNotNull(nativeShader);
+        assertTrue(nativeShader.getShadersList().stream().anyMatch(
+                shader -> shader.getLanguage() == Graphics.ShaderDesc.Language.LANGUAGE_GLES_SM100));
+
+        addFile("/bitmap.fp", String.format(fragmentShader, "texture_sampler", "texture_sampler"));
+        List<com.google.protobuf.Message> bitmapOutputs = build("/bitmap.material", """
+                name: "bitmap"
+                vertex_program: "/vector.vp"
+                fragment_program: "/bitmap.fp"
+                samplers {
+                  name: "texture_sampler"
+                  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+                  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+                  filter_min: FILTER_MODE_MIN_NEAREST
+                  filter_mag: FILTER_MODE_MAG_NEAREST
+                }
+                """);
+        Graphics.ShaderDesc bitmapShader = getMessage(bitmapOutputs, Graphics.ShaderDesc.class);
+        assertNotNull(bitmapShader);
+        assertTrue(bitmapShader.getShadersList().stream().anyMatch(
+                shader -> shader.getLanguage() == Graphics.ShaderDesc.Language.LANGUAGE_GLES_SM100));
     }
 
     @Test
@@ -177,38 +279,35 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_vp.vp", "/test_fp.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test.shbundle");
         assertEquals(2, shaderDesc.getShadersCount());
 
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"test_material\"\n");
-        src.append("vertex_program: \"/test_vp.vp\"\n");
-        src.append("fragment_program: \"/test_fp.fp\"\n");
+        String src = "name: \"test_material\"\n" +
+                "vertex_program: \"/test_vp.vp\"\n" +
+                "fragment_program: \"/test_fp.fp\"\n" +
 
-        // these should be migrated
-        src.append("textures: \"tex0\"\n");
-        src.append("textures: \"tex1\"\n");
-        src.append("textures: \"tex2\"\n");
+                // these should be migrated
+                "textures: \"tex0\"\n" +
+                "textures: \"tex1\"\n" +
+                "textures: \"tex2\"\n" +
 
-        // these should not be migrated
-        src.append("textures: \"tex0_sampler\"\n");
-        src.append("textures: \"tex_already_exist_in_samplers\"\n");
-
-        src.append("samplers: {\n");
-        src.append("    name: \"tex0_sampler\"\n");
-        src.append("    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("    filter_min: FILTER_MODE_MIN_LINEAR\n");
-        src.append("    filter_mag: FILTER_MODE_MAG_LINEAR\n");
-        src.append("}\n");
-
-        src.append("samplers: {\n");
-        src.append("    name: \"tex_already_exist_in_samplers\"\n");
-        src.append("    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("    filter_min: FILTER_MODE_MIN_LINEAR\n");
-        src.append("    filter_mag: FILTER_MODE_MAG_LINEAR\n");
-        src.append("}\n");
+                // these should not be migrated
+                "textures: \"tex0_sampler\"\n" +
+                "textures: \"tex_already_exist_in_samplers\"\n" +
+                "samplers: {\n" +
+                "    name: \"tex0_sampler\"\n" +
+                "    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n" +
+                "    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n" +
+                "    filter_min: FILTER_MODE_MIN_LINEAR\n" +
+                "    filter_mag: FILTER_MODE_MAG_LINEAR\n" +
+                "}\n" +
+                "samplers: {\n" +
+                "    name: \"tex_already_exist_in_samplers\"\n" +
+                "    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n" +
+                "    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n" +
+                "    filter_min: FILTER_MODE_MIN_LINEAR\n" +
+                "    filter_mag: FILTER_MODE_MAG_LINEAR\n" +
+                "}\n";
 
         addFile("/test.material", "");
-        MaterialDesc material = getMessage(build("/test.material", src.toString()), MaterialDesc.class);
+        MaterialDesc material = getMessage(build("/test.material", src), MaterialDesc.class);
         assertEquals(0, material.getTexturesCount());
         assertEquals(5, material.getSamplersCount());
 

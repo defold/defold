@@ -45,9 +45,7 @@
             [editor.handler :as handler]
             [editor.library :as library]
             [editor.localization :as localization]
-            [editor.lsp :as lsp]
             [editor.lsp.async :as lsp.async]
-            [editor.lsp.project :as lsp.project]
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -149,12 +147,12 @@
   (output project-reload-signature g/Int :cached produce-project-reload-signature)
   (output library-reload-signature g/Int :cached produce-library-reload-signature))
 
-(defn make [graph]
+(defn make []
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (g/make-node graph EditorExtensions)))))
+        (g/make-node EditorExtensions)))))
 
 ;; region script API
 
@@ -340,6 +338,19 @@
         {:exists false
          :is_file false
          :is_directory false}))))
+
+(def ^:private resource-children-args-coercer
+  (coerce/regex :resource-path graph/resource-path-coercer))
+
+(defn- make-ext-resource-children-fn [project]
+  (rt/varargs-lua-fn ext-resource-children [{:keys [rt evaluation-context]} varargs]
+    (let [{:keys [resource-path]} (rt/->clj rt resource-children-args-coercer varargs)
+          basis (:basis evaluation-context)
+          workspace (project/workspace project evaluation-context)
+          resource (workspace/find-resource basis workspace resource-path)]
+      (when-not resource
+        (throw (LuaError. (str resource-path " not found"))))
+      (mapv resource/proj-path (resource/children resource)))))
 
 (def ^:private empty-lua-string
   (rt/->lua ""))
@@ -786,19 +797,18 @@
                    (assoc :launcher (select-keys language-server [:command]))))))
       (execute-all-top-level-functions state :get_language_servers {} evaluation-context))))
 
-(defn- reload-language-servers! [project lsp script-annotations ext-language-servers]
+(defn- reload-language-servers! [project prefs script-annotations ext-language-servers]
   (future
     ;; perform annotation sync asynchronously since it potentially involves writing a lot
     ;; of lua annotation files
     (error-reporting/catch-all!
       (g/let-ec [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)
-                 workspace (g/node-value project :workspace evaluation-context)
-                 project-root (g/raw-property-value (:basis evaluation-context) workspace :root)]
-        (lsp/set-servers!
-          lsp
-          (-> ext-language-servers
-              (conj (lsp.project/language-server project))
-              (into (built-in-lua-language-servers project-root sync-hash))))))))
+                 workspace (project/workspace project evaluation-context)
+                 project-root (g/raw-property-value (:basis evaluation-context) workspace :root)
+                 server-definitions {:extension-language-servers ext-language-servers
+                                     :lua-language-servers (built-in-lua-language-servers project-root sync-hash)}]
+        (ui/run-now
+          (project/update-language-servers! project prefs server-definitions))))))
 
 ;; endregion
 
@@ -1001,13 +1011,20 @@
 
 (defn line-writer [f]
   (let [sb (StringBuilder.)]
-    (PrintWriter-on #(doseq [^char ch %]
-                       (if (= \newline ch)
-                         (let [str (.toString sb)]
-                           (.delete sb 0 (.length sb))
-                           (f str))
-                         (.append sb ch)))
-                    nil)))
+    (PrintWriter-on
+      (fn flush-lines [^String s]
+        (.append sb s)
+        (loop [start 0]
+          (let [end (.indexOf sb "\n" start)]
+            (if (neg? end)
+              (.delete sb 0 start)
+              (let [line-end (if (and (< start end)
+                                      (= \return (.charAt sb (dec end))))
+                               (dec end)
+                               end)]
+                (f (.substring sb start line-end))
+                (recur (inc end)))))))
+      nil)))
 
 (defn- find-resource [project {:keys [evaluation-context]} proj-path]
   (when-let [node (project/get-resource-node project proj-path evaluation-context)]
@@ -1078,7 +1095,6 @@
   [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!] :as opts}]
   {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!]}
   (g/let-ec [basis (:basis evaluation-context)
-             lsp (lsp/get-node-lsp basis project)
              script-annotations (project/script-annotations project evaluation-context)
              extensions (g/node-value project :editor-extensions evaluation-context)
              old-state (ext-state project evaluation-context)
@@ -1106,6 +1122,7 @@
                                   "create_resources" (make-ext-create-resources-fn project reload-resources!)
                                   "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
                                   "resource_attributes" (make-ext-resource-attributes-fn project)
+                                  "resource_children" (make-ext-resource-children-fn project)
                                   "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
                                   "execute" (make-ext-execute-fn project-path reload-resources!)
                                   "bob" (make-ext-bob-fn invoke-bob!)
@@ -1168,7 +1185,7 @@
              dynamic-routes (dynamic-routes new-state evaluation-context)]
     (g/user-data-swap! extensions :state (constantly new-state))
     (reload-prefs! project-path prefs-schema)
-    (reload-language-servers! project lsp script-annotations ext-language-servers)
+    (reload-language-servers! project prefs script-annotations ext-language-servers)
     (reload-commands! command-handlers)
     (reload-server-routes! new-state dynamic-routes)
     nil))

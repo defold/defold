@@ -28,8 +28,8 @@
 
 (defn- outline-info [{:keys [children label read-only]}]
   (cond-> {:label label}
-          read-only (assoc :read-only true)
-          (not-empty children) (assoc :children (mapv outline-info children))))
+    read-only (assoc :read-only true)
+    (not-empty children) (assoc :children (mapv outline-info children))))
 
 (defn- node-outline-info [node-id]
   (outline-info (g/valid-node-value node-id :node-outline)))

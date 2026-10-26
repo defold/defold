@@ -45,16 +45,16 @@
 (s/defn intersect :- (s/maybe Rect)
   ([r :- Rect] r)
   ([r1 :- Rect r2 :- Rect]
-    (when (and r1 r2)
-      (let [l (max (.x r1) (.x r2))
-            t (max (.y r1) (.y r2))
-            r (min (+ (.x r1) (.width r1))  (+ (.x r2) (.width r2)))
-            b (min (+ (.y r1) (.height r1)) (+ (.y r2) (.height r2)))
-            w (- r l)
-            h (- b t)]
-        (if (and (< 0 w) (< 0 h))
-          (types/rect l t w h)
-          nil))))
+   (when (and r1 r2)
+     (let [l (max (.x r1) (.x r2))
+           t (max (.y r1) (.y r2))
+           r (min (+ (.x r1) (.width r1))  (+ (.x r2) (.width r2)))
+           b (min (+ (.y r1) (.height r1)) (+ (.y r2) (.height r2)))
+           w (- r l)
+           h (- b t)]
+       (if (and (< 0 w) (< 0 h))
+         (types/rect l t w h)
+         nil))))
   ([r1 :- Rect r2 :- Rect & rs :- [Rect]]
    (reduce intersect (intersect r1 r2) rs)))
 
@@ -79,34 +79,34 @@
         ;; left slice
         (if (< (.x container) (.x overlap))
           (conj! new-rects (types/rect (.x container)
-                                 (.y container)
-                                 (- (.x overlap) (.x container))
-                                 (.height container))))
+                                       (.y container)
+                                       (- (.x overlap) (.x container))
+                                       (.height container))))
 
         ;; right slice
         (if (< (+ (.x overlap) (.width overlap)) (+ (.x container) (.width container)))
           (conj! new-rects (types/rect ""
-                                (+ (.x overlap) (.width overlap))
-                                (.y container)
-                                (- (+ (.x container) (.width container))
-                                    (+ (.x overlap)   (.width overlap)))
-                                (.height container))))
+                                       (+ (.x overlap) (.width overlap))
+                                       (.y container)
+                                       (- (+ (.x container) (.width container))
+                                          (+ (.x overlap)   (.width overlap)))
+                                       (.height container))))
         ;; bottom slice
         (if (< (.y container) (.y overlap))
           (conj! new-rects (types/rect ""
-                                 (.x overlap)
-                                 (.y container)
-                                 (.width overlap)
-                                 (- (.y overlap) (.y container)))))
+                                       (.x overlap)
+                                       (.y container)
+                                       (.width overlap)
+                                       (- (.y overlap) (.y container)))))
 
         ;; top slice
         (if (< (+ (.y overlap) (.height overlap)) (+ (.y container) (.height container)))
           (conj! new-rects (types/rect ""
-                                 (.x overlap)
-                                 (+ (.y overlap) (.height overlap))
-                                 (.width overlap)
-                                 (- (+ (.y container) (.height container))
-                                    (+ (.y overlap)   (.height overlap)))))))
+                                       (.x overlap)
+                                       (+ (.y overlap) (.height overlap))
+                                       (.width overlap)
+                                       (- (+ (.y container) (.height container))
+                                          (+ (.y overlap)   (.height overlap)))))))
       (conj! new-rects container))
     (persistent! new-rects)))
 
@@ -117,39 +117,39 @@
         overlap ^Rect (intersect container content)]
     (if overlap
       (do
-         ;; bottom slice
-         (if (< (.y container) (.y overlap))
-           (conj! new-rects (types/rect ""
-                                  (.x container)
-                                  (.y container)
-                                  (.width container)
-                                  (- (.y overlap) (.y container)))))
+        ;; bottom slice
+        (if (< (.y container) (.y overlap))
+          (conj! new-rects (types/rect ""
+                                       (.x container)
+                                       (.y container)
+                                       (.width container)
+                                       (- (.y overlap) (.y container)))))
 
-         ;; top slice
-         (if (< (+ (.y overlap) (.height overlap)) (+ (.y container) (.height container)))
-           (conj! new-rects (types/rect ""
-                                  (.x container)
-                                  (+ (.y overlap) (.height overlap))
-                                  (.width container)
-                                  (- (+ (.y container) (.height container))
-                                    (+ (.y overlap) (.height overlap))))))
+        ;; top slice
+        (if (< (+ (.y overlap) (.height overlap)) (+ (.y container) (.height container)))
+          (conj! new-rects (types/rect ""
+                                       (.x container)
+                                       (+ (.y overlap) (.height overlap))
+                                       (.width container)
+                                       (- (+ (.y container) (.height container))
+                                          (+ (.y overlap) (.height overlap))))))
 
-         ;; left slice
-         (if (< (.x container) (.x overlap))
-           (conj! new-rects (types/rect ""
-                                  (.x container)
-                                  (.y overlap)
-                                  (- (.x overlap) (.x container))
-                                  (.height overlap))))
+        ;; left slice
+        (if (< (.x container) (.x overlap))
+          (conj! new-rects (types/rect ""
+                                       (.x container)
+                                       (.y overlap)
+                                       (- (.x overlap) (.x container))
+                                       (.height overlap))))
 
-         ;; right slice
-         (if (< (+ (.x overlap) (.width overlap)) (+ (.x container) (.width container)))
-           (conj! new-rects (types/rect ""
-                                 (+ (.x overlap) (.width overlap))
-                                 (.y overlap)
-                                 (- (+ (.x container) (.width container))
-                                     (+ (.x overlap)   (.width overlap)))
-                                 (.height overlap)))))
+        ;; right slice
+        (if (< (+ (.x overlap) (.width overlap)) (+ (.x container) (.width container)))
+          (conj! new-rects (types/rect ""
+                                       (+ (.x overlap) (.width overlap))
+                                       (.y overlap)
+                                       (- (+ (.x container) (.width container))
+                                          (+ (.x overlap)   (.width overlap)))
+                                       (.height overlap)))))
       (conj! new-rects container))
     (persistent! new-rects)))
 
@@ -314,19 +314,19 @@
 (s/defn aabb-incorporate :- AABB
   ([^AABB aabb :- AABB
     ^Point3d p :- Point3d]
-    (aabb-incorporate aabb (.x p) (.y p) (.z p)))
+   (aabb-incorporate aabb (.x p) (.y p) (.z p)))
   ([^AABB aabb :- AABB
     ^double x :- s/Num
     ^double y :- s/Num
     ^double z :- s/Num]
-    (let [minx (Math/min (-> aabb types/min-p .x) x)
-          miny (Math/min (-> aabb types/min-p .y) y)
-          minz (Math/min (-> aabb types/min-p .z) z)
-          maxx (Math/max (-> aabb types/max-p .x) x)
-          maxy (Math/max (-> aabb types/max-p .y) y)
-          maxz (Math/max (-> aabb types/max-p .z) z)]
-      (types/->AABB (Point3d. minx miny minz)
-                    (Point3d. maxx maxy maxz)))))
+   (let [minx (Math/min (-> aabb types/min-p .x) x)
+         miny (Math/min (-> aabb types/min-p .y) y)
+         minz (Math/min (-> aabb types/min-p .z) z)
+         maxx (Math/max (-> aabb types/max-p .x) x)
+         maxy (Math/max (-> aabb types/max-p .y) y)
+         maxz (Math/max (-> aabb types/max-p .z) z)]
+     (types/->AABB (Point3d. minx miny minz)
+                   (Point3d. maxx maxy maxz)))))
 
 (s/defn aabb-union :- AABB
   ([aabb1 :- AABB] aabb1)
@@ -476,8 +476,8 @@
         unique-face-normals (cond-> [(math/plane-normal near)
                                      (math/plane-normal top)
                                      (math/plane-normal right)]
-                                    (not orthographic?) (into [(math/plane-normal bottom)
-                                                               (math/plane-normal left)]))
+                              (not orthographic?) (into [(math/plane-normal bottom)
+                                                         (math/plane-normal left)]))
         unique-edge-normals (if orthographic?
                               unique-face-normals
                               [(math/edge-normal near-tl near-tr)
@@ -494,47 +494,47 @@
 
 (s/defn unit-sphere-pos-nrm [lats longs]
   (for [lat-i (range lats)
-       long-i (range longs)]
-   (let [lat-angle   (fn [rate] (* Math/PI rate))
-         long-angle  (fn [rate] (* (* 2 Math/PI) rate))
-         make-vertex (fn [lat-a long-a]
-                       (let [y      (Math/cos lat-a)
-                             radius (Math/sin lat-a)
-                             x      (* radius (Math/cos long-a))
-                             z      (* radius (Math/sin long-a))]
-                         [x y z x y z]))
-         vertices (for [lat-idx  [lat-i (inc lat-i)]
-                        long-idx [long-i (inc long-i)]]
-                    (make-vertex (lat-angle (/ lat-idx lats)) (long-angle (/ long-idx longs))))]
-                (map #(nth vertices %) [0 1 2 1 3 2]))))
+        long-i (range longs)]
+    (let [lat-angle   (fn [rate] (* Math/PI rate))
+          long-angle  (fn [rate] (* (* 2 Math/PI) rate))
+          make-vertex (fn [lat-a long-a]
+                        (let [y      (Math/cos lat-a)
+                              radius (Math/sin lat-a)
+                              x      (* radius (Math/cos long-a))
+                              z      (* radius (Math/sin long-a))]
+                          [x y z x y z]))
+          vertices (for [lat-idx  [lat-i (inc lat-i)]
+                         long-idx [long-i (inc long-i)]]
+                     (make-vertex (lat-angle (/ lat-idx lats)) (long-angle (/ long-idx longs))))]
+      (map #(nth vertices %) [0 1 2 1 3 2]))))
 
 ; Procedural geometry
 
 (defn transl
   ([delta]
-    (map (partial apply transl delta)))
+   (map (partial apply transl delta)))
   ([delta ps]
-    (let [res (mapv (fn [p] (mapv + delta p)) ps)]
-      res)))
+   (let [res (mapv (fn [p] (mapv + delta p)) ps)]
+     res)))
 
 (defn scale
   ([factor]
-    (map (partial apply scale factor)))
+   (map (partial apply scale factor)))
   ([factor ps]
-    (mapv (fn [p] (mapv * factor p)) ps)))
+   (mapv (fn [p] (mapv * factor p)) ps)))
 
 (defn rotate
   ([euler]
-    (map (partial apply rotate euler)))
+   (map (partial apply rotate euler)))
   ([euler ps]
-    (let [q (math/euler->quat euler)
-          tmp-v (Vector3d.)]
-      (let [res (mapv (fn [[^double x ^double y ^double z]]
-                        (.set tmp-v x y z)
-                        (let [v (math/rotate q tmp-v)]
-                          (vector-of :double (.x v) (.y v) (.z v))))
-                      ps)]
-        res))))
+   (let [q (math/euler->quat euler)
+         tmp-v (Vector3d.)]
+     (let [res (mapv (fn [[^double x ^double y ^double z]]
+                       (.set tmp-v x y z)
+                       (let [v (math/rotate q tmp-v)]
+                         (vector-of :double (.x v) (.y v) (.z v))))
+                     ps)]
+       res))))
 
 (defn transf-p
   [^Matrix4d m4d ps]
@@ -609,10 +609,10 @@
 (defn uv-trans [^TextureSetGenerator$UVTransform uv-trans ps]
   (if uv-trans
     (let [p (Point2d.)]
-     (mapv (fn [[^double x ^double y]]
-             (.set p x y)
-             (.apply uv-trans p)
-             [(.x p) (.y p)]) ps))
+      (mapv (fn [[^double x ^double y]]
+              (.set p x y)
+              (.apply uv-trans p)
+              [(.x p) (.y p)]) ps))
     ps))
 
 ;; -----------------------------------------------------------------------------

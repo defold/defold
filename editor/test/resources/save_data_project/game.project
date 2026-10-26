@@ -52,6 +52,7 @@ fcm_application_id = com.defold.save-data-project
 manifest = /builtins/manifests/android/AndroidManifest.xml
 r8_keep_rules = /builtins/manifests/android/dmengine.keep
 extract_native_libs = 1
+vkquality_database = /builtins/manifests/android/vkqualitydata.vkq
 
 [project]
 title = Save Data Project
@@ -78,7 +79,7 @@ repeat_interval = 0.1
 gamepads = /checked.gamepadsc
 gamepad_database = /referenced/gamecontrollerdb.txt
 gamepad_deadzone = 0.35
-use_accelerometer = 0
+use_accelerometer = 1
 
 [html5]
 heap_size = 128
@@ -94,11 +95,14 @@ show_fullscreen_button = 0
 show_made_with_defold = 0
 show_console_banner = 0
 scale_mode = no_scale
+min_pixel_ratio = 0.75
+max_pixel_ratio = 1.5
 retry_count = 11
 retry_time = 1.5
 transparent_graphics_context = 1
 
 [ios]
+home_indicator_mode = auto_hide
 app_icon_76x76 = /referenced/images/diamond.png
 app_icon_152x152 = /referenced/images/diamond.png
 app_icon_167x167 = /referenced/images/diamond.png
@@ -273,6 +277,7 @@ clear_color_alpha = 0.0
 [resource]
 http_cache = 1
 max_resources = 2048
+profile = 1
 uri = http://localhost:1234/save-data-project
 
 [library]
@@ -297,3 +302,4 @@ glsl_es_default_precision_int = mediump
 
 [font]
 runtime_generation = 1
+

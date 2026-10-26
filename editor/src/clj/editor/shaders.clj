@@ -24,7 +24,7 @@
   (::vertex-description editor-shader))
 
 (defn- with-vertex-description [shader]
-  (let [attribute-reflection-infos (shader/attribute-reflection-infos shader nil)
+  (let [attribute-reflection-infos (shader/attribute-reflection-infos shader)
         vertex-description (graphics.types/make-vertex-description attribute-reflection-infos)]
     (assoc shader ::vertex-description vertex-description)))
 
@@ -88,6 +88,20 @@
     "shaders/basic-texture-color.vp"
     "shaders/basic-texture-color.fp"))
 
+(def basic-texture-color-straight-alpha-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
+    "shaders/basic-texture-color-straight-alpha.vp"
+    "shaders/basic-texture-color.fp"))
+
+(def basic-texture-color-straight-alpha-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj}}
+    "shaders/basic-texture-color-straight-alpha.vp"
+    "shaders/basic-texture-color.fp"))
+
 (def basic-texture-paged-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
@@ -120,6 +134,15 @@
     "shaders/basic-texture-paged-color.vp"
     "shaders/basic-texture-paged-color.fp"))
 
+(def cubemap-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_view_proj" :view-proj
+                "mtx_world" :world
+                "camera_position" :camera-position}}
+    "shaders/cubemap.vp"
+    "shaders/cubemap.fp"))
+
 (def infinity-grid-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
@@ -147,6 +170,13 @@
                 "mtx_proj" :projection}}
     "shaders/mesh-preview.vp"
     "shaders/mesh-preview.fp"))
+
+(def scene-shape-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
+    "shaders/scene-shape.vp"
+    "shaders/uniform-color.fp"))
 
 (def selection-attribute-local-space
   (editor-shader
@@ -177,6 +207,14 @@
      :uniforms {"mtx_world_view_proj" :view-proj}}
     "shaders/selection-attribute-paged.vp"
     "shaders/selection-attribute-paged.fp"))
+
+(def selection-color-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj
+                "color" :id-color}}
+    "shaders/uniform-color.vp"
+    "shaders/uniform-color.fp"))
 
 (def selection-instance-local-space
   (editor-shader
@@ -226,3 +264,17 @@
                 "id_color" :id-color}}
     "shaders/selection-uniform-paged.vp"
     "shaders/selection-uniform-paged.fp"))
+
+(def uniform-color-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
+    "shaders/uniform-color.vp"
+    "shaders/uniform-color.fp"))
+
+(def uniform-color-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj}}
+    "shaders/uniform-color.vp"
+    "shaders/uniform-color.fp"))

@@ -14,11 +14,12 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
-#include "../dmsdk/dlib/hash.h"
 
-#define TEST_CHECK(_EXPR) do { if (!(_EXPR)) { fprintf(stderr, "TEST_CHECK failed at line %s:%d: %s\n", __FILE__, __LINE__, #_EXPR); return __LINE__; } } while (0)
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
+#include <dmsdk/dlib/hash.h>
 
 typedef struct HashTestAllocator
 {
@@ -45,7 +46,7 @@ static void HashTestFree(void* mem, void* user_data)
     (void) user_data;
 }
 
-int dmHashCTestIncremental(void)
+TEST(Hash, Incremental)
 {
     uint32_t h1 = dmHashBuffer32("foo", 3);
     uint64_t h2 = dmHashBuffer64("foo", 3);
@@ -64,14 +65,13 @@ int dmHashCTestIncremental(void)
     dmHashUpdateBuffer64(&hs64, "o", 1);
     uint64_t h2_i = dmHashFinal64(&hs64);
 
-    TEST_CHECK(h1 == 0xd861e2f7L);
-    TEST_CHECK(h1_i == 0xd861e2f7L);
-    TEST_CHECK(h2 == 0x97b476b3e71147f7LL);
-    TEST_CHECK(h2_i == 0x97b476b3e71147f7LL);
-    return 0;
+    ASSERT_EQ(0xd861e2f7L, h1);
+    ASSERT_EQ(0xd861e2f7L, h1_i);
+    ASSERT_EQ(0x97b476b3e71147f7LL, h2);
+    ASSERT_EQ(0x97b476b3e71147f7LL, h2_i);
 }
 
-int dmHashCTestCloneAndRelease(void)
+TEST(Hash, CloneAndRelease)
 {
     HashState32 hs32;
     HashState32 hs32_clone;
@@ -80,14 +80,14 @@ int dmHashCTestCloneAndRelease(void)
     dmHashClone32(&hs32_clone, &hs32, false);
     dmHashUpdateBuffer32(&hs32_clone, "bar", 3);
 
-    TEST_CHECK(dmHashFinal32(&hs32) == dmHashBuffer32("foo", 3));
-    TEST_CHECK(dmHashFinal32(&hs32_clone) == dmHashBuffer32("foobar", 6));
+    ASSERT_EQ(dmHashBuffer32("foo", 3), dmHashFinal32(&hs32));
+    ASSERT_EQ(dmHashBuffer32("foobar", 6), dmHashFinal32(&hs32_clone));
 
     HashState32 hs32_release;
     dmHashInit32(&hs32_release, false);
     dmHashUpdateBuffer32(&hs32_release, "foo", 3);
     dmHashRelease32(&hs32_release);
-    TEST_CHECK(dmHashFinal32(&hs32_release) == dmHashBuffer32("foo", 3));
+    ASSERT_EQ(dmHashBuffer32("foo", 3), dmHashFinal32(&hs32_release));
 
     HashState64 hs64;
     HashState64 hs64_clone;
@@ -96,19 +96,17 @@ int dmHashCTestCloneAndRelease(void)
     dmHashClone64(&hs64_clone, &hs64, false);
     dmHashUpdateBuffer64(&hs64_clone, "bar", 3);
 
-    TEST_CHECK(dmHashFinal64(&hs64) == dmHashBuffer64("foo", 3));
-    TEST_CHECK(dmHashFinal64(&hs64_clone) == dmHashBuffer64("foobar", 6));
+    ASSERT_EQ(dmHashBuffer64("foo", 3), dmHashFinal64(&hs64));
+    ASSERT_EQ(dmHashBuffer64("foobar", 6), dmHashFinal64(&hs64_clone));
 
     HashState64 hs64_release;
     dmHashInit64(&hs64_release, false);
     dmHashUpdateBuffer64(&hs64_release, "foo", 3);
     dmHashRelease64(&hs64_release);
-    TEST_CHECK(dmHashFinal64(&hs64_release) == dmHashBuffer64("foo", 3));
-
-    return 0;
+    ASSERT_EQ(dmHashBuffer64("foo", 3), dmHashFinal64(&hs64_release));
 }
 
-int dmHashCTestReverseSafeAlloc(void)
+TEST(Hash, ReverseSafeAlloc)
 {
     HashTestAllocator allocator_context;
     allocator_context.m_Offset = 0;
@@ -118,13 +116,18 @@ int dmHashCTestReverseSafeAlloc(void)
     allocator.m_Free = HashTestFree;
     allocator.m_UserData = &allocator_context;
 
-    TEST_CHECK(strcmp(dmHashReverseSafe64(0x123ULL), "<unknown>") == 0);
-    TEST_CHECK(strcmp(dmHashReverseSafe32(0x123U), "<unknown>") == 0);
+    ASSERT_STREQ("<unknown>", dmHashReverseSafe64(0x123ULL));
+    ASSERT_STREQ("<unknown>", dmHashReverseSafe32(0x123U));
 
     const char* unknown64 = dmHashReverseSafe64Alloc(&allocator, 0x123ULL);
     const char* unknown32 = dmHashReverseSafe32Alloc(&allocator, 0x123U);
 
-    TEST_CHECK(strncmp(unknown64, "<unknown:", 9) == 0);
-    TEST_CHECK(strncmp(unknown32, "<unknown:", 9) == 0);
-    return 0;
+    ASSERT_EQ(0, strncmp(unknown64, "<unknown:", 9));
+    ASSERT_EQ(0, strncmp(unknown32, "<unknown:", 9));
+}
+
+int main(int argc, char** argv)
+{
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

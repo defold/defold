@@ -72,6 +72,10 @@ namespace dmGraphics
         Buffer   m_Base;
         char*    m_Buffer;
         char*    m_Copy;
+        uint32_t m_DataSetCount; // Testing: full-buffer uploads, excluding creation.
+        uint64_t m_DataSetBytes;
+        uint32_t m_SubDataSetCount; // Testing: uploads to buffer ranges.
+        uint64_t m_SubDataSetBytes;
     };
 
     struct IndexBuffer
@@ -85,6 +89,7 @@ namespace dmGraphics
     {
         RenderTarget m_Base;
         FrameBuffer  m_FrameBuffer;
+        FrameBuffer  m_CubeMapFrameBuffers[CUBEMAP_FACE_COUNT];
     };
 
     struct NullShaderModule
@@ -99,6 +104,12 @@ namespace dmGraphics
         uint8_t*      m_Buffer;
         uint32_t      m_BufferSize;
         uint8_t       m_UsedInDraw : 1;
+    };
+
+    struct NullStorageBuffer
+    {
+        StorageBuffer m_Base;
+        uint8_t*      m_Buffer;
     };
 
     struct NullProgram
@@ -123,6 +134,7 @@ namespace dmGraphics
         HJobContext                        m_JobContext;
 
         SetTextureAsyncState               m_SetTextureAsyncState;
+        dmArray<HTexture>                  m_AsyncDeleteTextures;
         VertexStreamBufferList             m_VertexStreams[MAX_VERTEX_BUFFERS];
 
         HVertexDeclaration                 m_VertexDeclarations[MAX_VERTEX_BUFFERS];
@@ -130,6 +142,7 @@ namespace dmGraphics
         HTexture                           m_Textures[MAX_TEXTURE_COUNT];
         HVertexBuffer                      m_VertexBuffers[MAX_VERTEX_BUFFERS];
         NullUniformBuffer*                 m_UniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        NullStorageBuffer*                 m_StorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         FrameBuffer                        m_MainFrameBuffer;
         FrameBuffer*                       m_CurrentFrameBuffer;
         NullProgram*                       m_Program;

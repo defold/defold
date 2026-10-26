@@ -14,20 +14,29 @@
 
 (ns integration.save-data-test
   (:require [clojure.java.io :as io]
+            [clojure.pprint :as pprint]
             [clojure.set :as set]
             [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.collection :as collection]
+            [editor.core :as core]
             [editor.defold-project :as project]
+            [editor.editor-extensions :as extensions]
+            [editor.node-util :as node-util]
+            [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph :as ig]
+            [internal.graph.types :as gt]
             [internal.system :as is]
             [internal.util :as util]
+            [support.test-support :as test-support]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
             [util.text-util :as text-util])
@@ -183,6 +192,11 @@
    {:default
     {"type" :allowed-default}}
 
+   'dmGameSystemDDF.Animation
+   {:default
+    {"start_tile" :deprecated
+     "end_tile" :deprecated}} ; Migration tested in integration.tile-source-test/animation-frame-migration.
+
    'dmGameSystemDDF.LabelDesc
    {:default
     {"scale" :deprecated ; Migration tested in integration.label-test/label-migration-test.
@@ -284,7 +298,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_BOX]"]
    {:default
-    {"custom_properties" :unused
+    {"font_size" :unused
+     "custom_properties" :unused
      "custom_type" :unused
      "font" :unused
      "innerRadius" :unused
@@ -311,7 +326,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_CUSTOM]"]
    {:default
-    {"custom_type" :deprecated ; Project files use custom_type_name. Runtime numeric custom_type coverage is tested in GUI build tests.
+    {"font_size" :unused
+     "custom_type" :deprecated ; Project files use custom_type_name. Runtime numeric custom_type coverage is tested in GUI build tests.
      "custom_properties" :non-overridable ; Custom property entries signal overrides individually; the field itself is not listed among overridden_fields.
      "custom_type_name" :non-overridable
      "font" :unused
@@ -343,7 +359,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_PARTICLEFX]"]
    {:default
-    {"blend_mode" :unused
+    {"font_size" :unused
+     "blend_mode" :unused
      "clipping_inverted" :unused
      "clipping_mode" :unused
      "clipping_visible" :unused
@@ -377,7 +394,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_PIE]"]
    {:default
-    {"custom_properties" :unused
+    {"font_size" :unused
+     "custom_properties" :unused
      "custom_type" :unused
      "font" :unused
      "line_break" :unused
@@ -400,7 +418,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_TEMPLATE]"]
    {:default
-    {"adjust_mode" :unused
+    {"font_size" :unused
+     "adjust_mode" :unused
      "blend_mode" :unused
      "clipping_inverted" :unused
      "clipping_mode" :unused
@@ -580,7 +599,8 @@
 
    'dmRenderDDF.FontDesc
    {:default
-    {"extra_characters" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
+    {"extra_characters" :deprecated
+     "output_format" :deprecated}} ; Migrations tested in silent-migrations-test.
 
    'dmRenderDDF.MaterialDesc
    {:default
@@ -800,8 +820,17 @@
 
     (testing "font"
       (let [extra-characters-font (project/get-resource-node project "/silently_migrated/extra_characters.font")]
+        (is (= "/builtins/fonts/font.material" (:material (g/node-value extra-characters-font :save-value))))
         (is (= " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~åäö"
-               (g/node-value extra-characters-font :characters)))))
+               (g/node-value extra-characters-font :characters))))
+      (let [legacy-font (project/get-resource-node project "/silently_migrated/font_properties.font")
+            source-value (g/node-value legacy-font :source-value)
+            save-value (g/node-value legacy-font :save-value)]
+        (is (= source-value save-value))
+        (is (zero? (g/node-value legacy-font :size)))
+        (is (not (contains? save-value :size)))
+        (is (not (contains? save-value :runtime)))
+        (is (not (coll/any? #(contains? save-value %) [:output-format :render-mode])))))
 
     (testing "gui"
       (let [background-color-gui (test-util/resource-node project "/silently_migrated/background_color.gui")]
@@ -952,7 +981,7 @@
 
          filtered-resources
          (cond->> root-level-editable-file-resources
-                  pred (filter pred))]
+           pred (filter pred))]
 
      (->> filtered-resources
           (sort-by (juxt resource/type-ext resource/proj-path))
@@ -1184,8 +1213,8 @@
     (if (nil? type-field-desc)
       field-frequencies
       (cond-> (pb-enum-desc-empty-frequencies (.getEnumType type-field-desc))
-              (pos? (count field-frequencies))
-              (assoc type-token field-frequencies)))))
+        (pos? (count field-frequencies))
+        (assoc type-token field-frequencies)))))
 
 (defn- pb-read-resource
   ^Message [resource]
@@ -1355,7 +1384,7 @@
                 (->> template-node-pb
                      (.getTemplate)
                      (gui-proj-path->node-pbs)
-                     (coll/pair-map-by gui-node-pb->id))
+                     (coll/pair-map-by gui-node-pb->id identity))
 
                 override-node-pb->override-info
                 (fn override-node-pb->override-info [^Gui$NodeDesc override-node-pb]
@@ -1664,10 +1693,9 @@
             (g/delete-nodes resource-node-ids))
           (let [leaked-node-frequencies
                 (->> @g/*the-system*
-                     (is/graphs)
+                     (is/basis)
+                     gt/nodes
                      (eduction
-                       (map val)
-                       (mapcat :nodes)
                        (map val)
                        (map g/node-type)
                        (map :k)
@@ -1675,3 +1703,134 @@
                      (frequencies)
                      (into (sorted-map)))]
             (is (= {} leaked-node-frequencies))))))))
+
+(deftest connection-rule-violations-test
+  (test-support/with-clean-system
+    {:cache-size test-util/system-cache-size
+     :cache-retain? project/cache-retain?}
+    (let [workspace (test-util/setup-workspace! project-path)
+          _ (test-util/fetch-libraries! workspace)
+          extensions (extensions/make)
+          project (project/make-project workspace extensions)
+          resources (g/node-value project :resources)
+          node-id+resource-pairs (project/make-node-id+resource-pairs resources)
+          node-load-infos (project/read-nodes node-id+resource-pairs)
+
+          _ (g/transact
+              {:undoable false}
+              (project/make-resource-nodes-tx-data project node-id+resource-pairs))
+
+          explicit-arcs-before
+          (coll/into-> (gt/sarcs (g/now)) #{}
+            (mapcat (fn [[_source-node-id source-label->arcs]]
+                      (coll/vals source-label->arcs)))
+            (mapcat ig/arc-table-arcs))
+
+          migrated-resource-node-ids
+          (project/load-nodes!
+            project nil node-load-infos progress/null-render-progress! nil
+            {:full-invalidation true
+             :undoable false})
+
+          _ (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
+
+          save-data-arc?
+          (fn save-data-arc? [arc]
+            (and (= project (gt/target-id arc))
+                 (= :save-data (gt/target-label arc))))
+
+          proj-path->dependency-proj-paths
+          (coll/into-> node-load-infos {}
+            (keep (fn [node-load-info]
+                    (let [dependency-proj-paths (:dependency-proj-paths node-load-info)]
+                      (when-not (coll/empty? dependency-proj-paths)
+                        (let [proj-path (resource/proj-path (:resource node-load-info))]
+                          (pair proj-path (set dependency-proj-paths))))))))
+
+          connection-rule-violations
+          (g/with-auto-evaluation-context evaluation-context
+            (let [basis (:basis evaluation-context)
+
+                  label-info
+                  (fn label-info [node-id label]
+                    {:type (g/node-type-kw node-id)
+                     :label label
+                     :info (node-util/node-debug-label-path node-id evaluation-context)})]
+
+              (coll/into-> node-id+resource-pairs []
+                (map first)
+                (mapcat
+                  (fn [owner-node-id]
+                    (let [owned-node-ids (set (core/recursive-owned-node-ids basis owner-node-id))
+
+                          internal-arc?
+                          (fn internal-arc? [arc]
+                            (contains? owned-node-ids (gt/target-id arc)))]
+
+                      (coll/into-> owned-node-ids :eduction
+                        (mapcat #(ig/explicit-arcs-by-source basis %))
+                        (remove internal-arc?)
+                        (remove save-data-arc?)
+                        (remove explicit-arcs-before)
+                        (keep (fn [arc]
+                                (let [source-id (gt/source-id arc)
+                                      source-label (gt/source-label arc)
+                                      target-id (gt/target-id arc)
+                                      target-label (gt/target-label arc)]
+                                  (if-let [source-resource (resource-node/as-resource basis source-id)]
+                                    (if-let [target-owner-resource (resource-node/owner-resource basis target-id)]
+                                      (let [target-owner-proj-path (resource/proj-path target-owner-resource)
+                                            target-owner-dependency-proj-paths (proj-path->dependency-proj-paths target-owner-proj-path)
+                                            source-proj-path (resource/proj-path source-resource)]
+                                        (when-not (contains? target-owner-dependency-proj-paths source-proj-path)
+                                          {:problem "The target resource does not report the source resource as a dependency."
+                                           :solution "Ensure the :dependency-fn for the target resource-type reports the source resource as a dependency."
+                                           :referenced-file source-proj-path
+                                           :referenced-from target-owner-proj-path
+                                           :source (label-info source-id source-label)
+                                           :target (label-info target-id target-label)}))
+                                      {:problem "The :load-fn of a resource establishes a connection to a global node."
+                                       :solution "Move connection transaction steps to the :connect-fn of the source resource-type so the node can be materialized when needed."
+                                       :source (label-info source-id source-label)
+                                       :target (label-info target-id target-label)})
+                                    {:problem "A substructure node connects to an external node."
+                                     :solution "Pass the connection through the owning ResourceNode."
+                                     :source (label-info source-id source-label)
+                                     :target (label-info target-id target-label)})))))))))))]
+
+      (when-not (is (= 0 (count connection-rule-violations)))
+        (coll/run!-> connection-rule-violations pprint/pprint)))))
+
+(deftest load-rule-violations-test
+  (test-support/with-clean-system
+    (test-util/with-ui-run-later-rebound
+      (let [workspace (test-util/setup-workspace! project-path)
+            _ (test-util/fetch-libraries! workspace)
+            node-load-info-tx-data project/node-load-info-tx-data
+            resolved-paths (atom #{})]
+
+        (testing "No graph queries during load."
+          (with-redefs [project/node-load-info-tx-data
+                        (fn [node-load-info load-opts transpiler-tx-data-fn]
+                          (let [resolve-resource-fn (:resolve-resource-fn load-opts)
+                                load-opts (assoc load-opts
+                                            :resolve-resource-fn
+                                            (fn mock-resolve-resource-fn [owner-resource path]
+                                              (swap! resolved-paths conj path)
+                                              (resolve-resource-fn owner-resource path)))]
+                            (test-util/with-graph-queries-blocked :allow-unsafe-basis
+                              (coll/into-> (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn) []
+                                coll/flatten-xf))))]
+            (test-util/setup-project! workspace)))
+
+        ;; Sanity check to verify files were resolved.
+        (is (contains? @resolved-paths "/referenced/referenced.collection"))
+        (is (contains? @resolved-paths "/referenced/referenced.go"))
+        (is (contains? @resolved-paths "/referenced/referenced.gui"))
+
+        ;; Sanity check to verify nodes were loaded.
+        (let [project (project/get-project)
+              checked-sprite (test-util/resource-node project "/checked.sprite")]
+          (is (= "diamond" (g/node-value checked-sprite :default-animation)))
+          (is (= :blend-mode-add (g/node-value checked-sprite :blend-mode)))
+          (is (= [16.0 16.0 16.0 16.0] (g/node-value checked-sprite :slice9))))))))

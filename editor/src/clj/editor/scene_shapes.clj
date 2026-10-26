@@ -25,8 +25,9 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graphics.types :as graphics.types]
             [editor.math :as math]
-            [editor.scene-picking :as scene-picking])
-  (:import [com.jogamp.opengl GL2]
+            [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders])
+  (:import [com.jogamp.opengl GL3]
            [javax.vecmath Point4d]))
 
 (set! *warn-on-reflection* true)
@@ -37,30 +38,10 @@
   ;; the capsule shape.
   (vec4 position))
 
-(shader/defshader vertex-shader
-  (uniform mat4 world_view_proj)
-  (uniform vec4 point_scale)
-  (uniform vec4 point_offset_by_w)
-  (attribute vec4 position)
-  (defn void main []
-    (setq vec3 point
-          (+ (* position.xyz
-                point_scale.xyz)
-             (* position.w
-                point_offset_by_w.xyz)))
-    (setq gl_Position
-          (* world_view_proj
-             (vec4 point 1.0)))))
-
-(shader/defshader fragment-shader
-  (uniform vec4 color) ; `color` also used in selection pass to render picking id
-  (defn void main []
-    (setq gl_FragColor color)))
-
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader {"world_view_proj" :world-view-proj}))
+(def shader shaders/scene-shape-local-space)
 
 (def box-lines
-  {:primitive-type GL2/GL_LINES
+  {:primitive-type GL3/GL_LINES
    :vbuf (-> (->pos-vtx 24 :static)
 
              ;; Pos Z
@@ -96,7 +77,7 @@
              (vtx/flip!))})
 
 (def box-triangles
-  {:primitive-type GL2/GL_TRIANGLES
+  {:primitive-type GL3/GL_TRIANGLES
    :vbuf (-> (->pos-vtx 36 :static)
 
              ;; We start with the camera-facing face so that we can render just
@@ -158,7 +139,7 @@
        (geom/circling 32)))
 
 (def disc-lines
-  {:primitive-type GL2/GL_LINE_LOOP
+  {:primitive-type GL3/GL_LINE_LOOP
    :vbuf (vtx/flip!
            (reduce
              (fn [vbuf [x y _]]
@@ -167,7 +148,7 @@
              disc-perimeter))})
 
 (def disc-triangles
-  {:primitive-type GL2/GL_TRIANGLE_FAN
+  {:primitive-type GL3/GL_TRIANGLE_FAN
    :vbuf (-> (reduce
                (fn [vbuf [x y _]]
                  (pos-vtx-put! vbuf x y 0.0 0.0))
@@ -220,7 +201,7 @@
   (pos-vtx-put! vbuf (.x point) (.y point) (.z point) (.w point)))
 
 (def capsule-lines
-  {:primitive-type GL2/GL_LINES
+  {:primitive-type GL3/GL_LINES
    :vbuf (vtx/flip!
            (reduce
              (fn [vbuf [quad]]
@@ -231,7 +212,7 @@
              (partition 4 capsule-quads)))})
 
 (def capsule-triangles
-  {:primitive-type GL2/GL_TRIANGLES
+  {:primitive-type GL3/GL_TRIANGLES
    :vbuf (vtx/flip!
            (reduce
              (fn [vbuf quad]
@@ -274,7 +255,7 @@
                                 (or inner-circle [])
                                 (partition 2 silhouette)
                                 (partition 2 axis)))]
-    {:primitive-type GL2/GL_LINES
+    {:primitive-type GL3/GL_LINES
      :vbuf (vtx/flip!
              (reduce
                (fn [vbuf [a b]]
@@ -306,7 +287,7 @@
                            [(Math/cos t1) (Math/sin t1) -1.0]])))
         all-tris (into side-tris cap-tris)
         vert-count (* 3 3 (count all-tris))]
-    {:primitive-type GL2/GL_TRIANGLES
+    {:primitive-type GL3/GL_TRIANGLES
      :vbuf (vtx/flip!
              (reduce (fn [vbuf tri]
                        (reduce (fn [vbuf [x y z]]
@@ -330,15 +311,15 @@
   {:name-key :position
    :semantic-type :semantic-type-position})
 
-(defn- geometry-vertex-binding [gl {:keys [position-buffer vbuf vertex-binding]}]
+(defn- geometry-vertex-binding [{:keys [position-buffer vbuf vertex-binding]}]
   (or vertex-binding
       (when position-buffer
         (attribute/make-attribute-buffer-binding
           position-buffer
-          (first (shader/attribute-locations shader gl [position-attribute-info]))))
+          (first (shader/attribute-locations shader [position-attribute-info]))))
       (vtx/use-with (System/identityHashCode vbuf) vbuf shader)))
 
-(defn render-lines [^GL2 gl render-args renderables _num-renderables]
+(defn render-lines [^GL3 gl render-args renderables _num-renderables]
   (assert (not= pass/selection (:pass render-args)) "color not intended for picking")
   (let [{:keys [selected user-data world-transform]} (first renderables)
         {:keys [color geometry]} user-data
@@ -356,14 +337,14 @@
                               0))
         point-scale (:point-scale user-data no-point-scale)
         point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        vertex-binding (geometry-vertex-binding gl geometry)]
+        vertex-binding (geometry-vertex-binding geometry)]
     (gl/with-gl-bindings gl render-args [shader vertex-binding]
       (shader/set-uniform shader gl "point_scale" point-scale)
       (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
       (shader/set-uniform shader gl "color" color)
       (gl/gl-draw-arrays gl primitive-type 0 point-count))))
 
-(defn render-triangles [^GL2 gl render-args renderables _num-renderables]
+(defn render-triangles [^GL3 gl render-args renderables _num-renderables]
   (let [renderable (first renderables)
         {:keys [selected user-data world-transform]} renderable
         {:keys [color double-sided geometry]} user-data
@@ -392,13 +373,13 @@
                               0))
         point-scale (:point-scale user-data no-point-scale)
         point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        vertex-binding (geometry-vertex-binding gl geometry)
+        vertex-binding (geometry-vertex-binding geometry)
         bindings (cond-> [shader vertex-binding]
                    index-buffer (conj index-buffer))]
     (gl/with-gl-bindings gl render-args bindings
       (when-not double-sided
-        (gl/gl-enable gl GL2/GL_CULL_FACE)
-        (gl/gl-cull-face gl GL2/GL_BACK))
+        (gl/gl-enable gl GL3/GL_CULL_FACE)
+        (gl/gl-cull-face gl GL3/GL_BACK))
       (shader/set-uniform shader gl "point_scale" point-scale)
       (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
       (shader/set-uniform shader gl "color" color)
@@ -410,9 +391,9 @@
                              (graphics.types/element-count index-buffer))
         (gl/gl-draw-arrays gl primitive-type 0 point-count))
       (when-not double-sided
-        (gl/gl-disable gl GL2/GL_CULL_FACE)))))
+        (gl/gl-disable gl GL3/GL_CULL_FACE)))))
 
-(defn render-points [^GL2 gl render-args renderables _num-renderables]
+(defn render-points [^GL3 gl render-args renderables _num-renderables]
   (let [renderable (first renderables)
         {:keys [selected user-data world-transform]} renderable
         {:keys [color geometry ^double point-size]} user-data
@@ -433,7 +414,7 @@
                               0))
         point-scale (:point-scale user-data no-point-scale)
         point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        vertex-binding (geometry-vertex-binding gl geometry)]
+        vertex-binding (geometry-vertex-binding geometry)]
     (gl/with-gl-bindings gl render-args [shader vertex-binding]
       (.glPointSize gl point-size)
       (shader/set-uniform shader gl "point_scale" point-scale)

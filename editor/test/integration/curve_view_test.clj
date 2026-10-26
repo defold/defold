@@ -24,7 +24,8 @@
             [editor.properties :as properties]
             [editor.scene-selection :as selection]
             [editor.types :as types]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt])
   (:import [editor.curve_view SubSelectionProvider]
            [javax.vecmath Point3d]))
 
@@ -62,13 +63,13 @@
 
 (defn- sub-selection [app-view node-id property]
   (->> (g/node-value app-view :sub-selection)
-    (filterv (fn [[nid prop sub-sel]] (and (= node-id nid) (= property prop) sub-sel)))
-    (mapv last)))
+       (filterv (fn [[nid prop sub-sel]] (and (= node-id nid) (= property prop) sub-sel)))
+       (mapv last)))
 
 (defn- make-curve-view! [app-view width height]
   (let [curve-view (curve-view/make-view!
                      app-view
-                     (g/node-id->graph-id app-view)
+                     nil
                      nil
                      nil
                      test-util/localization
@@ -81,12 +82,12 @@
 
 (defn- curve-controller [view]
   (reduce
-    (fn [_ [node-id]]
-      (when (g/node-instance? curve-view/CurveController node-id)
-        (reduced node-id)))
+    (fn [_ arc]
+      (let [source-node-id (gt/source-id arc)]
+        (when (g/node-instance? curve-view/CurveController source-node-id)
+          (reduced source-node-id))))
     nil
-    (g/sources-of view :input-handlers)))
-
+    (g/inputs (g/now) view :input-handlers)))
 
 (deftest selection
   (test-util/with-loaded-project
@@ -114,9 +115,9 @@
   (if act
     (let [delta (mapv - exp act)]
       (->> (mapv * delta delta)
-        (reduce +)
-        (Math/sqrt)
-        (> 1.0E-2)))
+           (reduce +)
+           (Math/sqrt)
+           (> 1.0E-2)))
     false))
 
 (deftest move-control-point

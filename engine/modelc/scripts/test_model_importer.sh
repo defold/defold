@@ -1,23 +1,9 @@
 #!/usr/bin/env bash
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
-
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 eval $(python $SCRIPT_DIR/../../../build_tools/set_sdk_vars.py VERSION_XCODE)
 pushd $SCRIPT_DIR/..
-BUILD_DIR=$(realpath ${DYNAMO_HOME}/../../engine/modelc/build/src)
+PLATFORM=$(PYTHONPATH="$SCRIPT_DIR/../../../build_tools" python3 -c 'import sdk; print(sdk.get_host_platform())')
+BUILD_DIR="$SCRIPT_DIR/../build/$PLATFORM"
 
 set -e
 
@@ -37,13 +23,13 @@ elif [[ "$OSTYPE" == "win32" ]]; then
     SUFFIX=.dll
 fi
 
-MODELIMPORTER_SHARED_LIB=./build/src/lib${LIBNAME}${SUFFIX}
+MODELIMPORTER_SHARED_LIB=${BUILD_DIR}/lib${LIBNAME}${SUFFIX}
 if [ -z "${MODELIMPORTER_SHARED_LIB}" ]; then
     echo "Couldn't find the shared library!"
 fi
 echo "Found ${MODELIMPORTER_SHARED_LIB}"
 
-JAR=$(find . -iname "*.jar")
+JAR=${BUILD_DIR}/modelimporter.jar
 if [ -z "${JAR}" ]; then
     echo "Couldn't find the jar file!"
 fi

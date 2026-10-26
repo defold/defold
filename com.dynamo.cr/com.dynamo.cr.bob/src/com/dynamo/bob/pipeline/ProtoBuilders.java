@@ -64,7 +64,7 @@ import com.dynamo.render.proto.RenderTarget.RenderTargetDesc;
 
 public class ProtoBuilders {
 
-    private static String[][] textureSrcExts = {{".png", ".texturec"}, {".jpg", ".texturec"}, {".jpeg", ".texturec"}, {".tga", ".texturec"}, {".cubemap", ".texturec"}, {".render_target", ".render_targetc"}};
+    private static String[][] textureSrcExts = {{".png", ".texturec"}, {".jpg", ".texturec"}, {".jpeg", ".texturec"}, {".tga", ".texturec"}, {".ktx2", ".texturec"}, {".cubemap", ".texturec"}, {".render_target", ".render_targetc"}};
     private static String[][] renderResourceExts = {{".render_target", ".render_targetc"}, {".material", ".materialc"}, {".compute", ".computec"}};
 
     public static String getTextureSetExt(String str) throws Exception {
@@ -175,7 +175,32 @@ public class ProtoBuilders {
 
     @ProtoParams(srcClass = RenderTargetDesc.class, messageClass = RenderTargetDesc.class)
     @BuilderParams(name="RenderTarget", inExts=".render_target", outExt=".render_targetc")
-    public static class RenderTargetDescBuilder extends ProtoBuilder<RenderTargetDesc.Builder> {}
+    public static class RenderTargetDescBuilder extends ProtoBuilder<RenderTargetDesc.Builder> {
+        @Override
+        protected RenderTargetDesc.Builder transform(Task task, IResource resource, RenderTargetDesc.Builder messageBuilder) throws CompileExceptionError {
+            RenderTargetDesc.DepthStencilAttachment depthStencil = messageBuilder.getDepthStencilAttachment();
+            if (messageBuilder.getColorAttachmentsCount() == 0 && (depthStencil.getWidth() == 0 || depthStencil.getHeight() == 0)) {
+                throw new CompileExceptionError(resource, 0, "Render targets must have at least one attachment.");
+            }
+            for (int i = 0; i < messageBuilder.getColorAttachmentsCount(); ++i) {
+                RenderTargetDesc.ColorAttachment attachment = messageBuilder.getColorAttachments(i);
+                if (attachment.getWidth() == 0 || attachment.getHeight() == 0) {
+                    throw new CompileExceptionError(resource, 0, String.format(
+                            "Render target color attachment %d must have non-zero dimensions (got %dx%d).",
+                            i, attachment.getWidth(), attachment.getHeight()));
+                }
+            }
+            switch (messageBuilder.getType()) {
+                case TYPE_2D:
+                case TYPE_CUBEMAP:
+                    return messageBuilder;
+                default:
+                    throw new CompileExceptionError(resource, 0, String.format(
+                            "Render target texture type '%s' is not supported. Only TYPE_2D and TYPE_CUBEMAP are supported.",
+                            messageBuilder.getType()));
+            }
+        }
+    }
 
     @ProtoParams(srcClass = FactoryDesc.class, messageClass = FactoryDesc.class)
     @BuilderParams(name="Factory", inExts=".factory", outExt=".factoryc")

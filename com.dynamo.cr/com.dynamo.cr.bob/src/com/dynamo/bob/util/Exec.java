@@ -15,21 +15,19 @@
 package com.dynamo.bob.util;
 import com.dynamo.bob.Platform;
 
-import java.nio.file.Files;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.util.List;
 import java.util.Map;
 
 import com.dynamo.bob.logging.Logger;
 
 public class Exec {
+
+    private static final int STATUS_DLL_NOT_FOUND = 0xC0000135;
 
     private static String verbosity = System.getenv("DM_BOB_VERBOSE");
     private static Logger logger = Logger.getLogger(Exec.class.getName());
@@ -78,6 +76,10 @@ public class Exec {
                 e.printStackTrace();
             }
         }
+        if (ret == STATUS_DLL_NOT_FOUND && Platform.getHostPlatform().isWindows()) {
+            String executable = new File(pb.command().get(0)).getName();
+            throw new IOException(String.format("%s is missing a required DLL (0x%08X, STATUS_DLL_NOT_FOUND).", executable, ret));
+        }
         return ret;
     }
     private static Result startAndWaitForProcessBuilderResult(ProcessBuilder pb) throws IOException {
@@ -93,6 +95,8 @@ public class Exec {
 
         ProcessBuilder processBuilder = new ProcessBuilder(args);
         processBuilder.redirectErrorStream(true);
+        // Set by the macOS editor launcher; inherited, it makes each tool register as the editor app with its own Dock icon
+        processBuilder.environment().remove("CFProcessPath");
 
         Platform platform = Platform.getHostPlatform();
         if (platform == Platform.X86_64Win32) {

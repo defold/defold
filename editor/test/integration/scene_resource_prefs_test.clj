@@ -80,6 +80,24 @@
         (is (= (camera-prefs camera)
                (camera-prefs (try-load-camera-from-prefs prefs "/a.collection"))))))))
 
+(deftest stored-camera-keeps-its-2d-mode
+  (let [prefs (make-isolated-prefs)
+        camera-2d (camera/make-camera :orthographic identity {:fov-x 1000.0 :fov-y 1000.0})
+        front-view-3d (camera/frame-camera-to-axis (camera/tumble camera-2d 10.0 0.0) :+z)
+        tilted-3d (camera/tumble camera-2d 10.0 0.0)]
+    (testing "the mode is restored as stored, regardless of the view direction"
+      (store-camera! prefs "/2d.collection" camera-2d)
+      (store-camera! prefs "/front.collection" front-view-3d)
+      (is (camera/mode-2d? (try-load-camera-from-prefs prefs "/2d.collection")))
+      (is (not (camera/mode-2d? (try-load-camera-from-prefs prefs "/front.collection")))))
+
+    (testing "a camera stored without the mode is 2D when orthographic and front-facing"
+      (doseq [[proj-path camera expected] [["/old-2d.collection" camera-2d true]
+                                           ["/old-tilted.collection" tilted-3d false]]]
+        (prefs/set-pref-entry-in! prefs resource-settings-path proj-path [:camera]
+                                  (dissoc (camera-prefs camera) :mode-2d))
+        (is (= expected (camera/mode-2d? (try-load-camera-from-prefs prefs proj-path))))))))
+
 (deftest incomplete-stored-camera-falls-back-to-the-default
   (let [prefs (make-isolated-prefs)
         camera (camera/make-camera :orthographic identity {:fov-x 1000.0 :fov-y 1000.0})]
@@ -122,7 +140,7 @@
 (deftest visibility-settings-load-per-resource
   (test-util/with-loaded-project
     (let [prefs (make-isolated-prefs)
-          scene-visibility (scene-visibility/make-scene-visibility-node! world prefs app-view)
+          scene-visibility (scene-visibility/make-scene-visibility-node! prefs app-view)
           stored {:filters-enabled false :filtered-renderable-tags #{:sprite :model}}]
       (prefs/set-pref-entry-in! prefs resource-settings-path "/logic/atlas_sprite.collection" [:scene-visibility] stored)
 
@@ -137,7 +155,7 @@
 (deftest visibility-settings-persist-against-the-active-resource
   (test-util/with-loaded-project
     (let [prefs (make-isolated-prefs)
-          scene-visibility (scene-visibility/make-scene-visibility-node! world prefs app-view)
+          scene-visibility (scene-visibility/make-scene-visibility-node! prefs app-view)
           collection-path "/logic/atlas_sprite.collection"
           go-path "/logic/atlas_sprite.go"
           stored-tags (fn [proj-path]
@@ -172,7 +190,7 @@
   ;; still update; it just must not invent a prefs entry.
   (test-util/with-loaded-project
     (let [prefs (make-isolated-prefs)
-          scene-visibility (scene-visibility/make-scene-visibility-node! world prefs app-view)]
+          scene-visibility (scene-visibility/make-scene-visibility-node! prefs app-view)]
       (set-visibility-settings! scene-visibility #(assoc % :filters-enabled false))
       (is (false? (:filters-enabled (visibility-settings scene-visibility)))
           "the toggle should still take effect in the view")
@@ -189,7 +207,7 @@
     (is (= :grid-3d (grid-mode (camera/make-camera :perspective identity {:fov-x 54.4 :fov-y 37.8}))))
 
     (testing "an orthographic camera rotated off the front view is a 3D view"
-      (is (= :grid-3d (grid-mode (assoc orthographic :rotation (math/euler->quat [0.0 45.0 0.0]))))))))
+      (is (= :grid-3d (grid-mode (camera/tumble orthographic 100.0 0.0)))))))
 
 (deftest grid-reads-the-preset-its-camera-selects
   (test-util/with-loaded-project
@@ -204,7 +222,7 @@
                     (g/tx-nodes-added
                       (g/transact
                         {:undoable false}
-                        (g/make-nodes (g/node-id->graph-id view-id) [grid [grid/Grid :prefs prefs]]
+                        (g/make-nodes [grid [grid/Grid :prefs prefs]]
                           (g/connect camera-id :camera grid :camera)))))
           merged-options #(g/node-value grid-id :merged-options)
           set-camera! (fn set-camera! [camera]

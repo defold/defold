@@ -14,13 +14,13 @@
 
 #include <dmsdk/dlib/android.h>
 
-extern "C" void _glfwPreMain(struct android_app* state);
+#include <platform/platform_app.h>
 extern "C" void app_dummy();
 
 extern "C" void android_main(struct android_app* state)
 {
-    // Reference app_dummy() so the native app glue object is pulled from dmglfw.
+    // Reference app_dummy() so the native app glue object is linked.
     app_dummy();
     dmAndroid::SetAndroidApp(state);
-    _glfwPreMain(state);
+    dmPlatform::AndroidPreMain(state);
 }

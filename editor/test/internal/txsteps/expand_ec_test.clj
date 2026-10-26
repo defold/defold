@@ -22,7 +22,7 @@
 
 (deftest expand-ec-test
   (test-support/with-clean-system
-    (let [node-id (g/make-node! world helpers/PropertyTestNode)
+    (let [node-id (g/make-node! helpers/PropertyTestNode)
           tx-data-context-map {}]
 
       (testing "Transact."
@@ -57,7 +57,7 @@
 
 (deftest expand-ec-within-expanded-tx-steps-test
   (test-support/with-clean-system
-    (let [node-id (g/make-node! world helpers/PropertyTestNode)
+    (let [node-id (g/make-node! helpers/PropertyTestNode)
           tx-data-context-map {}]
 
       (testing "Transact."

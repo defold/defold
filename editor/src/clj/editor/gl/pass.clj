@@ -16,8 +16,7 @@
   (:require [dynamo.graph :as g]
             [schema.core :as s]
             [editor.types :as types])
-  (:import [com.jogamp.opengl GL GL2]
-           [com.jogamp.opengl.glu GLU]))
+  (:import [com.jogamp.opengl GL GL3]))
 
 (set! *warn-on-reflection* true)
 
@@ -62,24 +61,23 @@
                        (s/optional-key selection)             s/Any
                        (s/optional-key manipulator-selection) s/Any})
 
-(defmulti prepare-gl (fn [pass gl glu] pass))
+(defmulti prepare-gl (fn [pass gl] pass))
 
 (defmethod prepare-gl background
-  [_ ^GL2 gl ^GLU glu]
-  (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+  [_ ^GL3 gl]
+  (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL3/GL_FILL)
   (.glDisable gl GL/GL_BLEND)
   (.glDisable gl GL/GL_DEPTH_TEST)
   (.glDepthMask gl false)
   (.glDisable gl GL/GL_SCISSOR_TEST)
   (.glDisable gl GL/GL_STENCIL_TEST)
   (.glStencilMask gl 0x0)
-  (.glColorMask gl true true true true)
-  (.glDisable gl GL2/GL_LINE_STIPPLE))
+  (.glColorMask gl true true true true))
 
 (defmethod prepare-gl infinity-grid
-  [_ ^GL2 gl ^GLU glu]
+  [_ ^GL3 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
     (.glDisable GL/GL_DEPTH_TEST)
@@ -87,39 +85,36 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl opaque
-  [_ ^GL2 gl glu]
+  [_ ^GL3 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
     (.glDisable GL/GL_BLEND)
     (.glEnable GL/GL_DEPTH_TEST)
     (.glDepthMask true)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl outline
-  [_ ^GL2 gl glu]
+  [_ ^GL3 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_LINE)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_LINE)
     (.glDisable GL/GL_BLEND)
     (.glDisable GL/GL_DEPTH_TEST)
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl transparent
-  [_ ^GL2 gl glu]
+  [_ ^GL3 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
     (.glEnable GL/GL_DEPTH_TEST)
@@ -127,26 +122,24 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl opaque-selection
-  [_ ^GL2 gl glu]
+  [_ ^GL3 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
     (.glDisable GL/GL_BLEND)
     (.glEnable GL/GL_DEPTH_TEST)
     (.glDepthMask true)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl selection
-  [_ ^GL2 gl glu]
+  [_ ^GL3 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
     (.glEnable GL/GL_DEPTH_TEST)
@@ -154,13 +147,12 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl manipulator
-  [_ ^GL2 gl glu]
+  [_ ^GL3 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
     (.glDisable GL/GL_DEPTH_TEST)
@@ -168,13 +160,12 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl manipulator-selection
-  [_ ^GL2 gl glu]
+  [_ ^GL3 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
     (.glDisable GL/GL_DEPTH_TEST)
@@ -182,13 +173,12 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl overlay
-  [_ ^GL2 gl glu]
+  [_ ^GL3 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
     (.glDisable GL/GL_DEPTH_TEST)
@@ -196,8 +186,7 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (doseq [[v doc]
         {*ns*

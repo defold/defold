@@ -1,12 +1,10 @@
 ﻿#!/usr/bin/env python
-# Copyright 2020-2026 The Defold Foundation
-# Licensed under the Defold License version 1.0
-
 import argparse
 import copy
 import os
 import re
 import shutil
+import subprocess
 import sys
 import time
 import uuid
@@ -222,6 +220,41 @@ def _gdk_tool_path(name):
         if os.path.exists(candidate):
             return candidate
     return name
+
+
+def _xbone_remote_address(log):
+    address = os.environ.get('XBOX_CONSOLE') or os.environ.get('XBOX_TEST_CONSOLE')
+    if address and address.strip():
+        return address.strip()
+    try:
+        # Bare output preserves hostnames and access keys, and avoids selecting
+        # an unrelated IP from diagnostic or discovery output.
+        output = subprocess.check_output(
+            [_gdk_tool_path('xbconnect.exe'), '/Q', '/B'],
+            stderr=subprocess.STDOUT, timeout=3).decode(errors='replace').strip()
+        if output and len(output.splitlines()) == 1 and not any(c.isspace() for c in output):
+            return output
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        output = subprocess.check_output(
+            [_gdk_tool_path('xbconnect.exe'), '/discover'],
+            stderr=subprocess.STDOUT, timeout=15).decode(errors='replace')
+        consoles = re.findall(
+            r'^\s*\S+\s+(\d{1,3}(?:\.\d{1,3}){3})\s+\(Console version:',
+            output, re.MULTILINE)
+        consoles = list(dict.fromkeys(consoles))
+        if len(consoles) == 1:
+            log('Discovered Xbox console: %s' % consoles[0])
+            return consoles[0]
+        if len(consoles) > 1:
+            log('Warning: Multiple Xbox consoles discovered; set XBOX_CONSOLE to select one.')
+            return None
+    except (OSError, subprocess.SubprocessError):
+        pass
+    log('Warning: No default Xbox console address found. Set XBOX_CONSOLE before make_solution, '
+        'or configure the GDK default with xbconnect <address>.')
+    return None
 
 
 def _raw_command_path_prefix(paths):
@@ -874,7 +907,7 @@ def _source_items_from_project(target_project_path):
     return os.linesep.join(groups)
 
 
-def _write_xbone_debug_project(project_dir, project_name, target_name, target_project_path, build_dir, private_repo_root, defold_root, toolset=None, windows_sdk_version=None):
+def _write_xbone_debug_project(project_dir, project_name, target_name, target_project_path, build_dir, private_repo_root, defold_root, toolset=None, windows_sdk_version=None, remote_address=None):
     os.makedirs(project_dir, exist_ok=True)
 
     project_guid = _xbone_debug_project_guid(project_name)
@@ -909,12 +942,13 @@ def _write_xbone_debug_project(project_dir, project_name, target_name, target_pr
         f'--artwork-dir {_msbuild_command_arg(artwork_dir)} '
         f'--app-name "{_xml_escape(project_name)}"'
         f'{pdb_args}')
+    remote_target_arg = ' /X &quot;$(RemoteAddress)&quot;' if remote_address else ''
     build_command = (
         f'{path_prefix}{_msbuild_command_arg(cmake_path)} --build {_msbuild_command_arg(build_dir)} '
         f'--config "$(Configuration)" --target "{_xml_escape(target_name)}"'
         f' -- /nodeReuse:false /v:minimal'
         f' &amp;&amp; {stage_invocation}'
-        f' &amp;&amp; {_msbuild_command_arg(xbapp_path)} deploy {_msbuild_command_arg(layout_dir)} /S /Drive:development')
+        f' &amp;&amp; {_msbuild_command_arg(xbapp_path)}{remote_target_arg} deploy {_msbuild_command_arg(layout_dir)} /S /Drive:development')
     symbol_search_path = ';'.join([layout_dir, os.path.dirname(exe_path)])
     debugger_command = os.path.join(layout_dir, f'{target_name}.exe')
 
@@ -926,6 +960,8 @@ def _write_xbone_debug_project(project_dir, project_name, target_name, target_pr
     configuration_groups = []
     nmake_groups = []
     user_groups = []
+    if remote_address:
+        user_groups.append(f'  <PropertyGroup><RemoteAddress>{_xml_escape(remote_address)}</RemoteAddress></PropertyGroup>')
     for configuration in _XBONE_DEBUG_CONFIGURATIONS:
         for platform_name in _XBONE_DEBUG_PROJECT_PLATFORMS:
             condition = f"'$(Configuration)|$(Platform)'=='{configuration}|{platform_name}'"
@@ -1013,11 +1049,11 @@ def _write_xbone_debug_project(project_dir, project_name, target_name, target_pr
     <DeployFromOutDir>true</DeployFromOutDir>
     <RemoveExtraDeployFiles>true</RemoveExtraDeployFiles>
   </PropertyGroup>
-{os.linesep.join(nmake_groups)}
 {source_item_groups}
 {manifest_item_group}
 {layout_deployment_item_group}
   <Import Project="$(VCTargetsPath)\\Microsoft.Cpp.targets" />
+{os.linesep.join(nmake_groups)}
 </Project>
 '''
 
@@ -1545,6 +1581,7 @@ def generate_xbone_solution(solution_dir, build_dir, target_name, private_repo_r
         shutil.rmtree(old_project_root)
     os.makedirs(project_root, exist_ok=True)
 
+    remote_address = _xbone_remote_address(log)
     toolset = platform_toolset(visual_studio_generator)
     debug_projects_by_source = {}
     for target, project_path in target_projects:
@@ -1559,7 +1596,8 @@ def generate_xbone_solution(solution_dir, build_dir, target_name, private_repo_r
             os.path.abspath(private_repo_root),
             os.path.abspath(defold_root),
             toolset,
-            windows_sdk_version)
+            windows_sdk_version,
+            remote_address)
         debug_projects_by_source[normpath(os.path.abspath(project_path)).lower()] = debug_project
     log_step(f'write Xbox debug projects ({len(debug_projects_by_source)})')
 

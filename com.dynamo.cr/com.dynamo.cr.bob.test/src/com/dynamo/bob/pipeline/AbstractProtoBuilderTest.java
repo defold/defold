@@ -222,7 +222,7 @@ public abstract class AbstractProtoBuilderTest {
             this.mp = mp;
             this.basePath = basePath;
             if (basePath.startsWith("/")) {
-                this.basePath = basePath.substring(1, basePath.length());
+                this.basePath = basePath.substring(1);
             }
         }
 

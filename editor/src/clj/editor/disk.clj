@@ -30,6 +30,7 @@
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [internal.invalidate-counters :as ic]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
@@ -134,7 +135,7 @@
   {:pre [(vector? written-save-datas)
          (vector? written-disk-sha256s)
          (= (count written-save-datas) (count written-disk-sha256s))
-         (or (nil? snapshot-invalidate-counters) (map? snapshot-invalidate-counters))]}
+         (or (nil? snapshot-invalidate-counters) (ic/counters? snapshot-invalidate-counters))]}
   (into {:snapshot-invalidate-counters snapshot-invalidate-counters
          :written-save-datas written-save-datas}
         (zipmap
@@ -264,7 +265,7 @@
                   (try
                     (render-save-progress! (progress/make-indeterminate (localization/message "progress.reading-timestamps")))
                     (project/reload-plugins! project written-resources)
-                    (lsp/touch-resources! (lsp/get-node-lsp project) written-resources)
+                    (lsp/touch-resources! (lsp/get-lsp) written-resources)
                     (cond
                       reload-required
                       (complete! (blocking-reload! render-reload-progress! workspace [] changes-view))

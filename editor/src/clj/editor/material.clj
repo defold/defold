@@ -32,6 +32,7 @@
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur]
@@ -39,7 +40,7 @@
   (:import [com.dynamo.bob.pipeline MaterialBuilder]
            [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
-           [com.jogamp.opengl GL2]
+           [com.jogamp.opengl GL3]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Vector4d]))
 
@@ -249,6 +250,7 @@
                            (pair resolved-sampler-name nil))))
                   samplers))]
 
+    ;; OpenGL programs retain uniform values, including constants omitted by a material.
     (shader/make-shader-lifecycle _node-id shader-request-data attribute-reflection-infos uniform-values-by-name)))
 
 (g/defnk produce-samplers [^:raw samplers default-sampler-filter-modes]
@@ -328,10 +330,71 @@
   (coll/first-index-where #(= [:values] (:path %))
                           vertex-attribute-fields))
 
+(defn- table-2panel-form [form localization-key]
+  (-> form
+      (assoc :type :table-2panel :full-width true)
+      (update :panel-key assoc :localization-key (str localization-key ".name") :pref-width 110)))
+
+(defn- constant-form-with-summary [localization-key path-key]
+  (let [form (render-program-utils/gen-form-data-constants localization-key path-key)
+        type-field (-> ((:panel-form-fn form) nil) :sections first :fields first)]
+    (assoc (table-2panel-form form localization-key)
+      :summary-columns
+      [(assoc type-field :pref-width 130)
+       {:path [:value] :localization-key (str localization-key ".value") :type :vec4
+        :value-fn (fn [{:keys [type value]}]
+                    (when (render-program-utils/editable-constant-type? (or type (:default type-field))) value))
+        :pref-width 180}])))
+
+(defn- vertex-attribute-form-with-summary []
+  (table-2panel-form
+    {:path [:attributes]
+     :localization-key "material.attributes"
+     :summary-columns (let [fields-by-path (coll/into-> vertex-attribute-fields {} (map (juxt :path identity)))
+                            column (fn [path pref-width]
+                                     (let [field (fields-by-path path)]
+                                       (assoc field :pref-width pref-width
+                                              :value-fn #(get-in % path (:default field)))))]
+                        [(column [:semantic-type] 130)
+                         (column [:vector-type] 90)
+                         (column [:data-type] 90)
+                         {:path [:values] :localization-key "material.attributes.value" :type :vec4
+                          :value-fn #(when-not (graphics/engine-provided-attribute? %) (:values %))
+                          :pref-width 180}])
+     :panel-key {:path [:name]
+                 :type :string
+                 :default "new_attribute"}
+     :panel-form-fn
+     (fn panel-form-fn [selected-attribute]
+       {:sections
+        [{:fields
+          (cond
+            (nil? selected-attribute)
+            vertex-attribute-fields
+
+            (graphics/engine-provided-attribute? selected-attribute)
+            (coll/remove-index vertex-attribute-fields value-vertex-attribute-field-index)
+
+            :else
+            (assoc vertex-attribute-fields
+              value-vertex-attribute-field-index
+              (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
+                    vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
+                    data-type (:data-type selected-attribute graphics/default-attribute-data-type)
+                    normalize (:normalize selected-attribute false)
+                    type (vector-type->form-field-type semantic-type vector-type data-type normalize)
+                    default (graphics.types/default-attribute-doubles semantic-type vector-type)]
+                {:path [:values]
+                 :localization-key "material.attributes.value"
+                 :type type
+                 :default default})))}]})}
+    "material.attributes"))
+
 (def ^:private form-data
   {:navigation false
    :sections
-   [{:localization-key "material"
+   [{:localization-key "material.programs"
+     :title-style-class "cljfx-form-group-title"
      :fields
      [{:path [:name]
        :localization-key "material.name"
@@ -339,44 +402,38 @@
        :default "New Material"}
       {:path [:vertex-program]
        :localization-key "material.vertex-program"
-       :type :resource :filter "vp"}
+       :type :resource :filter "vp" :max-width 800}
       {:path [:fragment-program]
        :localization-key "material.fragment-program"
-       :type :resource :filter "fp"}
-      {:path [:attributes]
-       :localization-key "material.attributes"
-       :type :2panel
-       :panel-key {:path [:name]
-                   :type :string
-                   :default "new_attribute"}
-       :panel-form-fn
-       (fn panel-form-fn [selected-attribute]
-         {:sections
-          [{:fields
-            (cond
-              (nil? selected-attribute)
-              vertex-attribute-fields
-
-              (graphics/engine-provided-attribute? selected-attribute)
-              (coll/remove-index vertex-attribute-fields value-vertex-attribute-field-index)
-
-              :else
-              (assoc vertex-attribute-fields
-                value-vertex-attribute-field-index
-                (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
-                      vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
-                      data-type (:data-type selected-attribute graphics/default-attribute-data-type)
-                      normalize (:normalize selected-attribute false)
-                      type (vector-type->form-field-type semantic-type vector-type data-type normalize)
-                      default (graphics.types/default-attribute-doubles semantic-type vector-type)]
-                  {:path [:values]
-                   :localization-key "material.attributes.value"
-                   :type type
-                   :default default})))}]})}
-      (render-program-utils/gen-form-data-constants "material.vertex-constants" :vertex-constants)
-      (render-program-utils/gen-form-data-constants "material.fragment-constants" :fragment-constants)
-      (render-program-utils/gen-form-data-samplers "material.samplers" :samplers)
-      {:path [:tags]
+       :type :resource :filter "fp" :max-width 800}]}
+    {:localization-key "material.attributes"
+     :title-style-class "cljfx-form-group-title"
+     :help-icon true
+     :fields [(vertex-attribute-form-with-summary)]}
+    {:localization-key "material.vertex-constants"
+     :title-style-class "cljfx-form-group-title"
+     :help-icon true
+     :fields [(constant-form-with-summary "material.vertex-constants" :vertex-constants)]}
+    {:localization-key "material.fragment-constants"
+     :title-style-class "cljfx-form-group-title"
+     :help-icon true
+     :fields [(constant-form-with-summary "material.fragment-constants" :fragment-constants)]}
+    {:localization-key "material.samplers"
+     :title-style-class "cljfx-form-group-title"
+     :help-icon true
+     :fields [(let [form (render-program-utils/gen-form-data-samplers "material.samplers" :samplers)
+                    fields (-> form :panel-form :sections first :fields)
+                    summary-paths #{[:wrap-u] [:wrap-v] [:filter-min] [:filter-mag]}]
+                (assoc (table-2panel-form form "material.samplers")
+                  :summary-columns
+                  (into []
+                        (comp (filter #(summary-paths (:path %)))
+                              (map #(assoc % :pref-width (if (= :choicebox (:type %)) 95 110))))
+                        fields)))]}
+    {:localization-key "material.render-settings"
+     :title-style-class "cljfx-form-group-title"
+     :fields
+     [{:path [:tags]
        :localization-key "material.tags"
        :type :list
        :element {:type :string :default "New Tag"}}
@@ -384,6 +441,8 @@
        :localization-key "material.vertex-space"
        :type :choicebox
        :options (protobuf-forms/make-enum-options Material$MaterialDesc$VertexSpace)
+       :pref-width 200
+       :max-width 200
        :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}
       {:path [:max-page-count]
        :localization-key "material.max-page-count"
@@ -447,7 +506,7 @@
     :attributes
     ;; When setting the attributes, coerce the existing values to conform to the
     ;; updated data and vector type.
-    (let [old-attributes-by-name (coll/pair-map-by :name (:attributes user-data))]
+    (let [old-attributes-by-name (coll/pair-map-by :name identity (:attributes user-data))]
       (mapv (fn [new-attribute]
               (if-some [old-attribute (get old-attributes-by-name (:name new-attribute))]
                 (coerce-attribute new-attribute old-attribute)
@@ -462,7 +521,9 @@
     (g/set-property node-id property processed-value)))
 
 (g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count ^:raw samplers tags vertex-space :as args]
-  (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
+  (let [values (select-keys args (coll/into-> (:sections form-data) []
+                                   (mapcat :fields)
+                                   (mapcat :path)))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
         (assoc :values form-values)
@@ -470,27 +531,27 @@
                           :set set-form-op
                           :clear protobuf-forms-util/clear-form-op}))))
 
-(def ^:private wrap-mode->gl {:wrap-mode-repeat GL2/GL_REPEAT
-                              :wrap-mode-mirrored-repeat GL2/GL_MIRRORED_REPEAT
-                              :wrap-mode-clamp-to-edge GL2/GL_CLAMP_TO_EDGE})
+(def ^:private wrap-mode->gl {:wrap-mode-repeat GL3/GL_REPEAT
+                              :wrap-mode-mirrored-repeat GL3/GL_MIRRORED_REPEAT
+                              :wrap-mode-clamp-to-edge GL3/GL_CLAMP_TO_EDGE})
 
 (defn- filter-mode-min->gl [filter-min default-tex-params]
   (case filter-min
-    :filter-mode-min-default (or (:min-filter default-tex-params) GL2/GL_NEAREST_MIPMAP_LINEAR)
-    :filter-mode-min-nearest GL2/GL_NEAREST
-    :filter-mode-min-linear GL2/GL_LINEAR
-    :filter-mode-min-nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST
-    :filter-mode-min-nearest-mipmap-linear GL2/GL_NEAREST_MIPMAP_LINEAR
-    :filter-mode-min-linear-mipmap-nearest GL2/GL_LINEAR_MIPMAP_NEAREST
-    :filter-mode-min-linear-mipmap-linear GL2/GL_LINEAR_MIPMAP_LINEAR
-    GL2/GL_NEAREST_MIPMAP_LINEAR))
+    :filter-mode-min-default (or (:min-filter default-tex-params) GL3/GL_NEAREST_MIPMAP_LINEAR)
+    :filter-mode-min-nearest GL3/GL_NEAREST
+    :filter-mode-min-linear GL3/GL_LINEAR
+    :filter-mode-min-nearest-mipmap-nearest GL3/GL_NEAREST_MIPMAP_NEAREST
+    :filter-mode-min-nearest-mipmap-linear GL3/GL_NEAREST_MIPMAP_LINEAR
+    :filter-mode-min-linear-mipmap-nearest GL3/GL_LINEAR_MIPMAP_NEAREST
+    :filter-mode-min-linear-mipmap-linear GL3/GL_LINEAR_MIPMAP_LINEAR
+    GL3/GL_NEAREST_MIPMAP_LINEAR))
 
 (defn- filter-mode-mag->gl [filter-mag default-tex-params]
   (case filter-mag
-    :filter-mode-mag-default (or (:mag-filter default-tex-params) GL2/GL_LINEAR)
-    :filter-mode-mag-nearest GL2/GL_NEAREST
-    :filter-mode-mag-linear GL2/GL_LINEAR
-    GL2/GL_LINEAR))
+    :filter-mode-mag-default (or (:mag-filter default-tex-params) GL3/GL_LINEAR)
+    :filter-mode-mag-nearest GL3/GL_NEAREST
+    :filter-mode-mag-linear GL3/GL_LINEAR
+    GL3/GL_LINEAR))
 
 (def ^:private default-pb-sampler
   (protobuf/make-map-without-defaults Material$MaterialDesc$Sampler
@@ -548,10 +609,10 @@
             deletions (util/detect-deletions old-name-index new-name-index)]
         (into []
               (comp
-                (map first)
+                (map gt/target-id)
                 (distinct)
                 (mapcat #(handle-sampler-names-changed evaluation-context % old-name-index new-name-index renames deletions)))
-              (g/targets-of (:basis evaluation-context) self label))))))
+              (g/outputs (:basis evaluation-context) self label))))))
 
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
@@ -616,10 +677,9 @@
 (defn- legacy-texture->sampler [name]
   (assoc default-pb-sampler :name name))
 
-(defn load-material [project self resource material-desc]
+(defn load-material [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id material-desc :source-value}]
   {:pre [(map? material-desc)]} ; Material$MaterialDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)
         attributes->editable-attributes #(mapv attribute->editable-attribute %)]
     (concat
       (g/connect project :default-sampler-filter-modes self :default-sampler-filter-modes)
@@ -643,7 +703,7 @@
   :samplers if we encounter them. Ignores :textures that already have
   :samplers with the same name. Also ensures that there are no duplicate
   entries in the :samplers list, based on :name."
-  [material-desc]
+  [_read-opts _owner-resource material-desc]
   ;; Material$MaterialDesc in map format.
   (let [existing-samplers (:samplers material-desc)
         samplers-created-from-textures (map legacy-texture->sampler (:textures material-desc))

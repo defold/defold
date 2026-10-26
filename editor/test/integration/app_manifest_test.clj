@@ -20,7 +20,8 @@
             [editor.code.data :as data]
             [editor.resource-node :as resource-node]
             [editor.yaml :as yaml]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [util.coll :as coll]))
 
 (deftest windows-library-name-load-migration-test
   (let [migrated-content
@@ -60,23 +61,354 @@
           (is (false? (:dirty save-data)))
           (is (= migrated-content (resource-node/save-data-content save-data))))))))
 
+(deftest legacy-macos-vulkan-load-migration-test
+  (doseq [[filename selection] [["vulkan.appmanifest" :vulkan]
+                                ["vulkan_and_opengl_osx.appmanifest" :open-gl-vulkan]]]
+    (let [migrated-content
+          (test-util/with-loaded-project
+            (let [node (test-util/resource-node project (str "/app_manifest/" filename))
+                  manifest (g/node-value node :manifest)
+                  save-data (g/node-value node :save-data)
+                  original (yaml/load (slurp (:resource save-data)) keyword)]
+              (doseq [platform app-manifest/macos]
+                (is (not-any? #{"platform"} (get-in original [:platforms platform :context :excludeLibs])))
+                (is (some #{"platform"} (get-in manifest [:platforms platform :context :excludeLibs]))))
+              (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx)))
+              (is (true? (:dirty save-data)))
+              (is (= manifest (-> original
+                                  (#'app-manifest/migrate-windows-library-names)
+                                  (#'app-manifest/migrate-macos-vulkan-platform)
+                                  (#'app-manifest/migrate-simulator-graphics)
+                                  (#'app-manifest/migrate-bullet3d-exclusions))))
+              (resource-node/save-data-content save-data)))]
+      (test-util/with-temp-project-content
+        {"/current.appmanifest" (data/string->lines migrated-content)}
+        (let [node (test-util/resource-node project "/current.appmanifest")
+              save-data (g/node-value node :save-data)]
+          (is (false? (:dirty save-data)))
+          (is (= selection (g/node-value node :graphics-osx)))
+          (is (= migrated-content (resource-node/save-data-content save-data)))))))
+  (doseq [manifest [{} {:platforms {:osx {:context {:libs ["graphics_metal"]}}}}
+                    {:platforms {:osx {:context {:libs ["platform_vulkan"] :excludeLibs ["platform_vulkan"]}}}}
+                    {:platforms {:osx {:context {:libs ["platform_vulkan"] :excludeLibs "invalid"}}}}]]
+    (is (= manifest (#'app-manifest/migrate-macos-vulkan-platform manifest)))))
+
 (deftest unchanged-app-manifest-load-test
   (test-util/with-temp-project-content
-    {"/current.appmanifest"
+    {"/empty.appmanifest" ["# Use engine defaults" "platforms: {}"]
+
+     "/current.appmanifest"
      ["# Preserve comments and formatting"
       "platforms: {win32: {context: {libs: [font_render, dmbedtls, libcustom.lib]}}}"]
 
      "/invalid.appmanifest"
      ["platforms: ["]
 
+     "/scalar.appmanifest"
+     ["true"]
+
      "/malformed.appmanifest"
      ["platforms: {win32: {context: {libs: libmbedtls.lib}}, x86-win32: null, x86_64-win32: {context: {libs: [null, 42, libcustom.lib]}}}"]}
-    (doseq [proj-path ["/current.appmanifest" "/invalid.appmanifest" "/malformed.appmanifest"]]
+    (doseq [proj-path ["/empty.appmanifest" "/current.appmanifest" "/invalid.appmanifest" "/scalar.appmanifest" "/malformed.appmanifest"]]
       (let [manifest-node (test-util/resource-node project proj-path)
             save-data (g/node-value manifest-node :save-data)]
         (is (false? (:dirty save-data)))
         (is (= (slurp (:resource save-data))
                (resource-node/save-data-content save-data)))))))
+
+;; Verifies legacy recording exclusions cover the Lua API, backends, service and
+;; encoder, preserve unrelated settings, and migrate only once.
+(deftest record-exclusion-migration-test
+  (doseq [[platforms expected-libraries expected-symbols]
+          [[[:osx :arm64-osx :x86_64-osx :win32 :x86-win32 :x86_64-win32]
+            ["custom" "record" "record_script" "record_service"]
+            ["CustomSymbol" "ScriptRecord" "EngineRecord"]]
+
+           [[nil :common :linux :x86_64-linux :arm64-linux]
+            ["custom" "record" "record_script" "record_service" "openh264"]
+            ["CustomSymbol" "ScriptRecord" "EngineRecord"]]
+
+           [[:ios :arm64-ios :arm64_sim-ios
+             :android :armv7-android :arm64-android :x86_64-android
+             :web :wasm-web :wasm_pthread-web]
+            ["custom" "record" "record_script"]
+            ["CustomSymbol" "ScriptRecord"]]]
+
+          platform platforms
+          vpx ["vpx" "vpx.lib" "libvpx" "libvpx.lib"]]
+    (let [path (if platform [:platforms platform :context] [:context])
+
+          context
+          {:excludeLibs ["custom" "record" vpx]
+           :excludeSymbols ["CustomSymbol"]
+           :libs ["record_null" "custom"]
+           :defines ["CUSTOM"]}
+
+          manifest (assoc-in {} path context)
+          migrated (#'app-manifest/migrate-record-exclusions manifest)]
+      (is (= (assoc context
+               :excludeLibs expected-libraries
+               :excludeSymbols expected-symbols
+               :libs ["custom"])
+             (get-in migrated path)))
+      (is (= migrated (#'app-manifest/migrate-record-exclusions migrated)))))
+
+  (testing "Legacy Windows names and missing symbol lists"
+    (let [manifest
+          {:platforms
+           {:x86_64-win32
+            {:context
+             {:excludeLibs ["librecord" "vpx"]
+              :libs ["librecord_null.lib"]}}}}
+
+          migrated
+          (-> manifest
+              (#'app-manifest/migrate-windows-library-names)
+              (#'app-manifest/migrate-record-exclusions))]
+      (is (= {:excludeLibs ["record" "record_script" "record_service"]
+              :excludeSymbols ["ScriptRecord" "EngineRecord"]
+              :libs []}
+             (get-in migrated [:platforms :x86_64-win32 :context])))))
+
+  (testing "Existing service and encoder exclusions are not duplicated"
+    (let [context
+          {:excludeLibs ["record" "vpx" "record_service" "openh264"]
+           :excludeSymbols ["EngineRecord"]}]
+      (is (= (assoc context
+               :excludeLibs ["record" "record_service" "openh264" "record_script"]
+               :excludeSymbols ["EngineRecord" "ScriptRecord"])
+             (#'app-manifest/migrate-record-context context :linux)))))
+
+  (testing "Explicit recording libraries are removed while custom libraries remain"
+    (let [context
+          {:excludeLibs ["record" "record_script"]
+           :libs ["librecord.lib" "record_null" "record_script.lib" "librecord_service" "custom"]}]
+      (is (= {:excludeLibs ["record" "record_script" "record_service" "openh264"]
+              :excludeSymbols ["ScriptRecord" "EngineRecord"]
+              :libs ["custom"]}
+             (#'app-manifest/migrate-record-context context :linux)))))
+
+  (testing "Partial and malformed settings are preserved"
+    (doseq [context
+            [nil 42 []
+             {:excludeLibs ["record"]}
+             {:excludeLibs ["vpx"]}
+             {:excludeLibs "record"}
+             {:excludeLibs [nil 42 "custom"]}
+             {:excludeLibs ["record" "vpx"]
+              :excludeSymbols "invalid"}
+             {:excludeLibs ["record" "vpx"]
+              :libs "invalid"}
+             {:excludeLibs ["record" "vpx"]
+              :engineLibs "invalid"}
+             {:excludeLibs ["record_script"]}
+             {:libs ["record"]}
+             {:libs ["record_null"]
+              :excludeLibs "invalid"}
+             {:libs ["record_null"]
+              :excludeSymbols "invalid"}]
+
+            path [[:context]
+                  [:platforms :common :context]
+                  [:platforms :x86_64-linux :context]]]
+      (let [manifest (assoc-in {} path context)]
+        (is (= manifest (#'app-manifest/migrate-record-exclusions manifest)))))
+
+    (doseq [manifest [nil true [] {} {:platforms []} {:platforms {:linux nil}}]]
+      (is (= manifest (#'app-manifest/migrate-record-exclusions manifest))))))
+
+;; Verifies manifests already migrated away from VPX also strip the Lua API and
+;; explicit recorder libraries, while keeping unrelated libraries and settings.
+(deftest native-record-exclusion-migration-test
+  (doseq [platform
+          [nil :common :osx :arm64-osx :x86_64-osx
+           :linux :x86_64-linux :arm64-linux :win32 :x86-win32 :x86_64-win32
+           :ios :arm64-ios :arm64_sim-ios
+           :android :armv7-android :arm64-android :x86_64-android
+           :web :wasm-web :wasm_pthread-web]
+
+          included-key [:libs :engineLibs]
+          null-library ["record_null" "record_null.lib" "librecord_null" "librecord_null.lib"]]
+    (let [path (if platform [:platforms platform :context] [:context])
+
+          linux-platform
+          (or (nil? platform) (#{:common :linux} platform) (app-manifest/linux platform))
+
+          desktop-platform
+          (or linux-platform (app-manifest/desktop platform) (#{:osx :win32 :x86-win32} platform))
+
+          context
+          {:excludeLibs
+           (cond-> ["custom" "record"]
+             desktop-platform
+             (conj "record_service")
+
+             linux-platform
+             (conj "openh264"))
+
+           :excludeSymbols
+           (cond-> ["CustomSymbol"]
+             desktop-platform
+             (conj "EngineRecord"))
+
+           included-key [null-library "custom"]
+           :defines ["CUSTOM"]}
+
+          manifest (assoc-in {} path context)
+          migrated (#'app-manifest/migrate-record-exclusions manifest)]
+      (is (= (-> context
+                 (update :excludeLibs conj "record_script")
+                 (update :excludeSymbols conj "ScriptRecord")
+                 (assoc included-key ["custom"]))
+             (get-in migrated path)))
+      (is (= migrated (#'app-manifest/migrate-record-exclusions migrated))))))
+
+;; Verifies explicit null backends exclude recording without an exclusion list,
+;; and obsolete null exclusions are removed without affecting other settings.
+(deftest null-record-backend-migration-test
+  (doseq [platform [nil :common :osx :linux :win32 :ios :android :web]
+          included-key [:libs :engineLibs]
+          null-library ["record_null" "record_null.lib" "librecord_null" "librecord_null.lib"]]
+    (let [path (if platform [:platforms platform :context] [:context])
+
+          context
+          {included-key [null-library "custom"]
+           :defines ["CUSTOM"]}
+
+          manifest (assoc-in {} path context)
+          migrated (#'app-manifest/migrate-record-exclusions manifest)
+          linux-platform (or (nil? platform) (#{:common :linux} platform))
+          desktop-platform (or linux-platform (#{:osx :win32} platform))]
+      (is (= {included-key ["custom"]
+              :defines ["CUSTOM"]
+
+              :excludeLibs
+              (cond-> ["record" "record_script"]
+                desktop-platform
+                (conj "record_service")
+
+                linux-platform
+                (conj "openh264"))
+
+              :excludeSymbols
+              (cond-> ["ScriptRecord"]
+                desktop-platform
+                (conj "EngineRecord"))}
+             (get-in migrated path)))
+      (is (= migrated (#'app-manifest/migrate-record-exclusions migrated)))))
+
+  (doseq [context
+          [{:excludeLibs ["record"]
+            :libs ["record_null"]}
+
+           {:excludeLibs ["record"]
+            :excludeSymbols ["ScriptRecord"]
+            :libs ["record_null"]}
+
+           {:excludeLibs nil
+            :excludeSymbols nil
+            :libs ["record_null"]}]]
+    (is (= {:excludeLibs ["record" "record_script" "record_service" "openh264"]
+            :excludeSymbols ["ScriptRecord" "EngineRecord"]
+            :libs []}
+           (#'app-manifest/migrate-record-context context :linux))))
+
+  (doseq [context
+          [{:excludeLibs ["record" "record_null"]}
+
+           {:excludeLibs ["record" "record_null" "record_script" "record_service" "openh264"]
+            :excludeSymbols ["ScriptRecord" "EngineRecord"]}]]
+    (is (= {:excludeLibs ["record" "record_script" "record_service" "openh264"]
+            :excludeSymbols ["ScriptRecord" "EngineRecord"]}
+           (#'app-manifest/migrate-record-context context :linux))))
+
+  (let [context
+        {:excludeLibs ["custom" "record_null" "record_null.lib" "librecord_null" "librecord_null.lib"]
+         :defines ["CUSTOM"]}]
+    (is (= {:excludeLibs ["custom"]
+            :defines ["CUSTOM"]}
+           (#'app-manifest/migrate-record-context context :linux)))))
+
+;; Verifies Windows manifests and editor controls use the actual record_script
+;; archive name for current and legacy library spellings.
+(deftest record-script-windows-library-names-test
+  (doseq [platform [:win32 :x86-win32 :x86_64-win32]
+          key [:excludeLibs :libs :engineLibs]]
+    (let [path [:platforms platform :context key]
+          manifest (assoc-in {} path ["record_script" "record_script.lib" "librecord_script" "librecord_script.lib"])
+          migrated (#'app-manifest/migrate-windows-library-names manifest)]
+      (is (= ["record_script" "record_script" "record_script" "record_script"]
+             (get-in migrated path)))
+      (is (= migrated (#'app-manifest/migrate-windows-library-names migrated)))))
+
+  (is (= "record_script" (app-manifest/platformify-excluded-lib :x86_64-win32 "record_script")))
+  (is (= "record_script.lib" (app-manifest/platformify-lib-filename :x86_64-win32 "record_script"))))
+
+;; Verifies the recording toggle writes all current exclusions and can remove
+;; them again, without generating obsolete VPX or null backend entries.
+(deftest record-setting-test
+  (let [enabled
+        (app-manifest/set-setting-value {} app-manifest/record-setting true)
+
+        disabled
+        (app-manifest/set-setting-value enabled app-manifest/record-setting false)]
+    (is (true? (app-manifest/get-setting-value enabled app-manifest/record-setting)))
+    (is (false? (app-manifest/get-setting-value disabled app-manifest/record-setting)))
+
+    (doseq [platform app-manifest/all-platforms]
+      (let [context (get-in enabled [:platforms platform :context])
+            desktop-platform (app-manifest/desktop platform)]
+        (is (= (cond-> ["record" "record_script"]
+                 desktop-platform
+                 (conj "record_service")
+
+                 (app-manifest/linux platform)
+                 (conj "openh264"))
+               (:excludeLibs context)))
+        (is (= (cond-> ["ScriptRecord"]
+                 desktop-platform
+                 (conj "EngineRecord"))
+               (:excludeSymbols context)))
+        (is (nil? (:libs context)))
+        (is (= {:excludeLibs []
+                :excludeSymbols []}
+               (get-in disabled [:platforms platform :context])))))))
+
+;; Verifies loading and saving an old recording exclusion preserves the checked
+;; setting, and reloading the saved migration does not dirty the manifest again.
+(deftest record-exclusion-load-migration-test
+  (let [migrated-content
+        (test-util/with-loaded-project
+          (let [node
+                (test-util/resource-node project "/app_manifest/exclude_many.appmanifest")
+
+                manifest (g/node-value node :manifest)
+                save-data (g/node-value node :save-data)]
+            (is (true? (g/node-value node :exclude-record)))
+            (is (true? (:dirty save-data)))
+
+            (doseq [platform app-manifest/all-platforms]
+              (is (coll/not-any? #{"vpx"}
+                                 (get-in manifest [:platforms platform :context :excludeLibs]))))
+
+            (let [content (resource-node/save-data-content save-data)]
+              (is (= manifest (yaml/load content keyword)))
+              content)))]
+    (test-util/with-temp-project-content
+      {"/current.appmanifest" (data/string->lines migrated-content)}
+      (let [node (test-util/resource-node project "/current.appmanifest")
+            save-data (g/node-value node :save-data)]
+        (is (true? (g/node-value node :exclude-record)))
+        (is (false? (:dirty save-data)))
+        (is (= migrated-content (resource-node/save-data-content save-data)))
+
+        (g/set-property! node :exclude-record false)
+        (is (false? (g/node-value node :exclude-record)))
+
+        (let [manifest (g/node-value node :manifest)]
+          (doseq [platform app-manifest/desktop]
+            (is (coll/not-any? #{"EngineRecord"}
+                               (get-in manifest [:platforms platform :context :excludeSymbols])))))))))
 
 (deftest toggle-test
   (testing "contains toggles"
@@ -101,25 +433,25 @@
         (is (= {:platforms {:common {:context {:libs []}}}}
                (app-manifest/set-toggle-value {:platforms {:common :invalid}} toggle false)))))
     (testing "windows library toggles read legacy and current names"
-      (let [lib-toggle (first (app-manifest/libs-toggles [:x86_64-win32] ["record_null"]))
+      (let [lib-toggle (first (app-manifest/libs-toggles [:x86_64-win32] ["record_script"]))
             exclude-lib-toggle (first (app-manifest/exclude-libs-toggles [:x86_64-win32] ["record"]))]
         (is (true? (app-manifest/get-toggle-value
-                     {:platforms {:x86_64-win32 {:context {:libs ["record_null"]}}}}
+                     {:platforms {:x86_64-win32 {:context {:libs ["record_script"]}}}}
                      lib-toggle)))
         (is (true? (app-manifest/get-toggle-value
-                     {:platforms {:x86_64-win32 {:context {:libs ["record_null.lib"]}}}}
+                     {:platforms {:x86_64-win32 {:context {:libs ["record_script.lib"]}}}}
                      lib-toggle)))
         (is (true? (app-manifest/get-toggle-value
-                     {:platforms {:x86_64-win32 {:context {:libs ["librecord_null.lib"]}}}}
+                     {:platforms {:x86_64-win32 {:context {:libs ["librecord_script.lib"]}}}}
                      lib-toggle)))
-        (is (= {:platforms {:x86_64-win32 {:context {:libs ["record_null"]}}}}
+        (is (= {:platforms {:x86_64-win32 {:context {:libs ["record_script"]}}}}
                (app-manifest/set-toggle-value
                  {:platforms {:x86_64-win32 {:context {:libs []}}}}
                  lib-toggle
                  true)))
         (is (= {:platforms {:x86_64-win32 {:context {:libs []}}}}
                (app-manifest/set-toggle-value
-                 {:platforms {:x86_64-win32 {:context {:libs ["record_null" "record_null.lib" "librecord_null.lib"]}}}}
+                 {:platforms {:x86_64-win32 {:context {:libs ["record_script" "record_script.lib" "librecord_script.lib"]}}}}
                  lib-toggle
                  false)))
         (is (true? (app-manifest/get-toggle-value
@@ -315,6 +647,139 @@
             (is (= exclude-bullet-script
                    (contains? (set (:excludeSymbols context)) "ScriptBullet3DExt")))))))))
 
+;; Verifies every Windows backend transition updates link inputs and preserves unrelated
+;; settings, guarding against stale backend libraries and symbols.
+(deftest windows-graphics-setting-test
+  (let [setting app-manifest/graphics-setting-windows
+        selections {:open-gl #{:open-gl}
+                    :vulkan #{:vulkan}
+                    :dx12 #{:dx12}
+                    :open-gl-vulkan #{:open-gl :vulkan}
+                    :open-gl-dx12 #{:open-gl :dx12}
+                    :vulkan-dx12 #{:vulkan :dx12}
+                    :open-gl-vulkan-dx12 #{:open-gl :vulkan :dx12}}
+        original (app-manifest/set-setting-value
+                   {:platforms {:x86_64-win32 {:context {:libs ["custom"]
+                                                         :symbols ["CustomExtension"]}}
+                                :arm64-ios {:context {:libs ["custom_ios"]}}}}
+                   app-manifest/graphics-setting :vulkan)]
+    (is (= :open-gl (app-manifest/get-setting-value {} setting)))
+    (is (= (set (keys selections)) (into #{} (map first) app-manifest/windows-graphics-choice-options)))
+
+    (doseq [from (keys selections)
+            [to backends] selections]
+      (testing (str from " -> " to)
+        (let [manifest (-> original
+                           (app-manifest/set-setting-value setting from)
+                           (app-manifest/set-setting-value setting to))
+              context (get-in manifest [:platforms :x86_64-win32 :context])
+              libs (set (:libs context))
+              excluded (set (:excludeLibs context))
+              symbols (set (:symbols context))
+              excluded-symbols (set (:excludeSymbols context))]
+          (is (= to (app-manifest/get-setting-value manifest setting)))
+
+          (doseq [[backend library symbol] [[:vulkan "graphics_vulkan" "GraphicsAdapterVulkan"]
+                                            [:dx12 "graphics_dx12" "GraphicsAdapterDX12"]]]
+            (is (= (contains? backends backend) (contains? libs library)))
+            (is (= (contains? backends backend) (contains? symbols symbol))))
+
+          (doseq [library ["d3d12.lib" "dxgi.lib" "d3dcompiler.lib"]]
+            (is (= (contains? backends :dx12) (contains? libs library))))
+
+          (doseq [library ["platform_vulkan" "vulkan-1"]]
+            (is (= (contains? backends :vulkan) (contains? libs library))))
+          (is (= (contains? backends :vulkan) (contains? excluded "platform")))
+          (is (= (not (contains? backends :open-gl)) (contains? excluded "graphics")))
+          (is (= (not (contains? backends :open-gl)) (contains? excluded-symbols "GraphicsAdapterOpenGL")))
+          (is (contains? libs "custom"))
+          (is (contains? symbols "CustomExtension"))
+          (is (= (dissoc (:platforms original) :x86_64-win32)
+                 (dissoc (:platforms manifest) :x86_64-win32)))
+          (is (= context (get-in (app-manifest/set-setting-value manifest app-manifest/graphics-setting :open-gl)
+                                 [:platforms :x86_64-win32 :context])))
+          (is (= manifest (app-manifest/set-setting-value manifest setting to))))))))
+
+;; Verifies legacy Windows Vulkan library names are recognized and removed when selecting
+;; DX12, guarding against stale link inputs after changing backends.
+(deftest windows-graphics-legacy-library-names-test
+  (doseq [libs [["libgraphics_vulkan.lib" "platform_vulkan.lib" "vulkan-1.lib"]
+                ["graphics_vulkan" "platform_vulkan" "vulkan-1"]]
+          [excluded selection] [[[] :open-gl-vulkan] [["libgraphics"] :vulkan]]]
+    (let [legacy {:platforms {:x86_64-win32
+                              {:context {:libs libs
+                                         :excludeLibs (conj excluded "platform")
+                                         :symbols ["GraphicsAdapterVulkan"]
+                                         :excludeSymbols (if (coll/empty? excluded) [] ["GraphicsAdapterOpenGL"])}}}}
+          setting app-manifest/graphics-setting-windows
+          dx12 (app-manifest/set-setting-value legacy setting :dx12)
+          context (get-in dx12 [:platforms :x86_64-win32 :context])]
+      (is (= selection (app-manifest/get-setting-value legacy setting)))
+      (is (= :dx12 (app-manifest/get-setting-value dx12 setting)))
+      (is (= #{"graphics_dx12" "d3d12.lib" "dxgi.lib" "d3dcompiler.lib"} (set (:libs context))))
+      (is (= ["graphics"] (:excludeLibs context)))
+      (is (= ["GraphicsAdapterDX12"] (:symbols context))))))
+
+;; Verifies legacy DX12 system library names normalize to lowercase SDK filenames with
+;; .lib suffixes, guarding against linker failures on case-sensitive build hosts.
+(deftest windows-dx12-system-library-names-test
+  (let [setting app-manifest/graphics-setting-windows
+        sdk-libs ["d3d12.lib" "dxgi.lib" "d3dcompiler.lib"]
+        bare-libs ["D3D12" "DXGI" "d3dcompiler"]
+        legacy-libs ["D3D12.lib" "DXGI.lib" "d3dcompiler.lib"]]
+    (doseq [libraries [sdk-libs bare-libs legacy-libs
+                       ["d3d12" "dxgi" "d3dcompiler"]
+                       (into [] cat [sdk-libs bare-libs legacy-libs])]]
+      (let [manifest {:platforms {:x86_64-win32
+                                  {:context {:libs (into ["custom" "graphics_dx12"] libraries)
+                                             :symbols ["GraphicsAdapterDX12"]}}}}
+            normalized (app-manifest/set-setting-value manifest setting :open-gl-dx12)
+            cleared (app-manifest/set-setting-value manifest setting :open-gl)]
+        (is (= :open-gl-dx12 (app-manifest/get-setting-value manifest setting)))
+        (is (= (into #{"custom" "graphics_dx12"} sdk-libs)
+               (set (get-in normalized [:platforms :x86_64-win32 :context :libs]))))
+        (is (= ["custom"] (get-in cleared [:platforms :x86_64-win32 :context :libs])))))))
+
+;; Verifies existing manifests retain their Windows backend selection and all new choices
+;; survive serialization, guarding against editor load/save compatibility regressions.
+(deftest windows-graphics-compatibility-test
+  (test-util/with-loaded-project
+    (doseq [[filename selection] [["default.appmanifest" :open-gl]
+                                  ["vulkan.appmanifest" :vulkan]
+                                  ["vulkan_and_opengl.appmanifest" :open-gl-vulkan]]]
+      (let [node (test-util/resource-node project (str "/app_manifest/" filename))]
+        (is (= selection (g/node-value node :graphics-windows)))))
+
+    (let [node (test-util/resource-node project "/app_manifest/default.appmanifest")]
+      (doseq [[selection] app-manifest/windows-graphics-choice-options]
+        (g/set-property! node :graphics-windows selection)
+        (is (= selection (g/node-value node :graphics-windows)))
+
+        (let [saved (yaml/load (slurp (data/lines-reader (g/node-value node :modified-lines))) keyword)]
+          (is (= selection (app-manifest/get-setting-value saved app-manifest/graphics-setting-windows))))))))
+
+;; Migrates legacy mobile backend libraries without changing desktop libraries,
+;; custom inputs, invalid fields, or the meaning of Vulkan-only exclusions.
+(deftest mobile-platform-library-migration-test
+  (doseq [platform (into #{:android :ios :web} cat [app-manifest/android app-manifest/ios app-manifest/web])]
+    (let [context {:libs ["graphics_vulkan" "dmglfw_vulkan" "custom"]
+                   :excludeLibs ["graphics_opengles" "dmglfw"]
+                   :engineLibs ["dmglfw" nil 42]
+                   :symbols ["dmglfw"]}
+          manifest {:platforms {platform {:context context}
+                                :x86_64-linux {:context context}}}
+          migrated (#'app-manifest/migrate-mobile-library-names manifest)]
+      (is (= {:libs ["graphics_vulkan" "platform_vulkan" "custom"]
+              :excludeLibs ["graphics_opengles" "platform"]
+              :engineLibs ["platform" nil 42]
+              :symbols ["dmglfw"]}
+             (get-in migrated [:platforms platform :context])))
+      (is (= context (get-in migrated [:platforms :x86_64-linux :context])))
+      (is (= migrated (#'app-manifest/migrate-mobile-library-names migrated)))))
+  (doseq [manifest [true {} {:platforms {:android {:context {:libs "dmglfw"}}}}]]
+    (is (= manifest (#'app-manifest/migrate-mobile-library-names manifest)))))
+
+;; Verifies each Android renderer choice selects a single native platform variant.
 (deftest android-graphics-setting-test
   (testing "OpenGL-only Android excludes Vulkan link inputs"
     (let [manifest (-> {}
@@ -323,8 +788,8 @@
       (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_opengles"} (:libs context)))
-          (is (some #{"dmglfw"} (:libs context)))
-          (is (some #{"dmglfw_vulkan"} (:excludeLibs context)))
+          (is (coll/any? #{"platform"} (:libs context)))
+          (is (coll/any? #{"platform_vulkan"} (:excludeLibs context)))
           (is (not-any? #{"graphics"} (:libs context)))
           (is (not-any? #{"vulkan"} (:excludeLibs context)))
           (is (some #{"vulkan"} (:excludeDynamicLibs context)))
@@ -336,9 +801,9 @@
       (doseq [platform [:armv7-android :arm64-android :x86_64-android]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_vulkan"} (:libs context)))
-          (is (some #{"dmglfw_vulkan"} (:libs context)))
+          (is (coll/any? #{"platform_vulkan"} (:libs context)))
           (is (some #{"graphics_opengles"} (:excludeLibs context)))
-          (is (some #{"dmglfw"} (:excludeLibs context)))
+          (is (coll/any? #{"platform"} (:excludeLibs context)))
           (is (some #{"GraphicsAdapterOpenGLES"} (:excludeSymbols context)))
           (is (some #{"vulkan"} (:excludeDynamicLibs context)))
           (is (some #{"EGL"} (:excludeDynamicLibs context)))
@@ -355,24 +820,33 @@
                          (app-manifest/set-setting-value app-manifest/graphics-setting-osx :metal)
                          (app-manifest/set-setting-value app-manifest/graphics-setting-osx selection))]
         (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx))))))
-  (testing "Metal-only OSX includes Metal and excludes OpenGL/Vulkan"
+  (testing "Metal is the default OSX adapter with no manifest link inputs"
+    (is (= :metal (app-manifest/get-setting-value {} app-manifest/graphics-setting-osx)))
+    (doseq [selection apple-graphics-selections]
+      (let [manifest (-> {}
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-osx selection)
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-osx :metal))]
+        (doseq [platform [:arm64-osx :x86_64-osx]]
+          (run! #(is (coll/empty? %))
+                (coll/vals (get-in manifest [:platforms platform :context])))))))
+  (testing "Metal-only OSX uses engine defaults"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-osx :metal)]
       (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx)))
       (doseq [platform [:arm64-osx :x86_64-osx]]
         (let [context (get-in manifest [:platforms platform :context])]
-          (is (some #{"graphics_metal"} (:libs context)))
-          (is (some #{"platform"} (:engineLibs context)))
-          (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
-          (is (some #{"Metal"} (:frameworks context)))
-          (is (some #{"IOSurface"} (:frameworks context)))
-          (is (some #{"QuartzCore"} (:frameworks context)))
-          (is (some #{"graphics"} (:excludeLibs context)))
+          (is (coll/not-any? #{"graphics_metal"} (:libs context)))
+          (is (coll/not-any? #{"platform"} (:engineLibs context)))
+          (is (coll/not-any? #{"GraphicsAdapterMetal"} (:symbols context)))
+          (is (coll/not-any? #{"Metal"} (:frameworks context)))
+          (is (coll/not-any? #{"IOSurface"} (:frameworks context)))
+          (is (coll/not-any? #{"QuartzCore"} (:frameworks context)))
+          (is (coll/not-any? #{"graphics"} (:excludeLibs context)))
           (is (not-any? #{"platform"} (:excludeLibs context)))
-          (is (some #{"graphics_vulkan"} (:excludeLibs context)))
-          (is (some #{"platform_vulkan"} (:excludeLibs context)))
-          (is (some #{"MoltenVK"} (:excludeLibs context)))
-          (is (some #{"GraphicsAdapterOpenGL"} (:excludeSymbols context)))
-          (is (some #{"GraphicsAdapterVulkan"} (:excludeSymbols context)))))))
+          (is (coll/not-any? #{"graphics_vulkan"} (:excludeLibs context)))
+          (is (coll/not-any? #{"platform_vulkan"} (:excludeLibs context)))
+          (is (coll/not-any? #{"MoltenVK"} (:excludeLibs context)))
+          (is (coll/not-any? #{"GraphicsAdapterOpenGL"} (:excludeSymbols context)))
+          (is (coll/not-any? #{"GraphicsAdapterVulkan"} (:excludeSymbols context)))))))
   (testing "Metal-only OSX removes stale explicit Vulkan link inputs"
     (let [explicit-vulkan-manifest {:platforms {:arm64-osx {:context {:excludeLibs ["graphics" "platform"]
                                                                       :excludeSymbols ["GraphicsAdapterOpenGL"]
@@ -388,12 +862,12 @@
       (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx)))
       (doseq [platform [:arm64-osx :x86_64-osx]]
         (let [context (get-in manifest [:platforms platform :context])]
-          (is (some #{"graphics_metal"} (:libs context)))
-          (is (some #{"platform"} (:engineLibs context)))
+          (is (coll/not-any? #{"graphics_metal"} (:libs context)))
+          (is (coll/not-any? #{"platform"} (:engineLibs context)))
           (is (not-any? #{"graphics_vulkan"} (:libs context)))
           (is (not-any? #{"platform_vulkan"} (:libs context)))
           (is (not-any? #{"MoltenVK"} (:libs context)))
-          (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
+          (is (coll/not-any? #{"GraphicsAdapterMetal"} (:symbols context)))
           (is (not-any? #{"GraphicsAdapterVulkan"} (:symbols context)))))))
   (testing "OSX selections without Metal do not keep Metal leftovers"
     (doseq [selection [:open-gl :open-gl-vulkan :vulkan]]
@@ -406,6 +880,46 @@
             (is (not-any? #{"graphics_metal"} (:libs context)))
             (is (not-any? #{"GraphicsAdapterMetal"} (:symbols context)))))))))
 
+(deftest macos-graphics-overrides-test
+  (let [expected {:metal {}
+                  :open-gl-metal {:libs ["graphics"]
+                                  :symbols ["GraphicsAdapterOpenGL"]
+                                  :frameworks ["OpenGL"]}
+                  :open-gl {:libs ["graphics"]
+                            :symbols ["GraphicsAdapterOpenGL"]
+                            :frameworks ["OpenGL"]
+                            :excludeLibs ["graphics_metal"]
+                            :excludeSymbols ["GraphicsAdapterMetal"]}
+                  :vulkan {:libs ["graphics_vulkan" "platform_vulkan" "MoltenVK"]
+                           :symbols ["GraphicsAdapterVulkan"]
+                           :excludeLibs ["platform" "graphics_metal"]
+                           :excludeSymbols ["GraphicsAdapterMetal"]}
+                  :open-gl-vulkan {:libs ["graphics" "graphics_vulkan" "platform_vulkan" "MoltenVK"]
+                                   :symbols ["GraphicsAdapterOpenGL" "GraphicsAdapterVulkan"]
+                                   :frameworks ["OpenGL"]
+                                   :excludeLibs ["platform" "graphics_metal"]
+                                   :excludeSymbols ["GraphicsAdapterMetal"]}}
+        legacy-setting (app-manifest/make-choice-setting
+                         :open-gl (concat app-manifest/open-gl-osx-toggles app-manifest/exclude-metal-osx-toggles app-manifest/exclude-vulkan-osx-toggles)
+                         :metal (concat app-manifest/metal-osx-toggles app-manifest/exclude-open-gl-osx-toggles app-manifest/exclude-vulkan-osx-toggles)
+                         :vulkan (concat app-manifest/explicit-vulkan-osx-toggles app-manifest/exclude-open-gl-osx-toggles app-manifest/exclude-metal-osx-toggles)
+                         :open-gl-metal (concat app-manifest/open-gl-osx-toggles app-manifest/metal-osx-toggles app-manifest/exclude-vulkan-osx-toggles)
+                         :open-gl-vulkan (concat app-manifest/open-gl-osx-toggles app-manifest/explicit-vulkan-osx-toggles app-manifest/exclude-metal-osx-toggles)
+                         :unused)]
+    (doseq [source-setting [legacy-setting app-manifest/graphics-setting-osx]
+            from apple-graphics-selections
+            to apple-graphics-selections]
+      (let [original (app-manifest/set-setting-value {} source-setting from)
+            original (assoc-in original [:platforms :arm64-osx :context :linkFlags] ["custom-link-flag"])
+            manifest (app-manifest/set-setting-value original app-manifest/graphics-setting-osx to)]
+        (is (= from (app-manifest/get-setting-value original app-manifest/graphics-setting-osx)))
+        (is (= to (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx)))
+        (is (= ["custom-link-flag"] (get-in manifest [:platforms :arm64-osx :context :linkFlags])))
+        (doseq [platform app-manifest/macos]
+          (is (= (get expected to)
+                 (into {} (filter (comp seq val))
+                       (dissoc (get-in manifest [:platforms platform :context]) :linkFlags)))))))))
+
 (deftest ios-graphics-setting-test
   (testing "iOS supports every OpenGL/Metal/Vulkan selection"
     (doseq [selection apple-graphics-selections]
@@ -416,7 +930,7 @@
   (testing "Metal-only iOS includes Metal and excludes OpenGL/Vulkan"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :metal)]
       (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
-      (doseq [platform [:arm64-ios :arm64_sim-ios]]
+      (doseq [platform [:arm64-ios]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_metal"} (:libs context)))
           (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
@@ -429,7 +943,7 @@
         (is (some #{"MoltenVK"} (:excludeLibs context)))
         (is (some #{"GraphicsAdapterOpenGL"} (:excludeSymbols context)))
         (is (some #{"GraphicsAdapterVulkan"} (:excludeSymbols context))))))
-  (testing "Vulkan-only iOS keeps the simulator OpenGL fallback"
+  (testing "Vulkan-only iOS leaves the simulator Metal default unchanged"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :vulkan)
           arm64-context (get-in manifest [:platforms :arm64-ios :context])
           simulator-context (get-in manifest [:platforms :arm64_sim-ios :context])]
@@ -444,7 +958,8 @@
       (is (not-any? #{"graphics_vulkan"} (:libs simulator-context)))
       (is (not-any? #{"GraphicsAdapterVulkan"} (:symbols simulator-context)))
       (is (not-any? #{"graphics_metal"} (:libs simulator-context)))
-      (is (not-any? #{"GraphicsAdapterMetal"} (:symbols simulator-context)))))
+      (is (not-any? #{"GraphicsAdapterMetal"} (:symbols simulator-context)))
+      (is (nil? simulator-context))))
   (testing "Generic graphics changes do not clear iOS graphics"
     (let [manifest (-> {}
                        (app-manifest/set-setting-value app-manifest/graphics-setting-ios :metal)
@@ -476,7 +991,7 @@
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
-        (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :open-gl (g/node-value manifest :graphics-ios)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))
@@ -493,7 +1008,7 @@
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
-        (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/exclude_physics_3d.appmanifest"
@@ -508,7 +1023,7 @@
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
-        (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/exclude_physics.appmanifest"
@@ -523,7 +1038,7 @@
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
-        (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/physics_2d_box2dv3.appmanifest"
@@ -538,7 +1053,7 @@
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
-        (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/physics_box2dv3_3d.appmanifest"
@@ -553,7 +1068,7 @@
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
-        (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/exclude_many.appmanifest"
@@ -568,7 +1083,7 @@
         (is (= true (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
-        (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/vulkan.appmanifest"
@@ -651,7 +1166,7 @@
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
-        (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gpu (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/webgpu_and_webgl.appmanifest"
@@ -666,7 +1181,7 @@
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
-        (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :both (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/android_support.appmanifest"
@@ -681,7 +1196,7 @@
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= true (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
-        (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))))
 
@@ -689,13 +1204,13 @@
   (test-util/with-loaded-project
     (let [manifest (test-util/resource-node project "/app_manifest/default.appmanifest")
           text #(slurp (data/lines-reader (g/node-value manifest :modified-lines)))]
-      (is (false? (string/includes? (text) "record_null")))
+      (is (false? (string/includes? (text) "record_script")))
       (is (false? (g/node-value manifest :exclude-record)))
       (g/set-property! manifest :exclude-record true)
-      (is (string/includes? (text) "record_null"))
+      (is (string/includes? (text) "record_script"))
       (is (true? (g/node-value manifest :exclude-record)))
       (g/set-property! manifest :exclude-record false)
-      (is (false? (string/includes? (text) "record_null")))
+      (is (false? (string/includes? (text) "record_script")))
       (is (false? (g/node-value manifest :exclude-record)))
 
       (g/set-property! manifest :exclude-gui true)
@@ -717,5 +1232,25 @@
 
       (testing "indeterminate rich-text settings remain indeterminate"
         (g/set-property! manifest :manifest
-                         {:platforms {:arm64-osx {:context {:libs ["font_richtext_null"]}}}})
+          {:platforms {:arm64-osx {:context {:libs ["font_richtext_null"]}}}})
         (is (nil? (g/node-value manifest :use-rich-text)))))))
+
+(deftest simulator-graphics-migration-test
+  (let [manifest
+        {:platforms
+         {:arm64_sim-ios
+          {:context
+           {:libs ["graphics_metal" "custom"]
+            :excludeLibs ["graphics_metal"]
+            :excludeSymbols ["GraphicsAdapterMetal"]}}
+
+          :arm64-ios
+          {:context
+           {:excludeLibs ["graphics_metal"]}}}}
+
+        migrated (#'app-manifest/migrate-simulator-graphics manifest)]
+    (is (= ["custom"] (get-in migrated [:platforms :arm64_sim-ios :context :libs])))
+    (is (= [] (get-in migrated [:platforms :arm64_sim-ios :context :excludeLibs])))
+    (is (= [] (get-in migrated [:platforms :arm64_sim-ios :context :excludeSymbols])))
+    (is (= (get-in manifest [:platforms :arm64-ios]) (get-in migrated [:platforms :arm64-ios])))
+    (is (= migrated (#'app-manifest/migrate-simulator-graphics migrated)))))

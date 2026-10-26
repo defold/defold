@@ -66,5 +66,5 @@
                                   (map (fn [[k v]]
                                          [k (if (< 1 (count v)) (vec v) (.get ^List v 0))]))
                                   (.map (.headers response)))}
-                  (.body response)
-                  (assoc :body (.body response)))))))
+            (.body response)
+            (assoc :body (.body response)))))))

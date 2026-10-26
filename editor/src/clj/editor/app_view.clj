@@ -58,12 +58,13 @@
             [editor.hot-reload :as hot-reload]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.launcher :as launcher]
             [editor.library :as library]
             [editor.live-update-settings :as live-update-settings]
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
-            [editor.markdown :as markdown]
+            [editor.markdown-view :as markdown-view]
             [editor.menu-items :as menu-items]
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
@@ -108,9 +109,8 @@
            [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
-           [java.lang.management ManagementFactory]
            [java.net SocketTimeoutException URL]
-           [java.time LocalTime]
+           [java.time LocalTime Year]
            [java.time.format DateTimeFormatter]
            [java.util Arrays Collection]
            [java.util.concurrent ExecutionException]
@@ -336,20 +336,19 @@
   (and (not (g/error-value? outline-pane-desc))
        (coll/any? #(= :outline-pane %) (get open-sidebar-panes active-view))))
 
-(g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc outline-active]
+(g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc]
   {:fx/type fxui/ext-dedupe-identical-desc
    :desc {:fx/type fx/ext-let-refs
-          ;; If outline is active (requested by the view), we want to ensure
-          ;; that it's updated even if it's hidden when the debug view is shown.
+          ;; We want to ensure that the outline stays mounted even if it's
+          ;; hidden, so it keeps its expansion state and stays up to date.
           ;; This is necessary because the outline view defines commands on the
           ;; :workbench context, which is available throughout the editor, and
-          ;; those commands expect the outline view to be up to date. When
-          ;; outline is active, it's guaranteed that it's not an error value,
-          ;; but we need to keep the `^:try` so that the broken outline does not
-          ;; fail this whole output when it's inactive
-          :refs (if outline-active
-                  {:outline-pane outline-pane-desc}
-                  {})
+          ;; those commands expect the outline view to be up to date. We need
+          ;; to keep the `^:try` so that the broken outline does not fail this
+          ;; whole output
+          :refs (if (g/error-value? outline-pane-desc)
+                  {}
+                  {:outline-pane outline-pane-desc})
           :desc {:fx/type ext-with-split-pane-props
                  :desc {:fx/type ui/ext-value :value right-split}
                  :props {:items (or (coll/not-empty
@@ -383,6 +382,7 @@
   (input active-outline g/Any)
   (input active-scene g/Any)
   (input project-id g/NodeID)
+  (input outline-selection-by-resource-node g/Any)
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
   (input sub-selections-by-resource-node g/Any)
@@ -423,6 +423,8 @@
   ;; NOTE: Empty rather than nil when nothing is selected. Command contexts with a nil
   ;; selection stop the context chain in handler/eval-contexts, which leaves a
   ;; context menu opened over a tab without a resource with nothing to show.
+  (output outline-selection g/Any (g/fnk [outline-selection-by-resource-node active-resource-node]
+                                    (get outline-selection-by-resource-node active-resource-node [])))
   (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource-node active-resource-node]
                                     (get selected-node-ids-by-resource-node active-resource-node [])))
   (output selected-node-properties g/Any (g/fnk [selected-node-properties-by-resource-node active-resource-node]
@@ -474,8 +476,8 @@
        resource))))
 
 (defn- disconnect-sources [basis target-node target-label]
-  (for [[source-node source-label] (g/sources-of basis target-node target-label)]
-    (g/disconnect source-node source-label target-node target-label)))
+  (for [arc (g/inputs basis target-node target-label)]
+    (g/disconnect (gt/source-id arc) (gt/source-label arc) target-node target-label)))
 
 (defn- replace-connection [basis source-node source-label target-node target-label]
   (concat
@@ -663,23 +665,6 @@
     (let [^Stage main-stage (ui/main-stage)]
       (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
 
-(defn- start-launcher! []
-  (if (system/defold-dev?)
-    (apply process/start!
-           {:dir (System/getProperty "user.dir")
-            :out :inherit
-            :err :inherit}
-           (str (io/file (System/getProperty "java.home") "bin" (if (os/is-win32?) "java.exe" "java")))
-           (into (vec (.getInputArguments (ManagementFactory/getRuntimeMXBean)))
-                 ["-cp" (System/getProperty "java.class.path") "com.defold.editor.Main"]))
-    (let [resources-path (system/defold-resourcespath)]
-      (process/start!
-        {:dir (.getCanonicalFile
-                (case (.getOs (Platform/getHostPlatform))
-                  "macos" (io/file resources-path "../../")
-                  ("linux" "win32") (io/file resources-path)))}
-        (system/defold-launcherpath)))))
-
 (defn store-window-dimensions [^Stage stage prefs]
   (let [dims    {:x           (.getX stage)
                  :y           (.getY stage)
@@ -766,8 +751,9 @@
       (set-pane-visible! scene pane-kw false))))
 
 (handler/defhandler :app.preferences :global
-  (run [workspace prefs app-view localization]
+  (run [workspace prefs app-view project localization]
     (prefs-dialog/open! prefs localization)
+    (project/update-language-servers! project prefs {})
     (workspace/update-build-settings! workspace prefs)
     (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
     (let [new-keymap (keymap/from-prefs prefs)]
@@ -919,6 +905,11 @@
 (defn- build-in-progress? []
   @build-in-progress-atom)
 
+(def ^:private bob-task-in-progress-atom (atom false))
+
+(defn- bob-task-in-progress? []
+  @bob-task-in-progress-atom)
+
 (declare async-save!)
 
 (defn- async-reload-on-app-focus? [prefs]
@@ -933,7 +924,7 @@
 
 (defn- can-async-save? []
   (and (disk-availability/available?)
-       (not (bob/build-in-progress?))))
+       (not (bob-task-in-progress?))))
 
 (defn async-reload!
   [app-view changes-view workspace moved-files]
@@ -989,14 +980,11 @@
                                    instance-debug (and debug last-instance?)
                                    launched-target (->> (engine/launch! engine project-directory prefs instance-debug instance-index focus)
                                                         (decorate-target engine-descriptor)
-                                                        (targets/add-launched-target! instance-index))]
+                                                        (targets/add-launched-target! prefs instance-index))]
                                (when (not last-instance?)
                                  (Thread/sleep pause-ms))        ;pause needed to make sure the launch order of instances is right
                                launched-target))
           last-launched-target (last launched-targets)]
-      (if (= count 1)
-        (targets/select-target! prefs last-launched-target)
-        (targets/select-target! prefs {:id :all-launched-targets}))
       (report-build-launch-progress! (localization/message "progress.launched-engine" {"engine" (targets/target-message last-launched-target)}))
       launched-targets)
     (catch Exception e
@@ -1005,18 +993,15 @@
       (throw e))))
 
 (defn- make-launched-log-sink [launched-target on-service-url-found]
-  (let [initial-output (atom "")
-        version-line (atom nil)
+  (let [version-line (atom nil)
         updated-target (atom nil)]
     (fn [line]
-      (when (< (count @initial-output) 5000)
-        (swap! initial-output str line "\n")
-        (when-let [target-info (engine/parse-launched-target-info @initial-output)]
-          (let [result-target (targets/update-launched-target! launched-target target-info)]
-            (reset! updated-target result-target)))
-        (when (not @version-line)
-          (when-let [engine-version-line (engine/parse-engine-version-line line)]
-            (reset! version-line engine-version-line))))
+      ;; Metadata may arrive after startup, e.g. when attaching a debugger.
+      (when-let [target-info (engine/parse-launched-target-info line)]
+        (reset! updated-target (targets/update-launched-target! launched-target target-info)))
+      (when-not @version-line
+        (when-let [engine-version-line (engine/parse-engine-version-line line)]
+          (reset! version-line engine-version-line)))
       ;; After the version line, wait briefly for stream readiness, then call the callback.
       (when (and @updated-target (= @version-line line))
         (future
@@ -1037,10 +1022,13 @@
   (try
     (report-build-launch-progress!
       (localization/message "progress.rebooting-engine" {"engine" (targets/target-message target)}))
-    (engine/reboot! target (local-url target web-server) debug focus)
-    (report-build-launch-progress!
-      (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
-    target
+    (let [target (assoc target :debugger-port (when debug (engine/debugger-port target)))]
+      (when (targets/launched-target? target)
+        (targets/update-launched-target! target (select-keys target [:debugger-port])))
+      (engine/reboot! target (local-url target web-server) debug focus)
+      (report-build-launch-progress!
+        (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
+      target)
     (catch Exception e
       (report-build-launch-progress! (localization/message "progress.engine-reboot-failed"))
       (throw e))))
@@ -1062,17 +1050,17 @@
 
 (defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug focus]
   (let [selected-target (targets/selected-target prefs)
-        launch-new-engine! (fn []
+        launch-new-engine! (fn launch-new-engine! []
                              (targets/kill-launched-targets!)
                              (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
                                    last-launched-target (last launched-targets)]
                                (doseq [launched-target launched-targets]
                                  (targets/when-url (:id launched-target)
-                                                   #(on-launched-hook! project (:process launched-target) %))
-                                 (let [log-stream (:log-stream launched-target)]
-                                   (console/reset-console-stream! log-stream)
-                                   (console/reset-remote-log-pump-thread! nil)
-                                   (console/start-log-pump! log-stream (make-launched-log-sink launched-target (partial on-service-url-found prefs)))))
+                                                   (fn on-target-url-found [url]
+                                                     (on-launched-hook! project (:process launched-target) url)))
+                                 (console/start-log-pump!
+                                   (:log-stream launched-target)
+                                   (make-launched-log-sink launched-target (partial on-service-url-found prefs))))
                                last-launched-target))]
     (try
       {:target
@@ -1231,8 +1219,8 @@
                          be built in addition to the project
     :lint                optional flag that indicates whether to run LSP lints
                          and present the diagnostics alongside the build errors,
-                         defaults to the value of \"general-lint-on-build\" pref
-                         (true if not set)
+                         defaults to the value of the [:build :lint-code] pref
+                         (false if not set)
     :prefs               required, preferences for linting and engine building,
                          e.g. the build server settings
     :debug               optional flag that indicates whether to also build
@@ -1296,7 +1284,7 @@
 
         start-lint!
         (fn start-lint! []
-          (when lint (lsp/pull-workspace-diagnostics! (lsp/get-node-lsp project) lint-promise)))
+          (when lint (lsp/pull-workspace-diagnostics! (lsp/get-lsp) lint-promise)))
 
         run-on-background-thread!
         (fn run-on-background-thread! [background-thread-fn ui-thread-fn]
@@ -1572,8 +1560,8 @@
         (if (and (handle-build-results! workspace render-build-error! build-results)
                  (or engine skip-engine))
           (let [{:keys [error target]} (launch-built-project! project engine project-directory prefs web-server true true)]
-            (when (and target (nil? (debug-view/current-session debug-view)))
-              (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0)))
+            (when (and target (not (debug-view/current-session debug-view)))
+              (debug-view/start-debugger! debug-view project target false))
             (cond-> build-results
               error (assoc :error (exception->target-error error))
               target (assoc :target target)))
@@ -1646,7 +1634,7 @@
     (PipedOutputStream. in)))
 
 (defn invoke-bob! [app-view project changes-view build-errors-view prefs options commands]
-  (if-not (disk-availability/try-push-busy!)
+  (if-not (compare-and-set! bob-task-in-progress-atom false true)
     {:error (g/error-fatal (localization/message "error.bob.project-operation-in-progress"))}
     (try
       (let [evaluation-context (g/make-evaluation-context)
@@ -1672,7 +1660,7 @@
           (ui/run-now (render-build-error! error)))
         build-results)
       (finally
-        (disk-availability/pop-busy!)))))
+        (reset! bob-task-in-progress-atom false)))))
 
 (defn- build-html5! [app-view project prefs web-server build-errors-view changes-view bob-commands]
   (future/io
@@ -1926,20 +1914,22 @@
   (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)]
-    (ui/with-controls root [version channel editor-sha1 engine-sha1 time sponsor-push
-                            version-label channel-label build-time-label editor-sha1-label engine-sha1-label
+    (ui/with-controls root [version channel architecture editor-sha1 engine-sha1 time sponsor-push
+                            version-label channel-label architecture-label build-time-label editor-sha1-label engine-sha1-label
                             copyright-label foundation-label]
       (let [missing-text (localization (localization/message "dialog.about.value.unavailable"))]
         (ui/text! version-label (localization (localization/message "dialog.about.label.version")))
         (ui/text! channel-label (localization (localization/message "dialog.about.label.channel")))
+        (ui/text! architecture-label (localization (localization/message "dialog.about.label.architecture")))
         (ui/text! build-time-label (localization (localization/message "dialog.about.label.build-time")))
         (ui/text! editor-sha1-label (localization (localization/message "dialog.about.label.editor-sha1")))
         (ui/text! engine-sha1-label (localization (localization/message "dialog.about.label.engine-sha1")))
-        (ui/text! copyright-label (localization (localization/message "dialog.about.footer.copyright")))
+        (ui/text! copyright-label (localization (localization/message "dialog.about.footer.copyright" {"year" (str (Year/now))})))
         (ui/text! foundation-label (localization (localization/message "dialog.about.footer.foundation")))
         (ui/title! stage (localization (localization/message "command.app.about")))
         (ui/text! version (or (system/defold-version) missing-text))
         (ui/text! channel (or (system/defold-channel) missing-text))
+        (ui/text! architecture (.getArch (Platform/getHostPlatform)))
         (ui/text! editor-sha1 (or (system/defold-editor-sha1) missing-text))
         (ui/text! engine-sha1 (or (system/defold-engine-sha1) missing-text))
         (ui/text! time (or (system/defold-build-time) missing-text))
@@ -1988,7 +1978,7 @@
   (run [] (ui/reload-root-styles!)))
 
 (handler/defhandler :file.open-project :global
-  (run [] (start-launcher!)))
+  (run [] (launcher/start!)))
 
 (handler/register-menu! ::menubar
   [{:label (localization/message "menu.file")
@@ -2283,6 +2273,7 @@
              (.select (.getSelectionModel tab-pane)))))))
 
 (defn- configure-editor-tab-pane! [^TabPane tab-pane app-view prefs]
+  (ui/init-tab-pane! tab-pane)
   (apply-tab-pane-active-style! tab-pane false)
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
   (.setTabDragPolicy tab-pane TabPane$TabDragPolicy/REORDER)
@@ -2338,10 +2329,11 @@
              right-split-desc (g/node-value app-view :right-split-desc evaluation-context)]
     (ui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
 
-(defn make-app-view [graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
+(defn make-app-view [project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
         editor-tab-pane (TabPane.)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
+    (ui/init-tab-pane! tool-tab-pane)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (ui/make-title))
     (.add (.getItems editor-tabs-split) editor-tab-pane)
@@ -2350,16 +2342,16 @@
                      (g/tx-nodes-added
                        (g/transact
                          {:undoable false}
-                         (g/make-node graph AppView
-                                      :stage stage
-                                      :scene app-scene
-                                      :editor-tabs-split editor-tabs-split
-                                      :right-split right-split
-                                      :tool-tab-pane tool-tab-pane
-                                      :active-tool :move
-                                      :manip-space :world
-                                      :keymap keymap
-                                      :localization localization))))]
+                         (g/make-node AppView
+                           :stage stage
+                           :scene app-scene
+                           :editor-tabs-split editor-tabs-split
+                           :right-split right-split
+                           :tool-tab-pane tool-tab-pane
+                           :active-tool :move
+                           :manip-space :world
+                           :keymap keymap
+                           :localization localization))))]
       (configure-editor-tab-pane! editor-tab-pane app-view prefs)
 
       (ui/observe (.focusOwnerProperty app-scene)
@@ -2489,8 +2481,8 @@
     `:view-type` - optional, view-type map. See workspace/register-view-type
     `:wrap-content-fn` - optional, (fn [parent]) returning the tab content
                          wrapping the view parent
-    `:make-view-fn` - required, (fn [graph parent opts]) returning a
-                      view/WorkbenchView created in the supplied graph
+    `:make-view-fn` - required, (fn [parent opts]) returning a
+                      view/WorkbenchView
     `:connect-view-fn` - optional, (fn [view-node-id]) returning transaction
                          data applied together with the AppView connections
     `:on-closed-fn` - optional, (fn [view-node-id]) called when the tab closes,
@@ -2510,9 +2502,8 @@
               (.setGraphic icon)
               (editor-tab/set-view-type! view-type)
               (editor-tab/set-instance-key! instance-key))
-        graph (g/node-id->graph-id app-view)
         undo-stack-revisions-before (g/undo-stack-revisions)
-        view (make-view-fn graph parent (assoc opts :app-view app-view :tab tab))]
+        view (make-view-fn parent (assoc opts :app-view app-view :tab tab))]
     (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
             (format "The editor tab :make-view-fn created undo steps for '%s'."
                     (.getText tab)))
@@ -2527,6 +2518,25 @@
         (g/connect view :view-dirty app-view :open-dirty-views)
         (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))
     (editor-tab/set-view-node-id! tab view)
+
+    ;; Hidden tab content must not resize its scene viewport and GL surfaces.
+    (.bind (.managedProperty (.getContent tab)) (.selectedProperty tab))
+
+    ;; Render selected scenes at their current size before the first visible frame.
+    ;; Waiting for the refresh timer would briefly stretch the old scene image.
+    (when (= :scene (:id view-type))
+      (ui/observe (.selectedProperty tab)
+                  (fn [_ _ selected]
+                    (if-not selected
+                      (scene/suspend-scene-view! view)
+                      (do
+                        (scene/resume-scene-view! view)
+                        (when-let [content-parent (.getParent (.getContent tab))]
+                          (.applyCss content-parent)
+                          (.layout content-parent)
+                          (refresh-scene-view! view 0))))))
+      (scene/suspend-scene-view! view))
+
     (.add tabs tab)
     (ui/add-styles! tab style-classes)
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
@@ -2548,10 +2558,10 @@
 
 (defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
   (let [basis (g/now)
-        project (project/get-project basis resource-node)
+        project (project/get-project basis)
         resource (resource-node/resource basis resource-node)
         workspace (resource/workspace resource)
-        resource-type (resource/lookup-resource-type basis workspace resource)
+        resource-type (resource/resource-type resource basis)
 
         camera-opts (when (= :scene (:id view-type))
                       (if-some [stored-camera (camera/try-load-camera-from-prefs prefs (resource/resource->proj-path resource))]
@@ -2580,8 +2590,8 @@
                                          (ui/children! [(make-info-box! localization)
                                                         (doto parent (VBox/setVgrow Priority/ALWAYS))]))))
 
-                  :make-view-fn (fn make-resource-view [view-graph parent view-opts]
-                                  ((:make-view-fn view-type) view-graph parent resource-node view-opts))
+                  :make-view-fn (fn make-resource-view [parent view-opts]
+                                  ((:make-view-fn view-type) parent resource-node view-opts))
 
                   :connect-view-fn (fn connect-view [view]
                                      (view/connect-resource-node view resource-node))
@@ -2842,17 +2852,17 @@
 (g/defnode ReleaseNotesView
   (inherits view/NonResourceWorkbenchView))
 
-(defn- make-release-notes-view [view-graph parent {:keys [content project ^Tab tab]}]
+(defn- make-release-notes-view [parent {:keys [content project ^Tab tab]}]
   (let [view (first
                (g/tx-nodes-added
                  (g/transact
                    {:undoable false}
-                   (g/make-node view-graph ReleaseNotesView))))]
+                   (g/make-node ReleaseNotesView))))]
     (ui/advance-graph-user-data-component!
       view :view
       {:fx/type fxui/ext-with-anchor-pane-props
        :desc {:fx/type ui/ext-value :value parent}
-       :props {:children [{:fx/type markdown/view
+       :props {:children [{:fx/type markdown-view/view
                            :anchor-pane/top 0
                            :anchor-pane/right 0
                            :anchor-pane/bottom 0
@@ -3074,7 +3084,7 @@
 (defn- restart-defold! [^Stage stage prefs]
   (store-window-state! stage prefs)
   (ui/close! stage)
-  (start-launcher!))
+  (launcher/start!))
 
 (handler/defhandler :app.restart :global
   (run [app-view changes-view project prefs localization]
@@ -3118,12 +3128,12 @@
                 :text (localization (localization/message "dialog.save-and-upgrade.version-control.info.after-manual"))}]}))
 
 (handler/defhandler :file.save-all :global
-  (enabled? [] (not (bob/build-in-progress?)))
+  (enabled? [] (not (bob-task-in-progress?)))
   (run [app-view changes-view project prefs]
     (async-save! app-view changes-view project prefs project/dirty-save-data)))
 
 (handler/defhandler :file.save-and-upgrade-all :global
-  (enabled? [] (not (bob/build-in-progress?)))
+  (enabled? [] (not (bob-task-in-progress?)))
   (run [app-view changes-view project prefs workspace localization]
     (let [git (g/node-value changes-view :git)]
       (when (and
@@ -3438,7 +3448,6 @@
                              image-view ^ImageView (.getGraphic tooltip)]
                          (when-not (.getImage image-view)
                            (let [resource-node (project/get-resource-node project resource)
-                                 graph (g/node-id->graph-id app-view)
                                  select-fn (partial select app-view)
                                  opts (assoc ((:id view-type) (:view-opts resource-type))
                                         :app-view app-view
@@ -3446,7 +3455,7 @@
                                         :project project
                                         :workspace workspace)
                                  undo-stack-revisions-before (g/undo-stack-revisions)
-                                 preview (make-preview-fn graph resource-node opts 256 256)]
+                                 preview (make-preview-fn resource-node opts 256 256)]
                              (try
                                (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
                                        (format "The %s view-type :make-preview-fn created undo steps for '%s'."

@@ -28,7 +28,6 @@
 #include <dlib/dstrings.h>
 #include <dlib/transform.h>
 #include <dmsdk/dlib/vmath.h>
-#include <dmsdk/dlib/intersection.h>
 #include <gameobject/gameobject_ddf.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -59,6 +58,7 @@ namespace dmGameSystem
     struct MeshComponent
     {
         dmGameObject::HInstance         m_Instance;
+        dmRender::HRenderItem           m_RenderItem;
         Matrix4                         m_Local;
         Matrix4                         m_World;
         uint32_t                        m_MixedHash;
@@ -73,13 +73,16 @@ namespace dmGameSystem
         // and vertbuffer for this buffer resource instead.
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         uint32_t                        m_BufferVersion;
+        // The acquired buffer can differ from the current resource after a reload.
+        dmhash_t                        m_VertexBufferResourceHash;
 
         /// Component enablement
         uint8_t                         m_Enabled : 1;
         /// Added to update or not
         uint8_t                         m_AddedToUpdate : 1;
         uint8_t                         m_ReHash : 1;
-        uint8_t                         :5;
+        uint8_t                         m_HasVertexBuffer : 1;
+        uint8_t                         :4;
     };
 
     struct VertexBufferInfo
@@ -91,6 +94,8 @@ namespace dmGameSystem
 
     struct MeshWorld
     {
+        dmRender::HRenderContext           m_RenderContext;
+        dmRender::HRenderItemDispatch      m_RenderDispatch;
         dmResource::HFactory               m_ResourceFactory;
         dmObjectPool<MeshComponent*>       m_Components;
         dmArray<dmRender::RenderObject>    m_RenderObjects;
@@ -234,12 +239,15 @@ namespace dmGameSystem
     static const uint64_t AABB_HASH = dmHashString64("AABB");
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
+    static void RenderListDispatch(const dmRender::RenderListDispatchParams& params);
 
     dmGameObject::CreateResult CompMeshNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         MeshContext* context = (MeshContext*)params.m_Context;
 
         MeshWorld* world = new MeshWorld();
+        world->m_RenderContext = context->m_RenderContext;
+        world->m_RenderDispatch = 0;
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxMeshCount);
         world->m_ResourceFactory = context->m_Factory;
         world->m_Components.SetCapacity(comp_count);
@@ -263,6 +271,10 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompMeshDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         MeshWorld* world = (MeshWorld*)params.m_World;
+        assert(world->m_ResourceToVertexBuffer.Empty());
+
+        if (world->m_RenderDispatch != 0)
+            dmRender::UnregisterRenderListDispatch(world->m_RenderContext, world->m_RenderDispatch);
 
         if (world->m_VertexBufferPool.Capacity() < world->m_VertexBufferPool.Size()+world->m_VertexBufferWorld.Size())
             world->m_VertexBufferPool.OffsetCapacity(world->m_VertexBufferWorld.Size());
@@ -299,6 +311,37 @@ namespace dmGameSystem
     static inline dmRender::HMaterial GetMaterial(const MeshComponent* component, const MeshResource* resource)
     {
         return GetMaterialResource(component, resource)->m_Material;
+    }
+
+    static void ReleaseComponentVertexBuffer(MeshWorld* world, MeshComponent* component)
+    {
+        if (component->m_HasVertexBuffer)
+        {
+            DecRefVertexBuffer(world, component->m_VertexBufferResourceHash);
+            component->m_HasVertexBuffer = 0;
+        }
+    }
+
+    static void UpdateComponentVertexBuffer(MeshWorld* world, MeshComponent* component)
+    {
+        bool local = dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
+        BufferResource* br = GetBufferResource(component);
+        if (component->m_HasVertexBuffer && (!local || component->m_VertexBufferResourceHash != br->m_NameHash))
+            ReleaseComponentVertexBuffer(world, component);
+
+        if (local)
+        {
+            if (!component->m_HasVertexBuffer)
+            {
+                CreateVertexBuffer(world, br);
+                component->m_VertexBufferResourceHash = br->m_NameHash;
+                component->m_HasVertexBuffer = 1;
+            }
+
+            // The contents or underlying buffer handle can change without changing its resource name.
+            component->m_BufferVersion = CalcBufferVersion(component, br);
+            UpdateVertexBuffer(world, br, component->m_BufferVersion);
+        }
     }
 
     static TextureResource* GetTextureResource(const MeshComponent* component, uint32_t texture_unit)
@@ -397,15 +440,13 @@ namespace dmGameSystem
         component->m_World = go_world * component->m_Local;
 
         // Local space uses separate vertex buffers
-        if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
-        {
-            dmGameSystem::BufferResource* br = GetBufferResource(component);
-            component->m_BufferVersion = CalcBufferVersion(component, br);
-            CreateVertexBuffer(world, br);
-            UpdateVertexBuffer(world, br, component->m_BufferVersion);
-        }
+        UpdateComponentVertexBuffer(world, component);
 
         ReHash(component);
+        if (world->m_RenderDispatch == 0)
+            world->m_RenderDispatch = dmRender::RegisterRenderListDispatch(world->m_RenderContext, RenderListDispatch, 0, world);
+        component->m_RenderItem = dmRender::NewRenderItem(world->m_RenderContext, world->m_RenderDispatch, (uintptr_t)component);
+        dmRender::SetWorldTransform(world->m_RenderContext, component->m_RenderItem, component->m_World);
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -423,13 +464,13 @@ namespace dmGameSystem
 
         uint32_t index = (uint32_t)*params.m_UserData;
         MeshComponent* component = world->m_Components.Get(index);
+        dmRender::DeleteRenderItem(world->m_RenderContext, component->m_RenderItem);
         dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
 
-        dmGameSystem::BufferResource* br = GetBufferResource(component);
+        ReleaseComponentVertexBuffer(world, component);
 
-        if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL) {
-            DecRefVertexBuffer(world, br->m_NameHash);
-        }
+        if (component->m_VertexDeclaration)
+            dmGraphics::DeleteVertexDeclaration(component->m_VertexDeclaration);
 
         if (component->m_Material)
         {
@@ -469,7 +510,12 @@ namespace dmGameSystem
                 continue;
 
             const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
-            c->m_World = go_world * c->m_Local;
+            Matrix4        transform = go_world * c->m_Local;
+            if (memcmp(&transform, &c->m_World, sizeof(transform)) != 0)
+            {
+                c->m_World = transform;
+                dmRender::SetWorldTransform(world->m_RenderContext, c->m_RenderItem, transform);
+            }
         }
     }
 
@@ -500,15 +546,7 @@ namespace dmGameSystem
                 continue;
             }
 
-            dmRender::HMaterial material = GetMaterial(&component, component.m_Resource);
-            if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
-            {
-                dmGameSystem::BufferResource* br = GetBufferResource(&component);
-
-                // Needs to be calculated here, since the buffer resource might have been changed since the last update
-                component.m_BufferVersion = CalcBufferVersion(&component, br);
-                UpdateVertexBuffer(world, br, component.m_BufferVersion);
-            }
+            UpdateComponentVertexBuffer(world, &component);
 
             if (component.m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component.m_RenderConstants))
                 component.m_ReHash = 1;
@@ -767,6 +805,9 @@ namespace dmGameSystem
     {
         DM_PROFILE("RenderBatchLocal");
 
+        // Accumulate locally to avoid profiler locks for every mesh.
+        uint32_t vertex_count = 0;
+        uint32_t vertex_data_size = 0;
         for (uint32_t *i=begin;i!=end;i++)
         {
             dmRender::RenderObject& ro = *world->m_RenderObjects.End();
@@ -778,8 +819,8 @@ namespace dmGameSystem
             VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(br->m_NameHash);
             assert(info != 0);
 
-            DM_PROPERTY_ADD_U32(rmtp_MeshVertexCount, br->m_ElementCount);
-            DM_PROPERTY_ADD_U32(rmtp_MeshVertexSize, br->m_Stride * br->m_ElementCount);
+            vertex_count += br->m_ElementCount;
+            vertex_data_size += br->m_Stride * br->m_ElementCount;
 
             dmGraphics::HVertexDeclaration vert_decl = GetVertexDeclaration(component);
 
@@ -788,6 +829,8 @@ namespace dmGameSystem
             FillRenderObject(ro, mr->m_PrimitiveType, material, mesh_resource_textures, component_textures, vert_decl, info->m_VertexBuffer, 0, br->m_ElementCount, component->m_World, component->m_RenderConstants);
             dmRender::AddToRender(render_context, &ro);
         }
+        DM_PROPERTY_ADD_U32(rmtp_MeshVertexCount, vertex_count);
+        DM_PROPERTY_ADD_U32(rmtp_MeshVertexSize, vertex_data_size);
     }
 
     static void RenderBatch(MeshWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
@@ -809,50 +852,6 @@ namespace dmGameSystem
             default:
                 assert(false);
             break;
-        }
-    }
-
-    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
-    {
-        DM_PROFILE("Mesh");
-
-        const dmIntersection::Frustum frustum = *params.m_Frustum;
-        uint32_t num_entries = params.m_NumEntries;
-        for (uint32_t i = 0; i < num_entries; ++i)
-        {
-            dmRender::RenderListEntry* entry = &params.m_Entries[i];
-            MeshComponent* component_p = (MeshComponent*)entry->m_UserData;
-
-            dmGameSystem::BufferResource* br = GetBufferResource(component_p);
-
-            void* data;
-            uint32_t count;
-            dmBuffer::ValueType valueType;
-            dmBuffer::Result r = dmBuffer::GetMetaData(br->m_Buffer, AABB_HASH, &data, &count, &valueType );
-
-            if (r == dmBuffer::RESULT_METADATA_MISSING)
-            {
-                // no bounding box available - no culling
-                entry->m_Visibility = dmRender::VISIBILITY_FULL;
-                continue;
-            }
-            else if (valueType != dmBuffer::VALUE_TYPE_FLOAT32 || count != 6)
-            {
-                dmLogError("Invalid AABB metadata. Expected array of 6 floats.");
-                entry->m_Visibility = dmRender::VISIBILITY_FULL;
-                continue;
-            }
-            else if (r != dmBuffer::RESULT_OK)
-            {
-                dmLogError("Error getting AABB for mesh buffer");
-                continue;
-            }
-
-            dmVMath::Vector3 boundsMin(((float*)data)[0], ((float*)data)[1], ((float*)data)[2] );
-            dmVMath::Vector3 boundsMax(((float*)data)[3], ((float*)data)[4], ((float*)data)[5] );
-
-            bool intersect      = dmIntersection::TestFrustumOBB(frustum, component_p->m_World, boundsMin, boundsMax);
-            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }
 
@@ -898,32 +897,45 @@ namespace dmGameSystem
         const dmArray<MeshComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();
 
-        // Prepare list submit
-        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
-        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, world);
-        dmRender::RenderListEntry* write_ptr = render_list;
-
+        uint32_t num_enabled = 0;
         for (uint32_t i = 0; i < count; ++i)
         {
             MeshComponent& component = *components[i];
-            if (!component.m_Enabled || !component.m_AddedToUpdate)
-            {
+            bool           enabled = component.m_Enabled && component.m_AddedToUpdate;
+            dmRender::Enable(render_context, component.m_RenderItem, enabled);
+            if (!enabled)
                 continue;
+            ++num_enabled;
+            dmRender::SetBatchKey(render_context, component.m_RenderItem, component.m_MixedHash);
+            dmRender::SetMaterial(render_context, component.m_RenderItem, GetMaterial(&component, component.m_Resource));
+
+            BufferResource*     buffer = GetBufferResource(&component);
+            void*               bounds = 0;
+            uint32_t            count = 0;
+            dmBuffer::ValueType type;
+            dmBuffer::Result    result = dmBuffer::GetMetaData(buffer->m_Buffer, AABB_HASH, &bounds, &count, &type);
+            if (result == dmBuffer::RESULT_OK && type == dmBuffer::VALUE_TYPE_FLOAT32 && count == 6)
+            {
+                float* values = (float*)bounds;
+                dmRender::SetBoundingOBB(render_context, component.m_RenderItem, Vector3(values[0], values[1], values[2]), Vector3(values[3], values[4], values[5]));
             }
-
-            DM_PROPERTY_ADD_U32(rmtp_Mesh, 1);
-            const Vector4 trans = component.m_World.getCol(3);
-            write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
-            write_ptr->m_UserData = (uintptr_t) &component;
-            write_ptr->m_BatchKey = component.m_MixedHash;
-            write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(&component, component.m_Resource));
-            write_ptr->m_Dispatch = dispatch;
-            write_ptr->m_MinorOrder = 0;
-            write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
-            ++write_ptr;
+            else
+            {
+                if (result == dmBuffer::RESULT_OK)
+                {
+                    dmLogError("Invalid AABB metadata. Expected array of 6 floats.");
+                }
+                else if (result != dmBuffer::RESULT_METADATA_MISSING)
+                {
+                    dmLogError("Error getting AABB for mesh buffer");
+                }
+                dmRender::SetBoundingAABB(render_context, component.m_RenderItem, Vector3(1), Vector3(-1));
+            }
         }
+        DM_PROPERTY_ADD_U32(rmtp_Mesh, num_enabled);
 
-        dmRender::RenderListSubmit(render_context, render_list, write_ptr);
+        if (num_enabled)
+            dmRender::SubmitRenderListDispatch(render_context, world->m_RenderDispatch);
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -975,6 +987,7 @@ namespace dmGameSystem
         int index = *params.m_UserData;
         MeshComponent* component = world->m_Components.Get(index);
         component->m_Resource = (MeshResource*)params.m_Resource;
+        UpdateComponentVertexBuffer(world, component);
         component->m_ReHash = 1;
     }
 
@@ -1012,19 +1025,16 @@ namespace dmGameSystem
 
         if (params.m_PropertyId == PROP_VERTICES)
         {
-            BufferResource* prev_buffer_resource = GetBufferResource(component);
-            BufferResource* prev_custom_buffer_resource = component->m_BufferResource;
+            dmhash_t prev_buffer_resource_hash = GetBufferResource(component)->m_NameHash;
+            bool had_custom_buffer_resource = component->m_BufferResource != 0;
 
             dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, BUFFER_EXT_HASH, (void**)&component->m_BufferResource);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                BufferResource* br = GetBufferResource(component);
-                component->m_BufferVersion = CalcBufferVersion(component, br);
-
                 // If the buffer resource was changed, we might need to recreate the vertex declaration.
-                if (!prev_custom_buffer_resource || (component->m_BufferResource != prev_buffer_resource)) {
+                if (!had_custom_buffer_resource || component->m_BufferResource->m_NameHash != prev_buffer_resource_hash) {
 
                     // Perhaps figure our a way to avoid recreating the same vertex declarations all the time? (If if it's worth it?)
                     dmGraphics::HVertexDeclaration new_vert_decl;
@@ -1042,33 +1052,17 @@ namespace dmGameSystem
                     component->m_VertexDeclaration = new_vert_decl;
                 }
 
-                if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
-                {
-                    CreateVertexBuffer(world, br); // Will inc ref the buffer
-                    UpdateVertexBuffer(world, br, component->m_BufferVersion);
-                    DecRefVertexBuffer(world, prev_buffer_resource->m_NameHash);
-                }
+                UpdateComponentVertexBuffer(world, component);
             }
 
             return res;
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
-            bool prev_material_local = dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
-
             dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
-
-            bool new_material_local = dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
-
-            // If we're going from reference counted (local space) vertex buffers, to not reference counted (global space)
-            if (res == dmGameObject::PROPERTY_RESULT_OK && new_material_local != prev_material_local) {
-                if (prev_material_local)
-                {
-                    BufferResource* br = GetBufferResource(component);
-                    DecRefVertexBuffer(world, br->m_NameHash);
-                }
-            }
+            if (res == dmGameObject::PROPERTY_RESULT_OK)
+                UpdateComponentVertexBuffer(world, component);
             return res;
         }
 
@@ -1178,6 +1172,7 @@ namespace dmGameSystem
         ComponentTypeSetLateUpdateFn(type, CompMeshLateUpdate);
         ComponentTypeSetRenderFn(type, CompMeshRender);
         ComponentTypeSetOnMessageFn(type, CompMeshOnMessage);
+        ComponentTypeSetOnReloadFn(type, CompMeshOnReload);
         ComponentTypeSetGetPropertyFn(type, CompMeshGetProperty);
         ComponentTypeSetSetPropertyFn(type, CompMeshSetProperty);
         ComponentTypeSetGetFn(type, CompMeshGetComponent);

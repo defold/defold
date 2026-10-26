@@ -256,6 +256,14 @@
   (let [texture-request-datas-by-side-kw (force texture-request-datas-by-side-kw-delay)]
     (make-cubemap-gpu-texture request-id texture-request-datas-by-side-kw)))
 
+(def placeholder-cubemap-gpu-texture-generator
+  {:f cubemap-gpu-texture-gen-fn
+   :args {:request-id ::placeholder-cubemap-gpu-texture
+          :texture-request-datas-by-side-kw-delay
+          (delay
+            (zipmap [:px :nx :py :ny :pz :nz]
+                    (repeat (first texture/placeholder-texture-request-datas))))}})
+
 (defn cubemap-gpu-texture-generator?
   [value]
   (and (generator? value)

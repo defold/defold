@@ -17,7 +17,7 @@
             [editor.editor-extensions.node-types :as node-types]
             [editor.fxui :as fxui]
             [editor.localization :as localization]
-            [editor.markdown :as markdown]
+            [editor.markdown-view :as markdown-view]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.view :as view]
@@ -28,7 +28,7 @@
 (g/defnk produce-desc [html project parent resource]
   {:fx/type fxui/ext-with-anchor-pane-props
    :desc {:fx/type ui/ext-value :value parent}
-   :props {:children [{:fx/type markdown/html-view
+   :props {:children [{:fx/type markdown-view/html-view
                        :anchor-pane/top 0
                        :anchor-pane/right 0
                        :anchor-pane/bottom 0
@@ -52,12 +52,12 @@
 (defn- repaint! [view-node]
   (ui/advance-graph-user-data-component! view-node :view (g/node-value view-node :desc)))
 
-(defn- make-view [graph ^Parent parent html-node {:keys [project ^Tab tab]}]
+(defn- make-view [^Parent parent html-node {:keys [project ^Tab tab]}]
   (let [view-node (first
                     (g/tx-nodes-added
                       (g/transact
                         {:undoable false}
-                        (g/make-nodes graph [view [HtmlViewNode :parent parent]]
+                        (g/make-nodes [view [HtmlViewNode :parent parent]]
                           (g/connect html-node :html view :html)
                           (g/connect html-node :resource view :resource)
                           (g/connect project :_node-id view :project)))))
@@ -73,6 +73,6 @@
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
-                                :id :html
-                                :label (localization/message "resource.view.html")
-                                :make-view-fn #'make-view))
+    :id :html
+    :label (localization/message "resource.view.html")
+    :make-view-fn #'make-view))

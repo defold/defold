@@ -6,23 +6,63 @@ include(defold)
 set(FONT_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(FONT_ROOT "${FONT_TEST_ROOT}/../..")
 set(FONT_SRC_DIR "${FONT_ROOT}/src")
+set(FONT_TEST_BUILD_DIR "${FONT_ROOT}/build/src/test")
+
+# Compile the fixture through Bob so tests exercise its glyph metrics and
+# monospaced padding, using the same relative paths on host and device runners.
+set(_alignment_font "${FONT_TEST_ROOT}/data/font_render/alignment.font")
+set(_alignment_fontc "${FONT_TEST_BUILD_DIR}/data/font_render/alignment.fontc")
+set(_alignment_bank "${FONT_TEST_BUILD_DIR}/data/font_render/alignment.glyph_bankc")
+add_custom_command(OUTPUT "${_alignment_fontc}" "${_alignment_bank}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${FONT_TEST_BUILD_DIR}/data/font_render"
+  COMMAND "${Java_JAVA_EXECUTABLE}" --enable-native-access=ALL-UNNAMED
+    -Djava.awt.headless=true -cp "${DEFOLD_BOB_LIGHT_JAR}"
+    com.dynamo.bob.font.Fontc "${_alignment_font}" "${_alignment_fontc}"
+    "${DEFOLD_HOME}/engine/engine/content"
+  DEPENDS "${_alignment_font}" "${DEFOLD_BOB_LIGHT_JAR}"
+    "${DEFOLD_HOME}/engine/engine/content/builtins/fonts/vera_mo_bd.ttf"
+  COMMENT "Compiling font test data"
+  VERBATIM)
+add_custom_target(font_test_data DEPENDS "${_alignment_bank}")
+
+# Font tests and image generation share fixtures and report outputs, but no devices or ports.
+defold_test_run_settings(_font_test_runner _font_test_run_options font)
 
 function(font_configure_test target font_target)
+  set(_font_test_data)
+  if(target MATCHES "^test_font(_skribidi)?$|^test_font_bitmap_gen")
+    add_dependencies(${target} font_test_data)
+    set(_font_test_data "build/src/test" "build/src/test")
+  endif()
   target_include_directories(${target} PRIVATE
     "${FONT_TEST_ROOT}"
     "${FONT_SRC_DIR}"
+    "${DEFOLD_HOME}/engine/dlib/src"
     "${FONT_ROOT}")
+  set(_rich_library font_richtext)
+  if(target MATCHES "_plain$")
+    set(_rich_library font_richtext_null)
+  endif()
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
     testmain
     dlib
     profile_null
     ${font_target}
-    font_richtext
+    ${_rich_library}
     font_render)
   defold_target_link_socket(${target} "${TARGET_PLATFORM}" PRIVATE)
-  defold_register_test_target(${target} ON "${FONT_ROOT}"
+  set(run ON)
+  if(target MATCHES "^test_font_bitmap_gen")
+    set(run OFF)
+  elseif(target STREQUAL "test_font_effects" AND DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$")
+    # Like the font image tests, GPU tests require OpenGL, available only on Linux CI runners.
+    set(run OFF)
+  endif()
+  defold_register_test_target(${target} ${run} "${FONT_ROOT}"
+    RUN_GROUP font
     STAGE_FILES
-      "src/test/data" "src/test/data")
+      "src/test/data" "src/test/data"
+      ${_font_test_data})
 endfunction()
 
 defold_add_executable(test_font
@@ -40,6 +80,63 @@ defold_add_executable(test_font_skribidi
 target_compile_definitions(test_font_skribidi PRIVATE FONT_USE_HARFBUZZ FONT_USE_SKRIBIDI)
 font_configure_test(test_font_skribidi font_skribidi)
 
+# All image configurations compile the same tests. No engine or project target.
+if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
+  _defold_find_python(_font_report_python)
+  foreach(target IN ITEMS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
+    defold_add_executable(${target} "${FONT_TEST_ROOT}/test_font_bitmap_gen.cpp"
+      "${FONT_SRC_DIR}/render/glyph_vertex.cpp" "${FONT_SRC_DIR}/render/layout_vertex.cpp")
+    if(MSVC)
+      # Generated cases contain Arabic UTF-8 literals in both source and runtime text.
+      target_compile_options(${target} PRIVATE /utf-8)
+    endif()
+    if(target MATCHES "_plain$")
+      target_compile_definitions(${target} PRIVATE FONT_IMAGE_RICH_NULL)
+    endif()
+    if(target MATCHES "_skribidi")
+      target_compile_definitions(${target} PRIVATE FONT_USE_HARFBUZZ FONT_USE_SKRIBIDI)
+      font_configure_test(${target} font_skribidi)
+    else()
+      font_configure_test(${target} font)
+    endif()
+  endforeach()
+  set(_font_python_command "${CMAKE_COMMAND}" -E env
+    "FONT_BITMAP_GENERATOR=$<TARGET_FILE:test_font_bitmap_gen>"
+    "${_font_report_python}" "${FONT_TEST_ROOT}/test_font_images.py")
+  add_custom_target(run_test_font_images_python
+    COMMAND ${_font_test_runner} ${_font_python_command}
+    DEPENDS test_font_bitmap_gen
+    WORKING_DIRECTORY "${FONT_ROOT}"
+    ${_font_test_run_options} COMMENT "Testing font image reporting and generator options")
+  defold_register_sequential_test_command(font_images_python COMMAND ${_font_python_command}
+    DEPENDS test_font_bitmap_gen)
+  set(_font_image_command "${CMAKE_COMMAND}" "-DFONT_ROOT=${FONT_ROOT}" "-DPYTHON=${_font_report_python}"
+    "-DLEGACY_RICH=$<TARGET_FILE:test_font_bitmap_gen>" "-DFULL_RICH=$<TARGET_FILE:test_font_bitmap_gen_skribidi>"
+    "-DLEGACY_PLAIN=$<TARGET_FILE:test_font_bitmap_gen_plain>" "-DFULL_PLAIN=$<TARGET_FILE:test_font_bitmap_gen_skribidi_plain>"
+    -P "${FONT_TEST_ROOT}/run_font_images.cmake")
+  add_custom_target(generate_font_test_images COMMAND ${_font_test_runner} ${_font_image_command}
+    DEPENDS run_test_font_images_python test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain
+    ${_font_test_run_options} COMMENT "Rendering the font-library image matrix")
+  # Keep the manual target available on every desktop. GitHub CI runs the
+  # automatic screenshot comparisons only on native Linux engine builds.
+  if(NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$")
+    if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+      if(NOT TARGET run_tests)
+        add_custom_target(run_tests)
+      endif()
+      defold_add_to_run_tests(run_test_font_images_python RUN_GROUP font
+        COMMAND ${_font_python_command}
+        WORKING_DIRECTORY "${FONT_ROOT}"
+        DEPENDS test_font_bitmap_gen)
+      defold_add_to_run_tests(generate_font_test_images RUN_GROUP font
+        COMMAND ${_font_image_command}
+        DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
+    endif()
+    defold_register_sequential_test_command(font_images COMMAND ${_font_image_command}
+      DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
+  endif()
+endif()
+
 defold_add_executable(test_markup "${FONT_TEST_ROOT}/test_markup.cpp")
 font_configure_test(test_markup font)
 
@@ -55,7 +152,10 @@ defold_target_link_libraries(test_markup_null "${TARGET_PLATFORM}"
   font
   font_richtext_null)
 defold_target_link_socket(test_markup_null "${TARGET_PLATFORM}" PRIVATE)
-defold_register_test_target(test_markup_null ON "${FONT_ROOT}")
+defold_register_test_target(test_markup_null ON "${FONT_ROOT}"
+  RUN_GROUP font
+  STAGE_FILES
+    "src/test/data" "src/test/data")
 
 if(FONT_RENDERER_IS_DESKTOP)
   defold_add_executable(test_fontc_markup_api "${FONT_TEST_ROOT}/test_fontc_markup_api.cpp")
@@ -69,7 +169,7 @@ if(FONT_RENDERER_IS_DESKTOP)
     BUILD_WITH_INSTALL_RPATH ON
     INSTALL_RPATH "$<TARGET_FILE_DIR:fontc_shared>")
   defold_target_link_socket(test_fontc_markup_api "${TARGET_PLATFORM}" PRIVATE)
-  defold_register_test_target(test_fontc_markup_api ON "${CMAKE_CURRENT_BINARY_DIR}/../..")
+  defold_register_test_target(test_fontc_markup_api ON "${CMAKE_CURRENT_BINARY_DIR}/../.." RUN_GROUP font)
 endif()
 
 defold_add_executable(benchmark_text_layout
@@ -114,15 +214,15 @@ defold_target_link_libraries(benchmark_text_layout_null "${TARGET_PLATFORM}"
   font_richtext_null)
 defold_target_link_socket(benchmark_text_layout_null "${TARGET_PLATFORM}" PRIVATE)
 
-# Exercise the standalone parser directly even though the full-layout library
-# deliberately excludes it in favor of HarfBuzz.
 defold_add_executable(test_font_truetype
-  "${FONT_TEST_ROOT}/test_font_truetype.cpp"
-  "${FONT_SRC_DIR}/truetype/font_truetype.cpp")
+  "${FONT_TEST_ROOT}/test_font_truetype.cpp")
 font_configure_test(test_font_truetype font_skribidi)
 
+defold_add_executable(test_font_colr "${FONT_TEST_ROOT}/test_font_colr.cpp")
+font_configure_test(test_font_colr font)
+
 if(FONT_RENDERER_IS_DESKTOP AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
-  set(FONT_RENDERER_TEST_JAVA "${FONT_TEST_ROOT}/java/com/dynamo/bob/font/FontRendererTest.java")
+  set(FONT_RENDERER_TEST_JAVA "${FONT_SRC_DIR}/java/test/com/dynamo/bob/font/FontRendererTest.java")
   set(FONT_RENDERER_TEST_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/font-renderer-test-classes")
   set(FONT_RENDERER_TEST_JAR "${CMAKE_CURRENT_BINARY_DIR}/font-renderer-tests.jar")
   set(FONT_RENDERER_TEST_JUNIT "${DEFOLD_SDK_ROOT}/ext/share/java/junit-4.6.jar")
@@ -145,25 +245,33 @@ if(FONT_RENDERER_IS_DESKTOP AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
             -C "${FONT_RENDERER_TEST_CLASSES_DIR}" .
             -C "${FONT_TEST_ROOT}/data" NotoSans-Regular.ttf
             -C "${FONT_TEST_ROOT}/data" NotoSansArabic-Regular.ttf
+            -C "${FONT_TEST_ROOT}/data" SourceCodePro-Regular.otf
+            -C "${FONT_TEST_ROOT}/data" vector_atlas_stress.ttf
     DEPENDS font_renderer_jar
             "${FONT_RENDERER_TEST_JAVA}"
             "${FONT_TEST_ROOT}/data/NotoSans-Regular.ttf"
             "${FONT_TEST_ROOT}/data/NotoSansArabic-Regular.ttf"
+            "${FONT_TEST_ROOT}/data/SourceCodePro-Regular.otf"
+            "${FONT_TEST_ROOT}/data/vector_atlas_stress.ttf"
     COMMENT "Packaging font-renderer-tests.jar")
   add_custom_target(test_font_renderer_java_jar DEPENDS "${FONT_RENDERER_TEST_JAR}")
   add_dependencies(test_font_renderer_java_jar fontc_shared font_renderer_jar)
   add_dependencies(build_tests test_font_renderer_java_jar)
+  set(_font_java_command "${Java_JAVA_EXECUTABLE}"
+    --enable-native-access=ALL-UNNAMED
+    "-Djava.library.path=$<TARGET_FILE_DIR:fontc_shared>"
+    -classpath "${FONT_RENDERER_TEST_CLASSPATH}"
+    com.dynamo.bob.font.FontRendererTest)
   add_custom_target(run_test_font_renderer_java
-    COMMAND "${Java_JAVA_EXECUTABLE}"
-            --enable-native-access=ALL-UNNAMED
-            "-Djava.library.path=$<TARGET_FILE_DIR:fontc_shared>"
-            -classpath "${FONT_RENDERER_TEST_CLASSPATH}"
-            com.dynamo.bob.font.FontRendererTest
+    COMMAND ${_font_test_runner} ${_font_java_command}
     DEPENDS test_font_renderer_java_jar fontc_shared
     WORKING_DIRECTORY "${FONT_ROOT}"
-    USES_TERMINAL
+    ${_font_test_run_options}
     COMMENT "Running font-renderer Java tests")
-  add_dependencies(run_tests run_test_font_renderer_java)
+  defold_add_to_run_tests(run_test_font_renderer_java RUN_GROUP font
+    COMMAND ${_font_java_command}
+    WORKING_DIRECTORY "${FONT_ROOT}"
+    DEPENDS test_font_renderer_java_jar fontc_shared)
 endif()
 
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32)$")
@@ -186,16 +294,53 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     OUTPUT_HEADER "${FONTVIEWER_ARABIC_FONT_HEADER}"
     OUTPUT_CPP "${FONTVIEWER_ARABIC_FONT_CPP}"
     SYMBOL FONTVIEWER_NOTO_SANS_ARABIC)
+  # Standalone viewers bypass Bob's shader include preprocessor.
+  set(_font_effect_shader "${FONT_ROOT}/content/builtins/fonts/font-effect.glsl")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_font_effect_shader}")
+  file(READ "${_font_effect_shader}" _font_effect_source)
+  foreach(_font_shader_base IN ITEMS
+      "${FONT_TEST_ROOT}/fontviewer/fontviewer_vector_font"
+      "${FONT_ROOT}/content/builtins/fonts/font-df"
+      "${DEFOLD_HOME}/engine/engine/content/builtins/fonts/font")
+    get_filename_component(_font_shader_name "${_font_shader_base}" NAME)
+    foreach(stage IN ITEMS vp fp)
+      set(_font_shader "${_font_shader_base}.${stage}")
+      set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_font_shader}")
+      file(READ "${_font_shader}" _font_source)
+      string(REPLACE "#include \"/builtins/fonts/font-effect.glsl\"" "${_font_effect_source}" _font_source "${_font_source}")
+      file(GENERATE OUTPUT "${FONTVIEWER_GENERATED_DIR}/${_font_shader_name}.${stage}" CONTENT "${_font_source}")
+    endforeach()
+  endforeach()
   defold_embed_to_header(
-    INPUT "${FONT_ROOT}/content/builtins/fonts/font-df.vp"
+    INPUT "${FONTVIEWER_GENERATED_DIR}/font-df.vp"
     OUTPUT_HEADER "${FONTVIEWER_VERTEX_SHADER_HEADER}"
     OUTPUT_CPP "${FONTVIEWER_VERTEX_SHADER_CPP}"
     SYMBOL FONTVIEWER_FONT_DF_VP)
   defold_embed_to_header(
-    INPUT "${FONT_ROOT}/content/builtins/fonts/font-df.fp"
+    INPUT "${FONTVIEWER_GENERATED_DIR}/font-df.fp"
     OUTPUT_HEADER "${FONTVIEWER_FRAGMENT_SHADER_HEADER}"
     OUTPUT_CPP "${FONTVIEWER_FRAGMENT_SHADER_CPP}"
     SYMBOL FONTVIEWER_FONT_DF_FP)
+  set(_fontviewer_render_sources)
+  foreach(_entry IN ITEMS
+      "${FONT_TEST_ROOT}/data/NotoEmoji-Regular.ttf|FONTVIEWER_NOTO_EMOJI"
+      "${FONTVIEWER_GENERATED_DIR}/font.vp|FONTVIEWER_FONT_BITMAP_VP"
+      "${FONTVIEWER_GENERATED_DIR}/font.fp|FONTVIEWER_FONT_BITMAP_FP"
+      "${FONT_TEST_ROOT}/data/NotoColorEmoji-Regular.ttf|FONTVIEWER_NOTO_COLOR_EMOJI"
+      "${FONTVIEWER_GENERATED_DIR}/fontviewer_vector_font.vp|FONTVIEWER_VECTOR_VP"
+      "${FONTVIEWER_GENERATED_DIR}/fontviewer_vector_font.fp|FONTVIEWER_VECTOR_FP"
+      "${FONT_ROOT}/content/builtins/fonts/font-vector-slug.glsl|FONTVIEWER_SLUG"
+      "${FONT_ROOT}/content/builtins/fonts/font-vector-paint.glsl|FONTVIEWER_PAINT")
+    string(REPLACE "|" ";" _parts "${_entry}")
+    list(GET _parts 0 _input)
+    list(GET _parts 1 _symbol)
+    get_filename_component(_name "${_input}" NAME)
+    defold_embed_to_header(INPUT "${_input}"
+      OUTPUT_HEADER "${FONTVIEWER_GENERATED_DIR}/${_name}.embed.h"
+      OUTPUT_CPP "${FONTVIEWER_GENERATED_DIR}/${_name}.embed.cpp"
+      SYMBOL ${_symbol})
+    list(APPEND _fontviewer_render_sources "${FONTVIEWER_GENERATED_DIR}/${_name}.embed.cpp")
+  endforeach()
   defold_create_exported_symbols_file(
     "${FONTVIEWER_GENERATED_DIR}/__exported_symbols_fontviewer.cpp"
     "GraphicsAdapterOpenGL")
@@ -207,7 +352,9 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     "${FONTVIEWER_ENGLISH_FONT_CPP}"
     "${FONTVIEWER_ARABIC_FONT_CPP}"
     "${FONTVIEWER_VERTEX_SHADER_CPP}"
-    "${FONTVIEWER_FRAGMENT_SHADER_CPP}")
+    "${FONTVIEWER_FRAGMENT_SHADER_CPP}"
+    "${FONT_TEST_ROOT}/fontviewer/fontviewer_vector_font.cpp"
+    ${_fontviewer_render_sources})
   set_target_properties(fontviewer PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
   target_include_directories(fontviewer PRIVATE
     "${FONT_SRC_DIR}"
@@ -237,4 +384,75 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     target_link_libraries(fontviewer PRIVATE Threads::Threads dl)
   endif()
   add_dependencies(build_tests fontviewer)
+  if(NOT CMAKE_CROSSCOMPILING)
+    set(_fontviewer_test_command "${CMAKE_COMMAND}" -E env "PYTHONPATH=${DEFOLD_SDK_ROOT}/ext/lib/python" "${_font_report_python}" "${FONT_TEST_ROOT}/test_fontviewer_color.py" "$<TARGET_FILE:fontviewer>")
+    add_custom_target(run_test_fontviewer_color
+      COMMAND ${_font_test_runner} ${_fontviewer_test_command}
+      DEPENDS fontviewer
+      WORKING_DIRECTORY "${FONT_ROOT}"
+      ${_font_test_run_options})
+    # Match the existing font graphics tests: local desktops and Linux CI
+    # with its configured display.
+    if(NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$")
+      if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        defold_add_to_run_tests(run_test_fontviewer_color RUN_GROUP font
+          COMMAND ${_fontviewer_test_command} WORKING_DIRECTORY "${FONT_ROOT}" DEPENDS fontviewer)
+      endif()
+      defold_register_sequential_test_command(fontviewer_color COMMAND ${_fontviewer_test_command}
+        DEPENDS fontviewer)
+    endif()
+  endif()
+endif()
+
+defold_add_executable(test_font_gen "${FONT_TEST_ROOT}/test_font_gen.cpp")
+target_include_directories(test_font_gen PRIVATE "${FONT_SRC_DIR}" "${FONT_ROOT}")
+defold_target_link_libraries(test_font_gen "${TARGET_PLATFORM}"
+  testmain
+  dlib
+  profile_null
+  font_gen
+  font)
+defold_target_link_socket(test_font_gen "${TARGET_PLATFORM}" PRIVATE)
+defold_register_test_target(test_font_gen ON "${FONT_ROOT}")
+
+defold_add_executable(test_font_gen_null "${FONT_TEST_ROOT}/test_font_gen_null.cpp")
+target_include_directories(test_font_gen_null PRIVATE "${FONT_SRC_DIR}" "${FONT_ROOT}")
+defold_target_link_libraries(test_font_gen_null "${TARGET_PLATFORM}"
+  testmain
+  dlib
+  profile_null
+  font_gen_null
+  font)
+defold_target_link_socket(test_font_gen_null "${TARGET_PLATFORM}" PRIVATE)
+defold_register_test_target(test_font_gen_null ON "${FONT_ROOT}")
+
+defold_add_executable(test_font_vector "${FONT_TEST_ROOT}/test_font_vector.cpp")
+font_configure_test(test_font_vector font)
+
+defold_add_executable(test_font_vector_skribidi "${FONT_TEST_ROOT}/test_font_vector.cpp")
+font_configure_test(test_font_vector_skribidi font_skribidi)
+
+if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
+  set(_font_image_generated "${CMAKE_CURRENT_BINARY_DIR}/font_image_generated")
+  file(MAKE_DIRECTORY "${_font_image_generated}")
+  add_custom_command(OUTPUT "${_font_image_generated}/font_image_cases.inc"
+    COMMAND "${_font_report_python}" "${FONT_TEST_ROOT}/make_report.py" --generate-cases "${_font_image_generated}/font_image_cases.inc"
+    DEPENDS "${FONT_TEST_ROOT}/make_report.py" "${FONT_TEST_ROOT}/data/font_render/lorem.json" "${FONT_TEST_ROOT}/data/font_render/capture_geometry.json")
+  defold_create_exported_symbols_file("${_font_image_generated}/exports.cpp" "GraphicsAdapterOpenGL")
+  defold_add_executable(test_font_effects "${FONT_TEST_ROOT}/test_font_effects.cpp")
+  font_configure_test(test_font_effects font)
+  foreach(target IN ITEMS test_font_effects test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
+    target_sources(${target} PRIVATE "${_font_image_generated}/exports.cpp" "${_font_image_generated}/font_image_cases.inc")
+    target_include_directories(${target} PRIVATE "${_font_image_generated}" "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+    set(WITH_OPENGL ON)
+    defold_target_link_graphics(${target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    if(TARGET_PLATFORM STREQUAL "arm64-linux")
+      # The platform helper selects GLES, but these tests export the desktop OpenGL adapter.
+      defold_target_link_opengl(${target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    endif()
+    defold_target_link_platform(${target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    if(TARGET_PLATFORM MATCHES "macos$")
+      target_link_libraries(${target} PRIVATE "-framework IOKit")
+    endif()
+  endforeach()
 endif()

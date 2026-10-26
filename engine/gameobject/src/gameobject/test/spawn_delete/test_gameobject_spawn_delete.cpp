@@ -78,13 +78,12 @@ static void PostSetParent(dmGameObject::HCollection collection, dmGameObject::HI
     ddf.m_KeepWorldTransform = 0;
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, dmGameObjectDDF::SetParent::m_DDFDescriptor->m_NameHash,
-        (uintptr_t) child, (uintptr_t) dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
+        0, (uintptr_t) dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
 }
 
 static int Lua_Spawn(lua_State* L) {
     const char* prototype = luaL_checkstring(L, 1);
-    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
-    dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+    dmGameObject::HCollection collection = dmGameObject::GetCollection(dmGameObject::GetInstanceFromLua(L));
     dmGameObject::AcquireInstanceIndex(collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     dmResource::HFactory factory = dmGameObject::GetFactory(collection);
@@ -212,7 +211,7 @@ public:
     }
 
     void NotNull(dmGameObject::HInstance instance) {
-        ASSERT_NE((void*)0, (void*)instance);
+        ASSERT_NE(0, instance);
     }
 
     dmGameObject::HInstance New(const char* prototype) {

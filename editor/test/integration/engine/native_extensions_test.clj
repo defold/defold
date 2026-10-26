@@ -40,7 +40,7 @@
 
 (deftest ^:native-extensions extension-roots-test
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+    (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
           project (test-util/setup-project! workspace)]
       (g/with-auto-evaluation-context evaluation-context
         (is (= #{"/extension1" "/subdir/extension2"}
@@ -48,21 +48,21 @@
 
 (deftest ^:native-extensions unpack-bin-zip-test
   (testing "${ext}/plugins/${platform}.zip is extracted to /build/plugins/${ext}/plugins/ folder"
-   (with-clean-system
-     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/extension_project")
-           _ (test-util/setup-project! workspace)
-           root (workspace/project-directory workspace)]
-       ;; The plugins/${platform}.zip archive has a following structure:
-       ;; /bin
-       ;;   /${platform}
-       ;;     /lsp.editor_script
-       (is (.exists (io/file (str root (format "/ext_with_bin_zip/plugins/%s.zip" (.getPair (Platform/getHostPlatform)))))))
-       ;; We verify that there is no file resource at
-       ;; plugins/bin/${platform}/lsp.editor_script path that could be extracted
-       ;; to the expected place (so it must come from the zip)
-       (is (not (.exists (io/file (str root (format "/ext_with_bin_zip/plugins/bin/%s/lsp.editor_script" (.getPair (Platform/getHostPlatform))))))))
-       ;; The file is extracted to its place from zip:
-       (is (.exists (io/file (str root (format "/build/plugins/ext_with_bin_zip/plugins/bin/%s/lsp.editor_script" (.getPair (Platform/getHostPlatform)))))))))))
+    (with-clean-system
+      (let [workspace (test-util/setup-scratch-workspace! "test/resources/extension_project")
+            _ (test-util/setup-project! workspace)
+            root (workspace/project-directory workspace)]
+        ;; The plugins/${platform}.zip archive has a following structure:
+        ;; /bin
+        ;;   /${platform}
+        ;;     /lsp.editor_script
+        (is (.exists (io/file (str root (format "/ext_with_bin_zip/plugins/%s.zip" (.getPair (Platform/getHostPlatform)))))))
+        ;; We verify that there is no file resource at
+        ;; plugins/bin/${platform}/lsp.editor_script path that could be extracted
+        ;; to the expected place (so it must come from the zip)
+        (is (not (.exists (io/file (str root (format "/ext_with_bin_zip/plugins/bin/%s/lsp.editor_script" (.getPair (Platform/getHostPlatform))))))))
+        ;; The file is extracted to its place from zip:
+        (is (.exists (io/file (str root (format "/build/plugins/ext_with_bin_zip/plugins/bin/%s/lsp.editor_script" (.getPair (Platform/getHostPlatform)))))))))))
 
 (deftest ^:native-extensions extension-resource-nodes-test
   (letfn [(platform-resources [project platform]
@@ -74,7 +74,7 @@
                    set)))]
     (testing "x86_64-macos"
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+        (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
               project (test-util/setup-project! workspace)]
           (is (= #{"/extension1/ext.manifest"
                    "/extension1/include/file"
@@ -89,7 +89,7 @@
                  (platform-resources project "x86_64-macos"))))))
     (testing "arm64-ios"
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+        (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
               project (test-util/setup-project! workspace)]
           (is (= #{"/extension1/ext.manifest"
                    "/extension1/include/file"
@@ -126,14 +126,14 @@
 (deftest ^:native-extensions app-manifest-context-test
   (testing "app manifest is synthesized with editor build options"
     (with-clean-system
-      (let [workspace (test-util/setup-workspace! world "test/resources/empty_project")
+      (let [workspace (test-util/setup-workspace! "test/resources/empty_project")
             project (test-util/setup-project! workspace)
             resources (make-extender-resources project "x86_64-macos")]
         (is (= {"context" expected-editor-build-context}
                (extender-resource-yaml resources "_app/app.manifest"))))))
   (testing "configured app manifest is merged with editor build options"
     (with-clean-system
-      (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+      (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
             project (test-util/setup-project! workspace)
             resources (make-extender-resources project "x86_64-macos")
             app-manifest-file (io/file (workspace/project-directory workspace) "game.appmanifest")
@@ -143,7 +143,7 @@
                (extender-resource-yaml resources "_app/app.manifest"))))))
   (testing "configured app manifest in flow style is merged as yaml data"
     (with-clean-system
-      (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+      (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
             project (test-util/setup-project! workspace)
             app-manifest (project/get-resource-node project "/game.appmanifest")]
         (test-util/set-code-editor-source! app-manifest "{\"platforms\": {\"wasm-web\": {\"context\": {}}}}\n")
@@ -156,7 +156,7 @@
                    "context: true\n"]]
     (testing (str "configured invalid app manifest is uploaded unchanged: " (string/trim content))
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+        (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
               project (test-util/setup-project! workspace)
               app-manifest (project/get-resource-node project "/game.appmanifest")]
           (test-util/set-code-editor-source! app-manifest content)
@@ -164,12 +164,59 @@
             (is (= content
                    (extender-resource-content (extender-resource resources "_app/app.manifest"))))))))))
 
+;; Verifies that opening a 1.13.1 2D-only manifest upgrades its Bullet3D exclusions
+;; and that Cmd+B uploads those exclusions, preventing missing Bullet linker symbols.
+(deftest ^:native-extensions legacy-bullet3d-app-manifest-migration-test
+  (test-util/with-temp-project-content
+    {"/game.project"
+     [{:path ["project" "title"]
+       :value "Empty project"}
+      {:path ["native_extension" "app_manifest"]
+       :value "/legacy.appmanifest"}]
+
+     "/legacy.appmanifest"
+     ["context:"
+      "  excludeLibs: [LinearMath, BulletDynamics, BulletCollision]"
+      "  excludeSymbols: []"
+      "platforms:"
+      "  arm64-osx:"
+      "    context:"
+      "      excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision]"
+      "      excludeSymbols: []"
+      "      libs: [physics_2d_defold]"
+      "  x86_64-win32:"
+      "    context:"
+      "      excludeLibs: [physics, libLinearMath, libBulletDynamics, libBulletCollision]"
+      "      excludeSymbols: []"
+      "  x86_64-linux:"
+      "    context:"
+      "      excludeLibs: [BulletDynamics]"]}
+    (let [manifest-node (project/get-resource-node project "/legacy.appmanifest")
+          manifest (g/node-value manifest-node :manifest)
+          upload (extender-resource-yaml (make-extender-resources project "arm64-macos") "_app/app.manifest")]
+      (is (true? (:dirty (g/node-value manifest-node :save-data))))
+      (doseq [platform [nil :arm64-osx :x86_64-win32]]
+        (let [context (if-not platform
+                        (:context manifest)
+                        (get-in manifest [:platforms platform :context]))
+              upload-context (if-not platform
+                               (get upload "context")
+                               (get-in upload ["platforms" (name platform) "context"]))]
+          (is (= 1 (get (frequencies (:excludeLibs context)) "script_bullet3d")))
+          (is (= ["ScriptBullet3DExt"] (:excludeSymbols context)))
+          (is (contains? (set (get upload-context "excludeLibs")) "script_bullet3d"))
+          (is (contains? (set (get upload-context "excludeSymbols")) "ScriptBullet3DExt"))))
+      (is (= ["BulletDynamics"]
+             (get-in manifest [:platforms :x86_64-linux :context :excludeLibs])))
+      (is (= ["physics_2d_defold"]
+             (get-in upload ["platforms" "arm64-osx" "context" "libs"]))))))
+
 (defn- blocking-async-build! [project prefs]
   @(app-view/async-build! project :prefs prefs))
 
 (deftest ^:native-extensions async-build-on-build-server
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/trivial_extension")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/trivial_extension")
           project (test-util/setup-project! workspace)
           test-prefs (test-util/make-build-stage-test-prefs)]
       (assert (= (native-extensions/get-build-server-url test-prefs project) "https://build-stage.defold.com"))
