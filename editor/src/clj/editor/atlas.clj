@@ -629,6 +629,7 @@
     {:info-text (if (svg/vector-texture? gpu-texture)
                   (localization/message "scene.atlas.vector")
                   (format "%d x %d (%s profile)" width height (:name texture-profile)))
+     :hide-cursor-position? (svg/vector-texture? gpu-texture)
      :children (into page-scenes child-scenes)}))
 
 (defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id digest-ignored/resource atlas-mode animations vector-image-sources atlas-images-variants unique-atlas-images margin inner-padding extrude-borders max-page-size]}]

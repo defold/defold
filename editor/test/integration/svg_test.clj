@@ -13,9 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.svg-test
-  (:require [clojure.test :refer :all]
+  (:require [cljfx.api :as fx]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.atlas :as atlas]
+            [editor.camera :as camera]
             [editor.defold-project :as project]
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vertex2]
@@ -24,8 +26,11 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.scene :as scene]
             [editor.svg :as svg]
             [editor.texture-set :as texture-set]
+            [editor.types :as types]
+            [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll])
@@ -33,6 +38,8 @@
            [com.dynamo.gamesys.proto AtlasProto$Atlas]
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
+           [javafx.scene.control Label]
+           [javafx.scene.layout AnchorPane]
            [javax.vecmath Matrix4d]))
 
 (set! *warn-on-reflection* true)
@@ -103,6 +110,30 @@
       (is (nil? (g/valid-node-value atlas :packed-page-images-generator)))
       (is (= 0 (g/valid-node-value atlas :texture-page-count)))
       (is (= 1 (count (g/valid-node-value atlas :build-targets)))))))
+
+;; Vector atlas info displays its localized label without layout positions.
+;; Raster previews retain their coordinates; neither case needs a GL preview.
+(deftest atlas-preview-info
+  (test-util/with-loaded-project "test/resources/svg_project"
+    (doseq [[path expected] [["/vector.atlas" #"^Vector atlas$"] ["/raster.atlas" #"Position:"]]]
+      (let [overlay (scene/produce-overlay-anchor-pane-props
+                      {:cursor-pos [160.0 120.0]
+                       :scene (g/valid-node-value (project/get-resource-node project path) :scene)
+                       :tool-info-text nil
+                       :active-updatable-ids #{}
+                       :updatables {}
+                       :camera (camera/make-camera :orthographic)
+                       :viewport (types/->Region 0 320 0 240)
+                       :localization test-util/localization
+                       :keymap nil
+                       :camera-inset-data nil})
+            texts (ui/run-now
+                    (let [component (fx/create-component (assoc overlay :fx/type :anchor-pane))]
+                      (try
+                        (mapv #(.getText ^Label %) (.getChildren ^AnchorPane (fx/instance component)))
+                        (finally
+                          (fx/delete-component component)))))]
+        (is (coll/any? #(re-find expected %) texts) path)))))
 
 ;; Bob/editor agree on compact SVG tracks. Unsaved animation edits invalidate
 ;; their dependent atlases and GUI builds.
