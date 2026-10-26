@@ -1057,6 +1057,50 @@
   (input values g/Int :array)
   (output total g/Int :cached (g/fnk [values] (reduce + 0 values))))
 
+;; Materializing an array contributor must invalidate the collector, preserve
+;; unaffected successor caches, and still handle inherited input shadowing.
+(deftest materialization-preserves-unaffected-array-successors-test
+  (doseq [collector-mode [:plain :overridden-original :override]]
+    (with-clean-system
+      (let [collector (g/make-node! MaterializationCollector)
+            existing-source (g/make-node! ShellTestNode :value 3)
+            _ (g/transact (g/connect existing-source :result collector :values))
+            override-collector (when (not= :plain collector-mode)
+                                 (first (g/tx-nodes-added (g/transact (g/override collector)))))
+            target (if (= :override collector-mode) override-collector collector)
+            shell (first (g/take-node-ids 1))]
+        (g/transact
+          (g/add-node
+            (g/construct-shell ShellTestNode {:_node-id shell}
+              (fn materialize-contributor [self _evaluation-context]
+                [(g/set-property self :value 7)
+                 (g/connect self :result target :values)]))))
+        (is (= 3 (g/node-value collector :total)))
+        (when override-collector
+          (is (= 3 (g/node-value override-collector :total))))
+        (let [existing-successors (g/successors (g/now) existing-source :result)]
+          (is (= 7 (g/node-value shell :result)))
+          (is (= (if (= :override collector-mode) 3 10)
+                 (g/node-value collector :total)))
+          (when override-collector
+            (is (= (if (= :override collector-mode) 7 10)
+                   (g/node-value override-collector :total))))
+          (is (= (cond-> #{(g/endpoint collector :total)}
+                   (= :overridden-original collector-mode)
+                   (conj (g/endpoint override-collector :total)))
+                 (set (g/successors (g/now) existing-source :result))))
+          (when (= :plain collector-mode)
+            (is (identical? existing-successors
+                            (g/successors (g/now) existing-source :result))))
+          (g/transact (g/disconnect shell :result target :values))
+          (is (= 3 (g/node-value collector :total)))
+          (when override-collector
+            (is (= 3 (g/node-value override-collector :total))))
+          (is (= #{} (set (g/successors (g/now) shell :result))))
+          (when (= :plain collector-mode)
+            (is (identical? existing-successors
+                            (g/successors (g/now) existing-source :result)))))))))
+
 ;; Sharing one materialization must not make an older evaluation-context's
 ;; cached total valid after another evaluation-context has also materialized a
 ;; second contributor.

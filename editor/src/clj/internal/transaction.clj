@@ -395,13 +395,26 @@
                   ;; The changed-node traversal above already covered every
                   ;; source targeting this node and its overrides.
                   (when-not (contains? node-and-override-id-set target-id)
-                    (let [direct-source-arcs (e/remove
+                    (let [target-node (ig/node-by-id-at basis target-id)
+                          direct-source-arcs (e/remove
                                                (fn [arc]
-                                                 ;; A changed source node already
-                                                 ;; invalidates all of its labels.
+                                                 ;; A changed source node
+                                                 ;; already invalidates all of
+                                                 ;; its labels.
                                                  (contains? node-ids (gt/source-id arc)))
                                                source-arcs)]
-                      (if-not (ig/node-by-id-at basis target-id)
+                      ;; Naturally, we don't need to traverse further if the
+                      ;; target node no longer exists. But we also do not need
+                      ;; to traverse further if the target is an array input on
+                      ;; a regular node with no overrides. If A is already
+                      ;; connected to the array input, and we connect B, that
+                      ;; doesn't change A's successors. Override nodes need
+                      ;; additional consideration because explicit connections
+                      ;; will replace inherited connections.
+                      (if (or (nil? target-node)
+                              (and (= :many (in/input-cardinality (gt/node-type target-node) target-label))
+                                   (not (gt/original target-node))
+                                   (coll/empty? (ig/get-overrides basis target-id))))
                         direct-source-arcs
                         (e/concat
                           direct-source-arcs
