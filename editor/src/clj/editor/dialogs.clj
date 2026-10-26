@@ -73,14 +73,19 @@
 (def ^:private dialogs-css-delay
   (delay (str (io/resource "dialogs.css"))))
 
-(defn max-dialog-stage-height []
-  (let [screens (Screen/getScreens)
-        n (.size screens)]
-    (loop [i 0
-           max-height 0.0]
-      (if (= i n)
-        max-height
-        (recur (unchecked-inc i) (max max-height (.getHeight (.getVisualBounds ^Screen (.get screens i)))))))))
+(defn- max-dialog-root-height [owner]
+  (let [^Window window (or owner (ui/main-stage))
+        screen (if window
+                 ;; Pick the screen that's at the window's center to show the
+                 ;; dialog, in case we're straddling two screens
+                 (or (first (Screen/getScreensForRectangle
+                              (+ (.getX window) (* 0.5 (.getWidth window)))
+                              (+ (.getY window) (* 0.5 (.getHeight window)))
+                              1.0 1.0))
+                     (Screen/getPrimary))
+                 (Screen/getPrimary))
+        window-decorations-height 48.0]
+    (- (.getHeight (.getVisualBounds ^Screen screen)) window-decorations-height)))
 
 (defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
@@ -100,16 +105,16 @@
                    \"dialog-content-padding\" style class to set desired padding
                    (or \"text-area-with-dialog-content-padding\" for text areas)
     :root-props    extra props to scene root's v-box lifecycle (sans :children)"
-  [{:keys [size header content footer root-props width height]
+  [{:keys [size header content footer root-props width height owner]
     :or {size :default root-props {}}
     :as props}]
   (-> props
       (dissoc :size :header :content :footer :root-props)
       (assoc :fx/type fxui/dialog-stage
-             :max-height (max-dialog-stage-height)
              :scene {:fx/type fx.scene/lifecycle
                      :stylesheets [@dialogs-css-delay]
                      :root (-> root-props
+                               (util/provide-defaults :max-height (max-dialog-root-height owner))
                                (fxui/add-style-classes "dialog-body")
                                (cond->
                                  (not width)
