@@ -438,7 +438,7 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
     dmEngineFinalize();
 }
 
-// Extension delta time must match the simulation time advanced by successive engine updates.
+// Extension and engine time must agree after every update, including when delta time is zero.
 TEST_F(EngineTest, ExtensionDeltaTime)
 {
     dmEngineInitialize();
@@ -458,19 +458,26 @@ TEST_F(EngineTest, ExtensionDeltaTime)
     g_ExtensionUpdateCount = 0;
     g_ExtensionFloatLookupSucceeded = true;
 
-    for (uint32_t i = 0; i < 3; ++i)
+    dmEngine::Stats engine_stats[3];
+    dmEngine::Stats extension_stats[DM_ARRAY_SIZE(engine_stats)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(engine_stats); ++i)
+    {
         dmEngine::Step(engine);
+        dmEngine::GetStats(engine, engine_stats[i]);
+        extension_stats[i].m_FrameCount = g_ExtensionUpdateCount;
+        extension_stats[i].m_TotalTime = g_ExtensionTotalDT;
+    }
 
-    dmEngine::Stats stats;
-    dmEngine::GetStats(engine, stats);
     dmEngine::Delete(engine);
     dmEngineFinalize();
 
     ASSERT_TRUE(g_ExtensionFloatLookupSucceeded);
-    ASSERT_EQ(3u, g_ExtensionUpdateCount);
-    ASSERT_EQ(stats.m_FrameCount, g_ExtensionUpdateCount);
-    ASSERT_GT(stats.m_TotalTime, 0.0f);
-    ASSERT_EQ(stats.m_TotalTime, g_ExtensionTotalDT);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(engine_stats); ++i)
+    {
+        ASSERT_EQ(i + 1, extension_stats[i].m_FrameCount);
+        ASSERT_EQ(engine_stats[i].m_FrameCount, extension_stats[i].m_FrameCount);
+        ASSERT_EQ(engine_stats[i].m_TotalTime, extension_stats[i].m_TotalTime);
+    }
 }
 
 TEST_F(EngineTest, SetEngineThrottle)
