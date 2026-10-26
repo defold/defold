@@ -57,6 +57,7 @@ struct ResourcePreloader
     bool m_CallbackCalled;
     bool m_Complete;
     bool m_Blocking;
+    bool m_Nested;
 };
 
 namespace dmResource
@@ -115,7 +116,7 @@ namespace dmResource
         uint8_t m_Created : 1;
         uint8_t m_PostDone : 1;
         uint8_t m_CompleteQueued : 1;
-        // Cleanup is finished; m_Result can become pending again after recreation.
+        // Cleanup is finished; graph readiness remains in m_Result.
         uint8_t m_Complete : 1;
         uint8_t m_Pin : 1;
         uint8_t m_PinQueued : 1;
@@ -341,7 +342,8 @@ namespace dmResource
 
     static void QueueComplete(LoadContext* context, LoadNode* node)
     {
-        if (!node->m_PostDone || node->m_PendingCompletions || node->m_Complete || node->m_CompleteQueued)
+        // Cleanup belongs to this load; readiness also includes its dependencies.
+        if (!node->m_PostDone || node->m_Complete || node->m_CompleteQueued)
             return;
         node->m_CompleteQueued = true;
         Push(context, context->m_Queues[LOAD_WORK_COMPLETE], node->m_Index);
@@ -1044,8 +1046,8 @@ namespace dmResource
         ReleaseStaging(context, node);
     }
 
-    // A finalized load can acquire unfinished dependencies during recreation.
-    // Keep its cleanup state separate from readiness of the current graph.
+    // Dependencies can still be finalizing or be added during recreation.
+    // Keep this load's cleanup state separate from readiness of the graph.
     static Result GetNodeResult(LoadContext* context, LoadNode* node)
     {
         if (node->m_CreateResult != RESULT_OK)
@@ -1079,7 +1081,9 @@ namespace dmResource
                 return false;
             LoadNode* node = context->m_Nodes.GetPtr(index);
             node->m_Result = GetNodeResult(context, node);
-            result = node->m_Result;
+            // These stages are finished even if a shared dependency is still
+            // pending. Its owner will publish final readiness through the graph.
+            result = node->m_Result == RESULT_PENDING ? node->m_CreateResult : node->m_Result;
             load = node->m_Load;
             type = node->m_Type;
             path = node->m_Path;
@@ -1121,7 +1125,6 @@ namespace dmResource
                 parent->m_DependencyResult = node->m_Result;
             if (parent->m_Complete && parent->m_Result != GetNodeResult(context, parent))
                 RefreshDependencyResults(context, parent->m_Index);
-            QueueComplete(context, parent);
         }
         ChangeHold(context, node, false);
         --node->m_References;
@@ -1254,10 +1257,10 @@ namespace dmResource
             for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
             {
                 LoadNode* root = context->m_Nodes.GetPtr(request->m_Roots[i]);
-                if (!root->m_Complete || root->m_Result == RESULT_PENDING)
+                if (!root->m_Complete || (!request->m_Nested && root->m_Result == RESULT_PENDING))
                     return RESULT_PENDING;
                 if (result == RESULT_OK)
-                    result = root->m_Result;
+                    result = root->m_Result == RESULT_PENDING ? root->m_CreateResult : root->m_Result;
             }
             for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
                 ChangeHold(context, context->m_Nodes.GetPtr(request->m_Roots[i]), false);
@@ -1383,12 +1386,17 @@ namespace dmResource
         return result;
     }
 
-    static HPreloader NewRequest(HFactory factory)
+    static HPreloader NewRequest(HFactory factory, bool blocking)
     {
         HPreloader request = new ResourcePreloader();
         request->m_Context = GetLoadContext(factory);
         request->m_Result = RESULT_OK;
+        request->m_Blocking = blocking;
         DM_MUTEX_SCOPED_LOCK(request->m_Context->m_Mutex);
+        // Like a cached Get in a resource callback, a nested load can consume
+        // created dependencies whose PostCreate belongs to an outer request.
+        // It still finishes all loads it starts before releasing this request.
+        request->m_Nested = blocking && request->m_Context->m_UpdateDepth && request->m_Context->m_UpdateOwner == GetCaller(request->m_Context);
         ++request->m_Context->m_Requests;
         return request;
     }
@@ -1444,7 +1452,7 @@ namespace dmResource
 
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names)
     {
-        HPreloader request = NewRequest(factory);
+        HPreloader request = NewRequest(factory, false);
         for (uint32_t i = 0; i < names.Size(); ++i)
         {
             Result result = AddRoot(request, names[i], 0, 0, 0, 0, false, false);
@@ -1456,7 +1464,7 @@ namespace dmResource
 
     HPreloader NewPreloader(HFactory factory, const char* name)
     {
-        HPreloader request = NewRequest(factory);
+        HPreloader request = NewRequest(factory, false);
         request->m_Result = AddRoot(request, name, 0, 0, 0, 0, false, false);
         return request;
     }
@@ -1491,7 +1499,7 @@ namespace dmResource
         for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
         {
             LoadNode* root = context->m_Nodes.GetPtr(request->m_Roots[i]);
-            if (!root->m_Complete || root->m_Result == RESULT_PENDING)
+            if (!root->m_Complete || (!request->m_Nested && root->m_Result == RESULT_PENDING))
             {
                 complete = false;
                 foreign = foreign || !root->m_Load || root->m_Load->m_Caller != caller;
@@ -1704,8 +1712,6 @@ namespace dmResource
                     }
                 }
                 RefreshDependencyResults(context, recreate->m_Node);
-                // Removing the last pending dependency can unblock an already posted parent.
-                QueueComplete(context, node);
             }
             context->m_Creating = recreate->m_PreviousCreating;
             context->m_Recreating = recreate->m_Previous;
@@ -1776,8 +1782,7 @@ namespace dmResource
 
     Result LoadResourceSync(HFactory factory, const char* path, HResourceType type, const void* data, uint32_t size, uint32_t file_size, bool provided, void** resource)
     {
-        HPreloader request = NewRequest(factory);
-        request->m_Blocking = true;
+        HPreloader request = NewRequest(factory, true);
         Result result = AddRoot(request, path, type, data, size, file_size, provided, true);
         if (result != RESULT_OK)
         {

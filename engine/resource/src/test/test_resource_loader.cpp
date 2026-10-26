@@ -626,6 +626,39 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         return true;
     }
 
+    static bool NotifyAndReleasePost(const dmResource::PreloaderCompleteCallbackParams* params)
+    {
+        Notification* notification = (Notification*)params->m_UserData;
+        notification->m_Test->m_HeldPost = ~0u;
+        return Notify(params);
+    }
+
+    static void CompleteAndReleasePostFromThread(void* user_data)
+    {
+        GetCaller* caller = (GetCaller*)user_data;
+        ResourceLoaderTest* self = caller->m_Test;
+        dmResource::HPreloader request = dmResource::NewPreloader(self->m_Factory, "/node_1.node");
+        Notification notification = { self, 1 };
+        dmResource::PreloaderCompleteCallbackParams params = { self->m_Factory, &notification };
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        do
+        {
+            caller->m_Result = dmResource::UpdatePreloader(request, NotifyAndReleasePost, &params, 1000);
+        } while (caller->m_Result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline);
+        dmResource::DeletePreloader(request);
+    }
+
+    static bool LoadAndReleaseSharedDependency(const dmResource::PreloaderCompleteCallbackParams* params)
+    {
+        GetCaller* caller = (GetCaller*)params->m_UserData;
+        caller->m_Result = dmResource::Get(params->m_Factory, "/node_2.node", &caller->m_Resource);
+        if (caller->m_Resource)
+            dmResource::Release(params->m_Factory, caller->m_Resource);
+        caller->m_Resource = 0;
+        caller->m_Test->m_HeldPost = ~0u;
+        return caller->m_Result == dmResource::RESULT_OK;
+    }
+
     static bool GetCreatedResource(const dmResource::PreloaderCompleteCallbackParams* params)
     {
         GetCaller* caller = (GetCaller*)params->m_UserData;
@@ -2528,6 +2561,158 @@ TEST_P(ResourceLoaderTest, GetWaitsForPendingPostCreate)
             ASSERT_EQ(1u, id);
         Delete(id);
         ASSERT_EQ(1u, m_Destroys[id]);
+    }
+}
+
+// Nested Get can share a pending dependency without blocking the outer callback that releases it; later failures still propagate.
+TEST_P(ResourceLoaderTest, NestedGetSharedPendingPost)
+{
+    EnablePostCreate();
+    m_Transitive = true;
+    uint32_t child = 1;
+    Add(0, &child, 1);
+    Add(1, 0, 0);
+    Add(2, &child, 1);
+    for (uint32_t failure = 0; failure < 2; ++failure)
+    {
+        m_Notified[0] = false;
+        m_HeldPost = child;
+        m_FailedPost = failure ? child : ~0u;
+        dmResource::HPreloader request = Request(0);
+        Notification notification = { this, 0 };
+        dmResource::PreloaderCompleteCallbackParams params = { m_Factory, &notification };
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        dmResource::Result result;
+        do
+        {
+            result = dmResource::UpdatePreloader(request, NotifyAndReleasePost, &params, 1000);
+        } while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline);
+        ASSERT_EQ(failure ? dmResource::RESULT_INVALID_DATA : dmResource::RESULT_OK, result);
+        ASSERT_TRUE(m_Notified[0]);
+        ASSERT_EQ(failure + 1, m_Posts[2]);
+        Delete(failure);
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            ASSERT_EQ(failure + 1, m_Preloads[i]);
+            ASSERT_EQ(failure + 1, m_Creates[i]);
+            ASSERT_EQ(failure + 1, m_Destroys[i]);
+        }
+    }
+}
+
+// Nested Get can finish a dependency owned by another caller while that dependency's shared child still awaits PostCreate.
+TEST_P(ResourceLoaderTest, NestedGetWithForeignPendingPost)
+{
+#if defined(DM_HAS_THREADS)
+    EnablePostCreate();
+    m_Hints = false;
+    m_HeldPost = 2;
+    m_CheckedThreadNode = 0;
+    m_SignalCreate = 1;
+    Add(2, 0, 0);
+    uint32_t child = 2;
+    Add(0, &child, 1);
+    child = 0;
+    Add(1, &child, 1);
+    dmResource::HPreloader pending = Request(2);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_Creates[2] && dmTime::GetMonotonicTime() < deadline)
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(pending, 0, 0, 0));
+    ASSERT_EQ(1u, m_Creates[2]);
+    dmResource::HPreloader request = Request(0);
+    GetCaller caller = { this, 0, dmResource::RESULT_PENDING, 1 };
+    dmThread::Thread thread = dmThread::New(CompleteAndReleasePostFromThread, 0x20000, &caller, "NestedPost");
+    {
+        DM_MUTEX_SCOPED_LOCK(m_Mutex);
+        while (!m_Blocked)
+            dmConditionVariable::Wait(m_Changed, m_Mutex);
+    }
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(request));
+    dmThread::Join(thread);
+    ASSERT_EQ(dmResource::RESULT_OK, caller.m_Result);
+    ASSERT_TRUE(m_Notified[1]);
+    ASSERT_TRUE(m_CreationThreadCorrect);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(pending));
+    Delete(1);
+    Delete(0);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(1u, m_Preloads[i]);
+        ASSERT_EQ(1u, m_Creates[i]);
+        ASSERT_EQ(1u, m_Destroys[i]);
+    }
+#endif
+}
+
+// Recreate can load a new intermediary sharing an unfinished dependency, while external lookups still wait for readiness.
+TEST_P(ResourceLoaderTest, RecreateGetSharedPendingPost)
+{
+    EnablePostCreate();
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        uint32_t root = mode * 3;
+        uint32_t child = root + 1;
+        uint32_t middle = root + 2;
+        Add(root, 0, 0);
+        Add(child, 0, 0);
+        Add(middle, &child, 1);
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(root)));
+        m_HeldPost = child;
+        dmResource::HPreloader pending = Request(child);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!m_Creates[child] && dmTime::GetMonotonicTime() < deadline)
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(pending, 0, 0, 0));
+        ASSERT_EQ(1u, m_Creates[child]);
+        ASSERT_EQ(dmResource::RESULT_OK, Replace(root, &middle, 1, mode));
+        ASSERT_EQ(1u, m_Posts[middle]);
+        char path[64];
+        Path(root, path, sizeof(path));
+        void* resource = 0;
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::Get(m_Factory, dmHashString64(path), &resource));
+        ASSERT_EQ((void*)0, resource);
+        m_HeldPost = ~0u;
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(pending));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, dmHashString64(path), &resource));
+        dmResource::Release(m_Factory, resource);
+        Delete(mode * 2);
+        Delete(mode * 2 + 1);
+        for (uint32_t i = root; i <= middle; ++i)
+        {
+            ASSERT_EQ(1u, m_Preloads[i]);
+            ASSERT_EQ(1u, m_Creates[i]);
+            ASSERT_EQ(1u, m_Destroys[i]);
+        }
+    }
+}
+
+// Completion callbacks can release a newly loaded intermediary before its shared dependency finishes, without stranding cleanup.
+TEST_P(ResourceLoaderTest, CompletionCallbackLoadsSharedPendingPost)
+{
+    EnablePostCreate();
+    m_HeldPost = 1;
+    uint32_t child = 1;
+    Add(0, &child, 1);
+    Add(1, 0, 0);
+    Add(2, &child, 1);
+    dmResource::HPreloader request = Request(0);
+    GetCaller caller = { this, 0, dmResource::RESULT_PENDING, 2 };
+    dmResource::PreloaderCompleteCallbackParams params = { m_Factory, &caller };
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    dmResource::Result result;
+    do
+    {
+        result = dmResource::UpdatePreloader(request, LoadAndReleaseSharedDependency, &params, 1000);
+    } while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(dmResource::RESULT_OK, caller.m_Result);
+    ASSERT_EQ(1u, m_Posts[2]);
+    ASSERT_EQ(1u, m_Destroys[2]);
+    Delete(0);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(1u, m_Preloads[i]);
+        ASSERT_EQ(1u, m_Creates[i]);
+        ASSERT_EQ(1u, m_Destroys[i]);
     }
 }
 

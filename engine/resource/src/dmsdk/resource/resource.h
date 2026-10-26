@@ -192,6 +192,8 @@ void ResourceRegisterDecryptionFunction(FResourceDecryption decrypt_resource);
  * @note if successful, it increments the ref count by one
  * @note An in-flight shared load keeps Create/PostCreate on the thread that first
  * requested it. That thread must continue updating its resource requests.
+ * @note Resource callbacks can consume already-created dependencies while their
+ * PostCreate is pending. The owning request retains finalization and its result.
  * @name ResourceGet
  * @param factory [type: HResourceFactory] Factory handle
  * @param path [type: const char*] Resource path
