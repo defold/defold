@@ -9,7 +9,7 @@ Applies to your changes only, keep the rest of the code untouched unless explici
 
 ## if/if-not
 
-When one branch of an `if` is trivial, prefer placing the trivial branch in the true position.
+When one branch of an `if` spans multiple lines, prefer placing it in the false position.
 
 ## Functions
 
@@ -17,7 +17,7 @@ Avoid introducing multiple arities to functions. Prefer updating call sites with
 
 ## Anonymous `(fn ...)` names
 
-Name functions that are stored or invoked later for clearer stack traces. Small inline transformations may remain unnamed.
+Name functions that are stored or invoked later for clearer stack traces. Small inline transformations and `#(...)` may remain unnamed.
 
 ## Grouping and spacing
 
@@ -61,7 +61,7 @@ If your change causes the running editor to disable handlers or timers after an 
   (editor.ui/enable-disabled-functionality!))
 ```
 
-## Inline single-use trivial helpers/constants/locals
+## Inline single-use trivial helpers/constants
 
 They make the code worse because they make the logic/behavior non-local, introducing a separation where there is none.
 
