@@ -872,7 +872,7 @@
     (map (fn [renderable]
            [(:selection-id renderable (:node-id renderable)) renderable]))))
 
-(g/defnk produce-scene-render-data [scene preview-overrides selection hidden-renderable-tags hidden-node-outline-key-paths local-camera]
+(defn- make-scene-render-data [scene preview-overrides selection hidden-renderable-tags hidden-node-outline-key-paths view-matrix]
   (if-let [error (:error scene)]
     {:error error
      :renderables {}
@@ -880,12 +880,41 @@
      :selected-renderables []
      :scene-aabb geom/empty-bounding-box}
     (let [selection-set (set selection)
-          view-matrix (c/camera-view-matrix local-camera)
           {:keys [renderables] :as flattened-scene} (flatten-scene scene preview-overrides selection-set hidden-renderable-tags hidden-node-outline-key-paths view-matrix)
           selection-pass-renderables-by-selection-id (get-selection-pass-renderables-by-selection-id renderables)
           selected-renderables (coll/into-> selection []
                                  (keep selection-pass-renderables-by-selection-id))]
       (assoc flattened-scene :selected-renderables selected-renderables))))
+
+(g/defnk produce-scene-render-data [scene preview-overrides selection hidden-renderable-tags hidden-node-outline-key-paths local-camera]
+  (make-scene-render-data scene preview-overrides selection hidden-renderable-tags hidden-node-outline-key-paths
+                          (when-not (:error scene)
+                            (c/camera-view-matrix local-camera))))
+
+(defn- renderables-for-camera [pass ^Matrix4d view-matrix renderables]
+  (let [depth-index (if (= pass/outline pass) 2 1)
+        topmost-index (dec depth-index)]
+    (mapv (fn [renderable]
+            (let [render-key (:render-key renderable)]
+              (if (render-key topmost-index)
+                renderable
+                (assoc renderable :render-key
+                       (assoc render-key depth-index
+                              (back-to-front-depth-sort-value view-matrix (:world-translation renderable)))))))
+          renderables)))
+
+(g/defnk produce-camera-scene-render-data [scene-world-render-data local-camera]
+  (if (:error scene-world-render-data)
+    scene-world-render-data
+    (let [view-matrix (c/camera-view-matrix local-camera)]
+      (-> scene-world-render-data
+          (update :renderables
+                  (fn [renderables-by-pass]
+                    (coll/pair-map-by key
+                                      (fn [[pass renderables]]
+                                        (renderables-for-camera pass view-matrix renderables))
+                                      renderables-by-pass)))
+          (update :selected-renderables (partial renderables-for-camera pass/selection view-matrix))))))
 
 (defn- make-aabb-renderables-by-pass [^AABB aabb color renderable-tag]
   (assert (keyword? renderable-tag))
@@ -941,8 +970,8 @@
         preview-ambient-light (:ambient-light preview-light-data)]
     (pass->render-args-with-preview-lights viewport camera pass/all-passes preview-lights preview-ambient-light)))
 
-(g/defnk produce-renderables-aabb+picking-node-id [scene-render-data]
-  (let [renderables-by-pass (:renderables scene-render-data)]
+(g/defnk produce-renderables-aabb+picking-node-id [scene-world-render-data]
+  (let [renderables-by-pass (:renderables scene-world-render-data)]
     (into []
           (comp cat
                 (keep (fn [renderable]
@@ -980,26 +1009,31 @@
 
   (output camera-type g/Keyword (g/fnk [camera] (:type camera)))
   (output internal-renderables g/Any :cached produce-internal-renderables)
-  (output scene-render-data g/Any :cached produce-scene-render-data)
+  ;; World transforms, bounds, visibility and picking ids do not depend on the
+  ;; camera. Cache them separately from the depth keys used to order draws.
+  (output scene-world-render-data g/Any :cached
+          (g/fnk [scene preview-overrides selection hidden-renderable-tags hidden-node-outline-key-paths]
+            (make-scene-render-data scene preview-overrides selection hidden-renderable-tags hidden-node-outline-key-paths math/identity-mat4)))
+  (output scene-render-data g/Any :cached produce-camera-scene-render-data)
   (output aux-render-data g/Any :cached produce-aux-render-data)
 
-  (output selected-renderables g/Any (g/fnk [scene-render-data] (:selected-renderables scene-render-data)))
-  (output scene-aabb AABB (g/fnk [scene-render-data] (:scene-aabb scene-render-data)))
-  (output selected-aabb AABB :cached (g/fnk [scene-render-data]
+  (output selected-renderables g/Any (g/fnk [scene-world-render-data] (:selected-renderables scene-world-render-data)))
+  (output scene-aabb AABB (g/fnk [scene-world-render-data] (:scene-aabb scene-world-render-data)))
+  (output selected-aabb AABB :cached (g/fnk [scene-world-render-data]
                                        (let [selected-aabbs (sequence (comp (mapcat val)
                                                                             (filter :selected)
                                                                             (map :aabb))
-                                                                      (:renderables scene-render-data))]
+                                                                      (:renderables scene-world-render-data))]
                                          (if (seq selected-aabbs)
                                            (reduce geom/aabb-union geom/null-aabb selected-aabbs)
-                                           (:scene-aabb scene-render-data)))))
+                                           (:scene-aabb scene-world-render-data)))))
   (output renderables-aabb+picking-node-id g/Any :cached produce-renderables-aabb+picking-node-id)
   (output selected-updatables g/Any :cached (g/fnk [selected-renderables]
                                               (into {}
                                                     (comp (keep :updatable)
                                                           (map (juxt :node-id identity)))
                                                     selected-renderables)))
-  (output updatables g/Any :cached (g/fnk [scene-render-data]
+  (output updatables g/Any :cached (g/fnk [scene-world-render-data]
                                      ;; Currently updatables are implemented as extra info on the renderables.
                                      ;; The renderable associates an updatable with itself, which contains info
                                      ;; about the updatable. The updatable is identified by a node-id, for example
@@ -1014,7 +1048,7 @@
                                      ;; TODO:
                                      ;; We probably want to change how this works to make it possible to have
                                      ;; multiple instances of the same updatable in a scene.
-                                     (let [flat-renderables (apply concat (map second (:renderables scene-render-data)))
+                                     (let [flat-renderables (apply concat (map second (:renderables scene-world-render-data)))
                                            renderables-by-updatable-node-id (dissoc (group-by (comp :node-id :updatable) flat-renderables) nil)]
                                        (into {}
                                              (map (fn [[updatable-node-id renderables]]
