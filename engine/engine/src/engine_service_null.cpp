@@ -14,6 +14,14 @@
 
 #include "engine_service.h"
 
+void dmEngineService::Initialize()
+{
+}
+
+void dmEngineService::Finalize()
+{
+}
+
 dmEngineService::HEngineService dmEngineService::New(uint16_t)
 {
 	return 0;

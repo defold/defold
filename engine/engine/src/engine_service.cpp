@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <float.h>
+#include <ctype.h>
 #include <dlib/webserver.h>
 #include <dlib/message.h>
 #include <dlib/dstrings.h>
@@ -25,6 +26,7 @@
 #include <dlib/sys.h>
 #include <dlib/time.h>
 #include <dlib/template.h>
+#include <dlib/uri.h>
 #include <ddf/ddf.h>
 #include <resource/resource.h>
 #include <gameobject/gameobject.h>
@@ -767,6 +769,155 @@ namespace dmEngineService
         SendText(request, "\"");
     }
 
+    static const char* TraceStateName(XcTraceState state)
+    {
+        static const char* names[] = { "idle", "scheduled", "starting", "recording", "stopping", "complete", "cancelled", "error", "unsupported" };
+        return names[state];
+    }
+
+    static bool ParseTraceParameters(char* buffer, XcTraceParams* params, char* path, uint32_t capacity)
+    {
+        uint32_t fields = 0;
+        char*    cursor = buffer;
+        while (*cursor)
+        {
+            char* next = strchr(cursor, '&');
+            if (next)
+                *next++ = 0;
+            char* value = strchr(cursor, '=');
+            if (!value)
+                return false;
+            *value++ = 0;
+            uint32_t field = strcmp(cursor, "path") == 0 ? 1 : strcmp(cursor, "delay_ms") == 0 ? 2 :
+            strcmp(cursor, "duration_ms") == 0                                                 ? 4 :
+            strcmp(cursor, "energy") == 0                                                      ? 8 :
+                                                                                                 0;
+            if (!field || (fields & field))
+                return false;
+            fields |= field;
+            if (field == 1)
+            {
+                for (const char* p = value; *p; ++p)
+                {
+                    if (*p == '%')
+                    {
+                        if (!p[1] || !p[2] || !isxdigit((unsigned char)p[1]) || !isxdigit((unsigned char)p[2]) || (p[1] == '0' && p[2] == '0'))
+                            return false;
+                        p += 2;
+                    }
+                }
+                dmURI::Decode(value, value);
+                if (strlen(value) >= capacity)
+                    return false;
+                dmStrlCpy(path, value, capacity);
+                params->m_Path = path;
+            }
+            else if (field == 8)
+            {
+                if (strcmp(value, "0") != 0 && strcmp(value, "1") != 0)
+                    return false;
+                params->m_Energy = value[0] == '1';
+            }
+            else if (!ParseTraceTime(value, field == 2 ? &params->m_DelayMs : &params->m_DurationMs))
+                return false;
+            if (!next)
+                break;
+            cursor = next;
+        }
+        return true;
+    }
+
+    static void TraceHandler(void*, dmWebServer::Request* request)
+    {
+        const char*    resource = request->m_Resource;
+        const uint32_t route_size = sizeof("/profiler/trace") - 1;
+        if (resource[route_size] != 0 && resource[route_size] != '?')
+        {
+            dmWebServer::SetStatusCode(request, 404);
+            return;
+        }
+        XcTraceStatus status;
+        GetXcTraceStatus(&status);
+        int         code = 200;
+        const char* error = "";
+        bool        content_read = false;
+        if (strcmp(request->m_Method, "POST") == 0)
+        {
+            XcTraceParams params;
+            char          path[1024];
+            // Parameters belong in the body: the HTTP server has a short request-URL limit.
+            char     body[4096];
+            uint32_t received = 0;
+            bool     valid = resource[route_size] == 0 && request->m_ContentLength < sizeof(body);
+            if (valid)
+            {
+                content_read = true;
+                valid = dmWebServer::Receive(request, body, request->m_ContentLength, &received) == dmWebServer::RESULT_OK && received == request->m_ContentLength;
+                body[received] = 0;
+                valid = valid && strlen(body) == received && ParseTraceParameters(body, &params, path, sizeof(path));
+            }
+            if (!valid)
+            {
+                code = 400;
+                error = "invalid_request";
+            }
+            else
+            {
+                XcTraceResult result = StartXcTrace(params);
+                switch (result)
+                {
+                    case XCTRACE_OK:
+                        code = 202;
+                        break;
+                    case XCTRACE_BUSY:
+                        code = 409;
+                        error = "busy";
+                        break;
+                    case XCTRACE_INVALID:
+                        code = 400;
+                        error = "invalid_path";
+                        break;
+                    case XCTRACE_UNAVAILABLE:
+                        code = 501;
+                        error = "unavailable";
+                        break;
+                }
+            }
+        }
+        else if (strcmp(request->m_Method, "DELETE") == 0)
+        {
+            StopXcTrace();
+            code = 202;
+        }
+        else if (strcmp(request->m_Method, "GET") != 0)
+        {
+            code = 405;
+            error = "method_not_allowed";
+        }
+        if (status.m_State == XCTRACE_UNSUPPORTED && code != 405 && code != 400)
+        {
+            code = 501;
+            error = "unsupported";
+        }
+        if (!content_read)
+            EngineService::SlurpHttpContent(request);
+        GetXcTraceStatus(&status);
+        dmWebServer::SetStatusCode(request, code);
+        if (code == 405)
+            dmWebServer::SendAttribute(request, "Allow", "GET, POST, DELETE");
+        dmWebServer::SendAttribute(request, "Content-Type", "application/json");
+        dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
+        SendText(request, "{\"state\":");
+        SendJsonEscapedText(request, TraceStateName(status.m_State));
+        SendText(request, ",\"path\":");
+        SendJsonEscapedText(request, status.m_Path);
+        SendText(request, ",\"error\":");
+        SendJsonEscapedText(request, error);
+        SendText(request, ",\"message\":");
+        SendJsonEscapedText(request, status.m_Error);
+        SendText(request, "}\n");
+    }
+
     static float JsonSafeFloat(float f)
     {
         return isfinite(f) ? f : FLT_MAX;
@@ -912,6 +1063,10 @@ namespace dmEngineService
 
     void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist)
     {
+        dmWebServer::HandlerParams trace_params;
+        trace_params.m_Handler = TraceHandler;
+        trace_params.m_Userdata = 0;
+        AddProfilerHandler(engine_service->m_WebServer, "/profiler/trace", &trace_params, TRACE_OPENAPI);
         dmWebServer::HandlerParams resource_params;
         resource_params.m_Handler = HttpResourceRequestCallback;
         engine_service->m_ResourceHandlerParams.m_Factory = factory;

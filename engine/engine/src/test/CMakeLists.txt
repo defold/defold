@@ -195,3 +195,24 @@ if(DEFOLD_MSVC_IDE_SOLUTION)
   add_dependencies(build_tests engine_test_content)
   add_dependencies(run_test_engine engine_test_content)
 endif()
+
+if(TARGET_PLATFORM MATCHES "macos|ios")
+  foreach(NATIVE_TEST_TARGET test_engine_service_xctrace_profiler test_engine_service_xctrace_profiler_enabled)
+    defold_add_executable(${NATIVE_TEST_TARGET} "${ENGINE_TEST_ROOT}/test_engine_service_xctrace_profiler.cpp")
+    defold_target_link_libraries(${NATIVE_TEST_TARGET} "${TARGET_PLATFORM}" testmain dlib profile)
+    defold_register_test_target(${NATIVE_TEST_TARGET} ON "${ENGINE_ROOT}")
+  endforeach()
+  target_compile_definitions(test_engine_service_xctrace_profiler_enabled PRIVATE DM_PROFILE_NATIVE_ENABLED)
+endif()
+
+if(TARGET_PLATFORM MATCHES "macos")
+  set(ENGINE_SERVICE_XCTRACE_TEST_SOURCES ${ENGINE_SERVICE_XCTRACE_SOURCES})
+  list(REMOVE_ITEM ENGINE_SERVICE_XCTRACE_TEST_SOURCES "${ENGINE_SRC_DIR}/engine_service_xctrace_osx.cpp")
+  defold_add_executable(test_engine_service_xctrace
+    "${ENGINE_TEST_ROOT}/test_engine_service_xctrace.cpp"
+    "${ENGINE_SRC_DIR}/engine_service_xctrace_profiler_darwin.cpp"
+    ${ENGINE_SERVICE_XCTRACE_TEST_SOURCES})
+  defold_target_link_libraries(test_engine_service_xctrace "${TARGET_PLATFORM}" testmain dlib profile)
+  target_link_libraries(test_engine_service_xctrace PRIVATE "-framework CoreFoundation")
+  defold_register_test_target(test_engine_service_xctrace ON "${ENGINE_ROOT}")
+endif()

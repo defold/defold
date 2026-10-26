@@ -111,11 +111,12 @@ public:
     dmEngineService::HEngineService m_Service;
     dmArray<char> m_Body;
     char m_ContentType[64];
-    char m_Allow[16];
+    char m_Allow[32];
     int m_Status;
     int32_atomic_t m_Done;
     const char* m_Method;
     const char* m_Path;
+    const char* m_RequestBody;
     dmHttpClient::Result m_Result;
 
     void SetUp()
@@ -158,6 +159,16 @@ public:
         }
     }
 
+    static uint32_t RequestLength(dmHttpClient::HResponse, void* context)
+    {
+        return strlen(((EngineServiceOpenAPITest*)context)->m_RequestBody);
+    }
+
+    static dmHttpClient::Result RequestBody(dmHttpClient::HResponse response, uint32_t offset, uint32_t length, void* context)
+    {
+        return dmHttpClient::Write(response, ((EngineServiceOpenAPITest*)context)->m_RequestBody + offset, length);
+    }
+
     static void Request(void* context)
     {
         EngineServiceOpenAPITest* self = (EngineServiceOpenAPITest*)context;
@@ -169,6 +180,8 @@ public:
         params.m_Userdata = self;
         params.m_HttpHeader = Header;
         params.m_HttpContent = Content;
+        params.m_HttpSendContentLength = RequestLength;
+        params.m_HttpWrite = RequestBody;
         params.m_RequestTimeout = 5000000;
         params.m_MaxGetRetries = 1;
         dmHttpClient::HClient client = dmHttpClient::New(&params, &uri);
@@ -177,10 +190,11 @@ public:
         dmAtomicStore32(&self->m_Done, 1);
     }
 
-    void Fetch(const char* method, const char* path)
+    void Fetch(const char* method, const char* path, const char* body = "")
     {
         m_Method = method;
         m_Path = path;
+        m_RequestBody = body;
         m_Status = 0;
         m_ContentType[0] = 0;
         m_Allow[0] = 0;
@@ -214,9 +228,7 @@ TEST_F(EngineServiceOpenAPITest, BuiltinDocument)
     ASSERT_EQ(200, m_Status);
     ASSERT_STREQ("application/json", m_ContentType);
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"openapi\":\"3.0.3\""));
-    const char* paths[] = {"/ping", "/info", "/state", "/openapi.json", "/scene_graph", "/resources_data", "/gameobjects_data", "/",
-        "/post/{socket}/{message_type}", "/post/@system/reboot", "/post/@system/exit", "/post/@system/run_script",
-        "/post/@render/resize", "/post/@resource/reload"};
+    const char* paths[] = { "/ping", "/info", "/state", "/openapi.json", "/profiler/trace", "/scene_graph", "/resources_data", "/gameobjects_data", "/", "/post/{socket}/{message_type}", "/post/@system/reboot", "/post/@system/exit", "/post/@system/run_script", "/post/@render/resize", "/post/@resource/reload" };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
     {
         char key[128];
@@ -228,6 +240,26 @@ TEST_F(EngineServiceOpenAPITest, BuiltinDocument)
     Fetch("GET", "/");
     ASSERT_EQ(200, m_Status);
     ASSERT_STREQ("text/html", m_ContentType);
+}
+
+// Invalid methods, paths, timing and energy values must never start a native capture.
+TEST_F(EngineServiceOpenAPITest, TraceRequestValidation)
+{
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+    Fetch("PUT", "/profiler/trace");
+    ASSERT_EQ(405, m_Status);
+    ASSERT_STREQ("GET, POST, DELETE", m_Allow);
+    Fetch("GET", "/profiler/trace/unknown");
+    ASSERT_EQ(404, m_Status);
+    Fetch("POST", "/profiler/trace?duration_ms=1");
+    ASSERT_EQ(400, m_Status);
+    const char* invalid[] = { "duration_ms=-1", "delay_ms=4294967296", "duration_ms=1.5", "delay_ms=", "delay_ms=1&delay_ms=2", "energy=2", "energy=", "energy=1&energy=0", "path=%00", "path=%GG", "unknown=1" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid); ++i)
+    {
+        Fetch("POST", "/profiler/trace", invalid[i]);
+        ASSERT_EQ(400, m_Status);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "invalid_request"));
+    }
 }
 
 // Extension requests and metadata must survive either profiler initialization order and removal/re-registration.

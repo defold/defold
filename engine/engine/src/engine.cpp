@@ -2736,6 +2736,8 @@ void dmEngineInitialize()
 #endif
 
     ProfileInitialize();
+    dmEngineService::Initialize();
+    DM_PROFILE("EngineInitialize");
 
 #if defined(__EMSCRIPTEN__)
     dmEngineSetUpdateEnabled(1);
@@ -2773,6 +2775,7 @@ void dmEngineFinalize()
     {
         dmEngineService::Delete(dmEngine::g_EngineService);
     }
+    dmEngineService::Finalize();
     dmGraphics::Finalize();
     dmLog::LogFinalize();
     dmMemProfile::Finalize();

@@ -251,12 +251,45 @@ set(ENGINE_EMBED_CPP
 set(ENGINE_SERVICE_SOURCES
   "${ENGINE_SRC_DIR}/engine_service.cpp"
   "${ENGINE_SRC_DIR}/engine_service_discovery.cpp")
+if(TARGET_PLATFORM MATCHES "macos")
+  set(ENGINE_SERVICE_XCTRACE_SOURCES "${ENGINE_SRC_DIR}/engine_service_xctrace_osx.cpp")
+  foreach(INSTRUMENT_FILE DefoldResources.instrpkg ResourceLoads.clp)
+    if(INSTRUMENT_FILE STREQUAL "DefoldResources.instrpkg")
+      set(INSTRUMENT_SYMBOL DEFOLD_INSTRUMENT_PACKAGE)
+    else()
+      set(INSTRUMENT_SYMBOL DEFOLD_RESOURCE_RULES)
+    endif()
+    defold_embed_to_header(
+      INPUT "${ENGINE_ROOT}/instruments/${INSTRUMENT_FILE}"
+      OUTPUT_HEADER "${CMAKE_CURRENT_BINARY_DIR}/${INSTRUMENT_FILE}.embed.h"
+      OUTPUT_CPP "${CMAKE_CURRENT_BINARY_DIR}/${INSTRUMENT_FILE}.embed.cpp"
+      SYMBOL "${INSTRUMENT_SYMBOL}")
+    list(APPEND ENGINE_SERVICE_XCTRACE_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/${INSTRUMENT_FILE}.embed.cpp")
+  endforeach()
+  defold_embed_to_header(
+    INPUT "${ENGINE_ROOT}/../../scripts/profile_native_energy_sampler.py"
+    OUTPUT_HEADER "${CMAKE_CURRENT_BINARY_DIR}/energy_sampler.embed.h"
+    OUTPUT_CPP "${CMAKE_CURRENT_BINARY_DIR}/energy_sampler.embed.cpp"
+    SYMBOL "DEFOLD_ENERGY_SAMPLER")
+  list(APPEND ENGINE_SERVICE_XCTRACE_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/energy_sampler.embed.cpp")
+else()
+  set(ENGINE_SERVICE_XCTRACE_SOURCES "${ENGINE_SRC_DIR}/engine_service_xctrace_null.cpp")
+endif()
+list(APPEND ENGINE_SERVICE_SOURCES ${ENGINE_SERVICE_XCTRACE_SOURCES})
+if(TARGET_PLATFORM MATCHES "macos|ios")
+  list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_xctrace_profiler_darwin.cpp")
+endif()
+
 if(TARGET_PLATFORM MATCHES "ios")
   list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_discovery_ios.mm")
 endif()
 
 defold_add_library(engine_service STATIC ${ENGINE_SERVICE_SOURCES} "${ENGINE_PROFILER_EMBED_CPP}")
 target_include_directories(engine_service PUBLIC "${ENGINE_SRC_DIR}" "${ENGINE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
+defold_feature_enabled(profile_native PROFILER_NATIVE_ENABLED)
+if(PROFILER_NATIVE_ENABLED)
+  target_compile_definitions(engine_service PRIVATE DM_PROFILE_NATIVE_ENABLED)
+endif()
 foreach(_engine_service_dependency IN ITEMS
     gamesys_proto_headers
     graphics_proto_header
@@ -268,6 +301,10 @@ foreach(_engine_service_dependency IN ITEMS
   endif()
 endforeach()
 defold_target_link_libraries(engine_service "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_SERVICE_DEPENDENCIES})
+
+if(TARGET_PLATFORM MATCHES "macos")
+  target_link_libraries(engine_service PUBLIC "-framework CoreFoundation")
+endif()
 
 defold_add_library(engine_service_null STATIC "${ENGINE_SRC_DIR}/engine_service_null.cpp")
 target_include_directories(engine_service_null PUBLIC "${ENGINE_SRC_DIR}" "${ENGINE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")

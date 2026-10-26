@@ -74,6 +74,13 @@ To clear features in an existing build directory, configure with an empty value:
 cmake -S . -B engine/build/arm64-macos -DDEFOLD_ENABLE_FEATURES=
 ```
 
+`profile_native` enables native startup profiling by default in macOS and iOS
+debug engines. Pass `--enable-feature=profile_native` after the `--` separator
+with `scripts/build.py`, or include it in `DEFOLD_ENABLE_FEATURES`.
+`DM_PROFILE_NATIVE_ENABLE=1` also enables it at launch without a custom build;
+`DM_PROFILE_NATIVE_ENABLE=0` overrides an enabled build default.
+See the [native profiling guide](../../engine/engine/instruments/README.md) for capture instructions.
+
 When invoking `scripts/build.py`, pass `--with-asan`, `--with-hwasan`, `--with-ubsan`, or
 `--with-tsan` after the `--` separator and the configure step applies the
 matching `WITH_*` cache options, such as `WITH_ASAN=ON`. The graphics toggles

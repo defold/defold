@@ -17,6 +17,42 @@
 
 namespace dmEngineService
 {
+    static const char TRACE_OPENAPI[] = R"json(
+{
+  "/profiler/trace": {
+    "get": {
+      "summary": "Get native recording state, resolved output path and errors",
+      "responses": {"200": {"description": "Recording status"}, "501": {"description": "Unsupported platform"}}
+    },
+    "post": {
+      "summary": "Schedule a macOS Instruments recording; requires Xcode",
+      "requestBody": {
+        "content": {"application/x-www-form-urlencoded": {"schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path": {"type": "string", "description": "Absolute .trace path or directory on the engine host; defaults to the application profiling log directory. Existing captures are never overwritten."},
+            "delay_ms": {"type": "integer", "minimum": 0, "maximum": 4294967295, "default": 0},
+            "duration_ms": {"type": "integer", "minimum": 0, "maximum": 4294967295, "default": 5000, "description": "Milliseconds from recording readiness; zero records until stopped."},
+            "energy": {"type": "integer", "enum": [0, 1], "default": 1, "description": "Include macOS powermetrics samples. Requires administrator authorization on the engine host; zero disables energy collection."}
+          }
+        }}}
+      },
+      "responses": {
+        "202": {"description": "Scheduled; poll GET for readiness or errors"},
+        "400": {"description": "Invalid parameters or output path"},
+        "409": {"description": "Busy: a capture is scheduled, starting, recording or finalizing"},
+        "501": {"description": "Native recording unavailable"}
+      }
+    },
+    "delete": {
+      "summary": "Cancel a pending recording or stop and save the active recording; the game keeps running",
+      "responses": {"202": {"description": "Stop requested"}, "501": {"description": "Unsupported platform"}}
+    }
+  }
+}
+)json";
+
     static const char PING_OPENAPI[] = R"json(
 {
   "/ping": {
