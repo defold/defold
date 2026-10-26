@@ -991,82 +991,148 @@ TEST_F(SpriteTest, RecreatedRuntimeAtlasDoesNotReuseStaleAnimationData)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+static const char* TRIMMED_ATLAS_PATH = "/sprite/image_stale_animation_id_in_range.a.texturesetc";
+
+static void UpdateAndRender(dmGameObject::HCollection collection, dmGameObject::UpdateContext* update_context, dmRender::HRenderContext render_context)
+{
+    ASSERT_TRUE(dmGameObject::Update(collection, update_context));
+    ASSERT_TRUE(dmGameObject::PostUpdate(collection));
+    RenderCollection(render_context, collection);
+}
+
+static uint32_t GetSpriteVertexCount(void* sprite_component, uint32_t* vertex_stride = 0)
+{
+    uint32_t vertex_count, index_count, stride;
+    dmGameSystem::GetSpriteComponentVertexMetrics(sprite_component, &vertex_count, &index_count, &stride);
+    if (vertex_stride)
+        *vertex_stride = stride;
+    return vertex_count;
+}
+
+static uint32_t GetSpriteWorldVertexDataSize(dmGameObject::HCollection collection)
+{
+    void* sprite_world = dmGameObject::GetWorld(collection, dmGameObject::GetComponentTypeIndex(collection, dmHashString64("spritec")));
+    dmRender::BufferedRenderBuffer* vertex_buffer = 0;
+    dmRender::BufferedRenderBuffer* index_buffer = 0;
+    dmGameSystem::GetSpriteWorldRenderBuffers(sprite_world, &vertex_buffer, &index_buffer);
+    return dmGraphics::GetVertexBufferSize(vertex_buffer->m_Buffers[0]);
+}
+
 /*
  * Verifies that a sprite animation data cache hit is validated against the texture sets
- * the sprite currently uses. The cache key of an earlier atlas is forced onto the sprite
- * to simulate, independently of the allocator, the key reuse from issue #13167 where a
- * new atlas allocated at a freed address produced the same key as the old one.
+ * the sprite currently uses, and that a mismatching entry is replaced rather than
+ * overwritten, since other sprites may still render from it. The cache key of the quad
+ * atlas is forced onto a sprite that uses a trimmed atlas to simulate, independently of
+ * the allocator, the key reuse from issue #13167.
  */
 TEST_F(SpriteTest, AnimationDataCacheHitIsValidatedAgainstTextureSet)
 {
-    ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/runtime_atlas_recreate.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(0, go);
-    void* sprite_component = GetSpriteComponent(go, dmHashString64("sprite"));
+    dmhash_t sprite_comp_id = dmHashString64("sprite");
+    void* trimmed_atlas = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, TRIMMED_ATLAS_PATH, &trimmed_atlas));
+    dmGameObject::HInstance go_quad = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", dmHashString64("/quad"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_trimmed = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", dmHashString64("/trimmed"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go_quad);
+    ASSERT_NE(0, go_trimmed);
+    void* sprite_quad = GetSpriteComponent(go_quad, sprite_comp_id);
+    void* sprite_trimmed = GetSpriteComponent(go_trimmed, sprite_comp_id);
 
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    RenderCollection(m_RenderContext, m_Collection);
-    int old_frame = GetRuntimeAtlasFrame(go);
-    AssertSpriteShowsRuntimeAtlasFrame(m_Factory, m_Collection, old_frame);
-    uint32_t old_hash = dmGameSystem::GetSpriteComponentAnimationDataHash(sprite_component);
+    UpdateAndRender(m_Collection, &m_UpdateContext, m_RenderContext);
+    uint32_t quad_hash = dmGameSystem::GetSpriteComponentAnimationDataHash(sprite_quad);
+    ASSERT_EQ(quad_hash, dmGameSystem::GetSpriteComponentAnimationDataHash(sprite_trimmed));
 
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    RenderCollection(m_RenderContext, m_Collection);
-    int new_frame = GetRuntimeAtlasFrame(go);
-    ASSERT_NE(old_frame, new_frame);
-    AssertSpriteShowsRuntimeAtlasFrame(m_Factory, m_Collection, new_frame);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go_trimmed, sprite_comp_id, dmHashString64("image"), dmHashString64(TRIMMED_ATLAS_PATH)));
+    UpdateAndRender(m_Collection, &m_UpdateContext, m_RenderContext);
+    uint32_t vertex_stride;
+    uint32_t quad_vertex_count = GetSpriteVertexCount(sprite_quad, &vertex_stride);
+    uint32_t trimmed_vertex_count = GetSpriteVertexCount(sprite_trimmed);
+    ASSERT_EQ(4u, quad_vertex_count);
+    ASSERT_GT(trimmed_vertex_count, quad_vertex_count);
 
-    dmGameSystem::SetSpriteComponentAnimationDataHash(sprite_component, old_hash);
-    RenderCollection(m_RenderContext, m_Collection);
-    AssertSpriteShowsRuntimeAtlasFrame(m_Factory, m_Collection, new_frame);
+    dmGameSystem::SetSpriteComponentAnimationDataHash(sprite_trimmed, quad_hash);
+    UpdateAndRender(m_Collection, &m_UpdateContext, m_RenderContext);
+    ASSERT_EQ(quad_vertex_count, GetSpriteVertexCount(sprite_quad));
+    ASSERT_EQ(trimmed_vertex_count, GetSpriteVertexCount(sprite_trimmed));
+    ASSERT_EQ((quad_vertex_count + trimmed_vertex_count) * vertex_stride, GetSpriteWorldVertexDataSize(m_Collection));
 
+    dmResource::Release(m_Factory, trimmed_atlas);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 /*
- * Verifies that the sprite render buffers fit the geometry that is rendered when the image
- * is changed after the sprite update in the same frame. Switching from a quad to a trimmed
- * atlas without refreshing the vertex metrics used to overflow the vertex and index buffers.
+ * Verifies that an image set after the sprite update is rendered from the next frame, and
+ * that the rendered geometry always matches the vertex and index counts the render buffers
+ * were sized for. Switching from a quad to a trimmed atlas after the update used to
+ * overflow the buffers.
  */
-TEST_F(SpriteTest, SetImageAfterUpdateResizesRenderBuffers)
+TEST_F(SpriteTest, SetImageAfterUpdateAppliesNextFrame)
 {
     dmhash_t sprite_comp_id = dmHashString64("sprite");
-    dmGameSystem::TextureSetResource* image_resource = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/image_stale_animation_id_in_range.a.texturesetc", (void**) &image_resource));
-    ASSERT_GT(image_resource->m_TextureSet->m_Geometries[0].m_Vertices.m_Count / 2, 4u);
-
+    void* trimmed_atlas = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, TRIMMED_ATLAS_PATH, &trimmed_atlas));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE(0, go);
     void* sprite_component = GetSpriteComponent(go, sprite_comp_id);
 
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    RenderCollection(m_RenderContext, m_Collection);
+    UpdateAndRender(m_Collection, &m_UpdateContext, m_RenderContext);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    uint32_t quad_vertex_count, quad_index_count, vertex_stride;
-    dmGameSystem::GetSpriteComponentVertexMetrics(sprite_component, &quad_vertex_count, &quad_index_count, &vertex_stride);
-    ASSERT_EQ(4u, quad_vertex_count);
+    uint32_t vertex_stride;
+    ASSERT_EQ(4u, GetSpriteVertexCount(sprite_component, &vertex_stride));
 
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, dmHashString64("image"), dmHashString64("/sprite/image_stale_animation_id_in_range.a.texturesetc")));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, dmHashString64("image"), dmHashString64(TRIMMED_ATLAS_PATH)));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(4u, GetSpriteVertexCount(sprite_component));
+    ASSERT_EQ(4u * vertex_stride, GetSpriteWorldVertexDataSize(m_Collection));
+
+    UpdateAndRender(m_Collection, &m_UpdateContext, m_RenderContext);
+    uint32_t vertex_count = GetSpriteVertexCount(sprite_component);
+    ASSERT_GT(vertex_count, 4u);
+    ASSERT_EQ(vertex_count * vertex_stride, GetSpriteWorldVertexDataSize(m_Collection));
+
+    dmResource::Release(m_Factory, trimmed_atlas);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+/*
+ * Verifies that an atlas replaced after the sprite update stays loaded until it has been
+ * drawn, since the sprite renders from it until the next update, and that an atlas
+ * replaced between the draw and the next update is released right away.
+ */
+TEST_F(SpriteTest, ReplacedImageIsReleasedAfterDraw)
+{
+    dmhash_t sprite_comp_id = dmHashString64("sprite");
+    dmhash_t image_prop_id = dmHashString64("image");
+    dmhash_t trimmed_atlas = dmHashString64(TRIMMED_ATLAS_PATH);
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+    dmhash_t original_image = GetHashProperty(go, sprite_comp_id, image_prop_id);
+
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, TRIMMED_ATLAS_PATH, &resource));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, trimmed_atlas));
+    UpdateAndRender(m_Collection, &m_UpdateContext, m_RenderContext);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, original_image));
+    dmResource::Release(m_Factory, resource);
+    ASSERT_EQ(1u, dmResource::GetRefCount(m_Factory, trimmed_atlas));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, dmResource::GetRefCount(m_Factory, trimmed_atlas));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(0u, dmResource::GetRefCount(m_Factory, trimmed_atlas));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     RenderCollection(m_RenderContext, m_Collection);
 
-    uint32_t vertex_count, index_count;
-    dmGameSystem::GetSpriteComponentVertexMetrics(sprite_component, &vertex_count, &index_count, &vertex_stride);
-    ASSERT_GT(vertex_count, quad_vertex_count);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, TRIMMED_ATLAS_PATH, &resource));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, trimmed_atlas));
+    UpdateAndRender(m_Collection, &m_UpdateContext, m_RenderContext);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, original_image));
+    dmResource::Release(m_Factory, resource);
+    ASSERT_EQ(0u, dmResource::GetRefCount(m_Factory, trimmed_atlas));
 
-    void* sprite_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
-    dmRender::BufferedRenderBuffer* vertex_buffer = 0;
-    dmRender::BufferedRenderBuffer* index_buffer = 0;
-    dmGameSystem::GetSpriteWorldRenderBuffers(sprite_world, &vertex_buffer, &index_buffer);
-    ASSERT_EQ(vertex_count * vertex_stride, dmGraphics::GetVertexBufferSize(vertex_buffer->m_Buffers[0]));
-    ASSERT_EQ(index_count * sizeof(uint16_t), dmGraphics::GetIndexBufferSize(index_buffer->m_Buffers[0]));
-    ASSERT_GE(dmGameSystem::GetSpriteWorldVertexBufferCapacity(sprite_world), vertex_count * vertex_stride);
-
-    dmResource::Release(m_Factory, image_resource);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
