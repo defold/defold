@@ -144,12 +144,15 @@
           (is (= 15 (g/node-value consumer :result))))))))
 
 ;; Successive materializations must retain only live added nodes in the
-;; invalidation counters, including nodes deleted and recreated before commit.
+;; invalidation counters, including nodes deleted and recreated before commit,
+;; both when committing directly and when replaying into a changed system.
 (deftest materialization-additions-track-node-lifetimes-test
   (doseq [custom-evaluation-context [false true]
+          replay [false true]
           child-action [:keep :delete :recreate]]
     (with-clean-system
-      (let [[first-shell second-shell first-child second-child] (g/take-node-ids 4)]
+      (let [[first-shell second-shell first-child second-child] (g/take-node-ids 4)
+            other (g/make-node! ShellTestNode)]
         (g/transact
           [(g/add-node
              (g/construct-shell ShellTestNode {:_node-id first-shell}
@@ -169,6 +172,11 @@
                                    (g/make-evaluation-context))]
           (g/materialize-node! first-shell evaluation-context)
           (g/materialize-node! second-shell evaluation-context)
+          (when replay
+            ;; Modify something in the system so that the update can't simply
+            ;; replace the system basis with the updated basis from the
+            ;; evaluation-context.
+            (g/set-property! other :value 1))
           (g/update-system-from-evaluation-context! evaluation-context))
         (is (.contains ^InvalidationCounters (g/invalidate-counters) first-child))
         (is (= 5 (g/node-value first-child :result)))

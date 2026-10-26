@@ -1192,16 +1192,18 @@
   (if-let [{:keys [added-nodes
                    introduced-node-id->pkid->override-node-id]}
            (ig/basis-plan-add-nodes (:basis ctx) added-nodes)]
-    (-> (pair (ctx-add-nodes ctx added-nodes introduced-node-id->pkid->override-node-id is-new-override-tree)
-              (conj-change undoable-changes
-                           (if active-materialization
-                             (->MaterializationAddNodesTXC added-nodes)
-                             (->AddNodesTXC added-nodes introduced-node-id->pkid->override-node-id))))
-        (coll/reduce=> added-nodes
-          (fn [[ctx undoable-changes] added-node]
-            (if (in/shell-node? added-node)
-              (pair ctx undoable-changes)
-              (realize-defaults ctx undoable-changes added-node)))))
+    (let [change (if active-materialization
+                   (->MaterializationAddNodesTXC added-nodes)
+                   (->AddNodesTXC added-nodes introduced-node-id->pkid->override-node-id))
+          ctx (cond-> (ctx-add-nodes ctx added-nodes introduced-node-id->pkid->override-node-id is-new-override-tree)
+                (:realized-changes ctx)
+                (update :realized-changes conj change))
+          undoable-changes (conj-change undoable-changes change)]
+      (coll/reduce=> (pair ctx undoable-changes) added-nodes
+        (fn [[ctx undoable-changes] added-node]
+          (if (in/shell-node? added-node)
+            (pair ctx undoable-changes)
+            (realize-defaults ctx undoable-changes added-node)))))
     (pair ctx undoable-changes)))
 
 (defonce/type AddNodesTXS [added-nodes]

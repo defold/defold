@@ -20,7 +20,6 @@
             [editor.attachment :as attachment]
             [editor.buffers :as buffers]
             [editor.build-target :as bt]
-            [editor.camera :as camera]
             [editor.code.data :as code.data]
             [editor.colors :as colors]
             [editor.core :as core]
@@ -2033,6 +2032,15 @@
         "id" (rt/->lua (id/gen "style" (g/node-value parent-node-id :style-names evaluation-context))))
       (ext-graph/attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
+(defn font-prerequisites [read-opts owner-resource font-desc]
+  ;; Bitmap fonts require the source BitmapFontSourceNode to be materialized
+  ;; before the FontNode size property can be accessed.
+  (let [{:keys [resolve-proj-path-fn]} read-opts
+        font-source-proj-path (resolve-proj-path-fn owner-resource (:font font-desc))
+        font-source-type-ext (resource/filename->type-ext font-source-proj-path)]
+    (when (= "fnt" font-source-type-ext)
+      [font-source-proj-path])))
+
 (defn register-resource-types [workspace]
   (into
     []
@@ -2054,6 +2062,7 @@
        :node-type FontNode
        :ddf-type Font$FontDesc
        :editor-dependencies ["/builtins/fonts/font-vector.vp" "/builtins/fonts/font-vector.fp"]
+       :prerequisites-fn font-prerequisites
        :load-fn load-font
        :sanitize-fn sanitize-font
        :icon font-icon

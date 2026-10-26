@@ -967,9 +967,12 @@
       (g/invalidate-outputs! endpoints)
       (let [ec (g/make-evaluation-context)
             snapshot (g/evaluation-context-invalidate-counters ec)]
-        (is (= "old" (g/node-value node :left-output ec)))
-        (is (= "deleted" (g/node-value deleted-node :left-output ec)))
-        (g/update-system-from-evaluation-context! ec)
+        (is (= "old"
+               (g/node-value node :left-output ec)
+               (g/node-value node :left-output)))
+        (is (= "deleted"
+               (g/node-value deleted-node :left-output ec)
+               (g/node-value deleted-node :left-output)))
         (is (coll/every? #(contains? (g/cache) %) endpoints))
 
         (let [tx-result (g/transact {:full-invalidation true}

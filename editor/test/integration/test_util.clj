@@ -1664,8 +1664,8 @@
 
 (defn set-setting!
   ([settings-resource-node-id setting-path value]
-   (g/with-auto-evaluation-context evaluation-context
-     (set-setting! settings-resource-node-id setting-path value evaluation-context)))
+   (g/transact
+     (set-setting settings-resource-node-id setting-path value)))
   ([settings-resource-node-id setting-path value evaluation-context]
    (g/transact
      (set-setting settings-resource-node-id setting-path value evaluation-context))))
