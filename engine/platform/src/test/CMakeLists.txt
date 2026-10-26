@@ -72,20 +72,21 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
         testmain
         platform)
     defold_register_test_target(test_native_web ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+endif()
 
-    _defold_find_wasm_runner(_platform_js_test_runner)
-    if(_platform_js_test_runner)
-        add_custom_target(run_test_library_platform_js
-            COMMAND "${_platform_js_test_runner}" "${CMAKE_CURRENT_LIST_DIR}/test_library_platform.js"
-            WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../.."
-            USES_TERMINAL
-            VERBATIM)
-        if(TARGET run_tests)
-            add_dependencies(run_tests run_test_library_platform_js)
-        endif()
-    else()
-        message(WARNING "Bun or Node.js not found; run_test_library_platform_js is unavailable")
+# The browser library and loader tests use a host JS runtime and need no WASM build.
+_defold_find_wasm_runner(_platform_js_test_runner)
+if(_platform_js_test_runner)
+    add_custom_target(run_test_library_platform_js
+        COMMAND "${_platform_js_test_runner}" "${CMAKE_CURRENT_LIST_DIR}/test_library_platform.js"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../.."
+        USES_TERMINAL
+        VERBATIM)
+    if(TARGET run_tests)
+        add_dependencies(run_tests run_test_library_platform_js)
     endif()
+else()
+    message(WARNING "Bun or Node.js not found; run_test_library_platform_js is unavailable")
 endif()
 
 if(TARGET_PLATFORM STREQUAL "wasm-web")

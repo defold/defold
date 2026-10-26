@@ -530,7 +530,7 @@ namespace dmPhysics
                 {
                     void* body_user_data = b2Body_GetUserData(body_id);
 
-                    Point3 old_position = GetWorldPosition2D(context, &body_id);
+                    Point3 old_position = GetWorldPosition2D(context, body);
                     dmTransform::Transform world_transform;
                     (*world->m_GetWorldTransformCallback)(body_user_data, world_transform);
                     Point3 position = Point3(world_transform.GetTranslation());

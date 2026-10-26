@@ -291,7 +291,8 @@ namespace dmRender
 
         // If we push new items after the last frustum culling, we need to reevaluate them.
         RenderListEntry* start = render_list.Begin() + size;
-        memset(start, 0, entries * sizeof(RenderListEntry));
+        if (entries)
+            memset(start, 0, entries * sizeof(RenderListEntry));
 
         return start;
     }

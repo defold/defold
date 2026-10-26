@@ -4668,7 +4668,7 @@ bail:
         }
 
         // don't save the data
-        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             ClearTextureParamsData(rt->m_Base.m_ColorTextureParams[i]);
         }

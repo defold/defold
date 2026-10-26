@@ -120,8 +120,7 @@ TEST_F(MetalArgumentBufferTest, OversizedAllocationsGrowUnusedBuffers)
     context_params.m_Window = window;
     dmGraphics::MetalContext context(context_params);
     context.m_Device = m_Device;
-    dmGraphics::ResourcesToDestroyList deferred_resources;
-    context.m_FrameResources[0].m_ResourcesToDestroy = &deferred_resources;
+    dmGraphics::MetalResourcesToDestroyList deferred_resources;
 
     MTL::Buffer* first_buffer = m_Pool.Get()->m_DeviceBuffer.m_Buffer;
     m_Pool.Get()->Advance(256);
@@ -149,12 +148,14 @@ TEST_F(MetalArgumentBufferTest, OversizedAllocationsGrowUnusedBuffers)
     buffer = m_Pool.Allocate(&context, size, 256);
     ASSERT_EQ(grown_buffer, buffer->m_DeviceBuffer.m_Buffer);
     ASSERT_EQ(0u, buffer->m_MappedDataCursor);
+    context.m_ResourceRetirementQueue->TakePending(deferred_resources);
     ASSERT_EQ(2u, deferred_resources.Size());
 
     for (uint32_t i = 0; i < deferred_resources.Size(); ++i)
     {
         deferred_resources[i].m_DeviceBuffer->release();
     }
+    delete context.m_ResourceRetirementQueue;
     dmPlatform::CloseWindow(window);
     dmPlatform::DeleteWindow(window);
 }

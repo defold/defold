@@ -12,6 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <test/graphics_test_sanitizers.h>
+
 #include "test_font_bitmap_gen.h"
 #include <stdio.h>
 #include <stdint.h>
@@ -153,6 +155,7 @@ static void InitializeFontImages()
     params.m_Width = params.m_Height = 16;
     g_ImageContext = dmGraphics::NewContext(params);
     ASSERT_NE((dmGraphics::HContext)0, g_ImageContext);
+    ASSERT_TRUE(GraphicsTestRetainDriLibraries());
     dmGraphics::SetSwapInterval(g_ImageContext, 0);
     g_ImageDeclaration = FontCreateGlyphVertexDeclaration(g_ImageContext);
     g_ImageEffects = FontCreateEffectCache(g_ImageContext);
@@ -196,6 +199,7 @@ static void FinalizeFontImages()
     FontDeleteEffectCache(g_ImageEffects);
     g_ImageEffects = 0;
     dmGraphics::DeleteVertexDeclaration(g_ImageDeclaration);
+    dmGraphics::CloseWindow(g_ImageContext);
     dmGraphics::DeleteContext(g_ImageContext);
     dmPlatform::CloseWindow(g_ImageWindow);
     dmPlatform::DeleteWindow(g_ImageWindow);

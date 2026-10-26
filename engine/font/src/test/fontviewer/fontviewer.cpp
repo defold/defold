@@ -37,6 +37,7 @@
 #include <platform/window.hpp>
 
 #include <graphics_private.h>
+#include <test/graphics_test_sanitizers.h>
 #include <test/test_graphics_util.h>
 
 #if defined(__clang__)
@@ -3395,7 +3396,7 @@ static bool Initialize(Viewer* viewer)
     context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
     viewer->m_Context = dmGraphics::NewContext(context_params);
 
-    if (!viewer->m_Context)
+    if (!viewer->m_Context || !GraphicsTestRetainDriLibraries())
     {
         return false;
     }

@@ -489,8 +489,8 @@ TEST_F(SpriteTest, QuadVertexData)
     const float width = size.m_Variant.m_V4[0];
     const float height = size.m_Variant.m_V4[1];
     const Matrix4& world = dmGameObject::GetWorldMatrix(go);
-    const float xs[] = {-0.7f, -0.7f, 0.3f, 0.3f};
-    const float ys[] = {-0.2f, 0.8f, 0.8f, -0.2f};
+    const float xs[2][4] = {{-0.7f, -0.7f, 0.3f, 0.3f}, {-0.3f, -0.3f, 0.7f, 0.7f}};
+    const float ys[2][4] = {{-0.2f, 0.8f, 0.8f, -0.2f}, {-0.8f, 0.2f, 0.2f, -0.8f}};
     const float* tex_coords = (const float*)texture_set->m_TexCoords.m_Data + frame_index * 8;
     const uint32_t uv_order[4][4] = {{0, 1, 2, 3}, {3, 2, 1, 0}, {1, 0, 3, 2}, {2, 3, 0, 1}};
     const uint32_t flips[] = {0, 1, 2, 3, 0};
@@ -559,7 +559,7 @@ TEST_F(SpriteTest, QuadVertexData)
             uint32_t flip = flips[f] ^ animation.m_FlipHorizontal ^ (animation.m_FlipVertical << 1);
             for (uint32_t v = 0; v < 4; ++v)
             {
-                const Vector4 local(xs[v] * width, ys[v] * height, 0.0f, 1.0f);
+                const Vector4 local(xs[flips[f] & 1][v] * width, ys[(flips[f] >> 1) & 1][v] * height, 0.0f, 1.0f);
                 const Vector4 expected = layouts[layout].m_PositionSpace == dmGraphics::COORDINATE_SPACE_WORLD ? world * local : local;
                 const float expected_position[] = {expected.getX(), expected.getY(), expected.getZ(), expected.getW()};
                 for (uint32_t c = 0; c < 4; ++c)
@@ -835,6 +835,18 @@ TEST_F(SpriteTest, Slice9FlipGeometry)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
+    dmGameSystem::TextureSetResource* texture_set_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/atlas_valid.a.texturesetc", (void**)&texture_set_resource));
+    dmGameSystemDDF::TextureSet* texture_set = texture_set_resource->m_TextureSet;
+    uint32_t* animation_index = texture_set_resource->m_AnimationIds.Get(dmHashString64("atlas_texture_valid_png_128"));
+    ASSERT_NE((uint32_t*)0, animation_index);
+    const dmGameSystemDDF::TextureSetAnimation& animation = texture_set->m_Animations[*animation_index];
+    dmGameSystemDDF::SpriteGeometry& geometry = texture_set->m_Geometries[texture_set->m_FrameIndices[animation.m_Start]];
+    const float old_pivot_x = geometry.m_PivotX;
+    const float old_pivot_y = geometry.m_PivotY;
+    geometry.m_PivotX = 0.25f;
+    geometry.m_PivotY = -0.125f;
+
     const dmhash_t go_id = dmHashString64("/go");
     const dmhash_t sprite_id = dmHashString64("sprite");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_slice9.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -874,9 +886,10 @@ TEST_F(SpriteTest, Slice9FlipGeometry)
     const char* vertex_data = ((dmGraphics::VertexBuffer*)vertex_buffer_handle)->m_Buffer;
 
     // Original margins are left=10, top=20, right=30, bottom=40. Both
-    // flips move the right/bottom margins to the left/top respectively.
-    const float expected_x[4] = {-128.0f, -98.0f, 118.0f, 128.0f};
-    const float expected_y[4] = {-128.0f, -108.0f, 88.0f, 128.0f};
+    // flips move the right/bottom margins to the left/top respectively,
+    // and mirror the pivot (0.25, -0.125) of the 256x256 sprite.
+    const float expected_x[4] = {-64.0f, -34.0f, 182.0f, 192.0f};
+    const float expected_y[4] = {-160.0f, -140.0f, 56.0f, 96.0f};
     for (uint32_t i = 0; i < vertex_count; ++i)
     {
         const char* position = vertex_data + i * vertex_stride + position_offset;
@@ -884,6 +897,9 @@ TEST_F(SpriteTest, Slice9FlipGeometry)
         ASSERT_NEAR(expected_y[i / 4], ReadUnalignedFloat(position + sizeof(float)), EPSILON);
     }
 
+    geometry.m_PivotX = old_pivot_x;
+    geometry.m_PivotY = old_pivot_y;
+    dmResource::Release(m_Factory, texture_set_resource);
     dmResource::Release(m_Factory, material_resource);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }

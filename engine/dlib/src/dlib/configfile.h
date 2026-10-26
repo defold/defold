@@ -48,7 +48,7 @@ namespace dmConfigFile
      * Load config from buffer
      * @note Config values can be specified or overridden by command line arguments with the following syntax:
      *       --config=section.key=value
-     * @param buffer Buffer to load from
+     * @param buffer Buffer to load from. May be null only when buffer_size is zero.
      * @param buffer_size Buffer size
      * @param argc Command line argument count (typically from main(...))
      * @param argv Command line arguments (typically from main(...))

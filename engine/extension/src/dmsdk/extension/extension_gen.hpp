@@ -49,10 +49,9 @@ namespace dmExtension
      * @member  EXTENSION_RESULT_OK
      * @member  EXTENSION_RESULT_INIT_ERROR
      */
-    enum Result {
-        RESULT_OK = 0,
-        RESULT_INIT_ERROR = -1,
-    };
+    typedef ::ExtensionResult Result;
+    static const Result RESULT_OK = ::EXTENSION_RESULT_OK;
+    static const Result RESULT_INIT_ERROR = ::EXTENSION_RESULT_INIT_ERROR;
 
     /*# event id enumeration
      * Event id enumeration.

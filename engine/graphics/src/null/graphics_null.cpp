@@ -1610,12 +1610,9 @@ namespace dmGraphics
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
-    static int DoDeleteTexture(HJobContext, HJob hjob, void* _context, void* _h_texture)
+    static void DoDeleteTexture(NullContext* context, HTexture texture)
     {
-        NullContext* context = (NullContext*) _context;
-        HTexture texture = (HTexture) _h_texture;
-
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         NullTexture* tex = GetAssetFromContainer<NullTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         if (tex)
         {
@@ -1626,25 +1623,40 @@ namespace dmGraphics
 
             delete [] tex->m_LastBoundUnit;
             delete tex;
+            context->m_BaseContext.m_AssetHandleContainer.Release(texture);
+        }
+    }
+
+    static int AsyncDeleteTextureProcess(HJobContext, HJob, void* _context, void* data)
+    {
+        NullContext* context = (NullContext*) _context;
+        HTexture texture = (HTexture) (uintptr_t) data;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        DoDeleteTexture(context, texture);
+        for (uint32_t i = 0; i < context->m_AsyncDeleteTextures.Size(); ++i)
+        {
+            if (context->m_AsyncDeleteTextures[i] == texture)
+            {
+                context->m_AsyncDeleteTextures.EraseSwap(i);
+                break;
+            }
         }
         return 0;
     }
 
-    static void DoDeleteTextureComplete(HJobContext, HJob hjob, JobSystemStatus status, void* _context, void* _h_texture, int result)
-    {
-        NullContext* context = (NullContext*) _context;
-        HTexture texture = (HTexture) _h_texture;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-        context->m_BaseContext.m_AssetHandleContainer.Release(texture);
-    }
-
     static void NullDeleteTextureAsync(NullContext* context, HTexture texture)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        // Keep ownership until the worker frees the texture, including jobs
+        // cancelled by JobSystemDestroy() before they can run.
+        if (context->m_AsyncDeleteTextures.Full())
+            context->m_AsyncDeleteTextures.OffsetCapacity(16);
+        context->m_AsyncDeleteTextures.Push(texture);
+
         Job job = {0};
-        job.m_Process = DoDeleteTexture;
-        job.m_Callback = DoDeleteTextureComplete;
+        job.m_Process = AsyncDeleteTextureProcess;
         job.m_Context = context;
-        job.m_Data = (void*)(uintptr_t)texture;
+        job.m_Data = (void*) (uintptr_t) texture;
 
         HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
         JobSystemPushJob(context->m_JobContext, hjob);
@@ -1654,12 +1666,17 @@ namespace dmGraphics
     {
         if (force_delete)
         {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            for (uint32_t i = 0; i < context->m_AsyncDeleteTextures.Size(); ++i)
+            {
+                DoDeleteTexture(context, context->m_AsyncDeleteTextures[i]);
+            }
+            context->m_AsyncDeleteTextures.SetSize(0);
+
             uint32_t size = context->m_SetTextureAsyncState.m_PostDeleteTextures.Size();
             for (uint32_t i = 0; i < size; ++i)
             {
-                void* texture = (void*) (size_t) context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
-                DoDeleteTexture(context->m_JobContext, 0, context, texture);
-                DoDeleteTextureComplete(context->m_JobContext, 0, JOBSYSTEM_STATUS_FINISHED, context, texture, 0);
+                DoDeleteTexture(context, context->m_SetTextureAsyncState.m_PostDeleteTextures[i]);
             }
             context->m_SetTextureAsyncState.m_PostDeleteTextures.SetSize(0);
             return;
@@ -1684,23 +1701,17 @@ namespace dmGraphics
     static void NullDeleteTexture(HContext _context, HTexture texture)
     {
         NullContext* context = (NullContext*)_context;
-        if (g_NullContext->m_AsyncProcessingSupport && g_NullContext->m_UseAsyncTextureLoad)
+        if (context->m_AsyncProcessingSupport && context->m_UseAsyncTextureLoad)
         {
-            // If they're not uploaded yet, we cannot delete them
-            if(dmGraphics::GetTextureStatusFlags(_context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
-            {
-                PushSetTextureAsyncDeleteTexture(g_NullContext->m_SetTextureAsyncState, texture);
-            }
+            // If they're not uploaded yet, we cannot delete them.
+            if (dmGraphics::GetTextureStatusFlags(_context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+                PushSetTextureAsyncDeleteTexture(context->m_SetTextureAsyncState, texture);
             else
-            {
-                NullDeleteTextureAsync(g_NullContext, texture);
-            }
+                NullDeleteTextureAsync(context, texture);
         }
         else
         {
-            void* htexture = (void*) texture;
-            DoDeleteTexture(context->m_JobContext, 0, g_NullContext, htexture);
-            DoDeleteTextureComplete(context->m_JobContext, 0, JOBSYSTEM_STATUS_FINISHED, g_NullContext, htexture, 0);
+            DoDeleteTexture(context, texture);
         }
     }
 

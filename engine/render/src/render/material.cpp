@@ -255,7 +255,8 @@ namespace dmRender
 
         m->m_MaterialAttributes.SetCapacity(num_program_attributes);
         m->m_MaterialAttributes.SetSize(num_program_attributes);
-        memset(m->m_MaterialAttributes.Begin(), 0, sizeof(MaterialAttribute) * num_program_attributes);
+        if (num_program_attributes)
+            memset(m->m_MaterialAttributes.Begin(), 0, sizeof(MaterialAttribute) * num_program_attributes);
         m->m_VertexAttributeInfos.SetCapacity(num_program_attributes);
         m->m_VertexAttributeInfos.SetSize(num_program_attributes);
 
@@ -284,7 +285,8 @@ namespace dmRender
 
         m->m_MaterialAttributeValues.SetCapacity(num_attribute_byte_size);
         m->m_MaterialAttributeValues.SetSize(num_attribute_byte_size);
-        memset(m->m_MaterialAttributeValues.Begin(), 0, num_attribute_byte_size);
+        if (num_attribute_byte_size)
+            memset(m->m_MaterialAttributeValues.Begin(), 0, num_attribute_byte_size);
 
         // Set value pointers now that the buffer is allocated
         UpdateVertexAttributeValuePointers(m);
@@ -622,7 +624,8 @@ namespace dmRender
             dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(graphics_attribute_in.m_DataType);
             uint32_t attribute_byte_size   = dmGraphics::GetTypeSize(graphics_type) * dmGraphics::VectorTypeToElementCount(graphics_attribute_in.m_VectorType) * material_attribute.m_ValueCount;
             attribute_byte_size            = dmMath::Min(attribute_byte_size, byte_size);
-            memcpy(&material->m_MaterialAttributeValues[material_attribute.m_ValueIndex], bytes, attribute_byte_size);
+            if (attribute_byte_size)
+                memcpy(&material->m_MaterialAttributeValues[material_attribute.m_ValueIndex], bytes, attribute_byte_size);
 
             if (graphics_attribute_in.m_Name != 0x0)
             {

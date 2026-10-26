@@ -16,6 +16,7 @@
 #define DM_GRAPHICS_UTIL_H
 
 #include <dlib/endian.h>
+#include <dlib/math.h>
 
 #include <dmsdk/dlib/vmath.h>
 
@@ -51,10 +52,10 @@ namespace dmGraphics
 
     inline uint32_t PackRGBA(const dmVMath::Vector4& in_color)
     {
-        uint8_t r = (uint8_t)(in_color.getX() * 255.0f);
-        uint8_t g = (uint8_t)(in_color.getY() * 255.0f);
-        uint8_t b = (uint8_t)(in_color.getZ() * 255.0f);
-        uint8_t a = (uint8_t)(in_color.getW() * 255.0f);
+        uint8_t r = (uint8_t)(dmMath::Clamp(in_color.getX(), 0.0f, 1.0f) * 255.0f);
+        uint8_t g = (uint8_t)(dmMath::Clamp(in_color.getY(), 0.0f, 1.0f) * 255.0f);
+        uint8_t b = (uint8_t)(dmMath::Clamp(in_color.getZ(), 0.0f, 1.0f) * 255.0f);
+        uint8_t a = (uint8_t)(dmMath::Clamp(in_color.getW(), 0.0f, 1.0f) * 255.0f);
 
 #if DM_ENDIAN == DM_ENDIAN_LITTLE
         uint32_t c = a << 24 | b << 16 | g << 8 | r;

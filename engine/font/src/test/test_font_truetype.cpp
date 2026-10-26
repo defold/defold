@@ -516,8 +516,13 @@ TEST(FontTrueTypeReference, OpenTypeCFF2)
     FreeReferenceFont(&font);
 }
 
-// The engine has no axis controls, but Skribidi must still see fvar's default
-// style rather than a conflicting OS/2 or STAT fallback when HB_NO_VAR is set.
+static void CountBlobDestruction(void* context)
+{
+    ++*(uint32_t*)context;
+}
+
+// Skribidi sees fvar's default style with HB_NO_VAR, and both axis lookups and
+// fallbacks release their table references so destroying the face frees the blob.
 TEST(FontTrueTypeReference, DefaultVariationStyle)
 {
     const uint8_t fvar[] = {
@@ -563,8 +568,9 @@ TEST(FontTrueTypeReference, DefaultVariationStyle)
         1,
         2 // -12.5
     };
+    uint32_t destroyed_blobs = 0;
     hb_face_t* face = hb_face_builder_create();
-    hb_blob_t* blob = hb_blob_create((const char*)fvar, sizeof(fvar), HB_MEMORY_MODE_READONLY, 0, 0);
+    hb_blob_t* blob = hb_blob_create((const char*)fvar, sizeof(fvar), HB_MEMORY_MODE_READONLY, &destroyed_blobs, CountBlobDestruction);
     ASSERT_TRUE(hb_face_builder_add_table(face, HB_TAG('f', 'v', 'a', 'r'), blob));
     hb_blob_destroy(blob);
     hb_font_t* font = hb_font_create(face);
@@ -572,8 +578,10 @@ TEST(FontTrueTypeReference, DefaultVariationStyle)
     ASSERT_EQ(87.5f, hb_style_get_value(font, HB_STYLE_TAG_WIDTH));
     ASSERT_EQ(-12.5f, hb_style_get_value(font, HB_STYLE_TAG_SLANT_ANGLE));
     ASSERT_NEAR(tanf(12.5f * 3.14159265358979323846f / 180.0f), hb_style_get_value(font, HB_STYLE_TAG_SLANT_RATIO), 0.000001f);
+    ASSERT_EQ(0.0f, hb_style_get_value(font, HB_STYLE_TAG_ITALIC));
     hb_font_destroy(font);
     hb_face_destroy(face);
+    ASSERT_EQ(1u, destroyed_blobs);
 }
 
 // Shaping receives standalone CFF extents at nonuniform and large HarfBuzz scales.

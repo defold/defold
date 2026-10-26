@@ -12,6 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <test/graphics_test_sanitizers.h>
+
 #include <stdio.h>
 #include <string.h>
 #define JC_TEST_IMPLEMENTATION
@@ -60,6 +62,7 @@ class FontEffectTest : public jc_test_base_class
         params.m_Width = params.m_Height = 16;
         m_Context = dmGraphics::NewContext(params);
         ASSERT_NE((dmGraphics::HContext)0, m_Context);
+        ASSERT_TRUE(GraphicsTestRetainDriLibraries());
         m_Cache = FontCreateEffectCache(m_Context);
         m_Frame = 0;
 
@@ -134,6 +137,7 @@ class FontEffectTest : public jc_test_base_class
         dmGraphics::DeleteRenderTarget(m_Context, m_Target);
         dmGraphics::DeleteVertexDeclaration(m_Declaration);
         dmGraphics::DeleteProgram(m_Context, m_Program);
+        dmGraphics::CloseWindow(m_Context);
         dmGraphics::DeleteContext(m_Context);
         dmPlatform::CloseWindow(m_Window);
         dmPlatform::DeleteWindow(m_Window);

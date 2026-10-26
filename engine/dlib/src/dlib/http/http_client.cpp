@@ -20,6 +20,7 @@
 #include <ctype.h>
 #include "http_client.h"
 
+#include <dlib/atomic.h>
 #include <dlib/connection_pool.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -374,7 +375,7 @@ namespace dmHttpClient
 
     static bool HasRequestTimedOut(HClient client)
     {
-        if (client->m_CancelFlag && *client->m_CancelFlag)
+        if (client->m_CancelFlag && dmAtomicGet32(client->m_CancelFlag))
             return true;
         if( client->m_RequestTimeout == 0 )
             return false;

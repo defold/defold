@@ -263,6 +263,7 @@ namespace dmGameSystem
      * Sets horizontal flipping of the provided sprite's animations.
      * The sprite is identified by its URL.
      * If the currently playing animation is flipped by default, flipping it again will make it appear like the original texture.
+     * The sprite is flipped around the pivot of its image, which gives the same result as a negative x scale.
      *
      * @name sprite.set_hflip
      * @param url [type:string|hash|url] the sprite that should flip its animations
@@ -302,6 +303,7 @@ namespace dmGameSystem
      * Sets vertical flipping of the provided sprite's animations.
      * The sprite is identified by its URL.
      * If the currently playing animation is flipped by default, flipping it again will make it appear like the original texture.
+     * The sprite is flipped around the pivot of its image, which gives the same result as a negative y scale.
      *
      * @name sprite.set_vflip
      * @param url [type:string|hash|url] the sprite that should flip its animations

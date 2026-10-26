@@ -1282,7 +1282,8 @@ namespace dmGraphics
     {
         bindings_out.SetCapacity(bindings_count);
         bindings_out.SetSize(bindings_count);
-        memset(bindings_out.Begin(), 0, sizeof(ShaderResourceBinding) * bindings_count);
+        if (bindings_count)
+            memset(bindings_out.Begin(), 0, sizeof(ShaderResourceBinding) * bindings_count);
 
         for (int i = 0; i < bindings_count; ++i)
         {
@@ -1338,7 +1339,8 @@ namespace dmGraphics
         meta->m_TypeInfos.SetCapacity(ddf->m_Types.m_Count);
         meta->m_TypeInfos.SetSize(ddf->m_Types.m_Count);
 
-        memset(meta->m_TypeInfos.Begin(), 0, ddf->m_Types.m_Count * sizeof(meta->m_TypeInfos[0]));
+        if (ddf->m_Types.m_Count)
+            memset(meta->m_TypeInfos.Begin(), 0, ddf->m_Types.m_Count * sizeof(meta->m_TypeInfos[0]));
 
         for (int i = 0; i < ddf->m_Types.m_Count; ++i)
         {
