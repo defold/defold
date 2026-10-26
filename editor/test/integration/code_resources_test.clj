@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.code-resources-test
-  (:require [clojure.set :as set]
+  (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.code.resource :as code.resource]
@@ -27,7 +28,8 @@
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll]
             [util.digest :as digest])
-  (:import [clojure.lang ExceptionInfo]))
+  (:import [clojure.lang ExceptionInfo]
+           [internal.node NodeImpl ShellNode]))
 
 (defn- all-file-resources
   ([workspace]
@@ -151,6 +153,92 @@
         (is (not (resource-node/loaded? initial-basis node-id)))
         (is (nil? (g/raw-property-value initial-basis node-id :source-value)))
         (is (nil? (g/raw-property-value initial-basis node-id :disk-sha256)))))))
+
+;; Code search retains raw lines and disk-sha256 on shells without materializing
+;; them. Searches, loading, opening, and edits reuse the read. Saving keeps
+;; the unmodified lines needed to undo the first edit.
+(deftest code-search-caches-shell-reads-test
+  (doseq [editable [false true]
+          lazy-loaded [false true]]
+    (testing (str "editable: " editable ", lazy-loaded: " lazy-loaded)
+      (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+        (with-open [_ (test-util/make-directory-deleter project-path)]
+          (when-not editable
+            (test-util/set-non-editable-directories! project-path ["/resources"]))
+          (with-clean-system
+            (let [workspace (test-util/setup-workspace! project-path)
+                  proj-path "/resources/searched.codecache"
+                  lines ["if true then" "    print('needle')" "end"]]
+              (g/transact
+                (code.resource/register-code-resource-type workspace
+                  :ext "codecache"
+                  :editable editable
+                  :node-type code.resource/CodeEditorResourceNode
+                  :lazy-loaded lazy-loaded))
+              (test-util/write-file-resource! workspace proj-path lines)
+              (workspace/resource-sync! workspace)
+              (let [project (test-util/setup-project! workspace)
+                    node-id (test-util/resource-node project proj-path)
+                    resource (resource-node/resource node-id)
+                    disk-sha256 (resource/resource->sha256-hex resource)
+                    {:keys [search-value-fn search-fn]} (resource/resource-type resource)
+                    file (io/file project-path (subs proj-path 1))]
+                (g/reset-undo! :undo/global)
+                (testing "Failed reads leave the shell available for another attempt"
+                  (io/delete-file file)
+                  (g/with-auto-evaluation-context evaluation-context
+                    (is (g/error-value? (search-value-fn node-id resource evaluation-context))))
+                  (let [node (g/node-by-id (g/now) node-id)]
+                    (is (instance? ShellNode node))
+                    (is (not (contains? node :source-value)))
+                    (is (not (contains? node :disk-sha256)))))
+                (test-util/write-file-resource! workspace proj-path lines)
+                (let [search-value (g/with-auto-evaluation-context evaluation-context
+                                     (search-value-fn node-id resource evaluation-context))
+                      node (g/node-by-id (g/now) node-id)]
+                  (is (= {:resource resource :loaded-lines lines} search-value))
+                  (is (instance? ShellNode node))
+                  (is (= lines (:source-value node)))
+                  (is (= disk-sha256 (:disk-sha256 node)))
+                  ;; Removing the file exposes redundant disk reads.
+                  (io/delete-file file)
+                  (g/with-auto-evaluation-context evaluation-context
+                    (is (= search-value (search-value-fn node-id resource evaluation-context))))
+                  (doseq [search-string ["needle" "print"]]
+                    (is (= ["    print('needle')"]
+                           (mapv :text (search-fn search-value (search-fn search-string)))))))
+                (is (instance? ShellNode (g/node-by-id (g/now) node-id)))
+                (g/with-auto-evaluation-context evaluation-context
+                  (g/materialize-node! node-id evaluation-context))
+                (is (instance? NodeImpl (g/node-by-id (g/now) node-id)))
+                (is (= lines (g/node-value node-id :unmodified-lines)))
+                (is (= lines (g/node-value node-id :lines)))
+                (is (= :four-spaces (g/node-value node-id :indent-type)))
+                (is (= (when editable (hash lines)) (g/node-value node-id :source-value)))
+                (is (= disk-sha256 (g/node-value node-id :disk-sha256)))
+                (g/with-auto-evaluation-context evaluation-context
+                  (code.resource/ensure-loaded! node-id evaluation-context))
+                (is (= lines (g/node-value node-id :save-value)))
+                (is (false? (g/node-value node-id :dirty)))
+                (is (zero? (g/undo-stack-count :undo/global)))
+                (when editable
+                  (let [edited-lines (conj lines "-- unsaved")]
+                    (test-util/set-code-editor-lines! node-id edited-lines)
+                    (is (true? (g/node-value node-id :dirty)))
+                    (g/with-auto-evaluation-context evaluation-context
+                      (is (= edited-lines (:loaded-lines (search-value-fn node-id resource evaluation-context)))))
+                    (test-util/write-file-resource! workspace proj-path lines)
+                    (test-util/save-project! project)
+                    (is (false? (g/node-value node-id :dirty)))
+                    (is (= 1 (g/undo-stack-count :undo/global)))
+                    (g/undo! :undo/global)
+                    (is (= lines (g/node-value node-id :save-value)))
+                    (is (= lines (g/node-value node-id :unmodified-lines)))
+                    (is (= (hash edited-lines) (g/node-value node-id :source-value)))
+                    (is (true? (g/node-value node-id :dirty)))
+                    (g/redo! :undo/global)
+                    (is (= edited-lines (g/node-value node-id :save-value)))
+                    (is (false? (g/node-value node-id :dirty)))))))))))))
 
 (deftest lazy-disk-state-transaction-test
   ;; Verifies that lazy disk baselines are transactional, guarding against dry

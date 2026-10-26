@@ -219,6 +219,74 @@
   (property value g/Any)
   (output save-value g/Any (g/fnk [value] value)))
 
+;; Bulk reads reuse cached source-value and disk-sha256 for requested shells and
+;; recursive prerequisites, but replacement node IDs must read changed files.
+(deftest bulk-reads-reuse-cached-shell-reads-test
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_ (test-util/make-directory-deleter project-path)]
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              reads (atom {})
+              contents {"/requested.bulkcache" {:prerequisites ["/prerequisite.bulkcache"]}
+                        "/prerequisite.bulkcache" {}
+                        "/unread.bulkcache" {:value "unread"}
+                        "/changed.bulkcache" {:value "before"}}]
+          (g/transact
+            (workspace/register-resource-type workspace
+              :ext "bulkcache"
+              :node-type CachedReadResource
+              :textual? true
+              :auto-connect-save-data? false
+              :read-fn (fn read-bulk-resource [_read-opts resource input]
+                         (swap! reads update (resource/proj-path resource) (fnil inc 0))
+                         (edn/read-string (slurp input)))
+              :write-fn pr-str
+              :search-fn resource-node/default-ddf-resource-search-fn
+              :prerequisites-fn (fn prerequisites [_read-opts _resource source-value]
+                                  (:prerequisites source-value))
+              :load-fn (fn load-bulk-resource [_load-opts {:keys [node-id source-value]}]
+                         (g/set-property node-id :value source-value))))
+          (doseq [[proj-path source-value] contents]
+            (test-util/write-file-resource! workspace proj-path source-value))
+          (workspace/resource-sync! workspace)
+          (let [project (test-util/setup-project! workspace)]
+            (doseq [proj-path ["/requested.bulkcache" "/prerequisite.bulkcache" "/changed.bulkcache"]]
+              (let [node-id (test-util/resource-node project proj-path)
+                    resource (resource-node/resource node-id)
+                    search-value-fn (:search-value-fn (resource/resource-type resource))]
+                (g/with-auto-evaluation-context evaluation-context
+                  (is (= (contents proj-path)
+                         (search-value-fn node-id resource evaluation-context))))))
+            (g/let-ec [{:keys [basis-ref]} evaluation-context
+                       nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)
+                       node-id+resource-pairs (mapv (fn [proj-path]
+                                                      (let [node-id (nodes-by-resource-path proj-path)]
+                                                        (pair node-id (resource-node/resource @basis-ref node-id))))
+                                                    ["/requested.bulkcache" "/unread.bulkcache"])
+                       node-load-infos (project/read-nodes @basis-ref node-id+resource-pairs
+                                         :old-node-ids-by-proj-path nodes-by-resource-path)]
+              (is (= (dissoc contents "/changed.bulkcache")
+                     (into {}
+                           (map (fn [{:keys [resource source-value]}]
+                                  (pair (resource/proj-path resource) source-value)))
+                           node-load-infos)))
+              (doseq [{:keys [node-id resource disk-sha256 read-error]} node-load-infos]
+                (is (nil? read-error))
+                (is (instance? ShellNode (g/node-by-id (g/now) node-id)))
+                (is (= (resource/resource->sha256-hex resource) disk-sha256))
+                (is (= 1 (@reads (resource/proj-path resource)))))
+              (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {})
+              (doseq [{:keys [node-id source-value]} node-load-infos]
+                (is (= source-value (g/node-value node-id :save-value)))))
+            (let [node-id (test-util/resource-node project "/changed.bulkcache")]
+              (is (instance? ShellNode (g/node-by-id (g/now) node-id)))
+              (test-util/write-file-resource! workspace "/changed.bulkcache" {:value "after"})
+              (workspace/resource-sync! workspace)
+              (let [replacement-node-id (test-util/resource-node project "/changed.bulkcache")]
+                (is (not= node-id replacement-node-id))
+                (is (= {:value "after"} (g/node-value replacement-node-id :save-value)))
+                (is (= 2 (@reads "/changed.bulkcache")))))))))))
+
 ;; Searching shells caches source-value and disk-sha256 without loading nodes or
 ;; discovering dependencies. Later searches and materialization reuse the read;
 ;; failed reads leave shells unchanged and are excluded from search results.
@@ -343,6 +411,7 @@
 ;; A failing load setter must leave a defective NodeImpl without partial
 ;; properties, child nodes, connections or undo data. Failed non-editable
 ;; resources retain source-value for fallback search. Successful loads clear it.
+;; Both bulk and individual loads reuse the ShellNode's cached read.
 (deftest applying-load-steps-failure-test
   (doseq [bulk [false true]]
     (testing (str "bulk: " bulk)
@@ -441,7 +510,7 @@
                   (is (= source-value
                          ((:search-value-fn (resource/resource-type resource))
                           node-id resource evaluation-context))))
-                (is (= (if bulk 2 1) @reads))
+                (is (= 1 @reads))
                 (when bulk
                   (g/undo! :undo/global)
                   (is (nil? (g/raw-property-value (g/now) node-id :value)))

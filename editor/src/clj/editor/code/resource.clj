@@ -21,6 +21,7 @@
             [editor.resource-node :as resource-node]
             [editor.types :as types]
             [editor.workspace :as workspace]
+            [internal.node :as in]
             [schema.core :as s]
             [util.eduction :as e]
             [util.text-util :as text-util])
@@ -71,8 +72,14 @@
 ;; dirty detection.
 (def source-value-fn hash)
 
-(defn search-value-fn [node-id resource evaluation-context]
-  (let [loaded-lines (g/node-value node-id :save-value evaluation-context)]
+(defn search-value-fn [node-id resource {:keys [basis-ref] :as evaluation-context}]
+  (let [loaded-lines
+        (if-not (in/shell-node? (g/node-by-id @basis-ref node-id))
+          (g/node-value node-id :save-value evaluation-context)
+          (let [workspace (resource/workspace resource)
+                read-opts (g/tx-cached-value! evaluation-context [:read-opts]
+                            (workspace/make-read-opts @basis-ref workspace :include-editor-dependencies true))]
+            (resource-io/read-source-value! read-opts node-id resource evaluation-context)))]
     (if (g/error-value? loaded-lines)
       loaded-lines
       {:resource resource
@@ -86,12 +93,12 @@
      (text-util/lines->text-matches loaded-lines re-pattern)
      (resource/resource->text-matches (:resource search-value) re-pattern))))
 
-;; To save memory, we defer loading the file contents until it has been modified
-;; and read directly from disk up to that point. Once the file is edited we need
-;; the unmodified lines to be able to undo past the point when the file was last
-;; saved. When the first edit is performed, we load the original lines from disk
-;; and store them non-undoably on the node. Saving must not replace these lines,
-;; since undoing the first edit restores them through the save-value output.
+;; Lazy resources retain file contents when searched as ShellNodes, opened, or
+;; edited. Loading transfers their cached source-value to unmodified-lines.
+;; Otherwise, opening or the first edit reads the original lines from disk.
+;; Store unmodified-lines non-undoably so undo can restore the text even
+;; after saving. Saving must not replace these lines: undoing the first edit
+;; restores them through the save-value output.
 
 (defn- read-lines+disk-sha256
   "Reads the disk state of the specified CodeEditorResourceNode id from disk and
@@ -157,8 +164,11 @@
 
 (defn- load-fn [additional-load-fn lazy-loaded load-opts {self :node-id lines :source-value :as node-load-info}]
   (e/concat
-    (when-not lazy-loaded
-      (eager-load self lines))
+    (if-not lazy-loaded
+      (eager-load self lines)
+      (when lines
+        (g/non-undoable
+          (g/set-property self :unmodified-lines lines))))
     (when additional-load-fn
       (additional-load-fn load-opts node-load-info))))
 
@@ -195,10 +205,11 @@
   (output completions g/Any (g/constantly {}))
 
   (output indent-type IndentType :cached
-          (g/fnk [_node-id modified-indent-type resource]
+          (g/fnk [_node-id modified-indent-type resource ^:try unmodified-lines]
             (or modified-indent-type
-                (let [lines (resource-io/with-error-translation resource _node-id :indent-type
-                              (read-fn {} resource resource))]
+                (let [lines (or unmodified-lines
+                                (resource-io/with-error-translation resource _node-id :indent-type
+                                  (read-fn {} resource resource)))]
                   (if (g/error? lines)
                     default-indent-type
                     (guess-indent-type lines))))))

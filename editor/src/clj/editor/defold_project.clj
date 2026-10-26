@@ -48,6 +48,7 @@
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
             [internal.java :as java]
+            [internal.node :as in]
             [internal.util :as iutil]
             [schema.core :as s]
             [service.log :as log]
@@ -313,6 +314,17 @@
             (make-file-not-found-error node-id resource)))]
     (make-node-load-info read-opts node-id resource resource-type read-result)))
 
+(defn- read-node-load-info-with-cached-read [basis read-opts node-id resource]
+  (let [node (g/node-by-id basis node-id)
+        source-value (when (in/shell-node? node)
+                       (:source-value node))]
+    (if-not source-value
+      (read-node-load-info read-opts node-id resource)
+      (let [{:keys [editable->type-ext->resource-type]} read-opts
+            resource-type (resource/lookup-resource-type resource editable->type-ext->resource-type)
+            read-result (pair source-value (:disk-sha256 node))]
+        (make-node-load-info read-opts node-id resource resource-type read-result)))))
+
 (defn- sort-node-ids-for-loading-impl
   ([node-ids in-progress queue queued batch node-id->dependency-node-ids]
    (let [node-id (first node-ids)]
@@ -464,8 +476,7 @@
                 (du/when-metrics
                   (g/callback stop-resource-metrics-load-timer! proj-path))))))))))
 
-(defn read-node-load-infos [read-opts node-id+resource-pairs ^long progress-size render-progress!]
-  {:pre [(or (nil? node-id+resource-pairs) (counted? node-id+resource-pairs))]}
+(defn- read-node-load-infos-impl [read-node-load-info-fn node-id+resource-pairs ^long progress-size render-progress!]
   (let [progress-fn
         (if (pos? progress-size)
           (fn progress-fn [progress-message ^long node-index]
@@ -480,8 +491,13 @@
               progress-index (dec (swap! progress-counter-atom inc))
               progress (progress-fn progress-message progress-index)]
           (render-progress! progress)
-          (read-node-load-info read-opts node-id resource)))
+          (read-node-load-info-fn node-id resource)))
       node-id+resource-pairs)))
+
+(defn read-node-load-infos [read-opts node-id+resource-pairs ^long progress-size render-progress!]
+  {:pre [(or (nil? node-id+resource-pairs) (counted? node-id+resource-pairs))]}
+  (let [read-node-load-info-fn (partial read-node-load-info read-opts)]
+    (read-node-load-infos-impl read-node-load-info-fn node-id+resource-pairs progress-size render-progress!)))
 
 (defn node-load-info->disk-state-tx-data
   "Initializes a resource node's disk state non-undoably before loading it."
@@ -745,7 +761,8 @@
 
   Args:
     basis
-      The basis used to read workspace settings and find prerequisite nodes.
+      The basis used to read workspace settings, find prerequisite nodes, and
+      reuse source-value and disk-sha256 cached on existing ShellNodes.
 
     new-node-id+resource-pairs
       A sequence of pairs of [node-id, resource] to return node-load-infos for.
@@ -813,7 +830,8 @@
            old-node-ids-by-proj-path {}
            render-progress! progress/null-render-progress!}
       :as read-nodes-opts}]
-  {:pre [(coll/every? #{:force-read
+  {:pre [(or (nil? new-node-id+resource-pairs) (counted? new-node-id+resource-pairs))
+         (coll/every? #{:force-read
                         :old-node-id->dependency-proj-paths
                         :old-node-id->old-node-state
                         :old-node-ids-by-proj-path
@@ -840,12 +858,15 @@
                 :include-editor-dependencies true
                 :resource-metrics resource-metrics)))
 
+        read-node-load-info-fn
+        (partial read-node-load-info-with-cached-read basis read-opts)
+
         node-load-infos
         (if (identical? fn/constantly-false unloaded-proj-path?)
           ;; Resources cannot be flagged as unloaded. We can safely proceed to
           ;; load all the new resources without considering what has been loaded
           ;; before.
-          (read-node-load-infos read-opts new-node-id+resource-pairs (count new-node-id+resource-pairs) render-progress!)
+          (read-node-load-infos-impl read-node-load-info-fn new-node-id+resource-pairs (count new-node-id+resource-pairs) render-progress!)
 
           ;; Resources may be unloaded. Check that we don't have unsafe
           ;; references to any unloaded resources from the loaded resources, as
@@ -930,7 +951,7 @@
                                         nil))))))]))
 
                 principal-node-load-infos
-                (read-node-load-infos read-opts principal-node-id+resource-pairs (count principal-node-id+resource-pairs) render-progress!)
+                (read-node-load-infos-impl read-node-load-info-fn principal-node-id+resource-pairs (count principal-node-id+resource-pairs) render-progress!)
 
                 principal-proj-paths
                 (coll/into-> principal-node-id+resource-pairs #{}
@@ -975,7 +996,7 @@
                     (if (coll/empty? supplemental-node-id+resource-pairs)
                       [loaded-proj-paths loaded-node-load-infos]
                       (let [supplemental-node-load-infos
-                            (read-node-load-infos read-opts supplemental-node-id+resource-pairs 0 render-progress!)
+                            (read-node-load-infos-impl read-node-load-info-fn supplemental-node-id+resource-pairs 0 render-progress!)
 
                             loaded-proj-paths
                             (into loaded-proj-paths
@@ -1054,7 +1075,7 @@
           (validate-and-sort-load-prerequisites
             (sort-node-load-infos-for-loading node-load-infos old-node-ids-by-proj-path old-node-id->dependency-proj-paths)
             basis old-node-ids-by-proj-path)
-          (let [prerequisite-node-load-infos (read-node-load-infos read-opts prerequisite-node-id+resource-pairs 0 render-progress!)]
+          (let [prerequisite-node-load-infos (read-node-load-infos-impl read-node-load-info-fn prerequisite-node-id+resource-pairs 0 render-progress!)]
             (recur (into node-load-infos prerequisite-node-load-infos)
                    (into read-node-ids (map :node-id) prerequisite-node-load-infos)
                    prerequisite-node-load-infos)))))))
@@ -1167,14 +1188,7 @@
         node-load-info
         (g/tx-cached-value! evaluation-context [::node-load-infos node-id]
           (check-missing-load-prerequisites
-            (let [source-value (g/raw-property-value @basis-ref node-id :source-value)]
-              (if (nil? source-value)
-                (read-node-load-info read-opts node-id resource)
-                (let [{:keys [editable->type-ext->resource-type]} read-opts
-                      resource-type (resource/lookup-resource-type resource editable->type-ext->resource-type)
-                      disk-sha256 (g/raw-property-value @basis-ref node-id :disk-sha256)
-                      read-result (pair source-value disk-sha256)]
-                  (make-node-load-info read-opts node-id resource resource-type read-result))))
+            (read-node-load-info-with-cached-read @basis-ref read-opts node-id resource)
             @basis-ref
             (fn [proj-path]
               (some->> (nodes-by-resource-path proj-path)
