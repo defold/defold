@@ -4122,17 +4122,9 @@ namespace dmGui
 
 
 
-    /*# shows the on-display keyboard if available [icon:ios] [icon:android]
-     * Shows the on-display touch keyboard.
-     * The specified type of keyboard is displayed if it is available on
-     * the device.
-     *
-     * This function is only available on iOS and Android. [icon:ios] [icon:android].
-     *
-     * @name gui.show_keyboard
-     * @param type [type:gui.KEYBOARD_TYPE] keyboard type
-     * @param autoclose [type:boolean] if the keyboard should automatically close when clicking outside
-     */
+    // Deprecated: use window.show_soft_keyboard() from a regular script, which does not require a gui
+    // scene instance. The reference documentation is deliberately removed so that new projects use the
+    // window function; this one keeps working for existing projects.
     static int LuaShowKeyboard(lua_State* L)
     {
         Scene* scene = GuiScriptInstance_Check(L);

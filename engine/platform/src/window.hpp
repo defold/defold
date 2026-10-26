@@ -65,6 +65,10 @@ namespace dmPlatform
     bool           GetDeviceState(HWindow window, WindowDeviceState state);
     bool           GetDeviceState(HWindow window, WindowDeviceState state, int32_t op1);
 
+    // Android only, a no-op on the other platforms. Selects between key events and the hidden input
+    // field for text input, see the android.input_method project setting.
+    void           SetAndroidInputMethod(bool use_hidden_inputfield);
+
     void           SetWindowTitle(HWindow window, const char* title);
     void           SetWindowSize(HWindow window, uint32_t width, uint32_t height);
     void           SetWindowPosition(HWindow window, int32_t x, int32_t y);

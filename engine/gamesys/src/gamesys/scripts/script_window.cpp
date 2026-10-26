@@ -472,6 +472,88 @@ static int GetDisplayScale(lua_State* L)
     return 1;
 }
 
+/*# On-screen keyboard types
+ * @enum
+ * @name window.KEYBOARD_TYPE
+ * @member window.KEYBOARD_TYPE_DEFAULT default keyboard
+ * @member window.KEYBOARD_TYPE_NUMBER_PAD numeric keypad
+ * @member window.KEYBOARD_TYPE_EMAIL email address keyboard
+ * @member window.KEYBOARD_TYPE_PASSWORD keyboard suitable for passwords
+ */
+
+/*# shows the on-screen keyboard
+ *
+ * [icon:android] [icon:ios] [icon:html5] Shows the on-screen keyboard and focuses it, so that typed
+ * characters are delivered through the `text` trigger of the `.input_binding` file. This is the same
+ * keyboard `gui.show_keyboard()` operates, available to scripts that do not own a gui scene: the gui
+ * functions require a gui scene instance to reach the input context.
+ *
+ * The keyboard type selects the layout the platform presents. On HTML5 the browser derives the layout
+ * from the `inputmode` of the canvas, so a password field shows the plain text layout, and `autoclose`
+ * has no effect because the browser decides when the keyboard closes. On platforms without an
+ * on-screen keyboard this function has no effect.
+ *
+ * @name window.show_soft_keyboard
+ * @param [type] [type:window.KEYBOARD_TYPE] keyboard layout to show (default: window.KEYBOARD_TYPE_DEFAULT)
+ * @param [autoclose] [type:boolean] close the keyboard when the user taps outside of it (default: true)
+ */
+static int ShowSoftKeyboard(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    dmHID::KeyboardType type = dmHID::KEYBOARD_TYPE_DEFAULT;
+    bool autoclose = true;
+
+    if (lua_gettop(L) >= 1 && !lua_isnil(L, 1))
+    {
+        type = (dmHID::KeyboardType) luaL_checkinteger(L, 1);
+    }
+    if (lua_gettop(L) >= 2 && !lua_isnil(L, 2))
+    {
+        autoclose = dmScript::CheckBoolean(L, 2);
+    }
+
+    dmHID::ShowKeyboard(g_Window.m_HidContext, type, autoclose);
+
+    return 0;
+}
+
+/*# hides the on-screen keyboard
+ *
+ * [icon:android] [icon:ios] [icon:html5] Hides the on-screen keyboard if it is currently shown.
+ * On platforms without an on-screen keyboard this function has no effect.
+ *
+ * @name window.hide_soft_keyboard
+ */
+static int HideSoftKeyboard(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    dmHID::HideKeyboard(g_Window.m_HidContext);
+
+    return 0;
+}
+
+/*# sets how text input is reported on Android
+ *
+ * [icon:android] Selects how the on-screen keyboard reports text on Android, overriding the
+ * `android.input_method` project setting for the rest of the session. The hidden input field is
+ * required by input methods that report edits through `InputConnection` instead of key events, for
+ * instance backspace through `deleteSurroundingText`. On the other platforms the setting has no
+ * effect.
+ *
+ * @name window.set_android_input_method
+ * @param use_hidden_input_field [type:boolean] true to use the hidden input field, false to use key events
+ */
+static int SetAndroidInputMethod(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    dmPlatform::SetAndroidInputMethod(dmScript::CheckBoolean(L, 1));
+
+    return 0;
+}
+
 /*# set the title of the window
  *
  * Sets the window title. Works on desktop platforms.
@@ -542,6 +624,9 @@ static const luaL_reg Module_methods[] =
     {"set_position",      SetPosition},
     {"get_display_scale", GetDisplayScale},
     {"get_mouse_lock",    GetMouseLock},
+    {"show_soft_keyboard", ShowSoftKeyboard},
+    {"hide_soft_keyboard", HideSoftKeyboard},
+    {"set_android_input_method", SetAndroidInputMethod},
     {0, 0}
 };
 
@@ -574,6 +659,17 @@ static void LuaInit(lua_State* L)
     SETCONSTANT(DIMMING_OFF)
 
 #undef SETCONSTANT
+
+#define SET_KEYBOARD_TYPE(name) \
+        lua_pushnumber(L, (lua_Number) dmHID::KEYBOARD_TYPE_##name); \
+        lua_setfield(L, -2, "KEYBOARD_TYPE_"#name);
+
+    SET_KEYBOARD_TYPE(DEFAULT)
+    SET_KEYBOARD_TYPE(NUMBER_PAD)
+    SET_KEYBOARD_TYPE(EMAIL)
+    SET_KEYBOARD_TYPE(PASSWORD)
+
+#undef SET_KEYBOARD_TYPE
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));

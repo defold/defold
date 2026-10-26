@@ -392,11 +392,6 @@ namespace dmPlatform
         return GetSafeArea(window, out);
     }
 
-    void SetAndroidInputMethod(bool use_hidden_inputfield)
-    {
-        (void) use_hidden_inputfield;
-    }
-
     void SetAndroidFullscreenParameters(bool immersive_mode, bool display_cutout)
     {
         (void) immersive_mode;
