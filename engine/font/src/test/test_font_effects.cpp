@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "../../../graphics/src/test/graphics_test_sanitizers.h"
+#include <test/graphics_test_sanitizers.h>
 
 #include <stdio.h>
 #include <string.h>
