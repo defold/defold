@@ -23,6 +23,7 @@
             [cljfx.fx.radio-button :as fx.radio-button]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scene :as fx.scene]
+            [cljfx.fx.separator :as fx.separator]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.tab :as fx.tab]
             [cljfx.fx.tab-pane :as fx.tab-pane]
@@ -34,13 +35,16 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [editor.analytics :as analytics]
+            [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.mouse-binding :as mouse-binding]
+            [editor.os :as os]
             [editor.prefs :as prefs]
+            [editor.profiler-xctrace :as profiler-xctrace]
             [editor.system :as system]
             [editor.ui :as ui]
             [util.coll :as coll]
@@ -845,6 +849,101 @@
     (.consume e)
     (.hide (.getWindow ^Scene (.getSource e)))))
 
+(defn- resolve-xctrace! [path swap-resolution]
+  (let [active (atom true)
+        job (future
+              (let [executable (profiler-xctrace/resolve-executable! path)]
+                (when @active
+                  (swap-resolution (constantly {:path path :executable executable})))))]
+    (fn cancel-xctrace-resolution! []
+      (reset! active false)
+      (future-cancel job))))
+
+(defn- parse-milliseconds [text]
+  (when-let [value (parse-long text)]
+    (when (<= 0 value 4294967295)
+      value)))
+
+(ui/defc ^:private profile-view
+  {:compose [{:fx/type fx/ext-state
+              :initial-state nil
+              :key :resolution
+              :swap-key :swap-resolution}
+             {:fx/type fx/ext-effect
+              :fn resolve-xctrace!
+              :args [(prefs/get (:prefs-state props) (:prefs props) [:profile :xctrace :path])
+                     (:swap-resolution props)]}]}
+  [{:keys [prefs prefs-state localization-state resolution]}]
+  (let [settings (prefs/get prefs-state prefs [:profile :xctrace])
+        resolved (= (:path settings) (:path resolution))
+        executable (when resolved (:executable resolution))]
+    {:fx/type fxui/vertical
+     :padding :medium
+     :spacing :medium
+     :children
+     [{:fx/type fxui/label
+       :text (localization-state (localization/message "prefs.profile.macos.header"))}
+      {:fx/type fx.separator/lifecycle}
+      {:fx/type fxui/label
+       :text (localization-state (localization/message "prefs.profile.xctrace.header"))}
+      {:fx/type fxui/paragraph
+       :text (localization-state
+               (localization/message
+                 (cond
+                   (not resolved) "prefs.profile.xctrace.searching"
+                   executable "prefs.profile.xctrace.ready"
+                   :else "prefs.profile.xctrace.missing")))}
+      {:fx/type fxui/grid
+       :spacing :medium
+       :column-constraints [{:fx/type fx.column-constraints/lifecycle}
+                            {:fx/type fx.column-constraints/lifecycle :hgrow :always}]
+       :children
+       (coll/into-> (e/map-indexed vector (if executable [:path :output-directory :enabled :delay-ms :duration-ms :include-energy :open-in-instruments] [:path]))
+         []
+         (mapcat
+           (fn [[row field]]
+             [{:fx/type fxui/label
+               :grid-pane/row row
+               :grid-pane/column 0
+               :text (localization-state (localization/message (str "prefs.label.profile.xctrace." (name field))))}
+              (merge
+                {:grid-pane/row row
+                 :grid-pane/column 1}
+                (case field
+                  :path {:fx/type fxui/value-field
+                         :value (:path settings)
+                         :prompt-text (or executable (localization-state (localization/message "prefs.prompt.profile.xctrace.path")))
+                         :on-value-changed #(prefs/set! prefs [:profile :xctrace :path] %)}
+                  :output-directory
+                  {:fx/type fxui/horizontal
+                   :spacing :small
+                   :children [{:fx/type fxui/value-field
+                               :h-box/hgrow :always
+                               :value (:output-directory settings)
+                               :prompt-text (localization-state (localization/message "prefs.prompt.profile.xctrace.output-directory"))
+                               :tooltip (localization-state (localization/message "prefs.help.profile.xctrace.output-directory"))
+                               :to-value #(when (or (string/blank? %) (.isAbsolute (io/file %))) %)
+                               :on-value-changed #(prefs/set! prefs [:profile :xctrace :output-directory] %)}
+                              {:fx/type fxui/button
+                               :text "…"
+                               :tooltip (localization-state (localization/message "dialog.directory.title.select"))
+                               :on-action (fn choose-output-directory! [event]
+                                            (let [current-directory (io/file (:output-directory settings))]
+                                              (when-let [directory (dialogs/make-directory-dialog
+                                                                     (localization-state (localization/message "dialog.directory.title.select"))
+                                                                     (when (.isDirectory current-directory) current-directory)
+                                                                     (fxui/event->window event))]
+                                                (prefs/set! prefs [:profile :xctrace :output-directory] (.getAbsolutePath directory)))))}]}
+                  (:enabled :include-energy :open-in-instruments)
+                  {:fx/type fxui/check-box
+                   :selected (field settings)
+                   :on-selected-changed #(prefs/set! prefs [:profile :xctrace field] %)}
+                  {:fx/type fxui/value-field
+                   :disable (not (:enabled settings))
+                   :value (field settings)
+                   :to-value parse-milliseconds
+                   :on-value-changed #(prefs/set! prefs [:profile :xctrace field] %)}))])))}]}))
+
 (ui/defc dialog-view
   {:compose [{:fx/type fx/ext-watcher
               :ref prefs/global-state
@@ -868,7 +967,7 @@
     {:fx/type fx.tab-pane/lifecycle
      :tab-closing-policy :unavailable
      :tabs (vec
-             (e/conj
+             (e/concat
                (e/map
                  (fn [{:keys [pattern paths]}]
                    {:fx/type fx.tab/lifecycle
@@ -906,14 +1005,21 @@
                                                       :grid-pane/column 1)])))
                                              vec)}})
                  @pages)
-               {:fx/type fx.tab/lifecycle
-                :text (localization-state (localization/message "prefs.tab.keymap"))
-                :content {:fx/type keymap-view
-                          :localization-state localization-state
-                          :keymap (keymap/from-prefs prefs-state prefs)
-                          :update-keymap (fn/partial prefs/update! prefs [:window :keymap])
-                          :mouse-bindings (prefs/get prefs-state prefs [:window :mouse-bindings])
-                          :update-mouse-bindings (fn/partial prefs/update! prefs [:window :mouse-bindings])}}))}}})
+               [{:fx/type fx.tab/lifecycle
+                 :text (localization-state (localization/message "prefs.tab.keymap"))
+                 :content {:fx/type keymap-view
+                           :localization-state localization-state
+                           :keymap (keymap/from-prefs prefs-state prefs)
+                           :update-keymap (fn/partial prefs/update! prefs [:window :keymap])
+                           :mouse-bindings (prefs/get prefs-state prefs [:window :mouse-bindings])
+                           :update-mouse-bindings (fn/partial prefs/update! prefs [:window :mouse-bindings])}}]
+               (when (os/is-mac-os?)
+                 [{:fx/type fx.tab/lifecycle
+                   :text (localization-state (localization/message "prefs.tab.profile"))
+                   :content {:fx/type profile-view
+                             :prefs prefs
+                             :prefs-state prefs-state
+                             :localization-state localization-state}}])))}}})
 
 (defn open!
   "Show the prefs dialog and block the thread until the dialog is closed"

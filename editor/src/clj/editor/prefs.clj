@@ -144,6 +144,17 @@
             :properties
             {:adb-path {:type :string}
              :ios-deploy-path {:type :string}}}
+    :profile {:type :object
+              :properties
+              {:xctrace {:type :object
+                         :properties
+                         {:path {:type :string}
+                          :output-directory {:type :string}
+                          :enabled {:type :boolean :default false}
+                          :delay-ms {:type :integer :default 0}
+                          :duration-ms {:type :integer :default 5000}
+                          :include-energy {:type :boolean :default true}
+                          :open-in-instruments {:type :boolean :default false}}}}}
     :extensions {:type :object
                  :properties
                  {:build-server {:type :string

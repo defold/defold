@@ -448,6 +448,11 @@ notification.changes-view.git-error = Due to a Git error, Git features are not a
 # Debug view notifications
 
 notification.debug-view.connect-failed.error = {error}\n\nCheck that the game is running and is reachable over the network.
+notification.engine-profiler.trace-requested = Trace requested. Output: {path}
+notification.engine-profiler.trace-busy = A trace is already scheduled, recording, or being saved. Wait for it to finish before starting another recording.
+notification.engine-profiler.trace-unsupported = The selected engine does not support XcTrace recording. Use a macOS debug engine with native tracing support.
+notification.engine-profiler.trace-request-failed = Could not start the trace (HTTP {status}).
+notification.engine-profiler.trace-connection-failed = Could not request a trace: {error}
 
 # Target notifications
 
@@ -703,6 +708,22 @@ prefs.tab.extensions = Extensions
 prefs.tab.tools = Tools
 prefs.tab.dev = Dev
 prefs.tab.keymap = Keymap
+prefs.tab.profile = Profile
+prefs.profile.macos.header = macOS
+prefs.profile.xctrace.header = XcTrace
+prefs.label.profile.xctrace.path = Path to xctrace
+prefs.label.profile.xctrace.output-directory = Output folder
+prefs.label.profile.xctrace.enabled = Run on start
+prefs.label.profile.xctrace.delay-ms = Delay (ms)
+prefs.label.profile.xctrace.duration-ms = Duration (ms)
+prefs.label.profile.xctrace.include-energy = Energy consumption
+prefs.label.profile.xctrace.open-in-instruments = Open in Instruments when finished
+prefs.prompt.profile.xctrace.path = Automatic (selected Xcode)
+prefs.prompt.profile.xctrace.output-directory = Default profiling folder
+prefs.help.profile.xctrace.output-directory = Absolute folder path on the engine's Mac. Leave empty to use the game's default profiling folder.
+prefs.profile.xctrace.searching = Looking for xctrace…
+prefs.profile.xctrace.ready = Record an Instruments trace when launching the game. A duration of 0 records until stopped. Energy measurements require administrator authorization and add sampling overhead. Clear the path to use the selected Xcode.
+prefs.profile.xctrace.missing = xctrace was not found. Install and select Xcode, or enter the full path to its xctrace executable.
 
 # General tab
 prefs.label.workflow.load-external-changes-on-app-focus = Load External Changes on App Focus
@@ -854,6 +875,7 @@ menu.file = File
 menu.project = Project
 menu.edit = Edit
 menu.debug = Debug
+menu.debug.profiler = Profiler
 menu.view = View
 menu.help = Help
 menu.dock.new-window = New Window
@@ -901,6 +923,7 @@ command.run.set-target-ip = Enter Target IP
 command.run.show-target-log = Target Discovery Log
 command.run.open-profiler = Open Web Profiler
 command.run.open-resource-profiler = Open Resource Profiler
+command.run.start-native-trace = XcTrace
 command.run.reset-resolution = Reset Simulated Resolution
 command.run.set-resolution = Set Resolution
 command.run.set-resolution.option.android-devices = Android Devices
