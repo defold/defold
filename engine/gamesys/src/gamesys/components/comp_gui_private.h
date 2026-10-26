@@ -53,11 +53,13 @@ namespace dmGameSystem
         MaterialResource*       m_Material;
         GuiLayoutObjectTarget   m_HoveredLayoutObject;
         GuiLayoutObjectTarget   m_PressedLayoutObject;
+        dmhash_t                m_PendingPreviousLayout;
         uint16_t                m_ComponentIndex;
         uint8_t                 m_Enabled       : 1;
         uint8_t                 m_AddedToUpdate : 1;
         uint8_t                 m_Initialized   : 1;
-        uint8_t                 m_Padding       : 5;
+        uint8_t                 m_LayoutChangedPending : 1;
+        uint8_t                 m_Padding       : 4;
         dmArray<void*>          m_ResourcePropertyPointers;
         dmHashTable64<HNodeDDF> m_DefaultNodeDescs;
     };
@@ -147,6 +149,9 @@ namespace dmGameSystem
 
     struct GuiWorld
     {
+        dmRender::HRenderItemDispatch            m_RenderDispatch;
+        dmArray<dmRender::HRenderItem>           m_RenderItems;
+        uint32_t                                 m_ActiveRenderItemCount;
         dmArray<GuiRenderObject>                 m_GuiRenderObjects;
         dmArray<HComponentRenderConstants>       m_RenderConstants;
         dmArray<GuiComponent*>                   m_Components;

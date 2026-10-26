@@ -138,7 +138,7 @@
 
 (defn- roots [resources]
   {:pre [(coll/every? resource/resource? resources)]}
-  (let [path->resource (coll/pair-map-by (comp ->path resource/proj-path) resources)
+  (let [path->resource (coll/pair-map-by (comp ->path resource/proj-path) identity resources)
         roots (loop [paths (keys path->resource)
                      roots []]
                 (if-let [^Path path (first paths)]

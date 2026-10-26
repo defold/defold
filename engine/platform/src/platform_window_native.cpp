@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
+#include <stdlib.h>
 
 #include "native/native.h"
 
@@ -49,7 +50,9 @@ struct dmWindow
     void*                          m_DeviceChangedCallbackUserData;
     FWindowGamepadEventCallback    m_GamepadEventCallback;
     void*                          m_GamepadEventCallbackUserData;
-    dmArray<NativeTouch>             m_TouchData;
+    dmArray<NativeTouch>           m_TouchData;
+    dmArray<WindowReservedArea>    m_ReservedAreas;
+    dmArray<WindowReservedArea>    m_PendingReservedAreas;
     int32_t                        m_Width;
     int32_t                        m_Height;
     uint32_t                       m_Samples               : 8;
@@ -57,6 +60,7 @@ struct dmWindow
     uint32_t                       m_SwapIntervalSupported : 1;
     uint32_t                       m_SwapBufferSupported   : 1;
     uint32_t                       m_HighDPI               : 1;
+    uint32_t                       m_ObserveReservedAreas  : 1;
 };
 
 namespace dmPlatform
@@ -64,11 +68,40 @@ namespace dmPlatform
     // Mobile and web backends own one application window.
     static dmWindow* g_Window = 0;
 
+    static int CompareReservedAreas(const void* lhs, const void* rhs)
+    {
+        const WindowReservedArea* a = (const WindowReservedArea*)lhs;
+        const WindowReservedArea* b = (const WindowReservedArea*)rhs;
+        if (a->m_X != b->m_X) return a->m_X < b->m_X ? -1 : 1;
+        if (a->m_Y != b->m_Y) return a->m_Y < b->m_Y ? -1 : 1;
+        if (a->m_Width != b->m_Width) return a->m_Width < b->m_Width ? -1 : 1;
+        if (a->m_Height != b->m_Height) return a->m_Height < b->m_Height ? -1 : 1;
+        return 0;
+    }
+
+    static bool UpdateReservedAreas(HWindow window)
+    {
+        dmArray<WindowReservedArea>& pending = window->m_PendingReservedAreas;
+        GetReservedAreas(window, pending);
+        if (pending.Size() > 1)
+            qsort(pending.Begin(), pending.Size(), sizeof(WindowReservedArea), CompareReservedAreas);
+        dmArray<WindowReservedArea>& current = window->m_ReservedAreas;
+        if (pending.Size() == current.Size() &&
+            (pending.Empty() || memcmp(pending.Begin(), current.Begin(), pending.Size() * sizeof(WindowReservedArea)) == 0))
+            return false;
+
+        current.Swap(pending);
+        return true;
+    }
+
     static void OnWindowResize(int width, int height)
     {
         assert(g_Window);
         g_Window->m_Width  = (uint32_t) width;
         g_Window->m_Height = (uint32_t) height;
+
+        if (g_Window->m_ObserveReservedAreas)
+            UpdateReservedAreas(g_Window);
 
         if (g_Window->m_ResizeCallback != 0x0)
         {
@@ -222,6 +255,9 @@ namespace dmPlatform
     {
         dmNativeCloseWindow();
         window->m_WindowOpened = 0;
+        window->m_ObserveReservedAreas = 0;
+        window->m_ReservedAreas.SetSize(0);
+        window->m_PendingReservedAreas.SetSize(0);
     }
 
     void DeleteWindow(HWindow window)
@@ -298,6 +334,24 @@ namespace dmPlatform
 #endif
 
         return true;
+    }
+
+#if defined(__EMSCRIPTEN__)
+    void GetReservedAreas(HWindow window, dmArray<WindowReservedArea>& areas)
+    {
+        areas.SetSize(0);
+    }
+#endif
+
+    uint32_t GetReservedAreas(HWindow window, const WindowReservedArea** areas)
+    {
+        if (!window->m_ObserveReservedAreas)
+        {
+            window->m_ObserveReservedAreas = 1;
+            UpdateReservedAreas(window);
+        }
+        *areas = window->m_ReservedAreas.Empty() ? 0 : window->m_ReservedAreas.Begin();
+        return window->m_ReservedAreas.Size();
     }
 
     #ifndef __EMSCRIPTEN__
@@ -549,6 +603,13 @@ namespace dmPlatform
         // Poll events independently of buffer swaps. Accessing OpenGL isn't permitted
         // on iOS when the application is transitioning to resumed mode.
         dmNativePollEvents();
+#if defined(DM_PLATFORM_IOS)
+        // UIKit occlusions can change independently of size and safe-area insets.
+        // Only observe after the first query. Resize callbacks above already
+        // refresh the snapshot, so a transition produces no duplicate event here.
+        if (window->m_ObserveReservedAreas && UpdateReservedAreas(window) && window->m_ResizeCallback)
+            window->m_ResizeCallback(window->m_ResizeCallbackUserData, window->m_Width, window->m_Height);
+#endif
     }
 
     void SwapBuffers(HWindow window)

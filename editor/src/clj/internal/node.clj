@@ -20,6 +20,7 @@
             [internal.graph :as ig]
             [internal.graph.error-values :as ie]
             [internal.graph.types :as gt]
+            [internal.invalidate-counters :as ic]
             [internal.util :as util]
             [plumbing.core :as pc]
             [schema.core :as s]
@@ -535,7 +536,7 @@
   [basis cache initial-invalidate-counters materialization-results]
   (assert (ig/graph? basis))
   (assert (c/cache? cache))
-  (assert (map? initial-invalidate-counters))
+  (assert (ic/counters? initial-invalidate-counters))
   {:initial-basis basis
    :initial-materialization-results materialization-results
    :basis-ref (atom basis)

@@ -14,6 +14,7 @@
 
 #import "SceneDelegate.h"
 #import "AppDelegate.h"
+#import "AppDelegateProxy.h"
 #import "ViewController.h"
 
 #include "internal.h"
@@ -34,6 +35,54 @@ static NSArray* GetSceneDelegates(void)
     return [NSArray arrayWithObjects:g_SceneDelegates count:g_SceneDelegateCount];
 }
 
+static UIInterfaceOrientationMask GetOrientationMask(NSArray* orientations)
+{
+    UIInterfaceOrientationMask mask = 0;
+    for (NSString* orientation in orientations)
+    {
+        if ([@"UIInterfaceOrientationPortrait" isEqual:orientation])
+            mask |= UIInterfaceOrientationMaskPortrait;
+        else if ([@"UIInterfaceOrientationPortraitUpsideDown" isEqual:orientation])
+            mask |= UIInterfaceOrientationMaskPortraitUpsideDown;
+        else if ([@"UIInterfaceOrientationLandscapeLeft" isEqual:orientation])
+            mask |= UIInterfaceOrientationMaskLandscapeLeft;
+        else if ([@"UIInterfaceOrientationLandscapeRight" isEqual:orientation])
+            mask |= UIInterfaceOrientationMaskLandscapeRight;
+    }
+    return mask;
+}
+
+UIInterfaceOrientationMask dmNativeGetiOSDefaultInterfaceOrientations(NSDictionary* info, UIUserInterfaceIdiom idiom)
+{
+    const BOOL ipad = idiom == UIUserInterfaceIdiomPad;
+    UIInterfaceOrientationMask deviceMask = ipad ? UIInterfaceOrientationMaskAll : UIInterfaceOrientationMaskAllButUpsideDown;
+    NSString* keys[] = {
+        ipad ? @"DefoldSupportedInterfaceOrientations~ipad" : @"DefoldSupportedInterfaceOrientations",
+        @"DefoldSupportedInterfaceOrientations",
+        ipad ? @"UISupportedInterfaceOrientations~ipad" : @"UISupportedInterfaceOrientations",
+        @"UISupportedInterfaceOrientations"
+    };
+    for (unsigned int i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i)
+    {
+        NSArray* orientations = info[keys[i]];
+        if ([orientations isKindOfClass:[NSArray class]])
+        {
+            UIInterfaceOrientationMask mask = GetOrientationMask(orientations) & deviceMask;
+            if (mask)
+                return mask;
+        }
+    }
+    return deviceMask;
+}
+
+UIInterfaceOrientationMask dmNativeGetiOSSupportedInterfaceOrientations(UIWindow* window)
+{
+    UIInterfaceOrientationMask legacyMask = dmNativeGetiOSLegacyInterfaceOrientations(window);
+    if (legacyMask)
+        return legacyMask;
+    return dmNativeGetiOSDefaultInterfaceOrientations([NSBundle mainBundle].infoDictionary, [UIDevice currentDevice].userInterfaceIdiom);
+}
+
 static void SetSceneActive(BOOL active)
 {
     BOOL changed = g_SceneActive != active;
@@ -52,6 +101,11 @@ int dmNativeOSIsSceneActive(void)
 
 @synthesize window;
 @synthesize launchScreenView;
+
+- (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindowScene:(UIWindowScene*)scene
+{
+    return dmNativeGetiOSSupportedInterfaceOrientations(self.window);
+}
 
 - (void)removeLaunchScreen
 {

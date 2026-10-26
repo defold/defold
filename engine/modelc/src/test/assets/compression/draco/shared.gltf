@@ -1,0 +1,173 @@
+{
+  "asset": {
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 452,
+      "uri": "data:application/octet-stream;base64,RFJBQ08CAgEAAAACBAEAAQICAQMBBAAJAwAqAgIEAU0EAgQAZQQCBAHNAQABAQEAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAAAAAACAPwAAAAAAAIA/AACAPwAAAAAAAQEACQMBMBcBEAMAHIIB/wABAAAAAAAA/wAAAAABAQEBAQFAAQAAAAAAAAAAAAABAQACAwFAAQABAAAAAAD/AAAARFJBQ08CAgEAAAACBAEAAQICAQMBBAAJAwAqAgIEAU0EAgQAZQQCBAHNAQABAQEAACBBAAAAAAAAAAAAADBBAAAAAAAAAAAAACBBAACAPwAAAAAAADBBAACAPwAAAAAAAQEACQMBMBcBEAMAHIIB/wABAAAAAAAA/wAAAAABAQEBAQFAAQAAAAAAAAAAAAABAQACAwFAAQABAAAAAAD/AAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AACAPwAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD4AAAAAAAAAAAAAgD4AAAAAAAAAAAAAgD4AAAAAAAAAAAAAgD4="
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 162
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 162,
+      "byteLength": 162
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 324,
+      "byteLength": 32
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 356,
+      "byteLength": 48
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 404,
+      "byteLength": 48
+    }
+  ],
+  "accessors": [
+    {
+      "componentType": 5123,
+      "count": 6,
+      "type": "SCALAR"
+    },
+    {
+      "componentType": 5126,
+      "count": 4,
+      "type": "VEC3"
+    },
+    {
+      "componentType": 5121,
+      "count": 4,
+      "type": "VEC4",
+      "normalized": true
+    },
+    {
+      "componentType": 5121,
+      "count": 4,
+      "type": "VEC4"
+    },
+    {
+      "componentType": 5121,
+      "count": 4,
+      "type": "VEC4",
+      "normalized": true
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 4,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5126,
+      "count": 4,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 4,
+      "componentType": 5126,
+      "count": 4,
+      "type": "VEC3"
+    },
+    {
+      "componentType": 5123,
+      "count": 4,
+      "type": "SCALAR"
+    }
+  ],
+  "extensionsUsed": [
+    "KHR_draco_mesh_compression"
+  ],
+  "extensionsRequired": [
+    "KHR_draco_mesh_compression"
+  ],
+  "meshes": [
+    {
+      "weights": [
+        0
+      ],
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 1,
+            "COLOR_0": 2,
+            "JOINTS_0": 3,
+            "WEIGHTS_0": 4,
+            "TEXCOORD_0": 5,
+            "NORMAL": 6
+          },
+          "indices": 0,
+          "mode": 4,
+          "targets": [
+            {
+              "POSITION": 7
+            }
+          ],
+          "extensions": {
+            "KHR_draco_mesh_compression": {
+              "bufferView": 0,
+              "attributes": {
+                "POSITION": 42,
+                "COLOR_0": 77,
+                "JOINTS_0": 101,
+                "WEIGHTS_0": 205
+              }
+            }
+          }
+        },
+        {
+          "attributes": {
+            "POSITION": 1,
+            "COLOR_0": 2,
+            "JOINTS_0": 3,
+            "WEIGHTS_0": 4,
+            "TEXCOORD_0": 5,
+            "NORMAL": 6
+          },
+          "indices": 8,
+          "mode": 5,
+          "targets": [
+            {
+              "POSITION": 7
+            }
+          ],
+          "extensions": {
+            "KHR_draco_mesh_compression": {
+              "bufferView": 1,
+              "attributes": {
+                "POSITION": 42,
+                "COLOR_0": 77,
+                "JOINTS_0": 101,
+                "WEIGHTS_0": 205
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

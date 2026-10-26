@@ -31,6 +31,7 @@
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [internal.invalidate-counters :as ic]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
@@ -132,7 +133,7 @@
   {:pre [(vector? written-save-datas)
          (vector? written-disk-sha256s)
          (= (count written-save-datas) (count written-disk-sha256s))
-         (or (nil? snapshot-invalidate-counters) (map? snapshot-invalidate-counters))]}
+         (or (nil? snapshot-invalidate-counters) (ic/counters? snapshot-invalidate-counters))]}
   (into {:snapshot-invalidate-counters snapshot-invalidate-counters
          :written-save-datas written-save-datas}
         (zipmap

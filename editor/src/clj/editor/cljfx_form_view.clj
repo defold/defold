@@ -1460,19 +1460,29 @@
 (defn- selected-item-field-views
   "Returns the label, optional reset button and input descs for a field of the
   selected item in a 2panel field."
-  [{:keys [value on-value-changed state state-path resource-string-converter localization-state] :as panel-field}
+  [{:keys [value on-value-changed state state-path resource-string-converter localization-state project] :as panel-field}
    selected-index
    field]
   (let [fn-setter (:set panel-field)
         field-path (into [selected-index] (:path field))
         field-value (get-in value field-path ::no-value)
         field-state-path (conj state-path :val selected-index (:path field))
-        field-state (get-in state [:val selected-index (:path field)] ::no-value)]
-    {:label-view {:fx/type fx.label/lifecycle
-                  :grid-pane/column 0
-                  :grid-pane/margin {:top 5}
-                  :opacity 0.6
-                  :text (get-label-text localization-state field)}
+        field-state (get-in state [:val selected-index (:path field)] ::no-value)
+        help-text (get-help-text localization-state field)]
+    {:label-view (cond-> {:fx/type fx.label/lifecycle
+                          :grid-pane/column 0
+                          :grid-pane/margin {:top 5}
+                          :opacity 0.6
+                          :text (get-label-text localization-state field)}
+                   help-text
+                   (fxui/apply-tooltip
+                     {:fx/type fxui/tooltip
+                      :content-display :graphic-only
+                      :style {:-fx-padding 0}
+                      :graphic {:fx/type markdown-view/view
+                                :content help-text
+                                :max-width 350.0
+                                :project project}}))
      :reset-button (when (and (form/optional-field? field)
                               (not= field-value ::no-value))
                      {:fx/type icon-button
@@ -1497,6 +1507,7 @@
                                              :on-value-changed on-value-changed}
                           :state-path field-state-path
                           :localization-state localization-state
+                          :project project
                           :resource-string-converter resource-string-converter)
                    (not= ::no-value field-state)
                    (assoc :state field-state))}))
@@ -1578,6 +1589,9 @@
                      (:panel-form field))))})]
 
     {:fx/type fx.v-box/lifecycle
+     :disable (boolean (:disable field))
+     ;; Allow hovering labels translated outside their input panes.
+     :pick-on-bounds false
      :spacing line-spacing
      :children (if selected-item-fields
                  [item-list selected-item-fields]
@@ -1749,6 +1763,7 @@
                                   :always
                                   (assoc :fx/type form-input-view
                                          :localization-state localization-state
+                                         :project project
                                          :resource-string-converter resource-string-converter
                                          :value (if (= ::no-value value)
                                                   (form/field-default field)

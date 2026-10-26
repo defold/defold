@@ -19,52 +19,59 @@
 
 namespace dmRecord
 {
-    /**
-     * Minimum dimension multiple. Height and width
-     * must be a multiple of this value
-     */
-    const uint32_t MIN_DIMENSION_MULTIPLE = 8;
-
-    typedef struct Recorder* HRecorder;
-
-    enum BufferFormat
+    // One recording per process. Public operations run on the main thread;
+    // capture startup, shutdown and native resource ownership stay on one worker.
+    struct StartParams
     {
-        BUFFER_FORMAT_BGRA = 0,
+        StartParams();
+        void*       m_Window; // NSWindow*, HWND, or Linux graphics context. Borrowed until Finalize().
+        const char* m_Path;   // UTF-8 MP4 output path, copied by Start().
+        uint32_t    m_Fps;    // Capture rate, 1..60. Defaults to 30.
+        bool        m_Audio;  // Application audio, where supported. Defaults to false.
     };
 
-    enum ContainerFormat
+    struct Status
     {
-        CONTAINER_FORMAT_IVF = 0,
+        uint64_t m_Id;
+        bool     m_Pending;
+        bool     m_Stopping;
+        bool     m_Supported;
+        bool     m_Active;
+        bool     m_Finalized;
+        bool     m_Audio;
+        uint32_t m_Width;
+        uint32_t m_Height;
+        uint32_t m_Fps;
+        uint64_t m_StartedWallTime;
+        uint64_t m_StartedMonotonicTime;
+        uint64_t m_StoppedWallTime;
+        uint64_t m_StoppedMonotonicTime;
+        char     m_Path[1024];
+        char     m_Failure[512];
     };
 
-    enum VideoCodec
-    {
-        VIDOE_CODEC_VP8 = 0,
-    };
+    bool IsSupported();
+    bool IsAudioSupported();
+    const char* GetBackendName();
+    const char* GetMinimumPlatformVersion();
+    const char* GetUnsupportedReason();
+    // Advance native state once per frame on the main thread, before dispatching
+    // script callbacks. Handles automatic stops, window restoration and observers.
+    void Update();
+    // Copy the latest worker/update snapshot without advancing the recording,
+    // changing the window or notifying observers.
+    void GetStatus(Status* status);
 
-    enum Result
-    {
-        RESULT_OK = 0,
-        RESULT_IO_ERROR = -1,
-        RESULT_INVAL_ERROR = -2,
-        RESULT_RECORD_NOT_SUPPORTED = -3,
-        RESULT_UNKNOWN_ERROR = -1000,
-    };
+    // True means the operation was accepted. Keep calling Update() each frame
+    // and read GetStatus() until m_Pending clears, then inspect m_Failure and
+    // m_Active / m_Finalized for the result.
+    // Start assigns a new ID; Stop retains it. IDs are not reused after Finalize().
+    bool Start(const StartParams* params, Status* status);
+    bool Stop(Status* status);
 
-    struct NewParams
-    {
-        NewParams();
-        uint32_t        m_Width;
-        uint32_t        m_Height;
-        ContainerFormat m_ContainerFormat;
-        VideoCodec      m_VideoCodec;
-        const char*     m_Filename;
-        uint32_t        m_Fps;
-    };
-
-    Result New(const NewParams* params, HRecorder* recorder);
-    Result Delete(HRecorder recorder);
-    Result RecordFrame(HRecorder recorder, const void* frame_buffer, uint32_t frame_buffer_size, BufferFormat format);
-}
+    // Joins outstanding operations, finalizes an active MP4 and restores the window.
+    // Call before destroying the native window. Does not delete the output file.
+    void Finalize();
+} // namespace dmRecord
 
 #endif

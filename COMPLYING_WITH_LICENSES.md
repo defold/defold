@@ -31,7 +31,9 @@ The following software has licenses which require inclusion of their respective 
     * [Metal.hpp](/licenses/NOTICE-metal-cpp) - Used by the Metal graphics backend on macOS and iOS.
     * [VkQuality](/licenses/NOTICE-vkquality) - Used by the Android Vulkan graphics backend to select between Vulkan and OpenGL ES.
   * MIT
+    * [Slug reference shaders](/licenses/NOTICE-slug) - Eric Lengyel. Used by the built-in Vector font shaders. Include this notice in games and applications that distribute these shaders. Defold uses the MIT license option offered by the upstream project.
     * [jctest](/licenses/NOTICE-jctest) - Used when running unit tests in the engine. Not included in any builds.
+    * [SIMDe](/licenses/NOTICE-simde) - A portable scalar subset is used as a reference in SIMD and texture-processing unit tests. The vendored subset is test-only.
     * [Nuklear](https://github.com/Immediate-Mode-UI/Nuklear) - Micha Mettke and contributors. Used by the desktop-only fontviewer development and test application. Not included in the Defold engine or games built with Defold. The license text is included with the vendored library in `engine/font/src/test/fontviewer/LICENSE.nuklear`.
     * [Lua](/licenses/NOTICE-lua) - Used in HTML5 builds.
     * [LuaCJson](/licenses/NOTICE-luacjson) - Used for encoding lua tables to JSON. Used on all platforms.
@@ -47,8 +49,8 @@ The following software has licenses which require inclusion of their respective 
     * [SampleRateConverter] (https://github.com/zephray/SampleRateConverter/tree/master) - Used offline to generate polyphase filter coefficients for sound system
   * Simplified BSD license (2-clause license)
     * [LZ4](/licenses/NOTICE-lz4) - Used internally by the engine to read game archives. Included in all builds.
+    * [OpenH264](/licenses/NOTICE-openh264) - Used to encode H.264 video recordings. Included only in graphical Linux debug builds.
   * BSD 2.0 license (3-clause license)
-    * [vpx/vp8](/licenses/NOTICE-vpx-vp8) - Used by the game play recorder. Only included in debug builds by default, but can be added [using an app manifest](https://defold.com/manuals/project-settings/#app-manifest).
     * [Tremolo](/licenses/NOTICE-tremolo) - Used for decoding of Ogg sound files. Not used on Nintendo Switch, Win32 or HTML5. Included in all builds, but can be excluded [using an app manifest](https://defold.com/manuals/project-settings/#app-manifest)
     * [Sony Vector Math library](/licenses/NOTICE-vecmath) - Used internally by the engine. Included in all builds.
   * LGPL 2.0
@@ -60,6 +62,7 @@ The following software has licenses which require inclusion of their respective 
 The following third party software has licenses which does not require inclusion of their respective license in derivative work:
 
   * Public Domain
+    * [minimp4](/licenses/NOTICE-minimp4) (CC0 1.0 Universal) - Used to write MP4 video recordings. Included only in graphical Linux debug builds.
     * stb_image - Sean Barrett
     * stb_truetype - Sean Barrett
     * stb_vorbis - Sean Barrett

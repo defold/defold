@@ -1487,6 +1487,7 @@
 (defn node-load-infos-by-proj-path [node-load-infos]
   (coll/pair-map-by
     #(resource/proj-path (:resource %))
+    identity
     node-load-infos))
 
 (defn ext-resource-predicate [& type-exts]

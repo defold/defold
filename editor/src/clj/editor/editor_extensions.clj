@@ -1014,13 +1014,20 @@
 
 (defn line-writer [f]
   (let [sb (StringBuilder.)]
-    (PrintWriter-on #(doseq [^char ch %]
-                       (if (= \newline ch)
-                         (let [str (.toString sb)]
-                           (.delete sb 0 (.length sb))
-                           (f str))
-                         (.append sb ch)))
-                    nil)))
+    (PrintWriter-on
+      (fn flush-lines [^String s]
+        (.append sb s)
+        (loop [start 0]
+          (let [end (.indexOf sb "\n" start)]
+            (if (neg? end)
+              (.delete sb 0 start)
+              (let [line-end (if (and (< start end)
+                                      (= \return (.charAt sb (dec end))))
+                               (dec end)
+                               end)]
+                (f (.substring sb start line-end))
+                (recur (inc end)))))))
+      nil)))
 
 (defn- find-resource [project {:keys [evaluation-context]} proj-path]
   (when-let [node (project/get-resource-node project proj-path evaluation-context)]

@@ -105,6 +105,29 @@ class ReportTest(unittest.TestCase):
         arabic = json.loads((report.DATA / "lorem.json").read_text(encoding="utf-8"))["arabic"]
         self.assertIn(json.dumps(arabic, ensure_ascii=False), generated.read_text(encoding="utf-8"))
 
+    # Frozen emoji references must reject lost colors, internal detail and placement,
+    # even when most of the capture is an unchanged black background.
+    def test_color_emoji_likeness_rejects_visual_changes(self):
+        for rich in (False, True):
+            configuration = 'full-rich' if rich else 'full-plain'
+            for case in report.cases(True, rich):
+                if not case['scenario'].startswith('color'):
+                    continue
+                reference = report.FONT_ROOT/'src/test/data/reference'/configuration/(case['id']+'.png')
+                with Image.open(reference) as image:
+                    expected = image.convert('RGB')
+                variants = {
+                    'monochrome': expected.convert('L').convert('RGB'),
+                    'silhouette': report.likeness.foreground_mask(expected, (0, 0, 0)).convert('RGB'),
+                    'shifted': ImageChops.offset(expected, 1, 0),
+                }
+                for name, actual in variants.items():
+                    with self.subTest(configuration=configuration, case=case['id'], change=name):
+                        actual.save(self.actual)
+                        result = report.compare_case(self.actual, reference, dict(case, background=[0, 0, 0]), self.root/'comparison')
+                        self.assertEqual('fail', result['status'], result['reason'])
+                        self.assertIn('Foreground likeness', result['reason'])
+
     def test_identical_and_reference_never_changes(self):
         # Comparing or reporting may copy a verified PNG, but must not rewrite it.
         self.image(self.actual)
@@ -723,6 +746,7 @@ class FontImageReportTest(unittest.TestCase):
         self.assertNotIn('missing references', output.getvalue())
         self.assertIn('1 image-size mismatches', output.getvalue())
 
+    # Retains every source/layout/parser combination, including rich-text-only cases.
     def test_matrix_keeps_all_sources_and_build_configurations(self):
         count = 0
         for full in (False, True):
@@ -732,8 +756,12 @@ class FontImageReportTest(unittest.TestCase):
                 self.assertTrue(set(report.SOURCES).issubset({c['source'] for c in cases}))
                 self.assertEqual(rich, any(c['markup'] for c in cases))
                 self.assertEqual(full, any(c['source'] == 'arabic' for c in cases))
+                vector = [c for c in cases if c['source'] in report.VECTOR_SOURCES]
+                self.assertEqual(set(report.VECTOR_SOURCES), {c['source'] for c in vector})
+                self.assertTrue(all(c['multi'] for c in vector))
+                self.assertEqual(4 * (11 if rich else 4) + ((3 if rich else 2) if full else 0), len(vector))
                 count += len(cases)
-        self.assertEqual(428, count)
+        self.assertEqual(561, count)
 
     # Verifies all pivots use the shared preview references and that a one-pixel
     # text shift fails even with the large unchanged white box from #13339.
@@ -797,11 +825,12 @@ class FontImageReportTest(unittest.TestCase):
                 self.assertTrue((page.parent/'actual.png').exists())
                 self.assertTrue((page.parent/'difference.png').exists())
 
+    # Missing captures must fail every declared case instead of hiding absent output.
     def test_missing_images_finish_a_failure_report(self):
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             root=Path(temporary)
             summary=report.build_reports(root/'missing',root/'report',{},False)
-            self.assertEqual(428,summary['failed'])
+            self.assertEqual(561,summary['failed'])
             self.assertEqual(0,summary['completed'])
             self.assertEqual('fail',summary['status'])
             self.assertTrue((root/'report/index.html').exists())
@@ -832,6 +861,7 @@ class BitmapGeneratorCliTest(unittest.TestCase):
                      ('--size', 'nan'), ('--size', '0'), ('--outline', '-1'),
                      ('--face-alpha', '1.1'), ('--size', '40px'), ('--layers', 'both'),
                      ('--outline',), ('--unknown', '1'),
+                     ('--source', 'ttf_vector', '--layers', 'single'),
                      ('--alignment-preview',), ('--case', 'ttf_sdf_single_default', '--alignment-preview'),
                      ('--case', 'ttf_sdf_single_default', '--size', '50')):
             with self.subTest(args=args):

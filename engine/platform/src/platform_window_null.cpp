@@ -12,10 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dlib/array.h>
 #include <dlib/log.h>
 
 #include "window.hpp"
 #include "platform_window_constants.h"
+#include "platform_app.h"
 
 #if defined(ANDROID)
 #include "platform_window_android.h"
@@ -94,6 +96,17 @@ namespace dmPlatform
         out->m_InsetBottom = 0;
 
         return true;
+    }
+
+    void GetReservedAreas(HWindow window, dmArray<WindowReservedArea>& areas)
+    {
+        areas.SetSize(0);
+    }
+
+    uint32_t GetReservedAreas(HWindow window, const WindowReservedArea** areas)
+    {
+        *areas = 0;
+        return 0;
     }
 
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
@@ -388,6 +401,46 @@ namespace dmPlatform
     {
         (void) immersive_mode;
         (void) display_cutout;
+    }
+
+    void SetAndroidJoystickLayoutLegacy(uint32_t joystick_index, bool legacy)
+    {
+        (void) joystick_index;
+        (void) legacy;
+    }
+
+    void InitializeAndroidJoystickAxes(uint32_t joystick_index, const float* axes, uint32_t num_axes)
+    {
+        (void) joystick_index;
+        (void) axes;
+        (void) num_axes;
+    }
+#endif
+
+#if defined(DM_PLATFORM_IOS)
+    void SetiOSHomeIndicatorMode(const char* mode)
+    {
+        (void) mode;
+    }
+
+    void RegisteriOSApplicationDelegate(void* delegate)
+    {
+        (void) delegate;
+    }
+
+    void UnregisteriOSApplicationDelegate(void* delegate)
+    {
+        (void) delegate;
+    }
+
+    void RegisteriOSSceneDelegate(void* delegate)
+    {
+        (void) delegate;
+    }
+
+    void UnregisteriOSSceneDelegate(void* delegate)
+    {
+        (void) delegate;
     }
 #endif
 

@@ -225,7 +225,7 @@
                    :label id
                    :icon (or (not-empty (:icon source-outline)) unknown-icon)
                    :outline-overridden? overridden?
-                   :children (:children source-outline)}
+                   :children (:children (outline/claim-outline source-outline _node-id))}
                   (cond->
                     (some-> source-resource resource/proj-path) (assoc :link source-resource :outline-reference? true)
                     source-id (assoc :alt-outline source-outline))))))

@@ -14,7 +14,6 @@
 
 (ns editor.debugging.variables-test
   (:require [cljfx.api :as fx]
-            [cljfx.plorer :as plorer]
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
@@ -22,6 +21,7 @@
             [editor.debugging.dap :as dap]
             [editor.debugging.variables :as variables]
             [editor.future :as future]
+            [editor.os :as os]
             [editor.ui :as ui]
             [support.dap-util :as dap-util]
             [support.test-support :as test-support]
@@ -33,7 +33,7 @@
            [java.util.concurrent LinkedBlockingQueue]
            [javafx.scene Scene]
            [javafx.scene.control TreeCell TreeItem TreeView]
-           [javafx.scene.input KeyCode KeyEvent]
+           [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout StackPane]))
 
 (set! *warn-on-reflection* true)
@@ -106,6 +106,17 @@
   (let [event (dap-util/take-event! events)
         [_ snapshot] (if (= :continued (first event)) (dap-util/take-event! events) event)]
     (ui/run-now (variables/show-frame! view session snapshot frame-id))))
+
+(defn- alt-click-disclosure! [^TreeView view ^TreeItem item]
+  (.snapshot (.getScene view) nil)
+  (let [cell ^TreeCell (coll/first-where #(identical? item (.getTreeItem ^TreeCell %))
+                                         (.lookupAll view ".tree-cell"))
+        disclosure (.getDisclosureNode cell)]
+    (.fireEvent disclosure
+                (MouseEvent. MouseEvent/MOUSE_PRESSED
+                             0.0 0.0 0.0 0.0 MouseButton/PRIMARY 1
+                             false false true false
+                             true false false false false true nil))))
 
 ;; Session notifications preserve the control and loaded rows; replacement
 ;; displays the new session's values.
@@ -251,13 +262,21 @@
               (variables/clear! view session)
               (dap-util/await! (variables/show-frame! view session (dap/suspension @session) 2)))
             (.setExpanded item true)))
-        (dap-util/await! (ui/run-now (variables/show-frame! view session (dap/suspension @session) 3)))
+        (if (= :scalar shape)
+          (dap-util/await-ui! view #(= 0 (some-> (item-at view ["self"]) .getValue :variablesReference)))
+          (do
+            (ui/run-now (variables/clear! view session))
+            (dap-util/await-ui! view #(nil? (.getRoot view)))))
+        (ui/run-now
+          (when (= :scalar shape)
+            (is (not (.isExpanded (item-at view ["self"])))))
+          (dap-util/await! (variables/show-frame! view session (dap/suspension @session) 3)))
         (dap-util/await-ui! view #(= 3 (some-> (item-at view ["self"]) .getValue :variablesReference)))
         (ui/run-now (is (not (.isExpanded (item-at view ["self"])))))
         (is (= [] @child-requests))))))
 
-;; Recursive Alt expansion must not fetch reference zero or save expansion paths
-;; for scalar leaves.
+;; Recursive Alt expansion opens loaded branches without expanding scalar leaves
+;; or fetching reference zero; Alt collapse closes the loaded descendants.
 (deftest recursive-expansion-skips-leaves-test
   (let [variable-requests (atom [])]
     (with-view
@@ -275,15 +294,21 @@
       (dap-util/await-ui! view #(item-at view ["self" "nested"]))
       (ui/run-now
         (.setExpanded (item-at view ["self"]) false)
-        ;; Alt-click toggles every loaded descendant, including leaf TreeItems.
-        (doseq [^TreeItem item (ui/tree-item-seq (item-at view ["self"]))]
-          (.setExpanded item true)))
+        (alt-click-disclosure! view (item-at view ["self"]))
+        (is (.isExpanded (item-at view ["self"])))
+        (is (.isExpanded (item-at view ["self" "nested"])))
+        (is (not (.isExpanded (item-at view ["self" "scalar"])))))
       (dap-util/await-ui! view #(item-at view ["self" "nested" "child"]))
       (is (= {1 1, 2 1} (frequencies @variable-requests)))
       (pause! view session events 3)
-      (dap-util/await-ui! view #(item-at view ["self" "nested" "child"]))
+      (dap-util/await-ui! view #(and (= 4 (some-> (item-at view ["self" "scalar"]) .getValue :variablesReference))
+                                     (item-at view ["self" "nested" "child"])))
       (ui/run-now (is (not (.isExpanded (item-at view ["self" "scalar"])))))
-      (is (= {1 1, 2 2, 3 1} (frequencies @variable-requests))))))
+      (is (= {1 1, 2 2, 3 1} (frequencies @variable-requests)))
+      (ui/run-now
+        (alt-click-disclosure! view (item-at view ["self"]))
+        (doseq [path [["self"] ["self" "nested"] ["self" "scalar"] ["self" "nested" "child"]]]
+          (is (not (.isExpanded (item-at view path)))))))))
 
 ;; Opened paths reload new references and values across stops; collapsed
 ;; branches stay closed.
@@ -509,8 +534,8 @@
           (ui/run-now
             (is (identical? skin (.getSkin view)))
             (.requestFocus view)
-            (plorer/key-tap! (.getScene view) :home)
-            (plorer/key-tap! (.getScene view) :space)
+            (doseq [code [KeyCode/HOME KeyCode/SPACE]]
+              (.fireEvent view (KeyEvent. KeyEvent/KEY_PRESSED "" "" code false false false false)))
             (is (= "value" (:name (first (ui/selection view))))))
           (is (= generation @space-presses)))))))
 
@@ -527,12 +552,12 @@
       (dap-util/await-ui! view #(item-at view ["table"]))
       (ui/run-now (.setExpanded (item-at view ["table"]) true))
       (let [[request out] (dap-util/await! pending)
-            modifier (if (.startsWith (System/getProperty "os.name") "Mac") :meta :control)]
+            mac (os/is-mac-os?)]
         (ui/run-now
           (render-view! view)
           (.requestFocus view)
-          (plorer/key-tap! (.getScene view) :home)
-          (plorer/key-chord! (.getScene view) [modifier :down])
+          (.fireEvent view (KeyEvent. KeyEvent/KEY_PRESSED "" "" KeyCode/HOME false false false false))
+          (.fireEvent view (KeyEvent. KeyEvent/KEY_PRESSED "" "" KeyCode/DOWN false (not mac) false mac))
           (is (= "first" (:name (first (ui/selection view)))))
           (is (= "table" (:name (.getValue ^TreeItem (.getFocusedItem (.getFocusModel view)))))))
         (ui/run-now
@@ -542,7 +567,7 @@
         (ui/run-now
           (is (= "first" (:name (first (ui/selection view)))))
           (is (= "table" (:name (.getValue ^TreeItem (.getFocusedItem (.getFocusModel view))))))
-          (plorer/key-chord! (.getScene view) [modifier :down]))
+          (.fireEvent view (KeyEvent. KeyEvent/KEY_PRESSED "" "" KeyCode/DOWN false (not mac) false mac)))
         (ui/run-now
           (is (= "child" (:name (.getValue ^TreeItem (.getFocusedItem (.getFocusModel view)))))))))))
 
@@ -646,7 +671,7 @@
         (ui/run-now
           (render-view! view)
           (let [other (item-at view ["other"])
-                mac (.startsWith (System/getProperty "os.name") "Mac")]
+                mac (os/is-mac-os?)]
             (.select (.getSelectionModel view) other)
             (.focus (.getFocusModel view) (.getRow view other))
             (is (= "other" (:name (first (ui/selection view)))))

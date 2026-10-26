@@ -44,7 +44,7 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
 # Private platform hooks can still list dependencies now built from source.
 SOURCE_BUILT_PACKAGE_PREFIXES = (
     'bullet-', 'protobuf-', 'box2d-', 'box2d_defold-', 'opus-',
-    'harfbuzz-', 'SheenBidi-', 'libunibreak-', 'SkriBidi-', 'luajit-')
+    'harfbuzz-', 'SheenBidi-', 'libunibreak-', 'SkriBidi-', 'luajit-', 'ogg-')
 
 _CMAKE_FEATURE_FLAG_MAP = {
     '--with-asan': 'WITH_ASAN',
@@ -161,7 +161,6 @@ PACKAGES_ALL=[
     "openal-1.1",
     "maven-3.0.1",
     "vecmath",
-    "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "defold-robot-0.7.0",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
@@ -169,7 +168,6 @@ PACKAGES_ALL=[
     "vulkan-v1.4.307"]
 
 PACKAGES_HOST=[
-    "vpx-1.7.0",
     "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_SIMULATOR=[
@@ -180,7 +178,6 @@ PACKAGES_IOS_64=[
     "moltenvk-1474891"]
 
 PACKAGES_MACOS_X86_64=[
-    "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
@@ -194,14 +191,12 @@ PACKAGES_MACOS_X86_64=[
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
-    "ogg-1.1.1",
     "strip",
     "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
-    "dawn-6bab1bd",
-    "vpx-1.7.0",
+    "dawn-67d4d6e",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
@@ -214,7 +209,6 @@ PACKAGES_MACOS_ARM64=[
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
-    "ogg-1.1.1",
     "strip",
     "strip_android-14.0.6",
     "zipalign"]
@@ -233,7 +227,6 @@ PACKAGES_WIN32_64=[
     "directx-headers-1.611.0",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
-    "ogg-1.1.1",
     "strip_android-14.0.6",
     "zipalign"]
 
@@ -241,7 +234,6 @@ PACKAGES_LINUX_X86_64=[
     "glslang-ba5c010c",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
-    "vpx-1.7.0",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
@@ -252,7 +244,6 @@ PACKAGES_LINUX_X86_64=[
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "apkc-0.1.0",
-    "ogg-1.1.1",
     "strip_android-14.0.6",
     "zipalign"]
 
@@ -260,7 +251,6 @@ PACKAGES_LINUX_ARM64=[
     "glslang-2fed4fc0",
     "spirv-cross-97709575",
     "spirv-tools-4fab7435",
-    "vpx-1.7.0",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
@@ -339,7 +329,7 @@ EXTERNAL_PACKAGE_VERSIONS = {
     "sheenbidi": "2.9.0",
     "libunibreak": "6.1",
     "skribidi": "a4a2f5",
-    "dawn": "6bab1bd",
+    "dawn": "67d4d6e",
 }
 EXTERNAL_PACKAGE_NAMES = {
     "box2d_v2": "box2d_defold",
@@ -1229,7 +1219,8 @@ class Configuration(object):
         build_private.install_sdk(self, target_platform)
 
     def _activate_ems(self, emsdk, bin_dir, version):
-        run.env_command(self._form_env(), [join(emsdk, 'emsdk'), 'activate', version, '--embedded'])
+        suffix = '.bat' if self.host.endswith('-win32') else ''
+        run.env_command(self._form_env(), [join(emsdk, 'emsdk' + suffix), 'activate', version, '--embedded'])
 
         # prewarm the cache
         # Although this method might be more "correct", it also takes 10 minutes more than we'd like on CI
@@ -1242,7 +1233,7 @@ class Configuration(object):
             f.write('int main() { return 0; }')
         with tempfile.NamedTemporaryFile(suffix='.js', delete=False) as f:
             exe_file = f.name
-        run.env_command(self._form_env(), [f'{bin_dir}/emcc', c_file, '-o', '%s' % exe_file])
+        run.env_command(self._form_env(), [join(bin_dir, 'emcc' + suffix), c_file, '-o', '%s' % exe_file])
 
     def _git_sha1(self, ref = None):
         return self.build_utility.git_sha1(ref)
@@ -1601,6 +1592,17 @@ class Configuration(object):
         with open(manifest) as f:
             return json.load(f)
 
+    def _bob_external_artifacts(self, platform):
+        artifacts = [('bin', format_exes(name, platform)[0])
+                     for name in ('luajit-64', 'oggz-validate')]
+        for name in ('ogg', 'oggz'):
+            filename = format_lib(name, platform)
+            # Ogg uses the lib prefix on Windows too, matching Bob's tools.json.
+            if platform == 'x86_64-win32':
+                filename = 'lib' + filename
+            artifacts.append(('lib', filename))
+        return artifacts
+
     def archive_engine(self):
         sha1 = self._git_sha1()
         full_archive_path = join(sha1, 'engine', self.target_platform).replace('\\', '/')
@@ -1623,9 +1625,9 @@ class Configuration(object):
             gdc_bin = join(bin_dir, gdc_name)
             gdc_target_name = format_exes("gdc_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
             self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
-            luajit_name = format_exes("luajit-64", self.target_platform)[0]
-            luajit_bin = join(dynamo_home, 'ext', 'bin', self.target_platform, luajit_name)
-            self.upload_to_archive(luajit_bin, '%s/%s' % (full_archive_path, luajit_name))
+            for directory, name in self._bob_external_artifacts(self.target_platform):
+                source = join(dynamo_home, 'ext', directory, self.target_platform, name)
+                self.upload_to_archive(source, '%s/%s' % (full_archive_path, name))
 
         # upload mouse_capture lib on desktop platforms
         if self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
@@ -2151,13 +2153,12 @@ class Configuration(object):
 
         self._remove_tree(join(build_home, 'share', 'extender', 'build', platform))
 
-    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False, allow_compatible_configure = False, use_existing_bob_light = False):
+    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_build_tests = False, reuse_builddir = False, allow_compatible_configure = False, use_existing_bob_light = False):
         build_home = self._platform_build_home(platform)
         builddir = self._cmake_top_build_dir(platform)
 
         build_type = self._find_cmake_build_type(self.build_options)
-        build_tests = (not skip_tests) and '--skip-build-tests' not in self.build_options and self._can_run_tests()
-        supports_tests = build_tests
+        build_tests = (not skip_build_tests) and '--skip-build-tests' not in self.build_options
 
         # Keep CMake build directories persistent so repeated builds can be
         # handled by Ninja's dependency graph instead of forcing a rebuild.
@@ -2166,7 +2167,7 @@ class Configuration(object):
             os.makedirs(builddir)
 
         is_verbose = self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options)
-        test = '' if (self.skip_tests or not supports_tests) else 'run_tests'
+        test = 'run_tests' if build_tests and not self.skip_tests and self._can_run_tests() else ''
         build_test = 'build_tests' if build_tests else ''
         cmake_build_tests = 'ON' if build_tests else 'OFF'
         self._log(f"CMake lib set for {name}: {lib_set}")
@@ -2377,7 +2378,7 @@ class Configuration(object):
 
         # Make sure we build these for the host platform for the toolchain (bob light)
         self.build_tracker.start_component('cmake_host_libs', host)
-        self._build_engine_libs_cmake('host_libs', 'host', host, skip_tests = True, allow_compatible_configure = host == target_platform)
+        self._build_engine_libs_cmake('host_libs', 'host', host, skip_build_tests = True, allow_compatible_configure = host == target_platform)
         self.build_tracker.end_component('cmake_host_libs', host)
 
         if not self.skip_bob_light:
@@ -2391,7 +2392,6 @@ class Configuration(object):
             'engine_libs',
             target_lib_set,
             target_platform,
-            skip_tests = self.skip_tests,
             reuse_builddir = reuse_builddir,
             use_existing_bob_light = True)
         self.build_tracker.end_component('cmake_engine_libs', target_platform)
@@ -3311,18 +3311,18 @@ class Configuration(object):
         for f in futures:
             f()
 
-        # Bob packages tools from ext/bin, as it did when LuaJIT came from packages.
+        # Bob packages source-built tools from the installed ext directories.
         for platform in SDK_PIPELINE_TOOL_PLATFORMS:
-            name = format_exes('luajit-64', platform)[0]
-            source = join(local_dir, sha1, 'engine', platform, name)
-            if os.path.isfile(source):
-                destination = join(self.dynamo_home, 'ext', 'bin', platform, name)
-                # Keep tools installed by build_ext for the host and selected target.
-                if platform in (self.host, self.target_platform) and os.path.isfile(destination):
-                    continue
-                self._mkdirs(os.path.dirname(destination))
-                shutil.copy2(source, destination)
-                os.chmod(destination, 0o755)
+            for directory, name in self._bob_external_artifacts(platform):
+                source = join(local_dir, sha1, 'engine', platform, name)
+                if os.path.isfile(source):
+                    destination = join(self.dynamo_home, 'ext', directory, platform, name)
+                    # Keep tools installed by build_ext for the host and selected target.
+                    if platform in (self.host, self.target_platform) and os.path.isfile(destination):
+                        continue
+                    self._mkdirs(os.path.dirname(destination))
+                    shutil.copy2(source, destination)
+                    os.chmod(destination, 0o755)
 
 # ------------------------------------------------------------
 # BEGIN: SMOKE TEST

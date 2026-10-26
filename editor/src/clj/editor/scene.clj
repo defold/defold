@@ -43,6 +43,7 @@
             [editor.math :as math]
             [editor.mouse-binding :as mouse-binding]
             [editor.os :as os]
+            [editor.outline :as outline]
             [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -51,14 +52,15 @@
             [editor.resource-node :as resource-node]
             [editor.rulers :as rulers]
             [editor.scene-async :as scene-async]
+            [editor.scene-axis-gizmo :as scene-axis-gizmo]
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
             [editor.scene-selection :as selection]
             [editor.scene-shapes :as scene-shapes]
             [editor.scene-tools :as scene-tools]
             [editor.scene-visibility :as scene-visibility]
-            [editor.system :as system]
             [editor.shaders :as shaders]
+            [editor.system :as system]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -251,7 +253,8 @@
       :position (Point3d. (.x world-translation) (.y world-translation) (.z world-translation))
       :rotation (Quat4d. world-rotation)
       :z-near (or near-z 1.0)
-      :z-far (or far-z 1000.0))))
+      :z-far (or far-z 1000.0)
+      :mode-2d false)))
 
 (defn vp-dims [^Region viewport]
   (types/dimensions viewport))
@@ -463,8 +466,9 @@
   (let [{:keys [world view ^Matrix4d projection texture]} render-args
         picking-matrix (c/pick-matrix viewport picking-rect)
         projection' (doto (Matrix4d. picking-matrix) (.mul projection))]
-    (merge render-args
-           (math/derive-render-transforms world view projection' texture))))
+    (-> render-args
+        (merge (math/derive-render-transforms world view projection' texture))
+        (assoc :picking-matrix picking-matrix))))
 
 (def render-mode-transitions {:normal :aabbs
                               :aabbs :picking-color
@@ -643,10 +647,13 @@
         world-translation (math/transform parent-world-transform local-translation)
         world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
         world-scale (math/multiply-vector parent-world-scale local-scale)
-        picking-node-id (or (:picking-node-id scene) node-id)
+        selection-id (:selection-id scene node-id)
+        picking-node-id (or (:picking-node-id scene) selection-id)
         selection-state (cond
-                          (contains? selection-set node-id) :self-selected ; This node is selected.
-                          (some selection-set node-id-path) :parent-selected) ; Child nodes appear dimly selected if their parent is selected.
+                          (contains? selection-set selection-id) :self-selected ; This node is selected.
+                          (or (coll/any? selection-set node-id-path)
+                              (and (outline/entry-selection? selection-id)
+                                   (contains? selection-set (outline/selection-node-id selection-id)))) :parent-selected) ; Child nodes appear dimly selected if their parent is selected.
         has-hidden-outline-key-path (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path)
         has-hidden-tag (coll/any? #(contains? hidden-renderable-tags %) (:tags renderable))
         is-visible (and parent-shows-children
@@ -714,9 +721,18 @@
                     child-node-id-path (if is-child-node-same-as-parent
                                          node-id-path
                                          (conj node-id-path child-node-id))
-                    child-node-outline-key-path (if is-child-node-same-as-parent
+                    child-key (:node-outline-key child-scene)
+                    derived-child (and is-child-node-same-as-parent
+                                       (contains? child-scene :selection-id)
+                                       (not= selection-id (:selection-id child-scene)))
+                    child-node-outline-key-path (if (and is-child-node-same-as-parent (not derived-child))
                                                   node-outline-key-path
-                                                  (conj node-outline-key-path (:node-outline-key child-scene)))]
+                                                  (conj node-outline-key-path child-key))
+                    child-scene (cond-> child-scene
+                                  (and (or is-child-node-same-as-parent (nil? child-node-id))
+                                       (not (contains? child-scene :selection-id))
+                                       (contains? scene :selection-id))
+                                  (assoc :selection-id selection-id))]
                 (flatten-scene-renderables! flattened-scene
                                             (and parent-shows-children (:visible-children? renderable true))
                                             (not is-child-node-same-as-parent)
@@ -798,19 +814,17 @@
                      geom/empty-bounding-box
                      scene-aabb)})))
 
-(defn- get-selection-pass-renderables-by-node-id
-  "Returns a map of renderables that were in a selection pass by their node id.
+(defn- get-selection-pass-renderables-by-selection-id
+  "Returns a map of renderables that were in a selection pass by selection id.
   If a renderable appears in multiple selection passes, the one from the latter
   pass will be picked. This should be fine, since the flat-renderable added
   by update-pass-renderables! will be the same for all passes."
   [renderables-by-pass]
-  (into {}
-        (comp (filter (comp types/selection? key))
-              (mapcat (fn [[_pass renderables]]
-                        (map (fn [renderable]
-                               [(:node-id renderable) renderable])
-                             renderables))))
-        renderables-by-pass))
+  (coll/into-> renderables-by-pass {}
+    (filter (comp types/selection? key))
+    (mapcat val)
+    (map (fn [renderable]
+           [(:selection-id renderable (:node-id renderable)) renderable]))))
 
 (g/defnk produce-scene-render-data [scene preview-overrides selection hidden-renderable-tags hidden-node-outline-key-paths local-camera]
   (if-let [error (:error scene)]
@@ -822,8 +836,9 @@
     (let [selection-set (set selection)
           view-matrix (c/camera-view-matrix local-camera)
           {:keys [renderables] :as flattened-scene} (flatten-scene scene preview-overrides selection-set hidden-renderable-tags hidden-node-outline-key-paths view-matrix)
-          selection-pass-renderables-by-node-id (get-selection-pass-renderables-by-node-id renderables)
-          selected-renderables (into [] (keep selection-pass-renderables-by-node-id) selection)]
+          selection-pass-renderables-by-selection-id (get-selection-pass-renderables-by-selection-id renderables)
+          selected-renderables (coll/into-> selection []
+                                 (keep selection-pass-renderables-by-selection-id))]
       (assoc flattened-scene :selected-renderables selected-renderables))))
 
 (defn- make-aabb-renderables-by-pass [^AABB aabb color renderable-tag]
@@ -912,6 +927,7 @@
   (input rulers-id g/NodeID :cascade-delete)
   (input selection-id g/NodeID :cascade-delete)
   (input tool-controller-id g/NodeID :cascade-delete)
+  (input axis-gizmo-id g/NodeID :cascade-delete)
 
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
@@ -978,7 +994,17 @@
 
 (defn claim-child-scene [child-scene old-node-id new-node-id new-node-outline-key]
   (if (= old-node-id (:node-id child-scene))
-    (assoc child-scene :node-id new-node-id :node-outline-key new-node-outline-key)
+    (let [selection-id (:selection-id child-scene)
+          derived-selection (outline/entry-selection? selection-id)]
+      (cond-> (assoc child-scene :node-id new-node-id :picking-node-id new-node-id)
+        derived-selection
+        (assoc :selection-id (assoc selection-id :node-id new-node-id))
+
+        (not derived-selection)
+        (assoc :node-outline-key new-node-outline-key)
+
+        (= old-node-id selection-id)
+        (assoc :selection-id new-node-id)))
     (assoc child-scene :picking-node-id new-node-id)))
 
 (defn claim-scene [scene new-node-id new-node-outline-key]
@@ -990,7 +1016,8 @@
   (let [old-node-id (:node-id scene)
         children (:children scene)
         finalize-claim-fn (:finalize-claim-fn scene)]
-    (cond-> (assoc scene :node-id new-node-id :node-outline-key new-node-outline-key)
+    (cond-> (assoc (claim-child-scene scene old-node-id new-node-id new-node-outline-key)
+              :node-outline-key new-node-outline-key)
       children (assoc :children (mapv (partial map-scene #(claim-child-scene % old-node-id new-node-id new-node-outline-key))
                                       children))
       finalize-claim-fn (finalize-claim-fn old-node-id new-node-id))))
@@ -1094,7 +1121,7 @@
                :scale-y -1.0}]
    :mouse-transparent true
    :anchor-pane/bottom camera-inset-margin
-   :anchor-pane/right camera-inset-margin})
+   :anchor-pane/left camera-inset-margin})
 
 (defn- animation-preview-anchor-props [camera viewport anim-data]
   (let [offset texture-set/animation-preview-offset
@@ -2200,7 +2227,8 @@
                                (true? (:grid opts)) grid/Grid
                                (:grid opts) (:grid opts)
                                :else grid/Grid)
-        tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
+        tool-controller-type (get opts :tool-controller scene-tools/ToolController)
+        has-axis-gizmo       (get opts :axis-gizmo true)]
     (g/make-nodes [background      background/Background
                    selection       [selection/SelectionController
                                     :drop-fn (:drop-fn opts)
@@ -2217,6 +2245,7 @@
                                     :prefs prefs]
                    grid            (grid-type :prefs prefs)
                    tool-controller [tool-controller-type :prefs prefs]
+                   axis-gizmo      [scene-axis-gizmo/AxisGizmoController]
                    rulers          [rulers/Rulers]]
 
       (g/connect resource-node   :scene                         view-id         :scene)
@@ -2238,7 +2267,7 @@
       (g/connect view-id         :viewport                      camera          :viewport)
 
       (when (:inherit-selection opts true)
-        (g/connect app-view-id   :selected-node-ids             view-id         :selection))
+        (g/connect app-view-id   :outline-selection             view-id         :selection))
       (g/connect app-view-id     :active-view                   view-id         :active-view)
       (g/connect app-view-id     :active-tool                   view-id         :active-tool)
       (g/connect app-view-id     :manip-space                   view-id         :manip-space)
@@ -2247,6 +2276,15 @@
       (g/connect app-view-id     :keymap                        view-id         :keymap)
       (g/connect app-view-id     :localization                  view-id         :localization)
       (g/connect app-view-id     :keymap                        camera          :keymap)
+
+      (when has-axis-gizmo
+        (concat
+          (g/connect axis-gizmo  :_node-id                      view-id         :axis-gizmo-id)
+          (g/connect axis-gizmo  :update-tick-handler           view-id         :update-tick-handlers)
+          ;; Consume gizmo clicks before the tool and selection controllers see them.
+          (g/connect axis-gizmo  :input-handler                 view-id         :input-handlers)
+          (g/connect camera      :_node-id                      axis-gizmo      :camera-node-id)
+          (g/connect camera      :camera                        axis-gizmo      :camera)))
 
       (g/connect tool-controller :input-handler                 view-id         :input-handlers)
       (g/connect tool-controller :mouse-binding-context         view-id         :mouse-binding-context)
@@ -2258,6 +2296,10 @@
       (g/connect view-id         :viewport                      tool-controller :viewport)
       (g/connect camera          :camera                        tool-controller :camera)
       (g/connect view-id         :selected-renderables          tool-controller :selected-renderables)
+
+      (if has-axis-gizmo
+        (g/connect axis-gizmo    :renderables                   view-id         :tool-renderables)
+        (g/delete-node axis-gizmo))
 
       (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
 
@@ -2290,7 +2332,8 @@
 (defn make-preview [resource-node opts width height]
   (let [view-id (make-preview-view width height)
         opts (-> opts
-                 (assoc :manual-refresh? true)
+                 (assoc :manual-refresh? true
+                        :axis-gizmo false)
                  (dissoc :grid))]
     (g/transact
       {:undoable false}

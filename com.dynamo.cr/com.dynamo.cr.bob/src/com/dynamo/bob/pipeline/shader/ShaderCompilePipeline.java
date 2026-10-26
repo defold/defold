@@ -171,28 +171,28 @@ public class ShaderCompilePipeline {
         return source.getBytes(StandardCharsets.UTF_8);
     }
 
-    protected static String intermediateResourceToProjectPath(String message, String projectPath) {
-        String[] knownFileExtensions = new String[] { "glsl", "spv", "wgsl", "hlsl" };
-        String replacementRegex = String.format("/[^\\s:]+\\.(%s)(?=:)", String.join("|", knownFileExtensions));
+    protected String intermediateResourceToProjectPath(String message, String projectPath) {
         if (projectPath == null) {
             return message;
         }
-        return message.replaceAll(replacementRegex, projectPath);
+        for (File file : tempFiles) {
+            message = message.replace(file.getAbsolutePath(), projectPath);
+        }
+        return message;
     }
 
-    private static void checkResult(String resourcePath, Result result) throws CompileExceptionError {
+    private void checkResult(String resourcePath, Result result) throws CompileExceptionError {
         if (result.ret != 0) {
-            String[] tokenizedResult = new String(result.stdOutErr).split(":", 2);
+            String[] tokenizedResult = intermediateResourceToProjectPath(new String(result.stdOutErr), resourcePath).split(":", 2);
             String message = tokenizedResult[0];
             if(tokenizedResult.length != 1) {
                 message = tokenizedResult[1];
             }
-            message = intermediateResourceToProjectPath(message, resourcePath);
             throw new CompileExceptionError(message);
         }
     }
 
-    protected static void generateWGSL(String resourcePath, ShaderDesc.ShaderType shaderType, String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
+    protected void generateWGSL(String resourcePath, ShaderDesc.ShaderType shaderType, String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
         Result result = Exec.execResult(tintExe,
             "--format", "wgsl",
             "--allow-non-uniform-derivatives", "true",
@@ -788,7 +788,7 @@ public class ShaderCompilePipeline {
 
             if (!result.lastError.isEmpty()) {
                 String excludeKey = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ? "exclude_gles_sm100" : null;
-                String exclusionMessage = excludeKey != null ? "\nEnable the 'shader." + excludeKey + "' option in game.project if you don't intend to use this language." : "";
+                String exclusionMessage = excludeKey != null ? "\nThis shader requires features unavailable in OpenGL ES 2.0 / WebGL 1.0. To disable support for these graphics APIs, enable 'shader." + excludeKey + "' in game.project (Shader > Exclude GLES 2.0)." : "";
                 throw new CompileExceptionError("Cross-compilation of shader type: " + shaderType + ", to language: " + shaderLanguage + " failed, reason: " + result.lastError + exclusionMessage);
             }
 

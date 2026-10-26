@@ -90,6 +90,19 @@ typedef struct WindowSafeArea
     int32_t   m_InsetBottom;
 } WindowSafeArea;
 
+/*# reserved area
+ * An active occlusion rectangle in window pixels, with a bottom-left origin.
+ * @struct
+ * @name WindowReservedArea
+ */
+typedef struct WindowReservedArea
+{
+    int32_t  m_X;
+    int32_t  m_Y;
+    uint32_t m_Width;
+    uint32_t m_Height;
+} WindowReservedArea;
+
 /*# get graphics proc address
  * @name WindowGetProcAddress
  * @param window [type:HWindow] window handle
@@ -155,6 +168,19 @@ bool WindowGetAcceleration(HWindow window, float* x, float* y, float* z);
  * @return result [type:bool] true if available
  */
 bool WindowGetSafeArea(HWindow window, WindowSafeArea* out);
+
+/*# get reserved areas
+ * Returns active occlusion rectangles, clipped to the window. Unsupported
+ * platforms return zero areas. The window owns the returned array, which is
+ * valid until the next event poll, window resize, close, or destruction.
+ * The first query enables tracking. Subsequent changes notify the window's
+ * resize callback, even when its size is unchanged.
+ * @name WindowGetReservedAreas
+ * @param window [type:HWindow] window handle
+ * @param areas [type:const WindowReservedArea**] returned array, or null when empty
+ * @return count [type:uint32_t] number of areas
+ */
+uint32_t WindowGetReservedAreas(HWindow window, const WindowReservedArea** areas);
 
 /*# get joystick device name
  * @name WindowGetJoystickDeviceName

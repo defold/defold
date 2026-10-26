@@ -121,7 +121,7 @@
 
 (defn- make-build-targets-by-content-hash
   [flat-build-targets]
-  (coll/pair-map-by :content-hash flat-build-targets))
+  (coll/pair-map-by :content-hash identity flat-build-targets))
 
 (defn- make-dep-resources
   [deps build-targets-by-content-hash]

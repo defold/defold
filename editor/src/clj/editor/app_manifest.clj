@@ -20,7 +20,8 @@
             [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.resource-io :as resource-io]
-            [editor.yaml :as yaml])
+            [editor.yaml :as yaml]
+            [util.coll :as coll])
   (:import [com.dynamo.bob.util AppManifestMigration]))
 
 (def macos #{:x86_64-osx :arm64-osx})
@@ -34,6 +35,8 @@
 (def web #{:wasm-web :wasm_pthread-web})
 
 (def linux #{:x86_64-linux :arm64-linux})
+
+(def desktop (coll/into-> [macos windows linux] #{} cat))
 
 (def vulkan
   #{:x86_64-linux :arm64-linux
@@ -371,9 +374,13 @@
 
 (def record-setting
   (make-check-box-setting
-    (concat
-      (exclude-libs-toggles all-platforms ["record" "vpx"])
-      (libs-toggles all-platforms ["record_null"]))))
+    (coll/into-> [(exclude-libs-toggles all-platforms ["record" "record_script"])
+                  (exclude-libs-toggles desktop ["record_service"])
+                  (exclude-libs-toggles linux ["openh264"])
+                  (generic-contains-toggles all-platforms :excludeSymbols ["ScriptRecord"])
+                  (generic-contains-toggles desktop :excludeSymbols ["EngineRecord"])]
+      []
+      cat)))
 
 (def profiler-setting
   (let [none-toggles (concat
@@ -826,7 +833,7 @@
                     manifest
                     [:excludeLibs :libs :engineLibs]))
           manifest
-          (conj windows :win32)))
+          (conj windows :win32 :x86-win32)))
 
 (defn- migrate-mobile-library-names [manifest]
   (reduce (fn [manifest platform]
@@ -910,6 +917,93 @@
                            platforms
                            platforms))))))
 
+(defn- recording-library-name [library]
+  (let [library-name (get AppManifestMigration/WINDOWS_LIBRARY_NAMES library)]
+    (#{"record" "record_null" "record_script" "record_service"} library-name)))
+
+(defn- migrate-record-context [context platform]
+  ;; The null backend was removed. Explicit selections now exclude recording,
+  ;; as do the legacy VPX toggle and its native-recorder migration.
+  (let [excluded-libraries
+        (mapv #(or (recording-library-name %) %) (:excludeLibs context))
+
+        excluded-library-names (set excluded-libraries)
+        excluded-symbols (:excludeSymbols context)
+        obsolete #{"vpx" "vpx.lib" "libvpx" "libvpx.lib"}
+        common-platform (or (nil? platform) (= :common platform))
+        linux-platform (or common-platform (= :linux platform) (linux platform))
+
+        desktop-platform
+        (or linux-platform (desktop platform) (#{:osx :win32 :x86-win32} platform))
+
+        included-library-names
+        (coll/into-> [(:libs context) (:engineLibs context)]
+          #{}
+          (comp cat (keep recording-library-name)))
+
+        excludes-recording
+        (or (included-library-names "record_null")
+            (and (excluded-library-names "record")
+                 (or (coll/any? obsolete excluded-libraries)
+                     (excluded-library-names "record_null")
+                     (excluded-library-names "record_script")
+                     (and (excluded-library-names "record_service")
+                          (coll/any? #{"EngineRecord"} excluded-symbols)))))]
+    (if-not excludes-recording
+      (cond-> context
+        (excluded-library-names "record_null")
+        (update :excludeLibs #(coll/into-> % [] (remove (comp #{"record_null"} recording-library-name)))))
+      (let [required-libraries
+            (cond-> ["record" "record_script"]
+              desktop-platform
+              (conj "record_service")
+
+              linux-platform
+              (conj "openh264"))
+
+            libraries
+            (coll/into-> excluded-libraries [] (remove (conj obsolete "record_null")))
+
+            required-symbols
+            (cond-> ["ScriptRecord"]
+              desktop-platform
+              (conj "EngineRecord"))]
+        (reduce (fn [context key]
+                  (cond-> context
+                    (get context key)
+                    (update key #(coll/into-> % [] (remove recording-library-name)))))
+                (assoc context
+                  :excludeLibs
+                  (coll/into-> required-libraries libraries (remove (set libraries)))
+
+                  :excludeSymbols
+                  (coll/into-> required-symbols
+                    (or excluded-symbols [])
+                    (remove (set excluded-symbols))))
+                [:libs :engineLibs])))))
+
+(defn- migrate-record-exclusions [manifest]
+  (if-not (map? manifest)
+    manifest
+    (let [context-paths
+          (coll/into-> (get-in-guarded manifest :platforms map?)
+            [[nil [:context]]]
+            (map (fn [[platform _]]
+                   [platform [:platforms platform :context]])))]
+      (reduce (fn [manifest [platform path]]
+                ;; Contexts come from arbitrary YAML. Validate their shape here
+                ;; so the context migration only handles valid library lists.
+                (let [context (get-in manifest path)]
+                  (if-not (and (map? context)
+                               (coll/every? #(or (nil? (get context %))
+                                                 (vector? (get context %)))
+                                            [:excludeLibs :excludeSymbols :libs :engineLibs]))
+                    manifest
+                    (assoc-in manifest path
+                              (migrate-record-context context platform)))))
+              manifest
+              context-paths))))
+
 (defn- load-app-manifest [_load-opts {self :node-id}]
   (g/expand-ec
     (fn [evaluation-context]
@@ -920,7 +1014,8 @@
                                       migrate-mobile-library-names
                                       migrate-macos-vulkan-platform
                                       migrate-simulator-graphics
-                                      migrate-bullet3d-exclusions)]
+                                      migrate-bullet3d-exclusions
+                                      migrate-record-exclusions)]
             (when-not (= manifest migrated-manifest)
               ;; Prevent the project loader from caching the original lines as save-data.
               (g/flag-nodes-as-migrated! evaluation-context [self])

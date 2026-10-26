@@ -1090,7 +1090,7 @@ ordinary paths."
                            root-file-resource (resource/make-file-resource self project-directory-pathname project-directory resources editable-proj-path? unloaded-proj-path?)
                            resource-tree (sort-resource-tree root-file-resource)
                            resource-list (vec (sort-by resource/proj-path util/natural-order (resource/resource-seq resource-tree)))
-                           resource-map (coll/pair-map-by resource/proj-path resource-list)]
+                           resource-map (coll/pair-map-by resource/proj-path identity resource-list)]
                        (g/set-properties self
                          :resource-tree resource-tree
                          :resource-list resource-list

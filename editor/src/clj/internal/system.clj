@@ -16,6 +16,7 @@
   (:require [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.invalidate-counters :as ic]
             [internal.node :as in]
             [internal.paper-tape :as tape]
             [internal.transaction :as it]
@@ -31,7 +32,6 @@
 (def ^:private maximum-cached-items 20000)
 (def ^:private maximum-undo-steps 60)
 (def ^:private global-undo-key :undo/global)
-(def ^:private full-invalidation-endpoint (gt/endpoint Long/MAX_VALUE ::full-invalidation))
 
 (prefer-method print-method java.util.Map clojure.lang.IDeref)
 (prefer-method print-method clojure.lang.IPersistentMap clojure.lang.IDeref)
@@ -108,16 +108,6 @@
 (defn node-id-generator     [system]          (-> system :node-id-generator))
 (defn override-id-generator [system]          (-> system :override-id-generator))
 
-(defn- bump-invalidate-counters
-  [invalidate-map endpoints]
-  (persistent!
-    (reduce
-      (fn [m endpoint]
-        (assert (gt/endpoint? endpoint))
-        (assoc! m endpoint (unchecked-inc (m endpoint 0))))
-      (transient invalidate-map)
-      endpoints)))
-
 (defn invalidate-outputs
   "Invalidate the given outputs and _everything_ that could be
   affected by them. Outputs are specified as a seq of Endpoints
@@ -129,7 +119,7 @@
         cache-entries (ig/dependencies basis outputs)]
     (-> system
         (update :cache c/cache-invalidate cache-entries)
-        (update :invalidate-counters bump-invalidate-counters cache-entries))))
+        (update :invalidate-counters ic/bump cache-entries))))
 
 (defn cache-output-values
   "Write the supplied key-value pairs to the cache. Downstream endpoints will be
@@ -149,7 +139,7 @@
         (ig/dependencies basis (mapv first changed-endpoint+value-pairs))]
 
     (-> system
-        (update :invalidate-counters bump-invalidate-counters invalidated-endpoints)
+        (update :invalidate-counters ic/bump invalidated-endpoints)
         (assoc :cache (-> cache
                           (c/cache-invalidate invalidated-endpoints)
                           (c/cache-encache changed-endpoint+value-pairs basis))))))
@@ -159,12 +149,30 @@
   (reduce dissoc user-data deleted-node-ids))
 
 (defn- commit-transaction-effects
-  [system outputs-modified nodes-deleted]
-  (-> system
-      (update :cache c/cache-invalidate outputs-modified)
+  [system outputs-modified nodes-added nodes-deleted full-invalidation]
+  (-> (if full-invalidation
+        (update system :cache c/cache-clear)
+        (update system :cache c/cache-invalidate outputs-modified))
       (update :user-data remove-deleted-user-data (coll/keys nodes-deleted))
       (update :materialization-results #(reduce dissoc % (coll/keys nodes-deleted)))
-      (update :invalidate-counters bump-invalidate-counters outputs-modified)))
+      (update :invalidate-counters
+              (fn [counters]
+                (let [editor (ic/edit counters)
+                      deleted-node-ids (coll/keys nodes-deleted)
+                      ;; Transaction revisions increase across undo/redo. Reuse
+                      ;; the revision as the lifetime stamp.
+                      lifetime (gt/tx-id (basis system))]
+                  (if full-invalidation
+                    (-> editor
+                        ic/full-invalidate!
+                        (ic/remove-nodes! deleted-node-ids)
+                        (ic/add-nodes! nodes-added lifetime)
+                        ic/commit!)
+                    (-> editor
+                        (ic/remove-nodes! deleted-node-ids)
+                        (ic/bump! outputs-modified)
+                        (ic/add-nodes! nodes-added lifetime)
+                        ic/commit!)))))))
 
 (defn- ensure-no-concurrent-modifications!
   [system pre-tx-basis post-tx-basis]
@@ -217,12 +225,12 @@
                 (-> ctx
                     (change-fn transaction-change)
                     (update :completed-action-count inc))))
-        {:keys [nodes-deleted outputs-modified] :as tx-result} (it/finalize-replayed-changes ctx)
+        {:keys [nodes-added nodes-deleted outputs-modified] :as tx-result} (it/finalize-replayed-changes ctx)
         post-tx-basis (:basis tx-result)]
     (ensure-no-concurrent-modifications! system pre-tx-basis post-tx-basis)
     (-> system
         (commit-basis pre-tx-basis post-tx-basis)
-        (commit-transaction-effects outputs-modified nodes-deleted)
+        (commit-transaction-effects outputs-modified nodes-added nodes-deleted false)
         (merge-materialization-results (:materialization-results tx-result)))))
 
 (defn undo-action
@@ -291,7 +299,7 @@
    :node-id-generator (integer-counter)
    :override-id-generator (integer-counter)
    :cache (make-cache configuration)
-   :invalidate-counters {}
+   :invalidate-counters (ic/make)
    :user-data {}
    :shared-materialization-registry-atom (atom {})
    :materialization-results {}})
@@ -305,15 +313,12 @@
       (set-undo system undo-key undo))))
 
 (defn merge-basis
-  [system pre-tx-basis post-tx-basis outputs-modified nodes-deleted undo-key label sequence-label undoable-changes full-invalidation]
+  [system pre-tx-basis post-tx-basis outputs-modified nodes-added nodes-deleted undo-key label sequence-label undoable-changes full-invalidation]
   (ensure-no-concurrent-modifications! system pre-tx-basis post-tx-basis)
   (-> system
       (register-undoable-changes undo-key label sequence-label undoable-changes)
       (commit-basis pre-tx-basis post-tx-basis)
-      (commit-transaction-effects outputs-modified nodes-deleted)
-      (cond-> full-invalidation
-        (-> (update :cache c/cache-clear)
-            (update :invalidate-counters update full-invalidation-endpoint util/safe-inc)))))
+      (commit-transaction-effects outputs-modified nodes-added nodes-deleted full-invalidation)))
 
 (defn default-evaluation-context [system]
   (-> (in/default-evaluation-context (basis system)
@@ -365,34 +370,22 @@
     invalidate-counters
     (throw (IllegalArgumentException. "The argument is not a valid system."))))
 
-(defn full-invalidation-since?
-  [snapshot-invalidate-counters system-invalidate-counters]
-  (not= (long (get snapshot-invalidate-counters full-invalidation-endpoint 0))
-        (long (get system-invalidate-counters full-invalidation-endpoint 0))))
-
-(definline endpoint-invalidated-since? [endpoint snapshot-invalidate-counters system-invalidate-counters]
-  `(not= (long (get ~snapshot-invalidate-counters ~endpoint 0))
-         (long (get ~system-invalidate-counters ~endpoint 0))))
-
-(defn update-cache-from-evaluation-context
+(defn- update-cache-from-evaluation-context
   [system evaluation-context]
   {:pre [(some? system)]}
   ;; We assume here that the evaluation context was created from
   ;; the system, but they may have diverged, making some cache
   ;; hits/misses invalid.
-  ;; Any change making the hits/misses invalid will have caused an
-  ;; invalidation which we track using an invalidate-counter
-  ;; map. If the cache hit/miss has not been invalidated (counters
-  ;; differ) since the e.c. was created, the hit/miss is safe to
-  ;; use.
+  ;; Track invalidations with a full-invalidation generation, node lifetimes,
+  ;; and per-output counters. A hit/miss is safe if its node is still in the
+  ;; same lifetime and its output counter has not changed since evaluation.
   ;; If the evaluation context was created with an explicit basis
   ;; that differed from the system basis at the time, there is no
   ;; initial-invalidate-counters to compare with, and we don't
   ;; even try to update the cache.
   (if-let [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
     (let [invalidate-counters (:invalidate-counters system)]
-      (if (and (not (identical? initial-invalidate-counters invalidate-counters))
-               (full-invalidation-since? initial-invalidate-counters invalidate-counters))
+      (if (ic/full-invalidation-since? initial-invalidate-counters invalidate-counters)
         system
         (let [evaluation-context-hits @(:hits-atom evaluation-context)
               evaluation-context-misses @(:local-atom evaluation-context)]
@@ -403,7 +396,7 @@
 
               (coll/not-empty evaluation-context-misses)
               (update :cache c/cache-encache evaluation-context-misses @(:basis-ref evaluation-context)))
-            (let [invalidated-during-node-value? #(endpoint-invalidated-since? % initial-invalidate-counters invalidate-counters)
+            (let [invalidated-during-node-value? #(ic/endpoint-invalidated-since? % initial-invalidate-counters invalidate-counters)
                   safe-cache-hits (coll/into-> evaluation-context-hits []
                                     (remove invalidated-during-node-value?))
                   safe-cache-misses (coll/into-> evaluation-context-misses []
@@ -423,7 +416,7 @@
     (assert (coll/every? it/evaluation-context-change? changes)
             "Evaluation contexts can only accumulate materializations and shell property initializations.")
     (if (or (nil? initial-invalidate-counters)
-            (full-invalidation-since? initial-invalidate-counters original-invalidate-counters))
+            (ic/full-invalidation-since? initial-invalidate-counters original-invalidate-counters))
       system
       (let [has-changes (not (coll/empty? changes))
             current-basis (basis system)

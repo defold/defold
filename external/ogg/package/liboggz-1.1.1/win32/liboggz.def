@@ -1,0 +1,97 @@
+LIBRARY  liboggz.dll
+;DESCRIPTION "Provides an abstraction layer to ogg"
+EXPORTS
+
+;
+; Ogg file manipulation functions
+;
+oggz_new				@1
+oggz_open				@2
+oggz_open_stdio			@3
+oggz_flush				@4
+oggz_close				@5
+oggz_get_bos			@6
+oggz_get_eos			@7
+
+;
+;oggz_run functions
+;
+
+oggz_run_set_blocksize	@8
+oggz_run				@9
+
+;
+; Ogg file reading functions
+;
+oggz_set_read_callback	@10
+oggz_set_read_page		@11
+oggz_read				@12
+oggz_read_input			@13
+oggz_purge				@14
+oggz_write_set_hungry_callback		@15
+oggz_write_feed			@16
+oggz_write				@17
+oggz_write_output		@18
+oggz_write_get_next_page_size		@19
+
+oggz_set_metric				@20
+oggz_set_metric_linear		@21
+
+;
+;oggz stream functions
+;
+oggz_set_granulerate		@22
+oggz_get_granulerate		@23
+oggz_set_granuleshift		@24
+oggz_get_granuleshift		@25
+oggz_tell_granulepos	    @26
+
+;
+; Ogg file seeking functions
+;
+oggz_tell					@27
+oggz_tell_units				@28
+oggz_seek					@29
+oggz_seek_units				@30
+oggz_set_data_start			@31
+oggz_serialno_new			@32
+
+;
+;oggz io functions
+;
+
+oggz_io_set_read			@33
+oggz_io_get_read_user_handle		@34
+oggz_io_set_write			@35
+oggz_io_get_write_user_handle		@36
+oggz_io_set_seek			@37
+oggz_io_get_seek_user_handle		@38
+oggz_io_set_tell			@39
+oggz_io_get_tell_user_handle		@40
+oggz_io_set_flush			@41
+oggz_io_get_flush_user_handle		@42
+
+;
+;oggz table functions.
+;
+oggz_table_new				@43
+oggz_table_delete			@44
+oggz_table_insert			@45
+oggz_table_remove			@46
+oggz_table_lookup			@47
+oggz_table_size				@48
+oggz_table_nth				@49
+
+;
+; General querying
+;
+oggz_get_numtracks			@50
+
+;
+;oggz stream functions (determining content type)
+;
+oggz_stream_get_content                 @100
+oggz_stream_get_content_type            @101
+;oggz_tell_granulepos					@102
+
+oggz_stream_get_numheaders		@102

@@ -38,8 +38,6 @@
 
 #include <gamesys/gamesys.h>
 
-#include <record/record.h>
-
 #include "engine.h"
 #include "engine_service.h"
 #include "engine.h"
@@ -92,20 +90,6 @@ namespace dmEngine
 
         uint32_t m_FrameCount;
         float    m_TotalTime;   // Total running time of the game
-    };
-
-    struct RecordData
-    {
-        RecordData()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-
-        dmRecord::HRecorder m_Recorder;
-        char*               m_Buffer;
-        uint32_t            m_FrameCount;
-        uint32_t            m_FramePeriod;
-        uint32_t            m_Fps;
     };
 
     struct Engine
@@ -175,13 +159,15 @@ namespace dmEngine
         uint32_t                                    m_ClearColor;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
+        uint32_t                                    m_PendingWindowResizeWidth;
+        uint32_t                                    m_PendingWindowResizeHeight;
+        bool                                        m_HasPendingWindowResize;
         float                                       m_MaxTimeStep;
 
         float                                       m_ThrottleCooldownMax;
         float                                       m_ThrottleCooldown;
         bool                                        m_ThrottleEnabled;
 
-        RecordData                                  m_RecordData;
         void*                                       m_DependenciesJsonResource;
         uint32_t                                    m_DependenciesJsonSize;
         uint8_t                                     m_GuiSafeAreaMode;
@@ -192,6 +178,8 @@ namespace dmEngine
     void Delete(HEngine engine);
     bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size);
     bool Init(HEngine engine, int argc, char *argv[]);
+    void OnWindowResize(void* user_data, uint32_t width, uint32_t height);
+    void FlushPendingWindowResize(HEngine engine);
     void Step(HEngine engine);
 
     void ReloadResources(HEngine engine, const char* extension);

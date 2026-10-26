@@ -554,7 +554,7 @@
                                  :manip-space :world
                                  :scene (Scene. (VBox.))]]
           (g/connect project :_node-id app-view :project-id)
-          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
+          (for [label [:outline-selection-by-resource-node :selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label)))))))
 
 (defn- make-tab! [project app-view path make-view-fn!]
@@ -1060,19 +1060,19 @@
     {"/lib/{*lib}"
      {"GET" (fn [request]
               (let [lib (-> request :path-params :lib)
-                    path-offset (count (format "test/resources/%s/" lib))
+                    root-directory (io/file "test/resources" lib)
                     ignored #{".internal" "build"}
                     file-filter (reify FilenameFilter
                                   (accept [this file name] (not (contains? ignored name))))
                     files (->> (tree-seq (fn [^File f] (.isDirectory f))
                                          (fn [^File f] (.listFiles f ^FilenameFilter file-filter))
-                                         (io/file (format "test/resources/%s" lib)))
+                                         root-directory)
                                (filter (fn [^File f] (not (.isDirectory f)))))
                     baos (ByteArrayOutputStream.)]
                 (with-open [out (ZipOutputStream. baos)]
                   (doseq [^File f files]
                     (with-open [in (FileInputStream. f)]
-                      (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
+                      (let [entry (doto (ZipEntry. (resource/relative-path root-directory f))
                                     (.setSize (.length f)))]
                         (.putNextEntry out entry)
                         (IOUtils/copy in out)

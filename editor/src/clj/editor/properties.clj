@@ -478,6 +478,7 @@
 
 (defn coalesce [properties]
   (let [node-ids (mapv :node-id properties)
+        selection-ids (mapv #(or (:selection-id %) (:node-id %)) properties)
         properties (mapv flatten-properties properties)
         display-orders (mapv :display-order properties)
         node-count (count properties)
@@ -534,7 +535,8 @@
                         visible-prop-colls)]
     {:properties coalesced
      :display-order (prune-display-order (first display-orders) (set (keys coalesced)))
-     :original-node-ids node-ids}))
+     :original-node-ids node-ids
+     :selection-ids selection-ids}))
 
 (defn values [{:keys [edit-type original-values values]}]
   {:pre [(or (nil? original-values)
