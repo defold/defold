@@ -64,6 +64,10 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         m_PostLoadsSibling = false;
         m_PostPendingOnce = false;
         m_HoldPosts = false;
+        m_ReplacePointer = false;
+        m_CheckPostIdentity = false;
+        m_PostIdentityCorrect = true;
+        m_HeldPost = ~0u;
         m_FailedPost = ~0u;
         m_CheckedThreadNode = ~0u;
         m_SignalCreate = ~0u;
@@ -398,6 +402,16 @@ class ResourceLoaderTest : public jc_test_params_class<int>
     {
         ResourceLoaderTest* self = (ResourceLoaderTest*)params->m_Context;
         LoadedNode* resource = (LoadedNode*)ResourceDescriptorGetResource(params->m_Resource);
+        if (self->m_CheckPostIdentity)
+        {
+            HResourceDescriptor descriptor;
+            dmResource::Result result = dmResource::GetDescriptor(params->m_Factory, params->m_Filename, &descriptor);
+            if (result != dmResource::RESULT_OK || resource != ResourceDescriptorGetResource(descriptor))
+            {
+                self->m_PostIdentityCorrect = false;
+                return dmResource::RESULT_INVALID_DATA;
+            }
+        }
         ++self->m_Posts[resource->m_Value];
         if (self->m_PostReadsParent && resource->m_Value == 1)
         {
@@ -416,7 +430,7 @@ class ResourceLoaderTest : public jc_test_params_class<int>
                 return result;
             dmResource::Release(params->m_Factory, sibling);
         }
-        if (self->m_HoldPosts)
+        if (self->m_HoldPosts || resource->m_Value == self->m_HeldPost)
             return dmResource::RESULT_PENDING;
         if (self->m_PostPendingOnce && self->m_Posts[resource->m_Value] == 1)
             return dmResource::RESULT_PENDING;
@@ -425,10 +439,10 @@ class ResourceLoaderTest : public jc_test_params_class<int>
 
     static dmResource::Result Recreate(const dmResource::ResourceRecreateParams* params)
     {
+        ResourceLoaderTest* self = (ResourceLoaderTest*)params->m_Context;
         const uint32_t* data = (const uint32_t*)(params->m_Message ? params->m_Message : params->m_Buffer);
         LoadedNode* resource = (LoadedNode*)ResourceDescriptorGetResource(params->m_Resource);
 #if defined(DM_HAS_THREADS)
-        ResourceLoaderTest* self = (ResourceLoaderTest*)params->m_Context;
         if (self->m_CheckLocks)
         {
             LockProbe probe = { dmResource::GetLoadMutex(params->m_Factory), false };
@@ -456,7 +470,15 @@ class ResourceLoaderTest : public jc_test_params_class<int>
                 break;
             dependencies.Push(dependency);
         }
-        if (result == dmResource::RESULT_OK)
+        if (result == dmResource::RESULT_OK && self->m_ReplacePointer)
+        {
+            LoadedNode* replacement = new LoadedNode();
+            replacement->m_Value = resource->m_Value;
+            dependencies.Swap(replacement->m_Dependencies);
+            ResourceDescriptorSetResource(params->m_Resource, replacement);
+            ResourceDescriptorSetPrevResource(params->m_Resource, resource);
+        }
+        else if (result == dmResource::RESULT_OK)
             dependencies.Swap(resource->m_Dependencies);
         for (uint32_t i = 0; i < dependencies.Size(); ++i)
             dmResource::Release(params->m_Factory, dependencies[i]);
@@ -651,6 +673,10 @@ class ResourceLoaderTest : public jc_test_params_class<int>
     bool m_PostLoadsSibling;
     bool m_PostPendingOnce;
     bool m_HoldPosts;
+    bool m_ReplacePointer;
+    bool m_CheckPostIdentity;
+    bool m_PostIdentityCorrect;
+    uint32_t m_HeldPost;
     uint32_t m_FailedPost;
     uint32_t m_CheckedThreadNode;
     uint32_t m_SignalCreate;
@@ -1001,6 +1027,173 @@ TEST_P(ResourceLoaderTest, RecreateReplacesDependencies)
         ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, Replace(next, &root, 1, mode));
     }
     ASSERT_TRUE(m_CallbacksUnlocked);
+}
+
+// Replacement during pending PostCreate must update the descriptor before destroying the old resource.
+TEST_P(ResourceLoaderTest, RecreateReplacesPendingResource)
+{
+    EnablePostCreate();
+    m_ReplacePointer = true;
+    m_CheckPostIdentity = true;
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        m_HoldPosts = true;
+        Add(mode, 0, 0);
+        dmResource::HPreloader request = Request(mode);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!m_Posts[mode] && dmTime::GetMonotonicTime() < deadline)
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+        ASSERT_NE(0u, m_Posts[mode]);
+        ASSERT_EQ(dmResource::RESULT_OK, Replace(mode, 0, 0, mode));
+        ASSERT_EQ(1u, m_Destroys[mode]);
+        m_HoldPosts = false;
+        ASSERT_EQ(dmResource::RESULT_OK, Complete(request));
+        ASSERT_TRUE(m_PostIdentityCorrect);
+        Delete(mode);
+        ASSERT_EQ(2u, m_Destroys[mode]);
+    }
+}
+
+// Detached pending subtrees must finish and release their resources, including when their PostCreate fails.
+TEST_P(ResourceLoaderTest, RecreateDetachesPendingDependencies)
+{
+    EnablePostCreate();
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        uint32_t root = mode * 3;
+        uint32_t child = root + 1;
+        uint32_t leaf = root + 2;
+        m_HoldPosts = true;
+        Add(root, &child, 1);
+        Add(child, &leaf, 1);
+        Add(leaf, 0, 0);
+        dmResource::HPreloader request = Request(root);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (!m_Creates[root] && dmTime::GetMonotonicTime() < deadline)
+            ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+        ASSERT_EQ(1u, m_Creates[root]);
+        ASSERT_EQ(dmResource::RESULT_OK, Replace(root, 0, 0, mode));
+        m_HoldPosts = false;
+        if (mode == 1)
+            m_FailedPost = leaf;
+        if (mode != 2)
+            ASSERT_EQ(dmResource::RESULT_OK, Complete(request));
+        Delete(mode);
+        for (uint32_t id = root; id <= leaf; ++id)
+        {
+            ASSERT_NE(0u, m_Posts[id]);
+            ASSERT_EQ(1u, m_Destroys[id]);
+        }
+    }
+}
+
+// Detaching the last pending child must queue completion when the parent's own PostCreate already finished.
+TEST_P(ResourceLoaderTest, RecreateDetachesLastPendingCompletion)
+{
+    EnablePostCreate();
+    uint32_t child = 1;
+    m_HeldPost = child;
+    Add(0, &child, 1);
+    Add(child, 0, 0);
+    dmResource::HPreloader request = Request(0);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_Posts[0] && dmTime::GetMonotonicTime() < deadline)
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(request, 0, 0, 0));
+    ASSERT_NE(0u, m_Posts[0]);
+    ASSERT_EQ(dmResource::RESULT_OK, Replace(0, 0, 0, 1));
+    m_HeldPost = ~0u;
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(request));
+    ASSERT_EQ(1u, m_Destroys[child]);
+    Delete(0);
+    ASSERT_EQ(1u, m_Destroys[0]);
+}
+
+// Detaching a pending dependency from its initiating request must preserve another request's shared resource.
+TEST_P(ResourceLoaderTest, RecreateDetachesSharedPendingDependency)
+{
+    EnablePostCreate();
+    m_HoldPosts = true;
+    uint32_t child = 2;
+    Add(0, &child, 1);
+    Add(1, &child, 1);
+    Add(child, 0, 0);
+    dmResource::HPreloader first = Request(0);
+    dmResource::HPreloader second = Request(1);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while ((!m_Creates[0] || !m_Creates[1]) && dmTime::GetMonotonicTime() < deadline)
+    {
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(first, 0, 0, 0));
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(second, 0, 0, 0));
+    }
+    ASSERT_EQ(1u, m_Creates[0]);
+    ASSERT_EQ(1u, m_Creates[1]);
+    ASSERT_EQ(dmResource::RESULT_OK, Replace(0, 0, 0, 1));
+    m_HoldPosts = false;
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(second));
+    Delete(0);
+    ASSERT_EQ(0u, m_Destroys[child]);
+    Delete(1);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(1u, m_Creates[i]);
+        ASSERT_EQ(1u, m_Destroys[i]);
+    }
+}
+
+// A newly acquired dependency can already be queued before the request's cursor, without advancing its other parent.
+TEST_P(ResourceLoaderTest, NestedGetSelectsEarlierQueuedDependency)
+{
+    if (GetParam() != 0)
+        return;
+    uint32_t child = 2;
+    Add(0, &child, 1);
+    Add(1, &child, 1);
+    Add(child, 0, 0);
+    dmResource::HPreloader background = Request(0);
+    ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(background, 0, 0, 0));
+    m_Hints = false;
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(1)));
+    ASSERT_EQ(0u, m_Creates[0]);
+    ASSERT_EQ(1u, m_Creates[1]);
+    ASSERT_EQ(1u, m_Creates[child]);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(background));
+    Delete(1);
+    ASSERT_EQ(0u, m_Destroys[child]);
+    Delete(0);
+    ASSERT_EQ(1u, m_Destroys[child]);
+}
+
+// A foreground graph must finish without creating or finalizing an unrelated graph's queued leaves.
+TEST_P(ResourceLoaderTest, DisjointRequestsWithQueuedLeaves)
+{
+    if (GetParam() != 0)
+        return;
+    const uint32_t count = 2048;
+    uint32_t dependencies[count];
+    for (uint32_t graph = 0; graph < 2; ++graph)
+    {
+        uint32_t root = graph * (count + 1);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dependencies[i] = root + i + 1;
+            Add(dependencies[i], 0, 0);
+        }
+        Add(root, dependencies, count);
+    }
+    dmResource::HPreloader background = Request(0);
+    ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(background, 0, 0, 0));
+    ASSERT_EQ(1u, m_Preloads[0]);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(Request(count + 1)));
+    for (uint32_t i = 0; i <= count; ++i)
+    {
+        ASSERT_EQ(0u, m_Creates[i]);
+        ASSERT_EQ(1u, m_Creates[count + 1 + i]);
+    }
+    Delete(1);
+    ASSERT_EQ(dmResource::RESULT_OK, Complete(background));
+    Delete(0);
+    for (uint32_t i = 0; i < 2 * (count + 1); ++i)
+        ASSERT_EQ(1u, m_Destroys[i]);
 }
 
 // Removing old hint-only dependencies during Recreate can move the parent being updated in the pool.

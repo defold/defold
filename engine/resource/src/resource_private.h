@@ -140,7 +140,7 @@ namespace dmResource
     // Recreate owns callback scheduling until End. Commit replaces dependencies
     // on success and restores the previous graph on failure, before notifications.
     RecreateContext* BeginResourceRecreate(LoadContext* context, dmhash_t path);
-    void CommitResourceRecreate(RecreateContext* recreate, Result result, void* resource);
+    void CommitResourceRecreate(RecreateContext* recreate, Result result, const ResourceDescriptor* descriptor);
     void EndResourceRecreate(RecreateContext* recreate);
     Result RecordResourceLoadGet(LoadContext* context, dmhash_t path);
     Result LoadResourceSync(HFactory factory, const char* path, HResourceType type, const void* data, uint32_t size, uint32_t file_size, bool provided, void** resource);

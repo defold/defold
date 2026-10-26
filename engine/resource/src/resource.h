@@ -273,10 +273,11 @@ namespace dmResource
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names);
 
     /**
-     * Process ready work reachable from this request in the factory's shared
+     * Process ready work for this request in the factory's shared
      * dependency scheduler, with a soft time limit. Returns without waiting when
      * no work is ready;
      * worker jobs continue discovering and loading dependencies independently.
+     * Started loads finish even if recreation removes their dependency edges.
      * Call from the requesting thread to execute Create/PostCreate. The soft
      * limit is checked between callbacks; a single callback cannot be interrupted.
      * @param preloader Preloader

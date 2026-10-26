@@ -1059,7 +1059,7 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
             }
         }
     }
-    CommitResourceRecreate(recreate, result, rd->m_Resource);
+    CommitResourceRecreate(recreate, result, rd);
     if (result == RESULT_OK)
     {
         if (factory->m_ResourceReloadedCallbacks)

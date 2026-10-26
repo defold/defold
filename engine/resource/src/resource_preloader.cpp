@@ -32,10 +32,26 @@
 #include "resource_private.h"
 #include "resource_util.h"
 
+namespace dmResource
+{
+    enum LoadWork
+    {
+        LOAD_WORK_READ,
+        LOAD_WORK_CREATE,
+        LOAD_WORK_POST,
+        LOAD_WORK_COMPLETE,
+        LOAD_WORK_COUNT
+    };
+} // namespace dmResource
+
 struct ResourcePreloader
 {
     dmResource::LoadContext* m_Context;
     dmArray<uint32_t> m_Roots;
+    // Started loads stay owned until their cleanup, even if recreation detaches them.
+    dmArray<uint32_t> m_Loads;
+    uint64_t m_WorkCursor[dmResource::LOAD_WORK_COUNT];
+    uint32_t m_CursorCaller;
     dmResource::Result m_CallbackResult;
     uint64_t m_NextPostTime;
     bool m_CallbackCalled;
@@ -57,8 +73,11 @@ namespace dmResource
         void* m_PreloadData;
         const void* m_ProvidedData;
         HJob m_ReadJob;
+        HPreloader m_Request;
+        uint32_t m_RequestIndex;
         uint32_t m_Caller;
         uint32_t m_Selection;
+        uint32_t m_QueueIndex[LOAD_WORK_COUNT];
         uint64_t m_StagedBytes;
         uint32_t m_BufferSize;
         uint32_t m_FileSize;
@@ -111,10 +130,19 @@ namespace dmResource
         uint32_t m_PreviousDependent;
     };
 
+    struct LoadQueueItem
+    {
+        uint64_t m_Sequence;
+        uint32_t m_Node;
+    };
+
     struct LoadQueue
     {
-        dmArray<uint32_t> m_Items;
+        dmArray<LoadQueueItem> m_Items;
+        uint64_t m_NextSequence;
         uint32_t m_Front;
+        uint32_t m_Count;
+        LoadWork m_Work;
     };
 
     struct RecreateContext
@@ -126,14 +154,6 @@ namespace dmResource
         dmArray<uint32_t> m_Dependencies;
         uint32_t m_FirstDependency;
         Result m_DependencyResult;
-    };
-
-    enum LoadWork
-    {
-        LOAD_WORK_READ,
-        LOAD_WORK_CREATE,
-        LOAD_WORK_POST,
-        LOAD_WORK_COMPLETE
     };
 
     struct LoadContext
@@ -151,12 +171,9 @@ namespace dmResource
         dmArray<LoadEdge> m_Edges;
         dmArray<uint32_t> m_FreeEdges;
         dmArray<uint32_t> m_Visit;
-        LoadQueue m_Reads;
+        LoadQueue m_Queues[LOAD_WORK_COUNT];
         dmArray<uint32_t> m_ReadJobs;
-        LoadQueue m_Creates;
-        LoadQueue m_Completions;
         LoadQueue m_Pins;
-        LoadQueue m_Posts;
         uint32_t m_Creating;
         RecreateContext* m_Recreating;
         HPreloader m_SelectedRequest;
@@ -179,36 +196,112 @@ namespace dmResource
         items.Push(item);
     }
 
-    static void Push(LoadQueue& queue, uint32_t node)
+    // Sequence cursors survive storage compaction and never revisit a skipped
+    // prefix. New dependencies rewind only to work that has become eligible.
+    static void RewindWork(LoadContext* context, LoadNode* node, LoadWork work)
     {
-        Push(queue.m_Items, node);
+        HPreloader request = context->m_SelectedRequest;
+        uint32_t position = node->m_Load->m_QueueIndex[work];
+        if (!request || position == INVALID_LOAD_INDEX || node->m_Load->m_Selection != context->m_Selection)
+            return;
+        if (work != LOAD_WORK_READ && node->m_Load->m_Caller != request->m_CursorCaller)
+            return;
+        uint64_t sequence = context->m_Queues[work].m_Items[position].m_Sequence;
+        if (sequence < request->m_WorkCursor[work])
+            request->m_WorkCursor[work] = sequence;
     }
 
-    static uint32_t Pop(LoadQueue& queue)
+    static void Push(LoadContext* context, LoadQueue& queue, uint32_t index)
     {
-        if (queue.m_Front == queue.m_Items.Size())
-            return INVALID_LOAD_INDEX;
-        uint32_t node = queue.m_Items[queue.m_Front++];
-        if (queue.m_Front == queue.m_Items.Size())
+        LoadQueueItem item = { ++queue.m_NextSequence, index };
+        uint32_t position = queue.m_Items.Size();
+        Push(queue.m_Items, item);
+        ++queue.m_Count;
+        if (queue.m_Work != LOAD_WORK_COUNT)
         {
-            queue.m_Front = 0;
-            queue.m_Items.SetSize(0);
+            LoadNode* node = context->m_Nodes.GetPtr(index);
+            assert(node->m_Load->m_QueueIndex[queue.m_Work] == INVALID_LOAD_INDEX);
+            node->m_Load->m_QueueIndex[queue.m_Work] = position;
+            RewindWork(context, node, queue.m_Work);
         }
-        return node;
     }
 
-    static uint32_t PopLast(LoadQueue& queue)
+    static void Remove(LoadContext* context, LoadQueue& queue, uint32_t position)
     {
-        if (queue.m_Front == queue.m_Items.Size())
-            return INVALID_LOAD_INDEX;
-        uint32_t node = queue.m_Items.Back();
-        queue.m_Items.Pop();
-        if (queue.m_Front == queue.m_Items.Size())
+        uint32_t index = queue.m_Items[position].m_Node;
+        assert(index != INVALID_LOAD_INDEX);
+        if (queue.m_Work != LOAD_WORK_COUNT)
+            context->m_Nodes.Get(index).m_Load->m_QueueIndex[queue.m_Work] = INVALID_LOAD_INDEX;
+        queue.m_Items[position].m_Node = INVALID_LOAD_INDEX;
+        if (!--queue.m_Count)
         {
-            queue.m_Front = 0;
             queue.m_Items.SetSize(0);
+            queue.m_Front = 0;
+            return;
         }
-        return node;
+        while (queue.m_Items[queue.m_Front].m_Node == INVALID_LOAD_INDEX)
+            ++queue.m_Front;
+        while (queue.m_Items.Back().m_Node == INVALID_LOAD_INDEX)
+            queue.m_Items.Pop();
+        // Removal never shifts the remaining entries. Compact only when at least
+        // half the storage is unused, bounding memory and amortizing that work.
+        if (queue.m_Items.Size() > 64 && queue.m_Count <= queue.m_Items.Size() / 2)
+        {
+            uint32_t count = 0;
+            for (uint32_t i = queue.m_Front; i < queue.m_Items.Size(); ++i)
+            {
+                LoadQueueItem item = queue.m_Items[i];
+                if (item.m_Node == INVALID_LOAD_INDEX)
+                    continue;
+                if (count != i)
+                {
+                    queue.m_Items[count] = item;
+                    if (queue.m_Work != LOAD_WORK_COUNT)
+                        context->m_Nodes.Get(item.m_Node).m_Load->m_QueueIndex[queue.m_Work] = count;
+                }
+                ++count;
+            }
+            queue.m_Items.SetSize(count);
+            queue.m_Front = 0;
+        }
+    }
+
+    static uint32_t Pop(LoadContext* context, LoadQueue& queue)
+    {
+        if (!queue.m_Count)
+            return INVALID_LOAD_INDEX;
+        uint32_t index = queue.m_Items[queue.m_Front].m_Node;
+        Remove(context, queue, queue.m_Front);
+        return index;
+    }
+
+    static uint32_t PopLast(LoadContext* context, LoadQueue& queue)
+    {
+        if (!queue.m_Count)
+            return INVALID_LOAD_INDEX;
+        uint32_t position = queue.m_Items.Size() - 1;
+        uint32_t index = queue.m_Items[position].m_Node;
+        Remove(context, queue, position);
+        return index;
+    }
+
+    static uint32_t FindCursor(const LoadQueue& queue, uint64_t sequence)
+    {
+        uint32_t first = queue.m_Front;
+        uint32_t end = queue.m_Items.Size();
+        if (!queue.m_Count || sequence > queue.m_Items.Back().m_Sequence)
+            return end;
+        if (sequence <= queue.m_Items[first].m_Sequence)
+            return first;
+        while (first < end)
+        {
+            uint32_t middle = first + (end - first) / 2;
+            if (queue.m_Items[middle].m_Sequence < sequence)
+                first = middle + 1;
+            else
+                end = middle;
+        }
+        return first;
     }
 
     // Called with the graph lock. Thread handles are not portable identities:
@@ -241,7 +334,7 @@ namespace dmResource
         if (!node->m_Discovered || node->m_PendingDependencies || node->m_Created || node->m_CreateQueued)
             return;
         node->m_CreateQueued = true;
-        Push(context->m_Creates, node->m_Index);
+        Push(context, context->m_Queues[LOAD_WORK_CREATE], node->m_Index);
     }
 
     static void QueueComplete(LoadContext* context, LoadNode* node)
@@ -249,7 +342,7 @@ namespace dmResource
         if (!node->m_PostDone || node->m_PendingCompletions || node->m_Complete || node->m_CompleteQueued)
             return;
         node->m_CompleteQueued = true;
-        Push(context->m_Completions, node->m_Index);
+        Push(context, context->m_Queues[LOAD_WORK_COMPLETE], node->m_Index);
     }
 
     static void QueuePin(LoadContext* context, LoadNode* node)
@@ -257,11 +350,12 @@ namespace dmResource
         if (!node->m_Pin || node->m_PinQueued || (node->m_Holds && !node->m_RootReferences) || !node->m_PostDone)
             return;
         node->m_PinQueued = true;
-        Push(context->m_Pins, node->m_Index);
+        Push(context, context->m_Pins, node->m_Index);
     }
 
-    static uint32_t FindRequestWork(HPreloader request, LoadQueue& queue, LoadWork work, bool remove);
+    static uint32_t FindRequestWork(HPreloader request, LoadWork work, bool remove);
     static void StartReads(LoadContext* context, HPreloader request);
+    static void DestroyUnusedNodes(LoadContext* context, uint32_t root);
 
     // Requests retain their reachable resources, including hints consumed by a
     // later ancestor's Create. Propagate only when a node enters or leaves that set.
@@ -315,6 +409,8 @@ namespace dmResource
             if (node->m_Complete || node->m_Load->m_Selection == context->m_Selection)
                 continue;
             node->m_Load->m_Selection = context->m_Selection;
+            for (uint32_t work = 0; work < LOAD_WORK_COUNT; ++work)
+                RewindWork(context, node, (LoadWork)work);
             for (uint32_t edge = node->m_FirstDependency; edge != INVALID_LOAD_INDEX; edge = context->m_Edges[edge].m_NextDependency)
                 Push(context->m_Visit, context->m_Edges[edge].m_Child);
         }
@@ -323,8 +419,12 @@ namespace dmResource
     static void SelectRequest(HPreloader request)
     {
         LoadContext* context = request->m_Context;
-        if (context->m_SelectedRequest == request)
+        uint32_t caller = GetCaller(context);
+        if (context->m_SelectedRequest == request && request->m_CursorCaller == caller)
             return;
+        request->m_CursorCaller = caller;
+        for (uint32_t work = 0; work < LOAD_WORK_COUNT; ++work)
+            request->m_WorkCursor[work] = ~(uint64_t)0;
         if (!++context->m_Selection)
         {
             for (uint32_t i = 0; i < context->m_Nodes.Size(); ++i)
@@ -335,6 +435,8 @@ namespace dmResource
         context->m_SelectedRequest = request;
         for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
             SelectDependencies(context, request->m_Roots[i]);
+        for (uint32_t i = 0; i < request->m_Loads.Size(); ++i)
+            SelectDependencies(context, request->m_Loads[i]);
     }
 
     static bool DependsOn(LoadContext* context, LoadNode* node, LoadNode* dependency)
@@ -359,7 +461,7 @@ namespace dmResource
         return false;
     }
 
-    static uint32_t FindOrCreate(LoadContext* context, const char* path, HResourceType type, uint32_t caller)
+    static uint32_t FindOrCreate(LoadContext* context, const char* path, HResourceType type, uint32_t caller, HPreloader request)
     {
         char canonical[RESOURCE_PATH_MAX];
         GetCanonicalPath(path, canonical, sizeof(canonical));
@@ -376,7 +478,15 @@ namespace dmResource
         node->m_Index = index;
         node->m_Path = strdup(canonical);
         node->m_Load = new LoadData();
+        for (uint32_t work = 0; work < LOAD_WORK_COUNT; ++work)
+            node->m_Load->m_QueueIndex[work] = INVALID_LOAD_INDEX;
         node->m_Load->m_Caller = caller;
+        node->m_Load->m_Request = request;
+        node->m_Load->m_RequestIndex = request->m_Loads.Size();
+        Push(request->m_Loads, index);
+        // Own the load and its dependency resources through terminal cleanup.
+        node->m_References = 1;
+        node->m_Holds = 1;
         LoadProfileBegin(&node->m_Load->m_Profile, IsLoadProfilingEnabled(context->m_Factory));
         node->m_PathHash = hash;
         node->m_FirstDependency = INVALID_LOAD_INDEX;
@@ -395,7 +505,9 @@ namespace dmResource
         if (context->m_ByPath.Full())
             context->m_ByPath.OffsetCapacity(context->m_ByPath.Capacity() ? context->m_ByPath.Capacity() : 16);
         context->m_ByPath.Put(hash, index);
-        Push(context->m_Reads, index);
+        Push(context, context->m_Queues[LOAD_WORK_READ], index);
+        if (context->m_SelectedRequest == request)
+            SelectDependencies(context, index);
         return index;
     }
 
@@ -498,19 +610,19 @@ namespace dmResource
                 return INVALID_LOAD_INDEX;
             if (request)
             {
-                if (FindRequestWork(request, context->m_Creates, LOAD_WORK_CREATE, false) != INVALID_LOAD_INDEX || FindRequestWork(request, context->m_Posts, LOAD_WORK_POST, false) != INVALID_LOAD_INDEX)
+                if (FindRequestWork(request, LOAD_WORK_CREATE, false) != INVALID_LOAD_INDEX || FindRequestWork(request, LOAD_WORK_POST, false) != INVALID_LOAD_INDEX)
                     return INVALID_LOAD_INDEX;
-                index = FindRequestWork(request, context->m_Reads, LOAD_WORK_READ, true);
+                index = FindRequestWork(request, LOAD_WORK_READ, true);
             }
             else
             {
-                if (context->m_Creates.m_Front != context->m_Creates.m_Items.Size() || context->m_Posts.m_Front != context->m_Posts.m_Items.Size())
+                if (context->m_Queues[LOAD_WORK_CREATE].m_Count || context->m_Queues[LOAD_WORK_POST].m_Count)
                     return INVALID_LOAD_INDEX;
-                index = PopLast(context->m_Reads);
+                index = PopLast(context, context->m_Queues[LOAD_WORK_READ]);
             }
         }
         else
-            index = request ? FindRequestWork(request, context->m_Reads, LOAD_WORK_READ, true) : Pop(context->m_Reads);
+            index = request ? FindRequestWork(request, LOAD_WORK_READ, true) : Pop(context, context->m_Queues[LOAD_WORK_READ]);
         if (index == INVALID_LOAD_INDEX)
             return INVALID_LOAD_INDEX;
         LoadNode* node = context->m_Nodes.GetPtr(index);
@@ -599,6 +711,9 @@ namespace dmResource
         context->m_Creating = INVALID_LOAD_INDEX;
         context->m_Jobs = GetPreloadJobContext(factory);
         context->m_ReadLimit = JobSystemGetWorkerCount(context->m_Jobs);
+        for (uint32_t work = 0; work < LOAD_WORK_COUNT; ++work)
+            context->m_Queues[work].m_Work = (LoadWork)work;
+        context->m_Pins.m_Work = LOAD_WORK_COUNT;
         context->m_Mutex = dmMutex::New();
 #if defined(DM_HAS_THREADS)
         context->m_Changed = dmConditionVariable::New();
@@ -670,7 +785,8 @@ namespace dmResource
         LoadContext* context = info->m_Context;
         DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
         uint32_t caller = context->m_Nodes.Get(info->m_Node).m_Load->m_Caller;
-        uint32_t child = FindOrCreate(context, path, 0, caller);
+        HPreloader request = context->m_Nodes.Get(info->m_Node).m_Load->m_Request;
+        uint32_t child = FindOrCreate(context, path, 0, caller, request);
         bool added = AddDependency(context, context->m_Nodes.GetPtr(info->m_Node), context->m_Nodes.GetPtr(child));
         StartReads(context, 0);
         return added;
@@ -822,7 +938,7 @@ namespace dmResource
             node->m_PostDone = !post;
             Created(context, node);
             if (post)
-                Push(context->m_Posts, index);
+                Push(context, context->m_Queues[LOAD_WORK_POST], index);
             else
                 ReleaseStaging(context, node);
         }
@@ -878,7 +994,7 @@ namespace dmResource
         Result result;
         {
             DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-            index = FindRequestWork(request, context->m_Completions, LOAD_WORK_COMPLETE, true);
+            index = FindRequestWork(request, LOAD_WORK_COMPLETE, true);
             if (index == INVALID_LOAD_INDEX)
                 return false;
             LoadNode* node = context->m_Nodes.GetPtr(index);
@@ -910,6 +1026,11 @@ namespace dmResource
         }
         DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
         LoadNode* node = context->m_Nodes.GetPtr(index);
+        HPreloader owner = load->m_Request;
+        uint32_t position = load->m_RequestIndex;
+        owner->m_Loads.EraseSwap(position);
+        if (position < owner->m_Loads.Size())
+            context->m_Nodes.Get(owner->m_Loads[position]).m_Load->m_RequestIndex = position;
         node->m_Load = 0;
         delete load;
         node->m_Complete = true;
@@ -922,6 +1043,9 @@ namespace dmResource
                 parent->m_DependencyResult = node->m_Result;
             QueueComplete(context, parent);
         }
+        ChangeHold(context, node, false);
+        --node->m_References;
+        DestroyUnusedNodes(context, index);
         return true;
     }
 
@@ -932,7 +1056,7 @@ namespace dmResource
             void* resource;
             {
                 DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-                uint32_t index = Pop(context->m_Pins);
+                uint32_t index = Pop(context, context->m_Pins);
                 if (index == INVALID_LOAD_INDEX)
                     return;
                 LoadNode* node = context->m_Nodes.GetPtr(index);
@@ -945,8 +1069,6 @@ namespace dmResource
             Release(context->m_Factory, resource);
         }
     }
-
-    static void DestroyUnusedNodes(LoadContext* context, uint32_t root);
 
     // Called under the resource-table lock when its last reference is released.
     // A newly discovered parent can still need this resource before its Create runs.
@@ -992,28 +1114,27 @@ namespace dmResource
 
     // Each update advances only its request, preserving FIFO order and callback
     // affinity for shared dependencies without spending other requests' budgets.
-    static uint32_t FindRequestWork(HPreloader request, LoadQueue& queue, LoadWork work, bool remove)
+    static uint32_t FindRequestWork(HPreloader request, LoadWork work, bool remove)
     {
         LoadContext* context = request->m_Context;
+        LoadQueue& queue = context->m_Queues[work];
         SelectRequest(request);
-        uint32_t caller = GetCaller(context);
-        for (uint32_t i = queue.m_Front; i < queue.m_Items.Size(); ++i)
+        uint32_t caller = request->m_CursorCaller;
+        uint64_t& cursor = request->m_WorkCursor[work];
+        for (uint32_t i = FindCursor(queue, cursor); i < queue.m_Items.Size(); ++i)
         {
-            uint32_t index = queue.m_Items[i];
-            LoadNode* node = context->m_Nodes.GetPtr(index);
+            LoadQueueItem item = queue.m_Items[i];
+            cursor = item.m_Sequence + 1;
+            if (item.m_Node == INVALID_LOAD_INDEX)
+                continue;
+            LoadNode* node = context->m_Nodes.GetPtr(item.m_Node);
             if (node->m_Load->m_Selection != context->m_Selection || (work != LOAD_WORK_READ && node->m_Load->m_Caller != caller))
                 continue;
             if (remove)
-            {
-                if (i == queue.m_Front)
-                    Pop(queue);
-                else
-                {
-                    memmove(queue.m_Items.Begin() + i, queue.m_Items.Begin() + i + 1, (queue.m_Items.Size() - i - 1) * sizeof(uint32_t));
-                    queue.m_Items.Pop();
-                }
-            }
-            return index;
+                Remove(context, queue, i);
+            else
+                cursor = item.m_Sequence;
+            return item.m_Node;
         }
         return INVALID_LOAD_INDEX;
     }
@@ -1023,14 +1144,17 @@ namespace dmResource
     static void GetRequestPosts(HPreloader request, dmArray<uint32_t>& posts)
     {
         LoadContext* context = request->m_Context;
-        SelectRequest(request);
-        uint32_t caller = GetCaller(context);
-        for (uint32_t i = context->m_Posts.m_Front; i < context->m_Posts.m_Items.Size(); ++i)
+        LoadQueue& queue = context->m_Queues[LOAD_WORK_POST];
+        for (;;)
         {
-            uint32_t index = context->m_Posts.m_Items[i];
+            uint32_t index = FindRequestWork(request, LOAD_WORK_POST, false);
+            if (index == INVALID_LOAD_INDEX)
+                return;
             LoadNode* node = context->m_Nodes.GetPtr(index);
-            if (node->m_Load->m_Selection == context->m_Selection && node->m_Load->m_Caller == caller)
-                Push(posts, index);
+            request->m_WorkCursor[LOAD_WORK_POST] = queue.m_Items[node->m_Load->m_QueueIndex[LOAD_WORK_POST]].m_Sequence + 1;
+            // Nested callbacks may complete and detach another snapshotted load.
+            ++node->m_References;
+            Push(posts, index);
         }
     }
 
@@ -1041,6 +1165,8 @@ namespace dmResource
         Result result = request->m_CallbackResult;
         {
             DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            if (!request->m_Loads.Empty())
+                return RESULT_PENDING;
             for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
             {
                 LoadNode* root = context->m_Nodes.GetPtr(request->m_Roots[i]);
@@ -1085,7 +1211,7 @@ namespace dmResource
                 uint32_t index;
                 {
                     DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-                    index = FindRequestWork(request, context->m_Creates, LOAD_WORK_CREATE, true);
+                    index = FindRequestWork(request, LOAD_WORK_CREATE, true);
                     if (index != INVALID_LOAD_INDEX)
                         context->m_Nodes.Get(index).m_Load->m_InCreate = true;
                 }
@@ -1106,7 +1232,7 @@ namespace dmResource
         dmArray<uint32_t> posts;
         {
             DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-            if (context->m_Posts.m_Front != context->m_Posts.m_Items.Size())
+            if (context->m_Queues[LOAD_WORK_POST].m_Count)
                 GetRequestPosts(request, posts);
         }
         for (uint32_t i = 0; i < posts.Size(); ++i)
@@ -1118,19 +1244,9 @@ namespace dmResource
                 DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
                 if (context->m_Nodes.Get(index).m_PostDone)
                     continue;
-                LoadQueue& queue = context->m_Posts;
-                for (uint32_t j = queue.m_Front; j < queue.m_Items.Size(); ++j)
-                    if (queue.m_Items[j] == index)
-                    {
-                        if (j == queue.m_Front)
-                            Pop(queue);
-                        else
-                        {
-                            memmove(queue.m_Items.Begin() + j, queue.m_Items.Begin() + j + 1, (queue.m_Items.Size() - j - 1) * sizeof(uint32_t));
-                            queue.m_Items.Pop();
-                        }
-                        break;
-                    }
+                uint32_t position = context->m_Nodes.Get(index).m_Load->m_QueueIndex[LOAD_WORK_POST];
+                if (position != INVALID_LOAD_INDEX)
+                    Remove(context, context->m_Queues[LOAD_WORK_POST], position);
             }
             request->m_NextPostTime = dmTime::GetMonotonicTime() + 1000;
             PostCreateResourceNode(context, index);
@@ -1138,7 +1254,18 @@ namespace dmResource
             {
                 DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
                 if (!context->m_Nodes.Get(index).m_PostDone)
-                    Push(context->m_Posts, index);
+                    Push(context, context->m_Queues[LOAD_WORK_POST], index);
+            }
+        }
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+            for (uint32_t i = 0; i < posts.Size(); ++i)
+            {
+                LoadNode* node = context->m_Nodes.GetPtr(posts[i]);
+                if (node->m_Load && context->m_SelectedRequest == request)
+                    RewindWork(context, node, LOAD_WORK_POST);
+                --node->m_References;
+                DestroyUnusedNodes(context, posts[i]);
             }
         }
         while ((!progressed || dmTime::GetMonotonicTime() - start < soft_time_limit) && ProcessCompletion(request))
@@ -1192,9 +1319,9 @@ namespace dmResource
         {
             DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
             uint32_t caller = GetCaller(context);
-            uint32_t index = FindOrCreate(context, path, type, caller);
+            uint32_t index = FindOrCreate(context, path, type, caller, request);
             LoadNode* node = context->m_Nodes.GetPtr(index);
-            bool new_load = !node->m_References && !node->m_Discovered;
+            bool new_load = node->m_References == 1 && !node->m_Discovered;
             if (dependency && context->m_UpdateDepth && context->m_UpdateOwner == caller && context->m_Creating != INVALID_LOAD_INDEX)
             {
                 if (!RecordDependency(context, node))
@@ -1266,15 +1393,15 @@ namespace dmResource
             context->m_Recreating = 0;
             Signal(context);
         }
-        bool ready = FindRequestWork(request, context->m_Creates, LOAD_WORK_CREATE, false) != INVALID_LOAD_INDEX || FindRequestWork(request, context->m_Completions, LOAD_WORK_COMPLETE, false) != INVALID_LOAD_INDEX;
-        bool post = FindRequestWork(request, context->m_Posts, LOAD_WORK_POST, false) != INVALID_LOAD_INDEX;
+        bool ready = FindRequestWork(request, LOAD_WORK_CREATE, false) != INVALID_LOAD_INDEX || FindRequestWork(request, LOAD_WORK_COMPLETE, false) != INVALID_LOAD_INDEX;
+        bool post = FindRequestWork(request, LOAD_WORK_POST, false) != INVALID_LOAD_INDEX;
         if (request->m_Blocking || !context->m_ReadLimit)
-            ready = ready || FindRequestWork(request, context->m_Reads, LOAD_WORK_READ, false) != INVALID_LOAD_INDEX;
+            ready = ready || FindRequestWork(request, LOAD_WORK_READ, false) != INVALID_LOAD_INDEX;
         if (request->m_Blocking && !ready)
             for (uint32_t i = 0; i < context->m_ReadJobs.Size(); ++i)
                 ready = ready || context->m_Nodes.Get(context->m_ReadJobs[i]).m_Load->m_Selection == context->m_Selection;
         bool foreign = false;
-        bool complete = true;
+        bool complete = request->m_Loads.Empty();
         for (uint32_t i = 0; i < request->m_Roots.Size(); ++i)
         {
             LoadNode* root = context->m_Nodes.GetPtr(request->m_Roots[i]);
@@ -1385,7 +1512,7 @@ namespace dmResource
         return recreate;
     }
 
-    void CommitResourceRecreate(RecreateContext* recreate, Result result, void* resource)
+    void CommitResourceRecreate(RecreateContext* recreate, Result result, const ResourceDescriptor* descriptor)
     {
         LoadContext* context = recreate->m_Context;
         {
@@ -1434,9 +1561,21 @@ namespace dmResource
                     i = edge.m_NextDependency;
                 }
                 if (result == RESULT_OK)
-                    node->m_Resource = resource;
+                {
+                    node->m_Resource = descriptor->m_Resource;
+                    // PostCreate uses the load's descriptor until finalization.
+                    // Publish replacement identity and size to both views before
+                    // the previous resource is destroyed by the factory.
+                    if (node->m_Load)
+                    {
+                        node->m_Load->m_Descriptor.m_Resource = descriptor->m_Resource;
+                        node->m_Load->m_Descriptor.m_ResourceSize = descriptor->m_ResourceSize;
+                    }
+                }
                 else
                     node->m_DependencyResult = recreate->m_DependencyResult;
+                // Removing the last pending dependency can unblock an already posted parent.
+                QueueComplete(context, node);
                 ChangeHold(context, node, false);
                 --node->m_References;
                 DestroyUnusedNodes(context, recreate->m_Node);
