@@ -155,10 +155,17 @@
         (g/error-value? content)
         content
 
-        (or (instance? BufferedImage content)
-            (bytes? content))
+        (instance? BufferedImage content)
         (let [texture-image (tex-gen/make-preview-texture-image content texture-profile flip-y)]
           [(texture/texture-image->texture-request-data texture-image data-version)])
+
+        (bytes? content)
+        (let [{:keys [resource digest-ignored/error-node-id digest-ignored/error-label]} (:args content-generatable)
+              texture-image (resource-io/with-error-translation resource error-node-id error-label
+                              (tex-gen/make-preview-texture-image content texture-profile flip-y))]
+          (if (g/error-value? texture-image)
+            texture-image
+            [(texture/texture-image->texture-request-data texture-image data-version)]))
 
         (sequential? content)
         (g/precluding-errors content

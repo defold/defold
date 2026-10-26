@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.image-test
-  (:require [clojure.java.io :refer [as-url file]]
+  (:require [clojure.java.io :as io :refer [as-url file]]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.gl.texture :as texture]
@@ -21,6 +21,7 @@
             [editor.image-util :as image-util]
             [editor.resource :as resource]
             [editor.texture-util :as texture-util]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [schema.test])
   (:import [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
@@ -61,3 +62,23 @@
       (is (= "texturec" (resource/ext (:resource build-target))))
       (is (= Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA32F
              (.. texture-image (getAlternatives 0) getFormat))))))
+
+;; Malformed HDR pixels report resource errors instead of throwing during
+;; preview or scene evaluation.
+(deftest malformed-hdr-resource-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (let [hdr-resource (test-util/resource workspace "/malformed.hdr")]
+      (with-open [stream (io/output-stream hdr-resource)]
+        (.write stream (.getBytes "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 1 +X 8\n" "UTF-8"))
+        ;; The scanline declares eight pixels, but its first run contains nine.
+        (.write stream (byte-array [2 2 0 8 137 255])))
+      (workspace/resource-sync! workspace)
+      (let [node-id (test-util/resource-node project "/malformed.hdr")]
+        (is (= {:width 8 :height 1} (g/node-value node-id :size)))
+        (let [preview-error (texture-util/generate-gpu-texture (g/node-value node-id :gpu-texture-generator))]
+          (is (g/error-value? preview-error))
+          (is (= :invalid-content (get-in preview-error [:user-data :type])))
+          (is (= (g/node-value node-id :resource) (get-in preview-error [:user-data :resource])))
+          (is (= node-id (:_node-id preview-error)))
+          (is (g/error-value? (g/node-value node-id :gpu-texture)))
+          (is (g/error-value? (g/node-value node-id :scene))))))))
