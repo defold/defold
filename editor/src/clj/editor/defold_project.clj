@@ -337,7 +337,7 @@
       (g/set-property node-id :loaded true)
       (g/expand-ec
         (fn apply-resource-load-tx-data [evaluation-context]
-          ;; Connection or source-value conversion may already have failed.
+          ;; Connection, reading, or source-value conversion may have failed.
           ;; Keep that error and avoid applying load or save connections.
           (when-not (g/defective? (:basis evaluation-context) node-id)
             load-tx-data))))))
@@ -497,8 +497,9 @@
         ;; The source-value output is unused for non-editable or stateless
         ;; resources, so there is no need to store their entries.
         (if-not (and stateful
-                     (some? source-value)
-                     (resource/editable? resource))
+                     (resource/editable? resource)
+                     (or (some? source-value)
+                         (some? read-error)))
           disk-state
           (let [resource-type (resource/resource-type resource)
 
@@ -516,7 +517,7 @@
             (cond-> (update disk-state :node-id+source-value-pairs
                             conj (pair node-id stored-source-value))
               (g/error-value? stored-source-value)
-              ;; Apply conversion errors after creating the resource nodes.
+              ;; Apply read or conversion errors after creating the nodes.
               (update :error-tx-data into
                       (let [node-type (resource-type->node-type resource-type)]
                         (g/mark-defective node-id node-type stored-source-value))))))))))

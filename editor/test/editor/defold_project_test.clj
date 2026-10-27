@@ -277,6 +277,32 @@
                                 "error" "Intentional illegal argument"}))}
                  (load-project))))))))
 
+;; Verifies read errors are stored for the unjammable source-value output even
+;; though a failed read produces no source-value.
+(deftest read-errors-are-stored-as-source-values
+  (with-clean-system
+    (test-util/with-ui-run-later-rebound
+      (let [read-exception (ex-info "Intentional read failure" {})
+            project-path (.getAbsolutePath (io/file "test/resources/load_project"))
+            workspace (workspace/make-workspace project-path {} {} test-util/localization)]
+        (g/transact
+          (e/concat
+            (placeholder-resource/register-resource-types workspace)
+            (workspace/register-resource-type workspace
+              :ext "type_b"
+              :node-type BNode
+              :read-fn (fn read-resource [_read-opts _owner-resource _readable]
+                         (throw read-exception))
+              :load-fn (fn load-resource [_load-opts _node-load-info] nil)
+              :write-fn pr-str)))
+        (workspace/resource-sync! workspace)
+        (let [project (log/without-logging (test-util/setup-project! workspace))
+              node-id (project/get-resource-node project "/b.type_b")
+              source-value (g/node-value node-id :source-value)]
+          (is (g/defective? node-id))
+          (is (g/error-value? source-value))
+          (is (identical? read-exception (-> source-value :user-data :exception))))))))
+
 ;; Verifies defective nodes retain their read error in both save output caches.
 ;; Evaluating jammed outputs alone would not detect missing cache entries.
 (deftest read-errors-are-cached-for-save-outputs
