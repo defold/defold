@@ -494,8 +494,10 @@ namespace dmEngine
         m_ResourceTypeContexts.SetCapacity(31, 64);
         m_PhysicsContextBox2D.m_Context = 0x0;
         m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
+        m_PhysicsContextBox2D.m_BaseContext.m_Debug = false;
         m_PhysicsContextBullet3D.m_Context = 0x0;
         m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
+        m_PhysicsContextBullet3D.m_BaseContext.m_Debug = false;
         m_GuiContext = 0x0;
         m_SpriteContext.m_RenderContext = 0x0;
         m_SpriteContext.m_MaxSpriteCount = 0;
