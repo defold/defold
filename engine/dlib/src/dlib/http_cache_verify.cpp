@@ -12,205 +12,181 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "log.h"
-#include "time.h"
-#include "math.h"
-#include "dstrings.h"
+#include "array.h"
+#include "hash.h"
+#include "hashtable.h"
 #include "http_cache_verify.h"
+#include "math.h"
+#include "time.h"
 
 namespace dmHttpCacheVerify
 {
-    const uint32_t BUFFER_SIZE = 512;
     struct VerifyContext
     {
-        dmHttpClient::HClient   m_Client;
-        dmHttpClient::HResponse m_Response;
-        dmHttpCache::HCache     m_HttpCache;
-        uint64_t                m_MaxAge;
-        uint64_t                m_CurrentTime;
-        uint32_t                m_BytesWritten;
-        dmHttpClient::Result    m_Result;
-        char                    m_Buffer[BUFFER_SIZE + 1]; // Room for terminating '\0'
-        char*                   m_BufferCurrent;
-        uint32_t                m_BufferSize;
-        bool                    m_DryRun;
-        int                     m_HttpStatus;
+        const char*                     m_CacheKeyPrefix;
+        uint64_t                        m_MaxAge;
+        uint64_t                        m_CurrentTime;
+        dmArray<dmHttpCache::EntryInfo>  m_Entries;
+        dmHashTable64<uint32_t>         m_EntryIndices;
+        dmArray<char>                   m_Request;
+        char                            m_Line[dmHttpCache::MAX_URI_LEN];
+        uint32_t                        m_LineSize;
+        bool                            m_InvalidResponse;
+        int                             m_HttpStatus;
 
-        VerifyContext(uint64_t max_age)
+        VerifyContext(uint64_t max_age, const char* cache_key_prefix)
+        : m_CacheKeyPrefix(cache_key_prefix)
+        , m_MaxAge(max_age * 1000000)
+        , m_CurrentTime(dmTime::GetTime())
+        , m_LineSize(0)
+        , m_InvalidResponse(false)
+        , m_HttpStatus(0)
+        {}
+
+        ~VerifyContext()
         {
-            memset(this, 0, sizeof(*this));
-            m_BufferCurrent = m_Buffer;
-            m_MaxAge = max_age;
-            m_CurrentTime = dmTime::GetTime();
-            m_Result = dmHttpClient::RESULT_OK;
+            for (uint32_t i = 0; i < m_Entries.Size(); ++i)
+                free(m_Entries[i].m_URI);
         }
     };
 
-    static void VerifyCallback(void* context, const dmHttpCache::EntryInfo* entry_info)
+    static void CollectEntry(void* context, const dmHttpCache::EntryInfo* entry)
     {
-        VerifyContext* verify_context = (VerifyContext*) context;
-        if (verify_context->m_Result != dmHttpClient::RESULT_OK)
+        VerifyContext* ctx = (VerifyContext*)context;
+        if (!entry->m_ETag[0] || entry->m_LastAccessed + ctx->m_MaxAge < ctx->m_CurrentTime)
+            return;
+        if (ctx->m_CacheKeyPrefix &&
+            (strncmp(entry->m_URI, ctx->m_CacheKeyPrefix, strlen(ctx->m_CacheKeyPrefix)) != 0 ||
+             strstr(entry->m_URI, "=bytes=")))
             return;
 
-        if (entry_info->m_LastAccessed + verify_context->m_MaxAge >= verify_context->m_CurrentTime)
-        {
-            // Young enough
+        // Snapshot keys and tags while the cache is locked. Network I/O must
+        // not hold that lock or validate entries added during the request.
+        if (ctx->m_Entries.Full())
+            ctx->m_Entries.OffsetCapacity(64);
+        if (ctx->m_EntryIndices.Full())
+            ctx->m_EntryIndices.SetCapacity(ctx->m_EntryIndices.Capacity() + 64);
+        dmHttpCache::EntryInfo copy = *entry;
+        copy.m_URI = strdup(entry->m_URI);
+        copy.m_Verified = false;
+        ctx->m_EntryIndices.Put(dmHashString64(copy.m_URI), ctx->m_Entries.Size());
+        ctx->m_Entries.Push(copy);
 
-            // #path + space + #etag + \n
-            verify_context->m_BytesWritten += strlen(entry_info->m_URI) + 1 + strlen(entry_info->m_ETag) + 1;
-            if (!verify_context->m_DryRun)
-            {
-                dmHttpClient::Result r;
-                r = Write(verify_context->m_Response, entry_info->m_URI, strlen(entry_info->m_URI));
-                if (r != dmHttpClient::RESULT_OK)
-                {
-                    verify_context->m_Result = r;
-                    return;
-                }
-
-                r = Write(verify_context->m_Response, " ", 1);
-                if (r != dmHttpClient::RESULT_OK)
-                {
-                    verify_context->m_Result = r;
-                    return;
-                }
-
-                r = Write(verify_context->m_Response, entry_info->m_ETag, strlen(entry_info->m_ETag));
-                if (r != dmHttpClient::RESULT_OK)
-                {
-                    verify_context->m_Result = r;
-                    return;
-                }
-
-                r = Write(verify_context->m_Response, "\n", 1);
-                if (r != dmHttpClient::RESULT_OK)
-                {
-                    verify_context->m_Result = r;
-                    return;
-                }
-            }
-            else
-            {
-                // Dry run
-            }
-        }
+        uint32_t uri_size = strlen(copy.m_URI);
+        uint32_t tag_size = strlen(copy.m_ETag);
+        uint32_t size = uri_size + tag_size + 2;
+        if (ctx->m_Request.Remaining() < size)
+            ctx->m_Request.OffsetCapacity(dmMath::Max(size, 16U * 1024U));
+        uint32_t offset = ctx->m_Request.Size();
+        ctx->m_Request.SetSize(offset + size);
+        char* out = ctx->m_Request.Begin() + offset;
+        memcpy(out, copy.m_URI, uri_size);
+        out[uri_size] = ' ';
+        memcpy(out + uri_size + 1, copy.m_ETag, tag_size);
+        out[size - 1] = '\n';
     }
 
-    static uint32_t HttpSendContentLength(dmHttpClient::HResponse response, void* user_data)
+    static uint32_t HttpSendContentLength(dmHttpClient::HResponse, void* user_data)
     {
-        VerifyContext* verify_context = (VerifyContext*) user_data;
-        verify_context->m_DryRun = true;
-        verify_context->m_Response = response;
-        dmHttpCache::Iterate(verify_context->m_HttpCache, verify_context, &VerifyCallback);
-        return verify_context->m_BytesWritten;
+        return ((VerifyContext*)user_data)->m_Request.Size();
     }
 
     static dmHttpClient::Result HttpWrite(dmHttpClient::HResponse response, uint32_t offset, uint32_t length, void* user_data)
     {
-        VerifyContext* verify_context = (VerifyContext*) user_data;
-        verify_context->m_DryRun = false;
-        verify_context->m_Response = response;
-        dmHttpCache::Iterate(verify_context->m_HttpCache, verify_context, &VerifyCallback);
-        return verify_context->m_Result;
+        VerifyContext* ctx = (VerifyContext*)user_data;
+        return dmHttpClient::Write(response, ctx->m_Request.Begin() + offset, length);
     }
 
-    static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
-                            uint32_t range_start, uint32_t range_end, uint32_t document_size,
-                            const char* method)
+    static void FinishLine(VerifyContext* ctx)
     {
-        (void) method; // Unused
-
-        VerifyContext* verify_context = (VerifyContext*) user_data;
-
-        verify_context->m_HttpStatus = status_code;
-
-        if (status_code != 200)
-        {
+        if (ctx->m_InvalidResponse)
             return;
-        }
-
-        const char* content_current = (const char*) content_data;
-        const char* content_end = content_current + content_data_size;
-
-        char* buf_current = verify_context->m_BufferCurrent;
-        char* buf_end = verify_context->m_Buffer + BUFFER_SIZE;
-
-        while (content_current < content_end)
-        {
-            int c = *content_current;
-            if (c == '\n')
-            {
-                // New uri
-                // Terminate string, we have room for the extra '\0'
-                *buf_current = '\0';
-                dmHttpCache::SetVerified(verify_context->m_HttpCache, verify_context->m_Buffer, true);
-
-                // Reset buffer
-                buf_current = verify_context->m_Buffer;
-            }
-            else
-            {
-                if (buf_current < buf_end)
-                {
-                    *buf_current = c;
-                    buf_current++;
-                }
-                else
-                {
-                    dmLogError("Http cache verification uri entry too long");
-                    // We discard the character and "wait" for '\n'
-                }
-            }
-
-            ++content_current;
-        }
-        verify_context->m_BufferCurrent = buf_current;
+        if (ctx->m_LineSize && ctx->m_Line[ctx->m_LineSize - 1] == '\r')
+            --ctx->m_LineSize;
+        ctx->m_Line[ctx->m_LineSize] = '\0';
+        uint32_t* index = ctx->m_EntryIndices.Get(dmHashString64(ctx->m_Line));
+        if (index && strcmp(ctx->m_Entries[*index].m_URI, ctx->m_Line) == 0)
+            ctx->m_Entries[*index].m_Verified = true;
+        ctx->m_LineSize = 0;
     }
 
-    Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, uint64_t max_age)
+    static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t,
+                            uint32_t, uint32_t, uint32_t, const char* method)
     {
-        VerifyContext context(max_age * 1000000);
-        context.m_HttpCache = cache;
+        VerifyContext* ctx = (VerifyContext*)user_data;
+        ctx->m_HttpStatus = status_code;
+        if (!content_data && !content_data_size && !method)
+        {
+            ctx->m_LineSize = 0;
+            ctx->m_InvalidResponse = false;
+            for (uint32_t i = 0; i < ctx->m_Entries.Size(); ++i)
+                ctx->m_Entries[i].m_Verified = false;
+        }
+        if (status_code != 200)
+            return;
+        const char* data = (const char*)content_data;
+        for (uint32_t i = 0; i < content_data_size; ++i)
+        {
+            if (data[i] == '\n')
+                FinishLine(ctx);
+            else if (ctx->m_LineSize < sizeof(ctx->m_Line) - 1 && data[i] != '\0')
+                ctx->m_Line[ctx->m_LineSize++] = data[i];
+            else
+                ctx->m_InvalidResponse = true;
+        }
+    }
+
+    Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, uint64_t max_age,
+                       const char* cache_key_prefix, FVerifiedCallback callback, void* user_data)
+    {
+        VerifyContext context(max_age, cache_key_prefix);
+        dmHttpCache::Iterate(cache, &context, CollectEntry);
+        if (context.m_Entries.Empty())
+            return RESULT_OK;
 
         dmHttpClient::NewParams params;
         params.m_HttpSendContentLength = HttpSendContentLength;
         params.m_HttpWrite = HttpWrite;
         params.m_HttpContent = HttpContent;
         params.m_Userdata = &context;
+        // Verification is an optional optimization. Fall back to ordinary
+        // requests if the endpoint is unavailable or does not respond promptly.
+        params.m_RequestTimeout = 5 * 1000 * 1000;
         dmHttpClient::HClient client = dmHttpClient::New(&params, uri);
-        if (client == 0)
-        {
+        if (!client)
             return RESULT_OUT_OF_RESOURCES;
+        dmHttpClient::Result result = dmHttpClient::Post(client, "/__verify_etags__");
+        if (result == dmHttpClient::RESULT_OK && context.m_HttpStatus == 200 && !context.m_InvalidResponse)
+        {
+            // A final record need not have a trailing newline.
+            FinishLine(&context);
+            for (uint32_t i = 0; i < context.m_Entries.Size(); ++i)
+            {
+                if (context.m_Entries[i].m_Verified)
+                    callback(user_data, &context.m_Entries[i]);
+            }
         }
-
-        context.m_Client = client;
-        dmHttpClient::Result verify_result = Post(client, "/__verify_etags__");
         dmHttpClient::Delete(client);
-
-        if (verify_result == dmHttpClient::RESULT_OK)
-        {
+        if (result == dmHttpClient::RESULT_OK && context.m_HttpStatus == 200 && !context.m_InvalidResponse)
             return RESULT_OK;
-        }
-        else if (verify_result == dmHttpClient::RESULT_NOT_200_OK)
-        {
-            if (context.m_HttpStatus == 404)
-            {
-                return RESULT_UNSUPPORTED;
-            }
-            else
-            {
-                return RESULT_UNKNOWN_ERROR;
-            }
-        }
-        else
-        {
-            return RESULT_NETWORK_ERROR;
-        }
+        if (result == dmHttpClient::RESULT_NOT_200_OK && context.m_HttpStatus == 404)
+            return RESULT_UNSUPPORTED;
+        return result == dmHttpClient::RESULT_OK || result == dmHttpClient::RESULT_NOT_200_OK ? RESULT_UNKNOWN_ERROR : RESULT_NETWORK_ERROR;
     }
 
+    static void SetVerified(void* cache, const dmHttpCache::EntryInfo* entry)
+    {
+        dmHttpCache::EntryInfo current;
+        if (dmHttpCache::GetInfo((dmHttpCache::HCache)cache, entry->m_URI, &current) == dmHttpCache::RESULT_OK &&
+            current.m_IdentifierHash == entry->m_IdentifierHash)
+            dmHttpCache::SetVerified((dmHttpCache::HCache)cache, entry->m_URI, true);
+    }
+
+    Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, uint64_t max_age)
+    {
+        return VerifyCache(cache, uri, max_age, 0, SetVerified, cache);
+    }
 }

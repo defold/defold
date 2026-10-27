@@ -19,12 +19,17 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/http/http_cache.h>
+#include <dlib/http/http_client.h>
+#include <dlib/message.h>
 #include <dlib/socket.h>
 #include <dlib/testutil.h>
 #include <dlib/uri.h>
+#include <ddf/ddf.h>
+#include <resource/resource_ddf.h>
 
 #include "../providers/provider.h"
 #include "../providers/provider_private.h"
+#include "../resource.h"
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -334,6 +339,314 @@ TEST_F(HttpProviderCached, RejectInvalidRangeBeforeCaching)
             ASSERT_EQ(dmHttpCache::RESULT_NO_ENTRY, dmHttpCache::GetInfo(m_Cache, cache_key, &info));
         }
     }
+}
+
+class HttpProviderBatch : public HttpProviderCached
+{
+protected:
+    char m_MountPath[64];
+
+    static void ControlContent(dmHttpClient::HResponse, void* user_data, int, const void* data, uint32_t size,
+                               int32_t, uint32_t, uint32_t, uint32_t, const char*)
+    {
+        uint32_t* value = (uint32_t*)user_data;
+        for (uint32_t i = 0; i < size; ++i)
+            *value = *value * 10 + ((const char*)data)[i] - '0';
+    }
+
+    void Control(const char* command, uint32_t expected)
+    {
+        char url[128];
+        dmSnPrintf(url, sizeof(url), "http://localhost:%d", PORT);
+        dmURI::Parts uri;
+        dmURI::Parse(url, &uri);
+        uint32_t value = 0;
+        dmHttpClient::NewParams params;
+        params.m_Userdata = &value;
+        params.m_HttpContent = ControlContent;
+        dmHttpClient::HClient client = dmHttpClient::New(&params, &uri);
+        ASSERT_NE((void*)0, client);
+        char path[128];
+        dmSnPrintf(path, sizeof(path), "/__test/%s", command);
+        dmHttpClient::Result result = dmHttpClient::Get(client, path);
+        dmHttpClient::Delete(client);
+        ASSERT_EQ(dmHttpClient::RESULT_OK, result);
+        ASSERT_EQ(expected, value);
+    }
+
+    void Remount()
+    {
+        char url[128];
+        dmSnPrintf(url, sizeof(url), "http://localhost:%d%s", PORT, m_MountPath);
+        dmURI::Parts uri;
+        dmURI::Parse(url, &uri);
+        dmResourceProvider::HArchive archive;
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::CreateMount(m_Loader, &uri, 0, &archive));
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::Unmount(m_Archive));
+        m_Archive = archive;
+    }
+
+    void SetUp() override
+    {
+        Control("reset", 0);
+        HttpProviderCached::SetUp();
+        static uint32_t mount_id = 0;
+        dmSnPrintf(m_MountPath, sizeof(m_MountPath), "/build/batch-%u", ++mount_id);
+        Remount();
+    }
+
+    void Read(const char* path, uint32_t expected_size)
+    {
+        uint32_t size = 0;
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::GetFileSize(m_Archive, 0, path, &size));
+        ASSERT_EQ(expected_size, size);
+        uint8_t data[16];
+        memset(data, 0xff, sizeof(data));
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::ReadFile(m_Archive, 0, path, data, size));
+        for (uint32_t i = 0; i < expected_size; ++i)
+            ASSERT_EQ(i, data[i]);
+        ASSERT_EQ(0xff, data[expected_size]);
+    }
+};
+
+// One batch must validate only this mount, without changing the shared cache
+// policy, and eliminate both HEAD and GET for unchanged cached resources.
+TEST_F(HttpProviderBatch, WarmMount)
+{
+    Read("/unchanged.bin", 8);
+    Read("/changed.bin", 8);
+    Control("counts-reset", 0);
+    Remount();
+    Control("verifications", 1);
+    Control("entries", 2);
+    Read("/unchanged.bin", 8);
+    Read("/changed.bin", 8);
+    Control("requests", 0);
+    ASSERT_EQ(dmHttpCache::CONSISTENCY_POLICY_VERIFY, dmHttpCache::GetConsistencyPolicy(m_Cache));
+}
+
+// A new build must revalidate even with the same live cache, downloading only
+// the changed file and using its new size instead of old cached metadata.
+TEST_F(HttpProviderBatch, ChangedBuild)
+{
+    Read("/unchanged.bin", 8);
+    Read("/changed.bin", 8);
+    Control("change", 0);
+    Control("counts-reset", 0);
+    Remount();
+    Read("/unchanged.bin", 8);
+    Read("/changed.bin", 12);
+    Control("verifications", 1);
+    Control("requests", 2);
+}
+
+// Hot reload invalidates the requested file's mount-local validation while
+// unrelated resources remain available directly from the verified cache.
+TEST_F(HttpProviderBatch, InvalidateReloadedFile)
+{
+    Read("/unchanged.bin", 8);
+    Read("/changed.bin", 8);
+    Remount();
+    Control("change", 0);
+    Control("counts-reset", 0);
+    dmResourceProvider::InvalidateFileCache(m_Archive, dmHashString64("/changed.bin"), "/changed.bin");
+    Read("/unchanged.bin", 8);
+    Read("/changed.bin", 12);
+    Control("requests", 2);
+}
+
+// An unavailable, malformed, or incomplete batch response must never grant
+// cache trust, including records parsed before a later response failure.
+TEST_F(HttpProviderBatch, VerificationFallback)
+{
+    Read("/unchanged.bin", 8);
+    const char* modes[] = { "unavailable", "invalid", "truncated" };
+    for (uint32_t i = 0; i < sizeof(modes) / sizeof(modes[0]); ++i)
+    {
+        Control(modes[i], 0);
+        Control("counts-reset", 0);
+        Remount();
+        Read("/unchanged.bin", 8);
+        // The HTTP client retries a prematurely closed connection once.
+        Control("verifications", i == 2 ? 2 : 1);
+        Control("requests", 2);
+    }
+}
+
+// Preserve long and escaped cache keys through fragmented records with no
+// final newline in the editor's response.
+TEST_F(HttpProviderBatch, VerificationCacheKeys)
+{
+    char long_path[700];
+    memset(long_path, 'a', sizeof(long_path));
+    long_path[0] = '/';
+    long_path[sizeof(long_path) - 1] = '\0';
+    Read(long_path, 8);
+    Read("/space file.bin", 8);
+    Control("counts-reset", 0);
+    Remount();
+    Read(long_path, 8);
+    Read("/space file.bin", 8);
+    Control("entries", 2);
+    Control("requests", 0);
+}
+
+// Exact URL keys must not confuse a literal percent escape in one
+// filename with a different, changed resource containing a space.
+TEST_F(HttpProviderBatch, EscapedCacheKeys)
+{
+    Read("/space file.bin", 8);
+    Read("/space%20file.bin", 8);
+    Control("change", 0);
+    Control("counts-reset", 0);
+    Remount();
+    Read("/space%20file.bin", 8);
+    Control("requests", 0);
+    Read("/space file.bin", 12);
+    Control("requests", 2);
+}
+
+// ReloadResource must invalidate through the factory and mount layers even
+// for raw resources, which have no loaded resource descriptor to recreate.
+TEST_F(HttpProviderBatch, ReloadRawResource)
+{
+    Read("/changed.bin", 8);
+    char url[128];
+    dmSnPrintf(url, sizeof(url), "http://localhost:%d%s", PORT, m_MountPath);
+    dmResource::NewFactoryParams params;
+    params.m_HttpCache = m_Cache;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, url);
+    ASSERT_NE((void*)0, factory);
+
+    Control("counts-reset", 0);
+    void* data;
+    uint32_t size;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(factory, "/changed.bin", &data, &size));
+    ASSERT_EQ(8U, size);
+    free(data);
+    Control("requests", 0);
+
+    Control("change", 0);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::ReloadResource(factory, "/changed.bin", 0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(factory, "/changed.bin", &data, &size));
+    ASSERT_EQ(12U, size);
+    ASSERT_EQ(11U, ((uint8_t*)data)[11]);
+    free(data);
+    Control("requests", 2);
+    dmResource::DeleteFactory(factory);
+}
+
+struct ReloadBatchContext
+{
+    dmResource::HFactory m_Factory;
+    dmResource::Result   m_ReadResult;
+    uint32_t            m_CallbackCount;
+    uint32_t            m_Size;
+    uint8_t             m_LastByte;
+};
+
+static dmResource::Result ReloadBatchCreate(const dmResource::ResourceCreateParams* params)
+{
+    ResourceDescriptorSetResource(params->m_Resource, params->m_Context);
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result ReloadBatchDestroy(const dmResource::ResourceDestroyParams*)
+{
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result ReloadBatchRecreate(const dmResource::ResourceRecreateParams*)
+{
+    return dmResource::RESULT_OK;
+}
+
+static void ReloadBatchCallback(const dmResource::ResourceReloadedParams* params)
+{
+    ReloadBatchContext* context = (ReloadBatchContext*)params->m_UserData;
+    ++context->m_CallbackCount;
+    void* data = 0;
+    context->m_ReadResult = dmResource::GetRaw(context->m_Factory, "/changed.bin", &data, &context->m_Size);
+    if (context->m_ReadResult == dmResource::RESULT_OK && context->m_Size)
+        context->m_LastByte = ((uint8_t*)data)[context->m_Size - 1];
+    free(data);
+}
+
+// A reload callback must see changed raw resources later in the same message,
+// including string offsets above 255, while unrelated resources remain cached.
+TEST_F(HttpProviderBatch, InvalidateBatchBeforeReloadCallbacks)
+{
+    char driver_path[256];
+    memset(driver_path, 'a', sizeof(driver_path));
+    driver_path[0] = '/';
+    dmStrlCpy(driver_path + sizeof(driver_path) - sizeof(".foo"), ".foo", sizeof(".foo"));
+    Read(driver_path, 8);
+    Read("/changed.bin", 8);
+    Read("/unchanged.bin", 8);
+    char url[128];
+    dmSnPrintf(url, sizeof(url), "http://localhost:%d%s", PORT, m_MountPath);
+    dmResource::NewFactoryParams params;
+    params.m_HttpCache = m_Cache;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, url);
+    ASSERT_NE((void*)0, factory);
+
+    ReloadBatchContext context = {};
+    context.m_Factory = factory;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "foo", &context, 0, ReloadBatchCreate, 0, ReloadBatchDestroy, ReloadBatchRecreate));
+    dmResource::RegisterResourceReloadedCallback(factory, ReloadBatchCallback, &context);
+    void* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(factory, driver_path, &resource));
+
+    Control("change", 0);
+    Control("counts-reset", 0);
+    const char* paths[] = { driver_path, "/changed.bin" };
+    dmResourceDDF::Reload reload = {};
+    reload.m_Resources.m_Data = paths;
+    reload.m_Resources.m_Count = sizeof(paths) / sizeof(paths[0]);
+    dmArray<uint8_t> encoded;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&reload, dmResourceDDF::Reload::m_DDFDescriptor, encoded));
+    void* message;
+    uint32_t message_size;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(encoded.Begin(), encoded.Size(), dmResourceDDF::Reload::m_DDFDescriptor, &message,
+                                                dmDDF::OPTION_OFFSET_POINTERS, &message_size));
+    dmMessage::URL receiver = {};
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket("@resource", &receiver.m_Socket));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmResourceDDF::Reload::m_DDFHash, 0,
+                                                 (uintptr_t)dmResourceDDF::Reload::m_DDFDescriptor, message, message_size, 0));
+    dmDDF::FreeMessage(message);
+    dmResource::UpdateFactory(factory);
+
+    void* data;
+    uint32_t size;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(factory, "/unchanged.bin", &data, &size));
+    ASSERT_EQ(8U, size);
+    free(data);
+    dmResource::UnregisterResourceReloadedCallback(factory, ReloadBatchCallback, &context);
+    dmResource::Release(factory, resource);
+    dmResource::DeleteFactory(factory);
+
+    ASSERT_EQ(1U, context.m_CallbackCount);
+    ASSERT_EQ(dmResource::RESULT_OK, context.m_ReadResult);
+    ASSERT_EQ(12U, context.m_Size);
+    ASSERT_EQ(11U, context.m_LastByte);
+    Control("requests", 4);
+}
+
+// Replacing an entry after validation must not transfer trust to its new ETag.
+TEST_F(HttpProviderBatch, ReplacedCacheEntry)
+{
+    Read("/unchanged.bin", 8);
+    Remount();
+    char key[256];
+    dmSnPrintf(key, sizeof(key), "http://localhost:%d%s/unchanged.bin", PORT, m_MountPath);
+    dmHttpCache::HCacheCreator creator;
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Begin(m_Cache, key, "unverified-tag", 0, 0, 0, 1, &creator));
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Add(m_Cache, creator, "x", 1));
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::End(m_Cache, creator));
+    Control("counts-reset", 0);
+    Read("/unchanged.bin", 8);
+    Control("requests", 2);
 }
 
 

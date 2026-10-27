@@ -171,6 +171,15 @@ namespace dmHttpCache
 
 namespace dmHttpCacheVerify
 {
+    Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, uint64_t max_age,
+                       const char* cache_key_prefix, FVerifiedCallback callback, void* user_data)
+    {
+        (void) cache_key_prefix;
+        (void) callback;
+        (void) user_data;
+        return VerifyCache(cache, uri, max_age);
+    }
+
     Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, uint64_t max_age)
     {
         (void) cache;

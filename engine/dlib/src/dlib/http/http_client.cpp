@@ -1260,7 +1260,7 @@ bail:
     }
 
 #if !defined(DM_NO_HTTP_CACHE)
-    static Result HandleCachedVerified(HClient client, const dmHttpCache::EntryInfo* info)
+    static Result HandleCachedVerified(HClient client, const char* etag, bool method_is_head)
     {
         Response response(client);
         client->m_HttpContent(&response, client->m_Userdata, 304, 0, 0, 0, 0, 0, 0, 0);
@@ -1273,23 +1273,31 @@ bail:
         uint32_t range_end;
         uint32_t document_size;
 
-        dmHttpCache::Result cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_CacheKey, info->m_ETag, &file, &file_size, &checksum,
+        dmHttpCache::Result cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_CacheKey, etag, &file, &file_size, &checksum,
                                                             &range_start, &range_end, &document_size);
         if (cache_result == dmHttpCache::RESULT_OK)
         {
             // NOTE: We have an extra byte for null-termination so no buffer overrun here.
-            size_t nread;
-            do
+            if (method_is_head)
             {
-                nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
-                client->m_Buffer[nread] = '\0';
-                client->m_HttpContent(&response, client->m_Userdata, 304, client->m_Buffer, nread, file_size,
-                                      range_start, range_end, document_size,
-                                      "GET");
+                client->m_HttpContent(&response, client->m_Userdata, 304, 0, 0, file_size,
+                                      range_start, range_end, document_size, "HEAD");
             }
-            while (nread > 0);
-            dmHttpCache::Release(client->m_HttpCache, client->m_CacheKey, info->m_ETag, file);
-            return RESULT_NOT_200_OK;
+            else
+            {
+                size_t nread;
+                do
+                {
+                    nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
+                    client->m_Buffer[nread] = '\0';
+                    client->m_HttpContent(&response, client->m_Userdata, 304, client->m_Buffer, nread, file_size,
+                                          range_start, range_end, document_size, "GET");
+                }
+                while (nread > 0);
+            }
+            bool read_error = ferror(file) != 0;
+            dmHttpCache::Release(client->m_HttpCache, client->m_CacheKey, etag, file);
+            return read_error ? RESULT_IO_ERROR : RESULT_NOT_200_OK;
         }
         else
         {
@@ -1333,7 +1341,7 @@ bail:
                     // We have a cache and trust the content of the cache
                     // OR
                     // the entry is valid in terms of max-age
-                    r = HandleCachedVerified(client, &info);
+                    r = HandleCachedVerified(client, info.m_ETag, false);
                     if (r == RESULT_NOT_200_OK) {
                         return r;
                     }
@@ -1383,6 +1391,21 @@ bail:
             Result r = DoRequest(client, path, method);
             return r;
         }
+    }
+
+    Result RequestCached(HClient client, const char* method, const char* etag)
+    {
+        bool method_is_head = strcmp(method, "HEAD") == 0;
+        if (!method_is_head && strcmp(method, "GET") != 0)
+            return RESULT_INVAL;
+#if !defined(DM_NO_HTTP_CACHE)
+        if (client->m_HttpCache && !client->m_IgnoreCache)
+            return HandleCachedVerified(client, etag, method_is_head);
+#else
+        (void) client;
+        (void) etag;
+#endif
+        return RESULT_IO_ERROR;
     }
 
     void GetStatistics(HClient client, Statistics* statistics)

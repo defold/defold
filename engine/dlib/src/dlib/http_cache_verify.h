@@ -55,6 +55,14 @@ namespace dmHttpCacheVerify
      * @return RESULT_OK on success
      */
     Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, uint64_t max_age);
+
+    typedef void (*FVerifiedCallback)(void* user_data, const dmHttpCache::EntryInfo* entry);
+
+    // Verify complete-file entries under an exact URL prefix (ending in '/').
+    // Callbacks receive snapshots only after a complete successful response.
+    // This overload does not change the shared cache's verification flags or policy.
+    Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, uint64_t max_age,
+                       const char* cache_key_prefix, FVerifiedCallback callback, void* user_data);
 }
 
 #endif

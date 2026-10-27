@@ -22,6 +22,7 @@
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [util.coll :as coll]
             [util.http-client :as http]
             [util.http-server :as http-server])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]))
@@ -63,3 +64,27 @@
               paths (string/split-lines (:body res))]
           (is (> (count paths) 0))
           (is (= (count paths) (count (keys etags)))))))))
+
+;; Batch validation must echo exact cache keys and reject missing or stale tags,
+;; so the engine cannot trust another file or lose encoded URL characters.
+(deftest etag-cache-keys-test
+  (test-util/with-loaded-project project-path
+    (workspace/etags! workspace {"/folder/a b.bin" "tag-a"
+                                 "/folder/a%20b.bin" "tag-percent"
+                                 "/other.bin" "tag-b"})
+    (let [keys ["http://localhost:8000/build/folder/a%20b.bin"
+                "https://localhost:8443/build/other.bin"
+                "/build/other.bin"
+                "http://localhost:8000/build/folder/a%2520b.bin"]
+          request (coll/join-to-string "\n"
+                                       [(str (keys 0) " tag-a")
+                                        (str (keys 1) " tag-b")
+                                        (str (keys 2) " tag-b")
+                                        (str (keys 3) " tag-percent")
+                                        "http://localhost:8000/build/other.bin stale"
+                                        "http://localhost:8000/build/missing.bin"
+                                        "http://localhost:8000/build/missing.bin "
+                                        "http://localhost:8000/build-other/other.bin tag-b"
+                                        "http://localhost:8000/build/../other.bin tag-b"
+                                        "invalid%url tag-b"])]
+      (is (= keys (#'hot-reload/body->valid-entries workspace request))))))

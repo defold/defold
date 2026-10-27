@@ -18,6 +18,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/hashtable.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/sys.h>
@@ -54,6 +55,7 @@ struct HttpProviderContext
     dmHttpClient::HClient m_HttpClient;
     dmHttpCache::HCache   m_HttpCache;
     HttpRead*            m_Read; // Only set during a synchronous request.
+    dmHashTable64<uint64_t> m_VerifiedEntries; // Cache key -> validated URI/ETag identity, owned by this mount.
 };
 
 static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
@@ -152,15 +154,23 @@ static void DeleteHttpArchiveInternal(dmResourceProvider::HArchiveInternal _arch
     delete archive;
 }
 
+static void OnCacheEntryVerified(void* user_data, const dmHttpCache::EntryInfo* entry)
+{
+    HttpProviderContext* archive = (HttpProviderContext*)user_data;
+    if (archive->m_VerifiedEntries.Full())
+        archive->m_VerifiedEntries.SetCapacity(archive->m_VerifiedEntries.Capacity() + 128);
+    archive->m_VerifiedEntries.Put(dmHashString64(entry->m_URI), entry->m_IdentifierHash);
+}
+
 static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvider::HArchive base_archive, dmResourceProvider::HArchiveInternal* out_archive)
 {
     if (!MatchesUri(uri))
         return dmResourceProvider::RESULT_NOT_SUPPORTED;
 
     HttpProviderContext* archive = new HttpProviderContext;
-    memset(archive, 0, sizeof(HttpProviderContext));
     memcpy(&archive->m_BaseUri, uri, sizeof(dmURI::Parts));
     archive->m_HttpCache = g_HttpCache;
+    archive->m_Read = 0;
 
     dmHttpClient::NewParams http_params;
     http_params.m_HttpContent = &HttpContent;
@@ -174,6 +184,21 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
         dmLogError("Failed to connect to: %s", CreateEncodedUri(uri, "", buffer, sizeof(buffer)));
         DeleteHttpArchiveInternal(archive);
         return dmResourceProvider::RESULT_ERROR_UNKNOWN;
+    }
+
+    if (archive->m_HttpCache)
+    {
+        char path[dmResource::RESOURCE_PATH_MAX * 2];
+        CreateEncodedUri(uri, "/", path, sizeof(path));
+        char prefix[dmURI::MAX_URI_LEN];
+        if (dmHttpClient::GetURI(archive->m_HttpClient, path, prefix, sizeof(prefix)) == dmHttpClient::RESULT_OK &&
+            dmStrlCat(prefix, prefix[strlen(prefix) - 1] == '/' ? "" : "/", sizeof(prefix)) < sizeof(prefix))
+        {
+            // Only this mount may trust these snapshots. Ordinary HTTP clients
+            // sharing the cache retain their normal revalidation policy.
+            dmHttpCacheVerify::VerifyCache(archive->m_HttpCache, &archive->m_BaseUri, 5 * 24 * 60 * 60,
+                                           prefix, OnCacheEntryVerified, archive);
+        }
     }
 
     *out_archive = (dmResourceProvider::HArchiveInternal)archive;
@@ -210,18 +235,32 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
     CreateEncodedUri(&archive->m_BaseUri, path, encoded_uri, sizeof(encoded_uri));
 
     char cache_key[dmURI::MAX_URI_LEN];
-    dmHttpClient::GetURI(archive->m_HttpClient, path, cache_key, sizeof(cache_key));
+    if (dmHttpClient::GetURI(archive->m_HttpClient, encoded_uri, cache_key, sizeof(cache_key)) != dmHttpClient::RESULT_OK)
+        return dmResourceProvider::RESULT_INVAL_ERROR;
 
     if (partial)
     {
         char range[128];
         dmSnPrintf(range, sizeof(range), "=bytes=%u-%u", offset, offset + capacity - 1);
-        dmStrlCat(cache_key, range, sizeof(cache_key));
+        if (dmStrlCat(cache_key, range, sizeof(cache_key)) >= sizeof(cache_key))
+            return dmResourceProvider::RESULT_INVAL_ERROR;
     }
     dmHttpClient::SetCacheKey(archive->m_HttpClient, cache_key);
 
     archive->m_Read = &read;
-    dmHttpClient::Result http_result = dmHttpClient::Request(archive->m_HttpClient, method, encoded_uri);
+    dmHttpClient::Result http_result = dmHttpClient::RESULT_IO_ERROR;
+    uint64_t* verified = archive->m_VerifiedEntries.Get(dmHashString64(cache_key));
+    if (verified)
+    {
+        dmHttpCache::EntryInfo info;
+        if (dmHttpCache::GetInfo(archive->m_HttpCache, cache_key, &info) == dmHttpCache::RESULT_OK &&
+            info.m_IdentifierHash == *verified)
+            http_result = dmHttpClient::RequestCached(archive->m_HttpClient, method, info.m_ETag);
+        if (http_result != dmHttpClient::RESULT_NOT_200_OK)
+            archive->m_VerifiedEntries.Erase(dmHashString64(cache_key));
+    }
+    if (http_result != dmHttpClient::RESULT_NOT_200_OK)
+        http_result = dmHttpClient::Request(archive->m_HttpClient, method, encoded_uri);
     archive->m_Read = 0;
 
     bool http_result_ok = http_result == dmHttpClient::RESULT_OK ||
@@ -311,6 +350,21 @@ static dmResourceProvider::Result FinalizeArchiveLoaderHttp(dmResourceProvider::
     return dmResourceProvider::RESULT_OK;
 }
 
+static void InvalidateFileCache(dmResourceProvider::HArchiveInternal _archive, dmhash_t path_hash, const char* path)
+{
+    (void)path_hash;
+    HttpProviderContext* archive = (HttpProviderContext*)_archive;
+    char encoded_uri[dmResource::RESOURCE_PATH_MAX * 2];
+    CreateEncodedUri(&archive->m_BaseUri, path, encoded_uri, sizeof(encoded_uri));
+    char key[dmURI::MAX_URI_LEN];
+    if (dmHttpClient::GetURI(archive->m_HttpClient, encoded_uri, key, sizeof(key)) == dmHttpClient::RESULT_OK)
+    {
+        dmhash_t key_hash = dmHashString64(key);
+        if (archive->m_VerifiedEntries.Get(key_hash))
+            archive->m_VerifiedEntries.Erase(key_hash);
+    }
+}
+
 static void SetupArchiveLoaderHttp(dmResourceProvider::ArchiveLoader* loader)
 {
     loader->m_CanMount          = MatchesUri;
@@ -319,6 +373,7 @@ static void SetupArchiveLoaderHttp(dmResourceProvider::ArchiveLoader* loader)
     loader->m_GetFileSize       = GetFileSize;
     loader->m_ReadFile          = ReadFile;
     loader->m_ReadFilePartial   = ReadFilePartial;
+    loader->m_InvalidateFileCache = InvalidateFileCache;
 }
 
 DM_DECLARE_ARCHIVE_LOADER(ResourceProviderHttp, "http", SetupArchiveLoaderHttp, InitializeArchiveLoaderHttp, FinalizeArchiveLoaderHttp);

@@ -15,6 +15,7 @@
 (ns editor.hot-reload
   (:require [clojure.string :as string]
             [editor.workspace :as workspace]
+            [util.coll :as coll]
             [util.http-server :as http-server]
             [util.path :as path])
   (:import [java.net URI URISyntaxException]))
@@ -32,19 +33,20 @@
       (catch URISyntaxException _ nil))))
 
 (defn- body->valid-entries [workspace body-string]
-  (into []
-        (comp
-          (keep (fn [line]
-                  (let [[url-string etag] (string/split line #" ")]
-                    (when-some [url (some-> url-string string->url)]
-                      [url etag]))))
-          (keep (fn [[^URI url etag]]
-                  (let [path (.. url normalize getPath)]
-                    (when (string/starts-with? path url-prefix)
-                      (let [proj-path (subs path (count url-prefix))]
-                        (when (= etag (workspace/etag workspace proj-path))
-                          path)))))))
-        (string/split-lines body-string)))
+  (coll/into-> (string/split-lines body-string) []
+    (keep (fn [line]
+            (let [[url-string etag] (string/split line #" " 2)]
+              (when-let [url (string->url url-string)]
+                [url-string url etag]))))
+    (keep (fn [[url-string ^URI url etag]]
+            (when-let [path (.. url normalize getPath)]
+              (when (and (not (string/blank? etag))
+                         (string/starts-with? path (str url-prefix "/")))
+                (let [proj-path (subs path (count url-prefix))]
+                  (when (= etag (workspace/etag workspace proj-path))
+                    ;; Preserve the cache key, including origin and URL
+                    ;; escaping. The engine validates exact keys.
+                    url-string))))))))
 
 (defn routes [workspace]
   (let [build-path (.toPath (workspace/build-path workspace))]
@@ -65,4 +67,4 @@
                (http-server/response 200 (->> body
                                               slurp
                                               (body->valid-entries workspace)
-                                              (string/join "\n"))))}}))
+                                              (coll/join-to-string "\n"))))}}))

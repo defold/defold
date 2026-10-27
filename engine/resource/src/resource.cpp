@@ -452,14 +452,25 @@ static void Dispatch(dmMessage::Message* message, void* user_ptr)
         dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
         if (descriptor == dmResourceDDF::Reload::m_DDFDescriptor)
         {
-            // NOTE use offsets instead of reading via ddf message
+            // DDF stores pointer-sized offsets relative to the start of the message.
             // Message: | offset to string-offsets | count | string offset | string offset | ... | string #1 | string #2 | ... |
             dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*) message->m_Data;
             uint32_t count = reload_resources->m_Resources.m_Count;
-            uint8_t* str_offset_cursor = (uint8_t*)((uintptr_t)reload_resources + *(uint32_t*)reload_resources);
+            const char* message_base = (const char*)reload_resources;
+            const uintptr_t* resource_offsets = (const uintptr_t*)(message_base + (uintptr_t)reload_resources->m_Resources.m_Data);
+            // Reload callbacks can read other resources later in this message.
+            // Invalidate the entire batch before invoking any of those callbacks.
             for (uint32_t i = 0; i < count; ++i)
             {
-                const char* resource = (const char *) (uintptr_t)reload_resources + *(str_offset_cursor + i * sizeof(uint64_t));
+                const char* resource = message_base + resource_offsets[i];
+                char canonical_path[RESOURCE_PATH_MAX];
+                GetCanonicalPath(resource, canonical_path, sizeof(canonical_path));
+                dmResourceMounts::InvalidateFileCache(factory->m_Mounts, dmHashString64(canonical_path), canonical_path);
+            }
+
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                const char* resource = message_base + resource_offsets[i];
                 ResourceDescriptor* resource_descriptor;
                 ReloadResource(factory, resource, &resource_descriptor);
             }
@@ -1102,6 +1113,7 @@ Result ReloadResource(HFactory factory, const char* name, HResourceDescriptor* o
 {
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
+    dmResourceMounts::InvalidateFileCache(factory->m_Mounts, dmHashString64(canonical_path), canonical_path);
     Result result = DoRecreateResource(factory, dmHashString64(canonical_path), name, 0, 0, 0, out_descriptor);
 
     switch (result)

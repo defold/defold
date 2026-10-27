@@ -268,6 +268,11 @@ namespace dmHttpClient
      */
     Result Request(HClient client, const char* method, const char* path);
 
+    // Replay GET or HEAD from the current cache key without a network request.
+    // The caller must have validated this exact ETag. Missing entries return
+    // RESULT_IO_ERROR so the caller can fall back to a regular request.
+    Result RequestCached(HClient client, const char* method, const char* etag);
+
     /**
      * Write data. Called from HttpWrite-callback to write POST-data
      * @param response Response handle
