@@ -167,6 +167,7 @@ def install_linux(args):
     call("update-alternatives --display llvm-ar")
 
     packages = [
+        f"llvm-{clang_version}", # llvm-symbolizer for sanitizer stack traces
         "autoconf",
         "automake",
         "build-essential",

@@ -131,6 +131,7 @@ jobs:
       {
         name: 'MSAN',
         id: msan,
+        env: { MSAN_SYMBOLIZER_PATH: '/usr/lib/llvm-20/bin/llvm-symbolizer' },
         run: 'ci/ci.sh --platform=x86_64-linux --with-msan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
@@ -210,6 +211,7 @@ jobs:
       {
         name: 'MSAN',
         id: msan,
+        env: { MSAN_SYMBOLIZER_PATH: '/usr/lib/llvm-20/bin/llvm-symbolizer' },
         run: 'ci/ci.sh --platform=arm64-linux --with-msan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
