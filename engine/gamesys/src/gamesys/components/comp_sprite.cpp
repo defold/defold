@@ -213,7 +213,7 @@ namespace dmGameSystem
         dmArray<void*>                      m_DeferredReleases;
         uint8_t                             m_Is16BitIndex : 1;
         uint8_t                             m_ReallocBuffers : 1;
-        uint8_t                             m_DrawPending : 1;
+        uint8_t                             m_DrawPending : 1; // Between the update and the end of the frame
     };
 
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
@@ -372,7 +372,7 @@ namespace dmGameSystem
         return result;
     }
 
-    // A sprite renders from the data resolved in the update, so resources it replaces after the update are kept until drawn
+    // A sprite renders from the data resolved in the update, so resources it replaces after the update are kept until the end of the frame
     static void ReleaseOverrideResource(dmResource::HFactory factory, SpriteWorld* sprite_world, const SpriteComponent* component, void* resource)
     {
         if (sprite_world->m_DrawPending && component->m_RenderItemEnabled)
@@ -2296,7 +2296,6 @@ namespace dmGameSystem
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
 
-        ReleaseDeferredResources(sprite_context->m_Factory, world);
         world->m_DrawPending = 1;
 
         UpdateAnimationDataCache(world);
@@ -2397,6 +2396,14 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    dmGameObject::UpdateResult CompSpritePostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
+    {
+        SpriteWorld* world = (SpriteWorld*)params.m_World;
+        ReleaseDeferredResources(((SpriteContext*)params.m_Context)->m_Factory, world);
+        world->m_DrawPending = 0;
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
         SpriteWorld* world = (SpriteWorld*) params.m_UserData;
@@ -2427,7 +2434,6 @@ namespace dmGameSystem
 
                         world->m_DispatchCount++;
                     }
-                    world->m_DrawPending = 0;
                 }
                 break;
             default:

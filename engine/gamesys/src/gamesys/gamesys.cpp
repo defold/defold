@@ -298,7 +298,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("spritec", 1100, sprite_context,
                 CompSpriteNewWorld, CompSpriteDeleteWorld,
                 CompSpriteCreate, CompSpriteDestroy, 0, 0, CompSpriteAddToUpdate, CompSpriteGetComponent,
-                CompSpriteUpdate, CompSpriteLateUpdate, 0, CompSpriteRender, 0, CompSpriteOnMessage, 0,
+                CompSpriteUpdate, CompSpriteLateUpdate, 0, CompSpriteRender, CompSpritePostUpdate, CompSpriteOnMessage, 0,
                 CompSpriteOnReload, CompSpriteGetProperty, CompSpriteSetProperty,
                 0, CompSpriteIterProperties,
                 1);

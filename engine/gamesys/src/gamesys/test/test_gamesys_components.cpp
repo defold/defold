@@ -993,11 +993,12 @@ TEST_F(SpriteTest, RecreatedRuntimeAtlasDoesNotReuseStaleAnimationData)
 
 static const char* TRIMMED_ATLAS_PATH = "/sprite/image_stale_animation_id_in_range.a.texturesetc";
 
+// Same order as the engine frame
 static void UpdateAndRender(dmGameObject::HCollection collection, dmGameObject::UpdateContext* update_context, dmRender::HRenderContext render_context)
 {
     ASSERT_TRUE(dmGameObject::Update(collection, update_context));
-    ASSERT_TRUE(dmGameObject::PostUpdate(collection));
     RenderCollection(render_context, collection);
+    ASSERT_TRUE(dmGameObject::PostUpdate(collection));
 }
 
 static uint32_t GetSpriteVertexCount(void* sprite_component, uint32_t* vertex_stride = 0)
@@ -1078,12 +1079,12 @@ TEST_F(SpriteTest, SetImageAfterUpdateAppliesNextFrame)
     UpdateAndRender(m_Collection, &m_UpdateContext, m_RenderContext);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     uint32_t vertex_stride;
     ASSERT_EQ(4u, GetSpriteVertexCount(sprite_component, &vertex_stride));
 
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, dmHashString64("image"), dmHashString64(TRIMMED_ATLAS_PATH)));
     RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_EQ(4u, GetSpriteVertexCount(sprite_component));
     ASSERT_EQ(4u * vertex_stride, GetSpriteWorldVertexDataSize(m_Collection));
 
@@ -1120,23 +1121,23 @@ TEST_F(SpriteTest, ImageReloadedAfterUpdateIsNotRenderedStale)
     ASSERT_GT(trimmed_vertex_count, 4u);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_TRUE(dmGameSystem::IsSpriteComponentRenderable(sprite_component));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, TRIMMED_ATLAS_PATH, 0));
     ASSERT_FALSE(dmGameSystem::IsSpriteComponentRenderable(sprite_component));
     RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
     UpdateAndRender(m_Collection, &m_UpdateContext, m_RenderContext);
     ASSERT_TRUE(dmGameSystem::IsSpriteComponentRenderable(sprite_component));
     ASSERT_EQ(trimmed_vertex_count * vertex_stride, GetSpriteWorldVertexDataSize(m_Collection));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, original_image));
     ASSERT_TRUE(dmGameSystem::IsSpriteComponentRenderable(sprite_component));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, TRIMMED_ATLAS_PATH, 0));
     ASSERT_FALSE(dmGameSystem::IsSpriteComponentRenderable(sprite_component));
     RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
     UpdateAndRender(m_Collection, &m_UpdateContext, m_RenderContext);
     ASSERT_TRUE(dmGameSystem::IsSpriteComponentRenderable(sprite_component));
@@ -1148,11 +1149,11 @@ TEST_F(SpriteTest, ImageReloadedAfterUpdateIsNotRenderedStale)
 }
 
 /*
- * Verifies that an atlas replaced after the sprite update stays loaded until it has been
- * drawn, since the sprite renders from it until the next update, and that an atlas
- * replaced between the draw and the next update is released right away.
+ * Verifies that an atlas replaced after the sprite update stays loaded until the end of the
+ * frame, since the sprite renders from it in that frame, and that an atlas replaced between
+ * frames is released right away.
  */
-TEST_F(SpriteTest, ReplacedImageIsReleasedAfterDraw)
+TEST_F(SpriteTest, ReplacedImageIsReleasedAtEndOfFrame)
 {
     dmhash_t sprite_comp_id = dmHashString64("sprite");
     dmhash_t image_prop_id = dmHashString64("image");
@@ -1167,16 +1168,13 @@ TEST_F(SpriteTest, ReplacedImageIsReleasedAfterDraw)
     UpdateAndRender(m_Collection, &m_UpdateContext, m_RenderContext);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, original_image));
     dmResource::Release(m_Factory, resource);
     ASSERT_EQ(1u, dmResource::GetRefCount(m_Factory, trimmed_atlas));
     RenderCollection(m_RenderContext, m_Collection);
     ASSERT_EQ(1u, dmResource::GetRefCount(m_Factory, trimmed_atlas));
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ(0u, dmResource::GetRefCount(m_Factory, trimmed_atlas));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(0u, dmResource::GetRefCount(m_Factory, trimmed_atlas));
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, TRIMMED_ATLAS_PATH, &resource));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, trimmed_atlas));
@@ -1184,6 +1182,28 @@ TEST_F(SpriteTest, ReplacedImageIsReleasedAfterDraw)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, original_image));
     dmResource::Release(m_Factory, resource);
     ASSERT_EQ(0u, dmResource::GetRefCount(m_Factory, trimmed_atlas));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+/*
+ * Verifies that a runtime atlas replaced from the script update can be released and created
+ * again at the same path when frames are updated without being drawn. The replaced atlas used
+ * to be kept until the sprite world was drawn.
+ */
+TEST_F(SpriteTest, RuntimeAtlasRecreatedWithoutDraw)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/runtime_atlas_recreate.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    }
+    UpdateAndRender(m_Collection, &m_UpdateContext, m_RenderContext);
+    AssertSpriteShowsRuntimeAtlasFrame(m_Factory, m_Collection, GetRuntimeAtlasFrame(go));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
