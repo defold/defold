@@ -51,7 +51,6 @@ _CMAKE_FEATURE_FLAG_MAP = {
     '--with-hwasan': 'WITH_HWASAN',
     '--with-ubsan': 'WITH_UBSAN',
     '--with-tsan': 'WITH_TSAN',
-    '--with-valgrind': 'WITH_VALGRIND',
     '--with-openal': 'WITH_OPENAL',
     '--with-opengl': 'WITH_OPENGL',
     '--with-vulkan': 'WITH_VULKAN',
