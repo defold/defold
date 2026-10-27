@@ -41,10 +41,10 @@ struct FontViewerMacOSInput
     bool    m_SelectAllDown;
 };
 
-void FontViewerMacOSInstallInput(HWindow window,
-                                 FontViewerKeyboardCharCallback char_callback,
+void FontViewerMacOSInstallInput(HWindow                              window,
+                                 FontViewerKeyboardCharCallback       char_callback,
                                  FontViewerKeyboardMarkedTextCallback marked_text_callback,
-                                 void* user_data);
+                                 void*                                user_data);
 void FontViewerMacOSPollInput(HWindow window, uint32_t layout_width, uint32_t layout_height, FontViewerMacOSInput* input);
 void FontViewerMacOSSetClipboard(HWindow window, const char* text, uint32_t text_length);
 void FontViewerMacOSSetLinkCursor(HWindow window, bool link_cursor);

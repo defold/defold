@@ -41,8 +41,8 @@ static void AssertText(HMarkup markup, const uint32_t* expected, uint32_t expect
 
 TEST(Markup, PlainText)
 {
-    const char text[] = "Hello";
-    HMarkup markup = 0;
+    const char  text[] = "Hello";
+    HMarkup     markup = 0;
     MarkupError error;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, &error));
     ASSERT_NE((HMarkup)0, markup);
@@ -58,8 +58,8 @@ TEST(Markup, PlainText)
 
 TEST(Markup, NestedTagsAndAttributes)
 {
-    const char text[] = "A<wave amplitude=4>B<gradient left=#FF00FF right='#FFFFFF'>CD</gradient>E</wave>F";
-    HMarkup markup = 0;
+    const char  text[] = "A<wave amplitude=4>B<gradient left=#FF00FF right='#FFFFFF'>CD</gradient>E</wave>F";
+    HMarkup     markup = 0;
     MarkupError error;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, &error));
 
@@ -104,7 +104,7 @@ TEST(Markup, NestedTagsAndAttributes)
 TEST(Markup, ShorthandAndQuotedValue)
 {
     const char text[] = "<color=red>R</color><size=\"14\">G</size>";
-    HMarkup markup = 0;
+    HMarkup    markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, 0));
 
     const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
@@ -123,7 +123,7 @@ TEST(Markup, ShorthandAndQuotedValue)
 TEST(Markup, EntitiesAndUtf8)
 {
     const char text[] = "&lt;Hej&gt; \xF0\x9F\x98\x80 &amp;";
-    HMarkup markup = 0;
+    HMarkup    markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, 0));
     const uint32_t expected[] = { '<', 'H', 'e', 'j', '>', ' ', 0x1f600, ' ', '&' };
     AssertText(markup, expected, DM_ARRAY_SIZE(expected));
@@ -138,8 +138,8 @@ TEST(Markup, PlainTextWithLiteralAmpersand)
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
     {
         const uint32_t length = (uint32_t)strlen(cases[i]);
-        HMarkup markup = 0;
-        MarkupError error = {};
+        HMarkup        markup = 0;
+        MarkupError    error = {};
         ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(cases[i], length, &markup, &error));
         ASSERT_NE((HMarkup)0, markup);
         ASSERT_EQ(MARKUP_ERROR_NONE, error.m_Type);
@@ -161,8 +161,8 @@ TEST(Markup, PlainTextWithLiteralAmpersand)
 // Verifies that literal ampersands before and after a color tag preserve rich text, including a trailing escape prefix (issue #13374).
 TEST(Markup, LiteralAmpersandPreservesFollowingTag)
 {
-    const char text[] = "A & <color=#FF0000>B</color>&a";
-    HMarkup markup = 0;
+    const char  text[] = "A & <color=#FF0000>B</color>&a";
+    HMarkup     markup = 0;
     MarkupError error = {};
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, &error));
     ASSERT_NE((HMarkup)0, markup);
@@ -198,8 +198,8 @@ TEST(Markup, LiteralAmpersandPreservesFollowingTag)
 // Verifies that literal ampersands inside and after a tag coexist with entity decoding and UTF-8 (issue #13374).
 TEST(Markup, LiteralAmpersandsAndEntities)
 {
-    const char text[] = "<color=#FF0000>R&D&amp;</color>&lt;&gt;&apos;&quot;&\xF0\x9F\x98\x80&";
-    HMarkup markup = 0;
+    const char  text[] = "<color=#FF0000>R&D&amp;</color>&lt;&gt;&apos;&quot;&\xF0\x9F\x98\x80&";
+    HMarkup     markup = 0;
     MarkupError error = {};
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, &error));
     ASSERT_EQ(MARKUP_ERROR_NONE, error.m_Type);
@@ -227,7 +227,7 @@ TEST(Markup, EntityPrefixesAreLiteral)
         const uint32_t entity_length = (uint32_t)strlen(entities[i]);
         for (uint32_t length = 2; length < entity_length; ++length)
         {
-            HMarkup markup = 0;
+            HMarkup     markup = 0;
             MarkupError error = {};
             ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(entities[i], length, &markup, &error));
             ASSERT_EQ(MARKUP_ERROR_NONE, error.m_Type);
@@ -376,7 +376,7 @@ TEST(Markup, BrokenMarkup)
 
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
     {
-        HMarkup markup = (HMarkup)(uintptr_t)1;
+        HMarkup     markup = (HMarkup)(uintptr_t)1;
         MarkupError error;
         ASSERT_EQ(cases[i].m_Result, MarkupCreate(cases[i].m_Text, strlen(cases[i].m_Text), &markup, &error));
         ASSERT_EQ((HMarkup)0, markup);
@@ -404,7 +404,7 @@ TEST(Markup, RejectsUnknownTagsAttributesAndConstants)
 
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
     {
-        HMarkup markup = (HMarkup)(uintptr_t)1;
+        HMarkup     markup = (HMarkup)(uintptr_t)1;
         MarkupError error = {};
         ASSERT_EQ(MARKUP_RESULT_SYNTAX_ERROR, MarkupCreate(cases[i].m_Text, (uint32_t)strlen(cases[i].m_Text), &markup, &error));
         ASSERT_EQ((HMarkup)0, markup);
@@ -416,7 +416,7 @@ TEST(Markup, RejectsUnknownTagsAttributesAndConstants)
 TEST(Markup, AllowsApplicationDefinedObjectAttributes)
 {
     const char text[] = "<sprite src=/logo.atlas animation=defold/><link src=https://defold.com data=manual>Defold</link>";
-    HMarkup markup = 0;
+    HMarkup    markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, 0));
     MarkupDestroy(markup);
 }
@@ -424,7 +424,7 @@ TEST(Markup, AllowsApplicationDefinedObjectAttributes)
 TEST(Markup, SelfClosingTag)
 {
     const char text[] = "A<sprite src=/icon.atlas width=2em/>B";
-    HMarkup markup = 0;
+    HMarkup    markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, 0));
     const uint32_t expected[] = { 'A', 0xfffc, 'B' };
     AssertText(markup, expected, DM_ARRAY_SIZE(expected));
@@ -446,8 +446,8 @@ TEST(Markup, EmptyPairedSpriteMatchesSelfClosingTag)
 {
     const char self_closing_source[] = "A<sprite src=/icon.atlas width=2em/>B";
     const char paired_source[]       = "A<sprite src=/icon.atlas width=2em></sprite>B";
-    HMarkup self_closing_markup    = 0;
-    HMarkup paired_markup          = 0;
+    HMarkup   self_closing_markup    = 0;
+    HMarkup   paired_markup          = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(self_closing_source, sizeof(self_closing_source) - 1, &self_closing_markup, 0));
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(paired_source, sizeof(paired_source) - 1, &paired_markup, 0));
 
@@ -472,7 +472,7 @@ TEST(Markup, EmptyPairedSpriteMatchesSelfClosingTag)
 TEST(Markup, NamedConstants)
 {
     const char text[] = "<wave fit=span direction=reverse>X</wave><ul pattern=dashed>Y</ul>";
-    HMarkup markup = 0;
+    HMarkup    markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, 0));
 
     const MarkupStyleNode* nodes = MarkupGetStyleNodes(markup);
@@ -485,8 +485,8 @@ TEST(Markup, NamedConstants)
 
 TEST(Markup, StrictLifo)
 {
-    const char text[] = "<color=red><size=20>Hello</color></size>";
-    HMarkup markup = 0;
+    const char  text[] = "<color=red><size=20>Hello</color></size>";
+    HMarkup     markup = 0;
     MarkupError error;
     ASSERT_EQ(MARKUP_RESULT_SYNTAX_ERROR, MarkupCreate(text, sizeof(text) - 1, &markup, &error));
     ASSERT_EQ(MARKUP_ERROR_MISMATCHED_CLOSING_TAG, error.m_Type);
@@ -515,8 +515,8 @@ TEST(Markup, StyleFragmentAcceptsOpeningTagsOnly)
 
 TEST(Markup, InvalidUtf8)
 {
-    const char text[] = { (char)0xc0, (char)0x80 };
-    HMarkup markup = 0;
+    const char  text[] = { (char)0xc0, (char)0x80 };
+    HMarkup     markup = 0;
     MarkupError error;
     ASSERT_EQ(MARKUP_RESULT_INVALID_UTF8, MarkupCreate(text, sizeof(text), &markup, &error));
     ASSERT_EQ(MARKUP_ERROR_INVALID_UTF8, error.m_Type);
@@ -533,8 +533,8 @@ TEST(Markup, EveryPrefixOfLongValidText)
 
     for (uint32_t length = 0; length <= text_length; ++length)
     {
-        HMarkup markup = 0;
-        MarkupError error;
+        HMarkup      markup = 0;
+        MarkupError  error;
         MarkupResult result = MarkupCreate(text, length, &markup, &error);
 
         if (result != MARKUP_RESULT_OK && result != MARKUP_RESULT_INCOMPLETE)
@@ -562,7 +562,7 @@ TEST(Markup, EveryPrefixOfLongValidText)
 TEST(Markup, ExplicitLengthDoesNotRequireTerminator)
 {
     const char text[] = { '<', 'u', 'l', '>', 'O', 'K', '<', '/', 'u', 'l', '>' };
-    HMarkup markup = 0;
+    HMarkup    markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text), &markup, 0));
     const uint32_t expected[] = { 'O', 'K' };
     AssertText(markup, expected, DM_ARRAY_SIZE(expected));
@@ -575,7 +575,7 @@ TEST(Markup, EveryPrefixOfLongTextWithManyTags)
         "<wave amplitude=4>A<gradient left=#FF00FF right=#FFFFFF>BC</gradient>D</wave>";
     static const uint32_t segment_count = 64;
     static const uint32_t segment_length = sizeof(segment) - 1;
-    char text[segment_count * segment_length];
+    char                  text[segment_count * segment_length];
 
     for (uint32_t i = 0; i < segment_count; ++i)
     {
@@ -584,7 +584,7 @@ TEST(Markup, EveryPrefixOfLongTextWithManyTags)
 
     for (uint32_t length = 0; length <= sizeof(text); ++length)
     {
-        HMarkup markup = 0;
+        HMarkup      markup = 0;
         MarkupResult result = MarkupCreate(text, length, &markup, 0);
         ASSERT_TRUE(result == MARKUP_RESULT_OK || result == MARKUP_RESULT_INCOMPLETE);
 

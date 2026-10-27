@@ -26,23 +26,23 @@
 
 struct TestFont
 {
-    Font     m_Base;
-    uint32_t m_GenerateCount;
-    uint32_t m_FreeCount;
+    Font        m_Base;
+    uint32_t    m_GenerateCount;
+    uint32_t    m_FreeCount;
 };
 
 struct TestContext
 {
-    uint32_t   m_CachedGlyphIndex;
-    uint32_t   m_CacheLookupCount;
-    uint32_t   m_AddCount;
-    uint32_t   m_CompleteCount;
-    int        m_CompleteResult;
-    bool       m_AcceptGlyph;
-    FontGlyph* m_OwnedGlyph;
-    FontGlyph* m_OwnedGlyphs[4];
-    HFont      m_OwningFonts[4];
-    char       m_Error[128];
+    uint32_t    m_CachedGlyphIndex;
+    uint32_t    m_CacheLookupCount;
+    uint32_t    m_AddCount;
+    uint32_t    m_CompleteCount;
+    int         m_CompleteResult;
+    bool        m_AcceptGlyph;
+    FontGlyph*  m_OwnedGlyph;
+    FontGlyph*  m_OwnedGlyphs[4];
+    HFont       m_OwningFonts[4];
+    char        m_Error[128];
 };
 
 static float TestGetScaleFromSize(HFont, uint32_t size)

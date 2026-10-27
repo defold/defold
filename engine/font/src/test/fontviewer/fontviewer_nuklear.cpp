@@ -29,21 +29,21 @@
 #define NK_IMPLEMENTATION
 #include "nuklear.h"
 
-static struct nk_context g_Context;
-static struct nk_font_atlas g_FontAtlas;
-static struct nk_font* g_Font;
-static struct nk_draw_null_texture g_NullTexture;
-static struct nk_buffer g_DrawCommands;
-static struct nk_buffer g_Vertices;
-static struct nk_buffer g_Indices;
-static uint8_t g_DrawCommandMemory[64 * 1024];
-static uint8_t g_VertexMemory[512 * 1024];
-static uint8_t g_IndexMemory[128 * 1024];
+static struct nk_context            g_Context;
+static struct nk_font_atlas         g_FontAtlas;
+static struct nk_font*              g_Font;
+static struct nk_draw_null_texture  g_NullTexture;
+static struct nk_buffer             g_DrawCommands;
+static struct nk_buffer             g_Vertices;
+static struct nk_buffer             g_Indices;
+static uint8_t                      g_DrawCommandMemory[64 * 1024];
+static uint8_t                      g_VertexMemory[512 * 1024];
+static uint8_t                      g_IndexMemory[128 * 1024];
 static FontViewerNuklearDrawCommand g_RenderCommands[FONT_VIEWER_NUKLEAR_MAX_DRAW_COMMANDS];
-static uint8_t* g_AtlasPixels;
-static uint32_t g_AtlasWidth;
-static uint32_t g_AtlasHeight;
-static bool g_Initialized;
+static uint8_t*                     g_AtlasPixels;
+static uint32_t                     g_AtlasWidth;
+static uint32_t                     g_AtlasHeight;
+static bool                         g_Initialized;
 
 static void CopyToClipboard(nk_handle window, const char* text, int length)
 {
@@ -116,8 +116,8 @@ bool FontViewerNuklearInitialize(HWindow window, uint32_t width, uint32_t height
     font_config.oversample_h = 2;
     font_config.oversample_v = 2;
     g_Font = nk_font_atlas_add_default(&g_FontAtlas, 18.0f, &font_config);
-    int atlas_width = 0;
-    int atlas_height = 0;
+    int         atlas_width = 0;
+    int         atlas_height = 0;
     const void* atlas_pixels = nk_font_atlas_bake(&g_FontAtlas, &atlas_width, &atlas_height, NK_FONT_ATLAS_RGBA32);
     if (!g_Font || !atlas_pixels || atlas_width <= 0 || atlas_height <= 0)
         return false;
@@ -179,8 +179,8 @@ static FontViewerNuklearBox ToBox(struct nk_rect rect)
 static float EstimateTextContentHeight(const char* text, float width)
 {
     const float glyph_width = 14.0f * 0.55f;
-    float line_width = 0.0f;
-    uint32_t line_count = 1;
+    float       line_width = 0.0f;
+    uint32_t    line_count = 1;
     const char* cursor = text;
     while (*cursor)
     {
@@ -314,8 +314,8 @@ void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, f
     if (nk_begin(&g_Context, "Font Viewer", nk_rect(panel_x, 0.0f, panel_width, (float)height), NK_WINDOW_BORDER))
     {
         struct nk_rect text_field;
-        nk_uint scroll_x = 0;
-        nk_uint scroll_y = (nk_uint)fmaxf(0.0f, *text_scroll_y);
+        nk_uint        scroll_x = 0;
+        nk_uint        scroll_y = (nk_uint)fmaxf(0.0f, *text_scroll_y);
 
         SetFont(16.0f);
         nk_layout_row_dynamic(&g_Context, 26.0f, 1);

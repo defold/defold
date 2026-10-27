@@ -40,12 +40,12 @@
 // can be compared without making timing-sensitive assertions part of unit tests.
 // By default, each operation is calibrated independently to the target sample
 // duration. Pass --iterations=N to replace calibration with a fixed iteration count.
-static const uint32_t BENCHMARK_TEXT_LENGTH = 32000;
-static const uint32_t DEFAULT_ITERATIONS = 0;
-static const uint32_t DEFAULT_SAMPLES = 11;
-static const uint32_t DEFAULT_TARGET_MILLISECONDS = 100;
-static const uint32_t DEFAULT_WARMUP_MILLISECONDS = 20;
-static const uint32_t MAX_ITERATIONS = 100000;
+static const uint32_t    BENCHMARK_TEXT_LENGTH = 32000;
+static const uint32_t    DEFAULT_ITERATIONS = 0;
+static const uint32_t    DEFAULT_SAMPLES = 11;
+static const uint32_t    DEFAULT_TARGET_MILLISECONDS = 100;
+static const uint32_t    DEFAULT_WARMUP_MILLISECONDS = 20;
+static const uint32_t    MAX_ITERATIONS = 100000;
 
 static volatile uint64_t g_BenchmarkChecksum = 0;
 
@@ -178,8 +178,8 @@ static bool Measure(FBenchmarkIteration iteration, void* context, const Benchmar
 {
     const uint64_t warmup_duration = (uint64_t)options.m_WarmupMilliseconds * 1000;
     const uint64_t warmup_start = dmTime::GetMonotonicTime();
-    uint32_t warmup_iterations = 0;
-    uint64_t warmup_elapsed = 0;
+    uint32_t       warmup_iterations = 0;
+    uint64_t       warmup_elapsed = 0;
     do
     {
         if (!iteration(context))
@@ -266,8 +266,8 @@ static bool Measure(FBenchmarkIteration iteration, void* context, const Benchmar
 static bool RunPlainLayout(void* context)
 {
     PlainLayoutContext* plain = (PlainLayoutContext*)context;
-    HTextLayout layout = 0;
-    TextResult result = TextLayoutCreate(plain->m_Collection, plain->m_Codepoints, plain->m_CodepointCount, &plain->m_Settings, &layout);
+    HTextLayout         layout = 0;
+    TextResult          result = TextLayoutCreate(plain->m_Collection, plain->m_Codepoints, plain->m_CodepointCount, &plain->m_Settings, &layout);
 
     if (result != TEXT_RESULT_OK || !layout)
     {
@@ -281,9 +281,9 @@ static bool RunPlainLayout(void* context)
 }
 
 static const CachedVertexGlyph* FindCachedGlyph(const dmArray<CachedVertexGlyph>& glyph_cache,
-                                                HFont font,
-                                                uint32_t glyph_index,
-                                                float font_size)
+                                                HFont                             font,
+                                                uint32_t                          glyph_index,
+                                                float                             font_size)
 {
     for (uint32_t i = 0; i < glyph_cache.Size(); ++i)
     {
@@ -353,7 +353,7 @@ static bool AddCachedGlyph(dmArray<CachedVertexGlyph>& glyph_cache, HFont font, 
 static bool PrepareVertexGeneration(HTextLayout layout, const TextLayoutSettings& settings, dmArray<CachedVertexGlyph>& glyph_cache, dmArray<FontGlyphVertex>& vertices, VertexGenerationContext* context)
 {
     TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
-    uint32_t max_ascent = 0;
+    uint32_t   max_ascent = 0;
 
     for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout); ++i)
     {
@@ -495,12 +495,12 @@ static bool RunVertices(void* context)
 static bool RunPlainLayoutAndVertices(void* context)
 {
     PlainLayoutAndVerticesContext* end_to_end = (PlainLayoutAndVerticesContext*)context;
-    HTextLayout layout = 0;
-    TextResult result = TextLayoutCreate(end_to_end->m_Layout.m_Collection,
-                                         end_to_end->m_Layout.m_Codepoints,
-                                         end_to_end->m_Layout.m_CodepointCount,
-                                         &end_to_end->m_Layout.m_Settings,
-                                         &layout);
+    HTextLayout                    layout = 0;
+    TextResult                     result = TextLayoutCreate(end_to_end->m_Layout.m_Collection,
+                                                             end_to_end->m_Layout.m_Codepoints,
+                                                             end_to_end->m_Layout.m_CodepointCount,
+                                                             &end_to_end->m_Layout.m_Settings,
+                                                             &layout);
     if (result != TEXT_RESULT_OK || !layout)
     {
         return false;
@@ -541,7 +541,7 @@ static void BuildPlainText(dmArray<char>& text)
 static uint32_t CountWords(const dmArray<char>& text)
 {
     uint32_t word_count = 0;
-    bool in_word = false;
+    bool     in_word = false;
 
     for (uint32_t i = 0; i < BENCHMARK_TEXT_LENGTH; ++i)
     {
@@ -807,7 +807,7 @@ static void ReleaseBenchmarkObject(void*, const TextLayoutObject*)
 static bool RunHitTestMiss(void* context)
 {
     HitTestContext* hit_test = (HitTestContext*)context;
-    uint32_t object_index = TextLayoutHitTestObject(hit_test->m_Layout, hit_test->m_Params);
+    uint32_t        object_index = TextLayoutHitTestObject(hit_test->m_Layout, hit_test->m_Params);
     g_BenchmarkChecksum += object_index == UINT32_MAX ? TextLayoutGetObjectCount(hit_test->m_Layout) : object_index;
 
     return object_index == UINT32_MAX;
@@ -816,8 +816,8 @@ static bool RunHitTestMiss(void* context)
 static bool RunMarkupLayout(void* context)
 {
     MarkupLayoutContext* markup = (MarkupLayoutContext*)context;
-    HTextLayout layout = 0;
-    TextResult result = TextLayoutCreateMarkup(markup->m_Collection, markup->m_Markup, &markup->m_Settings, &layout);
+    HTextLayout          layout = 0;
+    TextResult           result = TextLayoutCreateMarkup(markup->m_Collection, markup->m_Markup, &markup->m_Settings, &layout);
 
     if (result != TEXT_RESULT_OK || !layout)
     {
@@ -833,8 +833,8 @@ static bool RunMarkupLayout(void* context)
 static bool RunMarkupParse(void* context)
 {
     MarkupParseContext* parse = (MarkupParseContext*)context;
-    HMarkup markup = 0;
-    MarkupResult result = MarkupCreate(parse->m_Source, parse->m_SourceLength, &markup, 0);
+    HMarkup             markup = 0;
+    MarkupResult        result = MarkupCreate(parse->m_Source, parse->m_SourceLength, &markup, 0);
 
     if (result != MARKUP_RESULT_OK || !markup)
     {
@@ -850,8 +850,8 @@ static bool RunMarkupParse(void* context)
 static bool RunMarkupEndToEnd(void* context)
 {
     MarkupEndToEndContext* end_to_end = (MarkupEndToEndContext*)context;
-    HMarkup markup = 0;
-    MarkupResult markup_result = MarkupCreate(end_to_end->m_Source, end_to_end->m_SourceLength, &markup, 0);
+    HMarkup                markup = 0;
+    MarkupResult           markup_result = MarkupCreate(end_to_end->m_Source, end_to_end->m_SourceLength, &markup, 0);
 
     if (markup_result != MARKUP_RESULT_OK || !markup)
     {
@@ -859,7 +859,7 @@ static bool RunMarkupEndToEnd(void* context)
     }
 
     HTextLayout layout = 0;
-    TextResult layout_result = TextLayoutCreateMarkup(end_to_end->m_Collection, markup, &end_to_end->m_Settings, &layout);
+    TextResult  layout_result = TextLayoutCreateMarkup(end_to_end->m_Collection, markup, &end_to_end->m_Settings, &layout);
 
     if (layout_result != TEXT_RESULT_OK || !layout)
     {
@@ -878,8 +878,8 @@ static bool RunMarkupEndToEnd(void* context)
 static bool RunMarkupParseLayoutAndVertices(void* context)
 {
     MarkupEndToEndContext* end_to_end = (MarkupEndToEndContext*)context;
-    HMarkup markup = 0;
-    MarkupResult markup_result = MarkupCreate(end_to_end->m_Source, end_to_end->m_SourceLength, &markup, 0);
+    HMarkup                markup = 0;
+    MarkupResult           markup_result = MarkupCreate(end_to_end->m_Source, end_to_end->m_SourceLength, &markup, 0);
 
     if (markup_result != MARKUP_RESULT_OK || !markup)
     {
@@ -887,7 +887,7 @@ static bool RunMarkupParseLayoutAndVertices(void* context)
     }
 
     HTextLayout layout = 0;
-    TextResult layout_result = TextLayoutCreateMarkup(end_to_end->m_Collection, markup, &end_to_end->m_Settings, &layout);
+    TextResult  layout_result = TextLayoutCreateMarkup(end_to_end->m_Collection, markup, &end_to_end->m_Settings, &layout);
 
     if (layout_result != TEXT_RESULT_OK || !layout)
     {
@@ -908,7 +908,7 @@ static bool RunMarkupParseLayoutAndVertices(void* context)
 static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSettings& settings, const MarkupSource& source, MarkupStyleType style, const BenchmarkOptions& options)
 {
     uint32_t source_length = source.m_Bytes.Size() - 1;
-    HMarkup markup = 0;
+    HMarkup  markup = 0;
 
     if (MarkupCreate(source.m_Bytes.Begin(), source_length, &markup, 0) != MARKUP_RESULT_OK)
     {
@@ -922,10 +922,10 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
         return false;
     }
 
-    uint32_t span_count = MarkupGetSpanCount(markup);
-    uint32_t style_node_count = MarkupGetStyleNodeCount(markup);
+    uint32_t           span_count = MarkupGetSpanCount(markup);
+    uint32_t           style_node_count = MarkupGetStyleNodeCount(markup);
 
-    HTextLayout vertex_layout = 0;
+    HTextLayout        vertex_layout = 0;
     TextLayoutSettings vertex_settings = settings;
 
     if (TextLayoutCreateMarkup(collection, markup, &vertex_settings, &vertex_layout) != TEXT_RESULT_OK)
@@ -937,7 +937,7 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
 
     dmArray<CachedVertexGlyph> glyph_cache;
     dmArray<FontGlyphVertex>   vertices;
-    VertexGenerationContext vertex_context;
+    VertexGenerationContext    vertex_context;
 
     if (!PrepareVertexGeneration(vertex_layout, settings, glyph_cache, vertices, &vertex_context))
     {
@@ -981,9 +981,9 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
         PrintResult("hit_test_miss", GetStyleName(style), object_count, source_length, source.m_WordCount, span_count, style_node_count, 0, hit_test_measurement);
     }
 
-    Measurement layout_measurement;
+    Measurement         layout_measurement;
     MarkupLayoutContext layout_context = { collection, markup, settings };
-    bool result = Measure(RunMarkupLayout, &layout_context, options, &layout_measurement);
+    bool                result = Measure(RunMarkupLayout, &layout_context, options, &layout_measurement);
 
     if (!result)
     {
@@ -1035,7 +1035,7 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
 
     PrintResult("vertex_pack", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, vertex_packing_measurement);
 
-    Measurement parse_measurement;
+    Measurement        parse_measurement;
     MarkupParseContext parse_context = { source.m_Bytes.Begin(), source_length };
 
     if (!Measure(RunMarkupParse, &parse_context, options, &parse_measurement))
@@ -1049,7 +1049,7 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
 
     PrintResult("parse", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, 0, parse_measurement);
 
-    Measurement end_to_end_measurement;
+    Measurement           end_to_end_measurement;
     MarkupEndToEndContext end_to_end_context = { collection, source.m_Bytes.Begin(), source_length, settings, &vertex_context };
 
     if (!Measure(RunMarkupEndToEnd, &end_to_end_context, options, &end_to_end_measurement))
@@ -1093,7 +1093,7 @@ static bool ParsePositiveOption(const char* argument, const char* prefix, uint32
         return false;
     }
 
-    char* end = 0;
+    char*         end = 0;
     unsigned long parsed = strtoul(argument + prefix_length, &end, 10);
 
     if (!end || *end != 0 || parsed == 0 || parsed > 100000)
@@ -1251,15 +1251,15 @@ int main(int argc, char** argv)
     printf("build,operation,style,tag_count,visible_characters,source_bytes,total_words,spans,style_nodes,generated_vertices,vertex_stride_bytes,generated_vertex_bytes,median_us,p25_us,p75_us,mad_us,iterations,median_us_per_character\n");
 
     PlainLayoutContext plain_context = { collection, codepoints.Begin(), codepoints.Size(), settings };
-    Measurement plain_measurement;
-    bool success = Measure(RunPlainLayout, &plain_context, options, &plain_measurement);
+    Measurement        plain_measurement;
+    bool               success = Measure(RunPlainLayout, &plain_context, options, &plain_measurement);
 
     if (success)
     {
         PrintResult("layout_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, 0, plain_measurement);
     }
 
-    HTextLayout plain_layout = 0;
+    HTextLayout        plain_layout = 0;
     TextLayoutSettings plain_vertex_settings = settings;
 
     if (success)
@@ -1269,7 +1269,7 @@ int main(int argc, char** argv)
 
     dmArray<CachedVertexGlyph> plain_glyph_cache;
     dmArray<FontGlyphVertex>   plain_vertices;
-    VertexGenerationContext plain_vertex_context;
+    VertexGenerationContext    plain_vertex_context;
 
     if (success)
     {
@@ -1313,7 +1313,7 @@ int main(int argc, char** argv)
     }
 
     PlainLayoutAndVerticesContext plain_full_context = { plain_context, &plain_vertex_context };
-    Measurement plain_full_measurement;
+    Measurement                   plain_full_measurement;
 
     if (success)
     {
@@ -1340,7 +1340,7 @@ int main(int argc, char** argv)
         success = BenchmarkMarkupSource(collection, settings, source, MARKUP_STYLE_NONE, options);
     }
 
-    const uint32_t tag_counts[] = { 1, 100, 500, 1000, 2000, 4000 };
+    const uint32_t        tag_counts[] = { 1, 100, 500, 1000, 2000, 4000 };
     const MarkupStyleType styles[] = {
         MARKUP_STYLE_COLOR,
         MARKUP_STYLE_SIZE,

@@ -31,10 +31,10 @@ static void AssertSourceString(const FontcMarkupData& data, FontcMarkupString st
 TEST(FontcMarkupApi, ParseAndGetData)
 {
     const char expected_source[] = "<link id=\"<shadow blur=9>\"><outline size=1><shadow blur=2>A&amp;</shadow></outline></link>";
-    char source[sizeof(expected_source)];
+    char       source[sizeof(expected_source)];
     memcpy(source, expected_source, sizeof(source));
 
-    HFontcMarkup markup = 0;
+    HFontcMarkup     markup = 0;
     FontcMarkupError error = {};
     ASSERT_EQ(FONT_RENDERER_RESULT_OK, FontcParseMarkup(source, sizeof(source) - 1, &markup, &error));
     ASSERT_NE((HFontcMarkup)0, markup);
@@ -93,8 +93,8 @@ TEST(FontcMarkupApi, ParseAndGetData)
 
 TEST(FontcMarkupApi, ReportsStructuredParseError)
 {
-    const char source[] = "<outline>Text</shadow>";
-    HFontcMarkup markup = (HFontcMarkup)(uintptr_t)1;
+    const char       source[] = "<outline>Text</shadow>";
+    HFontcMarkup     markup = (HFontcMarkup)(uintptr_t)1;
     FontcMarkupError error = {};
 
     ASSERT_EQ(FONT_RENDERER_RESULT_TEXT_ERROR, FontcParseMarkup(source, sizeof(source) - 1, &markup, &error));
@@ -105,9 +105,9 @@ TEST(FontcMarkupApi, ReportsStructuredParseError)
 
 TEST(FontcMarkupApi, ValidatesArgumentsAndAcceptsEmptyInput)
 {
-    HFontcMarkup markup = 0;
+    HFontcMarkup     markup = 0;
     FontcMarkupError error = {};
-    FontcMarkupData data = {};
+    FontcMarkupData  data = {};
 
     ASSERT_EQ(FONT_RENDERER_RESULT_INVALID_ARGUMENT, FontcParseMarkup(0, 1, &markup, &error));
     ASSERT_EQ(FONT_RENDERER_RESULT_INVALID_ARGUMENT, FontcParseMarkup("", 0, 0, &error));
@@ -147,8 +147,8 @@ TEST(FontcMarkupApi, ReportsGradientValueDiagnostics)
     {
         char source[256];
         dmSnPrintf(source, sizeof(source), "<gradient type=radial color0=#ff0000 color1=#0000ff %s>", cases[i].m_Attributes);
-        const uint32_t offset = cases[i].m_InvalidValue ? (uint32_t)(strstr(strstr(source, cases[i].m_Attributes), cases[i].m_InvalidValue) - source) : 0;
-        FontcStyleData style = {};
+        const uint32_t   offset = cases[i].m_InvalidValue ? (uint32_t)(strstr(strstr(source, cases[i].m_Attributes), cases[i].m_InvalidValue) - source) : 0;
+        FontcStyleData   style = {};
         FontcMarkupError error = {};
         ASSERT_EQ(FONT_RENDERER_RESULT_TEXT_ERROR, FontcCompileStyle(source, strlen(source), &style, &error));
         ASSERT_EQ(cases[i].m_Type, error.m_Type);
