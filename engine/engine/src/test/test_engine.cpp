@@ -40,6 +40,10 @@
 #include <emscripten/emscripten.h>
 #endif
 
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__) && defined(DM_SANITIZE_ADDRESS)
+#include <sanitizer/allocator_interface.h>
+#endif
+
 extern "C" void dmExportedSymbols();
 
 #ifndef CONTENT_ROOT
@@ -298,6 +302,28 @@ TEST_F(EngineTest, Project)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunFrameCount, &frame_count));
     ASSERT_GT(frame_count, 5u);
 }
+
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__) && defined(DM_SANITIZE_ADDRESS)
+// Single-threaded WASM must release the engine job context during shutdown,
+// preventing the per-engine leak detected by the ASAN CI run.
+TEST_F(EngineTest, SingleThreadedWasmJobContextReleasedOnShutdown)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    ASSERT_EQ((HJobContext) 0, engine->m_JobThreadContext);
+
+    char project_path[512];
+    const char* argv[] = {"dmengine", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    HJobContext job_context = engine->m_JobThreadContext;
+    ASSERT_TRUE(__sanitizer_get_ownership(job_context));
+
+    dmEngine::Delete(engine);
+    int job_context_owned = __sanitizer_get_ownership(job_context);
+    dmEngineFinalize();
+    ASSERT_EQ(0, job_context_owned);
+}
+#endif
 
 TEST_F(EngineTest, SharedLuaState)
 {
