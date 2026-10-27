@@ -93,6 +93,13 @@ Then run `scripts/build.py build_engine -- --with-msan`, or configure CMake with
 can be instrumented. The Linux nightly jobs prepare the instrumented dependencies
 before building and running the engine tests with MSan.
 
+GPU image/effect tests require an instrumented system graphics stack (X11,
+OpenGL/Vulkan loaders, and drivers), which `build_ext` does not provide. Automatic
+MSan runs skip those GPU tests with an explicit reason; their manual targets
+remain available. Null-backend rendering, shaders, fonts, and other engine tests
+remain instrumented. The font compiler API test compiles the API into its MSan
+executable instead of loading the ordinary JVM shared library.
+
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
 include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;
 pass `--with-metal` (or `WITH_METAL=ON`) to include Metal on those devices.
