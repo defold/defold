@@ -50,7 +50,7 @@ TEST(GraphicsUtil, PackRGBAClampsComponents)
     ASSERT_EQ(255u, rgba[3]);
 }
 
-#if !defined(DM_PLATFORM_HTML5)
+#if defined(DM_HAS_THREADS)
 struct RetirementCompletion
 {
     dmArray<uint32_t*>                      m_Submitted;
