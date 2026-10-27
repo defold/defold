@@ -4,9 +4,10 @@ This standalone experiment exercises SM6.0 compilation, reflection, and root
 signature handling without FXC, D3DCompile, D3DReflect, or D3D12 serialization
 APIs. It does not change the production shader pipeline.
 
-DXC can now be built through `build_ext` / `install_ext`. See the
-[source-build instructions](../../../../../external/dxc/README.md) to run this
-prototype against those installed binaries instead of the upstream packages.
+DXC is installed through `install_ext`: Windows uses Defold's prebuilt package,
+while Linux and macOS build from source. See the
+[installation and rebuild instructions](../../../../../external/dxc/README.md)
+to run this prototype against those installed binaries.
 
 `run.py` requires Python 3 and DXC. It compiles vertex, pixel, and compute
 fixtures, checking CBV/SRV/sampler/UAV bindings, register spaces, a texture array,

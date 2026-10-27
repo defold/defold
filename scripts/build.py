@@ -214,6 +214,7 @@ PACKAGES_MACOS_ARM64=[
     "zipalign"]
 
 PACKAGES_WIN32_64=[
+    "dxc-1.9.2609",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "glslang-42d9adf5",
@@ -319,7 +320,7 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-EXTERNAL_LIBS = "opus box2d box2d_v2 vkquality harfbuzz sheenbidi libunibreak skribidi dawn".split()
+EXTERNAL_LIBS = "opus box2d box2d_v2 vkquality harfbuzz sheenbidi libunibreak skribidi dawn dxc".split()
 EXTERNAL_PACKAGE_VERSIONS = {
     "opus": "1.5.2",
     "box2d": "3.1.0",
@@ -330,6 +331,7 @@ EXTERNAL_PACKAGE_VERSIONS = {
     "libunibreak": "6.1",
     "skribidi": "a4a2f5",
     "dawn": "67d4d6e",
+    "dxc": "1.9.2609",
 }
 EXTERNAL_PACKAGE_NAMES = {
     "box2d_v2": "box2d_defold",
@@ -2482,6 +2484,9 @@ class Configuration(object):
             if lib == 'dawn' and self.target_platform not in ('arm64-macos', 'arm64-linux', 'x86_64-linux', 'x86_64-win32') and not self.external_package:
                 self._log("Skipping dawn for unsupported platform: %s" % self.target_platform)
                 continue
+            if lib == 'dxc' and self.target_platform != 'x86_64-win32' and not self.external_package:
+                self._log("Skipping dxc package; non-Windows platforms use source builds")
+                continue
             self._build_external_lib_cmake(lib, self.target_platform)
 
     def _build_external_lib_cmake(self, lib, platform):
@@ -2537,7 +2542,7 @@ class Configuration(object):
             finally:
                 self.build_tracker.end_command('CMake build external %s' % lib)
 
-            package_directories = ['include', 'lib', 'share']
+            package_directories = ['bin', 'include', 'lib', 'share']
             if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
                 package_directories = ['lib']
             package_directories = [name for name in package_directories

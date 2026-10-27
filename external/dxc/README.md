@@ -1,12 +1,12 @@
 # DXC host tools
 
-`build_ext` builds DXC for each desktop platform being built. `install_ext` invokes
-`build_ext` after installing prepackaged dependencies, so no extra command is
-required. Cross-builds first build dependencies for the host as usual. Desktop
-targets also need their own DXC library because shaderc links it, including
-when building x86_64-macos on an arm64-macos host. Mobile and web targets use
-only the host copy. Linux builds require a native runner for each architecture.
-This does not select or replace platform-specific shader compiler backends.
+Windows x64 uses `packages/dxc-1.9.2609-x86_64-win32.tar.gz`. `install_ext`
+extracts this package; `build_ext` does not compile DXC on Windows.
+Linux and macOS continue building DXC from source through `build_ext`.
+Cross-builds first prepare dependencies for the host as usual. Desktop targets
+also need their own DXC library because shaderc links it, including when building
+x86_64-macos on an arm64-macos host. Mobile and web targets use only the host copy.
+Linux builds require a native runner for each architecture.
 
 The pinned DXC source and its matching DirectX-Headers archive are downloaded
 and SHA-256 checked by CMake. Sources and intermediate files stay in the build
@@ -28,13 +28,32 @@ Installed files under the SDK's `ext` directory:
 
 Unix executables use a relative library search path for the installed layout.
 They do not require `LD_LIBRARY_PATH` or an absolute path to a developer's build.
-Bob/editor distribution packaging and production shaderc integration are
-separate follow-up work; this change installs dependencies for development.
+The package retains this layout so shaderc and Bob/editor packaging use the
+same installed files as source builds.
+
+## Rebuild the Windows package
+
+With the Windows SDK set up, run from the repository root in the Defold shell:
+
+```sh
+./scripts/build.py build_external --package=dxc --platform=x86_64-win32
+./scripts/build.py install_ext_packages --platform=x86_64-win32
+```
+
+The first command builds the pinned sources with Defold's toolchain and writes
+`packages/dxc-1.9.2609-x86_64-win32.tar.gz`. The archive includes the executable,
+compiler and validator DLLs, import library, matching headers, and licenses.
+Build intermediates remain in `external/dxc/build/x86_64-win32` for incremental
+package rebuilds. Ordinary CI only extracts the checked-in archive.
+
+When updating DXC or its patches, rebuild the archive and update its package
+version in `scripts/build.py` as appropriate. Keep `DXC_VERSION` and
+`DXC_HEADERS_REVISION` in `CMakeLists.txt` aligned with the packaged sources.
 
 ## Focused build and validation
 
-For a focused build, use the same compiler environment as the engine. On Windows
-use the Visual Studio developer command prompt (including the DIA SDK).
+For a focused build, use the Defold shell with the platform SDK set up. The
+standalone CMake project selects the same toolchain as the engine.
 
 ```sh
 cmake -S external/dxc -B tmp/dxc-build -G Ninja \
@@ -52,9 +71,10 @@ DXC to four compilation jobs by default; set `DEFOLD_DXC_BUILD_JOBS` to adjust
 memory/CPU usage. Incremental builds reuse the downloaded source and compiled
 objects.
 
-Within a configured parent `external` build, the focused target is
+Within a configured Linux/macOS parent `external` build, the focused target is
 `dxc_build_external`, and `cmake --install <build> --component dxc` installs only
-these files. Normal `build_ext` builds and installs all dependencies as before.
+these files. Windows source rebuilds use the standalone project or the explicit
+package command above.
 
 Build the native reflection probe using the installed headers:
 
@@ -84,7 +104,22 @@ the installed binaries' ELF dependencies and symbol versions before publishing
 packages. A compiler may require a newer C++ language version without requiring
 a newer runtime; the source build and runtime checks establish that separately.
 
-## Validation (2026-10-20)
+## Windows package validation (2026-10-27)
+
+- Built `dxc-1.9.2609-x86_64-win32.tar.gz` from the pinned source archives with
+  MSVC 19.51.36246, Release configuration, and the static CRT. The archive is
+  9,210,665 bytes and includes 38 files.
+- Extracted into a clean directory and verified every file against the staged
+  installation. SM6 vertex, pixel, and compute compilation, reflection, and
+  root-signature checks passed for versions 1.0 and 1.1. The executable and DLLs
+  import only Windows system libraries.
+- All 27 shaderc tests and the dedicated DXC and root-signature tests passed
+  using the packaged compiler DLL. The packaging tests cover runtime archive
+  contents and package installation across six host/target combinations.
+- The normal Windows external build graph contains no DXC targets. Linux and
+  macOS retain their source builds.
+
+## Source-build validation (2026-10-20)
 
 - Windows x64: built and installed from the parent `external` project used by
   `build_ext`. The prototype passed for SM6.0 vertex, pixel, and compute shaders

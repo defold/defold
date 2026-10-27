@@ -21,6 +21,8 @@ versions, Bullet, HarfBuzz, libunibreak, LZ4, Opus, SheenBidi, and Skribidi on a
 platforms. LuaJIT is built for non-web platforms. [Draco](draco/README.md),
 [meshoptimizer](meshoptimizer/README.md), [Ogg](ogg/README.md), and Protobuf are
 built for desktop platforms; mobile and web builds use the host's tools.
+Windows [DXC](dxc/README.md) is installed from `packages/dxc-1.9.2609-x86_64-win32.tar.gz`;
+Linux and macOS still build DXC from source.
 Protobuf and Abseil use the same CMake toolchain and build graph as the other
 source dependencies and install directly into `ext`.
 Linux additionally builds [OpenH264](openh264/README.md) for video recording.
@@ -47,6 +49,9 @@ executed in the current build are counted.
 
 External libraries can also be distributed as packages. Rebuild the packages
 listed below with `build_external`, which writes archives under `defold/packages`.
+The Windows DXC package can be rebuilt with
+`./scripts/build.py build_external --package=dxc --platform=x86_64-win32`.
+It includes `bin`, `lib`, `include`, and license files under `share`.
 
 From the repository root, with the platform SDK set up:
 

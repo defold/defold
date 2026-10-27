@@ -2,7 +2,10 @@ cmake_minimum_required(VERSION 4.0)
 
 # Also support a focused build without configuring unrelated dependencies.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-  project(dxc_external LANGUAGES C CXX)
+  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
+  set(DEFOLD_REQUIRE_PROTOC OFF)
+  include(defold)
+  project(dxc_external LANGUAGES ${DEFOLD_LANGUAGE_LIST})
   if(DEFOLD_EXTERNAL_INSTALL_PREFIX)
     set(CMAKE_INSTALL_PREFIX "${DEFOLD_EXTERNAL_INSTALL_PREFIX}" CACHE PATH "Install prefix" FORCE)
   elseif(DEFOLD_SDK_ROOT)

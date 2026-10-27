@@ -140,10 +140,12 @@ The `install_ext` command first installs the remaining prepackaged dependencies
 from `./packages` and support files, then calls `build_ext` to check the SDK and
 build and install source dependencies with CMake. These include Bullet, Basis
 Universal, LZ4, both Box2D versions, HarfBuzz, libunibreak, Opus, SheenBidi,
-Skribidi, desktop Protobuf, and desktop DXC shader tools.
-DXC downloads pinned, checksum-verified source archives on its first build and
-uses an isolated LLVM build. See [DXC build notes](external/dxc/README.md) for
-focused builds and shader prototype validation.
+Skribidi, desktop Protobuf, and the Linux/macOS DXC shader tools.
+Windows DXC is installed from the versioned archive in `packages`; normal
+Windows builds do not compile LLVM/DXC. Linux/macOS DXC downloads pinned,
+checksum-verified source archives on its first build and uses an isolated LLVM
+build. See [DXC build notes](external/dxc/README.md) for package rebuilds,
+focused builds, and shader prototype validation.
 Mobile and web platform backends are built with the engine.
 Cross-builds build source dependencies for both the host and target platform.
 These source dependencies are no longer installed from package archives.
