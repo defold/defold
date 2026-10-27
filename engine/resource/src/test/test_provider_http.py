@@ -26,7 +26,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def respond(self, head):
         path = self.path
-        cacheable = path in ("/somedata", "/unknown-range", "/unknown-range-chunked")
+        bad_cached_range = path in ("/cached-bad-range", "/cached-bad-range-chunked", "/cached-bad-range-unknown")
+        cacheable = bad_cached_range or path in ("/somedata", "/unknown-range", "/unknown-range-chunked")
         if path == "/huge-head":
             self.send_response(200)
             self.send_header("Content-Length", str(1024 * 1024 * 1024))
@@ -51,6 +52,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             content_range = f"bytes {start}-{end}/{total}"
             data = data[start:end + 1]
             status = 206
+        if bad_cached_range:
+            # The body contains five bytes, but the declared range contains two.
+            total = "*" if path == "/cached-bad-range-unknown" else "8"
+            content_range = f"bytes 3-4/{total}"
         if path == "/bad-range":
             content_range = "bytes 7-2/8"
             status = 206
@@ -71,7 +76,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("ETag", tag)
         if content_range:
             self.send_header("Content-Range", content_range)
-        chunked = path in ("/chunked", "/unknown-range-chunked") or retry
+        chunked = path in ("/chunked", "/unknown-range-chunked", "/cached-bad-range-chunked") or retry
         if chunked:
             self.send_header("Transfer-Encoding", "chunked")
         elif path != "/unknown":

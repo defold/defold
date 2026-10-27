@@ -112,6 +112,8 @@ namespace dmHttpClient
         int m_ContentOffset;
         // Total amount of data received in Client.m_Buffer
         int m_TotalReceived;
+        // Decoded body bytes, excluding chunk framing.
+        uint64_t m_ContentReceived;
 
         // Headers
         int      m_ContentLength;       // Size of the payload sent over the http
@@ -121,6 +123,7 @@ namespace dmHttpClient
         char     m_ETag[dmHttpCache::MAX_TAG_LEN];
         uint32_t m_Chunked : 1;
         uint32_t m_CloseConnection : 1;
+        uint32_t m_HasContentRange : 1;
         uint32_t m_MaxAge;
 
         // Cache
@@ -145,8 +148,10 @@ namespace dmHttpClient
             m_ETag[0] = '\0';
             m_ContentOffset = -1;
             m_TotalReceived = 0;
+            m_ContentReceived = 0;
             m_Chunked = 0;
             m_CloseConnection = 0;
+            m_HasContentRange = 0;
             m_MaxAge = 0;
             m_CacheCreator = 0;
             m_Pool = 0;
@@ -449,6 +454,7 @@ namespace dmHttpClient
         }
         else if (dmStrCaseCmp(key, "Content-Range") == 0)
         {
+            resp->m_HasContentRange = 1;
             // https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests
             // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Range
             sscanf(value, "bytes %d-%d/%d", &resp->m_RangeStart, &resp->m_RangeEnd, &resp->m_DocumentSize);
@@ -717,10 +723,6 @@ bail:
         // Transfer-Encoding takes precedence over Content-Length.
         int content_length = response->m_Chunked ? -1 : response->m_ContentLength;
 
-#if defined(DM_NO_HTTP_CACHE)
-        (void) add_to_cache;
-#endif
-
         while (true)
         {
             int n;
@@ -733,6 +735,8 @@ bail:
             http_content(response, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n, content_length,
                         response->m_RangeStart, response->m_RangeEnd, response->m_DocumentSize,
                         method);
+            if (add_to_cache)
+                response->m_ContentReceived += n;
 
 #if !defined(DM_NO_HTTP_CACHE)
             if (response->m_CacheCreator && add_to_cache)
@@ -1103,6 +1107,21 @@ bail:
 #endif
 
             r = HandleResponse(client, path, method, &response);
+
+            // Validate single-range responses before committing their bodies to
+            // the cache. Cache replay reports 304 instead of the original 206.
+            if (r == RESULT_OK && response.m_Status == 206 && response.m_HasContentRange)
+            {
+                uint32_t range_start = response.m_RangeStart;
+                uint32_t range_end = response.m_RangeEnd;
+                uint32_t document_size = response.m_DocumentSize;
+                if (range_start == UINT32_MAX || range_end == UINT32_MAX || range_end < range_start ||
+                    (document_size != UINT32_MAX && range_end >= document_size) ||
+                    (!method_is_head && response.m_ContentReceived != (uint64_t)range_end - range_start + 1))
+                {
+                    r = RESULT_INVALID_RESPONSE;
+                }
+            }
 
 #if !defined(DM_NO_HTTP_CACHE)
             if (response.m_CacheCreator)

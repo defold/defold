@@ -309,6 +309,33 @@ TEST_F(HttpProviderCached, UnknownRangeSize)
     }
 }
 
+// Invalid range bodies must never enter the cache, where a later 304 or trusted
+// replay could otherwise bypass validation of the original 206 response.
+TEST_F(HttpProviderCached, RejectInvalidRangeBeforeCaching)
+{
+    const char* paths[] = { "/cached-bad-range", "/cached-bad-range-chunked", "/cached-bad-range-unknown" };
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        if (pass == 2)
+            dmHttpCache::SetConsistencyPolicy(m_Cache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
+        for (uint32_t p = 0; p < sizeof(paths) / sizeof(paths[0]); ++p)
+        {
+            uint8_t buffer[7];
+            memset(buffer, 0xfe, sizeof(buffer));
+            uint32_t nread = UINT32_MAX;
+            ASSERT_EQ(dmResourceProvider::RESULT_IO_ERROR, dmResourceProvider::ReadFilePartial(m_Archive, 0, paths[p], 3, 5, buffer + 1, &nread));
+            ASSERT_EQ(0U, nread);
+            ASSERT_EQ(0xfe, buffer[0]);
+            ASSERT_EQ(0xfe, buffer[6]);
+
+            char cache_key[128];
+            dmSnPrintf(cache_key, sizeof(cache_key), "http://localhost:%d%s=bytes=3-7", PORT, paths[p]);
+            dmHttpCache::EntryInfo info;
+            ASSERT_EQ(dmHttpCache::RESULT_NO_ENTRY, dmHttpCache::GetInfo(m_Cache, cache_key, &info));
+        }
+    }
+}
+
 
 #if defined(DM_TEST_HTTP_SUPPORTED)
 
