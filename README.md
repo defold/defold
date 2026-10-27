@@ -36,7 +36,7 @@ Repository for the Defold engine, editor and command line tools.
 * **external** - External libraries that can be rebuilt using our build system
 * **packages** - Prebuilt external packages
 * **scripts** - Build and utility scripts
-* **share** - Misc shared stuff used by other tools. build configuration, valgrind suppression files, etc.
+* **share** - Shared build configuration and support files used by other tools
 * **share/ext** - External libraries that are built using custom build steps
 
 ## Setup and Build
