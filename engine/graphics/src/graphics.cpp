@@ -741,7 +741,17 @@ namespace dmGraphics
 
     void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
     {
-        dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
+        // Hash the fields, excluding compiler-inserted padding between them.
+        for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; ++i)
+        {
+            const VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
+            dmHashUpdateBuffer32(state, &stream.m_NameHash, sizeof(stream.m_NameHash));
+            dmHashUpdateBuffer32(state, &stream.m_Location, sizeof(stream.m_Location));
+            dmHashUpdateBuffer32(state, &stream.m_Size, sizeof(stream.m_Size));
+            dmHashUpdateBuffer32(state, &stream.m_Offset, sizeof(stream.m_Offset));
+            dmHashUpdateBuffer32(state, &stream.m_Type, sizeof(stream.m_Type));
+            dmHashUpdateBuffer32(state, &stream.m_Normalize, sizeof(stream.m_Normalize));
+        }
     }
 
     bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)

@@ -534,6 +534,38 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
+// Identical stream fields must batch together regardless of allocation padding.
+TEST(VertexDeclaration, HashIgnoresPadding)
+{
+    dmGraphics::VertexDeclaration::Stream streams[2];
+    memset(&streams[0], 0x11, sizeof(streams[0]));
+    memset(&streams[1], 0x22, sizeof(streams[1]));
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        streams[i].m_NameHash = dmHashString64("position");
+        streams[i].m_Location = -1;
+        streams[i].m_Size = 3;
+        streams[i].m_Offset = 0;
+        streams[i].m_Type = dmGraphics::TYPE_FLOAT;
+        streams[i].m_Normalize = false;
+    }
+    dmGraphics::VertexDeclaration declaration = {};
+    declaration.m_StreamCount = 1;
+    uint32_t hashes[3];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        declaration.m_Streams = &streams[i == 0 ? 0 : 1];
+        if (i == 2)
+            streams[1].m_Offset = 4;
+        HashState32 state;
+        dmHashInit32(&state, false);
+        dmGraphics::HashVertexDeclaration(&state, &declaration);
+        hashes[i] = dmHashFinal32(&state);
+    }
+    ASSERT_EQ(hashes[0], hashes[1]);
+    ASSERT_NE(hashes[1], hashes[2]);
+}
+
 TEST_F(dmGraphicsTest, VertexDeclaration)
 {
     float v[] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f };
