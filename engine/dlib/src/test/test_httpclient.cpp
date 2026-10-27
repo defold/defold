@@ -934,6 +934,61 @@ TEST_P(dmHttpClientTest, Cache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
+struct StartedBody
+{
+    uint32_t m_Starts;
+    bool m_Valid;
+    std::string m_Content;
+};
+
+static void ReadStartedBody(dmHttpClient::HResponse, void* userdata, int, const void* data, uint32_t size, int32_t,
+                            uint32_t, uint32_t, uint32_t, const char* method)
+{
+    StartedBody* body = (StartedBody*)userdata;
+    if (!data && !size && !method)
+    {
+        ++body->m_Starts;
+        body->m_Content.clear();
+    }
+    else
+    {
+        body->m_Valid = body->m_Valid && body->m_Starts == 1;
+        if (size)
+            body->m_Content.append((const char*)data, size);
+    }
+}
+
+// Every body starts with exactly one reset callback, including conditional
+// 304 replay and a trusted cache hit that does not contact the server.
+TEST_P(dmHttpClientTest, CachedResponseStart)
+{
+    dmHttpClient::Delete(m_Client);
+    StartedBody body;
+    dmHttpClient::NewParams params;
+    params.m_Userdata = &body;
+    params.m_HttpContent = ReadStartedBody;
+    dmHttpCache::NewParams cache_params;
+    cache_params.m_Path = m_CacheDir;
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Open(&cache_params, &params.m_HttpCache));
+    m_Client = dmHttpClient::New(&params, &m_URI, 0);
+    ASSERT_NE((void*)0, m_Client);
+    dmHttpClient::SetCacheKey(m_Client, "/cached/0");
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        if (i == 2)
+            dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
+        body.m_Starts = 0;
+        body.m_Valid = true;
+        body.m_Content = "stale";
+        dmHttpClient::Result result = dmHttpClient::Get(m_Client, "/cached/0");
+        ASSERT_EQ(i == 0 ? dmHttpClient::RESULT_OK : dmHttpClient::RESULT_NOT_200_OK, result);
+        ASSERT_EQ(1U, body.m_Starts);
+        ASSERT_TRUE(body.m_Valid);
+        ASSERT_EQ(std::string("cached_content"), body.m_Content);
+    }
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Close(params.m_HttpCache));
+}
+
 TEST_P(dmHttpClientTest, MaxAgeCache)
 {
 #if !defined(DM_NO_SIGNAL_FUNCTION)

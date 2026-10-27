@@ -825,6 +825,7 @@ bail:
 #if !defined(DM_NO_HTTP_CACHE)
     static Result HandleCached(HClient client, const char* path, Response* response, bool method_is_head)
     {
+        client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0, 0, 0, 0, 0, 0);
         client->m_Statistics.m_CachedResponses++;
         if (client->m_IgnoreCache)
         {
@@ -992,6 +993,10 @@ bail:
                     {
                         return RESULT_SOCKET_ERROR;
                     }
+                    // EOF while waiting for the next chunk header must retry
+                    // the response, rather than spinning until the timeout.
+                    if (recv_bytes == 0)
+                        return RESULT_UNEXPECTED_EOF;
                     response->m_TotalReceived += recv_bytes;
                 }
             }
@@ -1237,6 +1242,7 @@ bail:
     static Result HandleCachedVerified(HClient client, const dmHttpCache::EntryInfo* info)
     {
         Response response(client);
+        client->m_HttpContent(&response, client->m_Userdata, 304, 0, 0, 0, 0, 0, 0, 0);
         client->m_Statistics.m_DirectFromCache++;
 
         FILE* file = 0;

@@ -17,7 +17,6 @@
 #include "../resource_util.h"
 
 #include <dlib/dstrings.h>
-#include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -32,102 +31,98 @@
 namespace dmResourceProviderHttp
 {
 
-static const uint32_t INVALID_CHUNK_VALUE = 0xFFFFFFFF;
-
 static dmHttpCache::HCache g_HttpCache = 0;
+
+struct HttpRead
+{
+    uint8_t* m_Buffer;
+    uint32_t m_Capacity;
+    uint32_t m_Offset;
+    bool     m_Partial;
+    bool     m_Head;
+
+    uint64_t m_Received;
+    uint32_t m_Copied;
+    int32_t  m_ContentLength;
+    int      m_Status;
+    bool     m_Error;
+};
 
 struct HttpProviderContext
 {
-    dmURI::Parts            m_BaseUri;
-    dmHttpClient::HClient   m_HttpClient;
-    dmHttpCache::HCache     m_HttpCache;
-    dmArray<char>           m_HttpBuffer;
-
-    int32_t                 m_HttpContentLength;        // Total number bytes loaded in current GET-request
-    int32_t                 m_HttpContentOffset;
-    uint32_t                m_HttpTotalBytesStreamed;
-    int                     m_HttpStatus;
-
-    // when sending
-    uint32_t                m_ChunkOffset;
-    uint32_t                m_ChunkSize;
-    uint32_t                m_ChunkedRequest:1;
-    uint32_t                :31;
+    dmURI::Parts          m_BaseUri;
+    dmHttpClient::HClient m_HttpClient;
+    dmHttpCache::HCache   m_HttpCache;
+    HttpRead*            m_Read; // Only set during a synchronous request.
 };
-
-static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
-{
-    HttpProviderContext* archive = (HttpProviderContext*)user_data;
-    archive->m_HttpStatus = status_code;
-
-    if (dmStrCaseCmp(key, "Content-Length") == 0)
-    {
-        archive->m_HttpContentLength = strtol(value, 0, 10);
-        if (archive->m_HttpContentLength < 0) {
-            dmLogError("Content-Length negative (%d)", archive->m_HttpContentLength);
-        } else {
-            if (archive->m_HttpBuffer.Capacity() < (uint32_t)archive->m_HttpContentLength) {
-                archive->m_HttpBuffer.SetCapacity(archive->m_HttpContentLength);
-            }
-            archive->m_HttpBuffer.SetSize(0);
-        }
-    }
-    else if (dmStrCaseCmp(key, "Content-Range") == 0)
-    {
-        int start, end, size;
-        int count = sscanf(value, "bytes %d-%d/%d", &start, &end, &size);
-        if (count == 3)
-        {
-            archive->m_HttpContentOffset = (uint32_t)start;
-
-            archive->m_HttpContentLength = uint32_t(end - start);
-            if (archive->m_HttpBuffer.Capacity() < (uint32_t)archive->m_HttpContentLength) {
-                archive->m_HttpBuffer.SetCapacity(archive->m_HttpContentLength);
-            }
-            archive->m_HttpBuffer.SetSize(0);
-        }
-    }
-}
 
 static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
                         uint32_t range_start, uint32_t range_end, uint32_t document_size,
                         const char* method)
 {
-    HttpProviderContext* archive = (HttpProviderContext*)user_data;
-    (void) status_code;
-    (void) method;
-
-    if (!content_data && content_data_size)
+    HttpRead* read = ((HttpProviderContext*)user_data)->m_Read;
+    if (!content_data && !content_data_size && !method)
     {
-        archive->m_HttpBuffer.SetSize(0);
+        // A retry or cache replay starts a new body. Cached HEAD metadata and
+        // non-null, zero-length EOF callbacks are not response-start signals.
+        read->m_Received = 0;
+        read->m_Copied = 0;
+        read->m_ContentLength = -1;
+        read->m_Error = false;
+        read->m_Status = status_code;
         return;
     }
 
-    // CHECK: Content-Range: bytes 200-1000/67589
+    read->m_Status = status_code;
+    read->m_ContentLength = content_length;
+    if (read->m_Head || read->m_Error || !content_data_size)
+        return;
 
-    // We must set http-status here. For direct cached result HttpHeader is not called.
-    archive->m_HttpStatus = status_code;
-
-    if (archive->m_HttpBuffer.Remaining() < content_data_size) {
-        uint32_t diff = content_data_size - archive->m_HttpBuffer.Remaining();
-        // NOTE: Resizing the the array can be inefficient but sometimes we don't know the actual size, i.e. when "Content-Size" isn't set
-        archive->m_HttpBuffer.OffsetCapacity(diff + 1024 * 1024);
+    uint64_t origin = 0;
+    if (status_code == 206 || status_code == 304)
+    {
+        // Cached ranges retain their original byte offsets. A 200 response
+        // ignores Range and starts at byte zero, regardless of the request.
+        origin = range_start;
+        if (range_start == UINT32_MAX ||
+            (status_code == 206 && (range_end < range_start || document_size == UINT32_MAX || range_end >= document_size)))
+        {
+            read->m_Error = true;
+            return;
+        }
     }
 
-    archive->m_HttpBuffer.PushArray((const char*) content_data, content_data_size);
-    archive->m_HttpTotalBytesStreamed += content_data_size;
-    archive->m_HttpContentLength = content_length;
+    uint64_t start = origin + read->m_Received;
+    uint64_t end = start + content_data_size;
+    read->m_Received += content_data_size;
+    if (read->m_Received > UINT32_MAX || origin > read->m_Offset ||
+        (status_code == 206 && end > (uint64_t)range_end + 1) ||
+        (!read->m_Partial && end > read->m_Capacity))
+    {
+        read->m_Error = true;
+        return;
+    }
+
+    // Intersect this chunk with the requested interval, draining bytes outside
+    // it without retaining them. All offset arithmetic includes the end byte.
+    uint64_t requested_end = (uint64_t)read->m_Offset + read->m_Capacity;
+    uint64_t copy_start = dmMath::Max(start, (uint64_t)read->m_Offset);
+    uint64_t copy_end = dmMath::Min(end, requested_end);
+    if (copy_end > copy_start)
+    {
+        uint32_t count = (uint32_t)(copy_end - copy_start);
+        memcpy(read->m_Buffer + (copy_start - read->m_Offset), (const uint8_t*)content_data + (copy_start - start), count);
+        read->m_Copied += count;
+    }
 }
 
 static dmHttpClient::Result HttpWriteHeaders(dmHttpClient::HResponse response, void* user_data)
 {
-    HttpProviderContext* archive = (HttpProviderContext*)user_data;
-
-    if (archive->m_ChunkedRequest)
+    HttpRead* read = ((HttpProviderContext*)user_data)->m_Read;
+    if (read->m_Partial)
     {
-        // E.g. "Range: bytes=0-1023"
         char value[128];
-        dmSnPrintf(value, sizeof(value), "bytes=%u-%u", archive->m_ChunkOffset, archive->m_ChunkOffset+archive->m_ChunkSize-1);
+        dmSnPrintf(value, sizeof(value), "bytes=%u-%u", read->m_Offset, read->m_Offset + read->m_Capacity - 1);
         dmHttpClient::WriteHeader(response, "Range", value);
     }
     return dmHttpClient::RESULT_OK;
@@ -167,7 +162,6 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
     archive->m_HttpCache = g_HttpCache;
 
     dmHttpClient::NewParams http_params;
-    http_params.m_HttpHeader = &HttpHeader;
     http_params.m_HttpContent = &HttpContent;
     http_params.m_HttpWriteHeaders = &HttpWriteHeaders;
     http_params.m_Userdata = archive;
@@ -191,36 +185,25 @@ static dmResourceProvider::Result Unmount(dmResourceProvider::HArchiveInternal a
     return dmResourceProvider::RESULT_OK;
 }
 
-static void ResetHttpInfo(HttpProviderContext* archive)
+// The resource mount mutex/preloader queue serializes these synchronous reads.
+// On failure the destination may contain a prefix; callers must discard it.
+static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive, const char* method, const char* path,
+                                                   uint32_t offset, uint32_t capacity, bool partial, uint8_t* buffer, uint32_t* nread)
 {
-    archive->m_HttpContentLength = -1;
-    archive->m_HttpTotalBytesStreamed = 0;
-    archive->m_HttpStatus = -1;
-    archive->m_HttpBuffer.SetSize(0);
-    archive->m_HttpContentOffset = 0;
-    archive->m_ChunkOffset      = INVALID_CHUNK_VALUE;
-    archive->m_ChunkSize        = INVALID_CHUNK_VALUE;
-    archive->m_ChunkedRequest   = 0;
-}
+    *nread = 0;
+    if (partial && !capacity)
+        return dmResourceProvider::RESULT_OK;
+    if ((uint64_t)offset + capacity > (uint64_t)UINT32_MAX + 1)
+        return dmResourceProvider::RESULT_IO_ERROR;
 
-// Note. This is used in a synchronous manner.
-// We rely on the fact that the resource_preloader uses a threaded queue to make requests
-static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive, const char* method, const char* path, uint32_t offset, uint32_t size, uint32_t* buffer_length, uint8_t* buffer)
-{
-    ResetHttpInfo(archive);
-
-    if (size != INVALID_CHUNK_VALUE && offset != INVALID_CHUNK_VALUE)
-    {
-        archive->m_ChunkOffset      = offset;
-        archive->m_ChunkSize        = size;
-        archive->m_ChunkedRequest   = 1;
-    }
-
-    bool get_file_size = strcmp(method, "HEAD") == 0;
-
-    // // Always verify cache for reloaded resources
-    // if (factory->m_HttpCache)
-    //     dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
+    HttpRead read = {};
+    read.m_Buffer = buffer;
+    read.m_Capacity = capacity;
+    read.m_Offset = offset;
+    read.m_Partial = partial;
+    read.m_Head = strcmp(method, "HEAD") == 0;
+    read.m_ContentLength = -1;
+    read.m_Status = -1;
 
     char encoded_uri[dmResource::RESOURCE_PATH_MAX*2];
     CreateEncodedUri(&archive->m_BaseUri, path, encoded_uri, sizeof(encoded_uri));
@@ -228,40 +211,34 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
     char cache_key[dmURI::MAX_URI_LEN];
     dmHttpClient::GetURI(archive->m_HttpClient, path, cache_key, sizeof(cache_key));
 
-    // Make the cache key the same (see http_service.cpp)
-    if (!get_file_size)
+    if (partial)
     {
-        if(INVALID_CHUNK_VALUE != offset && INVALID_CHUNK_VALUE != size)
-        {
-            char range[256];
-            dmSnPrintf(range, sizeof(range), "=bytes=%u-%u", offset, offset+size-1);
-            dmStrlCat(cache_key, range, sizeof(cache_key));// "=bytes=%d-%d"
-        }
-        dmHttpClient::SetCacheKey(archive->m_HttpClient, cache_key);
+        char range[128];
+        dmSnPrintf(range, sizeof(range), "=bytes=%u-%u", offset, offset + capacity - 1);
+        dmStrlCat(cache_key, range, sizeof(cache_key));
     }
+    dmHttpClient::SetCacheKey(archive->m_HttpClient, cache_key);
 
+    archive->m_Read = &read;
     dmHttpClient::Result http_result = dmHttpClient::Request(archive->m_HttpClient, method, encoded_uri);
-
-    // // Always verify cache for reloaded resources
-    // if (factory->m_HttpCache)
-    //     dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUSTED);
+    archive->m_Read = 0;
 
     bool http_result_ok = http_result == dmHttpClient::RESULT_OK ||
                          (http_result == dmHttpClient::RESULT_NOT_200_OK &&
-                                (archive->m_HttpStatus == 304 || archive->m_HttpStatus == 206));
+                                (read.m_Status == 304 || read.m_Status == 206));
 
     if (!http_result_ok)
     {
-        if (archive->m_HttpStatus == 404)
+        if (read.m_Status == 404)
         {
             return dmResourceProvider::RESULT_NOT_FOUND;
         }
         else
         {
             // 304 (NOT MODIFIED) is OK. 304 is returned when the resource is loaded from cache, ie ETag or similar match
-            if (http_result == dmHttpClient::RESULT_NOT_200_OK && archive->m_HttpStatus != 304)
+            if (http_result == dmHttpClient::RESULT_NOT_200_OK && read.m_Status != 304)
             {
-                dmLogWarning("Unexpected http status code: %d", archive->m_HttpStatus);
+                dmLogWarning("Unexpected http status code: %d", read.m_Status);
                 return dmResourceProvider::RESULT_IO_ERROR;
             }
 
@@ -270,32 +247,19 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
         }
     }
 
-    if (get_file_size)
+    if (read.m_Error)
+        return dmResourceProvider::RESULT_IO_ERROR;
+    if (read.m_Head)
     {
-        *buffer_length = archive->m_HttpContentLength;
+        if (read.m_ContentLength < 0)
+            return dmResourceProvider::RESULT_IO_ERROR;
+        *nread = (uint32_t)read.m_ContentLength;
     }
     else
     {
-        // Only check content-length if status != 304 (NOT MODIFIED)
-        if (archive->m_HttpStatus != 304 && archive->m_HttpContentLength != -1 && archive->m_HttpContentLength != (int32_t)archive->m_HttpTotalBytesStreamed)
-        {
-            dmLogError("Expected content length differs from actually streamed for resource %s (%d != %d)", encoded_uri, archive->m_HttpContentLength, archive->m_HttpTotalBytesStreamed);
-        }
-
-        // We might have streamed more than we have a buffer for
-        // If we got more than requested, and we wanted the full file, let's fail for now.
-        bool full_file = size == INVALID_CHUNK_VALUE && offset == INVALID_CHUNK_VALUE;
-        if (archive->m_HttpTotalBytesStreamed > *buffer_length && full_file)
-        {
-            dmLogError("Cannot write to buffer of size %u. Content has length %u", *buffer_length, archive->m_HttpTotalBytesStreamed);
+        if (read.m_ContentLength >= 0 && (uint64_t)read.m_ContentLength != read.m_Received)
             return dmResourceProvider::RESULT_IO_ERROR;
-        }
-
-        *buffer_length = dmMath::Min(archive->m_HttpTotalBytesStreamed, size);
-        if (buffer)
-        {
-            memcpy(buffer, archive->m_HttpBuffer.Begin(), *buffer_length);
-        }
+        *nread = read.m_Copied;
     }
     return dmResourceProvider::RESULT_OK;
 }
@@ -305,7 +269,7 @@ static dmResourceProvider::Result GetFileSize(dmResourceProvider::HArchiveIntern
     HttpProviderContext* archive = (HttpProviderContext*)_archive;
     (void)path_hash;
 
-    return GetRequestFromUri((HttpProviderContext*)archive, "HEAD", path, INVALID_CHUNK_VALUE, INVALID_CHUNK_VALUE, file_size, 0);
+    return GetRequestFromUri((HttpProviderContext*)archive, "HEAD", path, 0, 0, false, 0, file_size);
 }
 
 static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal _archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t _buffer_len)
@@ -314,7 +278,7 @@ static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal 
     (void)path_hash;
 
     uint32_t buffer_len = _buffer_len;
-    dmResourceProvider::Result result = GetRequestFromUri((HttpProviderContext*)archive, "GET", path, INVALID_CHUNK_VALUE, INVALID_CHUNK_VALUE, &buffer_len, buffer);
+    dmResourceProvider::Result result = GetRequestFromUri((HttpProviderContext*)archive, "GET", path, 0, _buffer_len, false, buffer, &buffer_len);
     if (result != dmResourceProvider::RESULT_OK)
     {
         return result;
@@ -326,7 +290,7 @@ static dmResourceProvider::Result ReadFilePartial(dmResourceProvider::HArchiveIn
 {
     HttpProviderContext* archive = (HttpProviderContext*)_archive;
     (void)path_hash;
-    dmResourceProvider::Result result = GetRequestFromUri((HttpProviderContext*)archive, "GET", path, offset, size, nread, buffer);
+    dmResourceProvider::Result result = GetRequestFromUri((HttpProviderContext*)archive, "GET", path, offset, size, true, buffer, nread);
     if (result != dmResourceProvider::RESULT_OK)
     {
         return result;

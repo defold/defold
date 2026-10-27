@@ -18,6 +18,7 @@
 #include <dlib/configfile.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/http/http_cache.h>
 #include <dlib/socket.h>
 #include <dlib/testutil.h>
 #include <dlib/uri.h>
@@ -166,6 +167,113 @@ TEST_F(HttpProviderArchive, ReadFilePartial)
     }
 }
 #endif // DM_TEST_NO_SUPPORT_RANGE_REQUEST
+
+// Unknown-length and chunked bodies must fit the caller's destination, and a
+// server ignoring Range must still return the requested interval rather than byte zero.
+TEST_F(HttpProviderArchive, StreamingDestinations)
+{
+    const char* paths[] = { "/large", "/chunked", "/unknown" };
+    const uint32_t size = 128 * 1024;
+    uint8_t* buffer = new uint8_t[size + 2];
+    for (uint32_t p = 0; p < sizeof(paths) / sizeof(paths[0]); ++p)
+    {
+        memset(buffer, 0xfe, size + 2);
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::ReadFile(m_Archive, 0, paths[p], buffer + 1, size));
+        for (uint32_t i = 0; i < size; ++i)
+            ASSERT_EQ((uint8_t)(i % 251), buffer[i + 1]);
+        ASSERT_EQ(0xfe, buffer[0]);
+        ASSERT_EQ(0xfe, buffer[size + 1]);
+
+        memset(buffer, 0xfe, size + 2);
+        ASSERT_EQ(dmResourceProvider::RESULT_IO_ERROR, dmResourceProvider::ReadFile(m_Archive, 0, paths[p], buffer + 1, 4));
+        ASSERT_EQ(0xfe, buffer[0]);
+        ASSERT_EQ(0xfe, buffer[5]);
+
+        uint32_t nread = UINT32_MAX; // Output only, never the destination capacity.
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::ReadFilePartial(m_Archive, 0, paths[p], size - 7, 16, buffer + 1, &nread));
+        ASSERT_EQ(7U, nread);
+        for (uint32_t i = 0; i < nread; ++i)
+            ASSERT_EQ((uint8_t)((size - 7 + i) % 251), buffer[i + 1]);
+        ASSERT_EQ(0xfe, buffer[0]);
+        ASSERT_EQ(0xfe, buffer[17]);
+    }
+    delete[] buffer;
+}
+
+// Metadata-only reads and failed/empty ranges must not allocate a response or
+// corrupt destination guards; a new response must reset errors from a retry.
+TEST_F(HttpProviderArchive, MetadataErrorsAndRetry)
+{
+    uint32_t size;
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::GetFileSize(m_Archive, 0, "/huge-head", &size));
+    ASSERT_EQ(1024U * 1024 * 1024, size);
+    uint8_t buffer[10];
+    memset(buffer, 0xfe, sizeof(buffer));
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::ReadFile(m_Archive, 0, "/retry", buffer + 1, 8));
+    ASSERT_ARRAY_EQ_LEN(SOMEDATA, buffer + 1, 8);
+    const char* errors[] = { "/not_exist", "/bad-range", "/truncated" };
+    for (uint32_t i = 0; i < sizeof(errors) / sizeof(errors[0]); ++i)
+    {
+        uint32_t nread = 123;
+        ASSERT_NE(dmResourceProvider::RESULT_OK, dmResourceProvider::ReadFilePartial(m_Archive, 0, errors[i], 3, 5, buffer + 1, &nread));
+        ASSERT_EQ(0U, nread);
+    }
+    uint32_t nread = 123;
+    ASSERT_EQ(dmResourceProvider::RESULT_IO_ERROR, dmResourceProvider::ReadFilePartial(m_Archive, 0, "/somedata", UINT32_MAX, 2, buffer + 1, &nread));
+    ASSERT_EQ(0U, nread);
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::ReadFilePartial(m_Archive, 0, "/somedata", 0, 0, buffer + 1, &nread));
+    ASSERT_EQ(0U, nread);
+    ASSERT_EQ(0xfe, buffer[0]);
+    ASSERT_EQ(0xfe, buffer[9]);
+}
+
+class HttpProviderCached : public HttpProviderArchive
+{
+protected:
+    dmHttpCache::HCache m_Cache;
+    void SetUp() override
+    {
+        dmHttpCache::NewParams cache_params;
+        cache_params.m_Path = "cache";
+        ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Open(&cache_params, &m_Cache));
+        dmResourceProvider::ArchiveLoaderParams params = {};
+        params.m_HttpCache = m_Cache;
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::InitializeLoaders(&params));
+        HttpProviderArchive::SetUp();
+    }
+    void TearDown() override
+    {
+        HttpProviderArchive::TearDown();
+        dmResourceProvider::ArchiveLoaderParams params = {};
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::FinalizeLoaders(&params));
+        ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Close(m_Cache));
+    }
+};
+
+// Exercise network, conditional 304 and trusted cache replay for both complete
+// files and ranges, including HEAD after a cached partial read.
+TEST_F(HttpProviderCached, Replay)
+{
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        if (pass == 2)
+            dmHttpCache::SetConsistencyPolicy(m_Cache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
+        uint8_t buffer[8];
+        memset(buffer, 0xfe, sizeof(buffer));
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::ReadFile(m_Archive, 0, "/somedata", buffer, sizeof(buffer)));
+        ASSERT_ARRAY_EQ_LEN(SOMEDATA, buffer, sizeof(buffer));
+        uint32_t nread = UINT32_MAX;
+        memset(buffer, 0xfe, sizeof(buffer));
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::ReadFilePartial(m_Archive, 0, "/somedata", 5, 5, buffer + 1, &nread));
+        ASSERT_EQ(3U, nread);
+        ASSERT_ARRAY_EQ_LEN(SOMEDATA + 5, buffer + 1, nread);
+        ASSERT_EQ(0xfe, buffer[0]);
+        ASSERT_EQ(0xfe, buffer[4]);
+        uint32_t size;
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::GetFileSize(m_Archive, 0, "/somedata", &size));
+        ASSERT_EQ(8U, size);
+    }
+}
 
 
 #if defined(DM_TEST_HTTP_SUPPORTED)
