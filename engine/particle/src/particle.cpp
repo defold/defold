@@ -1261,7 +1261,9 @@ namespace dmParticle
             {
                 for (int i = 0; i < 6; ++i)
                 {
-                    position_world_flat[i] = world_matrix * position_local_flat[i];
+                    // Particle transforms are affine, so w is always 1. Setting it explicitly
+                    // lets the compiler skip the fourth-row calculation.
+                    position_world_flat[i] = Vector4((world_matrix * position_local_flat[i]).getXYZ(), 1.0f);
                 }
             }
 
