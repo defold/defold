@@ -284,6 +284,38 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
     ASSERT_EQ(attribute_overrides[2].m_Values.m_BinaryValues.m_Count, num_values);
     ASSERT_EQ(0, memcmp(attribute_overrides[2].m_Values.m_BinaryValues.m_Data, value_ptr, num_values));
 
+    // A partial layout change must move untouched neighbors, not expose stale or uninitialized bytes.
+    float expanded_values[] = { 9.0f, 8.0f, 7.0f, 6.0f };
+    attribute_overrides[1].m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Data = (uint8_t*)expanded_values;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Count = sizeof(expanded_values);
+    dmRender::SetMaterialProgramAttributes(material, &attribute_overrides[1], 1);
+    dmRender::GetMaterialProgramAttributeValues(material, 0, &value_ptr, &num_values);
+    ASSERT_EQ(sizeof(bytes_one), num_values);
+    ASSERT_EQ(0, memcmp(bytes_one, value_ptr, num_values));
+    dmRender::GetMaterialProgramAttributeValues(material, 2, &value_ptr, &num_values);
+    ASSERT_EQ(sizeof(bytes_three), num_values);
+    ASSERT_EQ(0, memcmp(bytes_three, value_ptr, num_values));
+
+    // Metadata-only updates preserve existing values and initialize added components.
+    attribute_overrides[1].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Data = 0;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Count = 0;
+    dmRender::SetMaterialProgramAttributes(material, &attribute_overrides[1], 1);
+    dmRender::GetMaterialProgramAttributeValues(material, 1, &value_ptr, &num_values);
+    ASSERT_EQ(sizeof(expanded_values), num_values);
+    ASSERT_EQ(0, memcmp(expanded_values, value_ptr, num_values));
+    attribute_overrides[1].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3;
+    dmRender::SetMaterialProgramAttributes(material, &attribute_overrides[1], 1);
+    dmRender::GetMaterialProgramAttributeValues(material, 1, &value_ptr, &num_values);
+    ASSERT_EQ(9u * sizeof(float), num_values);
+    ASSERT_EQ(0, memcmp(expanded_values, value_ptr, sizeof(expanded_values)));
+    for (uint32_t i = 4; i < 9; ++i)
+        ASSERT_EQ(0.0f, dmGraphics::VertexAttributeDataTypeToFloat(dmGraphics::VertexAttribute::TYPE_FLOAT, value_ptr + i * sizeof(float)));
+    dmRender::GetMaterialProgramAttributeValues(material, 2, &value_ptr, &num_values);
+    ASSERT_EQ(sizeof(bytes_three), num_values);
+    ASSERT_EQ(0, memcmp(bytes_three, value_ptr, num_values));
+
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
     dmRender::DeleteMaterial(m_RenderContext, material);
 }

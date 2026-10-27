@@ -558,6 +558,9 @@ namespace dmRender
         }
 
         bool update_attributes = false;
+        dmArray<dmGraphics::VertexAttributeInfo> previous_infos;
+        previous_infos.SetCapacity(material->m_VertexAttributeInfos.Size());
+        previous_infos.PushArray(material->m_VertexAttributeInfos.Begin(), material->m_VertexAttributeInfos.Size());
 
         for (int i = 0; i < attributes_count; ++i)
         {
@@ -598,8 +601,34 @@ namespace dmRender
             value_byte_size += dmGraphics::GetTypeSize(graphics_type) * material->m_VertexAttributeInfos[i].m_ElementCount;
         }
 
-        material->m_MaterialAttributeValues.SetCapacity(value_byte_size);
-        material->m_MaterialAttributeValues.SetSize(value_byte_size);
+        // Relocate each old value to its new offset before applying overrides.
+        // A partial update may grow or shrink an attribute before its neighbors.
+        dmArray<uint8_t> values;
+        values.SetCapacity(value_byte_size);
+        values.SetSize(value_byte_size);
+        if (value_byte_size)
+            memset(values.Begin(), 0, value_byte_size);
+        for (uint32_t i = 0; i < previous_infos.Size(); ++i)
+        {
+            const dmGraphics::VertexAttributeInfo& previous = previous_infos[i];
+            const dmGraphics::VertexAttributeInfo& current = material->m_VertexAttributeInfos[i];
+            uint32_t element_count = dmMath::Min(previous.m_ElementCount, current.m_ElementCount);
+            uint32_t previous_width = dmGraphics::DataTypeToByteWidth(previous.m_DataType);
+            uint8_t* destination = values.Begin() + material->m_MaterialAttributes[i].m_ValueIndex;
+            if (previous.m_DataType == current.m_DataType)
+            {
+                memcpy(destination, previous.m_ValuePtr, element_count * previous_width);
+            }
+            else
+            {
+                for (uint32_t j = 0; j < element_count; ++j)
+                {
+                    float value = dmGraphics::VertexAttributeDataTypeToFloat(previous.m_DataType, previous.m_ValuePtr + j * previous_width);
+                    destination = dmGraphics::WriteVertexAttributeFromFloat(destination, value, current.m_DataType);
+                }
+            }
+        }
+        material->m_MaterialAttributeValues.Swap(values);
         UpdateVertexAttributeValuePointers(material);
 
         const uint32_t name_buffer_size = 128;
