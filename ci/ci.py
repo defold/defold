@@ -306,6 +306,8 @@ def build_engine(channel, platform, args):
         build_opts.append('--with-valgrind')
     if args.with_asan:
         build_opts.append('--with-asan')
+    if args.with_msan:
+        build_opts.append('--with-msan')
     if args.with_ubsan:
         build_opts.append('--with-ubsan')
     if args.with_tsan:
@@ -573,6 +575,7 @@ def main(argv):
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--platforms", dest="platforms", help="Comma-separated platforms to include in the combined SDK")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
+    parser.add_argument("--with-msan", dest="with_msan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
     parser.add_argument("--with-tsan", dest="with_tsan", action='store_true', help="")
     parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")

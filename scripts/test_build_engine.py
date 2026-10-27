@@ -7,6 +7,17 @@ from unittest import mock
 import build
 
 
+class SanitizerFeatureTests(unittest.TestCase):
+    # MSan must reach CMake when selected and reset when a build directory is reused.
+    def test_msan_option_and_default(self):
+        configuration = build.Configuration.__new__(build.Configuration)
+        configuration._log = lambda message: None
+        configuration.build_options = ['--with-msan']
+        self.assertIn('-DWITH_MSAN:BOOL=ON', configuration._cmake_feature_defines())
+        configuration.build_options = []
+        self.assertIn('-DWITH_MSAN:BOOL=OFF', configuration._cmake_feature_defines())
+
+
 class CompilationDatabaseTests(unittest.TestCase):
     def setUp(self):
         temporary_directory = tempfile.TemporaryDirectory()

@@ -49,6 +49,7 @@ SOURCE_BUILT_PACKAGE_PREFIXES = (
 _CMAKE_FEATURE_FLAG_MAP = {
     '--with-asan': 'WITH_ASAN',
     '--with-hwasan': 'WITH_HWASAN',
+    '--with-msan': 'WITH_MSAN',
     '--with-ubsan': 'WITH_UBSAN',
     '--with-tsan': 'WITH_TSAN',
     '--with-valgrind': 'WITH_VALGRIND',

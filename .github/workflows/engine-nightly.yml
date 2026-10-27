@@ -129,6 +129,10 @@ jobs:
         with: { platform: 'x86_64-linux', build-variant: 'valgrind' }
       },
       {
+        name: 'MSAN (SIMD tests)',
+        run: 'source ci/env.sh && bash ci/run-msan-simd.sh x86_64-linux'
+      },
+      {
          name: 'Notify if build status changed',
          uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d, # v4.0.0
          if: failure(),
@@ -195,6 +199,10 @@ jobs:
         if: "always() && (steps.valgrind.outcome == 'success' || steps.valgrind.outcome == 'failure')",
         uses: ./.github/actions/upload-build-reports,
         with: { platform: 'arm64-linux', build-variant: 'valgrind' }
+      },
+      {
+        name: 'MSAN (SIMD tests)',
+        run: 'source ci/env.sh && bash ci/run-msan-simd.sh arm64-linux'
       },
       {
          name: 'Notify if build status changed',

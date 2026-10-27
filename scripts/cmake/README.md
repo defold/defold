@@ -74,10 +74,17 @@ To clear features in an existing build directory, configure with an empty value:
 cmake -S . -B engine/build/arm64-macos -DDEFOLD_ENABLE_FEATURES=
 ```
 
-When invoking `scripts/build.py`, pass `--with-asan`, `--with-hwasan`, `--with-ubsan`, or
-`--with-tsan` after the `--` separator and the configure step applies the
+When invoking `scripts/build.py`, pass `--with-asan`, `--with-hwasan`, `--with-msan`,
+`--with-ubsan`, or `--with-tsan` after the `--` separator and the configure step applies the
 matching `WITH_*` cache options, such as `WITH_ASAN=ON`. The graphics toggles
 such as `--with-vulkan` continue to map to `WITH_VULKAN`.
+
+`WITH_MSAN=ON` enables Clang MemorySanitizer with origin tracking on Linux
+(`x86_64-linux` or `arm64-linux`). It cannot be combined with another sanitizer.
+Reliable reports require instrumented dependencies, including the C++ standard
+library; the normal prebuilt dependency installation is not sufficient.
+The Linux nightly workflow currently runs the self-contained C SIMD suites
+under MSan; it does not run the full engine suite with MSan.
 
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
 include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;
