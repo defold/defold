@@ -45,6 +45,8 @@
     #include "test_app_graphics_assets_vendor.h"
 #endif
 
+#include "graphics_test_sanitizers.h"
+
 // From engine_private.h
 
 enum UpdateResult

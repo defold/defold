@@ -1,5 +1,31 @@
 set(GRAPHICS_TEST_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
+if(WITH_ASAN AND TARGET_PLATFORM MATCHES "linux$" AND NOT CMAKE_CROSSCOMPILING)
+  defold_add_library(test_graphics_sanitizers_driver MODULE "${GRAPHICS_TEST_SRC_DIR}/graphics_test_driver.cpp")
+  defold_target_skip_sanitizer(test_graphics_sanitizers_driver)
+  set_target_properties(test_graphics_sanitizers_driver PROPERTIES
+    PREFIX "" OUTPUT_NAME "graphics_test_dri" EXCLUDE_FROM_ALL TRUE)
+  defold_add_executable(test_graphics_sanitizers "${GRAPHICS_TEST_SRC_DIR}/test_graphics_sanitizers.cpp")
+  target_link_libraries(test_graphics_sanitizers PRIVATE dl)
+  add_dependencies(test_graphics_sanitizers test_graphics_sanitizers_driver)
+  defold_register_test_target(test_graphics_sanitizers OFF)
+  set(_graphics_sanitizer_command "${CMAKE_COMMAND}"
+    "-DPROBE=$<TARGET_FILE:test_graphics_sanitizers>"
+    "-DDRIVER=$<TARGET_FILE:test_graphics_sanitizers_driver>"
+    -P "${GRAPHICS_TEST_SRC_DIR}/test_graphics_sanitizers.cmake")
+  # Exercise real loader/LSan behavior in child processes without requiring a GPU.
+  add_custom_target(run_test_graphics_sanitizers
+    COMMAND ${_graphics_sanitizer_command}
+    DEPENDS test_graphics_sanitizers VERBATIM)
+  if(NOT TARGET run_tests)
+    add_custom_target(run_tests)
+  endif()
+  defold_add_to_run_tests(run_test_graphics_sanitizers
+    COMMAND ${_graphics_sanitizer_command} DEPENDS test_graphics_sanitizers)
+  defold_register_sequential_test_command(graphics_sanitizers
+    COMMAND ${_graphics_sanitizer_command} DEPENDS test_graphics_sanitizers)
+endif()
+
 defold_create_exported_symbols_file(
   "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_graphics_null.cpp"
   "GraphicsAdapterNull")
@@ -225,13 +251,19 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
           list(APPEND _graphics_available "${_backend}")
         endif()
       endforeach()
+      set(_graphics_test_command "${CMAKE_COMMAND}" -E env)
+      if(WITH_ASAN AND TARGET_PLATFORM MATCHES "linux$")
+        # Keep driver globals reachable and allocation stacks symbolized for
+        # LeakSanitizer's exit check, which runs after vkDestroyInstance.
+        list(APPEND _graphics_test_command "VK_LOADER_DISABLE_DYNAMIC_LIBRARY_UNLOADING=1")
+      endif()
       set(_graphics_capture_env)
       if(NOT TARGET_PLATFORM STREQUAL "arm64_sim-ios")
         list(APPEND _graphics_capture_env "GRAPHICS_CAPTURE_EXECUTABLE=$<TARGET_FILE:test_app_graphics>")
       endif()
-      set(_graphics_python_command "${CMAKE_COMMAND}" -E env ${_graphics_capture_env}
+      set(_graphics_python_command ${_graphics_test_command} ${_graphics_capture_env}
         "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/test_graphics_images.py")
-      set(_graphics_image_command "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_images.py"
+      set(_graphics_image_command ${_graphics_test_command} "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_images.py"
         --executable "$<TARGET_FILE:test_app_graphics>"
         --target-platform "${TARGET_PLATFORM}"
         --capture-dir "${GRAPHICS_ROOT}/build/graphics-test-images/${TARGET_PLATFORM}"
@@ -249,7 +281,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
       # Automatic hosted CI coverage is Linux/Vulkan and the iOS simulator. The manual target
       # above always remains available, regardless of this policy.
       set(_graphics_ci_command ${_graphics_image_command})
-      set(_graphics_buffer_command "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_buffer_replacement.py"
+      set(_graphics_buffer_command ${_graphics_test_command} "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_buffer_replacement.py"
         --executable "$<TARGET_FILE:test_app_graphics>" --target-platform "${TARGET_PLATFORM}"
         --available ${_graphics_available})
       if(DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$|^arm64_sim-ios$")

@@ -186,6 +186,12 @@ TEST_F(MeshCounterTest, WorldSpace)
     Run(false, 16, true);
 }
 
+// Disabled meshes must release their local buffers after an in-place material change.
+TEST_F(MeshCounterTest, WorldSpaceAllDisabled)
+{
+    Run(false, 0, true);
+}
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char** argv)
