@@ -76,23 +76,23 @@ static inline uint32_t SkipWS(TextGlyph* glyphs, uint32_t num_glyphs, uint32_t* 
  * and should be skipped when rendering
  */
 template <typename Metric>
-void Layout(TextLayout* layout,
-            float width,
-            float* text_width,
-            Metric metrics,
-            bool measure_trailing_space)
+void Layout(TextLayout*     layout,
+            float       width,
+            float*      text_width,
+            Metric      metrics,
+            bool        measure_trailing_space)
 {
-    TextGlyph* glyphs = layout->m_Glyphs.Begin();
-    uint32_t num_glyphs = layout->m_Glyphs.Size();
-    uint32_t cursor = 0;
-    float max_width = 0;
-    uint32_t c;
+    TextGlyph*  glyphs = layout->m_Glyphs.Begin();
+    uint32_t    num_glyphs = layout->m_Glyphs.Size();
+    uint32_t    cursor = 0;
+    float       max_width = 0;
+    uint32_t    c;
     do
     {
         uint32_t n = 0, last_n = 0;
         uint32_t row_start = cursor;
         uint32_t last_cursor = cursor;
-        float w = 0, last_w = 0;
+        float    w = 0, last_w = 0;
         do
         {
             c = NextBreak(glyphs, num_glyphs, &cursor, &n);
@@ -201,10 +201,10 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
 
 struct LayoutMetrics
 {
-    TextGlyph* m_Glyphs;
-    bool       m_Monospace;
-    float      m_Padding;
-    float      m_Tracking;
+    TextGlyph*  m_Glyphs;
+    bool        m_Monospace;
+    float       m_Padding;
+    float       m_Tracking;
     LayoutMetrics(TextGlyph* glyphs, bool monospace, float padding, float tracking)
     : m_Glyphs(glyphs)
     , m_Monospace(monospace)
@@ -460,7 +460,7 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     if (!layout->m_ResolvedSpans.Empty())
     {
         uint32_t resolved_span_index = 0;
-        float advance_adjustment = 0.0f;
+        float    advance_adjustment = 0.0f;
 
         for (uint32_t i = 0; i < num_codepoints; ++i)
         {

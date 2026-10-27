@@ -253,7 +253,7 @@ void FontCollectionSetNamedStyle(HFontCollection collection, dmhash_t name, cons
 
 bool FontCollectionSetNamedStyleMarkup(HFontCollection collection, dmhash_t name, const char* definition, uint32_t definition_length, MarkupError* error)
 {
-    TextRenderStyle style = {};
+    TextRenderStyle          style = {};
     dmArray<TextEffect>      effects;
     TextNamedStyleDecoration decoration = {};
 

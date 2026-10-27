@@ -246,17 +246,17 @@ struct TextLayout
     dmArray<TextLayoutObjectBounds>    m_ObjectBounds;
     TextLayoutHitTestParams            m_ObjectBoundsParams;
 
-    HFontCollection m_FontCollection;
-    dmhash_t        m_BaseStyleName;
+    HFontCollection                    m_FontCollection;
+    dmhash_t                           m_BaseStyleName;
 
-    uint32_t m_NamedStyleRevision;
-    uint16_t m_BaseStyleCount;
-    uint16_t m_BaseEffectCount;
-    uint16_t m_BaseSpanEffectCount;
-    uint16_t m_BaseResolvedSpanCount;
+    uint32_t                           m_NamedStyleRevision;
+    uint16_t                           m_BaseStyleCount;
+    uint16_t                           m_BaseEffectCount;
+    uint16_t                           m_BaseSpanEffectCount;
+    uint16_t                           m_BaseResolvedSpanCount;
 
-    uint16_t m_NumValidGlyphs;                           // TODO: Remove non renderable glyphs
-    bool     m_UseRichText;
+    uint16_t                           m_NumValidGlyphs; // TODO: Remove non renderable glyphs
+    bool                               m_UseRichText;
 
     // Used for creating a cell in the glyph image cache texture
     float m_MaxGlyphWidth;
@@ -271,19 +271,19 @@ struct TextLayout
     void*                    m_ObjectContext;
 };
 
-TextResult TextLayoutLegacyCreate(HFontCollection collection,
-                                  uint32_t* codepoints,
-                                  uint32_t num_codepoints,
+TextResult TextLayoutLegacyCreate(HFontCollection     collection,
+                                  uint32_t*           codepoints,
+                                  uint32_t            num_codepoints,
                                   TextLayoutSettings* settings,
-                                  HTextLayout* outlayout);
+                                  HTextLayout*        outlayout);
 
 TextResult TextLayoutLegacyCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout);
 
-TextResult TextLayoutSkribidiCreate(HFontCollection collection,
-                                    uint32_t* codepoints,
-                                    uint32_t num_codepoints,
+TextResult TextLayoutSkribidiCreate(HFontCollection     collection,
+                                    uint32_t*           codepoints,
+                                    uint32_t            num_codepoints,
                                     TextLayoutSettings* settings,
-                                    HTextLayout* outlayout);
+                                    HTextLayout*        outlayout);
 
 TextResult TextLayoutSkribidiCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout);
 

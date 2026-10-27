@@ -29,12 +29,12 @@
  */
 struct FontSDFParams
 {
-    float   m_Scale;
-    float   m_Spread;
-    uint8_t m_OnEdgeValue;
-    bool    m_OutputBitmap;
-    float   m_OutlineWidth;
-    bool    m_Antialias;
+    float    m_Scale;
+    float    m_Spread;
+    uint8_t  m_OnEdgeValue;
+    bool     m_OutputBitmap;
+    float    m_OutlineWidth;
+    bool     m_Antialias;
 };
 
 /*# generate a signed distance field from a glyph outline

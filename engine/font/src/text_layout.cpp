@@ -166,7 +166,7 @@ static uint32_t GetDecorationIndex(HTextLayout layout, const TextDecoration& dec
 void TextLayoutInitializeDecorationGeometry(HTextLayout layout)
 {
     const uint32_t decoration_count = layout->m_Decorations.Size();
-    uint32_t segment_count = 0;
+    uint32_t       segment_count = 0;
 
     layout->m_DecorationGeometryOffsets.EnsureSize(decoration_count);
 
@@ -194,7 +194,7 @@ void TextLayoutInitializeDecorationGeometry(HTextLayout layout)
     for (uint32_t decoration_index = 0; decoration_index < decoration_count; ++decoration_index)
     {
         const TextDecoration& decoration = layout->m_Decorations[decoration_index];
-        const uint32_t geometry_start = layout->m_DecorationGeometryOffsets[decoration_index];
+        const uint32_t        geometry_start = layout->m_DecorationGeometryOffsets[decoration_index];
 
         if (geometry_start == UINT32_MAX)
         {
@@ -206,11 +206,11 @@ void TextLayoutInitializeDecorationGeometry(HTextLayout layout)
 
         for (uint32_t glyph_offset = 0; glyph_offset < decoration.m_GlyphCount; ++glyph_offset)
         {
-            const uint32_t glyph_index = decoration.m_GlyphStart + glyph_offset;
+            const uint32_t   glyph_index = decoration.m_GlyphStart + glyph_offset;
             const TextGlyph& glyph = layout->m_Glyphs[glyph_index];
-            const float glyph_end = glyph.m_X + glyph.m_Advance;
-            const float glyph_x0 = fminf(glyph.m_X, glyph_end);
-            const float glyph_x1 = fmaxf(glyph.m_X, glyph_end);
+            const float      glyph_end = glyph.m_X + glyph.m_Advance;
+            const float      glyph_x0 = fminf(glyph.m_X, glyph_end);
+            const float      glyph_x1 = fmaxf(glyph.m_X, glyph_end);
             TextDecorationGeometry geometry;
             geometry.m_GlyphIndex = glyph_index;
             geometry.m_X = fmaxf(decoration.m_X, fminf(decoration_end, glyph_x0));
@@ -538,7 +538,7 @@ static void ApplyNamedStyle(HTextLayout layout, dmhash_t name, TextRenderStyle* 
 
 static void AppendNamedStyleEffects(HTextLayout layout, dmhash_t name, const TextLayoutObject& object)
 {
-    uint32_t effect_count = 0;
+    uint32_t          effect_count = 0;
     const TextEffect* effects = FontCollectionGetNamedStyleEffects(layout->m_FontCollection, name, &effect_count);
 
     for (uint32_t i = 0; i < effect_count; ++i)
@@ -628,7 +628,7 @@ static void ApplyBaseStyle(HTextLayout layout)
             glyph.m_StyleIndex = styles[glyph.m_StyleIndex];
     }
 
-    uint32_t effect_count = 0;
+    uint32_t          effect_count = 0;
     const TextEffect* effects = FontCollectionGetNamedStyleEffects(layout->m_FontCollection, layout->m_BaseStyleName, &effect_count);
     if (!effect_count)
         return;
@@ -668,7 +668,7 @@ static void ApplyBaseStyle(HTextLayout layout)
     for (uint32_t i = 0; i < layout->m_BaseResolvedSpanCount; ++i)
     {
         const TextResolvedSpan original = layout->m_ResolvedSpans[i];
-        TextResolvedSpan span = original;
+        TextResolvedSpan       span = original;
         span.m_EffectIndex = (uint16_t)layout->m_SpanEffects.Size();
         const bool inline_color = (layout->m_StyleOverrideFlags[original.m_StyleIndex] & TEXT_RENDER_STYLE_FACE_COLOR) != 0;
         // Inline colors replace base gradients, while other inherited effects remain active.
@@ -720,7 +720,7 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
 
     dmArray<TextObjectStyle> object_styles;
     uint32_t text_length = 0;
-    bool has_object_styles = false;
+    bool     has_object_styles = false;
 
     for (uint32_t object_index = 0; object_index < layout->m_Objects.Size(); ++object_index)
     {
@@ -769,7 +769,7 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
     for (uint32_t object_index = 0; object_index < layout->m_Objects.Size(); ++object_index)
     {
         const TextLayoutObject& object = layout->m_Objects[object_index];
-        const TextObjectStyle& object_style = object_styles[object_index];
+        const TextObjectStyle&  object_style = object_styles[object_index];
 
         if (object.m_TextLength == 0 || (object_style.m_Style.m_Flags == 0 && object_style.m_EffectCount == 0 && object_style.m_Decoration.m_Flags == 0))
         {
@@ -804,7 +804,7 @@ static bool RefreshObjectStyles(HTextLayout layout, bool restore_base)
         }
 
         const TextObjectStyle& object_style = object_styles[object_index];
-        TextRenderStyle style = layout->m_Styles[glyph.m_StyleIndex];
+        TextRenderStyle        style = layout->m_Styles[glyph.m_StyleIndex];
         OverlayStyle(&style, object_style.m_Style);
         OverlayStyle(&style, layout->m_Styles[glyph.m_BaseStyleIndex]);
         const uint16_t style_index = AddLayoutStyle(layout, style, object_style.m_Style.m_Flags | layout->m_StyleOverrideFlags[glyph.m_BaseStyleIndex]);
@@ -1185,7 +1185,7 @@ struct TextLayoutObjectSweepEntry
 static void TextLayoutBuildHitTestObjects(HTextLayout layout, uint32_t text_length, dmArray<uint16_t>* text_objects)
 {
     const TextLayoutObject* objects = layout->m_Objects.Begin();
-    const uint32_t object_count = layout->m_Objects.Size();
+    const uint32_t          object_count = layout->m_Objects.Size();
 
     text_objects->SetCapacity(text_length);
     text_objects->SetSize(text_length);
@@ -1232,7 +1232,7 @@ static void ExpandObjectBounds(TextLayoutObjectBounds* bounds, float min_x, floa
 static void TextLayoutUpdateObjectBounds(HTextLayout layout, const TextLayoutHitTestParams& params)
 {
     const TextLayoutHitTestParams& cached = layout->m_ObjectBoundsParams;
-    const uint32_t object_count = layout->m_Objects.Size();
+    const uint32_t                 object_count = layout->m_Objects.Size();
     if (layout->m_ObjectBounds.Size() == object_count &&
         cached.m_Width == params.m_Width && cached.m_Height == params.m_Height &&
         cached.m_FontSize == params.m_FontSize && cached.m_MonospacePadding == params.m_MonospacePadding &&
@@ -1251,17 +1251,17 @@ static void TextLayoutUpdateObjectBounds(HTextLayout layout, const TextLayoutHit
         bounds.m_MaxX = bounds.m_MaxY = -INFINITY;
         bounds.m_Parent = MARKUP_INVALID_INDEX;
         const TextLayoutObject& object = layout->m_Objects[i];
-        const uint32_t object_end = object.m_TextOffset + object.m_TextLength;
+        const uint32_t          object_end = object.m_TextOffset + object.m_TextLength;
         text_length = text_length > object_end ? text_length : object_end;
     }
 
     dmArray<uint16_t> text_objects;
     TextLayoutBuildHitTestObjects(layout, text_length, &text_objects);
 
-    const TextGlyph* glyphs = layout->m_Glyphs.Begin();
-    const TextLine* lines = layout->m_Lines.Begin();
+    const TextGlyph*     glyphs = layout->m_Glyphs.Begin();
+    const TextLine*      lines = layout->m_Lines.Begin();
     const TextParagraph* paragraphs = layout->m_Paragraphs.Begin();
-    const float layout_y = TextLayoutOffsetY(params.m_VAlign, params.m_Height, layout->m_Height);
+    const float          layout_y = TextLayoutOffsetY(params.m_VAlign, params.m_Height, layout->m_Height);
 
     for (uint32_t line_index = 0; line_index < layout->m_Lines.Size(); ++line_index)
     {
@@ -1275,20 +1275,20 @@ static void TextLayoutUpdateObjectBounds(HTextLayout layout, const TextLayoutHit
         const float first_y = glyphs[line.m_Index].m_Y;
 
         const uint32_t align = TextLayoutResolveAlign(params.m_Align, paragraphs[line.m_ParagraphIndex].m_Direction);
-        const float line_x = TextLayoutOffsetX(align, params.m_Width) - TextLayoutOffsetX(align, line.m_Width) - params.m_MonospacePadding * 0.5f;
-        const float line_y = layout_y + line.m_Baseline;
+        const float    line_x = TextLayoutOffsetX(align, params.m_Width) - TextLayoutOffsetX(align, line.m_Width) - params.m_MonospacePadding * 0.5f;
+        const float    line_y = layout_y + line.m_Baseline;
 
         for (uint32_t i = line.m_Index; i < line.m_Index + line.m_Length; ++i)
         {
             const TextGlyph& glyph = glyphs[i];
-            const uint16_t object_index = glyph.m_Cluster < text_objects.Size() ? text_objects[glyph.m_Cluster] : MARKUP_INVALID_INDEX;
+            const uint16_t   object_index = glyph.m_Cluster < text_objects.Size() ? text_objects[glyph.m_Cluster] : MARKUP_INVALID_INDEX;
             if (object_index == MARKUP_INVALID_INDEX)
             {
                 continue;
             }
 
             TextLayoutObjectBounds* bounds = &layout->m_ObjectBounds[object_index];
-            const float x = line_x + glyph.m_X - first_x;
+            const float             x = line_x + glyph.m_X - first_x;
             if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
             {
                 const float y = line_y - glyph.m_Height * 0.2f;
@@ -1330,7 +1330,7 @@ uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestPara
 
     for (uint32_t i = layout->m_Objects.Size(); i-- > 0;)
     {
-        const TextLayoutObject& object = layout->m_Objects[i];
+        const TextLayoutObject&       object = layout->m_Objects[i];
         const TextLayoutObjectBounds& bounds = layout->m_ObjectBounds[i];
         if ((params.m_Tag == 0 || object.m_Tag == params.m_Tag) &&
             params.m_X >= bounds.m_MinX && params.m_X <= bounds.m_MaxX &&
@@ -1610,7 +1610,7 @@ static void ApplyGradientEffect(const TextLayout* layout, const TextGlyph& glyph
     if (gradient.m_Fit == TEXT_EFFECT_FIT_SPAN)
     {
         const float first_glyph_center = 0.5f / effect.m_TextLength;
-        float sample_x;
+        float       sample_x;
 
         if (gradient.m_Mode == TEXT_GRADIENT_MODE_HORIZONTAL)
         {
@@ -1627,7 +1627,7 @@ static void ApplyGradientEffect(const TextLayout* layout, const TextGlyph& glyph
         }
 
         const float sample_y = MirroredWrap(0.5f + animation_t);
-        float sample[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+        float       sample[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
         ApplyGradientColor(sample, gradient, sample_x, sample_y);
         ApplyFaceColor(colors, sample);
 
@@ -1638,14 +1638,14 @@ static void ApplyGradientEffect(const TextLayout* layout, const TextGlyph& glyph
     {
         const float glyph_center = ((float)((int64_t)glyph.m_Cluster - effect.m_TextOffset) + 0.5f) / effect.m_TextLength;
         const float sample_x = MirroredWrap(glyph_center + animation_t);
-        float sample[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+        float       sample[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
         ApplyGradientColor(sample, gradient, sample_x, 0.5f);
         ApplyFaceColor(colors, sample);
 
         return;
     }
 
-    const bool fit_text = gradient.m_Fit == TEXT_EFFECT_FIT_TEXT;
+    const bool  fit_text = gradient.m_Fit == TEXT_EFFECT_FIT_TEXT;
     const float left_u = fit_text ? Clamp01((float)((int64_t)glyph.m_Cluster - effect.m_TextOffset) / effect.m_TextLength) : 0.0f;
     const float right_u = fit_text ? Clamp01((float)((int64_t)glyph.m_Cluster + 1 - effect.m_TextOffset) / effect.m_TextLength) : 1.0f;
     const float left_t = MirroredWrap(left_u + animation_t);
@@ -1661,15 +1661,15 @@ static void ApplyGradientEffect(const TextLayout* layout, const TextGlyph& glyph
 // Interpolates deterministic shake samples so motion remains continuous.
 static void ApplyShakeEffect(const TextLayout* layout, const TextGlyph& glyph, const TextEffect& effect, uint32_t effect_index, TextGlyphRenderData* data)
 {
-    const double tick_time = layout->m_ElapsedTime * effect.m_Shake.m_Hz;
-    const double tick_floor = floor(tick_time);
+    const double   tick_time = layout->m_ElapsedTime * effect.m_Shake.m_Hz;
+    const double   tick_floor = floor(tick_time);
     const uint32_t tick = (uint32_t)tick_floor;
-    const float t = (float)(tick_time - tick_floor);
+    const float    t = (float)(tick_time - tick_floor);
     const uint32_t glyph_key = effect.m_Shake.m_Fit == TEXT_EFFECT_FIT_SPAN ? effect.m_TextOffset : glyph.m_Cluster;
-    const float current_angle = ShakeAngle(effect_index, glyph_key, tick);
-    const float next_angle = ShakeAngle(effect_index, glyph_key, tick + 1);
-    const float current_x = sinf(current_angle);
-    const float current_y = cosf(current_angle);
+    const float    current_angle = ShakeAngle(effect_index, glyph_key, tick);
+    const float    next_angle = ShakeAngle(effect_index, glyph_key, tick + 1);
+    const float    current_x = sinf(current_angle);
+    const float    current_y = cosf(current_angle);
     data->m_OffsetX += (current_x + (sinf(next_angle) - current_x) * t) * effect.m_Shake.m_Amplitude;
     data->m_OffsetY += (current_y + (cosf(next_angle) - current_y) * t) * effect.m_Shake.m_Amplitude;
 }
@@ -1680,8 +1680,8 @@ static void ApplyWaveEffect(const TextLayout* layout, const TextGlyph& glyph, co
     const float position = effect.m_Wave.m_Fit == TEXT_EFFECT_FIT_SPAN ? 0.0f :
                            (float)((int64_t)glyph.m_Cluster - effect.m_TextOffset);
     const double cycles = layout->m_ElapsedTime * effect.m_Wave.m_Hz;
-    const float t = (float)(cycles - floor(cycles));
-    const float phase = 6.28318530717958647692f * (t + position / effect.m_Wave.m_Wavelength);
+    const float  t = (float)(cycles - floor(cycles));
+    const float  phase = 6.28318530717958647692f * (t + position / effect.m_Wave.m_Wavelength);
     data->m_OffsetY += sinf(phase) * effect.m_Wave.m_Amplitude;
 }
 
@@ -1697,11 +1697,11 @@ void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, co
     }
 
     const TextResolvedSpan& span = internal->m_ResolvedSpans[glyph.m_MarkupSpanIndex];
-    const TextEffect* gradient_effect = 0;
+    const TextEffect*       gradient_effect = 0;
 
     for (uint32_t i = 0; i < span.m_EffectCount; ++i)
     {
-        const uint32_t effect_index = internal->m_SpanEffects[span.m_EffectIndex + i];
+        const uint32_t    effect_index = internal->m_SpanEffects[span.m_EffectIndex + i];
         const TextEffect& effect = internal->m_Effects[effect_index];
 
         if (effect.m_Type == TEXT_EFFECT_GRADIENT)
@@ -1763,7 +1763,7 @@ float TextLayoutGetMaxMarkupOutlineWidth(HTextLayout layout)
     if (!layout)
         return 0.0f;
     TextLayout* internal = (TextLayout*)layout;
-    float width = 0.0f;
+    float       width = 0.0f;
 
     for (uint32_t i = 0; i < internal->m_Styles.Size(); ++i)
     {

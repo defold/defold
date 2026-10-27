@@ -174,7 +174,7 @@ typedef struct FontcProperties
         uint8_t m_Bits;
     };
     // Vector layout size in pixels; zero uses the glyph generation size.
-    float m_FontSize;
+    float    m_FontSize;
 } FontcProperties;
 
 /* Compiled style data. Color arrays are RGBA; flags distinguish inherited
@@ -200,13 +200,13 @@ typedef struct FontcStyle
 
 typedef struct FontcStyleEffect
 {
-    float m_Colors[16];
-    float m_Amplitude;
-    float m_Hz;
-    float m_Wavelength;
-    float m_Positions[4];
+    float    m_Colors[16];
+    float    m_Amplitude;
+    float    m_Hz;
+    float    m_Wavelength;
+    float    m_Positions[4];
     // Authored linear angle, or radial pivot x/y, radius x/y, angle, and unused.
-    float m_Parameters[6];
+    float    m_Parameters[6];
     // Low-to-high bits of m_Bits on editor hosts; also read/written by Java.
     union
     {
@@ -333,11 +333,11 @@ DM_DLLEXPORT FontRendererResult FontcSetStyle(HFontRenderer renderer, uint64_t n
      * @param renderer [type: HFontRenderer*] Receives the created context on success.
      * @return result [type: FontRendererResult] Result of the operation.
      */
-DM_DLLEXPORT FontRendererResult FontcCreate(const char* name,
-                                            const uint8_t* font_bytes,
-                                            uint32_t font_byte_count,
+DM_DLLEXPORT FontRendererResult FontcCreate(const char*        name,
+                                            const uint8_t*     font_bytes,
+                                            uint32_t           font_byte_count,
                                             const FontcParams* params,
-                                            HFontRenderer* renderer);
+                                            HFontRenderer*     renderer);
 
 /*# Creates a renderer from a prebaked glyph bank
      *
@@ -359,17 +359,17 @@ DM_DLLEXPORT FontRendererResult FontcCreate(const char* name,
      * @param renderer [type: HFontRenderer*] Receives the created context on success.
      * @return result [type: FontRendererResult] Result of the operation.
      */
-DM_DLLEXPORT FontRendererResult FontcCreateGlyphBank(const char* name,
+DM_DLLEXPORT FontRendererResult FontcCreateGlyphBank(const char*                name,
                                                      const FontcGlyphBankGlyph* glyphs,
-                                                     uint32_t glyph_count,
-                                                     const uint8_t* glyph_data,
-                                                     uint32_t glyph_data_count,
-                                                     uint32_t glyph_padding,
-                                                     uint32_t glyph_channels,
-                                                     float max_ascent,
-                                                     float max_descent,
-                                                     const FontcParams* params,
-                                                     HFontRenderer* renderer);
+                                                     uint32_t                   glyph_count,
+                                                     const uint8_t*             glyph_data,
+                                                     uint32_t                   glyph_data_count,
+                                                     uint32_t                   glyph_padding,
+                                                     uint32_t                   glyph_channels,
+                                                     float                      max_ascent,
+                                                     float                      max_descent,
+                                                     const FontcParams*         params,
+                                                     HFontRenderer*             renderer);
 
 /*#
      * Destroys a font renderer context and all resources owned by it.
@@ -395,9 +395,9 @@ DM_DLLEXPORT void FontcDestroy(HFontRenderer renderer);
      * @param error [type: FontcMarkupError*] Receives the first parser error or effect warning, or FONTC_MARKUP_ERROR_NONE.
      * @return result [type: FontRendererResult] Result of the operation.
      */
-DM_DLLEXPORT FontRendererResult FontcParseMarkup(const char* markup,
-                                                 uint32_t markup_byte_count,
-                                                 HFontcMarkup* parsed_markup,
+DM_DLLEXPORT FontRendererResult FontcParseMarkup(const char*       markup,
+                                                 uint32_t          markup_byte_count,
+                                                 HFontcMarkup*     parsed_markup,
                                                  FontcMarkupError* error);
 
 /*# Destroys parsed rich-text markup
@@ -421,7 +421,7 @@ DM_DLLEXPORT void FontcDestroyMarkup(HFontcMarkup parsed_markup);
      * @param data [type: FontcMarkupData*] Receives borrowed parsed arrays.
      * @return result [type: FontRendererResult] Result of the operation.
      */
-DM_DLLEXPORT FontRendererResult FontcGetMarkupData(HFontcMarkup parsed_markup,
+DM_DLLEXPORT FontRendererResult FontcGetMarkupData(HFontcMarkup     parsed_markup,
                                                    FontcMarkupData* data);
 
 /*#
@@ -440,14 +440,14 @@ DM_DLLEXPORT FontRendererResult FontcGetMarkupData(HFontcMarkup parsed_markup,
      * @param layout [type: FontcLayout*] Receives the measured layout.
      * @return result [type: FontRendererResult] Result of the operation.
      */
-DM_DLLEXPORT FontRendererResult FontcMeasure(HFontRenderer renderer,
+DM_DLLEXPORT FontRendererResult FontcMeasure(HFontRenderer   renderer,
                                              const uint32_t* codepoints,
-                                             uint32_t codepoint_count,
-                                             uint32_t line_break,
-                                             float width,
-                                             float leading,
-                                             float tracking,
-                                             FontcLayout* layout);
+                                             uint32_t        codepoint_count,
+                                             uint32_t        line_break,
+                                             float           width,
+                                             float           leading,
+                                             float           tracking,
+                                             FontcLayout*    layout);
 
 /*#
      * Measures UTF-8 rich-text markup using the renderer's font and text-layout mode.
@@ -465,13 +465,13 @@ DM_DLLEXPORT FontRendererResult FontcMeasure(HFontRenderer renderer,
      * @return result [type: FontRendererResult] Result of the operation.
      */
 DM_DLLEXPORT FontRendererResult FontcMeasureMarkup(HFontRenderer renderer,
-                                                   const char* markup,
-                                                   uint32_t markup_byte_count,
-                                                   uint32_t line_break,
-                                                   float width,
-                                                   float leading,
-                                                   float tracking,
-                                                   FontcLayout* layout);
+                                                   const char*   markup,
+                                                   uint32_t      markup_byte_count,
+                                                   uint32_t      line_break,
+                                                   float         width,
+                                                   float         leading,
+                                                   float         tracking,
+                                                   FontcLayout*  layout);
 
 /*# Measures previously parsed rich-text markup
      *
@@ -489,12 +489,12 @@ DM_DLLEXPORT FontRendererResult FontcMeasureMarkup(HFontRenderer renderer,
      * @return result [type: FontRendererResult] Result of the operation.
      */
 DM_DLLEXPORT FontRendererResult FontcMeasureParsedMarkup(HFontRenderer renderer,
-                                                         HFontcMarkup parsed_markup,
-                                                         uint32_t line_break,
-                                                         float width,
-                                                         float leading,
-                                                         float tracking,
-                                                         FontcLayout* layout);
+                                                         HFontcMarkup  parsed_markup,
+                                                         uint32_t      line_break,
+                                                         float         width,
+                                                         float         leading,
+                                                         float         tracking,
+                                                         FontcLayout*  layout);
 
 /*# Filters visible rich-text codepoints
      *
@@ -516,13 +516,13 @@ DM_DLLEXPORT FontRendererResult FontcMeasureParsedMarkup(HFontRenderer renderer,
      * @param output_byte_count [type: uint32_t*] Receives the number of bytes written.
      * @return result [type: FontRendererResult] Result of the operation.
      */
-DM_DLLEXPORT FontRendererResult FontcFilterMarkup(const char* markup,
-                                                  uint32_t markup_byte_count,
+DM_DLLEXPORT FontRendererResult FontcFilterMarkup(const char*     markup,
+                                                  uint32_t        markup_byte_count,
                                                   const uint32_t* allowed_codepoints,
-                                                  uint32_t allowed_codepoint_count,
-                                                  char* output,
-                                                  uint32_t output_capacity,
-                                                  uint32_t* output_byte_count);
+                                                  uint32_t        allowed_codepoint_count,
+                                                  char*           output,
+                                                  uint32_t        output_capacity,
+                                                  uint32_t*       output_byte_count);
 
 /*#
      * Generates a standalone bitmap and metrics for one Unicode codepoint.
@@ -537,8 +537,8 @@ DM_DLLEXPORT FontRendererResult FontcFilterMarkup(const char* markup,
      * @return result [type: FontRendererResult] Result of the operation.
      */
 DM_DLLEXPORT FontRendererResult FontcGenerateGlyph(HFontRenderer renderer,
-                                                   uint32_t codepoint,
-                                                   FontcGlyph* glyph);
+                                                   uint32_t      codepoint,
+                                                   FontcGlyph*   glyph);
 
 /*#
      * Releases the pixel buffer in a generated glyph and clears the structure.
@@ -559,8 +559,8 @@ DM_DLLEXPORT void FontcFreeGlyph(FontcGlyph* glyph);
      * @param metrics [type: FontcGlyphMetrics*] Receives copied glyph metrics.
      * @return result [type: FontRendererResult] Result of the operation.
      */
-DM_DLLEXPORT FontRendererResult FontcGetGlyphMetrics(HFontRenderer renderer,
-                                                     uint32_t codepoint,
+DM_DLLEXPORT FontRendererResult FontcGetGlyphMetrics(HFontRenderer      renderer,
+                                                     uint32_t           codepoint,
                                                      FontcGlyphMetrics* metrics);
 
 /*#
@@ -576,10 +576,10 @@ DM_DLLEXPORT FontRendererResult FontcGetGlyphMetrics(HFontRenderer renderer,
      * @param glyph_count [type: uint32_t*] Receives the required or written entry count.
      * @return result [type: FontRendererResult] Result of the operation.
      */
-DM_DLLEXPORT FontRendererResult FontcGetSupportedGlyphMetrics(HFontRenderer renderer,
+DM_DLLEXPORT FontRendererResult FontcGetSupportedGlyphMetrics(HFontRenderer      renderer,
                                                               FontcGlyphMetrics* metrics,
-                                                              uint32_t metrics_capacity,
-                                                              uint32_t* glyph_count);
+                                                              uint32_t           metrics_capacity,
+                                                              uint32_t*          glyph_count);
 
 /*#
      * Decodes encoded image data into an uncompressed pixel buffer.
@@ -593,8 +593,8 @@ DM_DLLEXPORT FontRendererResult FontcGetSupportedGlyphMetrics(HFontRenderer rend
      * @return result [type: FontRendererResult] Result of the operation.
      */
 DM_DLLEXPORT FontRendererResult FontcDecodeImage(const uint8_t* image_bytes,
-                                                 uint32_t image_byte_count,
-                                                 FontcImage* image);
+                                                 uint32_t       image_byte_count,
+                                                 FontcImage*    image);
 
 /*#
      * Releases the pixel buffer in a decoded image and clears the structure.
@@ -615,7 +615,7 @@ DM_DLLEXPORT void FontcFreeImage(FontcImage* image);
      * @param properties [type: const FontcProperties*] Properties to copy.
      * @return result [type: FontRendererResult] Result of the operation.
      */
-DM_DLLEXPORT FontRendererResult FontcSetProperties(HFontRenderer renderer,
+DM_DLLEXPORT FontRendererResult FontcSetProperties(HFontRenderer          renderer,
                                                    const FontcProperties* properties);
 
 /*#
@@ -630,9 +630,9 @@ DM_DLLEXPORT FontRendererResult FontcSetProperties(HFontRenderer renderer,
      * @param codepoint_count [type: uint32_t] Number of UTF-32 codepoints.
      * @return result [type: FontRendererResult] Result of the operation.
      */
-DM_DLLEXPORT FontRendererResult FontcSetText(HFontRenderer renderer,
+DM_DLLEXPORT FontRendererResult FontcSetText(HFontRenderer   renderer,
                                              const uint32_t* codepoints,
-                                             uint32_t codepoint_count);
+                                             uint32_t        codepoint_count);
 
 /*#
      * Replaces the retained text with UTF-8 rich-text markup.
@@ -646,8 +646,8 @@ DM_DLLEXPORT FontRendererResult FontcSetText(HFontRenderer renderer,
      * @return result [type: FontRendererResult] Result of the operation.
      */
 DM_DLLEXPORT FontRendererResult FontcSetMarkup(HFontRenderer renderer,
-                                               const char* markup,
-                                               uint32_t markup_byte_count);
+                                               const char*   markup,
+                                               uint32_t      markup_byte_count);
 
 /*#
      * Returns a hash of the retained properties and text.
@@ -693,7 +693,7 @@ DM_DLLEXPORT FontRendererResult FontcBeginBatch(HFontRenderer renderer);
      * @return result [type: FontRendererResult] Result of the operation.
      */
 DM_DLLEXPORT FontRendererResult FontcGenerateTexture(HFontRenderer renderer,
-                                                     uint64_t known_atlas_version,
+                                                     uint64_t      known_atlas_version,
                                                      FontcTexture* texture);
 
 /* Returns Slug numeric textures after FontcGenerateTexture has prepared the
@@ -741,8 +741,8 @@ DM_DLLEXPORT void FontcFreeTexture(FontcTexture* texture);
      * @return result [type: FontRendererResult] Result of the operation.
      */
 DM_DLLEXPORT FontRendererResult FontcGetVertexBufferSize(HFontRenderer renderer,
-                                                         uint32_t* vertex_count,
-                                                         uint32_t* vertex_buffer_size);
+                                                         uint32_t*     vertex_count,
+                                                         uint32_t*     vertex_buffer_size);
 
 /*#
      * Writes vertices for the retained text into caller-owned memory.
@@ -759,9 +759,9 @@ DM_DLLEXPORT FontRendererResult FontcGetVertexBufferSize(HFontRenderer renderer,
      * @return result [type: FontRendererResult] Result of the operation.
      */
 DM_DLLEXPORT FontRendererResult FontcGetVertices(HFontRenderer renderer,
-                                                 const float* world_transform,
-                                                 uint8_t* vertex_buffer,
-                                                 uint32_t vertex_buffer_size);
+                                                 const float*  world_transform,
+                                                 uint8_t*      vertex_buffer,
+                                                 uint32_t      vertex_buffer_size);
 
 #ifdef __cplusplus
 }

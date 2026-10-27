@@ -39,8 +39,8 @@ static const dmhash_t TAG_SPRITE = dmHashString64("sprite");
 
 struct LayoutContext
 {
-    skb_temp_alloc_t* m_Alloc;
-    skb_layout_t*     m_Layout;
+    skb_temp_alloc_t*   m_Alloc;
+    skb_layout_t*       m_Layout;
 };
 
 static const char* GetSystemLanguage()
@@ -78,7 +78,7 @@ static const char* GetScriptLanguageHint(uint32_t script, const char* paragraph_
 
 static const char* GetParagraphLanguageHint(const dmArray<TextLayoutRun>& runs, uint32_t first_run, const char* default_language)
 {
-    bool has_han = false;
+    bool     has_han = false;
     uint32_t paragraph_script = SBScriptZYYY;
 
     for (uint32_t i = first_run; i < runs.Size(); ++i)
@@ -182,7 +182,7 @@ static const char* SegmentParagraph(uint32_t* codepoints, uint32_t paragraph_sta
                                     uint32_t paragraph_length, const char* default_language,
                                     SBScriptLocatorRef locator, dmArray<TextLayoutRun>& runs)
 {
-    uint32_t first_run = runs.Size();
+    uint32_t            first_run = runs.Size();
     SBCodepointSequence sequence = { SBStringEncodingUTF32, codepoints + paragraph_start, paragraph_length };
     SBScriptLocatorLoadCodepoints(locator, &sequence);
 
@@ -341,7 +341,7 @@ void TextLayoutSegmentRuns(uint32_t* codepoints, uint32_t num_codepoints,
             ++paragraph_end;
         }
 
-        const char* paragraph_language = previous_paragraph_language;
+        const char*   paragraph_language = previous_paragraph_language;
         TextDirection paragraph_direction = previous_paragraph_direction;
 
         if (paragraph_end > paragraph_start)
@@ -494,9 +494,9 @@ static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
         if (!isfinite(decoration_x) || !isfinite(decoration_length) || decoration_length <= 0.0f ||
             glyph_start == UINT32_MAX || glyph_end - glyph_start > UINT16_MAX)
             continue;
-        const float pattern_offset   = decoration_x - origin_x;
-        const float decoration_inset = decoration_length > padding ? (float)padding : 0.0f;
-        float decoration_y     = source.line.y;
+        const float                         pattern_offset   = decoration_x - origin_x;
+        const float                         decoration_inset = decoration_length > padding ? (float)padding : 0.0f;
+        float                               decoration_y     = source.line.y;
 
         if (source.line.position != SKB_DECORATION_LINE_THROUGH)
         {
@@ -636,7 +636,7 @@ static bool LayoutText(LayoutContext* ctx,
         for (uint32_t i = 0; i < layout->m_ResolvedSpans.Size(); ++i)
         {
             const TextResolvedSpan& span = layout->m_ResolvedSpans[i];
-            const uint32_t span_end = span.m_TextOffset + span.m_TextLength;
+            const uint32_t          span_end = span.m_TextOffset + span.m_TextLength;
 
             for (uint32_t j = span.m_TextOffset; j < span_end; ++j)
             {
@@ -652,7 +652,7 @@ static bool LayoutText(LayoutContext* ctx,
 
     dmArray<SkribidiAttributes>   attributes;
     dmArray<skb_content_run_t>    runs;
-    uint32_t sprite_count = 0;
+    uint32_t                      sprite_count = 0;
 
     for (uint32_t i = 0; i < layout->m_Objects.Size(); ++i)
     {
@@ -669,8 +669,8 @@ static bool LayoutText(LayoutContext* ctx,
     for (uint32_t i = 0; i < segments.Size(); ++i)
     {
         const TextLayoutRun& segment = segments[i];
-        uint32_t run_offset = segment.m_Offset;
-        uint32_t segment_end = segment.m_Offset + segment.m_Length;
+        uint32_t             run_offset = segment.m_Offset;
+        uint32_t             segment_end = segment.m_Offset + segment.m_Length;
 
         while (run_offset < segment_end)
         {
@@ -682,8 +682,8 @@ static bool LayoutText(LayoutContext* ctx,
             }
 
             const TextResolvedSpan* resolved_span = layout->m_ResolvedSpans.Empty() ? 0 : &layout->m_ResolvedSpans[resolved_span_index];
-            uint32_t run_end = segment_end;
-            float font_size = settings->m_Size;
+            uint32_t                run_end = segment_end;
+            float                   font_size = settings->m_Size;
 
             if (resolved_span && run_offset >= resolved_span->m_TextOffset &&
                 run_offset < resolved_span->m_TextOffset + resolved_span->m_TextLength)
@@ -826,11 +826,11 @@ static bool LayoutText(LayoutContext* ctx,
     for (int li = 0; li < lines_count; li++)
     {
         const skb_layout_line_t* line            = &layout_lines[li];
-        const bool has_decorations = line->decorations_range.start != line->decorations_range.end;
+        const bool               has_decorations = line->decorations_range.start != line->decorations_range.end;
 
         uint32_t prev_glyph_index    = layout->m_Glyphs.Size();
-        float content_advance     = 0.0f;
-        float content_start_x     = FLT_MAX;
+        float    content_advance     = 0.0f;
+        float    content_start_x     = FLT_MAX;
         uint32_t content_first_glyph = UINT32_MAX;
         uint32_t content_last_glyph  = 0;
         uint32_t content_end         = (uint32_t)line->text_range.end;
@@ -872,8 +872,8 @@ static bool LayoutText(LayoutContext* ctx,
                 }
 
                 const skb_cluster_t& cluster = clusters[skbglyph->cluster_idx];
-                uint32_t codepoint_index = object_run ? clusters[source_run->cluster_range.start].text_offset : cluster.text_offset;
-                uint32_t cp = codepoints[codepoint_index];
+                uint32_t             codepoint_index = object_run ? clusters[source_run->cluster_range.start].text_offset : cluster.text_offset;
+                uint32_t             cp = codepoints[codepoint_index];
 
                 // Skip explicit line break codepoints. They should not
                 // contribute a visible glyph nor count towards line length.
@@ -1031,12 +1031,12 @@ void TextLayoutSkribidiFree(TextLayout* layout)
     delete layout;
 }
 
-static TextResult TextLayoutSkribidiCreateInternal(HFontCollection collection,
-                                                   uint32_t* codepoints,
-                                                   uint32_t num_codepoints,
+static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collection,
+                                                   uint32_t*           codepoints,
+                                                   uint32_t            num_codepoints,
                                                    TextLayoutSettings* settings,
-                                                   ResolvedMarkup* resolved,
-                                                   TextLayout** outlayout)
+                                                   ResolvedMarkup*     resolved,
+                                                   TextLayout**        outlayout)
 {
     TextLayout* layout = new TextLayout;
     layout->m_Destroy = TextLayoutSkribidiFree;

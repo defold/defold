@@ -267,10 +267,10 @@ static void ExtendCubicAxisBounds(float p0, float p1, float p2, float p3, FontOu
 {
     // Solve the quadratic derivative for one axis. Evaluate both coordinates
     // at each interior root so the shared point-based bounds helper can be used.
-    float a = -p0 + 3.0f * p1 - 3.0f * p2 + p3;
-    float b = 2.0f * (p0 - 2.0f * p1 + p2);
-    float c = p1 - p0;
-    float roots[2];
+    float    a = -p0 + 3.0f * p1 - 3.0f * p2 + p3;
+    float    b = 2.0f * (p0 - 2.0f * p1 + p2);
+    float    c = p1 - p0;
+    float    roots[2];
     uint32_t root_count = 0;
     if (fabsf(a) < 1.0e-8f)
     {

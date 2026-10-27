@@ -33,11 +33,11 @@
 
 struct FontJobStatus
 {
-    uint64_t m_TimeStart;           // Time started
-    uint64_t m_TimeGlyphProcess;    // Total processing time for all glyphs
-    uint64_t m_TimeGlyphCallback;    // Total processing time for all glyphs
-    uint32_t m_Failures;    // Number of failed job items
-    char     m_Error[128];    // First error sets this string
+    uint64_t    m_TimeStart;        // Time started
+    uint64_t    m_TimeGlyphProcess; // Total processing time for all glyphs
+    uint64_t    m_TimeGlyphCallback; // Total processing time for all glyphs
+    uint32_t    m_Failures; // Number of failed job items
+    char        m_Error[128]; // First error sets this string
 
     FontJobStatus()
     {
@@ -48,27 +48,27 @@ struct FontJobStatus
 struct FontGenJobItem
 {
     // input
-    HFont    m_Font;                // The actual font to use
-    uint32_t m_GlyphIndex;
+    HFont           m_Font;         // The actual font to use
+    uint32_t        m_GlyphIndex;
 
-    float m_StbttSdfPadding;
-    int   m_StbttEdgeValue;
-    float m_Scale;                  // Size to pixel scale
+    float           m_StbttSdfPadding;
+    int             m_StbttEdgeValue;
+    float           m_Scale;        // Size to pixel scale
 
     // From the .fontc info
-    float   m_OutlineWidth;
-    float   m_ShadowBlur;
-    uint8_t m_IsSdf : 1;
+    float           m_OutlineWidth;
+    float           m_ShadowBlur;
+    uint8_t         m_IsSdf : 1;
     uint8_t : 7;
 
     // output
-    FontGlyph* m_Glyph;
+    FontGlyph*      m_Glyph;
 };
 
 struct Context
 {
-    uint8_t m_StbttDefaultSdfPadding;
-    uint8_t m_StbttDefaultSdfEdge;
+    uint8_t                     m_StbttDefaultSdfPadding;
+    uint8_t                     m_StbttDefaultSdfEdge;
 };
 
 struct FontGenJobData
@@ -77,7 +77,7 @@ struct FontGenJobData
     FontJobStatus           m_Status;
     FontGenParams           m_Params;
 
-    HJobContext m_Jobs;
+    HJobContext             m_Jobs;
 };
 
 static Context g_FontGenContext = { 3, 191 };

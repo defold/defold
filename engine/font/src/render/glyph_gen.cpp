@@ -252,7 +252,7 @@ static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* param
 {
     const uint32_t width = glyph->m_Bitmap.m_Width;
     const uint32_t height = glyph->m_Bitmap.m_Height;
-    const bool has_outline_data = params->m_OutlineWidth > 0.0f;
+    const bool     has_outline_data = params->m_OutlineWidth > 0.0f;
     const uint32_t channels = FontGetGlyphChannelCount(params->m_OutputBitmap, has_outline_data, params->m_HasShadow, params->m_ShadowBlur);
     if (channels == 1 && !outline_sdf)
         return FONT_RESULT_OK;
@@ -278,7 +278,7 @@ static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* param
     {
         for (uint32_t x = 0; x < width; ++x)
         {
-            const uint8_t value = glyph->m_Bitmap.m_Data[(y * width + x) * source_channels];
+            const uint8_t  value = glyph->m_Bitmap.m_Data[(y * width + x) * source_channels];
             const uint32_t offset = (y * width + x) * channels;
             if (params->m_OutputBitmap)
             {

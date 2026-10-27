@@ -680,7 +680,7 @@ static MarkupResult ParseOpeningTag(ParseContext* context, MarkupString tag, Mar
     }
 
     const uint32_t attribute_index = context->m_Markup->m_Attributes.Size();
-    bool shorthand_seen = false;
+    bool           shorthand_seen = false;
 
     while (true)
     {
@@ -764,7 +764,7 @@ static MarkupResult ParseOpeningTag(ParseContext* context, MarkupString tag, Mar
             return MARKUP_RESULT_SYNTAX_ERROR;
         }
 
-        const dmhash_t name_hash = name.m_Length == 0 ? 0 : HashString(context->m_Source, name);
+        const dmhash_t            name_hash = name.m_Length == 0 ? 0 : HashString(context->m_Source, name);
         const MarkupAttributeType attribute_type = GetAttributeType(name_hash);
 
         if (!IsSupportedAttribute(tag_type, attribute_type))
@@ -790,10 +790,10 @@ static MarkupResult ParseOpeningTag(ParseContext* context, MarkupString tag, Mar
         }
 
         MarkupConstantType constant_type = MARKUP_CONSTANT_NONE;
-        const bool has_constant = attribute_type == MARKUP_ATTRIBUTE_FIT || attribute_type == MARKUP_ATTRIBUTE_TYPE ||
-                                  attribute_type == MARKUP_ATTRIBUTE_DIRECTION ||
-                                  ((tag_type == MARKUP_TAG_UNDERLINE || tag_type == MARKUP_TAG_STRIKE) &&
-                                   attribute_type == MARKUP_ATTRIBUTE_PATTERN);
+        const bool         has_constant = attribute_type == MARKUP_ATTRIBUTE_FIT || attribute_type == MARKUP_ATTRIBUTE_TYPE ||
+                                          attribute_type == MARKUP_ATTRIBUTE_DIRECTION ||
+                                          ((tag_type == MARKUP_TAG_UNDERLINE || tag_type == MARKUP_TAG_STRIKE) &&
+                                           attribute_type == MARKUP_ATTRIBUTE_PATTERN);
         if (has_constant && !GetConstantType(tag_type, attribute_type, HashString(context->m_Source, value), &constant_type))
         {
             SetError(error, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, value.m_Offset);
@@ -858,7 +858,7 @@ static MarkupResult ParseTag(ParseContext* context, MarkupError* error, bool* se
         }
     }
 
-    bool limit_exceeded;
+    bool         limit_exceeded;
     MarkupString tag = ParseName(context, &limit_exceeded);
 
     if (limit_exceeded)
@@ -940,7 +940,7 @@ static MarkupResult ParseTag(ParseContext* context, MarkupError* error, bool* se
 static MarkupResult DecodeCodepoint(const char* source, uint32_t length, uint32_t* cursor, uint32_t* codepoint, MarkupError* error)
 {
     const uint32_t start = *cursor;
-    const uint8_t first = (uint8_t)source[(*cursor)++];
+    const uint8_t  first = (uint8_t)source[(*cursor)++];
 
     if (first < 0x80)
     {
@@ -1048,7 +1048,7 @@ static uint32_t ParseEntity(ParseContext* context)
 
 static void PushText(ParseContext* context, uint32_t codepoint, MarkupString source)
 {
-    Markup* markup = context->m_Markup;
+    Markup*        markup = context->m_Markup;
     const uint32_t text_offset = markup->m_Text.Size();
     EnsureCapacity(markup->m_Text);
     markup->m_Text.Push(codepoint);
@@ -1075,7 +1075,7 @@ static void PushText(ParseContext* context, uint32_t codepoint, MarkupString sou
 static MarkupResult ParseMarkupTag(ParseContext* context, bool style_fragment, MarkupError* error)
 {
     const uint32_t tag_start = context->m_Cursor;
-    const bool closing = tag_start + 1 < context->m_Length && context->m_Source[tag_start + 1] == '/';
+    const bool     closing = tag_start + 1 < context->m_Length && context->m_Source[tag_start + 1] == '/';
     const uint16_t style_node_index = context->m_StyleNodeIndex;
 
     if (style_fragment && closing)
@@ -1085,7 +1085,7 @@ static MarkupResult ParseMarkupTag(ParseContext* context, bool style_fragment, M
         return MARKUP_RESULT_SYNTAX_ERROR;
     }
 
-    bool self_closing = false;
+    bool         self_closing = false;
     MarkupResult result = ParseTag(context, error, &self_closing);
 
     if (result != MARKUP_RESULT_OK)
@@ -1102,7 +1102,7 @@ static MarkupResult ParseMarkupTag(ParseContext* context, bool style_fragment, M
 
     if (self_closing || closing)
     {
-        const uint32_t node_index = self_closing ? context->m_Markup->m_StyleNodes.Size() - 1 : style_node_index;
+        const uint32_t   node_index = self_closing ? context->m_Markup->m_StyleNodes.Size() - 1 : style_node_index;
         MarkupStyleNode& node = context->m_Markup->m_StyleNodes[node_index];
 
         if (node.m_Type == MARKUP_TAG_SPRITE && node.m_TextLength == 0)
@@ -1119,7 +1119,7 @@ static MarkupResult ParseMarkupTag(ParseContext* context, bool style_fragment, M
 static MarkupResult ParseVisibleText(ParseContext* context, MarkupError* error)
 {
     const uint32_t source_offset = context->m_Cursor;
-    uint32_t codepoint;
+    uint32_t       codepoint;
 
     if (context->m_Source[context->m_Cursor] == '&')
     {
@@ -1289,14 +1289,14 @@ static bool ContainsCodepoint(const uint32_t* codepoints, uint32_t codepoint_cou
     return false;
 }
 
-MarkupResult MarkupFilterText(const char* text,
-                              uint32_t text_length,
+MarkupResult MarkupFilterText(const char*     text,
+                              uint32_t        text_length,
                               const uint32_t* allowed_codepoints,
-                              uint32_t allowed_codepoint_count,
-                              char* output,
-                              uint32_t output_capacity,
-                              uint32_t* output_length,
-                              MarkupError* error)
+                              uint32_t        allowed_codepoint_count,
+                              char*           output,
+                              uint32_t        output_capacity,
+                              uint32_t*       output_length,
+                              MarkupError*    error)
 {
     if (output_length)
     {
@@ -1312,8 +1312,8 @@ MarkupResult MarkupFilterText(const char* text,
     }
 
     dmArray<MarkupString> text_source_ranges;
-    HMarkup markup = 0;
-    MarkupResult result = MarkupCreateInternal(text, text_length, &markup, error, false, &text_source_ranges);
+    HMarkup               markup = 0;
+    MarkupResult          result = MarkupCreateInternal(text, text_length, &markup, error, false, &text_source_ranges);
 
     if (result != MARKUP_RESULT_OK)
     {

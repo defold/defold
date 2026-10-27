@@ -57,19 +57,19 @@ typedef FontTrueType FontImpl;
 
 struct TTFFont
 {
-    Font m_Base;
+    Font            m_Base;
 
-    FontImpl* m_Font;
+    FontImpl*       m_Font;
 
-    const char* m_Path;
-    const void* m_Data;
-    uint32_t    m_DataSize;
+    const char*     m_Path;
+    const void*     m_Data;
+    uint32_t        m_DataSize;
 
-    int      m_Ascent;
-    int      m_Descent;
-    int      m_LineGap;
-    uint32_t m_Allocated : 1;
-    uint32_t m_HasGlyfOutlines : 1;
+    int             m_Ascent;
+    int             m_Descent;
+    int             m_LineGap;
+    uint32_t        m_Allocated : 1;
+    uint32_t        m_HasGlyfOutlines : 1;
 };
 
 static inline TTFFont* ToFont(HFont hfont)

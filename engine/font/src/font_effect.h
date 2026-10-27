@@ -76,7 +76,7 @@ static inline void FontSetEffectTextureHeight(FontEffectRecord* header, uint32_t
 {
     memset(header, 0, sizeof(*header));
     const float reciprocal = 1.0f / height;
-    uint32_t bits;
+    uint32_t    bits;
     memcpy(&bits, &reciprocal, sizeof(bits));
     for (uint32_t i = 0; i < 4; ++i)
     {

@@ -66,8 +66,8 @@ bool FontColrInitialize(FontColr* font, const void* colr, uint32_t size, const v
     if (!colr || size < 14 || !cpal || cpal_size < 14)
         return false;
     const uint8_t* p = (const uint8_t*)cpal;
-    uint32_t colors = U16(p + 2), palettes = U16(p + 4), records = U16(p + 6);
-    uint32_t color_offset = U32(p + 8), first = U16(p + 12);
+    uint32_t       colors = U16(p + 2), palettes = U16(p + 4), records = U16(p + 6);
+    uint32_t       color_offset = U32(p + 8), first = U16(p + 12);
     if (U16(p) > 1 || !palettes || palettes > (cpal_size - 12) / 2 ||
         first > records || colors > records - first || color_offset > cpal_size ||
         records > (cpal_size - color_offset) / 4)
@@ -112,12 +112,12 @@ static const uint8_t* FindGlyph(const FontColr* font, uint32_t glyph, bool v1)
     if (!font->m_Data || glyph > 0xffff || (v1 && !font->m_BaseGlyphList))
         return 0;
     const uint8_t* records = font->m_Data + (v1 ? font->m_BaseGlyphList + 4 : font->m_BaseGlyphs);
-    uint32_t low = 0, high = v1 ? U32(font->m_Data + font->m_BaseGlyphList) : font->m_BaseGlyphCount;
+    uint32_t       low = 0, high = v1 ? U32(font->m_Data + font->m_BaseGlyphList) : font->m_BaseGlyphCount;
     while (low < high)
     {
-        uint32_t mid = low + (high - low) / 2;
+        uint32_t       mid = low + (high - low) / 2;
         const uint8_t* record = records + mid * 6;
-        uint32_t id = U16(record);
+        uint32_t       id = U16(record);
         if (id == glyph)
             return record;
         if (id < glyph)
@@ -139,10 +139,10 @@ static FontResult ClipBox(const FontColr* font, uint32_t glyph, const uint8_t** 
     if (!font->m_ClipList)
         return FONT_RESULT_OK;
     const uint8_t* list = font->m_Data + font->m_ClipList;
-    uint32_t low = 0, high = U32(list + 1);
+    uint32_t       low = 0, high = U32(list + 1);
     while (low < high)
     {
-        uint32_t mid = low + (high - low) / 2;
+        uint32_t       mid = low + (high - low) / 2;
         const uint8_t* record = list + 5 + mid * 7;
         if (glyph < U16(record))
             high = mid;
@@ -150,7 +150,7 @@ static FontResult ClipBox(const FontColr* font, uint32_t glyph, const uint8_t** 
             low = mid + 1;
         else
         {
-            uint32_t relative = U24(record + 4);
+            uint32_t       relative = U24(record + 4);
             const uint8_t* clip = relative ? Read(font, (uint64_t)font->m_ClipList + relative, 9) : 0;
             if (!clip)
                 return FONT_RESULT_ERROR;
@@ -210,11 +210,11 @@ static FontResult Glyph(PaintContext* c, uint32_t glyph, uint32_t depth);
 
 static FontResult Gradient(PaintContext* c, uint64_t offset, const uint8_t* p)
 {
-    uint32_t relative = U24(p + 1);
+    uint32_t       relative = U24(p + 1);
     const uint8_t* line = relative ? Read(c->m_Font, offset + relative, 3) : 0;
     if (!line || line[0] > 2)
         return FONT_RESULT_ERROR;
-    uint32_t count = U16(line + 1);
+    uint32_t       count = U16(line + 1);
     const uint8_t* records = Read(c->m_Font, offset + relative + 3, count * 6);
     if (!records || count > c->m_WorkLeft)
         return FONT_RESULT_ERROR;
@@ -227,7 +227,7 @@ static FontResult Gradient(PaintContext* c, uint64_t offset, const uint8_t* p)
     for (uint32_t i = 0; i < count; ++i)
     {
         const uint8_t* record = records + i * 6;
-        FontColrStop stop = {};
+        FontColrStop   stop = {};
         stop.m_Offset = F2Dot14(record);
         if (!Color(c->m_Font, U16(record + 2), F2Dot14(record + 4), &stop))
             return FONT_RESULT_ERROR;
@@ -259,11 +259,11 @@ static FontResult Gradient(PaintContext* c, uint64_t offset, const uint8_t* p)
 static FontResult Transform(PaintContext* c, uint64_t offset, const uint8_t* p, uint32_t depth)
 {
     uint32_t format = p[0];
-    float m[6] = { 1, 0, 0, 1, 0, 0 };
-    float cx = 0, cy = 0;
+    float    m[6] = { 1, 0, 0, 1, 0, 0 };
+    float    cx = 0, cy = 0;
     if (format == 12)
     {
-        uint32_t relative = U24(p + 4);
+        uint32_t       relative = U24(p + 4);
         const uint8_t* matrix = relative ? Read(c->m_Font, offset + relative, 24) : 0;
         if (!matrix)
             return FONT_RESULT_ERROR;
@@ -317,7 +317,7 @@ static FontResult Transform(PaintContext* c, uint64_t offset, const uint8_t* p, 
     uint32_t child = U24(p + 1);
     if (!child)
         return FONT_RESULT_ERROR;
-    bool ok = c->m_Callbacks->m_PushTransform(c->m_Context, m);
+    bool       ok = c->m_Callbacks->m_PushTransform(c->m_Context, m);
     FontResult result = ok ? Paint(c, offset + child, depth + 1) : FONT_RESULT_NOT_SUPPORTED;
     c->m_Callbacks->m_PopTransform(c->m_Context);
     return result;
@@ -367,7 +367,7 @@ static FontResult Paint(PaintContext* c, uint64_t offset, uint32_t depth)
         uint32_t child = U24(p + 1);
         if (!child)
             return FONT_RESULT_ERROR;
-        bool ok = c->m_Callbacks->m_PushClipGlyph(c->m_Context, U16(p + 4));
+        bool       ok = c->m_Callbacks->m_PushClipGlyph(c->m_Context, U16(p + 4));
         FontResult result = ok ? Paint(c, offset + child, depth + 1) : FONT_RESULT_NOT_SUPPORTED;
         c->m_Callbacks->m_PopClip(c->m_Context);
         return result;
@@ -385,7 +385,7 @@ static FontResult Paint(PaintContext* c, uint64_t offset, uint32_t depth)
         uint32_t source = U24(p + 1), backdrop = U24(p + 5);
         if (!source || !backdrop)
             return FONT_RESULT_ERROR;
-        bool ok = c->m_Callbacks->m_PushComposite(c->m_Context);
+        bool       ok = c->m_Callbacks->m_PushComposite(c->m_Context);
         FontResult result = ok ? Paint(c, offset + backdrop, depth + 1) : FONT_RESULT_NOT_SUPPORTED;
         if (result == FONT_RESULT_OK)
             result = Paint(c, offset + source, depth + 1);
@@ -400,11 +400,11 @@ static FontResult Glyph(PaintContext* c, uint32_t glyph, uint32_t depth)
     if (depth >= 64)
         return FONT_RESULT_ERROR;
     const FontColr* font = c->m_Font;
-    const uint8_t* record = FindGlyph(font, glyph, true);
+    const uint8_t*  record = FindGlyph(font, glyph, true);
     if (record)
     {
         const uint8_t* box;
-        FontResult result = ClipBox(font, glyph, &box);
+        FontResult     result = ClipBox(font, glyph, &box);
         if (result != FONT_RESULT_OK)
             return result;
         uint32_t relative = U32(record + 2);
@@ -426,8 +426,8 @@ static FontResult Glyph(PaintContext* c, uint32_t glyph, uint32_t depth)
     for (uint32_t i = 0; i < count; ++i)
     {
         const uint8_t* layer = font->m_Data + font->m_Layers + (first + i) * 4;
-        bool ok = c->m_Callbacks->m_PushClipGlyph(c->m_Context, U16(layer));
-        FontResult result = ok ? Solid(c, U16(layer + 2), 1) : FONT_RESULT_NOT_SUPPORTED;
+        bool           ok = c->m_Callbacks->m_PushClipGlyph(c->m_Context, U16(layer));
+        FontResult     result = ok ? Solid(c, U16(layer + 2), 1) : FONT_RESULT_NOT_SUPPORTED;
         c->m_Callbacks->m_PopClip(c->m_Context);
         if (result != FONT_RESULT_OK)
             return result;
@@ -468,7 +468,7 @@ static void PushBounds(BoundsContext* c, const BoundsState& state)
 static bool BoundsTransform(void* context, const float m[6])
 {
     BoundsContext* c = (BoundsContext*)context;
-    BoundsState state = c->m_Stack.Back();
+    BoundsState    state = c->m_Stack.Back();
     using dmVMath::Vector4;
     state.m_Transform = state.m_Transform * dmVMath::Matrix4(Vector4(m[0], m[1], 0, 0), Vector4(m[2], m[3], 0, 0), Vector4(0, 0, 1, 0), Vector4(m[4], m[5], 0, 1));
     PushBounds(c, state);
@@ -483,7 +483,7 @@ static void BoundsPop(void* context)
 static bool BoundsRectangle(void* context, float x0, float y0, float x1, float y1)
 {
     BoundsContext* c = (BoundsContext*)context;
-    BoundsState state = c->m_Stack.Back();
+    BoundsState    state = c->m_Stack.Back();
     using dmVMath::Vector4;
     Vector4 bounds(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);
     for (uint32_t i = 0; i < 4; ++i)
@@ -499,7 +499,7 @@ static bool BoundsRectangle(void* context, float x0, float y0, float x1, float y
 static bool BoundsGlyph(void* context, uint32_t glyph)
 {
     BoundsContext* c = (BoundsContext*)context;
-    int32_t x0, y0, x1, y1;
+    int32_t        x0, y0, x1, y1;
     if (c->m_GetBox(c->m_Context, glyph, &x0, &y0, &x1, &y1))
         return BoundsRectangle(context, x0, y0, x1, y1);
     BoundsState state = c->m_Stack.Back();
@@ -518,7 +518,7 @@ static void BoundsEndComposite(void*)
 
 static bool BoundsPaint(void* context, const FontColrPaint* paint)
 {
-    BoundsContext* c = (BoundsContext*)context;
+    BoundsContext*          c = (BoundsContext*)context;
     const dmVMath::Vector4& clip = c->m_Stack.Back().m_Clip;
     if (clip.getX() >= clip.getZ() || clip.getY() >= clip.getW())
         return true;
