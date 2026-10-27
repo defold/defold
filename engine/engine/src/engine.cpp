@@ -637,8 +637,8 @@ namespace dmEngine
         // {
         //     JobSystemDestroy(engine->m_JobThreadContext);
         // }
-#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
-        // Single-threaded WASM has no workers to join. Keep the job context alive
+#if !defined(DM_HAS_THREADS)
+        // Single-threaded builds have no workers to join. Keep the job context alive
         // through graphics and extension shutdown, then release its queues.
         JobSystemDestroy(engine->m_JobThreadContext);
 #endif

@@ -40,7 +40,7 @@
 #include <emscripten/emscripten.h>
 #endif
 
-#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__) && defined(DM_SANITIZE_ADDRESS)
+#if !defined(DM_HAS_THREADS) && defined(DM_SANITIZE_ADDRESS)
 #include <sanitizer/allocator_interface.h>
 #endif
 
@@ -303,10 +303,10 @@ TEST_F(EngineTest, Project)
     ASSERT_GT(frame_count, 5u);
 }
 
-#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__) && defined(DM_SANITIZE_ADDRESS)
-// Single-threaded WASM must release the engine job context during shutdown,
-// preventing the per-engine leak detected by the ASAN CI run.
-TEST_F(EngineTest, SingleThreadedWasmJobContextReleasedOnShutdown)
+#if !defined(DM_HAS_THREADS) && defined(DM_SANITIZE_ADDRESS)
+// Single-threaded builds must release the engine job context during shutdown,
+// preventing the per-engine leak detected by the WASM ASAN CI run.
+TEST_F(EngineTest, SingleThreadedJobContextReleasedOnShutdown)
 {
     dmEngineInitialize();
     dmEngine::HEngine engine = dmEngine::New(0);
