@@ -75,7 +75,7 @@
   (delay (str (io/resource "dialogs.css"))))
 
 (defn- max-dialog-height [owner]
-  (let [^Window window (or owner (ui/main-stage))
+  (let [^Window window (if (instance? Window owner) owner (ui/main-stage))
         screen (if window
                  (Utils/getScreen window)
                  (Screen/getPrimary))]
@@ -111,14 +111,16 @@
              :on-showing (ui/event-handler event
                            (.setOpacity ^Stage (.getSource ^WindowEvent event) 0.0))
              :on-shown (ui/event-handler event
-                         (let [^Stage stage (.getSource ^WindowEvent event)
-                               bounds (.getVisualBounds (Utils/getScreen stage))
-                               margin 32.0
-                               max-height (- (.getHeight bounds) (* 2.0 margin))]
-                           (when (< max-height (.getHeight stage))
-                             (.setHeight stage max-height)
-                             (.setY stage (+ (.getMinY bounds) margin)))
-                           (.setOpacity stage 1.0)))
+                         (let [^Stage stage (.getSource ^WindowEvent event)]
+                           (try
+                             (let [bounds (.getVisualBounds (Utils/getScreen stage))
+                                   margin 32.0
+                                   max-height (- (.getHeight bounds) (* 2.0 margin))]
+                               (when (< max-height (.getHeight stage))
+                                 (.setHeight stage max-height)
+                                 (.setY stage (+ (.getMinY bounds) margin))))
+                             (finally
+                               (.setOpacity stage 1.0)))))
              :scene {:fx/type fx.scene/lifecycle
                      :stylesheets [@dialogs-css-delay]
                      :root (-> root-props
