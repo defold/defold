@@ -34,42 +34,66 @@
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:private automatic-check-started (atom false))
+(defn make-session []
+  (atom {:automatic-check-started false
+         :busy false}))
 
-(defn- eligible? [platform]
-  (and (= "stable" (system/defold-channel))
+(defonce session (make-session))
+
+(defn- claim! [session key]
+  (let [[old] (swap-vals! session
+                          (fn [state]
+                            (if (key state)
+                              state
+                              (assoc state key true))))]
+    (not (key old))))
+
+(defn release-source []
+  {:base-url (str "https://" (system/defold-archive-domain))
+   :channel (system/defold-channel)
+   :version (system/defold-version)
+   :platform (Platform/getHostPlatform)})
+
+(defn download-url [{:keys [base-url ^Platform platform]} sha1]
+  (format (get-in connection-properties [:beta :download-url-template])
+          base-url
+          sha1
+          (.getPair platform)
+          (if (= "macos" (.getOs platform)) "dmg" "zip")))
+
+(defn- eligible? [{:keys [channel platform]}]
+  (and (= "stable" channel)
        (updater/platform-supported? platform)))
 
-(defn- fetch-info! []
-  (let [url (format (get-in connection-properties [:beta :info-url-template])
-                    (system/defold-archive-domain))
+(defn- fetch-info! [{:keys [base-url]}]
+  (let [url (format (get-in connection-properties [:beta :info-url-template]) base-url)
         {:keys [version sha1] :as info} (updater/fetch-json! url)]
     (when (and (updater/version-string? version)
                (string? sha1)
                (not (string/blank? sha1)))
       info)))
 
-(defn- newer-than-running? [^String version]
-  (let [running (system/defold-version)]
-    (if-not running
-      true
-      (updater/newer-version? version running))))
+(defn- newer-than-running? [{running :version} ^String version]
+  (if-not running
+    true
+    (updater/newer-version? version running)))
 
 (defn- check-once!
   "Checks for a beta suggestion at most once per editor session. Call off the UI
   thread. Opted-out users, users who have run a beta and ineligible
   installations make no requests."
-  [prefs platform]
-  (when (and (eligible? platform)
+  [session source prefs]
+  (when (and (eligible? source)
              (not (prefs/get prefs [:versioning :beta-suggestions-disabled]))
              (not (prefs/get prefs [:versioning :ran-beta]))
-             (compare-and-set! automatic-check-started false true))
-    (when-let [info (fetch-info!)]
-      (when (newer-than-running? (:version info))
+             (claim! session :automatic-check-started))
+    (when-let [info (fetch-info! source)]
+      (when (newer-than-running? source (:version info))
         info))))
 
-(defn- fetch-release-notes! [version]
-  (when-let [notes (updater/fetch-version-notes! (system/defold-archive-domain) "beta" version)]
+(defn- fetch-release-notes! [{:keys [base-url]} version]
+  (let [url (format (get-in connection-properties [:beta :release-notes-url-template]) base-url version)
+        notes (updater/fetch-json! url)]
     (when (and (map? notes) (vector? (:issues notes)))
       (try
         (updater/release-notes-markdown (assoc notes :version (str version " beta")))
@@ -77,16 +101,25 @@
           (log/warn :message "Failed to render beta release notes" :version version :exception e)
           nil)))))
 
-(defonce ^:private busy (atom false))
+(defn fetch-offer!
+  "Fetches the beta metadata and, if the beta is newer than the running editor,
+  its release notes. Call off the UI thread. :info is nil if the metadata is
+  unavailable or malformed."
+  [source]
+  (let [info (fetch-info! source)
+        version (:version info)
+        newer (boolean (and info (newer-than-running? source version)))]
+    {:info info
+     :newer newer
+     :markdown (when newer
+                 (fetch-release-notes! source version))}))
 
-(defonce ^:private cached-offer (atom nil))
+(defn try-active? [source]
+  (eligible? source))
 
-(defn try-active? []
-  (eligible? (Platform/getHostPlatform)))
-
-(defn try-enabled? []
-  (and (try-active?)
-       (not @busy)))
+(defn try-enabled? [session source]
+  (and (try-active? source)
+       (not (:busy @session))))
 
 (defn- confirm-download! [stage project localization version markdown show-warning]
   (dialogs/make-confirmation-dialog
@@ -127,19 +160,13 @@
 (defn try!
   "Offers to open the beta download link in the web browser. Returns the future
   doing so, or nil if disabled or already busy."
-  [^Stage stage notifications-node project prefs localization render-progress!]
-  (when (and (try-enabled?) (compare-and-set! busy false true))
+  [session source ^Stage stage notifications-node project prefs localization render-progress!]
+  (when (and (try-enabled? session source) (claim! session :busy))
     (future
       (try
         (render-progress! (progress/make-indeterminate (localization/message "progress.checking-beta")))
-        (let [info (fetch-info!)
-              version (:version info)
-              newer (and info (newer-than-running? version))
-              cached @cached-offer
-              markdown (when newer
-                         (or (when (= version (:version (:info cached)))
-                               (:markdown cached))
-                             (fetch-release-notes! version)))]
+        (let [{:keys [info newer markdown]} (fetch-offer! source)
+              version (:version info)]
           (render-progress! progress/done)
           (ui/run-later
             (try
@@ -147,10 +174,8 @@
                 (if newer
                   (case (confirm-download! stage project localization version markdown true)
                     :download
-                    (let [platform (Platform/getHostPlatform)
-                          extension (if (= "macos" (.getOs platform)) "dmg" "zip")]
-                      (ui/open-url (updater/download-url (system/defold-archive-domain) (:sha1 info) "beta" platform extension))
-                      (notifications/close! notifications-node ::suggestion))
+                    (do (ui/open-url (download-url source (:sha1 info)))
+                        (notifications/close! notifications-node ::suggestion))
 
                     :do-not-suggest
                     (do (prefs/set! prefs [:versioning :beta-suggestions-disabled] true)
@@ -167,20 +192,18 @@
                                  "beta.no-newer-dialog.header"
                                  "beta.check-failed-dialog.header"))})))
               (finally
-                (reset! busy false)))))
+                (swap! session assoc :busy false)))))
         (catch Throwable e
           (render-progress! progress/done)
-          (reset! busy false)
+          (swap! session assoc :busy false)
           (log/warn :message "Failed to check for beta" :exception e))))))
 
-(defn suggest! [^Stage stage notifications-node project git prefs localization render-progress!]
-  (when (= "beta" (system/defold-channel))
+(defn suggest! [session source ^Stage stage notifications-node project git prefs localization render-progress!]
+  (when (= "beta" (:channel source))
     (prefs/set! prefs [:versioning :ran-beta] true))
   (when git
     (future
-      (when-let [info (check-once! prefs (Platform/getHostPlatform))]
-        (reset! cached-offer {:info info
-                              :markdown (fetch-release-notes! (:version info))})
+      (when-let [info (check-once! session source prefs)]
         (ui/run-later
           (when (and (.isShowing stage)
                      (not (prefs/get prefs [:versioning :beta-suggestions-disabled])))
@@ -190,6 +213,6 @@
                :id ::suggestion
                :message (localization/message "beta.notification.available" {"version" (:version info)})
                :actions [{:message (localization/message "beta.notification.try-it")
-                          :on-action #(try! stage notifications-node project prefs localization render-progress!)}
+                          :on-action #(try! session source stage notifications-node project prefs localization render-progress!)}
                          {:message (localization/message "beta.button.do-not-suggest")
                           :on-action #(prefs/set! prefs [:versioning :beta-suggestions-disabled] true)}]})))))))
