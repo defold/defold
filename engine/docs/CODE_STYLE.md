@@ -2,13 +2,15 @@
 
 ## Formatting
 
-Use the repository's `.clang-format` with clang-format 23+ (validated with 23.1.4).
+Use Uncrustify 0.83.0 with [engine/.uncrustify.cfg](../.uncrustify.cfg) for engine C and C++ sources and headers. To format a whole file, run from the repository root:
 
-- **New files:** always run clang-format on the entire file first.
-- **Existing files:** format only changed lines using `--lines=START:END`, passing
-  the full file for context.
+```sh
+uncrustify -c engine/.uncrustify.cfg -l CPP --replace --no-backup path/to/file.cpp
+```
 
-Review the result and preserve intentional alignment and line breaks.
+Use `-l C` for C sources and C API headers, including public `dmsdk` headers intended for C. Use `-l CPP` for C++ or mixed C/C++ headers. Choose by the header's contents; `.h` is used for both languages.
+
+Always format new files in full. For existing files, format a temporary copy of the whole file and apply only formatting changes around the lines you edited. Uncrustify has no native changed-line mode. Preserve intentional alignment and manual line breaks.
 
 ## C-like C++
 

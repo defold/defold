@@ -1,21 +1,15 @@
-# Validated with clang-format 23.1.4. PackArguments/PackParameters require 23+.
 ---
 Language:        Cpp
 BasedOnStyle:  LLVM
 AccessModifierOffset: 0
-AlignAfterOpenBracket: true
-AlignConsecutiveAssignments:
-  Enabled: false
-  EnumAssignments: true
-AlignConsecutiveDeclarations:
-  Enabled: true
-  AcrossEmptyLines: false
-  AcrossComments: true
-  AlignFunctionPointers: true
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+# Declaration alignment also pads local variables; clang-format cannot limit it
+# to struct members.
+AlignConsecutiveDeclarations: false
 AlignEscapedNewlines: DontAlign
-AlignOperands: Align
-AlignTrailingComments:
-  Kind: Leave
+AlignOperands:   false
+AlignTrailingComments: true
 AllowAllParametersOfDeclarationOnNextLine: false
 AllowShortBlocksOnASingleLine: false
 AllowShortCaseLabelsOnASingleLine: false
@@ -26,10 +20,8 @@ AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: true
 AlwaysBreakTemplateDeclarations: MultiLine
-PackArguments:
-  BinPack: BinPack
-PackParameters:
-  BinPack: BinPack
+BinPackArguments: false
+BinPackParameters: false
 BraceWrapping:
   AfterCaseLabel:  true
   AfterClass:      true
@@ -51,7 +43,7 @@ BreakBeforeBinaryOperators: None
 BreakBeforeBraces: Custom
 BreakBeforeInheritanceComma: false
 BreakInheritanceList: BeforeComma
-BreakBeforeTernaryOperators: true
+BreakBeforeTernaryOperators: false
 BreakConstructorInitializersBeforeComma: true
 BreakConstructorInitializers: BeforeComma
 BreakAfterJavaFieldAnnotations: false
@@ -59,14 +51,14 @@ BreakStringLiterals: true
 ColumnLimit:     0
 CommentPragmas:  '^ IWYU pragma:'
 CompactNamespaces: false
-PackConstructorInitializers: CurrentLine
-ConstructorInitializerIndentWidth: 0
-ContinuationIndentWidth: 4
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 0
 Cpp11BracedListStyle: false
 DerivePointerAlignment: false
 DisableFormat:   false
 ExperimentalAutoDetectBinPacking: false
-FixNamespaceComments: false
+FixNamespaceComments: true
 ForEachMacros:
   - foreach
   - Q_FOREACH
@@ -86,11 +78,10 @@ IndentWidth:     4
 IndentWrappedFunctionNames: false
 JavaScriptQuotes: Leave
 JavaScriptWrapImports: true
-KeepEmptyLines:
-  AtStartOfBlock: true
+KeepEmptyLinesAtTheStartOfBlocks: false
 MacroBlockBegin: ''
 MacroBlockEnd:   ''
-MaxEmptyLinesToKeep: 2
+MaxEmptyLinesToKeep: 1
 NamespaceIndentation: All
 ObjCBinPackProtocolList: Auto
 ObjCBlockIndentWidth: 2
@@ -105,8 +96,7 @@ PenaltyBreakTemplateDeclaration: 10
 PenaltyExcessCharacter: 1000000
 PenaltyReturnTypeOnItsOwnLine: 60
 PointerAlignment: Left
-ReflowComments: Never
-SkipMacroDefinitionBody: true
+ReflowComments:  true
 SortIncludes:    false
 SortUsingDeclarations: false
 SpaceAfterCStyleCast: false
@@ -124,7 +114,7 @@ SpacesInContainerLiterals: true
 SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
-Standard: Latest
+Standard:        Cpp11
 StatementMacros:
   - Q_UNUSED
   - QT_REQUIRE_VERSION
