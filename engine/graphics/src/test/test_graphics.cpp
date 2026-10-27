@@ -566,6 +566,40 @@ TEST(VertexDeclaration, HashIgnoresPadding)
     ASSERT_NE(hashes[1], hashes[2]);
 }
 
+// Each stream field must affect batching, including the upper bits of its name hash.
+TEST(VertexDeclaration, HashIncludesStreamFields)
+{
+    dmGraphics::VertexDeclaration::Stream stream = {};
+    stream.m_NameHash = dmHashString64("position");
+    stream.m_Location = -1;
+    stream.m_Size = 3;
+    stream.m_Type = dmGraphics::TYPE_FLOAT;
+
+    dmGraphics::VertexDeclaration::Stream streams[] = { stream, stream, stream, stream, stream, stream, stream };
+    streams[1].m_NameHash ^= (uint64_t) 1 << 32;
+    streams[2].m_Location = 1;
+    streams[3].m_Size = 4;
+    streams[4].m_Offset = 4;
+    streams[5].m_Type = dmGraphics::TYPE_SHORT;
+    streams[6].m_Normalize = true;
+
+    dmGraphics::VertexDeclaration declaration = {};
+    declaration.m_StreamCount = 1;
+    uint32_t original_hash = 0;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(streams); ++i)
+    {
+        declaration.m_Streams = &streams[i];
+        HashState32 state;
+        dmHashInit32(&state, false);
+        dmGraphics::HashVertexDeclaration(&state, &declaration);
+        uint32_t hash = dmHashFinal32(&state);
+        if (i == 0)
+            original_hash = hash;
+        else
+            ASSERT_NE(original_hash, hash);
+    }
+}
+
 TEST_F(dmGraphicsTest, VertexDeclaration)
 {
     float v[] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f };

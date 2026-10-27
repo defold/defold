@@ -741,16 +741,19 @@ namespace dmGraphics
 
     void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
     {
-        // Hash the fields, excluding compiler-inserted padding between them.
         for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
             const VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
-            dmHashUpdateBuffer32(state, &stream.m_NameHash, sizeof(stream.m_NameHash));
-            dmHashUpdateBuffer32(state, &stream.m_Location, sizeof(stream.m_Location));
-            dmHashUpdateBuffer32(state, &stream.m_Size, sizeof(stream.m_Size));
-            dmHashUpdateBuffer32(state, &stream.m_Offset, sizeof(stream.m_Offset));
-            dmHashUpdateBuffer32(state, &stream.m_Type, sizeof(stream.m_Type));
-            dmHashUpdateBuffer32(state, &stream.m_Normalize, sizeof(stream.m_Normalize));
+            // An integer array has no padding, so all fields can be hashed at once.
+            const uint64_t fields[] = {
+                stream.m_NameHash,
+                (uint64_t) stream.m_Location,
+                stream.m_Size,
+                stream.m_Offset,
+                stream.m_Type,
+                stream.m_Normalize,
+            };
+            dmHashUpdateBuffer32(state, fields, sizeof(fields));
         }
     }
 
