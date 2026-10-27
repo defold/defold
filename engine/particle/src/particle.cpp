@@ -1204,7 +1204,7 @@ namespace dmParticle
 
         Vector4 color_to_write;
         dmVMath::Matrix4 world_matrix;
-        float page_index;
+        float page_index = 0.0f;
         float texture_transform_packed[9];
         dmGraphics::WriteAttributeParams write_params = {};
 
