@@ -129,8 +129,15 @@ jobs:
         with: { platform: 'x86_64-linux', build-variant: 'valgrind' }
       },
       {
-        name: 'MSAN (SIMD tests)',
-        run: 'source ci/env.sh && bash ci/run-msan-simd.sh x86_64-linux'
+        name: 'MSAN',
+        id: msan,
+        run: 'ci/ci.sh --platform=x86_64-linux --with-msan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
+      },
+      {
+        name: 'Upload MSAN build reports',
+        if: "always() && (steps.msan.outcome == 'success' || steps.msan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'x86_64-linux', build-variant: 'msan' }
       },
       {
          name: 'Notify if build status changed',
@@ -201,8 +208,15 @@ jobs:
         with: { platform: 'arm64-linux', build-variant: 'valgrind' }
       },
       {
-        name: 'MSAN (SIMD tests)',
-        run: 'source ci/env.sh && bash ci/run-msan-simd.sh arm64-linux'
+        name: 'MSAN',
+        id: msan,
+        run: 'ci/ci.sh --platform=arm64-linux --with-msan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
+      },
+      {
+        name: 'Upload MSAN build reports',
+        if: "always() && (steps.msan.outcome == 'success' || steps.msan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'arm64-linux', build-variant: 'msan' }
       },
       {
          name: 'Notify if build status changed',

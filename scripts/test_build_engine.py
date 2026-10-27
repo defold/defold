@@ -17,6 +17,38 @@ class SanitizerFeatureTests(unittest.TestCase):
         configuration.build_options = []
         self.assertIn('-DWITH_MSAN:BOOL=OFF', configuration._cmake_feature_defines())
 
+    # MSan dependencies must not overwrite the normal archives used by Bob's JNI libraries.
+    def test_msan_external_build_uses_a_separate_cache(self):
+        configuration = build.Configuration.__new__(build.Configuration)
+        configuration.defold_root = '/defold'
+        configuration.dynamo_home = '/defold/tmp/dynamo_home'
+        configuration.build_options = ['--with-msan']
+        configuration.build_tracker = mock.Mock()
+        configuration._form_env = mock.Mock(return_value={})
+        with mock.patch.object(build.run, 'env_command') as run:
+            normal, _ = configuration._configure_ext_platform('arm64-linux')
+            instrumented, _ = configuration._configure_ext_platform('arm64-linux', msan=True)
+        self.assertNotEqual(normal, instrumented)
+        self.assertIn('-DWITH_MSAN:BOOL=OFF', run.call_args_list[0].args[1])
+        self.assertIn('-DWITH_MSAN:BOOL=ON', run.call_args_list[1].args[1])
+
+    # Instrumented dependency builds must follow both the normal dependencies and libc++.
+    def test_build_ext_prepares_msan_runtime_and_dependencies(self):
+        configuration = build.Configuration.__new__(build.Configuration)
+        configuration.defold_root = '/defold'
+        configuration.dynamo_home = '/defold/tmp/dynamo_home'
+        configuration.host = configuration.target_platform = 'arm64-linux'
+        configuration.build_options = ['--with-msan']
+        configuration.check_sdk = mock.Mock()
+        configuration._form_env = mock.Mock(return_value={})
+        calls = mock.Mock()
+        configuration._build_ext_platform = calls.dependencies
+        with mock.patch.object(build.run, 'env_command', calls.runtime):
+            configuration.build_ext()
+        self.assertEqual(['dependencies', 'runtime', 'dependencies'],
+                         [call[0] for call in calls.mock_calls])
+        self.assertEqual(mock.call.dependencies('arm64-linux', msan=True), calls.mock_calls[-1])
+
 
 class CompilationDatabaseTests(unittest.TestCase):
     def setUp(self):

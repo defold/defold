@@ -820,6 +820,8 @@ class Configuration(object):
         for builddir in glob(join(self.defold_root, 'external', '*', 'build', platform)):
             self._remove_tree(builddir)
         self._remove_tree(join(self.defold_root, 'external', 'build', platform))
+        self._remove_tree(join(self.defold_root, 'external', 'build', platform + '-msan'))
+        self._remove_tree(join(self.ext, 'msan', platform))
 
         # Shared headers and tools must remain installed for other platforms.
         for directory in ('lib', 'bin', 'include', 'share'):
@@ -2412,16 +2414,26 @@ class Configuration(object):
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
 
     def build_ext(self):
+        with_msan = '--with-msan' in self.build_options
+        if with_msan and (self.host != self.target_platform or not self.host.endswith('-linux')):
+            self.fatal('MSan dependencies must be built natively on Linux')
         self.check_sdk(require_protoc=False)
 
         # Cross-builds also need host dependencies for tools such as texc.
         self._build_ext_platform(self.host)
         if self.target_platform != self.host:
             self._build_ext_platform(self.target_platform)
+        if with_msan:
+            runtime_build = join(self.defold_root, 'external', 'build', self.target_platform + '-msan', 'libcxx')
+            runtime_install = join(self.dynamo_home, 'ext', 'msan', self.target_platform, 'libcxx')
+            run.env_command(self._form_env(), [
+                'bash', join(self.defold_root, 'external', 'msan', 'build-runtime.sh'),
+                runtime_build, runtime_install], cwd=self.defold_root)
+            self._build_ext_platform(self.target_platform, msan=True)
 
-    def _configure_ext_platform(self, platform):
+    def _configure_ext_platform(self, platform, msan=False):
         source_dir = join(self.defold_root, 'external')
-        build_dir = join(source_dir, 'build', platform)
+        build_dir = join(source_dir, 'build', platform + ('-msan' if msan else ''))
         build_type = self._find_cmake_build_type(self.build_options)
         configure_args = [
             'cmake', '-S', source_dir, '-B', build_dir, '-GNinja',
@@ -2430,6 +2442,7 @@ class Configuration(object):
             '-DDEFOLD_SDK_ROOT:PATH=%s' % self.dynamo_home,
             '-DBUILD_TESTS=OFF',
             '-DCMAKE_INSTALL_MESSAGE=LAZY',
+            '-DWITH_MSAN:BOOL=%s' % ('ON' if msan else 'OFF'),
         ]
         command = 'CMake configure ext (%s)' % platform
         self.build_tracker.start_command(command)
@@ -2439,13 +2452,13 @@ class Configuration(object):
             self.build_tracker.end_command(command)
         return build_dir, build_type
 
-    def _build_ext_platform(self, platform, configure=True):
+    def _build_ext_platform(self, platform, configure=True, msan=False):
         self.build_tracker.start_component('ext', platform)
         try:
             if configure:
-                build_dir, build_type = self._configure_ext_platform(platform)
+                build_dir, build_type = self._configure_ext_platform(platform, msan=msan)
             else:
-                build_dir = join(self.defold_root, 'external', 'build', platform)
+                build_dir = join(self.defold_root, 'external', 'build', platform + ('-msan' if msan else ''))
                 build_type = self._find_cmake_build_type(self.build_options)
 
             build_args = ['cmake', '--build', build_dir]

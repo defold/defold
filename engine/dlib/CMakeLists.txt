@@ -13,9 +13,7 @@ set(DLIB_DEPENDENCIES zip mbedtls lz4)
 set(DLIB_NOASAN_DEPENDENCIES zip_noasan mbedtls_noasan lz4)
 set(DLIB_SHARED_DEPENDENCIES profile_null_noasan mbedtls_noasan zip_noasan lz4)
 
-add_library(lz4 STATIC IMPORTED GLOBAL)
-set_target_properties(lz4 PROPERTIES
-  IMPORTED_LOCATION "${DEFOLD_EXT_LIB_DIR}/liblz4${CMAKE_STATIC_LIBRARY_SUFFIX}")
+defold_import_external(lz4 "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}/liblz4${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
 file(GLOB_RECURSE DLIB_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${DLIB_SRC_DIR}/dmsdk/*.h"

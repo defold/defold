@@ -81,10 +81,17 @@ such as `--with-vulkan` continue to map to `WITH_VULKAN`.
 
 `WITH_MSAN=ON` enables Clang MemorySanitizer with origin tracking on Linux
 (`x86_64-linux` or `arm64-linux`). It cannot be combined with another sanitizer.
-Reliable reports require instrumented dependencies, including the C++ standard
-library; the normal prebuilt dependency installation is not sufficient.
-The Linux nightly workflow currently runs the self-contained C SIMD suites
-under MSan; it does not run the full engine suite with MSan.
+Build its dependencies first with `scripts/build.py build_ext -- --with-msan`.
+This builds a pinned LLVM 20 libc++/libc++abi and instrumented external archives
+in `tmp/dynamo_home/ext/msan/<platform>`, separately from the ordinary dependencies
+used by Bob and JNI. It also rebuilds the normally packaged ASTC, SPIRV-Cross,
+GLFW, and Tremolo libraries. The build requires native Linux, Clang 20, and network
+access for the pinned sources on its first run.
+
+Then run `scripts/build.py build_engine -- --with-msan`, or configure CMake with
+`-DWITH_MSAN=ON`. MSan uses vanilla Lua and OpenH264's C++ kernels so those paths
+can be instrumented. The Linux nightly jobs prepare the instrumented dependencies
+before building and running the engine tests with MSan.
 
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
 include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;

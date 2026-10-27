@@ -269,6 +269,9 @@ def build_engine(channel, platform, args):
     cmd_args = ('"%s" scripts/build.py' % sys.executable).split()
     if not args.skip_install_ext:
         cmd_args.extend(['distclean'] + sdk_commands(platform) + ['install_ext'])
+    elif args.with_msan:
+        # The ordinary dependency cache cannot supply MSan-instrumented archives.
+        cmd_args.append('build_ext')
 
     cmd_opts = []
     build_opts = []
