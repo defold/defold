@@ -64,7 +64,7 @@
       (when (newer-than-running? (:version info))
         info))))
 
-(defn- release-notes [version]
+(defn- fetch-release-notes! [version]
   (when-let [notes (updater/fetch-version-notes! (system/defold-archive-domain) "beta" version)]
     (when (and (map? notes) (vector? (:issues notes)))
       (try
@@ -75,11 +75,11 @@
 
 (defonce ^:private busy (atom false))
 
-(defn active? []
+(defn try-active? []
   (eligible? (Platform/getHostPlatform)))
 
-(defn enabled? []
-  (and (active?)
+(defn try-enabled? []
+  (and (try-active?)
        (not @busy)))
 
 (defn- confirm-download! [stage project localization version markdown]
@@ -92,8 +92,8 @@
              :buttons [{:text (localization/message "beta.dialog.button.later")
                         :cancel-button true
                         :result :later}
-                       {:text (localization/message "beta.button.dont-suggest")
-                        :result :dont-suggest}
+                       {:text (localization/message "beta.button.do-not-suggest")
+                        :result :do-not-suggest}
                        {:text (localization/message "beta.dialog.button.download")
                         :default-button true
                         :result :download}]}
@@ -110,13 +110,13 @@
   "Offers to open the beta download link in the web browser. Returns the future
   doing so, or nil if disabled or already busy."
   [^Stage stage notifications-node project prefs localization]
-  (when (and (enabled?) (compare-and-set! busy false true))
+  (when (and (try-enabled?) (compare-and-set! busy false true))
     (future
       (try
         (let [info (fetch-info!)
               version (:version info)
               newer (and info (newer-than-running? version))
-              markdown (when newer (release-notes version))]
+              markdown (when newer (fetch-release-notes! version))]
           (ui/run-later
             (try
               (when (.isShowing stage)
@@ -128,7 +128,7 @@
                       (ui/open-url (updater/download-url (system/defold-archive-domain) (:sha1 info) "beta" platform extension))
                       (notifications/close! notifications-node ::suggestion))
 
-                    :dont-suggest
+                    :do-not-suggest
                     (do (prefs/set! prefs [:versioning :beta-suggestions-disabled] true)
                         (notifications/close! notifications-node ::suggestion))
 
@@ -138,9 +138,10 @@
                     {:title (localization/message "beta.dialog.title")
                      :icon (if info :icon/circle-info :icon/triangle-error)
                      :owner stage
-                     :header (localization/message (if info
-                                                     "beta.no-newer-dialog.header"
-                                                     "beta.check-failed-dialog.header"))})))
+                     :header (localization/message
+                               (if info
+                                 "beta.no-newer-dialog.header"
+                                 "beta.check-failed-dialog.header"))})))
               (finally
                 (reset! busy false)))))
         (catch Throwable e
@@ -163,5 +164,5 @@
                :message (localization/message "beta.notification.available" {"version" (:version info)})
                :actions [{:message (localization/message "beta.notification.try-it")
                           :on-action #(try! stage notifications-node project prefs localization)}
-                         {:message (localization/message "beta.button.dont-suggest")
+                         {:message (localization/message "beta.button.do-not-suggest")
                           :on-action #(prefs/set! prefs [:versioning :beta-suggestions-disabled] true)}]})))))))

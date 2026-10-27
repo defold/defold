@@ -41,7 +41,7 @@
 
 (defn- test-urls-fixture [f]
   (with-redefs [updater/download-url
-                (fn [archive-domain sha1 channel ^Platform platform extension]
+                (fn [_archive-domain sha1 channel ^Platform platform extension]
                   (format "http://localhost:%s/archive/%s/%s/editor2/Defold-%s.%s"
                           test-port sha1 channel (.getPair platform) extension))
 

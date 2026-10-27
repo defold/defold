@@ -35,7 +35,8 @@
 (deftest automatic-check-runs-once
   (let [started (promise)
         finish (promise)
-        info {:version "1.14.0" :sha1 "B2"}]
+        info {:version "1.14.0"
+              :sha1 "B2"}]
     (with-redefs [prefs/get (constantly nil)
                   beta/fetch-info! (fn fetch-info! []
                                      (deliver started true)
@@ -85,17 +86,23 @@
   (doseq [version ["1.13.2" "1.12.0"]]
     (with-redefs [beta/automatic-check-started (atom false)
                   prefs/get (constantly nil)
-                  beta/fetch-info! (constantly {:version version :sha1 "B2"})]
+                  beta/fetch-info! (constantly {:version version
+                                                :sha1 "B2"})]
       (is (nil? (#'beta/check-once! nil Platform/X86_64Linux))))))
 
 ;; Verifies malformed or unavailable remote metadata cannot become an offer.
 (deftest fetch-info-validates-metadata
-  (doseq [info [nil {} [] "bad" {:version 114 :sha1 "B2"}
-                {:version "bad" :sha1 "B2"} {:version "1.14.0"}
-                {:version "1.14.0" :sha1 ""}]]
+  (doseq [info [nil {} [] "bad" {:version "1.14.0"}
+                {:version 114
+                 :sha1 "B2"}
+                {:version "bad"
+                 :sha1 "B2"}
+                {:version "1.14.0"
+                 :sha1 ""}]]
     (with-redefs [updater/fetch-json! (constantly info)]
       (is (nil? (#'beta/fetch-info!)))))
-  (let [info {:version "1.14.0" :sha1 "B2"}]
+  (let [info {:version "1.14.0"
+              :sha1 "B2"}]
     (with-redefs [updater/fetch-json! (constantly info)]
       (is (= info (#'beta/fetch-info!))))))
 
@@ -113,21 +120,31 @@
 ;; dialog, just without notes.
 (deftest beta-release-notes
   (let [notes {:external-link "https://forum.defold.com/release"
-               :issues [{:title "Beta feature" :type "NEW" :body "Feature details"
+               :issues [{:title "Beta feature"
+                         :type "NEW"
+                         :body "Feature details"
                          :url "https://github.com/defold/defold/pull/1"
-                         :pr_number 1 :author "author" :repository "defold"}
-                        {:title "Duplicate" :type "NEW" :repository "defold" :duplicate true}]}
+                         :pr_number 1
+                         :author "author"
+                         :repository "defold"}
+                        {:title "Duplicate"
+                         :type "NEW"
+                         :repository "defold"
+                         :duplicate true}]}
         requests (atom [])]
-    (with-redefs [updater/fetch-version-notes! (fn fetch-notes! [_archive-domain channel version]
-                                                 (swap! requests conj [channel version])
-                                                 notes)]
-      (let [markdown (#'beta/release-notes "1.14.0")]
+    (with-redefs [updater/fetch-version-notes!
+                  (fn fetch-version-notes! [_archive-domain channel version]
+                    (swap! requests conj [channel version])
+                    notes)]
+      (let [markdown (#'beta/fetch-release-notes! "1.14.0")]
         (is (= [["beta" "1.14.0"]] @requests))
         (is (string/includes? (first (string/split-lines markdown)) "Defold 1.14.0 beta"))
         (is (string/includes? markdown "Beta feature"))
         (is (string/includes? markdown "Feature details"))
         (is (string/includes? markdown "https://forum.defold.com/release"))
         (is (not (string/includes? markdown "Duplicate"))))))
-  (doseq [notes [nil [] {} {:issues "bad"} {:issues [{:repository "defold" :labels 42}]}]]
+  (doseq [notes [nil [] {} {:issues "bad"}
+                 {:issues [{:repository "defold"
+                            :labels 42}]}]]
     (with-redefs [updater/fetch-version-notes! (constantly notes)]
-      (is (nil? (#'beta/release-notes "1.14.0"))))))
+      (is (nil? (#'beta/fetch-release-notes! "1.14.0"))))))
