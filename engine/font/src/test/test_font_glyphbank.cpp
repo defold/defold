@@ -70,12 +70,12 @@ static TestGlyphBankProvider* CreateTestGlyphBank(uint32_t glyph_count, bool* de
     return glyph_bank;
 }
 
-static void AssertGlyphBankLayout(HFontCollection     collection,
-                                  const char*         text,
+static void AssertGlyphBankLayout(HFontCollection collection,
+                                  const char* text,
                                   TextLayoutSettings* settings,
-                                  float               expected_width,
-                                  float               expected_height,
-                                  uint32_t            expected_line_count)
+                                  float expected_width,
+                                  float expected_height,
+                                  uint32_t expected_line_count)
 {
     dmArray<uint32_t> codepoints;
     TextToCodePoints(text, codepoints);
@@ -96,11 +96,11 @@ static void AssertGlyphBankLayout(HFontCollection     collection,
 
 TEST(FontGlyphBank, LookupMetricsBitmapAndOwnership)
 {
-    bool                   destroyed = false;
+    bool destroyed = false;
     TestGlyphBankProvider* glyph_bank = CreateTestGlyphBank(3, &destroyed);
-    const uint8_t          compressed_bitmap[] = { 10, 20, 30, 40 };
-    const uint8_t          uncompressed_bitmap[] = { 50, 60 };
-    const uint32_t         codepoints[] = { 32, 65, 0x1f642 };
+    const uint8_t compressed_bitmap[] = { 10, 20, 30, 40 };
+    const uint8_t uncompressed_bitmap[] = { 50, 60 };
+    const uint32_t codepoints[] = { 32, 65, 0x1f642 };
     for (uint32_t i = 0; i < 3; ++i)
     {
         glyph_bank->m_Glyphs[i].m_Codepoint = codepoints[i];
@@ -174,7 +174,7 @@ TEST(FontGlyphBank, LookupMetricsBitmapAndOwnership)
 
 TEST(FontGlyphBank, EmptyRefreshAndResourceSizeSaturation)
 {
-    FontGlyphBankGlyph    glyphs[1] = {};
+    FontGlyphBankGlyph glyphs[1] = {};
     TestGlyphBankProvider glyph_bank = {};
     glyph_bank.m_Glyphs = glyphs;
     glyph_bank.m_Provider.m_Context = &glyph_bank;
@@ -202,7 +202,7 @@ TEST(FontGlyphBank, EmptyRefreshAndResourceSizeSaturation)
 
 TEST(FontGlyphBank, LayoutMetrics)
 {
-    bool                   destroyed = false;
+    bool destroyed = false;
     TestGlyphBankProvider* glyph_bank = CreateTestGlyphBank(128, &destroyed);
     for (uint32_t i = 0; i < glyph_bank->m_Provider.m_GlyphCount; ++i)
     {
@@ -249,9 +249,9 @@ TEST(FontGlyphBank, LayoutMetrics)
 // Vector glyph-bank layout scales from the size used to bake its metrics.
 TEST(FontGlyphBank, VectorLayoutScalesFromBakedSize)
 {
-    bool                   destroyed = false;
+    bool destroyed = false;
     TestGlyphBankProvider* glyph_bank = CreateTestGlyphBank(1, &destroyed);
-    FontGlyphBankGlyph&    glyph = glyph_bank->m_Glyphs[0];
+    FontGlyphBankGlyph& glyph = glyph_bank->m_Glyphs[0];
     glyph.m_Codepoint = 'A';
     glyph.m_Width = glyph.m_Advance = 8.0f;
     glyph.m_Ascent = 10.0f;
@@ -280,10 +280,10 @@ TEST(FontGlyphBank, VectorLayoutScalesFromBakedSize)
 // previous metrics. Guards against #13339 without changing glyph rasterization.
 TEST(FontGlyphBank, SeparateLayoutAndBitmapMetrics)
 {
-    bool                   destroyed = false;
+    bool destroyed = false;
     TestGlyphBankProvider* bank = CreateTestGlyphBank(1, &destroyed);
-    const uint8_t          pixels[] = { 0 };
-    FontGlyphBankGlyph&    source = bank->m_Glyphs[0];
+    const uint8_t pixels[] = { 0 };
+    FontGlyphBankGlyph& source = bank->m_Glyphs[0];
     source.m_Codepoint = 'A';
     source.m_Width = 14;
     source.m_LeftBearing = -2;
@@ -303,7 +303,7 @@ TEST(FontGlyphBank, SeparateLayoutAndBitmapMetrics)
     ASSERT_NE((HFont)0, font);
 
     FontGlyphOptions options;
-    FontGlyph        glyph;
+    FontGlyph glyph;
     ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
     ASSERT_EQ(14.0f, glyph.m_Width);
     ASSERT_EQ(-2.0f, glyph.m_LeftBearing);
@@ -444,7 +444,7 @@ TEST(FontAlignment, CompiledGradientsMatchPreview)
             CreateAlignmentFixture(preview, false);
             CreateAlignmentFixture(compiled, true);
             FontAlignmentFixture* fixtures[] = { &preview, &compiled };
-            char                  source[256];
+            char source[256];
             dmSnPrintf(source, sizeof(source), "<gradient type=%s fit=%s color0=#ff0000 color1=#0000ff>Example</gradient>", types[type], fits[fit]);
             for (uint32_t i = 0; i < 2; ++i)
             {

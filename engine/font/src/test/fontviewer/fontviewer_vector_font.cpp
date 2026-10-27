@@ -40,15 +40,15 @@ struct FontViewerVectorVertex
 
 struct FontViewerVectorFont
 {
-    FontVectorSlugData             m_Slug;
-    FontVectorPaintCache           m_Paint;
+    FontVectorSlugData              m_Slug;
+    FontVectorPaintCache            m_Paint;
     dmArray<FontViewerVectorVertex> m_Vertices;
-    dmGraphics::HContext           m_Context;
-    dmGraphics::HProgram           m_Program;
-    dmGraphics::HTexture           m_Textures[3];
-    dmGraphics::HVertexBuffer      m_VertexBuffer;
-    dmGraphics::HVertexDeclaration m_Declaration;
-    bool                           m_Dirty;
+    dmGraphics::HContext            m_Context;
+    dmGraphics::HProgram            m_Program;
+    dmGraphics::HTexture            m_Textures[3];
+    dmGraphics::HVertexBuffer       m_VertexBuffer;
+    dmGraphics::HVertexDeclaration  m_Declaration;
+    bool                            m_Dirty;
 };
 
 FontViewerVectorFont* FontViewerVectorFontCreate()
@@ -100,7 +100,7 @@ void FontViewerVectorFontDestroy(FontViewerVectorFont* cache)
 bool FontViewerVectorFontAddGlyph(FontViewerVectorFont* cache, HFont source, uint32_t glyph_index, uint32_t* index, bool* has_color)
 {
     uint32_t count = cache->m_Paint.m_Glyphs.Size();
-    bool     result = FontVectorPaintAddGlyph(&cache->m_Paint, source, glyph_index, index, has_color);
+    bool result = FontVectorPaintAddGlyph(&cache->m_Paint, source, glyph_index, index, has_color);
     cache->m_Dirty |= count != cache->m_Paint.m_Glyphs.Size();
     return result;
 }
@@ -113,8 +113,8 @@ void FontViewerVectorFontBegin(FontViewerVectorFont* cache)
 void FontViewerVectorFontPack(FontViewerVectorFont* cache, uint32_t index, float scale, float pixel_scale, float x, float y, const Matrix4& transform, const Vector4& clip, const FontLayoutVertexConfig& config, const TextLine& line, const TextGlyph& text_glyph, const TextGlyphRenderData& render_data, FontSpatialGradientCache* spatial_cache)
 {
     const FontVectorPaintGlyph& glyph = cache->m_Paint.m_Glyphs[index];
-    uint32_t                    first = cache->m_Vertices.Size();
-    uint32_t                    end = first + 6;
+    uint32_t first = cache->m_Vertices.Size();
+    uint32_t end = first + 6;
     if (cache->m_Vertices.Capacity() < end)
         cache->m_Vertices.SetCapacity(end + 192);
     cache->m_Vertices.SetSize(end);
@@ -132,7 +132,7 @@ void FontViewerVectorFontPack(FontViewerVectorFont* cache, uint32_t index, float
         }
         const TextGradientBounds bounds = { x + glyph.m_Bounds.getX() * scale, y + glyph.m_Bounds.getY() * scale, x + glyph.m_Bounds.getZ() * scale, y + glyph.m_Bounds.getW() * scale };
         const TextGradientBounds quad = { x + packed[0].m_FontPosition[0] * scale, y + packed[0].m_FontPosition[1] * scale, x + packed[5].m_FontPosition[0] * scale, y + packed[5].m_FontPosition[1] * scale };
-        FontVertexLayerParams    layers = {};
+        FontVertexLayerParams layers = {};
         layers.m_FaceVertices = gradient_vertices;
         FontApplySpatialGradient(config, line, text_glyph, bounds, quad, spatial_cache, layers);
         for (uint32_t i = 0; i < 6; ++i)
@@ -165,12 +165,12 @@ static bool CreateProgram(FontViewerVectorFont* cache)
     // Standalone OpenGL requires a combined integer sampler.
     char* texture_type = strstr(slug.Begin(), "utexture2D");
     memcpy(texture_type, "usampler2D", 10);
-    const char*   source = (const char*)FONTVIEWER_VECTOR_FP;
-    const char*   include = strstr(source, "#include");
-    const char*   paint_include = strstr(include + 1, "#include");
-    const char*   suffix = strchr(paint_include, '\n');
-    uint32_t      prefix_size = include - source;
-    uint32_t      suffix_size = FONTVIEWER_VECTOR_FP_SIZE - (suffix - source);
+    const char* source = (const char*)FONTVIEWER_VECTOR_FP;
+    const char* include = strstr(source, "#include");
+    const char* paint_include = strstr(include + 1, "#include");
+    const char* suffix = strchr(paint_include, '\n');
+    uint32_t prefix_size = include - source;
+    uint32_t suffix_size = FONTVIEWER_VECTOR_FP_SIZE - (suffix - source);
     dmArray<char> fragment;
     fragment.SetCapacity(prefix_size + FONTVIEWER_SLUG_SIZE + FONTVIEWER_PAINT_SIZE + suffix_size + 1);
     fragment.SetSize(fragment.Capacity());
@@ -182,8 +182,8 @@ static bool CreateProgram(FontViewerVectorFont* cache)
     dmGraphics::ShaderDescBuilder shaders;
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, (const char*)FONTVIEWER_VECTOR_VP, FONTVIEWER_VECTOR_VP_SIZE);
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment.Begin(), fragment.Size() - 1);
-    const char*                                attributes[] = { "effect", "position", "color", "clip", "font_position", "paint" };
-    const uint32_t                             components[] = { 4, 4, 4, 4, 2, 1 };
+    const char* attributes[] = { "effect", "position", "color", "clip", "font_position", "paint" };
+    const uint32_t components[] = { 4, 4, 4, 4, 2, 1 };
     const dmGraphics::ShaderDesc::ShaderDataType types[] = {
         dmGraphics::ShaderDesc::SHADER_TYPE_VEC4,
         dmGraphics::ShaderDesc::SHADER_TYPE_VEC4,

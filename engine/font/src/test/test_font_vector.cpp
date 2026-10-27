@@ -81,7 +81,7 @@ TEST(FontVector, ColorBoundsWithoutBaseOutline)
         TextLayoutSettings settings = {};
         settings.m_Size = 32;
         settings.m_Leading = 1;
-        uint32_t    text = 'A';
+        uint32_t text = 'A';
         HTextLayout layout = 0;
         ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, &text, 1, &settings, &layout));
         ASSERT_EQ(1u, TextLayoutGetGlyphCount(layout));
@@ -91,11 +91,11 @@ TEST(FontVector, ColorBoundsWithoutBaseOutline)
         float padding = FontGetLayoutType(font) == TEXT_LAYOUT_TYPE_LEGACY ? 6.0f : 0.0f;
         ASSERT_NEAR((width + padding) * .032f, glyph.m_Width, .0001f);
         ASSERT_NEAR((1000.0f + padding) * .032f, glyph.m_Height, .0001f);
-        FontVectorSlugData   slug;
+        FontVectorSlugData slug;
         FontVectorPaintCache cache;
         cache.m_Slug = &slug;
         uint32_t index;
-        bool     color;
+        bool color;
         ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, glyph.m_GlyphIndex, &index, &color));
         ASSERT_TRUE(color);
         ASSERT_EQ(width, cache.m_Glyphs[index].m_Bounds.getZ());
@@ -110,17 +110,17 @@ TEST(FontVector, ColorBoundsWithoutBaseOutline)
 // Color paint caches reuse complete graphs and roll back unsupported or overflowing glyphs.
 TEST(FontVector, ColorPaintCacheFallbackAndReuse)
 {
-    char  path[512];
+    char path[512];
     HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/NotoColorEmoji-Regular.ttf"));
     ASSERT_NE((HFont)0, font);
-    FontVectorSlugData   data;
+    FontVectorSlugData data;
     FontVectorPaintCache cache;
     cache.m_Slug = &data;
     const uint32_t glyphs[] = { FontGetGlyphIndex(font, 0x1f600), 2017, 2688 };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(glyphs); ++i)
     {
         uint32_t index;
-        bool     color;
+        bool color;
         ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, glyphs[i], &index, &color));
         ASSERT_TRUE(color);
         const FontVectorPaintGlyph& glyph = cache.m_Glyphs[index];
@@ -150,7 +150,7 @@ TEST(FontVector, ColorPaintCacheFallbackAndReuse)
     uint32_t curves = data.m_Curves.Size(), bands = data.m_Bands.Size();
     uint32_t paths = cache.m_Paths.Size();
     uint32_t count = data.m_CurveCount, index;
-    bool     color;
+    bool color;
     data.m_MaxTexels = bands;
     ASSERT_FALSE(FontVectorPaintAddGlyph(&cache, font, FontGetGlyphIndex(font, 0x1f680), &index, &color));
     ASSERT_TRUE(data.m_Overflow);
@@ -169,19 +169,19 @@ TEST(FontVector, ColorPaintCacheFallbackAndReuse)
 // with the total layer count or changing previously encoded paint records.
 TEST(FontVector, ColorPaintScratchReuse)
 {
-    char  path[512];
+    char path[512];
     HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/NotoColorEmoji-Regular.ttf"));
     ASSERT_NE((HFont)0, font);
-    FontVectorSlugData   data;
+    FontVectorSlugData data;
     FontVectorPaintCache cache;
     cache.m_Slug = &data;
     cache.m_LayerScratch.SetCapacity(64);
     dmArray<dmVMath::Vector4> original;
-    uint32_t                  layers = 0;
+    uint32_t layers = 0;
     for (uint32_t codepoint = 0x1f600; codepoint < 0x1f640; ++codepoint)
     {
         uint32_t index;
-        bool     color;
+        bool color;
         ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, FontGetGlyphIndex(font, codepoint), &index, &color));
         ASSERT_TRUE(color);
         ASSERT_LE(cache.m_Glyphs[index].m_LayerCount, 64u);
@@ -204,14 +204,14 @@ TEST(FontVector, ColorPaintScratchReuse)
 // or its text opacity, and cached composition records must stay within budget.
 TEST(FontVector, ColorGlyphQuadAndCompositionRecords)
 {
-    char  path[512];
+    char path[512];
     HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/NotoColorEmoji-Regular.ttf"));
     ASSERT_NE((HFont)0, font);
-    FontVectorSlugData   data;
+    FontVectorSlugData data;
     FontVectorPaintCache cache;
     cache.m_Slug = &data;
     uint32_t index;
-    bool     color;
+    bool color;
     ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, FontGetGlyphIndex(font, 0x1f600), &index, &color));
     const FontVectorPaintGlyph& glyph = cache.m_Glyphs[index];
     ASSERT_GT(glyph.m_LayerCount, 1u);
@@ -219,7 +219,7 @@ TEST(FontVector, ColorGlyphQuadAndCompositionRecords)
     ASSERT_EQ(glyph.m_Paint + 1 + glyph.m_LayerCount * 6, cache.m_Paints.Size());
     ASSERT_LE(cache.m_Paints.Size(), data.m_MaxTexels);
     TextGlyphFaceColors colors;
-    float*              corners[] = { colors.m_BottomLeft, colors.m_BottomRight, colors.m_TopLeft, colors.m_TopRight };
+    float* corners[] = { colors.m_BottomLeft, colors.m_BottomRight, colors.m_TopLeft, colors.m_TopRight };
     for (uint32_t i = 0; i < 4; ++i)
     {
         corners[i][0] = corners[i][1] = corners[i][2] = 1;
@@ -240,7 +240,7 @@ TEST(FontVector, ColorGlyphQuadAndCompositionRecords)
     }
     // Reuse the paths but leave room only for paint nodes, without another
     // composition header/layer table. The original glyph must remain intact.
-    uint32_t                  paints = cache.m_Paints.Size();
+    uint32_t paints = cache.m_Paints.Size();
     dmArray<dmVMath::Vector4> original;
     original.SetCapacity(paints);
     original.SetSize(paints);
@@ -259,10 +259,10 @@ TEST(FontVector, ColorGlyphQuadAndCompositionRecords)
 // PaintGlyph must use raw outline bounds even when that glyph has its own COLR clip.
 TEST(FontVector, ColorClipDoesNotCropReusedOutline)
 {
-    char  path[512];
+    char path[512];
     HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/color-test.ttf"));
     ASSERT_NE((HFont)0, font);
-    uint32_t         clipped = FontGetGlyphIndex(font, 'B');
+    uint32_t clipped = FontGetGlyphIndex(font, 'B');
     FontGlyphOptions options;
     options.m_StbttSDFPadding = 0;
     FontGlyph outline;
@@ -275,11 +275,11 @@ TEST(FontVector, ColorClipDoesNotCropReusedOutline)
     ASSERT_EQ(1000.0f, outline.m_Outline.m_Height);
     FontFreeGlyph(font, &outline);
 
-    FontVectorSlugData   data;
+    FontVectorSlugData data;
     FontVectorPaintCache cache;
     cache.m_Slug = &data;
     uint32_t index;
-    bool     color;
+    bool color;
     ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, clipped, &index, &color));
     ASSERT_TRUE(color);
     ASSERT_EQ(500.0f, cache.m_Glyphs[index].m_Bounds.getZ());
@@ -293,17 +293,17 @@ TEST(FontVector, ColorClipDoesNotCropReusedOutline)
 // flatten into that group, while sibling clips and layer lists remain separate.
 TEST(FontVector, SharedClipCompositeRecords)
 {
-    char  path[512];
+    char path[512];
     HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/color-test.ttf"));
     ASSERT_NE((HFont)0, font);
-    FontVectorSlugData   data;
+    FontVectorSlugData data;
     FontVectorPaintCache cache;
     cache.m_Slug = &data;
     const uint32_t counts[] = { 1, 2, 1, 1, 3, 2, 1 }; // J-P.
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(counts); ++i)
     {
         uint32_t index;
-        bool     color;
+        bool color;
         ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, FontGetGlyphIndex(font, 'J' + i), &index, &color));
         ASSERT_TRUE(color);
         const FontVectorPaintGlyph& glyph = cache.m_Glyphs[index];
@@ -322,11 +322,11 @@ TEST(FontVector, SharedClipCompositeRecords)
 // CPU effect generation preserves analytical faces and the outline distance field.
 TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
 {
-    char  path[512];
+    char path[512];
     HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/NotoSans-Regular.ttf"));
     ASSERT_NE((HFont)0, font);
     const uint32_t glyph_index = FontGetGlyphIndex(font, 'A');
-    uint32_t       curve_count = 0;
+    uint32_t curve_count = 0;
     for (uint32_t i = 0; i < 3; ++i)
     {
         FontGlyphGenParams params;
@@ -339,7 +339,7 @@ TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
         ASSERT_EQ(FONT_RESULT_OK, FontGenerateVectorGlyph(font, glyph_index, &params, &glyph));
         ASSERT_EQ(3u, glyph.m_Bitmap.m_Channels);
         ASSERT_EQ((uint32_t)glyph.m_Bitmap.m_Width * glyph.m_Bitmap.m_Height * 3, glyph.m_Bitmap.m_DataSize);
-        FontVectorSlugData  data;
+        FontVectorSlugData data;
         FontVectorSlugGlyph encoded;
         ASSERT_TRUE(FontVectorSlugAddFontGlyph(&data, glyph, 8, &encoded));
         ASSERT_GT(encoded.m_CurveCount, 0u);
@@ -357,7 +357,7 @@ TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
         ASSERT_EQ(glyph.m_Bitmap.m_Width, sdf.m_Bitmap.m_Width);
         ASSERT_EQ(glyph.m_Bitmap.m_Height, sdf.m_Bitmap.m_Height);
         const float outline_edge = params.m_SdfEdgeValue * (1.0f - params.m_OutlineWidth / options.m_StbttSDFPadding);
-        uint32_t    outline_only = 0, shadow_only = 0;
+        uint32_t outline_only = 0, shadow_only = 0;
         for (uint32_t p = 0; p < glyph.m_Bitmap.m_DataSize; p += 3)
         {
             const uint8_t* pixel = glyph.m_Bitmap.m_Data + p;
@@ -382,7 +382,7 @@ TEST(FontVector, CubicOpenTypeOutlinesGenerateSizeIndependentVectorCurves)
     const char* paths[] = { "src/test/data/SourceCodePro-Regular.otf", "src/test/data/SourceSerif4Variable-Roman_cff2.otf" };
     for (uint32_t f = 0; f < DM_ARRAY_SIZE(paths); ++f)
     {
-        char  path[512];
+        char path[512];
         HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), paths[f]));
         ASSERT_NE((HFont)0, font);
         const char* text = "Example";
@@ -399,7 +399,7 @@ TEST(FontVector, CubicOpenTypeOutlinesGenerateSizeIndependentVectorCurves)
                 params.m_ShadowBlur = 2;
                 FontGlyph glyph;
                 ASSERT_EQ(FONT_RESULT_OK, FontGenerateVectorGlyph(font, FontGetGlyphIndex(font, *c), &params, &glyph));
-                FontVectorSlugData  data;
+                FontVectorSlugData data;
                 FontVectorSlugGlyph encoded;
                 ASSERT_TRUE(FontVectorSlugAddFontGlyph(&data, glyph, 8, &encoded));
                 ASSERT_GT(encoded.m_CurveCount, 0u);
@@ -421,7 +421,7 @@ TEST(FontVector, CubicOpenTypeOutlinesGenerateSizeIndependentVectorCurves)
 // Enabling bitmap effects leaves encoded vector face curves unchanged.
 TEST(FontVector, EffectsPreserveEncodedFaceCurves)
 {
-    char  path[512];
+    char path[512];
     HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/NotoSans-Regular.ttf"));
     ASSERT_NE((HFont)0, font);
     FontVectorSlugData face;

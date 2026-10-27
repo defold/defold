@@ -116,10 +116,10 @@ static void CloseStbContour(dmArray<FontOutlineCommand>& commands, float start_x
 static void GetStbOutline(stbtt_fontinfo* font, uint32_t glyph_index, dmArray<FontOutlineCommand>& commands)
 {
     stbtt_vertex* vertices = 0;
-    int           vertex_count = stbtt_GetGlyphShape(font, glyph_index, &vertices);
-    bool          contour_open = false;
-    float         start_x = 0.0f;
-    float         start_y = 0.0f;
+    int vertex_count = stbtt_GetGlyphShape(font, glyph_index, &vertices);
+    bool contour_open = false;
+    float start_x = 0.0f;
+    float start_y = 0.0f;
     for (int i = 0; i < vertex_count; ++i)
     {
         const stbtt_vertex& vertex = vertices[i];
@@ -153,16 +153,11 @@ static uint32_t GetCommandPointCount(FontOutlineCommandType type)
 {
     switch (type)
     {
-        case FONT_OUTLINE_MOVE_TO:
-            return 1;
-        case FONT_OUTLINE_LINE_TO:
-            return 1;
-        case FONT_OUTLINE_QUADRATIC_TO:
-            return 2;
-        case FONT_OUTLINE_CUBIC_TO:
-            return 3;
-        case FONT_OUTLINE_CLOSE:
-            return 0;
+        case FONT_OUTLINE_MOVE_TO:      return 1;
+        case FONT_OUTLINE_LINE_TO:      return 1;
+        case FONT_OUTLINE_QUADRATIC_TO: return 2;
+        case FONT_OUTLINE_CUBIC_TO:     return 3;
+        case FONT_OUTLINE_CLOSE:        return 0;
     }
     return 0;
 }
@@ -239,7 +234,7 @@ static void CompareMetrics(ReferenceFont* font, uint32_t codepoint, bool compare
     ASSERT_EQ(glyph_index, hb_glyph_index);
 
     int32_t advance, left_bearing;
-    int     stb_advance, stb_left_bearing;
+    int stb_advance, stb_left_bearing;
     FontTrueTypeGetGlyphHMetrics(font->m_TrueType, glyph_index, &advance, &left_bearing);
     stbtt_GetGlyphHMetrics(&font->m_Stb, glyph_index, &stb_advance, &stb_left_bearing);
     ASSERT_EQ(stb_advance, advance);
@@ -252,7 +247,7 @@ static void CompareMetrics(ReferenceFont* font, uint32_t codepoint, bool compare
     ASSERT_EQ(left_bearing, harfbuzz_left_bearing);
 
     int32_t x0, y0, x1, y1;
-    int     stb_x0, stb_y0, stb_x1, stb_y1;
+    int stb_x0, stb_y0, stb_x1, stb_y1;
     ASSERT_TRUE(FontTrueTypeGetGlyphBox(font->m_TrueType, glyph_index, &x0, &y0, &x1, &y1));
     ASSERT_TRUE(stbtt_GetGlyphBox(&font->m_Stb, glyph_index, &stb_x0, &stb_y0, &stb_x1, &stb_y1));
     ASSERT_EQ(stb_x0, x0);
@@ -279,10 +274,10 @@ static void CompareAllGlyphBoundsWithOutlines(ReferenceFont* font)
         FontOutline outline = {};
         ASSERT_EQ(FONT_RESULT_OK, FontTrueTypeGetGlyphOutline(font->m_TrueType, glyph_index, &outline));
 
-        float   fx0, fy0, fx1, fy1;
-        bool    outline_has_bounds = FontGetOutlineBounds(&outline, &fx0, &fy0, &fx1, &fy1);
+        float fx0, fy0, fx1, fy1;
+        bool outline_has_bounds = FontGetOutlineBounds(&outline, &fx0, &fy0, &fx1, &fy1);
         int32_t x0, y0, x1, y1;
-        bool    box_has_bounds = FontTrueTypeGetGlyphBox(font->m_TrueType, glyph_index, &x0, &y0, &x1, &y1);
+        bool box_has_bounds = FontTrueTypeGetGlyphBox(font->m_TrueType, glyph_index, &x0, &y0, &x1, &y1);
         ASSERT_EQ(outline_has_bounds, box_has_bounds);
         if (outline_has_bounds)
         {
@@ -299,12 +294,12 @@ static void CompareAllGlyphBoundsWithOutlines(ReferenceFont* font)
 static void CompareVerticalMetrics(ReferenceFont* font)
 {
     uint32_t units_per_em = hb_face_get_upem(font->m_HBFace);
-    float    scale = FontTrueTypeGetScaleFromSize(font->m_TrueType, 1);
+    float scale = FontTrueTypeGetScaleFromSize(font->m_TrueType, 1);
     ASSERT_NEAR(1.0f / units_per_em, scale, 0.000001f);
     ASSERT_NEAR(stbtt_ScaleForMappingEmToPixels(&font->m_Stb, 1.0f), scale, 0.000001f);
 
     int32_t ascent, descent, line_gap;
-    int     stb_ascent, stb_descent, stb_line_gap;
+    int stb_ascent, stb_descent, stb_line_gap;
     ASSERT_TRUE(FontTrueTypeGetVerticalMetrics(font->m_TrueType, &ascent, &descent, &line_gap));
     stbtt_GetFontVMetrics(&font->m_Stb, &stb_ascent, &stb_descent, &stb_line_gap);
     ASSERT_EQ(stb_ascent, ascent);
@@ -325,7 +320,7 @@ static void CompareEmptyGlyph(ReferenceFont* font, uint32_t codepoint)
     ASSERT_EQ((int)glyph_index, stbtt_FindGlyphIndex(&font->m_Stb, codepoint));
 
     int32_t advance, left_bearing;
-    int     stb_advance, stb_left_bearing;
+    int stb_advance, stb_left_bearing;
     FontTrueTypeGetGlyphHMetrics(font->m_TrueType, glyph_index, &advance, &left_bearing);
     stbtt_GetGlyphHMetrics(&font->m_Stb, glyph_index, &stb_advance, &stb_left_bearing);
     ASSERT_EQ(stb_advance, advance);
@@ -406,7 +401,7 @@ TEST(FontTrueTypeReference, ColorAndOutlineBounds)
     ReferenceFont font;
     ASSERT_TRUE(LoadFont("src/test/data/color-test.ttf", &font));
     uint32_t glyph = FontHarfbuzzGetGlyphIndex(font.m_Harfbuzz, 'B');
-    int32_t  x0, y0, x1, y1;
+    int32_t x0, y0, x1, y1;
     ASSERT_TRUE(FontHarfbuzzGetGlyphBox(font.m_Harfbuzz, glyph, &x0, &y0, &x1, &y1));
     ASSERT_EQ(1000, x1);
     hb_glyph_extents_t extents;
@@ -441,7 +436,7 @@ TEST(FontTrueTypeReference, CFF2HarfBuzzReferencePaths)
     // axes, in font units. Ignore redundant closing lines and quantize to
     // 1/16 unit to tolerate cross-platform floating-point roundoff.
     uint64_t hash = 14695981039346656037ULL;
-    const uint32_t point_counts[] = {1, 1, 2, 3, 0};
+    const uint32_t point_counts[] = { 1, 1, 2, 3, 0 };
     for (uint32_t glyph = 0; glyph < 1464; ++glyph)
     {
         hash = (hash ^ glyph) * 1099511628211ULL;
@@ -586,9 +581,9 @@ TEST(FontTrueTypeReference, ShapingReceivesScaledCFFBounds)
 {
     ReferenceFont font;
     ASSERT_TRUE(LoadFont("src/test/data/SourceSerif4Variable-Roman_cff2.otf", &font));
-    uint32_t   glyph = FontTrueTypeGetGlyphIndex(font.m_TrueType, 'S');
+    uint32_t glyph = FontTrueTypeGetGlyphIndex(font.m_TrueType, 'S');
     hb_font_t* hb_font = FontHarfbuzzGetFont(font.m_Harfbuzz);
-    int        upem = (int)hb_face_get_upem(hb_font_get_face(hb_font));
+    int upem = (int)hb_face_get_upem(hb_font_get_face(hb_font));
     hb_font_set_scale(hb_font, upem * 2, upem * 3);
     hb_glyph_extents_t extents;
     ASSERT_TRUE(hb_font_get_glyph_extents(hb_font, glyph, &extents));

@@ -42,7 +42,7 @@ class FontEffectTest : public jc_test_base_class
     uint32_t                       m_Frame;
     dmArray<uint8_t>               m_Pixels;
 
-    void SetUp() override
+    void                           SetUp() override
     {
         TestMainPlatformInit();
         dmExportedSymbols();
@@ -146,7 +146,7 @@ class FontEffectTest : public jc_test_base_class
         uint32_t index = FontCacheEffect(m_Cache, record, ++m_Frame);
         FontUploadEffects(m_Cache);
         const float corners[6][2] = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 0, 1 }, { 1, 0 }, { 1, 1 } };
-        float       vertices[6][11] = {};
+        float vertices[6][11] = {};
         for (uint32_t i = 0; i < 6; ++i)
         {
             vertices[i][0] = corners[i][0] * 2 - 1;
@@ -198,7 +198,7 @@ class FontEffectTest : public jc_test_base_class
     void CheckGradientStopCounts(FontColorEffectType type)
     {
         const uint8_t colors[4][4] = { { 240, 20, 40, 255 }, { 20, 220, 60, 192 }, { 40, 60, 240, 128 }, { 240, 200, 40, 64 } };
-        const float   positions[] = { 0.125f, 0.375f, 0.625f, 0.875f };
+        const float positions[] = { 0.125f, 0.375f, 0.625f, 0.875f };
         for (uint32_t count = 1; count <= 4; ++count)
         {
             for (uint32_t custom = 0; custom < 2; ++custom)
@@ -210,7 +210,7 @@ class FontEffectTest : public jc_test_base_class
                 {
                     memcpy(effect.m_Colors[i], colors[i], 4);
                     effect.m_Positions[i] = custom ? positions[i] : count > 1 ? (float)i / (count - 1) :
-                                                                                0.0f;
+                                            0.0f;
                 }
                 // At pixel row 32, both gradients run from t=0 at x=16 to t=1 at x=80.
                 if (type == FONT_COLOR_EFFECT_RADIAL)
@@ -232,15 +232,15 @@ class FontEffectTest : public jc_test_base_class
                     for (uint32_t sample = 0; sample <= 8; ++sample)
                     {
                         const float t = animated ? 1.0f - sample / 8.0f : sample / 8.0f;
-                        uint32_t    left = 0;
+                        uint32_t left = 0;
                         while (left + 1 < count && t > effect.m_Positions[left + 1])
                         {
                             ++left;
                         }
                         const uint32_t right = left + 1 < count ? left + 1 : left;
-                        float          weight = right == left ? 0.0f : (t - effect.m_Positions[left]) / (effect.m_Positions[right] - effect.m_Positions[left]);
+                        float weight = right == left ? 0.0f : (t - effect.m_Positions[left]) / (effect.m_Positions[right] - effect.m_Positions[left]);
                         weight = weight < 0.0f ? 0.0f : weight > 1.0f ? 1.0f :
-                                                                        weight;
+                                 weight;
                         for (uint32_t channel = 0; channel < 4; ++channel)
                         {
                             const float expected = colors[left][channel] * (1.0f - weight) + colors[right][channel] * weight;
@@ -356,10 +356,10 @@ TEST_F(FontEffectTest, RotatedEllipticalRadialGradient)
             {
                 float t = i * 0.25f + (animated ? 0.25f : 0.0f);
                 t = t > 1.0f ? 2.0f - t : t;
-                const float    coordinate = t * (count - 1);
+                const float coordinate = t * (count - 1);
                 const uint32_t left = (uint32_t)coordinate;
                 const uint32_t right = left + 1 < count ? left + 1 : left;
-                const float    weight = coordinate - left;
+                const float weight = coordinate - left;
                 const uint8_t* samples[] = { Pixel(64 + 8 * i, 32 + 6 * i), Pixel(64 - 3 * i, 32 + 4 * i), Pixel(64 - 8 * i, 32 - 6 * i), Pixel(64 + 3 * i, 32 - 4 * i) };
                 for (uint32_t sample = 0; sample < 4; ++sample)
                 {
@@ -420,7 +420,7 @@ TEST_F(FontEffectTest, GradientOverridesInheritedColor)
     effect.m_Colors[0][0] = 240;
     effect.m_Colors[0][1] = 120;
     effect.m_Colors[0][2] = 60;
-    const float   face_color[] = { 0.0f, 0.0f, 0.0f, 128.0f / 255.0f };
+    const float face_color[] = { 0.0f, 0.0f, 0.0f, 128.0f / 255.0f };
     const uint8_t alpha[] = { 64, 192 };
     for (uint32_t a = 0; a < DM_ARRAY_SIZE(alpha); ++a)
     {
@@ -488,9 +488,9 @@ TEST_F(FontEffectTest, LegacyGradientMatchesCpuInterpolation)
         "<gradient left=#FF000040 right=#0000FFFF hz=1>A</gradient>",
         "<gradient bl=#FF000040 br=#00FF0080 tl=#0000FFC0 tr=#FFFFFFFF hz=1>A</gradient>"
     };
-    const uint8_t  corners[4][4] = { { 255, 0, 0, 64 }, { 0, 255, 0, 128 }, { 0, 0, 255, 192 }, { 255, 255, 255, 255 } };
-    const float    times[] = { 0.0f, 0.125f, 0.25f, 0.625f };
-    const float    base_color[] = { 1.0f, 1.0f, 1.0f, 128.0f / 255.0f };
+    const uint8_t corners[4][4] = { { 255, 0, 0, 64 }, { 0, 255, 0, 128 }, { 0, 0, 255, 192 }, { 255, 255, 255, 255 } };
+    const float times[] = { 0.0f, 0.125f, 0.25f, 0.625f };
+    const float base_color[] = { 1.0f, 1.0f, 1.0f, 128.0f / 255.0f };
     const uint32_t samples[][2] = { { 4, 4 }, { 32, 16 }, { 64, 32 }, { 96, 48 }, { 120, 60 } };
     for (uint32_t type = 0; type < DM_ARRAY_SIZE(sources); ++type)
     {
@@ -527,10 +527,10 @@ TEST_F(FontEffectTest, LegacyGradientMatchesCpuInterpolation)
                 {
                     const uint32_t px = samples[sample][0];
                     const uint32_t py = samples[sample][1];
-                    const float    x = (px + 0.5f) / 128.0f;
-                    const float    y = (py + 0.5f) / 64.0f;
+                    const float x = (px + 0.5f) / 128.0f;
+                    const float y = (py + 0.5f) / 64.0f;
                     // The quad's two triangles interpolate the old CPU corner colors.
-                    float          weights[4] = { 1.0f - x - y, x, y, 0.0f };
+                    float weights[4] = { 1.0f - x - y, x, y, 0.0f };
                     if (x + y > 1.0f)
                     {
                         weights[0] = 0.0f;

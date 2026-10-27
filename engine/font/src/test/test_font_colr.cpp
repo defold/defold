@@ -36,13 +36,13 @@ struct Capture
     float                 m_Box[4];
     bool                  m_Reject;
     Capture()
-        : m_PaintCount(0)
-        , m_ClipDepth(0)
-        , m_TransformDepth(0)
-        , m_TransformCount(0)
-        , m_CompositeDepth(0)
-        , m_CompositeCount(0)
-        , m_Reject(false)
+    : m_PaintCount(0)
+    , m_ClipDepth(0)
+    , m_TransformDepth(0)
+    , m_TransformCount(0)
+    , m_CompositeDepth(0)
+    , m_CompositeCount(0)
+    , m_Reject(false)
     {
     }
 };
@@ -108,7 +108,7 @@ static bool Paint(void* data, const FontColrPaint* paint)
     return !c->m_Reject;
 }
 static const FontColrCallbacks CALLBACKS = { PushTransform, PopTransform, PushGlyph, PushRectangle, PopClip, PushComposite, PopComposite, Paint };
-static const uint8_t           CPAL[] = {
+static const uint8_t CPAL[] = {
     0,
     0,
     0,
@@ -359,7 +359,7 @@ TEST(FontColr, SourceOverPaintOrder)
 // Malformed offsets, cycles and unsupported paints fail without reading past tables.
 TEST(FontColr, RejectsCyclesOffsetsAndUnsupportedPaints)
 {
-    const uint8_t    cycle[] = { 11, 0, 42 }; // PaintColrGlyph refers to itself.
+    const uint8_t cycle[] = { 11, 0, 42 };    // PaintColrGlyph refers to itself.
     dmArray<uint8_t> bytes;
     V1(bytes, cycle, sizeof(cycle));
     FontColr font;
@@ -434,7 +434,7 @@ TEST(FontColr, StaticTransformFormats)
     const uint8_t child[] = { 10, 0, 0, 6, 0, 3, 2, 0, 0, 64, 0 };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(transforms); ++i)
     {
-        uint8_t  graph[42];
+        uint8_t graph[42];
         uint32_t size = transforms[i][3];
         memcpy(graph, transforms[i], size);
         memcpy(graph + size, child, sizeof(child));
@@ -512,7 +512,7 @@ TEST(FontColr, NotoEmojiLayersAndBounds)
     ASSERT_NE((uint8_t*)0, data);
     FontTrueType* font = FontTrueTypeCreate(data, size, 0);
     ASSERT_NE((FontTrueType*)0, font);
-    uint32_t        glyph = FontTrueTypeGetGlyphIndex(font, 0x1f600);
+    uint32_t glyph = FontTrueTypeGetGlyphIndex(font, 0x1f600);
     const FontColr* colr = FontTrueTypeGetColr(font);
     ASSERT_TRUE(FontColrHasGlyph(colr, glyph));
     Capture c;
@@ -545,7 +545,7 @@ TEST(FontColr, NotoEmojiLayersAndBounds)
         if (!FontColrHasGlyph(colr, id))
             continue;
         ++color_glyphs;
-        Capture    graph;
+        Capture graph;
         FontResult result = FontColrPaintGlyph(colr, id, &CALLBACKS, &graph);
         ASSERT_NE(FONT_RESULT_ERROR, result);
         if (result == FONT_RESULT_OK)

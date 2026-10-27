@@ -35,13 +35,11 @@ struct FontAlignmentPivot
     uint32_t    m_VAlign;
 };
 
-// clang-format off: manual rows
 static const FontAlignmentPivot FONT_ALIGNMENT_PIVOTS[] = {
     { "nw", 0, 0 }, { "n", 1, 0 }, { "ne", 2, 0 },
     { "w", 0, 1 }, { "center", 1, 1 }, { "e", 2, 1 },
     { "sw", 0, 2 }, { "s", 1, 2 }, { "se", 2, 2 }
 };
-// clang-format on
 
 static uint32_t AlignmentCodepoint(void* context, uint32_t index)
 {
@@ -50,7 +48,7 @@ static uint32_t AlignmentCodepoint(void* context, uint32_t index)
 
 static bool AlignmentGlyph(void* context, uint32_t index, FontGlyphBankGlyph* output)
 {
-    dmFontDDF::GlyphBank*              bank = (dmFontDDF::GlyphBank*)context;
+    dmFontDDF::GlyphBank* bank = (dmFontDDF::GlyphBank*)context;
     const dmFontDDF::GlyphBank::Glyph& glyph = bank->m_Glyphs.m_Data[index];
     memset(output, 0, sizeof(*output));
     output->m_Codepoint = glyph.m_Character;
@@ -88,7 +86,9 @@ struct FontAlignmentFixture
     FontLayoutVertexConfig m_Config;
     FontGlyphVertex        m_Vertices[42];
 
-    FontAlignmentFixture() : m_Bank(0), m_Font(0), m_Collection(0), m_Layout(0), m_GlyphCount(0) {}
+    FontAlignmentFixture() : m_Bank(0), m_Font(0), m_Collection(0), m_Layout(0), m_GlyphCount(0)
+    {
+    }
     ~FontAlignmentFixture()
     {
         for (uint32_t i = 0; i < m_GlyphCount; ++i)
@@ -121,7 +121,7 @@ static bool ResolveAlignmentGlyph(void* context, const TextGlyph& text, FontLayo
 
 static void CreateAlignmentFixture(FontAlignmentFixture& fixture, bool compiled)
 {
-    char               path[512];
+    char path[512];
     TextLayoutSettings settings = {};
     settings.m_Size = 15;
     settings.m_Width = 65;
@@ -164,7 +164,7 @@ static void CreateAlignmentFixture(FontAlignmentFixture& fixture, bool compiled)
     params.m_SdfPadding = 3;
     for (uint32_t i = 0; i < codepoints.Size(); ++i)
     {
-        uint32_t   index = FontGetGlyphIndex(fixture.m_Font, codepoints[i]);
+        uint32_t index = FontGetGlyphIndex(fixture.m_Font, codepoints[i]);
         FontGlyph* glyph = &fixture.m_Glyphs[fixture.m_GlyphCount];
         if (compiled)
         {

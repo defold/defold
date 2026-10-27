@@ -22,10 +22,10 @@
 
 static GLFWcursor* g_LinkCursor = 0;
 
-void FontViewerMacOSInstallInput(HWindow                              window,
-                                 FontViewerKeyboardCharCallback       char_callback,
+void FontViewerMacOSInstallInput(HWindow window,
+                                 FontViewerKeyboardCharCallback char_callback,
                                  FontViewerKeyboardMarkedTextCallback marked_text_callback,
-                                 void*                                user_data)
+                                 void* user_data)
 {
     dmPlatform::SetKeyboardCharCallback(window, char_callback, user_data);
     dmPlatform::SetKeyboardMarkedTextCallback(window, marked_text_callback, user_data);

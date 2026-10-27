@@ -48,8 +48,8 @@
 #include <stb/stb_image_write.h>
 
 static const char* g_TestImageDirectory = 0;
-static uint32_t    g_TestImagesWritten = 0;
-static bool        g_AlignmentPreview = false;
+static uint32_t g_TestImagesWritten = 0;
+static bool g_AlignmentPreview = false;
 
 // Test-only rendering follows fontviewer: generated atlas, font-library packed
 // vertices and the actual font shaders. One hidden context serves the entire
@@ -63,16 +63,16 @@ static bool        g_AlignmentPreview = false;
 #include <font_effect.h>
 #include <font_glyphbank.h>
 
-extern "C" void dmExportedSymbols();
+extern "C" void                       dmExportedSymbols();
 
-static FontEffectCache*               g_ImageEffects = 0;
-static uint32_t                       g_ImageFrame = 0;
-static HWindow                        g_ImageWindow = 0;
-static dmGraphics::HContext           g_ImageContext = 0;
-static dmGraphics::HProgram           g_ImagePrograms[3] = {};
+static FontEffectCache* g_ImageEffects = 0;
+static uint32_t g_ImageFrame = 0;
+static HWindow g_ImageWindow = 0;
+static dmGraphics::HContext g_ImageContext = 0;
+static dmGraphics::HProgram g_ImagePrograms[3] = {};
 static dmGraphics::HVertexDeclaration g_ImageDeclaration = 0;
 
-static bool MakeImageDirectory(const char* directory)
+static bool                           MakeImageDirectory(const char* directory)
 {
     char path[1024];
     if (!directory[0] || dmStrlCpy(path, directory, sizeof(path)) >= sizeof(path))
@@ -105,7 +105,7 @@ static bool LoadImageShader(const char* path, dmArray<char>& data)
     bool ok = fread(data.Begin(), 1, size, file) == (size_t)size;
     data[size] = 0;
     fclose(file);
-    const char  include[] = "#include \"/builtins/fonts/font-effect.glsl\"";
+    const char include[] = "#include \"/builtins/fonts/font-effect.glsl\"";
     const char* directive = strstr(data.Begin(), include);
     if (ok && directive)
     {
@@ -166,7 +166,7 @@ static void InitializeFontImages()
         dmGraphics::ShaderDescBuilder shaders;
         shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vp.Begin(), vp.Size() - 1);
         shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fp.Begin(), fp.Size() - 1);
-        const char*                            inputs[] = { "position", "texcoord0", "face_color", "outline_color", "shadow_color", "sdf_params", "layer_mask" };
+        const char* inputs[] = { "position", "texcoord0", "face_color", "outline_color", "shadow_color", "sdf_params", "layer_mask" };
         dmGraphics::ShaderDesc::ShaderDataType types[] = { dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC2, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3 };
         for (uint32_t j = 0; j < 7; ++j)
             shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, inputs[j], j, types[j]);
@@ -364,7 +364,7 @@ static dmGraphics::HTexture CreateFontImageTexture(uint32_t atlas_width, uint32_
     dmGraphics::TextureCreationParams creation;
     creation.m_Width = atlas_width;
     creation.m_Height = atlas_height;
-    dmGraphics::HTexture      texture = dmGraphics::NewTexture(g_ImageContext, creation);
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(g_ImageContext, creation);
     dmGraphics::TextureParams tex;
     tex.m_Width = atlas_width;
     tex.m_Height = atlas_height;
@@ -415,7 +415,7 @@ static void WriteFontImage(const char* directory, const char* name, uint32_t wid
         for (uint32_t x = 0; x < width; ++x)
         {
             uint8_t* pixel = pixels.Begin() + (y * width + x) * 4;
-            uint8_t  blue = pixel[0];
+            uint8_t blue = pixel[0];
             pixel[0] = pixel[2];
             pixel[2] = blue;
             if (pixel[0] || pixel[1] || pixel[2])
@@ -528,7 +528,7 @@ static void TestFontAlignmentImage(const FontImageCase& c)
     {
         const FontGlyph& glyph = fixture.m_Glyphs[i];
         dmArray<uint8_t> decoded;
-        const uint8_t*   data = glyph.m_Bitmap.m_Data;
+        const uint8_t* data = glyph.m_Bitmap.m_Data;
         if (glyph.m_Bitmap.m_Flags & FONT_GLYPH_BM_FLAG_COMPRESSION_DEFLATE)
         {
             ASSERT_EQ(dmZlib::RESULT_OK, dmZlib::InflateBuffer(data, glyph.m_Bitmap.m_DataSize, &decoded, AppendAlignmentPixels));
@@ -549,10 +549,10 @@ static void TestFontAlignmentImage(const FontImageCase& c)
         ASSERT_LE(top + glyph.m_Bitmap.m_Height, 32u);
         CopyFontImageGlyph(glyph.m_Bitmap, data, false, left, top, 256, atlas);
     }
-    dmGraphics::HTexture      texture = CreateFontImageTexture(256, 32, atlas);
+    dmGraphics::HTexture texture = CreateFontImageTexture(256, 32, atlas);
     dmGraphics::HRenderTarget target = CreateFontImageTarget(240, 140);
     dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(g_ImageContext, sizeof(fixture.m_Vertices), fixture.m_Vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-    dmArray<uint8_t>          pixels;
+    dmArray<uint8_t> pixels;
     CaptureFontImage(target, texture, buffer, g_ImagePrograms[0], 42, 240, 140, pixels, true);
     char directory[1024];
     GetFontImageDirectory(directory, sizeof(directory));
@@ -577,15 +577,15 @@ static void TestFontImage(const FontImageCase& c)
         TestFontVectorImage(c, g_ImageContext);
         return;
     }
-    const bool  fnt = strcmp(c.m_Source, "fnt") == 0;
-    const bool  bank_source = fnt || strstr(c.m_Source, "_bank");
-    const bool  bitmap = fnt || strstr(c.m_Source, "bitmap");
-    const bool  arabic = strcmp(c.m_Source, "arabic") == 0;
-    const bool  paragraph = arabic || strcmp(c.m_Source, "latin") == 0;
+    const bool fnt = strcmp(c.m_Source, "fnt") == 0;
+    const bool bank_source = fnt || strstr(c.m_Source, "_bank");
+    const bool bitmap = fnt || strstr(c.m_Source, "bitmap");
+    const bool arabic = strcmp(c.m_Source, "arabic") == 0;
+    const bool paragraph = arabic || strcmp(c.m_Source, "latin") == 0;
     const char* path = arabic ? "src/test/data/NotoSansArabic-Regular.ttf" : paragraph ? "src/test/data/NotoSans-Regular.ttf" :
-    strncmp(c.m_Source, "otf", 3) == 0                                                 ? "src/test/data/SourceCodePro-Regular.otf" :
-                                                                                         "src/test/data/WorkSans.ttf";
-    HFont       source = FontLoadFromPath(path);
+                       strncmp(c.m_Source, "otf", 3) == 0 ? "src/test/data/SourceCodePro-Regular.otf" :
+                       "src/test/data/WorkSans.ttf";
+    HFont source = FontLoadFromPath(path);
     ASSERT_NE((HFont)0, source);
     FontGlyphGenParams params;
     params.m_Scale = FontGetScaleFromSize(source, c.m_Size);
@@ -597,7 +597,7 @@ static void TestFontImage(const FontImageCase& c)
     params.m_ShadowBlur = c.m_ShadowBlur;
     params.m_HasShadow = c.m_ShadowAlpha > 0;
     ImageBank bank;
-    HFont     font = source;
+    HFont font = source;
     if (bank_source)
     {
         CreateImageBank(bank, source, params, fnt);
@@ -636,8 +636,8 @@ static void TestFontImage(const FontImageCase& c)
     {
         const FontImageCaptureGeometry ttf[] = { g_Capture_ttf_edge_half, g_Capture_ttf_edge_one, g_Capture_ttf_edge_two };
         const FontImageCaptureGeometry otf[] = { g_Capture_otf_edge_half, g_Capture_otf_edge_one, g_Capture_otf_edge_two };
-        const float                    capture_scale = c.m_EdgeScale * c.m_Size / 32.0f;
-        uint32_t                       index = capture_scale < 1.0f ? 0 : (capture_scale == 1.0f ? 1 : 2);
+        const float capture_scale = c.m_EdgeScale * c.m_Size / 32.0f;
+        uint32_t index = capture_scale < 1.0f ? 0 : (capture_scale == 1.0f ? 1 : 2);
         geometry = strncmp(c.m_Source, "otf", 3) == 0 ? otf[index] : ttf[index];
     }
     settings.m_Width = geometry.m_LayoutWidth;
@@ -646,7 +646,7 @@ static void TestFontImage(const FontImageCase& c)
     settings.m_UseBaseStyle = 1;
     settings.m_BaseStyle = strstr(c.m_Name, "named_style") ? dmHashString64("notice") : default_style;
     dmArray<uint32_t> codepoints;
-    HTextLayout       layout = 0;
+    HTextLayout layout = 0;
     if (c.m_Markup)
     {
         HMarkup markup = 0;
@@ -680,14 +680,14 @@ static void TestFontImage(const FontImageCase& c)
         ASSERT_TRUE(rtl);
         ASSERT_TRUE(shaped);
     }
-    TextGlyph*          text_glyphs = TextLayoutGetGlyphs(layout);
+    TextGlyph* text_glyphs = TextLayoutGetGlyphs(layout);
     dmArray<ImageGlyph> glyphs;
     glyphs.SetCapacity(TextLayoutGetGlyphCount(layout));
     uint32_t atlas_width = 0, atlas_height = 0;
-    int32_t  max_ascent = 0;
+    int32_t max_ascent = 0;
     for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout); ++i)
     {
-        TextGlyph&            text = text_glyphs[i];
+        TextGlyph& text = text_glyphs[i];
         FontLayoutCachedGlyph cached;
         if (ResolveImageGlyph(&glyphs, text, &cached) || dmUtf8::IsWhiteSpace(text.m_Codepoint))
             continue;
@@ -720,7 +720,7 @@ static void TestFontImage(const FontImageCase& c)
     for (uint32_t i = 0; i < glyphs.Size(); ++i)
     {
         ImageGlyph& image = glyphs[i];
-        FontGlyph&  glyph = image.m_Glyph;
+        FontGlyph& glyph = image.m_Glyph;
         CopyFontImageGlyph(glyph.m_Bitmap, glyph.m_Bitmap.m_Data, fnt,
                            image.m_X + 1, (uint32_t)(1 + max_ascent - glyph.m_Ascent), atlas_width, atlas);
     }
@@ -817,15 +817,15 @@ static void TestFontImage(const FontImageCase& c)
         vertices[i].m_Position[0] += geometry.m_OriginX;
         vertices[i].m_Position[1] += (float)height - geometry.m_OriginTop;
     }
-    dmGraphics::HTexture      texture = CreateFontImageTexture(atlas_width, atlas_height, atlas);
+    dmGraphics::HTexture texture = CreateFontImageTexture(atlas_width, atlas_height, atlas);
     dmGraphics::HRenderTarget target = CreateFontImageTarget(width, height);
     dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(g_ImageContext, vertices.Size() * sizeof(FontGlyphVertex), vertices.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-    dmGraphics::HProgram      program = g_ImagePrograms[fnt ? 2 : bitmap ? 1 :
-                                                                           0];
-    dmArray<uint8_t>          previous_pixels;
+    dmGraphics::HProgram program = g_ImagePrograms[fnt ? 2 : bitmap ? 1 :
+                                                   0];
+    dmArray<uint8_t> previous_pixels;
     if (c.m_Change)
     {
-        const uint64_t  expected_vertices = dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex));
+        const uint64_t expected_vertices = dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex));
         TextRenderStyle previous_style = base;
         previous_style.m_OutlineAlpha = 0.5f;
         FontCollectionSetNamedStyle(collection, default_style, previous_style, 0, 0);
@@ -990,7 +990,7 @@ static void PrintUsage(const char* executable)
 
 int main(int argc, char** argv)
 {
-    bool        manual = false;
+    bool manual = false;
     const char* selected = 0;
     for (int i = 1; i < argc; ++i)
     {
@@ -1041,7 +1041,7 @@ int main(int argc, char** argv)
         if (strcmp(option, "--source") == 0)
         {
             const char* sources[] = { "ttf_sdf", "otf_sdf", "ttf_bitmap", "otf_bitmap", "ttf_sdf_bank", "otf_sdf_bank", "ttf_bitmap_bank", "otf_bitmap_bank", "fnt", "ttf_vector", "otf_vector", "ttf_vector_bank", "otf_vector_bank" };
-            bool        supported = false;
+            bool supported = false;
             for (uint32_t j = 0; j < sizeof(sources) / sizeof(sources[0]); ++j)
                 supported |= strcmp(value, sources[j]) == 0;
             if (!supported)
@@ -1083,7 +1083,7 @@ int main(int argc, char** argv)
                 continue;
             char* end = 0;
             float number = strtof(value, &end);
-            if (!value[0] || *end || !isfinite(number) || number < options[j].m_Min || number > options[j].m_Max)
+            if (!value[0] || *end || !isfinite(number) || number <options[j].m_Min || number> options[j].m_Max)
             {
                 fprintf(stderr, "Invalid value for %s (expected %g..%g): %s\n", option, options[j].m_Min, options[j].m_Max, value);
                 return 2;
@@ -1126,8 +1126,8 @@ int main(int argc, char** argv)
     }
     char filter[512];
     dmSnPrintf(filter, sizeof(filter), "%s%s", manual ? "FontBitmapManual" : "FontImages_", selected ? selected : "");
-    char*            test_argv[] = { argv[0], (char*)"--test-filter", filter, 0 };
-    int              test_argc = 3;
+    char* test_argv[] = { argv[0], (char*)"--test-filter", filter, 0 };
+    int test_argc = 3;
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
     jc_test_init(&test_argc, test_argv);

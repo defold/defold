@@ -82,7 +82,7 @@ static bool TestIsGlyphCached(void* context, HFont, uint32_t glyph_index)
 static FontResult TestAddGlyph(void* context, HFont font, FontGlyph* glyph)
 {
     TestContext* test = (TestContext*)context;
-    uint32_t     index = test->m_AddCount++;
+    uint32_t index = test->m_AddCount++;
     if (!test->m_AcceptGlyph || index >= DM_ARRAY_SIZE(test->m_OwnedGlyphs))
         return FONT_RESULT_ERROR;
     test->m_OwnedGlyph = glyph;
@@ -160,16 +160,16 @@ TEST_F(FontGenTest, GeneratesUniqueUncachedGlyphsAndTransfersOwnership)
     context.m_AcceptGlyph = true;
 
     TextGlyph glyphs[4] = {};
-    glyphs[0].m_Font = (HFont)&m_Font;
+    glyphs[0].m_Font = (HFont) & m_Font;
     glyphs[0].m_GlyphIndex = 7;
     glyphs[1] = glyphs[0];
-    glyphs[2].m_Font = (HFont)&m_Font;
+    glyphs[2].m_Font = (HFont) & m_Font;
     glyphs[2].m_GlyphIndex = 8;
-    glyphs[3].m_Font = (HFont)&m_Font;
+    glyphs[3].m_Font = (HFont) & m_Font;
     glyphs[3].m_GlyphIndex = 9;
     glyphs[3].m_Flags = TEXT_GLYPH_FLAG_OBJECT;
 
-    FontGenParams   params = MakeParams(&context);
+    FontGenParams params = MakeParams(&context);
     FontGenJobData* job_data = FontGenCreateJobData(&params, 4);
     ASSERT_NE((FontGenJobData*)0, job_data);
 
@@ -191,7 +191,7 @@ TEST_F(FontGenTest, GeneratesUniqueUncachedGlyphsAndTransfersOwnership)
     FontGenDestroyJobData(job_data);
     ASSERT_EQ(0u, m_Font.m_FreeCount);
 
-    FontFreeGlyph((HFont)&m_Font, context.m_OwnedGlyph);
+    FontFreeGlyph((HFont) & m_Font, context.m_OwnedGlyph);
     delete context.m_OwnedGlyph;
     ASSERT_EQ(1u, m_Font.m_FreeCount);
 }
@@ -203,11 +203,11 @@ TEST_F(FontGenTest, RetainsAndFreesGlyphWhenInsertionFails)
     context.m_CachedGlyphIndex = 0xffffffff;
     context.m_AcceptGlyph = false;
 
-    FontGenParams   params = MakeParams(&context);
+    FontGenParams params = MakeParams(&context);
     FontGenJobData* job_data = FontGenCreateJobData(&params, 1);
     ASSERT_NE((FontGenJobData*)0, job_data);
 
-    HJob job = FontGenAddGlyphByIndex(job_data, (HFont)&m_Font, 11);
+    HJob job = FontGenAddGlyphByIndex(job_data, (HFont) & m_Font, 11);
     ASSERT_NE((HJob)0, job);
     JobSystemPushJob(m_Jobs, job);
     RunUntilComplete(&context);
@@ -237,12 +237,12 @@ TEST_F(FontGenTest, KeepsSameGlyphIndexFromDifferentFonts)
     context.m_AcceptGlyph = true;
 
     TextGlyph glyphs[2] = {};
-    glyphs[0].m_Font = (HFont)&m_Font;
+    glyphs[0].m_Font = (HFont) & m_Font;
     glyphs[0].m_GlyphIndex = 7;
-    glyphs[1].m_Font = (HFont)&fallback_font;
+    glyphs[1].m_Font = (HFont) & fallback_font;
     glyphs[1].m_GlyphIndex = 7;
 
-    FontGenParams   params = MakeParams(&context);
+    FontGenParams params = MakeParams(&context);
     FontGenJobData* job_data = FontGenCreateJobData(&params, 2);
     ASSERT_NE((FontGenJobData*)0, job_data);
 

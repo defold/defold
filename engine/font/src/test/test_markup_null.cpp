@@ -22,7 +22,7 @@
 
 TEST(MarkupNull, ReportsUnsupported)
 {
-    HMarkup     markup = (HMarkup)(uintptr_t)1;
+    HMarkup markup = (HMarkup)(uintptr_t)1;
     MarkupError error = { 12, MARKUP_ERROR_NONE };
     ASSERT_EQ(MARKUP_RESULT_UNSUPPORTED, MarkupCreate("text", 4, &markup, &error));
     ASSERT_EQ((HMarkup)0, markup);
@@ -40,8 +40,8 @@ TEST(MarkupNull, ReportsUnsupported)
 
 TEST(MarkupNull, ResolvesPlainRenderData)
 {
-    const float         base_color[4] = { 0.25f, 0.5f, 0.75f, 0.125f };
-    TextGlyph           glyph = {};
+    const float base_color[4] = { 0.25f, 0.5f, 0.75f, 0.125f };
+    TextGlyph glyph = {};
     TextGlyphRenderData data;
     TextLayoutGetGlyphRenderData(0, glyph, base_color, &data, true);
 
@@ -78,7 +78,7 @@ TEST(MarkupNull, LinksPlainTextLayout)
 // Verify that precompiled styles render with a staged font even when the parser is disabled.
 TEST(MarkupNull, PrecompiledBaseStyleRendersWithoutParser)
 {
-    char  font_path[512];
+    char font_path[512];
     HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(font_path, sizeof(font_path), "src/test/data/vera_mo_bd.ttf"));
     ASSERT_NE((HFont)0, font);
     HFontCollection collection = FontCollectionCreate();
@@ -100,7 +100,7 @@ TEST(MarkupNull, PrecompiledBaseStyleRendersWithoutParser)
     dmhash_t name = dmHashString64("compiled");
     FontCollectionSetNamedStyle(collection, name, style, &effect, 1);
     FontCollectionSetNamedStyleDecoration(collection, name, decoration);
-    const char  markup[] = "<outline size=7><size=25%><link id=target>";
+    const char markup[] = "<outline size=7><size=25%><link id=target>";
     MarkupError error = {};
     ASSERT_FALSE(FontCollectionSetNamedStyleMarkup(collection, name, markup, sizeof(markup) - 1, &error));
     ASSERT_EQ(MARKUP_ERROR_UNSUPPORTED, error.m_Type);
@@ -109,7 +109,7 @@ TEST(MarkupNull, PrecompiledBaseStyleRendersWithoutParser)
     settings.m_Leading = 1.0f;
     settings.m_UseBaseStyle = 1;
     settings.m_BaseStyle = name;
-    uint32_t    text[] = { 'A', 'B' };
+    uint32_t text[] = { 'A', 'B' };
     HTextLayout layout = 0;
     ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, text, 2, &settings, &layout));
     ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
@@ -117,7 +117,7 @@ TEST(MarkupNull, PrecompiledBaseStyleRendersWithoutParser)
     ASSERT_EQ(0.25f, TextLayoutGetGlyphs(layout)[0].m_RenderScale);
     ASSERT_EQ(0u, TextLayoutGetObjectCount(layout));
     TextLayoutUpdate(layout, 0.25f);
-    const float         color[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    const float color[] = { 1.0f, 1.0f, 1.0f, 1.0f };
     TextGlyphRenderData data;
     TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], color, &data, true);
     ASSERT_EQ(1.25f, data.m_OutlineWidth);
