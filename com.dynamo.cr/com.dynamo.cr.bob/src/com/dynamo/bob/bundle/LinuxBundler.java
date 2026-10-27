@@ -23,15 +23,18 @@ import org.apache.commons.io.FileUtils;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.EngineArtifactsProvider;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import org.apache.commons.io.FilenameUtils;
 
 @BundlerParams(platforms = {"x86_64-linux", "arm64-linux"})
 public class LinuxBundler implements IBundler {
+    private static Logger logger = Logger.getLogger(LinuxBundler.class.getName());
 
     @Override
     public IResource getManifestResource(Project project, Platform platform) throws IOException {
@@ -63,7 +66,7 @@ public class LinuxBundler implements IBundler {
             bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
         } else {
             if (variant.equals("debug")) {
-                File debugEngine = new File(bundleExes.get(0).getParent(), "dmengine_unstripped");
+                File debugEngine = new File(bundleExes.get(0).getParent(), EngineArtifactsProvider.LINUX_UNSTRIPPED_ENGINE_NAME);
                 bundleExes.set(0, debugEngine);
             }
         }
@@ -73,17 +76,32 @@ public class LinuxBundler implements IBundler {
 
         // Copy executable
         File bundleExe = bundleExes.get(0);
-        File exeOut;
-        if (platform.equals(Platform.X86_64Linux))
-            exeOut = new File(appDir, exeName + ".x86_64");
-        else
-            exeOut = new File(appDir, exeName + ".arm64");
+        File exeOut = new File(appDir, getExeFilename(platform, exeName));
         FileUtils.copyFile(bundleExe, exeOut);
         exeOut.setExecutable(true);
 
         // Currently the stripping is left out from here
         // This is because the user can easily make a copy of the executable,
         // and then call "strip" to produce a slim executable
+    }
+
+    static String getExeFilename(Platform platform, String exeName) {
+        return exeName + (platform.equals(Platform.X86_64Linux) ? ".x86_64" : ".arm64");
+    }
+
+    // The unstripped engine is placed next to the app folder, so it isn't shipped with the game
+    public static void copySymbols(Project project, Platform platform, File binaryDir, File bundleDir, String exeName) throws IOException {
+        if (!project.hasOption("with-symbols")) {
+            return;
+        }
+        File unstripped = new File(binaryDir, EngineArtifactsProvider.LINUX_UNSTRIPPED_ENGINE_NAME);
+        if (!unstripped.exists()) {
+            logger.warning("Debug symbols not found: %s", unstripped.getAbsolutePath());
+            return;
+        }
+        File symbolsOut = new File(bundleDir, getExeFilename(platform, exeName) + ".debug");
+        logger.info("Copy debug symbols " + symbolsOut);
+        FileUtils.copyFile(unstripped, symbolsOut);
     }
 
     @Override
@@ -109,6 +127,7 @@ public class LinuxBundler implements IBundler {
 
         File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair()));
         BundleHelper.copySharedLibraries(platform, binaryDir, appDir);
+        copySymbols(project, platform, binaryDir, bundleDir, exeName);
 
         BundleHelper.throwIfCanceled(canceled);
 
