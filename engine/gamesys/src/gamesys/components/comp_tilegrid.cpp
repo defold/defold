@@ -279,12 +279,11 @@ namespace dmGameSystem
         dmRender::HMaterial material = GetMaterial(component);
         TextureSetResource* texture_set = GetTextureSet(component);
 
-        // Resource identity and generation determine batching; container storage
-        // and padding inside TextureSetResource do not describe render state.
+        // Batch by texture-set identity. Reloads update this resource in place;
+        // its container storage and padding do not describe render state.
         dmHashInit32(&state, false);
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
         dmHashUpdateBuffer32(&state, &texture_set, sizeof(texture_set));
-        dmHashUpdateBuffer32(&state, &texture_set->m_TexturesGeneration, sizeof(texture_set->m_TexturesGeneration));
         dmHashUpdateBuffer32(&state, &resource->m_TileGrid->m_BlendMode, sizeof(resource->m_TileGrid->m_BlendMode));
         if (component->m_RenderConstants) {
             dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
