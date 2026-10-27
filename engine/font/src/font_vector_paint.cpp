@@ -67,7 +67,7 @@ static PaintClip& CurrentClip(PaintContext* context)
 static bool PushTransform(void* data, const float m[6])
 {
     PaintContext* context = (PaintContext*)data;
-    Matrix4       transform(Vector4(m[0], m[1], 0, 0), Vector4(m[2], m[3], 0, 0), Vector4(0, 0, 1, 0), Vector4(m[4], m[5], 0, 1));
+    Matrix4 transform(Vector4(m[0], m[1], 0, 0), Vector4(m[2], m[3], 0, 0), Vector4(0, 0, 1, 0), Vector4(m[4], m[5], 0, 1));
     Append(context->m_Transforms, CurrentTransform(context) * transform);
     return true;
 }
@@ -94,8 +94,8 @@ static void Put(dmHashTable64<uint32_t>& table, uint64_t key, uint32_t value)
 static uint32_t AddPath(PaintContext* context, uint32_t glyph_index)
 {
     FontVectorPaintCache* cache = context->m_Cache;
-    uint64_t              key = GlyphKey(context->m_Font, glyph_index);
-    uint32_t*             existing = cache->m_PathLookup.Get(key);
+    uint64_t key = GlyphKey(context->m_Font, glyph_index);
+    uint32_t* existing = cache->m_PathLookup.Get(key);
     if (existing)
         return *existing;
     FontGlyphOptions options;
@@ -127,7 +127,7 @@ static uint32_t AddPath(PaintContext* context, uint32_t glyph_index)
 static bool PushClipGlyph(void* data, uint32_t glyph)
 {
     PaintContext* context = (PaintContext*)data;
-    PaintClip     clip = CurrentClip(context);
+    PaintClip clip = CurrentClip(context);
     // Each supported layer clips one outline. Do not silently approximate
     // arbitrary intersections of glyph outlines as their bounding boxes.
     if (clip.m_Path != ~0u)
@@ -140,9 +140,9 @@ static bool PushClipGlyph(void* data, uint32_t glyph)
 
 static bool PushClipRectangle(void* data, float x0, float y0, float x1, float y1)
 {
-    PaintContext*  context = (PaintContext*)data;
+    PaintContext* context = (PaintContext*)data;
     const Matrix4& transform = CurrentTransform(context);
-    PaintClip      clip = CurrentClip(context);
+    PaintClip clip = CurrentClip(context);
     if (transform.getCol0().getY() != 0 || transform.getCol1().getX() != 0)
         context->m_Failed = true;
     Vector4 a = transform * Vector4(x0, y0, 0, 1);
@@ -161,7 +161,7 @@ static void PopClip(void* data)
 static bool PushComposite(void* data)
 {
     PaintContext* context = (PaintContext*)data;
-    uint32_t      first = context->m_Composites.Empty() ? ~0u : context->m_Composites.Back();
+    uint32_t first = context->m_Composites.Empty() ? ~0u : context->m_Composites.Back();
     if (first == ~0u && CurrentClip(context).m_Path != ~0u)
         first = context->m_Cache->m_LayerScratch.Size();
     Append(context->m_Composites, first);
@@ -171,7 +171,7 @@ static bool PushComposite(void* data)
 static void PopComposite(void* data)
 {
     PaintContext* context = (PaintContext*)data;
-    uint32_t      first = context->m_Composites.Back();
+    uint32_t first = context->m_Composites.Back();
     context->m_Composites.Pop();
     // Nested source-over composites share the outer group's coverage. Separate
     // PaintGlyph nodes and ordinary layer lists retain their individual coverage.
@@ -235,8 +235,8 @@ static bool AddPaint(PaintContext* context, uint32_t type, uint32_t stops, uint3
 static bool PaintColor(void* data, const FontColrPaint* paint)
 {
     PaintContext* context = (PaintContext*)data;
-    const float*  p = paint->m_Points;
-    Vector4       p0(0), p1(0);
+    const float* p = paint->m_Points;
+    Vector4 p0(0), p1(0);
     if (paint->m_Type == FONT_COLR_LINEAR_GRADIENT)
     {
         // The color line is perpendicular to p0->p2, and reaches 1 at p1.
@@ -283,7 +283,7 @@ void FontVectorPaintClear(FontVectorPaintCache* cache)
 bool FontVectorPaintHasGlyph(HFont font, uint32_t glyph)
 {
     return (FontGetType(font) == FONT_TYPE_TTF || FontGetType(font) == FONT_TYPE_OTF) &&
-    FontColrHasGlyph(FontGetColrTTF(font), glyph);
+           FontColrHasGlyph(FontGetColrTTF(font), glyph);
 }
 
 static Vector4 PaintRow(const Matrix4& transform, uint32_t row, float value)
@@ -302,12 +302,12 @@ static void EncodeGlyph(FontVectorPaintCache* cache, FontVectorPaintGlyph* glyph
     for (uint32_t i = 0; i < glyph->m_LayerCount; ++i)
     {
         const FontVectorPaintLayer& layer = cache->m_LayerScratch[i];
-        const FontVectorPaintPath&  path = cache->m_Paths[layer.m_Path];
-        Matrix4                    inverse_transform = inverse(layer.m_Transform);
-        float                      width = path.m_Bounds.getZ() - path.m_Bounds.getX();
-        float                      height = path.m_Bounds.getW() - path.m_Bounds.getY();
-        Matrix4                    uv = Matrix4::scale(dmVMath::Vector3(1.0f / width, 1.0f / height, 1)) *
-                                        Matrix4::translation(dmVMath::Vector3(-path.m_Bounds.getX(), -path.m_Bounds.getY(), 0)) * inverse_transform;
+        const FontVectorPaintPath& path = cache->m_Paths[layer.m_Path];
+        Matrix4 inverse_transform = inverse(layer.m_Transform);
+        float width = path.m_Bounds.getZ() - path.m_Bounds.getX();
+        float height = path.m_Bounds.getW() - path.m_Bounds.getY();
+        Matrix4 uv = Matrix4::scale(dmVMath::Vector3(1.0f / width, 1.0f / height, 1)) *
+                     Matrix4::translation(dmVMath::Vector3(-path.m_Bounds.getX(), -path.m_Bounds.getY(), 0)) * inverse_transform;
         Matrix4 paint = layer.m_PaintTransform * inverse_transform;
         Append(cache->m_Paints, PaintRow(uv, 0, (float)path.m_Slug.m_BandTexel));
         // A negative paint index marks a shared composite. Ordinary layers can
@@ -338,7 +338,7 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
         return true;
     const FontColr* colr = FontGetColrTTF(source);
     *has_color = FontColrHasGlyph(colr, glyph_index);
-    uint64_t  key = GlyphKey(source, glyph_index);
+    uint64_t key = GlyphKey(source, glyph_index);
     uint32_t* existing = cache->m_GlyphLookup.Get(key);
     if (existing)
     {
@@ -359,7 +359,7 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
     uint32_t first_curve = cache->m_Slug->m_Curves.Size();
     uint32_t first_band = cache->m_Slug->m_Bands.Size();
     uint32_t counters[] = { cache->m_Slug->m_CurveTexels, cache->m_Slug->m_BandTexels, cache->m_Slug->m_CurveCount, cache->m_Slug->m_BandReferences, cache->m_Slug->m_MaxBandCurves };
-    bool     painted = *has_color && FontColrPaintGlyph(colr, glyph_index, &COLR_CALLBACKS, &context) == FONT_RESULT_OK;
+    bool painted = *has_color && FontColrPaintGlyph(colr, glyph_index, &COLR_CALLBACKS, &context) == FONT_RESULT_OK;
     if (!painted || context.m_Failed)
     {
         // Discard the whole partial graph before falling back. It must never
@@ -386,7 +386,7 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
         if (*has_color && !cache->m_Paths[path].m_Slug.m_CurveCount)
             glyph_index = 0;
         PushClipGlyph(&context, glyph_index);
-        FontColrStop  stop = { 0, { 1, 1, 1, 1 }, true };
+        FontColrStop stop = { 0, { 1, 1, 1, 1 }, true };
         FontColrPaint paint = {};
         paint.m_Type = FONT_COLR_SOLID;
         paint.m_Stops = &stop;
@@ -410,7 +410,7 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
 void FontVectorPaintPackGlyph(const FontVectorPaintGlyph& glyph, float scale, float pixel_scale, float x, float y, const Matrix4& transform, const Vector4& clip, const TextGlyphFaceColors& colors, FontVectorPaintVertex vertices[6])
 {
     static const uint32_t corners[] = { 0, 2, 1, 1, 2, 3 };
-    const float*          rgba[] = { colors.m_BottomLeft, colors.m_BottomRight, colors.m_TopLeft, colors.m_TopRight };
+    const float* rgba[] = { colors.m_BottomLeft, colors.m_BottomRight, colors.m_TopLeft, colors.m_TopRight };
     if (!glyph.m_LayerCount || glyph.m_Bounds.getX() >= glyph.m_Bounds.getZ() || glyph.m_Bounds.getY() >= glyph.m_Bounds.getW())
     {
         memset(vertices, 0, 6 * sizeof(*vertices));
@@ -421,9 +421,9 @@ void FontVectorPaintPackGlyph(const FontVectorPaintGlyph& glyph, float scale, fl
     const float padding = 2.0f / pixel_scale;
     for (uint32_t v = 0; v < 6; ++v)
     {
-        uint32_t               corner = corners[v];
-        float                  px = corner & 1 ? glyph.m_Bounds.getZ() + padding : glyph.m_Bounds.getX() - padding;
-        float                  py = corner & 2 ? glyph.m_Bounds.getW() + padding : glyph.m_Bounds.getY() - padding;
+        uint32_t corner = corners[v];
+        float px = corner & 1 ? glyph.m_Bounds.getZ() + padding : glyph.m_Bounds.getX() - padding;
+        float py = corner & 2 ? glyph.m_Bounds.getW() + padding : glyph.m_Bounds.getY() - padding;
         FontVectorPaintVertex& vertex = vertices[v];
         vertex.m_Position = transform * Vector4(x + px * scale, y + py * scale, 0, 1);
         vertex.m_Color = Vector4(rgba[corner][0], rgba[corner][1], rgba[corner][2], rgba[corner][3]);

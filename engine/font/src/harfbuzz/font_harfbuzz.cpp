@@ -40,7 +40,7 @@ static bool GetOutlineBox(void* data, uint32_t glyph, int32_t* x0, int32_t* y0, 
 
 static hb_bool_t GetGlyphExtents(hb_font_t* font, void* data, hb_codepoint_t glyph, hb_glyph_extents_t* extents, void*)
 {
-    int32_t       x0, y0, x1, y1;
+    int32_t x0, y0, x1, y1;
     FontTrueType* true_type = (FontTrueType*)data;
     // Shaping uses the color glyph's extents; PaintGlyph uses only its raw outline.
     if (!FontColrGetGlyphBox(FontTrueTypeGetColr(true_type), glyph, GetOutlineBox, true_type, &x0, &y0, &x1, &y1) &&
@@ -72,7 +72,7 @@ FontHarfbuzz* FontHarfbuzzCreate(const void* data, uint32_t data_size, uint32_t 
 
     // Delegate mapping, advances and OpenType metrics to the parent; only
     // outline bounds come from our decoder.
-    hb_font_t*       child = hb_font_create_sub_font(parent);
+    hb_font_t* child = hb_font_create_sub_font(parent);
     hb_font_funcs_t* funcs = hb_font_funcs_create();
     hb_font_funcs_set_glyph_extents_func(funcs, GetGlyphExtents, 0, 0);
     hb_font_funcs_make_immutable(funcs);

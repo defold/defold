@@ -25,34 +25,34 @@
 #include "truetype/font_colr.h"
 
 #if defined(FONT_USE_HARFBUZZ)
-#include "harfbuzz/font_harfbuzz.h"
+    #include "harfbuzz/font_harfbuzz.h"
 
 typedef FontHarfbuzz FontImpl;
-#define FontImplCreate               FontHarfbuzzCreate
-#define FontImplDestroy              FontHarfbuzzDestroy
-#define FontImplGetScaleFromSize     FontHarfbuzzGetScaleFromSize
-#define FontImplGetGlyphIndex        FontHarfbuzzGetGlyphIndex
-#define FontImplGetGlyphOutline      FontHarfbuzzGetGlyphOutline
-#define FontImplGetGlyphHMetrics     FontHarfbuzzGetGlyphHMetrics
-#define FontImplGetGlyphBox          FontHarfbuzzGetGlyphBox
-#define FontImplGetOutlineType       FontHarfbuzzGetOutlineType
-#define FontImplGetVerticalMetrics   FontHarfbuzzGetVerticalMetrics
-#define FontImplGetColr              FontHarfbuzzGetColr
+    #define FontImplCreate               FontHarfbuzzCreate
+    #define FontImplDestroy              FontHarfbuzzDestroy
+    #define FontImplGetScaleFromSize     FontHarfbuzzGetScaleFromSize
+    #define FontImplGetGlyphIndex        FontHarfbuzzGetGlyphIndex
+    #define FontImplGetGlyphOutline      FontHarfbuzzGetGlyphOutline
+    #define FontImplGetGlyphHMetrics     FontHarfbuzzGetGlyphHMetrics
+    #define FontImplGetGlyphBox          FontHarfbuzzGetGlyphBox
+    #define FontImplGetOutlineType       FontHarfbuzzGetOutlineType
+    #define FontImplGetVerticalMetrics   FontHarfbuzzGetVerticalMetrics
+    #define FontImplGetColr              FontHarfbuzzGetColr
 
 #else
-#include "truetype/font_truetype.h"
+    #include "truetype/font_truetype.h"
 
 typedef FontTrueType FontImpl;
-#define FontImplCreate               FontTrueTypeCreate
-#define FontImplDestroy              FontTrueTypeDestroy
-#define FontImplGetScaleFromSize     FontTrueTypeGetScaleFromSize
-#define FontImplGetGlyphIndex        FontTrueTypeGetGlyphIndex
-#define FontImplGetGlyphOutline      FontTrueTypeGetGlyphOutline
-#define FontImplGetGlyphHMetrics     FontTrueTypeGetGlyphHMetrics
-#define FontImplGetGlyphBox          FontTrueTypeGetGlyphBox
-#define FontImplGetOutlineType       FontTrueTypeGetOutlineType
-#define FontImplGetVerticalMetrics   FontTrueTypeGetVerticalMetrics
-#define FontImplGetColr              FontTrueTypeGetColr
+    #define FontImplCreate               FontTrueTypeCreate
+    #define FontImplDestroy              FontTrueTypeDestroy
+    #define FontImplGetScaleFromSize     FontTrueTypeGetScaleFromSize
+    #define FontImplGetGlyphIndex        FontTrueTypeGetGlyphIndex
+    #define FontImplGetGlyphOutline      FontTrueTypeGetGlyphOutline
+    #define FontImplGetGlyphHMetrics     FontTrueTypeGetGlyphHMetrics
+    #define FontImplGetGlyphBox          FontTrueTypeGetGlyphBox
+    #define FontImplGetOutlineType       FontTrueTypeGetOutlineType
+    #define FontImplGetVerticalMetrics   FontTrueTypeGetVerticalMetrics
+    #define FontImplGetColr              FontTrueTypeGetColr
 #endif
 
 struct TTFFont
@@ -258,7 +258,7 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
 {
 
     FontOutline outline = {};
-    FontResult  result = FontImplGetGlyphOutline(font->m_Font, glyph_index, &outline);
+    FontResult result = FontImplGetGlyphOutline(font->m_Font, glyph_index, &outline);
     if (result != FONT_RESULT_OK)
         return result;
 
@@ -274,7 +274,7 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
     ctx.m_Commands.SetSize(0);
     FontOutlinePoint current = {};
     FontOutlinePoint start = {};
-    const float      tolerance = 1.0f / (4096.0f * FontImplGetScaleFromSize(font->m_Font, 1));
+    const float tolerance = 1.0f / (4096.0f * FontImplGetScaleFromSize(font->m_Font, 1));
 
     for (uint32_t i = 0; i < outline.m_CommandCount; ++i)
     {
@@ -334,7 +334,7 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
         return FONT_RESULT_OK;
     }
 
-    uint32_t          data_size = ctx.m_Commands.Size() * sizeof(FontCurveCommand);
+    uint32_t data_size = ctx.m_Commands.Size() * sizeof(FontCurveCommand);
     FontCurveCommand* commands = (FontCurveCommand*)malloc(data_size);
     if (!commands)
     {
@@ -380,18 +380,18 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
 
     float scale = options->m_Scale;
     float padding = options->m_UseUnpaddedBounds && !options->m_GenerateImage ? 0.0f : options->m_StbttSDFPadding;
-    int   on_edge_value = options->m_StbttSDFOnEdgeValue;
+    int on_edge_value = options->m_StbttSDFOnEdgeValue;
 
     float ascent = y1 * scale;
     float descent = -y0 * scale;
-    int   srch = 0;
-    int   offsetx = 0;
-    int   offsety = 0;
+    int srch = 0;
+    int offsetx = 0;
+    int offsety = 0;
 
     if (options->m_GenerateImage)
     {
         FontOutline outline = {};
-        FontResult  outline_result = GetGlyphOutlineTTF(hfont, glyph_index, &outline);
+        FontResult outline_result = GetGlyphOutlineTTF(hfont, glyph_index, &outline);
         if (outline_result != FONT_RESULT_OK)
             return outline_result;
 
@@ -516,13 +516,13 @@ static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buff
     if (allocate)
     {
         font->m_DataSize = buffer_size;
-        font->m_Data = (const void*)malloc(buffer_size);
+        font->m_Data     = (const void*)malloc(buffer_size);
         memcpy((void*)font->m_Data, buffer, buffer_size);
         font->m_Allocated = 1;
     }
     else
     {
-        font->m_Data = buffer;
+        font->m_Data    = buffer;
         font->m_DataSize = buffer_size;
     }
 

@@ -115,9 +115,9 @@ struct FontGlyphLayerRenderData
 // Internal style resolution shared by the bitmap/SDF and Vector backends.
 // Inputs are borrowed for this call. No allocations or input pointers are retained.
 void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
-                                     const TextGlyph&              glyph,
-                                     const TextGlyphRenderData&    render_data,
-                                     FontGlyphLayerRenderData*     layer_data);
+                                     const TextGlyph& glyph,
+                                     const TextGlyphRenderData& render_data,
+                                     FontGlyphLayerRenderData* layer_data);
 
 // Internal gradient state shared by bitmap/SDF and vector vertex generation.
 // Zero-initialize once per layout. Effect pointers are borrowed from that layout.
@@ -137,13 +137,13 @@ void FontPrepareSpatialGradientBounds(const FontLayoutVertexConfig& config);
 
 // Apply a spatial gradient to the supplied quad layers in shared vertex winding.
 // Bounds are in untransformed layout space; null layer outputs are skipped.
-void FontApplySpatialGradient(const FontLayoutVertexConfig& config, const TextLine& line, const TextGlyph& glyph, const TextGradientBounds& unpadded, const TextGradientBounds& quad, FontSpatialGradientCache* cache, const FontVertexLayerParams& layers);
+void     FontApplySpatialGradient(const FontLayoutVertexConfig& config, const TextLine& line, const TextGlyph& glyph, const TextGradientBounds& unpadded, const TextGradientBounds& quad, FontSpatialGradientCache* cache, const FontVertexLayerParams& layers);
 
-bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayoutVertexMetrics* metrics);
+bool     FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayoutVertexMetrics* metrics);
 
-uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
+uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig& config,
                                   const FontLayoutVertexMetrics& metrics,
-                                  FontGlyphVertex*               vertices,
-                                  uint32_t                       max_vertices);
+                                  FontGlyphVertex* vertices,
+                                  uint32_t max_vertices);
 
 #endif // DM_FONT_LAYOUT_VERTEX_H

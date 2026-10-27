@@ -133,8 +133,8 @@ static bool BlurVectorShadow(FontGlyph* glyph, float sigma)
     const uint32_t width = glyph->m_Bitmap.m_Width;
     const uint32_t height = glyph->m_Bitmap.m_Height;
     const uint32_t count = width * height;
-    float*         source = (float*)malloc((size_t)count * sizeof(float));
-    float*         target = (float*)malloc((size_t)count * sizeof(float));
+    float* source = (float*)malloc((size_t)count * sizeof(float));
+    float* target = (float*)malloc((size_t)count * sizeof(float));
     if (!source || !target)
     {
         free(source);
@@ -150,7 +150,7 @@ static bool BlurVectorShadow(FontGlyph* glyph, float sigma)
     const int smaller = (int)floorf((12.0f * sigma * sigma - 3.0f * lower * lower - 12.0f * lower - 9.0f) / (-4.0f * lower - 4.0f) + 0.5f);
     for (int pass = 0; pass < 3; ++pass)
     {
-        const int   radius = ((pass < smaller ? lower : lower + 2) - 1) / 2;
+        const int radius = ((pass < smaller ? lower : lower + 2) - 1) / 2;
         const float divisor = 1.0f / (2 * radius + 1);
         for (uint32_t axis = 0; axis < 2; ++axis)
         {
@@ -160,7 +160,7 @@ static bool BlurVectorShadow(FontGlyph* glyph, float sigma)
             for (uint32_t line = 0; line < lines; ++line)
             {
                 const uint32_t base = axis ? line : line * width;
-                float          sum = 0.0f;
+                float sum = 0.0f;
                 for (int k = 0; k <= radius && k < (int)length; ++k)
                     sum += source[base + k * step];
                 for (uint32_t k = 0; k < length; ++k)
@@ -252,7 +252,7 @@ static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* param
 {
     const uint32_t width = glyph->m_Bitmap.m_Width;
     const uint32_t height = glyph->m_Bitmap.m_Height;
-    const bool     has_outline_data = params->m_OutlineWidth > 0.0f;
+    const bool has_outline_data = params->m_OutlineWidth > 0.0f;
     const uint32_t channels = FontGetGlyphChannelCount(params->m_OutputBitmap, has_outline_data, params->m_HasShadow, params->m_ShadowBlur);
     if (channels == 1 && !outline_sdf)
         return FONT_RESULT_OK;
@@ -271,14 +271,14 @@ static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* param
         return FONT_RESULT_ERROR;
     }
 
-    const float    pixel_dist_scale = FONT_SDF_DISTANCE_SCALE * 255.0f / params->m_SdfPadding;
-    const float    outline_edge = CalcSdfValueU8(params->m_SdfPadding, params->m_OutlineWidth);
+    const float pixel_dist_scale = FONT_SDF_DISTANCE_SCALE * 255.0f / params->m_SdfPadding;
+    const float outline_edge = CalcSdfValueU8(params->m_SdfPadding, params->m_OutlineWidth);
     const uint32_t source_channels = glyph->m_Bitmap.m_Channels;
     for (uint32_t y = 0; y < height; ++y)
     {
         for (uint32_t x = 0; x < width; ++x)
         {
-            const uint8_t  value = glyph->m_Bitmap.m_Data[(y * width + x) * source_channels];
+            const uint8_t value = glyph->m_Bitmap.m_Data[(y * width + x) * source_channels];
             const uint32_t offset = (y * width + x) * channels;
             if (params->m_OutputBitmap)
             {

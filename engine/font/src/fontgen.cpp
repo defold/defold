@@ -33,11 +33,11 @@
 
 struct FontJobStatus
 {
-    uint64_t m_TimeStart;        // Time started
-    uint64_t m_TimeGlyphProcess; // Total processing time for all glyphs
-    uint64_t m_TimeGlyphCallback; // Total processing time for all glyphs
-    uint32_t m_Failures; // Number of failed job items
-    char     m_Error[128]; // First error sets this string
+    uint64_t m_TimeStart;           // Time started
+    uint64_t m_TimeGlyphProcess;    // Total processing time for all glyphs
+    uint64_t m_TimeGlyphCallback;    // Total processing time for all glyphs
+    uint32_t m_Failures;    // Number of failed job items
+    char     m_Error[128];    // First error sets this string
 
     FontJobStatus()
     {
@@ -48,12 +48,12 @@ struct FontJobStatus
 struct FontGenJobItem
 {
     // input
-    HFont    m_Font;         // The actual font to use
+    HFont    m_Font;                // The actual font to use
     uint32_t m_GlyphIndex;
 
     float m_StbttSdfPadding;
     int   m_StbttEdgeValue;
-    float m_Scale;        // Size to pixel scale
+    float m_Scale;                  // Size to pixel scale
 
     // From the .fontc info
     float   m_OutlineWidth;
@@ -142,7 +142,7 @@ static int JobGenerateGlyph(HJobContext job_thread, HJob hjob, void* context, vo
 {
     FontGenJobData* jobdata = (FontGenJobData*)context;
     FontGenJobItem* item = (FontGenJobItem*)data;
-    uint32_t        glyph_index = item->m_GlyphIndex;
+    uint32_t glyph_index = item->m_GlyphIndex;
 
 #if defined(FONTGEN_DEBUG)
     uint64_t tstart = dmTime::GetMonotonicTime();
@@ -248,12 +248,12 @@ static void JobPostProcessSentinelGlyph(HJobContext job_thread, HJob hjob, JobSy
     FontGenJobData* jobdata = (FontGenJobData*)context;
 
 #if defined(FONTGEN_DEBUG)
-    uint32_t       count = jobdata->m_Items.Size();
+    uint32_t count = jobdata->m_Items.Size();
     FontJobStatus* status = &jobdata->m_Status;
-    uint64_t       tend = dmTime::GetMonotonicTime();
-    float          wall_time = (tend - status->m_TimeStart) / 1000.0f;
-    float          avg_process = (status->m_TimeGlyphProcess / (float)count) / 1000.0f;
-    float          avg_callback = (status->m_TimeGlyphCallback / (float)count) / 1000.0f;
+    uint64_t tend = dmTime::GetMonotonicTime();
+    float wall_time = (tend - status->m_TimeStart) / 1000.0f;
+    float avg_process = (status->m_TimeGlyphProcess / (float)count) / 1000.0f;
+    float avg_callback = (status->m_TimeGlyphCallback / (float)count) / 1000.0f;
     dmLogWarning("Generating %u glyphs took: Job: %.3f ms. Avg (ms/glyph): process: %.3f  callback: %.3f", count, wall_time, avg_process, avg_callback);
 #endif
 
@@ -296,10 +296,10 @@ static void JobPostProcessGlyph(HJobContext job_thread, HJob job, JobSystemStatu
         return;
     }
 
-    HFont      font = item->m_Font;
+    HFont font = item->m_Font;
     FontResult r = jobdata->m_Params.m_AddGlyph
-                       ? jobdata->m_Params.m_AddGlyph(jobdata->m_Params.m_UserContext, font, item->m_Glyph)
-                       : FONT_RESULT_ERROR;
+        ? jobdata->m_Params.m_AddGlyph(jobdata->m_Params.m_UserContext, font, item->m_Glyph)
+        : FONT_RESULT_ERROR;
     if (FONT_RESULT_OK != r)
     {
         char msg[256];
@@ -336,8 +336,8 @@ static HJob CreateSentinelJob(FontGenJobData* jobdata)
 
 static void GenerateGlyphJobByIndex(FontGenJobData* jobdata,
                                     FontGenJobItem* item,
-                                    HFont           font,
-                                    uint32_t        glyph_index,
+                                    HFont font,
+                                    uint32_t glyph_index,
                                     float scale, float stbtt_padding, int stbtt_edge,
                                     bool is_sdf, float outline_width, float shadow_blur,
                                     HJob job_sentinel)
@@ -369,14 +369,14 @@ static bool GenerateGlyphByIndex(FontGenJobData* jobdata, HFont font, uint32_t j
                                  uint32_t glyph_index, float scale, HJob job_sentinel)
 {
     const FontGenParams* params = &jobdata->m_Params;
-    bool                 is_sdf = params->m_IsSdf != 0;
+    bool is_sdf = params->m_IsSdf != 0;
     if (!is_sdf)
     {
         dmLogError("Only SDF fonts are supported");
         return false;
     }
 
-    int   stbtt_edge = g_FontGenContext.m_StbttDefaultSdfEdge;
+    int stbtt_edge = g_FontGenContext.m_StbttDefaultSdfEdge;
     float stbtt_padding = g_FontGenContext.m_StbttDefaultSdfPadding + params->m_OutlineWidth;
 
     // See Fontc.java. If we have shadow blur, we need 3 channels
@@ -421,7 +421,7 @@ static HJob GenerateGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t 
             continue;
         }
 
-        HFont    font = glyph->m_Font;
+        HFont font = glyph->m_Font;
         uint32_t glyph_index = glyph->m_GlyphIndex;
         dmhash_t glyph_key = ((dmhash_t)FontGetPathHash(font) << 32) | glyph_index;
 
@@ -494,7 +494,7 @@ HJob FontGenAddGlyphByIndex(FontGenJobData* jobdata, HFont font, uint32_t glyph_
         return 0;
     FontGenJobDataSetup(jobdata);
 
-    // TODO: Don't create a sentinel job for a single job!
+// TODO: Don't create a sentinel job for a single job!
     HJob job_sentinel = CreateSentinelJob(jobdata);
 
     float scale = FontGetScaleFromSize(font, jobdata->m_Params.m_Size);

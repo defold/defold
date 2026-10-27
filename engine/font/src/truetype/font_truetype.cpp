@@ -29,11 +29,11 @@
 // operators it implements instead of their serialized numeric encodings.
 enum FontTrueTypeCmapFormat
 {
-    CMAP_FORMAT_BYTE_ENCODING      = 0,
-    CMAP_FORMAT_SEGMENT_MAPPING    = 4,
-    CMAP_FORMAT_TRIMMED_TABLE      = 6,
-    CMAP_FORMAT_SEGMENTED_COVERAGE = 12,
-    CMAP_FORMAT_MANY_TO_ONE_RANGE  = 13,
+    CMAP_FORMAT_BYTE_ENCODING          = 0,
+    CMAP_FORMAT_SEGMENT_MAPPING        = 4,
+    CMAP_FORMAT_TRIMMED_TABLE          = 6,
+    CMAP_FORMAT_SEGMENTED_COVERAGE     = 12,
+    CMAP_FORMAT_MANY_TO_ONE_RANGE      = 13,
 };
 
 enum FontTrueTypeCmapPlatform
@@ -77,52 +77,52 @@ enum FontTrueTypeCFFDictOperator
     CFF_DICT_VSINDEX      = 22,
     CFF_DICT_VSTORE       = 24,
     // Escaped DICT operators are represented internally as 0x100 | byte 2.
-    CFF_DICT_FD_ARRAY  = 0x100 | 36,
-    CFF_DICT_FD_SELECT = 0x100 | 37,
+    CFF_DICT_FD_ARRAY     = 0x100 | 36,
+    CFF_DICT_FD_SELECT    = 0x100 | 37,
 };
 
 enum FontTrueTypeCFFNumberEncoding
 {
-    CFF_NUMBER_SHORT_INT      = 28,
-    CFF_NUMBER_LONG_INT       = 29,
-    CFF_NUMBER_REAL           = 30,
-    CFF_NUMBER_FIRST_COMPACT  = 32,
-    CFF_NUMBER_LAST_COMPACT   = 246,
-    CFF_NUMBER_FIRST_POSITIVE = 247,
-    CFF_NUMBER_LAST_POSITIVE  = 250,
-    CFF_NUMBER_FIRST_NEGATIVE = 251,
-    CFF_NUMBER_LAST_NEGATIVE  = 254,
-    CFF_NUMBER_FIXED_16_16    = 255,
+    CFF_NUMBER_SHORT_INT       = 28,
+    CFF_NUMBER_LONG_INT        = 29,
+    CFF_NUMBER_REAL            = 30,
+    CFF_NUMBER_FIRST_COMPACT   = 32,
+    CFF_NUMBER_LAST_COMPACT    = 246,
+    CFF_NUMBER_FIRST_POSITIVE  = 247,
+    CFF_NUMBER_LAST_POSITIVE   = 250,
+    CFF_NUMBER_FIRST_NEGATIVE  = 251,
+    CFF_NUMBER_LAST_NEGATIVE   = 254,
+    CFF_NUMBER_FIXED_16_16     = 255,
 };
 
 enum FontTrueTypeType2Operator
 {
-    TYPE2_HSTEM      = 1,
-    TYPE2_VSTEM      = 3,
-    TYPE2_VMOVETO    = 4,
-    TYPE2_RLINETO    = 5,
-    TYPE2_HLINETO    = 6,
-    TYPE2_VLINETO    = 7,
-    TYPE2_RRCURVETO  = 8,
-    TYPE2_CALLSUBR   = 10,
-    TYPE2_RETURN     = 11,
-    TYPE2_ESCAPE     = 12,
-    TYPE2_ENDCHAR    = 14,
-    TYPE2_VSINDEX    = 15,
-    TYPE2_BLEND      = 16,
-    TYPE2_HSTEMHM    = 18,
-    TYPE2_HINTMASK   = 19,
-    TYPE2_CNTRMASK   = 20,
-    TYPE2_RMOVETO    = 21,
-    TYPE2_HMOVETO    = 22,
-    TYPE2_VSTEMHM    = 23,
-    TYPE2_RCURVELINE = 24,
-    TYPE2_RLINECURVE = 25,
-    TYPE2_VVCURVETO  = 26,
-    TYPE2_HHCURVETO  = 27,
-    TYPE2_CALLGSUBR  = 29,
-    TYPE2_VHCURVETO  = 30,
-    TYPE2_HVCURVETO  = 31,
+    TYPE2_HSTEM       = 1,
+    TYPE2_VSTEM       = 3,
+    TYPE2_VMOVETO     = 4,
+    TYPE2_RLINETO     = 5,
+    TYPE2_HLINETO     = 6,
+    TYPE2_VLINETO     = 7,
+    TYPE2_RRCURVETO   = 8,
+    TYPE2_CALLSUBR    = 10,
+    TYPE2_RETURN      = 11,
+    TYPE2_ESCAPE      = 12,
+    TYPE2_ENDCHAR     = 14,
+    TYPE2_VSINDEX     = 15,
+    TYPE2_BLEND       = 16,
+    TYPE2_HSTEMHM     = 18,
+    TYPE2_HINTMASK    = 19,
+    TYPE2_CNTRMASK    = 20,
+    TYPE2_RMOVETO     = 21,
+    TYPE2_HMOVETO     = 22,
+    TYPE2_VSTEMHM     = 23,
+    TYPE2_RCURVELINE  = 24,
+    TYPE2_RLINECURVE  = 25,
+    TYPE2_VVCURVETO   = 26,
+    TYPE2_HHCURVETO   = 27,
+    TYPE2_CALLGSUBR   = 29,
+    TYPE2_VHCURVETO   = 30,
+    TYPE2_HVCURVETO   = 31,
 };
 
 enum FontTrueTypeType2EscapedOperator
@@ -135,24 +135,24 @@ enum FontTrueTypeType2EscapedOperator
 
 enum FontTrueTypeGlyfFlag
 {
-    GLYF_FLAG_ON_CURVE = 0x01,
-    GLYF_FLAG_X_SHORT  = 0x02,
-    GLYF_FLAG_Y_SHORT  = 0x04,
-    GLYF_FLAG_REPEAT   = 0x08,
-    GLYF_FLAG_X_SAME   = 0x10,
-    GLYF_FLAG_Y_SAME   = 0x20,
+    GLYF_FLAG_ON_CURVE       = 0x01,
+    GLYF_FLAG_X_SHORT        = 0x02,
+    GLYF_FLAG_Y_SHORT        = 0x04,
+    GLYF_FLAG_REPEAT         = 0x08,
+    GLYF_FLAG_X_SAME         = 0x10,
+    GLYF_FLAG_Y_SAME         = 0x20,
 };
 
 enum FontTrueTypeCompositeFlag
 {
-    GLYF_COMPOSITE_WORD_ARGUMENTS    = 0x0001,
-    GLYF_COMPOSITE_ARGUMENTS_ARE_XY  = 0x0002,
-    GLYF_COMPOSITE_UNIFORM_SCALE     = 0x0008,
-    GLYF_COMPOSITE_MORE_COMPONENTS   = 0x0020,
-    GLYF_COMPOSITE_SEPARATE_XY_SCALE = 0x0040,
-    GLYF_COMPOSITE_MATRIX            = 0x0080,
-    GLYF_COMPOSITE_SCALED_OFFSET     = 0x0800,
-    GLYF_COMPOSITE_UNSCALED_OFFSET   = 0x1000,
+    GLYF_COMPOSITE_WORD_ARGUMENTS        = 0x0001,
+    GLYF_COMPOSITE_ARGUMENTS_ARE_XY      = 0x0002,
+    GLYF_COMPOSITE_UNIFORM_SCALE         = 0x0008,
+    GLYF_COMPOSITE_MORE_COMPONENTS       = 0x0020,
+    GLYF_COMPOSITE_SEPARATE_XY_SCALE     = 0x0040,
+    GLYF_COMPOSITE_MATRIX                = 0x0080,
+    GLYF_COMPOSITE_SCALED_OFFSET         = 0x0800,
+    GLYF_COMPOSITE_UNSCALED_OFFSET       = 0x1000,
 };
 
 // Unicode range limits used by cmap validation and lookup.
@@ -207,9 +207,9 @@ static const uint32_t CFF2_INDEX_COUNT_SIZE = 4;
 static const uint32_t CFF_MAX_INDEX_OFFSET_SIZE = 4;
 static const uint32_t CFF_STANDARD_ENCODING_CODE_COUNT = 256;
 static const uint32_t CFF_STANDARD_CHARSET_LAST_SID = 228;
-static const int32_t  CFF_NUMBER_BYTE_RADIX = 256;
-static const int32_t  CFF_NUMBER_COMPACT_ZERO = 139;
-static const int32_t  CFF_NUMBER_TWO_BYTE_OFFSET = 108;
+static const int32_t CFF_NUMBER_BYTE_RADIX = 256;
+static const int32_t CFF_NUMBER_COMPACT_ZERO = 139;
+static const int32_t CFF_NUMBER_TWO_BYTE_OFFSET = 108;
 
 // glyf header layout, outline storage growth, and fixed-point scale.
 static const uint32_t GLYF_HEADER_SIZE = 10;
@@ -218,12 +218,12 @@ static const uint32_t GLYF_Y_MIN_OFFSET = 4;
 static const uint32_t GLYF_X_MAX_OFFSET = 6;
 static const uint32_t GLYF_Y_MAX_OFFSET = 8;
 static const uint32_t OUTLINE_ARRAY_GROWTH = 64;
-static const float    F2DOT14_SCALE = 16384.0f;
+static const float F2DOT14_SCALE = 16384.0f;
 static const uint32_t TYPE2_SMALL_SUBROUTINE_LIMIT = 1240;
 static const uint32_t TYPE2_MEDIUM_SUBROUTINE_LIMIT = 33900;
-static const int32_t  TYPE2_SMALL_SUBROUTINE_BIAS = 107;
-static const int32_t  TYPE2_MEDIUM_SUBROUTINE_BIAS = 1131;
-static const int32_t  TYPE2_LARGE_SUBROUTINE_BIAS = 32768;
+static const int32_t TYPE2_SMALL_SUBROUTINE_BIAS = 107;
+static const int32_t TYPE2_MEDIUM_SUBROUTINE_BIAS = 1131;
+static const int32_t TYPE2_LARGE_SUBROUTINE_BIAS = 32768;
 
 enum FontTrueTypeLocaFormat
 {
@@ -442,9 +442,9 @@ static bool ValidateCmap(const FontTrueType* font, const uint8_t* cmap, uint32_t
         for (uint32_t i = 0; i < count; ++i)
         {
             const uint8_t* group = cmap + CMAP_FORMAT_12_HEADER_SIZE + i * CMAP_FORMAT_12_GROUP_SIZE;
-            uint32_t       first = ReadU32(group);
-            uint32_t       last = ReadU32(group + CMAP_GROUP_END_CODE_OFFSET);
-            uint32_t       glyph = ReadU32(group + CMAP_GROUP_START_GLYPH_OFFSET);
+            uint32_t first = ReadU32(group);
+            uint32_t last = ReadU32(group + CMAP_GROUP_END_CODE_OFFSET);
+            uint32_t glyph = ReadU32(group + CMAP_GROUP_START_GLYPH_OFFSET);
             if (first > last || last > MAX_UNICODE_CODEPOINT || (i != 0 && first <= previous_end))
                 return false;
             if (format == CMAP_FORMAT_SEGMENTED_COVERAGE)
@@ -479,7 +479,7 @@ static bool ValidateCmap(const FontTrueType* font, const uint8_t* cmap, uint32_t
     {
         uint32_t start = ReadU16(cmap + start_codes + i * 2);
         uint32_t end = ReadU16(cmap + end_codes + i * 2);
-        int32_t  delta = ReadS16(cmap + deltas + i * 2);
+        int32_t delta = ReadS16(cmap + deltas + i * 2);
         uint32_t range_offset = ReadU16(cmap + range_offsets + i * 2);
         if (start > end || (i != 0 && start <= previous_end))
             return false;
@@ -538,9 +538,9 @@ static bool SelectCmap(FontTrueType* font, uint32_t table_offset, uint32_t table
     for (uint16_t i = 0; i < count; ++i)
     {
         const uint8_t* record = data + table_offset + 4 + i * 8;
-        uint16_t       platform = ReadU16(record);
-        uint16_t       encoding = ReadU16(record + 2);
-        uint32_t       encoding_priority = 0;
+        uint16_t platform = ReadU16(record);
+        uint16_t encoding = ReadU16(record + 2);
+        uint32_t encoding_priority = 0;
         if (platform == CMAP_PLATFORM_UNICODE)
             encoding_priority = 3;
         else if (platform == CMAP_PLATFORM_WINDOWS && encoding == CMAP_WINDOWS_ENCODING_UNICODE_FULL)
@@ -553,8 +553,8 @@ static bool SelectCmap(FontTrueType* font, uint32_t table_offset, uint32_t table
         if (relative > table_size || table_size - relative < 4)
             continue;
         const uint8_t* subtable = data + table_offset + relative;
-        uint16_t       format = ReadU16(subtable);
-        uint32_t       size = 0;
+        uint16_t format = ReadU16(subtable);
+        uint32_t size = 0;
         if (format == CMAP_FORMAT_SEGMENTED_COVERAGE || format == CMAP_FORMAT_MANY_TO_ONE_RANGE)
         {
             if (table_size - relative >= 8)
@@ -643,7 +643,7 @@ static bool ParseIndex(const uint8_t* data, uint32_t data_size, uint32_t offset,
     }
     if (data_size - offset < count_size + 1)
         return false;
-    uint8_t  offset_size = data[offset + count_size];
+    uint8_t offset_size = data[offset + count_size];
     uint32_t available = data_size - offset - count_size - 1;
     if (offset_size == 0 || offset_size > CFF_MAX_INDEX_OFFSET_SIZE || count == UINT32_MAX || count + 1 > available / offset_size)
         return false;
@@ -725,8 +725,8 @@ static bool DictGet(const uint8_t* data, uint32_t data_size, uint16_t key, float
     // DICT operands precede their operator. Escaped operators use 0x100 plus
     // the second byte so callers can address them with one key.
     FontTrueTypeBuffer buffer = { data, data_size, 0 };
-    float              operands[CFF_MAX_DICT_OPERANDS];
-    uint32_t           operand_count = 0;
+    float operands[CFF_MAX_DICT_OPERANDS];
+    uint32_t operand_count = 0;
     while (buffer.m_Position < buffer.m_Size)
     {
         uint8_t byte = buffer.m_Data[buffer.m_Position];
@@ -761,7 +761,7 @@ static bool GetFD(const FontTrueType* font, uint32_t glyph_index, uint32_t* fd)
     // FDSelect chooses the Private DICT for CID-keyed CFF fonts. Read the
     // supported formats directly instead of expanding a per-glyph mapping.
     const uint8_t* data = font->m_FDSelect;
-    uint32_t       size = font->m_FDSelectSize;
+    uint32_t size = font->m_FDSelectSize;
     if (size == 0)
     {
         *fd = 0;
@@ -953,7 +953,7 @@ static FontTrueType* InitCFF2Font(const void* source, uint32_t data_size)
     }
     return font;
 
-error:
+    error:
     delete font;
     return 0;
 }
@@ -963,7 +963,7 @@ static FontTrueType* InitCFF1Font(const void* source, uint32_t data_size)
     // CFF1 begins with Name, Top DICT, String, and Global Subrs INDEXes. A
     // non-CID font has one Private DICT; CID fonts provide FDArray/FDSelect.
     const uint8_t* data = (const uint8_t*)source;
-    if (data_size < 4 || data[0] != CFF_VERSION_1 || data[2] < 4 || data[2] > data_size)
+    if (data_size < 4 || data[0] != CFF_VERSION_1 || data[2] <4 || data[2]> data_size)
         return 0;
 
     FontTrueType* font = NewFont();
@@ -971,11 +971,11 @@ static FontTrueType* InitCFF1Font(const void* source, uint32_t data_size)
     font->m_DataSize = data_size;
     font->m_OutlineType = FONT_OUTLINE_TYPE_CFF1;
 
-    FontTrueTypeIndex  name_index;
-    FontTrueTypeIndex  top_index;
-    FontTrueTypeIndex  string_index;
+    FontTrueTypeIndex name_index;
+    FontTrueTypeIndex top_index;
+    FontTrueTypeIndex string_index;
     FontTrueTypeBuffer top_dict;
-    uint32_t           end;
+    uint32_t end;
     if (!ParseIndex(data, data_size, data[2], CFF1_INDEX_COUNT_SIZE, &name_index, &end) || name_index.m_Count == 0 ||
         !ParseIndex(data, data_size, end, CFF1_INDEX_COUNT_SIZE, &top_index, &end) || top_index.m_Count == 0 ||
         !ParseIndex(data, data_size, end, CFF1_INDEX_COUNT_SIZE, &string_index, &end) ||
@@ -1036,7 +1036,7 @@ static FontTrueType* InitCFF1Font(const void* source, uint32_t data_size)
     }
     return font;
 
-error:
+    error:
     delete font;
     return 0;
 }
@@ -1046,16 +1046,16 @@ FontTrueType* FontTrueTypeCreate(const void* source, uint32_t data_size, uint32_
     // Parse tables shared by every outline format, then initialize the one
     // outline backend present in the selected face.
     const uint8_t* data = (const uint8_t*)source;
-    uint32_t       font_offset;
-    uint32_t       cff1_offset, cff1_size;
-    uint32_t       cff2_offset, cff2_size;
-    uint32_t       cmap_offset, cmap_size;
-    uint32_t       head_offset, head_size;
-    uint32_t       hhea_offset, hhea_size;
-    uint32_t       hmtx_offset, hmtx_size;
-    uint32_t       maxp_offset, maxp_size;
-    uint32_t       loca_offset, loca_size;
-    uint32_t       glyf_offset, glyf_size;
+    uint32_t font_offset;
+    uint32_t cff1_offset, cff1_size;
+    uint32_t cff2_offset, cff2_size;
+    uint32_t cmap_offset, cmap_size;
+    uint32_t head_offset, head_size;
+    uint32_t hhea_offset, hhea_size;
+    uint32_t hmtx_offset, hmtx_size;
+    uint32_t maxp_offset, maxp_size;
+    uint32_t loca_offset, loca_size;
+    uint32_t glyf_offset, glyf_size;
     if (!GetFaceOffset(data, data_size, face_index, &font_offset))
         return 0;
     if (!FindTable(data, data_size, font_offset, FOURCC('h', 'e', 'a', 'd'), &head_offset, &head_size) || head_size < HEAD_REQUIRED_SIZE ||
@@ -1232,7 +1232,7 @@ static bool GetVariationScalars(const FontTrueType* font, uint32_t vsindex, floa
     if (!font->m_VariationStore)
         return false;
     const uint8_t* store = font->m_VariationStore;
-    uint32_t       size = font->m_VariationStoreSize;
+    uint32_t size = font->m_VariationStoreSize;
     if (size < 8 || ReadU16(store) != 1)
         return false;
     uint32_t region_list_offset = ReadU32(store + 2);
@@ -1243,14 +1243,14 @@ static bool GetVariationScalars(const FontTrueType* font, uint32_t vsindex, floa
     if (item_data_offset > size || size - item_data_offset < 6)
         return false;
     const uint8_t* item_data = store + item_data_offset;
-    uint16_t       region_index_count = ReadU16(item_data + 4);
+    uint16_t region_index_count = ReadU16(item_data + 4);
     if (region_index_count > scalar_capacity || size - item_data_offset - 6 < (uint32_t)region_index_count * 2)
         return false;
     if (region_list_offset > size || size - region_list_offset < 4)
         return false;
     const uint8_t* region_list = store + region_list_offset;
-    uint16_t       axis_count = ReadU16(region_list);
-    uint16_t       region_count = ReadU16(region_list + 2);
+    uint16_t axis_count = ReadU16(region_list);
+    uint16_t region_count = ReadU16(region_list + 2);
     if (size - region_list_offset - 4 < (uint32_t)axis_count * region_count * 6)
         return false;
 
@@ -1260,7 +1260,7 @@ static bool GetVariationScalars(const FontTrueType* font, uint32_t vsindex, floa
         uint16_t region_index = ReadU16(item_data + 6 + i * 2);
         if (region_index >= region_count)
             return false;
-        float          scalar = 1.0f;
+        float scalar = 1.0f;
         const uint8_t* axes = region_list + 4 + (uint32_t)region_index * axis_count * 6;
         for (uint16_t axis = 0; axis < axis_count; ++axis)
         {
@@ -1283,7 +1283,7 @@ static bool Blend(const FontTrueType* font, uint32_t vsindex, float* stack, uint
     // the number of variation regions a blend operation can reference. Keep
     // this short-lived scratch data on the stack to avoid one allocation per
     // blend operator.
-    float    scalars[MAX_TYPE2_VARIATION_SCALARS];
+    float scalars[MAX_TYPE2_VARIATION_SCALARS];
     uint32_t scalar_count = 0;
     if (!GetVariationScalars(font, vsindex, scalars, 512, &scalar_count))
         return false;
@@ -1304,28 +1304,27 @@ static bool Blend(const FontTrueType* font, uint32_t vsindex, float* stack, uint
 
 // Adobe StandardEncoding code to CFF standard string identifier. The table is
 // used only by the deprecated CFF1 endchar composition form.
-// clang-format off: manual rows
 static const uint8_t STANDARD_ENCODING_SIDS[CFF_STANDARD_ENCODING_CODE_COUNT] = {
-      0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-      0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-      1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,  15,  16,
-     17,  18,  19,  20,  21,  22,  23,  24,  25,  26,  27,  28,  29,  30,  31,  32,
-     33,  34,  35,  36,  37,  38,  39,  40,  41,  42,  43,  44,  45,  46,  47,  48,
-     49,  50,  51,  52,  53,  54,  55,  56,  57,  58,  59,  60,  61,  62,  63,  64,
-     65,  66,  67,  68,  69,  70,  71,  72,  73,  74,  75,  76,  77,  78,  79,  80,
-     81,  82,  83,  84,  85,  86,  87,  88,  89,  90,  91,  92,  93,  94,  95,   0,
-      0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-      0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-      0,  96,  97,  98,  99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110,
-      0, 111, 112, 113, 114,   0, 115, 116, 117, 118, 119, 120, 121, 122,   0, 123,
-      0, 124, 125, 126, 127, 128, 129, 130, 131,   0, 132, 133,   0, 134, 135, 136,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,  15,  16,
+    17,  18,  19,  20,  21,  22,  23,  24,  25,  26,  27,  28,  29,  30,  31,  32,
+    33,  34,  35,  36,  37,  38,  39,  40,  41,  42,  43,  44,  45,  46,  47,  48,
+    49,  50,  51,  52,  53,  54,  55,  56,  57,  58,  59,  60,  61,  62,  63,  64,
+    65,  66,  67,  68,  69,  70,  71,  72,  73,  74,  75,  76,  77,  78,  79,  80,
+    81,  82,  83,  84,  85,  86,  87,  88,  89,  90,  91,  92,  93,  94,  95,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    0,  96,  97,  98,  99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110,
+    0, 111, 112, 113, 114,   0, 115, 116, 117, 118, 119, 120, 121, 122,   0, 123,
+    0, 124, 125, 126, 127, 128, 129, 130, 131,   0, 132, 133,   0, 134, 135, 136,
     137,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-      0, 138,   0, 139,   0,   0,   0,   0, 140, 141, 142, 143,   0,   0,   0,   0,
-      0, 144,   0,   0,   0, 145,   0,   0, 146, 147, 148, 149,   0,   0,   0,   0,
+    0, 138,   0, 139,   0,   0,   0,   0, 140, 141, 142, 143,   0,   0,   0,   0,
+    0, 144,   0,   0,   0, 145,   0,   0, 146, 147, 148, 149,   0,   0,   0,   0,
 };
 
 static const uint16_t EXPERT_CHARSET_SIDS[] = {
-      0,   1, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238,  13,  14,  15,  99,
+    0,   1, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238,  13,  14,  15,  99,
     239, 240, 241, 242, 243, 244, 245, 246, 247, 248,  27,  28, 249, 250, 251, 252,
     253, 254, 255, 256, 257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 109, 110,
     267, 268, 269, 270, 271, 272, 273, 274, 275, 276, 277, 278, 279, 280, 281, 282,
@@ -1339,14 +1338,13 @@ static const uint16_t EXPERT_CHARSET_SIDS[] = {
 };
 
 static const uint16_t EXPERT_SUBSET_CHARSET_SIDS[] = {
-      0,   1, 231, 232, 235, 236, 237, 238,  13,  14,  15,  99, 239, 240, 241, 242,
+    0,   1, 231, 232, 235, 236, 237, 238,  13,  14,  15,  99, 239, 240, 241, 242,
     243, 244, 245, 246, 247, 248,  27,  28, 249, 250, 251, 253, 254, 255, 256, 257,
     258, 259, 260, 261, 262, 263, 264, 265, 266, 109, 110, 267, 268, 269, 270, 272,
     300, 301, 302, 305, 314, 315, 158, 155, 163, 320, 321, 322, 323, 324, 325, 326,
     150, 164, 169, 327, 328, 329, 330, 331, 332, 333, 334, 335, 336, 337, 338, 339,
     340, 341, 342, 343, 344, 345, 346,
 };
-// clang-format on
 
 static uint32_t GetCFFGlyphForSID(const FontTrueType* font, uint32_t sid)
 {
@@ -1355,7 +1353,7 @@ static uint32_t GetCFFGlyphForSID(const FontTrueType* font, uint32_t sid)
     if (font->m_CharsetID == CFF_CHARSET_EXPERT || font->m_CharsetID == CFF_CHARSET_EXPERT_SUBSET)
     {
         const uint16_t* charset;
-        uint32_t        charset_size;
+        uint32_t charset_size;
         if (font->m_CharsetID == CFF_CHARSET_EXPERT)
         {
             charset = EXPERT_CHARSET_SIDS;
@@ -1376,10 +1374,10 @@ static uint32_t GetCFFGlyphForSID(const FontTrueType* font, uint32_t sid)
         return 0;
 
     const uint8_t* data = font->m_Charset;
-    uint32_t       size = font->m_CharsetSize;
-    uint32_t       position = 1;
-    uint32_t       glyph = 1;
-    uint8_t        format = data[0];
+    uint32_t size = font->m_CharsetSize;
+    uint32_t position = 1;
+    uint32_t glyph = 1;
+    uint8_t format = data[0];
     if (format == CFF_CHARSET_FORMAT_ARRAY)
     {
         if (font->m_NumGlyphs - 1 > (size - position) / 2)
@@ -1420,16 +1418,11 @@ static uint32_t GetOutlinePointCount(FontOutlineCommandType type)
 {
     switch (type)
     {
-        case FONT_OUTLINE_MOVE_TO:
-            return 1;
-        case FONT_OUTLINE_LINE_TO:
-            return 1;
-        case FONT_OUTLINE_QUADRATIC_TO:
-            return 2;
-        case FONT_OUTLINE_CUBIC_TO:
-            return 3;
-        case FONT_OUTLINE_CLOSE:
-            return 0;
+        case FONT_OUTLINE_MOVE_TO:      return 1;
+        case FONT_OUTLINE_LINE_TO:      return 1;
+        case FONT_OUTLINE_QUADRATIC_TO: return 2;
+        case FONT_OUTLINE_CUBIC_TO:     return 3;
+        case FONT_OUTLINE_CLOSE:        return 0;
     }
     return 0;
 }
@@ -1446,7 +1439,7 @@ static void AppendOutline(FontTrueTypeOutlineBuilder* builder, const FontTrueTyp
     for (uint32_t i = 0; i < source.m_Commands.Size(); ++i)
     {
         FontOutlineCommand command = source.m_Commands[i];
-        uint32_t           point_count = GetOutlinePointCount(command.m_Type);
+        uint32_t point_count = GetOutlinePointCount(command.m_Type);
         for (uint32_t point = 0; point < point_count; ++point)
         {
             command.m_Points[point].m_X += dx;
@@ -1521,12 +1514,12 @@ static bool InterpretCharString(FontTrueType* font, uint32_t glyph_index, FontTr
     // The Type 2 specification limits subroutine nesting to ten and the CFF2
     // operand stack to 513 values.
     FontTrueTypeBuffer return_stack[MAX_TYPE2_SUBROUTINE_DEPTH];
-    uint32_t           return_count = 0;
-    float              stack[MAX_TYPE2_OPERANDS];
-    uint32_t           stack_size = 0;
-    uint32_t           mask_bits = 0;
-    uint32_t           vsindex = private_data->m_VSIndex;
-    bool               width_parsed = font->m_OutlineType != FONT_OUTLINE_TYPE_CFF1;
+    uint32_t return_count = 0;
+    float stack[MAX_TYPE2_OPERANDS];
+    uint32_t stack_size = 0;
+    uint32_t mask_bits = 0;
+    uint32_t vsindex = private_data->m_VSIndex;
+    bool width_parsed = font->m_OutlineType != FONT_OUTLINE_TYPE_CFF1;
     while (true)
     {
         if (buffer.m_Position == buffer.m_Size)
@@ -1583,7 +1576,7 @@ static bool InterpretCharString(FontTrueType* font, uint32_t glyph_index, FontTr
         }
 
         uint32_t i = 0;
-        bool     clear_stack = true;
+        bool clear_stack = true;
         switch (operation)
         {
             case TYPE2_HSTEM:
@@ -1710,8 +1703,8 @@ static bool InterpretCharString(FontTrueType* font, uint32_t glyph_index, FontTr
                         return false;
                     FontTrueTypeOutlineBuilder base = {};
                     FontTrueTypeOutlineBuilder accent = {};
-                    FontOutlineBounds          base_bounds = {};
-                    FontOutlineBounds          accent_bounds = {};
+                    FontOutlineBounds base_bounds = {};
+                    FontOutlineBounds accent_bounds = {};
                     if (builder->m_Bounds)
                     {
                         base.m_Bounds = &base_bounds;
@@ -1872,9 +1865,9 @@ static bool BuildSimpleContours(const dmArray<FontTrueTypePoint>& points, const 
         uint32_t last = ends[contour];
         if (last < first || last >= points.Size())
             return false;
-        uint32_t         count = last - first + 1;
-        uint32_t         position;
-        uint32_t         remaining;
+        uint32_t count = last - first + 1;
+        uint32_t position;
+        uint32_t remaining;
         FontOutlinePoint start;
         if (points[first].m_OnCurve)
         {
@@ -1906,7 +1899,7 @@ static bool BuildSimpleContours(const dmArray<FontTrueTypePoint>& points, const 
                 continue;
             }
 
-            uint32_t                 next_position = position == last ? first : position + 1;
+            uint32_t next_position = position == last ? first : position + 1;
             const FontTrueTypePoint& next = points[next_position];
             if (next.m_OnCurve)
             {
@@ -1948,7 +1941,7 @@ static bool DecodeSimpleGlyf(const uint8_t* data, uint32_t data_size, uint32_t c
         return false;
     position += instruction_size;
 
-    uint32_t         point_count = contour_count == 0 ? 0 : ends.Back() + 1;
+    uint32_t point_count = contour_count == 0 ? 0 : ends.Back() + 1;
     dmArray<uint8_t> flags;
     flags.SetCapacity(point_count);
     while (flags.Size() < point_count)
@@ -2128,7 +2121,7 @@ static bool DecodeCompositeGlyf(FontTrueType* font, const uint8_t* data, uint32_
         for (uint32_t i = 0; i < component.m_Commands.Size(); ++i)
         {
             FontOutlineCommand command = component.m_Commands[i];
-            uint32_t           point_count = GetOutlinePointCount(command.m_Type);
+            uint32_t point_count = GetOutlinePointCount(command.m_Type);
             for (uint32_t j = 0; j < point_count; ++j)
                 command.m_Points[j] = TransformPoint(command.m_Points[j], x_scale, scale_01, scale_10, y_scale, dx, dy);
             if (result->m_Commands.Full())
@@ -2137,7 +2130,7 @@ static bool DecodeCompositeGlyf(FontTrueType* font, const uint8_t* data, uint32_
         }
         for (uint32_t i = 0; i < component.m_Points.Size(); ++i)
         {
-            FontOutlinePoint  point = TransformPoint(ToOutlinePoint(component.m_Points[i]), x_scale, scale_01, scale_10, y_scale, dx, dy);
+            FontOutlinePoint point = TransformPoint(ToOutlinePoint(component.m_Points[i]), x_scale, scale_01, scale_10, y_scale, dx, dy);
             FontTrueTypePoint transformed = { point.m_X, point.m_Y, component.m_Points[i].m_OnCurve };
             if (result->m_Points.Full())
                 result->m_Points.OffsetCapacity(OUTLINE_ARRAY_GROWTH);
@@ -2152,7 +2145,7 @@ static bool DecodeGlyf(FontTrueType* font, uint32_t glyph_index, uint32_t depth,
     if (depth == MAX_GLYF_COMPOSITE_DEPTH)
         return false;
     const uint8_t* data;
-    uint32_t       data_size;
+    uint32_t data_size;
     if (!GetGlyphData(font, glyph_index, &data, &data_size))
         return false;
     if (data_size == 0)
@@ -2199,7 +2192,7 @@ uint32_t FontTrueTypeGetGlyphIndex(FontTrueType* font, uint32_t codepoint)
     // SelectCmap chose one supported subtable at load time. Decode it directly
     // from borrowed data to avoid a per-font Unicode mapping allocation.
     const uint8_t* cmap = font->m_FontData + font->m_CmapOffset;
-    uint16_t       format = ReadU16(cmap);
+    uint16_t format = ReadU16(cmap);
     if (format == CMAP_FORMAT_BYTE_ENCODING)
         return codepoint < CMAP_FORMAT_0_ENTRY_COUNT && CMAP_FORMAT_0_HEADER_SIZE + codepoint < font->m_CmapSize
                    ? cmap[CMAP_FORMAT_0_HEADER_SIZE + codepoint]
@@ -2226,10 +2219,10 @@ uint32_t FontTrueTypeGetGlyphIndex(FontTrueType* font, uint32_t codepoint)
         uint32_t high = count;
         while (low < high)
         {
-            uint32_t       middle = low + (high - low) / 2;
+            uint32_t middle = low + (high - low) / 2;
             const uint8_t* group = cmap + CMAP_FORMAT_12_HEADER_SIZE + middle * CMAP_FORMAT_12_GROUP_SIZE;
-            uint32_t       first = ReadU32(group);
-            uint32_t       last = ReadU32(group + CMAP_GROUP_END_CODE_OFFSET);
+            uint32_t first = ReadU32(group);
+            uint32_t last = ReadU32(group + CMAP_GROUP_END_CODE_OFFSET);
             if (codepoint < first)
                 high = middle;
             else if (codepoint > last)
@@ -2258,7 +2251,7 @@ uint32_t FontTrueTypeGetGlyphIndex(FontTrueType* font, uint32_t codepoint)
             uint32_t start = ReadU16(cmap + start_codes + i * 2);
             if (codepoint < start)
                 return 0;
-            int32_t  delta = ReadS16(cmap + deltas + i * 2);
+            int32_t delta = ReadS16(cmap + deltas + i * 2);
             uint32_t range_offset = ReadU16(cmap + range_offsets + i * 2);
             if (range_offset == 0)
                 return (codepoint + delta) & MAX_BMP_CODEPOINT;
@@ -2288,7 +2281,7 @@ bool FontTrueTypeGetVerticalMetrics(FontTrueType* font, int32_t* ascent, int32_t
 void FontTrueTypeGetGlyphHMetrics(FontTrueType* font, uint32_t glyph_index, int32_t* advance, int32_t* left_bearing)
 {
     const uint8_t* hmtx = font->m_FontData + font->m_HmtxOffset;
-    uint32_t       metric = glyph_index < font->m_NumHMetrics ? glyph_index : font->m_NumHMetrics - 1;
+    uint32_t metric = glyph_index < font->m_NumHMetrics ? glyph_index : font->m_NumHMetrics - 1;
     *advance = ReadU16(hmtx + metric * 4);
     if (glyph_index < font->m_NumHMetrics)
         *left_bearing = ReadS16(hmtx + metric * 4 + 2);
@@ -2306,7 +2299,7 @@ bool FontTrueTypeGetGlyphBox(FontTrueType* font, uint32_t glyph_index, int32_t* 
     if (font->m_OutlineType == FONT_OUTLINE_TYPE_GLYF)
     {
         const uint8_t* data;
-        uint32_t       data_size;
+        uint32_t data_size;
         if (!GetGlyphData(font, glyph_index, &data, &data_size) || data_size < GLYF_HEADER_SIZE)
             return false;
 
@@ -2322,14 +2315,14 @@ bool FontTrueTypeGetGlyphBox(FontTrueType* font, uint32_t glyph_index, int32_t* 
     // CFF charstrings have no per-glyph bounds field. Interpret drawing
     // commands directly into an exact bounds accumulator without allocating
     // or copying a temporary outline.
-    FontOutlineBounds          bounds = {};
+    FontOutlineBounds bounds = {};
     FontTrueTypeOutlineBuilder builder = {};
     builder.m_Bounds = &bounds;
     if (!InterpretCharString(font, glyph_index, &builder, 0))
         return false;
 
     float fx0, fy0, fx1, fy1;
-    bool  has_bounds = FontOutlineBoundsGet(&bounds, &fx0, &fy0, &fx1, &fy1);
+    bool has_bounds = FontOutlineBoundsGet(&bounds, &fx0, &fy0, &fx1, &fy1);
     if (has_bounds)
     {
         *x0 = (int32_t)floorf(fx0);

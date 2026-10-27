@@ -100,10 +100,10 @@ static void PushYMonotonicCubic(dmArray<FontOutlineCommand>& commands, FontOutli
 {
     // The derivative of a cubic Bezier is quadratic. Its zero, one, or two
     // roots are the only positions where the direction along y can change.
-    float    a = 3.0f * (-p0.m_Y + 3.0f * p1.m_Y - 3.0f * p2.m_Y + p3.m_Y);
-    float    b = 6.0f * (p0.m_Y - 2.0f * p1.m_Y + p2.m_Y);
-    float    c = 3.0f * (p1.m_Y - p0.m_Y);
-    float    roots[2];
+    float a = 3.0f * (-p0.m_Y + 3.0f * p1.m_Y - 3.0f * p2.m_Y + p3.m_Y);
+    float b = 6.0f * (p0.m_Y - 2.0f * p1.m_Y + p2.m_Y);
+    float c = 3.0f * (p1.m_Y - p0.m_Y);
+    float roots[2];
     uint32_t root_count = 0;
     if (fabsf(a) < 1.0e-7f)
     {
@@ -129,7 +129,7 @@ static void PushYMonotonicCubic(dmArray<FontOutlineCommand>& commands, FontOutli
     }
 
     FontOutlinePoint remaining[4] = { p0, p1, p2, p3 };
-    float            previous = 0.0f;
+    float previous = 0.0f;
     for (uint32_t i = 0; i < root_count; ++i)
     {
         float root = roots[i];
@@ -155,7 +155,7 @@ FontResult FontOutlineMakeYMonotonic(FontOutline* outline)
     // place: splitting adds commands and later commands still depend on the
     // original current point.
     dmArray<FontOutlineCommand> commands;
-    FontOutlinePoint            current = {};
+    FontOutlinePoint current = {};
     for (uint32_t i = 0; i < outline->m_CommandCount; ++i)
     {
         const FontOutlineCommand& command = outline->m_Commands[i];
@@ -267,10 +267,10 @@ static void ExtendCubicAxisBounds(float p0, float p1, float p2, float p3, FontOu
 {
     // Solve the quadratic derivative for one axis. Evaluate both coordinates
     // at each interior root so the shared point-based bounds helper can be used.
-    float    a = -p0 + 3.0f * p1 - 3.0f * p2 + p3;
-    float    b = 2.0f * (p0 - 2.0f * p1 + p2);
-    float    c = p1 - p0;
-    float    roots[2];
+    float a = -p0 + 3.0f * p1 - 3.0f * p2 + p3;
+    float b = 2.0f * (p0 - 2.0f * p1 + p2);
+    float c = p1 - p0;
+    float roots[2];
     uint32_t root_count = 0;
     if (fabsf(a) < 1.0e-8f)
     {

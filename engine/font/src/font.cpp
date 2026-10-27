@@ -49,7 +49,7 @@ static FontType GetFontType(const char* path)
 void FontDestroy(HFont hfont)
 {
     assert(hfont);
-    Font*       font = ToFont(hfont);
+    Font* font = ToFont(hfont);
     const char* path = font->m_Path; // Keep it alive during destruction (for better debugging)
     font->m_DestroyFont(font);
     free((void*)path);
@@ -63,8 +63,7 @@ HFont FontLoadFromMemory(const char* path, void* data, uint32_t data_size, bool 
     switch (type)
     {
         case FONT_TYPE_TTF:
-        case FONT_TYPE_OTF:
-            font = FontLoadFromMemoryTTF(path, data, data_size, allocate);
+        case FONT_TYPE_OTF:  font = FontLoadFromMemoryTTF(path, data, data_size, allocate);
             break;
         default:
         {
@@ -76,8 +75,8 @@ HFont FontLoadFromMemory(const char* path, void* data, uint32_t data_size, bool 
 
     if (font)
     {
-        font->m_Type = type;
-        font->m_Path = strdup(path);
+        font->m_Type    = type;
+        font->m_Path    = strdup(path);
         font->m_PathHash = dmHashString32(path);
     }
 
@@ -87,7 +86,7 @@ HFont FontLoadFromMemory(const char* path, void* data, uint32_t data_size, bool 
 HFont FontLoadFromPath(const char* path)
 {
     uint32_t data_size;
-    void*    data = FontReadFile(path, &data_size); // we pass the ownership to the font implementation
+    void* data = FontReadFile(path, &data_size); // we pass the ownership to the font implementation
     if (!data)
     {
         return 0;
@@ -191,7 +190,7 @@ static void Indent(int indent)
 
 void FontDebugGlyph(FontGlyph* glyph, int indent)
 {
-    char     utf8[16];
+    char utf8[16];
     uint32_t len = dmUtf8::ToUtf8(glyph->m_Codepoint, utf8);
     utf8[len] = 0;
 
@@ -232,7 +231,7 @@ void FontDebug(HFont hfont, float scale, float padding, const char* text)
 
     options.m_StbttSDFPadding = padding;
     const char* cursor = text;
-    uint32_t    codepoint = 0;
+    uint32_t codepoint = 0;
     while ((codepoint = dmUtf8::NextChar(&cursor)))
     {
         FontGlyph glyph;

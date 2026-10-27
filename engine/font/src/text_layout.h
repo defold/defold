@@ -105,7 +105,7 @@ struct TextGradientEffect
         // Authored parameters: linear angle in degrees; radial pivot x/y, radius x/y
         // relative to the longer fit dimension, and counterclockwise angle in degrees.
         // Resolved to projection/ellipse transform at draw time.
-        FontColorEffect m_Color;
+        FontColorEffect     m_Color;
     };
     float   m_Hz;
     uint8_t m_Fit;
@@ -255,7 +255,7 @@ struct TextLayout
     uint16_t m_BaseSpanEffectCount;
     uint16_t m_BaseResolvedSpanCount;
 
-    uint16_t m_NumValidGlyphs; // TODO: Remove non renderable glyphs
+    uint16_t m_NumValidGlyphs;                           // TODO: Remove non renderable glyphs
     bool     m_UseRichText;
 
     // Used for creating a cell in the glyph image cache texture
@@ -271,19 +271,19 @@ struct TextLayout
     void*                    m_ObjectContext;
 };
 
-TextResult TextLayoutLegacyCreate(HFontCollection     collection,
-                                  uint32_t*           codepoints,
-                                  uint32_t            num_codepoints,
+TextResult TextLayoutLegacyCreate(HFontCollection collection,
+                                  uint32_t* codepoints,
+                                  uint32_t num_codepoints,
                                   TextLayoutSettings* settings,
-                                  HTextLayout*        outlayout);
+                                  HTextLayout* outlayout);
 
 TextResult TextLayoutLegacyCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout);
 
-TextResult TextLayoutSkribidiCreate(HFontCollection     collection,
-                                    uint32_t*           codepoints,
-                                    uint32_t            num_codepoints,
+TextResult TextLayoutSkribidiCreate(HFontCollection collection,
+                                    uint32_t* codepoints,
+                                    uint32_t num_codepoints,
                                     TextLayoutSettings* settings,
-                                    HTextLayout*        outlayout);
+                                    HTextLayout* outlayout);
 
 TextResult TextLayoutSkribidiCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout);
 

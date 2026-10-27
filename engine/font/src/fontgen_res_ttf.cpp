@@ -65,7 +65,7 @@ namespace dmGameSystem
 
         // We need to keep the original pointer as it may be used elsewhere
         TTFResource* resource = (TTFResource*)dmResource::GetResource(params->m_Resource);
-        HFont        old_font = resource->m_Font;
+        HFont old_font = resource->m_Font;
         resource->m_Font = new_font;
 
         FontDestroy(old_font);
@@ -84,6 +84,7 @@ namespace dmGameSystem
                                                      0, // post create
                                                      TTF_Destroy,
                                                      TTF_Recreate);
+
     }
 
     static ResourceResult DeregisterResourceType_TTFFont(HResourceTypeContext ctx, HResourceType type)

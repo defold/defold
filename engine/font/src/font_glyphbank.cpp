@@ -77,11 +77,11 @@ static float GlyphBankGetLineGap(HFont hfont, float scale)
 static uint32_t GlyphBankGetGlyphIndex(HFont hfont, uint32_t codepoint)
 {
     FontGlyphBankProvider* provider = GetProvider(hfont);
-    int32_t                left = 0;
-    int32_t                right = (int32_t)provider->m_GlyphCount - 1;
+    int32_t left = 0;
+    int32_t right = (int32_t)provider->m_GlyphCount - 1;
     while (left <= right)
     {
-        const int32_t  mid = left + (right - left) / 2;
+        const int32_t mid = left + (right - left) / 2;
         const uint32_t current = provider->m_GetCodepoint(provider->m_Context, (uint32_t)mid);
         if (current == codepoint)
             return (uint32_t)mid + 1;

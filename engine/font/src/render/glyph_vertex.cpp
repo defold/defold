@@ -43,13 +43,13 @@ struct QuadPositions
 
 // Transforms one quad origin and derives the other corners from its two edges.
 static void CalculateQuadPositions(const dmVMath::Matrix4& transform,
-                                   float                   origin_x,
-                                   float                   origin_y,
-                                   float                   edge_x_x,
-                                   float                   edge_x_y,
-                                   float                   edge_y_x,
-                                   float                   edge_y_y,
-                                   QuadPositions*          positions)
+                                   float origin_x,
+                                   float origin_y,
+                                   float edge_x_x,
+                                   float edge_x_y,
+                                   float edge_y_x,
+                                   float edge_y_y,
+                                   QuadPositions* positions)
 {
     const Vector4 transformed_edge_x = transform.getCol0() * edge_x_x + transform.getCol1() * edge_x_y;
     const Vector4 transformed_edge_y = transform.getCol0() * edge_y_x + transform.getCol1() * edge_y_y;
@@ -167,8 +167,8 @@ void FontGetDecorationPattern(const TextDecoration& decoration, const FontDecora
 void FontGetDecorationEndGlyphs(HTextLayout layout, const TextDecoration& decoration, uint32_t* left, uint32_t* right)
 {
     const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
-    uint32_t         left_index = decoration.m_GlyphStart;
-    uint32_t         right_index = left_index;
+    uint32_t left_index = decoration.m_GlyphStart;
+    uint32_t right_index = left_index;
 
     for (uint32_t i = 1; i < decoration.m_GlyphCount; ++i)
     {
@@ -197,7 +197,7 @@ void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decor
 void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decoration, const float base_color[4], TextGlyphFaceColors* face_colors, bool apply_gradients)
 {
     const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
-    uint32_t         left_index, right_index;
+    uint32_t left_index, right_index;
     FontGetDecorationEndGlyphs(layout, decoration, &left_index, &right_index);
     TextGlyphRenderData left;
     TextGlyphRenderData right;
@@ -215,31 +215,31 @@ void FontPackGlyphVertices(const FontGlyphVertexParams& params, const FontVertex
 {
     assert(layers.m_Transform);
 
-    FontGlyph*              glyph = params.m_Glyph;
-    const float             recip_w = params.m_RecipAtlasWidth;
-    const float             recip_h = params.m_RecipAtlasHeight;
-    const int32_t           cell_x = (int32_t)params.m_CellX;
-    const int32_t           cell_y = (int32_t)params.m_CellY;
-    const int32_t           cache_cell_max_ascent = params.m_CacheCellMaxAscent;
-    const int32_t           cache_cell_padding = (int32_t)params.m_CacheCellPadding;
-    const uint32_t          layer_count = layers.m_LayerCount;
+    FontGlyph* glyph = params.m_Glyph;
+    const float recip_w = params.m_RecipAtlasWidth;
+    const float recip_h = params.m_RecipAtlasHeight;
+    const int32_t cell_x = (int32_t)params.m_CellX;
+    const int32_t cell_y = (int32_t)params.m_CellY;
+    const int32_t cache_cell_max_ascent = params.m_CacheCellMaxAscent;
+    const int32_t cache_cell_padding = (int32_t)params.m_CacheCellPadding;
+    const uint32_t layer_count = layers.m_LayerCount;
     const dmVMath::Matrix4& transform = *layers.m_Transform;
-    const float             x = params.m_X;
-    const float             y = params.m_Y;
-    const float             render_scale = params.m_RenderScale;
-    const uint32_t*         face_colors = layers.m_FaceColors;
-    const uint32_t          outline_color = layers.m_OutlineColor;
-    const uint32_t          shadow_color = layers.m_ShadowColor;
-    const float             sdf_edge_value = layers.m_SdfEdge;
-    const float             sdf_outline = layers.m_SdfOutline;
-    const float             sdf_smoothing = layers.m_SdfSmoothing;
-    const float             sdf_shadow = layers.m_SdfShadow;
-    const float             shadow_x = layers.m_ShadowX;
-    const float             shadow_y = layers.m_ShadowY;
-    const bool              metrics_from_ttf = params.m_MetricsFromTtf;
-    FontGlyphVertex*        face_vertices = layers.m_FaceVertices;
-    FontGlyphVertex*        outline_vertices = layers.m_OutlineVertices;
-    FontGlyphVertex*        shadow_vertices = layers.m_ShadowVertices;
+    const float x = params.m_X;
+    const float y = params.m_Y;
+    const float render_scale = params.m_RenderScale;
+    const uint32_t* face_colors = layers.m_FaceColors;
+    const uint32_t outline_color = layers.m_OutlineColor;
+    const uint32_t shadow_color = layers.m_ShadowColor;
+    const float sdf_edge_value = layers.m_SdfEdge;
+    const float sdf_outline = layers.m_SdfOutline;
+    const float sdf_smoothing = layers.m_SdfSmoothing;
+    const float sdf_shadow = layers.m_SdfShadow;
+    const float shadow_x = layers.m_ShadowX;
+    const float shadow_y = layers.m_ShadowY;
+    const bool metrics_from_ttf = params.m_MetricsFromTtf;
+    FontGlyphVertex* face_vertices = layers.m_FaceVertices;
+    FontGlyphVertex* outline_vertices = layers.m_OutlineVertices;
+    FontGlyphVertex* shadow_vertices = layers.m_ShadowVertices;
 
     assert(layer_count > 0 && layer_count <= FONT_GLYPH_MAX_LAYER_COUNT);
     assert(face_colors);
@@ -272,11 +272,11 @@ void FontPackGlyphVertices(const FontGlyphVertexParams& params, const FontVertex
     const int32_t descent = (int32_t)source_descent;
     const int32_t ascent = (int32_t)source_ascent;
     const int32_t cell_offset_y = cache_cell_max_ascent - ascent;
-    const float   glyph_width = source_width * render_scale;
-    const float   glyph_descent = source_descent * render_scale;
-    const float   glyph_ascent = source_ascent * render_scale;
-    const float   glyph_left_bearing = source_left_bearing * render_scale;
-    const float   local_x = x - source_size_difference * render_scale * 0.5f;
+    const float glyph_width = source_width * render_scale;
+    const float glyph_descent = source_descent * render_scale;
+    const float glyph_ascent = source_ascent * render_scale;
+    const float glyph_left_bearing = source_left_bearing * render_scale;
+    const float local_x = x - source_size_difference * render_scale * 0.5f;
 
     FontGlyphVertex& face_1 = face_vertices[0];
     FontGlyphVertex& face_2 = face_vertices[1];
@@ -340,8 +340,8 @@ void FontPackGlyphVertices(const FontGlyphVertexParams& params, const FontVertex
 
         FontGlyphVertex& shadow_4 = shadow_vertices[3];
         FontGlyphVertex& shadow_5 = shadow_vertices[4];
-        const Vector4    shadow_offset = transform.getCol0() * shadow_x + transform.getCol1() * shadow_y;
-        QuadPositions    shadow_positions;
+        const Vector4 shadow_offset = transform.getCol0() * shadow_x + transform.getCol1() * shadow_y;
+        QuadPositions shadow_positions;
         shadow_positions.m_BottomLeft = face_positions.m_BottomLeft + shadow_offset;
         shadow_positions.m_BottomRight = face_positions.m_BottomRight + shadow_offset;
         shadow_positions.m_TopLeft = face_positions.m_TopLeft + shadow_offset;
@@ -372,42 +372,42 @@ void FontPackDecorationVertices(const FontDecorationVertexParams& params, const 
 {
     assert(layers.m_Transform);
 
-    const float             texture_u = params.m_TextureU;
-    const float             texture_v = params.m_TextureV;
-    const uint32_t          layer_count = layers.m_LayerCount;
+    const float texture_u = params.m_TextureU;
+    const float texture_v = params.m_TextureV;
+    const uint32_t layer_count = layers.m_LayerCount;
     const dmVMath::Matrix4& transform = *layers.m_Transform;
-    const float             x0 = params.m_X0;
-    const float             y0 = params.m_Y0;
-    const float             x1 = params.m_X1;
-    const float             y1 = params.m_Y1;
-    const float             thickness = params.m_Thickness;
-    const float             pattern_start = params.m_PatternStart;
-    const float             pattern_end = params.m_PatternEnd;
-    const float             pattern_duty = params.m_PatternDuty;
-    const uint32_t*         face_colors = layers.m_FaceColors;
-    const uint32_t          outline_color = layers.m_OutlineColor;
-    const uint32_t          shadow_color = layers.m_ShadowColor;
-    const float             sdf_edge_value = layers.m_SdfEdge;
-    const float             sdf_outline = layers.m_SdfOutline;
-    const float             sdf_smoothing = layers.m_SdfSmoothing;
-    const float             sdf_shadow = layers.m_SdfShadow;
-    const float             outline_width = params.m_OutlineWidth;
-    const float             shadow_x = layers.m_ShadowX;
-    const float             shadow_y = layers.m_ShadowY;
-    FontGlyphVertex*        face_vertices = layers.m_FaceVertices;
-    FontGlyphVertex*        outline_vertices = layers.m_OutlineVertices;
-    FontGlyphVertex*        shadow_vertices = layers.m_ShadowVertices;
+    const float x0 = params.m_X0;
+    const float y0 = params.m_Y0;
+    const float x1 = params.m_X1;
+    const float y1 = params.m_Y1;
+    const float thickness = params.m_Thickness;
+    const float pattern_start = params.m_PatternStart;
+    const float pattern_end = params.m_PatternEnd;
+    const float pattern_duty = params.m_PatternDuty;
+    const uint32_t* face_colors = layers.m_FaceColors;
+    const uint32_t outline_color = layers.m_OutlineColor;
+    const uint32_t shadow_color = layers.m_ShadowColor;
+    const float sdf_edge_value = layers.m_SdfEdge;
+    const float sdf_outline = layers.m_SdfOutline;
+    const float sdf_smoothing = layers.m_SdfSmoothing;
+    const float sdf_shadow = layers.m_SdfShadow;
+    const float outline_width = params.m_OutlineWidth;
+    const float shadow_x = layers.m_ShadowX;
+    const float shadow_y = layers.m_ShadowY;
+    FontGlyphVertex* face_vertices = layers.m_FaceVertices;
+    FontGlyphVertex* outline_vertices = layers.m_OutlineVertices;
+    FontGlyphVertex* shadow_vertices = layers.m_ShadowVertices;
 
     assert(layer_count > 0 && layer_count <= FONT_GLYPH_MAX_LAYER_COUNT);
     assert(face_colors);
     assert(face_vertices);
 
-    const float   delta_x = x1 - x0;
-    const float   delta_y = y1 - y0;
-    const float   length = sqrtf(delta_x * delta_x + delta_y * delta_y);
-    const float   normal_scale = length > 0.0f ? thickness * 0.5f / length : 0.0f;
-    const float   normal_x = -delta_y * normal_scale;
-    const float   normal_y = delta_x * normal_scale;
+    const float delta_x = x1 - x0;
+    const float delta_y = y1 - y0;
+    const float length = sqrtf(delta_x * delta_x + delta_y * delta_y);
+    const float normal_scale = length > 0.0f ? thickness * 0.5f / length : 0.0f;
+    const float normal_x = -delta_y * normal_scale;
+    const float normal_y = delta_x * normal_scale;
     QuadPositions positions;
     CalculateQuadPositions(transform, x0 - normal_x, y0 - normal_y, delta_x, delta_y, normal_x * 2.0f, normal_y * 2.0f, &positions);
     SetQuadPositions(face_vertices, positions);
@@ -437,11 +437,11 @@ void FontPackDecorationVertices(const FontDecorationVertexParams& params, const 
     {
         memcpy(outline_vertices, face_vertices, sizeof(FontGlyphVertex) * FONT_GLYPH_VERTICES_PER_QUAD);
 
-        const float   tangent_x = length > 0.0f ? delta_x / length : 0.0f;
-        const float   tangent_y = length > 0.0f ? delta_y / length : 0.0f;
-        const float   outline_normal_scale = length > 0.0f ? (thickness * 0.5f + outline_width) / length : 0.0f;
-        const float   outline_normal_x = -delta_y * outline_normal_scale;
-        const float   outline_normal_y = delta_x * outline_normal_scale;
+        const float tangent_x = length > 0.0f ? delta_x / length : 0.0f;
+        const float tangent_y = length > 0.0f ? delta_y / length : 0.0f;
+        const float outline_normal_scale = length > 0.0f ? (thickness * 0.5f + outline_width) / length : 0.0f;
+        const float outline_normal_x = -delta_y * outline_normal_scale;
+        const float outline_normal_y = delta_x * outline_normal_scale;
         QuadPositions outline_positions;
         CalculateQuadPositions(transform,
                                x0 - tangent_x * outline_width - outline_normal_x,
@@ -470,12 +470,12 @@ void FontPackDecorationVertices(const FontDecorationVertexParams& params, const 
         shadow_vertices[4] = shadow_vertices[1];
     }
 
-    const float      cycles_per_unit = length > 0.0f ? (pattern_end - pattern_start) / length : 0.0f;
-    const float      layer_pattern_start[3] = { pattern_start, pattern_start - outline_width * cycles_per_unit, pattern_start };
-    const float      layer_pattern_end[3] = { pattern_end, pattern_end + outline_width * cycles_per_unit, pattern_end };
+    const float cycles_per_unit = length > 0.0f ? (pattern_end - pattern_start) / length : 0.0f;
+    const float layer_pattern_start[3] = { pattern_start, pattern_start - outline_width * cycles_per_unit, pattern_start };
+    const float layer_pattern_end[3] = { pattern_end, pattern_end + outline_width * cycles_per_unit, pattern_end };
     FontGlyphVertex* layer_vertices[3] = { face_vertices, outline_vertices, shadow_vertices };
-    const float      single_layer_effects = layer_count == 1 && !layers.m_FaceOnly ? 1.0f : 0.0f;
-    const float      solid_masks[3][3] = {
+    const float single_layer_effects = layer_count == 1 && !layers.m_FaceOnly ? 1.0f : 0.0f;
+    const float solid_masks[3][3] = {
         { 1.0f, single_layer_effects, single_layer_effects },
         { 0.0f, 1.0f, 0.0f },
         { 0.0f, 0.0f, 1.0f },

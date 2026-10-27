@@ -28,8 +28,8 @@ static uint16_t ToHalf(float value)
     uint32_t bits;
     memcpy(&bits, &value, sizeof(bits));
     const uint32_t sign = (bits >> 16) & 0x8000;
-    const int      exponent = (int)((bits >> 23) & 255) - 127 + 15;
-    uint32_t       mantissa = bits & 0x7fffff;
+    const int exponent = (int)((bits >> 23) & 255) - 127 + 15;
+    uint32_t mantissa = bits & 0x7fffff;
     if (exponent >= 31)
         return (uint16_t)(sign | 0x7c00);
     if (exponent < -10)
@@ -37,7 +37,7 @@ static uint16_t ToHalf(float value)
     const uint32_t shift = exponent <= 0 ? 14 - exponent : 13;
     if (exponent <= 0)
         mantissa |= 0x800000;
-    uint32_t       result = mantissa >> shift;
+    uint32_t result = mantissa >> shift;
     const uint32_t remainder = mantissa & ((1u << shift) - 1);
     const uint32_t halfway = 1u << (shift - 1);
     result += remainder > halfway || (remainder == halfway && (result & 1));
@@ -49,8 +49,8 @@ static uint16_t ToHalf(float value)
 static float FromHalf(uint16_t value)
 {
     const uint32_t sign = (uint32_t)(value & 0x8000) << 16;
-    uint32_t       mantissa = value & 1023;
-    int            exponent = (value >> 10) & 31;
+    uint32_t mantissa = value & 1023;
+    int exponent = (value >> 10) & 31;
     if (!exponent && !mantissa)
     {
         float result;
@@ -68,7 +68,7 @@ static float FromHalf(uint16_t value)
         mantissa &= 1023;
     }
     uint32_t bits = sign | ((uint32_t)(exponent + 112) << 23) | (mantissa << 13);
-    float    result;
+    float result;
     memcpy(&result, &bits, sizeof(result));
     return result;
 }
@@ -158,12 +158,12 @@ static bool AppendCurves(FontVectorSlugData* data, dmArray<SlugCurve>& curves, u
     if (curves.Empty())
         return true;
     const uint32_t limit = data->m_MaxTexels;
-    float          minimum[2] = { 1e30f, 1e30f };
-    float          maximum[2] = { -1e30f, -1e30f };
+    float minimum[2] = { 1e30f, 1e30f };
+    float maximum[2] = { -1e30f, -1e30f };
     for (uint32_t i = 0; i < curves.Size(); ++i)
     {
         SlugCurve& curve = curves[i];
-        uint32_t   texel = data->m_Curves.Size() / 4;
+        uint32_t texel = data->m_Curves.Size() / 4;
         const bool share = i && Same(curves[i - 1].m_P[2], curve.m_P[0]) && texel % FONT_VECTOR_SLUG_WIDTH != 0;
         if (share)
             --texel;
@@ -210,18 +210,18 @@ static bool AppendCurves(FontVectorSlugData* data, dmArray<SlugCurve>& curves, u
         {
             const float lo = minimum[axis] + band / glyph->m_BandTransform[axis] - 1.0f / 1024.0f;
             const float hi = minimum[axis] + (band + 1) / glyph->m_BandTransform[axis] + 1.0f / 1024.0f;
-            uint32_t    count = 0;
+            uint32_t count = 0;
             for (uint32_t i = 0; i < curves.Size(); ++i)
             {
                 const SlugCurve& c = curves[i];
-                const float      a = Coordinate(c.m_P[0], axis);
-                const float      b = Coordinate(c.m_P[1], axis);
-                const float      z = Coordinate(c.m_P[2], axis);
+                const float a = Coordinate(c.m_P[0], axis);
+                const float b = Coordinate(c.m_P[1], axis);
+                const float z = Coordinate(c.m_P[2], axis);
                 if (a == b && a == z)
                     continue;
                 if (dmMath::Min(a, dmMath::Min(b, z)) > hi || dmMath::Max(a, dmMath::Max(b, z)) < lo)
                     continue;
-                uint32_t    j = count++;
+                uint32_t j = count++;
                 const float maximum = Maximum(c, direction);
                 while (j && Maximum(curves[indices[j - 1]], direction) < maximum)
                 {
@@ -279,9 +279,9 @@ bool FontVectorSlugAddGlyph(FontVectorSlugData* data, const FontGlyphOutline& ou
         outline.m_CommandCount > 4096 || (outline.m_CommandCount && !outline.m_Commands))
         return false;
     dmArray<SlugCurve> curves;
-    FontCurvePoint     current = {};
-    FontCurvePoint     start = {};
-    bool               active = false;
+    FontCurvePoint current = {};
+    FontCurvePoint start = {};
+    bool active = false;
     for (uint32_t i = 0; i < outline.m_CommandCount; ++i)
     {
         const FontCurveCommand& c = outline.m_Commands[i];
@@ -344,7 +344,7 @@ bool FontVectorSlugAddFontGlyph(FontVectorSlugData* data, const FontGlyph& sourc
         return EncodeCurves(data, curves, bands, glyph);
     }
     const FontGlyphOutline& outline = source.m_Outline;
-    const float             height = outline.m_Ascent + outline.m_Descent;
+    const float height = outline.m_Ascent + outline.m_Descent;
     if (!isfinite(outline.m_Width) || !isfinite(height) || outline.m_Width <= 0 || height <= 0 ||
         outline.m_CommandCount > 4096 || (outline.m_CommandCount && !outline.m_Commands))
         return false;

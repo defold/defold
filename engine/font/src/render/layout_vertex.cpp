@@ -81,8 +81,8 @@ static float GetLineStartX(const FontLayoutVertexConfig& config, const TextLine&
 
 static const uint32_t SHADOW_STYLE_FLAGS = TEXT_RENDER_STYLE_SHADOW_COLOR | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y | TEXT_RENDER_STYLE_SHADOW_BLUR | TEXT_RENDER_STYLE_SHADOW_ALPHA;
 static const uint32_t OUTLINE_STYLE_FLAGS = TEXT_RENDER_STYLE_OUTLINE_COLOR | TEXT_RENDER_STYLE_OUTLINE_WIDTH | TEXT_RENDER_STYLE_OUTLINE_ALPHA;
-static const float    FACE_SHADOW_THRESHOLD_BASE = 1.5f;
-static const float    FACE_SHADOW_THRESHOLD_SCALE = 0.5f;
+static const float FACE_SHADOW_THRESHOLD_BASE = 1.5f;
+static const float FACE_SHADOW_THRESHOLD_SCALE = 0.5f;
 
 static float EncodeFaceShadowThreshold(float threshold)
 {
@@ -112,8 +112,8 @@ static uint8_t GetGlyphLayerMask(const FontLayoutVertexConfig& config, const Tex
         return FONT_RENDER_LAYER_FACE;
 
     const TextRenderStyle* style = GetGlyphStyle(config.m_Layout, glyph);
-    uint8_t                mask = FONT_RENDER_LAYER_FACE;
-    const bool             use_rich_text = config.m_Layout->m_UseRichText;
+    uint8_t mask = FONT_RENDER_LAYER_FACE;
+    const bool use_rich_text = config.m_Layout->m_UseRichText;
 
     if ((!use_rich_text && (config.m_BaseLayerMask & FONT_RENDER_LAYER_OUTLINE) != 0) ||
         (use_rich_text && !config.m_IsBMFont && config.m_OutlineWidth > 0.0f && HasMarkupOutline(style)))
@@ -155,15 +155,15 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
         return false;
     }
 
-    uint32_t       glyph_quad_count = 0;
-    uint32_t       outline_quad_count = 0;
-    uint32_t       shadow_quad_count = 0;
-    uint32_t       object_quad_count = 0;
-    TextGlyph*     glyphs = TextLayoutGetGlyphs(config.m_Layout);
+    uint32_t glyph_quad_count = 0;
+    uint32_t outline_quad_count = 0;
+    uint32_t shadow_quad_count = 0;
+    uint32_t object_quad_count = 0;
+    TextGlyph* glyphs = TextLayoutGetGlyphs(config.m_Layout);
     const uint32_t glyph_count = TextLayoutGetGlyphCount(config.m_Layout);
-    uint16_t       cached_style_index = 0;
-    uint8_t        cached_layer_mask = 0;
-    bool           has_cached_layer_mask = false;
+    uint16_t cached_style_index = 0;
+    uint8_t cached_layer_mask = 0;
+    bool has_cached_layer_mask = false;
 
     for (uint32_t i = 0; i < glyph_count; ++i)
     {
@@ -188,15 +188,15 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
         }
     }
 
-    uint32_t              decoration_quad_count = 0;
+    uint32_t decoration_quad_count = 0;
     const TextDecoration* decorations = TextLayoutGetDecorations(config.m_Layout);
-    const uint32_t        decoration_count = TextLayoutGetDecorationCount(config.m_Layout);
+    const uint32_t decoration_count = TextLayoutGetDecorationCount(config.m_Layout);
 
     for (uint32_t i = 0; config.m_RenderDecorations && i < decoration_count; ++i)
     {
         const TextDecoration& decoration = decorations[i];
-        const bool            glyph_segments = FontDecorationRequiresGlyphSegments(config.m_Layout, decoration);
-        const uint32_t        segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
+        const bool glyph_segments = FontDecorationRequiresGlyphSegments(config.m_Layout, decoration);
+        const uint32_t segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
         decoration_quad_count += segment_count;
 
         for (uint32_t segment = 0; segment < segment_count; ++segment)
@@ -204,7 +204,7 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
             FontDecorationSegment decoration_segment;
             FontGetDecorationSegment(config.m_Layout, decoration, segment, segment_count, &decoration_segment);
             const uint32_t glyph_index = decoration_segment.m_GlyphIndex;
-            const uint8_t  layer_mask = GetGlyphLayerMask(config, glyphs[glyph_index]);
+            const uint8_t layer_mask = GetGlyphLayerMask(config, glyphs[glyph_index]);
             outline_quad_count += (layer_mask & FONT_RENDER_LAYER_OUTLINE) != 0;
             shadow_quad_count += (layer_mask & FONT_RENDER_LAYER_SHADOW) != 0;
         }
@@ -213,11 +213,11 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
     const uint64_t required_face_quad_count = (uint64_t)glyph_quad_count + object_quad_count + decoration_quad_count;
     const uint64_t required_quad_count = required_face_quad_count + outline_quad_count + shadow_quad_count;
     const uint32_t max_quad_count = config.m_MaxVertexCount == 0 ? UINT32_MAX : config.m_MaxVertexCount / 6;
-    uint32_t       output_glyph_count = glyph_quad_count;
-    uint32_t       output_outline_count = outline_quad_count;
-    uint32_t       output_shadow_count = shadow_quad_count;
-    uint32_t       output_object_count = object_quad_count;
-    uint32_t       output_decoration_count = decoration_quad_count;
+    uint32_t output_glyph_count = glyph_quad_count;
+    uint32_t output_outline_count = outline_quad_count;
+    uint32_t output_shadow_count = shadow_quad_count;
+    uint32_t output_object_count = object_quad_count;
+    uint32_t output_decoration_count = decoration_quad_count;
 
     if (required_quad_count > max_quad_count)
     {
@@ -235,7 +235,7 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
                 continue;
             }
 
-            const uint8_t  glyph_layer_mask = GetGlyphLayerMask(config, text_glyph);
+            const uint8_t glyph_layer_mask = GetGlyphLayerMask(config, text_glyph);
             const uint32_t glyph_quad_cost =
                 1 +
                 ((glyph_layer_mask & FONT_RENDER_LAYER_OUTLINE) != 0) +
@@ -260,15 +260,15 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
         for (uint32_t i = 0; config.m_RenderDecorations && !decoration_buffer_full && i < decoration_count; ++i)
         {
             const TextDecoration& decoration = decorations[i];
-            const bool            glyph_segments = FontDecorationRequiresGlyphSegments(config.m_Layout, decoration);
-            const uint32_t        segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
+            const bool glyph_segments = FontDecorationRequiresGlyphSegments(config.m_Layout, decoration);
+            const uint32_t segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
 
             for (uint32_t segment = 0; segment < segment_count; ++segment)
             {
                 FontDecorationSegment decoration_segment;
                 FontGetDecorationSegment(config.m_Layout, decoration, segment, segment_count, &decoration_segment);
                 const uint32_t glyph_index = decoration_segment.m_GlyphIndex;
-                const uint8_t  layer_mask = GetGlyphLayerMask(config, glyphs[glyph_index]);
+                const uint8_t layer_mask = GetGlyphLayerMask(config, glyphs[glyph_index]);
                 const uint32_t decoration_quad_cost =
                     1 +
                     ((layer_mask & FONT_RENDER_LAYER_OUTLINE) != 0) +
@@ -319,12 +319,12 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
 
 // Packs one face-only line used by the optional layout-object debug outline.
 static void PackObjectOutlineLine(const FontLayoutVertexConfig& config,
-                                  const TextGlyphFaceColors&    colors,
-                                  float                         x0,
-                                  float                         y0,
-                                  float                         x1,
-                                  float                         y1,
-                                  FontGlyphVertex*              vertices)
+                                  const TextGlyphFaceColors& colors,
+                                  float x0,
+                                  float y0,
+                                  float x1,
+                                  float y1,
+                                  FontGlyphVertex* vertices)
 {
     uint32_t packed_colors[4];
     FontPackGlyphFaceColors(colors, packed_colors);
@@ -352,11 +352,11 @@ static void PackObjectOutlineLine(const FontLayoutVertexConfig& config,
 }
 
 static void EmitObjectOutline(const FontLayoutVertexConfig& config,
-                              const TextGlyph&              text_glyph,
-                              float                         x,
-                              float                         y,
-                              uint32_t*                     vertex_index,
-                              FontGlyphVertex*              vertices)
+                              const TextGlyph& text_glyph,
+                              float x,
+                              float y,
+                              uint32_t* vertex_index,
+                              FontGlyphVertex* vertices)
 {
     TextGlyphFaceColors colors;
     TextLayoutGetGlyphFaceColors(config.m_Layout, text_glyph, config.m_FaceColor, &colors);
@@ -386,7 +386,7 @@ static const TextEffect* FindGlyphGradient(const TextLayout* layout, const TextG
         return 0;
     }
     const TextResolvedSpan& span = layout->m_ResolvedSpans[glyph.m_MarkupSpanIndex];
-    const TextEffect*       effect = 0;
+    const TextEffect* effect = 0;
     for (uint32_t i = 0; i < span.m_EffectCount; ++i)
     {
         const TextEffect& candidate = layout->m_Effects[layout->m_SpanEffects[span.m_EffectIndex + i]];
@@ -412,7 +412,7 @@ static bool ResolveGlyphColorEffect(const FontLayoutVertexConfig& config, const 
     }
 
     const TextGradientEffect& gradient = effect->m_Gradient;
-    FontColorEffect           color = {};
+    FontColorEffect color = {};
     color.m_Type = gradient.m_Mode == TEXT_GRADIENT_MODE_QUAD ? FONT_COLOR_EFFECT_FOUR_CORNER : FONT_COLOR_EFFECT_LINEAR;
     color.m_StopCount = color.m_Type == FONT_COLOR_EFFECT_FOUR_CORNER ? 4 : 2;
     color.m_Flags = FONT_COLOR_EFFECT_MIRROR;
@@ -423,7 +423,7 @@ static bool ResolveGlyphColorEffect(const FontLayoutVertexConfig& config, const 
     }
     for (uint32_t i = 0; i < color.m_StopCount; ++i)
     {
-        const float*   rgba = corners[i];
+        const float* rgba = corners[i];
         const uint32_t packed = FontPackColor(Vector4(rgba[0], rgba[1], rgba[2], rgba[3]));
         memcpy(color.m_Colors[i], &packed, sizeof(packed));
         color.m_Positions[i] = (float)i / (color.m_StopCount - 1);
@@ -492,7 +492,7 @@ static SpatialGradientBounds GetGlyphUnpaddedBounds(const FontLayoutVertexConfig
     FontGlyph metrics = {};
     FontGetGlyphByIndex(glyph.m_Font, glyph.m_GlyphIndex, &options, &metrics);
     // Glyph banks retain baked metrics; dynamic fonts were measured at the styled size.
-    const float           scale = FontGetType(glyph.m_Font) == FONT_TYPE_GLYPH_BANK ? glyph.m_RenderScale : 1.0f;
+    const float scale = FontGetType(glyph.m_Font) == FONT_TYPE_GLYPH_BANK ? glyph.m_RenderScale : 1.0f;
     SpatialGradientBounds bounds = { x + metrics.m_LeftBearing * scale, y - metrics.m_Descent * scale, x + (metrics.m_LeftBearing + metrics.m_Width) * scale, y + metrics.m_Ascent * scale };
     return bounds;
 }
@@ -508,8 +508,8 @@ static void ExpandGradientBounds(SpatialGradientBounds* bounds, const SpatialGra
 void FontPrepareSpatialGradientBounds(const FontLayoutVertexConfig& config)
 {
     TextLayout* layout = config.m_Layout;
-    bool        needed = false;
-    bool        span_bounds = false;
+    bool needed = false;
+    bool span_bounds = false;
     for (uint32_t i = 0; i < layout->m_Effects.Size(); ++i)
     {
         const TextEffect& effect = layout->m_Effects[i];
@@ -529,7 +529,7 @@ void FontPrepareSpatialGradientBounds(const FontLayoutVertexConfig& config)
     // A range tree over source clusters includes glyphs hidden by nested color
     // overrides and handles visual reordering in shaped text. Each glyph is
     // measured once; each authored span queries its range in logarithmic time.
-    uint32_t       leaves = 0;
+    uint32_t leaves = 0;
     if (span_bounds)
     {
         for (uint32_t i = 0; i < layout->m_Glyphs.Size(); ++i)
@@ -546,7 +546,7 @@ void FontPrepareSpatialGradientBounds(const FontLayoutVertexConfig& config)
         layout->m_GradientBounds[i] = empty;
     }
     SpatialGradientBounds& block = layout->m_GradientBounds[effect_count + line_count];
-    const float            layout_y = OffsetLayoutY(config.m_VerticalAlign, config.m_Height, layout->m_Height);
+    const float layout_y = OffsetLayoutY(config.m_VerticalAlign, config.m_Height, layout->m_Height);
     for (uint32_t l = 0; l < line_count; ++l)
     {
         const TextLine& line = layout->m_Lines[l];
@@ -636,9 +636,9 @@ static void ApplySpatialGradientFallback(FontGlyphVertex* vertices, const FontCo
     static const uint8_t corners[6][2] = { { 0, 1 }, { 2, 1 }, { 0, 3 }, { 0, 3 }, { 2, 1 }, { 2, 3 } };
     for (uint32_t i = 0; i < 6; ++i)
     {
-        float    x = effect.m_UV[corners[i][0]], y = effect.m_UV[corners[i][1]];
+        float x = effect.m_UV[corners[i][0]], y = effect.m_UV[corners[i][1]];
         uint32_t left = 0, right = 0;
-        float    t = 0.0f;
+        float t = 0.0f;
         if (color.m_Type == FONT_COLOR_EFFECT_FOUR_CORNER)
         {
             x = SampleGradientCoordinate(x, effect.m_Phase, color.m_Flags);
@@ -693,8 +693,8 @@ void FontApplySpatialGradient(const FontLayoutVertexConfig& config, const TextLi
         return;
     }
     const TextGradientEffect& gradient = effect->m_Gradient;
-    SpatialGradientBounds     bounds = unpadded;
-    const TextLayout*         layout = config.m_Layout;
+    SpatialGradientBounds bounds = unpadded;
+    const TextLayout* layout = config.m_Layout;
     if (gradient.m_Color.m_Type == FONT_COLOR_EFFECT_COLOR)
     {
         bounds = quad;
@@ -835,12 +835,12 @@ static bool GetRenderDataCacheKey(HTextLayout layout, const TextGlyph& glyph, ui
 }
 
 static const TextGlyphRenderData* GetGlyphRenderData(const FontLayoutVertexConfig& config,
-                                                     const TextGlyph&              glyph,
-                                                     bool                          gpu_gradient,
-                                                     GlyphRenderDataCache*         cache,
-                                                     TextGlyphRenderData*          scratch,
-                                                     uint32_t                      scratch_face_colors[4],
-                                                     const uint32_t**              face_colors)
+                                                     const TextGlyph& glyph,
+                                                     bool gpu_gradient,
+                                                     GlyphRenderDataCache* cache,
+                                                     TextGlyphRenderData* scratch,
+                                                     uint32_t scratch_face_colors[4],
+                                                     const uint32_t** face_colors)
 {
     if (cache->m_Valid && cache->m_GPUGradient == gpu_gradient && cache->m_SpanIndex != MARKUP_INVALID_INDEX &&
         cache->m_StyleIndex == glyph.m_StyleIndex && cache->m_SpanIndex == glyph.m_MarkupSpanIndex)
@@ -850,7 +850,7 @@ static const TextGlyphRenderData* GetGlyphRenderData(const FontLayoutVertexConfi
         return &cache->m_Data;
     }
 
-    uint16_t   cache_span_index;
+    uint16_t cache_span_index;
     const bool cacheable = GetRenderDataCacheKey(config.m_Layout, glyph, &cache_span_index);
 
     if (cacheable && cache->m_Valid && cache->m_GPUGradient == gpu_gradient && cache->m_StyleIndex == glyph.m_StyleIndex && cache->m_SpanIndex == cache_span_index)
@@ -885,23 +885,23 @@ static float GetGlyphRenderScale(const FontLayoutVertexConfig& config, const Tex
 // Resolves the final outline and shadow values shared by glyph and decoration
 // vertices. Layer presence is derived from the same style flags as metrics.
 void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
-                                     const TextGlyph&              glyph,
-                                     const TextGlyphRenderData&    render_data,
-                                     FontGlyphLayerRenderData*     layer_data)
+                                     const TextGlyph& glyph,
+                                     const TextGlyphRenderData& render_data,
+                                     FontGlyphLayerRenderData* layer_data)
 {
-    const float   render_scale = GetGlyphRenderScale(config, glyph);
-    const bool    use_rich_text = config.m_Layout->m_UseRichText;
-    const bool    has_base_outline = !use_rich_text &&
-                                     ((config.m_BaseLayerMask & FONT_RENDER_LAYER_OUTLINE) != 0 || config.m_OutlineWidth > 0.0f);
-    const bool    has_base_shadow = !use_rich_text &&
-                                    ((config.m_BaseLayerMask & FONT_RENDER_LAYER_SHADOW) != 0 || config.m_BaseShadowAlpha > 0.0f);
-    const bool    has_explicit_outline_width = (render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) != 0;
-    const bool    markup_outline = use_rich_text &&
-                                   (render_data.m_StyleFlags & OUTLINE_STYLE_FLAGS) != 0 &&
-                                   (!has_explicit_outline_width || render_data.m_OutlineWidth > 0.0f) &&
-                                   config.m_OutlineWidth > 0.0f;
-    const float   outline_alpha = !has_base_outline && !markup_outline ? 0.0f : config.m_OutlineColor.getW() * render_data.m_OutlineColor[3];
-    const bool    markup_outline_color = markup_outline && (render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_COLOR) != 0;
+    const float render_scale = GetGlyphRenderScale(config, glyph);
+    const bool use_rich_text = config.m_Layout->m_UseRichText;
+    const bool has_base_outline = !use_rich_text &&
+                                  ((config.m_BaseLayerMask & FONT_RENDER_LAYER_OUTLINE) != 0 || config.m_OutlineWidth > 0.0f);
+    const bool has_base_shadow = !use_rich_text &&
+                                 ((config.m_BaseLayerMask & FONT_RENDER_LAYER_SHADOW) != 0 || config.m_BaseShadowAlpha > 0.0f);
+    const bool has_explicit_outline_width = (render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) != 0;
+    const bool markup_outline = use_rich_text &&
+                                (render_data.m_StyleFlags & OUTLINE_STYLE_FLAGS) != 0 &&
+                                (!has_explicit_outline_width || render_data.m_OutlineWidth > 0.0f) &&
+                                config.m_OutlineWidth > 0.0f;
+    const float outline_alpha = !has_base_outline && !markup_outline ? 0.0f : config.m_OutlineColor.getW() * render_data.m_OutlineColor[3];
+    const bool markup_outline_color = markup_outline && (render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_COLOR) != 0;
     const Vector4 outline_color(markup_outline_color ? render_data.m_OutlineColor[0] : config.m_OutlineColor.getX(),
                                 markup_outline_color ? render_data.m_OutlineColor[1] : config.m_OutlineColor.getY(),
                                 markup_outline_color ? render_data.m_OutlineColor[2] : config.m_OutlineColor.getZ(),
@@ -931,7 +931,7 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
     }
 
     const bool markup_shadow = use_rich_text && (render_data.m_StyleFlags & SHADOW_STYLE_FLAGS) != 0;
-    float      shadow_alpha = 0.0f;
+    float shadow_alpha = 0.0f;
     if (markup_shadow)
     {
         shadow_alpha = config.m_ShadowColor.getW() * render_data.m_ShadowColor[3];
@@ -940,7 +940,7 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
     {
         shadow_alpha = config.m_ShadowColor.getW() * config.m_BaseShadowAlpha * render_data.m_ShadowColor[3];
     }
-    const bool    markup_shadow_color = markup_shadow && (render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_COLOR) != 0;
+    const bool markup_shadow_color = markup_shadow && (render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_COLOR) != 0;
     const Vector4 shadow_color(markup_shadow_color ? render_data.m_ShadowColor[0] : config.m_ShadowColor.getX(),
                                markup_shadow_color ? render_data.m_ShadowColor[1] : config.m_ShadowColor.getY(),
                                markup_shadow_color ? render_data.m_ShadowColor[2] : config.m_ShadowColor.getZ(),
@@ -949,7 +949,7 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
 
     if (markup_shadow)
     {
-        const bool  has_explicit_blur = (render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_BLUR) != 0;
+        const bool has_explicit_blur = (render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_BLUR) != 0;
         const float requested_blur = has_explicit_blur ? render_data.m_ShadowBlur / render_scale : config.m_ShadowBlur;
 
         const bool shadow_has_hidden_outline = config.m_ShadowIncludesOutline && !markup_outline;
@@ -957,12 +957,12 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
         // Preserve their shadow channel in both layer modes; authored shadow
         // overrides retain the face-based coverage used by rich text.
         const uint32_t override_flags = glyph.m_StyleIndex < config.m_Layout->m_StyleOverrideFlags.Size() ?
-                                         config.m_Layout->m_StyleOverrideFlags[glyph.m_StyleIndex] : render_data.m_StyleFlags;
-        const bool     inherited_shadow = (override_flags & SHADOW_STYLE_FLAGS) == 0;
-        const bool     use_baked_shadow = (inherited_shadow || config.m_BaseLayerMask == FONT_RENDER_LAYER_FACE) &&
-                                          config.m_BaseShadowAlpha > 0.0f && requested_blur >= config.m_ShadowBlur &&
-                                          !shadow_has_hidden_outline;
-        const bool     use_face_coverage = requested_blur <= 0.0f || config.m_ShadowBlur <= 0.0f || shadow_has_hidden_outline;
+                                        config.m_Layout->m_StyleOverrideFlags[glyph.m_StyleIndex] : render_data.m_StyleFlags;
+        const bool inherited_shadow = (override_flags & SHADOW_STYLE_FLAGS) == 0;
+        const bool use_baked_shadow = (inherited_shadow || config.m_BaseLayerMask == FONT_RENDER_LAYER_FACE) &&
+                                      config.m_BaseShadowAlpha > 0.0f && requested_blur >= config.m_ShadowBlur &&
+                                      !shadow_has_hidden_outline;
+        const bool use_face_coverage = requested_blur <= 0.0f || config.m_ShadowBlur <= 0.0f || shadow_has_hidden_outline;
         if (!use_baked_shadow && use_face_coverage)
         {
             layer_data->m_SdfShadow = config.m_SdfEdge;
@@ -992,15 +992,15 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
 }
 
 // Builds the shared layer parameters for a resolved glyph or decoration span.
-static void SetVertexLayerParams(const FontLayoutVertexConfig&   config,
+static void SetVertexLayerParams(const FontLayoutVertexConfig& config,
                                  const FontGlyphLayerRenderData& render_data,
-                                 const uint32_t                  face_colors[4],
-                                 float                           render_scale,
-                                 uint32_t                        layer_count,
-                                 FontGlyphVertex*                face_vertices,
-                                 FontGlyphVertex*                outline_vertices,
-                                 FontGlyphVertex*                shadow_vertices,
-                                 FontVertexLayerParams*          params)
+                                 const uint32_t face_colors[4],
+                                 float render_scale,
+                                 uint32_t layer_count,
+                                 FontGlyphVertex* face_vertices,
+                                 FontGlyphVertex* outline_vertices,
+                                 FontGlyphVertex* shadow_vertices,
+                                 FontVertexLayerParams* params)
 {
     params->m_Transform = &config.m_Transform;
     params->m_FaceColors = face_colors;
@@ -1022,32 +1022,32 @@ static void SetVertexLayerParams(const FontLayoutVertexConfig&   config,
     params->m_FaceOnly = config.m_BaseLayerMask != FONT_RENDER_LAYER_FACE;
 }
 
-uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
+uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig& config,
                                   const FontLayoutVertexMetrics& metrics,
-                                  FontGlyphVertex*               vertices,
-                                  uint32_t                       max_vertices)
+                                  FontGlyphVertex* vertices,
+                                  uint32_t max_vertices)
 {
     if (metrics.m_VertexCount > max_vertices)
     {
         return 0;
     }
 
-    TextGlyph*     glyphs = TextLayoutGetGlyphs(config.m_Layout);
-    TextLine*      lines = TextLayoutGetLines(config.m_Layout);
+    TextGlyph* glyphs = TextLayoutGetGlyphs(config.m_Layout);
+    TextLine* lines = TextLayoutGetLines(config.m_Layout);
     TextParagraph* paragraphs = TextLayoutGetParagraphs(config.m_Layout);
-    float          layout_width;
-    float          layout_height;
+    float layout_width;
+    float layout_height;
     TextLayoutGetBounds(config.m_Layout, &layout_width, &layout_height);
     (void)layout_width;
-    const float              layout_y = OffsetLayoutY(config.m_VerticalAlign, config.m_Height, layout_height);
-    uint32_t                 shadow_vertex_index = 0;
-    uint32_t                 outline_vertex_index = metrics.m_ShadowQuadCount * 6;
-    uint32_t                 face_vertex_index = (metrics.m_ShadowQuadCount + metrics.m_OutlineQuadCount) * 6;
-    uint32_t                 emitted_glyphs = 0;
-    uint32_t                 emitted_outlines = 0;
-    uint32_t                 emitted_shadows = 0;
-    uint32_t                 emitted_objects = 0;
-    GlyphRenderDataCache     render_data_cache = {};
+    const float layout_y = OffsetLayoutY(config.m_VerticalAlign, config.m_Height, layout_height);
+    uint32_t shadow_vertex_index = 0;
+    uint32_t outline_vertex_index = metrics.m_ShadowQuadCount * 6;
+    uint32_t face_vertex_index = (metrics.m_ShadowQuadCount + metrics.m_OutlineQuadCount) * 6;
+    uint32_t emitted_glyphs = 0;
+    uint32_t emitted_outlines = 0;
+    uint32_t emitted_shadows = 0;
+    uint32_t emitted_objects = 0;
+    GlyphRenderDataCache render_data_cache = {};
     FontSpatialGradientCache spatial_cache = {};
     FontPrepareSpatialGradientBounds(config);
     const uint32_t line_count = TextLayoutGetLineCount(config.m_Layout);
@@ -1070,8 +1070,8 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
         for (uint32_t i = line.m_Index; i < line.m_Index + line.m_Length; ++i)
         {
             const TextGlyph& text_glyph = glyphs[i];
-            const float      x = line_x + text_glyph.m_X - first_x;
-            const float      y = line_y + text_glyph.m_Y - first_y;
+            const float x = line_x + text_glyph.m_X - first_x;
+            const float y = line_y + text_glyph.m_Y - first_y;
 
             if (text_glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
             {
@@ -1101,13 +1101,13 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
                 continue;
             }
 
-            GlyphColorEffect           color_effect;
-            const bool                 gpu_gradient = ResolveGlyphColorEffect(config, text_glyph, &color_effect);
-            TextGlyphRenderData        scratch_render_data;
-            uint32_t                   scratch_face_colors[4];
-            const uint32_t*            face_colors;
+            GlyphColorEffect color_effect;
+            const bool gpu_gradient = ResolveGlyphColorEffect(config, text_glyph, &color_effect);
+            TextGlyphRenderData scratch_render_data;
+            uint32_t scratch_face_colors[4];
+            const uint32_t* face_colors;
             const TextGlyphRenderData* render_data = GetGlyphRenderData(config, text_glyph, gpu_gradient, &render_data_cache, &scratch_render_data, scratch_face_colors, &face_colors);
-            FontGlyphLayerRenderData   layer_data;
+            FontGlyphLayerRenderData layer_data;
             FontResolveGlyphLayerRenderData(config, text_glyph, *render_data, &layer_data);
             FontGlyphVertex* outline_vertices = (layer_data.m_LayerMask & FONT_RENDER_LAYER_OUTLINE) != 0 && emitted_outlines < metrics.m_OutlineQuadCount ? vertices + outline_vertex_index : 0;
             FontGlyphVertex* shadow_vertices = (layer_data.m_LayerMask & FONT_RENDER_LAYER_SHADOW) != 0 && emitted_shadows < metrics.m_ShadowQuadCount ? vertices + shadow_vertex_index : 0;
@@ -1132,10 +1132,10 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             const TextEffect* spatial_effect = FindGlyphGradient(config.m_Layout, text_glyph);
             if (cached.m_Glyph && spatial_effect && spatial_effect->m_Gradient.m_Mode == TEXT_GRADIENT_MODE_SPATIAL)
             {
-                const FontGlyph&            glyph = *cached.m_Glyph;
-                const float                 scale = glyph_params.m_RenderScale;
-                const float                 width = config.m_MetricsFromTtf ? glyph.m_Bitmap.m_Width : glyph.m_Width;
-                const float                 left = x + (glyph.m_LeftBearing - (width - glyph.m_Width) * 0.5f) * scale;
+                const FontGlyph& glyph = *cached.m_Glyph;
+                const float scale = glyph_params.m_RenderScale;
+                const float width = config.m_MetricsFromTtf ? glyph.m_Bitmap.m_Width : glyph.m_Width;
+                const float left = x + (glyph.m_LeftBearing - (width - glyph.m_Width) * 0.5f) * scale;
                 const SpatialGradientBounds quad = { left, y - glyph.m_Descent * scale, left + width * scale, y + glyph.m_Ascent * scale };
                 const SpatialGradientBounds unpadded = spatial_effect->m_Gradient.m_Fit == TEXT_EFFECT_FIT_GLYPH && spatial_effect->m_Gradient.m_Color.m_Type != FONT_COLOR_EFFECT_COLOR ? GetGlyphUnpaddedBounds(config, text_glyph, x, y) : quad;
                 FontApplySpatialGradient(config, line, text_glyph, unpadded, quad, &spatial_cache, layers);
@@ -1169,16 +1169,16 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
     // glyph, and split only when needed to preserve per-glyph styling. Position
     // effects remain on glyphs and do not move decorations.
     const TextDecoration* decorations = TextLayoutGetDecorations(config.m_Layout);
-    const uint32_t        decoration_vertex_index = face_vertex_index;
-    const uint32_t        decoration_count = TextLayoutGetDecorationCount(config.m_Layout);
-    uint32_t              emitted_decorations = 0;
-    uint32_t              cached_line_index = UINT32_MAX;
-    float                 cached_first_x = 0.0f;
+    const uint32_t decoration_vertex_index = face_vertex_index;
+    const uint32_t decoration_count = TextLayoutGetDecorationCount(config.m_Layout);
+    uint32_t emitted_decorations = 0;
+    uint32_t cached_line_index = UINT32_MAX;
+    float cached_first_x = 0.0f;
 
     for (uint32_t decoration_index = 0; config.m_RenderDecorations && decoration_index < decoration_count && emitted_decorations < metrics.m_DecorationQuadCount; ++decoration_index)
     {
         const TextDecoration& decoration = decorations[decoration_index];
-        const TextLine&       line = lines[decoration.m_LineIndex];
+        const TextLine& line = lines[decoration.m_LineIndex];
 
         if (line.m_Length == 0)
         {
@@ -1191,15 +1191,15 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             cached_first_x = TextLayoutGetLineOriginX(config.m_Layout, decoration.m_LineIndex);
         }
 
-        const float         line_x = GetLineStartX(config, line, paragraphs[line.m_ParagraphIndex].m_Direction);
-        const float         line_y = layout_y + line.m_Baseline;
-        const bool          glyph_segments = FontDecorationRequiresGlyphSegments(config.m_Layout, decoration);
-        const uint32_t      segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
+        const float line_x = GetLineStartX(config, line, paragraphs[line.m_ParagraphIndex].m_Direction);
+        const float line_y = layout_y + line.m_Baseline;
+        const bool glyph_segments = FontDecorationRequiresGlyphSegments(config.m_Layout, decoration);
+        const uint32_t segment_count = glyph_segments ? decoration.m_GlyphCount : 1;
         TextGlyphFaceColors decoration_colors;
-        uint32_t            packed_decoration_colors[4];
+        uint32_t packed_decoration_colors[4];
 
         GlyphColorEffect decoration_effect;
-        bool             gpu_decoration = false;
+        bool gpu_decoration = false;
         if (!glyph_segments && config.m_ResolveEffect)
         {
             uint32_t left, right;
@@ -1223,17 +1223,17 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
         {
             FontDecorationSegment decoration_segment;
             FontGetDecorationSegment(config.m_Layout, decoration, segment, segment_count, &decoration_segment);
-            const uint32_t      glyph_index = decoration_segment.m_GlyphIndex;
-            const TextGlyph&    glyph = glyphs[glyph_index];
+            const uint32_t glyph_index = decoration_segment.m_GlyphIndex;
+            const TextGlyph& glyph = glyphs[glyph_index];
             TextGlyphRenderData render_data;
-            GlyphColorEffect    color_effect;
-            const bool          gpu_gradient = glyph_segments ? ResolveGlyphColorEffect(config, glyph, &color_effect) : gpu_decoration;
+            GlyphColorEffect color_effect;
+            const bool gpu_gradient = glyph_segments ? ResolveGlyphColorEffect(config, glyph, &color_effect) : gpu_decoration;
             if (gpu_decoration)
             {
                 color_effect = decoration_effect;
             }
             TextLayoutGetGlyphRenderData(config.m_Layout, glyph, config.m_FaceColor, &render_data, !gpu_gradient);
-            uint32_t        segment_colors[4];
+            uint32_t segment_colors[4];
             const uint32_t* face_colors = packed_decoration_colors;
 
             if (glyph_segments)
@@ -1242,7 +1242,7 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
                 face_colors = segment_colors;
             }
 
-            const float           x0 = line_x + decoration_segment.m_X - cached_first_x;
+            const float x0 = line_x + decoration_segment.m_X - cached_first_x;
             FontDecorationPattern pattern;
             FontGetDecorationPattern(decoration, decoration_segment, &pattern);
             FontGlyphLayerRenderData layer_data;
@@ -1300,7 +1300,7 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
 
     if (emitted_decorations < metrics.m_DecorationQuadCount)
     {
-        const uint32_t   missing_vertex_count = (metrics.m_DecorationQuadCount - emitted_decorations) * 6;
+        const uint32_t missing_vertex_count = (metrics.m_DecorationQuadCount - emitted_decorations) * 6;
         FontGlyphVertex* missing = vertices + decoration_vertex_index + emitted_decorations * 6;
         memset(missing, 0, missing_vertex_count * sizeof(FontGlyphVertex));
     }
