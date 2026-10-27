@@ -490,6 +490,9 @@ namespace dmGameSystem
         if (response.m_Hit)
         {
             dmPhysicsDDF::RayCastResponse response_ddf;
+            // DDF serializes the fourth float of Point3/Vector3 too; their
+            // scalar assignment operators only write the three coordinates.
+            memset(&response_ddf, 0, sizeof(response_ddf));
             CollisionComponent* component = (CollisionComponent*)response.m_CollisionObjectUserData;
 
             response_ddf.m_Fraction = response.m_Fraction;
