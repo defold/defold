@@ -412,8 +412,9 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
       WORKING_DIRECTORY "${FONT_ROOT}"
       ${_font_test_run_options})
     # Match the existing font graphics tests: local desktops and Linux CI
-    # with its configured display.
-    if(NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$")
+    # with its configured display. MSan also needs instrumented system X11
+    # and OpenGL libraries; keep this GPU test available as a manual target.
+    if(NOT WITH_MSAN AND (NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$"))
       if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
         defold_add_to_run_tests(run_test_fontviewer_color RUN_GROUP font
           COMMAND ${_fontviewer_test_command} WORKING_DIRECTORY "${FONT_ROOT}" DEPENDS fontviewer)
